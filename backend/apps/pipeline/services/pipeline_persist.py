@@ -253,7 +253,7 @@ def _build_suggestion_records(
     try:
         conformal_snapshot = load_conformal_snapshot()
     except Exception:
-        pass
+        pass  # cold start: no snapshot yet, leave as None
 
     # Pick #28 — build CollectionStatistics ONCE from the existing
     # KeywordBaseline (same corpus walk that powers the keyword-

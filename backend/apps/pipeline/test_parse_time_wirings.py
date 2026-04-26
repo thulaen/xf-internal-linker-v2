@@ -212,7 +212,7 @@ class CrawlerTrafilaturaWiringTests(SimpleTestCase):
             try:
                 site_crawler._parse_html(self._html(), meta, "https://x/y")
             except Exception:
-                pass
+                pass  # test stub may not have full DI; assertions follow
 
         # BeautifulSoup path strips nav/footer/header. The "actual
         # article text" survives; "navigation menu items" does not.

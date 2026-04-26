@@ -216,7 +216,7 @@ def _read_setting_override() -> str:
         if row and row.value:
             return str(row.value).strip().lower()
     except Exception:
-        pass
+        pass  # AppSetting unavailable; return empty (no override)
     return ""
 
 

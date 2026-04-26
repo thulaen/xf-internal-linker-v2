@@ -79,7 +79,7 @@ def _trip_breaker_cycle(breaker, n):
         try:
             breaker.call(raising)
         except Exception:
-            pass
+            pass  # benchmark intentionally exercises the failure path
 
 
 def test_bench_circuit_breaker_small(benchmark):

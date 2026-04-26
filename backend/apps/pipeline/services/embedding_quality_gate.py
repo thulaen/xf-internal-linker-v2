@@ -175,7 +175,7 @@ def load_gate_thresholds() -> tuple[float, float, float]:
             if row and row.value not in ("", None):
                 return float(row.value)
         except Exception:
-            pass
+            pass  # AppSetting unavailable / unparseable; use fallback
         return fallback
 
     return (
@@ -193,7 +193,7 @@ def is_gate_enabled() -> bool:
         if row and str(row.value).lower() in ("false", "0", "no", "off"):
             return False
     except Exception:
-        pass
+        pass  # AppSetting unavailable; default to enabled
     return True
 
 

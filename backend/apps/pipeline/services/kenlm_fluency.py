@@ -243,7 +243,7 @@ def fit_arpa_with_lmplz(
         try:
             os.remove(output_arpa_path)
         except OSError:
-            pass
+            pass  # file may not exist yet; cleanup is best-effort
         return False
 
     if result.returncode != 0:
@@ -255,7 +255,7 @@ def fit_arpa_with_lmplz(
         try:
             os.remove(output_arpa_path)
         except OSError:
-            pass
+            pass  # file may not exist yet; cleanup is best-effort
         return False
 
     # Reset the inference cache so the next score_fluency picks up

@@ -128,5 +128,5 @@ def _discover_providers() -> list[str]:
             # key is not for that service.
             providers.extend(["openai", "gemini"])
     except Exception:
-        pass
+        pass  # AppSetting unavailable; fall back to local-only providers
     return providers

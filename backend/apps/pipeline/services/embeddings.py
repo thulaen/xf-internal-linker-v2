@@ -762,7 +762,7 @@ def _get_configured_batch_size() -> int:
                 int(getattr(provider, "dimension", EMBEDDING_DIM)) or EMBEDDING_DIM
             )
         except Exception:
-            pass
+            pass  # provider unresolvable; keep EMBEDDING_DIM default
         auto_batch = recommended_batch_size(dimension=dimension, profile=prof)
         if _BATCH_SIZE_MIN <= auto_batch <= _BATCH_SIZE_MAX:
             return auto_batch

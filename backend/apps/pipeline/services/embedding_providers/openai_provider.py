@@ -149,7 +149,7 @@ class OpenAIProvider:
         try:
             timeout = float(self._read_setting("embedding.timeout_seconds", "30"))
         except ValueError:
-            pass
+            pass  # malformed AppSetting; keep the 30s default
         self._client = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
         return self._client
 

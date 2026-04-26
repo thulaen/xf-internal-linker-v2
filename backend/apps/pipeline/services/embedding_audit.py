@@ -192,7 +192,7 @@ def is_audit_enabled() -> bool:
         if row and str(row.value).lower() in ("false", "0", "no", "off"):
             return False
     except Exception:
-        pass
+        pass  # AppSetting unavailable; default to enabled
     return True
 
 
@@ -205,7 +205,7 @@ def get_last_run_at():
         if row and row.value:
             return parse_datetime(str(row.value))
     except Exception:
-        pass
+        pass  # AppSetting unavailable; treat as never-run
     return None
 
 
@@ -232,7 +232,7 @@ def get_thresholds() -> tuple[float, float, int]:
             if row and row.value not in (None, ""):
                 return float(row.value)
         except Exception:
-            pass
+            pass  # AppSetting unavailable / unparseable; use fallback
         return fallback
 
     def _i(key: str, fallback: int) -> int:
@@ -243,7 +243,7 @@ def get_thresholds() -> tuple[float, float, int]:
             if row and row.value not in (None, ""):
                 return int(row.value)
         except Exception:
-            pass
+            pass  # AppSetting unavailable / unparseable; use fallback
         return fallback
 
     return (

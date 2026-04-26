@@ -249,7 +249,7 @@ def generic_score(
         if not is_enabled(KEY_GENERIC_ENABLED, default=True):
             return GenericMatchResult(False, (), 0.0)
     except Exception:
-        pass
+        pass  # runtime_flags unavailable; fall through with feature enabled
     needle = anchor.lower().strip()
     phrases, automaton = _compiled_lexicon(lexicon_path)
     if not phrases:
@@ -344,7 +344,7 @@ def descriptiveness_score(
         if not is_enabled(KEY_DESCR_ENABLED, default=True):
             return DescriptivenessResult(1.0, 0.0, 0.0)
     except Exception:
-        pass
+        pass  # runtime_flags unavailable; fall through with feature enabled
 
     a = anchor.lower().strip()
     title = (destination_title or "").lower().strip()
@@ -480,7 +480,7 @@ def self_information_score(
         if not is_enabled(KEY_SELF_INFO_ENABLED, default=True):
             return SelfInformationResult(0.0, 0.0, False, 0.0)
     except Exception:
-        pass
+        pass  # runtime_flags unavailable; fall through with feature enabled
 
     entropy = _bigram_entropy(anchor.lower())
 
