@@ -115,10 +115,20 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # Runtime command — kept lean on purpose. `pip install -r
+    # requirements.txt` and the drf_spectacular import probe used to live
+    # here, but the Dockerfile already does both at build time
+    # (backend/Dockerfile:62-63), so re-running them at every container
+    # start was dead weight. Worse, on a freshly-booted laptop the
+    # network may not yet be up — `pip install` would fail, the
+    # container would exit, `restart: always` would loop forever, and
+    # Docker Desktop's startup spinner would never settle. Removed
+    # 2026-04-26. The build_ext step stays because the bind mount of
+    # ./backend → /app hides the image-baked .so files, so they must
+    # live in the host directory too; setuptools mtime-checks make this
+    # a near-instant no-op when sources are unchanged.
     command: >
-      sh -c "pip install --no-cache-dir -r requirements.txt &&
-             python -c 'import drf_spectacular' &&
-             (cd extensions && python setup.py build_ext --inplace) &&
+      sh -c "(cd extensions && python setup.py build_ext --inplace) &&
              until python manage.py migrate --noinput; do
                echo 'Postgres is not ready yet. Waiting 5 seconds...';
                sleep 5;

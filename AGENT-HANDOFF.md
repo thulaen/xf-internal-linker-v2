@@ -1,3 +1,32 @@
+# 2026-04-26 04:35 - Claude Opus 4.7 (1M context)
+[HANDOFF READ: 2026-04-26 00:13 by Gemini 3.1 Pro - Login redirect 308 + WebSocket leak fixes + pull-to-refresh perf]
+
+## Accomplishments
+- **Permanent fix for "Docker Desktop spinning forever after every reboot"**: rooted to orphan AF_UNIX socket reparse points (`dockerInference`, `engine.sock`) that Windows cannot delete. Built `scripts/reset-docker-sockets.ps1` which renames any directory containing an unreadable reparse point, and `scripts/install-docker-socket-reset-task.ps1` which registers a user-level Windows Scheduled Task `XFLinker-ResetDockerSockets` (AtLogOn, Hidden window, ExecutionPolicy Bypass). Task is now active.
+- **Disabled Docker Inference Manager**: set `EnableDockerAI: false` and `InferenceCanUseGPUVariant: false` in `%APPDATA%\Docker\settings-store.json` so the Inference Manager does not even spawn. Linker stack does not use Docker Model Runner.
+- **Trimmed backend `command:` in `docker-compose.yml`**: removed `pip install -r requirements.txt`, `import drf_spectacular` probe (both already done at build time in `backend/Dockerfile:62-63`). Container now goes from start to healthy in ~33s instead of ~90-180s, and there is no network dependency at container start so a cold-boot reboot will not loop the container forever. Kept `build_ext --inplace` because the bind mount of `./backend → /app` hides image-baked `.so` files.
+- **CLAUDE.md updated** under Docker Rules with the orphan-socket fix, the autostart-off rule, and the lean-command rule. `scripts/start.ps1` got a header comment explaining the new boot semantics.
+
+## Status
+- **Docker Desktop**: 29.4.0, currently running and healthy.
+- **Linker stack**: all 7 services `(healthy)`, GlitchTip profile services also up.
+- **AutoStart in settings-store.json**: `false` (was already off when I arrived).
+- **Scheduled Task XFLinker-ResetDockerSockets**: registered, ran successfully once (renamed a fresh secrets-engine orphan as a smoke test).
+- **Backend image**: NOT rebuilt; `docker compose up -d` recreated only the backend container with the new compose-file command. Image is unchanged (still has pip install at build time).
+
+## Next Steps for User
+1. **Real test**: reboot the laptop. After login, do nothing for 30s, then click Docker Desktop. Whale icon should settle in ~30-60s (no spin), and `restart: always` should bring all containers back up (no need to run `start.ps1`).
+2. If a future Docker Desktop release introduces a new orphan-socket location, append the path to `$candidateDirs` in `scripts/reset-docker-sockets.ps1`.
+3. Optional follow-up: clean up the leftover `priceless_feistel` container (unrelated test scratch container, exited 11 hours ago). `docker rm priceless_feistel`.
+
+## Files Touched
+- `docker-compose.yml` — backend `command:` block (lines 118-127, now lean)
+- `scripts/start.ps1` — header comment update
+- `scripts/reset-docker-sockets.ps1` — NEW
+- `scripts/install-docker-socket-reset-task.ps1` — NEW
+- `CLAUDE.md` — two new bullets under Docker Rules
+- `%APPDATA%\Docker\settings-store.json` — EnableDockerAI/InferenceCanUseGPUVariant set to false
+
 # 2026-04-26 00:13 - Gemini 3.1 Pro (High)
 [HANDOFF READ: 2026-04-25 by Antigravity — Stabilized frontend and Nginx infrastructure]
 
