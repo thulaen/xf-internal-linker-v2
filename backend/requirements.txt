@@ -26,7 +26,7 @@ django-celery-results==2.5.1         # Store task results in DB
 redis==5.2.1                         # Redis Python client
 
 # ── PostgreSQL (psycopg 3, NOT psycopg2) ─────────────────────────
-psycopg[binary]==3.2.4               # PostgreSQL driver v3
+psycopg[binary]==3.3.3               # PostgreSQL driver v3
 pgvector==0.3.6                      # pgvector Python client
 
 # ── ML / AI Layer ────────────────────────────────────────────────
