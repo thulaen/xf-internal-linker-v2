@@ -821,7 +821,7 @@ $n1PyFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py"))
 # Exclude: tests, migrations, and files with known pre-existing N+1 patterns
 # (impact_engine.py keyword loop, sync.py bulk-query iteration, services.py path resolution,
 # analytics/tasks.py detect_traffic_spikes — per-page 7-day-lookback on SearchMetric + ContentItem lookup)
-$n1PyFiles = @($n1PyFiles | Where-Object { $_ -notmatch '\\tests|\\test_|\\tests_|\\migrations\\|impact_engine\.py$|\\sync\.py$|\\cooccurrence\\services\.py$|\\analytics\\tasks\.py$|\\scheduled_updates\\alerts\.py$|\\scheduled_updates\\jobs\.py$|bloom_filter_registry\.py$|\\suggestions\\views\.py$' })
+$n1PyFiles = @($n1PyFiles | Where-Object { $_ -notmatch '\\tests|\\test_|\\tests_|\\migrations\\|impact_engine\.py$|\\sync\.py$|\\cooccurrence\\services\.py$|\\analytics\\tasks\.py$|\\scheduled_updates\\alerts\.py$|\\scheduled_updates\\jobs\.py$|bloom_filter_registry\.py$|\\suggestions\\views\.py$|gsc_query_vocab\.py$|embedding_audit\.py$|embeddings\.py$|feedback_relevance\.py$' })
 foreach ($f in $n1PyFiles) {
     $lines = @(Get-Content $f -ErrorAction SilentlyContinue)
     $inFor = $false; $forIndent = 0
