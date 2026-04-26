@@ -1802,3 +1802,102 @@ def run_daily_data_retention(job, checkpoint) -> None:
         checkpoint(progress_pct=float(pct), message=str(message))
 
     nightly_data_retention(progress_callback=_bridge)
+
+
+# ────────────────────────────────────────────────────────────────────
+# PR-Anchor — corpus-stats refresh for Algo 3 (Iglewicz-Hoaglin
+# modified z-score). Recomputes the median + MAD of character-bigram
+# entropy across recent anchor texts so the modified z-score stays
+# calibrated as the corpus grows / drifts. Runs weekly inside the
+# 11am-23pm window. Cold-start safe — when no Suggestion rows have
+# anchor_phrase set yet, the job no-ops and the defaults from
+# migration 0047 stay active.
+# ────────────────────────────────────────────────────────────────────
+
+
+@scheduled_job(
+    "anchor_self_information_corpus_stats_refresh",
+    display_name="Anchor self-information corpus stats refresh",
+    cadence_seconds=WEEK,
+    estimate_seconds=5 * 60,
+    priority=JOB_PRIORITY_LOW,
+)
+def run_anchor_self_information_corpus_stats_refresh(job, checkpoint) -> None:
+    """Refit the corpus-wide median + MAD of character-bigram entropy.
+
+    Reads up to ~50k recent anchor texts from approved Suggestions,
+    computes Shannon bigram entropy per anchor, persists the median
+    and MAD to AppSetting so the dispatcher's Iglewicz-Hoaglin
+    modified z-score uses fresh corpus norms instead of the
+    sensible-English defaults.
+
+    Cold-start safe: if there are fewer than 30 approved Suggestions
+    with anchor text, the W1 job logs and exits. The Iglewicz-Hoaglin
+    1993 §3.2 minimum-sample-size guidance is N ≥ 30 for stable
+    median/MAD estimates.
+    """
+    from apps.core.models import AppSetting
+    from apps.pipeline.services.anchor_garbage_signals import (
+        KEY_CORPUS_ENTROPY_MAD,
+        KEY_CORPUS_ENTROPY_MEDIAN,
+        _bigram_entropy,
+    )
+    from apps.suggestions.models import Suggestion
+
+    checkpoint(progress_pct=10.0, message="Loading recent anchor texts")
+    rows = list(
+        Suggestion.objects.filter(
+            status__in=("approved", "applied", "verified"),
+        )
+        .order_by("-updated_at")
+        .values_list("anchor_phrase", flat=True)[:50_000]
+    )
+    anchors = [a for a in rows if a]
+    if len(anchors) < 30:
+        checkpoint(
+            progress_pct=100.0,
+            message=(
+                f"Only {len(anchors)} approved anchors — using "
+                "sensible-English defaults until ≥ 30 are available."
+            ),
+        )
+        return
+
+    checkpoint(
+        progress_pct=40.0,
+        message=f"Computing bigram entropy across {len(anchors)} anchors",
+    )
+    entropies = sorted(_bigram_entropy(a.lower()) for a in anchors)
+    n = len(entropies)
+    median = entropies[n // 2] if n % 2 else (entropies[n // 2 - 1] + entropies[n // 2]) / 2.0
+    abs_dev = sorted(abs(e - median) for e in entropies)
+    mad = abs_dev[n // 2] if n % 2 else (abs_dev[n // 2 - 1] + abs_dev[n // 2]) / 2.0
+
+    checkpoint(
+        progress_pct=80.0,
+        message=f"Persisting median={median:.3f} mad={mad:.3f}",
+    )
+    AppSetting.objects.update_or_create(
+        key=KEY_CORPUS_ENTROPY_MEDIAN,
+        defaults={
+            "value": f"{median:.6f}",
+            "description": (
+                "PR-Anchor Algo 3 corpus median of character-bigram "
+                "entropy across approved anchors. Refit weekly."
+            ),
+        },
+    )
+    AppSetting.objects.update_or_create(
+        key=KEY_CORPUS_ENTROPY_MAD,
+        defaults={
+            "value": f"{mad:.6f}",
+            "description": (
+                "PR-Anchor Algo 3 corpus MAD of character-bigram entropy "
+                "across approved anchors. Refit weekly."
+            ),
+        },
+    )
+    checkpoint(
+        progress_pct=100.0,
+        message=f"Stats refreshed: N={n}, median={median:.3f}, MAD={mad:.3f}",
+    )

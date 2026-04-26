@@ -450,6 +450,7 @@ def score_destination_matches(
     fr099_fr105_settings: object = None,
     graph_signal_ranker: GraphSignalRanker | None = None,
     phase6_contribution: object = None,
+    anchor_garbage_dispatcher: object = None,
     min_sentence_chars: int = _DEFAULT_MIN_SENTENCE_CHARS,
     max_sentence_chars: int = _DEFAULT_MAX_SENTENCE_CHARS,
     min_host_chars: int = _DEFAULT_MIN_HOST_CHARS,
@@ -841,6 +842,46 @@ def score_destination_matches(
             except Exception as exc:  # pragma: no cover — defensive
                 logger.warning(
                     "phase6_contribution.contribute_total raised: %s",
+                    exc,
+                )
+
+        # PR-Anchor — anti-generic / pro-descriptive anchor signals.
+        # Three composable algos via apps.pipeline.services.
+        # anchor_garbage_signals: Aho-Corasick blacklist (Aho 1975
+        # CACM), Damerau-Levenshtein + char-trigram Jaccard
+        # (Damerau 1964 + Broder 1997), and Shannon bigram entropy
+        # + Iglewicz-Hoaglin modified z-score (Shannon 1948 + IH
+        # 1993). Cold-start safe: when the dispatcher is None,
+        # contribution is exactly 0.0.
+        if anchor_garbage_dispatcher is not None:
+            try:
+                anchor_text = phrase_match.anchor_phrase or ""
+                dest_title_for_anchor = (
+                    getattr(destination, "title", "") or ""
+                )
+                # URL slug: parse from the destination's URL when
+                # available; defaults to "" so the descriptiveness
+                # algorithm short-circuits the slug check.
+                dest_url = getattr(destination, "url", "") or ""
+                dest_slug = ""
+                if dest_url:
+                    # Slug is the last non-empty segment of the URL
+                    # path. Cheap; no urllib.parse import on the hot
+                    # path.
+                    for segment in reversed(dest_url.rstrip("/").split("/")):
+                        if segment:
+                            dest_slug = segment
+                            break
+                score_final += float(
+                    anchor_garbage_dispatcher.contribution(
+                        anchor_text,
+                        dest_title_for_anchor,
+                        dest_slug,
+                    )
+                )
+            except Exception as exc:  # pragma: no cover — defensive
+                logger.warning(
+                    "anchor_garbage_dispatcher.contribution raised: %s",
                     exc,
                 )
 

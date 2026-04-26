@@ -343,6 +343,7 @@ def _score_all_destinations(
     fr099_fr105_caches: Any = None,
     graph_signal_ranker: GraphSignalRanker | None = None,
     phase6_contribution: Any = None,
+    anchor_garbage_dispatcher: Any = None,
 ) -> tuple[dict[ContentKey, list[ScoredCandidate]], list[tuple]]:
     """Score every destination through Stage 2 + Stage 3, with reranking."""
     candidates_by_destination: dict[ContentKey, list[ScoredCandidate]] = {}
@@ -368,6 +369,7 @@ def _score_all_destinations(
             fr099_fr105_caches=fr099_fr105_caches,
             graph_signal_ranker=graph_signal_ranker,
             phase6_contribution=phase6_contribution,
+            anchor_garbage_dispatcher=anchor_garbage_dispatcher,
         )
 
         if dest_idx % _SCORING_PROGRESS_INTERVAL == 0 and dest_idx > 0:
@@ -397,6 +399,7 @@ def _score_single_destination(
     fr099_fr105_caches: Any = None,
     graph_signal_ranker: GraphSignalRanker | None = None,
     phase6_contribution: Any = None,
+    anchor_garbage_dispatcher: Any = None,
 ) -> None:
     """Score a single destination through Stage 2 + Stage 3."""
     destination = content_records[dest_key]
@@ -454,6 +457,7 @@ def _score_single_destination(
         fr099_fr105_settings=settings.get("fr099_fr105"),
         graph_signal_ranker=graph_signal_ranker,
         phase6_contribution=phase6_contribution,
+        anchor_garbage_dispatcher=anchor_garbage_dispatcher,
     )
 
     _collect_destination_result(

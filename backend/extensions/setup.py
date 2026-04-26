@@ -83,6 +83,31 @@ ext_modules = [
         if sys.platform != "win32"
         else ["/O2", "/std:c++17"],
     ),
+    # ── Anti-garbage anchor signals (3 algos, plan PR-Anchor) ─────
+    # Each sits in its own extension per the one-kernel-per-.cpp
+    # pattern. All three are tiny — well under the 64 MB RAM /
+    # 64 MB disk caps the plan called for.
+    Pybind11Extension(
+        "generic_anchor_matcher",
+        ["generic_anchor_matcher.cpp"],
+        extra_compile_args=["-O3", "-std=c++17"]
+        if sys.platform != "win32"
+        else ["/O2", "/std:c++17"],
+    ),
+    Pybind11Extension(
+        "anchor_descriptiveness",
+        ["anchor_descriptiveness.cpp"],
+        extra_compile_args=["-O3", "-std=c++17"]
+        if sys.platform != "win32"
+        else ["/O2", "/std:c++17"],
+    ),
+    Pybind11Extension(
+        "anchor_self_information",
+        ["anchor_self_information.cpp"],
+        extra_compile_args=["-O3", "-std=c++17", "-march=native"]
+        if sys.platform != "win32"
+        else ["/O2", "/std:c++17", "/arch:AVX2"],
+    ),
 ]
 
 setup(

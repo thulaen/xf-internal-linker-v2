@@ -1,0 +1,148 @@
+# Generic anchor lexicon — phrases that operators routinely flag as
+# "click here" / SEO-template noise. Used by
+# ``apps/pipeline/services/anchor_garbage_signals.py`` to penalise
+# anchors that match any line. One phrase per line; lower-case;
+# blank lines + ``#`` comments ignored.
+#
+# Sources:
+# - Nielsen Norman Group (2012). "Beyond Blue Links: Making Clickable
+#   Elements Recognizable" — link-text quality guidance.
+# - W3C WCAG 2.1 §2.4.4 "Link Purpose (In Context)" — accessibility
+#   guidance against generic link text.
+# - 2024 Google Quality Rater Guidelines §5.3 — explicit
+#   "click here" / "read more" examples cited as low-quality anchors.
+#
+# Curated list of ~120 phrases. Operators add more via
+# ``AppSetting["generic_anchor_matcher.extra_phrases"]`` (one per
+# line, same format).
+
+# ── ELI5 generic ───────────────────────────────────────────────
+click here
+click this
+click this link
+click here for more
+click here to read
+click here to learn
+click here to find out
+click for more
+click for details
+click for more info
+read more
+read more here
+read this
+read more about
+read on
+learn more
+learn more here
+learn more about
+find out
+find out more
+find out here
+find out how
+see more
+see here
+see this
+see this link
+see this article
+see details
+see what
+see for yourself
+view more
+view here
+view this
+view details
+view full
+visit
+visit here
+visit this
+visit this site
+visit this page
+go here
+go to
+follow this
+follow this link
+follow link
+follow the link
+
+# ── Vague pronouns / adjectives ────────────────────────────────
+this
+this article
+this post
+this page
+this link
+this site
+this one
+that
+that article
+that post
+this thing
+the thing
+
+here
+right here
+over here
+
+more
+more info
+more here
+more information
+more details
+more about
+more on
+even more
+
+it
+this
+something
+anything
+
+# ── Generic CTA verbs ─────────────────────────────────────────
+buy now
+download
+download now
+download here
+get started
+get it now
+get more
+get this
+get the
+sign up
+register
+join now
+join here
+subscribe
+try it
+try now
+try this
+try free
+free trial
+add to cart
+
+# ── SEO-template stuffers ─────────────────────────────────────
+the best
+the ultimate
+the complete
+ultimate guide
+complete guide
+best of
+top
+top picks
+top rated
+new
+latest
+latest news
+official
+official site
+official page
+
+# ── Accessibility noise ───────────────────────────────────────
+empty link
+no text
+untitled link
+
+# ── Punctuation-only / single character (caught by self-info too) ──
+. . .
+?
+!
+&
+*

@@ -343,6 +343,60 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     # six paper-backed signals contribute on a fresh install.
     # ────────────────────────────────────────────────────────────────
     "phase6_ranker.enabled": "true",
+
+    # ════════════════════════════════════════════════════════════════
+    # PR-Anchor — anti-generic / pro-descriptive anchor signals.
+    # Three composable algorithms feeding one additive contribution
+    # to ``score_final`` per candidate. Cold-start byte-stable —
+    # contribution is exactly 0.0 until the dispatcher's
+    # ``ranking_weight`` is non-zero AND at least one of the three
+    # algos returns a non-neutral value. See
+    # apps/pipeline/services/anchor_garbage_signals.py for the math.
+    # ════════════════════════════════════════════════════════════════
+
+    # Master toggle — operator killswitch for the entire dispatcher.
+    "anchor_garbage_signals.enabled": "true",
+    # Dispatcher ranking weight. ``0.05`` matches the VADER / KenLM /
+    # Node2Vec / BPR baselines from Phase 6 (paper-backed-small);
+    # bounds the per-candidate contribution to ~ ±0.05 even when all
+    # three algos saturate. Operator can raise this if anchor quality
+    # becomes a bigger concern; lowering to 0.0 disables without
+    # touching individual algo flags.
+    "anchor_garbage_signals.ranking_weight": "0.05",
+
+    # ── Algo 1 — Aho-Corasick generic-anchor blacklist ───────────
+    # Aho & Corasick (1975) CACM. Curated lexicon of ~120 generic
+    # phrases ships at apps/sources/generic_anchors.txt; operators
+    # add more via ``generic_anchor_matcher.extra_phrases``
+    # (newline-separated). The matcher returns a [0, 1] genericness
+    # ratio; the dispatcher subtracts it from ``score_final``.
+    "generic_anchor_matcher.enabled": "true",
+    "generic_anchor_matcher.lexicon_path": "",  # "" → use default path
+    "generic_anchor_matcher.extra_phrases": "",  # newline-separated
+
+    # ── Algo 2 — Damerau-Levenshtein + char-trigram Jaccard ──────
+    # Damerau (1964) CACM + Broder (1997) SEQUENCES. Two
+    # complementary string-similarity signals weighted equally
+    # by default. Edit-distance vs URL slug penalises manufactured
+    # exact-match SEO anchors; Jaccard with the destination title
+    # rewards literal lexical overlap robust to morphology.
+    "anchor_descriptiveness.enabled": "true",
+    "anchor_descriptiveness.edit_distance_weight": "0.5",
+    "anchor_descriptiveness.jaccard_weight": "0.5",
+
+    # ── Algo 3 — Shannon entropy + Iglewicz-Hoaglin modified z ───
+    # Shannon (1948) Bell Sys. Tech. J. + Iglewicz-Hoaglin (1993)
+    # ASTM. Detects template-y (low entropy) and adversarial
+    # (high entropy) anchors via outlier statistics on character-
+    # bigram entropy. ``modified_z_threshold = 3.5`` is Iglewicz-
+    # Hoaglin §3 recommended outlier cutoff. Corpus median + MAD
+    # are refit weekly by the W1
+    # ``anchor_self_information_corpus_stats_refresh`` job; until
+    # then defaults are sensible English-text norms.
+    "anchor_self_information.enabled": "true",
+    "anchor_self_information.modified_z_threshold": "3.5",
+    "anchor_self_information.corpus_entropy_median": "4.0",
+    "anchor_self_information.corpus_entropy_mad": "0.5",
 }
 
 # Merge forward-declared FR keys into the main dict.

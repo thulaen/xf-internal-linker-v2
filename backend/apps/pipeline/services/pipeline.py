@@ -237,6 +237,16 @@ def _execute_pipeline_stages(
         enabled_global=phase6_killswitch,
     )
 
+    # PR-Anchor — anti-generic / pro-descriptive anchor signals.
+    # Three composable algos (Aho-Corasick blacklist + Damerau-
+    # Levenshtein/Jaccard descriptiveness + Shannon-entropy /
+    # Iglewicz-Hoaglin outlier detection). build_* returns None when
+    # the master toggle is off or ranking_weight = 0, so the ranker
+    # short-circuits cleanly.
+    from .anchor_garbage_signals import build_anchor_garbage_signals
+
+    anchor_garbage_dispatcher = build_anchor_garbage_signals()
+
     scoring_kwargs = dict(
         destination_keys=data["destination_keys"],
         dest_embeddings=data["dest_embeddings"],
@@ -255,6 +265,7 @@ def _execute_pipeline_stages(
         fr099_fr105_caches=data.get("fr099_fr105_caches"),
         graph_signal_ranker=graph_signal_ranker,
         phase6_contribution=phase6_contribution,
+        anchor_garbage_dispatcher=anchor_garbage_dispatcher,
     )
     candidates_by_destination, diagnostics = _score_all_destinations(**scoring_kwargs)
 
