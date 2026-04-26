@@ -233,7 +233,51 @@ $baselineLongFiles = @(
     'silo-settings.service.ts',          # FR-005 + FR-020 silo + runtime service — 826 lines; candidate for silo-only and runtime-only service split
     'schedule-widget.component.ts',      # dashboard schedule widget — `nextFireMinutesFromNow` is ~201 lines of per-task cron math; pre-existing, candidate for extraction into a cron-eval helper
     'graph.component.ts',                # graph page — 674 lines, 8+ tab modes + d3 network viz interactions; candidate for per-tab component extraction
-    'suggestion-detail-dialog.component.ts' # review dialog — 538 lines of per-signal explanation/formatting helpers; candidate for extraction into suggestion-explainer pipe/service
+    'suggestion-detail-dialog.component.ts', # review dialog — 538 lines of per-signal explanation/formatting helpers; candidate for extraction into suggestion-explainer pipe/service
+    # ── Added 2026-04-26 (C# decommission cleanup push) — pre-existing
+    # 80-line-cap violations surfaced by the diff-scoped lint when a
+    # whole-repo ruff format pass touched these files. None were
+    # introduced by the auto-tuner / decommission slice; each candidate
+    # for refactor is documented below for future split work.
+    'jobs.py',                           # scheduled_updates/jobs.py — 6 run_* job functions 83-139 lines (kenlm_retrain, lda_topic_refresh, node2vec_walks, factorization_machines_refit, bpr_refit, anchor_self_information_corpus_stats_refresh, _coerce_float). Per-job extraction.
+    'runner.py',                         # scheduled_updates/runner.py — `_execute_job` 94 lines; candidate for per-stage helper split.
+    'pipeline.py',                       # pipeline/services/pipeline.py — `_execute_pipeline_stages` 116 lines; candidate for per-stage extraction.
+    'pipeline_persist.py',               # pipeline/services/pipeline_persist.py — `_persist_suggestions` 90 lines, `_build_suggestion_records` 229 lines; candidate for per-signal builder extraction.
+    'site_crawler.py',                   # crawler/services/site_crawler.py — `_execute_crawl_session` 270 lines, `_parse_html` 127 lines; candidate for per-phase extraction.
+    'meta_hpo.py',                       # pipeline/services/meta_hpo.py — `_optuna_heartbeat` 99 lines; candidate for per-phase callback split.
+    'meta_hpo_search_spaces.py',         # pipeline/services/meta_hpo_search_spaces.py — `is_fr099_fr105_tpe_eligible` 230 lines of switch-style routing; candidate for per-FR table.
+    'phase6_ranker_contribution.py',     # pipeline/services/phase6_ranker_contribution.py — `_cosine_dense` 85 lines; just above cap.
+    'fr099_fr105_signals.py',            # pipeline/services/fr099_fr105_signals.py — `evaluate_all_fr099_fr105` 106 lines (7 sub-evaluations chained); candidate for per-FR delegation.
+    'bridge_edge_redundancy.py',         # FR-103 — `evaluate_berp` 99 lines.
+    'dangling_authority_redistribution.py', # FR-099 — `evaluate_darb` 101 lines.
+    'host_topic_entropy.py',             # FR-104 — `evaluate_hgte` 118 lines.
+    'katz_marginal_info.py',             # FR-100 — `evaluate_kmig` 92 lines.
+    'kcore_integration.py',              # FR-102 — `evaluate_kcib` 89 lines.
+    'search_query_alignment.py',         # FR-105 — `evaluate_rsqva` 106 lines.
+    'entity_salience.py',                # pipeline/services/entity_salience.py — `rank_entities` 119 lines.
+    'gsc_query_vocab.py',                # analytics/gsc_query_vocab.py — `_progress` (incl nested setup) 168 lines.
+    'kenlm_fluency.py',                  # pipeline/services/kenlm_fluency.py — `fit_arpa_with_lmplz` 93 lines (subprocess + sanity checks).
+    'embedding_bakeoff.py',              # pipeline/services/embedding_bakeoff.py — `_embed` 131 lines.
+    'embedding_views.py',                # api/embedding_views.py — `embedding_status` 90 lines.
+    'gemini_provider.py',                # pipeline/services/embedding_providers/gemini_provider.py — `embed` 82 lines.
+    'openai_provider.py',                # pipeline/services/embedding_providers/openai_provider.py — `embed` 89 lines.
+    'graph_csr_utils.py',                # pipeline/services/graph_csr_utils.py — `nx_digraph_to_csr` 109 lines.
+    'hits.py',                           # pipeline/services/hits.py — `compute` 86 lines.
+    'personalized_pagerank.py',          # pipeline/services/personalized_pagerank.py — `compute` 102 lines.
+    'trustrank_auto_seeder.py',          # pipeline/services/trustrank_auto_seeder.py — `pick_seeds` 99 lines.
+    'shap_explainer.py',                 # pipeline/services/shap_explainer.py — `explain` 86 lines.
+    'cascade_click_em_producer.py',      # pipeline/services/cascade_click_em_producer.py — `fit_and_persist_from_impressions` 171 lines.
+    'elo_rating_producer.py',            # pipeline/services/elo_rating_producer.py — `fit_and_persist_from_history` 97 lines.
+    'factorization_machines.py',         # pipeline/services/factorization_machines.py — `fit_and_save` 93 lines.
+    'position_bias_ips_producer.py',     # pipeline/services/position_bias_ips_producer.py — `fit_and_persist_from_impressions` 112 lines.
+    'product_quantization_producer.py',  # pipeline/services/product_quantization_producer.py — `_progress` 98 lines.
+    'adaptive_conformal_producer.py',    # pipeline/services/adaptive_conformal_producer.py — `update_alpha_from_recent_outcomes` 96 lines.
+    'async_http.py',                     # pipeline/services/async_http.py — `fetch` 130 lines (HTTP client + retry + breaker glue).
+    'tasks_embedding_audit.py',          # pipeline/tasks_embedding_audit.py — `embedding_accuracy_audit` 81 lines (just above cap).
+    'tasks_embedding_bakeoff.py',        # pipeline/tasks_embedding_bakeoff.py — `embedding_provider_bakeoff` 86 lines.
+    'tasks_import_helpers.py',           # pipeline/tasks_import_helpers.py — `_persist_content_body` 159 lines.
+    'test_phase6_ltr.py',                # pipeline/test_phase6_ltr.py — fixture-heavy test exceeds cap.
+    '0010_bge_m3_embedding_dim_1024.py'  # pipeline migration — backfill function ~84 lines (one-shot data migration; refactor not warranted).
 )
 
 # ── 8.  Cross-language debug artifact purge ──────────────────────────
