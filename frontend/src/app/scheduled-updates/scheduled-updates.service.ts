@@ -10,8 +10,8 @@
 
 import { inject, Injectable, OnDestroy } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { BehaviorSubject, Observable, Subscription } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { BehaviorSubject, Observable, Subscription, throwError } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 
 import { RealtimeService } from '../core/services/realtime.service';
 import { TopicUpdate } from '../core/services/realtime.types';
@@ -132,23 +132,33 @@ export class ScheduledUpdatesService implements OnDestroy {
   }
 
   getJob(id: number): Observable<ScheduledJob> {
-    return this.http.get<ScheduledJob>(`${this.apiBase}/jobs/${id}/`);
+    return this.http
+      .get<ScheduledJob>(`${this.apiBase}/jobs/${id}/`)
+      .pipe(catchError((err) => throwError(() => err)));
   }
 
   pauseJob(id: number): Observable<ScheduledJob> {
-    return this.http.post<ScheduledJob>(`${this.apiBase}/jobs/${id}/pause/`, {});
+    return this.http
+      .post<ScheduledJob>(`${this.apiBase}/jobs/${id}/pause/`, {})
+      .pipe(catchError((err) => throwError(() => err)));
   }
 
   resumeJob(id: number): Observable<ScheduledJob> {
-    return this.http.post<ScheduledJob>(`${this.apiBase}/jobs/${id}/resume/`, {});
+    return this.http
+      .post<ScheduledJob>(`${this.apiBase}/jobs/${id}/resume/`, {})
+      .pipe(catchError((err) => throwError(() => err)));
   }
 
   cancelJob(id: number): Observable<ScheduledJob> {
-    return this.http.post<ScheduledJob>(`${this.apiBase}/jobs/${id}/cancel/`, {});
+    return this.http
+      .post<ScheduledJob>(`${this.apiBase}/jobs/${id}/cancel/`, {})
+      .pipe(catchError((err) => throwError(() => err)));
   }
 
   runNow(id: number): Observable<ScheduledJob> {
-    return this.http.post<ScheduledJob>(`${this.apiBase}/jobs/${id}/run-now/`, {});
+    return this.http
+      .post<ScheduledJob>(`${this.apiBase}/jobs/${id}/run-now/`, {})
+      .pipe(catchError((err) => throwError(() => err)));
   }
 
   listAlerts(include: 'active' | 'all' | 'resolved' = 'active'): Observable<JobAlert[]> {
@@ -165,11 +175,15 @@ export class ScheduledUpdatesService implements OnDestroy {
   }
 
   acknowledgeAlert(id: number): Observable<JobAlert> {
-    return this.http.post<JobAlert>(`${this.apiBase}/alerts/${id}/acknowledge/`, {});
+    return this.http
+      .post<JobAlert>(`${this.apiBase}/alerts/${id}/acknowledge/`, {})
+      .pipe(catchError((err) => throwError(() => err)));
   }
 
   getWindowStatus(): Observable<WindowStatus> {
-    return this.http.get<WindowStatus>(`${this.apiBase}/window/`);
+    return this.http
+      .get<WindowStatus>(`${this.apiBase}/window/`)
+      .pipe(catchError((err) => throwError(() => err)));
   }
 
   refreshWindowStatus(): Observable<WindowStatus> {
