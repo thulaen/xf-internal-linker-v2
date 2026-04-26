@@ -156,7 +156,7 @@ def refresh_gsc_query_tfidf(
             try:
                 checkpoint(progress_pct=pct, message=msg)
             except Exception:
-                pass
+                pass  # progress callback failure must never abort the rebuild
 
     _progress(0.0, "RSQVA: counting recent GSC query rows")
 

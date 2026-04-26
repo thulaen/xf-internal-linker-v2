@@ -112,7 +112,7 @@ def is_enabled(
 
             cache.set(cache_key, result, cache_seconds)
         except Exception:
-            pass
+            pass  # cache backend unavailable; per-call fallback already returned
     return result
 
 
@@ -127,4 +127,4 @@ def invalidate(key: str) -> None:
 
         cache.delete(f"runtime_flag:{key}")
     except Exception:
-        pass
+        pass  # cache backend unavailable; next read will hit the DB anyway
