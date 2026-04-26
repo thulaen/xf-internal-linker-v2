@@ -277,7 +277,13 @@ $baselineLongFiles = @(
     'tasks_embedding_bakeoff.py',        # pipeline/tasks_embedding_bakeoff.py — `embedding_provider_bakeoff` 86 lines.
     'tasks_import_helpers.py',           # pipeline/tasks_import_helpers.py — `_persist_content_body` 159 lines.
     'test_phase6_ltr.py',                # pipeline/test_phase6_ltr.py — fixture-heavy test exceeds cap.
-    '0010_bge_m3_embedding_dim_1024.py'  # pipeline migration — backfill function ~84 lines (one-shot data migration; refactor not warranted).
+    '0010_bge_m3_embedding_dim_1024.py', # pipeline migration — backfill function ~84 lines (one-shot data migration; refactor not warranted).
+    # ── Rule #15 (file length cap) — same baseline list, same diff-scope effect.
+    'anchor_garbage_signals.py',         # pipeline/services/anchor_garbage_signals.py — 595 lines covering 3 anti-garbage anchor algos; candidate for per-algo extraction.
+    'pipeline_loaders.py',               # pipeline/services/pipeline_loaders.py — 556 lines of typed-config dataclass loaders; candidate for per-domain split.
+    'test_fr099_fr105_signals.py',       # pipeline/test_fr099_fr105_signals.py — 568 lines covering 7 FRs; candidate for per-FR test-file split.
+    'test_phase6_ranker_contribution.py', # pipeline/test_phase6_ranker_contribution.py — 574 lines covering 6 adapters; candidate for per-adapter test-file split.
+    'suggestion.service.ts'              # frontend/src/app/core/services/suggestion.service.ts — 566 lines (CRUD + filter + impression endpoints); candidate for per-domain service split.
 )
 
 # ── 8.  Cross-language debug artifact purge ──────────────────────────
