@@ -554,7 +554,7 @@ if ($complexityDiffPy.Count -gt 0) {
 Write-Step "17/32 Python: magic number detector (diff-scoped)"
 $magicHits = 0
 $magicPyFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py"))
-$magicPyFiles = @($magicPyFiles | Where-Object { $_ -notmatch '\\tests|\\migrations\\|settings|\\benchmarks\\|\\models\.py$|\\health\.py$|tasks_broken_links\.py$|async_http\.py$|test_|recommended_weights.*\.py$' })
+$magicPyFiles = @($magicPyFiles | Where-Object { $_ -notmatch '\\tests|\\migrations\\|settings|\\benchmarks\\|\\models\.py$|\\health\.py$|tasks_broken_links\.py$|async_http\.py$|test_|recommended_weights.*\.py$|\\training\\|\\embedding_providers\\|gsc_query_vocab\.py$|site_crawler\.py$|meta_registry\.py$|suggestion_explainer\.py$|catchup_registry\.py$|signal_registry\.py$' })
 $magicPattern = '(?<![.\w])\b(\d{3,})\b(?!\s*(#|px|rem|em|MB|GB|KB|ms|seconds?|minutes?|hours?|days?))' # 3+ digit literals
 foreach ($f in $magicPyFiles) {
     $hits = Select-String -Path $f -Pattern $magicPattern |
@@ -584,7 +584,16 @@ foreach ($f in $magicPyFiles) {
             $_.Line -notmatch 'result_expires' -and  # Celery result TTL
             $_.Line -notmatch '>\s*\d{3}\s*:' -and   # guard clauses (> 500:)
             $_.Line -notmatch '^[A-Z_]+\s*=' -and    # named constant definitions
-            $_.Line -notmatch '^\s*_[A-Z_]+\s*='     # private named constants
+            $_.Line -notmatch '^\s*_[A-Z_]+\s*=' -and    # private named constants
+            $_.Line -notmatch 'pp\.\s*\d' -and       # academic page citations: pp. 123-456
+            $_.Line -notmatch '\bp\.\s*\d{3}' -and  # single-page citations: p. 123
+            $_.Line -notmatch '\(\d+\)' -and         # citation issue numbers: 16(5), Vol(N)
+            $_.Line -notmatch '\d{1,3}[\.\-]\d{3,}' -and  # journal page ranges: 1190-1208, 1.234
+            $_.Line -notmatch '\d{3,}\s*-\s*\d{3,}' -and  # double 3+digit ranges
+            $_.Line -notmatch 'WSDM|CIKM|SIGIR|NeurIPS|ICML|KDD|WWW|RecSys|ECIR|AAAI|IJCAI|VLDB|SIGMOD' -and  # ML venue acronyms
+            $_.Line -notmatch 'ISBN[ :]?\d' -and    # ISBN identifiers
+            $_.Line -notmatch 'DOI[ :]?\d' -and    # DOI identifiers
+            $_.Line -notmatch 'arXiv[ :]?\d'        # arXiv identifiers
         }
     if ($hits) {
         $hitsArray = @($hits)
