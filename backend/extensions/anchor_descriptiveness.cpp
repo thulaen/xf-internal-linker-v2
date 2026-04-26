@@ -60,128 +60,119 @@ constexpr std::size_t CHAR_NGRAM = 3;
 // (Damerau 1964 §3). Memory is O(min(n, m)) because we always swap
 // the shorter input into ``b``.
 std::size_t damerau_levenshtein_core(std::string_view a, std::string_view b) {
-    if (a.empty()) {
-        return b.size();
+  if (a.empty()) {
+    return b.size();
+  }
+  if (b.empty()) {
+    return a.size();
+  }
+  if (a.size() < b.size()) {
+    std::swap(a, b);
+  }
+  const std::size_t n = a.size();
+  const std::size_t m = b.size();
+  std::vector<std::size_t> prev_prev_row(m + 1, 0);
+  std::vector<std::size_t> prev_row(m + 1, 0);
+  std::vector<std::size_t> curr_row(m + 1, 0);
+  for (std::size_t j = 0; j <= m; ++j) {
+    prev_row[j] = j;
+  }
+  for (std::size_t i = 1; i <= n; ++i) {
+    curr_row[0] = i;
+    for (std::size_t j = 1; j <= m; ++j) {
+      const std::size_t cost = (a[i - 1] == b[j - 1]) ? 0 : 1;
+      const std::size_t insertion = curr_row[j - 1] + 1;
+      const std::size_t deletion = prev_row[j] + 1;
+      const std::size_t substitution = prev_row[j - 1] + cost;
+      curr_row[j] = std::min({insertion, deletion, substitution});
+      // Damerau transposition — only applicable when the
+      // adjacent characters in both strings swap exactly.
+      if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) {
+        curr_row[j] = std::min(curr_row[j], prev_prev_row[j - 2] + cost);
+      }
     }
-    if (b.empty()) {
-        return a.size();
-    }
-    if (a.size() < b.size()) {
-        std::swap(a, b);
-    }
-    const std::size_t n = a.size();
-    const std::size_t m = b.size();
-    std::vector<std::size_t> prev_prev_row(m + 1, 0);
-    std::vector<std::size_t> prev_row(m + 1, 0);
-    std::vector<std::size_t> curr_row(m + 1, 0);
-    for (std::size_t j = 0; j <= m; ++j) {
-        prev_row[j] = j;
-    }
-    for (std::size_t i = 1; i <= n; ++i) {
-        curr_row[0] = i;
-        for (std::size_t j = 1; j <= m; ++j) {
-            const std::size_t cost = (a[i - 1] == b[j - 1]) ? 0 : 1;
-            const std::size_t insertion = curr_row[j - 1] + 1;
-            const std::size_t deletion = prev_row[j] + 1;
-            const std::size_t substitution = prev_row[j - 1] + cost;
-            curr_row[j] = std::min({insertion, deletion, substitution});
-            // Damerau transposition — only applicable when the
-            // adjacent characters in both strings swap exactly.
-            if (i > 1 && j > 1
-                && a[i - 1] == b[j - 2]
-                && a[i - 2] == b[j - 1]) {
-                curr_row[j] = std::min(curr_row[j], prev_prev_row[j - 2] + cost);
-            }
-        }
-        // Rotate rows: prev_prev ← prev, prev ← curr, curr ← prev_prev (reuse buffer).
-        std::swap(prev_prev_row, prev_row);
-        std::swap(prev_row, curr_row);
-    }
-    return prev_row[m];
+    // Rotate rows: prev_prev ← prev, prev ← curr, curr ← prev_prev (reuse
+    // buffer).
+    std::swap(prev_prev_row, prev_row);
+    std::swap(prev_row, curr_row);
+  }
+  return prev_row[m];
 }
 
 // Whitespace-collapse: replace any run of whitespace bytes with a
 // single space. Matches the Python ``re.sub(r"\s+", " ", text)`` so
 // the n-gram sets compare apples-to-apples.
 std::string collapse_whitespace(std::string_view text) {
-    std::string out;
-    out.reserve(text.size());
-    bool last_space = false;
-    for (char c : text) {
-        const bool is_space = (c == ' ' || c == '\t' || c == '\n'
-                               || c == '\r' || c == '\v' || c == '\f');
-        if (is_space) {
-            if (!last_space) {
-                out.push_back(' ');
-                last_space = true;
-            }
-        } else {
-            out.push_back(c);
-            last_space = false;
-        }
+  std::string out;
+  out.reserve(text.size());
+  bool last_space = false;
+  for (char c : text) {
+    const bool is_space = (c == ' ' || c == '\t' || c == '\n' || c == '\r' ||
+                           c == '\v' || c == '\f');
+    if (is_space) {
+      if (!last_space) {
+        out.push_back(' ');
+        last_space = true;
+      }
+    } else {
+      out.push_back(c);
+      last_space = false;
     }
-    return out;
+  }
+  return out;
 }
 
 // PARITY: matches anchor_garbage_signals.py::_char_ngrams.
-std::unordered_set<std::string> char_ngrams(std::string_view text, std::size_t n) {
-    std::unordered_set<std::string> out;
-    const std::string norm = collapse_whitespace(text);
-    if (norm.size() < n) {
-        if (!norm.empty()) {
-            out.emplace(norm);
-        }
-        return out;
-    }
-    for (std::size_t i = 0; i + n <= norm.size(); ++i) {
-        out.emplace(norm.substr(i, n));
+std::unordered_set<std::string> char_ngrams(std::string_view text,
+                                            std::size_t n) {
+  std::unordered_set<std::string> out;
+  const std::string norm = collapse_whitespace(text);
+  if (norm.size() < n) {
+    if (!norm.empty()) {
+      out.emplace(norm);
     }
     return out;
+  }
+  for (std::size_t i = 0; i + n <= norm.size(); ++i) {
+    out.emplace(norm.substr(i, n));
+  }
+  return out;
 }
 
-}  // namespace
+} // namespace
 
-std::size_t damerau_levenshtein(const std::string& a, const std::string& b) {
-    return damerau_levenshtein_core(a, b);
+std::size_t damerau_levenshtein(const std::string &a, const std::string &b) {
+  return damerau_levenshtein_core(a, b);
 }
 
-double char_trigram_jaccard(const std::string& a, const std::string& b) {
-    const auto grams_a = char_ngrams(a, CHAR_NGRAM);
-    const auto grams_b = char_ngrams(b, CHAR_NGRAM);
-    if (grams_a.empty() || grams_b.empty()) {
-        return 0.0;
+double char_trigram_jaccard(const std::string &a, const std::string &b) {
+  const auto grams_a = char_ngrams(a, CHAR_NGRAM);
+  const auto grams_b = char_ngrams(b, CHAR_NGRAM);
+  if (grams_a.empty() || grams_b.empty()) {
+    return 0.0;
+  }
+  std::size_t inter = 0;
+  // Iterate the smaller set for the intersection.
+  const auto &smaller = (grams_a.size() <= grams_b.size()) ? grams_a : grams_b;
+  const auto &larger = (grams_a.size() <= grams_b.size()) ? grams_b : grams_a;
+  for (const auto &g : smaller) {
+    if (larger.count(g) > 0) {
+      ++inter;
     }
-    std::size_t inter = 0;
-    // Iterate the smaller set for the intersection.
-    const auto& smaller = (grams_a.size() <= grams_b.size()) ? grams_a : grams_b;
-    const auto& larger = (grams_a.size() <= grams_b.size()) ? grams_b : grams_a;
-    for (const auto& g : smaller) {
-        if (larger.count(g) > 0) {
-            ++inter;
-        }
-    }
-    const std::size_t uni = grams_a.size() + grams_b.size() - inter;
-    if (uni == 0) {
-        return 0.0;
-    }
-    return static_cast<double>(inter) / static_cast<double>(uni);
+  }
+  const std::size_t uni = grams_a.size() + grams_b.size() - inter;
+  if (uni == 0) {
+    return 0.0;
+  }
+  return static_cast<double>(inter) / static_cast<double>(uni);
 }
 
 PYBIND11_MODULE(anchor_descriptiveness, m) {
-    m.doc() = "Anchor-text descriptiveness — Damerau-Levenshtein + "
-              "char-trigram Jaccard.";
-    m.def(
-        "damerau_levenshtein",
-        &damerau_levenshtein,
-        py::arg("a"),
+  m.doc() = "Anchor-text descriptiveness — Damerau-Levenshtein + "
+            "char-trigram Jaccard.";
+  m.def("damerau_levenshtein", &damerau_levenshtein, py::arg("a"), py::arg("b"),
+        "Damerau-Levenshtein edit distance with adjacent-transposition.");
+  m.def("char_trigram_jaccard", &char_trigram_jaccard, py::arg("a"),
         py::arg("b"),
-        "Damerau-Levenshtein edit distance with adjacent-transposition."
-    );
-    m.def(
-        "char_trigram_jaccard",
-        &char_trigram_jaccard,
-        py::arg("a"),
-        py::arg("b"),
-        "Jaccard similarity over character 3-grams of the two inputs."
-    );
+        "Jaccard similarity over character 3-grams of the two inputs.");
 }

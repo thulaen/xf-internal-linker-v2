@@ -5,4 +5,4 @@
 
 using LinkMatch = std::tuple<std::string, std::string, std::string, int, int>;
 
-std::vector<LinkMatch> find_urls(const std::string& raw_bbcode);
+std::vector<LinkMatch> find_urls(const std::string &raw_bbcode);

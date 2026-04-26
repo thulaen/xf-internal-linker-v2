@@ -64,168 +64,161 @@ constexpr std::size_t MAX_PHRASE_LEN = 256;
 // We pack the goto table as a single contiguous vector so cache
 // behaviour stays good even with thousands of nodes.
 struct Automaton {
-    std::vector<std::int32_t> goto_table;  // size = nodes × 256
-    std::vector<std::int32_t> fail_link;    // per-node failure link
-    std::vector<std::vector<std::int32_t>> output;  // phrase indices ending at node
-    std::vector<std::string> phrases;  // original phrases (insertion order)
-    std::int32_t node_count = 1;        // root is node 0
+  std::vector<std::int32_t> goto_table; // size = nodes × 256
+  std::vector<std::int32_t> fail_link;  // per-node failure link
+  std::vector<std::vector<std::int32_t>>
+      output;                       // phrase indices ending at node
+  std::vector<std::string> phrases; // original phrases (insertion order)
+  std::int32_t node_count = 1;      // root is node 0
 };
 
 constexpr std::int32_t NO_TRANSITION = -1;
 
 inline std::size_t goto_index(std::int32_t node, std::uint8_t byte) {
-    return (static_cast<std::size_t>(node) << 8U)
-           | static_cast<std::size_t>(byte);
+  return (static_cast<std::size_t>(node) << 8U) |
+         static_cast<std::size_t>(byte);
 }
 
 // Insert *phrase* into the trie portion of *aut*; record the phrase
 // index in the output list of the terminal node.
-void insert_phrase(Automaton& aut, std::int32_t phrase_idx,
-                   const std::string& phrase) {
-    std::int32_t node = 0;  // root
-    for (char c : phrase) {
-        const auto byte = static_cast<std::uint8_t>(c);
-        const std::size_t idx = goto_index(node, byte);
-        if (aut.goto_table[idx] == NO_TRANSITION) {
-            aut.goto_table[idx] = aut.node_count;
-            // Grow the flat tables for the new node.
-            aut.goto_table.insert(
-                aut.goto_table.end(), 256U, NO_TRANSITION);
-            aut.fail_link.push_back(0);
-            aut.output.emplace_back();
-            ++aut.node_count;
-        }
-        node = aut.goto_table[idx];
+void insert_phrase(Automaton &aut, std::int32_t phrase_idx,
+                   const std::string &phrase) {
+  std::int32_t node = 0; // root
+  for (char c : phrase) {
+    const auto byte = static_cast<std::uint8_t>(c);
+    const std::size_t idx = goto_index(node, byte);
+    if (aut.goto_table[idx] == NO_TRANSITION) {
+      aut.goto_table[idx] = aut.node_count;
+      // Grow the flat tables for the new node.
+      aut.goto_table.insert(aut.goto_table.end(), 256U, NO_TRANSITION);
+      aut.fail_link.push_back(0);
+      aut.output.emplace_back();
+      ++aut.node_count;
     }
-    aut.output[static_cast<std::size_t>(node)].push_back(phrase_idx);
+    node = aut.goto_table[idx];
+  }
+  aut.output[static_cast<std::size_t>(node)].push_back(phrase_idx);
 }
 
 // BFS-build fail links per Aho-Corasick 1975 §2.
-void build_fail_links(Automaton& aut) {
-    std::queue<std::int32_t> q;
-    // First-level nodes: fail link is the root.
+void build_fail_links(Automaton &aut) {
+  std::queue<std::int32_t> q;
+  // First-level nodes: fail link is the root.
+  for (std::uint16_t b = 0; b < 256; ++b) {
+    const std::int32_t child =
+        aut.goto_table[goto_index(0, static_cast<std::uint8_t>(b))];
+    if (child != NO_TRANSITION) {
+      aut.fail_link[static_cast<std::size_t>(child)] = 0;
+      q.push(child);
+    } else {
+      // Self-loop on root for missing transitions.
+      aut.goto_table[goto_index(0, static_cast<std::uint8_t>(b))] = 0;
+    }
+  }
+  while (!q.empty()) {
+    const std::int32_t node = q.front();
+    q.pop();
     for (std::uint16_t b = 0; b < 256; ++b) {
-        const std::int32_t child = aut.goto_table[goto_index(0, static_cast<std::uint8_t>(b))];
-        if (child != NO_TRANSITION) {
-            aut.fail_link[static_cast<std::size_t>(child)] = 0;
-            q.push(child);
-        } else {
-            // Self-loop on root for missing transitions.
-            aut.goto_table[goto_index(0, static_cast<std::uint8_t>(b))] = 0;
-        }
+      const std::int32_t child =
+          aut.goto_table[goto_index(node, static_cast<std::uint8_t>(b))];
+      if (child == NO_TRANSITION) {
+        continue;
+      }
+      // Fail link of child = goto[fail[node], byte].
+      std::int32_t f = aut.fail_link[static_cast<std::size_t>(node)];
+      // Walk up failure links until we land somewhere with the
+      // byte transition (root self-loops above guarantee
+      // termination).
+      while (f != 0 &&
+             aut.goto_table[goto_index(f, static_cast<std::uint8_t>(b))] ==
+                 NO_TRANSITION) {
+        f = aut.fail_link[static_cast<std::size_t>(f)];
+      }
+      const std::int32_t link =
+          aut.goto_table[goto_index(f, static_cast<std::uint8_t>(b))];
+      // Don't link a node to itself.
+      aut.fail_link[static_cast<std::size_t>(child)] =
+          (link == child) ? 0 : link;
+      // Inherit output from fail link.
+      const auto &parent_out = aut.output[static_cast<std::size_t>(
+          aut.fail_link[static_cast<std::size_t>(child)])];
+      auto &child_out = aut.output[static_cast<std::size_t>(child)];
+      child_out.insert(child_out.end(), parent_out.begin(), parent_out.end());
+      q.push(child);
     }
-    while (!q.empty()) {
-        const std::int32_t node = q.front();
-        q.pop();
-        for (std::uint16_t b = 0; b < 256; ++b) {
-            const std::int32_t child = aut.goto_table[goto_index(node, static_cast<std::uint8_t>(b))];
-            if (child == NO_TRANSITION) {
-                continue;
-            }
-            // Fail link of child = goto[fail[node], byte].
-            std::int32_t f = aut.fail_link[static_cast<std::size_t>(node)];
-            // Walk up failure links until we land somewhere with the
-            // byte transition (root self-loops above guarantee
-            // termination).
-            while (f != 0
-                   && aut.goto_table[goto_index(f, static_cast<std::uint8_t>(b))]
-                       == NO_TRANSITION) {
-                f = aut.fail_link[static_cast<std::size_t>(f)];
-            }
-            const std::int32_t link = aut.goto_table[goto_index(f, static_cast<std::uint8_t>(b))];
-            // Don't link a node to itself.
-            aut.fail_link[static_cast<std::size_t>(child)] =
-                (link == child) ? 0 : link;
-            // Inherit output from fail link.
-            const auto& parent_out = aut.output[static_cast<std::size_t>(
-                aut.fail_link[static_cast<std::size_t>(child)])];
-            auto& child_out = aut.output[static_cast<std::size_t>(child)];
-            child_out.insert(child_out.end(), parent_out.begin(), parent_out.end());
-            q.push(child);
-        }
-    }
+  }
 }
 
-}  // namespace
+} // namespace
 
 // ─────────────────────────────────────────────────────────────────
 // Public API
 // ─────────────────────────────────────────────────────────────────
 
-std::shared_ptr<Automaton> build_automaton(const std::vector<std::string>& phrases) {
-    auto aut = std::make_shared<Automaton>();
-    // Initialise root node — 256 slots, all NO_TRANSITION.
-    aut->goto_table.assign(256U, NO_TRANSITION);
-    aut->fail_link.push_back(0);  // root's fail link is root.
-    aut->output.emplace_back();    // root has no terminal output.
-    aut->phrases.reserve(phrases.size());
+std::shared_ptr<Automaton>
+build_automaton(const std::vector<std::string> &phrases) {
+  auto aut = std::make_shared<Automaton>();
+  // Initialise root node — 256 slots, all NO_TRANSITION.
+  aut->goto_table.assign(256U, NO_TRANSITION);
+  aut->fail_link.push_back(0); // root's fail link is root.
+  aut->output.emplace_back();  // root has no terminal output.
+  aut->phrases.reserve(phrases.size());
 
-    std::int32_t i = 0;
-    for (const auto& p : phrases) {
-        if (p.empty() || p.size() > MAX_PHRASE_LEN) {
-            // Skip pathological inputs but still bump the index so
-            // output positions stay aligned with the input list.
-            aut->phrases.emplace_back(p);
-            ++i;
-            continue;
-        }
-        aut->phrases.emplace_back(p);
-        insert_phrase(*aut, i, p);
-        ++i;
+  std::int32_t i = 0;
+  for (const auto &p : phrases) {
+    if (p.empty() || p.size() > MAX_PHRASE_LEN) {
+      // Skip pathological inputs but still bump the index so
+      // output positions stay aligned with the input list.
+      aut->phrases.emplace_back(p);
+      ++i;
+      continue;
     }
-    build_fail_links(*aut);
-    return aut;
+    aut->phrases.emplace_back(p);
+    insert_phrase(*aut, i, p);
+    ++i;
+  }
+  build_fail_links(*aut);
+  return aut;
 }
 
 std::vector<std::string> find_all(std::shared_ptr<Automaton> aut,
-                                  const std::string& text) {
-    std::vector<std::string> out;
-    if (!aut || text.empty() || aut->phrases.empty()) {
-        return out;
-    }
-    std::unordered_set<std::int32_t> seen;
-    seen.reserve(aut->phrases.size());
-    std::int32_t node = 0;
-    for (char c : text) {
-        const auto byte = static_cast<std::uint8_t>(c);
-        // Follow goto / fail until we land on a transition (root
-        // self-loops above guarantee termination).
-        while (node != 0
-               && aut->goto_table[goto_index(node, byte)] == NO_TRANSITION) {
-            node = aut->fail_link[static_cast<std::size_t>(node)];
-        }
-        const std::int32_t next = aut->goto_table[goto_index(node, byte)];
-        if (next != NO_TRANSITION) {
-            node = next;
-        }
-        for (std::int32_t phrase_idx
-             : aut->output[static_cast<std::size_t>(node)]) {
-            if (seen.insert(phrase_idx).second) {
-                out.emplace_back(
-                    aut->phrases[static_cast<std::size_t>(phrase_idx)]);
-            }
-        }
-    }
+                                  const std::string &text) {
+  std::vector<std::string> out;
+  if (!aut || text.empty() || aut->phrases.empty()) {
     return out;
+  }
+  std::unordered_set<std::int32_t> seen;
+  seen.reserve(aut->phrases.size());
+  std::int32_t node = 0;
+  for (char c : text) {
+    const auto byte = static_cast<std::uint8_t>(c);
+    // Follow goto / fail until we land on a transition (root
+    // self-loops above guarantee termination).
+    while (node != 0 &&
+           aut->goto_table[goto_index(node, byte)] == NO_TRANSITION) {
+      node = aut->fail_link[static_cast<std::size_t>(node)];
+    }
+    const std::int32_t next = aut->goto_table[goto_index(node, byte)];
+    if (next != NO_TRANSITION) {
+      node = next;
+    }
+    for (std::int32_t phrase_idx :
+         aut->output[static_cast<std::size_t>(node)]) {
+      if (seen.insert(phrase_idx).second) {
+        out.emplace_back(aut->phrases[static_cast<std::size_t>(phrase_idx)]);
+      }
+    }
+  }
+  return out;
 }
 
 PYBIND11_MODULE(generic_anchor_matcher, m) {
-    m.doc() = "Aho-Corasick generic-anchor blacklist matcher.";
-    py::class_<Automaton, std::shared_ptr<Automaton>>(m, "Automaton")
-        .def_readonly("node_count", &Automaton::node_count)
-        .def("phrase_count",
-             [](const Automaton& a) { return a.phrases.size(); });
-    m.def(
-        "build_automaton",
-        &build_automaton,
-        py::arg("phrases"),
-        "Build an Aho-Corasick automaton from a list of phrases."
-    );
-    m.def(
-        "find_all",
-        &find_all,
-        py::arg("automaton"),
-        py::arg("text"),
-        "Return distinct phrases that occur as substrings of *text*."
-    );
+  m.doc() = "Aho-Corasick generic-anchor blacklist matcher.";
+  py::class_<Automaton, std::shared_ptr<Automaton>>(m, "Automaton")
+      .def_readonly("node_count", &Automaton::node_count)
+      .def("phrase_count", [](const Automaton &a) { return a.phrases.size(); });
+  m.def("build_automaton", &build_automaton, py::arg("phrases"),
+        "Build an Aho-Corasick automaton from a list of phrases.");
+  m.def("find_all", &find_all, py::arg("automaton"), py::arg("text"),
+        "Return distinct phrases that occur as substrings of *text*.");
 }
