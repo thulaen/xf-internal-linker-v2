@@ -2,7 +2,6 @@ import {
   Directive,
   ElementRef,
   EventEmitter,
-  HostListener,
   Input,
   OnInit,
   Output,

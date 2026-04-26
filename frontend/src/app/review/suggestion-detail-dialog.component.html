@@ -372,7 +372,7 @@
             <mat-icon class="icon-sm">alt_route</mat-icon>
             FR-099 DARB: {{ (detail.score_darb ?? 0).toFixed(3) }}
             @if (d.diagnostic) { - {{ d.diagnostic }} }
-            @if (d.raw_host_value != null) {
+            @if (d.raw_host_value !== null && d.raw_host_value !== undefined) {
               - host value {{ (d.raw_host_value ?? 0).toFixed(2) }}
               / out-degree {{ d.raw_host_out_degree ?? 0 }}
             }
@@ -385,7 +385,7 @@
             <mat-icon class="icon-sm">route</mat-icon>
             FR-100 KMIG: {{ (detail.score_kmig ?? 0).toFixed(3) }}
             @if (d.diagnostic) { - {{ d.diagnostic }} }
-            @if (d.katz_2hop_reachability != null) {
+            @if (d.katz_2hop_reachability !== null && d.katz_2hop_reachability !== undefined) {
               - katz 2hop {{ (d.katz_2hop_reachability ?? 0).toFixed(3) }}
               ({{ d.direct_edge ? 'direct' : 'indirect' }},
               {{ d.two_hop_paths_count ?? 0 }} 2-hop paths)
@@ -399,7 +399,7 @@
             <mat-icon class="icon-sm">account_tree</mat-icon>
             FR-101 TAPB: {{ (detail.score_tapb ?? 0).toFixed(3) }}
             @if (d.diagnostic) { - {{ d.diagnostic }} }
-            @if (d.is_articulation_point != null) {
+            @if (d.is_articulation_point !== null && d.is_articulation_point !== undefined) {
               - host is{{ d.is_articulation_point ? '' : ' not' }} an articulation point
               ({{ d.articulation_point_count ?? 0 }} APs in graph)
             }
@@ -412,7 +412,7 @@
             <mat-icon class="icon-sm">filter_center_focus</mat-icon>
             FR-102 KCIB: {{ (detail.score_kcib ?? 0).toFixed(3) }}
             @if (d.diagnostic) { - {{ d.diagnostic }} }
-            @if (d.kcore_delta != null) {
+            @if (d.kcore_delta !== null && d.kcore_delta !== undefined) {
               - host k-core {{ d.host_kcore }}
               → dest k-core {{ d.dest_kcore }}
               (Δ={{ d.kcore_delta }}/{{ d.max_kcore }})
@@ -426,7 +426,7 @@
             <mat-icon class="icon-sm">link_off</mat-icon>
             FR-103 BERP: {{ (detail.score_berp ?? 0).toFixed(3) }}
             @if (d.diagnostic) { - {{ d.diagnostic }} }
-            @if (d.would_create_bridge != null) {
+            @if (d.would_create_bridge !== null && d.would_create_bridge !== undefined) {
               - {{ d.would_create_bridge ? 'would create bridge' : 'no new bridge' }}
               (BCCs: host={{ d.host_bcc }} size {{ d.host_bcc_size }},
               dest={{ d.dest_bcc }} size {{ d.dest_bcc_size }})
@@ -440,7 +440,7 @@
             <mat-icon class="icon-sm">pie_chart</mat-icon>
             FR-104 HGTE: {{ (detail.score_hgte ?? 0).toFixed(3) }}
             @if (d.diagnostic) { - {{ d.diagnostic }} }
-            @if (d.entropy_delta != null) {
+            @if (d.entropy_delta !== null && d.entropy_delta !== undefined) {
               - entropy {{ (d.entropy_before ?? 0).toFixed(3) }}
               → {{ (d.entropy_after ?? 0).toFixed(3) }}
               (Δ={{ (d.entropy_delta ?? 0).toFixed(3) }})
@@ -454,7 +454,7 @@
             <mat-icon class="icon-sm">search</mat-icon>
             FR-105 RSQVA: {{ (detail.score_rsqva ?? 0).toFixed(3) }}
             @if (d.diagnostic) { - {{ d.diagnostic }} }
-            @if (d.cosine_similarity != null) {
+            @if (d.cosine_similarity !== null && d.cosine_similarity !== undefined) {
               - GSC query cosine {{ (d.cosine_similarity ?? 0).toFixed(3) }}
               (host {{ d.host_query_count ?? 0 }} queries,
               dest {{ d.dest_query_count ?? 0 }} queries)
