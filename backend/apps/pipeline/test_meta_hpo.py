@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 from unittest.mock import patch
 
 import optuna
@@ -15,11 +14,8 @@ from apps.pipeline.services.meta_hpo_eval import (
     ndcg_at_k,
 )
 from apps.pipeline.services.meta_hpo_safety import (
-    ImprovementGateResult,
-    MAX_PARAM_CHANGE_FRACTION,
     NDCG_IMPROVEMENT_MIN,
     ROLLBACK_CTR_DROP_THRESHOLD,
-    RollbackDecision,
     clamp_param_change,
     passes_improvement_gate,
     should_rollback,
@@ -29,7 +25,6 @@ from apps.pipeline.services.meta_hpo_search_spaces import (
     SEARCH_SPACE,
     clip_params,
     keys,
-    sample_params,
 )
 
 

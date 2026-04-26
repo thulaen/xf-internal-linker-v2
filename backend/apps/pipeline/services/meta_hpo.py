@@ -28,7 +28,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Any
 
 import optuna
@@ -44,7 +44,6 @@ from .meta_hpo_safety import (
 )
 from .meta_hpo_search_spaces import (
     DEFAULT_N_TRIALS,
-    DEFAULT_SEED,
     DEFAULT_STORAGE_URL,
     SEARCH_SPACE,
     clip_params,

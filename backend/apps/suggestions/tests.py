@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -661,7 +661,6 @@ class RejectedPairModelTests(TestCase):
         self.assertIn((self.host.pk, self.destination.pk), suppressed)
 
     def test_get_suppressed_pair_ids_excludes_rows_past_window(self) -> None:
-        from datetime import timedelta
 
         from apps.suggestions.models import (
             REJECTED_PAIR_SUPPRESSION_DAYS,
@@ -684,7 +683,6 @@ class PruneRejectedPairsTaskTests(TestCase):
     """Verify the weekly prune task deletes only rows past PRUNE_AFTER_DAYS."""
 
     def test_prune_deletes_only_rows_past_threshold(self) -> None:
-        from datetime import timedelta
 
         from apps.suggestions.models import (
             REJECTED_PAIR_PRUNE_AFTER_DAYS,

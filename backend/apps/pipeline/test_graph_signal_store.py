@@ -5,8 +5,6 @@ from __future__ import annotations
 from django.test import TestCase
 
 from apps.pipeline.services.graph_signal_store import (
-    DEFAULT_TOP_N,
-    KEY_TEMPLATE,
     NEUTRAL_SCORE,
     SIGNAL_HITS_AUTHORITY,
     SIGNAL_PPR,

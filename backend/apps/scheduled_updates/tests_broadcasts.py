@@ -15,7 +15,7 @@ itself.
 from __future__ import annotations
 
 import datetime as dt
-from unittest.mock import call, patch
+from unittest.mock import patch
 
 from django.test import TestCase
 
@@ -38,7 +38,6 @@ from .models import (
     ALERT_TYPE_MISSED,
     JOB_PRIORITY_HIGH,
     JOB_STATE_COMPLETED,
-    JOB_STATE_FAILED,
     JOB_STATE_PAUSED,
     JOB_STATE_RUNNING,
     JobAlert,

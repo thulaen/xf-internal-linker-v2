@@ -155,7 +155,6 @@ class ProductQuantizationProducerTests(TestCase):
 
     def test_idempotent_refit_produces_same_version(self) -> None:
         """Re-running on unchanged data writes the same codes."""
-        import numpy as np
 
         from apps.pipeline.services.product_quantization_producer import (
             fit_and_persist_from_embeddings,

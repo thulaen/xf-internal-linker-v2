@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import random
 
-import pytest
 
 
 # ── Token Bucket (#01) ─────────────────────────────────────────────

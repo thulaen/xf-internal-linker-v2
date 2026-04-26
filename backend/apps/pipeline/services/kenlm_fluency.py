@@ -202,7 +202,6 @@ def fit_arpa_with_lmplz(
     import logging
     import os
     import subprocess
-    import tempfile
 
     log = logging.getLogger(__name__)
 

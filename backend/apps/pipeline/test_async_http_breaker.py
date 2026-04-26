@@ -25,7 +25,6 @@ from django.test import SimpleTestCase
 from apps.pipeline.services import async_http
 from apps.pipeline.services.circuit_breaker import (
     CircuitBreaker,
-    CircuitState,
 )
 
 

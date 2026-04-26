@@ -11,7 +11,6 @@ from apps.pipeline.services.cascade_click_model import ClickSession
 from apps.pipeline.services.feedback_relevance import (
     KEY_CASCADE_RELEVANCE,
     KEY_IPS_CTR,
-    MIN_PIPELINE_RUNS,
     cascade_relevance_for,
     compute_and_persist,
     load_snapshot,

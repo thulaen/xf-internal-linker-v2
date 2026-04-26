@@ -15,7 +15,6 @@ Also verifies ``prune_resolved_alerts`` retention and
 from __future__ import annotations
 
 import datetime as dt
-from unittest.mock import patch
 
 from django.test import TestCase
 from django.utils import timezone
@@ -25,7 +24,6 @@ from .alerts import (
     STALLED_JOB_THRESHOLD_SECONDS,
     acknowledge,
     active_alerts_count,
-    active_alerts_qs,
     detect_missed_jobs,
     detect_stalled_jobs,
     prune_resolved_alerts,
@@ -38,7 +36,6 @@ from .models import (
     ALERT_TYPE_STALLED,
     JOB_STATE_COMPLETED,
     JOB_STATE_MISSED,
-    JOB_STATE_PENDING,
     JOB_STATE_RUNNING,
     JobAlert,
     ScheduledJob,

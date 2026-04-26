@@ -11,7 +11,6 @@ from apps.pipeline.services.adaptive_conformal_inference import (
     DEFAULT_TARGET_ALPHA,
 )
 from apps.pipeline.services.adaptive_conformal_producer import (
-    KEY_CURRENT_ALPHA,
     load_alpha,
     update_alpha_from_recent_outcomes,
 )

@@ -24,7 +24,6 @@ history exists, which is the right "no fake confidence" default.
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass
 from datetime import timedelta

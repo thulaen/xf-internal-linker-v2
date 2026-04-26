@@ -62,7 +62,6 @@ def compute_skip_set(
     # Bulk query: aggregate per-URL across all CrawledPageMeta rows.
     # We restrict to http_status 200 so failed crawls don't pollute
     # the change-count / interval calculation.
-    from apps.crawler.models import CrawledPageMeta
 
     histories = _load_histories(url_list)
     if not histories:

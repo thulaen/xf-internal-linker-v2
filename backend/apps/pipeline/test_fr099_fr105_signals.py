@@ -13,7 +13,6 @@ Each test class covers:
 
 from __future__ import annotations
 
-import math
 from unittest import TestCase
 
 import numpy as np

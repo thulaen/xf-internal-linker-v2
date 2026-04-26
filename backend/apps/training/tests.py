@@ -7,7 +7,6 @@ tests run unconditionally — no ``unittest.skipUnless`` gates.
 
 from __future__ import annotations
 
-import math
 
 import numpy as np
 from django.test import SimpleTestCase

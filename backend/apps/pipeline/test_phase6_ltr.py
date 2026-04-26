@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import unittest
 
 from django.test import TestCase
 

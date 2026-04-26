@@ -37,7 +37,6 @@ import logging
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Iterable
 
 from .cascade_click_model import ClickSession, estimate as cascade_estimate
 from .position_bias_ips import DEFAULT_MAX_WEIGHT, ips_weight

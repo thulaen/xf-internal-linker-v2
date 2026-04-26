@@ -24,7 +24,7 @@ Full spec: docs/specs/fr105-reverse-search-query-vocabulary-alignment.md
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Sequence, TypeAlias
+from typing import Any, Mapping, TypeAlias
 
 import numpy as np
 

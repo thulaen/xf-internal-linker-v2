@@ -7,9 +7,15 @@ target-version = "py312"
 ignore = ["E402", "E741"]
 
 [lint.per-file-ignores]
-# Test files: unused variables from ORM .create() side effects
+# Test files: unused variables from ORM .create() side effects.
+# Patterns cover all four conventions used in this repo:
+#   tests.py / test_*.py / tests_*.py / **/tests/**.
 "**/tests.py" = ["F841"]
+"**/test_*.py" = ["F841"]
+"**/tests_*.py" = ["F841"]
 "**/tests/**" = ["F841"]
+# Benchmarks behave like tests for lint purposes — same side-effect patterns.
+"**/benchmarks/test_bench_*.py" = ["F841"]
 # Migration scripts: unused vars and other noise
 "**/migrations/**" = ["F841"]
 # One-off scripts

@@ -27,7 +27,7 @@ from .base import (
     default_should_pause,
     mean_pool_chunks,
 )
-from .errors import InvalidInputError, ProviderError
+from .errors import ProviderError
 
 logger = logging.getLogger(__name__)
 

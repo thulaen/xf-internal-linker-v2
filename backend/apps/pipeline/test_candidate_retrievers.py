@@ -11,14 +11,12 @@ Verifies the abstraction in :mod:`apps.pipeline.services.candidate_retrievers`:
 
 from __future__ import annotations
 
-import unittest
 from unittest.mock import patch
 
 import numpy as np
 from django.test import SimpleTestCase
 
 from apps.pipeline.services.candidate_retrievers import (
-    CandidateRetriever,
     RetrievalContext,
     SemanticRetriever,
     default_retrievers,

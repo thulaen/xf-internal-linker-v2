@@ -33,7 +33,6 @@ def embedding_provider_bakeoff(self, *, sample_size: int | None = None, provider
     """Score every configured provider on approved/rejected qrels."""
     from apps.core.models import AppSetting
     from apps.pipeline.services.embedding_bakeoff import (
-        load_stored_vectors,
         load_texts,
         persist_run,
         sample_ground_truth,

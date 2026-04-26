@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import datetime as dt
-import time
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
-from django.test import TestCase, override_settings
+from django.test import TestCase
 
 from .lock import (
     RUNNER_LOCK_KEY,
@@ -22,12 +21,10 @@ from .models import (
     JOB_STATE_COMPLETED,
     JOB_STATE_FAILED,
     JOB_STATE_PAUSED,
-    JOB_STATE_PENDING,
     ScheduledJob,
 )
 from .registry import (
     JOB_REGISTRY,
-    PauseRequested,
     lookup,
     scheduled_job,
     unregister_for_test,

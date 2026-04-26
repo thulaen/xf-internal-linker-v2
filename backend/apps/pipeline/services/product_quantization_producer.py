@@ -286,7 +286,6 @@ def pq_pairwise_similarity_above(
 
     # Take the upper triangle (excluding diagonal) so each pair is
     # emitted once.
-    n = len(pk_list)
     out: list[tuple] = []
     rows, cols = np.where(sims >= threshold)
     for i, j in zip(rows, cols):

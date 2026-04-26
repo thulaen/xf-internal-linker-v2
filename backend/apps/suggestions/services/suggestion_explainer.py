@@ -34,7 +34,6 @@ import logging
 from dataclasses import asdict, dataclass
 from typing import Any
 
-import numpy as np
 
 # Import the module rather than its symbols so unit-test patches via
 # ``patch.object(ranker_score_fn, "load_background_features", ...)``

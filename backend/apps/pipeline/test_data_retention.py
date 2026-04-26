@@ -23,8 +23,6 @@ from django.utils import timezone
 from apps.pipeline.tasks import (
     RETENTION_PREVIEW_KEY_IMPRESSIONS,
     RETENTION_PREVIEW_KEY_LAST_RUN_AT,
-    RETENTION_PREVIEW_KEY_NON_APPROVED,
-    RETENTION_PREVIEW_KEY_PRESENTATIONS,
     nightly_data_retention,
 )
 

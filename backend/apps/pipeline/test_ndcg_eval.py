@@ -14,7 +14,6 @@ from django.test import TestCase
 
 from apps.content.models import ContentItem, Post, ScopeItem, Sentence
 from apps.pipeline.services.ndcg_eval import (
-    DEFAULT_K,
     SANDERSON_BASIC_FLOOR,
     SANDERSON_PAIRWISE_FLOOR,
     bootstrap_ndcg_ci,

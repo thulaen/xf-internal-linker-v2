@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
-from typing import Iterable
 
 from django.db import transaction
 from django.utils import timezone
@@ -39,13 +38,11 @@ from .broadcasts import (
     broadcast_alerts_resolved,
 )
 from .models import (
-    ALERT_TYPE_FAILED,
     ALERT_TYPE_MISSED,
     ALERT_TYPE_STALLED,
     JOB_STATE_COMPLETED,
     JOB_STATE_FAILED,
     JOB_STATE_MISSED,
-    JOB_STATE_PAUSED,
     JOB_STATE_PENDING,
     JOB_STATE_RUNNING,
     JobAlert,

@@ -12,7 +12,6 @@ candidate batch costs one AppSetting query, not 1000.
 
 from __future__ import annotations
 
-import json
 from unittest.mock import patch
 
 from django.test import TestCase

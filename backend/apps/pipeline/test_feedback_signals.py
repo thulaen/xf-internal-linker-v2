@@ -8,7 +8,6 @@ from django.test import SimpleTestCase
 
 from apps.pipeline.services.cascade_click_model import (
     ClickSession,
-    DocRelevance,
     estimate as cascade_estimate,
     prior_mean,
 )

@@ -26,7 +26,6 @@ from django.utils import timezone
 from apps.content.models import ContentItem, Post, ScopeItem, Sentence
 from apps.pipeline.services.elo_rating import (
     DEFAULT_INITIAL_RATING,
-    PairwiseOutcome,
 )
 from apps.pipeline.services.elo_rating_producer import (
     derive_pairs_from_suggestion_history,
