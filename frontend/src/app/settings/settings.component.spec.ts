@@ -286,6 +286,27 @@ describe('SettingsComponent', () => {
               score_window: 0.3,
               similarity_cap: 0.9,
             }),
+            getFr099Fr105Settings: () => of({
+              kmig_enabled: true,
+              tapb_enabled: true,
+              kcib_enabled: true,
+              berp_enabled: true,
+              hgte_enabled: true,
+              rsqva_enabled: true,
+              darb_enabled: true,
+            }),
+            getStage1RetrieverSettings: () => of({
+              lexical_enabled: false,
+              query_expansion_enabled: false,
+            }),
+            getPhase6PickSettings: () => of({
+              vader_enabled: true,
+              kenlm_enabled: true,
+              lda_enabled: true,
+              node2vec_enabled: true,
+              bpr_enabled: true,
+              fm_enabled: true,
+            }),
             getCurrentWeights: () => of({
               'silo.mode': 'prefer_same_silo',
               'silo.same_silo_boost': '0.05',
