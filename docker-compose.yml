@@ -5,13 +5,10 @@
 #   docker compose --env-file .env up --build
 #
 # WHY NO DEV MODE:
-#   The previous split (dev docker-compose.yml + docker-compose.prod.yml
-#   override) was retired on 2026-04-22. Local development now runs
-#   against the same prod Angular bundle + production Django settings
-#   as a live deployment, so any measurement or screenshot taken while
-#   working matches what operators actually see. See
-#   `docs/PERFORMANCE.md §12` and `docs/DELETED-FEATURES.md` for the
-#   decision record.
+#   Local development runs against the same prod Angular bundle +
+#   production Django settings as a live deployment, so any measurement
+#   or screenshot taken while working matches what operators actually
+#   see. See `docs/PERFORMANCE.md §12` for the rationale.
 #
 # OPTIONAL PROFILES:
 #   docker compose --profile debug up    → adds GlitchTip error tracking

@@ -6,9 +6,9 @@ duplicate that logic, the source layer exposes the same primitives
 under a shorter dotted path so new outbound integrations don't need
 to reach across app boundaries.
 
-Per the PR-C duplication audit (docs/DELETED-FEATURES.md): the source
-layer reuses the existing breaker — it does NOT fork it. Any behaviour
-change lands in the upstream module.
+Per the PR-C duplication audit, the source layer reuses the existing
+breaker — it does NOT fork it. Any behaviour change lands in the
+upstream module.
 
 Reference: Nygard, *Release It!* (Pragmatic Bookshelf, 2007), "Stability
 Patterns: Circuit Breaker".

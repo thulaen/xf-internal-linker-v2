@@ -291,7 +291,7 @@ The canonical boot command is:
 docker compose --env-file .env up --build
 ```
 
-That is the **only** boot command. The dual-mode dev/prod compose split (with `-f` overrides) was retired on 2026-04-22 — see `docs/DELETED-FEATURES.md`. Every `docker compose up` now launches the stack with:
+That is the **only** boot command. The compose stack is prod-only — no dev/prod split, no `-f` overrides. Every `docker compose up` launches the stack with:
 
 - `DJANGO_SETTINGS_MODULE=config.settings.production` and `DJANGO_DEBUG=False` on backend + all Celery services.
 - Uvicorn **without** `--reload` and with 4 workers.

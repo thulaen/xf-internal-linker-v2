@@ -16,7 +16,6 @@ integration needs:
   wrapper (RFC 7232).
 
 Every helper is pure Python and dependency-free (no new pip packages
-added). They all fit in <= 128 MB RAM + <= 256 MB disk per the plan
-(check-how-many-pending-tidy-iverson.md) and none duplicates existing
-code -- see docs/DELETED-FEATURES.md and the PR-C duplication audit.
+added). They all fit in <= 128 MB RAM + <= 256 MB disk and none
+duplicates existing code (PR-C duplication audit).
 """

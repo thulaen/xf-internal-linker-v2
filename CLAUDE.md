@@ -12,7 +12,7 @@
 **Before any C++ work, read `backend/extensions/CPP-RULES.md` first.**
 **Before writing any code, follow the Code Quality Mandate in `AGENTS.md` — it applies to every task.**
 **Before any work involving scheduled tasks, resource usage, concurrency, or GPU work, read `docs/PERFORMANCE.md`. This applies to all AI agents (Claude, Codex, Gemini).**
-**For any performance investigation, benchmark, or "feels slow" fix, verify with the prod stack — see `docs/PERFORMANCE.md` §13. There is no dev mode any more (see `docs/DELETED-FEATURES.md`): `docker compose --env-file .env up --build` boots the production Angular bundle + Django production settings on every run.**
+**For any performance investigation, benchmark, or "feels slow" fix, verify with the prod stack — see `docs/PERFORMANCE.md` §13. The prod-only compose stack — `docker compose --env-file .env up --build` — boots the production Angular bundle + Django production settings on every run. There is no dev mode.**
 **Before any work touching ranking signals, meta-algorithms, autotuners, or weight-preset keys, read `docs/RANKING-GATES.md` and satisfy Gate A (implementation — fires when CODE is about to be written) and Gate B (user-idea intake — fires the moment an idea is PROPOSED). Every checkbox must pass or have an explicit written justification. Skipping either gate is a policy violation.**
 
 # Mandatory Benchmark Rule — All Languages
@@ -202,7 +202,7 @@ Never render validation errors with a custom `<div class="error">` or inline sty
 
 Every AI session must follow these rules to prevent Docker disk bloat:
 
-- **Prod-only compose stack.** There is **one** compose file — `docker-compose.yml` — and it boots the **production** Angular bundle (`xf-linker-frontend-prod:latest`) behind nginx on port 80. There is no dev Angular server, no `ng serve` in docker, no `docker-compose.override.yml`, no `docker-compose.prod.yml`. The dual-mode setup was retired 2026-04-22 (see `docs/DELETED-FEATURES.md`). Any AI that tries to re-add a dev-frontend service, resurrect `frontend-dev`, or split the compose back into dev+prod files will trip the phantom-reference CI gate (`backend/scripts/check_phantom_references.py`).
+- **Prod-only compose stack.** There is **one** compose file — `docker-compose.yml` — and it boots the **production** Angular bundle (`xf-linker-frontend-prod:latest`) behind nginx on port 80. There is no dev Angular server, no `ng serve` in docker, no `docker-compose.override.yml`, no `docker-compose.prod.yml`. Do not split the compose back into dev+prod files; do not re-add a dev-frontend service.
 - Never add a `build:` block to a service that can reuse an existing image. Use `image:` instead.
 - The build-once pattern is mandatory: `xf-linker-backend:latest` is shared by backend, celery-worker, and celery-beat. Do not break this.
 - After any `docker-compose build`, immediately run `docker system prune -f` to remove stopped containers, unused networks, dangling images, and build cache in a single call. This **never touches named volumes**, so embeddings in `pgdata` (and all data in `redis-data`, `media_files`, `staticfiles`) stay safe. At session end, after `docker compose down`, also run `powershell -ExecutionPolicy Bypass -File docker_compact_vhd.ps1` to compact the Windows VHDX so the freed space is actually returned to Windows.

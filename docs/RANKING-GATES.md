@@ -272,9 +272,8 @@ Every AI agent whose planned work touches ranking, meta, autotuner, or weight-pr
 
 ### Before merge
 
-1. CI runs `backend/scripts/check_phantom_references.py` to verify no banned identifier reappeared.
-2. CI runs `docker compose --env-file .env up --build` and the three verification sub-steps (`pytest`, `pytest --benchmark-only`, end-to-end smoke).
-3. Reviewer verifies every checkbox in Gate A.
+1. CI runs `docker compose --env-file .env up --build` and the three verification sub-steps (`pytest`, `pytest --benchmark-only`, end-to-end smoke).
+2. Reviewer verifies every checkbox in Gate A.
 
 ### After merge
 

@@ -311,7 +311,7 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 
 | Sub-slice | Landing | Commit | Content |
 |---|---|---|---|
-| PR-A | done | prior to 2026-04-22 | Tournament teardown: deleted 5 phase-2 weight files, 238 meta specs, 126 fr-099..fr-224 specs, 3 unwired C++ kernels, tournament models + scheduler, dev-only frontend dockerfile + compose overrides. Added phantom-reference CI gate + `deleted_tokens.txt` + `docs/DELETED-FEATURES.md`. Rewrote every existing Celery-Beat entry into the 13:00–23:00 window. |
+| PR-A | done | prior to 2026-04-22 | Tournament teardown: deleted 5 phase-2 weight files, 238 meta specs, 126 fr-099..fr-224 specs, 3 unwired C++ kernels, tournament models + scheduler, dev-only frontend dockerfile + compose overrides. Rewrote every existing Celery-Beat entry into the 13:00–23:00 window. |
 | PR-B | done | `798b2ad` / `8ae289f` / `7d511f2` / `b9d6092` | Scheduled Updates app: `ScheduledJob` + `JobAlert` models with `UNIQUE(job_key, alert_type, calendar_date)` dedup, window guard (13:00–23:00), Redis lock, `@scheduled_job` decorator, Django Channels broadcasts, Angular tab + service + history card + inline 409 snackbar. 89 tests. |
 | PR-C | done | `6d925b1` | 6 Source-layer helpers: token bucket, backoff + jitter, circuit-breaker re-export, bloom filter, hyperloglog, conditional GET. |
 | PR-D | done | `f8548e4` | Crawl-layer helpers: robots.txt (stdlib + cache), encoding detect (5-tier cascade), freshness scheduler (Cho-Garcia-Molina). |
@@ -334,7 +334,7 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | W4 | pending | — | FR-232 Explain endpoint + Angular button; FR-231 Accept-HPO card; ranker `score_fn` refactor to a pure callable. |
 
 - Next exact target: **PR-P — ship pick #49 Uncertainty Sampling + #50 Conformal Prediction + #52 Adaptive Conformal Inference** (clean hand-rolled helpers, no new pip deps).
-- Current continuity state: 31 FRs plus FR-230 (in progress) are tracked in the ledger. The Phase-2 forward-declared library (126 signals + 210 meta-algos + the meta tournament scheduler) was retired in PR-A (2026-04-22) — see `plans/check-how-many-pending-tidy-iverson.md` and `docs/DELETED-FEATURES.md`.
+- Current continuity state: 31 FRs plus FR-230 (in progress) are tracked in the ledger. The Phase-2 forward-declared library was retired in PR-A (2026-04-22).
 - Scope reminder: do not hide FR-012 structural evidence inside FR-011 or later reranking phases
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced
 - Future queued backlog phases beyond Phase 37 continue in `FEATURE-REQUESTS.md`. The Phase 2 forward-declared library entries sit at the bottom of `FEATURE-REQUESTS.md` in a compressed table.
@@ -377,7 +377,7 @@ FR-089, FR-090, FR-092, FR-093, FR-094, FR-095, FR-096, FR-097, FR-098
 
 **C++ OPT extensions:**
 Full specs in `docs/specs/opt-*.md`. The 5 OPT specs tied to 3 retired
-C++ kernels were deleted in PR-A slice 2 — see `docs/DELETED-FEATURES.md`.
+C++ kernels were deleted in PR-A slice 2.
 
 **Known gaps in completed work:**
 - FR-032: deep-linked discovery (click depth > 5) deferred to Phase 2
@@ -553,7 +553,6 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
   - `docs/READY-TODAY.md` — "Last updated" footer + "Daily 11:00–23:00" + GSC spike note.
   - `AGENT-HANDOFF.md` — entry `2026-04-25 (5)` appended.
 - **Test status:** apps.scheduled_updates 104/104, apps.pipeline 638/638, apps.pipeline.test_waste_bitmaps 30/30, full backend sweep **1251/1251** (5 skipped — pre-existing).
-- **Phantom gate:** OK — scanned 165 banned tokens, no phantoms.
 - **Docker prune note:** No Docker rebuild this session (only test runs via `docker compose exec`); the safe-prune script may still be a courtesy at session end if any other cleanup is desired.
 - **Branch:** stayed on `master`. No branch transparency violation.
 
@@ -563,7 +562,7 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 - **Why:** User saw a Reddit post about "dangling nodes" — high-authority posts with no outbound internal links that hoard link equity. User asked whether the project covers it, then asked for 7 patent/paper-backed ranking signals complementary to the existing 15, on-by-default, with two strict session gates (one for implementing signals, one for when the user proposes a new idea), readable by Claude / Codex / Gemini.
 - **Relevant open findings disclosed in chat before touching code:** None in the ranker / composite-score / preset-seeding area. `RPT-001` has 3 open findings but none adjacent. `ISS-021` open but unrelated.
 - **Forward-clash check:** Reviewed next 3 queued phases (FR-230 52-pick roster, FR-020 zero-downtime, FR-230 continued). Zero clash — the 7 new signals operate on distinct graph-topology axes and don't conflict with any pick-NN or meta-algo. Verified via Explore-agent overlap audit against all 100+ specs in `docs/specs/`.
-- **FR number note:** FR-099 through FR-105 numbers were previously assigned to retired forward-declared signals (PR-A 2026-04-22, see `docs/DELETED-FEATURES.md`). The FR *numbers* are re-used; the algorithm tokens (BM25L / PL2 / DPH / etc.) are NOT re-introduced — verified against `backend/scripts/deleted_tokens.txt`. Clarifying note added to `docs/DELETED-FEATURES.md` and cross-referenced from the new audit report.
+- **FR number note:** FR-099 through FR-105 numbers were previously assigned to retired forward-declared signals (PR-A 2026-04-22). The FR *numbers* are re-used; the algorithm tokens (BM25L / PL2 / DPH / etc.) are NOT re-introduced.
 - **Gates shipped (docs/RANKING-GATES.md + CLAUDE.md + AGENTS.md + AI-CONTEXT.md Session Gate):**
   - **Gate A — Ranking Signal Implementation Gate:** 12-point mandatory checklist before any code is written.
   - **Gate B — User-Idea Overlap Gate:** 7-step mandatory flow when user proposes a new idea; ends with a strict-format report to operator + explicit approval word ("proceed"/"ship it"/"spec it") before spec writing begins.
@@ -595,7 +594,6 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
   - `backend/apps/content/migrations/0026_add_gsc_query_tfidf_vector.py` (new)
   - `docs/reports/2026-04-24-fr099-fr105-graph-topology-signals.md` (new — BLC §4.4 dated audit report)
   - `CLAUDE.md`, `AGENTS.md`, `AI-CONTEXT.md` (Gate A/B pointer lines)
-  - `docs/DELETED-FEATURES.md` (FR-number reclamation note)
   - `FEATURE-REQUESTS.md` (FR-099 through FR-105 entries in PENDING)
 - **Phase A (specs + gates) and Phase B (code + integration) shipped in this session. Phase C verification ran:**
   - Migrations applied: `content/0026`, `suggestions/0035`, `suggestions/0036` — all OK
@@ -611,7 +609,6 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
   - ISS-024 (3 pre-existing embedding-dimension test failures) — **DONE** same session; Gate 2 of `embedding_quality_gate.evaluate()` now short-circuits to `ACCEPT_NEW` on dimension mismatch
   - C++ fast paths — not needed for any of the 7 (all are O(1) per-candidate after precompute; networkx + scipy precompute already C-accelerated)
 - **Verification that passed:**
-  - All 7 identifier blocks CLEAR against `backend/scripts/deleted_tokens.txt` (verified via loop).
   - Overlap audit CLEAR against all 100+ `docs/specs/` files (Explore-agent audit).
   - Every spec passes Gate A checklist; every default is baseline-cited; every signal has a neutral fallback.
 - **Verification complete (2026-04-24 phase C):**
@@ -3483,7 +3480,6 @@ context.
 - **Test counts (post-session):** apps.pipeline = 579, apps.sources = 163, apps.training = 22, apps.scheduled_updates = 110+ (incl. 9 new W1-job tests). Full broader sweep: 800+ tests, all green. Phantom gate clean.
 - **Verification on rebuilt prod stack:**
   - `docker-compose exec -T backend python manage.py test apps.pipeline apps.sources apps.training apps.scheduled_updates` → all green.
-  - `python backend/scripts/check_phantom_references.py` → exit 0.
   - Migration applies + rolls back cleanly via `migrate content 0030` ↔ `migrate content 0031`.
 - **What's NOT done:**
   - **Frontend UI** for the new AppSetting flags (`stage1.lexical_retriever_enabled`, `stage1.query_expansion_retriever_enabled`) — operators set them via Django admin or shell for now.

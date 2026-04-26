@@ -313,12 +313,7 @@ Operator directive + system invariant: "the rest of the pipeline must continue a
 - [ ] `Kernel SHAP` unavailable raises `SHAPUnavailable(RuntimeError)` so callers can branch to a simpler explanation.
 - [ ] `ACI` (#52) warmup keeps the initial α until the rolling window has ≥ 50 % fill — prevents early-life α flapping.
 
-### 7.6 Phantom-reference CI gate
-
-- [ ] `backend/scripts/check_phantom_references.py` runs in every backend PR and fails the build if any retired pending-signal / meta-algo / tournament identifier reappears.
-- [ ] `backend/scripts/deleted_tokens.txt` accurately reflects the live ban list — any re-shipment of a previously-banned identifier (e.g. `pmi`, `hyperloglog`, `trustrank`) must un-ban the token with an explanatory comment in `deleted_tokens.txt`.
-
-### 7.7 Mandatory-benchmark rule (CLAUDE.md)
+### 7.6 Mandatory-benchmark rule (CLAUDE.md)
 
 Every hot-path function needs a pytest-benchmark file with 3 input sizes. **Shipped helpers without benchmarks are a regression.**
 

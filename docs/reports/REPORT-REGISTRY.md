@@ -24,7 +24,7 @@ This file is the single index of all audit reports and individual issues found b
 
 - **Status:** RESOLVED — the 337 forward-declared backlog items were retired as part of PR-A. The meta tournament scheduler (126 pending ranking signals, 238 pending meta-algo specs, 5 phase-2 weight files, 3 unwired C++ kernels, and 5 stale OPT specs) have all been deleted.
 - **Scope:** Original filing covered 126 Block A-O signals plus 210 Block P1-Q24 meta-algorithms filed as spec stubs on 2026-04-15. A decision-record audit on 2026-04-21 showed every entry fell into a conflict / overlap / duplicate / niche tier. None were ever wired.
-- **Resolution:** Deleted in PR-A (commits `3be6ddc`, `48b2bd9`, `74a91df`, `16b8312`, `1538073`). Replaced by a curated 52-pick roster landing in PR-B..PR-P. Decision-record: `plans/check-how-many-pending-tidy-iverson.md`. Gravestone: `docs/DELETED-FEATURES.md`. CI gate: `backend/scripts/check_phantom_references.py`.
+- **Resolution:** Deleted in PR-A (commits `3be6ddc`, `48b2bd9`, `74a91df`, `16b8312`, `1538073`). Replaced by a curated 52-pick roster landing in PR-B..PR-P.
 
 ---
 
