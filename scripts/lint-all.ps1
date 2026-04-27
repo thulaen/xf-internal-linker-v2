@@ -1,4 +1,4 @@
-##############################################################################
+﻿##############################################################################
 # lint-all.ps1 — Run ALL linters across every language in the project.
 #
 # Called by verify.ps1 BEFORE tests so lint failures abort fast.
@@ -190,7 +190,7 @@ if ($cppFiles.Count -eq 0) {
     $clangFormatExit = $LASTEXITCODE
     $ErrorActionPreference = "Stop"
     if ($clangFormatExit -ne 0) {
-        throw "clang-format check failed. Auto-fix: clang-format -i --style=file <file>"
+        throw 'clang-format check failed. Auto-fix per file: clang-format -i --style=file PATH (where PATH is the .cpp or .h file).'
     }
 }
 
