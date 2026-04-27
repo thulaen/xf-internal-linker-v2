@@ -138,7 +138,11 @@ class _LoginRateThrottle(AnonRateThrottle):
         # itself). Anything else — a real LAN client, a remote proxy
         # forwarding XFF — still hits the 30/60s ceiling.
         ident = self.get_ident(request) or ""
-        if ident in {"127.0.0.1", "::1"} or ident.startswith("127.") or ident.startswith("172."):
+        if (
+            ident in {"127.0.0.1", "::1"}
+            or ident.startswith("127.")
+            or ident.startswith("172.")
+        ):
             return True
         return super().allow_request(request, view)
 
