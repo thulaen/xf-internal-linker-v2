@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -9,7 +9,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
   standalone: true,
   imports: [CommonModule, RouterModule, MatIconModule, MatTooltipModule],
   templateUrl: './system-summary.component.html',
-  styleUrls: ['./system-summary.component.scss']
+  styleUrls: ['./system-summary.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SystemSummaryComponent {
   @Input() health: {

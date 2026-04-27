@@ -21,10 +21,10 @@
           type="color"
           id="color-primary"
           class="color-input"
-          [value]="cfg.primaryColor"
+          [value]="cfg().primaryColor"
           (input)="setPrimary($any($event.target).value)"
         />
-        <span class="color-hex">{{ cfg.primaryColor }}</span>
+        <span class="color-hex">{{ cfg().primaryColor }}</span>
       </div>
     </div>
 
@@ -35,10 +35,10 @@
           type="color"
           id="color-accent"
           class="color-input"
-          [value]="cfg.accentColor"
+          [value]="cfg().accentColor"
           (input)="setAccent($any($event.target).value)"
         />
-        <span class="color-hex">{{ cfg.accentColor }}</span>
+        <span class="color-hex">{{ cfg().accentColor }}</span>
       </div>
     </div>
 
@@ -49,10 +49,10 @@
           type="color"
           id="color-header-bg"
           class="color-input"
-          [value]="cfg.headerBg"
+          [value]="cfg().headerBg"
           (input)="setHeaderBg($any($event.target).value)"
         />
-        <span class="color-hex">{{ cfg.headerBg }}</span>
+        <span class="color-hex">{{ cfg().headerBg }}</span>
       </div>
     </div>
   </section>
@@ -64,7 +64,7 @@
     <h3 class="section-title">Typography</h3>
     <mat-form-field appearance="outline" class="full-width">
       <mat-label>Font size</mat-label>
-      <mat-select [value]="cfg.fontSize" (selectionChange)="setFontSize($event.value)">
+      <mat-select [value]="cfg().fontSize" (selectionChange)="setFontSize($event.value)">
         <mat-option value="small">Small (13px)</mat-option>
         <mat-option value="medium">Medium (13px)</mat-option>
         <mat-option value="large">Large (16px)</mat-option>
@@ -80,7 +80,7 @@
 
     <mat-form-field appearance="outline" class="full-width">
       <mat-label>Content width</mat-label>
-      <mat-select [value]="cfg.layoutWidth" (selectionChange)="setLayoutWidth($event.value)">
+      <mat-select [value]="cfg().layoutWidth" (selectionChange)="setLayoutWidth($event.value)">
         <mat-option value="narrow">Narrow (960px)</mat-option>
         <mat-option value="standard">Standard (1280px)</mat-option>
         <mat-option value="wide">Wide (full)</mat-option>
@@ -89,7 +89,7 @@
 
     <mat-form-field appearance="outline" class="full-width">
       <mat-label>Sidebar width</mat-label>
-      <mat-select [value]="cfg.sidebarWidth" (selectionChange)="setSidebarWidth($event.value)">
+      <mat-select [value]="cfg().sidebarWidth" (selectionChange)="setSidebarWidth($event.value)">
         <mat-option value="compact">Compact (200px)</mat-option>
         <mat-option value="standard">Standard (220px)</mat-option>
         <mat-option value="comfortable">Comfortable (260px)</mat-option>
@@ -98,7 +98,7 @@
 
     <mat-form-field appearance="outline" class="full-width">
       <mat-label>Density</mat-label>
-      <mat-select [value]="cfg.density" (selectionChange)="setDensity($event.value)">
+      <mat-select [value]="cfg().density" (selectionChange)="setDensity($event.value)">
         <mat-option value="compact">Compact</mat-option>
         <mat-option value="comfortable">Comfortable</mat-option>
       </mat-select>
@@ -116,7 +116,7 @@
       <input
         matInput
         autocomplete="organization"
-        [value]="cfg.siteName"
+        [value]="cfg().siteName"
         (blur)="setSiteName($any($event.target).value)"
       />
     </mat-form-field>
@@ -124,9 +124,9 @@
     <!-- Logo -->
     <div class="asset-row">
       <span class="asset-label">Logo</span>
-      @if (cfg.logoUrl) {
+      @if (cfg().logoUrl) {
         <div class="asset-preview">
-          <img [src]="cfg.logoUrl" alt="Site logo" class="asset-thumb" loading="lazy" />
+          <img [src]="cfg().logoUrl" alt="Site logo" class="asset-thumb" loading="lazy" />
           <button
             mat-icon-button
             class="asset-remove"
@@ -139,11 +139,11 @@
       } @else {
         <button
           mat-stroked-button
-          [disabled]="uploadingLogo"
+          [disabled]="uploadingLogo()"
           (click)="logoInput.click()"
           class="asset-upload-btn"
         >
-          @if (uploadingLogo) {
+          @if (uploadingLogo()) {
             <mat-spinner diameter="16" class="btn-spinner"></mat-spinner>
           } @else {
             <mat-icon>upload</mat-icon>
@@ -164,9 +164,9 @@
     <!-- Favicon -->
     <div class="asset-row">
       <span class="asset-label">Favicon</span>
-      @if (cfg.faviconUrl) {
+      @if (cfg().faviconUrl) {
         <div class="asset-preview">
-          <img [src]="cfg.faviconUrl" alt="Favicon" class="asset-thumb favicon-thumb" loading="lazy" />
+          <img [src]="cfg().faviconUrl" alt="Favicon" class="asset-thumb favicon-thumb" loading="lazy" />
           <button
             mat-icon-button
             class="asset-remove"
@@ -179,11 +179,11 @@
       } @else {
         <button
           mat-stroked-button
-          [disabled]="uploadingFavicon"
+          [disabled]="uploadingFavicon()"
           (click)="faviconInput.click()"
           class="asset-upload-btn"
         >
-          @if (uploadingFavicon) {
+          @if (uploadingFavicon()) {
             <mat-spinner diameter="16" class="btn-spinner"></mat-spinner>
           } @else {
             <mat-icon>image</mat-icon>
@@ -211,18 +211,18 @@
     <div class="toggle-row">
       <span class="toggle-label">Show footer</span>
       <mat-slide-toggle
-        [checked]="cfg.showFooter"
+        [checked]="cfg().showFooter"
         (change)="toggleFooter($event.checked)"
       ></mat-slide-toggle>
     </div>
 
-    @if (cfg.showFooter) {
+    @if (cfg().showFooter) {
       <mat-form-field appearance="outline" class="full-width mt-8">
         <mat-label>Footer text</mat-label>
         <input
           matInput
           autocomplete="off"
-          [value]="cfg.footerText"
+          [value]="cfg().footerText"
           (blur)="setFooterText($any($event.target).value)"
         />
       </mat-form-field>
@@ -234,10 +234,10 @@
             type="color"
             id="color-footer-bg"
             class="color-input"
-            [value]="cfg.footerBg"
+            [value]="cfg().footerBg"
             (input)="setFooterBg($any($event.target).value)"
           />
-          <span class="color-hex">{{ cfg.footerBg }}</span>
+          <span class="color-hex">{{ cfg().footerBg }}</span>
         </div>
       </div>
     }
@@ -251,7 +251,7 @@
     <div class="toggle-row">
       <span class="toggle-label">Show scroll-to-top button</span>
       <mat-slide-toggle
-        [checked]="cfg.showScrollToTop"
+        [checked]="cfg().showScrollToTop"
         (change)="toggleScrollToTop($event.checked)"
       ></mat-slide-toggle>
     </div>
@@ -263,9 +263,9 @@
   <section class="section">
     <h3 class="section-title">Presets</h3>
 
-    @if (cfg.presets.length > 0) {
+    @if (cfg().presets.length > 0) {
       <div class="preset-list">
-        @for (preset of cfg.presets; track preset.name) {
+        @for (preset of cfg().presets; track preset.name) {
           <div class="preset-row">
             <span class="preset-name">{{ preset.name }}</span>
             <div class="preset-actions">
@@ -281,17 +281,17 @@
       <p class="no-presets">No saved presets yet.</p>
     }
 
-    @if (showSavePreset) {
+    @if (showSavePreset()) {
       <div class="save-preset-row">
         <mat-form-field appearance="outline" class="flex-1">
           <mat-label>Preset name</mat-label>
           <input matInput autocomplete="off" [(ngModel)]="newPresetName" (keydown.enter)="savePreset()" />
         </mat-form-field>
         <button mat-flat-button color="primary" (click)="savePreset()">Save</button>
-        <button mat-button (click)="showSavePreset = false">Cancel</button>
+        <button mat-button (click)="showSavePreset.set(false)">Cancel</button>
       </div>
     } @else {
-      <button mat-button (click)="showSavePreset = true">
+      <button mat-button (click)="showSavePreset.set(true)">
         <mat-icon>add</mat-icon>
         Save current as preset
       </button>

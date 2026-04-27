@@ -20,7 +20,7 @@
     <div class="notif-panel-header">
       <span class="notif-panel-title">Notifications</span>
       <div class="notif-panel-actions">
-        @if (alerts.length > 0) {
+        @if (alerts().length > 0) {
           <button
             mat-button
             class="notif-clear-btn"
@@ -39,14 +39,14 @@
     <mat-divider />
 
     <!-- Loading state -->
-    @if (loading) {
+    @if (loading()) {
       <div class="notif-empty">
         <mat-spinner diameter="24" />
       </div>
     }
 
     <!-- Empty state -->
-    @if (!loading && alerts.length === 0) {
+    @if (!loading() && alerts().length === 0) {
       <div class="notif-empty">
         <mat-icon class="notif-empty-icon icon-3xl">notifications_none</mat-icon>
         <span class="notif-empty-label">No unread notifications</span>
@@ -54,9 +54,9 @@
     }
 
     <!-- Alert list -->
-    @if (!loading && alerts.length > 0) {
+    @if (!loading() && alerts().length > 0) {
       <ul class="notif-list" role="list">
-        @for (alert of alerts; track alert.alert_id) {
+        @for (alert of alerts(); track alert.alert_id) {
           <li
             class="notif-item notif-item--{{ alert.severity }}"
             role="listitem"

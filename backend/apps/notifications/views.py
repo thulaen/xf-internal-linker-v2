@@ -18,6 +18,7 @@ import logging
 
 from django.utils import timezone
 from rest_framework import status
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -84,6 +85,21 @@ def _alert_queryset():
     )
 
 
+class AlertListPagination(PageNumberPagination):
+    """Paginate the alert list.
+
+    Page size mirrors the operator-facing /review page (25/page) so the
+    UI rhythm is consistent across the two largest unbounded lists. Bumped
+    from the legacy hard cap of 200 (which silently truncated and hid 1k+
+    alerts during outages) — the operator now sees the real ``count`` plus
+    a paginator and can opt into a wider page via ``?page_size=``.
+    """
+
+    page_size = 25
+    page_size_query_param = "page_size"
+    max_page_size = 200
+
+
 class AlertListView(APIView):
     """List operator alerts with optional filters."""
 
@@ -108,8 +124,10 @@ class AlertListView(APIView):
         if source_area_filter:
             qs = qs.filter(source_area=source_area_filter)
 
-        serializer = OperatorAlertSerializer(qs[:200], many=True)
-        return Response(serializer.data)
+        paginator = AlertListPagination()
+        page = paginator.paginate_queryset(qs, request, view=self)
+        serializer = OperatorAlertSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
 
 class AlertDetailView(APIView):

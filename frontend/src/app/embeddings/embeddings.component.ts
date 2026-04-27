@@ -21,7 +21,8 @@
 
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -38,7 +39,8 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatTabsModule } from '@angular/material/tabs';
-import { Subscription, interval } from 'rxjs';
+import { interval } from 'rxjs';
+import { VisibilityGateService } from '../core/util/visibility-gate.service';
 
 interface EmbeddingStatus {
   active_provider: string;
@@ -108,22 +110,37 @@ interface GateDecision {
   ],
   templateUrl: './embeddings.component.html',
   styleUrls: ['./embeddings.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class EmbeddingsComponent implements OnInit, OnDestroy {
+export class EmbeddingsComponent implements OnInit {
   private http = inject(HttpClient);
   private snack = inject(MatSnackBar);
+  private visibilityGate = inject(VisibilityGateService);
+  // Replaces the previous manual pollSub field + ngOnDestroy unsubscribe.
+  // Every HTTP subscribe in this component is now piped through
+  // takeUntilDestroyed so a route navigation mid-fetch correctly
+  // aborts the request — the previous code leaked dozens of in-flight
+  // HTTP responses on each navigation.
+  private destroyRef = inject(DestroyRef);
 
-  loading = signal(true);
-  status = signal<EmbeddingStatus | null>(null);
-  settings = signal<Record<string, string>>({});
-  bakeoffRows = signal<BakeoffRow[]>([]);
-  gateDecisions = signal<GateDecision[]>([]);
+  readonly loading = signal(true);
+  readonly status = signal<EmbeddingStatus | null>(null);
+  readonly settings = signal<Record<string, string>>({});
+  readonly bakeoffRows = signal<BakeoffRow[]>([]);
+  readonly gateDecisions = signal<GateDecision[]>([]);
 
-  selectedProvider = 'local';
-  fallbackProvider = 'local';
-  testingProvider: string | null = null;
-  busyAction: string | null = null;
-  showApiKey = false;
+  /** Render-affecting flags. Were plain mutable fields under partial
+   *  migration; now signals so OnPush picks up button-state changes
+   *  (test-in-progress, save/audit/bakeoff busy markers, key visibility). */
+  readonly testingProvider = signal<string | null>(null);
+  readonly busyAction = signal<string | null>(null);
+  readonly showApiKey = signal(false);
+
+  // ngModel two-way binding — needs an lvalue, stays plain. The radio
+  // group only writes pendingProvider; the destructive POST happens in
+  // applyProviderChange below (WCAG 3.2.2 — no surprise actions on
+  // arrow-key navigation through the radio group).
+  pendingProvider: string | null = null;
 
   // Human-readable labels for every AppSetting key surfaced in the UI.
   // Raw keys like "embedding.api_key" are internal; the SR-friendly label
@@ -146,7 +163,7 @@ export class EmbeddingsComponent implements OnInit, OnDestroy {
   };
 
   // Which settings are editable in the Providers tab.
-  editableKeys: string[] = [
+  readonly editableKeys: readonly string[] = [
     'embedding.model',
     'embedding.api_key',
     'embedding.api_base',
@@ -155,7 +172,7 @@ export class EmbeddingsComponent implements OnInit, OnDestroy {
     'embedding.rate_limit_rpm',
   ];
 
-  auditKeys: string[] = [
+  readonly auditKeys: readonly string[] = [
     'embedding.audit_resample_size',
     'embedding.audit_norm_tolerance',
     'embedding.audit_drift_threshold',
@@ -179,12 +196,7 @@ export class EmbeddingsComponent implements OnInit, OnDestroy {
     'embedding.gate_stability_threshold',
   ]);
 
-  // Provider switch is destructive mid-job, so keyboard arrow-key moves inside
-  // the radio group update the UI selection but do not fire the POST until the
-  // user explicitly confirms via Enter / Space / click.
-  pendingProvider: string | null = null;
-
-  bakeoffCols = [
+  readonly bakeoffCols: readonly string[] = [
     'provider',
     'mrr_at_10',
     'ndcg_at_10',
@@ -195,18 +207,18 @@ export class EmbeddingsComponent implements OnInit, OnDestroy {
     'created_at',
   ];
 
-  decisionCols = ['created_at', 'item_kind', 'item_id', 'action', 'reason', 'score_delta'];
-
-  private pollSub?: Subscription;
+  readonly decisionCols: readonly string[] = ['created_at', 'item_kind', 'item_id', 'action', 'reason', 'score_delta'];
 
   ngOnInit(): void {
     this.refreshAll();
     // Light polling so the Overview tab reflects live provider switches.
-    this.pollSub = interval(15_000).subscribe(() => this.loadStatus());
-  }
-
-  ngOnDestroy(): void {
-    this.pollSub?.unsubscribe();
+    // Gated on login + visibility — paused for hidden tabs / signed-out
+    // users. takeUntilDestroyed cancels the stream on route teardown,
+    // replacing the previous manual pollSub unsubscribe in ngOnDestroy.
+    this.visibilityGate
+      .whileLoggedInAndVisible(() => interval(15_000))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.loadStatus());
   }
 
   refreshAll(): void {
@@ -218,47 +230,50 @@ export class EmbeddingsComponent implements OnInit, OnDestroy {
   }
 
   loadStatus(): void {
-    this.http.get<EmbeddingStatus>('/api/embedding/status/').subscribe({
-      next: (s) => {
-        this.status.set(s);
-        this.selectedProvider = s.active_provider;
-        // Only seed pendingProvider the first time, or when it falls behind;
-        // never overwrite a mid-edit selection the user has not applied yet.
-        if (this.pendingProvider === null) {
-          this.pendingProvider = s.active_provider;
-        }
-        this.fallbackProvider = s.fallback_provider;
-        this.loading.set(false);
-      },
-      error: (err) => {
-        console.error('embedding status error', err);
-        this.loading.set(false);
-      },
-    });
+    this.http.get<EmbeddingStatus>('/api/embedding/status/')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (s) => {
+          this.status.set(s);
+          // Only seed pendingProvider the first time, or when it falls behind;
+          // never overwrite a mid-edit selection the user has not applied yet.
+          if (this.pendingProvider === null) {
+            this.pendingProvider = s.active_provider;
+          }
+          this.loading.set(false);
+        },
+        error: (err) => {
+          console.error('embedding status error', err);
+          this.loading.set(false);
+        },
+      });
   }
 
   loadSettings(): void {
-    this.http.get<Record<string, string>>('/api/embedding/settings/').subscribe({
-      next: (s) => this.settings.set(s),
-    });
+    this.http.get<Record<string, string>>('/api/embedding/settings/')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (s) => this.settings.set(s),
+        error: (err) => console.error('embedding settings error', err),
+      });
   }
 
   loadBakeoff(): void {
-    this.http.get<BakeoffRow[]>('/api/embedding/bakeoff/').subscribe({
-      next: (rows) => this.bakeoffRows.set(rows),
-    });
+    this.http.get<BakeoffRow[]>('/api/embedding/bakeoff/')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (rows) => this.bakeoffRows.set(rows),
+        error: (err) => console.error('embedding bakeoff error', err),
+      });
   }
 
   loadGateDecisions(): void {
-    this.http.get<GateDecision[]>('/api/embedding/gate-decisions/').subscribe({
-      next: (rows) => this.gateDecisions.set(rows),
-    });
-  }
-
-  /** Kept for template backward-compat; unused now that the radio group uses
-   *  two-step apply (see applyProviderChange). */
-  onProviderChange(name: string): void {
-    this.pendingProvider = name;
+    this.http.get<GateDecision[]>('/api/embedding/gate-decisions/')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (rows) => this.gateDecisions.set(rows),
+        error: (err) => console.error('embedding gate-decisions error', err),
+      });
   }
 
   /** Explicit keyboard-accessible apply step (WCAG 3.2.2).
@@ -269,107 +284,117 @@ export class EmbeddingsComponent implements OnInit, OnDestroy {
     const name = this.pendingProvider;
     if (!name) return;
     if (name === this.status()?.active_provider) return;
-    this.busyAction = 'switching';
-    this.http.post('/api/embedding/provider/', { name }).subscribe({
-      next: () => {
-        this.busyAction = null;
-        this.snack.open(`Active provider: ${name}`, 'OK', { duration: 3000 });
-        this.loadStatus();
-      },
-      error: (err) => {
-        this.busyAction = null;
-        this.snack.open(`Switch failed: ${err?.error?.detail || err?.message}`, 'OK', {
-          duration: 5000,
-        });
-      },
-    });
+    this.busyAction.set('switching');
+    this.http.post('/api/embedding/provider/', { name })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.busyAction.set(null);
+          this.snack.open(`Active provider: ${name}`, 'OK', { duration: 3000 });
+          this.loadStatus();
+        },
+        error: (err) => {
+          this.busyAction.set(null);
+          this.snack.open(`Switch failed: ${err?.error?.detail || err?.message}`, 'OK', {
+            duration: 5000,
+          });
+        },
+      });
   }
 
   testConnection(provider: string): void {
-    this.testingProvider = provider;
+    this.testingProvider.set(provider);
     this.http.post<{ ok: boolean; signature?: string; error?: string }>(
       '/api/embedding/test-connection/',
       { provider },
-    ).subscribe({
-      next: (res) => {
-        this.testingProvider = null;
-        if (res.ok) {
-          this.snack.open(`${provider} connection OK (${res.signature})`, 'OK', {
-            duration: 4000,
-          });
-        } else {
-          this.snack.open(`${provider} failed: ${res.error}`, 'OK', { duration: 5000 });
-        }
-      },
-      error: (err) => {
-        this.testingProvider = null;
-        this.snack.open(
-          `${provider} test failed: ${err?.error?.error || err?.message}`,
-          'OK',
-          { duration: 5000 },
-        );
-      },
-    });
+    )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.testingProvider.set(null);
+          if (res.ok) {
+            this.snack.open(`${provider} connection OK (${res.signature})`, 'OK', {
+              duration: 4000,
+            });
+          } else {
+            this.snack.open(`${provider} failed: ${res.error}`, 'OK', { duration: 5000 });
+          }
+        },
+        error: (err) => {
+          this.testingProvider.set(null);
+          this.snack.open(
+            `${provider} test failed: ${err?.error?.error || err?.message}`,
+            'OK',
+            { duration: 5000 },
+          );
+        },
+      });
   }
 
   saveSettings(): void {
-    this.busyAction = 'saving';
-    this.http.post('/api/embedding/settings/', this.settings()).subscribe({
-      next: () => {
-        this.busyAction = null;
-        this.snack.open('Settings saved', 'OK', { duration: 2500 });
-        this.loadStatus();
-      },
-      error: (err) => {
-        this.busyAction = null;
-        this.snack.open(`Save failed: ${err?.message}`, 'OK', { duration: 4000 });
-      },
-    });
+    this.busyAction.set('saving');
+    this.http.post('/api/embedding/settings/', this.settings())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.busyAction.set(null);
+          this.snack.open('Settings saved', 'OK', { duration: 2500 });
+          this.loadStatus();
+        },
+        error: (err) => {
+          this.busyAction.set(null);
+          this.snack.open(`Save failed: ${err?.message}`, 'OK', { duration: 4000 });
+        },
+      });
   }
 
   runBakeoff(): void {
-    this.busyAction = 'bakeoff';
-    this.http.post('/api/embedding/bakeoff/run/', {}).subscribe({
-      next: () => {
-        this.busyAction = null;
-        this.snack.open('Bake-off queued. Refresh in a few minutes.', 'OK', {
-          duration: 5000,
-        });
-      },
-      error: (err) => {
-        this.busyAction = null;
-        this.snack.open(`Bake-off failed to queue: ${err?.message}`, 'OK', {
-          duration: 4000,
-        });
-      },
-    });
+    this.busyAction.set('bakeoff');
+    this.http.post('/api/embedding/bakeoff/run/', {})
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.busyAction.set(null);
+          this.snack.open('Bake-off queued. Refresh in a few minutes.', 'OK', {
+            duration: 5000,
+          });
+        },
+        error: (err) => {
+          this.busyAction.set(null);
+          this.snack.open(`Bake-off failed to queue: ${err?.message}`, 'OK', {
+            duration: 4000,
+          });
+        },
+      });
   }
 
   runAudit(): void {
-    this.busyAction = 'audit';
-    this.http.post('/api/embedding/audit/run/', {}).subscribe({
-      next: () => {
-        this.busyAction = null;
-        this.snack.open('Audit queued. Refresh in a few minutes.', 'OK', {
-          duration: 5000,
-        });
-      },
-      error: (err) => {
-        this.busyAction = null;
-        this.snack.open(`Audit failed to queue: ${err?.message}`, 'OK', {
-          duration: 4000,
-        });
-      },
-    });
+    this.busyAction.set('audit');
+    this.http.post('/api/embedding/audit/run/', {})
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.busyAction.set(null);
+          this.snack.open('Audit queued. Refresh in a few minutes.', 'OK', {
+            duration: 5000,
+          });
+        },
+        error: (err) => {
+          this.busyAction.set(null);
+          this.snack.open(`Audit failed to queue: ${err?.message}`, 'OK', {
+            duration: 4000,
+          });
+        },
+      });
   }
 
   setSettingValue(key: string, value: string): void {
-    const updated = { ...this.settings() };
-    updated[key] = value;
-    this.settings.set(updated);
+    // Atomic immutable update — no separate read-then-write race on
+    // rapid keystrokes and the signal observes a new reference each time.
+    this.settings.update((s) => ({ ...s, [key]: value }));
   }
 
   toggleApiKey(): void {
-    this.showApiKey = !this.showApiKey;
+    this.showApiKey.update((v) => !v);
   }
 }

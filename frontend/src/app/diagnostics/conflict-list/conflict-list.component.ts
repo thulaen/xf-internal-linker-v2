@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SystemConflict } from '../diagnostics.service';
 
@@ -7,7 +7,8 @@ import { SystemConflict } from '../diagnostics.service';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './conflict-list.component.html',
-  styleUrls: ['./conflict-list.component.scss']
+  styleUrls: ['./conflict-list.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ConflictListComponent {
   @Input() conflicts: SystemConflict[] = [];

@@ -14,26 +14,30 @@ import {
 /**
  * RealtimeService — singleton manager for the generic /ws/realtime/ socket.
  *
- * Phase R0 of the approved plan at
- * C:\Users\goldm\.claude\plans\robust-floating-cerf.md.
- *
  * Responsibilities
  * ----------------
  * - Maintain ONE WebSocket per tab regardless of how many components
  *   subscribe to how many topics.
- * - Expose `subscribe(topic)` which returns an Observable<TopicUpdate> using
+ * - Expose `subscribeTopic(topic)` returning an Observable<TopicUpdate> using
  *   refCount semantics — the first subscriber causes a server-side
  *   `subscribe` frame, the last unsubscribe causes an `unsubscribe` frame.
  * - Auto-reconnect with exponential backoff (1s → 30s cap) and re-subscribe
  *   all active topics when the socket recovers.
- * - Expose `connectionStatus$` for the WS status dot (Gap 38).
+ * - Expose `connectionStatus$` for the WS status dot.
+ *
+ * Topic owners (every backend producer broadcasts via apps.realtime.services.broadcast):
+ * - `system.pulse` — crawler heartbeat (PulseService)
+ * - `notifications.alerts` — operator alerts (NotificationService)
+ * - presence/cursor/lock/typing.* — collaboration namespaces
+ * - diagnostics, settings.runtime, crawler.sessions, etc.
+ *
+ * Job-progress sockets (`/ws/jobs/<id>/`) are intentionally separate: they
+ * are short-lived per-job streams, not a multiplexed topic bus, and stay
+ * open only while a single job is running.
  *
  * What this service deliberately does NOT do
  * ------------------------------------------
  * - Parse topic payload shapes. Consumers cast the generic payload.
- * - Replace the existing Jobs WebSocket or Notifications WebSocket. Those
- *   work today and are deliberately left alone (see plan §"Leave existing
- *   WebSockets alone"). This service is for every OTHER topic.
  */
 @Injectable({ providedIn: 'root' })
 export class RealtimeService implements OnDestroy {

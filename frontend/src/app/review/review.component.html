@@ -1,14 +1,14 @@
 <!-- Phase SR — readiness gate. Hold the full Review UI behind the
      preparing-suggestions panel until every prerequisite reports ready,
      unless the operator has pressed "Show me anyway" for this session. -->
-@if (!isReadyForSuggestions) {
+@if (!isReadyForSuggestions()) {
   <app-preparing-suggestions
     [allowOverride]="true"
     (override)="onReadinessOverride()"
   />
 }
 
-@if (isReadyForSuggestions) {
+@if (isReadyForSuggestions()) {
 <section class="review-shell">
   <section class="review-hero" id="review-hero">
     <div class="review-hero-copy">
@@ -18,8 +18,8 @@
           <mat-icon class="icon-lg">rate_review</mat-icon>
           Review
         </h1>
-        @if (totalCount > 0) {
-          <span class="count-badge">{{ totalCount }}</span>
+        @if (totalCount() > 0) {
+          <span class="count-badge">{{ totalCount() }}</span>
         }
       </div>
       <p class="page-description">Review and approve link suggestions</p>
@@ -42,11 +42,11 @@
     <button
       mat-flat-button
       color="primary"
-      [disabled]="startingPipeline"
+      [disabled]="startingPipeline()"
       (click)="runPipeline()"
       matTooltip="The pipeline reads your content, finds relationships, and generates link suggestions"
     >
-      @if (startingPipeline) {
+      @if (startingPipeline()) {
         <mat-spinner diameter="16"></mat-spinner>
       } @else {
         <mat-icon>play_arrow</mat-icon>
@@ -90,9 +90,9 @@
   </div>
 </section>
 
-@if (selectedIds.size > 0) {
+@if (selectedIds().size > 0) {
   <div class="batch-bar">
-    <span class="batch-count">{{ selectedIds.size }} selected</span>
+    <span class="batch-count">{{ selectedIds().size }} selected</span>
     <button mat-flat-button color="primary" (click)="batchApprove()">
       <mat-icon>check_circle</mat-icon>
       Approve All
@@ -107,19 +107,19 @@
         <button mat-menu-item (click)="batchReject(r.value)">{{ r.label }}</button>
       }
     </mat-menu>
-    <button mat-icon-button matTooltip="Clear selection" (click)="selectedIds.clear()">
+    <button mat-icon-button matTooltip="Clear selection" (click)="clearSelection()">
       <mat-icon>close</mat-icon>
     </button>
   </div>
 }
 
-@if (loading) {
+@if (loading()) {
   <div class="loading-row">
     <mat-spinner diameter="36"></mat-spinner>
   </div>
 }
 
-@if (!loading && suggestions.length === 0) {
+@if (!loading() && suggestions().length === 0) {
   <div class="empty-state">
     <div class="empty-icon-wrap">
       <mat-icon class="empty-icon icon-3xl">rate_review</mat-icon>
@@ -143,11 +143,11 @@
   </div>
 }
 
-@if (!loading && suggestions.length > 0) {
+@if (!loading() && suggestions().length > 0) {
   <div class="select-all-row">
     <mat-checkbox
-      [checked]="allSelected"
-      [indeterminate]="someSelected"
+      [checked]="allSelected()"
+      [indeterminate]="someSelected()"
       (change)="toggleSelectAll()"
     >
       Select all on this page
@@ -155,7 +155,7 @@
   </div>
 
   <div class="cards-list" id="review-cards">
-    @for (s of suggestions; track s.suggestion_id) {
+    @for (s of suggestions(); track s.suggestion_id) {
       <div
         class="suggestion-card"
         tabindex="0"
@@ -305,14 +305,13 @@
 
   <mat-paginator
     id="review-pagination"
-    [length]="totalCount"
-    [pageSize]="pageSize"
-    [pageIndex]="page - 1"
+    [length]="totalCount()"
+    [pageSize]="pageSize()"
+    [pageIndex]="page() - 1"
     [pageSizeOptions]="[25]"
     (page)="onPageChange($event)"
     aria-label="Suggestion pages"
   ></mat-paginator>
 }
 }
-<!-- /Phase SR gate wrapping @if (isReadyForSuggestions) -->
-
+<!-- /Phase SR gate wrapping @if (isReadyForSuggestions()) -->

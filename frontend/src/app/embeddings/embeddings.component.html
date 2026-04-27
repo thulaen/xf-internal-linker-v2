@@ -146,9 +146,9 @@
                 <button
                   mat-raised-button
                   color="primary"
-                  [disabled]="!pendingProvider || pendingProvider === status()?.active_provider || busyAction === 'switching'"
+                  [disabled]="!pendingProvider || pendingProvider === status()?.active_provider || busyAction() === 'switching'"
                   (click)="applyProviderChange()">
-                  @if (busyAction === 'switching') {
+                  @if (busyAction() === 'switching') {
                     <span role="status" aria-live="polite" aria-label="Switching provider">
                       <mat-spinner diameter="18"></mat-spinner>
                     </span>
@@ -162,9 +162,9 @@
               <div class="test-buttons">
                 <button
                   mat-stroked-button
-                  [disabled]="testingProvider === 'local'"
+                  [disabled]="testingProvider() === 'local'"
                   (click)="testConnection('local')">
-                  @if (testingProvider === 'local') {
+                  @if (testingProvider() === 'local') {
                     <span role="status" aria-live="polite" aria-label="Testing local connection">
                       <mat-spinner diameter="18"></mat-spinner>
                     </span>
@@ -175,9 +175,9 @@
                 </button>
                 <button
                   mat-stroked-button
-                  [disabled]="testingProvider === 'openai'"
+                  [disabled]="testingProvider() === 'openai'"
                   (click)="testConnection('openai')">
-                  @if (testingProvider === 'openai') {
+                  @if (testingProvider() === 'openai') {
                     <span role="status" aria-live="polite" aria-label="Testing OpenAI connection">
                       <mat-spinner diameter="18"></mat-spinner>
                     </span>
@@ -188,9 +188,9 @@
                 </button>
                 <button
                   mat-stroked-button
-                  [disabled]="testingProvider === 'gemini'"
+                  [disabled]="testingProvider() === 'gemini'"
                   (click)="testConnection('gemini')">
-                  @if (testingProvider === 'gemini') {
+                  @if (testingProvider() === 'gemini') {
                     <span role="status" aria-live="polite" aria-label="Testing Gemini connection">
                       <mat-spinner diameter="18"></mat-spinner>
                     </span>
@@ -217,20 +217,20 @@
                   @if (key === 'embedding.api_key') {
                     <input
                       matInput
-                      [type]="showApiKey ? 'text' : 'password'"
+                      [type]="showApiKey() ? 'text' : 'password'"
                       [ngModel]="settings()[key] || ''"
                       (ngModelChange)="setSettingValue(key, $event)"
                       placeholder="Paste API key to replace"
                       autocomplete="off"
-                      [attr.aria-label]="'API key. Currently ' + (showApiKey ? 'visible' : 'hidden')" />
+                      [attr.aria-label]="'API key. Currently ' + (showApiKey() ? 'visible' : 'hidden')" />
                     <button
                       mat-icon-button
                       matSuffix
                       type="button"
                       (click)="toggleApiKey()"
-                      [attr.aria-label]="showApiKey ? 'Hide API key' : 'Show API key'"
-                      [attr.aria-pressed]="showApiKey">
-                      <mat-icon aria-hidden="true">{{ showApiKey ? 'visibility_off' : 'visibility' }}</mat-icon>
+                      [attr.aria-label]="showApiKey() ? 'Hide API key' : 'Show API key'"
+                      [attr.aria-pressed]="showApiKey()">
+                      <mat-icon aria-hidden="true">{{ showApiKey() ? 'visibility_off' : 'visibility' }}</mat-icon>
                     </button>
                   } @else {
                     <input
@@ -247,9 +247,9 @@
                 <button
                   mat-raised-button
                   color="primary"
-                  [disabled]="busyAction === 'saving'"
+                  [disabled]="busyAction() === 'saving'"
                   (click)="saveSettings()">
-                  @if (busyAction === 'saving') {
+                  @if (busyAction() === 'saving') {
                     <span role="status" aria-live="polite" aria-label="Saving settings">
                       <mat-spinner diameter="18"></mat-spinner>
                     </span>
@@ -277,9 +277,9 @@
                 <button
                   mat-raised-button
                   color="primary"
-                  [disabled]="busyAction === 'audit'"
+                  [disabled]="busyAction() === 'audit'"
                   (click)="runAudit()">
-                  @if (busyAction === 'audit') {
+                  @if (busyAction() === 'audit') {
                     <span role="status" aria-live="polite" aria-label="Queuing audit">
                       <mat-spinner diameter="18"></mat-spinner>
                     </span>
@@ -290,9 +290,9 @@
                 </button>
                 <button
                   mat-raised-button
-                  [disabled]="busyAction === 'bakeoff'"
+                  [disabled]="busyAction() === 'bakeoff'"
                   (click)="runBakeoff()">
-                  @if (busyAction === 'bakeoff') {
+                  @if (busyAction() === 'bakeoff') {
                     <span role="status" aria-live="polite" aria-label="Queuing bake-off">
                       <mat-spinner diameter="18"></mat-spinner>
                     </span>
@@ -445,9 +445,9 @@
                 <button
                   mat-raised-button
                   color="primary"
-                  [disabled]="busyAction === 'saving'"
+                  [disabled]="busyAction() === 'saving'"
                   (click)="saveSettings()">
-                  @if (busyAction === 'saving') {
+                  @if (busyAction() === 'saving') {
                     <span role="status" aria-live="polite" aria-label="Saving audit settings">
                       <mat-spinner diameter="18"></mat-spinner>
                     </span>

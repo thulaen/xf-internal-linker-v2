@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, OnDestroy, DestroyRef } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, OnDestroy, DestroyRef, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
@@ -28,22 +28,31 @@ import { TopicUpdate } from '../../../core/services/realtime.types';
     MatTooltipModule,
   ],
   templateUrl: './webhook-log.component.html',
-  styleUrls: ['./webhook-log.component.scss']
+  styleUrls: ['./webhook-log.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WebhookLogComponent implements OnInit, OnDestroy {
   private syncSvc = inject(SyncService);
   private realtime = inject(RealtimeService);
   private destroyRef = inject(DestroyRef);
 
-  receipts: WebhookReceipt[] = [];
+  // The list is rendered straight into <table mat-table [dataSource]>;
+  // signal updates auto-trigger OnPush change detection on every push
+  // (initial load, realtime alert/update/delete, and the 60s safety
+  // refresh) without any markForCheck plumbing.
+  readonly receipts = signal<WebhookReceipt[]>([]);
   /* Audit M4 (2026-04-20): added `detail` column so the table fills
      the full card width instead of leaving the right ~35% blank.
      The detail column shows the error message when present, otherwise
      a human-readable "last seen" or a quiet dash. */
-  displayedColumns: string[] = ['created_at', 'source', 'event_type', 'detail', 'status'];
+  readonly displayedColumns: string[] = ['created_at', 'source', 'event_type', 'detail', 'status'];
 
   private readonly MAX_ROWS = 10;
-  private refreshInterval: any;
+  // Tightened from `any` — setInterval's return type is platform-
+  // dependent (`number` in browsers, `NodeJS.Timeout` in Node) but
+  // `ReturnType<typeof setInterval>` resolves to whichever is correct
+  // for the current TS lib config without losing type-safety.
+  private refreshInterval: ReturnType<typeof setInterval> | null = null;
 
   ngOnInit(): void {
     this.load();
@@ -69,6 +78,7 @@ export class WebhookLogComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);
+      this.refreshInterval = null;
     }
   }
 
@@ -77,7 +87,7 @@ export class WebhookLogComponent implements OnInit, OnDestroy {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
       next: (data) => {
-        this.receipts = data.slice(0, this.MAX_ROWS);
+        this.receipts.set(data.slice(0, this.MAX_ROWS));
       },
       error: (err) => console.error('Failed to load webhook logs', err)
     });
@@ -86,18 +96,22 @@ export class WebhookLogComponent implements OnInit, OnDestroy {
   private handleRealtimeUpdate(update: TopicUpdate): void {
     if (update.event === 'receipt.deleted') {
       const id = (update.payload as { receipt_id: string }).receipt_id;
-      this.receipts = this.receipts.filter((r) => r.receipt_id !== id);
+      this.receipts.update((arr) => arr.filter((r) => r.receipt_id !== id));
       return;
     }
     if (update.event === 'receipt.created' || update.event === 'receipt.updated') {
       const next = update.payload as WebhookReceipt;
-      const idx = this.receipts.findIndex((r) => r.receipt_id === next.receipt_id);
-      if (idx >= 0) {
-        this.receipts = this.receipts.map((r) => (r.receipt_id === next.receipt_id ? next : r));
-      } else {
+      // Single atomic update — read-modify-write happens inside the
+      // signal updater so we don't sample the old value separately
+      // and risk a race against a concurrent realtime emission.
+      this.receipts.update((arr) => {
+        const idx = arr.findIndex((r) => r.receipt_id === next.receipt_id);
+        if (idx >= 0) {
+          return arr.map((r) => (r.receipt_id === next.receipt_id ? next : r));
+        }
         // New receipt → prepend, cap list at MAX_ROWS so the table stays tidy.
-        this.receipts = [next, ...this.receipts].slice(0, this.MAX_ROWS);
-      }
+        return [next, ...arr].slice(0, this.MAX_ROWS);
+      });
     }
   }
 

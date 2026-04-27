@@ -676,7 +676,17 @@
 @if (!loading) {
   <div class="d3-row d3-row-pair">
     <app-eli5-card />
-    <app-flow-diagram />
+    <!-- Flow diagram is D3-heavy and lives below the fold. @defer makes
+         Angular split it into its own dynamically-imported chunk and
+         delay both download AND mount until the user scrolls it into
+         view. `prefetch on idle` warms the chunk in idle CPU time so
+         the actual viewport-trip is instant. Placeholder reuses the
+         shared SkeletonComponent (block shape, 320 px). -->
+    @defer (on viewport; prefetch on idle) {
+      <app-flow-diagram />
+    } @placeholder {
+      <app-skeleton shape="block" [height]="320" />
+    }
   </div>
 }
 

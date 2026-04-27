@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnInit, OnDestroy, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, OnDestroy, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
@@ -15,7 +15,8 @@ import { HealthBannerComponent } from '../shared/health-banner/health-banner.com
 import { SafePruneCardComponent } from './safe-prune-card/safe-prune-card.component';
 import { DeepLinkSpotlightDirective } from '../shared/directives/deep-link-spotlight.directive';
 import { PersistTabDirective } from '../core/directives/persist-tab.directive';
-import { finalize } from 'rxjs';
+import { Observable, Subscription, finalize, map, switchMap, timer } from 'rxjs';
+import { VisibilityGateService } from '../core/util/visibility-gate.service';
 
 export interface ChecklistGroup {
   label: string;
@@ -59,6 +60,23 @@ const STATUS_SORT_ORDER: Record<string, number> = {
   healthy: 6,
 };
 
+const ACTIVE_STATUSES = new Set<string>(['running', 'pending']);
+
+/**
+ * Narrow the SyncService.getJobs() response to a flat array regardless
+ * of whether the backend returns one (legacy shape) or a DRF paginated
+ * envelope `{count, results}` (current shape). Replaces the previous
+ * `(jobs as any).results` type-laundering smell.
+ */
+function asJobArray(payload: unknown): SyncJob[] {
+  if (Array.isArray(payload)) return payload as SyncJob[];
+  if (payload && typeof payload === 'object' && 'results' in payload) {
+    const results = (payload as { results: unknown }).results;
+    if (Array.isArray(results)) return results as SyncJob[];
+  }
+  return [];
+}
+
 @Component({
   selector: 'app-health',
   standalone: true,
@@ -80,59 +98,97 @@ const STATUS_SORT_ORDER: Record<string, number> = {
   ],
   templateUrl: './health.component.html',
   styleUrls: ['./health.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HealthComponent implements OnInit, OnDestroy {
   private healthService = inject(HealthService);
   private syncService = inject(SyncService);
+  private visibilityGate = inject(VisibilityGateService);
   // Phase E2 / Gap 41 — cancel in-flight HTTP on route leave.
   private destroyRef = inject(DestroyRef);
 
-  summary: HealthSummary | null = null;
-  services: ServiceHealth[] = [];
-  loading = false;
-  refreshing = false;
-  refreshingServices = new Set<string>();
+  readonly summary = signal<HealthSummary | null>(null);
+  readonly services = signal<ServiceHealth[]>([]);
+  readonly loading = signal(false);
+  readonly refreshing = signal(false);
+  /** Per-service refresh-in-progress flags. Immutable Set updates so
+   *  the signal reference changes on add/delete and `(refreshingServices().has(key))`
+   *  template reads stay reactive. */
+  readonly refreshingServices = signal<ReadonlySet<string>>(new Set());
 
-  activeJobs: SyncJob[] = [];
-  private jobPollInterval: ReturnType<typeof setInterval> | null = null;
+  readonly activeJobs = signal<SyncJob[]>([]);
+  private jobPollSub: Subscription | null = null;
 
-  // Computed counts (populated after services load)
-  healthyCount = 0;
-  warningCount = 0;
-  errorCount = 0;
-  notConfiguredCount = 0;
+  // Disk + GPU (Stage 4)
+  readonly diskHealth = signal<DiskHealth | null>(null);
+  readonly gpuHealth = signal<GpuHealth | null>(null);
 
-  // Checklist groups derived from services
-  checklistGroups: ChecklistGroup[] = [];
+  // ── Derived state ────────────────────────────────────────────────
+  // Replaces the previous imperative computeCounts() / buildChecklistGroups() /
+  // buildTierGroups() methods, which had to be called from every loadData /
+  // refreshService callback. Single source of truth: the `services` signal.
 
-  // Config-tier grouping (Stage 4)
-  tierGroups: Record<ConfigTier, ServiceHealth[]> = {
-    required_to_run: [],
-    required_for_sync: [],
-    required_for_analytics: [],
-    optional: [],
-  };
+  readonly healthyCount = computed(() => this.services().filter(s => s.status === 'healthy').length);
+  readonly warningCount = computed(() => this.services().filter(s => s.status === 'warning' || s.status === 'stale').length);
+  readonly errorCount = computed(() => this.services().filter(s => s.status === 'error' || s.status === 'down').length);
+  readonly notConfiguredCount = computed(() =>
+    this.services().filter(s => s.status === 'not_configured' || s.status === 'not_enabled').length,
+  );
+
+  readonly checklistGroups = computed<ChecklistGroup[]>(() => {
+    const byKey = new Map(this.services().map(s => [s.service_key, s]));
+    return SERVICE_GROUPS
+      .map(g => ({
+        label: g.label,
+        services: g.keys.map(k => byKey.get(k)).filter((s): s is ServiceHealth => !!s),
+      }))
+      .filter(g => g.services.length > 0);
+  });
+
+  readonly tierGroups = computed<Record<ConfigTier, ServiceHealth[]>>(() => {
+    const groups: Record<ConfigTier, ServiceHealth[]> = {
+      required_to_run: [],
+      required_for_sync: [],
+      required_for_analytics: [],
+      optional: [],
+    };
+    for (const svc of this.services()) {
+      const tier = (svc.config_tier ?? 'optional') as ConfigTier;
+      if (groups[tier]) {
+        groups[tier].push(svc);
+      } else {
+        groups.optional.push(svc);
+      }
+    }
+    return groups;
+  });
+
   readonly tierLabels: Record<ConfigTier, string> = {
     required_to_run: 'Required to Run',
     required_for_sync: 'Required for Sync',
     required_for_analytics: 'Required for Analytics',
     optional: 'Optional',
   };
-  readonly tiers: ConfigTier[] = ['required_to_run', 'required_for_sync', 'required_for_analytics', 'optional'];
-
-  // Disk + GPU (Stage 4)
-  diskHealth: DiskHealth | null = null;
-  gpuHealth: GpuHealth | null = null;
+  readonly tiers: readonly ConfigTier[] = ['required_to_run', 'required_for_sync', 'required_for_analytics', 'optional'];
 
   ngOnInit(): void {
     this.loadData();
-    this.loadActiveJobs();
+    this.refreshActiveJobs();
+    // Disk + GPU health calls have a service-level catchError that
+    // returns a default object; wire an explicit error: branch as
+    // belt-and-braces so an unexpected throw still logs a warning.
     this.healthService.getDiskHealth()
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(d => this.diskHealth = d);
+      .subscribe({
+        next: (d) => this.diskHealth.set(d),
+        error: (err) => console.warn('getDiskHealth failed', err),
+      });
     this.healthService.getGpuHealth()
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(g => this.gpuHealth = g);
+      .subscribe({
+        next: (g) => this.gpuHealth.set(g),
+        error: (err) => console.warn('getGpuHealth failed', err),
+      });
   }
 
   ngOnDestroy(): void {
@@ -140,143 +196,145 @@ export class HealthComponent implements OnInit, OnDestroy {
   }
 
   loadData(): void {
-    this.loading = true;
+    this.loading.set(true);
     this.healthService.getHealthStatus()
       .pipe(
-        finalize(() => this.loading = false),
+        finalize(() => this.loading.set(false)),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
         next: (data) => {
-          this.services = [...data].sort(
-            (a, b) => (STATUS_SORT_ORDER[a.status] ?? 9) - (STATUS_SORT_ORDER[b.status] ?? 9)
-          );
-          this.computeCounts();
-          this.buildChecklistGroups();
-          this.buildTierGroups();
+          this.services.set([...data].sort(
+            (a, b) => (STATUS_SORT_ORDER[a.status] ?? 9) - (STATUS_SORT_ORDER[b.status] ?? 9),
+          ));
           this.updateSummary();
         },
-        error: (err) => console.error('Error loading health status', err)
+        error: (err) => console.error('Error loading health status', err),
       });
   }
 
   updateSummary(): void {
     this.healthService.getSummary()
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(s => this.summary = s);
+      .subscribe({
+        next: (s) => this.summary.set(s),
+        error: (err) => console.warn('getSummary failed', err),
+      });
   }
 
   refreshAll(): void {
-    this.refreshing = true;
+    this.refreshing.set(true);
     this.healthService.checkAll()
       .pipe(
-        finalize(() => this.refreshing = false),
+        finalize(() => this.refreshing.set(false)),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe(() => this.loadData());
+      .subscribe({
+        next: () => this.loadData(),
+        error: (err) => {
+          console.warn('checkAll failed', err);
+          // Reload anyway so the UI shows whatever the cached state is
+          // rather than leaving the user with a stale view + no signal.
+          this.loadData();
+        },
+      });
   }
 
   refreshService(serviceKey: string): void {
-    this.refreshingServices.add(serviceKey);
+    this.refreshingServices.update(s => {
+      const next = new Set(s);
+      next.add(serviceKey);
+      return next;
+    });
     this.healthService.checkService(serviceKey)
       .pipe(
-        finalize(() => this.refreshingServices.delete(serviceKey)),
+        finalize(() => {
+          this.refreshingServices.update(s => {
+            const next = new Set(s);
+            next.delete(serviceKey);
+            return next;
+          });
+        }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(updated => {
-        const idx = this.services.findIndex(s => s.service_key === serviceKey);
-        if (idx !== -1) {
-          this.services[idx] = updated;
-          this.services = [...this.services].sort(
-            (a, b) => (STATUS_SORT_ORDER[a.status] ?? 9) - (STATUS_SORT_ORDER[b.status] ?? 9)
+        // Single atomic update — replace the matching service then re-sort,
+        // all in one signal write. Counts/groups/tiers recompute automatically
+        // because they're computed() over `services()`.
+        this.services.update(arr => {
+          const next = arr.map(s => s.service_key === serviceKey ? updated : s);
+          return next.sort(
+            (a, b) => (STATUS_SORT_ORDER[a.status] ?? 9) - (STATUS_SORT_ORDER[b.status] ?? 9),
           );
-        }
-        this.computeCounts();
-        this.buildChecklistGroups();
+        });
         this.updateSummary();
       });
   }
 
   // ── Active Jobs ──────────────────────────────────────────────────
 
-  loadActiveJobs(): void {
-    this.syncService.getJobs()
+  /**
+   * Single source of truth for fetching active jobs. Used by both the
+   * initial load and the poll — eliminates the duplicated subscribe
+   * handler that previously lived in `loadActiveJobs` and `startJobPoll`.
+   * Returns an Observable so the caller decides whether to subscribe
+   * once or wire it through a polling stream.
+   */
+  private fetchActiveJobs$(): Observable<SyncJob[]> {
+    return this.syncService.getJobs().pipe(
+      // The service typing claims `SyncJob[]` but the backend may return
+      // a paginated envelope. `asJobArray` normalises both shapes.
+      map(asJobArray),
+      map(jobs => jobs.filter(j => ACTIVE_STATUSES.has(j.status))),
+    );
+  }
+
+  private refreshActiveJobs(): void {
+    this.fetchActiveJobs$()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (jobs) => {
-          const raw = Array.isArray(jobs) ? jobs : ((jobs as any).results ?? []);
-          this.activeJobs = raw.filter((j: SyncJob) => j.status === 'running' || j.status === 'pending');
-          if (this.activeJobs.length > 0) {
+          this.activeJobs.set(jobs);
+          if (jobs.length > 0) {
             this.startJobPoll();
           }
         },
-        error: () => { /* jobs widget is non-critical */ }
+        error: (err) => { /* jobs widget is non-critical */ console.warn('health refreshActiveJobs failed', err); },
       });
   }
 
   private startJobPoll(): void {
-    if (this.jobPollInterval) return;
-    this.jobPollInterval = setInterval(() => {
-      // Skip the fetch when the tab is hidden — operators aren't
-      // looking and the backend will still be sending WS updates
-      // to the Jobs page if they care. See docs/PERFORMANCE.md §13.
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-        return;
-      }
-      this.syncService.getJobs()
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe({
-          next: (jobs) => {
-            const raw = Array.isArray(jobs) ? jobs : ((jobs as any).results ?? []);
-            this.activeJobs = raw.filter((j: SyncJob) => j.status === 'running' || j.status === 'pending');
-            if (this.activeJobs.length === 0) {
-              this.clearJobPoll();
-            }
-          },
-          error: () => {}
-        });
-    }, 5000);
+    if (this.jobPollSub) return;
+    // Polling pauses automatically when the tab is hidden or the user
+    // signs out — VisibilityGateService swaps the inner timer for EMPTY.
+    // See docs/PERFORMANCE.md §13.
+    //
+    // switchMap flattens the timer-of-fetches into a single stream. The
+    // previous nested `subscribe(() => svc.getJobs().subscribe(...))` was
+    // a textbook nested-subscribe smell — left a dangling inner sub if
+    // the timer ticked again before the previous fetch resolved.
+    this.jobPollSub = this.visibilityGate
+      .whileLoggedInAndVisible(() => timer(5000, 5000))
+      .pipe(
+        switchMap(() => this.fetchActiveJobs$()),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (jobs) => {
+          this.activeJobs.set(jobs);
+          if (jobs.length === 0) {
+            this.clearJobPoll();
+          }
+        },
+        // Outer poll keeps ticking; log failures for dev visibility instead
+        // of swallowing them silently.
+        error: (err) => console.warn('health job poll fetch failed', err),
+      });
   }
 
   private clearJobPoll(): void {
-    if (this.jobPollInterval) {
-      clearInterval(this.jobPollInterval);
-      this.jobPollInterval = null;
-    }
-  }
-
-  // ── Computed helpers ─────────────────────────────────────────────
-
-  private computeCounts(): void {
-    this.healthyCount = this.services.filter(s => s.status === 'healthy').length;
-    this.warningCount = this.services.filter(s => s.status === 'warning' || s.status === 'stale').length;
-    this.errorCount = this.services.filter(s => s.status === 'error' || s.status === 'down').length;
-    this.notConfiguredCount = this.services.filter(s => s.status === 'not_configured' || s.status === 'not_enabled').length;
-  }
-
-  private buildChecklistGroups(): void {
-    const byKey = new Map(this.services.map(s => [s.service_key, s]));
-    this.checklistGroups = SERVICE_GROUPS.map(g => ({
-      label: g.label,
-      services: g.keys.map(k => byKey.get(k)).filter((s): s is ServiceHealth => !!s),
-    })).filter(g => g.services.length > 0);
-  }
-
-  private buildTierGroups(): void {
-    this.tierGroups = {
-      required_to_run: [],
-      required_for_sync: [],
-      required_for_analytics: [],
-      optional: [],
-    };
-    for (const svc of this.services) {
-      const tier = (svc.config_tier ?? 'optional') as ConfigTier;
-      if (this.tierGroups[tier]) {
-        this.tierGroups[tier].push(svc);
-      } else {
-        this.tierGroups.optional.push(svc);
-      }
-    }
+    this.jobPollSub?.unsubscribe();
+    this.jobPollSub = null;
   }
 
   // ── Template helpers ─────────────────────────────────────────────

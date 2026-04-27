@@ -10,8 +10,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { timer } from 'rxjs';
-import { switchMap } from 'rxjs/operators';
+import { EMPTY, timer } from 'rxjs';
+import { catchError, switchMap } from 'rxjs/operators';
 import { VisibilityGateService } from '../core/util/visibility-gate.service';
 import { environment } from '../../environments/environment';
 import { GlitchtipService } from '../core/services/glitchtip.service';
@@ -94,16 +94,32 @@ export class ErrorLogComponent implements OnInit {
           this.glitchtipLastSyncedAt = new Date().toISOString();
           this.cdr.markForCheck();
         },
+        // Glitchtip is best-effort — surface failures in the console so
+        // they're debuggable but never toast the user. Without this branch
+        // an HTTP error would leave the tab silently empty forever.
+        error: (err) => console.warn('glitchtip events failed', err),
       });
   }
 
   private startGlitchtipPoll(): void {
     // Gated by `VisibilityGateService` — hidden tabs / signed-out
     // sessions skip the poll. See docs/PERFORMANCE.md §13.
+    //
+    // The inner `catchError(() => EMPTY)` is critical: a single failed
+    // fetch must NOT propagate up the switchMap, because that would tear
+    // down the outer timer permanently. Swap the failed inner observable
+    // for EMPTY so the next tick fires normally.
     this.visibilityGate
       .whileLoggedInAndVisible(() =>
         timer(GLITCHTIP_POLL_MS, GLITCHTIP_POLL_MS).pipe(
-          switchMap(() => this.glitchtip.getRecentEvents()),
+          switchMap(() =>
+            this.glitchtip.getRecentEvents().pipe(
+              catchError((err) => {
+                console.warn('glitchtip poll fetch failed', err);
+                return EMPTY;
+              }),
+            ),
+          ),
         ),
       )
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -113,6 +129,7 @@ export class ErrorLogComponent implements OnInit {
           this.glitchtipLastSyncedAt = new Date().toISOString();
           this.cdr.markForCheck();
         },
+        error: (err) => console.warn('glitchtip poll stream errored', err),
       });
   }
 
@@ -177,6 +194,13 @@ export class ErrorLogComponent implements OnInit {
           if (error.source === 'glitchtip') {
             this.loadGlitchtipEvents();
           }
+        },
+        // Without this branch, a failed acknowledge would silently leave
+        // the error in the list and the user would think the click did
+        // nothing. Reload anyway — the next poll will reconcile state.
+        error: (err) => {
+          console.warn('acknowledgeError failed', err);
+          this.loadErrors();
         },
       });
   }

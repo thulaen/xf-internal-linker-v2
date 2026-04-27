@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, OnDestroy, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, NgZone, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -44,15 +44,22 @@ export class ScrollToTopComponent implements OnInit, OnDestroy {
 
   private readonly THRESHOLD = 300;
   private cdRef = inject(ChangeDetectorRef);
+  private zone = inject(NgZone);
   // Store the bound reference so addEventListener and removeEventListener
   // receive the exact same function object.
   private readonly boundOnScroll = this.onScroll.bind(this);
+  private rafPending = false;
 
   ngOnInit(): void {
     if (!this.scrollTarget) {
       this.scrollTarget = document.querySelector('.page-content');
     }
-    this.scrollTarget?.addEventListener('scroll', this.boundOnScroll);
+    // Listen outside Angular's zone so a fast scroll doesn't trigger global
+    // change detection on every pixel. We re-enter the zone only when the
+    // visibility flip actually changes via markForCheck().
+    this.zone.runOutsideAngular(() => {
+      this.scrollTarget?.addEventListener('scroll', this.boundOnScroll, { passive: true });
+    });
   }
 
   ngOnDestroy(): void {
@@ -60,14 +67,17 @@ export class ScrollToTopComponent implements OnInit, OnDestroy {
   }
 
   private onScroll(): void {
-    const wasVisible = this.visible;
-    this.visible = (this.scrollTarget?.scrollTop ?? 0) > this.THRESHOLD;
-    // Gap 28 — with OnPush, DOM events outside Angular's zone don't trigger
-    // change detection automatically. markForCheck() tells Angular to check
-    // this component on the next cycle.
-    if (this.visible !== wasVisible) {
-      this.cdRef.markForCheck();
-    }
+    if (this.rafPending) return;
+    this.rafPending = true;
+    requestAnimationFrame(() => {
+      this.rafPending = false;
+      const wasVisible = this.visible;
+      this.visible = (this.scrollTarget?.scrollTop ?? 0) > this.THRESHOLD;
+      if (this.visible !== wasVisible) {
+        // Re-enter Angular's zone so OnPush picks up the @if() flip.
+        this.zone.run(() => this.cdRef.markForCheck());
+      }
+    });
   }
 
   scrollToTop(): void {

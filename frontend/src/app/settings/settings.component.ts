@@ -2080,8 +2080,38 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
    * tight burst (e.g. a preset that writes 20 keys). Debounced via the
    * stream below.
    */
-  private readonly _settingsRuntimeUpdates$ = new Subject<void>();
   private destroy$ = new Subject<void>();
+
+  /**
+   * Epoch-ms cutoff. While `Date.now() < _suppressRuntimeUntil`, the
+   * `settings.runtime` realtime handler ignores incoming events because
+   * THIS browser tab is the one that triggered them (via a local save).
+   * Without this, every save fires the "Settings changed in another tab"
+   * toast against the user's own action — the realtime broadcast echoes
+   * back into the same tab that initiated it.
+   */
+  private _suppressRuntimeUntil = 0;
+
+  /** Mark that a local save just started so the next 8 seconds of
+   *  `settings.runtime` events are treated as our own echo. */
+  private _markLocalSave(): void {
+    this._suppressRuntimeUntil = Date.now() + 8000;
+  }
+
+  /** Defense-in-depth: returns true if ANY `savingX` flag on the
+   *  component is currently true. Used by the realtime handler as a
+   *  fallback in case a save method forgot to call `_markLocalSave()`.
+   *  Catches per-section save buttons (saveWordPressSettings,
+   *  savePhraseMatchingSettings, etc.) that don't explicitly mark. */
+  private _isAnySaveInFlight(): boolean {
+    const self = this as unknown as Record<string, unknown>;
+    for (const key of Object.keys(self)) {
+      if (key.startsWith('saving') && self[key] === true) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   loading = true;
   isDirty = false;
@@ -2541,7 +2571,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   }
 
   get noSourceConnected(): boolean {
-    return !this.xenforo.health.is_healthy && !this.wordpress.health.is_healthy;
+    // Optional chaining — `health` is present in GET responses but absent
+    // in some PUT responses; defensive across in-flight saves.
+    return !this.xenforo.health?.is_healthy && !this.wordpress.health?.is_healthy;
   }
 
   hasUnsavedChanges(): boolean {
@@ -2685,11 +2717,14 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     }[status] ?? 'Unknown';
   }
 
-  telemetryStatusClass(status: string): string {
+  // Both helpers accept `undefined` so the template can pass
+  // `xenforo.health?.status` directly without a `?? 'unknown'` per call.
+  // Each falls through to a muted/help_outline default.
+  telemetryStatusClass(status: string | undefined): string {
     return `status-pill--${status === 'connected' || status === 'healthy' ? 'success' : (status === 'error' || status === 'down') ? 'danger' : (status === 'warning' || status === 'stale') ? 'warning' : status === 'saved' ? 'status' : 'muted'}`;
   }
 
-  getHealthIcon(status: string): string {
+  getHealthIcon(status: string | undefined): string {
     switch (status) {
       case 'healthy': return 'check_circle';
       case 'warning': return 'warning';
@@ -2731,20 +2766,24 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     if (this.googleAuthClientSecret.trim()) {
       payload.client_secret = this.googleAuthClientSecret.trim();
     }
+    // Mark local save so the realtime echo on `settings.runtime` doesn't
+    // misfire as "Settings changed in another tab".
+    this._markLocalSave();
     this.siloSvc.updateGoogleOAuthSettings(payload).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
       next: (googleOAuth) => {
-        this.googleOAuth = googleOAuth;
-        this.googleAuthClientId = googleOAuth.client_id;
+        // Spread-merge — see saveAllSettings comment for full rationale.
+        this.googleOAuth = { ...this.googleOAuth, ...(googleOAuth ?? {}) };
+        this.googleAuthClientId = googleOAuth?.client_id ?? this.googleAuthClientId ?? '';
         this.googleAuthClientSecret = '';
         this.ga4Telemetry = {
           ...this.ga4Telemetry,
-          google_oauth_client_id: googleOAuth.client_id,
-          google_oauth_client_secret_configured: googleOAuth.client_secret_configured,
-          oauth_connected: googleOAuth.oauth_connected,
+          google_oauth_client_id: googleOAuth?.client_id,
+          google_oauth_client_secret_configured: googleOAuth?.client_secret_configured,
+          oauth_connected: googleOAuth?.oauth_connected,
         };
         this.ga4Gsc = {
           ...this.ga4Gsc,
-          oauth_connected: googleOAuth.oauth_connected,
+          oauth_connected: googleOAuth?.oauth_connected,
         };
         this.savingGoogleAuth = false;
         this.snack.open('Google app settings saved.', undefined, { duration: 3000 });
@@ -2835,32 +2874,32 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
     this.reload();
 
-    // Phase R1.4 — settings.runtime is staff-only; non-staff users will
-    // receive a subscription.ack with denied=["settings.runtime"] and the
-    // stream stays silent, which is the intended no-op.
-    this.realtime
-      .subscribeTopic('settings.runtime')
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe(() => this._settingsRuntimeUpdates$.next());
-
-    // Debounce so a batch save of N AppSetting rows produces ONE reload
-    // and ONE snackbar, not N.
-    this._settingsRuntimeUpdates$
-      .pipe(debounceTime(500), takeUntil(this.destroy$))
-      .subscribe(() => {
-        // Don't steal state if the user is mid-edit. The snackbar gives
-        // them the cue; they choose when to reload by closing the toast.
-        if (this.hasAnyDirtyForm()) {
-          this.snack.open(
-            'Settings changed in another tab. Save or discard your edits to reload.',
-            'Dismiss',
-            { duration: 6000 },
-          );
-          return;
-        }
-        this.snack.open('Settings updated from another tab.', 'Dismiss', { duration: 3000 });
-        this.reload();
-      });
+    // ── settings.runtime realtime subscription removed ───────────────
+    //
+    // History: this used to subscribe to the staff-only `settings.runtime`
+    // topic and toast on remote settings writes. Two problems made the
+    // toast a net negative:
+    //
+    // 1. Suppression-context lifecycle: `_markLocalSave()` was a per-
+    //    component instance field. When the user saved on (e.g.) the
+    //    Dashboard's Performance Mode toggle and navigated to Settings,
+    //    the suppression context was destroyed with the dashboard
+    //    component, so the broadcast self-echo arrived on the freshly-
+    //    mounted Settings component as if it were from a different tab.
+    //    Toast fired on every navigation that followed a recent save.
+    //
+    // 2. Auto-reload race: the previous version called `this.reload()`
+    //    on remote events, which raced the local save's `next:` handler
+    //    and overwrote freshly-saved component state with stale GETs.
+    //
+    // The cross-tab use case is rare; manual refresh handles it. The
+    // backend Celery filter at apps/core/signals.py keeps the broadcast
+    // group quiet enough that future reintroductions of the toast (with
+    // a session-shared suppression service) would be feasible — but
+    // that's not needed for the user's reported workflow.
+    //
+    // `_markLocalSave()` and the suppression timer remain in case a
+    // future feature re-attaches a notification, but they're inert now.
   }
 
   /**
@@ -3045,6 +3084,7 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       next: (weights) => {
         this.currentWeights = weights;
       },
+      error: (err) => console.warn('refreshCurrentWeights failed', err),
     });
   }
 
@@ -3071,14 +3111,17 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   private checkAndAutoApplyRecommended(): void {
     // If we have history or current weights don't look like "brand new", don't auto-apply.
     if (this.weightHistory.length > 0) return;
-    
+
     const recommended = this.recommendedPreset;
     if (recommended && !this.matchedPreset) {
       this.siloSvc.applyWeightPreset(recommended.id).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
         next: () => {
           this.snack.open('System Recommended settings applied by default.', undefined, { duration: 3000 });
           this.reload();
-        }
+        },
+        // Auto-apply is best-effort; if it fails, log and keep going.
+        // The user can still pick a preset manually.
+        error: (err) => console.warn('checkAndAutoApplyRecommended failed', err),
       });
     }
   }
@@ -3356,12 +3399,16 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       payload.private_key = this.gscPrivateKey;
     }
 
+    // Mark local save so the realtime echo on `settings.runtime` doesn't
+    // misfire as "Settings changed in another tab".
+    this._markLocalSave();
     this.siloSvc.updateGSCSettings(payload).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
       next: (ga4Gsc: GSCSettings) => {
-        this.ga4Gsc = ga4Gsc;
+        // Spread-merge: PUT response strips `health` — see saveAllSettings.
+        this.ga4Gsc = { ...this.ga4Gsc, ...(ga4Gsc ?? {}) };
         this.gscManualBackfillDays = Math.max(
-          Number(ga4Gsc.sync_lookback_days || 1),
-          Number(ga4Gsc.manual_backfill_suggested_days || 180),
+          Number(this.ga4Gsc.sync_lookback_days || 1),
+          Number(this.ga4Gsc.manual_backfill_suggested_days || 180),
         );
         this.gscPrivateKey = '';
         this.savingGA4GSC = false;
@@ -3524,11 +3571,16 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       payload.read_private_key = this.ga4TelemetryReadPrivateKey.trim();
     }
 
+    // Mark local save so the realtime echo on `settings.runtime` doesn't
+    // misfire as "Settings changed in another tab".
+    this._markLocalSave();
     this.siloSvc.updateGA4TelemetrySettings(payload)
       .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
       .subscribe({
       next: (ga4Telemetry) => {
-        this.ga4Telemetry = ga4Telemetry;
+        // Spread-merge — preserves connection_status / connection_message
+        // and any read_connection_* fields that the PUT response may strip.
+        this.ga4Telemetry = { ...this.ga4Telemetry, ...(ga4Telemetry ?? {}) };
         this.ga4TelemetrySecret = '';
         this.ga4TelemetryReadPrivateKey = '';
         this.savingGA4Telemetry = false;
@@ -3617,7 +3669,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
       .subscribe({
       next: (matomoTelemetry) => {
-        this.matomoTelemetry = matomoTelemetry;
+        // Spread-merge so a PUT response missing any field (connection_*,
+        // last_sync, etc.) doesn't overwrite the previously-loaded values.
+        this.matomoTelemetry = { ...this.matomoTelemetry, ...(matomoTelemetry ?? {}) };
         this.matomoTelemetryToken = '';
         this.savingMatomoTelemetry = false;
         this.snack.open('Matomo telemetry settings saved', undefined, { duration: 2500 });
@@ -3802,6 +3856,8 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   // Each card's Save button calls this; we set the per-signal spinner so
   // the right card shows "Saving..." while the whole batch goes up.
   private _saveFr099Fr105(spinnerSetter: (v: boolean) => void, name: string): void {
+    // Suppress the realtime echo — see _markLocalSave docstring.
+    this._markLocalSave();
     spinnerSetter(true);
     const payload = {
       darb: this.darb,
@@ -4146,11 +4202,16 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       payload.app_password = this.wordpressPassword.trim();
     }
 
+    // Mark local save so the realtime echo on `settings.runtime` doesn't
+    // misfire as "Settings changed in another tab".
+    this._markLocalSave();
     this.siloSvc.updateWordPressSettings(payload)
       .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
       .subscribe({
       next: (wordpress) => {
-        this.wordpress = wordpress;
+        // Spread-merge: PUT response strips `health` — preserve previously
+        // loaded value. See saveAllSettings comment for full rationale.
+        this.wordpress = { ...this.wordpress, ...(wordpress ?? {}) };
         this.wordpressPassword = '';
         this.savingWordPress = false;
         this.snack.open('WordPress settings saved', undefined, { duration: 2500 });
@@ -4188,8 +4249,12 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   }
 
   saveAllSettings(): void {
+    // Suppress the realtime-echo "Settings changed in another tab" toast.
+    // This save broadcasts on the `settings.runtime` topic, which loops
+    // back into the same browser tab via the WebSocket subscription.
+    this._markLocalSave();
     this.savingSettings = true;
-    
+
     const wordpressPayload: WordPressSettingsUpdate = {
       base_url: this.wordpress.base_url.trim(),
       username: this.wordpress.username.trim(),
@@ -4275,39 +4340,84 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       slate: this.siloSvc.updateSlateDiversitySettings(this.slateDiversity),
       graph: this.siloSvc.updateGraphCandidateSettings(this.graphCandidate),
       value: this.siloSvc.updateValueModelSettings(this.valueModel),
-      wordpress: this.siloSvc.updateWordPressSettings(wordpressPayload)
+      wordpress: this.siloSvc.updateWordPressSettings(wordpressPayload),
+      // FR-099–FR-105 grouped endpoint — covers DARB, KMIG, TAPB, KCIB,
+      // BERP, HGTE, RSQVA. Previously NOT in this forkJoin, so clicking
+      // "Save All Settings" silently dropped every change to those
+      // sections. The user could edit RSQVA `max_vocab_size`, click Save
+      // All, get a "saved" toast, then see the value revert on refresh
+      // because no PUT was ever sent for that group.
+      fr099Fr105: this.siloSvc.updateFr099Fr105Settings({
+        darb: this.darb,
+        kmig: this.kmig,
+        tapb: this.tapb,
+        kcib: this.kcib,
+        berp: this.berp,
+        hgte: this.hgte,
+        rsqva: this.rsqva,
+      }),
+      // Group C — Stage-1 retriever flags. Same problem as above; was
+      // missing from the forkJoin so toggles in this section never saved.
+      stage1Retrievers: this.siloSvc.updateStage1RetrieverSettings(this.stage1Retrievers),
+      // Phase 6 optional-pick master switches. Same problem.
+      phase6Picks: this.siloSvc.updatePhase6PickSettings(this.phase6Picks),
     }).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
       next: (results) => {
-        this.settings = results.settings;
-        this.weightedAuthority = results.authority;
-        this.linkFreshness = results.freshness;
-        this.phraseMatching = results.phrase;
-        this.learnedAnchor = results.learned;
-        this.rareTermPropagation = results.rare;
-        this.fieldAwareRelevance = results.relevance;
-        this.ga4Gsc = results.ga4;
-        this.googleOAuth = results.googleOAuth;
+        // EVERY assignment uses spread-merge defensively. Backend PUT
+        // responses strip nested objects (e.g. wordpress.health, ga4Gsc.health,
+        // some boolean fields). A direct `this.X = results.X` would replace
+        // a fully-loaded object with an Update-shape one and the next CD
+        // cycle crashes dereferencing missing nested fields. Spread keeps
+        // existing non-overridden fields (defaults from the class plus
+        // health from the previous GET).
+        this.settings = { ...this.settings, ...(results.settings ?? {}) };
+        this.weightedAuthority = { ...this.weightedAuthority, ...(results.authority ?? {}) };
+        this.linkFreshness = { ...this.linkFreshness, ...(results.freshness ?? {}) };
+        this.phraseMatching = { ...this.phraseMatching, ...(results.phrase ?? {}) };
+        this.learnedAnchor = { ...this.learnedAnchor, ...(results.learned ?? {}) };
+        this.rareTermPropagation = { ...this.rareTermPropagation, ...(results.rare ?? {}) };
+        this.fieldAwareRelevance = { ...this.fieldAwareRelevance, ...(results.relevance ?? {}) };
+        this.ga4Gsc = { ...this.ga4Gsc, ...(results.ga4 ?? {}) };
+        this.googleOAuth = { ...this.googleOAuth, ...(results.googleOAuth ?? {}) };
         this.gscPrivateKey = '';
-        this.ga4Telemetry = results.ga4Telemetry;
-        this.matomoTelemetry = results.matomoTelemetry;
-        this.clickDistance = results.click;
-        this.spamGuards = results.spamGuards;
-        this.anchorDiversity = results.anchorDiversity;
-        this.keywordStuffing = results.keywordStuffing;
-        this.linkFarm = results.linkFarm;
-        this.feedbackRerank = results.explore;
-        this.clustering = results.clustering;
-        this.slateDiversity = results.slate;
-        this.graphCandidate = results.graph;
-        this.valueModel = results.value;
-        this.wordpress = results.wordpress;
+        this.ga4Telemetry = { ...this.ga4Telemetry, ...(results.ga4Telemetry ?? {}) };
+        this.matomoTelemetry = { ...this.matomoTelemetry, ...(results.matomoTelemetry ?? {}) };
+        this.clickDistance = { ...this.clickDistance, ...(results.click ?? {}) };
+        this.spamGuards = { ...this.spamGuards, ...(results.spamGuards ?? {}) };
+        this.anchorDiversity = { ...this.anchorDiversity, ...(results.anchorDiversity ?? {}) };
+        this.keywordStuffing = { ...this.keywordStuffing, ...(results.keywordStuffing ?? {}) };
+        this.linkFarm = { ...this.linkFarm, ...(results.linkFarm ?? {}) };
+        this.feedbackRerank = { ...this.feedbackRerank, ...(results.explore ?? {}) };
+        this.clustering = { ...this.clustering, ...(results.clustering ?? {}) };
+        this.slateDiversity = { ...this.slateDiversity, ...(results.slate ?? {}) };
+        this.graphCandidate = { ...this.graphCandidate, ...(results.graph ?? {}) };
+        this.valueModel = { ...this.valueModel, ...(results.value ?? {}) };
+        this.wordpress = { ...this.wordpress, ...(results.wordpress ?? {}) };
+        // FR-099–FR-105 grouped response: each signal is its own sub-key.
+        if (results.fr099Fr105) {
+          this.darb = { ...this.darb, ...(results.fr099Fr105.darb ?? {}) };
+          this.kmig = { ...this.kmig, ...(results.fr099Fr105.kmig ?? {}) };
+          this.tapb = { ...this.tapb, ...(results.fr099Fr105.tapb ?? {}) };
+          this.kcib = { ...this.kcib, ...(results.fr099Fr105.kcib ?? {}) };
+          this.berp = { ...this.berp, ...(results.fr099Fr105.berp ?? {}) };
+          this.hgte = { ...this.hgte, ...(results.fr099Fr105.hgte ?? {}) };
+          this.rsqva = { ...this.rsqva, ...(results.fr099Fr105.rsqva ?? {}) };
+        }
+        if (results.stage1Retrievers) {
+          this.stage1Retrievers = { ...this.stage1Retrievers, ...results.stage1Retrievers };
+        }
+        if (results.phase6Picks) {
+          this.phase6Picks = { ...this.phase6Picks, ...results.phase6Picks };
+        }
         this.wordpressPassword = '';
         this.ga4TelemetrySecret = '';
         this.ga4TelemetryReadPrivateKey = '';
-        this.googleAuthClientId = results.googleOAuth.client_id;
+        // Optional chaining — googleOAuth might be missing client_id in
+        // some response shapes; fallback to current value or empty string.
+        this.googleAuthClientId = results.googleOAuth?.client_id ?? this.googleAuthClientId ?? '';
         this.googleAuthClientSecret = '';
         this.matomoTelemetryToken = '';
-        
+
         this.savingSettings = false;
         this.isDirty = false;
         this.snack.open('All settings saved successfully', undefined, { duration: 3000 });
@@ -4331,7 +4441,8 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       app_password: '',
     }).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
       next: (wordpress) => {
-        this.wordpress = wordpress;
+        // Spread-merge — see saveAllSettings for the full rationale.
+        this.wordpress = { ...this.wordpress, ...(wordpress ?? {}) };
         this.wordpressPassword = '';
         this.savingWordPress = false;
         this.snack.open('WordPress Application Password cleared', undefined, { duration: 2500 });

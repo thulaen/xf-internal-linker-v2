@@ -86,11 +86,23 @@ export class ScheduledUpdatesComponent implements OnInit, OnDestroy {
       });
 
     // Initial snapshots + live WS stream.
+    // Reset `loading` on BOTH `complete` AND `error` so a failed initial
+    // fetch (auth, 5xx, network blip) doesn't leave the spinner stuck
+    // forever. The hot streams above will keep re-rendering once data
+    // arrives via the realtime WS.
     this.svc.refreshJobs().subscribe({
       complete: () => (this.loading = false),
+      error: (err) => {
+        this.loading = false;
+        console.warn('scheduled-updates refreshJobs failed', err);
+      },
     });
-    this.svc.refreshAlerts().subscribe();
-    this.svc.refreshWindowStatus().subscribe();
+    this.svc.refreshAlerts().subscribe({
+      error: (err) => console.warn('scheduled-updates refreshAlerts failed', err),
+    });
+    this.svc.refreshWindowStatus().subscribe({
+      error: (err) => console.warn('scheduled-updates refreshWindowStatus failed', err),
+    });
     this.svc.startRealtimeStream();
   }
 

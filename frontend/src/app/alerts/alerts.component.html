@@ -6,11 +6,15 @@
       <h1 class="alerts-title">Notifications</h1>
       <p class="page-description">Stay informed about background jobs, health warnings, and search triggers.</p>
     </div>
-    @if (unreadCount > 0) {
-      <span class="alerts-unread-badge">{{ unreadCount }} unread</span>
+    <!-- Header badge — only honest when the filter is "unread" (the
+         backend's `count` is then the cross-page unread total). For
+         any other filter, the cross-filter unread tally lives in the
+         toolbar bell badge (NotificationService.unreadCount$). -->
+    @if (filterStatus === 'unread' && totalCount() > 0) {
+      <span class="alerts-unread-badge">{{ totalCount() }} unread</span>
     }
     <span class="alerts-spacer"></span>
-    @if (alerts.length > 0) {
+    @if (groupedAlerts().length > 0) {
       <button mat-stroked-button (click)="onAcknowledgeAll()" matTooltip="Acknowledge all visible alerts">
         <mat-icon>done_all</mat-icon>
         Acknowledge all
@@ -22,7 +26,7 @@
   <div class="alerts-filters" id="alerts-filters">
     <mat-form-field appearance="outline" class="filter-field">
       <mat-label>Status</mat-label>
-      <mat-select [(ngModel)]="filterStatus" (ngModelChange)="loadAlerts()">
+      <mat-select [(ngModel)]="filterStatus" (ngModelChange)="onFilterChange()">
         @for (opt of statusOptions; track opt.value) {
           <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
         }
@@ -31,7 +35,7 @@
 
     <mat-form-field appearance="outline" class="filter-field">
       <mat-label>Severity</mat-label>
-      <mat-select [(ngModel)]="filterSeverity" (ngModelChange)="loadAlerts()">
+      <mat-select [(ngModel)]="filterSeverity" (ngModelChange)="onFilterChange()">
         @for (opt of severityOptions; track opt.value) {
           <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
         }
@@ -40,7 +44,7 @@
 
     <mat-form-field appearance="outline" class="filter-field">
       <mat-label>Area</mat-label>
-      <mat-select [(ngModel)]="filterSourceArea" (ngModelChange)="loadAlerts()">
+      <mat-select [(ngModel)]="filterSourceArea" (ngModelChange)="onFilterChange()">
         @for (opt of sourceAreaOptions; track opt.value) {
           <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
         }
@@ -49,14 +53,14 @@
   </div>
 
   <!-- Loading -->
-  @if (loading) {
+  @if (loading()) {
     <div class="alerts-loading">
       <mat-spinner diameter="48" />
     </div>
   }
 
   <!-- Empty state -->
-  @if (!loading && alerts.length === 0) {
+  @if (!loading() && groupedAlerts().length === 0) {
     <div class="alerts-empty">
       <mat-icon class="alerts-empty-icon icon-3xl">notifications_none</mat-icon>
       <h2>No notifications</h2>
@@ -65,7 +69,7 @@
   }
 
   <!-- Alert list -->
-  @if (!loading && groupedAlerts.length > 0) {
+  @if (!loading() && groupedAlerts().length > 0) {
     <div class="alerts-container" id="alerts-list">
       <!-- Table Header -->
       <div class="alerts-list-header">
@@ -75,8 +79,8 @@
         <div class="col-actions">Actions</div>
       </div>
 
-      <div class="alerts-list">
-        @for (alert of groupedAlerts; track alert.allIds.join(',')) {
+      <div class="alerts-list" aria-label="Alerts list">
+        @for (alert of groupedAlerts(); track alert.allIds.join(',')) {
           <div class="alert-row alert-row--{{ alert.severity }}" [class.alert-row--unread]="alert.status === 'unread'">
 
             <!-- Severity Icon -->
@@ -151,6 +155,20 @@
           </div>
         }
       </div>
+
+      <!-- Pagination — DRF backend caps at max_page_size=200; the
+           page_size_options below reflect that ceiling. Mirrors the
+           shape used by /review and /link-health for consistency. -->
+      <mat-paginator
+        id="alerts-pagination"
+        [length]="totalCount()"
+        [pageSize]="pageSize()"
+        [pageIndex]="page() - 1"
+        [pageSizeOptions]="[25, 50, 100, 200]"
+        showFirstLastButtons
+        (page)="onPageChange($event)"
+        aria-label="Alert pages"
+      ></mat-paginator>
     </div>
   }
 

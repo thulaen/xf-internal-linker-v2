@@ -32,7 +32,7 @@ import { SyncJob, SyncService } from '../../jobs/sync.service';
  * give the operator three near-identical lists of jobs; combining
  * them into one card with three sections keeps it one glance.
  *
- * Polls the existing /api/sync/jobs/ list every 30 seconds. Failed
+ * Polls the existing /api/sync-jobs/ list every 30 seconds. Failed
  * or stuck jobs (status === 'failed' OR running > 1h with no
  * progress update) get a "Restart" button that calls the existing
  * resumeJob endpoint.

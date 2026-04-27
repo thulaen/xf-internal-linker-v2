@@ -7,6 +7,7 @@
  */
 
 import {
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   EventEmitter,
@@ -14,6 +15,7 @@ import {
   OnInit,
   Output,
   inject,
+  signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule, DatePipe } from '@angular/common';
@@ -44,6 +46,7 @@ import {
   ],
   templateUrl: './notification-center.component.html',
   styleUrls: ['./notification-center.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NotificationCenterComponent implements OnInit {
   /** Whether the panel is open. Two-way bound from AppComponent. */
@@ -55,8 +58,12 @@ export class NotificationCenterComponent implements OnInit {
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
 
-  alerts: OperatorAlert[] = [];
-  loading = false;
+  // Internal state lives in signals so OnPush change detection picks up
+  // every mutation automatically — no `cdr.markForCheck()` sprinkled
+  // through subscribe callbacks. Use `.set()` for whole-value writes
+  // and `.update()` for in-place transforms (filter, push, etc).
+  readonly alerts = signal<OperatorAlert[]>([]);
+  readonly loading = signal(false);
 
   ngOnInit(): void {
     this.loadAlerts();
@@ -67,17 +74,21 @@ export class NotificationCenterComponent implements OnInit {
   }
 
   loadAlerts(): void {
-    this.loading = true;
+    this.loading.set(true);
+    // The list endpoint is paginated; the dropdown only ever shows the
+    // first page (default 25) of unread alerts — the full list lives at
+    // /alerts behind a mat-paginator. Ignore the count/next/previous
+    // envelope here; we just want the items.
     this.notifSvc
       .loadAlerts({ status: 'unread' })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (data) => {
-          this.alerts = data;
-          this.loading = false;
+        next: (paged) => {
+          this.alerts.set(paged.results);
+          this.loading.set(false);
         },
         error: () => {
-          this.loading = false;
+          this.loading.set(false);
         },
       });
   }
@@ -97,7 +108,7 @@ export class NotificationCenterComponent implements OnInit {
     this.notifSvc.acknowledgeAll()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-      next: () => { this.alerts = []; },
+      next: () => { this.alerts.set([]); },
       error: () => { this.loadAlerts(); },
     });
   }
@@ -107,7 +118,7 @@ export class NotificationCenterComponent implements OnInit {
     this.notifSvc.acknowledge(alert.alert_id)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-      next: () => { this.alerts = this.alerts.filter((a) => a.alert_id !== alert.alert_id); },
+      next: () => { this.alerts.update((arr) => arr.filter((a) => a.alert_id !== alert.alert_id)); },
       error: () => { this.loadAlerts(); },
     });
   }

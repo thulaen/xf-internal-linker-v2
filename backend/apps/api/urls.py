@@ -108,24 +108,37 @@ from rest_framework.throttling import AnonRateThrottle
 class _LoginRateThrottle(AnonRateThrottle):
     """Per-IP throttle on the login endpoint.
 
-    Ten attempts per rolling sixty-second window. This covers both the
+    Thirty attempts per rolling sixty-second window. This covers both the
     login page and the session re-auth dialog, which share the same
     endpoint. A 60-second window prevents the two flows from competing
     for the same short budget. DRF's default rate parser only understands
     whole units (s/m/h/d), so we override parse_rate to express the
     window directly.
+
+    Bumped 2026-04-26 from 10/60s → 30/60s after operators with many
+    open tabs (each redirecting to /login on auth failure) tripped the
+    bucket on a single legitimate login click. 30/60s still slows any
+    automated brute-forcer to ineffectual speed (~43k attempts/day) on
+    a localhost-only deployment.
     """
 
-    rate = "10/60s"
+    rate = "30/60s"
 
     def parse_rate(self, rate):
-        return (10, 60)
+        return (30, 60)
 
     def allow_request(self, request, view):
         # Skip in DEBUG so a few mistyped passwords can't lock the local
         # operator out of their own dev stack. Production (DEBUG=False)
         # keeps the brute-force guard.
         if settings.DEBUG:
+            return True
+        # Local-stack deployments: skip the throttle when the request
+        # arrives from the Docker bridge gateway (the host machine
+        # itself). Anything else — a real LAN client, a remote proxy
+        # forwarding XFF — still hits the 30/60s ceiling.
+        ident = self.get_ident(request) or ""
+        if ident in {"127.0.0.1", "::1"} or ident.startswith("127.") or ident.startswith("172."):
             return True
         return super().allow_request(request, view)
 

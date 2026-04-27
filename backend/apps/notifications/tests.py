@@ -168,3 +168,40 @@ class NotificationApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 404)
+
+    def test_alert_list_is_paginated(self):
+        """The list endpoint must return DRF's pagination envelope so the
+        operator-facing /alerts page can paginate large unread queues
+        without rendering thousands of cards in the DOM. Replaces the
+        pre-2026-04-26 silent ``qs[:200]`` cap that hid >1k unread alerts
+        during outages.
+        """
+        # Emit 30 alerts — more than the default page size (25) so we
+        # can assert both the page slice and the cross-page count.
+        for i in range(30):
+            emit_operator_alert(
+                event_type="system.test",
+                severity=OperatorAlert.SEVERITY_WARNING,
+                title=f"Alert {i}",
+                message=f"message {i}",
+                source_area=OperatorAlert.AREA_SYSTEM,
+                # Distinct dedupe_keys so emit_operator_alert creates
+                # 30 separate rows rather than incrementing one.
+                dedupe_key=f"notification-api-test:list:{i}",
+            )
+
+        response = self.client.get("/api/notifications/alerts/")
+
+        self.assertEqual(response.status_code, 200)
+        # DRF pagination envelope.
+        self.assertIn("count", response.data)
+        self.assertIn("results", response.data)
+        self.assertIn("next", response.data)
+        self.assertIn("previous", response.data)
+        # 30 alerts total, default page size is 25.
+        self.assertEqual(response.data["count"], 30)
+        self.assertEqual(len(response.data["results"]), 25)
+        # Page 2 returns the remaining 5.
+        page_two = self.client.get("/api/notifications/alerts/?page=2")
+        self.assertEqual(page_two.status_code, 200)
+        self.assertEqual(len(page_two.data["results"]), 5)

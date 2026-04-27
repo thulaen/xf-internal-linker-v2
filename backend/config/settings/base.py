@@ -131,7 +131,14 @@ DATABASES = {
         "PASSWORD": env("POSTGRES_PASSWORD"),
         "HOST": env("POSTGRES_HOST", default="postgres"),
         "PORT": env("POSTGRES_PORT", default="5432"),
-        "CONN_MAX_AGE": 600,
+        # Pool headroom: idle connections recycle every 30s. The Settings
+        # page alone fires 30 parallel GETs in its reload() forkJoin, each
+        # potentially grabbing a new connection. Combined with 4 ASGI
+        # workers + Celery workers + Beat the pool fills quickly under
+        # interactive use. With 30s recycling and max_connections=500
+        # there's massive headroom; trade is one sub-ms handshake per 30s
+        # of idle on a Docker-bridge connection.
+        "CONN_MAX_AGE": 30,
         "OPTIONS": {
             "connect_timeout": 10,
         },

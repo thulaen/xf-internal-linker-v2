@@ -43,6 +43,11 @@ class JobProgressConsumer(AsyncJsonWebsocketConsumer):
 
     async def connect(self) -> None:
         """Accept the WebSocket connection and join the job's channel group."""
+        user = self.scope.get("user")
+        if user is None or not getattr(user, "is_authenticated", False):
+            await self.close(code=4003)
+            return
+
         self.job_id = self.scope["url_route"]["kwargs"]["job_id"]
         self.group_name = f"job_{self.job_id}"
         self._stream_task: asyncio.Task | None = None

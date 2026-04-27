@@ -5,7 +5,7 @@
  * Supports mark-read, acknowledge, resolve, and bulk-acknowledge-all.
  */
 
-import { Component, OnInit, inject, DestroyRef } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -16,6 +16,7 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -41,25 +42,49 @@ export interface GroupedAlert extends OperatorAlert {
     MatDividerModule,
     MatFormFieldModule,
     MatIconModule,
+    MatPaginatorModule,
     MatProgressSpinnerModule,
     MatSelectModule,
     MatTooltipModule,
   ],
   templateUrl: './alerts.component.html',
   styleUrls: ['./alerts.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AlertsComponent implements OnInit {
   private notifSvc = inject(NotificationService);
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
 
-  alerts: OperatorAlert[] = [];
-  groupedAlerts: GroupedAlert[] = [];
-  loading = false;
+  // Server-truth list. The grouped projection below derives from this
+  // signal, so the two no longer have to be assigned in lock-step.
+  readonly alerts = signal<OperatorAlert[]>([]);
+  // groupedAlerts is a derived view: dedupe by `dedupe_key`, sort by
+  // `last_seen_at` descending. Computed signal — recomputes only when
+  // `alerts` changes (filter changes go through loadAlerts which sets
+  // alerts; pagination changes do the same). Replaces the previous
+  // dual-write pattern that kept `alerts` and `groupedAlerts` in sync
+  // manually.
+  readonly groupedAlerts = computed<GroupedAlert[]>(() =>
+    this.groupAlerts(this.alerts()),
+  );
+  readonly loading = signal(false);
 
+  // Filter values back `[(ngModel)]` two-way bindings on mat-select —
+  // ngModel needs an lvalue, so these stay as plain mutable fields.
+  // The (ngModelChange) handler calls onFilterChange() which both
+  // triggers CD and resets pagination to page 1.
   filterStatus = '';
   filterSeverity = '';
   filterSourceArea = '';
+
+  // Pagination state — mirrors ReviewComponent's mat-paginator shape so
+  // the two largest unbounded operator lists behave identically. The
+  // backend (AlertListView + AlertListPagination) accepts ?page= and
+  // ?page_size= and returns DRF's standard {count, results} envelope.
+  readonly page = signal(1);
+  readonly pageSize = signal(25);
+  readonly totalCount = signal(0);
 
   readonly statusOptions = [
     { value: '', label: 'All statuses' },
@@ -92,22 +117,41 @@ export class AlertsComponent implements OnInit {
   }
 
   loadAlerts(): void {
-    this.loading = true;
-    const params: Record<string, string> = {};
+    this.loading.set(true);
+    const params: Record<string, string> = {
+      page: String(this.page()),
+      page_size: String(this.pageSize()),
+    };
     if (this.filterStatus) params['status'] = this.filterStatus;
     if (this.filterSeverity) params['severity'] = this.filterSeverity;
     if (this.filterSourceArea) params['source_area'] = this.filterSourceArea;
 
     this.notifSvc.loadAlerts(params).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (data) => {
-        this.alerts = data;
-        this.groupedAlerts = this.groupAlerts(data);
-        this.loading = false;
+      next: (paged) => {
+        // Single source-of-truth write. groupedAlerts recomputes
+        // automatically because it's a `computed()` over `alerts`.
+        this.alerts.set(paged.results);
+        this.totalCount.set(paged.count);
+        this.loading.set(false);
       },
       error: () => {
-        this.loading = false;
+        this.loading.set(false);
       },
     });
+  }
+
+  /** Reset to page 1 whenever a filter changes — pagination indices
+   *  are 1-based on the wire (DRF default) but mat-paginator emits
+   *  0-based pageIndex; the conversion lives in `onPageChange`. */
+  onFilterChange(): void {
+    this.page.set(1);
+    this.loadAlerts();
+  }
+
+  onPageChange(ev: PageEvent): void {
+    this.page.set(ev.pageIndex + 1);
+    this.pageSize.set(ev.pageSize);
+    this.loadAlerts();
   }
 
   groupAlerts(alerts: OperatorAlert[]): GroupedAlert[] {
@@ -195,7 +239,4 @@ export class AlertsComponent implements OnInit {
     return map[severity] ?? 'notifications';
   }
 
-  get unreadCount(): number {
-    return this.alerts.filter((a) => a.status === 'unread').length;
-  }
 }

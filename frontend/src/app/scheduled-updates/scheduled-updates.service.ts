@@ -11,7 +11,7 @@
 import { inject, Injectable, OnDestroy } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { BehaviorSubject, Observable, Subscription, throwError } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { catchError, map, tap } from 'rxjs/operators';
 
 import { RealtimeService } from '../core/services/realtime.service';
 import { TopicUpdate } from '../core/services/realtime.types';
@@ -126,9 +126,13 @@ export class ScheduledUpdatesService implements OnDestroy {
   }
 
   refreshJobs(): Observable<ScheduledJob[]> {
-    const o = this.listJobs();
-    o.subscribe({ next: (jobs) => this.jobsSubject.next(jobs) });
-    return o;
+    // Single subscription pushes to the BehaviorSubject via `tap`. The
+    // previous `const o = listJobs(); o.subscribe(...); return o;` pattern
+    // fired TWO HTTP requests per refresh (HTTP observables are cold and
+    // create a new request per subscription).
+    return this.listJobs().pipe(
+      tap((jobs) => this.jobsSubject.next(jobs)),
+    );
   }
 
   getJob(id: number): Observable<ScheduledJob> {
@@ -169,9 +173,10 @@ export class ScheduledUpdatesService implements OnDestroy {
   }
 
   refreshAlerts(include: 'active' | 'all' | 'resolved' = 'active'): Observable<JobAlert[]> {
-    const o = this.listAlerts(include);
-    o.subscribe({ next: (alerts) => this.alertsSubject.next(alerts) });
-    return o;
+    // Single-subscription pattern via `tap` — see comment in refreshJobs.
+    return this.listAlerts(include).pipe(
+      tap((alerts) => this.alertsSubject.next(alerts)),
+    );
   }
 
   acknowledgeAlert(id: number): Observable<JobAlert> {
@@ -187,9 +192,10 @@ export class ScheduledUpdatesService implements OnDestroy {
   }
 
   refreshWindowStatus(): Observable<WindowStatus> {
-    const o = this.getWindowStatus();
-    o.subscribe({ next: (status) => this.windowSubject.next(status) });
-    return o;
+    // Single-subscription pattern via `tap` — see comment in refreshJobs.
+    return this.getWindowStatus().pipe(
+      tap((status) => this.windowSubject.next(status)),
+    );
   }
 
   // ── WebSocket wiring ─────────────────────────────────────────────

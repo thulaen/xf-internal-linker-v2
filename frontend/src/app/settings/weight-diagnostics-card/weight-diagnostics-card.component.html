@@ -8,22 +8,22 @@
       Read-only visibility into the 23 scoring components that drive link discovery.
     </mat-card-subtitle>
     <div style="flex: 1"></div>
-    <button mat-icon-button (click)="loadData()" [disabled]="loading" matTooltip="Refresh diagnostics">
-      <mat-icon [class.rotating]="loading">refresh</mat-icon>
+    <button mat-icon-button (click)="loadData()" [disabled]="loading()" matTooltip="Refresh diagnostics">
+      <mat-icon [class.rotating]="loading()">refresh</mat-icon>
     </button>
   </mat-card-header>
 
   <mat-card-content class="card-content" style="padding-top: 16px;">
-    @if (loading && !data) {
+    @if (loading() && !data()) {
       <mat-progress-bar mode="indeterminate" color="primary"></mat-progress-bar>
       <p class="hint" style="margin-top: 16px;">Gathering signal metadata and storage metrics...</p>
-    } @else if (error) {
+    } @else if (error()) {
       <div class="empty-state">
         <div class="empty-icon-wrap">
           <mat-icon color="warn">error</mat-icon>
         </div>
         <h3>Failed to load diagnostics</h3>
-        <p>{{ error }}</p>
+        <p>{{ error() }}</p>
         <button mat-flat-button color="primary" (click)="loadData()">Retry Discovery</button>
       </div>
     } @else {
@@ -31,30 +31,30 @@
       <div class="summary-chips-row mb-3" style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
         <div class="summary-chip" style="background: var(--color-blue-50); border: 1px solid var(--color-blue-100); padding: 8px 16px; border-radius: 8px; display: flex; align-items: center; gap: 8px;">
            <mat-icon style="color: var(--color-primary); font-size: 18px; width: 18px; height: 18px;">analytics</mat-icon>
-           <span style="font-size: 13px; font-weight: 500; color: var(--color-primary);">{{ data?.summary?.total_signals }} Total Signals</span>
+           <span style="font-size: 13px; font-weight: 500; color: var(--color-primary);">{{ data()?.summary?.total_signals }} Total Signals</span>
         </div>
         <div class="summary-chip" style="background: var(--color-google-green-faint); border: 1px solid var(--color-google-green); padding: 8px 16px; border-radius: 8px; display: flex; align-items: center; gap: 8px;">
            <mat-icon style="color: var(--color-google-green); font-size: 18px; width: 18px; height: 18px;">speed</mat-icon>
-           <span style="font-size: 13px; font-weight: 500; color: var(--color-google-green);">{{ data?.summary?.cpp_accelerated_count }} C++ Kernels Active</span>
+           <span style="font-size: 13px; font-weight: 500; color: var(--color-google-green);">{{ data()?.summary?.cpp_accelerated_count }} C++ Kernels Active</span>
         </div>
-        <div class="summary-chip" [style.background]="data?.summary?.healthy_count === data?.summary?.total_signals ? 'var(--color-google-green-faint)' : 'var(--color-warning-light)'" 
-             [style.border]="data?.summary?.healthy_count === data?.summary?.total_signals ? '1px solid var(--color-google-green)' : '1px solid var(--color-warning)'"
+        <div class="summary-chip" [style.background]="data()?.summary?.healthy_count === data()?.summary?.total_signals ? 'var(--color-google-green-faint)' : 'var(--color-warning-light)'" 
+             [style.border]="data()?.summary?.healthy_count === data()?.summary?.total_signals ? '1px solid var(--color-google-green)' : '1px solid var(--color-warning)'"
              style="padding: 8px 16px; border-radius: 8px; display: flex; align-items: center; gap: 8px;">
-           <mat-icon [style.color]="data?.summary?.healthy_count === data?.summary?.total_signals ? 'var(--color-google-green)' : 'var(--color-warning)'" 
+           <mat-icon [style.color]="data()?.summary?.healthy_count === data()?.summary?.total_signals ? 'var(--color-google-green)' : 'var(--color-warning)'" 
                      style="font-size: 18px; width: 18px; height: 18px;">
-             {{ data?.summary?.healthy_count === data?.summary?.total_signals ? 'check_circle' : 'report_problem' }}
+             {{ data()?.summary?.healthy_count === data()?.summary?.total_signals ? 'check_circle' : 'report_problem' }}
            </mat-icon>
-           <span [style.color]="data?.summary?.healthy_count === data?.summary?.total_signals ? 'var(--color-google-green)' : 'var(--color-warning)'"
+           <span [style.color]="data()?.summary?.healthy_count === data()?.summary?.total_signals ? 'var(--color-google-green)' : 'var(--color-warning)'"
                  style="font-size: 13px; font-weight: 500;">
-             {{ data?.summary?.healthy_count }} / {{ data?.summary?.total_signals }} Healthy
+             {{ data()?.summary?.healthy_count }} / {{ data()?.summary?.total_signals }} Healthy
            </span>
         </div>
         <div style="flex: 1"></div>
-        <span class="hint" style="font-size: 11px;">Last Refreshed: {{ data?.summary?.last_refreshed | date:'HH:mm:ss' }}</span>
+        <span class="hint" style="font-size: 11px;">Last Refreshed: {{ data()?.summary?.last_refreshed | date:'HH:mm:ss' }}</span>
       </div>
 
       <div class="table-container shadow-faint" style="border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden;">
-        <table mat-table [dataSource]="data?.signals || []" class="diagnostics-table mat-elevation-z0">
+        <table mat-table [dataSource]="data()?.signals || []" class="diagnostics-table mat-elevation-z0">
 
           <!-- Name & Description -->
           <ng-container matColumnDef="name">

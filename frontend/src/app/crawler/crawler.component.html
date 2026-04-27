@@ -17,7 +17,7 @@
         <mat-form-field class="domain-select">
           <mat-label>Domain</mat-label>
           <mat-select [(value)]="selectedDomain">
-            @for (domain of domains; track domain) {
+            @for (domain of domains(); track domain) {
               <mat-option [value]="domain">{{ domain }}</mat-option>
             }
           </mat-select>
@@ -38,7 +38,30 @@
         </mat-form-field>
 
         <div class="controls-actions">
-          @if (!activeSession || activeSession.status === 'completed' || activeSession.status === 'failed') {
+          @if (activeSession(); as active) {
+            @if (active.status === 'running' || active.status === 'pending') {
+              <button
+                mat-stroked-button
+                color="warn"
+                (click)="pauseCrawl()"
+                matTooltip="Pause the crawl. You can resume it later from where it stopped."
+              >
+                <mat-icon>pause</mat-icon>
+                Pause
+              </button>
+            } @else {
+              <button
+                mat-raised-button
+                color="primary"
+                (click)="startCrawl()"
+                [disabled]="!selectedDomain"
+                matTooltip="Start crawling the selected domain. The crawler will respect robots.txt and rate limits."
+              >
+                <mat-icon>play_arrow</mat-icon>
+                Start Crawl
+              </button>
+            }
+          } @else {
             <button
               mat-raised-button
               color="primary"
@@ -50,18 +73,7 @@
               Start Crawl
             </button>
           }
-          @if (activeSession?.status === 'running' || activeSession?.status === 'pending') {
-            <button
-              mat-stroked-button
-              color="warn"
-              (click)="pauseCrawl()"
-              matTooltip="Pause the crawl. You can resume it later from where it stopped."
-            >
-              <mat-icon>pause</mat-icon>
-              Pause
-            </button>
-          }
-          @if (hasResumable) {
+          @if (hasResumable()) {
             <button
               mat-stroked-button
               color="primary"
@@ -78,7 +90,7 @@
       <!-- ── Sitemap Management (inline) ──────────────────────── -->
       <mat-divider class="sitemap-divider" />
 
-      @if (sitemaps.length === 0) {
+      @if (sitemaps().length === 0) {
         <div class="sitemap-onboarding">
           <mat-icon class="onboarding-icon">info</mat-icon>
           <div class="onboarding-text">
@@ -111,9 +123,9 @@
           </button>
         </div>
 
-        @if (sitemaps.length > 0) {
+        @if (sitemaps().length > 0) {
           <div class="sitemap-list">
-            @for (sm of sitemaps; track sm.id) {
+            @for (sm of sitemaps(); track sm.id) {
               <div class="sitemap-item">
                 <mat-icon class="sitemap-item-icon">map</mat-icon>
                 <div class="sitemap-item-info">
@@ -138,26 +150,28 @@
   </mat-card>
 
   <!-- ── Active Session Progress ────────────────────────────────── -->
-  @if (activeSession && (activeSession.status === 'running' || activeSession.status === 'pending')) {
-    <mat-card class="progress-card">
-      <mat-card-content>
-        <div class="progress-header">
-          <span class="progress-title">
-            Crawling {{ activeSession.site_domain }}
-          </span>
-          <span class="progress-stats">
-            {{ activeSession.pages_crawled }} pages
-            &bull; {{ activeSession.broken_links_found }} broken
-            &bull; {{ formatBytes(activeSession.bytes_downloaded) }}
-          </span>
-        </div>
-        <mat-progress-bar
-          mode="determinate"
-          [value]="activeSession.progress * 100"
-        ></mat-progress-bar>
-        <div class="progress-message">{{ activeSession.message || 'Starting...' }}</div>
-      </mat-card-content>
-    </mat-card>
+  @if (activeSession(); as active) {
+    @if (active.status === 'running' || active.status === 'pending') {
+      <mat-card class="progress-card">
+        <mat-card-content>
+          <div class="progress-header">
+            <span class="progress-title">
+              Crawling {{ active.site_domain }}
+            </span>
+            <span class="progress-stats">
+              {{ active.pages_crawled }} pages
+              &bull; {{ active.broken_links_found }} broken
+              &bull; {{ formatBytes(active.bytes_downloaded) }}
+            </span>
+          </div>
+          <mat-progress-bar
+            mode="determinate"
+            [value]="active.progress * 100"
+          ></mat-progress-bar>
+          <div class="progress-message">{{ active.message || 'Starting...' }}</div>
+        </mat-card-content>
+      </mat-card>
+    }
   }
 
   <!-- ── Results Tabs ───────────────────────────────────────────── -->
@@ -166,7 +180,7 @@
     <!-- Tab 0: Overview -->
     <mat-tab label="Overview">
       <div class="tab-content">
-        @if (sessions.length === 0) {
+        @if (sessions().length === 0) {
           <div class="empty-state">
             <mat-icon class="empty-icon">travel_explore</mat-icon>
             <h3>No crawl sessions yet</h3>
@@ -174,7 +188,7 @@
           </div>
         } @else {
           <div class="stat-grid">
-            @if (sessions[0]; as latest) {
+            @if (sessions()[0]; as latest) {
               <div class="stat-card">
                 <div class="stat-value">{{ latest.pages_crawled }}</div>
                 <div class="stat-label">Pages Crawled</div>
@@ -211,11 +225,11 @@
         <mat-card class="storage-card">
           <mat-card-content>
             <div class="storage-bar-label">
-              Crawler storage: {{ formatBytes(storageBytes) }} / 20 GB
+              Crawler storage: {{ formatBytes(storageBytes()) }} / 20 GB
             </div>
             <mat-progress-bar
               mode="determinate"
-              [value]="(storageBytes / (20 * 1073741824)) * 100"
+              [value]="(storageBytes() / (20 * 1073741824)) * 100"
               matTooltip="Percentage of your 20 GB remaining disk used by crawler data"
             ></mat-progress-bar>
           </mat-card-content>
@@ -257,14 +271,14 @@
     <!-- Tab 2: Internal Links -->
     <mat-tab label="Internal Links">
       <div class="tab-content">
-        @if (links.length === 0) {
+        @if (links().length === 0) {
           <div class="empty-state">
             <mat-icon class="empty-icon">link</mat-icon>
             <h3>No links yet</h3>
             <p>Complete a crawl to see internal links discovered on your pages.</p>
           </div>
         } @else {
-          <table mat-table [dataSource]="links" class="links-table">
+          <table mat-table [dataSource]="links()" class="links-table">
             <ng-container matColumnDef="source_url">
               <th mat-header-cell *matHeaderCellDef>Source</th>
               <td mat-cell *matCellDef="let link">{{ link.source_url }}</td>
@@ -306,54 +320,54 @@
     <!-- Tab 4: SEO Audit -->
     <mat-tab label="SEO Audit">
       <div class="tab-content">
-        @if (audit) {
+        @if (audit(); as a) {
           <div class="audit-grid">
-            <div class="audit-item" [class.critical]="audit.missing_title > 0">
-              <div class="audit-count">{{ audit.missing_title }}</div>
+            <div class="audit-item" [class.critical]="a.missing_title > 0">
+              <div class="audit-count">{{ a.missing_title }}</div>
               <div class="audit-label">Missing Titles</div>
             </div>
-            <div class="audit-item" [class.critical]="audit.duplicate_titles > 0">
-              <div class="audit-count">{{ audit.duplicate_titles }}</div>
+            <div class="audit-item" [class.critical]="a.duplicate_titles > 0">
+              <div class="audit-count">{{ a.duplicate_titles }}</div>
               <div class="audit-label">Duplicate Titles</div>
             </div>
-            <div class="audit-item" [class.warning]="audit.missing_meta_description > 0">
-              <div class="audit-count">{{ audit.missing_meta_description }}</div>
+            <div class="audit-item" [class.warning]="a.missing_meta_description > 0">
+              <div class="audit-count">{{ a.missing_meta_description }}</div>
               <div class="audit-label">Missing Descriptions</div>
             </div>
-            <div class="audit-item" [class.critical]="audit.missing_h1 > 0">
-              <div class="audit-count">{{ audit.missing_h1 }}</div>
+            <div class="audit-item" [class.critical]="a.missing_h1 > 0">
+              <div class="audit-count">{{ a.missing_h1 }}</div>
               <div class="audit-label">Missing H1</div>
             </div>
-            <div class="audit-item" [class.warning]="audit.multiple_h1 > 0">
-              <div class="audit-count">{{ audit.multiple_h1 }}</div>
+            <div class="audit-item" [class.warning]="a.multiple_h1 > 0">
+              <div class="audit-count">{{ a.multiple_h1 }}</div>
               <div class="audit-label">Multiple H1s</div>
             </div>
-            <div class="audit-item" [class.warning]="audit.missing_canonical > 0">
-              <div class="audit-count">{{ audit.missing_canonical }}</div>
+            <div class="audit-item" [class.warning]="a.missing_canonical > 0">
+              <div class="audit-count">{{ a.missing_canonical }}</div>
               <div class="audit-label">Missing Canonicals</div>
             </div>
-            <div class="audit-item" [class.critical]="audit.noindexed_pages > 0">
-              <div class="audit-count">{{ audit.noindexed_pages }}</div>
+            <div class="audit-item" [class.critical]="a.noindexed_pages > 0">
+              <div class="audit-count">{{ a.noindexed_pages }}</div>
               <div class="audit-label">Noindexed Pages</div>
             </div>
-            <div class="audit-item" [class.warning]="audit.thin_content > 0">
-              <div class="audit-count">{{ audit.thin_content }}</div>
+            <div class="audit-item" [class.warning]="a.thin_content > 0">
+              <div class="audit-count">{{ a.thin_content }}</div>
               <div class="audit-label">Thin Content (&lt;200 words)</div>
             </div>
             <div class="audit-item">
-              <div class="audit-count">{{ audit.slow_pages }}</div>
+              <div class="audit-count">{{ a.slow_pages }}</div>
               <div class="audit-label">Slow Pages (&gt;2s)</div>
             </div>
             <div class="audit-item">
-              <div class="audit-count">{{ audit.non_mobile }}</div>
+              <div class="audit-count">{{ a.non_mobile }}</div>
               <div class="audit-label">Non-Mobile</div>
             </div>
             <div class="audit-item">
-              <div class="audit-count">{{ audit.images_missing_alt }}</div>
+              <div class="audit-count">{{ a.images_missing_alt }}</div>
               <div class="audit-label">Images Missing Alt</div>
             </div>
             <div class="audit-item">
-              <div class="audit-count">{{ audit.missing_og }}</div>
+              <div class="audit-count">{{ a.missing_og }}</div>
               <div class="audit-label">Missing OG Tags</div>
             </div>
           </div>
@@ -370,14 +384,14 @@
     <!-- Tab 5: History -->
     <mat-tab label="History">
       <div class="tab-content">
-        @if (sessions.length === 0) {
+        @if (sessions().length === 0) {
           <div class="empty-state">
             <mat-icon class="empty-icon">history</mat-icon>
             <h3>No history yet</h3>
             <p>Your crawl sessions will appear here after your first run.</p>
           </div>
         } @else {
-          <table mat-table [dataSource]="sessions" class="history-table">
+          <table mat-table [dataSource]="sessions()" class="history-table">
             <ng-container matColumnDef="site_domain">
               <th mat-header-cell *matHeaderCellDef>Domain</th>
               <td mat-cell *matCellDef="let s">{{ s.site_domain }}</td>

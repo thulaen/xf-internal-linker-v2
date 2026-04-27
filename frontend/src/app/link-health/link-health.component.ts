@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnDestroy, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -14,7 +14,8 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { forkJoin } from 'rxjs';
+import { Subscription, forkJoin, switchMap, timer } from 'rxjs';
+import { VisibilityGateService } from '../core/util/visibility-gate.service';
 import { SyncService } from '../jobs/sync.service';
 import { DashboardService } from '../dashboard/dashboard.service';
 import {
@@ -22,8 +23,15 @@ import {
   BrokenLinkService,
   BrokenLinkStatus,
 } from './broken-link.service';
+import { AuthService } from '../core/services/auth.service';
 
 type LinkHealthFilter = BrokenLinkStatus | 'all';
+
+interface SummaryCounts {
+  open: number;
+  ignored: number;
+  fixed: number;
+}
 
 @Component({
   selector: 'app-link-health',
@@ -46,37 +54,44 @@ type LinkHealthFilter = BrokenLinkStatus | 'all';
   ],
   templateUrl: './link-health.component.html',
   styleUrls: ['./link-health.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LinkHealthComponent implements OnInit, OnDestroy {
   private brokenLinkSvc = inject(BrokenLinkService);
   private dashboardSvc = inject(DashboardService);
   private syncService = inject(SyncService);
   private snack = inject(MatSnackBar);
+  private auth = inject(AuthService);
+  private visibilityGate = inject(VisibilityGateService);
   // Phase E2 / Gap 41 — cancel in-flight HTTP on route leave.
   private destroyRef = inject(DestroyRef);
 
-  brokenLinks: BrokenLink[] = [];
-  totalCount = 0;
-  loading = false;
+  readonly brokenLinks = signal<BrokenLink[]>([]);
+  readonly totalCount = signal(0);
+  readonly loading = signal(false);
 
-  statusFilter: LinkHealthFilter = 'all';
+  /** Filter chip — set imperatively via `setStatusFilter`, read via `[selected]`.
+   *  No ngModel two-way binding here, so a signal is fine. */
+  readonly statusFilter = signal<LinkHealthFilter>('all');
+  /** ngModel two-way bound on the HTTP-status mat-select — must be an lvalue. */
   httpStatusFilter: number | null = null;
-  page = 1;
-  pageSize = 25;
+  readonly page = signal(1);
+  readonly pageSize = signal(25);
 
-  summary = {
-    open: 0,
-    ignored: 0,
-    fixed: 0,
-  };
+  /** All three counters live on one signal so a status transition (open → fixed)
+   *  is a single atomic update. Previously the mark-status callback did six
+   *  sequential `summary.X--` / `summary.X++` mutations on a captured object
+   *  reference — under signals that's silent CD breakage; with one atomic
+   *  update via `.update()` the bindings always observe a consistent set. */
+  readonly summary = signal<SummaryCounts>({ open: 0, ignored: 0, fixed: 0 });
 
-  scanning = false;
-  progress = 0;
-  progressMessage = '';
-  jobId: string | null = null;
-  errorMessage = '';
+  readonly scanning = signal(false);
+  readonly progress = signal(0);
+  readonly progressMessage = signal('');
+  readonly jobId = signal<string | null>(null);
+  readonly errorMessage = signal('');
 
-  displayedColumns = [
+  readonly displayedColumns: readonly string[] = [
     'source_thread',
     'url',
     'http_status',
@@ -85,14 +100,14 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
     'actions',
   ];
 
-  statusOptions: Array<{ value: LinkHealthFilter; label: string }> = [
+  readonly statusOptions: readonly { value: LinkHealthFilter; label: string }[] = [
     { value: 'all', label: 'All' },
     { value: 'open', label: 'Open' },
     { value: 'ignored', label: 'Ignored' },
     { value: 'fixed', label: 'Fixed' },
   ];
 
-  httpStatusOptions: Array<{ value: number | null; label: string }> = [
+  readonly httpStatusOptions: readonly { value: number | null; label: string }[] = [
     { value: null, label: 'All status codes' },
     { value: 0, label: 'Connection error (0)' },
     { value: 301, label: '301 redirect' },
@@ -103,7 +118,7 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
   ];
 
   private ws: WebSocket | null = null;
-  private pollingInterval: ReturnType<typeof setInterval> | null = null;
+  private pollingSub: Subscription | null = null;
 
   ngOnInit(): void {
     this.load();
@@ -116,24 +131,24 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
   }
 
   load(): void {
-    this.loading = true;
+    this.loading.set(true);
     this.brokenLinkSvc.list({
-      status: this.statusFilter,
+      status: this.statusFilter(),
       http_status: this.httpStatusFilter,
-      page: this.page,
+      page: this.page(),
     })
-    .pipe(takeUntilDestroyed(this.destroyRef))
-    .subscribe({
-      next: (response) => {
-        this.brokenLinks = response.results;
-        this.totalCount = response.count;
-        this.loading = false;
-      },
-      error: () => {
-        this.loading = false;
-        this.snack.open('Failed to load broken links', 'Dismiss', { duration: 4000 });
-      },
-    });
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          this.brokenLinks.set(response.results);
+          this.totalCount.set(response.count);
+          this.loading.set(false);
+        },
+        error: () => {
+          this.loading.set(false);
+          this.snack.open('Failed to load broken links', 'Dismiss', { duration: 4000 });
+        },
+      });
   }
 
   loadSummary(): void {
@@ -142,83 +157,81 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
       ignored: this.brokenLinkSvc.list({ status: 'ignored' }),
       fixed: this.brokenLinkSvc.list({ status: 'fixed' }),
     })
-    .pipe(takeUntilDestroyed(this.destroyRef))
-    .subscribe({
-      next: ({ open, ignored, fixed }) => {
-        this.summary = {
-          open: open.count,
-          ignored: ignored.count,
-          fixed: fixed.count,
-        };
-        this.dashboardSvc.updateOpenBrokenLinks(open.count);
-      },
-      error: () => {
-        this.snack.open('Failed to load broken-link summary', 'Dismiss', { duration: 4000 });
-      },
-    });
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ open, ignored, fixed }) => {
+          this.summary.set({
+            open: open.count,
+            ignored: ignored.count,
+            fixed: fixed.count,
+          });
+          this.dashboardSvc.updateOpenBrokenLinks(open.count);
+        },
+        error: () => {
+          this.snack.open('Failed to load broken-link summary', 'Dismiss', { duration: 4000 });
+        },
+      });
   }
 
   setStatusFilter(status: LinkHealthFilter): void {
-    this.statusFilter = status;
-    this.page = 1;
+    this.statusFilter.set(status);
+    this.page.set(1);
     this.load();
   }
 
   onHttpStatusChange(): void {
-    this.page = 1;
+    this.page.set(1);
     this.load();
   }
 
   onPageChange(event: PageEvent): void {
-    this.page = event.pageIndex + 1;
+    this.page.set(event.pageIndex + 1);
     this.load();
   }
 
   startScan(): void {
-    if (this.scanning) {
-      return;
-    }
+    if (this.scanning()) return;
 
-    this.scanning = true;
-    this.progress = 0;
-    this.progressMessage = 'Scheduling broken-link scan...';
-    this.errorMessage = '';
+    this.scanning.set(true);
+    this.progress.set(0);
+    this.progressMessage.set('Scheduling broken-link scan...');
+    this.errorMessage.set('');
 
     this.brokenLinkSvc.startScan()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-      next: ({ job_id, message }) => {
-        this.jobId = job_id;
-        this.progressMessage = message;
-        this.connectWebSocket(job_id);
-      },
-      error: () => {
-        this.scanning = false;
-        this.progressMessage = '';
-        this.snack.open('Failed to start broken-link scan', 'Dismiss', { duration: 4000 });
-      },
-    });
+        next: ({ job_id, message }) => {
+          this.jobId.set(job_id);
+          this.progressMessage.set(message);
+          this.connectWebSocket(job_id);
+        },
+        error: () => {
+          this.scanning.set(false);
+          this.progressMessage.set('');
+          this.snack.open('Failed to start broken-link scan', 'Dismiss', { duration: 4000 });
+        },
+      });
   }
 
   exportCsv(): void {
     this.brokenLinkSvc.exportCsv({
-      status: this.statusFilter,
+      status: this.statusFilter(),
       http_status: this.httpStatusFilter,
     })
-    .pipe(takeUntilDestroyed(this.destroyRef))
-    .subscribe({
-      next: (blob) => {
-        const url = window.URL.createObjectURL(blob);
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = `broken-links-${new Date().toISOString().slice(0, 10)}.csv`;
-        anchor.click();
-        window.URL.revokeObjectURL(url);
-      },
-      error: () => {
-        this.snack.open('Failed to export CSV', 'Dismiss', { duration: 4000 });
-      },
-    });
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (blob) => {
+          const url = window.URL.createObjectURL(blob);
+          const anchor = document.createElement('a');
+          anchor.href = url;
+          anchor.download = `broken-links-${new Date().toISOString().slice(0, 10)}.csv`;
+          anchor.click();
+          window.URL.revokeObjectURL(url);
+        },
+        error: () => {
+          this.snack.open('Failed to export CSV', 'Dismiss', { duration: 4000 });
+        },
+      });
   }
 
   markStatus(link: BrokenLink, status: BrokenLinkStatus): void {
@@ -226,38 +239,36 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
     this.brokenLinkSvc.patch(link.broken_link_id, { status })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-      next: () => {
-        this.snack.open(
-          status === 'fixed' ? 'Marked as fixed' : 'Broken link ignored',
-          undefined,
-          { duration: 2500 }
-        );
+        next: () => {
+          this.snack.open(
+            status === 'fixed' ? 'Marked as fixed' : 'Broken link ignored',
+            undefined,
+            { duration: 2500 },
+          );
 
-        // Update local summary counts to avoid redundant summary fetch
-        if (oldStatus !== status) {
-          if (oldStatus === 'open') this.summary.open--;
-          if (oldStatus === 'ignored') this.summary.ignored--;
-          if (oldStatus === 'fixed') this.summary.fixed--;
+          // Optimistic local-summary update — avoids the round-trip that
+          // `loadSummary` would do. Single atomic update so observers
+          // never see a transient state where one bucket has decremented
+          // but the other hasn't yet incremented.
+          if (oldStatus !== status) {
+            this.summary.update((s) => ({
+              ...s,
+              [oldStatus]: Math.max(0, s[oldStatus] - 1),
+              [status]: s[status] + 1,
+            }));
+            this.dashboardSvc.updateOpenBrokenLinks(this.summary().open);
+          }
 
-          if (status === 'open') this.summary.open++;
-          if (status === 'ignored') this.summary.ignored++;
-          if (status === 'fixed') this.summary.fixed++;
-
-          this.dashboardSvc.updateOpenBrokenLinks(this.summary.open);
-        }
-
-        this.load();
-      },
-      error: () => {
-        this.snack.open('Failed to update broken link', 'Dismiss', { duration: 4000 });
-      },
-    });
+          this.load();
+        },
+        error: () => {
+          this.snack.open('Failed to update broken link', 'Dismiss', { duration: 4000 });
+        },
+      });
   }
 
   openSourceThread(url: string): void {
-    if (!url) {
-      return;
-    }
+    if (!url) return;
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
@@ -273,7 +284,10 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
     this.ws?.close();
 
     const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-    this.ws = new WebSocket(`${protocol}://${location.host}/ws/jobs/${jobId}/`);
+    const base = `${protocol}://${location.host}/ws/jobs/${jobId}/`;
+    const token = this.auth.getToken();
+    const url = token ? `${base}?token=${encodeURIComponent(token)}` : base;
+    this.ws = new WebSocket(url);
 
     this.ws.onopen = () => {
       // If a previous connect attempt switched to HTTP polling on
@@ -281,7 +295,7 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
       // is healthy — otherwise we'd poll AND receive WS frames for the
       // same job during recovery.
       this.stopPolling();
-      this.errorMessage = '';
+      this.errorMessage.set('');
     };
 
     this.ws.onmessage = (event) => {
@@ -293,7 +307,7 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
       }
 
       if (data['type'] === 'connection.established') {
-        this.progressMessage = 'Connected. Waiting for scan progress...';
+        this.progressMessage.set('Connected. Waiting for scan progress...');
         return;
       }
 
@@ -301,76 +315,86 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
         return;
       }
 
-      this.progress = Math.round(((data['progress'] as number) ?? 0) * 100);
-      this.progressMessage = (data['message'] as string) ?? '';
+      this.progress.set(Math.round(((data['progress'] as number) ?? 0) * 100));
+      this.progressMessage.set((data['message'] as string) ?? '');
 
       if (data['state'] === 'completed') {
-        this.scanning = false;
-        this.progress = 100;
+        this.scanning.set(false);
+        this.progress.set(100);
         this.ws?.close();
         this.stopPolling();
         this.load();
         this.loadSummary();
         this.snack.open('Broken-link scan complete', undefined, { duration: 3000 });
       } else if (data['state'] === 'failed') {
-        this.scanning = false;
-        this.errorMessage = (data['error'] as string) ?? 'Broken-link scan failed.';
+        this.scanning.set(false);
+        const err = (data['error'] as string) ?? 'Broken-link scan failed.';
+        this.errorMessage.set(err);
         this.ws?.close();
         this.stopPolling();
-        this.snack.open(this.errorMessage, 'Dismiss', { duration: 5000 });
+        this.snack.open(err, 'Dismiss', { duration: 5000 });
       }
     };
 
     this.ws.onerror = () => {
-      if (this.scanning) {
-        this.errorMessage = 'WebSocket error — switching to polling...';
+      if (this.scanning()) {
+        this.errorMessage.set('WebSocket error — switching to polling...');
         this.startPolling(jobId);
       }
     };
 
     this.ws.onclose = () => {
-      if (this.scanning) {
-        this.errorMessage = 'Connection closed — switching to polling...';
+      if (this.scanning()) {
+        this.errorMessage.set('Connection closed — switching to polling...');
         this.startPolling(jobId);
       }
     };
   }
 
   private startPolling(jobId: string): void {
-    if (this.pollingInterval) return;
-    this.pollingInterval = setInterval(() => {
-      this.syncService.getJob(jobId)
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe({
+    if (this.pollingSub) return;
+    // Polling pauses while the tab is hidden or the user signs out.
+    // See docs/PERFORMANCE.md §13.
+    //
+    // switchMap flattens the timer-of-fetches into a single stream so
+    // each tick auto-cancels the previous in-flight getJob and inherits
+    // the outer takeUntilDestroyed. The previous nested subscribe could
+    // leave a dangling inner request if the timer ticked again before
+    // the previous response landed.
+    this.pollingSub = this.visibilityGate
+      .whileLoggedInAndVisible(() => timer(3000, 3000))
+      .pipe(
+        switchMap(() => this.syncService.getJob(jobId)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
         next: (job) => {
-          this.progress = Math.round((job.progress ?? 0) * 100);
-          this.progressMessage = job.message ?? '';
+          this.progress.set(Math.round((job.progress ?? 0) * 100));
+          this.progressMessage.set(job.message ?? '');
 
           if (job.status === 'completed') {
-            this.scanning = false;
-            this.progress = 100;
+            this.scanning.set(false);
+            this.progress.set(100);
             this.stopPolling();
             this.load();
             this.loadSummary();
             this.snack.open('Broken-link scan complete', undefined, { duration: 3000 });
           } else if (job.status === 'failed') {
-            this.scanning = false;
-            this.errorMessage = job.error_message ?? 'Broken-link scan failed.';
+            this.scanning.set(false);
+            const err = job.error_message ?? 'Broken-link scan failed.';
+            this.errorMessage.set(err);
             this.stopPolling();
-            this.snack.open(this.errorMessage, 'Dismiss', { duration: 5000 });
+            this.snack.open(err, 'Dismiss', { duration: 5000 });
           }
         },
         error: () => {
-          // Silent retry
-        }
+          // Silent retry — switchMap's next tick will re-subscribe.
+        },
       });
-    }, 3000);
   }
 
   private stopPolling(): void {
-    if (this.pollingInterval) {
-      clearInterval(this.pollingInterval);
-      this.pollingInterval = null;
-    }
+    this.pollingSub?.unsubscribe();
+    this.pollingSub = null;
   }
 }

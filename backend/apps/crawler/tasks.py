@@ -110,24 +110,16 @@ def pulse_heartbeat():
         metadata=checks,
     )
 
-    # Broadcast to WebSocket (system_pulse group).
-    try:
-        from channels.layers import get_channel_layer
-        from asgiref.sync import async_to_sync
+    # Broadcast on the realtime topic bus. Subscribers listen on
+    # /ws/realtime/ topic="system.pulse"; the helper logs and swallows
+    # transport errors so a broken Redis cannot crash the heartbeat task.
+    from apps.realtime.services import broadcast as realtime_broadcast
 
-        channel_layer = get_channel_layer()
-        if channel_layer:
-            async_to_sync(channel_layer.group_send)(
-                "system_pulse",
-                {
-                    "type": "pulse.heartbeat",
-                    "ok": overall_ok,
-                    "checks": checks,
-                    "timestamp": ts,
-                },
-            )
-    except Exception:
-        logger.debug("Failed to broadcast pulse to WebSocket", exc_info=True)
+    realtime_broadcast(
+        "system.pulse",
+        "heartbeat",
+        {"ok": overall_ok, "checks": checks, "timestamp": ts},
+    )
 
     return {"ok": overall_ok, "checks": checks}
 

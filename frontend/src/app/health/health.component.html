@@ -7,143 +7,174 @@
       <p class="page-description">Every service, every requirement, every active job — explained in plain English</p>
     </div>
     <div class="header-actions">
-      <button mat-flat-button color="primary" (click)="refreshAll()" [disabled]="refreshing || loading">
-        <mat-icon *ngIf="!refreshing && !loading" class="icon-md">refresh</mat-icon>
-        <mat-icon *ngIf="refreshing || loading" class="icon-md spin">sync</mat-icon>
+      <button mat-flat-button color="primary" (click)="refreshAll()" [disabled]="refreshing() || loading()">
+        @if (!refreshing() && !loading()) {
+          <mat-icon class="icon-md">refresh</mat-icon>
+        } @else {
+          <mat-icon class="icon-md spin">sync</mat-icon>
+        }
         <span>Full System Re-check</span>
       </button>
     </div>
   </div>
 
   <!-- ── Summary bar ────────────────────────────────────────────── -->
-  <mat-card class="summary-card" *ngIf="summary">
-    <div class="summary-content">
-      <div class="summary-stat">
-        <span class="label">Overall Status</span>
-        <span class="value" [ngClass]="'status-' + summary.system_status">
-          <mat-icon class="icon-md">{{ getStatusIcon(summary.system_status) }}</mat-icon>
-          {{ summary.system_status | uppercase }}
-        </span>
+  @if (summary(); as sum) {
+    <mat-card class="summary-card">
+      <div class="summary-content">
+        <div class="summary-stat">
+          <span class="label">Overall Status</span>
+          <span class="value" [ngClass]="'status-' + sum.system_status">
+            <mat-icon class="icon-md">{{ getStatusIcon(sum.system_status) }}</mat-icon>
+            {{ sum.system_status | uppercase }}
+          </span>
+        </div>
+        <div class="summary-stat">
+          <span class="label">Healthy</span>
+          <span class="value healthy-val">
+            <mat-icon class="icon-md">check_circle</mat-icon>{{ healthyCount() }}
+          </span>
+        </div>
+        <div class="summary-stat">
+          <span class="label">Warnings</span>
+          <span class="value" [class.warn-val]="warningCount() > 0">
+            @if (warningCount() > 0) {
+              <mat-icon class="icon-md">warning</mat-icon>
+            } @else {
+              <mat-icon class="icon-md">check</mat-icon>
+            }
+            {{ warningCount() }}
+          </span>
+        </div>
+        <div class="summary-stat">
+          <span class="label">Errors / Down</span>
+          <span class="value" [class.error-val]="errorCount() > 0">
+            @if (errorCount() > 0) {
+              <mat-icon class="icon-md">error</mat-icon>
+            } @else {
+              <mat-icon class="icon-md">check</mat-icon>
+            }
+            {{ errorCount() }}
+          </span>
+        </div>
+        <div class="summary-stat">
+          <span class="label">Not Configured</span>
+          <span class="value" [class.muted-val]="true">
+            <mat-icon class="icon-md">settings</mat-icon>{{ notConfiguredCount() }}
+          </span>
+        </div>
+        <div class="summary-stat last-check">
+          <span class="label">Last Heartbeat</span>
+          <span class="value">{{ sum.last_check_at | date:'MMM d, HH:mm:ss' }}</span>
+        </div>
       </div>
-      <div class="summary-stat">
-        <span class="label">Healthy</span>
-        <span class="value healthy-val">
-          <mat-icon class="icon-md">check_circle</mat-icon>{{ healthyCount }}
-        </span>
-      </div>
-      <div class="summary-stat">
-        <span class="label">Warnings</span>
-        <span class="value" [class.warn-val]="warningCount > 0">
-          <mat-icon *ngIf="warningCount > 0" class="icon-md">warning</mat-icon>
-          <mat-icon *ngIf="warningCount === 0" class="icon-md">check</mat-icon>
-          {{ warningCount }}
-        </span>
-      </div>
-      <div class="summary-stat">
-        <span class="label">Errors / Down</span>
-        <span class="value" [class.error-val]="errorCount > 0">
-          <mat-icon *ngIf="errorCount > 0" class="icon-md">error</mat-icon>
-          <mat-icon *ngIf="errorCount === 0" class="icon-md">check</mat-icon>
-          {{ errorCount }}
-        </span>
-      </div>
-      <div class="summary-stat">
-        <span class="label">Not Configured</span>
-        <span class="value" [class.muted-val]="true">
-          <mat-icon class="icon-md">settings</mat-icon>{{ notConfiguredCount }}
-        </span>
-      </div>
-      <div class="summary-stat last-check">
-        <span class="label">Last Heartbeat</span>
-        <span class="value">{{ summary.last_check_at | date:'MMM d, HH:mm:ss' }}</span>
-      </div>
-    </div>
-  </mat-card>
+    </mat-card>
+  }
 
   <!-- ── Config Tier Tabs (Stage 4) ─────────────────────────────── -->
-  <section class="tier-section" *ngIf="services.length > 0">
-    <h2 class="section-title">
-      <mat-icon class="icon-base">category</mat-icon>
-      Services by Requirement
-    </h2>
-    <!-- Phase NV / Gap 145 — appPersistTab remembers the last-viewed tier. -->
-    <mat-tab-group animationDuration="200ms" appPersistTab="health.tiers">
-      <mat-tab *ngFor="let tier of tiers; trackBy: trackByTier" [label]="tierLabels[tier]">
-        <div class="page-cards-grid">
-          <mat-card class="tier-card" *ngFor="let s of tierGroups[tier]; trackBy: trackByServiceKey" [ngClass]="'tier-status-' + s.status">
-            <div class="tier-card-header">
-              <mat-icon [ngClass]="getStatusClass(s.status)">{{ getStatusIcon(s.status) }}</mat-icon>
-              <span class="tier-card-name">{{ getServiceName(s) }}</span>
+  @if (services().length > 0) {
+    <section class="tier-section">
+      <h2 class="section-title">
+        <mat-icon class="icon-base">category</mat-icon>
+        Services by Requirement
+      </h2>
+      <!-- Phase NV / Gap 145 — appPersistTab remembers the last-viewed tier. -->
+      <mat-tab-group animationDuration="200ms" appPersistTab="health.tiers">
+        @for (tier of tiers; track tier) {
+          <mat-tab [label]="tierLabels[tier]">
+            <div class="page-cards-grid">
+              @for (s of tierGroups()[tier]; track s.service_key) {
+                <mat-card class="tier-card" [ngClass]="'tier-status-' + s.status">
+                  <div class="tier-card-header">
+                    <mat-icon [ngClass]="getStatusClass(s.status)">{{ getStatusIcon(s.status) }}</mat-icon>
+                    <span class="tier-card-name">{{ getServiceName(s) }}</span>
+                  </div>
+                  <span class="tier-card-label">{{ s.status_label }}</span>
+                </mat-card>
+              } @empty {
+                <div class="tier-empty">No services in this tier.</div>
+              }
             </div>
-            <span class="tier-card-label">{{ s.status_label }}</span>
-          </mat-card>
-          <div class="tier-empty" *ngIf="tierGroups[tier].length === 0">
-            No services in this tier.
-          </div>
-        </div>
-      </mat-tab>
-    </mat-tab-group>
-  </section>
+          </mat-tab>
+        }
+      </mat-tab-group>
+    </section>
+  }
 
   <!-- ── Disk & GPU (Stage 4) ─────────────────────────────────── -->
-  <section class="disk-gpu-section" *ngIf="diskHealth || gpuHealth">
-    <div class="page-cards-grid">
-      <mat-card class="info-card" *ngIf="diskHealth">
-        <mat-card-header>
-          <mat-icon mat-card-avatar>storage</mat-icon>
-          <mat-card-title>Disk Usage</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          <div class="metric-row"><span>Database</span><span>{{ diskHealth.db_size_mb }} MB</span></div>
-          <div class="metric-row"><span>Embeddings</span><span>{{ diskHealth.embeddings_size_mb }} MB</span></div>
-        </mat-card-content>
-      </mat-card>
-      <mat-card class="info-card" *ngIf="gpuHealth?.available" id="runtime-panel" appDeepLinkSpotlight="runtime-panel">
-        <mat-card-header>
-          <mat-icon mat-card-avatar>memory</mat-icon>
-          <mat-card-title>GPU Status</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          <div class="metric-row"><span>Temperature</span><span [class.warn]="gpuHealth!.temp_c! >= 86">{{ gpuHealth!.temp_c }}°C</span></div>
-          <div class="metric-row"><span>VRAM Used</span><span>{{ gpuHealth!.vram_used_mb }} / {{ gpuHealth!.vram_total_mb }} MB</span></div>
-          <div class="metric-row"><span>Utilization</span><span>{{ gpuHealth!.utilization_pct }}%</span></div>
-          <app-health-banner *ngIf="gpuHealth!.temp_c! >= 86" severity="error" message="GPU temperature at or above 86°C ceiling — GPU work is paused." />
-        </mat-card-content>
-      </mat-card>
-    </div>
-  </section>
+  @if (diskHealth() || gpuHealth()) {
+    <section class="disk-gpu-section">
+      <div class="page-cards-grid">
+        @if (diskHealth(); as disk) {
+          <mat-card class="info-card">
+            <mat-card-header>
+              <mat-icon mat-card-avatar>storage</mat-icon>
+              <mat-card-title>Disk Usage</mat-card-title>
+            </mat-card-header>
+            <mat-card-content>
+              <div class="metric-row"><span>Database</span><span>{{ disk.db_size_mb }} MB</span></div>
+              <div class="metric-row"><span>Embeddings</span><span>{{ disk.embeddings_size_mb }} MB</span></div>
+            </mat-card-content>
+          </mat-card>
+        }
+        @if (gpuHealth(); as gpu) {
+          @if (gpu.available) {
+            <mat-card class="info-card" id="runtime-panel" appDeepLinkSpotlight="runtime-panel">
+              <mat-card-header>
+                <mat-icon mat-card-avatar>memory</mat-icon>
+                <mat-card-title>GPU Status</mat-card-title>
+              </mat-card-header>
+              <mat-card-content>
+                <div class="metric-row"><span>Temperature</span><span [class.warn]="(gpu.temp_c ?? 0) >= 86">{{ gpu.temp_c }}°C</span></div>
+                <div class="metric-row"><span>VRAM Used</span><span>{{ gpu.vram_used_mb }} / {{ gpu.vram_total_mb }} MB</span></div>
+                <div class="metric-row"><span>Utilization</span><span>{{ gpu.utilization_pct }}%</span></div>
+                @if ((gpu.temp_c ?? 0) >= 86) {
+                  <app-health-banner severity="error" message="GPU temperature at or above 86°C ceiling — GPU work is paused." />
+                }
+              </mat-card-content>
+            </mat-card>
+          }
+        }
+      </div>
+    </section>
+  }
 
   <!-- ── Safe Prune (plan item 26) ──────────────────────────── -->
   <app-safe-prune-card></app-safe-prune-card>
 
   <!-- ── Setup Checklist ───────────────────────────────────────── -->
-  <section class="checklist-section" id="checklist-section" *ngIf="checklistGroups.length > 0">
-    <h2 class="section-title">
-      <mat-icon class="icon-base">fact_check</mat-icon>
-      Setup & Requirements
-    </h2>
-    <p class="section-subtitle">Every system requirement, at a glance. Green means working. Anything else needs your attention.</p>
+  @if (checklistGroups().length > 0) {
+    <section class="checklist-section" id="checklist-section">
+      <h2 class="section-title">
+        <mat-icon class="icon-base">fact_check</mat-icon>
+        Setup & Requirements
+      </h2>
+      <p class="section-subtitle">Every system requirement, at a glance. Green means working. Anything else needs your attention.</p>
 
-    <div class="checklist-grid">
-      <mat-card class="checklist-card" *ngFor="let group of checklistGroups; trackBy: trackByLabel">
-        <h3 class="group-label">{{ group.label }}</h3>
-        <div class="checklist-rows">
-          <a class="checklist-row"
-             *ngFor="let s of group.services; trackBy: trackByServiceKey"
-             [appScrollHighlight]="'service-' + s.service_key"
-             [ngClass]="getStatusClass(s.status)"
-             style="cursor:pointer">
-            <mat-icon class="row-icon icon-md">{{ getStatusIcon(s.status) }}</mat-icon>
-            <div class="row-text">
-              <span class="row-name">{{ getServiceName(s) }}</span>
-              <span class="meta-sep"> • </span>
-              <span class="row-verdict">{{ s.status_label }}</span>
+      <div class="checklist-grid">
+        @for (group of checklistGroups(); track group.label) {
+          <mat-card class="checklist-card">
+            <h3 class="group-label">{{ group.label }}</h3>
+            <div class="checklist-rows">
+              @for (s of group.services; track s.service_key) {
+                <a class="checklist-row"
+                   [appScrollHighlight]="'service-' + s.service_key"
+                   [ngClass]="getStatusClass(s.status)"
+                   style="cursor:pointer">
+                  <mat-icon class="row-icon icon-md">{{ getStatusIcon(s.status) }}</mat-icon>
+                  <div class="row-text">
+                    <span class="row-name">{{ getServiceName(s) }}</span>
+                    <span class="meta-sep"> • </span>
+                    <span class="row-verdict">{{ s.status_label }}</span>
+                  </div>
+                </a>
+              }
             </div>
-          </a>
-        </div>
-      </mat-card>
-    </div>
-  </section>
+          </mat-card>
+        }
+      </div>
+    </section>
+  }
 
   <!-- ── Active Jobs ───────────────────────────────────────────── -->
   <section class="jobs-section" id="jobs-section">
@@ -153,47 +184,57 @@
     </h2>
     <p class="section-subtitle">Jobs currently running in the background. Progress updates every 5 seconds.</p>
 
-    <mat-card class="jobs-card" *ngIf="activeJobs.length > 0">
-      <div class="job-row" *ngFor="let job of activeJobs; trackBy: trackJobId">
-        <div class="job-header">
-          <div class="job-identity">
-            <mat-icon class="job-icon icon-base">sync</mat-icon>
-            <div>
-              <span class="job-title">{{ getJobSourceLabel(job) }} — {{ getJobModeLabel(job) }}</span>
-              <span class="job-message">{{ job.message || 'Preparing…' }}</span>
+    @if (activeJobs().length > 0) {
+      <mat-card class="jobs-card">
+        @for (job of activeJobs(); track job.job_id) {
+          <div class="job-row">
+            <div class="job-header">
+              <div class="job-identity">
+                <mat-icon class="job-icon icon-base">sync</mat-icon>
+                <div>
+                  <span class="job-title">{{ getJobSourceLabel(job) }} — {{ getJobModeLabel(job) }}</span>
+                  <span class="job-message">{{ job.message || 'Preparing…' }}</span>
+                </div>
+              </div>
+              <span class="job-pct">{{ getOverallProgress(job) }}%</span>
+            </div>
+
+            <div class="progress-block">
+              <span class="progress-label">Overall progress</span>
+              <mat-progress-bar mode="determinate" [value]="getOverallProgress(job)"></mat-progress-bar>
+            </div>
+
+            @if (hasMLProgress(job)) {
+              <div class="progress-block ml-phases">
+                <div class="ml-phase">
+                  <span class="progress-label">SpaCy language analysis</span>
+                  <mat-progress-bar mode="determinate" color="accent" [value]="getSpacyProgress(job)"></mat-progress-bar>
+                </div>
+                <div class="ml-phase">
+                  <span class="progress-label">BGE embedding</span>
+                  <mat-progress-bar mode="determinate" color="accent" [value]="getEmbeddingProgress(job)"></mat-progress-bar>
+                </div>
+              </div>
+            }
+
+            <div class="job-meta">
+              <span>{{ job.items_synced | number }} items synced</span>
+              @if (job.ml_items_queued > 0) {
+                <span>{{ job.ml_items_completed | number }} / {{ job.ml_items_queued | number }} AI-enriched</span>
+              }
+              @if (job.started_at) {
+                <span>Started {{ job.started_at | date:'HH:mm:ss' }}</span>
+              }
             </div>
           </div>
-          <span class="job-pct">{{ getOverallProgress(job) }}%</span>
-        </div>
-
-        <div class="progress-block">
-          <span class="progress-label">Overall progress</span>
-          <mat-progress-bar mode="determinate" [value]="getOverallProgress(job)"></mat-progress-bar>
-        </div>
-
-        <div class="progress-block ml-phases" *ngIf="hasMLProgress(job)">
-          <div class="ml-phase">
-            <span class="progress-label">SpaCy language analysis</span>
-            <mat-progress-bar mode="determinate" color="accent" [value]="getSpacyProgress(job)"></mat-progress-bar>
-          </div>
-          <div class="ml-phase">
-            <span class="progress-label">BGE embedding</span>
-            <mat-progress-bar mode="determinate" color="accent" [value]="getEmbeddingProgress(job)"></mat-progress-bar>
-          </div>
-        </div>
-
-        <div class="job-meta">
-          <span>{{ job.items_synced | number }} items synced</span>
-          <span *ngIf="job.ml_items_queued > 0">{{ job.ml_items_completed | number }} / {{ job.ml_items_queued | number }} AI-enriched</span>
-          <span *ngIf="job.started_at">Started {{ job.started_at | date:'HH:mm:ss' }}</span>
-        </div>
-      </div>
-    </mat-card>
-
-    <mat-card class="jobs-card jobs-empty" *ngIf="activeJobs.length === 0">
-      <mat-icon class="icon-md">check_circle</mat-icon>
-      <span>No jobs currently running. Everything is idle.</span>
-    </mat-card>
+        }
+      </mat-card>
+    } @else {
+      <mat-card class="jobs-card jobs-empty">
+        <mat-icon class="icon-md">check_circle</mat-icon>
+        <span>No jobs currently running. Everything is idle.</span>
+      </mat-card>
+    }
   </section>
 
   <!-- ── All Services ──────────────────────────────────────────── -->
@@ -207,219 +248,256 @@
       Click the refresh icon on any card to re-check that service right now.
     </p>
 
-    <div class="health-grid" *ngIf="!loading || services.length > 0">
-      <mat-card class="service-card"
-                *ngFor="let s of services; trackBy: trackByServiceKey"
-                [ngClass]="getStatusClass(s.status)"
-                [id]="'service-' + s.service_key">
+    @if (!loading() || services().length > 0) {
+      <div class="health-grid">
+        @for (s of services(); track s.service_key) {
+          <mat-card class="service-card"
+                    [ngClass]="getStatusClass(s.status)"
+                    [id]="'service-' + s.service_key">
 
-        <div class="card-header">
-          <div class="service-identify">
-            <mat-icon class="service-icon icon-lg">{{ getStatusIcon(s.status) }}</mat-icon>
-            <div class="name-box">
-              <h3 class="service-name">{{ getServiceName(s) }}</h3>
-              <span class="service-description">{{ getServiceDescription(s) }}</span>
+            <div class="card-header">
+              <div class="service-identify">
+                <mat-icon class="service-icon icon-lg">{{ getStatusIcon(s.status) }}</mat-icon>
+                <div class="name-box">
+                  <h3 class="service-name">{{ getServiceName(s) }}</h3>
+                  <span class="service-description">{{ getServiceDescription(s) }}</span>
+                </div>
+              </div>
+              <button mat-icon-button (click)="refreshService(s.service_key)"
+                      [disabled]="refreshingServices().has(s.service_key)"
+                      matTooltip="Re-check now">
+                <mat-icon [class.spin]="refreshingServices().has(s.service_key)">refresh</mat-icon>
+              </button>
             </div>
-          </div>
-          <button mat-icon-button (click)="refreshService(s.service_key)"
-                  [disabled]="refreshingServices.has(s.service_key)"
-                  matTooltip="Re-check now">
-            <mat-icon [class.spin]="refreshingServices.has(s.service_key)">refresh</mat-icon>
-          </button>
-        </div>
 
-        <div class="status-box">
-          <div class="status-badge" [ngClass]="'badge-' + s.status">
-            <mat-icon class="mini-icon icon-xs">{{ getStatusIcon(s.status) }}</mat-icon>
-            {{ s.status_label }}
-          </div>
-        </div>
-
-        <!-- Plain-English Issue Information -->
-        <div class="issue-box" *ngIf="s.issue_description && s.status !== 'healthy'">
-          <div class="issue-desc">
-            <mat-icon class="icon-md">error_outline</mat-icon>
-            <div class="text-content">
-              <span class="label">What's wrong</span>
-              <p>{{ s.issue_description }}</p>
+            <div class="status-box">
+              <div class="status-badge" [ngClass]="'badge-' + s.status">
+                <mat-icon class="mini-icon icon-xs">{{ getStatusIcon(s.status) }}</mat-icon>
+                {{ s.status_label }}
+              </div>
             </div>
-          </div>
-          <div class="suggested-fix" *ngIf="s.suggested_fix || getInfraFixHint(s.service_key)">
-            <mat-icon class="icon-md">auto_fix_high</mat-icon>
-            <div class="text-content">
-              <span class="label">How to fix it</span>
-              <p>{{ s.suggested_fix || getInfraFixHint(s.service_key) }}</p>
+
+            <!-- Plain-English Issue Information -->
+            @if (s.issue_description && s.status !== 'healthy') {
+              <div class="issue-box">
+                <div class="issue-desc">
+                  <mat-icon class="icon-md">error_outline</mat-icon>
+                  <div class="text-content">
+                    <span class="label">What's wrong</span>
+                    <p>{{ s.issue_description }}</p>
+                  </div>
+                </div>
+                @if (s.suggested_fix || getInfraFixHint(s.service_key)) {
+                  <div class="suggested-fix">
+                    <mat-icon class="icon-md">auto_fix_high</mat-icon>
+                    <div class="text-content">
+                      <span class="label">How to fix it</span>
+                      <p>{{ s.suggested_fix || getInfraFixHint(s.service_key) }}</p>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+
+            <!-- Healthy green confirmation -->
+            @if (s.status === 'healthy') {
+              <div class="healthy-note">
+                <mat-icon class="icon-sm">check_circle</mat-icon>
+                <span>Everything looks good here. No action needed.</span>
+              </div>
+            }
+
+            <!-- Key metrics. The metadata fields are independently optional;
+                 each `@if` checks one then renders that row. -->
+            @if (s.metadata; as meta) {
+              <div class="metadata-box">
+                @if (meta.lag_hours !== undefined) {
+                  <div class="metric">
+                    <span class="m-label">Data lag</span>
+                    <span class="m-value" [class.warn]="meta.lag_hours > 48">{{ meta.lag_hours }}h behind</span>
+                  </div>
+                }
+                @if (meta.worker_count !== undefined) {
+                  <div class="metric">
+                    <span class="m-label">Active workers</span>
+                    <span class="m-value core">{{ meta.worker_count }}</span>
+                  </div>
+                }
+                @if (meta.node_count !== undefined) {
+                  <div class="metric">
+                    <span class="m-label">Entities in graph</span>
+                    <span class="m-value core">{{ meta.node_count | number }}</span>
+                  </div>
+                }
+                @if (meta.plugin_count !== undefined) {
+                  <div class="metric">
+                    <span class="m-label">Active plugins</span>
+                    <span class="m-value core">{{ meta.plugin_count }}</span>
+                  </div>
+                }
+                @if (meta.total_depth !== undefined) {
+                  <div class="metric">
+                    <span class="m-label">Total queued tasks</span>
+                    <span class="m-value" [class.warn]="meta.total_depth > 50">{{ meta.total_depth }}</span>
+                  </div>
+                }
+                @if (meta.pipeline_depth !== undefined) {
+                  <div class="metric">
+                    <span class="m-label">Pipeline queue</span>
+                    <span class="m-value" [class.warn]="meta.pipeline_depth > 20">{{ meta.pipeline_depth }}</span>
+                  </div>
+                }
+                @if (meta.usage_pct !== undefined) {
+                  <div class="metric">
+                    <span class="m-label">Disk used</span>
+                    <span class="m-value" [class.warn]="meta.usage_pct > 80">{{ meta.usage_pct }}%</span>
+                  </div>
+                }
+                @if (meta.free_gb !== undefined) {
+                  <div class="metric">
+                    <span class="m-label">Free space</span>
+                    <span class="m-value core">{{ meta.free_gb }} GB</span>
+                  </div>
+                }
+                @if (meta.success_rate_7d !== undefined) {
+                  <div class="metric">
+                    <span class="m-label">Success rate (7d)</span>
+                    <span class="m-value" [class.warn]="meta.success_rate_7d < 80">{{ meta.success_rate_7d }}%</span>
+                  </div>
+                }
+                @if (meta.failed_7d !== undefined) {
+                  <div class="metric">
+                    <span class="m-label">Failed runs (7d)</span>
+                    <span class="m-value" [class.warn]="meta.failed_7d > 0">{{ meta.failed_7d }}</span>
+                  </div>
+                }
+                @if (meta.last_run_minutes_ago !== undefined) {
+                  <div class="metric">
+                    <span class="m-label">Last Beat run</span>
+                    <span class="m-value" [class.warn]="meta.last_run_minutes_ago > 35">{{ meta.last_run_minutes_ago }}m ago</span>
+                  </div>
+                }
+                @if (meta.tokens_per_day_remaining !== undefined) {
+                  <div class="metric">
+                    <span class="m-label">GA4 tokens today</span>
+                    <span class="m-value" [class.warn]="meta.tokens_per_day_remaining < 40000">{{ meta.tokens_per_day_remaining | number }} remaining</span>
+                  </div>
+                }
+                @if (meta.embedding_model !== undefined) {
+                  <div class="metric">
+                    <span class="m-label">Embedding model</span>
+                    <span class="m-value core">
+                      {{ meta.embedding_model }}
+                      @if (meta.embedding_device !== undefined) {<span> • {{ meta.embedding_device }}</span>}
+                    </span>
+                  </div>
+                }
+                @if (meta.active_model !== undefined) {
+                  <div class="metric">
+                    <span class="m-label">Active runtime model</span>
+                    <span class="m-value core">
+                      {{ meta.active_model }}
+                      @if (meta.active_device !== undefined) {<span> • {{ meta.active_device }}</span>}
+                      @if (meta.active_dimension !== undefined) {<span> • {{ meta.active_dimension }} dims</span>}
+                    </span>
+                  </div>
+                }
+                @if (meta.candidate_model !== undefined) {
+                  <div class="metric">
+                    <span class="m-label">Candidate</span>
+                    <span class="m-value" [class.warn]="meta.candidate_model">
+                      {{ meta.candidate_model || 'None queued' }}
+                      @if (meta.candidate_status) {<span> • {{ meta.candidate_status }}</span>}
+                    </span>
+                  </div>
+                }
+                @if (meta.hot_swap_safe !== undefined) {
+                  <div class="metric">
+                    <span class="m-label">Hot swap</span>
+                    <span class="m-value" [class.warn]="!meta.hot_swap_safe">
+                      {{ meta.hot_swap_safe ? 'Safe' : 'Blocked' }}
+                    </span>
+                  </div>
+                }
+                @if (meta.backfill_status !== undefined) {
+                  <div class="metric">
+                    <span class="m-label">Backfill</span>
+                    <span class="m-value" [class.warn]="meta.backfill_status && meta.backfill_status !== 'completed'">
+                      {{ meta.backfill_status || 'None' }}
+                      @if (meta.backfill_progress_pct !== undefined && meta.backfill_progress_pct !== null) {
+                        <span> • {{ meta.backfill_progress_pct }}%</span>
+                      }
+                    </span>
+                  </div>
+                }
+                @if (meta.online_count !== undefined) {
+                  <div class="metric">
+                    <span class="m-label">Helpers</span>
+                    <span class="m-value core">
+                      {{ meta.online_count }} online • {{ meta.busy_count || 0 }} busy • {{ meta.stale_count || 0 }} stale • {{ meta.offline_count || 0 }} offline
+                    </span>
+                  </div>
+                }
+                @if (meta.aggregate_ram_pressure !== undefined) {
+                  <div class="metric">
+                    <span class="m-label">Helper RAM pressure</span>
+                    <span class="m-value" [class.warn]="meta.aggregate_ram_pressure > 0.8">
+                      {{ (meta.aggregate_ram_pressure * 100) | number:'1.0-0' }}%
+                    </span>
+                  </div>
+                }
+                @if (meta.busiest_helper !== undefined) {
+                  <div class="metric">
+                    <span class="m-label">Busiest helper</span>
+                    <span class="m-value core">
+                      {{ meta.busiest_helper || 'None' }}
+                      @if (meta.busiest_effective_load !== undefined && meta.busiest_effective_load !== null) {
+                        <span> • {{ (meta.busiest_effective_load * 100) | number:'1.0-0' }}% load</span>
+                      }
+                    </span>
+                  </div>
+                }
+              </div>
+            }
+
+            @if (s.last_error_message && s.status !== 'healthy') {
+              <div class="technical-error">
+                <details>
+                  <summary>Technical details (for developers)</summary>
+                  <p class="error-text">{{ s.last_error_message }}</p>
+                </details>
+              </div>
+            }
+
+            <div class="footer">
+              @if (s.last_success_at && s.status === 'healthy') {
+                <span class="last-success">
+                  Last verified {{ s.last_success_at | date:'HH:mm' }} today
+                </span>
+              }
+              @if (s.last_check_at && s.status !== 'healthy') {
+                <span class="last-success">
+                  Last checked {{ s.last_check_at | date:'MMM d, HH:mm' }}
+                </span>
+              }
+              @if (s.status !== 'healthy' && getSettingsFragment(s.service_key)) {
+                <span class="not-configured">
+                  Action required in <a [routerLink]="['/settings']" [fragment]="getSettingsFragment(s.service_key)">Settings</a>
+                </span>
+              }
             </div>
-          </div>
-        </div>
+          </mat-card>
+        }
+      </div>
+    }
 
-        <!-- Healthy green confirmation -->
-        <div class="healthy-note" *ngIf="s.status === 'healthy'">
-          <mat-icon class="icon-sm">check_circle</mat-icon>
-          <span>Everything looks good here. No action needed.</span>
-        </div>
-
-        <!-- Key metrics -->
-        <div class="metadata-box" *ngIf="s.metadata && (
-            s.metadata.lag_hours !== undefined ||
-            s.metadata.node_count !== undefined ||
-            s.metadata.worker_count !== undefined ||
-            s.metadata.plugin_count !== undefined ||
-            s.metadata.total_depth !== undefined ||
-            s.metadata.usage_pct !== undefined ||
-            s.metadata.success_rate_7d !== undefined ||
-            s.metadata.last_run_minutes_ago !== undefined ||
-            s.metadata.tokens_per_day_remaining !== undefined ||
-            s.metadata.embedding_model !== undefined ||
-            s.metadata.embedding_device !== undefined ||
-            s.metadata.active_model !== undefined ||
-            s.metadata.active_device !== undefined ||
-            s.metadata.active_dimension !== undefined ||
-            s.metadata.candidate_model !== undefined ||
-            s.metadata.candidate_status !== undefined ||
-            s.metadata.hot_swap_safe !== undefined ||
-            s.metadata.backfill_status !== undefined ||
-            s.metadata.backfill_progress_pct !== undefined ||
-            s.metadata.online_count !== undefined ||
-            s.metadata.busy_count !== undefined ||
-            s.metadata.stale_count !== undefined ||
-            s.metadata.offline_count !== undefined ||
-            s.metadata.aggregate_ram_pressure !== undefined ||
-            s.metadata.busiest_helper !== undefined ||
-            s.metadata.busiest_effective_load !== undefined
-          )">
-          <div class="metric" *ngIf="s.metadata.lag_hours !== undefined">
-            <span class="m-label">Data lag</span>
-            <span class="m-value" [class.warn]="s.metadata.lag_hours > 48">{{ s.metadata.lag_hours }}h behind</span>
-          </div>
-          <div class="metric" *ngIf="s.metadata.worker_count !== undefined">
-            <span class="m-label">Active workers</span>
-            <span class="m-value core">{{ s.metadata.worker_count }}</span>
-          </div>
-          <div class="metric" *ngIf="s.metadata.node_count !== undefined">
-            <span class="m-label">Entities in graph</span>
-            <span class="m-value core">{{ s.metadata.node_count | number }}</span>
-          </div>
-          <div class="metric" *ngIf="s.metadata.plugin_count !== undefined">
-            <span class="m-label">Active plugins</span>
-            <span class="m-value core">{{ s.metadata.plugin_count }}</span>
-          </div>
-          <div class="metric" *ngIf="s.metadata.total_depth !== undefined">
-            <span class="m-label">Total queued tasks</span>
-            <span class="m-value" [class.warn]="s.metadata.total_depth > 50">{{ s.metadata.total_depth }}</span>
-          </div>
-          <div class="metric" *ngIf="s.metadata.pipeline_depth !== undefined">
-            <span class="m-label">Pipeline queue</span>
-            <span class="m-value" [class.warn]="s.metadata.pipeline_depth > 20">{{ s.metadata.pipeline_depth }}</span>
-          </div>
-          <div class="metric" *ngIf="s.metadata.usage_pct !== undefined">
-            <span class="m-label">Disk used</span>
-            <span class="m-value" [class.warn]="s.metadata.usage_pct > 80">{{ s.metadata.usage_pct }}%</span>
-          </div>
-          <div class="metric" *ngIf="s.metadata.free_gb !== undefined">
-            <span class="m-label">Free space</span>
-            <span class="m-value core">{{ s.metadata.free_gb }} GB</span>
-          </div>
-          <div class="metric" *ngIf="s.metadata.success_rate_7d !== undefined">
-            <span class="m-label">Success rate (7d)</span>
-            <span class="m-value" [class.warn]="s.metadata.success_rate_7d < 80">{{ s.metadata.success_rate_7d }}%</span>
-          </div>
-          <div class="metric" *ngIf="s.metadata.failed_7d !== undefined">
-            <span class="m-label">Failed runs (7d)</span>
-            <span class="m-value" [class.warn]="s.metadata.failed_7d > 0">{{ s.metadata.failed_7d }}</span>
-          </div>
-          <div class="metric" *ngIf="s.metadata.last_run_minutes_ago !== undefined">
-            <span class="m-label">Last Beat run</span>
-            <span class="m-value" [class.warn]="s.metadata.last_run_minutes_ago > 35">{{ s.metadata.last_run_minutes_ago }}m ago</span>
-          </div>
-          <div class="metric" *ngIf="s.metadata.tokens_per_day_remaining !== undefined">
-            <span class="m-label">GA4 tokens today</span>
-            <span class="m-value" [class.warn]="s.metadata.tokens_per_day_remaining < 40000">{{ s.metadata.tokens_per_day_remaining | number }} remaining</span>
-          </div>
-          <div class="metric" *ngIf="s.metadata.embedding_model !== undefined">
-            <span class="m-label">Embedding model</span>
-            <span class="m-value core">
-              {{ s.metadata.embedding_model }}
-              <span *ngIf="s.metadata.embedding_device !== undefined"> • {{ s.metadata.embedding_device }}</span>
-            </span>
-          </div>
-          <div class="metric" *ngIf="s.metadata.active_model !== undefined">
-            <span class="m-label">Active runtime model</span>
-            <span class="m-value core">
-              {{ s.metadata.active_model }}
-              <span *ngIf="s.metadata.active_device !== undefined"> • {{ s.metadata.active_device }}</span>
-              <span *ngIf="s.metadata.active_dimension !== undefined"> • {{ s.metadata.active_dimension }} dims</span>
-            </span>
-          </div>
-          <div class="metric" *ngIf="s.metadata.candidate_model !== undefined">
-            <span class="m-label">Candidate</span>
-            <span class="m-value" [class.warn]="s.metadata.candidate_model">
-              {{ s.metadata.candidate_model || 'None queued' }}
-              <span *ngIf="s.metadata.candidate_status"> • {{ s.metadata.candidate_status }}</span>
-            </span>
-          </div>
-          <div class="metric" *ngIf="s.metadata.hot_swap_safe !== undefined">
-            <span class="m-label">Hot swap</span>
-            <span class="m-value" [class.warn]="!s.metadata.hot_swap_safe">
-              {{ s.metadata.hot_swap_safe ? 'Safe' : 'Blocked' }}
-            </span>
-          </div>
-          <div class="metric" *ngIf="s.metadata.backfill_status !== undefined">
-            <span class="m-label">Backfill</span>
-            <span class="m-value" [class.warn]="s.metadata.backfill_status && s.metadata.backfill_status !== 'completed'">
-              {{ s.metadata.backfill_status || 'None' }}
-              <span *ngIf="s.metadata.backfill_progress_pct !== undefined && s.metadata.backfill_progress_pct !== null">
-                • {{ s.metadata.backfill_progress_pct }}%
-              </span>
-            </span>
-          </div>
-          <div class="metric" *ngIf="s.metadata.online_count !== undefined">
-            <span class="m-label">Helpers</span>
-            <span class="m-value core">
-              {{ s.metadata.online_count }} online • {{ s.metadata.busy_count || 0 }} busy • {{ s.metadata.stale_count || 0 }} stale • {{ s.metadata.offline_count || 0 }} offline
-            </span>
-          </div>
-          <div class="metric" *ngIf="s.metadata.aggregate_ram_pressure !== undefined">
-            <span class="m-label">Helper RAM pressure</span>
-            <span class="m-value" [class.warn]="s.metadata.aggregate_ram_pressure > 0.8">
-              {{ (s.metadata.aggregate_ram_pressure * 100) | number:'1.0-0' }}%
-            </span>
-          </div>
-          <div class="metric" *ngIf="s.metadata.busiest_helper !== undefined">
-            <span class="m-label">Busiest helper</span>
-            <span class="m-value core">
-              {{ s.metadata.busiest_helper || 'None' }}
-              <span *ngIf="s.metadata.busiest_effective_load !== undefined && s.metadata.busiest_effective_load !== null">
-                • {{ (s.metadata.busiest_effective_load * 100) | number:'1.0-0' }}% load
-              </span>
-            </span>
-          </div>
-        </div>
-
-        <div class="technical-error" *ngIf="s.last_error_message && s.status !== 'healthy'">
-          <details>
-            <summary>Technical details (for developers)</summary>
-            <p class="error-text">{{ s.last_error_message }}</p>
-          </details>
-        </div>
-
-        <div class="footer">
-          <span class="last-success" *ngIf="s.last_success_at && s.status === 'healthy'">
-            Last verified {{ s.last_success_at | date:'HH:mm' }} today
-          </span>
-          <span class="last-success" *ngIf="s.last_check_at && s.status !== 'healthy'">
-            Last checked {{ s.last_check_at | date:'MMM d, HH:mm' }}
-          </span>
-          <span class="not-configured" *ngIf="s.status !== 'healthy' && getSettingsFragment(s.service_key)">
-            Action required in <a [routerLink]="['/settings']" [fragment]="getSettingsFragment(s.service_key)">Settings</a>
-          </span>
-        </div>
-      </mat-card>
-    </div>
-
-    <div class="loading-shimmer" *ngIf="loading && services.length === 0">
-      <mat-card class="service-card shimmer" *ngFor="let i of [1,2,3,4,5,6]; trackBy: trackByIndex"></mat-card>
-    </div>
+    @if (loading() && services().length === 0) {
+      <div class="loading-shimmer">
+        @for (i of [1,2,3,4,5,6]; track i) {
+          <mat-card class="service-card shimmer"></mat-card>
+        }
+      </div>
+    }
   </section>
 
 </div>

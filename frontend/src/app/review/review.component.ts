@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, DestroyRef } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -40,9 +40,7 @@ import { SuggestionReadinessService } from '../core/services/suggestion-readines
 interface StatusTab {
   value: string;
   label: string;
-  count?: number;
 }
-
 
 @Component({
   selector: 'app-review',
@@ -72,6 +70,7 @@ interface StatusTab {
   ],
   templateUrl: './review.component.html',
   styleUrls: ['./review.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ReviewComponent implements OnInit {
   private svc = inject(SuggestionService);
@@ -79,30 +78,36 @@ export class ReviewComponent implements OnInit {
   private snack = inject(MatSnackBar);
   private destroyRef = inject(DestroyRef);
   // Phase SR — public so the template can read `readiness.ready()` /
-  // `readiness.blocking()` directly.
+  // `readiness.blocking()` directly. The service exposes signals so
+  // the computed `isReadyForSuggestions` below stays reactive.
   readiness = inject(SuggestionReadinessService);
 
   /** Phase SR — operator-pressed override. When true, the gate is
    *  treated as "ready" for the remainder of this browser session
    *  so power users can unblock themselves without waiting for the
    *  prerequisites to flip. Not persisted — expires on reload. */
-  gateOverride = false;
+  readonly gateOverride = signal(false);
 
   // ── Data ─────────────────────────────────────────────────────────
-  suggestions: Suggestion[] = [];
-  totalCount = 0;
-  loading = false;
-  startingPipeline = false;
+  readonly suggestions = signal<Suggestion[]>([]);
+  readonly totalCount = signal(0);
+  readonly loading = signal(false);
+  readonly startingPipeline = signal(false);
 
   // ── Filters ──────────────────────────────────────────────────────
+  // ngModel two-way bindings need lvalues — these stay plain. (ngModelChange)
+  // handlers fire on the host, so OnPush re-evaluates downstream bindings
+  // (`@if (searchQuery)`, `[class.active]="statusFilter === ..."`) per keystroke.
   statusFilter = 'pending';
   searchQuery = '';
   sortBy = '-score_final';
   sameSiloOnly = false;
-  page = 1;
-  pageSize = 25;
 
-  statusTabs: StatusTab[] = [
+  // Pagination state — read by mat-paginator bindings.
+  readonly page = signal(1);
+  readonly pageSize = signal(25);
+
+  readonly statusTabs: readonly StatusTab[] = [
     { value: 'pending',  label: 'Pending' },
     { value: 'approved', label: 'Approved' },
     { value: 'rejected', label: 'Rejected' },
@@ -110,26 +115,34 @@ export class ReviewComponent implements OnInit {
     { value: 'all',      label: 'All' },
   ];
 
-  sortOptions = [
+  readonly sortOptions = [
     { value: '-score_final', label: 'Score (high → low)' },
     { value: 'score_final',  label: 'Score (low → high)' },
     { value: '-created_at',  label: 'Newest first' },
     { value: 'created_at',   label: 'Oldest first' },
   ];
 
-  rejectionReasons = REJECTION_REASONS;
+  readonly rejectionReasons = REJECTION_REASONS;
 
   // ── Selection ────────────────────────────────────────────────────
-  selectedIds = new Set<string>();
+  readonly selectedIds = signal<ReadonlySet<string>>(new Set());
 
-  get allSelected(): boolean {
-    return this.suggestions.length > 0 &&
-      this.suggestions.every(s => this.selectedIds.has(s.suggestion_id));
-  }
+  /** Selected on the current page only — `selectedIds` is a session-wide
+   *  set, but the "select all" checkbox is page-scoped so this computed
+   *  asks "are all current-page suggestions in the set?". Recomputes
+   *  only when suggestions OR selectedIds change. */
+  readonly allSelected = computed(() => {
+    const sugs = this.suggestions();
+    const ids = this.selectedIds();
+    return sugs.length > 0 && sugs.every(s => ids.has(s.suggestion_id));
+  });
 
-  get someSelected(): boolean {
-    return this.selectedIds.size > 0 && !this.allSelected;
-  }
+  readonly someSelected = computed(() => this.selectedIds().size > 0 && !this.allSelected());
+
+  /** Phase SR — computed helper the template reads to decide which
+   *  region to render. Mirrors the service but honours the session
+   *  override flag. */
+  readonly isReadyForSuggestions = computed(() => this.gateOverride() || this.readiness.ready());
 
   // ── Lifecycle ────────────────────────────────────────────────────
 
@@ -140,18 +153,10 @@ export class ReviewComponent implements OnInit {
     this.load();
   }
 
-  /** Phase SR — computed helper the template reads to decide which
-   *  region to render. Mirrors the service but honours the session
-   *  override flag. */
-  get isReadyForSuggestions(): boolean {
-    return this.gateOverride || this.readiness.ready();
-  }
-
-  /** Phase SR — operator-pressed "Show me anyway". Logs to the
-   *  console for debugging; a future Ops Feed emitter will replace
-   *  this with a structured event. */
+  /** Phase SR — operator-pressed "Show me anyway". A future Ops Feed
+   *  emitter will replace the snackbar with a structured event. */
   onReadinessOverride(): void {
-    this.gateOverride = true;
+    this.gateOverride.set(true);
     this.snack.open(
       'Showing suggestions with stale prerequisites — results may be inaccurate.',
       'OK',
@@ -160,23 +165,23 @@ export class ReviewComponent implements OnInit {
   }
 
   load(): void {
-    this.loading = true;
+    this.loading.set(true);
     const filters: SuggestionFilters = {
       status: this.statusFilter,
       search: this.searchQuery,
       ordering: this.sortBy,
-      page: this.page,
+      page: this.page(),
       same_silo: this.sameSiloOnly,
     };
     this.svc.list(filters).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
-        this.suggestions = res.results;
-        this.totalCount = res.count;
-        this.loading = false;
-        this.selectedIds.clear();
+        this.suggestions.set(res.results);
+        this.totalCount.set(res.count);
+        this.loading.set(false);
+        this.clearSelection();
       },
       error: () => {
-        this.loading = false;
+        this.loading.set(false);
         this.snack.open('Failed to load suggestions', 'Dismiss', { duration: 4000 });
       },
     });
@@ -186,56 +191,73 @@ export class ReviewComponent implements OnInit {
 
   setStatus(value: string): void {
     this.statusFilter = value;
-    this.page = 1;
+    this.page.set(1);
     this.load();
   }
 
   onSearch(): void {
-    this.page = 1;
+    this.page.set(1);
     this.load();
   }
 
   onSortChange(): void {
-    this.page = 1;
+    this.page.set(1);
     this.load();
   }
 
   toggleSameSiloOnly(): void {
-    this.page = 1;
+    this.page.set(1);
     this.load();
   }
 
   onPageChange(evt: PageEvent): void {
-    this.page = evt.pageIndex + 1;
+    this.page.set(evt.pageIndex + 1);
     this.load();
   }
 
   clearSearch(): void {
     this.searchQuery = '';
-    this.page = 1;
+    this.page.set(1);
     this.load();
   }
 
   // ── Selection ────────────────────────────────────────────────────
 
   toggleSelect(id: string): void {
-    if (this.selectedIds.has(id)) {
-      this.selectedIds.delete(id);
-    } else {
-      this.selectedIds.add(id);
-    }
+    // Immutable Set update so the signal observes a new reference and
+    // OnPush re-evaluates `allSelected` / `someSelected` computeds.
+    this.selectedIds.update(curr => {
+      const next = new Set(curr);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   }
 
   toggleSelectAll(): void {
-    if (this.allSelected) {
-      this.selectedIds.clear();
+    if (this.allSelected()) {
+      this.clearSelection();
     } else {
-      this.suggestions.forEach(s => this.selectedIds.add(s.suggestion_id));
+      const next = new Set(this.selectedIds());
+      for (const s of this.suggestions()) {
+        next.add(s.suggestion_id);
+      }
+      this.selectedIds.set(next);
     }
   }
 
+  /** Template-side helper for the batch-bar's clear button — the
+   *  previous inline `(click)="selectedIds.clear()"` doesn't compile
+   *  against an immutable signal. */
+  clearSelection(): void {
+    this.selectedIds.set(new Set());
+  }
+
   isSelected(id: string): boolean {
-    return this.selectedIds.has(id);
+    return this.selectedIds().has(id);
   }
 
   // ── Quick actions (inline) ────────────────────────────────────────
@@ -265,7 +287,7 @@ export class ReviewComponent implements OnInit {
   // ── Batch actions ────────────────────────────────────────────────
 
   batchApprove(): void {
-    const ids = [...this.selectedIds];
+    const ids = [...this.selectedIds()];
     if (!ids.length) return;
     if (!confirm(`Approve ${ids.length} suggestion(s)?`)) return;
     this.svc.batchAction('approve', ids).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
@@ -278,7 +300,7 @@ export class ReviewComponent implements OnInit {
   }
 
   batchReject(reason: string): void {
-    const ids = [...this.selectedIds];
+    const ids = [...this.selectedIds()];
     if (!ids.length) return;
     if (!confirm(`Reject ${ids.length} suggestion(s)?`)) return;
     this.svc.batchAction('reject', ids, reason).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
@@ -330,10 +352,10 @@ export class ReviewComponent implements OnInit {
 
     ref.afterClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
       if (!result) return;
-      this.startingPipeline = true;
+      this.startingPipeline.set(true);
       this.svc.startPipeline(result.rerunMode).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (run) => {
-          this.startingPipeline = false;
+          this.startingPipeline.set(false);
           this.snack.open(
             `Pipeline started (run ${run.run_id.slice(0, 8)})`,
             'Dismiss',
@@ -341,7 +363,7 @@ export class ReviewComponent implements OnInit {
           );
         },
         error: () => {
-          this.startingPipeline = false;
+          this.startingPipeline.set(false);
           this.snack.open('Failed to start pipeline', 'Dismiss', { duration: 4000 });
         },
       });
@@ -349,7 +371,6 @@ export class ReviewComponent implements OnInit {
   }
 
   // ── Template helpers ─────────────────────────────────────────────
-
 
   scoreColor(score: number): string {
     if (score >= 0.75) return 'high';
@@ -394,15 +415,23 @@ export class ReviewComponent implements OnInit {
     return s.suggestion_id;
   }
 
+  /**
+   * Replace a single suggestion in the page list. If the status changed
+   * AND we're filtering by a non-"all" status, reload — the suggestion
+   * has either dropped out of the filter (e.g. pending → approved while
+   * viewing pending) or its position in the page may have shifted.
+   * Otherwise patch in place via signal `.update()`.
+   */
   private replaceSuggestion(updated: { suggestion_id: string; status: string } & Partial<Suggestion>): void {
-    const idx = this.suggestions.findIndex(s => s.suggestion_id === updated.suggestion_id);
-    if (idx !== -1) {
-      // If the status changed and we are in a filtered view, reload to keep the list and counts fresh.
-      if (this.statusFilter !== 'all' && updated.status !== this.statusFilter) {
+    if (this.statusFilter !== 'all') {
+      const current = this.suggestions().find(s => s.suggestion_id === updated.suggestion_id);
+      if (current && updated.status !== this.statusFilter) {
         this.load();
-      } else {
-        this.suggestions[idx] = { ...this.suggestions[idx], ...updated };
+        return;
       }
     }
+    this.suggestions.update(arr =>
+      arr.map(s => s.suggestion_id === updated.suggestion_id ? { ...s, ...updated } : s),
+    );
   }
 }

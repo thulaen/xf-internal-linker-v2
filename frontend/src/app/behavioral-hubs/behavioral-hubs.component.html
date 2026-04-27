@@ -5,16 +5,16 @@
     <div class="header-row">
       <h1 class="page-title">Behavioral Hubs</h1>
       <div class="header-actions">
-        <button mat-stroked-button (click)="triggerCompute()" [disabled]="triggeringCompute" class="action-btn">
-          @if (triggeringCompute) {
+        <button mat-stroked-button (click)="triggerCompute()" [disabled]="triggeringCompute()" class="action-btn">
+          @if (triggeringCompute()) {
             <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
           } @else {
             <mat-icon>sync</mat-icon>
           }
           Compute Co-Occurrence
         </button>
-        <button mat-stroked-button (click)="triggerDetect()" [disabled]="triggeringDetect" class="action-btn">
-          @if (triggeringDetect) {
+        <button mat-stroked-button (click)="triggerDetect()" [disabled]="triggeringDetect()" class="action-btn">
+          @if (triggeringDetect()) {
             <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
           } @else {
             <mat-icon>hub</mat-icon>
@@ -32,25 +32,27 @@
     <div class="stats-row">
       <div class="stat-chip">
         <mat-icon>group_work</mat-icon>
-        <span>{{ totalHubs }} hubs</span>
+        <span>{{ totalHubs() }} hubs</span>
       </div>
-      @if (settings) {
+      @if (settings(); as st) {
         <div class="stat-chip">
           <mat-icon>swap_horiz</mat-icon>
-          <span>{{ settings.last_run_pairs_written | number }} pairs</span>
+          <span>{{ st.last_run_pairs_written | number }} pairs</span>
         </div>
-        @if (settings.last_run_at) {
+        @if (st.last_run_at) {
           <div class="stat-chip">
             <mat-icon>schedule</mat-icon>
-            <span>Last run: {{ settings.last_run_at | date:'mediumDate' }}</span>
+            <span>Last run: {{ st.last_run_at | date:'mediumDate' }}</span>
           </div>
         }
       }
-      @if (lastRun && lastRun.status === 'running') {
-        <div class="stat-chip running">
-          <mat-spinner diameter="14"></mat-spinner>
-          <span>Computing…</span>
-        </div>
+      @if (lastRun(); as lr) {
+        @if (lr.status === 'running') {
+          <div class="stat-chip running">
+            <mat-spinner diameter="14"></mat-spinner>
+            <span>Computing…</span>
+          </div>
+        }
       }
     </div>
   </div>
@@ -61,18 +63,18 @@
     <mat-card class="hubs-card">
       <mat-card-content>
 
-        @if (loadingHubs && hubs.length === 0) {
+        @if (loadingHubs() && hubs().length === 0) {
           <div class="loading-center">
             <mat-spinner diameter="48"></mat-spinner>
           </div>
-        } @else if (hubs.length === 0) {
+        } @else if (hubs().length === 0) {
           <div class="empty-state">
             <mat-icon class="empty-icon">hub</mat-icon>
             <h3>No behavioral hubs detected yet</h3>
             <p>Run <strong>Compute Co-Occurrence</strong> to fetch GA4 session data, then <strong>Rebuild Hubs</strong> to cluster co-read articles.</p>
           </div>
         } @else {
-          <mat-table [dataSource]="hubs" class="hubs-table">
+          <mat-table [dataSource]="hubs()" class="hubs-table">
 
             <ng-container matColumnDef="name">
               <mat-header-cell *matHeaderCellDef>Hub</mat-header-cell>
@@ -119,12 +121,12 @@
             </ng-container>
 
             <mat-header-row *matHeaderRowDef="hubColumns"></mat-header-row>
-            <mat-row *matRowDef="let row; columns: hubColumns;" [class.selected-row]="selectedHub?.hub_id === row.hub_id"></mat-row>
+            <mat-row *matRowDef="let row; columns: hubColumns;" [class.selected-row]="selectedHub()?.hub_id === row.hub_id"></mat-row>
           </mat-table>
 
           <mat-paginator
-            [length]="totalHubs"
-            [pageSize]="pageSize"
+            [length]="totalHubs()"
+            [pageSize]="pageSize()"
             [pageSizeOptions]="[25, 50, 100]"
             (page)="onPageChange($event)"
           ></mat-paginator>
@@ -134,7 +136,7 @@
     </mat-card>
 
     <!-- Hub detail panel -->
-    @if (loadingDetail) {
+    @if (loadingDetail()) {
       <mat-card class="detail-card">
         <mat-card-content>
           <div class="loading-center">
@@ -142,10 +144,10 @@
           </div>
         </mat-card-content>
       </mat-card>
-    } @else if (selectedHub) {
+    } @else if (selectedHub(); as sel) {
       <mat-card class="detail-card">
         <mat-card-header>
-          <mat-card-title>{{ selectedHub.name }}</mat-card-title>
+          <mat-card-title>{{ sel.name }}</mat-card-title>
           <button mat-icon-button (click)="closeDetail()" matTooltip="Close" class="close-btn">
             <mat-icon>close</mat-icon>
           </button>
@@ -159,8 +161,8 @@
               <mat-form-field appearance="outline" class="name-field">
                 <input matInput autocomplete="off" [(ngModel)]="editName" placeholder="Hub name" />
               </mat-form-field>
-              <button mat-stroked-button (click)="saveName()" [disabled]="savingName || !editName.trim()">
-                @if (savingName) { <mat-spinner diameter="18" class="btn-spinner"></mat-spinner> } @else { Save }
+              <button mat-stroked-button (click)="saveName()" [disabled]="savingName() || !editName.trim()">
+                @if (savingName()) { <mat-spinner diameter="18" class="btn-spinner"></mat-spinner> } @else { Save }
               </button>
             </div>
           </div>
@@ -170,17 +172,17 @@
             <span class="section-label">Auto-link</span>
             <div class="autolink-row">
               <span class="autolink-status">
-                @if (selectedHub.auto_link_enabled) {
+                @if (sel.auto_link_enabled) {
                   <mat-icon class="icon-on">check_circle</mat-icon> Enabled — hub-pair suggestions are flagged as behavioral hub candidates.
                 } @else {
                   <mat-icon class="icon-off">radio_button_unchecked</mat-icon> Disabled.
                 }
               </span>
-              <button mat-stroked-button (click)="toggleAutoLink()" [disabled]="togglingAutoLink">
-                @if (togglingAutoLink) {
+              <button mat-stroked-button (click)="toggleAutoLink()" [disabled]="togglingAutoLink()">
+                @if (togglingAutoLink()) {
                   <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
                 } @else {
-                  {{ selectedHub.auto_link_enabled ? 'Disable' : 'Enable' }}
+                  {{ sel.auto_link_enabled ? 'Disable' : 'Enable' }}
                 }
               </button>
             </div>
@@ -190,12 +192,12 @@
 
           <!-- Members -->
           <div class="detail-section">
-            <span class="section-label">Members ({{ selectedHub.member_count }})</span>
-            @if (selectedHub.members.length === 0) {
+            <span class="section-label">Members ({{ sel.member_count }})</span>
+            @if (sel.members.length === 0) {
               <p class="no-members">No active members.</p>
             } @else {
               <div class="members-list">
-                @for (member of selectedHub.members; track member.id) {
+                @for (member of sel.members; track member.id) {
                   @if (member.membership_source !== 'manual_remove_override') {
                     <div class="member-row">
                       <div class="member-info">

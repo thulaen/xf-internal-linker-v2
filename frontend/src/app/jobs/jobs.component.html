@@ -7,7 +7,7 @@
     <div class="sync-toolbar">
       <mat-form-field appearance="outline" class="mode-field" subscriptSizing="dynamic">
         <mat-label>Import mode</mat-label>
-        <mat-select [(ngModel)]="importMode" [disabled]="anyRunning">
+        <mat-select [(ngModel)]="importMode" [disabled]="anyRunning()">
           @for (m of modes; track m.value) {
             <mat-option [value]="m.value">
               <span class="option-label">{{ m.label }}: </span>
@@ -21,9 +21,9 @@
         mat-flat-button
         color="primary"
         (click)="syncAllWpxf()"
-        [disabled]="!canSyncAll"
+        [disabled]="!canSyncAll()"
         class="sync-all-btn"
-        [matTooltip]="!sourceStatus.api && !sourceStatus.wp ? 'Configure at least one source (XenForo or WordPress) in Settings first' : canSyncAll ? 'Sync all configured sources at once' : 'A sync is already running'"
+        [matTooltip]="!sourceStatus().api && !sourceStatus().wp ? 'Configure at least one source (XenForo or WordPress) in Settings first' : canSyncAll() ? 'Sync all configured sources at once' : 'A sync is already running'"
       >
         <mat-icon>sync</mat-icon>
         Sync All (WP & XF)
@@ -52,7 +52,7 @@
       </mat-card-header>
 
       <mat-card-content>
-        @if (!sourceStatus.api && !sourceStatus.wp) {
+        @if (!sourceStatus().api && !sourceStatus().wp) {
           <div class="unconfigured-hint">
             <mat-icon>info</mat-icon>
             <span>Connect your XenForo or WordPress site in <a routerLink="/settings">Settings</a> to start syncing content.</span>
@@ -66,8 +66,8 @@
               <div class="source-icon xf"><mat-icon class="icon-base">forum</mat-icon></div>
               <div class="source-detail">
                 <div class="source-name">XenForo</div>
-                <div class="source-status-pill" [class.connected]="sourceStatus.api">
-                  {{ sourceStatus.api ? 'Connected' : 'Not configured' }}
+                <div class="source-status-pill" [class.connected]="sourceStatus().api">
+                  {{ sourceStatus().api ? 'Connected' : 'Not configured' }}
                 </div>
               </div>
             </div>
@@ -87,7 +87,7 @@
             </div>
 
             <div class="source-control">
-              @if (!sourceStatus.api) {
+              @if (!sourceStatus().api) {
                 <button mat-stroked-button [routerLink]="['/settings']" fragment="xenforo-settings">Configure</button>
               } @else if (getJob('api').state === 'idle') {
                 <button mat-stroked-button
@@ -116,8 +116,8 @@
               <div class="source-icon wp"><mat-icon class="icon-base">description</mat-icon></div>
               <div class="source-detail">
                 <div class="source-name">WordPress</div>
-                <div class="source-status-pill" [class.connected]="sourceStatus.wp">
-                  {{ sourceStatus.wp ? 'Connected' : 'Not configured' }}
+                <div class="source-status-pill" [class.connected]="sourceStatus().wp">
+                  {{ sourceStatus().wp ? 'Connected' : 'Not configured' }}
                 </div>
               </div>
             </div>
@@ -137,7 +137,7 @@
             </div>
 
             <div class="source-control">
-              @if (!sourceStatus.wp) {
+              @if (!sourceStatus().wp) {
                 <button mat-stroked-button [routerLink]="['/settings']" fragment="wordpress-settings">Configure</button>
               } @else if (getJob('wp').state === 'idle') {
                 <button mat-stroked-button
@@ -198,7 +198,7 @@
 
       <mat-card-content>
         <div class="source-list">
-          <div class="source-item jsonl-item" [class.expanded]="jsonlExpanded">
+          <div class="source-item jsonl-item" [class.expanded]="jsonlExpanded()">
             <div class="source-main-info">
               <div class="source-icon jsonl"><mat-icon class="icon-base">upload_file</mat-icon></div>
               <div class="source-detail">
@@ -222,11 +222,11 @@
             <div class="source-control">
               @if (getJob('jsonl').state === 'idle') {
                 <div class="jsonl-btn-group">
-                  <button mat-stroked-button (click)="jsonlExpanded = !jsonlExpanded">
-                    <mat-icon>{{ selectedFile ? 'task' : 'upload' }}</mat-icon>
-                    {{ selectedFile ? 'Change File' : 'Upload File' }}
+                  <button mat-stroked-button (click)="toggleJsonlExpanded()">
+                    <mat-icon>{{ selectedFile() ? 'task' : 'upload' }}</mat-icon>
+                    {{ selectedFile() ? 'Change File' : 'Upload File' }}
                   </button>
-                  @if (selectedFile) {
+                  @if (selectedFile()) {
                     <button mat-flat-button color="primary" (click)="startJsonlImport()" class="jsonl-start-btn">
                       <mat-icon>play_arrow</mat-icon>
                       Start Import
@@ -244,15 +244,15 @@
             </div>
           </div>
 
-          @if (jsonlExpanded && getJob('jsonl').state === 'idle') {
+          @if (jsonlExpanded() && getJob('jsonl').state === 'idle') {
             <div class="jsonl-drop-area">
               <div
                 class="drop-zone"
                 tabindex="0"
                 role="button"
                 aria-label="Choose file to upload"
-                [class.drag-over]="isDragOver"
-                [class.has-file]="!!selectedFile"
+                [class.drag-over]="isDragOver()"
+                [class.has-file]="!!selectedFile()"
                 (dragover)="onDragOver($event)"
                 (dragleave)="onDragLeave()"
                 (drop)="onDrop($event)"
@@ -260,13 +260,13 @@
                 (keydown.enter)="fileInput.click()"
               >
                 <input #fileInput type="file" accept=".jsonl" hidden (change)="onFileSelected($event)" />
-                <mat-icon class="icon-xl">{{ selectedFile ? 'task' : 'cloud_upload' }}</mat-icon>
-                <span>{{ selectedFile ? selectedFile.name : 'Drag & drop .jsonl or click to browse' }}</span>
+                <mat-icon class="icon-xl">{{ selectedFile() ? 'task' : 'cloud_upload' }}</mat-icon>
+                <span>{{ selectedFile()?.name ?? 'Drag & drop .jsonl or click to browse' }}</span>
               </div>
-              @if (selectedFile) {
+              @if (selectedFile()) {
                 <div class="jsonl-actions">
                   <button mat-flat-button color="primary" (click)="startJsonlImport()">Start Import</button>
-                  <button mat-button (click)="selectedFile = null; jsonlExpanded = false">Cancel</button>
+                  <button mat-button (click)="cancelFileSelection()">Cancel</button>
                 </div>
               }
             </div>
@@ -309,9 +309,9 @@
       </mat-card-header>
 
       <mat-card-content>
-        @if (syncJobs.length > 0) {
+        @if (syncJobs().length > 0) {
           <div class="table-container">
-            <table mat-table [dataSource]="syncJobs" class="ga4-table">
+            <table mat-table [dataSource]="syncJobs()" class="ga4-table">
 
             <ng-container matColumnDef="created_at">
               <th mat-header-cell *matHeaderCellDef>Date</th>
@@ -393,7 +393,7 @@
   <!-- Queue Tab -->
   <mat-tab label="Queue">
     <div class="tab-content">
-      @if (queueItems.length === 0) {
+      @if (queueItems().length === 0) {
         <app-empty-state
           icon="hourglass_empty"
           heading="Queue is empty"
@@ -401,25 +401,25 @@
         />
       } @else {
         <div class="queue-list">
-          @for (item of queueItems; track item.run_id || item.job_id) {
+          @for (item of queueItems(); track $any(item).run_id || $any(item).job_id) {
             <mat-card class="queue-card" data-ga4-panel>
               <div class="queue-card-header">
-                <mat-icon>{{ item.type === 'pipeline' ? 'auto_fix_high' : 'sync' }}</mat-icon>
-                <span class="queue-card-name">{{ item.type === 'pipeline' ? 'Pipeline Run' : 'Content Sync' }}</span>
-                <mat-chip [class]="'status-chip status-' + (item.run_state || item.status)" disableRipple>
-                  {{ item.run_state || item.status }}
+                <mat-icon>{{ $any(item).type === 'pipeline' ? 'auto_fix_high' : 'sync' }}</mat-icon>
+                <span class="queue-card-name">{{ $any(item).type === 'pipeline' ? 'Pipeline Run' : 'Content Sync' }}</span>
+                <mat-chip [class]="'status-chip status-' + ($any(item).run_state || $any(item).status)" disableRipple>
+                  {{ $any(item).run_state || $any(item).status }}
                 </mat-chip>
               </div>
-              @if (item.estimated_remaining_seconds) {
+              @if ($any(item).estimated_remaining_seconds) {
                 <span class="queue-eta">
-                  ETA: {{ item.estimated_remaining_seconds > 60
-                    ? (item.estimated_remaining_seconds / 60 | number:'1.0-0') + ' min'
+                  ETA: {{ $any(item).estimated_remaining_seconds > 60
+                    ? ($any(item).estimated_remaining_seconds / 60 | number:'1.0-0') + ' min'
                     : 'finishing soon' }}
                 </span>
               }
-              @if (item.phase_log && item.phase_log.length > 0) {
+              @if ($any(item).phase_log && $any(item).phase_log.length > 0) {
                 <mat-stepper class="phase-stepper" [linear]="false" labelPosition="bottom">
-                  @for (phase of item.phase_log; track phase.phase) {
+                  @for (phase of $any(item).phase_log; track phase.phase) {
                     <mat-step [completed]="phase.status === 'completed'" [label]="phase.phase">
                       <ng-template matStepLabel>{{ phase.phase }}</ng-template>
                     </mat-step>
@@ -427,19 +427,19 @@
                 </mat-stepper>
               }
               <!-- Plan item 27 — graceful pause / resume buttons per job. -->
-              @if (item.type !== 'pipeline' && item.job_id) {
+              @if ($any(item).type !== 'pipeline' && $any(item).job_id) {
                 <div class="queue-card-actions">
-                  @if ((item.run_state || item.status) === 'running') {
+                  @if (($any(item).run_state || $any(item).status) === 'running') {
                     <button mat-stroked-button
-                            (click)="pauseSyncJob(item.job_id)"
+                            (click)="pauseSyncJob($any(item).job_id)"
                             matTooltip="Stops at the next safe checkpoint. Work already done is kept."
                             matTooltipPosition="left">
                       <mat-icon>pause</mat-icon>
                       Pause
                     </button>
-                  } @else if ((item.run_state || item.status) === 'paused') {
+                  } @else if (($any(item).run_state || $any(item).status) === 'paused') {
                     <button mat-flat-button color="primary"
-                            (click)="resumeSyncJob(item.job_id)"
+                            (click)="resumeSyncJob($any(item).job_id)"
                             matTooltip="Picks up from the saved checkpoint. No duplicate work."
                             matTooltipPosition="left">
                       <mat-icon>play_arrow</mat-icon>
@@ -453,10 +453,10 @@
         </div>
       }
 
-      @if (activeLocks['heavy']) {
+      @if (activeLocks()['heavy']) {
         <app-health-banner
           severity="info"
-          [message]="'Heavy task lock held by: ' + activeLocks['heavy']"
+          [message]="'Heavy task lock held by: ' + activeLocks()['heavy']"
         />
       }
     </div>
@@ -466,12 +466,12 @@
   <mat-tab>
     <ng-template mat-tab-label>
       Quarantine
-      @if (quarantineItems.length > 0) {
-        <span class="tab-badge">{{ quarantineItems.length }}</span>
+      @if (quarantineItems().length > 0) {
+        <span class="tab-badge">{{ quarantineItems().length }}</span>
       }
     </ng-template>
     <div class="tab-content">
-      @if (quarantineItems.length === 0) {
+      @if (quarantineItems().length === 0) {
         <app-empty-state
           icon="verified_user"
           heading="No quarantined jobs"
@@ -479,34 +479,34 @@
         />
       } @else {
         <div class="quarantine-list">
-          @for (item of quarantineItems; track item.run_id) {
+          @for (item of quarantineItems(); track $any(item).run_id) {
             <mat-card class="quarantine-card" data-ga4-panel>
               <div class="quarantine-header">
                 <mat-icon class="quarantine-icon">warning</mat-icon>
                 <span class="quarantine-run-id">
-                  {{ item.related_object_type || 'pipeline_run' }} · {{ item.run_id.substring(0, 8) }}
+                  {{ $any(item).related_object_type || 'pipeline_run' }} · {{ $any(item).run_id.substring(0, 8) }}
                 </span>
                 <mat-chip class="quarantine-chip" disableRipple>
-                  {{ item.reason_display || 'Quarantined' }}
+                  {{ $any(item).reason_display || 'Quarantined' }}
                 </mat-chip>
-                @if (item.resume_from_checkpoint) {
+                @if ($any(item).resume_from_checkpoint) {
                   <mat-chip class="quarantine-resume-chip" disableRipple matTooltip="This job can pick up from a saved checkpoint">
                     <mat-icon>bookmark</mat-icon> Resumable
                   </mat-chip>
                 }
               </div>
               <p class="quarantine-error">
-                {{ item.reason_detail || item.error_message || 'No error details available.' }}
+                {{ $any(item).reason_detail || $any(item).error_message || 'No error details available.' }}
               </p>
-              @if (item.affected_items && item.affected_items.length > 0) {
+              @if ($any(item).affected_items && $any(item).affected_items.length > 0) {
                 <p class="quarantine-affected">
                   <strong>Also affected:</strong>
-                  {{ item.affected_items.length }} item{{ item.affected_items.length === 1 ? '' : 's' }}
+                  {{ $any(item).affected_items.length }} item{{ $any(item).affected_items.length === 1 ? '' : 's' }}
                 </p>
               }
               <div class="quarantine-actions">
-                @if (item.fix_available) {
-                  <button mat-flat-button color="primary" (click)="launchQuarantineRunbook(item)">
+                @if ($any(item).fix_available) {
+                  <button mat-flat-button color="primary" (click)="launchQuarantineRunbook($any(item))">
                     <mat-icon>build</mat-icon> Launch fix runbook
                   </button>
                 }

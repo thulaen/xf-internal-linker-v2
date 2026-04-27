@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -44,6 +44,7 @@ const ERROR_TAB_FRAGMENT_TO_INDEX: Record<string, number> = {
   ],
   templateUrl: './diagnostics.component.html',
   styleUrls: ['./diagnostics.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DiagnosticsComponent implements OnInit, OnDestroy {
   private readonly diagnosticsService = inject(DiagnosticsService);
@@ -55,35 +56,84 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
   private readonly visibilityGate = inject(VisibilityGateService);
   private readonly destroy$ = new Subject<void>();
 
-  services: ServiceStatus[] = [];
-  conflicts: SystemConflict[] = [];
-  features: FeatureReadiness[] = [];
-  resources: ResourceUsage | null = null;
+  // ── Server-truth signals ────────────────────────────────────────
+  readonly services = signal<ServiceStatus[]>([]);
+  readonly conflicts = signal<SystemConflict[]>([]);
+  readonly features = signal<FeatureReadiness[]>([]);
+  readonly resources = signal<ResourceUsage | null>(null);
   /** Polish.B — populated daily by the ndcg_smoke_test scheduled job. */
-  ndcgEval: NdcgEvalResult | null = null;
-  runtimeLaneCards: RuntimeLaneCard[] = [];
-  runtimeExecutionCards: RuntimeExecutionCard[] = [];
-  loading = true;
-  refreshing = false;
-  errors: ErrorLogEntry[] = [];
-  acknowledgedErrors: ErrorLogEntry[] = [];
-  runtimeCtx: RuntimeContext | null = null;
-  glitchtipEvents: ErrorLogEntry[] = [];
-  glitchtipLastSyncedAt: string | null = null;
-  selectedErrorTabIndex = 0;
-  nodes: NodeSummary[] = [];
-  pipelineGate: PipelineGate | null = null;
-  expandedErrorId: number | null = null;
-  filterNodeId: string | null = null;
-  copyFeedbackId: number | null = null;
+  readonly ndcgEval = signal<NdcgEvalResult | null>(null);
+  readonly loading = signal(true);
+  readonly refreshing = signal(false);
+  readonly errors = signal<ErrorLogEntry[]>([]);
+  readonly acknowledgedErrors = signal<ErrorLogEntry[]>([]);
+  readonly runtimeCtx = signal<RuntimeContext | null>(null);
+  readonly glitchtipEvents = signal<ErrorLogEntry[]>([]);
+  readonly glitchtipLastSyncedAt = signal<string | null>(null);
+  readonly nodes = signal<NodeSummary[]>([]);
+  readonly pipelineGate = signal<PipelineGate | null>(null);
+
+  // ── UI state signals ────────────────────────────────────────────
+  readonly selectedErrorTabIndex = signal(0);
+  readonly expandedErrorId = signal<number | null>(null);
+  readonly filterNodeId = signal<string | null>(null);
+  readonly copyFeedbackId = signal<number | null>(null);
+
+  // ── Static config ──────────────────────────────────────────────
   readonly adminUrl = environment.adminUrl;
   readonly glitchtipBaseUrl = environment.glitchtipBaseUrl;
+
+  // ── Derived state (replaces imperative rebuildRuntimeCards + getters) ──
+  // The previous component called `rebuildRuntimeCards()` from loadData,
+  // upsertService, and removeService — three places that had to remember
+  // to fire after every services mutation. Now lane and execution cards
+  // recompute automatically off `services()` and the imperative method
+  // is gone.
+  readonly runtimeLaneCards = computed<RuntimeLaneCard[]>(() => buildRuntimeLaneCards(this.services()));
+  readonly runtimeExecutionCards = computed<RuntimeExecutionCard[]>(() => buildRuntimeExecutionCards(this.services()));
+
+  readonly healthyCount = computed(() =>
+    this.services().filter((service) => service.state === 'healthy').length,
+  );
+
+  readonly coreServices = computed(() =>
+    this.services().filter((service) => !RUNTIME_SUMMARY_SERVICES.has(service.service_name)),
+  );
+
+  readonly groupedErrors = computed(() => groupErrors(this.errors(), this.filterNodeId()));
+
+  readonly activeGroupedErrors = computed<ErrorGroup[]>(() => {
+    const filterNode = this.filterNodeId();
+    const tabIndex = this.selectedErrorTabIndex();
+    if (tabIndex === 0) {
+      return groupErrors(this.errors().filter((entry) => entry.source !== 'glitchtip'), filterNode);
+    }
+    if (tabIndex === GLITCHTIP_TAB_INDEX) {
+      return groupErrors(this.glitchtipEvents(), filterNode);
+    }
+    return this.groupedErrors();
+  });
+
+  readonly showAcknowledgedDrawer = computed(() =>
+    this.selectedErrorTabIndex() === 2 && this.acknowledgedErrors().length > 0,
+  );
+
+  readonly uniqueNodes = computed<string[]>(() => uniqueNodeIds(this.errors()));
+
+  readonly ndcgEvalOriginEntries = computed<Array<{ origin: string; score: number }>>(() => {
+    const breakdown = this.ndcgEval()?.breakdown_by_candidate_origin;
+    if (!breakdown) return [];
+    return Object.entries(breakdown)
+      .map(([origin, score]) => ({ origin, score: score as number }))
+      .sort((a, b) => b.score - a.score);
+  });
 
   ngOnInit(): void {
     this.route.fragment.pipe(takeUntil(this.destroy$)).subscribe((fragment) => {
       if (!fragment || !(fragment in ERROR_TAB_FRAGMENT_TO_INDEX)) return;
-      this.selectedErrorTabIndex = ERROR_TAB_FRAGMENT_TO_INDEX[fragment];
-      if (this.selectedErrorTabIndex === GLITCHTIP_TAB_INDEX) this.refreshGlitchtipEvents();
+      const idx = ERROR_TAB_FRAGMENT_TO_INDEX[fragment];
+      this.selectedErrorTabIndex.set(idx);
+      if (idx === GLITCHTIP_TAB_INDEX) this.refreshGlitchtipEvents();
     });
     this.loadData();
     this.subscribeToRealtimeUpdates();
@@ -116,12 +166,14 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
   }
 
   private startGlitchtipPoll(): void {
-    // Gated by `VisibilityGateService`.
+    // Gated by `VisibilityGateService`. The inner switchMap reads the
+    // current tab signal each tick — when the user is on a non-glitchtip
+    // tab the inner returns `of(null)` so we don't waste a fetch.
     this.visibilityGate
       .whileLoggedInAndVisible(() =>
         timer(30_000, 30_000).pipe(
           switchMap(() =>
-            this.selectedErrorTabIndex === GLITCHTIP_TAB_INDEX
+            this.selectedErrorTabIndex() === GLITCHTIP_TAB_INDEX
               ? this.glitchtipService
                   .getRecentEvents()
                   .pipe(catchError(() => of<ErrorLogEntry[] | null>(null)))
@@ -145,15 +197,19 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
   }
 
   private applyGlitchtipSnapshot(rows: ErrorLogEntry[]): void {
-    this.glitchtipEvents = Array.isArray(rows) ? rows.filter((entry) => !entry.acknowledged) : [];
-    this.glitchtipLastSyncedAt = new Date().toISOString();
+    this.glitchtipEvents.set(
+      Array.isArray(rows) ? rows.filter((entry) => !entry.acknowledged) : [],
+    );
+    this.glitchtipLastSyncedAt.set(new Date().toISOString());
   }
 
   private reconcileErrorSnapshot(next: ErrorLogEntry[]): void {
-    const diff = diffErrorSnapshot(this.errors, next);
-    this.errors = diff.unack;
-    this.acknowledgedErrors = diff.ack;
+    const diff = diffErrorSnapshot(this.errors(), next);
+    this.errors.set(diff.unack);
+    this.acknowledgedErrors.set(diff.ack);
     if (!diff.priorityArrival) return;
+    // Fire the scroll-attention pulse on the next event-loop tick so
+    // the DOM has had a chance to render the new error row first.
     window.setTimeout(() => {
       this.scrollAttention.drawTo(`#error-${diff.priorityArrival!.id}`, {
         priority: 'urgent',
@@ -163,7 +219,7 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
   }
 
   loadData(): void {
-    this.loading = true;
+    this.loading.set(true);
     forkJoin({
       services: this.diagnosticsService.getServices(),
       conflicts: this.diagnosticsService.getConflicts(),
@@ -176,45 +232,45 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
       ndcgEval: this.diagnosticsService.getNdcgEval().pipe(catchError(() => of<NdcgEvalResult | null>(null))),
     }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (data) => {
-        this.services = data.services;
-        this.conflicts = data.conflicts;
-        this.features = data.features;
-        this.resources = data.resources;
-        this.runtimeCtx = data.runtimeCtx;
-        this.nodes = data.nodes;
-        this.pipelineGate = data.pipelineGate;
-        this.ndcgEval = data.ndcgEval;
+        this.services.set(data.services);
+        this.conflicts.set(data.conflicts);
+        this.features.set(data.features);
+        this.resources.set(data.resources);
+        this.runtimeCtx.set(data.runtimeCtx);
+        this.nodes.set(data.nodes);
+        this.pipelineGate.set(data.pipelineGate);
+        this.ndcgEval.set(data.ndcgEval);
         this.applyErrorsSnapshot(data.errors);
-        this.rebuildRuntimeCards();
-        this.loading = false;
+        // Runtime cards are computed() now — no rebuildRuntimeCards() call needed.
+        this.loading.set(false);
       },
       error: (err) => {
         console.error('Error loading diagnostics data', err);
-        this.loading = false;
+        this.loading.set(false);
       },
     });
   }
 
   private applyErrorsSnapshot(rows: ErrorLogEntry[]): void {
     const all = Array.isArray(rows) ? rows : [];
-    this.errors = all.filter((entry) => !entry.acknowledged);
-    this.acknowledgedErrors = all.filter((entry) => entry.acknowledged);
+    this.errors.set(all.filter((entry) => !entry.acknowledged));
+    this.acknowledgedErrors.set(all.filter((entry) => entry.acknowledged));
   }
 
   refreshAll(): void {
-    this.refreshing = true;
+    this.refreshing.set(true);
     forkJoin({
       services: this.diagnosticsService.refreshServices(),
       conflicts: this.diagnosticsService.detectConflicts(),
     }).pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
         this.loadData();
-        if (this.selectedErrorTabIndex === GLITCHTIP_TAB_INDEX) this.refreshGlitchtipEvents();
-        this.refreshing = false;
+        if (this.selectedErrorTabIndex() === GLITCHTIP_TAB_INDEX) this.refreshGlitchtipEvents();
+        this.refreshing.set(false);
       },
       error: (err) => {
         console.error('Error refreshing diagnostics', err);
-        this.refreshing = false;
+        this.refreshing.set(false);
       },
     });
   }
@@ -234,71 +290,40 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
     });
   }
 
-  private rebuildRuntimeCards(): void {
-    this.runtimeLaneCards = buildRuntimeLaneCards(this.services);
-    this.runtimeExecutionCards = buildRuntimeExecutionCards(this.services);
-  }
-
   private upsertService(next: ServiceStatus): void {
-    const { services, pulse } = upsertServiceInto(this.services, next);
-    this.services = services;
-    this.rebuildRuntimeCards();
+    const { services, pulse } = upsertServiceInto(this.services(), next);
+    this.services.set(services);
+    // Runtime cards are computed() over services() — recompute is automatic.
     if (pulse) this.scrollAttention.drawTo(pulse.selector, { priority: 'urgent', announce: pulse.announce });
   }
 
   private removeService(id: number): void {
-    this.services = removeServiceFrom(this.services, id);
-    this.rebuildRuntimeCards();
+    this.services.set(removeServiceFrom(this.services(), id));
   }
 
   private upsertConflict(next: SystemConflict): void {
-    const { conflicts, pulse } = upsertConflictInto(this.conflicts, next);
-    this.conflicts = conflicts;
+    const { conflicts, pulse } = upsertConflictInto(this.conflicts(), next);
+    this.conflicts.set(conflicts);
     if (pulse) this.scrollAttention.drawTo(pulse.selector, { priority: 'urgent', announce: pulse.announce });
   }
 
   private removeConflict(id: number): void {
-    this.conflicts = removeConflictFrom(this.conflicts, id);
+    this.conflicts.set(removeConflictFrom(this.conflicts(), id));
   }
 
   onResolveConflict(id: number): void {
     this.diagnosticsService.resolveConflict(id).pipe(takeUntil(this.destroy$)).subscribe(() => {
-      this.conflicts = this.conflicts.filter((conflict) => conflict.id !== id);
+      this.conflicts.update((arr) => arr.filter((conflict) => conflict.id !== id));
     });
   }
 
-  getHealthyCount(): number { return this.services.filter((service) => service.state === 'healthy').length; }
+  // ── Trackers / template helpers ────────────────────────────────
   runtimeLaneTrackBy(_i: number, lane: RuntimeLaneCard): string { return lane.id; }
   runtimeExecutionTrackBy(_i: number, card: RuntimeExecutionCard): string { return card.id; }
-
-  /** Polish.B — turn the NDCG breakdown dict into a sorted list for *ngFor. */
-  ndcgEvalOriginEntries(): Array<{ origin: string; score: number }> {
-    const breakdown = this.ndcgEval?.breakdown_by_candidate_origin;
-    if (!breakdown) {
-      return [];
-    }
-    return Object.entries(breakdown)
-      .map(([origin, score]) => ({ origin, score: score as number }))
-      .sort((a, b) => b.score - a.score);
-  }
   trackServiceName(_i: number, service: ServiceStatus): string { return service.service_name; }
-  get coreServices(): ServiceStatus[] { return this.services.filter((service) => !RUNTIME_SUMMARY_SERVICES.has(service.service_name)); }
-  get groupedErrors(): ErrorGroup[] { return groupErrors(this.errors, this.filterNodeId); }
 
-  get activeGroupedErrors(): ErrorGroup[] {
-    if (this.selectedErrorTabIndex === 0) {
-      return groupErrors(this.errors.filter((entry) => entry.source !== 'glitchtip'), this.filterNodeId);
-    }
-    if (this.selectedErrorTabIndex === GLITCHTIP_TAB_INDEX) {
-      return groupErrors(this.glitchtipEvents, this.filterNodeId);
-    }
-    return this.groupedErrors;
-  }
-
-  get showAcknowledgedDrawer(): boolean { return this.selectedErrorTabIndex === 2 && this.acknowledgedErrors.length > 0; }
-  uniqueNodes(): string[] { return uniqueNodeIds(this.errors); }
   maxTrendCount(trend: { count: number }[] | undefined): number { return maxTrendCountFn(trend); }
-  relatedErrors(error: ErrorLogEntry): ErrorLogEntry[] { return relatedErrorsFn(error, this.errors); }
+  relatedErrors(error: ErrorLogEntry): ErrorLogEntry[] { return relatedErrorsFn(error, this.errors()); }
   trendLabel(trend: { date: string; count: number }[] | undefined): string { return trendLabelFn(trend); }
   trackGroupFingerprint = trackGroupFingerprintFn;
   trackErrorId = trackErrorIdFn;
@@ -306,22 +331,31 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
   trackTrendDate = trackTrendDateFn;
 
   onAcknowledgeError(error: ErrorLogEntry): void {
-    const wasExpanded = this.expandedErrorId === error.id;
-    const glitchtipIndex = this.glitchtipEvents.findIndex((row) => row.id === error.id);
-    this.errors = this.errors.filter((row) => row.id !== error.id);
-    if (glitchtipIndex !== -1) this.glitchtipEvents = this.glitchtipEvents.filter((row) => row.id !== error.id);
-    this.acknowledgedErrors = [{ ...error, acknowledged: true }, ...this.acknowledgedErrors];
-    if (wasExpanded) this.expandedErrorId = null;
+    const wasExpanded = this.expandedErrorId() === error.id;
+    // Capture the optimistic snapshots so we can revert atomically on error.
+    // Previously the revert path read `this.errors`/`this.glitchtipEvents`
+    // again — under signals that's still correct because the writes haven't
+    // reached the server yet, but capturing once makes the revert path
+    // independent of any mid-flight reordering.
+    const errorsBefore = this.errors();
+    const ackBefore = this.acknowledgedErrors();
+    const glitchtipBefore = this.glitchtipEvents();
+    const glitchtipIndex = glitchtipBefore.findIndex((row) => row.id === error.id);
+
+    this.errors.update((arr) => arr.filter((row) => row.id !== error.id));
+    if (glitchtipIndex !== -1) {
+      this.glitchtipEvents.update((arr) => arr.filter((row) => row.id !== error.id));
+    }
+    this.acknowledgedErrors.update((arr) => [{ ...error, acknowledged: true }, ...arr]);
+    if (wasExpanded) this.expandedErrorId.set(null);
+
     this.diagnosticsService.acknowledgeError(error.id).pipe(takeUntil(this.destroy$)).subscribe({
-      next: () => {},
+      next: () => { /* server confirmed — optimistic state is now authoritative */ },
       error: () => {
-        this.acknowledgedErrors = this.acknowledgedErrors.filter((row) => row.id !== error.id);
-        this.errors = [error, ...this.errors];
-        if (glitchtipIndex !== -1) {
-          const restored = [...this.glitchtipEvents];
-          restored.splice(glitchtipIndex, 0, error);
-          this.glitchtipEvents = restored;
-        }
+        // Revert to captured pre-mutation snapshots.
+        this.errors.set(errorsBefore);
+        this.acknowledgedErrors.set(ackBefore);
+        this.glitchtipEvents.set(glitchtipBefore);
         this.snack.open('Could not acknowledge that error. Please try again.', 'Dismiss', { duration: 5000 });
       },
     });
@@ -331,7 +365,7 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
     this.diagnosticsService.rerunError(error.id).pipe(takeUntil(this.destroy$)).subscribe({
       next: (result) => {
         if (result.status === 'queued') {
-          this.snack.open(`Re-dispatched ${error.job_type} Â· ${error.step}. Acknowledging this error.`, 'Dismiss', { duration: 4000 });
+          this.snack.open(`Re-dispatched ${error.job_type} · ${error.step}. Acknowledging this error.`, 'Dismiss', { duration: 4000 });
           this.onAcknowledgeError(error);
           return;
         }
@@ -344,23 +378,33 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
     });
   }
 
-  toggleExpand(id: number): void { this.expandedErrorId = this.expandedErrorId === id ? null : id; }
-  toggleNodeFilter(nodeId: string | null): void { this.filterNodeId = this.filterNodeId === nodeId ? null : nodeId; }
+  toggleExpand(id: number): void {
+    this.expandedErrorId.update((curr) => curr === id ? null : id);
+  }
+
+  toggleNodeFilter(nodeId: string | null): void {
+    this.filterNodeId.update((curr) => curr === nodeId ? null : nodeId);
+  }
+
   openDjangoAdmin(): void { window.open(this.adminUrl, '_blank', 'noopener,noreferrer'); }
   openGlitchtip(): void { window.open(this.glitchtipBaseUrl, '_blank', 'noopener,noreferrer'); }
+
   onErrorTabChange(index: number): void {
-    this.selectedErrorTabIndex = index;
+    this.selectedErrorTabIndex.set(index);
     if (index === GLITCHTIP_TAB_INDEX) this.refreshGlitchtipEvents();
   }
 
   copyForAI(error: ErrorLogEntry): void {
     const prompt = buildAIPromptForError(error);
     const onSuccess = () => {
-      this.copyFeedbackId = error.id;
+      this.copyFeedbackId.set(error.id);
       this.snack.open('Copied AI-ready prompt to clipboard.', 'Dismiss', { duration: 2000 });
-      window.setTimeout(() => {
-        if (this.copyFeedbackId === error.id) this.copyFeedbackId = null;
-      }, 1500);
+      // Use a cancellable RxJS timer so a route-leave during the 1.5s
+      // window doesn't fire a setter on a dead component. The outer
+      // `takeUntil(destroy$)` aborts it cleanly.
+      timer(1500).pipe(takeUntil(this.destroy$)).subscribe(() => {
+        if (this.copyFeedbackId() === error.id) this.copyFeedbackId.set(null);
+      });
     };
     const onFail = () => {
       this.snack.open('Could not access the clipboard.', 'Dismiss', { duration: 4000 });

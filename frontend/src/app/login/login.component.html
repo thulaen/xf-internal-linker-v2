@@ -10,21 +10,21 @@
       <mat-form-field appearance="outline">
         <mat-label>Username</mat-label>
         <input matInput formControlName="username" autocomplete="username" />
-        <mat-error *ngIf="form.controls.username.hasError('required')">
-          Username is required.
-        </mat-error>
+        @if (form.controls.username.hasError('required')) {
+          <mat-error>Username is required.</mat-error>
+        }
       </mat-form-field>
 
       <mat-form-field appearance="outline">
         <mat-label>Password</mat-label>
         <input matInput type="password" formControlName="password" autocomplete="current-password" />
-        <mat-error *ngIf="form.controls.password.hasError('required')">
-          Password is required.
-        </mat-error>
+        @if (form.controls.password.hasError('required')) {
+          <mat-error>Password is required.</mat-error>
+        }
       </mat-form-field>
 
-      @if (errorMessage) {
-        <p class="login-error">{{ errorMessage }}</p>
+      @if (errorMessage()) {
+        <p class="login-error">{{ errorMessage() }}</p>
       }
 
       <button
@@ -32,9 +32,9 @@
         color="primary"
         type="submit"
         class="login-btn"
-        [disabled]="loading"
+        [disabled]="loading()"
       >
-        @if (loading) {
+        @if (loading()) {
           <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
         }
         Sign in

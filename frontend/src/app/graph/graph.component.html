@@ -12,7 +12,7 @@
      return visits. Subscribes to selectedIndexChange alongside the
      existing onTabChange handler; both fire (multicast EventEmitter). -->
 <mat-tab-group
-  [selectedIndex]="selectedTabIndex"
+  [selectedIndex]="selectedTabIndex()"
   (selectedIndexChange)="onTabChange($event)"
   appPersistTab="graph.main"
   animationDuration="200ms"
@@ -28,13 +28,11 @@
     </ng-template>
 
     <div class="tab-content">
-      <ng-container *ngIf="loadingStats">
+      @if (loadingStats()) {
         <div class="spinner-center">
           <mat-spinner diameter="48"></mat-spinner>
         </div>
-      </ng-container>
-
-      <ng-container *ngIf="!loadingStats && stats">
+      } @else if (stats(); as s) {
         <p class="tab-description">
           A bird's-eye view of your site's internal link structure — how many pages, links, and topics you have.
         </p>
@@ -43,7 +41,7 @@
           <mat-card class="stat-card">
             <mat-card-content>
               <mat-icon class="stat-icon icon-lg">article</mat-icon>
-              <div class="stat-number">{{ stats.total_nodes | number }}</div>
+              <div class="stat-number">{{ s.total_nodes | number }}</div>
               <div class="stat-label">Total Articles</div>
             </mat-card-content>
           </mat-card>
@@ -51,7 +49,7 @@
           <mat-card class="stat-card">
             <mat-card-content>
               <mat-icon class="stat-icon icon-lg">link</mat-icon>
-              <div class="stat-number">{{ stats.total_edges | number }}</div>
+              <div class="stat-number">{{ s.total_edges | number }}</div>
               <div class="stat-label">Internal Links</div>
             </mat-card-content>
           </mat-card>
@@ -59,7 +57,7 @@
           <mat-card class="stat-card">
             <mat-card-content>
               <mat-icon class="stat-icon icon-lg">label</mat-icon>
-              <div class="stat-number">{{ stats.entity_count | number }}</div>
+              <div class="stat-number">{{ s.entity_count | number }}</div>
               <div class="stat-label">Entities</div>
             </mat-card-content>
           </mat-card>
@@ -67,7 +65,7 @@
           <mat-card class="stat-card stat-card--warning">
             <mat-card-content>
               <mat-icon class="stat-icon icon-lg">link_off</mat-icon>
-              <div class="stat-number">{{ stats.orphan_count | number }}</div>
+              <div class="stat-number">{{ s.orphan_count | number }}</div>
               <div class="stat-label" matTooltip="Pages with zero inbound links — they miss out on link equity and are harder for visitors to find">Orphan Articles</div>
             </mat-card-content>
           </mat-card>
@@ -75,7 +73,7 @@
           <mat-card class="stat-card stat-card--success">
             <mat-card-content>
               <mat-icon class="stat-icon icon-lg">hub</mat-icon>
-              <div class="stat-number">{{ stats.connected_pct }}%</div>
+              <div class="stat-number">{{ s.connected_pct }}%</div>
               <div class="stat-label">Articles Connected</div>
             </mat-card-content>
           </mat-card>
@@ -83,13 +81,13 @@
           <mat-card class="stat-card">
             <mat-card-content>
               <mat-icon class="stat-icon icon-lg">topic</mat-icon>
-              <div class="stat-number">{{ stats.topic_count | number }}</div>
+              <div class="stat-number">{{ s.topic_count | number }}</div>
               <div class="stat-label" matTooltip="A silo is a group of related pages. Pages within the same silo are more likely to link to each other.">Topics (Silos)</div>
             </mat-card-content>
           </mat-card>
 
         </div>
-      </ng-container>
+      }
     </div>
   </mat-tab>
 
@@ -103,35 +101,40 @@
     </ng-template>
 
     <div class="tab-content">
-      <ng-container *ngIf="loadingTopics">
+      @if (loadingTopics()) {
         <div class="spinner-center">
           <mat-spinner diameter="48"></mat-spinner>
         </div>
-      </ng-container>
-
-      <ng-container *ngIf="!loadingTopics && topics.length === 0">
-        <div class="empty-state">
-          <mat-icon class="icon-3xl">topic</mat-icon>
-          <h3>No topics yet</h3>
-          <p>Create silo groups in Settings to organise your content into topics.</p>
-        </div>
-      </ng-container>
-
-      <p class="tab-description" *ngIf="!loadingTopics && topics.length > 0">
-        Your content grouped by topic silo. Each card represents a content family — pages within the same silo are more likely to link to each other.
-      </p>
-      <div class="topics-grid" *ngIf="!loadingTopics && topics.length > 0">
-        <mat-card class="topic-card" *ngFor="let topic of topics; trackBy: trackByTopicId">
-          <mat-card-header>
-            <mat-icon mat-card-avatar class="topic-icon">label_important</mat-icon>
-            <mat-card-title>{{ topic.name }}</mat-card-title>
-            <mat-card-subtitle>{{ topic.scope_count }} scope{{ topic.scope_count !== 1 ? 's' : '' }}</mat-card-subtitle>
-          </mat-card-header>
-          <mat-card-content *ngIf="topic.description">
-            <p class="topic-description">{{ topic.description }}</p>
-          </mat-card-content>
-        </mat-card>
-      </div>
+      } @else {
+        @let topicList = topics();
+        @if (topicList.length === 0) {
+          <div class="empty-state">
+            <mat-icon class="icon-3xl">topic</mat-icon>
+            <h3>No topics yet</h3>
+            <p>Create silo groups in Settings to organise your content into topics.</p>
+          </div>
+        } @else {
+          <p class="tab-description">
+            Your content grouped by topic silo. Each card represents a content family — pages within the same silo are more likely to link to each other.
+          </p>
+          <div class="topics-grid">
+            @for (topic of topicList; track trackByTopicId($index, topic)) {
+              <mat-card class="topic-card">
+                <mat-card-header>
+                  <mat-icon mat-card-avatar class="topic-icon">label_important</mat-icon>
+                  <mat-card-title>{{ topic.name }}</mat-card-title>
+                  <mat-card-subtitle>{{ topic.scope_count }} scope{{ topic.scope_count !== 1 ? 's' : '' }}</mat-card-subtitle>
+                </mat-card-header>
+                @if (topic.description) {
+                  <mat-card-content>
+                    <p class="topic-description">{{ topic.description }}</p>
+                  </mat-card-content>
+                }
+              </mat-card>
+            }
+          </div>
+        }
+      }
     </div>
   </mat-tab>
 
@@ -145,25 +148,26 @@
     </ng-template>
 
     <div class="tab-content">
+      @let entityType = entityTypeFilter();
       <div class="filter-row">
         <mat-chip-set class="type-chips">
           <mat-chip
-            [class.chip-active]="entityTypeFilter === ''"
+            [class.chip-active]="entityType === ''"
             (click)="onEntityTypeFilter('')">
             All
           </mat-chip>
           <mat-chip
-            [class.chip-active]="entityTypeFilter === 'keyword'"
+            [class.chip-active]="entityType === 'keyword'"
             (click)="onEntityTypeFilter('keyword')">
             Keyword
           </mat-chip>
           <mat-chip
-            [class.chip-active]="entityTypeFilter === 'named_entity'"
+            [class.chip-active]="entityType === 'named_entity'"
             (click)="onEntityTypeFilter('named_entity')">
             Named Entity
           </mat-chip>
           <mat-chip
-            [class.chip-active]="entityTypeFilter === 'topic_tag'"
+            [class.chip-active]="entityType === 'topic_tag'"
             (click)="onEntityTypeFilter('topic_tag')">
             Topic Tag
           </mat-chip>
@@ -180,58 +184,59 @@
         </mat-form-field>
       </div>
 
-      <ng-container *ngIf="loadingEntities">
+      @if (loadingEntities()) {
         <div class="spinner-center">
           <mat-spinner diameter="48"></mat-spinner>
         </div>
-      </ng-container>
+      } @else {
+        @let entityList = entities();
+        @if (entityList.length === 0) {
+          <div class="empty-state">
+            <mat-icon class="icon-3xl">label_off</mat-icon>
+            <h3>No entities found</h3>
+            <p>Run the knowledge graph build to extract entities from your content.</p>
+          </div>
+        } @else {
+          <table mat-table [dataSource]="entityList" class="data-table">
 
-      <ng-container *ngIf="!loadingEntities && entities.length === 0">
-        <div class="empty-state">
-          <mat-icon class="icon-3xl">label_off</mat-icon>
-          <h3>No entities found</h3>
-          <p>Run the knowledge graph build to extract entities from your content.</p>
-        </div>
-      </ng-container>
+            <ng-container matColumnDef="canonical_form">
+              <th mat-header-cell *matHeaderCellDef>Entity</th>
+              <td mat-cell *matCellDef="let row">
+                <span class="entity-name">{{ row.canonical_form }}</span>
+                @if (row.surface_form !== row.canonical_form) {
+                  <span class="entity-surface">
+                    ({{ row.surface_form }})
+                  </span>
+                }
+              </td>
+            </ng-container>
 
-      <ng-container *ngIf="!loadingEntities && entities.length > 0">
-        <table mat-table [dataSource]="entities" class="data-table">
+            <ng-container matColumnDef="entity_type">
+              <th mat-header-cell *matHeaderCellDef>Type</th>
+              <td mat-cell *matCellDef="let row">
+                <span class="entity-type-chip entity-type-chip--{{ row.entity_type }}">
+                  {{ entityTypeLabel(row.entity_type) }}
+                </span>
+              </td>
+            </ng-container>
 
-          <ng-container matColumnDef="canonical_form">
-            <th mat-header-cell *matHeaderCellDef>Entity</th>
-            <td mat-cell *matCellDef="let row">
-              <span class="entity-name">{{ row.canonical_form }}</span>
-              <span class="entity-surface" *ngIf="row.surface_form !== row.canonical_form">
-                ({{ row.surface_form }})
-              </span>
-            </td>
-          </ng-container>
+            <ng-container matColumnDef="article_count">
+              <th mat-header-cell *matHeaderCellDef>Articles</th>
+              <td mat-cell *matCellDef="let row" class="col-number">{{ row.article_count }}</td>
+            </ng-container>
 
-          <ng-container matColumnDef="entity_type">
-            <th mat-header-cell *matHeaderCellDef>Type</th>
-            <td mat-cell *matCellDef="let row">
-              <span class="entity-type-chip entity-type-chip--{{ row.entity_type }}">
-                {{ entityTypeLabel(row.entity_type) }}
-              </span>
-            </td>
-          </ng-container>
+            <tr mat-header-row *matHeaderRowDef="entityColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: entityColumns;"></tr>
+          </table>
 
-          <ng-container matColumnDef="article_count">
-            <th mat-header-cell *matHeaderCellDef>Articles</th>
-            <td mat-cell *matCellDef="let row" class="col-number">{{ row.article_count }}</td>
-          </ng-container>
-
-          <tr mat-header-row *matHeaderRowDef="entityColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: entityColumns;"></tr>
-        </table>
-
-        <mat-paginator
-          [length]="entityCount"
-          [pageSize]="50"
-          [pageSizeOptions]="[50, 100, 200]"
-          (page)="onEntityPageChange($event)">
-        </mat-paginator>
-      </ng-container>
+          <mat-paginator
+            [length]="entityCount()"
+            [pageSize]="50"
+            [pageSizeOptions]="[50, 100, 200]"
+            (page)="onEntityPageChange($event)">
+          </mat-paginator>
+        }
+      }
     </div>
   </mat-tab>
 
@@ -249,53 +254,52 @@
         The 50 most authoritative articles by PageRank score — the best-connected destinations in your site.
       </p>
 
-      <ng-container *ngIf="loadingHubs">
+      @if (loadingHubs()) {
         <div class="spinner-center">
           <mat-spinner diameter="48"></mat-spinner>
         </div>
-      </ng-container>
+      } @else {
+        @let hubs = hubArticles();
+        @if (hubs.length === 0) {
+          <div class="empty-state">
+            <mat-icon class="icon-3xl">hub</mat-icon>
+            <h3>No articles yet</h3>
+            <p>Run a sync to import content.</p>
+          </div>
+        } @else {
+          <table mat-table [dataSource]="hubs" class="data-table">
 
-      <ng-container *ngIf="!loadingHubs && hubArticles.length === 0">
-        <div class="empty-state">
-          <mat-icon class="icon-3xl">hub</mat-icon>
-          <h3>No articles yet</h3>
-          <p>Run a sync to import content.</p>
-        </div>
-      </ng-container>
+            <ng-container matColumnDef="title">
+              <th mat-header-cell *matHeaderCellDef>Article</th>
+              <td mat-cell *matCellDef="let row">
+                <a [href]="row.url" target="_blank" rel="noopener" class="article-link">
+                  {{ row.title }}
+                  <mat-icon class="external-icon icon-xs">open_in_new</mat-icon>
+                </a>
+              </td>
+            </ng-container>
 
-      <ng-container *ngIf="!loadingHubs && hubArticles.length > 0">
-        <table mat-table [dataSource]="hubArticles" class="data-table">
+            <ng-container matColumnDef="content_type_label">
+              <th mat-header-cell *matHeaderCellDef>Type</th>
+              <td mat-cell *matCellDef="let row">
+                <span class="content-type-label">{{ row.content_type_label }}</span>
+              </td>
+            </ng-container>
 
-          <ng-container matColumnDef="title">
-            <th mat-header-cell *matHeaderCellDef>Article</th>
-            <td mat-cell *matCellDef="let row">
-              <a [href]="row.url" target="_blank" rel="noopener" class="article-link">
-                {{ row.title }}
-                <mat-icon class="external-icon icon-xs">open_in_new</mat-icon>
-              </a>
-            </td>
-          </ng-container>
+            <ng-container matColumnDef="march_2026_pagerank_score">
+              <th mat-header-cell *matHeaderCellDef>Authority</th>
+              <td mat-cell *matCellDef="let row">
+                <div class="pagerank-bar-wrap">
+                  <div class="pagerank-bar" [style.width.%]="pagerankBar(row.march_2026_pagerank_score)"></div>
+                </div>
+              </td>
+            </ng-container>
 
-          <ng-container matColumnDef="content_type_label">
-            <th mat-header-cell *matHeaderCellDef>Type</th>
-            <td mat-cell *matCellDef="let row">
-              <span class="content-type-label">{{ row.content_type_label }}</span>
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="march_2026_pagerank_score">
-            <th mat-header-cell *matHeaderCellDef>Authority</th>
-            <td mat-cell *matCellDef="let row">
-              <div class="pagerank-bar-wrap">
-                <div class="pagerank-bar" [style.width.%]="pagerankBar(row.march_2026_pagerank_score)"></div>
-              </div>
-            </td>
-          </ng-container>
-
-          <tr mat-header-row *matHeaderRowDef="hubColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: hubColumns;"></tr>
-        </table>
-      </ng-container>
+            <tr mat-header-row *matHeaderRowDef="hubColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: hubColumns;"></tr>
+          </table>
+        }
+      }
     </div>
   </mat-tab>
 
@@ -314,101 +318,109 @@
         Click a title to highlight it in the network graph.
       </p>
 
+      @let mode = auditMode();
       <div class="audit-filter-row">
         <mat-form-field appearance="outline" class="audit-mode-select">
           <mat-label>Show</mat-label>
-          <mat-select [value]="auditMode" (selectionChange)="onAuditModeChange($event.value)">
+          <mat-select [value]="mode" (selectionChange)="onAuditModeChange($event.value)">
             <mat-option value="orphan">Pages with no links</mat-option>
             <mat-option value="low_authority">Low-authority pages</mat-option>
           </mat-select>
         </mat-form-field>
 
-        <button mat-stroked-button class="export-btn" (click)="exportAuditCsv()" [disabled]="loadingAudit">
+        <button mat-stroked-button class="export-btn" (click)="exportAuditCsv()" [disabled]="loadingAudit()">
           <mat-icon>download</mat-icon>
           Export CSV
         </button>
       </div>
 
-      <ng-container *ngIf="loadingAudit">
+      @if (loadingAudit()) {
         <div class="spinner-center">
           <mat-spinner diameter="48"></mat-spinner>
         </div>
-      </ng-container>
+      } @else {
+        @let audits = auditItems();
+        @let auditTotal = auditCount();
+        @let suggesting = suggestingId();
+        @if (audits.length === 0 && auditTotal === 0) {
+          <div class="empty-state">
+            <mat-icon class="icon-3xl">check_circle</mat-icon>
+            @if (mode === 'orphan') {
+              <h3>No orphan pages</h3>
+              <p>Every article has at least one inbound internal link.</p>
+            } @else if (mode === 'low_authority') {
+              <h3>No low-authority pages</h3>
+              <p>No pages fall below the 5th percentile of authority.</p>
+            }
+          </div>
+        } @else if (audits.length > 0) {
+          <table mat-table [dataSource]="audits" class="data-table">
 
-      <ng-container *ngIf="!loadingAudit && auditItems.length === 0 && auditCount === 0">
-        <div class="empty-state">
-          <mat-icon class="icon-3xl">check_circle</mat-icon>
-          <h3 *ngIf="auditMode === 'orphan'">No orphan pages</h3>
-          <h3 *ngIf="auditMode === 'low_authority'">No low-authority pages</h3>
-          <p *ngIf="auditMode === 'orphan'">Every article has at least one inbound internal link.</p>
-          <p *ngIf="auditMode === 'low_authority'">No pages fall below the 5th percentile of authority.</p>
-        </div>
-      </ng-container>
+            <ng-container matColumnDef="title">
+              <th mat-header-cell *matHeaderCellDef>Article</th>
+              <td mat-cell *matCellDef="let row">
+                <span class="audit-title-cell">
+                  <a class="article-link audit-focus-link" tabindex="0" role="button" (click)="focusInGraph(row)" (keydown.enter)="focusInGraph(row)" matTooltip="Show in network graph">
+                    {{ row.title }}
+                  </a>
+                  <a [href]="row.url" target="_blank" rel="noopener" class="audit-external-link" matTooltip="Open page">
+                    <mat-icon class="external-icon icon-xs">open_in_new</mat-icon>
+                  </a>
+                </span>
+              </td>
+            </ng-container>
 
-      <ng-container *ngIf="!loadingAudit && auditItems.length > 0">
-        <table mat-table [dataSource]="auditItems" class="data-table">
+            <ng-container matColumnDef="scope_title">
+              <th mat-header-cell *matHeaderCellDef>Topic</th>
+              <td mat-cell *matCellDef="let row">
+                <span class="content-type-label">{{ row.scope_title || '—' }}</span>
+              </td>
+            </ng-container>
 
-          <ng-container matColumnDef="title">
-            <th mat-header-cell *matHeaderCellDef>Article</th>
-            <td mat-cell *matCellDef="let row">
-              <span class="audit-title-cell">
-                <a class="article-link audit-focus-link" tabindex="0" role="button" (click)="focusInGraph(row)" (keydown.enter)="focusInGraph(row)" matTooltip="Show in network graph">
-                  {{ row.title }}
-                </a>
-                <a [href]="row.url" target="_blank" rel="noopener" class="audit-external-link" matTooltip="Open page">
-                  <mat-icon class="external-icon icon-xs">open_in_new</mat-icon>
-                </a>
-              </span>
-            </td>
-          </ng-container>
+            <ng-container matColumnDef="inbound_link_count">
+              <th mat-header-cell *matHeaderCellDef>Inbound Links</th>
+              <td mat-cell *matCellDef="let row" class="col-number">{{ row.inbound_link_count }}</td>
+            </ng-container>
 
-          <ng-container matColumnDef="scope_title">
-            <th mat-header-cell *matHeaderCellDef>Topic</th>
-            <td mat-cell *matCellDef="let row">
-              <span class="content-type-label">{{ row.scope_title || '—' }}</span>
-            </td>
-          </ng-container>
+            <ng-container matColumnDef="march_2026_pagerank_score">
+              <th mat-header-cell *matHeaderCellDef>Authority</th>
+              <td mat-cell *matCellDef="let row">
+                <div class="pagerank-bar-wrap">
+                  <div class="pagerank-bar" [style.width.%]="pagerankBar(row.march_2026_pagerank_score)"></div>
+                </div>
+              </td>
+            </ng-container>
 
-          <ng-container matColumnDef="inbound_link_count">
-            <th mat-header-cell *matHeaderCellDef>Inbound Links</th>
-            <td mat-cell *matCellDef="let row" class="col-number">{{ row.inbound_link_count }}</td>
-          </ng-container>
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef></th>
+              <td mat-cell *matCellDef="let row" class="col-actions">
+                <button
+                  mat-stroked-button
+                  (click)="suggestLinks(row)"
+                  [disabled]="suggesting === row.id"
+                  matTooltip="Generate inbound link suggestions for this page">
+                  @if (suggesting === row.id) {
+                    <mat-spinner diameter="18"></mat-spinner>
+                  } @else {
+                    <mat-icon>auto_fix_high</mat-icon>
+                  }
+                  Suggest Links
+                </button>
+              </td>
+            </ng-container>
 
-          <ng-container matColumnDef="march_2026_pagerank_score">
-            <th mat-header-cell *matHeaderCellDef>Authority</th>
-            <td mat-cell *matCellDef="let row">
-              <div class="pagerank-bar-wrap">
-                <div class="pagerank-bar" [style.width.%]="pagerankBar(row.march_2026_pagerank_score)"></div>
-              </div>
-            </td>
-          </ng-container>
+            <tr mat-header-row *matHeaderRowDef="auditColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: auditColumns;"></tr>
+          </table>
 
-          <ng-container matColumnDef="actions">
-            <th mat-header-cell *matHeaderCellDef></th>
-            <td mat-cell *matCellDef="let row" class="col-actions">
-              <button
-                mat-stroked-button
-                (click)="suggestLinks(row)"
-                [disabled]="suggestingId === row.id"
-                matTooltip="Generate inbound link suggestions for this page">
-                <mat-spinner diameter="18" *ngIf="suggestingId === row.id"></mat-spinner>
-                <mat-icon *ngIf="suggestingId !== row.id">auto_fix_high</mat-icon>
-                Suggest Links
-              </button>
-            </td>
-          </ng-container>
-
-          <tr mat-header-row *matHeaderRowDef="auditColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: auditColumns;"></tr>
-        </table>
-
-        <mat-paginator
-          [length]="auditCount"
-          [pageSize]="auditPageSize"
-          [pageSizeOptions]="[50, 100, 200]"
-          (page)="onAuditPageChange($event)">
-        </mat-paginator>
-      </ng-container>
+          <mat-paginator
+            [length]="auditTotal"
+            [pageSize]="auditPageSize()"
+            [pageSizeOptions]="[50, 100, 200]"
+            (page)="onAuditPageChange($event)">
+          </mat-paginator>
+        }
+      }
     </div>
   </mat-tab>
 
@@ -422,50 +434,56 @@
     </ng-template>
 
     <div class="tab-content">
-      @if (loadingTopology) {
+      @let topo = topology();
+      @if (loadingTopology()) {
         <div class="spinner-center">
           <mat-spinner diameter="48"></mat-spinner>
         </div>
-      } @else if (topology.nodes.length === 0) {
+      } @else if (topo.nodes.length === 0) {
         <div class="empty-state">
           <mat-icon class="empty-icon">hub</mat-icon>
           <h3>No link data yet</h3>
           <p>Run a sync to populate existing links, then return here.</p>
         </div>
       } @else {
+        @let ctxFilter = contextFilter();
+        @let isHistory = historyMode();
+        @let showGaps = showGapsOverlay();
+        @let equity = pageRankEquity();
+        @let gaps = gapData();
         <p class="tab-description">
-          Force-directed map of the top {{ topology.nodes.length | number }} articles by PageRank.
+          Force-directed map of the top {{ topo.nodes.length | number }} articles by PageRank.
           Nodes are coloured by topic silo. Drag to pin, scroll to zoom, click a node to inspect its links.
         </p>
 
         <div class="network-settings-bar">
           <mat-slide-toggle
-            [checked]="heatmapMode"
+            [checked]="heatmapMode()"
             (change)="onHeatmapToggle($event.checked)"
             color="primary">
             Show Authority Heatmap
           </mat-slide-toggle>
           <mat-slide-toggle
-            [checked]="contextFilter === 'contextual'"
-            (change)="contextFilter = $event.checked ? 'contextual' : 'all'"
+            [checked]="ctxFilter === 'contextual'"
+            (change)="setContextFilter($event.checked ? 'contextual' : 'all')"
             color="primary">
             Contextual links only
           </mat-slide-toggle>
           <mat-slide-toggle
-            [(ngModel)]="historyMode"
-            (change)="onHistoryModeChange()"
+            [checked]="isHistory"
+            (change)="setHistoryMode($event.checked); onHistoryModeChange()"
             color="primary">
             History Mode
           </mat-slide-toggle>
           <mat-slide-toggle
-            [(ngModel)]="showGapsOverlay"
-            (change)="onGapsOverlayToggle()"
+            [checked]="showGaps"
+            (change)="setShowGapsOverlay($event.checked); onGapsOverlayToggle()"
             color="primary">
             Show Coverage Gaps
           </mat-slide-toggle>
         </div>
 
-        @if (historyMode) {
+        @if (isHistory) {
           <div class="history-slider-row">
             <mat-icon class="history-icon">history</mat-icon>
             <span class="slider-label">View graph as it was on:</span>
@@ -475,56 +493,59 @@
               [max]="today"
               [(ngModel)]="historyDate"
               (change)="onHistoryDateChange(historyDate)" />
-            <span class="slider-label" *ngIf="historyDate">
-              Showing {{ topology.links.length | number }} edges active on {{ historyDate }}
-            </span>
+            @if (historyDate) {
+              <span class="slider-label">
+                Showing {{ topo.links.length | number }} edges active on {{ historyDate }}
+              </span>
+            }
           </div>
         }
 
         <div class="network-layout">
           <div class="graph-canvas">
             <app-link-graph-viz
-              [topology]="topology"
-              [heatmapMode]="heatmapMode"
-              [prMin]="pageRankEquity?.pr_min ?? 0"
-              [prMax]="pageRankEquity?.pr_max ?? 1"
-              [contextFilter]="contextFilter"
-              [highlightEdge]="highlightEdge"
-              [churnyIds]="churnyIds"
-              [ghostEdges]="gapData?.ghost_edges ?? []"
-              [showGhostEdges]="showGapsOverlay"
+              [topology]="topo"
+              [heatmapMode]="heatmapMode()"
+              [prMin]="equity?.pr_min ?? 0"
+              [prMax]="equity?.pr_max ?? 1"
+              [contextFilter]="ctxFilter"
+              [highlightEdge]="highlightEdge()"
+              [churnyIds]="churnyIds()"
+              [ghostEdges]="gaps?.ghost_edges ?? []"
+              [showGhostEdges]="showGaps"
               (nodeSelected)="onNodeSelected($event)"
               (ghostEdgeClicked)="onGhostEdgeClicked($event)">
             </app-link-graph-viz>
           </div>
 
-          @if (selectedNode) {
+          @if (selectedNode(); as node) {
+            @let nodeLinks = selectedNodeLinks();
             <mat-card class="node-sidebar">
               <mat-card-header>
                 <mat-icon mat-card-avatar>article</mat-icon>
-                <mat-card-title>{{ selectedNode.title }}</mat-card-title>
-                <mat-card-subtitle>{{ selectedNode.type }}</mat-card-subtitle>
+                <mat-card-title>{{ node.title }}</mat-card-title>
+                <mat-card-subtitle>{{ node.type }}</mat-card-subtitle>
               </mat-card-header>
               <mat-card-content>
                 <mat-chip-set class="node-chips">
-                  <mat-chip>PageRank {{ selectedNode.pagerank | number:'1.2-2' }}</mat-chip>
-                  <mat-chip>{{ selectedNode.in_degree }} in</mat-chip>
-                  <mat-chip>{{ selectedNode.out_degree }} out</mat-chip>
+                  <mat-chip>PageRank {{ node.pagerank | number:'1.2-2' }}</mat-chip>
+                  <mat-chip>{{ node.in_degree }} in</mat-chip>
+                  <mat-chip>{{ node.out_degree }} out</mat-chip>
                 </mat-chip-set>
 
-                @if (selectedNodeLinks.inbound.length > 0) {
+                @if (nodeLinks.inbound.length > 0) {
                   <p class="sidebar-section-label">Inbound links</p>
                   <ul class="link-list">
-                    @for (l of selectedNodeLinks.inbound; track l.source) {
+                    @for (l of nodeLinks.inbound; track l.source) {
                       <li>{{ nodeTitle(l.source) }}</li>
                     }
                   </ul>
                 }
 
-                @if (selectedNodeLinks.outbound.length > 0) {
+                @if (nodeLinks.outbound.length > 0) {
                   <p class="sidebar-section-label">Outbound links</p>
                   <ul class="link-list">
-                    @for (l of selectedNodeLinks.outbound; track l.target) {
+                    @for (l of nodeLinks.outbound; track l.target) {
                       <li>{{ nodeTitle(l.target) }}</li>
                     }
                   </ul>
@@ -534,25 +555,25 @@
           }
         </div>
 
-        @if (pageRankEquity?.concentration_warning) {
+        @if (equity?.concentration_warning) {
           <div class="concentration-warning">
             <mat-icon>warning</mat-icon>
             <span>
               Authority is heavily concentrated: the top
-              {{ pageRankEquity!.total_nodes * 0.05 | number:'1.0-0' }} pages hold
-              {{ pageRankEquity!.concentration_ratio * 100 | number:'1.0-0' }}% of all PageRank.
+              {{ equity!.total_nodes * 0.05 | number:'1.0-0' }} pages hold
+              {{ equity!.concentration_ratio * 100 | number:'1.0-0' }}% of all PageRank.
               Build more distributed internal links to improve site-wide equity.
             </span>
           </div>
         }
 
-        @if (pageRankEquity && pageRankEquity.top_authorities.length > 0) {
+        @if (equity && equity.top_authorities.length > 0) {
           <div class="authorities-section">
             <h3 class="authorities-heading">
               <mat-icon>bolt</mat-icon>
               Power Pages — Top 20 by Authority
             </h3>
-            <table mat-table [dataSource]="pageRankEquity.top_authorities" class="data-table authorities-table">
+            <table mat-table [dataSource]="equity.top_authorities" class="data-table authorities-table">
 
               <ng-container matColumnDef="rank">
                 <th mat-header-cell *matHeaderCellDef>#</th>
@@ -613,17 +634,24 @@
     </ng-template>
 
     <div class="tab-content">
-      @if (topology.nodes.length === 0 && !loadingTopology) {
+      @let qTopo = topology();
+      @let qLoading = loadingTopology();
+      @if (qTopo.nodes.length === 0 && !qLoading) {
         <div class="empty-state">
           <mat-icon class="empty-icon">bar_chart</mat-icon>
           <h3>No link data yet</h3>
           <p>Visit the Network tab first to load the link graph, then return here.</p>
         </div>
-      } @else if (loadingTopology) {
+      } @else if (qLoading) {
         <div class="spinner-center">
           <mat-spinner diameter="48"></mat-spinner>
         </div>
       } @else {
+        @let qContextFilter = contextFilter();
+        @let pieData = contextPieData();
+        @let barData = anchorBarData();
+        @let warnings = anchorWarnings();
+        @let isolated = isolatedLinks();
 
         <p class="tab-description">
           Audit the contextual quality of your internal links.
@@ -639,12 +667,12 @@
             <mat-card-header>
               <mat-icon mat-card-avatar>donut_large</mat-icon>
               <mat-card-title>Context Distribution</mat-card-title>
-              <mat-card-subtitle>All {{ topology.links.length | number }} links</mat-card-subtitle>
+              <mat-card-subtitle>All {{ qTopo.links.length | number }} links</mat-card-subtitle>
             </mat-card-header>
             <mat-card-content class="chart-content">
-              @if (contextPieData) {
+              @if (pieData) {
                 <canvas baseChart
-                  [data]="contextPieData"
+                  [data]="pieData"
                   type="pie"
                   class="qualities-pie">
                 </canvas>
@@ -665,8 +693,8 @@
             </mat-card-header>
             <mat-card-content>
               <mat-slide-toggle
-                [checked]="contextFilter === 'contextual'"
-                (change)="contextFilter = $event.checked ? 'contextual' : 'all'"
+                [checked]="qContextFilter === 'contextual'"
+                (change)="setContextFilter($event.checked ? 'contextual' : 'all')"
                 color="primary">
                 Show contextual links only
               </mat-slide-toggle>
@@ -687,12 +715,12 @@
             <mat-card-subtitle>Top 15 anchor texts by link count</mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
-            @if (anchorWarnings.length > 0) {
+            @if (warnings.length > 0) {
               <div class="anchor-warnings">
                 <mat-icon class="warning-icon">warning</mat-icon>
                 <span>Over-optimised anchors detected — same text used on &gt;5% of all links:</span>
                 <mat-chip-set>
-                  @for (w of anchorWarnings; track w.anchor) {
+                  @for (w of warnings; track w.anchor) {
                     <mat-chip [matTooltip]="w.count + ' links (' + w.pct + '%)'">
                       {{ w.anchor }}
                     </mat-chip>
@@ -700,9 +728,9 @@
                 </mat-chip-set>
               </div>
             }
-            @if (anchorBarData) {
+            @if (barData) {
               <canvas baseChart
-                [data]="anchorBarData"
+                [data]="barData"
                 type="bar"
                 class="qualities-bar">
               </canvas>
@@ -718,7 +746,7 @@
             <mat-card-subtitle>Sorted worst-first — pages receiving mostly isolated inbound links</mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
-            <table mat-table [dataSource]="pageQualityRows" class="data-table">
+            <table mat-table [dataSource]="pageQualityRows()" class="data-table">
 
               <ng-container matColumnDef="title">
                 <th mat-header-cell *matHeaderCellDef>Article</th>
@@ -751,17 +779,17 @@
         </mat-card>
 
         <!-- Isolated links audit list ─────────────────────────────────── -->
-        @if (isolatedLinks.length > 0) {
+        @if (isolated.length > 0) {
           <mat-card class="qualities-section-card">
             <mat-card-header>
               <mat-icon mat-card-avatar>link_off</mat-icon>
               <mat-card-title>Isolated Links</mat-card-title>
               <mat-card-subtitle>
-                {{ isolatedLinks.length }} isolated link{{ isolatedLinks.length === 1 ? '' : 's' }} found — hover a row to highlight the edge in the Network graph
+                {{ isolated.length }} isolated link{{ isolated.length === 1 ? '' : 's' }} found — hover a row to highlight the edge in the Network graph
               </mat-card-subtitle>
             </mat-card-header>
             <mat-card-content>
-              <table mat-table [dataSource]="isolatedLinks" class="data-table">
+              <table mat-table [dataSource]="isolated" class="data-table">
 
                 <ng-container matColumnDef="srcTitle">
                   <th mat-header-cell *matHeaderCellDef>Source</th>
@@ -823,6 +851,7 @@
         Find the shortest directed link path between any two articles (up to 4 hops).
       </p>
 
+      @let isLoadingPath = loadingPath();
       <div class="path-controls">
         <mat-form-field appearance="outline" class="path-field">
           <mat-label>From article</mat-label>
@@ -834,9 +863,11 @@
             (input)="onFromInput($event)"
             placeholder="Search by title…" />
           <mat-autocomplete #fromAuto="matAutocomplete" (optionSelected)="onFromSelected($event)">
-            <mat-option *ngFor="let a of fromResults; trackBy: trackByArticleId" [value]="a">
-              {{ a.title }}
-            </mat-option>
+            @for (a of fromResults(); track trackByArticleId($index, a)) {
+              <mat-option [value]="a">
+                {{ a.title }}
+              </mat-option>
+            }
           </mat-autocomplete>
         </mat-form-field>
 
@@ -852,45 +883,50 @@
             (input)="onToInput($event)"
             placeholder="Search by title…" />
           <mat-autocomplete #toAuto="matAutocomplete" (optionSelected)="onToSelected($event)">
-            <mat-option *ngFor="let a of toResults; trackBy: trackByArticleId" [value]="a">
-              {{ a.title }}
-            </mat-option>
+            @for (a of toResults(); track trackByArticleId($index, a)) {
+              <mat-option [value]="a">
+                {{ a.title }}
+              </mat-option>
+            }
           </mat-autocomplete>
         </mat-form-field>
 
         <button mat-flat-button color="primary"
           (click)="findPath()"
           [disabled]="!canFindPath()">
-          <mat-spinner diameter="18" *ngIf="loadingPath"></mat-spinner>
-          <mat-icon *ngIf="!loadingPath">route</mat-icon>
+          @if (isLoadingPath) {
+            <mat-spinner diameter="18"></mat-spinner>
+          } @else {
+            <mat-icon>route</mat-icon>
+          }
           Find Path
         </button>
       </div>
 
       <!-- Path result -->
-      <ng-container *ngIf="pathResult">
-        <ng-container *ngIf="pathResult.found">
+      @if (pathResult(); as result) {
+        @if (result.found) {
           <div class="path-result-header">
             <mat-icon class="result-icon result-icon--found icon-base">check_circle</mat-icon>
-            Path found — {{ pathResult.hops }} hop{{ pathResult.hops !== 1 ? 's' : '' }}
+            Path found — {{ result.hops }} hop{{ result.hops !== 1 ? 's' : '' }}
           </div>
           <div class="path-chain">
-            <ng-container *ngFor="let node of pathResult.path; let last = last; trackBy: trackByPathNode">
-              <a [href]="node.url" target="_blank" rel="noopener" class="path-node" matTooltip="{{ node.url }}">
+            @for (node of result.path; track trackByPathNode($index, node); let last = $last) {
+              <a [href]="node.url" target="_blank" rel="noopener" class="path-node" [matTooltip]="node.url">
                 {{ node.title }}
               </a>
-              <mat-icon class="chain-arrow icon-base" *ngIf="!last">arrow_forward</mat-icon>
-            </ng-container>
+              @if (!last) {
+                <mat-icon class="chain-arrow icon-base">arrow_forward</mat-icon>
+              }
+            }
           </div>
-        </ng-container>
-
-        <ng-container *ngIf="!pathResult.found">
+        } @else {
           <div class="path-result-header">
             <mat-icon class="result-icon result-icon--not-found icon-base">cancel</mat-icon>
             No directed path found within 4 hops.
           </div>
-        </ng-container>
-      </ng-container>
+        }
+      }
 
     </div>
   </mat-tab>
@@ -905,11 +941,14 @@
     </ng-template>
 
     <div class="tab-content">
-      @if (loadingFreshness) {
+      @if (loadingFreshness()) {
         <div class="spinner-center">
           <mat-spinner diameter="48"></mat-spinner>
         </div>
       } @else {
+        @let velocity = velocityChartData();
+        @let churn = churnTable();
+        @let freshTopo = topology();
 
         <!-- Velocity chart card -->
         <mat-card class="freshness-card">
@@ -919,11 +958,11 @@
             <mat-card-subtitle>Links created vs. links that disappeared each day</mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
-            @if (!velocityChartData) {
+            @if (!velocity) {
               <div class="spinner-center">
                 <mat-spinner diameter="24"></mat-spinner>
               </div>
-            } @else if (velocityChartData.labels?.length === 0) {
+            } @else if (velocity.labels?.length === 0) {
               <div class="empty-state">
                 <mat-icon class="empty-icon">timeline</mat-icon>
                 <h3>No link history yet</h3>
@@ -932,7 +971,7 @@
             } @else {
               <div class="velocity-chart-wrap">
                 <canvas baseChart
-                  [data]="velocityChartData"
+                  [data]="velocity"
                   [options]="velocityChartOptions"
                   type="line">
                 </canvas>
@@ -949,14 +988,14 @@
             <mat-card-subtitle>Pages where links disappeared 2 or more times in the last 30 days</mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
-            @if (churnTable.length === 0) {
+            @if (churn.length === 0) {
               <div class="empty-state">
                 <mat-icon class="empty-icon">bolt</mat-icon>
                 <h3>No high-churn pages</h3>
                 <p>No pages have had repeated link disappearances in the last 30 days.</p>
               </div>
             } @else {
-              <table mat-table [dataSource]="churnTable" class="data-table">
+              <table mat-table [dataSource]="churn" class="data-table">
 
                 <ng-container matColumnDef="title">
                   <th mat-header-cell *matHeaderCellDef>Page</th>
@@ -1002,33 +1041,33 @@
         <mat-slider min="0.7" max="0.99" step="0.01" discrete color="primary" class="gap-slider">
           <input matSliderThumb [(ngModel)]="gapThreshold" />
         </mat-slider>
-        <button mat-stroked-button (click)="reloadGaps()" [disabled]="loadingGaps">
+        <button mat-stroked-button (click)="reloadGaps()" [disabled]="loadingGaps()">
           <mat-icon>refresh</mat-icon>
           Reload
         </button>
       </div>
 
-      @if (loadingGaps) {
+      @if (loadingGaps()) {
         <div class="spinner-center">
           <mat-spinner diameter="48"></mat-spinner>
         </div>
-      } @else if (gapData) {
+      } @else if (gapData(); as gd) {
 
         <!-- Summary chips -->
         <div class="gap-summary-row">
           <mat-chip-set>
             <mat-chip>
               <mat-icon matChipAvatar>link_off</mat-icon>
-              {{ gapData.total_ghost_edges | number }} Ghost Edges
+              {{ gd.total_ghost_edges | number }} Ghost Edges
             </mat-chip>
             <mat-chip>
               <mat-icon matChipAvatar>article</mat-icon>
-              {{ gapData.nodes.length | number }} Pages with Gaps
+              {{ gd.nodes.length | number }} Pages with Gaps
             </mat-chip>
           </mat-chip-set>
         </div>
 
-        @if (gapData.nodes.length === 0) {
+        @if (gd.nodes.length === 0) {
           <div class="empty-state">
             <mat-icon class="empty-icon">check_circle</mat-icon>
             <h3>No coverage gaps above this threshold</h3>
@@ -1042,7 +1081,7 @@
               <mat-card-subtitle>Sorted by Neglect Score (highest first)</mat-card-subtitle>
             </mat-card-header>
             <mat-card-content>
-              <table mat-table [dataSource]="gapData.nodes" class="data-table">
+              <table mat-table [dataSource]="gd.nodes" class="data-table">
 
                 <ng-container matColumnDef="title">
                   <th mat-header-cell *matHeaderCellDef>Page</th>
@@ -1086,16 +1125,18 @@
 <!-- Quick-Approve Dialog Template -->
 <ng-template #quickApproveDialog>
   <h2 mat-dialog-title>Approve Suggestion</h2>
-  <mat-dialog-content *ngIf="activeGhostEdge">
-    <p class="gap-dialog-anchor">"{{ activeGhostEdge.anchor_phrase }}"</p>
-    <p class="gap-dialog-scores">
-      Final score: <strong>{{ activeGhostEdge.score_final | number:'1.2-2' }}</strong>
-      &nbsp;·&nbsp;
-      Semantic: {{ activeGhostEdge.score_semantic | number:'1.2-2' }}
-      &nbsp;·&nbsp;
-      Keyword: {{ activeGhostEdge.score_keyword | number:'1.2-2' }}
-    </p>
-  </mat-dialog-content>
+  @if (activeGhostEdge(); as edge) {
+    <mat-dialog-content>
+      <p class="gap-dialog-anchor">"{{ edge.anchor_phrase }}"</p>
+      <p class="gap-dialog-scores">
+        Final score: <strong>{{ edge.score_final | number:'1.2-2' }}</strong>
+        &nbsp;·&nbsp;
+        Semantic: {{ edge.score_semantic | number:'1.2-2' }}
+        &nbsp;·&nbsp;
+        Keyword: {{ edge.score_keyword | number:'1.2-2' }}
+      </p>
+    </mat-dialog-content>
+  }
   <mat-dialog-actions align="end">
     <button mat-button mat-dialog-close>Cancel</button>
     <button mat-flat-button color="primary" (click)="approveGhostEdge()">

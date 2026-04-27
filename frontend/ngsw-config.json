@@ -47,32 +47,5 @@
       }
     }
   ],
-  "dataGroups": [
-    {
-      "name": "api-freshness",
-      "urls": [
-        "/api/dashboard/**",
-        "/api/health/**",
-        "/api/system/status/**"
-      ],
-      "cacheConfig": {
-        "strategy": "freshness",
-        "maxSize": 20,
-        "maxAge": "1h",
-        "timeout": "10s"
-      }
-    },
-    {
-      "name": "api-performance",
-      "urls": [
-        "/api/performance/**",
-        "/api/analytics/**"
-      ],
-      "cacheConfig": {
-        "strategy": "performance",
-        "maxSize": 20,
-        "maxAge": "1h"
-      }
-    }
-  ]
+  "dataGroups": []
 }

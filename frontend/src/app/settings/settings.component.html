@@ -1606,10 +1606,10 @@
                   <mat-card-title>XenForo Connection</mat-card-title>
                   <mat-card-subtitle>Forum URL and REST API key for direct content sync</mat-card-subtitle>
                 </div>
-                <div class="health-indicator" [matTooltip]="xenforo.health.issue" matTooltipClass="setting-tooltip">
-                  <span class="status-pill" [ngClass]="telemetryStatusClass(xenforo.health.status)">
-                    <mat-icon>{{ getHealthIcon(xenforo.health.status) }}</mat-icon>
-                    {{ xenforo.health.label }}
+                <div class="health-indicator" [matTooltip]="xenforo.health?.issue" matTooltipClass="setting-tooltip">
+                  <span class="status-pill" [ngClass]="telemetryStatusClass(xenforo.health?.status)">
+                    <mat-icon>{{ getHealthIcon(xenforo.health?.status) }}</mat-icon>
+                    {{ xenforo.health?.label }}
                   </span>
                 </div>
               </div>
@@ -1633,11 +1633,11 @@
                     }
                   </mat-hint>
                 </mat-form-field>
-                <div class="health-issue-box" *ngIf="!xenforo.health.is_healthy && xenforo.health.issue">
+                <div class="health-issue-box" *ngIf="!xenforo.health?.is_healthy && xenforo.health?.issue">
                   <mat-icon>error_outline</mat-icon>
                   <div class="issue-content">
-                    <strong>Issue:</strong> {{ xenforo.health.issue }}
-                    <div class="fix-text" *ngIf="xenforo.health.fix"><strong>Fix:</strong> {{ xenforo.health.fix }}</div>
+                    <strong>Issue:</strong> {{ xenforo.health?.issue }}
+                    <div class="fix-text" *ngIf="xenforo.health?.fix"><strong>Fix:</strong> {{ xenforo.health?.fix }}</div>
                   </div>
                 </div>
               </div>
@@ -1658,10 +1658,10 @@
             <mat-card-header>
               <div class="header-main" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                 <mat-card-title>WordPress Connection</mat-card-title>
-                <div class="health-indicator" [matTooltip]="wordpress.health.issue" matTooltipClass="setting-tooltip">
-                  <span class="status-pill" [ngClass]="telemetryStatusClass(wordpress.health.status)">
-                    <mat-icon>{{ getHealthIcon(wordpress.health.status) }}</mat-icon>
-                    {{ wordpress.health.label }}
+                <div class="health-indicator" [matTooltip]="wordpress.health?.issue" matTooltipClass="setting-tooltip">
+                  <span class="status-pill" [ngClass]="telemetryStatusClass(wordpress.health?.status)">
+                    <mat-icon>{{ getHealthIcon(wordpress.health?.status) }}</mat-icon>
+                    {{ wordpress.health?.label }}
                   </span>
                 </div>
               </div>
@@ -1700,11 +1700,11 @@
                     </mat-hint>
                   </mat-form-field>
                 </div>
-                <div class="health-issue-box" *ngIf="!wordpress.health.is_healthy && wordpress.health.issue">
+                <div class="health-issue-box" *ngIf="!wordpress.health?.is_healthy && wordpress.health?.issue">
                   <mat-icon>error_outline</mat-icon>
                   <div class="issue-content">
-                    <strong>Issue:</strong> {{ wordpress.health.issue }}
-                    <div class="fix-text" *ngIf="wordpress.health.fix"><strong>Fix:</strong> {{ wordpress.health.fix }}</div>
+                    <strong>Issue:</strong> {{ wordpress.health?.issue }}
+                    <div class="fix-text" *ngIf="wordpress.health?.fix"><strong>Fix:</strong> {{ wordpress.health?.fix }}</div>
                   </div>
                 </div>
 
@@ -2246,21 +2246,21 @@
             <mat-card-header>
               <div class="header-main" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                 <mat-card-title>Google Search Console</mat-card-title>
-                <div class="health-indicator" [matTooltip]="ga4Gsc.health.issue" matTooltipClass="setting-tooltip">
-                  <span class="status-pill" [ngClass]="telemetryStatusClass(ga4Gsc.health.status)">
-                    <mat-icon>{{ getHealthIcon(ga4Gsc.health.status) }}</mat-icon>
-                    {{ ga4Gsc.health.label }}
+                <div class="health-indicator" [matTooltip]="ga4Gsc.health?.issue" matTooltipClass="setting-tooltip">
+                  <span class="status-pill" [ngClass]="telemetryStatusClass(ga4Gsc.health?.status)">
+                    <mat-icon>{{ getHealthIcon(ga4Gsc.health?.status) }}</mat-icon>
+                    {{ ga4Gsc.health?.label }}
                   </span>
                 </div>
               </div>
             </mat-card-header>
             <mat-card-content class="card-content">
               <p class="hint">Connect to Google Search Console to pull daily performance data and attribute search outcomes to your internal linking efforts.</p>
-              <div class="health-issue-box" *ngIf="!ga4Gsc.health.is_healthy && ga4Gsc.health.issue">
+              <div class="health-issue-box" *ngIf="!ga4Gsc.health?.is_healthy && ga4Gsc.health?.issue">
                 <mat-icon>error_outline</mat-icon>
                 <div class="issue-content">
-                  <strong>Issue:</strong> {{ ga4Gsc.health.issue }}
-                  <p class="fix-text" *ngIf="ga4Gsc.health.fix"><strong>Fix:</strong> {{ ga4Gsc.health.fix }}</p>
+                  <strong>Issue:</strong> {{ ga4Gsc.health?.issue }}
+                  <p class="fix-text" *ngIf="ga4Gsc.health?.fix"><strong>Fix:</strong> {{ ga4Gsc.health?.fix }}</p>
                 </div>
               </div>
               

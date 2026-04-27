@@ -17,7 +17,10 @@
         "build": {
           "builder": "@angular-devkit/build-angular:application",
           "options": {
-            "outputPath": "dist/xf-internal-linker-frontend",
+            "outputPath": {
+              "base": "dist/xf-internal-linker-frontend",
+              "media": "fonts"
+            },
             "index": "src/index.html",
             "browser": "src/main.ts",
             "polyfills": [],
@@ -32,9 +35,15 @@
                 "glob": "favicon.ico",
                 "input": "src",
                 "output": ""
+              },
+              {
+                "glob": "manifest.webmanifest",
+                "input": "src",
+                "output": ""
               }
             ],
             "styles": [
+              "node_modules/material-icons/iconfont/filled.css",
               "src/styles.scss"
             ],
             "scripts": [],
@@ -99,6 +108,11 @@
               },
               {
                 "glob": "favicon.ico",
+                "input": "src",
+                "output": ""
+              },
+              {
+                "glob": "manifest.webmanifest",
                 "input": "src",
                 "output": ""
               }

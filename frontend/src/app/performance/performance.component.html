@@ -7,56 +7,63 @@
     </div>
     <div class="page-actions">
       <button mat-stroked-button
-              [disabled]="!latestRun || latestRun.status !== 'completed'"
+              [disabled]="!latestRun() || latestRun()!.status !== 'completed'"
               (click)="downloadReport()"
               matTooltip="Download AI-readable report">
         <mat-icon>download</mat-icon>
         Download Report
       </button>
       <button mat-raised-button color="primary"
-              [disabled]="isTriggering"
+              [disabled]="isTriggering()"
               (click)="triggerRun()">
-        <mat-icon *ngIf="!isTriggering">play_arrow</mat-icon>
-        <mat-spinner *ngIf="isTriggering" diameter="18" class="inline-spinner"></mat-spinner>
+        @if (!isTriggering()) {
+          <mat-icon>play_arrow</mat-icon>
+        } @else {
+          <mat-spinner diameter="18" class="inline-spinner"></mat-spinner>
+        }
         Run Benchmarks
       </button>
     </div>
   </div>
 
   <!-- Loading state -->
-  <div *ngIf="isLoading" class="loading-container">
-    <mat-spinner diameter="48"></mat-spinner>
-  </div>
+  @if (isLoading()) {
+    <div class="loading-container">
+      <mat-spinner diameter="48"></mat-spinner>
+    </div>
+  }
 
   <!-- Empty state -->
-  <div *ngIf="!isLoading && errorMessage" class="empty-state">
-    <mat-icon class="empty-icon">speed</mat-icon>
-    <h3>No benchmark data</h3>
-    <p>{{ errorMessage }}</p>
-  </div>
+  @if (!isLoading() && errorMessage()) {
+    <div class="empty-state">
+      <mat-icon class="empty-icon">speed</mat-icon>
+      <h3>No benchmark data</h3>
+      <p>{{ errorMessage() }}</p>
+    </div>
+  }
 
   <!-- Content -->
-  <ng-container *ngIf="!isLoading && latestRun">
+  @if (!isLoading() && latestRun(); as run) {
     <!-- Summary cards -->
     <div class="summary-cards">
       <mat-card class="summary-card status-fast" (click)="filterByStatus('fast')">
         <mat-icon>check_circle</mat-icon>
-        <div class="summary-value">{{ fastCount }}</div>
+        <div class="summary-value">{{ fastCount() }}</div>
         <div class="summary-label">Fast</div>
       </mat-card>
       <mat-card class="summary-card status-ok" (click)="filterByStatus('ok')">
         <mat-icon>warning</mat-icon>
-        <div class="summary-value">{{ okCount }}</div>
+        <div class="summary-value">{{ okCount() }}</div>
         <div class="summary-label">OK</div>
       </mat-card>
       <mat-card class="summary-card status-slow" (click)="filterByStatus('slow')">
         <mat-icon>error</mat-icon>
-        <div class="summary-value">{{ slowCount }}</div>
+        <div class="summary-value">{{ slowCount() }}</div>
         <div class="summary-label">Slow</div>
       </mat-card>
       <mat-card class="summary-card status-info">
         <mat-icon>schedule</mat-icon>
-        <div class="summary-value">{{ lastRunAgo || 'N/A' }}</div>
+        <div class="summary-value">{{ lastRunAgo() || 'N/A' }}</div>
         <div class="summary-label">Last Run</div>
       </mat-card>
     </div>
@@ -64,27 +71,29 @@
     <!-- Filter chips -->
     <div class="filter-bar">
       <mat-chip-set>
-        <mat-chip [highlighted]="selectedLanguage === 'all'" (click)="filterByLanguage('all')">All</mat-chip>
-        <mat-chip [highlighted]="selectedLanguage === 'cpp'" (click)="filterByLanguage('cpp')">C++</mat-chip>
-        <mat-chip [highlighted]="selectedLanguage === 'python'" (click)="filterByLanguage('python')">Python</mat-chip>
+        <mat-chip [highlighted]="selectedLanguage() === 'all'" (click)="filterByLanguage('all')">All</mat-chip>
+        <mat-chip [highlighted]="selectedLanguage() === 'cpp'" (click)="filterByLanguage('cpp')">C++</mat-chip>
+        <mat-chip [highlighted]="selectedLanguage() === 'python'" (click)="filterByLanguage('python')">Python</mat-chip>
       </mat-chip-set>
     </div>
 
     <!-- Trend chart -->
-    <mat-card class="trend-card" *ngIf="trendChartData">
-      <mat-card-header>
-        <mat-card-title>Performance Trends (last 30 days)</mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
-        <div class="chart-container">
-          <canvas baseChart
-                  [data]="trendChartData"
-                  [options]="trendChartOptions"
-                  type="line">
-          </canvas>
-        </div>
-      </mat-card-content>
-    </mat-card>
+    @if (trendChartData(); as chart) {
+      <mat-card class="trend-card">
+        <mat-card-header>
+          <mat-card-title>Performance Trends (last 30 days)</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="chart-container">
+            <canvas baseChart
+                    [data]="chart"
+                    [options]="trendChartOptions"
+                    type="line">
+            </canvas>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    }
 
     <!-- Results table -->
     <mat-card class="results-card">
@@ -104,44 +113,44 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let func of uniqueFunctions; trackBy: trackByFunction" [class]="'row-' + func.status">
-              <td class="col-status">
-                <mat-icon [class]="'status-icon status-' + func.status"
-                          [matTooltip]="func.status">
-                  {{ func.status === 'fast' ? 'check_circle' : func.status === 'ok' ? 'warning' : 'error' }}
-                </mat-icon>
-              </td>
-              <td class="col-lang">
-                <span class="lang-badge" [class]="'lang-' + func.language">
-                  {{ func.language === 'cpp' ? 'C++' : 'Python' }}
-                </span>
-              </td>
-              <td class="col-func">{{ func.extension }}.{{ func.function_name }}</td>
-              <td class="col-size">
-                <ng-container *ngIf="getResultForSize(func.extension, func.function_name, 'small') as r">
-                  {{ formatTime(r.mean_ns) }}
-                </ng-container>
-                <span *ngIf="!getResultForSize(func.extension, func.function_name, 'small')" class="no-data">--</span>
-              </td>
-              <td class="col-size">
-                <ng-container *ngIf="getResultForSize(func.extension, func.function_name, 'medium') as r">
-                  {{ formatTime(r.mean_ns) }}
-                </ng-container>
-                <span *ngIf="!getResultForSize(func.extension, func.function_name, 'medium')" class="no-data">--</span>
-              </td>
-              <td class="col-size">
-                <ng-container *ngIf="getResultForSize(func.extension, func.function_name, 'large') as r">
-                  {{ formatTime(r.mean_ns) }}
-                </ng-container>
-                <span *ngIf="!getResultForSize(func.extension, func.function_name, 'large')" class="no-data">--</span>
-              </td>
-            </tr>
+            @for (func of uniqueFunctions(); track func.extension + '.' + func.function_name) {
+              <tr [class]="'row-' + func.status">
+                <td class="col-status">
+                  <mat-icon [class]="'status-icon status-' + func.status"
+                            [matTooltip]="func.status">
+                    {{ func.status === 'fast' ? 'check_circle' : func.status === 'ok' ? 'warning' : 'error' }}
+                  </mat-icon>
+                </td>
+                <td class="col-lang">
+                  <span class="lang-badge" [class]="'lang-' + func.language">
+                    {{ func.language === 'cpp' ? 'C++' : 'Python' }}
+                  </span>
+                </td>
+                <td class="col-func">{{ func.extension }}.{{ func.function_name }}</td>
+                <!-- Three identical size cells collapse into one @for over the
+                     `sizes` constant. `getResultForSize` now hits a precomputed
+                     Map<string, BenchmarkResult> for O(1) lookup instead of a
+                     linear scan over `latestRun.results` per cell. -->
+                @for (size of sizes; track size) {
+                  <td class="col-size">
+                    @if (getResultForSize(func.extension, func.function_name, size); as r) {
+                      {{ formatTime(r.mean_ns) }}
+                    } @else {
+                      <span class="no-data">--</span>
+                    }
+                  </td>
+                }
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="6" class="empty-table">
+                  No results match the selected filters.
+                </td>
+              </tr>
+            }
           </tbody>
         </table>
-        <div *ngIf="uniqueFunctions.length === 0" class="empty-table">
-          No results match the selected filters.
-        </div>
       </mat-card-content>
     </mat-card>
-  </ng-container>
+  }
 </div>

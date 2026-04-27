@@ -4,21 +4,21 @@
       <h1>System Diagnostics & Health</h1>
       <p class="subtitle">Real-time status of the whole machine and service stack</p>
     </div>
-    
+
     <div class="actions">
-      <button class="btn-refresh" [disabled]="refreshing" (click)="refreshAll()">
-        <span class="material-icons" [class.spinning]="refreshing">refresh</span>
-        {{ refreshing ? 'Checking...' : 'Run New Check' }}
+      <button class="btn-refresh" [disabled]="refreshing()" (click)="refreshAll()">
+        <span class="material-icons" [class.spinning]="refreshing()">refresh</span>
+        {{ refreshing() ? 'Checking...' : 'Run New Check' }}
       </button>
     </div>
   </header>
 
-  <div class="loading-overlay" *ngIf="loading">
-    <div class="spinner"></div>
-    <p>Performing deep-stack analysis...</p>
-  </div>
-
-  <ng-container *ngIf="!loading">
+  @if (loading()) {
+    <div class="loading-overlay">
+      <div class="spinner"></div>
+      <p>Performing deep-stack analysis...</p>
+    </div>
+  } @else {
     <!-- ════════════════════════════════════════════════════════════════
          Phase GT Step 11 — Error Log section
          Top-of-page so the operator sees errors FIRST. Contains the
@@ -26,409 +26,412 @@
          Runtime (GT-G9), Nodes strip (GT-G13), and the fingerprint-
          grouped error list.
          ════════════════════════════════════════════════════════════════ -->
-    <section
-      id="diagnostics-errors"
-      class="error-log-section"
-      *ngIf="errors.length > 0 || pipelineGate || runtimeCtx || nodes.length > 1 || acknowledgedErrors.length > 0">
-      <div class="section-heading error-log-heading">
-        <div class="error-log-title-group">
-          <h2>Error Log</h2>
-          @if (errors.length > 0) {
-            <span class="error-count-badge"
-                  [matTooltip]="errors.length + ' unacknowledged'"
-                  matTooltipPosition="right">
-              {{ errors.length > 99 ? '99+' : errors.length }}
-            </span>
-          }
-        </div>
-        <div class="error-log-actions">
-          <button mat-stroked-button
-                  (click)="openDjangoAdmin()"
-                  matTooltip="Open Django Admin in a new tab">
-            <mat-icon>admin_panel_settings</mat-icon>
-            <span>Django Admin</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- GT-G14: Pipeline Gate banner — only when blocked -->
-      @if (pipelineGate && !pipelineGate.can_run) {
-        <div class="pipeline-gate-banner" role="alert">
-          <mat-icon aria-hidden="true">error</mat-icon>
-          <div class="pipeline-gate-body">
-            <strong>Pipeline cannot run — fix these first:</strong>
-            <ul>
-              @for (b of pipelineGate.blockers; track b.check) {
-                <li>
-                  <strong>{{ b.check }}:</strong>
-                  {{ b.explanation || 'No explanation provided.' }}
-                  @if (b.next_step) {
-                    <em class="pipeline-gate-next-step"> — {{ b.next_step }}</em>
-                  }
-                </li>
-              }
-            </ul>
+    @if (errors().length > 0 || pipelineGate() || runtimeCtx() || nodes().length > 1 || acknowledgedErrors().length > 0) {
+      <section id="diagnostics-errors" class="error-log-section">
+        <div class="section-heading error-log-heading">
+          <div class="error-log-title-group">
+            <h2>Error Log</h2>
+            @if (errors().length > 0) {
+              <span class="error-count-badge"
+                    [matTooltip]="errors().length + ' unacknowledged'"
+                    matTooltipPosition="right">
+                {{ errors().length > 99 ? '99+' : errors().length }}
+              </span>
+            }
+          </div>
+          <div class="error-log-actions">
+            <button mat-stroked-button
+                    (click)="openDjangoAdmin()"
+                    matTooltip="Open Django Admin in a new tab">
+              <mat-icon>admin_panel_settings</mat-icon>
+              <span>Django Admin</span>
+            </button>
           </div>
         </div>
-      }
 
-      <!-- GT-G9: Live Runtime Health strip — current node -->
-      @if (runtimeCtx) {
-        <div class="runtime-strip" role="group" aria-label="Current runtime state">
-          <span class="runtime-chip"
-                [class.tone-good]="runtimeCtx.gpu_available"
-                [class.tone-bad]="!runtimeCtx.gpu_available">
-            <mat-icon>memory</mat-icon>
-            GPU: {{ runtimeCtx.gpu_available ? (runtimeCtx.gpu_name || 'Available') : 'Not detected' }}
-          </span>
-          <span class="runtime-chip"
-                [class.tone-good]="runtimeCtx.cuda_version"
-                [class.tone-warn]="!runtimeCtx.cuda_version">
-            CUDA: {{ runtimeCtx.cuda_version || 'N/A' }}
-          </span>
-          <span class="runtime-chip tone-good"
-                [matTooltip]="'sentence-transformers embedding model'">
-            Embedding: {{ runtimeCtx.embedding_model || 'unknown' }}
-          </span>
-          <span class="runtime-chip"
-                [class.tone-good]="runtimeCtx.spacy_model"
-                [class.tone-bad]="!runtimeCtx.spacy_model">
-            spaCy: {{ runtimeCtx.spacy_model || 'Missing' }}
-          </span>
-          <span class="runtime-chip tone-good">
-            Node: {{ runtimeCtx.node_id }} ({{ runtimeCtx.node_role }})
-          </span>
-          <span class="runtime-chip tone-good">
-            Python: {{ runtimeCtx.python_version }}
-          </span>
-        </div>
-      }
-
-      <!-- GT-G13: Slave / node strip — only when >1 node known.
-           Click a card to filter errors to that node; click again to clear. -->
-      @if (nodes.length > 1) {
-        <div class="nodes-strip" role="group" aria-label="Known nodes in the last 24 hours">
-          @for (n of nodes; track trackNodeId($index, n)) {
-            <button type="button"
-                    class="node-card"
-                    [ngClass]="nodeToneClass(n)"
-                    [class.active]="filterNodeId === n.node_id"
-                    (click)="toggleNodeFilter(n.node_id)"
-                    [matTooltip]="n.node_hostname || n.node_id"
-                    matTooltipPosition="above">
-              <span class="node-name">{{ n.node_id }}</span>
-              <span class="node-role">{{ n.node_role }}</span>
-              <span class="node-count">
-                {{ n.unacknowledged }} unack • {{ n.total }} total
-              </span>
-              @if (n.last_seen) {
-                <span class="node-seen">last: {{ n.last_seen | date: 'short' }}</span>
-              } @else {
-                <span class="node-seen node-seen-silent">silent (no errors in 24h)</span>
-              }
-            </button>
+        <!-- GT-G14: Pipeline Gate banner — only when blocked -->
+        @if (pipelineGate(); as pg) {
+          @if (!pg.can_run) {
+            <div class="pipeline-gate-banner" role="alert">
+              <mat-icon aria-hidden="true">error</mat-icon>
+              <div class="pipeline-gate-body">
+                <strong>Pipeline cannot run — fix these first:</strong>
+                <ul>
+                  @for (b of pg.blockers; track b.check) {
+                    <li>
+                      <strong>{{ b.check }}:</strong>
+                      {{ b.explanation || 'No explanation provided.' }}
+                      @if (b.next_step) {
+                        <em class="pipeline-gate-next-step"> — {{ b.next_step }}</em>
+                      }
+                    </li>
+                  }
+                </ul>
+              </div>
+            </div>
           }
-        </div>
-      }
+        }
 
-      <!-- GT-G7: Node filter chip bar. Distinct from the nodes strip
-           above — the strip shows every known node with counts, the chips
-           are a compact "filter by" control that also appears when only
-           the active nodes have errors (overlap is intentional but one
-           renders only when its specific precondition is met). -->
-      @if (uniqueNodes().length > 1) {
-        <div class="node-filter-bar" role="group" aria-label="Filter errors by node">
-          <button type="button"
-                  mat-stroked-button
-                  class="node-filter-chip"
-                  [class.active]="!filterNodeId"
-                  (click)="toggleNodeFilter(null)">
-            All nodes
-          </button>
-          @for (node of uniqueNodes(); track node) {
-            <button type="button"
-                    mat-stroked-button
-                    class="node-filter-chip"
-                    [class.active]="filterNodeId === node"
-                    (click)="toggleNodeFilter(node)">
-              {{ node }}
-            </button>
-          }
-        </div>
-      }
-
-      <mat-tab-group
-        id="diagnostics-errors-tabs"
-        class="error-log-tabs"
-        [selectedIndex]="selectedErrorTabIndex"
-        (selectedIndexChange)="onErrorTabChange($event)"
-        appPersistTab="diagnostics.errors"
-        animationDuration="200ms">
-        <mat-tab label="Internal"></mat-tab>
-        <mat-tab label="Glitchtip"></mat-tab>
-        <mat-tab label="All"></mat-tab>
-      </mat-tab-group>
-
-      <div
-        class="error-tab-panel"
-        [attr.id]="selectedErrorTabIndex === 0 ? 'internal-errors-tab' : selectedErrorTabIndex === 1 ? 'glitchtip-errors-tab' : 'all-errors-tab'">
-        @if (selectedErrorTabIndex === 1) {
-          <div class="glitchtip-tab-toolbar">
-            <p class="glitchtip-sync-status">
-              Last synced:
-              {{ glitchtipLastSyncedAt ? (glitchtipLastSyncedAt | date: 'short') : 'Awaiting first sync' }}
-            </p>
-            <button
-              type="button"
-              mat-flat-button
-              color="primary"
-              class="glitchtip-visit-button"
-              (click)="openGlitchtip()">
-              <mat-icon>open_in_new</mat-icon>
-              <span>Visit Glitchtip</span>
-            </button>
+        <!-- GT-G9: Live Runtime Health strip — current node -->
+        @if (runtimeCtx(); as rc) {
+          <div class="runtime-strip" role="group" aria-label="Current runtime state">
+            <span class="runtime-chip"
+                  [class.tone-good]="rc.gpu_available"
+                  [class.tone-bad]="!rc.gpu_available">
+              <mat-icon>memory</mat-icon>
+              GPU: {{ rc.gpu_available ? (rc.gpu_name || 'Available') : 'Not detected' }}
+            </span>
+            <span class="runtime-chip"
+                  [class.tone-good]="rc.cuda_version"
+                  [class.tone-warn]="!rc.cuda_version">
+              CUDA: {{ rc.cuda_version || 'N/A' }}
+            </span>
+            <span class="runtime-chip tone-good"
+                  [matTooltip]="'sentence-transformers embedding model'">
+              Embedding: {{ rc.embedding_model || 'unknown' }}
+            </span>
+            <span class="runtime-chip"
+                  [class.tone-good]="rc.spacy_model"
+                  [class.tone-bad]="!rc.spacy_model">
+              spaCy: {{ rc.spacy_model || 'Missing' }}
+            </span>
+            <span class="runtime-chip tone-good">
+              Node: {{ rc.node_id }} ({{ rc.node_role }})
+            </span>
+            <span class="runtime-chip tone-good">
+              Python: {{ rc.python_version }}
+            </span>
           </div>
         }
 
-      <!-- Empty state: no unacknowledged errors. -->
-      @if (activeGroupedErrors.length === 0) {
-        <div class="error-empty-state" role="status">
-          <mat-icon class="empty-check">check_circle</mat-icon>
-          <p>No unacknowledged errors — everything looks healthy.</p>
-        </div>
-      }
-
-      <!-- Fingerprint-grouped error rows. One row per distinct failure.
-           Repeats of the same fingerprint collapse into the row's
-           occurrence-count badge. -->
-      @for (group of activeGroupedErrors; track trackGroupFingerprint($index, group)) {
-        @let e = group.representative;
-        <article class="error-row"
-                 [ngClass]="severityClass(e)"
-                 [attr.id]="'error-' + e.id"
-                 role="article"
-                 [attr.aria-label]="'Error in ' + e.job_type + ' — ' + e.error_message">
-          <!-- Meta row: source pill, severity pill, location, node, counts, timestamp -->
-          <div class="error-row-meta">
-            <span class="lane-badge"
-                  [class.tone-bad]="e.source === 'glitchtip'"
-                  [class.tone-warn]="e.source === 'internal'">
-              {{ e.source === 'glitchtip' ? 'GlitchTip' : 'Internal' }}
-            </span>
-            <span class="lane-badge"
-                  [class.tone-bad]="e.severity === 'critical' || e.severity === 'high'"
-                  [class.tone-warn]="e.severity === 'medium'"
-                  [class.tone-good]="e.severity === 'low'">
-              {{ e.severity ? (e.severity | titlecase) : 'Medium' }}
-            </span>
-            <span class="error-location" [matTooltip]="e.step">
-              {{ e.job_type }} • {{ e.step }}
-            </span>
-            @if (e.node_id) {
-              <span class="lane-badge node-badge"
-                    [matTooltip]="(e.node_hostname || e.node_id) + ' (' + (e.node_role || 'unknown') + ')'">
-                {{ e.node_id }}
-              </span>
-            }
-            @if (group.totalCount > 1) {
-              <span class="occurrence-badge"
-                    [matTooltip]="'Seen ' + group.totalCount + ' times on this node'">
-                ×{{ group.totalCount }}
-              </span>
-            }
-            <span class="error-timestamp">{{ e.created_at | date: 'short' }}</span>
-          </div>
-
-          <!-- What / Why / How-to-fix (GT-G10) -->
-          <p class="error-what">
-            <strong>What:</strong> {{ e.error_message }}
-          </p>
-          @if (e.why) {
-            <p class="error-why"><strong>Why:</strong> {{ e.why }}</p>
-          }
-          @if (e.how_to_fix) {
-            <p class="error-how-to-fix">
-              <strong>How to fix:</strong> {{ e.how_to_fix }}
-            </p>
-          }
-
-          <!-- GT-G4: 7-day sparkline -->
-          @if (e.error_trend && e.error_trend.length > 0) {
-            <div class="error-sparkline"
-                 [matTooltip]="trendLabel(e.error_trend)"
-                 matTooltipPosition="above"
-                 role="img"
-                 [attr.aria-label]="'7-day frequency trend'">
-              @for (point of e.error_trend; track trackTrendDate($index, point)) {
-                <div class="spark-bar"
-                     [style.height.%]="(point.count / maxTrendCount(e.error_trend)) * 100 || 4"
-                     [class.spark-zero]="point.count === 0"
-                     [attr.aria-label]="point.date + ': ' + point.count">
-                </div>
-              }
-            </div>
-          }
-
-          <!-- GT-G8: expandable runtime-context panel -->
-          @if (expandedErrorId === e.id && e.runtime_context) {
-            <div class="runtime-context-panel" role="region" aria-label="Runtime state at time of error">
-              <strong>Runtime when this error happened:</strong>
-              <ul>
-                <li>
-                  GPU:
-                  {{ e.runtime_context.gpu_available
-                      ? (e.runtime_context.gpu_name || 'yes')
-                      : 'no' }}
-                </li>
-                <li>CUDA: {{ e.runtime_context.cuda_version || 'N/A' }}</li>
-                <li>Embedding model: {{ e.runtime_context.embedding_model || 'unknown' }}</li>
-                <li>spaCy model: {{ e.runtime_context.spacy_model || 'missing' }}</li>
-                <li>
-                  Node:
-                  {{ e.runtime_context.node_id || 'unknown' }}
-                  ({{ e.runtime_context.node_role || 'unknown' }})
-                </li>
-                @if (e.runtime_context.python_version) {
-                  <li>Python: {{ e.runtime_context.python_version }}</li>
-                }
-              </ul>
-            </div>
-          }
-
-          <!-- GT-G12: expandable related-errors panel -->
-          @if (expandedErrorId === e.id && relatedErrors(e).length > 0) {
-            <div class="related-errors-panel" role="region" aria-label="Other errors within 5 minutes">
-              <strong>
-                Other errors within 5 minutes ({{ relatedErrors(e).length }}):
-              </strong>
-              <ul>
-                @for (rel of relatedErrors(e); track trackErrorId($index, rel)) {
-                  <li>
-                    <span class="related-loc">{{ rel.job_type }} • {{ rel.step }}</span>
-                    <span class="related-msg">{{ rel.error_message }}</span>
-                  </li>
-                }
-              </ul>
-            </div>
-          }
-
-          <!-- Raw traceback — only when expanded AND present. -->
-          @if (expandedErrorId === e.id && e.raw_exception) {
-            <details class="raw-exception" open>
-              <summary>Traceback</summary>
-              <pre>{{ e.raw_exception }}</pre>
-            </details>
-          }
-
-          <!-- Action row -->
-          <div class="error-row-actions">
-            <button type="button"
-                    mat-stroked-button
-                    class="row-action"
-                    (click)="toggleExpand(e.id)"
-                    [attr.aria-expanded]="expandedErrorId === e.id">
-              <mat-icon>
-                {{ expandedErrorId === e.id ? 'expand_less' : 'expand_more' }}
-              </mat-icon>
-              <span>Details</span>
-            </button>
-
-            @if (e.glitchtip_url) {
-              <a [href]="e.glitchtip_url"
-                 target="_blank"
-                 rel="noopener noreferrer"
-                 mat-icon-button
-                 class="row-action-icon"
-                 matTooltip="Open this issue in GlitchTip">
-                <mat-icon>open_in_new</mat-icon>
-              </a>
-            }
-
-            <button type="button"
-                    mat-icon-button
-                    class="row-action-icon"
-                    (click)="copyForAI(e)"
-                    [attr.aria-label]="'Copy AI-ready prompt for ' + e.job_type + ' error'"
-                    [matTooltip]="copyFeedbackId === e.id ? 'Copied!' : 'Copy for AI'">
-              <mat-icon>
-                {{ copyFeedbackId === e.id ? 'check' : 'content_copy' }}
-              </mat-icon>
-            </button>
-
-            @if (canRerun(e)) {
+        <!-- GT-G13: Slave / node strip — only when >1 node known.
+             Click a card to filter errors to that node; click again to clear. -->
+        @if (nodes().length > 1) {
+          <div class="nodes-strip" role="group" aria-label="Known nodes in the last 24 hours">
+            @for (n of nodes(); track trackNodeId($index, n)) {
               <button type="button"
-                      mat-stroked-button
-                      class="row-action"
-                      (click)="onRerunError(e)"
-                      matTooltip="Re-dispatch the failing Celery task">
-                <mat-icon>replay</mat-icon>
-                <span>Rerun task</span>
+                      class="node-card"
+                      [ngClass]="nodeToneClass(n)"
+                      [class.active]="filterNodeId() === n.node_id"
+                      (click)="toggleNodeFilter(n.node_id)"
+                      [matTooltip]="n.node_hostname || n.node_id"
+                      matTooltipPosition="above">
+                <span class="node-name">{{ n.node_id }}</span>
+                <span class="node-role">{{ n.node_role }}</span>
+                <span class="node-count">
+                  {{ n.unacknowledged }} unack • {{ n.total }} total
+                </span>
+                @if (n.last_seen) {
+                  <span class="node-seen">last: {{ n.last_seen | date: 'short' }}</span>
+                } @else {
+                  <span class="node-seen node-seen-silent">silent (no errors in 24h)</span>
+                }
               </button>
             }
-
-            <button type="button"
-                    mat-flat-button
-                    color="primary"
-                    class="row-action row-action-primary"
-                    (click)="onAcknowledgeError(e)"
-                    matTooltip="Mark this error as handled">
-              <mat-icon>done</mat-icon>
-              <span>Acknowledge</span>
-            </button>
           </div>
-        </article>
-      }
+        }
 
-      <!-- Acknowledged / Fixed drawer — collapsed by default. Only
-           rendered when there's something to show. -->
-      @if (showAcknowledgedDrawer) {
-        <details class="acknowledged-section">
-          <summary>
-            Acknowledged / Fixed ({{ acknowledgedErrors.length }})
-          </summary>
-          @for (e of acknowledgedErrors; track trackErrorId($index, e)) {
-            <div class="error-row error-row-acknowledged">
+        <!-- GT-G7: Node filter chip bar. Distinct from the nodes strip
+             above — the strip shows every known node with counts, the chips
+             are a compact "filter by" control that also appears when only
+             the active nodes have errors (overlap is intentional but one
+             renders only when its specific precondition is met). -->
+        @if (uniqueNodes().length > 1) {
+          <div class="node-filter-bar" role="group" aria-label="Filter errors by node">
+            <button type="button"
+                    mat-stroked-button
+                    class="node-filter-chip"
+                    [class.active]="!filterNodeId()"
+                    (click)="toggleNodeFilter(null)">
+              All nodes
+            </button>
+            @for (node of uniqueNodes(); track node) {
+              <button type="button"
+                      mat-stroked-button
+                      class="node-filter-chip"
+                      [class.active]="filterNodeId() === node"
+                      (click)="toggleNodeFilter(node)">
+                {{ node }}
+              </button>
+            }
+          </div>
+        }
+
+        <mat-tab-group
+          id="diagnostics-errors-tabs"
+          class="error-log-tabs"
+          [selectedIndex]="selectedErrorTabIndex()"
+          (selectedIndexChange)="onErrorTabChange($event)"
+          appPersistTab="diagnostics.errors"
+          animationDuration="200ms">
+          <mat-tab label="Internal"></mat-tab>
+          <mat-tab label="Glitchtip"></mat-tab>
+          <mat-tab label="All"></mat-tab>
+        </mat-tab-group>
+
+        <div
+          class="error-tab-panel"
+          [attr.id]="selectedErrorTabIndex() === 0 ? 'internal-errors-tab' : selectedErrorTabIndex() === 1 ? 'glitchtip-errors-tab' : 'all-errors-tab'">
+          @if (selectedErrorTabIndex() === 1) {
+            <div class="glitchtip-tab-toolbar">
+              <p class="glitchtip-sync-status">
+                Last synced:
+                {{ glitchtipLastSyncedAt() ? (glitchtipLastSyncedAt() | date: 'short') : 'Awaiting first sync' }}
+              </p>
+              <button
+                type="button"
+                mat-flat-button
+                color="primary"
+                class="glitchtip-visit-button"
+                (click)="openGlitchtip()">
+                <mat-icon>open_in_new</mat-icon>
+                <span>Visit Glitchtip</span>
+              </button>
+            </div>
+          }
+
+          <!-- Empty state: no unacknowledged errors. -->
+          @if (activeGroupedErrors().length === 0) {
+            <div class="error-empty-state" role="status">
+              <mat-icon class="empty-check">check_circle</mat-icon>
+              <p>No unacknowledged errors — everything looks healthy.</p>
+            </div>
+          }
+
+          <!-- Fingerprint-grouped error rows. One row per distinct failure.
+               Repeats of the same fingerprint collapse into the row's
+               occurrence-count badge. -->
+          @for (group of activeGroupedErrors(); track trackGroupFingerprint($index, group)) {
+            @let e = group.representative;
+            <article class="error-row"
+                     [ngClass]="severityClass(e)"
+                     [attr.id]="'error-' + e.id"
+                     role="article"
+                     [attr.aria-label]="'Error in ' + e.job_type + ' — ' + e.error_message">
+              <!-- Meta row: source pill, severity pill, location, node, counts, timestamp -->
               <div class="error-row-meta">
-                <span class="lane-badge tone-good">
+                <span class="lane-badge"
+                      [class.tone-bad]="e.source === 'glitchtip'"
+                      [class.tone-warn]="e.source === 'internal'">
                   {{ e.source === 'glitchtip' ? 'GlitchTip' : 'Internal' }}
                 </span>
-                <span class="error-location">{{ e.job_type }} • {{ e.step }}</span>
+                <span class="lane-badge"
+                      [class.tone-bad]="e.severity === 'critical' || e.severity === 'high'"
+                      [class.tone-warn]="e.severity === 'medium'"
+                      [class.tone-good]="e.severity === 'low'">
+                  {{ e.severity ? (e.severity | titlecase) : 'Medium' }}
+                </span>
+                <span class="error-location" [matTooltip]="e.step">
+                  {{ e.job_type }} • {{ e.step }}
+                </span>
                 @if (e.node_id) {
-                  <span class="lane-badge node-badge">{{ e.node_id }}</span>
+                  <span class="lane-badge node-badge"
+                        [matTooltip]="(e.node_hostname || e.node_id) + ' (' + (e.node_role || 'unknown') + ')'">
+                    {{ e.node_id }}
+                  </span>
+                }
+                @if (group.totalCount > 1) {
+                  <span class="occurrence-badge"
+                        [matTooltip]="'Seen ' + group.totalCount + ' times on this node'">
+                    ×{{ group.totalCount }}
+                  </span>
                 }
                 <span class="error-timestamp">{{ e.created_at | date: 'short' }}</span>
               </div>
-              <p class="error-why">{{ e.why || e.error_message }}</p>
-            </div>
+
+              <!-- What / Why / How-to-fix (GT-G10) -->
+              <p class="error-what">
+                <strong>What:</strong> {{ e.error_message }}
+              </p>
+              @if (e.why) {
+                <p class="error-why"><strong>Why:</strong> {{ e.why }}</p>
+              }
+              @if (e.how_to_fix) {
+                <p class="error-how-to-fix">
+                  <strong>How to fix:</strong> {{ e.how_to_fix }}
+                </p>
+              }
+
+              <!-- GT-G4: 7-day sparkline -->
+              @if (e.error_trend && e.error_trend.length > 0) {
+                <div class="error-sparkline"
+                     [matTooltip]="trendLabel(e.error_trend)"
+                     matTooltipPosition="above"
+                     role="img"
+                     [attr.aria-label]="'7-day frequency trend'">
+                  @for (point of e.error_trend; track trackTrendDate($index, point)) {
+                    <div class="spark-bar"
+                         [style.height.%]="(point.count / maxTrendCount(e.error_trend)) * 100 || 4"
+                         [class.spark-zero]="point.count === 0"
+                         [attr.aria-label]="point.date + ': ' + point.count">
+                    </div>
+                  }
+                </div>
+              }
+
+              <!-- GT-G8: expandable runtime-context panel -->
+              @if (expandedErrorId() === e.id && e.runtime_context) {
+                <div class="runtime-context-panel" role="region" aria-label="Runtime state at time of error">
+                  <strong>Runtime when this error happened:</strong>
+                  <ul>
+                    <li>
+                      GPU:
+                      {{ e.runtime_context.gpu_available
+                          ? (e.runtime_context.gpu_name || 'yes')
+                          : 'no' }}
+                    </li>
+                    <li>CUDA: {{ e.runtime_context.cuda_version || 'N/A' }}</li>
+                    <li>Embedding model: {{ e.runtime_context.embedding_model || 'unknown' }}</li>
+                    <li>spaCy model: {{ e.runtime_context.spacy_model || 'missing' }}</li>
+                    <li>
+                      Node:
+                      {{ e.runtime_context.node_id || 'unknown' }}
+                      ({{ e.runtime_context.node_role || 'unknown' }})
+                    </li>
+                    @if (e.runtime_context.python_version) {
+                      <li>Python: {{ e.runtime_context.python_version }}</li>
+                    }
+                  </ul>
+                </div>
+              }
+
+              <!-- GT-G12: expandable related-errors panel -->
+              @if (expandedErrorId() === e.id && relatedErrors(e).length > 0) {
+                <div class="related-errors-panel" role="region" aria-label="Other errors within 5 minutes">
+                  <strong>
+                    Other errors within 5 minutes ({{ relatedErrors(e).length }}):
+                  </strong>
+                  <ul>
+                    @for (rel of relatedErrors(e); track trackErrorId($index, rel)) {
+                      <li>
+                        <span class="related-loc">{{ rel.job_type }} • {{ rel.step }}</span>
+                        <span class="related-msg">{{ rel.error_message }}</span>
+                      </li>
+                    }
+                  </ul>
+                </div>
+              }
+
+              <!-- Raw traceback — only when expanded AND present. -->
+              @if (expandedErrorId() === e.id && e.raw_exception) {
+                <details class="raw-exception" open>
+                  <summary>Traceback</summary>
+                  <pre>{{ e.raw_exception }}</pre>
+                </details>
+              }
+
+              <!-- Action row -->
+              <div class="error-row-actions">
+                <button type="button"
+                        mat-stroked-button
+                        class="row-action"
+                        (click)="toggleExpand(e.id)"
+                        [attr.aria-expanded]="expandedErrorId() === e.id">
+                  <mat-icon>
+                    {{ expandedErrorId() === e.id ? 'expand_less' : 'expand_more' }}
+                  </mat-icon>
+                  <span>Details</span>
+                </button>
+
+                @if (e.glitchtip_url) {
+                  <a [href]="e.glitchtip_url"
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     mat-icon-button
+                     class="row-action-icon"
+                     matTooltip="Open this issue in GlitchTip">
+                    <mat-icon>open_in_new</mat-icon>
+                  </a>
+                }
+
+                <button type="button"
+                        mat-icon-button
+                        class="row-action-icon"
+                        (click)="copyForAI(e)"
+                        [attr.aria-label]="'Copy AI-ready prompt for ' + e.job_type + ' error'"
+                        [matTooltip]="copyFeedbackId() === e.id ? 'Copied!' : 'Copy for AI'">
+                  <mat-icon>
+                    {{ copyFeedbackId() === e.id ? 'check' : 'content_copy' }}
+                  </mat-icon>
+                </button>
+
+                @if (canRerun(e)) {
+                  <button type="button"
+                          mat-stroked-button
+                          class="row-action"
+                          (click)="onRerunError(e)"
+                          matTooltip="Re-dispatch the failing Celery task">
+                    <mat-icon>replay</mat-icon>
+                    <span>Rerun task</span>
+                  </button>
+                }
+
+                <button type="button"
+                        mat-flat-button
+                        color="primary"
+                        class="row-action row-action-primary"
+                        (click)="onAcknowledgeError(e)"
+                        matTooltip="Mark this error as handled">
+                  <mat-icon>done</mat-icon>
+                  <span>Acknowledge</span>
+                </button>
+              </div>
+            </article>
           }
-        </details>
-      }
-      </div>
-    </section>
+
+          <!-- Acknowledged / Fixed drawer — collapsed by default. Only
+               rendered when there's something to show. -->
+          @if (showAcknowledgedDrawer()) {
+            <details class="acknowledged-section">
+              <summary>
+                Acknowledged / Fixed ({{ acknowledgedErrors().length }})
+              </summary>
+              @for (e of acknowledgedErrors(); track trackErrorId($index, e)) {
+                <div class="error-row error-row-acknowledged">
+                  <div class="error-row-meta">
+                    <span class="lane-badge tone-good">
+                      {{ e.source === 'glitchtip' ? 'GlitchTip' : 'Internal' }}
+                    </span>
+                    <span class="error-location">{{ e.job_type }} • {{ e.step }}</span>
+                    @if (e.node_id) {
+                      <span class="lane-badge node-badge">{{ e.node_id }}</span>
+                    }
+                    <span class="error-timestamp">{{ e.created_at | date: 'short' }}</span>
+                  </div>
+                  <p class="error-why">{{ e.why || e.error_message }}</p>
+                </div>
+              }
+            </details>
+          }
+        </div>
+      </section>
+    }
 
     <!-- Resource Metrics Bar -->
-    <section class="metrics-bar" *ngIf="resources">
-      <div class="metric-item">
-        <span>CPU Usage</span>
-        <div class="metric-value">
-          <span class="value">{{ resources.cpu_percent === 'unavailable' ? 'N/A' : resources.cpu_percent + '%' }}</span>
-          <div class="mini-progress"><div class="fill" [style.width]="resources.cpu_percent !== 'unavailable' ? resources.cpu_percent + '%' : '0%'"></div></div>
+    @if (resources(); as r) {
+      <section class="metrics-bar">
+        <div class="metric-item">
+          <span>CPU Usage</span>
+          <div class="metric-value">
+            <span class="value">{{ r.cpu_percent === 'unavailable' ? 'N/A' : r.cpu_percent + '%' }}</span>
+            <div class="mini-progress"><div class="fill" [style.width]="r.cpu_percent !== 'unavailable' ? r.cpu_percent + '%' : '0%'"></div></div>
+          </div>
         </div>
-      </div>
-      <div class="metric-item">
-        <span>RAM Usage</span>
-        <div class="metric-value">
-          <span class="value">{{ resources.ram_usage_mb === 'unavailable' ? 'N/A' : (resources.ram_usage_mb | number:'1.0-0') + ' MB' }}</span>
+        <div class="metric-item">
+          <span>RAM Usage</span>
+          <div class="metric-value">
+            <span class="value">{{ r.ram_usage_mb === 'unavailable' ? 'N/A' : (r.ram_usage_mb | number:'1.0-0') + ' MB' }}</span>
+          </div>
         </div>
-      </div>
-      <div class="metric-item">
-        <span>Disk Space</span>
-        <div class="metric-value">
-          <span class="value">{{ resources.disk_usage_percent === 'unavailable' ? 'N/A' : resources.disk_usage_percent + '%' }}</span>
-          <div class="mini-progress"><div class="fill" [style.width]="resources.disk_usage_percent !== 'unavailable' ? resources.disk_usage_percent + '%' : '0%'"></div></div>
+        <div class="metric-item">
+          <span>Disk Space</span>
+          <div class="metric-value">
+            <span class="value">{{ r.disk_usage_percent === 'unavailable' ? 'N/A' : r.disk_usage_percent + '%' }}</span>
+            <div class="mini-progress"><div class="fill" [style.width]="r.disk_usage_percent !== 'unavailable' ? r.disk_usage_percent + '%' : '0%'"></div></div>
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+    }
 
     <!-- Phase 1v + Tier 2 slice 4 — suppressed-pair card is self-contained
          (owns its counter fetch + drilldown list + per-row clear action). -->
@@ -437,179 +440,204 @@
     <!-- Polish.B — NDCG@K retriever-quality readout. Daily refresh by
          the ndcg_smoke_test scheduled job. Sources: Järvelin & Kekäläinen
          2002 ACM TOIS, Sanderson 2010 FnTIR §5.2 sample-size gate. -->
-    <section class="ndcg-eval-section" *ngIf="ndcgEval">
-      <div class="section-heading">
-        <h2>Retriever Quality (NDCG@10)</h2>
-        <p>
-          How well your ranker orders approved over rejected suggestions.
-          Sources: Järvelin &amp; Kekäläinen 2002 ACM TOIS;
-          Sanderson 2010 FnTIR §5.2 sample-size gate.
-        </p>
-      </div>
-      <mat-card class="ndcg-eval-card">
-        <mat-card-content>
-          <ng-container *ngIf="!ndcgEval.available || ndcgEval.sufficient_data === false; else ndcgReady">
-            <p class="ndcg-status-pending">
-              <mat-icon class="icon-md">hourglass_empty</mat-icon>
-              {{ ndcgEval.message }}
-            </p>
-          </ng-container>
-          <ng-template #ndcgReady>
-            <div class="ndcg-readout">
-              <div class="ndcg-headline">
-                <span class="ndcg-value">{{ ndcgEval.ndcg | number:'1.3-3' }}</span>
-                <span class="ndcg-label">NDCG@{{ ndcgEval.k }}</span>
-              </div>
-              <div class="ndcg-detail">
-                <span>
-                  Sample size: <strong>{{ ndcgEval.sample_size }}</strong>
-                  reviewed suggestions
-                </span>
-                <span>
-                  95 % confidence interval:
-                  <strong>
-                    [{{ ndcgEval.confidence_lower | number:'1.3-3' }} —
-                    {{ ndcgEval.confidence_upper | number:'1.3-3' }}]
-                  </strong>
-                </span>
-                <span class="ndcg-pairwise-note" *ngIf="!ndcgEval.sufficient_for_pairwise">
-                  <mat-icon class="icon-md">info_outline</mat-icon>
-                  {{ ndcgEval.message }}
-                </span>
-              </div>
-            </div>
-            <div class="ndcg-breakdown" *ngIf="ndcgEvalOriginEntries().length > 0">
-              <h3>By candidate origin</h3>
-              <ul class="ndcg-origin-list">
-                <li *ngFor="let entry of ndcgEvalOriginEntries()">
-                  <span class="origin-name">{{ entry.origin }}</span>
-                  <span class="origin-score">{{ entry.score | number:'1.3-3' }}</span>
-                </li>
-              </ul>
-            </div>
-            <p class="ndcg-fitted-at" *ngIf="ndcgEval.fitted_at">
-              Last refresh: {{ ndcgEval.fitted_at | date:'medium' }}
-            </p>
-          </ng-template>
-        </mat-card-content>
-      </mat-card>
-    </section>
-
-    <section class="runtime-lanes-section" *ngIf="runtimeLaneCards.length > 0">
-      <div class="section-heading">
-        <h2>Heavy Runtime Owners</h2>
-        <p>These cards show who owns each big lane right now.</p>
-      </div>
-
-      <div class="page-cards-grid">
-        <article
-          class="runtime-lane-card"
-          *ngFor="let lane of runtimeLaneCards; trackBy: runtimeLaneTrackBy"
-          [class.state-healthy]="lane.state === 'healthy'"
-          [class.state-degraded]="lane.state === 'degraded'"
-          [class.state-failed]="lane.state === 'failed'"
-          [class.owner-celery]="lane.owner === 'celery'">
-          <div class="lane-header">
-            <div>
-              <h3>{{ lane.title }}</h3>
-              <p class="owner-label">Owner: {{ lane.owner === 'unknown' ? 'Unknown' : (lane.owner | uppercase) }}</p>
-            </div>
-            <span class="lane-state">{{ lane.state | titlecase }}</span>
-          </div>
-
-          <p class="lane-status-line">{{ lane.statusLine }}</p>
-          <p class="lane-explanation">{{ lane.explanation }}</p>
-
-          <div class="lane-badges">
-            <div
-              class="lane-badge"
-              *ngFor="let badge of lane.badges; trackBy: trackByIndex"
-              [class.tone-good]="badge.tone === 'good'"
-              [class.tone-warn]="badge.tone === 'warn'"
-              [class.tone-bad]="badge.tone === 'bad'">
-              <span class="badge-label">{{ badge.label }}</span>
-              <span class="badge-value">{{ badge.value }}</span>
-            </div>
-          </div>
-
-          <div class="lane-next-step">
-            <span>Next Step</span>
-            <p>{{ lane.nextStep }}</p>
-          </div>
-        </article>
-      </div>
-    </section>
-
-    <section class="runtime-lanes-section" *ngIf="runtimeExecutionCards.length > 0">
-      <div class="section-heading">
-        <h2>Runtime Execution Paths</h2>
-        <p>These cards show where C++ and Python runtimes are healthy, falling back, or failing.</p>
-      </div>
-
-      <div class="page-cards-grid">
-        <article
-          class="runtime-lane-card runtime-execution-card"
-          *ngFor="let card of runtimeExecutionCards; trackBy: runtimeExecutionTrackBy"
-          [class.state-healthy]="card.state === 'healthy'"
-          [class.state-degraded]="card.state === 'degraded'"
-          [class.state-failed]="card.state === 'failed'"
-          [class.owner-python]="card.runtime === 'python'"
-          [class.owner-cpp]="card.runtime === 'cpp'">
-          <div class="lane-header">
-            <div>
-              <h3>{{ card.title }}</h3>
-              <p class="owner-label">Runtime: {{ card.runtime === 'unknown' ? 'Unknown' : (card.runtime | uppercase) }}</p>
-            </div>
-            <span class="lane-state">{{ card.state | titlecase }}</span>
-          </div>
-
-          <p class="lane-status-line">{{ card.statusLine }}</p>
-          <p class="lane-explanation">{{ card.explanation }}</p>
-
-          <div class="lane-badges">
-            <div
-              class="lane-badge"
-              *ngFor="let badge of card.badges; trackBy: trackByLabel"
-              [class.tone-good]="badge.tone === 'good'"
-              [class.tone-warn]="badge.tone === 'warn'"
-              [class.tone-bad]="badge.tone === 'bad'">
-              <span class="badge-label">{{ badge.label }}</span>
-              <span class="badge-value">{{ badge.value }}</span>
-            </div>
-          </div>
-
-          <div class="runtime-detail-grid" *ngIf="card.details.length > 0">
-            <div class="runtime-detail-item" *ngFor="let detail of card.details; trackBy: trackByLabel">
-              <span>{{ detail.label }}</span>
-              <span>{{ detail.value }}</span>
-            </div>
-          </div>
-
-          <div class="native-module-list" *ngIf="card.moduleStatuses.length > 0">
-            <span class="module-list-label">Tracked Modules</span>
-            <div class="native-module-item" *ngFor="let module of card.moduleStatuses; trackBy: trackByLabel">
-              <div class="native-module-copy">
-                <span class="native-module-name">{{ module.label }}</span>
-                <span class="native-module-benchmark">
-                  {{ module.proof_available ? ((module.speedup_vs_python ?? 0).toFixed(2) + 'x') : (module.benchmark_status || 'Not benchmarked') }}
-                  @if (module.proof_available) {
-                    • {{ module.cpp_ms?.toFixed(2) }} ms
+    @if (ndcgEval(); as nd) {
+      <section class="ndcg-eval-section">
+        <div class="section-heading">
+          <h2>Retriever Quality (NDCG@10)</h2>
+          <p>
+            How well your ranker orders approved over rejected suggestions.
+            Sources: Järvelin &amp; Kekäläinen 2002 ACM TOIS;
+            Sanderson 2010 FnTIR §5.2 sample-size gate.
+          </p>
+        </div>
+        <mat-card class="ndcg-eval-card">
+          <mat-card-content>
+            @if (!nd.available || nd.sufficient_data === false) {
+              <p class="ndcg-status-pending">
+                <mat-icon class="icon-md">hourglass_empty</mat-icon>
+                {{ nd.message }}
+              </p>
+            } @else {
+              <div class="ndcg-readout">
+                <div class="ndcg-headline">
+                  <span class="ndcg-value">{{ nd.ndcg | number:'1.3-3' }}</span>
+                  <span class="ndcg-label">NDCG@{{ nd.k }}</span>
+                </div>
+                <div class="ndcg-detail">
+                  <span>
+                    Sample size: <strong>{{ nd.sample_size }}</strong>
+                    reviewed suggestions
+                  </span>
+                  <span>
+                    95 % confidence interval:
+                    <strong>
+                      [{{ nd.confidence_lower | number:'1.3-3' }} —
+                      {{ nd.confidence_upper | number:'1.3-3' }}]
+                    </strong>
+                  </span>
+                  @if (!nd.sufficient_for_pairwise) {
+                    <span class="ndcg-pairwise-note">
+                      <mat-icon class="icon-md">info_outline</mat-icon>
+                      {{ nd.message }}
+                    </span>
                   }
-                </span>
+                </div>
               </div>
-              <span class="native-module-state" [class.is-healthy]="module.state === 'healthy'" [class.is-degraded]="module.state === 'degraded'" [class.is-failed]="module.state === 'failed'">
-                {{ module.state | titlecase }}
-              </span>
-            </div>
-          </div>
+              @if (ndcgEvalOriginEntries().length > 0) {
+                <div class="ndcg-breakdown">
+                  <h3>By candidate origin</h3>
+                  <ul class="ndcg-origin-list">
+                    @for (entry of ndcgEvalOriginEntries(); track entry.origin) {
+                      <li>
+                        <span class="origin-name">{{ entry.origin }}</span>
+                        <span class="origin-score">{{ entry.score | number:'1.3-3' }}</span>
+                      </li>
+                    }
+                  </ul>
+                </div>
+              }
+              @if (nd.fitted_at) {
+                <p class="ndcg-fitted-at">
+                  Last refresh: {{ nd.fitted_at | date:'medium' }}
+                </p>
+              }
+            }
+          </mat-card-content>
+        </mat-card>
+      </section>
+    }
 
-          <div class="lane-next-step">
-            <span>Next Step</span>
-            <p>{{ card.nextStep }}</p>
-          </div>
-        </article>
-      </div>
-    </section>
+    @if (runtimeLaneCards().length > 0) {
+      <section class="runtime-lanes-section">
+        <div class="section-heading">
+          <h2>Heavy Runtime Owners</h2>
+          <p>These cards show who owns each big lane right now.</p>
+        </div>
+
+        <div class="page-cards-grid">
+          @for (lane of runtimeLaneCards(); track lane.id) {
+            <article
+              class="runtime-lane-card"
+              [class.state-healthy]="lane.state === 'healthy'"
+              [class.state-degraded]="lane.state === 'degraded'"
+              [class.state-failed]="lane.state === 'failed'"
+              [class.owner-celery]="lane.owner === 'celery'">
+              <div class="lane-header">
+                <div>
+                  <h3>{{ lane.title }}</h3>
+                  <p class="owner-label">Owner: {{ lane.owner === 'unknown' ? 'Unknown' : (lane.owner | uppercase) }}</p>
+                </div>
+                <span class="lane-state">{{ lane.state | titlecase }}</span>
+              </div>
+
+              <p class="lane-status-line">{{ lane.statusLine }}</p>
+              <p class="lane-explanation">{{ lane.explanation }}</p>
+
+              <div class="lane-badges">
+                @for (badge of lane.badges; track $index) {
+                  <div
+                    class="lane-badge"
+                    [class.tone-good]="badge.tone === 'good'"
+                    [class.tone-warn]="badge.tone === 'warn'"
+                    [class.tone-bad]="badge.tone === 'bad'">
+                    <span class="badge-label">{{ badge.label }}</span>
+                    <span class="badge-value">{{ badge.value }}</span>
+                  </div>
+                }
+              </div>
+
+              <div class="lane-next-step">
+                <span>Next Step</span>
+                <p>{{ lane.nextStep }}</p>
+              </div>
+            </article>
+          }
+        </div>
+      </section>
+    }
+
+    @if (runtimeExecutionCards().length > 0) {
+      <section class="runtime-lanes-section">
+        <div class="section-heading">
+          <h2>Runtime Execution Paths</h2>
+          <p>These cards show where C++ and Python runtimes are healthy, falling back, or failing.</p>
+        </div>
+
+        <div class="page-cards-grid">
+          @for (card of runtimeExecutionCards(); track card.id) {
+            <article
+              class="runtime-lane-card runtime-execution-card"
+              [class.state-healthy]="card.state === 'healthy'"
+              [class.state-degraded]="card.state === 'degraded'"
+              [class.state-failed]="card.state === 'failed'"
+              [class.owner-python]="card.runtime === 'python'"
+              [class.owner-cpp]="card.runtime === 'cpp'">
+              <div class="lane-header">
+                <div>
+                  <h3>{{ card.title }}</h3>
+                  <p class="owner-label">Runtime: {{ card.runtime === 'unknown' ? 'Unknown' : (card.runtime | uppercase) }}</p>
+                </div>
+                <span class="lane-state">{{ card.state | titlecase }}</span>
+              </div>
+
+              <p class="lane-status-line">{{ card.statusLine }}</p>
+              <p class="lane-explanation">{{ card.explanation }}</p>
+
+              <div class="lane-badges">
+                @for (badge of card.badges; track badge.label) {
+                  <div
+                    class="lane-badge"
+                    [class.tone-good]="badge.tone === 'good'"
+                    [class.tone-warn]="badge.tone === 'warn'"
+                    [class.tone-bad]="badge.tone === 'bad'">
+                    <span class="badge-label">{{ badge.label }}</span>
+                    <span class="badge-value">{{ badge.value }}</span>
+                  </div>
+                }
+              </div>
+
+              @if (card.details.length > 0) {
+                <div class="runtime-detail-grid">
+                  @for (detail of card.details; track detail.label) {
+                    <div class="runtime-detail-item">
+                      <span>{{ detail.label }}</span>
+                      <span>{{ detail.value }}</span>
+                    </div>
+                  }
+                </div>
+              }
+
+              @if (card.moduleStatuses.length > 0) {
+                <div class="native-module-list">
+                  <span class="module-list-label">Tracked Modules</span>
+                  @for (module of card.moduleStatuses; track module.label) {
+                    <div class="native-module-item">
+                      <div class="native-module-copy">
+                        <span class="native-module-name">{{ module.label }}</span>
+                        <span class="native-module-benchmark">
+                          {{ module.proof_available ? ((module.speedup_vs_python ?? 0).toFixed(2) + 'x') : (module.benchmark_status || 'Not benchmarked') }}
+                          @if (module.proof_available) {
+                            • {{ module.cpp_ms?.toFixed(2) }} ms
+                          }
+                        </span>
+                      </div>
+                      <span class="native-module-state" [class.is-healthy]="module.state === 'healthy'" [class.is-degraded]="module.state === 'degraded'" [class.is-failed]="module.state === 'failed'">
+                        {{ module.state | titlecase }}
+                      </span>
+                    </div>
+                  }
+                </div>
+              }
+
+              <div class="lane-next-step">
+                <span>Next Step</span>
+                <p>{{ card.nextStep }}</p>
+              </div>
+            </article>
+          }
+        </div>
+      </section>
+    }
 
     <div class="main-grid">
       <!-- Left Column: Services -->
@@ -617,17 +645,19 @@
         <section class="services-section">
           <h2>Core Runtime & Services</h2>
           <div class="services-grid">
-            <app-service-card *ngFor="let s of coreServices; trackBy: trackServiceName" [service]="s"></app-service-card>
+            @for (s of coreServices(); track s.service_name) {
+              <app-service-card [service]="s"></app-service-card>
+            }
           </div>
         </section>
       </div>
 
       <!-- Right Column: Conflicts & Readiness -->
       <div class="grid-column side-content">
-        <app-conflict-list [conflicts]="conflicts" (resolve)="onResolveConflict($event)"></app-conflict-list>
-        
-        <app-readiness-matrix [features]="features"></app-readiness-matrix>
+        <app-conflict-list [conflicts]="conflicts()" (resolve)="onResolveConflict($event)"></app-conflict-list>
+
+        <app-readiness-matrix [features]="features()"></app-readiness-matrix>
       </div>
     </div>
-  </ng-container>
+  }
 </div>

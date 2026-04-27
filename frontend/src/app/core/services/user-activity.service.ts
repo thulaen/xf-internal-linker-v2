@@ -1,4 +1,4 @@
-import { DestroyRef, Injectable, inject } from '@angular/core';
+import { DestroyRef, Injectable, NgZone, inject } from '@angular/core';
 import { PerformanceModeService } from './performance-mode.service';
 
 /**
@@ -30,6 +30,7 @@ export class UserActivityService {
 
   private readonly perfMode = inject(PerformanceModeService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly zone = inject(NgZone);
 
   private lastActivityAt = Date.now();
   private lastResumeCallAt = 0;
@@ -55,11 +56,15 @@ export class UserActivityService {
   start(): void {
     if (this.started || typeof window === 'undefined') return;
     this.started = true;
-    // `passive: true` lets the browser skip preventDefault checks on scroll events
-    // (we also use it for keydown/mousemove even though they don't care, for consistency).
-    window.addEventListener('mousemove', this.handler, { passive: true });
-    window.addEventListener('keydown', this.handler, { passive: true });
-    window.addEventListener('touchstart', this.handler, { passive: true });
+    // Listen outside Angular's zone — every mouse wiggle / keypress would
+    // otherwise re-trigger global change detection. The handler debounces
+    // and only re-enters the zone via perfMode.notifyActivityResumed() (an
+    // RxJS Observable that ticks zone-aware HTTP), so OnPush trees stay calm.
+    this.zone.runOutsideAngular(() => {
+      window.addEventListener('mousemove', this.handler, { passive: true });
+      window.addEventListener('keydown', this.handler, { passive: true });
+      window.addEventListener('touchstart', this.handler, { passive: true });
+    });
 
     this.destroyRef.onDestroy(() => this.stop());
   }

@@ -1,14 +1,31 @@
 # renew-dev-cert.ps1
 #
 # Checks whether the mkcert localhost certificate will expire within 60 days.
+# Parses + runs under Windows PowerShell 5.1 (no `?.` / `??` operators).
 
-$certPath = "$PSScriptRoot\..\nginx\certs\localhost.pem"
-$keyPath  = "$PSScriptRoot\..\nginx\certs\localhost-key.pem"
+$ErrorActionPreference = 'Continue'
+
+$certPath = Join-Path $PSScriptRoot '..\nginx\certs\localhost.pem'
+$keyPath  = Join-Path $PSScriptRoot '..\nginx\certs\localhost-key.pem'
 $DAYS_BEFORE_EXPIRY = 60
 
-# Resolve to absolute so docker/mkcert paths are unambiguous.
-$certPath = (Resolve-Path $certPath -ErrorAction SilentlyContinue)?.Path ?? (Join-Path $PSScriptRoot "..\nginx\certs\localhost.pem")
-$keyPath  = (Resolve-Path $keyPath  -ErrorAction SilentlyContinue)?.Path ?? (Join-Path $PSScriptRoot "..\nginx\certs\localhost-key.pem")
+# Resolve to absolute so docker/mkcert paths are unambiguous. The cert may
+# not exist yet on a fresh checkout; fall back to the literal path so mkcert
+# can write to it.
+function Resolve-OrLiteral {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$Fallback
+    )
+    $resolved = Resolve-Path -LiteralPath $Path -ErrorAction SilentlyContinue
+    if ($null -ne $resolved) {
+        return $resolved.Path
+    }
+    return $Fallback
+}
+
+$certPath = Resolve-OrLiteral -Path $certPath -Fallback (Join-Path $PSScriptRoot '..\nginx\certs\localhost.pem')
+$keyPath  = Resolve-OrLiteral -Path $keyPath  -Fallback (Join-Path $PSScriptRoot '..\nginx\certs\localhost-key.pem')
 
 function Get-CertExpiry {
     param([string]$Path)

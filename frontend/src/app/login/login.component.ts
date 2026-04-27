@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -12,7 +12,6 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { filter, take } from 'rxjs';
 import { AuthService } from '../core/services/auth.service';
 import { PasskeyService } from '../core/services/passkey.service';
-import { signal } from '@angular/core';
 
 @Component({
   selector: 'app-login',
@@ -28,6 +27,7 @@ import { signal } from '@angular/core';
   ],
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LoginComponent implements OnInit {
   private auth = inject(AuthService);
@@ -42,13 +42,19 @@ export class LoginComponent implements OnInit {
   readonly passkeyAvailable = signal(false);
   readonly passkeyBusy = signal(false);
 
-  form = new FormGroup({
+  // ReactiveForms manages its own change detection internally — keep
+  // the FormGroup as a plain field. Templates read `form.controls.X`
+  // directly; ReactiveForms emits status/value changes through its
+  // own observables, which trigger CD on the host component.
+  readonly form = new FormGroup({
     username: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     password: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
   });
 
-  loading = false;
-  errorMessage = '';
+  // Render-affecting state in signals so OnPush picks up loading-spinner
+  // and error-message changes without markForCheck.
+  readonly loading = signal(false);
+  readonly errorMessage = signal('');
   private returnUrl = '/';
 
   ngOnInit(): void {
@@ -72,10 +78,10 @@ export class LoginComponent implements OnInit {
   }
 
   submit(): void {
-    if (this.form.invalid || this.loading) return;
+    if (this.form.invalid || this.loading()) return;
 
-    this.loading = true;
-    this.errorMessage = '';
+    this.loading.set(true);
+    this.errorMessage.set('');
 
     const { username, password } = this.form.getRawValue();
     this.auth.login(username, password)
@@ -83,8 +89,8 @@ export class LoginComponent implements OnInit {
       .subscribe({
       next: () => this.router.navigateByUrl(this.returnUrl),
       error: (err: HttpErrorResponse) => {
-        this.errorMessage = this.getErrorMessage(err);
-        this.loading = false;
+        this.errorMessage.set(this.getErrorMessage(err));
+        this.loading.set(false);
       },
     });
   }
@@ -93,7 +99,7 @@ export class LoginComponent implements OnInit {
   async loginWithPasskey(): Promise<void> {
     if (this.passkeyBusy()) return;
     this.passkeyBusy.set(true);
-    this.errorMessage = '';
+    this.errorMessage.set('');
     const result = await this.passkey.login();
     this.passkeyBusy.set(false);
     if (result.ok) {
@@ -102,14 +108,14 @@ export class LoginComponent implements OnInit {
     }
     if (result.reason === 'cancelled') return; // user pressed cancel
     if (result.reason === 'unsupported') {
-      this.errorMessage = 'Your browser does not support passkeys.';
+      this.errorMessage.set('Your browser does not support passkeys.');
       return;
     }
     if (result.reason === 'not-configured') {
-      this.errorMessage = 'Passkey sign-in is not yet configured on this server.';
+      this.errorMessage.set('Passkey sign-in is not yet configured on this server.');
       return;
     }
-    this.errorMessage = result.detail || 'Passkey sign-in failed.';
+    this.errorMessage.set(result.detail || 'Passkey sign-in failed.');
   }
 
   private getErrorMessage(err: HttpErrorResponse): string {

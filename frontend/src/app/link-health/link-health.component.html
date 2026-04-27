@@ -1,20 +1,20 @@
-@if (scanning || progressMessage || errorMessage) {
+@if (scanning() || progressMessage() || errorMessage()) {
   <mat-card class="scan-status-card" id="scan-status">
     <mat-card-content>
       <div class="scan-status-header">
         <div>
           <div class="scan-label">Broken-link scan</div>
-          <div class="scan-message">{{ progressMessage || 'Waiting for progress...' }}</div>
+          <div class="scan-message">{{ progressMessage() || 'Waiting for progress...' }}</div>
         </div>
-        @if ( jobId) {
-          <code class="job-chip">{{ jobId.slice(0, 8) }}</code>
+        @if (jobId(); as id) {
+          <code class="job-chip">{{ id.slice(0, 8) }}</code>
         }
       </div>
-      <mat-progress-bar mode="determinate" [value]="progress"></mat-progress-bar>
-      @if (errorMessage) {
+      <mat-progress-bar mode="determinate" [value]="progress()"></mat-progress-bar>
+      @if (errorMessage(); as err) {
         <div class="scan-error">
           <mat-icon>error</mat-icon>
-          <span>{{ errorMessage }}</span>
+          <span>{{ err }}</span>
         </div>
       }
     </mat-card-content>
@@ -31,7 +31,7 @@
     <div class="header-actions">
       <button
         mat-stroked-button
-        [disabled]="loading"
+        [disabled]="loading()"
         (click)="exportCsv()"
       >
         <mat-icon>download</mat-icon>
@@ -41,7 +41,7 @@
         mat-flat-button
         color="primary"
         class="btn-prominent"
-        [disabled]="scanning"
+        [disabled]="scanning()"
         (click)="startScan()"
       >
         <mat-icon>play_arrow</mat-icon>
@@ -51,13 +51,14 @@
   </div>
 
   <div class="summary-row" id="link-health-summary">
+    @let s = summary();
     <mat-card class="summary-card">
       <mat-card-content>
         <div class="summary-header">
           <span class="summary-label">Open</span>
           <span class="indicator status-open"></span>
         </div>
-        <strong>{{ summary.open | number }}</strong>
+        <strong>{{ s.open | number }}</strong>
       </mat-card-content>
     </mat-card>
     <mat-card class="summary-card">
@@ -66,7 +67,7 @@
           <span class="summary-label">Ignored</span>
           <span class="indicator status-ignored"></span>
         </div>
-        <strong>{{ summary.ignored | number }}</strong>
+        <strong>{{ s.ignored | number }}</strong>
       </mat-card-content>
     </mat-card>
     <mat-card class="summary-card">
@@ -75,7 +76,7 @@
           <span class="summary-label">Fixed</span>
           <span class="indicator status-fixed"></span>
         </div>
-        <strong>{{ summary.fixed | number }}</strong>
+        <strong>{{ s.fixed | number }}</strong>
       </mat-card-content>
     </mat-card>
   </div>
@@ -84,7 +85,7 @@
     <mat-chip-listbox aria-label="Broken link status filter">
       @for (status of statusOptions; track status.value) {
         <mat-chip-option
-          [selected]="statusFilter === status.value"
+          [selected]="statusFilter() === status.value"
           (click)="setStatusFilter(status.value)"
         >
           {{ status.label }}
@@ -103,26 +104,26 @@
   </div>
 </div>
 
-@if (loading) {
+@if (loading()) {
   <div class="loading-row">
     <mat-spinner diameter="40"></mat-spinner>
   </div>
 }
 
-@if (!loading && brokenLinks.length === 0) {
+@if (!loading() && brokenLinks().length === 0) {
   <div class="empty-state">
     <div class="empty-icon-wrap">
       <mat-icon class="icon-3xl">link_off</mat-icon>
     </div>
     <h3>No broken links found</h3>
     <p>
-      @if (statusFilter !== 'all' || httpStatusFilter !== null) {
+      @if (statusFilter() !== 'all' || httpStatusFilter !== null) {
         No records match the current filters.
       } @else {
         Run a scan to check live forum URLs and persist any issues for review.
       }
     </p>
-    @if (!scanning) {
+    @if (!scanning()) {
       <button mat-flat-button color="primary" class="btn-prominent" (click)="startScan()">
         <mat-icon>play_arrow</mat-icon>
         Scan Now
@@ -131,9 +132,9 @@
   </div>
 }
 
-@if (!loading && brokenLinks.length > 0) {
+@if (!loading() && brokenLinks().length > 0) {
   <div class="table-wrapper" id="link-health-table">
-    <table mat-table [dataSource]="brokenLinks" [trackBy]="trackById" class="broken-links-table">
+    <table mat-table [dataSource]="brokenLinks()" [trackBy]="trackById" class="broken-links-table">
       <ng-container matColumnDef="source_thread">
         <th mat-header-cell *matHeaderCellDef>Source thread</th>
         <td mat-cell *matCellDef="let link">
@@ -230,9 +231,9 @@
   </div>
 
   <mat-paginator
-    [length]="totalCount"
-    [pageSize]="pageSize"
-    [pageIndex]="page - 1"
+    [length]="totalCount()"
+    [pageSize]="pageSize()"
+    [pageIndex]="page() - 1"
     [pageSizeOptions]="[25]"
     (page)="onPageChange($event)"
     aria-label="Broken link pages"

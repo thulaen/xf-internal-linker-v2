@@ -7,12 +7,13 @@
 
 import { ApplicationConfig, ErrorHandler, provideZonelessChangeDetection, isDevMode } from '@angular/core';
 import { provideRouter, withInMemoryScrolling, withRouterConfig, withViewTransitions } from '@angular/router';
-import { provideHttpClient, withInterceptors, withXsrfConfiguration } from '@angular/common/http';
+import { provideHttpClient, withFetch, withInterceptors, withXsrfConfiguration } from '@angular/common/http';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideServiceWorker } from '@angular/service-worker';
 import * as Sentry from '@sentry/angular';
 import { routes } from './app.routes';
 import { authInterceptor } from './core/interceptors/auth.interceptor';
+import { coalesceInterceptor } from './core/interceptors/coalesce.interceptor';
 import { errorInterceptor } from './core/interceptors/error.interceptor';
 import { traceparentInterceptor } from './core/interceptors/traceparent.interceptor';
 import { GlobalErrorHandler } from './core/error/global-error-handler';
@@ -53,24 +54,32 @@ export const appConfig: ApplicationConfig = {
       withViewTransitions({ skipInitialTransition: true }),
     ),
     provideHttpClient(
-      // traceparent must run BEFORE auth so the header shows up in
-      // every outbound request, including token exchanges.
-      withInterceptors([traceparentInterceptor, authInterceptor, errorInterceptor]),
+      // Use the modern fetch backend instead of the legacy XHR. fetch
+      // supports HTTP/2 multiplexing more cleanly, streams responses
+      // (no full-buffering before parse), uses less memory on large
+      // payloads, and is the recommended Angular default since v18.
+      // Non-breaking — existing interceptors keep working.
+      withFetch(),
+      // Order matters:
+      //   1. coalesce — collapse concurrent GETs to one roundtrip.
+      //                 Sits at the top so dedupe happens before we
+      //                 spend cycles building trace IDs / auth headers
+      //                 for the second-Nth callers we'll never send.
+      //   2. traceparent — must run BEFORE auth so the trace header
+      //                    shows up in every outbound request,
+      //                    including token exchanges.
+      //   3. auth, error — request mutation, then response handling.
+      withInterceptors([coalesceInterceptor, traceparentInterceptor, authInterceptor, errorInterceptor]),
       withXsrfConfiguration({ cookieName: 'csrftoken', headerName: 'X-CSRFToken' }),
     ),
     provideAnimationsAsync(),
     ...errorHandlerProviders,
-    // Phase E1 / Gap 29 — Progressive Web App / Angular Service Worker.
-    // Only registered in production builds (isDevMode() returns true in dev).
-    // In dev the service worker is skipped so HMR and live-reload work normally.
-    // The ngsw-config.json at the project root controls:
-    //   - App-shell assets: prefetch on install, update on new build.
-    //   - API responses: freshness strategy (network-first) for dashboard /
-    //     health; performance strategy (cache-first, 1h TTL) for analytics.
+    // Progressive Web App / Angular Service Worker — production builds only.
+    // ngsw-config.json caches app-shell static assets only. Authenticated
+    // API responses are NEVER cached and are always served fresh from the
+    // network — preventing phantom-stale dashboards and security smells.
     provideServiceWorker('ngsw-worker.js', {
       enabled: !isDevMode(),
-      // 30s was too long — users with slow first loads miss the SW cache entirely.
-      // 5s is enough for the app to stabilise without blocking early interactions.
       registrationStrategy: 'registerWhenStable:5000',
     }),
   ],

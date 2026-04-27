@@ -3,6 +3,7 @@ import {
   Component,
   DestroyRef,
   HostListener,
+  NgZone,
   computed,
   effect,
   inject,
@@ -187,6 +188,8 @@ interface SpotlightRect {
 export class GuidedTourComponent {
   private readonly tourSvc = inject(GuidedTourService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly zone = inject(NgZone);
+  private rafPending = false;
 
   readonly tour = this.tourSvc.activeTour;
   readonly stepIndex = this.tourSvc.stepIndex;
@@ -205,9 +208,11 @@ export class GuidedTourComponent {
   readonly rect = signal<SpotlightRect | null>(null);
   readonly bubblePos = signal<BubblePosition>({ top: 0, left: 0, arrow: 'top' });
 
-  // Tracking handles for cleanup outside of effect's auto-cleanup.
-  private resizeHandler = () => this.recompute();
-  private scrollHandler = () => this.recompute();
+  // Tracking handles for cleanup outside of effect's auto-cleanup. Both
+  // route through scheduleRecompute() so a fast scroll never thrashes
+  // layout — only one recompute per animation frame.
+  private resizeHandler = () => this.scheduleRecompute();
+  private scrollHandler = () => this.scheduleRecompute();
 
   constructor() {
     // Whenever the active step changes, re-pin the spotlight + bubble.
@@ -223,14 +228,31 @@ export class GuidedTourComponent {
     });
 
     // Reposition on viewport changes while a tour is active.
+    // Listen outside Angular's zone so a fast scroll doesn't trigger
+    // global change detection on every pixel; the rAF-throttled
+    // scheduleRecompute() re-enters the zone only when state actually
+    // changes via signal updates.
     effect((onCleanup) => {
       if (!this.tour()) return;
-      window.addEventListener('resize', this.resizeHandler);
-      window.addEventListener('scroll', this.scrollHandler, true);
+      this.zone.runOutsideAngular(() => {
+        window.addEventListener('resize', this.resizeHandler, { passive: true });
+        window.addEventListener('scroll', this.scrollHandler, { passive: true, capture: true });
+      });
       onCleanup(() => {
         window.removeEventListener('resize', this.resizeHandler);
         window.removeEventListener('scroll', this.scrollHandler, true);
       });
+    });
+  }
+
+  private scheduleRecompute(): void {
+    if (this.rafPending) return;
+    this.rafPending = true;
+    requestAnimationFrame(() => {
+      this.rafPending = false;
+      // recompute() writes to signals, which Angular handles without us
+      // explicitly re-entering the zone — signal effects pick it up.
+      this.recompute();
     });
   }
 
@@ -275,8 +297,10 @@ export class GuidedTourComponent {
     const r = target.getBoundingClientRect();
     if (r.bottom < 0 || r.top > window.innerHeight) {
       target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // Recompute after the scroll completes.
-      setTimeout(() => this.recompute(), 350);
+      // Recompute after the scroll completes. Use scheduleRecompute() so
+      // a settling scroll-into-view animation (which fires many scroll
+      // events) doesn't enqueue N nested setTimeouts.
+      setTimeout(() => this.scheduleRecompute(), 350);
       return;
     }
 

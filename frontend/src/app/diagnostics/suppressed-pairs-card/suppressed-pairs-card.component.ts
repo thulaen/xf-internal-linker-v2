@@ -1,9 +1,18 @@
-import { Component, OnInit, inject, DestroyRef } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  OnInit,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   DiagnosticsService,
@@ -26,24 +35,38 @@ import {
     MatIconModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
+    MatTooltipModule,
   ],
   templateUrl: './suppressed-pairs-card.component.html',
   styleUrls: ['./suppressed-pairs-card.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SuppressedPairsCardComponent implements OnInit {
   private diagnosticsService = inject(DiagnosticsService);
   private snack = inject(MatSnackBar);
   private destroyRef = inject(DestroyRef);
 
-  counters: SuppressedPairsDiagnostics | null = null;
+  // All render-affecting state lives in signals so OnPush change
+  // detection picks up every mutation automatically — no markForCheck
+  // sprinkled through subscribe callbacks. See AGENT-HANDOFF.md
+  // (signals migration recipe, 2026-04-26).
+  readonly counters = signal<SuppressedPairsDiagnostics | null>(null);
+  readonly expanded = signal(false);
+  readonly list = signal<SuppressedPairListItem[] | null>(null);
+  readonly listLoading = signal(false);
+  readonly page = signal(1);
+  readonly pageSize = signal(25);
+  readonly total = signal(0);
+  readonly clearingId = signal<number | null>(null);
 
-  expanded = false;
-  list: SuppressedPairListItem[] | null = null;
-  listLoading = false;
-  page = 1;
-  pageSize = 25;
-  total = 0;
-  clearingId: number | null = null;
+  // Derived value — recomputes only when its inputs change. Replaces
+  // the previous `get pageCount()` getter, which re-evaluated on every
+  // template binding read regardless of input churn.
+  readonly pageCount = computed(() => {
+    const size = this.pageSize();
+    if (size <= 0) return 1;
+    return Math.max(1, Math.ceil(this.total() / size));
+  });
 
   ngOnInit(): void {
     this.loadCounters();
@@ -54,32 +77,33 @@ export class SuppressedPairsCardComponent implements OnInit {
       .getSuppressedPairs()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: counters => (this.counters = counters),
-        error: () => (this.counters = null),
+        next: (counters) => this.counters.set(counters),
+        error: () => this.counters.set(null),
       });
   }
 
   toggleList(): void {
-    this.expanded = !this.expanded;
-    if (this.expanded && this.list === null) {
+    const next = !this.expanded();
+    this.expanded.set(next);
+    if (next && this.list() === null) {
       this.loadList();
     }
   }
 
-  loadList(page: number = this.page): void {
-    this.listLoading = true;
+  loadList(page: number = this.page()): void {
+    this.listLoading.set(true);
     this.diagnosticsService
-      .getSuppressedPairsList(page, this.pageSize)
+      .getSuppressedPairsList(page, this.pageSize())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: res => {
-          this.list = res.items;
-          this.total = res.total;
-          this.page = res.page;
-          this.listLoading = false;
+        next: (res) => {
+          this.list.set(res.items);
+          this.total.set(res.total);
+          this.page.set(res.page);
+          this.listLoading.set(false);
         },
         error: () => {
-          this.listLoading = false;
+          this.listLoading.set(false);
           this.snack.open('Could not load suppressed pairs.', 'Dismiss', { duration: 4000 });
         },
       });
@@ -87,20 +111,20 @@ export class SuppressedPairsCardComponent implements OnInit {
 
   onClear(item: SuppressedPairListItem): void {
     const ok = window.confirm(
-      `Clear suppression for "${item.host.title}" \u2192 "${item.destination.title}"?\n\n` +
+      `Clear suppression for "${item.host.title}" → "${item.destination.title}"?\n\n` +
         `This deletes the row and writes an audit entry. A future rejection starts a fresh 90-day window.`,
     );
     if (!ok) return;
 
-    this.clearingId = item.id;
+    this.clearingId.set(item.id);
     this.diagnosticsService
       .clearSuppressedPair(item.id)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.clearingId = null;
-          this.list = (this.list ?? []).filter(p => p.id !== item.id);
-          this.total = Math.max(0, this.total - 1);
+          this.clearingId.set(null);
+          this.list.update((curr) => (curr ?? []).filter((p) => p.id !== item.id));
+          this.total.update((t) => Math.max(0, t - 1));
           this.loadCounters();
           this.snack.open(
             `Suppression cleared for "${item.destination.title}".`,
@@ -108,23 +132,16 @@ export class SuppressedPairsCardComponent implements OnInit {
             { duration: 3000 },
           );
         },
-        error: err => {
-          this.clearingId = null;
+        error: (err) => {
+          this.clearingId.set(null);
           const detail = err?.error?.detail ?? 'Please refresh and try again.';
           this.snack.open(`Could not clear suppression: ${detail}`, 'Dismiss', { duration: 5000 });
         },
       });
   }
 
-  get pageCount(): number {
-    if (this.pageSize <= 0) return 1;
-    return Math.max(1, Math.ceil(this.total / this.pageSize));
-  }
-
   goToPage(next: number): void {
-    if (next < 1 || next > this.pageCount || next === this.page) return;
+    if (next < 1 || next > this.pageCount() || next === this.page()) return;
     this.loadList(next);
   }
-
-  trackPair(_i: number, p: SuppressedPairListItem): number { return p.id; }
 }

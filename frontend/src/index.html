@@ -11,50 +11,28 @@
     <link rel="manifest" href="manifest.webmanifest">
     <meta name="theme-color" content="#1a73e8">
 
-    <!-- Phase F1 / Gap 90 — Preconnect hints to origins we'll hit early.
-         The API origin is same-host in dev/prod, so we prime DNS / TLS
-         to Google Fonts plus our own origin for the JSON bootstrap. -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="dns-prefetch" href="/" />
+    <!-- Material Icons font is bundled and served from the same origin
+         (see angular.json `styles` → node_modules/material-icons/...).
+         No external Google Fonts request, no render-blocking preconnect,
+         and no rule violation against `default-theme.scss` (which bans
+         Google Fonts imports). -->
 
-    <!-- Phase F1 / Gap 91 — Font strategy. `display=swap` prevents FOIT
-         (flash of invisible text) during font download; `size-adjust`
-         applied via CSS keeps layout stable. Material Icons are loaded
-         with swap so the first paint doesn't wait on the icon font. -->
-    <link
-      href="https://fonts.googleapis.com/icon?family=Material+Icons&display=swap"
-      rel="stylesheet"
-    />
-
-    <!-- Phase F1 / Gap 80 — Speculation Rules API. On browsers that
-         support it (Chrome 109+, with document-rules behind a flag in
-         older builds), prerender the common next-navigations so they
-         pop instantly. Conservative `moderate` eagerness means the
-         browser only prerenders on intent-to-click (hover/focus), not
-         every visible link. Ignored by Firefox/Safari — no fallback
-         needed; they just navigate normally. -->
+    <!-- Speculation Rules API. We deliberately do NOT use `prerender`
+         here — prerender executes the page in a hidden tab, which fires
+         authenticated `/api/` calls in the background as if the user
+         had visited the route, costing real backend load even when the
+         user never clicks. `prefetch` only downloads the chunks; the
+         actual route work runs after a click, which is what we want.
+         `eagerness: conservative` means the browser only prefetches on
+         intent-to-click (hover/focus), not every visible link. Ignored
+         by Firefox/Safari — they just navigate normally. -->
     <script type="speculationrules">
       {
-        "prerender": [
-          {
-            "source": "list",
-            "urls": [
-              "/review",
-              "/jobs",
-              "/health",
-              "/alerts",
-              "/link-health",
-              "/graph",
-              "/analytics"
-            ]
-          }
-        ],
         "prefetch": [
           {
             "source": "document",
             "where": { "and": [{ "href_matches": "/*" }] },
-            "eagerness": "moderate"
+            "eagerness": "conservative"
           }
         ]
       }

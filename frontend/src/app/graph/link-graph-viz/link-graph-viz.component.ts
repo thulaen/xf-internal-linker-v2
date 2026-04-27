@@ -1,5 +1,6 @@
 import {
   AfterViewInit,
+  ChangeDetectionStrategy,
   Component,
   ElementRef,
   EventEmitter,
@@ -9,6 +10,7 @@ import {
   Output,
   SimpleChanges,
   ViewChild,
+  signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -42,6 +44,7 @@ const MIN_RADIUS = 4;
   imports: [CommonModule, MatProgressSpinnerModule],
   templateUrl: './link-graph-viz.component.html',
   styleUrls: ['./link-graph-viz.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() topology: GraphTopology = { nodes: [], links: [], history: [], churny_ids: [], churny_nodes: [] };
@@ -60,11 +63,21 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
   @ViewChild('wrapper') wrapperRef!: ElementRef<HTMLDivElement>;
   @ViewChild('tooltip') tooltipRef!: ElementRef<HTMLDivElement>;
 
-  isSimulating = false;
+  // Only template-bound state — read by the loading-overlay @if. Every
+  // other field on this class is imperative D3 plumbing (selections,
+  // simulation, refs to DOM nodes); converting those to signals would
+  // fight D3's mutation model without any reactivity gain.
+  readonly isSimulating = signal(false);
 
   private simulation: d3.Simulation<SimNode, SimLink> | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private viewReady = false;
+  /** Tripped in ngOnDestroy. Guards the requestAnimationFrame pre-tick
+   *  chain (large-graph layout warmup, ~300 frames) from continuing
+   *  after the component is destroyed — previously the rAF loop kept
+   *  ticking the dead simulation and applying positions to stale
+   *  selections for ~5s after a route navigation. */
+  private destroyed = false;
   private zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null;
   private simNodes: SimNode[] = [];
   private nodeMap = new Map<number, SimNode>();
@@ -97,6 +110,10 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
   }
 
   ngOnDestroy(): void {
+    // Trip the destroy flag BEFORE tearing things down so the rAF
+    // pre-tick chain (see _buildGraph large-graph branch) bails on
+    // its next frame instead of running another 290 wasted ticks.
+    this.destroyed = true;
     this.simulation?.stop();
     this.resizeObserver?.disconnect();
 
@@ -272,18 +289,23 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
 
     if (isLarge) {
       // Pre-compute layout without live rendering to keep the UI responsive.
-      this.isSimulating = true;
+      this.isSimulating.set(true);
       this.simulation.stop();
 
       const TICKS = 300;
       let tick = 0;
       const step = () => {
+        // Bail out if the component has been destroyed mid-pre-tick —
+        // see the `destroyed` flag in ngOnDestroy. Previously this
+        // loop kept ticking a stopped simulation and applying
+        // positions to stale D3 selections for ~5s after navigation.
+        if (this.destroyed) return;
         if (tick < TICKS) {
           this.simulation!.tick();
           tick++;
           requestAnimationFrame(step);
         } else {
-          this.isSimulating = false;
+          this.isSimulating.set(false);
           this._applyPositions(nodeGroup, link);
           this._applyGhostPositions();
         }

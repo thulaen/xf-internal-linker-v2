@@ -8,9 +8,9 @@ cooldown, and WebSocket fan-out are applied consistently.
 import logging
 from datetime import timedelta
 
-from asgiref.sync import async_to_sync
-from channels.layers import get_channel_layer
 from django.utils import timezone
+
+from apps.realtime.services import broadcast as realtime_broadcast
 
 from .models import AlertDeliveryAttempt, OperatorAlert
 
@@ -25,6 +25,11 @@ _COOLDOWN_BY_SEVERITY: dict[str, int] = {
     OperatorAlert.SEVERITY_URGENT: 300,  # 5 min — urgent events repeat faster
 }
 
+_REALTIME_TOPIC = "notifications.alerts"
+
+# Legacy group name kept for backwards-compatibility imports only — the
+# /ws/notifications/ consumer still references it but no producer should.
+# Remove once NotificationConsumer is retired.
 _NOTIFICATION_GROUP = "notifications_global"
 
 
@@ -147,30 +152,19 @@ def resolve_operator_alert(dedupe_key: str) -> None:
     )
 
     if updated > 0:
-        # Push a refresh signal to WebSocket so the UI knows the alert is gone
-        try:
-            channel_layer = get_channel_layer()
-            if channel_layer:
-                event = {
-                    "type": "notification.resolve",
-                    "dedupe_key": dedupe_key,
-                    "resolved_at": now.isoformat(),
-                }
-                async_to_sync(channel_layer.group_send)(_NOTIFICATION_GROUP, event)
-        except Exception:
-            logger.warning(
-                "resolve_operator_alert: failed to push WebSocket event", exc_info=True
-            )
+        realtime_broadcast(
+            _REALTIME_TOPIC,
+            "alert.resolved",
+            {"dedupe_key": dedupe_key, "resolved_at": now.isoformat()},
+        )
 
 
 def _push_to_websocket(alert: OperatorAlert) -> None:
-    """Send a notification.alert event to all connected clients."""
-    try:
-        channel_layer = get_channel_layer()
-        if channel_layer is None:
-            return
-        event = {
-            "type": "notification.alert",
+    """Fan a freshly created or updated alert out via the realtime topic bus."""
+    realtime_broadcast(
+        _REALTIME_TOPIC,
+        "alert.created",
+        {
             "alert_id": str(alert.alert_id),
             "event_type": alert.event_type,
             "severity": alert.severity,
@@ -182,12 +176,8 @@ def _push_to_websocket(alert: OperatorAlert) -> None:
             "occurrence_count": alert.occurrence_count,
             "created_at": alert.first_seen_at.isoformat(),
             "payload": alert.payload,
-        }
-        async_to_sync(channel_layer.group_send)(_NOTIFICATION_GROUP, event)
-    except Exception:
-        logger.warning(
-            "emit_operator_alert: failed to push WebSocket event", exc_info=True
-        )
+        },
+    )
 
 
 def get_unread_summary() -> dict:

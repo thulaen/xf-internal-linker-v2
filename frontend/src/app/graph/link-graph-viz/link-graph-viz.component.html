@@ -1,5 +1,5 @@
 <div #wrapper class="viz-wrapper">
-  @if (isSimulating) {
+  @if (isSimulating()) {
     <div class="sim-overlay">
       <mat-spinner diameter="48"></mat-spinner>
       <p class="sim-label">Computing layout…</p>

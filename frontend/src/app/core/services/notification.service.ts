@@ -1,11 +1,11 @@
 /**
- * NotificationService — REST + WebSocket client for OperatorAlerts.
+ * NotificationService — REST + realtime client for OperatorAlerts.
  *
  * Responsibilities:
- *  - Poll /api/notifications/alerts/summary/ on startup for the initial badge count.
- *  - Open ws/notifications/ and keep it alive; push new alerts into unreadCount$.
- *  - Expose observables that the shell and notification center subscribe to.
- *  - Provide action helpers (read, acknowledge, resolve, acknowledgeAll).
+ *  - Poll /api/notifications/alerts/summary/ on login for the initial badge count.
+ *  - Subscribe to the `notifications.alerts` topic on the shared realtime
+ *    socket; push new alerts into unreadCount$ and newAlert$.
+ *  - Expose action helpers (read, acknowledge, resolve, acknowledgeAll).
  */
 
 import { Injectable, OnDestroy, inject } from '@angular/core';
@@ -14,13 +14,14 @@ import {
   BehaviorSubject,
   Observable,
   Subject,
+  Subscription,
   catchError,
   map,
   of,
   tap,
 } from 'rxjs';
-import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
+import { RealtimeService } from './realtime.service';
 
 export interface OperatorAlert {
   id: number;
@@ -54,6 +55,19 @@ export interface AlertSummary {
   latest_at: string | null;
 }
 
+/**
+ * Server response shape for `GET /api/notifications/alerts/`.
+ * Mirrors DRF's PageNumberPagination envelope so the alerts page can
+ * paginate without needing a custom server contract. Same shape is
+ * already used by /api/suggestions/ etc.
+ */
+export interface PaginatedAlerts {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: OperatorAlert[];
+}
+
 export interface NotificationPreferences {
   desktop_enabled: boolean;
   sound_enabled: boolean;
@@ -80,73 +94,50 @@ export interface NotificationPreferences {
 export class NotificationService implements OnDestroy {
   private http = inject(HttpClient);
   private auth = inject(AuthService);
+  private realtime = inject(RealtimeService);
 
   private _unreadCount$ = new BehaviorSubject<number>(0);
   private _newAlert$ = new Subject<OperatorAlert>();
+  private _resolved$ = new Subject<{ dedupe_key: string; resolved_at: string }>();
 
   /** Total unread alert count — drives the toolbar badge. */
   readonly unreadCount$: Observable<number> = this._unreadCount$.asObservable();
 
-  /** Fires whenever a new alert arrives via WebSocket — used by delivery services. */
+  /** Fires whenever a new alert arrives via the realtime topic. */
   readonly newAlert$: Observable<OperatorAlert> = this._newAlert$.asObservable();
 
-  private ws: WebSocket | null = null;
+  /** Fires whenever the backend resolves an alert. */
+  readonly resolved$: Observable<{ dedupe_key: string; resolved_at: string }> =
+    this._resolved$.asObservable();
+
   private destroyed = false;
-  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private loggedIn = false;
-  /** Consecutive onclose-without-onopen events. Resets on a successful
-   *  handshake. After MAX_RETRIES we stop dialling so a persistently
-   *  broken socket (e.g. server-side auth misconfig) doesn't flood the
-   *  backend with 403s every 5 seconds. */
-  private consecutiveFailures = 0;
-  private readonly MAX_RETRIES = 6;
+  private topicSub: Subscription | null = null;
+  private authSub: Subscription;
 
   constructor() {
     // Only talk to authenticated endpoints once the user is signed in.
-    // Without this gate the constructor would fire loadSummary() and open
-    // a WebSocket on app boot — both rejected with 403 until login —
-    // and the 5-second reconnect loop would hammer the server forever.
-    this.auth.isLoggedIn$.subscribe((loggedIn) => {
-      this.loggedIn = loggedIn;
+    // Realtime delivery is multiplexed onto the shared /ws/realtime/ socket
+    // via RealtimeService, so this service no longer opens its own.
+    this.authSub = this.auth.isLoggedIn$.subscribe((loggedIn) => {
       if (loggedIn) {
-        this.disconnectWebSocket(); // Clear any existing leaked sockets
         this.loadSummary();
-        // Fresh session → allow the retry budget to start over.
-        this.consecutiveFailures = 0;
-        this.connectWebSocket();
+        this.subscribeRealtime();
       } else {
-        this.disconnectWebSocket();
+        this.unsubscribeRealtime();
         this._unreadCount$.next(0);
       }
     });
   }
 
-  private disconnectWebSocket(): void {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-    if (this.ws) {
-      // Null out onclose before close() so the async close event can't
-      // schedule another reconnect after we deliberately disconnected.
-      this.ws.onclose = null;
-      this.ws.onerror = null;
-      try {
-        this.ws.close();
-      } catch {
-        // ignore
-      }
-      this.ws = null;
-    }
-  }
-
   // ── REST helpers ──────────────────────────────────────────────────
 
-  loadAlerts(params: Record<string, string> = {}): Observable<OperatorAlert[]> {
+  loadAlerts(params: Record<string, string> = {}): Observable<PaginatedAlerts> {
     const query = new URLSearchParams(params).toString();
     const url = `/api/notifications/alerts/${query ? '?' + query : ''}`;
-    return this.http.get<OperatorAlert[]>(url).pipe(
-      catchError(() => of([] as OperatorAlert[])),
+    return this.http.get<PaginatedAlerts>(url).pipe(
+      catchError(() =>
+        of({ count: 0, next: null, previous: null, results: [] } as PaginatedAlerts),
+      ),
     );
   }
 
@@ -161,11 +152,13 @@ export class NotificationService implements OnDestroy {
       .get<AlertSummary>('/api/notifications/alerts/summary/')
       .pipe(
         catchError(() => {
-          // Fallback: count unread alerts directly if summary endpoint fails
+          // Fallback: count unread alerts directly if summary endpoint fails.
+          // The list endpoint is paginated, so we read `count` (the total
+          // across all pages) rather than the length of the first page.
           return this.http
-            .get<OperatorAlert[]>('/api/notifications/alerts/', { params: { status: 'unread' } })
+            .get<PaginatedAlerts>('/api/notifications/alerts/', { params: { status: 'unread' } })
             .pipe(
-              map((alerts) => ({ total_unread: alerts.length, by_severity: {}, latest_at: null } as AlertSummary)),
+              map((paged) => ({ total_unread: paged.count, by_severity: {}, latest_at: null } as AlertSummary)),
               catchError(() => of(null)),
             );
         }),
@@ -220,70 +213,45 @@ export class NotificationService implements OnDestroy {
       .pipe(tap(() => this.loadSummary()));
   }
 
-  // ── WebSocket ─────────────────────────────────────────────────────
+  // ── Realtime topic subscription ───────────────────────────────────
 
-  private connectWebSocket(): void {
-    if (this.destroyed || !this.loggedIn) return;
-    if (this.consecutiveFailures >= this.MAX_RETRIES) return;
-    const url = this.buildSocketUrl('/notifications/');
-    try {
-      this.ws = new WebSocket(url);
-
-      this.ws.onopen = () => {
-        // Connected — reset retry budget and clear any pending timer.
-        this.consecutiveFailures = 0;
-        if (this.reconnectTimer) {
-          clearTimeout(this.reconnectTimer);
-          this.reconnectTimer = null;
+  private subscribeRealtime(): void {
+    if (this.destroyed) return;
+    this.unsubscribeRealtime();
+    // The realtime topic delivers payloads typed `unknown` (the channel
+    // layer is payload-agnostic). The wire shape is owned by the backend
+    // producer (apps/notifications/services.py::_push_to_websocket and
+    // resolve_operator_alert). Single-cast `as X` is sufficient — the
+    // source is already `unknown`. Trust boundary documented; if a
+    // future producer change drifts the shape, the cast lands on a
+    // runtime field-access TypeError at the consumer, not a silent
+    // type-laundering compile success.
+    this.topicSub = this.realtime
+      .subscribeTopic<unknown>('notifications.alerts')
+      .subscribe((update) => {
+        if (update.event === 'alert.created') {
+          const alert = update.payload as OperatorAlert;
+          this._unreadCount$.next(this._unreadCount$.value + 1);
+          this._newAlert$.next(alert);
+        } else if (update.event === 'alert.resolved') {
+          const payload = update.payload as { dedupe_key: string; resolved_at: string };
+          this._resolved$.next(payload);
+          // Refresh the badge — resolved alerts shouldn't keep counting.
+          this.loadSummary();
         }
-      };
-
-      this.ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data as string);
-          if (data.type === 'notification.alert') {
-            this._unreadCount$.next(this._unreadCount$.value + 1);
-            this._newAlert$.next(data as OperatorAlert);
-          }
-        } catch {
-          // Malformed message — ignore
-        }
-      };
-
-      this.ws.onclose = () => {
-        if (this.destroyed || !this.loggedIn) return;
-        this.consecutiveFailures += 1;
-        if (this.consecutiveFailures >= this.MAX_RETRIES) {
-          // Give up — the server is consistently rejecting us. Next login
-          // cycle resets the counter, so the user can recover by signing
-          // out and back in.
-          return;
-        }
-        this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 5000);
-      };
-
-      this.ws.onerror = () => {
-        this.ws?.close();
-      };
-    } catch {
-      if (this.destroyed || !this.loggedIn) return;
-      this.consecutiveFailures += 1;
-      if (this.consecutiveFailures >= this.MAX_RETRIES) return;
-      this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 5000);
-    }
+      });
   }
 
-  private buildSocketUrl(path: string): string {
-    const baseUrl = `${environment.wsBaseUrl}${path}`;
-    const token = this.auth.getToken();
-    if (!token) {
-      return baseUrl;
+  private unsubscribeRealtime(): void {
+    if (this.topicSub) {
+      this.topicSub.unsubscribe();
+      this.topicSub = null;
     }
-    return `${baseUrl}?token=${encodeURIComponent(token)}`;
   }
 
   ngOnDestroy(): void {
     this.destroyed = true;
-    this.disconnectWebSocket();
+    this.authSub.unsubscribe();
+    this.unsubscribeRealtime();
   }
 }

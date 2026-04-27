@@ -1,15 +1,15 @@
 /**
- * AlertDeliveryService — fans out new WebSocket alerts to toast, desktop, and sound.
+ * AlertDeliveryService — fans out new realtime alerts to toast, desktop, and sound.
  *
- * This service is injected in AppComponent so it starts at app boot.
- * It subscribes to NotificationService.newAlert$ and dispatches each
- * incoming alert to the three delivery channels according to the user's
- * saved preferences.
+ * Started once from AppComponent. The auth gate prevents
+ * `/api/settings/notifications/` from being hit on the login page (which
+ * would surface as a "Server error" toast, since the endpoint requires auth).
  */
 
 import { Injectable, OnDestroy, inject } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { AudioCueService } from './audio-cue.service';
+import { AuthService } from './auth.service';
 import { DesktopNotificationService } from './desktop-notification.service';
 import { NotificationPreferences, NotificationService, OperatorAlert } from './notification.service';
 import { ToastService } from './toast.service';
@@ -20,19 +20,33 @@ export class AlertDeliveryService implements OnDestroy {
   private toastSvc = inject(ToastService);
   private desktopSvc = inject(DesktopNotificationService);
   private audioSvc = inject(AudioCueService);
+  private auth = inject(AuthService);
 
   private prefs: NotificationPreferences | null = null;
-  private sub: Subscription | null = null;
+  private alertSub: Subscription | null = null;
+  private authSub: Subscription | null = null;
 
   /** Call once from AppComponent.ngOnInit(). */
   start(): void {
-    // Load preferences on boot (best-effort — use defaults if unavailable)
-    this.notifSvc.loadPreferences().subscribe({
-      next: (p) => { this.prefs = p; },
-      error: () => { this.prefs = null; },
+    this.authSub?.unsubscribe();
+    this.authSub = this.auth.isLoggedIn$.subscribe((isLoggedIn) => {
+      if (isLoggedIn) {
+        this.notifSvc.loadPreferences().subscribe({
+          next: (p) => {
+            this.prefs = p;
+          },
+          error: () => {
+            this.prefs = null;
+          },
+        });
+        this.alertSub?.unsubscribe();
+        this.alertSub = this.notifSvc.newAlert$.subscribe((alert) => this.deliver(alert));
+      } else {
+        this.alertSub?.unsubscribe();
+        this.alertSub = null;
+        this.prefs = null;
+      }
     });
-
-    this.sub = this.notifSvc.newAlert$.subscribe((alert) => this.deliver(alert));
   }
 
   private deliver(alert: OperatorAlert): void {
@@ -76,6 +90,7 @@ export class AlertDeliveryService implements OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.sub?.unsubscribe();
+    this.alertSub?.unsubscribe();
+    this.authSub?.unsubscribe();
   }
 }

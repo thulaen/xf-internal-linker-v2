@@ -1,137 +1,157 @@
-<section class="suppressed-pairs-section" *ngIf="counters">
-  <div class="section-heading">
-    <h2>Suppressed pairs (negative memory)</h2>
-    <p>
-      Rejected (host, destination) pairs the ranker is currently skipping.
-      Each reject adds to this list for
-      {{ counters.active_suppression_window_days }} days so you don't see the
-      same bad match twice.
-    </p>
-  </div>
+@if (counters(); as c) {
+  <section class="suppressed-pairs-section">
+    <div class="section-heading">
+      <h2>Suppressed pairs (negative memory)</h2>
+      <p>
+        Rejected (host, destination) pairs the ranker is currently skipping.
+        Each reject adds to this list for
+        {{ c.active_suppression_window_days }} days so you don't see the
+        same bad match twice.
+      </p>
+    </div>
 
-  <div class="suppressed-pairs-grid">
-    <div class="suppressed-tile">
-      <div class="suppressed-tile__value">{{ counters.active_suppressed_pairs }}</div>
-      <div class="suppressed-tile__label">Active suppressions</div>
-      <div class="suppressed-tile__sub">
-        Within the {{ counters.active_suppression_window_days }}-day window
+    <div class="suppressed-pairs-grid">
+      <div class="suppressed-tile">
+        <div class="suppressed-tile__value">{{ c.active_suppressed_pairs }}</div>
+        <div class="suppressed-tile__label">Active suppressions</div>
+        <div class="suppressed-tile__sub">
+          Within the {{ c.active_suppression_window_days }}-day window
+        </div>
+      </div>
+      <div class="suppressed-tile">
+        <div class="suppressed-tile__value">{{ c.total_rejected_pairs }}</div>
+        <div class="suppressed-tile__label">Total pairs on record</div>
+        <div class="suppressed-tile__sub">All time, including expired entries</div>
+      </div>
+      <div class="suppressed-tile">
+        <div class="suppressed-tile__value">{{ c.total_rejections_lifetime }}</div>
+        <div class="suppressed-tile__label">Total rejections</div>
+        <div class="suppressed-tile__sub">Sum across every pair's reject counter</div>
+      </div>
+      <div class="suppressed-tile">
+        <div class="suppressed-tile__value">
+          @if (c.most_recent_rejection_at) {
+            {{ c.most_recent_rejection_at | date:'mediumDate' }}
+          } @else {
+            —
+          }
+        </div>
+        <div class="suppressed-tile__label">Most recent reject</div>
+        <div class="suppressed-tile__sub">
+          @if (c.most_recent_rejection_at) {
+            {{ c.most_recent_rejection_at | date:'shortTime' }}
+          } @else {
+            No rejections yet
+          }
+        </div>
       </div>
     </div>
-    <div class="suppressed-tile">
-      <div class="suppressed-tile__value">{{ counters.total_rejected_pairs }}</div>
-      <div class="suppressed-tile__label">Total pairs on record</div>
-      <div class="suppressed-tile__sub">All time, including expired entries</div>
-    </div>
-    <div class="suppressed-tile">
-      <div class="suppressed-tile__value">{{ counters.total_rejections_lifetime }}</div>
-      <div class="suppressed-tile__label">Total rejections</div>
-      <div class="suppressed-tile__sub">Sum across every pair's reject counter</div>
-    </div>
-    <div class="suppressed-tile">
-      <div class="suppressed-tile__value">
-        <ng-container *ngIf="counters.most_recent_rejection_at; else noRecent">
-          {{ counters.most_recent_rejection_at | date:'mediumDate' }}
-        </ng-container>
-        <ng-template #noRecent>—</ng-template>
+
+    <!-- Drilldown toggle: hidden by default, expands to show the list. -->
+    @if (c.total_rejected_pairs > 0) {
+      <div class="drilldown-controls">
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="toggleList()"
+          aria-controls="suppressed-pairs-table">
+          <mat-icon>{{ expanded() ? 'expand_less' : 'expand_more' }}</mat-icon>
+          {{ expanded() ? 'Hide pairs' : 'Show pairs' }}
+        </button>
       </div>
-      <div class="suppressed-tile__label">Most recent reject</div>
-      <div class="suppressed-tile__sub">
-        <ng-container *ngIf="counters.most_recent_rejection_at">
-          {{ counters.most_recent_rejection_at | date:'shortTime' }}
-        </ng-container>
-        <ng-container *ngIf="!counters.most_recent_rejection_at">No rejections yet</ng-container>
+    }
+
+    @if (expanded()) {
+      <div class="suppressed-pairs-drilldown" id="suppressed-pairs-table">
+        @if (listLoading()) {
+          <div class="drilldown-loading">
+            <mat-spinner diameter="24"></mat-spinner>
+            <span>Loading suppressed pairs…</span>
+          </div>
+        } @else if (list(); as l) {
+          @if (l.length === 0) {
+            <div class="drilldown-empty">
+              No suppressed pairs on this page.
+            </div>
+          } @else {
+            <table class="drilldown-table">
+              <thead>
+                <tr>
+                  <th>Host</th>
+                  <th>Destination</th>
+                  <th class="num">Rejects</th>
+                  <th>Last rejected</th>
+                  <th>Status</th>
+                  <th class="actions"></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (p of l; track p.id) {
+                  <tr [class.expired]="!p.within_suppression_window">
+                    <td>
+                      <div class="title">{{ p.host.title }}</div>
+                      <div class="meta">{{ p.host.content_type }} #{{ p.host.id }}</div>
+                    </td>
+                    <td>
+                      <div class="title">{{ p.destination.title }}</div>
+                      <div class="meta">{{ p.destination.content_type }} #{{ p.destination.id }}</div>
+                    </td>
+                    <td class="num">{{ p.rejection_count }}</td>
+                    <td>
+                      <div>{{ p.last_rejected_at | date:'mediumDate' }}</div>
+                      <div class="meta">{{ p.days_since_last }} day(s) ago</div>
+                    </td>
+                    <td>
+                      @if (p.within_suppression_window) {
+                        <span class="status-chip">Suppressed</span>
+                      } @else {
+                        <span class="status-chip status-chip--expired">Past window</span>
+                      }
+                    </td>
+                    <td class="actions">
+                      <button
+                        mat-button
+                        color="warn"
+                        type="button"
+                        (click)="onClear(p)"
+                        [disabled]="clearingId() === p.id"
+                        matTooltip="Delete this suppression and write an audit entry.">
+                        @if (clearingId() === p.id) {
+                          <mat-spinner diameter="16"></mat-spinner>
+                        } @else {
+                          Clear
+                        }
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+
+            @if (total() > pageSize()) {
+              <div class="drilldown-pager">
+                <button
+                  mat-button
+                  type="button"
+                  [disabled]="page() <= 1"
+                  (click)="goToPage(page() - 1)">
+                  <mat-icon>chevron_left</mat-icon>
+                  Prev
+                </button>
+                <span class="page-indicator">Page {{ page() }} of {{ pageCount() }} ({{ total() }} pairs)</span>
+                <button
+                  mat-button
+                  type="button"
+                  [disabled]="page() >= pageCount()"
+                  (click)="goToPage(page() + 1)">
+                  Next
+                  <mat-icon>chevron_right</mat-icon>
+                </button>
+              </div>
+            }
+          }
+        }
       </div>
-    </div>
-  </div>
-
-  <!-- Drilldown toggle: hidden by default, expands to show the list. -->
-  <div class="drilldown-controls" *ngIf="counters.total_rejected_pairs > 0">
-    <button
-      mat-stroked-button
-      type="button"
-      (click)="toggleList()"
-      aria-controls="suppressed-pairs-table">
-      <mat-icon>{{ expanded ? 'expand_less' : 'expand_more' }}</mat-icon>
-      {{ expanded ? 'Hide pairs' : 'Show pairs' }}
-    </button>
-  </div>
-
-  <div class="suppressed-pairs-drilldown" id="suppressed-pairs-table" *ngIf="expanded">
-    <div class="drilldown-loading" *ngIf="listLoading">
-      <mat-spinner diameter="24"></mat-spinner>
-      <span>Loading suppressed pairs…</span>
-    </div>
-
-    <div class="drilldown-empty" *ngIf="!listLoading && list !== null && list.length === 0">
-      No suppressed pairs on this page.
-    </div>
-
-    <table
-      class="drilldown-table"
-      *ngIf="!listLoading && list !== null && list.length > 0">
-      <thead>
-        <tr>
-          <th>Host</th>
-          <th>Destination</th>
-          <th class="num">Rejects</th>
-          <th>Last rejected</th>
-          <th>Status</th>
-          <th class="actions"></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let p of list; trackBy: trackPair" [class.expired]="!p.within_suppression_window">
-          <td>
-            <div class="title">{{ p.host.title }}</div>
-            <div class="meta">{{ p.host.content_type }} #{{ p.host.id }}</div>
-          </td>
-          <td>
-            <div class="title">{{ p.destination.title }}</div>
-            <div class="meta">{{ p.destination.content_type }} #{{ p.destination.id }}</div>
-          </td>
-          <td class="num">{{ p.rejection_count }}</td>
-          <td>
-            <div>{{ p.last_rejected_at | date:'mediumDate' }}</div>
-            <div class="meta">{{ p.days_since_last }} day(s) ago</div>
-          </td>
-          <td>
-            <span class="status-chip" *ngIf="p.within_suppression_window">Suppressed</span>
-            <span class="status-chip status-chip--expired" *ngIf="!p.within_suppression_window">Past window</span>
-          </td>
-          <td class="actions">
-            <button
-              mat-button
-              color="warn"
-              type="button"
-              (click)="onClear(p)"
-              [disabled]="clearingId === p.id"
-              matTooltip="Delete this suppression and write an audit entry.">
-              <mat-spinner *ngIf="clearingId === p.id" diameter="16"></mat-spinner>
-              <ng-container *ngIf="clearingId !== p.id">Clear</ng-container>
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div class="drilldown-pager" *ngIf="!listLoading && list !== null && total > pageSize">
-      <button
-        mat-button
-        type="button"
-        [disabled]="page <= 1"
-        (click)="goToPage(page - 1)">
-        <mat-icon>chevron_left</mat-icon>
-        Prev
-      </button>
-      <span class="page-indicator">Page {{ page }} of {{ pageCount }} ({{ total }} pairs)</span>
-      <button
-        mat-button
-        type="button"
-        [disabled]="page >= pageCount"
-        (click)="goToPage(page + 1)">
-        Next
-        <mat-icon>chevron_right</mat-icon>
-      </button>
-    </div>
-  </div>
-</section>
+    }
+  </section>
+}

@@ -77,12 +77,22 @@ function parseRetryAfter(error: HttpErrorResponse): number {
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const snack = inject(MatSnackBar);
 
+  // Telemetry beacons (web vitals, client errors) are best-effort
+  // fire-and-forget. Any failure must be silenced — toasts, countdown
+  // snackbars, AND the global 5xx retry are all hostile UX for a
+  // background beacon the operator never asked for.
+  const isTelemetry = req.url.includes('/api/telemetry/');
+
   return next(req).pipe(
     // Retry once on 5xx with a 1-second delay — covers transient server blips.
     // Only retries idempotent methods (GET, HEAD, OPTIONS) to avoid side effects.
+    // Telemetry is excluded entirely so we don't double-spam the limiter.
     retry({
       count: 1,
       delay: (error) => {
+        if (isTelemetry) {
+          return throwError(() => error);
+        }
         const isRetryable = error?.status >= 500 && ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
         if (isRetryable) {
           return timer(1000);
@@ -91,6 +101,11 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       },
     }),
     catchError((error: HttpErrorResponse) => {
+      // Telemetry: silently swallow EVERY failure (429, 5xx, 0/network).
+      if (isTelemetry) {
+        return throwError(() => error);
+      }
+
       const status = error?.status;
 
       // Auth interceptor handles 401/403 — don't show duplicate toasts
@@ -100,13 +115,6 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
 
       // Gap 43 — 429 gets a live countdown snackbar instead of a flat toast.
       if (status === 429) {
-        // Telemetry endpoints are best-effort fire-and-forget beacons (web
-        // vitals, client errors). Showing a "Too many requests" countdown to
-        // the operator for a background beacon is hostile UX — swallow silently.
-        if (req.url.includes('/api/telemetry/')) {
-          return throwError(() => error);
-        }
-
         const rawSeconds = parseRetryAfter(error);
         const seconds = Math.min(rawSeconds, MAX_VISIBLE_RETRY_SECONDS);
 

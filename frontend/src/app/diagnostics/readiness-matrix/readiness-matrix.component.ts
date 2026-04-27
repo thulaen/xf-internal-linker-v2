@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FeatureReadiness } from '../diagnostics.service';
 
@@ -7,7 +7,8 @@ import { FeatureReadiness } from '../diagnostics.service';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './readiness-matrix.component.html',
-  styleUrls: ['./readiness-matrix.component.scss']
+  styleUrls: ['./readiness-matrix.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ReadinessMatrixComponent {
   @Input() features: FeatureReadiness[] = [];

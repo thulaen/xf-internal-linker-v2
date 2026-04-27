@@ -1,5 +1,5 @@
-import { Component, DestroyRef, EventEmitter, Output, inject } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ChangeDetectionStrategy, Component, DestroyRef, EventEmitter, Output, inject, signal } from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -12,7 +12,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { AppearanceService, AppearanceConfig } from '../core/services/appearance.service';
+import { AppearanceService } from '../core/services/appearance.service';
 
 @Component({
   selector: 'app-theme-customizer',
@@ -33,6 +33,7 @@ import { AppearanceService, AppearanceConfig } from '../core/services/appearance
   ],
   templateUrl: './theme-customizer.component.html',
   styleUrls: ['./theme-customizer.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ThemeCustomizerComponent {
   // eslint-disable-next-line @angular-eslint/no-output-native
@@ -43,28 +44,40 @@ export class ThemeCustomizerComponent {
   // Phase E2 / Gap 41 — cancel in-flight uploads on destroy.
   private destroyRef = inject(DestroyRef);
 
+  // ngModel two-way binding requires an lvalue, so this stays plain.
+  // Input events fire on the host and trigger CD per keystroke under
+  // OnPush, so the bindings that read it stay in sync.
   newPresetName = '';
-  showSavePreset = false;
-  uploadingLogo = false;
-  uploadingFavicon = false;
 
-  get cfg(): AppearanceConfig {
-    return this.appearance.config;
-  }
+  // Render-affecting state lives in signals so OnPush picks up changes
+  // without markForCheck plumbing.
+  readonly showSavePreset = signal(false);
+  readonly uploadingLogo = signal(false);
+  readonly uploadingFavicon = signal(false);
+
+  // The live theme preview is driven by AppearanceService.config$
+  // (a BehaviorSubject-backed Observable that emits synchronously on
+  // subscribe). toSignal with `requireSync: true` returns a non-
+  // nullable Signal<AppearanceConfig> — when the service emits a new
+  // config (after setPrimary, loadPreset, etc.) every cfg().X binding
+  // re-evaluates automatically. Replaces the previous `get cfg()`
+  // getter, which was a snapshot read that wouldn't refresh under
+  // OnPush change detection.
+  readonly cfg = toSignal(this.appearance.config$, { requireSync: true });
 
   onLogoChange(event: Event): void {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
-    this.uploadingLogo = true;
+    this.uploadingLogo.set(true);
     this.appearance.uploadLogo(file)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
       next: () => {
-        this.uploadingLogo = false;
+        this.uploadingLogo.set(false);
         this.snack.open('Logo uploaded', 'Dismiss', { duration: 3000 });
       },
       error: (err) => {
-        this.uploadingLogo = false;
+        this.uploadingLogo.set(false);
         const msg = err?.error?.error ?? 'Logo upload failed.';
         this.snack.open(msg, 'Dismiss', { duration: 5000 });
       },
@@ -81,16 +94,16 @@ export class ThemeCustomizerComponent {
   onFaviconChange(event: Event): void {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
-    this.uploadingFavicon = true;
+    this.uploadingFavicon.set(true);
     this.appearance.uploadFavicon(file)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
       next: () => {
-        this.uploadingFavicon = false;
+        this.uploadingFavicon.set(false);
         this.snack.open('Favicon uploaded', 'Dismiss', { duration: 3000 });
       },
       error: (err) => {
-        this.uploadingFavicon = false;
+        this.uploadingFavicon.set(false);
         const msg = err?.error?.error ?? 'Favicon upload failed.';
         this.snack.open(msg, 'Dismiss', { duration: 5000 });
       },
@@ -155,7 +168,7 @@ export class ThemeCustomizerComponent {
     if (this.newPresetName.trim()) {
       this.appearance.savePreset(this.newPresetName.trim());
       this.newPresetName = '';
-      this.showSavePreset = false;
+      this.showSavePreset.set(false);
     }
   }
 

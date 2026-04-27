@@ -78,6 +78,9 @@ import { YouAreHereComponent } from '../shared/ui/you-are-here/you-are-here.comp
 import { RumSummaryComponent } from './rum-summary/rum-summary.component';
 // Phase MC — Mission Critical section at top of dashboard.
 import { MissionCriticalComponent } from './mission-critical/mission-critical.component';
+// Skeleton placeholder for @defer blocks. Reused — single source of truth
+// at frontend/src/app/shared/skeleton.
+import { SkeletonComponent } from '../shared/skeleton/skeleton.component';
 
 @Component({
   selector: 'app-dashboard',
@@ -147,6 +150,8 @@ import { MissionCriticalComponent } from './mission-critical/mission-critical.co
     RumSummaryComponent,
     // Phase MC — Mission Critical tile grid.
     MissionCriticalComponent,
+    // Reused skeleton for @defer placeholders.
+    SkeletonComponent,
   ],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss'],

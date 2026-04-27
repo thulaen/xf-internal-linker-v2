@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -47,8 +47,8 @@ export interface SessionReauthResult {
         working — your current page state will be preserved.
       </p>
 
-      @if (errorMessage) {
-        <p class="dialog-error" role="alert">{{ errorMessage }}</p>
+      @if (errorMessage()) {
+        <p class="dialog-error" role="alert">{{ errorMessage() }}</p>
       }
 
       <mat-form-field appearance="outline" class="dialog-field">
@@ -57,7 +57,7 @@ export interface SessionReauthResult {
                type="text"
                autocomplete="username"
                [(ngModel)]="username"
-               [disabled]="submitting"
+               [disabled]="submitting()"
                #usernameRef />
       </mat-form-field>
 
@@ -67,7 +67,7 @@ export interface SessionReauthResult {
                type="password"
                autocomplete="current-password"
                [(ngModel)]="password"
-               [disabled]="submitting"
+               [disabled]="submitting()"
                (keydown.enter)="onSubmit()" />
       </mat-form-field>
     </mat-dialog-content>
@@ -75,16 +75,16 @@ export interface SessionReauthResult {
     <mat-dialog-actions align="end">
       <button mat-button
               type="button"
-              [disabled]="submitting"
+              [disabled]="submitting()"
               (click)="onCancel()">
         Sign out
       </button>
       <button mat-raised-button
               color="primary"
               type="button"
-              [disabled]="submitting || !password"
+              [disabled]="submitting() || !password"
               (click)="onSubmit()">
-        @if (submitting) {
+        @if (submitting()) {
           <mat-spinner diameter="18" class="btn-spinner" />
         }
         Sign in
@@ -119,6 +119,7 @@ export interface SessionReauthResult {
       margin-right: 8px;
     }
   `],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SessionReauthDialogComponent {
   private readonly auth = inject(AuthService);
@@ -126,31 +127,37 @@ export class SessionReauthDialogComponent {
   // Phase E2 / Gap 41 — cancel pending login if dialog is dismissed mid-submit.
   private readonly destroyRef = inject(DestroyRef);
 
+  // Form fields stay as plain mutable properties — `[(ngModel)]` two-way
+  // binding requires an lvalue, not a signal getter. ngModel's input
+  // events fire on the component, so OnPush still re-evaluates other
+  // bindings (`[disabled]`, `!password`) after each keystroke.
   username = this.readLastUsername();
   password = '';
-  submitting = false;
-  errorMessage = '';
+  // Render-affecting state lives in signals so OnPush picks up the
+  // submitting flag flip and error text changes without markForCheck.
+  readonly submitting = signal(false);
+  readonly errorMessage = signal('');
 
   onSubmit(): void {
-    if (this.submitting) return;
+    if (this.submitting()) return;
     if (!this.username || !this.password) {
-      this.errorMessage = 'Username and password are required.';
+      this.errorMessage.set('Username and password are required.');
       return;
     }
-    this.errorMessage = '';
-    this.submitting = true;
+    this.errorMessage.set('');
+    this.submitting.set(true);
 
     this.auth.login(this.username, this.password)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
       next: () => {
         this.rememberUsername(this.username);
-        this.submitting = false;
+        this.submitting.set(false);
         this.dialogRef.close({ success: true });
       },
       error: () => {
-        this.submitting = false;
-        this.errorMessage = 'Sign-in failed. Check your password and try again.';
+        this.submitting.set(false);
+        this.errorMessage.set('Sign-in failed. Check your password and try again.');
       },
     });
   }
