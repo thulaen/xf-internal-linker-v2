@@ -230,7 +230,10 @@ def compute_search_impact(
 
     # We need at least a few days of data to show anything
     if max_data_date < post_start + timedelta(days=3):
-        logger.info(f"Not enough post-apply data yet for {suggestion.suggestion_id}.")
+        logger.info(
+            "Not enough post-apply data yet for %s.",
+            suggestion.suggestion_id,
+        )
         return []
 
     # Actual post window we can measure
@@ -297,10 +300,13 @@ def compute_search_impact(
             average_position=Avg("average_position"),
         )
 
-    # Resolve property_url for attribution
-    property_url = latest_metric.property_url if latest_metric else ""
+    if not is_conclusive:
+        GSCImpactSnapshot.objects.filter(
+            suggestion=suggestion,
+            window_type=f"{window_days}d",
+        ).delete()
 
-    if property_url:
+    if is_conclusive:
         try:
             # Native Python implementation of the Poisson-Gamma model
             attributor = BayesianTrendAttributor()
@@ -347,11 +353,15 @@ def compute_search_impact(
                     },
                 )
                 logger.info(
-                    f"Bayesian attribution complete for {suggestion.suggestion_id}: {result.get('reward_label')}"
+                    "Bayesian attribution complete for %s: %s",
+                    suggestion.suggestion_id,
+                    result.get("reward_label"),
                 )
         except Exception as exc:
             logger.error(
-                f"Failed to run native Bayesian attribution for {suggestion.suggestion_id}: {exc}"
+                "Failed to run native Bayesian attribution for %s: %s",
+                suggestion.suggestion_id,
+                exc,
             )
 
     # 3. Matched Control Group Normalization (already computed above)

@@ -9,6 +9,69 @@ from apps.suggestions.weight_preset_service import get_current_weights
 
 logger = logging.getLogger(__name__)
 
+_DRIFT_LIMIT_PER_RUN = 0.05
+_WEIGHT_EPSILON = 1e-9
+
+
+def _normalize_weight_vector(weights: np.ndarray) -> np.ndarray:
+    """Return a finite weight vector with sum 1.0."""
+    values = np.asarray(weights, dtype=np.float64)
+    total = float(np.sum(values))
+    if not np.isfinite(total) or total <= _WEIGHT_EPSILON:
+        return np.full(len(values), 1.0 / len(values), dtype=np.float64)
+    return values / total
+
+
+def _project_to_bounded_simplex(
+    weights: np.ndarray,
+    lower_bounds: np.ndarray,
+    upper_bounds: np.ndarray,
+) -> np.ndarray:
+    """Clamp weights to drift bounds while preserving a sum of 1.0."""
+    projected = np.clip(
+        np.asarray(weights, dtype=np.float64),
+        lower_bounds,
+        upper_bounds,
+    )
+
+    for _ in range(len(projected) * 2):
+        residual = 1.0 - float(np.sum(projected))
+        if abs(residual) <= _WEIGHT_EPSILON:
+            break
+        if residual > 0:
+            capacity = upper_bounds - projected
+            eligible = capacity > _WEIGHT_EPSILON
+        else:
+            capacity = projected - lower_bounds
+            eligible = capacity > _WEIGHT_EPSILON
+
+        total_capacity = float(np.sum(capacity[eligible]))
+        if total_capacity <= _WEIGHT_EPSILON:
+            break
+
+        step = min(abs(residual), total_capacity)
+        adjustment = np.zeros_like(projected)
+        adjustment[eligible] = step * capacity[eligible] / total_capacity
+        if residual > 0:
+            projected += adjustment
+        else:
+            projected -= adjustment
+
+    residual = 1.0 - float(np.sum(projected))
+    if abs(residual) > _WEIGHT_EPSILON:
+        if residual > 0:
+            eligible = np.where((upper_bounds - projected) > _WEIGHT_EPSILON)[0]
+        else:
+            eligible = np.where((projected - lower_bounds) > _WEIGHT_EPSILON)[0]
+        if len(eligible) > 0:
+            idx = int(eligible[0])
+            projected[idx] = min(
+                upper_bounds[idx],
+                max(lower_bounds[idx], projected[idx] + residual),
+            )
+
+    return projected
+
 
 class WeightTuner:
     """FR-018: Python L-BFGS-B weight optimizer for the ranking blend.
@@ -56,15 +119,16 @@ class WeightTuner:
 
         # 2. Get Current Weights
         curr_vals = get_current_weights()
-        w_init = np.array([float(curr_vals.get(k, 0.25)) for k in self.weight_keys])
+        raw_init = np.array([float(curr_vals.get(k, 0.25)) for k in self.weight_keys])
+        w_init = _normalize_weight_vector(raw_init)
 
         # 3. Optimize using L-BFGS-B
         # Constraints: sum(w) = 1, each w in [0, 1]
         # Drift limit: abs(w_new - w_old) <= 0.05
 
-        bounds = []
-        for w in w_init:
-            bounds.append((max(0.0, w - 0.05), min(1.0, w + 0.05)))
+        lower_bounds = np.maximum(0.0, w_init - _DRIFT_LIMIT_PER_RUN)
+        upper_bounds = np.minimum(1.0, w_init + _DRIFT_LIMIT_PER_RUN)
+        bounds = list(zip(lower_bounds, upper_bounds, strict=True))
 
         # Pre-compute remainder: what the other 50+ ranking signals contributed to score_final.
         # This ensures we optimize actual ranker quality, not a 4-number global summary.
@@ -73,7 +137,7 @@ class WeightTuner:
         def objective(w, X, y, remainders):
             # Normalize w to sum to 1 internally for the loss calculation
             # to avoid non-convexity issues if we don't use strict equality constraint
-            w_norm = w / (np.sum(w) + 1e-9)
+            w_norm = _normalize_weight_vector(w)
             z = np.dot(X, w_norm) + remainders
             # Center of quality threshold is ~0.7 for strong suggestions
             logits = 15 * (z - 0.7)
@@ -86,18 +150,25 @@ class WeightTuner:
             drift_penalty = 0.1 * np.sum((w - w_init) ** 2)
             return loss + drift_penalty
 
-        res = minimize(objective, w_init, args=(X, y, remainders), method="L-BFGS-B", bounds=bounds)
+        res = minimize(
+            objective,
+            w_init,
+            args=(X, y, remainders),
+            method="L-BFGS-B",
+            bounds=bounds,
+        )
 
         if not res.success:
             logger.warning("[WeightTuner] Optimization failed: %s", res.message)
             return None
 
-        w_opt = res.x
-        w_opt = w_opt / np.sum(w_opt)  # Final normalization
+        w_opt = _project_to_bounded_simplex(res.x, lower_bounds, upper_bounds)
 
         # 4. Create Challenger
         candidate = {self.weight_keys[i]: round(float(w_opt[i]), 4) for i in range(4)}
-        baseline = {self.weight_keys[i]: float(w_init[i]) for i in range(4)}
+        baseline = {
+            self.weight_keys[i]: round(float(w_init[i]), 4) for i in range(4)
+        }
 
         # Check if change is significant (> 0.001)
         if np.allclose(w_init, w_opt, atol=1e-3):
@@ -110,7 +181,7 @@ class WeightTuner:
         # quality = 1 / (1 + loss) is bounded in (0, 1] and monotonically
         # decreasing in loss.
         champion_loss = float(objective(w_init, X, y, remainders))
-        candidate_loss = float(res.fun)
+        candidate_loss = float(objective(w_opt, X, y, remainders))
         champion_quality = 1.0 / (1.0 + champion_loss)
         predicted_quality = 1.0 / (1.0 + candidate_loss)
 

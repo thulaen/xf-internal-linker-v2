@@ -1,3 +1,48 @@
+# 2026-04-27 20:51 - Codex - Fixed attribution trust, auto-tuner drift, and FAISS startup safety
+
+Implemented the user's requested plan on `master` without creating or switching branches.
+
+## Attribution trust
+
+`backend/apps/analytics/impact_engine.py` now writes `GSCImpactSnapshot` only when the matched-control group is conclusive (`control_match_count >= 3`). If a recompute is inconclusive, it deletes the existing snapshot for that suggestion/window so stale positive or negative proof cannot remain in the UI. Also removed a broken `SearchMetric.property_url` read that was not present on the model.
+
+Regression coverage added in `backend/apps/analytics/tests.py`: inconclusive controls produce `ImpactReport` audit rows but no `GSCImpactSnapshot`.
+
+## Auto-tuner drift cap
+
+`backend/apps/suggestions/services/weight_tuner.py` now normalizes the baseline before objective and bounds math, builds `+/-0.05` bounds around that normalized baseline, and projects final candidate weights back into the bounded simplex before persistence. This keeps the persisted candidate sum at `1.0` while making the per-run drift cap true after normalization too.
+
+`backend/apps/suggestions/tests_weight_tuner.py` synthetic rows now include `score_final`, and a regression test proves each final candidate weight stays within the post-normalization drift cap.
+
+## FAISS startup
+
+`backend/apps/pipeline/apps.py` now builds the FAISS index only for expected runtime entrypoints (`manage.py runserver`, Celery, Daphne, Gunicorn, Uvicorn). Tests, migrations, imports, and arbitrary scripts no longer touch the database from `AppConfig.ready()`.
+
+## Docs and registry
+
+- Added `docs/reports/2026-04-27-attribution-autotuner-startup-fixes.md`.
+- Added resolved registry entries ISS-025, ISS-026, and ISS-027.
+- Updated FR-017 and FR-018 specs to document the conclusive-control snapshot rule and the normalized bounded-simplex tuner behavior.
+- Updated `AI-CONTEXT.md` Current Session Note.
+
+## Verification
+
+- `manage.py test apps.suggestions.tests_weight_tuner --noinput` passed.
+- `manage.py test apps.analytics.tests.GSCSlice1Tests.test_inconclusive_control_group_does_not_create_impact_snapshot --noinput` passed.
+- `manage.py makemigrations --check --dry-run` passed with no changes detected.
+- `manage.py showmigrations` ran without the prior FAISS database-access warning.
+- `ruff check` passed for the touched backend files.
+- Docker `showmigrations` showed all migrations applied.
+- Docker `makemigrations --check --dry-run` reported no changes.
+- Full backend suite passed after rerunning outside the sandboxed temp-directory limitation: 1375 tests OK, 16 skipped.
+- Safe prune ran after Docker verification via `scripts/prune-verification-artifacts.ps1`; elevated rerun completed Docker prune and reclaimed 4.022 MB.
+
+## Remaining state
+
+User requested a commit after verification. This slice was prepared for a local commit on `master`; no push was requested. Branch is still `master`, which was already ahead of `origin/master` before this session.
+
+---
+
 # 2026-04-27 20:18 - Antigravity — Fixed Impact Engine causal math, Auto-Tuner objective, and FAISS startup
 
 Resolved findings 4 and 5 from RPT-001 and ISS-003, closing out the biggest remaining backend logic bugs.

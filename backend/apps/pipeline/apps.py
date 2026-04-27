@@ -15,11 +15,8 @@ class PipelineConfig(AppConfig):
         if os.environ.get("FAISS_INDEX_SKIP_BUILD"):
             return
 
-        # ISS-003: Skip FAISS index build for management commands to avoid DB hits before apps are ready
-        if sys.argv and "manage.py" in sys.argv[0]:
-            # Allow runserver and test, but block makemigrations, migrate, etc.
-            if len(sys.argv) == 1 or sys.argv[1] not in ["runserver", "test"]:
-                return
+        if not _should_build_faiss_index_on_startup(sys.argv):
+            return
 
         import logging
 
@@ -32,3 +29,16 @@ class PipelineConfig(AppConfig):
             logger.exception(
                 "FAISS index build failed at startup — falling back to NumPy path"
             )
+
+
+def _should_build_faiss_index_on_startup(argv: list[str]) -> bool:
+    if not argv:
+        return False
+
+    executable = argv[0].lower()
+    command = argv[1].lower() if len(argv) > 1 else ""
+    if "manage.py" in executable:
+        return command == "runserver"
+
+    runtime_tokens = ("celery", "daphne", "gunicorn", "uvicorn")
+    return any(token in executable or token == command for token in runtime_tokens)

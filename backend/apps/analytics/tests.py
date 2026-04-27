@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
@@ -1270,6 +1270,78 @@ class GSCSlice1Tests(APITestCase):
         )
         self.assertEqual(GSCImpactSnapshot.objects.count(), 1)
         self.assertEqual(suggestion.gsc_impacts.first().reward_label, "positive")
+
+    def test_inconclusive_control_group_does_not_create_impact_snapshot(self):
+        from django.utils import timezone
+
+        from apps.analytics.impact_engine import compute_search_impact
+        from apps.analytics.models import GSCImpactSnapshot, ImpactReport, SearchMetric
+
+        silo = SiloGroup.objects.create(name="GSC Test", slug="gsc-test")
+        scope = ScopeItem.objects.create(
+            scope_id=9101,
+            scope_type="node",
+            title="GSC Scope",
+            silo_group=silo,
+        )
+        host = ContentItem.objects.create(
+            content_id=9102,
+            content_type="thread",
+            title="Host",
+            scope=scope,
+        )
+        dest = ContentItem.objects.create(
+            content_id=9103,
+            content_type="thread",
+            title="Dest",
+            scope=scope,
+        )
+        post = Post.objects.create(content_item=host, clean_text="Host sentence")
+        sentence = Sentence.objects.create(
+            content_item=host,
+            post=post,
+            text="Host sentence",
+            position=0,
+            char_count=13,
+            start_char=0,
+            end_char=13,
+            word_position=0,
+        )
+        applied_at = timezone.now() - timedelta(days=10)
+        suggestion = Suggestion.objects.create(
+            destination=dest,
+            host=host,
+            host_sentence=sentence,
+            status="applied",
+            applied_at=applied_at,
+        )
+        GSCImpactSnapshot.objects.create(
+            suggestion=suggestion,
+            apply_date=applied_at,
+            window_type="7d",
+            baseline_clicks=10,
+            post_clicks=30,
+            reward_label="positive",
+        )
+
+        post_start = applied_at.date()
+        for offset, clicks in [(-1, 10), (3, 30)]:
+            metric_date = post_start + timedelta(days=offset)
+            SearchMetric.objects.create(
+                content_item=dest,
+                date=metric_date,
+                source="gsc",
+                impressions=100,
+                clicks=clicks,
+                ctr=clicks / 100,
+                average_position=5.0,
+            )
+
+        reports = compute_search_impact(suggestion, window_days=7)
+
+        self.assertEqual(len(reports), 4)
+        self.assertEqual(GSCImpactSnapshot.objects.count(), 0)
+        self.assertEqual(ImpactReport.objects.filter(is_conclusive=False).count(), 4)
 
 
 class GSCSlice3Tests(APITestCase):

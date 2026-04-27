@@ -189,6 +189,41 @@ This file is the single index of all audit reports and individual issues found b
 
 ---
 
+### ISS-025 - GSC impact snapshots ignored inconclusive control groups (2026-04-27)
+
+- **Found by:** Codex
+- **Severity:** high
+- **Affected files:** `backend/apps/analytics/impact_engine.py`, `backend/apps/analytics/tests.py`
+- **Description:** `ImpactReport` rows correctly marked attribution as inconclusive when fewer than 3 matched controls existed, but `GSCImpactSnapshot` could still save a positive or negative Bayesian reward using empty/fake control inputs. Operators could see a confident "this link worked" claim when the app already knew the comparison group was too weak.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-27
+- **Fixed in:** `docs/reports/2026-04-27-attribution-autotuner-startup-fixes.md`
+- **Regression watch:** Keep `GSCImpactSnapshot` creation gated by the same `is_conclusive` rule used by `ImpactReport`.
+
+### ISS-026 - Weight auto-tuner drift cap could be exceeded after normalization (2026-04-27)
+
+- **Found by:** Codex
+- **Severity:** high
+- **Affected files:** `backend/apps/suggestions/services/weight_tuner.py`, `backend/apps/suggestions/tests_weight_tuner.py`
+- **Description:** The optimizer bounded raw weights to `current +/- 0.05`, then normalized the final vector. If the active four weights did not already sum to `1.0`, final normalization could move a weight by more than the promised safety cap.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-27
+- **Fixed in:** `docs/reports/2026-04-27-attribution-autotuner-startup-fixes.md`
+- **Regression watch:** Candidate and baseline weights should both be normalized snapshots, and candidate weights must be projected back into the bounded simplex before persistence.
+
+### ISS-027 - FAISS startup still touched the database during tests/imports (2026-04-27)
+
+- **Found by:** Codex
+- **Severity:** medium
+- **Affected files:** `backend/apps/pipeline/apps.py`
+- **Description:** The previous FAISS guard skipped most management commands but still allowed test/import startup paths to touch database tables before migrations or the test DB were ready. This produced Django startup warnings and noisy fallback errors.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-27
+- **Fixed in:** `docs/reports/2026-04-27-attribution-autotuner-startup-fixes.md`
+- **Regression watch:** Keep FAISS index builds out of tests, migrations, imports, and arbitrary scripts; allow only known server/worker runtime entrypoints.
+
+---
+
 ### ISS-011 — 101 stalled-job alerts flooding the Alerts page with 142× duplicates (2026-04-12)
 
 - **Found by:** Claude

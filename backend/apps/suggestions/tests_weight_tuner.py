@@ -38,6 +38,7 @@ def _synthetic_samples(n: int = 120) -> list[dict[str, float | str]]:
                 "score_keyword": 0.5,
                 "score_node_affinity": 0.5,
                 "score_quality": 0.5,
+                "score_final": 0.8 if is_approved else 0.2,
                 "status": "approved" if is_approved else "rejected",
             }
         )
@@ -145,3 +146,21 @@ class WeightTunerRunTests(TestCase):
         self.assertNotIn("proposed_weights", kwargs)
         self.assertNotIn("previous_weights", kwargs)
         self.assertNotIn("optimisation_meta", kwargs)
+
+    def test_candidate_weights_stay_inside_post_normalization_drift_cap(self) -> None:
+        self._current_weights = {
+            "w_semantic": "0.50",
+            "w_keyword": "0.20",
+            "w_node": "0.10",
+            "w_quality": "0.05",
+        }
+
+        challenger = self._run_with_mocks()
+        self.assertIsNotNone(challenger)
+        assert challenger is not None
+
+        for key in self._current_weights:
+            drift = abs(
+                challenger.candidate_weights[key] - challenger.baseline_weights[key]
+            )
+            self.assertLessEqual(drift, 0.0501)

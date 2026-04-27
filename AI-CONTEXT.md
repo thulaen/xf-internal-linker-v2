@@ -497,6 +497,17 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-27 — Attribution trust, auto-tuner drift, and FAISS startup fixes (Codex)
+
+- **AI/tool:** Codex.
+- **Why:** User asked to implement the confirmed plan for the two main backend bugs plus the FAISS runner-up: stop attribution snapshots from claiming proof without enough controls, make FR-018 auto-tuner drift caps true after normalization, and prevent FAISS startup DB reads during tests/migrations/imports.
+- **Branch:** Stayed on `master`; no branch was created or switched.
+- **Intentional files changed:** `backend/apps/analytics/impact_engine.py`, `backend/apps/analytics/tests.py`, `backend/apps/suggestions/services/weight_tuner.py`, `backend/apps/suggestions/tests_weight_tuner.py`, `backend/apps/pipeline/apps.py`, `docs/specs/fr017-gsc-search-outcome-attribution.md`, `docs/specs/fr018-auto-tuned-ranking-weights.md`, `docs/reports/2026-04-27-attribution-autotuner-startup-fixes.md`, `docs/reports/REPORT-REGISTRY.md`, `AI-CONTEXT.md`, `AGENT-HANDOFF.md`.
+- **Relevant registry state:** ISS-025, ISS-026, and ISS-027 added as RESOLVED in the Report Registry with the detailed report at `docs/reports/2026-04-27-attribution-autotuner-startup-fixes.md`.
+- **Verification:** Targeted Django tests for `apps.suggestions.tests_weight_tuner` and the new inconclusive-control analytics regression passed; local `makemigrations --check --dry-run`, `showmigrations`, and `ruff check` passed with no FAISS startup warning; Docker `showmigrations` showed all migrations applied; Docker `makemigrations --check --dry-run` reported no changes; full backend `manage.py test --noinput` passed on elevated rerun with 1375 tests OK, 16 skipped. The first sandboxed full-test run failed only on Windows temp-directory permissions in unrelated `apps.sources.tests`, then passed with elevated access.
+- **Docker prune:** Ran `powershell -ExecutionPolicy Bypass -File scripts\prune-verification-artifacts.ps1` after Docker verification. The sandboxed attempt skipped Docker prune and VHDX compaction; elevated rerun succeeded and reclaimed 4.022 MB.
+- **Commit status:** User requested a commit after verification. Prepared this slice for a local commit on `master`; no push was requested.
+
 ### 2026-04-26 (1) — C# decommission live cleanup + Python auto-tuner runtime fixes (Claude)
 
 - **AI/tool:** Claude Opus 4.7 (1M context).

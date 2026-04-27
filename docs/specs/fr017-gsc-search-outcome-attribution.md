@@ -41,6 +41,8 @@ Stores the calculated attribution for a specific applied suggestion.
 - `reward_label`: CharField (positive, neutral, negative, inconclusive)
 - `last_computed_at`: DateTimeField
 
+`GSCImpactSnapshot` is only written when the matched-control group is conclusive. The live attribution engine requires at least 3 matched controls for the same suggestion/window; if a recompute falls below that threshold, the engine withholds the snapshot and deletes any stale snapshot for that window. The UI should treat that state as "no reliable claim yet," not as positive, neutral, or negative proof.
+
 ### 2. GSC Data Importer (Python)
 - **Task**: `apps.analytics.tasks.sync_gsc_performance`
 - **Schedule**: Daily at 04:00 UTC (to account for the ~48h GSC processing lag).
@@ -57,6 +59,7 @@ To avoid high CTR noise on low impressions:
 
 #### Causal Lift Calculation
 - **Control Group**: All pages in the same silo/scope that did *not* receive a new internal link during the window.
+- **Minimum Controls**: At least 3 matched controls are required before writing a reward snapshot. Below that threshold, `ImpactReport` rows may record the inconclusive result for auditability, but no `GSCImpactSnapshot` is persisted.
 - **Lift**: Calculate the relative delta $L = \frac{Post_{item}}{Baseline_{item}} - \frac{Post_{control}}{Baseline_{control}}$.
 - **P-Value**: Use a two-sample T-test on daily click counts for the item vs. its own baseline, adjusted by the control group trend.
 

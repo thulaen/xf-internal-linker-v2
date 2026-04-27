@@ -22,7 +22,7 @@ Auto-weight tuning is implemented in Python at `backend/apps/suggestions/service
 - **Objective Function (`WeightTuner.run().objective`)**: bounded binary cross-entropy on the four blend weights, with a quadratic drift penalty:
   - `loss = BCE(y, sigmoid(15 * (X · w_norm − 0.7))) + 0.1 * Σ(w − w_init)²`
   - `y` is the per-sample approve / reject label, `X` is the four-column feature matrix (`score_semantic`, `score_keyword`, `score_node_affinity`, `score_quality`), `w_norm` is `w / Σw` (so the optimizer never has to enforce a sum constraint), and the `15` and `0.7` constants center the logistic around the strong-suggestion quality threshold.
-- Optimization uses **`scipy.optimize.minimize(method="L-BFGS-B")`** with per-weight bounds `[max(0, w_init − 0.05), min(1, w_init + 0.05)]`. Each run cannot drift more than `0.05` per weight, and the final result is renormalised to sum to `1.0`.
+- Optimization uses **`scipy.optimize.minimize(method="L-BFGS-B")`** with per-weight bounds `[max(0, w_init - 0.05), min(1, w_init + 0.05)]`. `w_init` is normalized before bounds, remainder math, and objective evaluation. The final candidate is projected back into that bounded simplex, so persisted candidate weights sum to `1.0` and no weight moves more than `0.05` from the normalized baseline.
 - After optimization, the same objective is evaluated at both `w_init` and `w_opt` to produce `champion_quality_score = 1 / (1 + champion_loss)` and `predicted_quality_score = 1 / (1 + candidate_loss)` — both bounded in `(0, 1]`, both used by the SPRT comparator in `evaluate_weight_challenger`.
 - Produces a "Candidate Weight Set."
 
@@ -48,7 +48,7 @@ Auto-weight tuning is implemented in Python at `backend/apps/suggestions/service
 ### Slice 2: Python — Data collection & L-BFGS-B optimizer
 - `backend/apps/suggestions/services/weight_tuner.py` (`WeightTuner` class).
 - ORM queries for the four blend signals (`score_semantic`, `score_keyword`, `score_node_affinity`, `score_quality`) plus approve/reject labels.
-- Bounded binary-cross-entropy objective with `0.1 * Σ(w − w_init)²` drift regularizer; `scipy.optimize.minimize(method="L-BFGS-B")` with `±0.05` per-weight bounds.
+- Bounded binary-cross-entropy objective with `0.1 * sum((w - w_init)^2)` drift regularizer; `scipy.optimize.minimize(method="L-BFGS-B")` with `+/-0.05` per-weight bounds around the normalized baseline and post-optimization bounded-simplex projection.
 - Computes both `champion_quality_score` and `predicted_quality_score` using `quality = 1 / (1 + loss)` for use by the SPRT comparator in Slice 4.
 - Unit tests with synthetic data in `backend/apps/suggestions/tests.py`.
 
