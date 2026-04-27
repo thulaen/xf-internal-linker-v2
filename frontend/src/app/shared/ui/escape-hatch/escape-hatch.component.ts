@@ -18,7 +18,7 @@ import { filter } from 'rxjs';
 /**
  * Phase D2 / Gap 74 — "Take me back to safe ground" Escape Hatch FAB.
  *
- * A floating button anchored to the bottom-left of every page EXCEPT
+ * A floating button anchored to the bottom-right of every page EXCEPT
  * the dashboard itself. Clicking it navigates to /dashboard. Useful
  * for noobs who get lost in deep pages and don't know how to get back
  * to a known-good starting point.
@@ -51,7 +51,7 @@ import { filter } from 'rxjs';
         color="primary"
         routerLink="/dashboard"
         matTooltip="Take me back to the dashboard (Esc on most pages)"
-        matTooltipPosition="right"
+        matTooltipPosition="left"
         aria-label="Return to dashboard"
       >
         <mat-icon>home</mat-icon>
@@ -62,8 +62,9 @@ import { filter } from 'rxjs';
   styles: [`
     .eh-fab {
       position: fixed;
-      bottom: 24px;
-      left: 24px;
+      /* Stacked above the help chatbot FAB at bottom: 24px (56px tall) + 16px gap. */
+      bottom: 96px;
+      right: 24px;
       z-index: 980;
       box-shadow: var(--shadow-md, 0 2px 6px rgba(60, 64, 67, 0.15));
       transition: transform 0.2s ease;
@@ -73,12 +74,6 @@ import { filter } from 'rxjs';
     }
     @media (prefers-reduced-motion: reduce) {
       .eh-fab { transition: none; }
-    }
-    @media (max-width: 480px) {
-      .eh-fab {
-        bottom: 16px;
-        left: 16px;
-      }
     }
   `],
 })
