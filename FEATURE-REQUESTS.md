@@ -11,6 +11,7 @@ Important:
 
 - Every session must read `AI-CONTEXT.md` and this file before coding.
 - Check completed requests before implementing anything new.
+- Check `## Pending Slices` (below) for deferred sub-feature work before starting a new session.
 - Verify the repository state before trusting request status text.
 - Update this file and `AI-CONTEXT.md` after finishing a session.
 - Future ranking-affecting requests should treat C++ as the default execution path for the hot inner loop, while keeping a behavior-matching Python fallback for safety.
@@ -40,6 +41,31 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 
 - Python/C++ remains the single source of truth for all business logic, link scanning, and sitemap processing.
 - Normal pending phase work continues after this helper addition. The next queued product phase in the current cleaned repo state is Phase 19 / `FR-016`.
+
+## Pending Slices
+
+**What this is:** Deferred sub-features and follow-up work that belongs to a parent FR but ships in a later session. Tracked separately so a new AI session can see what's queued without grep-hunting through `AGENT-HANDOFF.md` and per-FR specs.
+
+**When to add to it (mandatory for Claude, Codex, Gemini):** Any time you defer sub-feature work — ranker integration, cache wiring, frontend cards, scheduled tasks, anything queued for "next session" — add it here BEFORE ending the session. Enforced by `AI-CONTEXT.md` Session Gate "MUST UPDATE" rule #5.
+
+**Format requirements:** Each item is a checkbox bullet with (a) a 1-line description and (b) a `Source:` cite to the spec file or handoff entry where the deferral was decided. When the item ships, mark the checkbox done with the date (e.g. `[x] (shipped 2026-04-27)`); do not delete the line — it keeps the audit trail.
+
+### Currently pending
+
+_None as of 2026-04-27._
+
+The original 8-item FR-099–FR-105 follow-up list in `AGENT-HANDOFF.md:474-489` (2026-04-24) was reconciled during this session's audit. 6 of 8 items shipped between 2026-04-24 and 2026-04-27:
+
+- Hot-path integration → `backend/apps/pipeline/services/ranker.py:706`
+- Cache wiring → `backend/apps/pipeline/services/pipeline_data.py:19-289`
+- Settings loader → `backend/apps/pipeline/services/pipeline_loaders.py:75, 505`
+- RSQVA daily refresh → `backend/apps/scheduled_updates/jobs.py:173` (calls `apps.analytics.gsc_query_vocab.refresh_gsc_query_tfidf`)
+- Frontend settings cards + tooltips + `UI_TO_PRESET_KEY` → `frontend/src/app/settings/settings.component.ts` (77 fr099–fr105 references)
+- Suggestion-detail diagnostic UI → `frontend/src/app/review/suggestion-detail-dialog.component.html`
+
+The remaining 2 are not pending tasks — "live verification" is a session activity rerun before any major change, and "auto-tuner TPE-eligibility" is event-based (fires after 30 days of outcome data per BLC §7.3).
+
+Future deferred work will be listed here as new checkbox entries.
 
 ## COMPLETED
 

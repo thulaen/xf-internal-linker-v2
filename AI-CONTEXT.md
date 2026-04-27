@@ -62,6 +62,7 @@ Language-specific rules files:
 | 2 | `AI-CONTEXT.md` — Execution Ledger + Dashboard | If a phase was completed |
 | 3 | `FEATURE-REQUESTS.md` — FR status | If an FR was completed or partially completed |
 | 4 | `docs/reports/REPORT-REGISTRY.md` | If you found a new issue, created a report, or resolved a finding |
+| 5 | `FEATURE-REQUESTS.md` — `## Pending Slices` section | If you deferred sub-feature work to a future session, before ending |
 
 ### MUST PRUNE Docker build caches before session end
 
@@ -120,9 +121,9 @@ If you decide not to fix that finding in the current session, you must do both:
 
 
 
-- Status: Phase 36 / FR-035 (Link Freshness & Churn Velocity Timeline) is the latest completed phase.
-- Active target for the next session: Phase 37 / FR-020 (Zero-Downtime Model Switching)
-- Current continuity state: 31 FRs are complete and code-verified as of 2026-04-08. See Project Status Dashboard below for the full breakdown.
+- Status: Phase 36 / FR-035 (Link Freshness & Churn Velocity Timeline) is the latest fully-completed phase.
+- Active target for the next session: Phase 37 / FR-230 (52-pick pipeline roster — all 52 picks shipped + W1 wirings done; remaining wirings, FR-231 and FR-232 sub-features pending). FR-020 (Zero-Downtime Model Switching) is Postponed / Resource-Contingent.
+- Current continuity state: 32 FRs are complete and code-verified (33 if counting FR-023 in the Execution Ledger). FR-099–FR-105 (curated graph-topology) and FR-230 are Partial. Last verified 2026-04-27. See Project Status Dashboard below for the full breakdown.
 - Verification completed (2026-04-12):
   - `python backend/manage.py test` — 195 tests pass
   - C# runtime decommissioned; all services migrated to native Python/C++.
@@ -341,17 +342,19 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 
 ## Project Status Dashboard
 
-Last verified against code: 2026-04-08
+Last verified against code: 2026-04-27
 
 | Category            | Done | Partial | Pending | Cancelled | Total |
 |---------------------|------|---------|---------|-----------|-------|
 | Feature Requests (FR-001..FR-098) |   32 |       5 |      60 |         1 |    98 |
-| Feature Requests (FR-099..FR-224 — Phase 2 forward-declared) |    0 |       0 |     126 |         0 |   126 |
+| Feature Requests (FR-099..FR-105 — curated graph-topology, foundations shipped 2026-04-24) |    0 |       7 |       0 |         0 |     7 |
+| Feature Requests (FR-230, FR-231, FR-232 — Phase 37 roster + sub-features) |    0 |       1 |       2 |         0 |     3 |
+| Feature Requests (FR-106..FR-229 — forward-declared, retired per RPT-002 PR-A) |    0 |       0 |       0 |         0 |     0 |
 | (Note: FR-023 is complete in the Execution Ledger but has no separate FEATURE-REQUESTS.md entry — it was part of Phase 26)
 | C++ META extensions (META-01..META-39) |    0 |       0 |      36 |         0 |    36 |
-| C++ META extensions (META-40..META-249 — Phase 2 forward-declared) |    0 |       0 |     210 |         0 |   210 |
+| C++ META extensions (META-40..META-249 — retired per RPT-002 PR-A) |    0 |       0 |       0 |         0 |     0 |
 | C++ OPT extensions  |    0 |       0 |      92 |         0 |    92 |
-| **All work items**  | **32** | **5** | **524** | **1** | **562** |
+| **All work items**  | **32** | **13** | **190** | **1** | **236** |
 
 **Completed FRs (32):**
 FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, FR-008, FR-009, FR-010,
@@ -360,12 +363,19 @@ FR-022, FR-024, FR-025, FR-026, FR-028, FR-029, FR-030, FR-031, FR-032,
 FR-033, FR-035, FR-045
 (Plus FR-023 which is complete in the Execution Ledger but has no separate FEATURE-REQUESTS.md entry)
 
-**Partial (5 — scaffolding exists, core logic missing; or core logic ships but perf/bench path missing):**
+**Partial in FR-001..FR-098 (5 — scaffolding exists, core logic missing; or core logic ships but perf/bench path missing):**
 - FR-034: link parser and context scoring refs exist, audit dashboard/trail UI missing
 - FR-037: silo tracking (_same_silo) exists, leakage map visualization component missing
 - FR-040: config keys in migration 0019 exist, ContentItem field and scoring service missing
 - FR-042: config keys in migration 0019 exist, score field and scoring logic missing
 - FR-044: config keys in migration 0019 exist, score field and analytics aggregation missing
+
+**Partial in FR-099..FR-105 (7 — curated graph-topology, foundations shipped 2026-04-24):**
+- FR-099 (DARB), FR-100 (KMIG), FR-101 (TAPB), FR-102 (KCIB), FR-103 (BERP), FR-104 (HGTE), FR-105 (RSQVA)
+- Note: each entry's status note says "hot-path integration pending" but verification on 2026-04-27 confirms the dispatcher `evaluate_all_fr099_fr105` IS called from `score_destination_matches` (`ranker.py:706`). The status notes themselves are stale — flagged as a follow-up cleanup task.
+
+**Partial in FR-230..FR-232 (1 — Phase 37 roster + sub-features):**
+- FR-230: all 52 picks shipped + W1 wirings done + 898 backend tests pass; remaining wirings + sub-feature delivery pending. FR-231 and FR-232 are Pending sub-features.
 
 **Pending FRs (59):**
 FR-020, FR-036, FR-038, FR-039, FR-041, FR-043, FR-046, FR-047, FR-048,

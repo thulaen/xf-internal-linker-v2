@@ -31,7 +31,7 @@ This file is the single index of all audit reports and individual issues found b
 ### RPT-001 — Research-Backed Business Logic Audit (2026-04-11)
 
 - **Status:** OPEN (2 of 5 findings unresolved — see Finding 1 closure dated 2026-04-26 below)
-- **Report file:** [`repo-business-logic-audit-2026-04-11.md`](repo-business-logic-audit-2026-04-11.md) — never written; findings re-derived from the code in subsequent sessions.
+- **Report file:** _Not written_ — `repo-business-logic-audit-2026-04-11.md` was planned but never created. Findings were re-derived from the code in subsequent sessions.
 - **Scope:** Import, ranking, reranking, attribution, and weight auto-tuning logic
 - **Summary:** Five logic-quality gaps in shipped code paths. All fixable by extending existing FR-013, FR-017, and FR-018 implementations in place.
 

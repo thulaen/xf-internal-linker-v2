@@ -1445,6 +1445,14 @@ The patterns demonstrated in `health` (`computed()` for derived counts/groups, `
 
 ---
 
+# Previous Sessions — Archived
+
+The entries below describe work that has fully shipped. They are kept here for the audit trail. New AI sessions should focus on the entries ABOVE this line; everything below is historical context that's no longer active.
+
+**Last archive sweep:** 2026-04-27. New entries get added at the TOP of the file. To archive entries later: move them below this header (do not delete — entries are permanent audit history).
+
+---
+
 # 2026-04-26 23:40 - Claude Opus 4.7 (1M context) — Signals migration #11: review page (selectedIds Set + computed cross-service tracking)
 
 The review page is the second-most-used route (after dashboard). State scope: 8 mutable fields plus a session-wide selection Set, plus a cross-service readiness gate that depends on a separate signal exposed by `SuggestionReadinessService`.
