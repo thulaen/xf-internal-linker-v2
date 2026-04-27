@@ -107,7 +107,7 @@ def emit_operator_alert(
 
                 error_log = ErrorLog.objects.get(pk=error_log_id)
             except ErrorLog.DoesNotExist:
-                pass
+                pass  # ErrorLog row absent (deleted / never existed); keep error_log=None default
             except Exception:
                 logger.debug("Failed to fetch ErrorLog %s", error_log_id, exc_info=True)
 
