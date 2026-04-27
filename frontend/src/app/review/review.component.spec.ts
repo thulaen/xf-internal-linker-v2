@@ -64,7 +64,7 @@ describe('ReviewComponent', () => {
 
   it('should reload the list if an approved suggestion no longer matches the filter', () => {
     component.statusFilter = 'pending';
-    component.suggestions = [{ ...mockSuggestion }];
+    component.suggestions.set([{ ...mockSuggestion }]);
     const loadSpy = spyOn(component, 'load').and.callThrough();
 
     // Simulate quickApprove success
@@ -78,7 +78,7 @@ describe('ReviewComponent', () => {
 
   it('should NOT reload the list if we are in the "all" filter', () => {
     component.statusFilter = 'all';
-    component.suggestions = [{ ...mockSuggestion }];
+    component.suggestions.set([{ ...mockSuggestion }]);
     const loadSpy = spyOn(component, 'load').and.callThrough();
 
     // Simulate quickApprove success
@@ -88,6 +88,6 @@ describe('ReviewComponent', () => {
     component.quickApprove(mockSuggestion, new MouseEvent('click'));
 
     expect(loadSpy).not.toHaveBeenCalled();
-    expect(component.suggestions[0].status).toBe('approved');
+    expect(component.suggestions()[0].status).toBe('approved');
   });
 });

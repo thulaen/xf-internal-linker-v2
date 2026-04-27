@@ -39,7 +39,7 @@ describe('GraphComponent — _computeQuality()', () => {
   });
 
   it('should build pie chart data from topology links', () => {
-    component.topology = {
+    component.topology.set({
       nodes: [
         { id: 1, title: 'Page A', type: 'thread', silo_id: 0, pagerank: 0.1, in_degree: 1, out_degree: 0 },
         { id: 2, title: 'Page B', type: 'thread', silo_id: 0, pagerank: 0.2, in_degree: 0, out_degree: 1 },
@@ -50,12 +50,12 @@ describe('GraphComponent — _computeQuality()', () => {
         { source: 2, target: 1, context: 'isolated',    anchor: '',           weight: 1 },
       ],
       history: [], churny_ids: [], churny_nodes: [],
-    };
+    });
 
     (component as any)._computeQuality();
 
-    expect(component.contextPieData).toBeTruthy();
-    const counts = component.contextPieData!.datasets[0].data as number[];
+    expect(component.contextPieData()).toBeTruthy();
+    const counts = component.contextPieData()!.datasets[0].data as number[];
     expect(counts[0]).toBe(1); // contextual
     expect(counts[1]).toBe(1); // weak_context
     expect(counts[2]).toBe(1); // isolated
@@ -68,7 +68,7 @@ describe('GraphComponent — _computeQuality()', () => {
       anchor: i < 2 ? 'click here' : `unique-anchor-${i}`,
       weight: 1,
     }));
-    component.topology = {
+    component.topology.set({
       nodes: [
         { id: 1, title: 'A', type: 'thread', silo_id: 0, pagerank: 0, in_degree: 20, out_degree: 0 },
         { id: 2, title: 'B', type: 'thread', silo_id: 0, pagerank: 0, in_degree: 0, out_degree: 20 },
@@ -77,18 +77,18 @@ describe('GraphComponent — _computeQuality()', () => {
       history: [],
       churny_ids: [],
       churny_nodes: [],
-    };
+    });
 
     (component as any)._computeQuality();
 
     // 2 out of 20 = 10% — should trigger warning
-    expect(component.anchorWarnings.length).toBeGreaterThan(0);
-    expect(component.anchorWarnings[0].anchor).toBe('click here');
-    expect(component.anchorWarnings[0].pct).toBe(10);
+    expect(component.anchorWarnings().length).toBeGreaterThan(0);
+    expect(component.anchorWarnings()[0].anchor).toBe('click here');
+    expect(component.anchorWarnings()[0].pct).toBe(10);
   });
 
   it('should sort pageQualityRows worst-first', () => {
-    component.topology = {
+    component.topology.set({
       nodes: [
         { id: 1, title: 'Low Quality', type: 'thread', silo_id: 0, pagerank: 0, in_degree: 3, out_degree: 0 },
         { id: 2, title: 'High Quality', type: 'thread', silo_id: 0, pagerank: 0, in_degree: 2, out_degree: 0 },
@@ -102,21 +102,21 @@ describe('GraphComponent — _computeQuality()', () => {
         { source: 3, target: 2, context: 'contextual',  anchor: '', weight: 1 },
       ],
       history: [], churny_ids: [], churny_nodes: [],
-    };
+    });
 
     (component as any)._computeQuality();
 
-    expect(component.pageQualityRows.length).toBe(2);
+    expect(component.pageQualityRows().length).toBe(2);
     // Low Quality page has 1/3 contextual (33%) — comes first (worst)
-    expect(component.pageQualityRows[0].title).toBe('Low Quality');
-    expect(component.pageQualityRows[0].qualityLabel).toBe('Low');
+    expect(component.pageQualityRows()[0].title).toBe('Low Quality');
+    expect(component.pageQualityRows()[0].qualityLabel).toBe('Low');
     // High Quality page has 2/2 contextual (100%)
-    expect(component.pageQualityRows[1].title).toBe('High Quality');
-    expect(component.pageQualityRows[1].qualityLabel).toBe('High');
+    expect(component.pageQualityRows()[1].title).toBe('High Quality');
+    expect(component.pageQualityRows()[1].qualityLabel).toBe('High');
   });
 
   it('should populate isolatedLinks only with isolated edges', () => {
-    component.topology = {
+    component.topology.set({
       nodes: [
         { id: 1, title: 'Target', type: 'thread', silo_id: 0, pagerank: 0, in_degree: 2, out_degree: 0 },
         { id: 2, title: 'Source', type: 'thread', silo_id: 0, pagerank: 0, in_degree: 0, out_degree: 2 },
@@ -126,13 +126,13 @@ describe('GraphComponent — _computeQuality()', () => {
         { source: 2, target: 1, context: 'contextual', anchor: 'good link', weight: 1 },
       ],
       history: [], churny_ids: [], churny_nodes: [],
-    };
+    });
 
     (component as any)._computeQuality();
 
-    expect(component.isolatedLinks.length).toBe(1);
-    expect(component.isolatedLinks[0].anchor).toBe('bare link');
-    expect(component.isolatedLinks[0].srcTitle).toBe('Source');
-    expect(component.isolatedLinks[0].tgtTitle).toBe('Target');
+    expect(component.isolatedLinks().length).toBe(1);
+    expect(component.isolatedLinks()[0].anchor).toBe('bare link');
+    expect(component.isolatedLinks()[0].srcTitle).toBe('Source');
+    expect(component.isolatedLinks()[0].tgtTitle).toBe('Target');
   });
 });
