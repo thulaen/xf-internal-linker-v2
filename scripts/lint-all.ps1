@@ -279,6 +279,8 @@ $baselineLongFiles = @(
     'silo-settings.service.ts',          # FR-005 + FR-020 silo + runtime service — 826 lines; candidate for silo-only and runtime-only service split
     'schedule-widget.component.ts',      # dashboard schedule widget — `nextFireMinutesFromNow` is ~201 lines of per-task cron math; pre-existing, candidate for extraction into a cron-eval helper
     'graph.component.ts',                # graph page — 674 lines, 8+ tab modes + d3 network viz interactions; candidate for per-tab component extraction
+    'link-graph-viz.component.ts',       # pre-existing for-loop spans 105 lines (graph rendering inner loop); candidate for extraction into per-shape draw helpers
+    'health.component.ts',               # pre-existing if-block spans 84 lines (status banner derivation); candidate for extraction into a derive-status helper
     'suggestion-detail-dialog.component.ts', # review dialog — 538 lines of per-signal explanation/formatting helpers; candidate for extraction into suggestion-explainer pipe/service
     # ── Added 2026-04-26 (C# decommission cleanup push) — pre-existing
     # 80-line-cap violations surfaced by the diff-scoped lint when a
