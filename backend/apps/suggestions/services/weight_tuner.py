@@ -34,7 +34,7 @@ class WeightTuner:
         cutoff = timezone.now() - timedelta(days=self.lookback_days)
         samples = Suggestion.objects.filter(
             status__in=["approved", "rejected"], reviewed_at__gte=cutoff
-        ).values(*self.feature_keys, "status")
+        ).values(*self.feature_keys, "score_final", "status")
 
         if len(samples) < 50:
             logger.info(
@@ -44,12 +44,15 @@ class WeightTuner:
 
         X = []
         y = []
+        score_finals = []
         for s in samples:
             X.append([float(s[k] or 0) for k in self.feature_keys])
             y.append(1 if s["status"] == "approved" else 0)
+            score_finals.append(float(s["score_final"] or 0))
 
         X = np.array(X)
         y = np.array(y)
+        score_finals = np.array(score_finals)
 
         # 2. Get Current Weights
         curr_vals = get_current_weights()
@@ -63,11 +66,15 @@ class WeightTuner:
         for w in w_init:
             bounds.append((max(0.0, w - 0.05), min(1.0, w + 0.05)))
 
-        def objective(w, X, y):
+        # Pre-compute remainder: what the other 50+ ranking signals contributed to score_final.
+        # This ensures we optimize actual ranker quality, not a 4-number global summary.
+        remainders = score_finals - np.dot(X, w_init)
+
+        def objective(w, X, y, remainders):
             # Normalize w to sum to 1 internally for the loss calculation
             # to avoid non-convexity issues if we don't use strict equality constraint
             w_norm = w / (np.sum(w) + 1e-9)
-            z = np.dot(X, w_norm)
+            z = np.dot(X, w_norm) + remainders
             # Center of quality threshold is ~0.7 for strong suggestions
             logits = 15 * (z - 0.7)
             probs = 1 / (1 + np.exp(-logits))
@@ -79,7 +86,7 @@ class WeightTuner:
             drift_penalty = 0.1 * np.sum((w - w_init) ** 2)
             return loss + drift_penalty
 
-        res = minimize(objective, w_init, args=(X, y), method="L-BFGS-B", bounds=bounds)
+        res = minimize(objective, w_init, args=(X, y, remainders), method="L-BFGS-B", bounds=bounds)
 
         if not res.success:
             logger.warning("[WeightTuner] Optimization failed: %s", res.message)
@@ -102,7 +109,7 @@ class WeightTuner:
         # the SPRT comparator in evaluate_weight_challenger sees a fair ratio.
         # quality = 1 / (1 + loss) is bounded in (0, 1] and monotonically
         # decreasing in loss.
-        champion_loss = float(objective(w_init, X, y))
+        champion_loss = float(objective(w_init, X, y, remainders))
         candidate_loss = float(res.fun)
         champion_quality = 1.0 / (1.0 + champion_loss)
         predicted_quality = 1.0 / (1.0 + candidate_loss)

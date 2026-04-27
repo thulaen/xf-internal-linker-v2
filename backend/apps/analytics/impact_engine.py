@@ -33,12 +33,9 @@ _CONTROL_K = 5
 class BayesianTrendAttributor:
     """FR-017: Poisson-Gamma Bayesian Attribution for GSC Clicks.
 
-    Models the click-through rate (CTR) of a target page against the global
-    sitewide trend to compute the probability of uplift.
+    Models the click-through rate (CTR) of a target page against the matched control
+    trend to compute the probability of uplift.
     """
-
-    def __init__(self, property_url: str):
-        self.property_url = property_url
 
     def compute_uplift(
         self,
@@ -46,37 +43,19 @@ class BayesianTrendAttributor:
         target_imps_base: int,
         target_clicks_post: int,
         target_imps_post: int,
-        baseline_start: date,
-        baseline_end: date,
-        post_start: date,
-        post_end: date,
+        control_clicks_base: int,
+        control_imps_base: int,
+        control_clicks_post: int,
+        control_imps_post: int,
     ) -> dict:
-        """Calculate uplift probability and rewards vs global site trend."""
-        # 1. Get Site-wide aggregates
-        site_base = SearchMetric.objects.filter(
-            property_url=self.property_url,
-            source="gsc",
-            date__range=[baseline_start, baseline_end],
-        ).aggregate(clicks=Sum("clicks"), imps=Sum("impressions"))
-
-        site_post = SearchMetric.objects.filter(
-            property_url=self.property_url,
-            source="gsc",
-            date__range=[post_start, post_end],
-        ).aggregate(clicks=Sum("clicks"), imps=Sum("impressions"))
-
-        s_c_base = int(site_base["clicks"] or 0)
-        s_i_base = int(site_base["imps"] or 0)
-        s_c_post = int(site_post["clicks"] or 0)
-        s_i_post = int(site_post["imps"] or 0)
-
-        # 2. Compute Site-wide Trend (Control Factor)
+        """Calculate uplift probability and rewards vs matched control trend."""
+        # 1. Compute Control Trend (Control Factor)
         # Using laplace smoothing to avoid division by zero
-        site_ctr_base = (1 + s_c_base) / (1 + s_i_base)
-        site_ctr_post = (1 + s_c_post) / (1 + s_i_post)
-        trend = site_ctr_post / site_ctr_base if site_ctr_base > 0 else 1.0
+        control_ctr_base = (1 + control_clicks_base) / (1 + control_imps_base)
+        control_ctr_post = (1 + control_clicks_post) / (1 + control_imps_post)
+        trend = control_ctr_post / control_ctr_base if control_ctr_base > 0 else 1.0
 
-        # 3. Bayesian Posterior Simulation (Monte Carlo)
+        # 2. Bayesian Posterior Simulation (Monte Carlo)
         # Target Prior: Gamma(1, 1). Posterior: Gamma(1+k, 1+I)
         samples = 10000
         # scipy.stats.gamma uses (a, scale=1/b) for the (alpha, beta) parameterization
@@ -293,13 +272,38 @@ def compute_search_impact(
         average_position=Avg("average_position"),
     )
 
+    # Batch-fetch control group metrics
+    control_baseline_agg: dict = {}
+    control_post_agg: dict = {}
+    if control_item_ids:
+        control_baseline_agg = SearchMetric.objects.filter(
+            content_item_id__in=control_item_ids,
+            source="gsc",
+            date__range=[baseline_start, baseline_end],
+        ).aggregate(
+            impressions=Sum("impressions"),
+            clicks=Sum("clicks"),
+            ctr=Avg("ctr"),
+            average_position=Avg("average_position"),
+        )
+        control_post_agg = SearchMetric.objects.filter(
+            content_item_id__in=control_item_ids,
+            source="gsc",
+            date__range=[post_start, actual_post_end],
+        ).aggregate(
+            impressions=Sum("impressions"),
+            clicks=Sum("clicks"),
+            ctr=Avg("ctr"),
+            average_position=Avg("average_position"),
+        )
+
     # Resolve property_url for attribution
     property_url = latest_metric.property_url if latest_metric else ""
 
     if property_url:
         try:
             # Native Python implementation of the Poisson-Gamma model
-            attributor = BayesianTrendAttributor(property_url)
+            attributor = BayesianTrendAttributor()
 
             # Get target aggregates for the attributor
             t_c_base = int(target_baseline_agg.get("clicks") or 0)
@@ -307,15 +311,21 @@ def compute_search_impact(
             t_c_post = int(target_post_agg.get("clicks") or 0)
             t_i_post = int(target_post_agg.get("impressions") or 0)
 
+            # Get control aggregates
+            c_c_base = int(control_baseline_agg.get("clicks") or 0) if control_baseline_agg else 0
+            c_i_base = int(control_baseline_agg.get("impressions") or 0) if control_baseline_agg else 0
+            c_c_post = int(control_post_agg.get("clicks") or 0) if control_post_agg else 0
+            c_i_post = int(control_post_agg.get("impressions") or 0) if control_post_agg else 0
+
             result = attributor.compute_uplift(
                 target_clicks_base=t_c_base,
                 target_imps_base=t_i_base,
                 target_clicks_post=t_c_post,
                 target_imps_post=t_i_post,
-                baseline_start=baseline_start,
-                baseline_end=baseline_end,
-                post_start=post_start,
-                post_end=actual_post_end,
+                control_clicks_base=c_c_base,
+                control_imps_base=c_i_base,
+                control_clicks_post=c_c_post,
+                control_imps_post=c_i_post,
             )
 
             if result and result.get("reward_label") != "inconclusive":
@@ -348,31 +358,6 @@ def compute_search_impact(
     metrics_to_calc = ["impressions", "clicks", "ctr", "average_position"]
     click_control_multiplier = 1.0
     reports = []
-
-    # Batch-fetch control group metrics
-    control_baseline_agg: dict = {}
-    control_post_agg: dict = {}
-    if control_item_ids:
-        control_baseline_agg = SearchMetric.objects.filter(
-            content_item_id__in=control_item_ids,
-            source="gsc",
-            date__range=[baseline_start, baseline_end],
-        ).aggregate(
-            impressions=Sum("impressions"),
-            clicks=Sum("clicks"),
-            ctr=Avg("ctr"),
-            average_position=Avg("average_position"),
-        )
-        control_post_agg = SearchMetric.objects.filter(
-            content_item_id__in=control_item_ids,
-            source="gsc",
-            date__range=[post_start, actual_post_end],
-        ).aggregate(
-            impressions=Sum("impressions"),
-            clicks=Sum("clicks"),
-            ctr=Avg("ctr"),
-            average_position=Avg("average_position"),
-        )
 
     for metric in metrics_to_calc:
         # A. Target Item Performance

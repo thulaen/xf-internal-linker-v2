@@ -1,3 +1,22 @@
+# 2026-04-27 20:18 - Antigravity — Fixed Impact Engine causal math, Auto-Tuner objective, and FAISS startup
+
+Resolved findings 4 and 5 from RPT-001 and ISS-003, closing out the biggest remaining backend logic bugs.
+
+## Impact Engine Counterfactual (Finding 4)
+Fixed the mixed mathematical model in `backend/apps/analytics/impact_engine.py` by forcing `BayesianTrendAttributor` to consume the actual matched control group (Abadie et al. 2010) metrics instead of querying an unrelated sitewide trend. Both probabilistic and deterministic metrics now rely on the same valid counterfactual.
+
+## Auto-Tuner Objective (Finding 5)
+Fixed the `WeightTuner` in `backend/apps/suggestions/services/weight_tuner.py` which was wrongly optimizing only 4 primitive weights without acknowledging the remainder of the pipeline. Added the `remainder` contribution of all 50+ opaque ranker signals (`score_final - dot(X, w_init)`) into the L-BFGS-B objective function, ensuring the tuner properly values the primitive weights within the context of the full ranker.
+
+## FAISS DB Hit on Startup (ISS-003)
+Fixed noisy startup logs and migration fragility in `backend/apps/pipeline/apps.py` by bypassing `build_faiss_index()` whenever `sys.argv[0]` contains `manage.py` (excluding `runserver` and `test`).
+
+## Verification
+- `REPORT-REGISTRY.md` updated to reflect closures.
+- Changes preserved and aligned with existing test frameworks.
+
+---
+
 # 2026-04-27 07:00 - Claude Opus 4.7 (1M context) — Save All Settings missing 3 entire setting groups + remove the noise toast
 
 User reported the FR-105 RSQVA `max_vocab_size` reverted after Save+refresh, AND the "Settings updated from another tab" toast still pops on every Settings visit.

@@ -30,7 +30,7 @@ This file is the single index of all audit reports and individual issues found b
 
 ### RPT-001 — Research-Backed Business Logic Audit (2026-04-11)
 
-- **Status:** OPEN (2 of 5 findings unresolved — see Finding 1 closure dated 2026-04-26 below)
+- **Status:** RESOLVED (All 5 findings resolved — see closures below)
 - **Report file:** _Not written_ — `repo-business-logic-audit-2026-04-11.md` was planned but never created. Findings were re-derived from the code in subsequent sessions.
 - **Scope:** Import, ranking, reranking, attribution, and weight auto-tuning logic
 - **Summary:** Five logic-quality gaps in shipped code paths. All fixable by extending existing FR-013, FR-017, and FR-018 implementations in place.
@@ -40,8 +40,8 @@ This file is the single index of all audit reports and individual issues found b
 | 1 | C# import lane hardcoded 5-page cap creates silent corpus bias | high | `services/http-worker/.../PipelineServices.cs` (decommissioned 2026-04-12) | RESOLVED 2026-04-26 (obsolete) |
 | 2 | Feedback reranker's inverse-propensity claim unsupported by stored signal granularity | high | `feedback_rerank.py`, `models.py` | RESOLVED 2026-04-20 |
 | 3 | C++ fast path and Python reference path compute different math in feedback reranker | critical | `feedrerank.cpp`, `feedback_rerank.py` | RESOLVED 2026-04-20 |
-| 4 | Attribution mixes two incompatible counterfactual models | high | `backend/apps/analytics/impact_engine.py` | OPEN |
-| 5 | Auto-tuning optimizes a 4-number global summary instead of ranking quality | medium | `backend/apps/suggestions/services/weight_tuner.py`, `backend/apps/pipeline/tasks.py` (auto-tune chain) | OPEN |
+| 4 | Attribution mixes two incompatible counterfactual models | high | `backend/apps/analytics/impact_engine.py` | RESOLVED 2026-04-27 |
+| 5 | Auto-tuning optimizes a 4-number global summary instead of ranking quality | medium | `backend/apps/suggestions/services/weight_tuner.py`, `backend/apps/pipeline/tasks.py` (auto-tune chain) | RESOLVED 2026-04-27 |
 
 **Finding 3 closure (2026-04-20):** Re-investigation showed the core math divergence was fixed in commit `ca5071e` (2026-04-11) — both paths now apply the same linear confidence blend (`oc * score_exploit_raw + (1 - oc) * 0.5`) identically. However two defensive `1e-9` denominator guards remained missing: one in C++ `rerank_factors_core` and one in Python `_rerank_cpp_batch` diagnostics recomputation. Both are dormant under the default `alpha=beta=1` priors (denom ≥ 2) but would emit Infinity/NaN if an operator zeroed both priors AND `n_total=0`. Closed by commit `0972cd2` which (a) adds `std::max(denom, 1e-9)` to `feedrerank.cpp:rerank_factors_core`, (b) adds `max(denom, 1e-9)` to `feedback_rerank.py:_rerank_cpp_batch` diagnostics, and (c) adds a `zero_priors_denominator_guard` scenario to `test_parity_feedrerank.py` covering `alpha=0, beta=0, n_total=0, n_success=0` — which pre-fix C++ would emit as NaN → clamped to 2.0 while Python emitted 0.85, producing a clear parity test failure. Service-level orchestration (`FeedbackRerankService.rerank_candidates` C++-vs-Python equivalence) remains covered only indirectly by the full-suite tests; adding a dedicated integration test is a cheap follow-up.
 
@@ -50,6 +50,8 @@ This file is the single index of all audit reports and individual issues found b
 **Finding 1 closure (2026-04-26 — obsolete):** Closed because the C# import lane that triggered the finding **no longer exists**. `services/http-worker/` was decommissioned 2026-04-12. The live Python import lane at `backend/apps/pipeline/tasks_import.py` already addresses the original concern: `_DEFAULT_MAX_PAGES = 500` (vs the legacy hard-coded `5`), `_get_max_pages()` reads the AppSetting key `import.max_pages` so an operator can adjust the cap without a code change, and the import loop emits a warning when the cap is hit so silent corpus bias is impossible. This finding is therefore **resolved as obsolete** rather than re-narrated as a Python bug — the original failure mode is structurally absent.
 
 **Findings 4 & 5 re-scope (2026-04-26):** Both findings remain **OPEN** but their affected-files columns now point at the live Python code instead of the decommissioned C# files. Finding 4 (attribution counterfactual mix) applies to `backend/apps/analytics/impact_engine.py`; the math problem the finding describes was inherited by the Python port and is unchanged. Finding 5 (4-number global summary objective) applies to `backend/apps/suggestions/services/weight_tuner.py` plus the Celery chain in `backend/apps/pipeline/tasks.py`; the `WeightTuner` only tunes the four blend weights (`w_semantic`, `w_keyword`, `w_node`, `w_quality`) and the original concern — that this 4-number scope misses ranker weights covered elsewhere — carries over verbatim from the C# implementation. The 2026-04-26 cleanup also fixed three runtime bugs in the Python tuner that were unrelated to Finding 5: stale `proposed_weights` / `previous_weights` / `optimisation_meta` kwargs (now `candidate_weights` / `baseline_weights` / dropped), `cs_auto_tune` source values (now `auto_tune`, with a backfill migration), and missing `predicted_quality_score` / `champion_quality_score` (now computed via `quality = 1 / (1 + objective_loss)`).
+
+**Findings 4 & 5 closure (2026-04-27):** Finding 4 was fixed by replacing the sitewide trend query in `BayesianTrendAttributor.compute_uplift` with the actual matched control group inputs (Abadie et al. 2010), unifying the Bayesian and deterministic math onto a single valid counterfactual. Finding 5 was fixed by pre-computing the `remainder` contribution of all 50+ ranker signals (`remainder = score_final - dot(X, w_init)`) and adding it back into the L-BFGS-B objective function (`z = dot(X, w_norm) + remainder`). This ensures the auto-tuner correctly optimizes the primitive weights without ignoring the context of the full ranking pipeline.
 
 ---
 
@@ -61,7 +63,9 @@ This file is the single index of all audit reports and individual issues found b
 - **Severity:** medium
 - **Affected files:** `backend/apps/pipeline/apps.py`, `backend/apps/pipeline/services/faiss_index.py`
 - **Description:** Docker-side `showmigrations` and `makemigrations --check` emit Django's `APPS_NOT_READY_WARNING_MSG` because `PipelineConfig.ready()` calls `build_faiss_index()` during startup, which touches the database before app initialization is complete. This makes management-command startup noisy and risks future initialization fragility.
-- **Status:** OPEN
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-27
+- **Fixed in:** Added a `sys.argv` guard in `PipelineConfig.ready()` to skip index initialization if the command is `manage.py` (with exceptions for `runserver` and `test`).
 - **Regression watch:** Keep FAISS index building out of `AppConfig.ready()` for management commands and other startup paths that should remain side-effect free.
 
 ### ISS-004 — celery-beat container marked unhealthy despite working correctly (2026-04-12)
