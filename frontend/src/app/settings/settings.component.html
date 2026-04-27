@@ -2811,14 +2811,16 @@
     </mat-tab>
 
     <!-- Phase MS — Meta Algorithms tab. Virtual-scrolled list of every
-         meta-algorithm the app knows about (39 active + 210 forward-
-         declared + 126 signal-level forward-declared). Noob default
+         meta-algorithm the app knows about. Today the registry holds 39
+         active metas (META-01..META-39); the Phase-2 forward-declared
+         block was retired per RPT-002 (PR-A, 2026-04-22) and will be
+         repopulated by the 52-pick roster in later PRs. Noob default
          filter `status=active` keeps the list short on first open. -->
     <mat-tab>
       <ng-template mat-tab-label>
         <mat-icon class="tab-icon icon-md">auto_awesome</mat-icon>
         Meta Algorithms
-        <mat-icon class="tab-label-info icon-sm" matTooltip="Enable, disable, run, or inspect any of the 249+ meta-algorithms the ranker knows about. Winners run by default; alternates are pre-filled so you can swap them in." matTooltipClass="setting-tooltip">info_outline</mat-icon>
+        <mat-icon class="tab-label-info icon-sm" matTooltip="Enable, disable, run, or inspect the meta-algorithms the ranker knows about. Winners run by default; alternates are pre-filled so you can swap them in." matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
 
       <ng-template matTabContent>

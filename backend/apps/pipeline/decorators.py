@@ -63,9 +63,10 @@ def with_signal_lock() -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Run a ranking-signal compute task one-at-a-time across the fleet.
 
     Phase SEQ of the approved master plan. Rationale: the 23 existing
-    ranking signals (plus 126 forward-declared in RPT-002) all compete
-    for the same GPU, CPU, and Postgres connection pool. Running them
-    in parallel is pathologically slow because each one saturates the
+    ranking signals (plus the pending forward-declared signals in
+    ``recommended_weights_forward_settings.py``) all compete for the
+    same GPU, CPU, and Postgres connection pool. Running them in
+    parallel is pathologically slow because each one saturates the
     hot path — a pipeline doing 3 signals at once is slower than doing
     them back-to-back on constrained hardware ("The Tail at Scale").
 

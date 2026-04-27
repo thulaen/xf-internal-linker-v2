@@ -34,13 +34,14 @@ import { MetaRowComponent } from './meta-row.component';
 /**
  * Phase MS — Meta Algorithm Settings tab.
  *
- * Virtual-scrolled list of every meta-algorithm the app knows about
- * (375 rows today: 39 active + 210 forward-declared in P1..Q24 blocks
- * + 126 signal-level forward-declared entries).
+ * Virtual-scrolled list of every meta-algorithm the app knows about.
+ * After PR-A (RPT-002, 2026-04-22) the registry holds 39 active metas
+ * (META-01..META-39); forward-declared rows return when the 52-pick
+ * roster lands.
  *
  * Noob-first defaults:
  *   • filter starts at `status=active` so the list is short (~39 rows)
- *   • an "Include forward-declared" toggle reveals the full list
+ *   • the Status dropdown lets you switch to forward-declared / disabled
  *   • family chips double as counters ("P1 — 6") and dedup: each family
  *     shows total and a colour dot indicating how many are active
  *

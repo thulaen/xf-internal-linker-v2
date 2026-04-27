@@ -1,22 +1,22 @@
 """
 Phase MS — Meta-algorithm registry.
 
-Single source of truth for the Meta Algorithm Settings tab. Enumerates
-every meta-algorithm the app knows about (today: 210 forward-declared
-+ 39 active = 249 total), derives metadata by parsing the existing
-`recommended_weights_phase2_metas_*.py` files so a new block auto-
-surfaces without anyone touching this file.
+Single source of truth for the Meta Algorithm Settings tab. Today the
+registry surfaces the 39 active metas (META-01..META-39). The Phase-2
+forward-declared block was retired in PR-A (RPT-002, 2026-04-22); the
+52-pick roster lands fresh specs and weights in later PRs and will
+repopulate the forward-declared list via the parser below.
 
 Design rule: NO new data store. The registry reads:
-  * the `FORWARD_DECLARED_WEIGHTS_PHASE2_*` dicts (already the canonical
-    list of prefixes + default values)
-  * per-line comments in the source files to lift `META-NN — Title` and
-    `Block PX —` headers into machine-readable metadata
+  * any `FORWARD_DECLARED_WEIGHTS_PHASE2_*` dict registered in
+    ``_FILE_TO_FAMILY_RANGE`` (empty post-PR-A — see line ~145)
+  * per-line comments in those source files to lift `META-NN — Title`
+    and `Block PX —` headers into machine-readable metadata
   * `AppSetting` rows at runtime for current on/off state + weights
 
-A handful of active metas (META-01..META-39) are not in the forward-
-declared files because they're already wired into production. Those
-are listed explicitly in `_ACTIVE_METAS`.
+The 39 active metas don't go through the parser because they're
+already wired into production. They are listed explicitly in
+`_ACTIVE_METAS`.
 """
 
 from __future__ import annotations
