@@ -13,10 +13,9 @@
 // Returns ``delta`` = Σ |next - prev|, the L1 change in the rank
 // vector. Caller drives the convergence loop; converges when
 // ``delta <= node_count * tol``.
-double pagerank_step_core(const int32_t *indptr, const int32_t *indices,
-                          const double *data, const double *ranks,
-                          const bool *dangling_mask, double damping,
-                          int node_count, double *out_next_ranks);
+double pagerank_step_core(const int32_t* indptr, const int32_t* indices, const double* data,
+                          const double* ranks, const bool* dangling_mask, double damping,
+                          int node_count, double* out_next_ranks);
 
 // One iteration of personalized (seeded) PageRank — pick #36 / #30.
 //
@@ -30,13 +29,10 @@ double pagerank_step_core(const int32_t *indptr, const int32_t *indices,
 // for every i (same numerics within rounding).
 //
 // Returns ``delta`` = Σ |next - prev|.
-double personalized_pagerank_step_core(const int32_t *indptr,
-                                       const int32_t *indices,
-                                       const double *data, const double *ranks,
-                                       const bool *dangling_mask,
-                                       const double *personalization,
-                                       double damping, int node_count,
-                                       double *out_next_ranks);
+double personalized_pagerank_step_core(const int32_t* indptr, const int32_t* indices,
+                                       const double* data, const double* ranks,
+                                       const bool* dangling_mask, const double* personalization,
+                                       double damping, int node_count, double* out_next_ranks);
 
 // One iteration of Kleinberg HITS — pick #29.
 //
@@ -58,7 +54,6 @@ double personalized_pagerank_step_core(const int32_t *indptr,
 // ``out_next_authority`` and ``out_next_hub`` must be pre-allocated
 // length-``node_count`` arrays. They are zeroed inside the function
 // before deposits accumulate.
-void hits_step_core(const int32_t *indptr, const int32_t *indices,
-                    const double *data, const double *authority,
-                    const double *hub, int node_count,
-                    double *out_next_authority, double *out_next_hub);
+void hits_step_core(const int32_t* indptr, const int32_t* indices, const double* data,
+                    const double* authority, const double* hub, int node_count,
+                    double* out_next_authority, double* out_next_hub);

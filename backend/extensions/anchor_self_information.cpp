@@ -45,46 +45,46 @@ namespace py = pybind11;
 // 256×256 array because input strings can contain multi-byte UTF-8
 // sequences — collapsing UTF-8 byte pairs into a 16-bit key would
 // over-count for non-ASCII text. The map's amortised insert is O(1).
-double bigram_entropy_core(const std::string &text) {
-  const std::size_t n = text.size();
-  if (n < 2) {
-    return 0.0;
-  }
-  std::unordered_map<std::uint16_t, std::uint32_t> counts;
-  counts.reserve(n); // upper-bound; saves rehashes.
-  std::uint32_t total = 0;
-  for (std::size_t i = 0; i + 1 < n; ++i) {
-    // Pack the two-byte bigram into a uint16 key. Using
-    // unsigned char widening to avoid sign-extension surprises
-    // on platforms where ``char`` is signed.
-    const auto a = static_cast<std::uint8_t>(text[i]);
-    const auto b = static_cast<std::uint8_t>(text[i + 1]);
-    const std::uint16_t key =
-        static_cast<std::uint16_t>((static_cast<std::uint16_t>(a) << 8) | b);
-    ++counts[key];
-    ++total;
-  }
-  if (total == 0) {
-    return 0.0;
-  }
-  const double inv_total = 1.0 / static_cast<double>(total);
-  double h = 0.0;
-  for (const auto &[_, c] : counts) {
-    // PARITY: identical math to the Python loop.
-    const double p = static_cast<double>(c) * inv_total;
-    // log2(p) is well-defined because p > 0 (we only iterate
-    // entries that were incremented at least once).
-    h -= p * std::log2(p);
-  }
-  return h;
+double bigram_entropy_core(const std::string& text) {
+    const std::size_t n = text.size();
+    if (n < 2) {
+        return 0.0;
+    }
+    std::unordered_map<std::uint16_t, std::uint32_t> counts;
+    counts.reserve(n);  // upper-bound; saves rehashes.
+    std::uint32_t total = 0;
+    for (std::size_t i = 0; i + 1 < n; ++i) {
+        // Pack the two-byte bigram into a uint16 key. Using
+        // unsigned char widening to avoid sign-extension surprises
+        // on platforms where ``char`` is signed.
+        const auto a = static_cast<std::uint8_t>(text[i]);
+        const auto b = static_cast<std::uint8_t>(text[i + 1]);
+        const std::uint16_t key =
+            static_cast<std::uint16_t>((static_cast<std::uint16_t>(a) << 8) | b);
+        ++counts[key];
+        ++total;
+    }
+    if (total == 0) {
+        return 0.0;
+    }
+    const double inv_total = 1.0 / static_cast<double>(total);
+    double h = 0.0;
+    for (const auto& [_, c] : counts) {
+        // PARITY: identical math to the Python loop.
+        const double p = static_cast<double>(c) * inv_total;
+        // log2(p) is well-defined because p > 0 (we only iterate
+        // entries that were incremented at least once).
+        h -= p * std::log2(p);
+    }
+    return h;
 }
 
-double bigram_entropy(const std::string &text) {
-  return bigram_entropy_core(text);
+double bigram_entropy(const std::string& text) {
+    return bigram_entropy_core(text);
 }
 
 PYBIND11_MODULE(anchor_self_information, m) {
-  m.doc() = "Shannon character-bigram entropy for anchor self-information.";
-  m.def("bigram_entropy", &bigram_entropy, py::arg("text"),
-        "Return Shannon character-bigram entropy of *text* in bits.");
+    m.doc() = "Shannon character-bigram entropy for anchor self-information.";
+    m.def("bigram_entropy", &bigram_entropy, py::arg("text"),
+          "Return Shannon character-bigram entropy of *text* in bits.");
 }
