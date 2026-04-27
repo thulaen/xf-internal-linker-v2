@@ -28,6 +28,47 @@ For testing builds, add: `-fsanitize=address,undefined -fno-omit-frame-pointer`
 
 ---
 
+## 1b. Code Formatting (clang-format)
+
+CI pins **clang-format major 22** in `.github/workflows/ci.yml` (the `cpp-format` job). Ubuntu's default repos only ship clang-format-18, so the workflow installs `clang-format-22` from <https://apt.llvm.org>. The local Windows install at `C:\Program Files\LLVM\bin\clang-format.exe` is also major 22, so local and CI match.
+
+Without a version pin the Ubuntu runner would install whatever major it currently ships, and different majors produce different output for the same `.clang-format` config — meaning a clean source could pass yesterday and fail today with no code change. Pinning fixes that.
+
+The style itself lives in `.clang-format` at the repo root: Google base, 4-space indent, 100-column limit, pointer/reference left-aligned, attached braces, regrouped includes.
+
+### Local install (Windows)
+
+```powershell
+choco install llvm -y                  # latest, currently 22.1.x
+clang-format --version                 # confirm 22.x.x
+```
+
+If `clang-format` isn't on PATH after install, the helper in `scripts/lint-all.ps1` falls back to the default `C:\Program Files\LLVM\bin\clang-format.exe`.
+
+### Auto-fix one file
+
+```powershell
+clang-format -i --style=file backend/extensions/<file>.cpp
+```
+
+### Auto-fix everything
+
+```powershell
+Get-ChildItem backend\extensions -Recurse -Include *.cpp, *.h |
+  Where-Object { $_.FullName -notmatch '\\build' } |
+  ForEach-Object { clang-format -i --style=file $_.FullName }
+```
+
+### Pre-push gate
+
+`scripts/verify.ps1` → `scripts/lint-all.ps1` runs the same dry-run check CI runs (`--dry-run --Werror`) as step 6b. If you push without running verify and your formatting drifts, CI catches it — but the local gate exists so you don't burn a CI cycle to find that out. The local helper warns if the local clang-format major doesn't equal 22.
+
+### When to bump the pin
+
+If a future LLVM major becomes the new local default (e.g., LLVM 23 lands and you upgrade), bump **both** the CI install (`clang-format-23` in `.github/workflows/ci.yml`) **and** the helper version-check in `scripts/lint-all.ps1`, **and** re-run the new `clang-format -i` over every `.cpp`/`.h` under `backend/extensions/`. Commit the resulting diff together with the workflow change so CI and source stay in sync. Bumping only the workflow without re-formatting the source will fail on the next push.
+
+---
+
 ## 2. Threading Rules
 
 ### Priority Inversion

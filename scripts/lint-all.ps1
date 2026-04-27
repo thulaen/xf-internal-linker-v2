@@ -9,9 +9,10 @@
 #   - Python: ruff, mypy, bandit  (pip install -r requirements-dev.txt)
 #   - Node:   Angular CLI + ESLint (npm ci in frontend/)
 #   - C++:    cppcheck             (choco install cppcheck)
+#             clang-format 22      (choco install llvm -y) — major must match CI
 #
 # Checks (in order):
-#   1–6.   Existing tool-based linters (ruff, mypy, bandit, ESLint, cppcheck)
+#   1–6b.  Existing tool-based linters (ruff, mypy, bandit, ESLint, cppcheck, clang-format)
 #   8–32.  Vibe-coding pre-push rules (grep-based, zero disk footprint)
 #          See plan: .claude/plans/groovy-wibbling-robin.md for full spec.
 #          All 26 rules self-prune — run in memory, leave no artifacts.
@@ -49,9 +50,33 @@ function Get-Cppcheck {
     throw "cppcheck is not installed. Install it: winget install cppcheck"
 }
 
+function Get-ClangFormat {
+    # Pinned to clang-format major 22 (matches the CI cpp-format job which
+    # installs clang-format-22 from apt.llvm.org). Without a version pin the
+    # tool drifts between runs and the same source can pass locally but fail
+    # CI. The default LLVM Windows installer puts the binary at
+    # C:\Program Files\LLVM\bin\clang-format.exe.
+    $cmd = Get-Command clang-format -ErrorAction SilentlyContinue
+    $exe = if ($cmd) { $cmd.Source } elseif (Test-Path "C:\Program Files\LLVM\bin\clang-format.exe") { "C:\Program Files\LLVM\bin\clang-format.exe" } else { $null }
+    if (-not $exe) {
+        throw "clang-format is not installed. Install LLVM 22: choco install llvm -y (latest), then verify: clang-format --version"
+    }
+    # Soft major-version check — warn but don't block (lets the user keep a
+    # patch upgrade like 22.1.4 → 22.1.5 working).
+    $verLine = (& $exe --version 2>&1) | Select-Object -First 1
+    if ($verLine -match 'version (\d+)\.') {
+        $major = [int]$Matches[1]
+        if ($major -ne 22) {
+            Write-Host "WARN: clang-format major is $major; CI uses 22. Output may differ." -ForegroundColor Yellow
+        }
+    }
+    return $exe
+}
+
 # ── Pre-flight: verify all tools are available ────────────────────
 Assert-ToolExists "npx"    "Install Node.js 22 LTS"
-$cppcheckExe = Get-Cppcheck
+$cppcheckExe   = Get-Cppcheck
+$clangFormatExe = Get-ClangFormat
 
 # ── 1. Python ruff check ──────────────────────────────────────────
 Write-Step "1/32Python: ruff check (lint + dead code)"
@@ -146,6 +171,27 @@ $cppExitCode = $LASTEXITCODE
 $ErrorActionPreference = "Stop"
 if ($cppExitCode -ne 0) {
     throw "cppcheck found issues. Fix the C++ warnings above."
+}
+
+# ── 6b. C++ clang-format dry-run (mirrors CI cpp-format job) ─────
+# CI runs `clang-format-18 --dry-run --Werror --style=file` over every
+# .cpp/.h under backend/extensions/ (excluding build/ output trees).
+# Running the same check locally is the only way to catch a format
+# violation before push — the CI gate is otherwise the first signal.
+Write-Step "6b/32 C++: clang-format dry-run check"
+$cppFiles = Get-ChildItem -Path $extensionsDir -Recurse -Include *.cpp, *.h |
+    Where-Object { $_.FullName -notmatch '\\build(_ci|_asan|_tsan)?\\' } |
+    ForEach-Object { $_.FullName }
+if ($cppFiles.Count -eq 0) {
+    Write-Host "No C++ files found — skipping clang-format check." -ForegroundColor Yellow
+} else {
+    $ErrorActionPreference = "Continue"
+    & $clangFormatExe --dry-run --Werror --style=file @cppFiles
+    $clangFormatExit = $LASTEXITCODE
+    $ErrorActionPreference = "Stop"
+    if ($clangFormatExit -ne 0) {
+        throw "clang-format check failed. Auto-fix: clang-format -i --style=file <file>"
+    }
 }
 
 

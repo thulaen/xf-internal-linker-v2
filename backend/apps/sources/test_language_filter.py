@@ -109,6 +109,13 @@ class FilterContentRecordsTests(TestCase):
                 return LangPrediction(language="de", confidence=0.97)
             return LangPrediction(language="en", confidence=0.99)
 
+        # ``filter_english_content_records`` calls ``predict_batch`` (the
+        # Audit-bug-A5 batched fast path), not the per-text ``predict``;
+        # patch both so the mock fires regardless of which call site the
+        # implementation uses.
+        def fake_predict_batch(texts: list[str]):
+            return [fake_predict(t) for t in texts]
+
         with (
             patch(
                 "apps.sources.fasttext_langid.is_available",
@@ -117,6 +124,10 @@ class FilterContentRecordsTests(TestCase):
             patch(
                 "apps.sources.fasttext_langid.predict",
                 side_effect=fake_predict,
+            ),
+            patch(
+                "apps.sources.fasttext_langid.predict_batch",
+                side_effect=fake_predict_batch,
             ),
         ):
             kept = language_filter.filter_english_content_records(records)

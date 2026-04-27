@@ -262,18 +262,32 @@ jobs:
           retention-days: 30
 
   # ── 14. clang-format style check (blocking) ───────────────────────
+  # Pin to clang-format-22 (matches the local Windows install at
+  # C:\Program Files\LLVM\bin\clang-format.exe, version 22.1.x).
+  # Without a version pin, apt-get installs whatever Ubuntu currently
+  # ships, and different majors produce different output for the same
+  # .clang-format config — so a clean source can fail today even though
+  # it passed yesterday. We install from apt.llvm.org because Ubuntu's
+  # default repos only ship clang-format-18.
+  # If the pinned major version is bumped, also re-run the new
+  # clang-format -i over backend/extensions/ locally and commit the diff
+  # — the workflow gate validates source against the pinned binary.
   cpp-format:
     name: C++ Format Check (clang-format)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Install clang-format
-        run: sudo apt-get update && sudo apt-get install -y clang-format
+      - name: Install clang-format-22 (from apt.llvm.org)
+        run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/llvm.gpg
+          echo "deb http://apt.llvm.org/$(lsb_release -cs)/ llvm-toolchain-$(lsb_release -cs)-22 main" | sudo tee /etc/apt/sources.list.d/llvm.list
+          sudo apt-get update
+          sudo apt-get install -y clang-format-22
       - name: Check C++ formatting
         run: |
-          find backend/extensions -name "*.cpp" -o -name "*.h" | \
+          find backend/extensions \( -name "*.cpp" -o -name "*.h" \) | \
             grep -v '/build/' | \
-            xargs clang-format --dry-run --Werror --style=file
+            xargs clang-format-22 --dry-run --Werror --style=file
 
   # ── 15. Playwright E2E tests (non-blocking for now) ───────────────
   playwright-e2e:

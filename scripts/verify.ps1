@@ -55,7 +55,12 @@ try {
     $env:DJANGO_SETTINGS_MODULE = "config.settings.test"
     Push-Location (Join-Path $repoRoot "backend")
     try {
-        & $python manage.py test apps.content apps.core apps.crawler apps.diagnostics apps.graph apps.pipeline apps.suggestions apps.sync --verbosity 2
+        # Match CI exactly — run all backend tests, no app filter. The
+        # explicit list previously skipped apps.api / apps.notifications
+        # / apps.health / apps.realtime / apps.scheduled_updates /
+        # apps.analytics / apps.benchmarks / apps.plugins / apps.sources
+        # / apps.training, so failures in those apps escaped to CI.
+        & $python manage.py test --verbosity 2
         if ($LASTEXITCODE -ne 0) {
             throw "Backend test suite failed."
         }
