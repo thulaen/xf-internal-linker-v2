@@ -407,7 +407,7 @@ if ($diffFiles.Count -gt 0) {
         # pushes. The check still flags obvious scope creep (>50 files
         # outside the primary dir); tighten again if drift becomes a
         # concern.
-        $scopeThreshold = 100
+        $scopeThreshold = 50
         if ($outOfScope.Count -gt $scopeThreshold) {
             Write-Host "  Primary directory: $primaryDir" -ForegroundColor Cyan
             $outOfScope | Select-Object -First 10 | ForEach-Object { Write-Host "    $_" -ForegroundColor Yellow }
