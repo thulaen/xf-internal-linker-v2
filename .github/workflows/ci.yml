@@ -17,7 +17,7 @@ jobs:
     env:
       POSTGRES_PASSWORD: ci-fake-password
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v6
@@ -47,7 +47,7 @@ jobs:
   frontend-build-and-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Set up Node.js 22
         uses: actions/setup-node@v5
@@ -70,7 +70,7 @@ jobs:
   backend-lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v6
@@ -88,7 +88,7 @@ jobs:
   cpp-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install cppcheck
         run: sudo apt-get update && sudo apt-get install -y cppcheck
@@ -106,7 +106,7 @@ jobs:
   frontend-lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Set up Node.js 22
         uses: actions/setup-node@v5
@@ -127,7 +127,7 @@ jobs:
     env:
       POSTGRES_PASSWORD: ci-fake-password
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v6
@@ -150,7 +150,7 @@ jobs:
   backend-security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v6
@@ -168,7 +168,7 @@ jobs:
   python-deps-audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v6
@@ -185,7 +185,7 @@ jobs:
   frontend-deps-audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Set up Node.js 22
         uses: actions/setup-node@v5
@@ -204,7 +204,7 @@ jobs:
   docker-compose-validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Prepare compose env file
         run: cp .env.example .env
@@ -219,7 +219,7 @@ jobs:
     container:
       image: returntocorp/semgrep
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Run Semgrep (Django + Python rules)
         run: >
           semgrep
@@ -243,7 +243,7 @@ jobs:
     name: Trivy Dependency Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Run Trivy filesystem scan
         uses: aquasecurity/trivy-action@v0.35.0
         with:
@@ -276,7 +276,7 @@ jobs:
     name: C++ Format Check (clang-format)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install clang-format-22 (from apt.llvm.org)
         run: |
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/llvm.gpg
@@ -294,7 +294,7 @@ jobs:
     name: Playwright E2E Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Set up Node.js 22
         uses: actions/setup-node@v5
         with:
@@ -324,7 +324,7 @@ jobs:
     name: C++ Edge-Case Unit Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake build-essential libtbb-dev
@@ -352,7 +352,7 @@ jobs:
     name: C++ Unit Tests (GoogleTest)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake libtbb-dev
       - name: Configure
@@ -370,7 +370,7 @@ jobs:
     name: C++ AddressSanitizer
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake libtbb-dev
       - name: Configure with ASAN
@@ -392,7 +392,7 @@ jobs:
     name: C++ ThreadSanitizer
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake libtbb-dev
       - name: Configure with TSAN
