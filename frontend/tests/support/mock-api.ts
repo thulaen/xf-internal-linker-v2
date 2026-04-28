@@ -127,9 +127,27 @@ const reviewSuggestions = {
   ],
 };
 
+const authUser = {
+  id: 1,
+  username: 'playwright-local',
+  email: 'playwright@test.local',
+  is_staff: true,
+  date_joined: '2026-01-01T00:00:00Z',
+};
+
 export async function mockDashboardApis(page: Page): Promise<void> {
   await page.route('**/api/**', async (route) => {
     const url = route.request().url();
+
+    if (url.endsWith('/api/auth/me/')) {
+      await route.fulfill({ json: authUser });
+      return;
+    }
+
+    if (url.endsWith('/api/auth/token/')) {
+      await route.fulfill({ json: { token: 'ci-test-token' } });
+      return;
+    }
 
     if (url.endsWith('/api/settings/appearance/')) {
       await route.fulfill({ json: appearanceConfig });

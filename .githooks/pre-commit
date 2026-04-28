@@ -1,6 +1,45 @@
 #!/usr/bin/env bash
-# Pre-commit hook: ensure Gemini-breaking worktreeConfig extension is not in .git/config.
-# Runs before each commit so no commit lands while the block is present.
+# Pre-commit hook
+#
+# Goal: catch fast-feedback bugs (style, basic lint) before they reach CI.
+# Slower checks (full unit tests, type-check) stay in CI — they would make
+# every commit feel sluggish locally.
+#
+# Each lint stage is OPT-IN BY PRESENCE: if the tool isn't installed
+# locally, the stage is silently skipped. This way the hook never blocks
+# a commit because of a missing dev dependency — CI remains the safety net
+# of last resort. When the tool IS present and the lint fails, the commit
+# IS blocked (fast feedback).
 set -e
 HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+# 1. Existing: Gemini-breaking worktreeConfig guard.
 "${HOOK_DIR}/_ensure-git-config-clean.sh" || true
+
+# 2. Backend: ruff on staged Python files. Skipped if ruff isn't installed.
+STAGED_PY=$(git diff --cached --name-only --diff-filter=ACM | grep '\.py$' || true)
+if [ -n "$STAGED_PY" ] && command -v ruff > /dev/null; then
+  echo "→ ruff check (staged Python)"
+  ruff check $STAGED_PY
+fi
+
+# 3. Frontend: ESLint on staged TS/HTML. Skipped if frontend/node_modules
+#    is absent (e.g., contributor hasn't run `npm install` yet).
+STAGED_FE=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|html)$' | grep '^frontend/' || true)
+if [ -n "$STAGED_FE" ] && [ -d "$REPO_ROOT/frontend/node_modules/eslint" ]; then
+  echo "→ ESLint (staged TS/HTML)"
+  FE_RELATIVE=$(echo "$STAGED_FE" | sed "s|^frontend/||")
+  (cd "$REPO_ROOT/frontend" && npx eslint $FE_RELATIVE)
+fi
+
+# 4. Frontend: Stylelint on staged SCSS. Skipped if Stylelint isn't installed
+#    (it lands with the Stylelint plan part). Once installed, all staged
+#    .scss files are checked against frontend/.stylelintrc.json which
+#    enforces the GA4 design rules from CLAUDE.md.
+STAGED_SCSS=$(git diff --cached --name-only --diff-filter=ACM | grep '\.scss$' | grep '^frontend/' || true)
+if [ -n "$STAGED_SCSS" ] && [ -d "$REPO_ROOT/frontend/node_modules/stylelint" ]; then
+  echo "→ Stylelint (staged SCSS)"
+  SCSS_RELATIVE=$(echo "$STAGED_SCSS" | sed "s|^frontend/||")
+  (cd "$REPO_ROOT/frontend" && npx stylelint $SCSS_RELATIVE)
+fi

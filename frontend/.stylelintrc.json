@@ -1,0 +1,28 @@
+{
+  "extends": ["stylelint-config-recommended-scss"],
+  "rules": {
+    "color-no-hex": [true, {
+      "message": "Hardcoded hex colors are forbidden. Use a CSS variable from default-theme.scss (e.g., var(--color-primary))."
+    }],
+    "declaration-property-value-disallowed-list": [
+      {
+        "/^background/": ["/linear-gradient/", "/radial-gradient/"],
+        "/^.*/": ["/#(f6821f|ee730a|ff6600)/i"]
+      },
+      {
+        "message": "GA4 design rule: gradients are forbidden, and orange shades (#f6821f, #ee730a, #ff6600) must not appear anywhere."
+      }
+    ],
+    "font-family-no-missing-generic-family-keyword": true
+  },
+  "overrides": [
+    {
+      "files": ["src/styles/default-theme.scss", "src/styles.scss"],
+      "rules": {
+        "color-no-hex": null,
+        "declaration-property-value-disallowed-list": null
+      }
+    }
+  ],
+  "ignoreFiles": ["node_modules/**", "dist/**", "coverage/**", ".angular/**"]
+}

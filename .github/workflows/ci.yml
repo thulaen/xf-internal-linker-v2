@@ -36,12 +36,18 @@ jobs:
           DJANGO_SECRET_KEY: ci-fake-secret-key
         run: python manage.py makemigrations --check --dry-run
 
-      - name: Run Django tests
+      - name: Run Django tests with coverage (ratchet floor enforced)
         working-directory: backend
         env:
           DJANGO_SETTINGS_MODULE: config.settings.test
           DJANGO_SECRET_KEY: ci-fake-secret-key
-        run: python manage.py test --verbosity=2
+        # Wrap Django's test runner in coverage.py so the floor in
+        # pytest.ini's `--cov-fail-under=68` is actually enforced at
+        # CI time. Without this wrapper, coverage was measured but
+        # never gated. Floor is a ratchet — only goes up, never down.
+        run: |
+          python -m coverage run --source=apps,config manage.py test --verbosity=2 --noinput
+          python -m coverage report --fail-under=68
 
   # ── 2. Angular build + unit tests ───────────────────────────────
   frontend-build-and-test:
@@ -120,6 +126,34 @@ jobs:
       - name: Lint
         working-directory: frontend
         run: npx ng lint
+
+  # ── 6b. Stylelint for SCSS (non-blocking initially) ──────────────
+  # Enforces the CLAUDE.md design rules: no hardcoded hex (use CSS
+  # variables from default-theme.scss), no linear-gradient or radial-
+  # gradient, no orange shades (#f6821f, #ee730a, #ff6600). The
+  # default-theme.scss and styles.scss files are exempted via overrides
+  # in frontend/.stylelintrc.json — those are the source of truth.
+  #
+  # Currently NON-BLOCKING because the existing codebase has ~180
+  # legacy hardcoded-hex violations in component SCSS files. Once a
+  # cleanup PR replaces those with CSS variables, remove `|| true`
+  # below to make this a hard gate. See docs/TESTING.md and the
+  # spawned follow-up task for the cleanup plan.
+  frontend-lint-scss:
+    name: Stylelint (SCSS, non-blocking)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Stylelint (SCSS) — surface violations as warnings
+        working-directory: frontend
+        run: npm run lint:scss || true
 
   # ── 7. Python type checking (mypy) ──────────────────────────────
   backend-typecheck:
@@ -289,7 +323,13 @@ jobs:
             grep -v '/build/' | \
             xargs clang-format-22 --dry-run --Werror --style=file
 
-  # ── 15. Playwright E2E tests (non-blocking for now) ───────────────
+  # ── 15. Playwright E2E tests (CI-safe subset, blocking — live/ excluded) ──
+  # The `PLAYWRIGHT_CI=1` env var tells playwright.config.ts to apply
+  # `testIgnore: ['**/live/**']`. The `live/` specs need a fully-booted
+  # backend stack with seeded data (database, Celery, etc.) which this
+  # workflow does not provide. New top-level smoke specs added under
+  # `frontend/tests/` are auto-included; new specs under `frontend/tests/live/`
+  # are auto-excluded from CI without further workflow edits.
   playwright-e2e:
     name: Playwright E2E Tests
     runs-on: ubuntu-latest
@@ -308,9 +348,11 @@ jobs:
       - name: Build production bundle
         working-directory: frontend
         run: npm run build:prod
-      - name: Run Playwright tests (CI-safe tests only)
+      - name: Run Playwright tests (CI-safe subset, blocking)
         working-directory: frontend
-        run: npx playwright test tests/ --reporter=html || true
+        env:
+          PLAYWRIGHT_CI: "1"
+        run: npx playwright test --reporter=html
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v5
@@ -408,3 +450,63 @@ jobs:
       - name: Test (non-blocking)
         working-directory: backend/extensions/build_tsan
         run: ctest --output-on-failure || true
+
+  # ── 20. Missing-tests warning (non-blocking initially — hardens later) ─
+  # When a PR adds a new backend service module under
+  # backend/apps/*/services/ or a new Angular *.component.ts / *.service.ts,
+  # check whether a matching test file landed in the same PR. If not, emit
+  # a GitHub annotation as a WARNING (this job does not fail today). After
+  # ~4 weeks of clean runs, change `::warning::` below to `::error::` and
+  # add `exit 1` to harden it into a blocking gate. See docs/TESTING.md
+  # for the naming conventions this check enforces.
+  missing-tests-check:
+    name: Missing Tests Warning
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Detect new modules without tests
+        shell: bash
+        run: |
+          set -e
+          BASE=$(git merge-base origin/master HEAD)
+          NEW_PY=$(git diff --name-only --diff-filter=A "$BASE"...HEAD | grep -E '^backend/apps/[^/]+/services/[^/]+\.py$' | grep -v __init__ || true)
+          NEW_TS=$(git diff --name-only --diff-filter=A "$BASE"...HEAD | grep -E '^frontend/src/.*\.(component|service)\.ts$' | grep -v '\.spec\.ts$' || true)
+
+          MISSING=""
+
+          for f in $NEW_PY; do
+            dir=$(dirname "$f")
+            base=$(basename "$f" .py)
+            # Accept any of three test-file locations:
+            #   1. same dir: <dir>/test_<base>.py
+            #   2. parent app dir: <dir>/../test_<base>.py
+            #   3. dedicated tests dir: <dir>/../tests/test_<base>.py
+            CANDIDATES="${dir}/test_${base}.py ${dir}/../test_${base}.py ${dir}/../tests/test_${base}.py"
+            FOUND=""
+            for c in $CANDIDATES; do
+              if git ls-files "$c" 2>/dev/null | grep -q .; then
+                FOUND="yes"
+                break
+              fi
+            done
+            if [ -z "$FOUND" ]; then
+              MISSING="${MISSING}%0A  ${f}"
+            fi
+          done
+
+          for f in $NEW_TS; do
+            spec="${f%.ts}.spec.ts"
+            if ! git ls-files "$spec" 2>/dev/null | grep -q .; then
+              MISSING="${MISSING}%0A  ${f}"
+            fi
+          done
+
+          if [ -n "$MISSING" ]; then
+            echo "::warning::New modules added without matching test files:${MISSING}"
+            echo "::warning::See docs/TESTING.md for naming conventions and where new tests go."
+          else
+            echo "All new modules have matching test files."
+          fi

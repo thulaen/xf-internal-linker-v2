@@ -12,6 +12,7 @@
     "test:ci": "node --max-old-space-size=4096 ./node_modules/@angular/cli/bin/ng test --no-watch --no-progress --browsers=ChromeHeadlessNoSandbox",
     "test:ci:docker": "node --max-old-space-size=768 ./node_modules/@angular/cli/bin/ng test --no-watch --no-progress --browsers=ChromeHeadlessNoSandbox",
     "lint": "ng lint",
+    "lint:scss": "stylelint \"src/**/*.scss\"",
     "ui:test": "playwright test",
     "ui:test:a11y": "playwright test tests/a11y.spec.ts",
     "ui:test:headed": "playwright test --headed",
@@ -75,6 +76,9 @@
     "openapi-typescript": "^7.4.0",
     "prettier": "^3.3.3",
     "source-map-explorer": "^2.5.3",
+    "stylelint": "^17.9.1",
+    "stylelint-config-recommended-scss": "^17.0.1",
+    "stylelint-config-standard-scss": "^17.0.0",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.58.0",
     "zone.js": "~0.15.0"
