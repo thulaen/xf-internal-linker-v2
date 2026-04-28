@@ -170,6 +170,18 @@ export const routes: Routes = [
     canActivate: [authGuard],
     data: { breadcrumb: 'Preferences' },
   },
+  // Group M.1 — Admin Models page: operator control for every
+  // registered ML model (champion / candidate, placements,
+  // pause / resume / promote / drain). Reuses the
+  // /api/settings/runtime/models/ endpoints already shipped.
+  {
+    path: 'admin/models',
+    loadComponent: () =>
+      import('./admin-models/admin-models.component').then((m) => m.AdminModelsComponent),
+    title: 'Models — XF Internal Linker',
+    canActivate: [authGuard],
+    data: { breadcrumb: 'Models' },
+  },
   // Phase U1 / Gap 18 — dedicated 500 / "something went wrong" page.
   // The Global ErrorHandler (Gap 26) navigates here on unrecoverable
   // errors. Must come BEFORE the wildcard `**` below so a direct

@@ -64,9 +64,9 @@ This file is the single index of all audit reports and individual issues found b
 - **Affected files:** `backend/apps/pipeline/apps.py`, `backend/apps/pipeline/services/faiss_index.py`
 - **Description:** Docker-side `showmigrations` and `makemigrations --check` emit Django's `APPS_NOT_READY_WARNING_MSG` because `PipelineConfig.ready()` calls `build_faiss_index()` during startup, which touches the database before app initialization is complete. This makes management-command startup noisy and risks future initialization fragility.
 - **Status:** RESOLVED
-- **Resolved:** 2026-04-27
-- **Fixed in:** Added a `sys.argv` guard in `PipelineConfig.ready()` to skip index initialization if the command is `manage.py` (with exceptions for `runserver` and `test`).
-- **Regression watch:** Keep FAISS index building out of `AppConfig.ready()` for management commands and other startup paths that should remain side-effect free.
+- **Resolved:** 2026-04-28 (re-fixed cleanly per masterplan Group B)
+- **Fixed in:** Two-step history. First fix (2026-04-27) added a `sys.argv` guard in `PipelineConfig.ready()` — but per Plan 5's audit, the symptom kept resurfacing because the guard was brittle to invocation paths the regex didn't match. Final fix (2026-04-28, masterplan Group B.1) **removes the `build_faiss_index()` call from `ready()` entirely**. The 15-minute Celery beat task `refresh_faiss_index` and the just-in-time fallback in `pipeline_stages._stage1_candidates()` cover index freshness. Group B.2 wires the previously-unused `_assert_single_worker()` check; Group B.3 routes any FAISS init failure to `/error-log` via `ingest_error()`.
+- **Regression watch:** Keep FAISS index building out of `AppConfig.ready()` permanently. Any future need for an at-startup pre-warm should go via a Celery beat task that runs after app initialisation, never inside `ready()` itself.
 
 ### ISS-004 — celery-beat container marked unhealthy despite working correctly (2026-04-12)
 

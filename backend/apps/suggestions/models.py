@@ -638,6 +638,28 @@ class Suggestion(TimestampedModel):
         blank=True,
         help_text="Explainable random walk details (steps, seeds, visit counts) for graph candidates.",
     )
+    # FR-053 Passage-Level Relevance Scoring (masterplan Group E)
+    score_passage_relevance = models.FloatField(
+        default=0.5,
+        help_text=(
+            "Bounded best-passage similarity score in [0.5, 1.0]. 0.5 = "
+            "neutral (no passage matched, feature off, or destination too "
+            "short). >0.5 = at least one passage in the destination is a "
+            "good semantic match for the host sentence. Patent US "
+            "9,940,367 B1 (Google 2018)."
+        ),
+    )
+    passage_relevance_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Explainable best-passage match details — best_passage_index, "
+            "best_passage_similarity, all_passage_similarities, "
+            "best_passage_preview, passage_count, state, and the chunk "
+            "settings used at index time. Operator review surface for "
+            "FR-053 per the spec's ## Diagnostics section."
+        ),
+    )
 
     # Anchor text
     anchor_phrase = models.CharField(

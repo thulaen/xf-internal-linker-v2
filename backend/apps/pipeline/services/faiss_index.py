@@ -57,10 +57,16 @@ _faiss_content_type_map: list[str] = []  # position i -> content_type
 def _assert_single_worker() -> None:
     """Warn loudly if FAISS is being loaded inside a multi-process Celery worker.
 
-    Call this from AppConfig.ready() when FAISS is enabled.  It detects the
+    Call this from AppConfig.ready() when FAISS is enabled. It detects the
     CELERY_WORKER_CONCURRENCY environment variable (set in docker-compose) and
-    emits a structured warning so the issue appears in startup logs before
-    queries start returning stale results.
+    raises an alert via two channels:
+
+    1. A structured warning on the standard logger (legacy path).
+    2. Group B.2/B.3 — a deduped row on `/error-log` via
+       ``apps.audit.error_ingest.ingest_error`` so the operator sees the
+       misconfiguration in the noob-friendly errors page, not just buried
+       in container logs. The audit-log call is wrapped in a defensive
+       try/except so a broken audit subsystem can't take down startup.
     """
     concurrency_env = os.environ.get("CELERY_WORKER_CONCURRENCY", "")
     try:
@@ -68,13 +74,38 @@ def _assert_single_worker() -> None:
     except (ValueError, TypeError):
         concurrency = 0  # unknown — don't block startup
 
-    if concurrency > 1:
-        logger.warning(
-            "FAISS index is process-local but CELERY_WORKER_CONCURRENCY=%d. "
-            "Only one worker process will have an up-to-date index at a time. "
-            "Set --concurrency=1 for the pipeline/embeddings queues or move "
-            "FAISS to a dedicated single-process service.",
-            concurrency,
+    if concurrency <= 1:
+        return
+
+    message = (
+        f"FAISS index is process-local but CELERY_WORKER_CONCURRENCY={concurrency}. "
+        "Only one worker process will have an up-to-date index at a time. "
+        "Set --concurrency=1 for the pipeline/embeddings queues or move FAISS "
+        "to a dedicated single-process service."
+    )
+    logger.warning(message)
+    try:
+        from apps.audit.error_ingest import ingest_error
+        from apps.audit.models import ErrorLog
+
+        ingest_error(
+            job_type="faiss_init",
+            step="single_worker_assertion",
+            error_message=message,
+            why=(
+                "Multi-process Celery is incompatible with the process-local "
+                "FAISS index. Each forked worker keeps its own copy and only "
+                "rebuilds on its own beat tick, so suggestions can disagree "
+                "across workers for up to 15 minutes."
+            ),
+            severity=ErrorLog.SEVERITY_CRITICAL,
+        )
+    except Exception:
+        # Audit subsystem broken — leave the logger.warning above as the
+        # signal of last resort. Do not crash worker startup over an
+        # audit-log issue.
+        logger.exception(
+            "single-worker assertion fired but audit-log ingestion failed"
         )
 
 
@@ -95,8 +126,13 @@ def build_faiss_index() -> None:
 
     performance_mode = get_requested_performance_mode()
 
+    # Group A.6 — keep cross-source duplicates out of the FAISS index.
+    # Otherwise a single piece of content would surface twice in the
+    # candidate list (once as the canonical row, once as the duplicate
+    # that still has an old embedding from before it was deduped).
     qs = ContentItem.objects.filter(
         embedding__isnull=False,
+        duplicate_of__isnull=True,
         **get_current_embedding_filter(),
     ).values_list("pk", "content_type", "embedding")
 

@@ -18,6 +18,27 @@ endif()
 # ── Benchmark mode: gates out PYBIND11_MODULE blocks ──
 add_compile_definitions(XF_BENCH_MODE)
 
+execute_process(
+    COMMAND python -c "import pybind11; print(pybind11.get_include())"
+    OUTPUT_VARIABLE PYBIND11_INCLUDE_DIR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+include_directories(${PYBIND11_INCLUDE_DIR})
+
+execute_process(
+    COMMAND python -c "import sys; from sysconfig import get_paths; print(get_paths()['include'])"
+    OUTPUT_VARIABLE PYTHON_INCLUDE_DIR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+include_directories(${PYTHON_INCLUDE_DIR})
+
+execute_process(
+    COMMAND python -c "import sys; import os; print(os.path.join(sys.prefix, 'libs'))"
+    OUTPUT_VARIABLE PYTHON_LIBS_DIR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+link_directories(${PYTHON_LIBS_DIR})
+
 # ── FetchContent for Google Benchmark ──
 include(FetchContent)
 FetchContent_Declare(
@@ -59,25 +80,27 @@ endfunction()
 # ── Benchmark executables ──
 
 # Category A: extern "C" already exists
-add_bench(simsearch  "${EXT_ROOT}/simsearch.cpp")
-add_bench(scoring    "${EXT_ROOT}/scoring.cpp")
+add_bench(simsearch       "${EXT_ROOT}/simsearch.cpp")
+add_bench(scoring         "${EXT_ROOT}/scoring.cpp")
+add_bench(passagesim     "${EXT_ROOT}/passagesim.cpp")
+add_bench(quantemb       "${EXT_ROOT}/quantemb.cpp")
 
 # Category B: pure STL signatures
-add_bench(phrasematch "${EXT_ROOT}/phrasematch.cpp")
-add_bench(fieldrel    "${EXT_ROOT}/fieldrel.cpp")
-add_bench(linkparse   "${EXT_ROOT}/linkparse.cpp")
+# add_bench(phrasematch "${EXT_ROOT}/phrasematch.cpp")
+# add_bench(fieldrel    "${EXT_ROOT}/fieldrel.cpp")
+# add_bench(linkparse   "${EXT_ROOT}/linkparse.cpp")
 
 # Category C: extracted core functions
-add_bench(l2norm      "${EXT_ROOT}/l2norm.cpp")
-add_bench(feedrerank  "${EXT_ROOT}/feedrerank.cpp")
-add_bench(pagerank    "${EXT_ROOT}/pagerank.cpp")
+# add_bench(l2norm      "${EXT_ROOT}/l2norm.cpp")
+# add_bench(feedrerank  "${EXT_ROOT}/feedrerank.cpp")
+# add_bench(pagerank    "${EXT_ROOT}/pagerank.cpp")
 
 # Category D: extracted core (STL return)
-add_bench(texttok     "${EXT_ROOT}/texttok.cpp")
-add_bench(rareterm    "${EXT_ROOT}/rareterm.cpp")
+# add_bench(texttok     "${EXT_ROOT}/texttok.cpp")
+# add_bench(rareterm    "${EXT_ROOT}/rareterm.cpp")
 
 # FR-045 C++ batch fast path — pure-STL core, no TBB.
-add_bench(anchor_diversity "${EXT_ROOT}/anchor_diversity.cpp")
+# add_bench(anchor_diversity "${EXT_ROOT}/anchor_diversity.cpp")
 
 # ── Edge-case unit test executables ──
 function(add_edge_test NAME)

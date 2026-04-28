@@ -11,6 +11,25 @@ from apps.pipeline.decorators import with_weight_lock
 logger = logging.getLogger(__name__)
 
 
+def _read_int(key: str, default: int) -> int:
+    """Module-local alias for ``AppSetting.get_int`` (Group D consolidation).
+
+    Kept as a thin shim so existing call sites in this file stay
+    untouched while delegating the cast logic to the shared classmethod.
+    Lazy import so this module stays import-cheap.
+    """
+    from apps.core.models import AppSetting
+
+    return AppSetting.get_int(key, default)
+
+
+def _read_float(key: str, default: float) -> float:
+    """Module-local alias for ``AppSetting.get_float`` (Group D consolidation)."""
+    from apps.core.models import AppSetting
+
+    return AppSetting.get_float(key, default)
+
+
 @shared_task(
     bind=True,
     name="cooccurrence.compute_session_cooccurrence",
@@ -31,17 +50,14 @@ def compute_session_cooccurrence(self) -> dict:
     from .models import SessionCoOccurrenceRun
     from .services import fetch_ga4_session_cooccurrence
 
-    def _read_int(key: str, default: int) -> int:
-        try:
-            return int(AppSetting.objects.get(key=key).value)
-        except (AppSetting.DoesNotExist, ValueError):
-            return default
-
-    def _read_float(key: str, default: float) -> float:
-        try:
-            return float(AppSetting.objects.get(key=key).value)
-        except (AppSetting.DoesNotExist, ValueError):
-            return default
+    # Group U cleanup (2026-04-28): _read_int / _read_float are now
+    # module-level helpers above. The duplicate nested-function copies
+    # that used to live here were identical to those in
+    # detect_behavioral_hubs — same code, two places. DRY-fixed.
+    # ``AppSetting`` itself stays imported here because line 131 reads
+    # ``cooccurrence.hub_detection_enabled`` directly (opt-out toggle
+    # whose semantics — "missing or != 'false' → enabled" — are weirder
+    # than _read_bool would gracefully express).
 
     data_window_days = _read_int("cooccurrence.data_window_days", 90)
     min_co_session_count = _read_int("cooccurrence.min_co_session_count", 5)
@@ -133,18 +149,9 @@ def detect_behavioral_hubs() -> dict:
     from apps.core.models import AppSetting
     from .services import detect_behavioral_hubs as _detect
 
-    def _read_float(key: str, default: float) -> float:
-        try:
-            return float(AppSetting.objects.get(key=key).value)
-        except (AppSetting.DoesNotExist, ValueError):
-            return default
-
-    def _read_int(key: str, default: int) -> int:
-        try:
-            return int(AppSetting.objects.get(key=key).value)
-        except (AppSetting.DoesNotExist, ValueError):
-            return default
-
+    # Group U cleanup (2026-04-28): _read_int / _read_float are now
+    # module-level helpers at the top of this file (previously duplicated
+    # nested copies in both this task and compute_session_cooccurrence).
     hub_min_jaccard = _read_float("cooccurrence.hub_min_jaccard", 0.15)
     hub_min_members = _read_int("cooccurrence.hub_min_members", 3)
 

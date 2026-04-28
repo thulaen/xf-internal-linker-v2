@@ -31,25 +31,15 @@ DEFAULT_COOCCURRENCE_SETTINGS = {
 
 
 def _read_cooccurrence_settings() -> dict:
+    # Group D consolidation (2026-04-28): the inline ``_bool`` /
+    # ``_int`` / ``_float`` closures used to live here; replaced with
+    # the shared ``AppSetting.get_*`` classmethods so the cast
+    # semantics stay consistent project-wide.
     from apps.core.models import AppSetting
 
-    def _bool(key: str, default: bool) -> bool:
-        try:
-            return AppSetting.objects.get(key=key).value.lower() == "true"
-        except AppSetting.DoesNotExist:
-            return default
-
-    def _int(key: str, default: int) -> int:
-        try:
-            return int(AppSetting.objects.get(key=key).value)
-        except (AppSetting.DoesNotExist, ValueError):
-            return default
-
-    def _float(key: str, default: float) -> float:
-        try:
-            return float(AppSetting.objects.get(key=key).value)
-        except (AppSetting.DoesNotExist, ValueError):
-            return default
+    _bool = AppSetting.get_bool
+    _int = AppSetting.get_int
+    _float = AppSetting.get_float
 
     from .models import SessionCoOccurrenceRun, BehavioralHub
 

@@ -139,7 +139,7 @@ FORWARD_DECLARED_WEIGHTS: dict[str, str] = {
     "seasonality.index_cap": "3.0",
     # FR-021 - Graph-Based Link Candidate Generation
     "graph_candidate.enabled": "true",
-    "graph_candidate.walk_steps_per_entity": "1000",
+    "graph_candidate.walk_steps_per_entity": "5000",
     "graph_candidate.min_stable_candidates": "50",
     "graph_candidate.min_visit_threshold": "3",
     "graph_candidate.top_k_candidates": "100",
@@ -187,10 +187,18 @@ FORWARD_DECLARED_WEIGHTS: dict[str, str] = {
     "readability_match.ranking_weight": "0.02",
     "readability_match.max_grade_gap": "3",
     "readability_match.penalty_per_grade": "0.10",
-    # FR-053 — Passage-Level Relevance Scoring
+    # FR-053 — Passage-Level Relevance Scoring (Group E — landing 2026-04-28)
+    # Algorithm baseline: Patent US 9,940,367 B1 (Google 2018) col 5 ll 25-48 +
+    # col 8 ll 5-32. Chunk-size baseline: Callan 1994 SIGIR §5 (150-300 token
+    # window sweet spot). Chunk source: Post.clean_text (post-Group-D.1).
     "passage_relevance.enabled": "true",
-    "passage_relevance.ranking_weight": "0.05",
-    "passage_relevance.passages_per_page": "5",
+    # HEURISTIC: cross-tier match, no primary-source weight. The patent
+    # describes the algorithm but does not prescribe a weight in a
+    # multi-signal additive composite. 0.05 matches the FR-099-FR-105
+    # active-tier band (0.04-0.05). TPE auto-tuner refines after the
+    # 30-day burn-in per BLC §6.4 / §7.3.
+    "passage_relevance.ranking_weight": "0.10",
+    "passage_relevance.passages_per_page_max": "0",
     "passage_relevance.passage_words": "200",
     "passage_relevance.index_quantised": "true",
     # FR-054 — Boilerplate-to-Content Ratio

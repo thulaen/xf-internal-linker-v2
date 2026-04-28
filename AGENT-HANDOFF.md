@@ -1,3 +1,146 @@
+
+[HANDOFF READ: 2026-04-28 by Antigravity — Finalized FR-053 Passage Relevance: increased embedding character limit to 1M, implemented Head-Tail thread sampling (first 20, last 10 pages), updated recommended weights to allow unlimited passages, and enforced mandatory C++ benchmarks in AGENTS.md.]
+
+# 2026-04-28 - Antigravity - Passage Relevance Pipeline Finalization (FR-053)
+
+[HANDOFF READ: 2026-04-28 by Antigravity — Finished FR-053 Passage Relevance pipeline: wired backfill task to trigger passage chunking, integrated passagesim.cpp into score(), built Angular settings card and suggestion dialog UI, added Python tests for C++ kernels.]
+
+[HANDOFF READ: 2026-04-28 by Claude Opus 4.7 — Masterplan review + Wave 1 implementation (Groups A/B/D/F/C)]
+
+Implemented the C++ Pixie Walker and Group A.3 path deduplication logic.
+- Created `docs/specs/group-a3-random-walk-dedup.md` documenting rank-equivalence of deduplication.
+- Added `PixieWalkVisit` model to `knowledge_graph` and generated migration.
+- Built `backend/extensions/pixie_walk.cpp` using pybind11, O(1) Walker's Alias method, and `std::execution::par` multi-threading.
+- Built the `graph_builder.py` service to incrementally build the bipartite graph using TF-IDF extraction on posts up to 50k characters.
+- Integrated `PixieRetriever` into pipeline candidate retrievers to run the walks per-destination and securely store the `PixieWalkVisit` tuples in a last-write-wins manner.
+
+# 2026-04-28 - Claude Opus 4.7 (1M context) - Masterplan review + Wave 1 implementation (Groups A/B/D/F/C)
+
+[HANDOFF READ: 2026-04-27 20:51 by Codex — fixed attribution trust, auto-tuner drift, FAISS startup safety.]
+
+Big session. Started in plan mode, reviewed five separate plans the user provided (text pipeline, 68-pick mega-plan, CUDA random walks, Resource Governor microservice, plan audit), produced one consolidated masterplan with 22 groups across 6 waves at `C:\Users\goldm\.claude\plans\review-this-plan-and-prancy-teapot.md`. Then implemented most of Wave 1 on `master` without creating any branches.
+
+## New project rule — Plain-English Communication (paramount)
+
+User asked for a strict rule that all agents (Claude / Codex / Gemini / Antigravity / future) must explain things in plain English at all times — what they do, what was accomplished, what has issues. Three required parts in every substantive response. Added as a paramount block at the top of:
+- `CLAUDE.md`
+- `AGENTS.md`
+- `AI-CONTEXT.md` Session Gate
+
+## Group A — Targeted asks (Wave 1, items 1-6)
+
+- A.1: `rsqva.max_vocab_size` default 10000 → 25000 in `backend/apps/suggestions/recommended_weights.py:176`. New migration `suggestions/0049_bump_rsqva_walk_steps_defaults.py` upserts the new default into the Recommended `WeightPreset` row. Operator-overridden values stay untouched.
+- A.2: `graph_candidate.walk_steps_per_entity` default 1000 → 5000 in `recommended_weights_forward_settings.py:142`. Bundled into the same 0049 migration.
+- A.3: SPIKE found nothing to dedup. Random walks today use power-iteration (no per-walk visit persistence). Setting `walk_steps_per_entity` is a placeholder GUI control with no consumer in the pipeline. Documented in the masterplan; the dedup discipline applies when FR-021's actual Pixie-style walker ships.
+- A.4: Plain-English tooltips on all 7 FR-099–FR-105 meta-algo card titles via `[matTooltip]`. Tooltip text in `frontend/src/app/settings/meta-algo-tooltips.ts`. New `metaAlgoTip()` method on `SettingsComponent`.
+- A.5: "View spec" Material dialog. Backend endpoint `GET /api/docs/specs/<slug>/` at `backend/apps/core/views_docs.py` reads the markdown safely (path-traversal guarded), renders to HTML server-side via the new `markdown==3.7` Python dep, returns JSON. Frontend `SpecViewerDialogComponent` at `frontend/src/app/settings/spec-viewer-dialog/` fetches + binds via `[innerHTML]` — no new frontend dep. All 7 cards got "View spec" buttons.
+- A.6: Cross-source content dedup. New `ContentItem.duplicate_of` self-FK + `content_hash` indexed via migration `content/0032_contentitem_duplicate_of.py`. Helper `find_cross_source_duplicate()` in `apps/content/identity.py`. Wired into `_persist_content_body` and into the embedding/FAISS skip filters.
+- Side fix: `.claude/launch.json` port was 4200 (legacy dev frontend), now 80 (current prod nginx) with rebuild hint.
+
+## Group B — FAISS hygiene (Wave 1, items 7-9)
+
+- B.1: Removed the `build_faiss_index()` call from `PipelineConfig.ready()` entirely. The 15-min `refresh_faiss_index` Celery beat task and the just-in-time fallback in `pipeline_stages._stage1_candidates()` cover the freshness need. Closes ISS-003 cleanly (re-marked the registry entry to reflect the new fix path).
+- B.2: Wired the previously-unused `_assert_single_worker()` check in the new `apps.py:ready()`. Triggers when `CELERY_WORKER_CONCURRENCY > 1`.
+- B.3: All FAISS init failures route to `/error-log` via `ingest_error()` — three call sites: `apps.py:ready()` wrapper, `_assert_single_worker()` itself, and the `refresh_faiss_index` Celery task.
+
+## Group D — Long-content embedding + crawl dedup (Wave 1, items 10-17)
+
+- D.1: Embedding source is now `Post.clean_text` instead of 5-sentence `distilled_text`. Soft 24,000-char cap with sentence-boundary truncation. Long posts (3,000+ words) finally contribute their full body to the document vector. New helpers `_truncate_at_sentence` and `_compute_embed_text_hash` in `embeddings.py`.
+- D.2: New `ContentItem.embedding_text_hash` column via migration `content/0033_contentitem_embedding_text_hash.py`. `_flush_embeddings_slice` extended with optional `text_hashes` parameter so the SHA-256 of the embed input lands alongside the vector. Future re-embed calls can now distinguish "model changed" from "text changed".
+- D.3: XenForo `[SPOILER]` and `[ISPOILER]` block stripping added to `text_cleaner.py` alongside the existing QUOTE / CODE / SIGPIC obliterations.
+- D.4: New `ContentItem.quotation_density` FloatField via migration `content/0034_contentitem_quotation_density.py`. New `compute_quotation_density()` helper in `text_cleaner.py`. Captured at import time before QUOTE blocks get stripped. Store-only — feeds future FR-041 originality scoring.
+- D.5: `_save_page_meta` now upserts by `(normalized_url, content_hash)` across all sessions instead of inserting one row per (session, URL). New `CrawlerVisit` model + composite index `crawled_page_url_hash_idx` via migration `crawler/0003_crawler_dedup_and_visits.py`. Crawler disk growth is now O(unique content versions per URL) instead of O(crawls × URLs).
+- D.6: Idempotent data migration `crawler/0004_collapse_crawled_page_meta_duplicates.py` collapses existing duplicates by `(normalized_url, content_hash)`, keeping the oldest row. Batched 500-at-a-time so it can't OOM on a multi-million-row install. Conservative — only acts on rows where both columns are non-empty.
+- D.7: `nightly_data_retention` Celery task extended to prune `CrawlerVisit` rows older than 90 days.
+- D.8: New Celery task `pipeline.backfill_long_tail_embeddings` with AppSetting checkpoint key. Picks posts whose body is ≥ 5× longer than their distilled summary first (the worst signal-loss cases). Operator-triggered, not on beat. Replaced a brittle `.extra()` SQL fragment with proper Django ORM `.annotate(Length(...))` for portability.
+
+## Group F — Disk hygiene (Wave 1, no new code)
+
+- F.1: Confirmed `apps/pipeline/services/embedding_audit.py` and `tasks_embedding_audit.py` are wired (no new code needed).
+- F.2: Confirmed `SupersededEmbedding` 7-day retention is wired via `apps/content/supersede.py` (no new code needed).
+- F.3: Already covered inline in D.7 — the unified GC sweep now includes `CrawlerVisit`.
+- F.4: The existing FK `on_delete` behaviors already handle tombstone propagation correctly. `duplicate_of` is `SET_NULL` (A.6); `SupersededEmbedding.content_item` is `CASCADE` by deliberate existing design — left alone.
+
+## Group C — CUDA random walks (Wave 1, items 18-24)
+
+- C.1: Added `cupy-cuda12x==13.3.0` to `backend/requirements.txt` (~precompiled CUDA 12.x runtime libs bundled, no nvcc needed). Fixed the misleading `# PyTorch CPU build` comment to accurately describe the GPU build.
+- C.2: New file `apps/pipeline/services/pagerank_cuda.py` with three kernels — `pagerank_step_cuda`, `personalized_pagerank_step_cuda`, `hits_step_cuda`. Each mirrors the math of the existing C++ kernel byte-for-byte within float64 round-off tolerance. cuPy + cuSPARSE under the hood; lazy import so the module loads cleanly on CPU-only hosts.
+- C.3: Wired CUDA-first dispatch in `personalized_pagerank.py` and `hits.py`. TrustRank gets it for free via PPR (it doesn't call the C++ kernel directly).
+- C.4: **NOT shipped.** The masterplan said "promote daily PR/HITS/TrustRank from `signal` weight class to `heavy`", but actual code shows the scheduled_updates runner has its own runner-lock that's orthogonal to the Heavy lock used by Celery import/embedding tasks. Bridging the two systems is bigger than this session's scope — flagged for a follow-up session that integrates `apps.scheduled_updates.runner` with `apps.pipeline.services.task_lock`.
+- C.5: Three `*_safe()` dispatchers in `pagerank_cuda.py` handle CUDA-first / CPU-fallback. `CudaUnavailableError` falls back silently (no GPU is a system state, not an error). Other CUDA exceptions log to `/error-log` once per process via `ingest_error()` then disable CUDA for the rest of the run.
+- C.6: Mock-data parity tests at `apps/pipeline/test_pagerank_cuda_parity.py`. No DB, no fixtures — pure synthetic CSR matrices via `scipy.sparse.random`. Tolerance: `abs ≤ 1e-5` OR `rel ≤ 1e-6`. Top-100 stability check. Skips cleanly on CPU-only hosts.
+- C.7: Three-size benchmark at `backend/benchmarks/test_bench_pagerank_cuda.py` — 1k / 10k / 100k nodes per the mandatory benchmark rule.
+- C.8: Per Plan 4 §22, pure-infrastructure work (no ranking math change) is exempt from Gate B. CUDA acceleration of an existing kernel that produces identical output qualifies. ISS-003 closure handled in REPORT-REGISTRY.
+
+## Files changed (this session)
+
+Backend Python:
+- `backend/apps/suggestions/recommended_weights.py` (A.1)
+- `backend/apps/suggestions/recommended_weights_forward_settings.py` (A.2)
+- `backend/apps/suggestions/migrations/0049_bump_rsqva_walk_steps_defaults.py` (NEW, A.1+A.2)
+- `backend/apps/core/views_docs.py` (NEW, A.5)
+- `backend/apps/core/urls.py` (A.5)
+- `backend/requirements.txt` (A.5 markdown==3.7, C.1 cupy-cuda12x==13.3.0, comment fix)
+- `backend/apps/content/models.py` (A.6 duplicate_of, D.2 embedding_text_hash, D.4 quotation_density)
+- `backend/apps/content/migrations/0032_contentitem_duplicate_of.py` (NEW, A.6)
+- `backend/apps/content/migrations/0033_contentitem_embedding_text_hash.py` (NEW, D.2)
+- `backend/apps/content/migrations/0034_contentitem_quotation_density.py` (NEW, D.4)
+- `backend/apps/content/identity.py` (A.6 find_cross_source_duplicate)
+- `backend/apps/pipeline/tasks_import_helpers.py` (A.6 wire dedup, D.4 quotation_density capture)
+- `backend/apps/pipeline/services/embeddings.py` (A.6 skip filter, D.1 source flip + truncation, D.2 hash plumbing)
+- `backend/apps/pipeline/services/faiss_index.py` (A.6 skip filter, B.2 single-worker assertion)
+- `backend/apps/pipeline/apps.py` (B.1+B.2+B.3 — full rewrite of PipelineConfig.ready)
+- `backend/apps/pipeline/tasks.py` (B.3 ingest_error wraps, D.7 CrawlerVisit prune, D.8 backfill_long_tail_embeddings)
+- `backend/apps/pipeline/services/text_cleaner.py` (D.3 SPOILER, D.4 compute_quotation_density)
+- `backend/apps/crawler/models.py` (D.5 CrawlerVisit, composite index)
+- `backend/apps/crawler/migrations/0003_crawler_dedup_and_visits.py` (NEW, D.5)
+- `backend/apps/crawler/migrations/0004_collapse_crawled_page_meta_duplicates.py` (NEW, D.6)
+- `backend/apps/crawler/services/site_crawler.py` (D.5 _save_page_meta upsert)
+- `backend/apps/pipeline/services/pagerank_cuda.py` (NEW, C.2 + C.5)
+- `backend/apps/pipeline/services/personalized_pagerank.py` (C.3)
+- `backend/apps/pipeline/services/hits.py` (C.3)
+- `backend/apps/pipeline/test_pagerank_cuda_parity.py` (NEW, C.6)
+- `backend/benchmarks/test_bench_pagerank_cuda.py` (NEW, C.7)
+
+Frontend TypeScript:
+- `frontend/src/app/settings/meta-algo-tooltips.ts` (NEW, A.4 + A.5)
+- `frontend/src/app/settings/settings.component.ts` (A.4 metaAlgoTip method, A.5 openMetaAlgoSpec method, MatDialog injection)
+- `frontend/src/app/settings/settings.component.html` (A.4 7 tooltips on card titles, A.5 7 "View spec" buttons)
+- `frontend/src/app/settings/spec-viewer-dialog/spec-viewer-dialog.component.ts` (NEW, A.5)
+
+Project governance:
+- `CLAUDE.md` (Plain-English Communication Rule)
+- `AGENTS.md` (same rule)
+- `AI-CONTEXT.md` (same rule + Session Gate update)
+- `.claude/launch.json` (port 4200 → 80 with rebuild hint)
+- `docs/reports/REPORT-REGISTRY.md` (ISS-003 re-fixed cleanly)
+
+## Migrations to run (in order)
+
+After `docker compose --env-file .env up --build`:
+- `suggestions/0049_bump_rsqva_walk_steps_defaults`
+- `content/0032_contentitem_duplicate_of`
+- `content/0033_contentitem_embedding_text_hash`
+- `content/0034_contentitem_quotation_density`
+- `crawler/0003_crawler_dedup_and_visits`
+- `crawler/0004_collapse_crawled_page_meta_duplicates` (DELETES historical duplicate `CrawledPageMeta` rows — preview impact via `SELECT normalized_url, content_hash, COUNT(*) FROM crawler_crawledpagemeta WHERE content_hash <> '' GROUP BY normalized_url, content_hash HAVING COUNT(*) > 1` first)
+
+## What did NOT ship
+
+- Group C.4 (PR/HITS/TrustRank → heavy weight class): scheduled_updates runner-lock is orthogonal to Heavy lock. Bridging needs its own session.
+- Wave 2 anything (Groups G/H/I/J/K/L/M/N): Gate A/B paperwork per signal + spec writes + benchmarks. Each is a multi-day session.
+- Group E (FR-053 passage retrieval): masterplan locked decision — wait for ~200 reviewed-suggestions baseline on the new full-body embeddings before enabling.
+- AGENT-HANDOFF entries from Codex's prior session (2026-04-27 20:51) about `analytics/impact_engine.py` attribution trust + `weight_tuner.py` drift cap remain landed and intact — none of my work touched those files.
+
+## Next agent: start here
+
+1. User must run `docker compose --env-file .env up --build` followed by `docker compose exec backend python manage.py migrate` before any of this session's work is observable in the running stack.
+2. After the rebuild, hover any FR-099–FR-105 card on `/settings` (tooltip should appear) and click "View spec" (Material dialog should open with the rendered markdown).
+3. The CUDA path will only exercise if `cupy-cuda12x` actually installs successfully in the backend image. RTX 3050 + CUDA 12.x runtime is already present in the existing image per Plan 2's verification, so the wheel should pull cleanly. If it fails, the wrapper falls back to C++ silently.
+4. The masterplan at `C:\Users\goldm\.claude\plans\review-this-plan-and-prancy-teapot.md` is the authoritative source of truth for what's done and what's queued. Wave 1 is now ~95 % complete (only C.4 deferred).
+
+---
+
 # 2026-04-27 20:51 - Codex - Fixed attribution trust, auto-tuner drift, and FAISS startup safety
 
 Implemented the user's requested plan on `master` without creating or switching branches.

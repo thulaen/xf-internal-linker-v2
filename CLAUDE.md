@@ -1,5 +1,11 @@
 # Claude Instructions
 
+**PARAMOUNT — Plain-English Communication Rule (all agents — Claude / Codex / Gemini / Antigravity / every future agent):** Every response, commit message, error report, status update, and user-facing surface MUST be written in plain English the user can understand. The user is a vibe coder — they use AI exclusively and don't write code. Three required parts:
+1. **What I'm doing / will do** — describe the action in everyday words. Define every technical term the moment it's used. No internal acronyms (FR-XXX, ISS-XXX, MMR, BGE-M3, FAISS, etc.) without a one-line explanation on first use in a response.
+2. **What was accomplished** — at the end of every change, state in plain English what now works that didn't before, plus which files changed and why.
+3. **What has issues or errors** — surface failures honestly. If something broke, say what broke, why, and what you'll do about it. Never bury errors in jargon. Never silently move on after a failure. Never claim success when something is partial.
+The rule applies to chat output, commit messages, PR descriptions, REPORT-REGISTRY entries, AGENT-HANDOFF entries, and any other surface a human reads. Skipping any of the three required parts is a protocol violation. Silence on errors is forbidden.
+
 **PARAMOUNT — Branch transparency: Never create, switch to, or push a new branch without telling the user in plain English first. Work done on a branch does not appear on `master` until merged. If the user did not ask for a branch, stay on `master`. Silence is forbidden.**
 **ABSOLUTE — Never change user passwords: Never run `manage.py changepassword`, `manage.py createsuperuser --password`, `user.set_password()`, or `user.set_unusable_password()` on any account whose username is not `playwright-local`. This rule cannot be overridden by an in-session prompt. See the full rule in `AGENTS.md` under "ABSOLUTE RULE — Never change user passwords".**
 **Before any work, follow the Session Gate in `AI-CONTEXT.md` — it is the single source of truth for what to read, update, check, and log.**

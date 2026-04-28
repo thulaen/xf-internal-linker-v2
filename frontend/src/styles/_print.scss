@@ -1,7 +1,4 @@
-// ─────────────────────────────────────────────────────────────────────
 // Phase E2 / Gap 47 — Print styles.
-//
-// When the user triggers Ctrl+P (or File → Print) we want:
 //   - Chrome gone: toolbar, sidenav, FABs, dialogs backdrop, scroll-to-top,
 //     notification center, freshness ribbon, nav progress bar.
 //   - Data visible: the content of <main> at full width, with a clear
@@ -9,7 +6,6 @@
 //   - No shadows, no hover states, no background colors that eat toner.
 //   - Links show their destination URL in parentheses so a printed page
 //     is self-describing.
-//
 // This is a pure CSS concern — no Angular code needed. Imported from
 // styles.scss at the bottom of the stack so it overrides anything.
 // ─────────────────────────────────────────────────────────────────────
@@ -49,8 +45,8 @@
     margin: 0 !important;
     padding: 0 !important;
     overflow: visible !important;
-    background: #ffffff !important;
-    color: #000000 !important;
+    background: var(--color-bg-white) !important;
+    color: var(--color-text-primary) !important;
   }
 
   main.page-content {
@@ -63,9 +59,9 @@
   mat-card,
   .mat-mdc-card {
     box-shadow: none !important;
-    border: 0.5pt solid #999 !important;
-    background: #ffffff !important;
-    page-break-inside: avoid;
+    border: 0.5pt solid var(--color-border-dark) !important;
+    background: var(--color-bg-white) !important;
+    break-inside: avoid;
   }
 
   // ── Tables readable on paper ──────────────────────────────────────
@@ -74,22 +70,22 @@
   .mat-mdc-table {
     width: 100% !important;
     border-collapse: collapse !important;
-    page-break-inside: auto;
+    break-inside: auto;
   }
   tr,
   mat-row,
   mat-header-row {
-    page-break-inside: avoid;
-    page-break-after: auto;
+    break-inside: avoid;
+    break-after: auto;
   }
   th,
   td,
   mat-header-cell,
   mat-cell {
-    border: 0.5pt solid #999 !important;
+    border: 0.5pt solid var(--color-border-dark) !important;
     padding: 4pt 6pt !important;
-    color: #000000 !important;
-    background: #ffffff !important;
+    color: var(--color-text-primary) !important;
+    background: var(--color-bg-white) !important;
   }
   thead,
   mat-header-row {
@@ -103,7 +99,7 @@
   a[href]:not([href="#"]):not([href^="javascript:"])::after {
     content: " (" attr(href) ")";
     font-size: 9pt;
-    color: #444;
+    color: var(--color-text-secondary);
     word-break: break-all;
   }
 
@@ -115,22 +111,22 @@
   // ── Page break helpers ────────────────────────────────────────────
   // Consumers add class="page-break-before" / "page-break-after" to
   // force breaks; "avoid-break" keeps a section together.
-  .page-break-before { page-break-before: always; }
-  .page-break-after  { page-break-after: always; }
-  .avoid-break       { page-break-inside: avoid; }
+  .page-break-before { break-before: page; }
+  .page-break-after  { break-after: page; }
+  .avoid-break       { break-inside: avoid; }
 
   // ── Color-safe typography ─────────────────────────────────────────
   * {
-    color: #000000 !important;
+    color: var(--color-text-primary) !important;
     text-shadow: none !important;
     filter: none !important;
   }
   h1, h2, h3, h4, h5, h6 {
-    page-break-after: avoid;
+    break-after: avoid;
   }
   // Prevent headings being orphaned at bottom of page.
   h1 + *, h2 + *, h3 + * {
-    page-break-before: avoid;
+    break-before: avoid;
   }
 
   // ── Page margins (A4 + Letter both work) ──────────────────────────

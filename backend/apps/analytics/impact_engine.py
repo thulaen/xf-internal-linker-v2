@@ -98,10 +98,29 @@ def _build_control_pool(
     baseline_end: date,
     pool_max: int = _POOL_MAX,
 ) -> list[int]:
-    """Build a candidate control pool: same content_type + silo, no applied suggestions."""
+    """Build a candidate control pool: same content_type + silo, no applied suggestions.
+
+    Returns an empty list when the destination has no scope, or its
+    scope has no silo group assigned. Both are nullable in the schema
+    (``ContentItem.scope.null=True``, ``ScopeItem.silo_group.null=True``).
+    Without this guard the original code raised ``AttributeError`` on
+    scope-less items and silently matched unrelated items via
+    ``scope__silo_group=None`` when the silo was unassigned. Either
+    failure mode would corrupt attribution.
+    """
+    scope = getattr(dest, "scope", None)
+    silo_group_id = getattr(scope, "silo_group_id", None) if scope is not None else None
+    if scope is None or silo_group_id is None:
+        logger.info(
+            "_build_control_pool: destination=%s has no scope/silo — "
+            "returning empty pool (attribution will be inconclusive).",
+            getattr(dest, "pk", None),
+        )
+        return []
+
     pool_qs = (
         ContentItem.objects.filter(
-            scope__silo_group=dest.scope.silo_group_id,
+            scope__silo_group_id=silo_group_id,
             content_type=dest.content_type,
         )
         .exclude(pk=dest.pk)

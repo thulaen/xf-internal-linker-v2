@@ -108,7 +108,36 @@ ext_modules = [
         if sys.platform != "win32"
         else ["/O2", "/std:c++17", "/arch:AVX2"],
     ),
+    Pybind11Extension(
+        "pixie_walk",
+        ["pixie_walk.cpp"],
+        extra_compile_args=["-O3", "-std=c++17", "-march=native"]
+        if sys.platform != "win32"
+        else ["/O2", "/std:c++17", "/arch:AVX2"],
+    ),
+    Pybind11Extension(
+        "quantemb",
+        ["quantemb.cpp"],
+        extra_compile_args=["-O3", "-std=c++17", "-march=native"]
+        if sys.platform != "win32"
+        else ["/O2", "/std:c++17", "/arch:AVX2"],
+    ),
+    Pybind11Extension(
+        "passagesim",
+        ["passagesim.cpp"],
+        extra_compile_args=["-O3", "-std=c++17", "-march=native"]
+        if sys.platform != "win32"
+        else ["/O2", "/std:c++17", "/arch:AVX2"],
+    ),
+    Pybind11Extension(
+        "ivf_index",
+        ["ivf_index.cpp"],
+        extra_compile_args=["-O3", "-std=c++17", "-march=native"]
+        if sys.platform != "win32"
+        else ["/O2", "/std:c++17", "/arch:AVX2"],
+    ),
 ]
+
 
 setup(
     name="xf_linker_extensions",

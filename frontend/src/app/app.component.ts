@@ -368,6 +368,15 @@ export class AppComponent implements OnInit {
           route: '/preferences',
           tooltip: 'Appearance, language, accessibility, onboarding — all in one place',
         },
+        // Group M.1 — Admin Models page (operator control for every
+        // registered ML model: champion / candidate, placements,
+        // pause / resume / promote / drain).
+        {
+          label: 'Models',
+          icon: 'developer_board',
+          route: '/admin/models',
+          tooltip: 'ML model registry — pause, resume, promote, drain, rollback',
+        },
       ],
     },
   ];

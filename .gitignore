@@ -26,6 +26,14 @@ media/
 backend/data/
 data/
 
+# Group L #91 â€” local database backups created by
+# `apps.core.services.backups`. Files inside should NEVER be
+# committed: they are full Postgres dumps and may contain operator
+# secrets, embedding vectors, GA4 / GSC data, and other sensitive
+# state.
+backups/
+backend/backups/
+
 # Environment variables
 .env
 .env.local
@@ -114,5 +122,5 @@ tools/cloudflared.exe
 backend/extensions/benchmarks/build/
 backend/extensions/benchmarks/results/
 
-# mkcert localhost TLS certificates — never commit private keys
+# mkcert localhost TLS certificates ï¿½ never commit private keys
 nginx/certs/*.pem

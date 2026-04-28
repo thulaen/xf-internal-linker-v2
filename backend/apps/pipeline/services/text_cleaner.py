@@ -23,6 +23,20 @@ _SIGPIC_RE = re.compile(
     r"\[SIGPIC[^\]]*\](?:(?!\[SIGPIC).)*?\[/SIGPIC\]",
     re.IGNORECASE | re.DOTALL,
 )
+# Group D.3 — XenForo block-level SPOILER and inline ISPOILER. Both wrap
+# content the user would otherwise have to click to reveal, so they're
+# noise from a "what is this post about?" perspective. Pattern mirrors
+# the QUOTE / CODE / SIGPIC style: optional attributes, non-greedy body
+# that cannot contain another opening of the same tag (handled by the
+# repeated pass in ``_obliterate_blocks`` to deal with nesting).
+_SPOILER_RE = re.compile(
+    r"\[SPOILER[^\]]*\](?:(?!\[SPOILER).)*?\[/SPOILER\]",
+    re.IGNORECASE | re.DOTALL,
+)
+_ISPOILER_RE = re.compile(
+    r"\[ISPOILER[^\]]*\](?:(?!\[ISPOILER).)*?\[/ISPOILER\]",
+    re.IGNORECASE | re.DOTALL,
+)
 
 _TAG_RE = re.compile(r"\[[^\]]+\]")
 _MULTI_WS_RE = re.compile(r"\s+")
@@ -167,6 +181,12 @@ def clean_bbcode(raw_text: str) -> str:
     text = _obliterate_blocks(text, _QUOTE_RE)
     text = _obliterate_blocks(text, _CODE_RE)
     text = _obliterate_blocks(text, _SIGPIC_RE)
+    # Group D.3 — strip XenForo SPOILER + ISPOILER blocks alongside the
+    # existing QUOTE / CODE / SIGPIC obliterations. Spoiler bodies are
+    # behind a click-to-reveal in the live forum, so they don't reflect
+    # what the post is "about" any more than a CODE block does.
+    text = _obliterate_blocks(text, _SPOILER_RE)
+    text = _obliterate_blocks(text, _ISPOILER_RE)
     text = _TAG_RE.sub("", text)
     text = _MULTI_WS_RE.sub(" ", text).strip()
     return _nfkc(text)
@@ -208,6 +228,34 @@ def generate_content_hash(title: str, clean_text: str) -> str:
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
+def compute_quotation_density(raw_text: str) -> float:
+    """Group D.4 — fraction of *raw_text* that lives inside QUOTE blocks.
+
+    Computed BEFORE the QUOTE strip in ``clean_bbcode`` so the signal
+    survives the cleaning pass. Returns a float in ``[0.0, 1.0]``:
+    0.0 = no quoting, 1.0 = the entire post is inside QUOTE blocks.
+
+    Why this matters (plain English): a post that's 80 % quotation is
+    "compiled" content rather than authored content — useful as a
+    future originality signal (FR-041 Originality Provenance Scoring is
+    pending; this becomes its first concrete feature). Per the
+    masterplan it ships as store-only — no ranking weight today.
+
+    Robust to malformed input: empty string returns 0.0; quoted_chars
+    is clamped to total chars so the ratio never exceeds 1.0 even if
+    the regex captures overlap.
+    """
+    if not raw_text:
+        return 0.0
+    total = len(raw_text)
+    if total <= 0:
+        return 0.0
+    quoted_chars = sum(len(m.group(0)) for m in _QUOTE_RE.finditer(raw_text))
+    if quoted_chars >= total:
+        return 1.0
+    return quoted_chars / total
+
+
 def _obliterate_blocks(text: str, pattern: re.Pattern[str]) -> str:
     """Repeatedly apply a block-removal pattern until no matches remain."""
     while True:
@@ -231,6 +279,10 @@ def _strip_import_markup_preserving_lines(raw_text: str) -> str:
     text = _obliterate_blocks(text, _QUOTE_RE)
     text = _obliterate_blocks(text, _CODE_RE)
     text = _obliterate_blocks(text, _SIGPIC_RE)
+    # Group D.3 — also strip SPOILER / ISPOILER for the WP-side
+    # importer that uses this preserving-lines helper.
+    text = _obliterate_blocks(text, _SPOILER_RE)
+    text = _obliterate_blocks(text, _ISPOILER_RE)
     return _TAG_RE.sub("", text)
 
 

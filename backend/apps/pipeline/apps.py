@@ -1,4 +1,27 @@
-"""Pipeline app — Celery tasks for import, embed, rank, sync."""
+"""Pipeline app — Celery tasks for import, embed, rank, sync.
+
+Group B (FAISS hygiene) — closes ISS-003.
+
+Plain-English rationale:
+- Old behaviour: this AppConfig.ready() built the FAISS index at every
+  Django startup, including ``manage.py showmigrations`` and
+  ``makemigrations --check``. That hit the database before all apps
+  were initialised and triggered Django's ``APPS_NOT_READY`` warning.
+- New behaviour: we no longer build the index at startup. The 15-minute
+  Celery beat task ``refresh_faiss_index`` (apps/pipeline/tasks.py)
+  builds it within minutes of worker boot, and the just-in-time
+  fallback in ``pipeline_stages._stage1_candidates()`` builds on the
+  first query if a request arrives before beat fires. Either way the
+  index is ready by the time anyone needs it.
+- We DO still call ``_assert_single_worker()`` at startup so a
+  misconfigured multi-process Celery worker is caught loudly (logs +
+  ``/error-log`` row) instead of silently serving stale results from
+  per-process indexes.
+- Any startup failure routes to the audit-log via ``ingest_error()``,
+  so FAISS misconfigurations surface on the deduped errors page
+  alongside everything else. We never re-raise from ``ready()`` —
+  Django startup must not be blocked by an audit-log failure.
+"""
 
 from django.apps import AppConfig
 
@@ -10,35 +33,52 @@ class PipelineConfig(AppConfig):
 
     def ready(self):
         import os
-        import sys
 
+        # Legacy escape hatch — leave intact in case any harness still
+        # relies on a fully-silent startup.
         if os.environ.get("FAISS_INDEX_SKIP_BUILD"):
             return
 
-        if not _should_build_faiss_index_on_startup(sys.argv):
-            return
-
-        import logging
-
-        logger = logging.getLogger(__name__)
+        # Group B.2 — single-worker assertion. Does NOT build the index
+        # any more; just inspects the env and warns + audit-logs on
+        # misconfiguration. Wrapped in a generic try/except so any
+        # failure routes to /error-log instead of crashing startup.
         try:
-            from .services.faiss_index import build_faiss_index
+            from .services.faiss_index import _assert_single_worker
 
-            build_faiss_index()
-        except Exception:
-            logger.exception(
-                "FAISS index build failed at startup — falling back to NumPy path"
+            _assert_single_worker()
+        except Exception as exc:
+            self._record_startup_failure(
+                step="single_worker_assertion",
+                exc=exc,
             )
 
+    def _record_startup_failure(self, *, step: str, exc: BaseException) -> None:
+        """Group B.3 — deduped audit-log entry for FAISS startup failures.
 
-def _should_build_faiss_index_on_startup(argv: list[str]) -> bool:
-    if not argv:
-        return False
+        Defensive: wraps the whole audit path in another try/except so a
+        broken audit subsystem can't bring down the pipeline app's
+        ``ready()``. Falls back to the standard logger as a last resort.
+        """
+        try:
+            import traceback
 
-    executable = argv[0].lower()
-    command = argv[1].lower() if len(argv) > 1 else ""
-    if "manage.py" in executable:
-        return command == "runserver"
+            from apps.audit.error_ingest import ingest_error
+            from apps.audit.models import ErrorLog
 
-    runtime_tokens = ("celery", "daphne", "gunicorn", "uvicorn")
-    return any(token in executable or token == command for token in runtime_tokens)
+            ingest_error(
+                job_type="faiss_init",
+                step=step,
+                error_message=str(exc) or exc.__class__.__name__,
+                raw_exception=traceback.format_exc(),
+                severity=ErrorLog.SEVERITY_CRITICAL,
+            )
+        except Exception:
+            # Audit subsystem itself is broken — log to stderr at least.
+            import logging
+
+            logging.getLogger(__name__).exception(
+                "FAISS startup failed AND audit-log ingestion path is broken; "
+                "step=%s",
+                step,
+            )

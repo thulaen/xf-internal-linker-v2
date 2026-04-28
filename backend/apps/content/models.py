@@ -206,7 +206,12 @@ class ContentItem(TimestampedModel):
     content_hash = models.CharField(
         max_length=64,
         blank=True,
-        help_text="SHA-256 hash of the raw post body, used to detect edits.",
+        db_index=True,
+        help_text=(
+            "SHA-256 hash of the raw post body, used to detect edits AND to "
+            "find cross-source duplicates (Group A.6). Indexed so the dedup "
+            "lookup at import time is O(log N), not a full table scan."
+        ),
     )
     # Stage 10 — Content identity and deduplication
     source_key = models.CharField(
@@ -214,6 +219,26 @@ class ContentItem(TimestampedModel):
         blank=True,
         db_index=True,
         help_text="Stable compound key: source:object_type:remote_id (e.g. xenforo:thread:123).",
+    )
+    # Group A.6 — cross-source content deduplication. When the same article
+    # is imported from both XenForo (forum thread) and WordPress (blog post),
+    # ``duplicate_of`` points the second copy at the first one's row instead
+    # of regenerating the embedding. Saves ~10–20 % of embedding compute on
+    # dual-source sites and prevents one piece of content from showing up as
+    # two separate ranking targets in the suggestion graph.
+    duplicate_of = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="duplicates",
+        db_index=True,
+        help_text=(
+            "If set, this row was detected as a content duplicate of the "
+            "linked ContentItem during import (matching content_hash). "
+            "Embedding generation skips rows where this is set — they reuse "
+            "the parent's embedding via this FK at retrieval time."
+        ),
     )
     content_version = models.IntegerField(
         default=1,
@@ -242,6 +267,37 @@ class ContentItem(TimestampedModel):
             "Model + preprocessing version that produced the current embedding. Used by the "
             "superseded-embedding retention policy (plan item 20) to keep rollback copies "
             "when the model changes."
+        ),
+    )
+    # Group D.2 — SHA-256 of the exact text we last fed BGE-M3 for this
+    # row. Combined with ``embedding_model_version``, lets the embed
+    # generator skip rows whose text AND model both still match — no
+    # duplicate embedding row ever gets written for unchanged content.
+    # Plain English: "if nothing has changed about this post, don't
+    # re-embed it." Saves GPU + disk on every recurring import.
+    embedding_text_hash = models.CharField(
+        max_length=64,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "SHA-256 hex digest of the exact text passed to the embedding model "
+            "(title + body + truncation). Re-embed fires whenever this hash drifts "
+            "OR the model signature drifts. NULL/blank means the row has never been "
+            "embedded under the new hash discipline (Group D.2) — treated as 'must "
+            "re-embed' on next pass."
+        ),
+    )
+    # Group D.4 — fraction of the raw post body that lived inside
+    # ``[QUOTE]`` blocks before stripping. Captured at import time
+    # (text_cleaner.compute_quotation_density). 0.0 = entirely original;
+    # 1.0 = entirely quoted-from-elsewhere. Store-only signal; FR-041
+    # Originality Provenance Scoring (pending) consumes it.
+    quotation_density = models.FloatField(
+        default=0.0,
+        help_text=(
+            "Quotation density (Group D.4) — quoted_chars / total_chars from "
+            "the raw post body before BBCode stripping. Future input to "
+            "FR-041 originality scoring; not used in ranking today."
         ),
     )
 
@@ -794,3 +850,186 @@ class SupersededEmbedding(models.Model):
 
     def __str__(self) -> str:
         return f"SupersededEmbedding<content={self.content_item_id} superseded_at={self.superseded_at}>"
+
+
+class PassageEmbedding(models.Model):
+    """One row per (ContentItem × passage) — masterplan Group E / FR-053.
+
+    Plain-English: long pages have one perfectly-relevant section buried
+    among less-relevant filler. The page-level embedding averages that
+    section away. ``PassageEmbedding`` stores ~200-token slices of the
+    page body so the ranker can compare a host sentence to the
+    BEST-matching passage instead of the whole page.
+
+    Storage shape: pgvector(1024) per passage, K passages per page
+    (default 5), L2-normalised. At 100k pages that's ~2 GB on disk —
+    within the 59 GB free-disk budget. Future optimisation
+    (``passage_relevance.index_quantised``) replaces this with an
+    int8-quantised FAISS index; the float32 pgvector path is V1.
+
+    No-pile-up discipline (Group A.6 / D.2 / S):
+      * ``embedding_text_hash`` is the SHA-256 of the chunked passage
+        text. Re-embed only fires when this hash drifts.
+      * Existing rows for a ContentItem are deleted + recreated when
+        the page's content_hash changes (chunking is content-derived;
+        partial updates would race).
+      * Cross-source duplicates (Group A.6) reuse the canonical's
+        passage embeddings via ``ContentItem.duplicate_of`` — no
+        passages are stored on duplicate rows.
+    """
+
+    content_item = models.ForeignKey(
+        ContentItem,
+        on_delete=models.CASCADE,
+        related_name="passage_embeddings",
+        help_text="The page this passage was extracted from.",
+    )
+    passage_index = models.SmallIntegerField(
+        help_text=(
+            "Zero-based ordinal of the passage inside the page (0 = first, "
+            "1 = next, ...). Used for diagnostics like 'best_passage_index'."
+        ),
+    )
+    text = models.TextField(
+        help_text=(
+            "The passage text after chunking. Stored as plain text so the "
+            "best-passage diagnostic preview can show the matching paragraph "
+            "directly to operators in the suggestion-detail UI."
+        ),
+    )
+    word_count = models.IntegerField(
+        default=0,
+        help_text="Number of whitespace-tokenised words in the passage.",
+    )
+    embedding = VectorField(
+        null=True,
+        blank=True,
+        help_text=(
+            "L2-normalised 1024-dim BGE-M3 embedding of the passage. NULL "
+            "until the embedding pass touches this row; ranker treats NULL "
+            "as the neutral fallback (no passage similarity contribution)."
+        ),
+    )
+    embedding_model_version = models.CharField(
+        max_length=64,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "Model + preprocessing version that produced the embedding. "
+            "Used by the embed pass to skip rows already at the current "
+            "signature (matches ContentItem / Sentence convention)."
+        ),
+    )
+    embedding_text_hash = models.CharField(
+        max_length=64,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "SHA-256 of the exact passage text passed to the model. "
+            "Re-embed fires when this hash drifts even if the model "
+            "signature is unchanged."
+        ),
+    )
+    passage_words_setting = models.SmallIntegerField(
+        default=200,
+        help_text=(
+            "Value of `passage_relevance.passage_words` at chunk time. "
+            "Used to detect when the chunking parameter has changed and "
+            "the passages need to be regenerated."
+        ),
+    )
+    opq_code = models.BinaryField(
+        null=True,
+        blank=True,
+        help_text=(
+            "M-dimensional byte array representing the quantised embedding. "
+            "For M=64 subquantisers, this is exactly 64 bytes."
+        ),
+    )
+    opq_codebook_version = models.CharField(
+        max_length=40,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "The `corpus_signature` of the OPQCodebook used to encode this passage. "
+            "If the active codebook changes, the passage must be re-encoded."
+        ),
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Passage Embedding"
+        verbose_name_plural = "Passage Embeddings"
+        ordering = ["content_item", "passage_index"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["content_item", "passage_index"],
+                name="unique_passage_per_content_item",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["content_item", "passage_index"]),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"PassageEmbedding<content={self.content_item_id} "
+            f"passage={self.passage_index} words={self.word_count}>"
+        )
+
+
+class OPQCodebook(models.Model):
+    """Singleton model storing the trained Optimised Product Quantisation codebooks.
+    
+    Trained periodically by Celery (opq_trainer) and used by the C++ quantemb
+    extension to encode embeddings into 64-byte codes and decode them back.
+    Only one row is active at a time (is_active=True). Older rows are kept
+    for fast rollback.
+    """
+    version = models.IntegerField(
+        default=1,
+        help_text="Format version for the codebook binaries.",
+    )
+    rotation = models.BinaryField(
+        help_text="DxD float32 orthogonal rotation matrix applied before quantisation.",
+    )
+    codebooks = models.BinaryField(
+        help_text="MxKxD_per_M float32 centroids for all subquantisers.",
+    )
+    n_subquantisers = models.IntegerField(
+        help_text="M (number of subquantisers, e.g., 64). Each subquantiser produces 1 byte.",
+    )
+    k_centroids = models.IntegerField(
+        help_text="K (centroids per subquantiser, almost always 256).",
+    )
+    corpus_signature = models.CharField(
+        max_length=40,
+        unique=True,
+        help_text="Hash representing the passage corpus size/shape at training time.",
+    )
+    trained_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this codebook was trained.",
+    )
+    is_active = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="True for the single currently active codebook used for encoding.",
+    )
+
+    class Meta:
+        verbose_name = "OPQ Codebook"
+        verbose_name_plural = "OPQ Codebooks"
+        ordering = ["-trained_at"]
+        constraints = [
+            models.UniqueConstraint(
+                condition=models.Q(is_active=True),
+                fields=["is_active"],
+                name="single_active_opq_codebook"
+            )
+        ]
+
+    def __str__(self) -> str:
+        active_str = " (ACTIVE)" if self.is_active else ""
+        return f"OPQCodebook<{self.corpus_signature}>{active_str}"

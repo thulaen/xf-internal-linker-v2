@@ -269,6 +269,14 @@ class CrawledPageMeta(TimestampedModel):
             models.Index(fields=["session", "http_status"]),
             models.Index(fields=["word_count"]),
             models.Index(fields=["consecutive_404_count"]),
+            # Group D.5 — composite index for the cross-session dedup
+            # lookup (normalized_url, content_hash). Without this index
+            # the upsert in ``_save_page_meta`` would full-scan the
+            # table on every crawled page.
+            models.Index(
+                fields=["normalized_url", "content_hash"],
+                name="crawled_page_url_hash_idx",
+            ),
         ]
         constraints = [
             models.UniqueConstraint(
@@ -279,6 +287,72 @@ class CrawledPageMeta(TimestampedModel):
 
     def __str__(self) -> str:
         return f"{self.url} [{self.http_status}] ({self.word_count} words)"
+
+
+# ---------------------------------------------------------------------------
+# CrawlerVisit — per-visit log linking a session to the deduplicated
+# CrawledPageMeta row that covered the URL during that visit (Group D.5).
+# ---------------------------------------------------------------------------
+class CrawlerVisit(TimestampedModel):
+    """One row per (session × URL) crawl event.
+
+    Plain-English purpose: the heavy ``CrawledPageMeta`` row is keyed
+    on ``(normalized_url, content_hash)``, so two sessions that crawl
+    the same URL with the same body share one row. We still want to
+    record every visit (when, what status, what hash was observed)
+    so an operator can answer "did the crawler check this URL today?".
+
+    The visit row is small — just a few foreign keys + a status code
+    + a content hash. Pruned via the unified GC (Group F) on a
+    rolling 90-day window.
+    """
+
+    page_meta = models.ForeignKey(
+        CrawledPageMeta,
+        on_delete=models.CASCADE,
+        related_name="visits",
+        help_text="The (deduplicated) CrawledPageMeta row this visit observed.",
+    )
+    session = models.ForeignKey(
+        CrawlSession,
+        on_delete=models.CASCADE,
+        related_name="visits",
+        help_text="The session during which this visit happened.",
+    )
+    status_code = models.SmallIntegerField(
+        default=200,
+        help_text="HTTP status returned during this specific visit.",
+    )
+    content_hash = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text=(
+            "Content hash observed at this visit. Same as page_meta.content_hash "
+            "for a normal visit; can be empty for 304 conditional GET responses."
+        ),
+    )
+    visited_at = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+        help_text="Wall-clock timestamp of the visit (auto-set).",
+    )
+
+    class Meta:
+        ordering = ["-visited_at"]
+        verbose_name = "Crawler Visit"
+        verbose_name_plural = "Crawler Visits"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["session", "page_meta"],
+                name="unique_visit_per_session_page",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["page_meta", "-visited_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"visit {self.session_id} → {self.page_meta_id} [{self.status_code}]"
 
 
 # ---------------------------------------------------------------------------

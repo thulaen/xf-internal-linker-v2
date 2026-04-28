@@ -505,6 +505,60 @@ export class SuggestionDetailDialogComponent implements OnInit {
     return 'Low Value / Pruned';
   }
 
+  /**
+   * FR-053 Passage-Level Relevance Scoring (masterplan Group E).
+   *
+   * Translates ``passage_relevance_state`` into a plain-English headline.
+   * Mirrors the seven states the backend service emits (one happy-path
+   * + six neutral-fallback paths), so a reviewer can answer "why is this
+   * neutral?" from the dialog instead of having to read source.
+   */
+  passageRelevanceStateLabel(): string {
+    const state = this.detail?.passage_relevance_diagnostics?.passage_relevance_state ?? 'neutral_no_passages';
+    switch (state) {
+      case 'computed':
+        return 'Best passage match found';
+      case 'neutral_feature_disabled':
+        return 'Neutral / passage relevance turned off';
+      case 'neutral_no_query_embedding':
+        return 'Neutral / no host-sentence embedding yet';
+      case 'neutral_no_destination':
+        return 'Neutral / destination row missing';
+      case 'neutral_destination_too_short':
+        return 'Neutral / destination too short for passage indexing';
+      case 'neutral_no_passages':
+        return 'Neutral / no passages indexed for this destination';
+      case 'neutral_processing_error':
+        return 'Neutral / passage relevance processing error';
+      default:
+        return 'Neutral / no passage match';
+    }
+  }
+
+  /** Plain-English explanation of the passage-relevance state. */
+  passageRelevanceSummary(): string {
+    const diagnostics = this.detail?.passage_relevance_diagnostics;
+    if (!diagnostics) {
+      return 'Neutral means no passage-level data was available for this pair.';
+    }
+    if (diagnostics.passage_relevance_state === 'computed') {
+      return 'Passage relevance means at least one chunk inside the destination is a strong semantic match for this host sentence.';
+    }
+    if (diagnostics.passage_relevance_state === 'neutral_feature_disabled') {
+      return 'Passage relevance is turned off in settings, so this score stays neutral.';
+    }
+    if (diagnostics.passage_relevance_state === 'neutral_destination_too_short') {
+      return 'Neutral means the destination is short enough that the document-level embedding already covers it; passage chunking adds no signal.';
+    }
+    if (diagnostics.passage_relevance_state === 'neutral_no_passages') {
+      return 'Neutral means no passage embeddings have been indexed for this destination yet.';
+    }
+    if (diagnostics.passage_relevance_state === 'neutral_no_query_embedding') {
+      return 'Neutral means the host sentence does not have a stored embedding to compare against.';
+    }
+    return 'Neutral means there was not enough data to compute a passage-level match.';
+  }
+
   telemetryStatusLabel(): string {
     const status = this.detail?.telemetry_instrumentation?.status ?? 'unknown';
     if (status === 'instrumented') return 'Instrumented markup ready';

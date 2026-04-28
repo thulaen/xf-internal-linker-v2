@@ -81,6 +81,75 @@ def _parse_wp_item(item_data: dict[str, Any]) -> _ParsedItem:
     )
 
 
+# ---------------------------------------------------------------------------
+# XenForo sampling logic (FR-053 Head-Tail)
+# ---------------------------------------------------------------------------
+
+
+def _fetch_thread_full_body(xf_client: Any, thread_id: int) -> str:
+    """Fetch thread posts using Head-Tail sampling strategy.
+
+    Strategy (FR-053):
+      - First 20 pages: Captures core context, original post, and SEO signals.
+      - Last 10 pages: Captures latest updates, freshest keywords, and active sentiment.
+      - Skip middle: Balances context coverage with performance for long-running threads.
+
+    Returns the combined BBCode message body.
+    """
+    if not thread_id:
+        return ""
+
+    messages: list[str] = []
+    seen_post_ids: set[int] = set()
+
+    try:
+        # 1. Fetch first page to get total pagination info
+        resp = xf_client.get_posts(thread_id, page=1)
+        pagination = resp.get("pagination", {})
+        last_page = int(pagination.get("last_page", 1))
+        
+        posts_p1 = resp.get("posts", [])
+        if not posts_p1:
+            return ""
+
+        def collect_posts(page_num: int) -> None:
+            """Internal helper to fetch and deduplicate posts from a specific page."""
+            p_resp = xf_client.get_posts(thread_id, page=page_num)
+            for post in p_resp.get("posts", []):
+                p_id = post.get("post_id")
+                if p_id and p_id not in seen_post_ids:
+                    messages.append(post.get("message", ""))
+                    seen_post_ids.add(p_id)
+
+        # Process first 20 pages (the "Head")
+        head_limit = min(20, last_page)
+        for p in range(1, head_limit + 1):
+            if p == 1:
+                # Reuse the already fetched page 1 data
+                for post in posts_p1:
+                    p_id = post.get("post_id")
+                    if p_id:
+                        messages.append(post.get("message", ""))
+                        seen_post_ids.add(p_id)
+            else:
+                collect_posts(p)
+
+        # Process last 10 pages (the "Tail")
+        if last_page > head_limit:
+            tail_start = max(head_limit + 1, last_page - 9)
+            for p in range(tail_start, last_page + 1):
+                collect_posts(p)
+
+        return "\n\n".join(filter(None, messages))
+
+    except Exception as exc:
+        logger.error(
+            "Failed to fetch full body for thread %s: %s", 
+            thread_id, exc, exc_info=True
+        )
+        return ""
+
+
 def _parse_xf_item(
     item_data: dict[str, Any],
     c_type: str,
@@ -119,11 +188,10 @@ def _parse_xf_item(
         and state.mode == "full"
         and state.source == "api"
         and c_type == "thread"
-        and first_post_id
     ):
         if xf_client is None:
             xf_client = XenForoAPIClient()
-        raw_body = xf_client.get_post(first_post_id).get("post", {}).get("message", "")
+        raw_body = _fetch_thread_full_body(xf_client, c_id)
 
     parsed = _ParsedItem(
         c_id=c_id,
@@ -252,6 +320,41 @@ def _persist_content_body(
     with transaction.atomic():
         content_item.content_hash = new_hash
 
+        # Group D.4 — capture quotation density from the raw body BEFORE
+        # the text_cleaner strip ran. We don't have the pre-strip text
+        # here directly, but ``raw_body`` is the post's BBCode source
+        # which still contains the [QUOTE]…[/QUOTE] blocks at this point
+        # in the flow. Cheap one-pass regex; failure is non-fatal.
+        try:
+            from apps.pipeline.services.text_cleaner import compute_quotation_density
+
+            content_item.quotation_density = compute_quotation_density(raw_body)
+        except Exception:
+            # Never block an import on a future originality-signal column.
+            content_item.quotation_density = 0.0
+
+        # Group A.6 — cross-source content dedup. If this exact body has
+        # already been imported under a different source_key (e.g. the
+        # same article exists as both an XF Resource sticky and a WP
+        # blog post), point this row at the canonical one and skip the
+        # embedding pass. The lookup is indexed (migration 0032) so the
+        # check is sub-millisecond. Helper never raises — falls back to
+        # ``None`` on any error so the import keeps moving.
+        from apps.content.identity import find_cross_source_duplicate
+
+        canonical = find_cross_source_duplicate(
+            content_hash=new_hash,
+            exclude_id=content_item.pk,
+        )
+        if canonical is not None and canonical.pk != getattr(
+            content_item, "duplicate_of_id", None
+        ):
+            content_item.duplicate_of = canonical
+        elif canonical is None and content_item.duplicate_of_id:
+            # Source content drifted away from the canonical — clear the
+            # link so the embedding pass can regenerate this row's vector.
+            content_item.duplicate_of = None
+
         # Pick #19 — Flesch-Kincaid + Gunning Fog. The helper already
         # iterates clean_text once to count words/sentences/syllables
         # (it doesn't reuse ``post.word_count`` because the bare
@@ -372,6 +475,12 @@ def _persist_content_body(
                 "distilled_text",
                 "salient_entities",
                 "passages",
+                # Group A.6 — must be in update_fields or the dedup
+                # link assignment above is silently dropped.
+                "duplicate_of",
+                # Group D.4 — same reason: the new quotation_density
+                # value won't persist unless it's in this list.
+                "quotation_density",
                 "updated_at",
             ]
         )

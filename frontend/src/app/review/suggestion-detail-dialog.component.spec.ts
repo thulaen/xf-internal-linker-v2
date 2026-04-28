@@ -273,6 +273,12 @@ describe('SuggestionDetailDialogComponent', () => {
     expect(text).toContain('Rare-Term Propagation');
     expect(text).toContain('Field-Aware Relevance');
     expect(text).toContain('Slate Diversity');
+    // FR-053 Passage-Level Relevance Scoring (masterplan Group E) —
+    // the score-grid row always renders (neutral fallback = 0.5) so a
+    // reviewer can see at a glance whether a per-passage match was
+    // available. The mock here omits diagnostics so the explanatory
+    // diagnostic block stays hidden — only the gauge row should show.
+    expect(text).toContain('Passage Relevance');
     expect(text).toContain('Matched borrowed terms: xenforo (2 pages)');
     expect(text).toContain('Top title terms: destination');
     expect(text).toContain('Promoted for variety');

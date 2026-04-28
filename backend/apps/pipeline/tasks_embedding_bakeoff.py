@@ -44,12 +44,10 @@ def embedding_provider_bakeoff(
     from apps.pipeline.services.embedding_providers import clear_cache, get_provider
 
     # Read default sample size if not explicitly supplied.
+    # Group D consolidation (2026-04-28): single call to the shared
+    # ``AppSetting.get_int`` helper.
     if sample_size is None:
-        try:
-            row = AppSetting.objects.filter(key="embedding.bakeoff_sample_size").first()
-            sample_size = int(row.value) if row and row.value else 1000
-        except Exception:
-            sample_size = 1000
+        sample_size = AppSetting.get_int("embedding.bakeoff_sample_size", 1000)
 
     positives, negatives = sample_ground_truth(sample_size=sample_size)
     if not positives:
@@ -65,8 +63,10 @@ def embedding_provider_bakeoff(
 
     providers_to_test = providers or _discover_providers()
     results = []
-    original_setting = AppSetting.objects.filter(key="embedding.provider").first()
-    original_value = original_setting.value if original_setting else "local"
+    # Group D consolidation: snapshot the operator's chosen provider
+    # via the shared helper. Default "local" matches the existing
+    # fallback when the AppSetting row doesn't exist yet.
+    original_value = AppSetting.get_str("embedding.provider", "local") or "local"
     try:
         for name in providers_to_test:
             # Switch AppSetting so get_provider returns the one we want.
@@ -120,9 +120,11 @@ def _discover_providers() -> list[str]:
     from apps.core.models import AppSetting
 
     providers = ["local"]  # local is always available
+    # Group D consolidation: shared ``get_str`` collapses the row-fetch
+    # + null check + value-strip into one line.
     try:
-        api_key_row = AppSetting.objects.filter(key="embedding.api_key").first()
-        if api_key_row and str(api_key_row.value).strip():
+        api_key = AppSetting.get_str("embedding.api_key", "").strip()
+        if api_key:
             # A single API key field is provider-specific — we test both
             # OpenAI and Gemini; each provider's healthcheck will skip if the
             # key is not for that service.

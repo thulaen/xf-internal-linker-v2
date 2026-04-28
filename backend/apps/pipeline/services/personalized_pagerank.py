@@ -164,22 +164,28 @@ def compute(
     # pagerank_core.h header comment for the convention.
     teleport_probability = 1.0 - damping
 
-    # Phase 5b — drive the C++ kernel's power iteration to convergence.
-    # Same loop shape ``weighted_pagerank.run_weighted_pagerank`` uses
-    # for the uniform variant.
+    # Phase 5b — drive the kernel's power iteration to convergence.
+    # Group C.3 — CUDA-first dispatcher: try the cuPy/cuSPARSE path,
+    # fall back to the existing C++ kernel if no GPU OR if a CUDA
+    # call fails. The fallback path is byte-identical to the original
+    # behaviour, so existing parity guarantees still hold.
     from extensions import pagerank as pagerank_kernel  # local import
+    from apps.pipeline.services.pagerank_cuda import (
+        personalized_pagerank_step_safe,
+    )
 
     ranks = np.full(n, 1.0 / n, dtype=np.float64)
     for _iteration in range(max_iterations):
-        next_ranks, delta = pagerank_kernel.personalized_pagerank_step(
-            csr.indptr,
-            csr.indices,
-            csr.data,
-            ranks,
-            csr.dangling,
-            personalization,
-            teleport_probability,
-            n,
+        next_ranks, delta = personalized_pagerank_step_safe(
+            fallback_cpu_fn=pagerank_kernel.personalized_pagerank_step,
+            indptr=csr.indptr,
+            indices=csr.indices,
+            data=csr.data,
+            ranks=ranks,
+            dangling_mask=csr.dangling,
+            personalization=personalization,
+            damping=teleport_probability,
+            node_count=n,
         )
         ranks = next_ranks
         if delta <= n * tolerance:

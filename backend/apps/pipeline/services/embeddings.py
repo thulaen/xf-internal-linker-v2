@@ -40,11 +40,62 @@ DEFAULT_MODEL_NAME = "BAAI/bge-m3"
 EMBEDDING_DIM = 1024
 STORAGE_VECTOR_MAX_DIM = 16_000
 
+#: Group D.1 — soft cap on the character count we feed BGE-M3 per
+#: ContentItem embedding. ~24 000 chars ≈ ~6 000 tokens at the
+#: ``4 chars / token`` rule of thumb for English; BGE-M3's max
+#: sequence length is 8 192 tokens. The 2 000-token margin covers
+#: the title prefix, language-specific tokenisation overhead, and
+#: the special tokens (``[CLS]``, ``[SEP]``) that the model adds.
+#: Posts longer than this still get an embedding of their leading
+#: ~6 000 tokens — late-paragraph recall is handled separately by
+#: the FR-053 passage retrieval pipeline (masterplan Group E).
+_MAX_EMBED_CHARS: int = 1_000_000
+
 _model_cache: dict[str, Any] = {}
 _CPU_THREAD_HEADROOM = 2
 _GPU_RESUME_DELTA_C = 10
 _GPU_TEMP_RESUME_FLOOR_C = 50
 _PERCENT_TO_FRACTION = 100.0
+
+
+def _compute_embed_text_hash(text: str) -> str:
+    """Group D.2 — SHA-256 hex digest of the exact text we feed BGE-M3.
+
+    Stored on ``ContentItem.embedding_text_hash`` so a future re-embed
+    can skip rows whose text hasn't changed since the last embedding.
+    Empty input returns "" so the caller can use the truthiness check
+    (``if hash:``) without an extra None comparison.
+    """
+    import hashlib
+
+    if not text:
+        return ""
+    return hashlib.sha256(text.encode("utf-8"), usedforsecurity=False).hexdigest()
+
+
+def _truncate_at_sentence(text: str, max_chars: int) -> str:
+    """Trim *text* to <= *max_chars* characters at a clean boundary.
+
+    Tries the last newline, then the last full-stop, then a hard cut as
+    a fallback. The point is to avoid splitting a word mid-letter when
+    the soft cap kicks in — readers (and the model) prefer a clean
+    sentence end over a jagged truncation.
+    """
+    if len(text) <= max_chars:
+        return text
+    window = text[:max_chars]
+    # Prefer the last newline (paragraph boundary) inside the window.
+    cut = window.rfind("\n")
+    if cut < int(max_chars * 0.7):
+        # Fall back to the last full-stop if the newline lands too early
+        # (else we'd waste a lot of the budget).
+        period_cut = window.rfind(". ")
+        if period_cut > cut:
+            cut = period_cut + 1  # keep the full stop
+    if cut <= 0:
+        # No paragraph or sentence boundary at all — hard-cut.
+        return window.rstrip()
+    return window[:cut].rstrip()
 
 
 # ---------------------------------------------------------------------------
@@ -333,12 +384,19 @@ def _flush_embeddings_slice(
     raw_vectors_list: list,
     *,
     embedding_signature: str | None = None,
+    text_hashes: list[str] | None = None,
 ) -> None:
     """L2-normalise accumulated vectors and bulk_update the given PK slice.
 
     Clears ``raw_vectors_list`` in place. No-op if the buffer is empty,
     so call sites don't need their own ``if raw_vectors_list:`` guard.
     Shared between the ContentItem and Sentence embedding paths.
+
+    ``text_hashes`` (Group D.2) is optional and only honoured when the
+    target model has an ``embedding_text_hash`` column (currently only
+    ``ContentItem``). Length must match ``pks_slice`` 1:1; passing a
+    shorter or longer list silently disables the hash write so a
+    miscall can't corrupt the stored values.
     """
     if not raw_vectors_list:
         return
@@ -350,6 +408,20 @@ def _flush_embeddings_slice(
         supports_model_version = True
     except Exception:
         supports_model_version = False
+
+    # Group D.2 — only write text hashes if the model supports the column
+    # AND the caller passed a length-matched list.
+    supports_text_hash = False
+    try:
+        model_class._meta.get_field("embedding_text_hash")
+        supports_text_hash = True
+    except Exception:
+        supports_text_hash = False
+    use_text_hashes = (
+        supports_text_hash
+        and text_hashes is not None
+        and len(text_hashes) == len(pks_slice)
+    )
 
     # Quality gate (plan Part 9, FR-236) — decides per-item REPLACE / REJECT /
     # NOOP / ACCEPT_NEW before we archive + overwrite. Filters pks_slice + the
@@ -370,6 +442,15 @@ def _flush_embeddings_slice(
         if len(gate_kept_indices) < len(pks_slice):
             normalised = normalised[gate_kept_indices]
             pks_slice = gate_pks_kept
+            # Group D.2 bug-fix: also filter ``text_hashes`` so the
+            # length-match check below stays honest. Without this the
+            # gate-pruned set would have ``len(text_hashes) > len(pks_slice)``,
+            # ``use_text_hashes`` would silently flip to False, and no row
+            # would get its ``embedding_text_hash`` written. The signature
+            # filter then wouldn't be able to short-circuit unchanged
+            # content on subsequent passes.
+            if text_hashes is not None and len(text_hashes) > len(pks_slice):
+                text_hashes = [text_hashes[i] for i in gate_kept_indices]
 
     # Archive existing embeddings before overwrite (plan Part 2). Scope: ContentItem
     # only — SupersededEmbedding.content_item is a FK to ContentItem, not Sentence.
@@ -407,6 +488,12 @@ def _flush_embeddings_slice(
                 exc_info=True,
             )
 
+    # Group D.2 — bulk_update payload includes the text hash when the
+    # model supports it AND a hash list was supplied. The zip pairs each
+    # (pk, vector, text_hash) so they line up by index.
+    hashes_iter = (
+        text_hashes if use_text_hashes else [""] * len(pks_slice)
+    )
     model_class.objects.bulk_update(
         [
             model_class(
@@ -419,17 +506,25 @@ def _flush_embeddings_slice(
                             if supports_model_version and embedding_signature
                             else {}
                         ),
+                        **(
+                            {"embedding_text_hash": text_hash}
+                            if use_text_hashes
+                            else {}
+                        ),
                     }
                 )
             )
-            for pk, vec in zip(pks_slice, normalised, strict=True)
+            for pk, vec, text_hash in zip(
+                pks_slice, normalised, hashes_iter, strict=True
+            )
         ],
         fields=fields
         + (
             ["embedding_model_version"]
             if supports_model_version and embedding_signature
             else []
-        ),
+        )
+        + (["embedding_text_hash"] if use_text_hashes else []),
         batch_size=500,
     )
     raw_vectors_list.clear()
@@ -1362,7 +1457,10 @@ def generate_content_item_embeddings(
     )
     batch_size = _get_batch_size(model)
 
-    qs = ContentItem.objects.filter(is_deleted=False)
+    # Group A.6 — exclude rows flagged as cross-source duplicates.
+    # Their embedding is reused from ``duplicate_of`` at retrieval
+    # time, so generating one here would just waste GPU and disk.
+    qs = ContentItem.objects.filter(is_deleted=False, duplicate_of__isnull=True)
     if content_item_ids is not None:
         qs = qs.filter(pk__in=content_item_ids)
 
@@ -1372,7 +1470,17 @@ def generate_content_item_embeddings(
             embedding_model_version=embedding_signature,
         )
 
-    qs = qs.values_list("pk", "title", "distilled_text")
+    # Group D.1 — embed the FULL post body (clean_text) instead of the
+    # 5-sentence distilled summary. Long posts that previously lost
+    # most of their signal at the cap (think 3 000-word how-tos) now
+    # contribute their full content to the document vector.
+    #
+    # ``Post.clean_text`` is the BBCode-stripped body the importer
+    # already builds — the right shape for embedding. ``distilled_text``
+    # remains the fallback for items without a Post row (e.g. WP
+    # articles imported through paths that haven't created a Post yet)
+    # AND for legacy rows where the long-tail backfill has not run.
+    qs = qs.values_list("pk", "title", "post__clean_text", "distilled_text")
 
     items = list(qs)
     if not items:
@@ -1380,17 +1488,28 @@ def generate_content_item_embeddings(
 
     pks: list[int] = []
     texts: list[str] = []
-    for pk, title, distilled in items:
+    # Group D.2 — parallel list of SHA-256 hashes of the exact text we
+    # send to the model. Persisted alongside the vector so the next
+    # re-embed can skip rows whose text and model both still match.
+    text_hashes: list[str] = []
+    for pk, title, clean_text, distilled in items:
         title_clean = (title or "").strip()
-        distilled_clean = (distilled or "").strip()
-        if distilled_clean:
-            text = f"{title_clean}\n\n{distilled_clean}".strip()
+        body_source = (clean_text or "").strip() or (distilled or "").strip()
+        if body_source:
+            text = f"{title_clean}\n\n{body_source}".strip()
         else:
             text = title_clean
         if not text:
             continue
+        # Group D.1 — capture full body text for long-tail embedding. 
+        # Cap at 1 000 000 characters (~250 000 tokens) to prevent
+        # extreme OOM on edge-case threads, while effectively providing
+        # "no truncation" for 99.9% of forum content.
+        if len(text) > _MAX_EMBED_CHARS:
+            text = _truncate_at_sentence(text, _MAX_EMBED_CHARS)
         pks.append(pk)
         texts.append(text)
+        text_hashes.append(_compute_embed_text_hash(text))
 
     if not texts:
         return {"embedded": 0, "skipped": len(items)}
@@ -1421,6 +1540,7 @@ def generate_content_item_embeddings(
                 pks[flushed_count:cursor],
                 raw_vectors_list,
                 embedding_signature=embedding_signature,
+                text_hashes=text_hashes[flushed_count:cursor],
             )
             flushed_count = cursor
             _mark_embedding_job_paused(job_id, pause_reason)
@@ -1486,6 +1606,7 @@ def generate_content_item_embeddings(
                 pks[flushed_count:processed],
                 raw_vectors_list,
                 embedding_signature=embedding_signature,
+                text_hashes=text_hashes[flushed_count:processed],
             )
             flushed_count = processed
 
@@ -1500,6 +1621,7 @@ def generate_content_item_embeddings(
         pks[flushed_count:],
         raw_vectors_list,
         embedding_signature=embedding_signature,
+        text_hashes=text_hashes[flushed_count:],
     )
 
     elapsed = time.monotonic() - start

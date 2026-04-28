@@ -173,7 +173,7 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "rsqva.ranking_weight": "0.05",
     "rsqva.min_queries_per_page": "5",
     "rsqva.min_query_clicks": "1",
-    "rsqva.max_vocab_size": "10000",
+    "rsqva.max_vocab_size": "25000",
     # ════════════════════════════════════════════════════════════════
     # 52-pick optional helpers — Wire phase defaults
     # All values cited to the matching academic source. Each ``*.enabled``

@@ -11,6 +11,12 @@ Skipping step 1 or 2 is a protocol violation. The acknowledgement line in your f
 
 ---
 
+**PARAMOUNT — Plain-English Communication Rule (all agents — Codex / Claude / Gemini / Antigravity / every future agent):** Every response, commit message, error report, status update, and user-facing surface MUST be written in plain English the user can understand. The user is a vibe coder — they use AI exclusively and don't write code. Three required parts:
+1. **What I'm doing / will do** — describe the action in everyday words. Define every technical term the moment it's used. No internal acronyms (FR-XXX, ISS-XXX, MMR, BGE-M3, FAISS, etc.) without a one-line explanation on first use in a response.
+2. **What was accomplished** — at the end of every change, state in plain English what now works that didn't before, plus which files changed and why.
+3. **What has issues or errors** — surface failures honestly. If something broke, say what broke, why, and what you'll do about it. Never bury errors in jargon. Never silently move on after a failure. Never claim success when something is partial.
+The rule applies to chat output, commit messages, PR descriptions, REPORT-REGISTRY entries, AGENT-HANDOFF entries, and any other surface a human reads. Skipping any of the three required parts is a protocol violation. Silence on errors is forbidden.
+
 **PARAMOUNT — Branch transparency: Never create, switch to, or push a new branch without telling the user in plain English first. Work done on a branch does not appear on `master` until merged. If the user did not ask for a branch, stay on `master`. Silence is forbidden.**
 **Before any work, follow the Session Gate in `AI-CONTEXT.md` — it is the single source of truth for what to read, update, check, and log.**
 **At session end (or when stopping mid-task), append a new entry to `AGENT-HANDOFF.md` using the template at the top of that file. See the SESSION START block at the top of this file for the mandatory read + acknowledgement steps.**
@@ -51,6 +57,11 @@ Goal: keep the codebase fast, organised, and stable as it grows — without intr
 - **No feature is "done" if its hot path has no benchmark coverage.** Every hot-path function needs benchmarks at 3 input sizes before merge.
 - **Poor performance in the Report Registry must be resolved** before the affected area is declared Phase-complete.
 - **The compose stack is prod-only (applies to Claude, Codex, Gemini, any agent).** `docker-compose.yml` is the single canonical compose file; every `docker compose up` boots the production Angular bundle (`xf-linker-frontend-prod:latest`) + Django production settings. Do not add a dev-frontend service, do not recreate override/prod compose files, do not run the Angular dev server inside docker. Unit/integration test runs (`ng test`, `pytest`) are exempt — they use their own test settings and bypass the stack. Any performance claim must state the commit and that it came from the prod stack. Full rationale: `docs/PERFORMANCE.md` §13.
+
+### C++ Session Gate — Mandatory
+- **No C++ feature is "done" without native test coverage.** Every C++ extension MUST have a corresponding `tests/test_<name>.cpp` using Google Test.
+- **Hot-path benchmarks are non-negotiable.** Every new or modified C++ kernel MUST have a `benchmarks/bench_<name>.cpp` using Google Benchmark.
+- **Verification**: Before marking a C++ task complete, run `scripts/test-cpp.ps1` and `scripts/bench-cpp.ps1`. Failure to provide coverage or verify performance is a protocol violation.
 
 ### Never do
 - Do not refactor code outside the scope of the current task without explicit approval.

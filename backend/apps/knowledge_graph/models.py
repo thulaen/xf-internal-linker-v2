@@ -50,3 +50,23 @@ class ArticleEntityEdge(models.Model):
 
     def __str__(self):
         return f"{self.content_item} -> {self.entity} ({self.weight})"
+
+
+class PixieWalkVisit(models.Model):
+    """Stores deduplicated visit counts from the Pixie candidate generation walk (Group A.3)."""
+    source_content = models.ForeignKey(
+        ContentItem, on_delete=models.CASCADE, related_name="pixie_walks_initiated"
+    )
+    visited_content = models.ForeignKey(
+        ContentItem, on_delete=models.CASCADE, related_name="pixie_walks_received"
+    )
+    visit_count = models.IntegerField(default=0)
+    signal_version = models.CharField(max_length=50)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("source_content", "visited_content", "signal_version")
+
+    def __str__(self):
+        return f"{self.source_content} -> {self.visited_content} ({self.visit_count} visits)"

@@ -413,6 +413,11 @@ urlpatterns = [
     ),
     path("settings/graph/rebuild/", GraphRebuildView.as_view(), name="graph-rebuild"),
     path(
+        "settings/passage-relevance/",
+        __import__("apps.api.passage_relevance_views", fromlist=["PassageRelevanceSettingsView"]).PassageRelevanceSettingsView.as_view(),
+        name="passage-relevance-settings",
+    ),
+    path(
         "settings/cooccurrence/",
         CoOccurrenceSettingsView.as_view(),
         name="cooccurrence-settings",

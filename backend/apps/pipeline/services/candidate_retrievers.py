@@ -417,7 +417,150 @@ class QueryExpansionRetriever:
         return result
 
 
+# ── Concrete: PixieRetriever (Group A.3 / FR-021) ─────────────────
+
+
+class PixieRetriever:
+    """Graph-based random walk candidate retriever (Pixie algorithm).
+
+    FR-021: Generates candidates by performing random walks on the
+    Article-Entity bipartite graph. Uses the C++ extension `pixie_walk`
+    for O(1) alias sampling and parallel execution.
+
+    Group A.3: Deduplicates the persisted walks into `PixieWalkVisit`
+    tuples (source, visited, count) to drastically cut disk usage
+    on dense graphs, matching the Pixie visitation matrix exactly.
+    """
+
+    name: str = "pixie_walk"
+
+    def __init__(
+        self,
+        *,
+        enabled: bool = False,
+        walk_steps_per_entity: int = 5000,
+        top_k: int = 100,
+        walk_length: int = 2,
+    ):
+        self.enabled = enabled
+        self.walk_steps_per_entity = walk_steps_per_entity
+        self.top_k = top_k
+        self.walk_length = walk_length
+
+    def retrieve(self, context: RetrievalContext) -> dict[ContentKey, list[int]]:
+        if not self.enabled:
+            return {}
+
+        try:
+            from extensions import pixie_walk
+        except ImportError:
+            logger.warning("pixie_walk C++ extension not found. Skipping PixieRetriever.")
+            return {}
+
+        from apps.knowledge_graph.models import EntityNode, ArticleEntityEdge, PixieWalkVisit
+        import numpy as np
+
+        # Fetch the entire graph edges to build CSR
+        edges = ArticleEntityEdge.objects.values_list('content_item_id', 'entity_id', 'weight')
+        if not edges:
+            return {}
+
+        content_ids = list(set(e[0] for e in edges))
+        entity_ids = list(set(e[1] for e in edges))
+
+        c_to_idx = {c: i for i, c in enumerate(content_ids)}
+        e_to_idx = {e: i + len(content_ids) for i, e in enumerate(entity_ids)}
+        idx_to_c = {i: c for c, i in c_to_idx.items()}
+
+        num_nodes = len(content_ids) + len(entity_ids)
+
+        adj = [[] for _ in range(num_nodes)]
+        for c, e, w in edges:
+            c_idx = c_to_idx[c]
+            e_idx = e_to_idx[e]
+            adj[c_idx].append((e_idx, w))
+            adj[e_idx].append((c_idx, w))
+
+        indptr = np.zeros(num_nodes + 1, dtype=np.uint32)
+        indices = []
+        weights = []
+
+        current_idx = 0
+        for i in range(num_nodes):
+            for neighbor, weight in adj[i]:
+                indices.append(neighbor)
+                weights.append(weight)
+                current_idx += 1
+            indptr[i + 1] = current_idx
+
+        indices = np.array(indices, dtype=np.uint32)
+        weights = np.array(weights, dtype=np.float32)
+
+        result: dict[ContentKey, list[int]] = {}
+
+        valid_dest_keys = []
+        for dest_key in context.destination_keys:
+            dest_pk = dest_key[0]
+            if dest_pk in c_to_idx:
+                valid_dest_keys.append(dest_key)
+
+        if not valid_dest_keys:
+            return {}
+
+        # Overwrite policy: delete old ones for these destinations (Group A.3)
+        dest_pks = [k[0] for k in valid_dest_keys]
+        PixieWalkVisit.objects.filter(source_content_id__in=dest_pks).delete()
+
+        visits_to_create = []
+        
+        for dest_key in valid_dest_keys:
+            dest_pk = dest_key[0]
+            q_node = np.array([c_to_idx[dest_pk]], dtype=np.uint32)
+            q_weight = np.array([1.0], dtype=np.float32)
+
+            o_nodes, o_scores, o_visits = pixie_walk.walk(
+                indptr, indices, weights, num_nodes,
+                q_node, q_weight,
+                self.walk_steps_per_entity, self.top_k, self.walk_length
+            )
+
+            sentence_ids = []
+            for n_idx, score, visit_count in zip(o_nodes, o_scores, o_visits):
+                if n_idx >= len(content_ids):
+                    continue 
+                host_pk = idx_to_c[n_idx]
+                if host_pk == dest_pk:
+                    continue
+
+                visits_to_create.append(
+                    PixieWalkVisit(
+                        source_content_id=dest_pk,
+                        visited_content_id=host_pk,
+                        visit_count=visit_count,
+                        signal_version="v1"
+                    )
+                )
+
+                host_key = None
+                for hk in context.content_records.keys():
+                    if hk[0] == host_pk:
+                        host_key = hk
+                        break
+                
+                if host_key:
+                    sentence_ids.extend(context.content_to_sentence_ids.get(host_key, []))
+
+            if sentence_ids:
+                result[dest_key] = sentence_ids
+
+        if visits_to_create:
+            PixieWalkVisit.objects.bulk_create(visits_to_create, batch_size=1000)
+
+        return result
+
+
 # ── Unifier ──────────────────────────────────────────────────────
+
 
 
 def run_retrievers(
@@ -565,6 +708,21 @@ def default_retrievers() -> list[CandidateRetriever]:
         retrievers.append(LexicalRetriever(enabled=True))
     if _setting_enabled("stage1.query_expansion_retriever_enabled"):
         retrievers.append(QueryExpansionRetriever(enabled=True))
+    
+    # FR-021: Graph-based Pixie Retriever
+    if _setting_enabled("graph_candidate.enabled"):
+        from apps.core.models import AppSetting
+        
+        walk_steps = AppSetting.get_int("graph_candidate.walk_steps_per_entity", 5000)
+        top_k = AppSetting.get_int("graph_candidate.top_k_candidates", 100)
+        
+        retrievers.append(PixieRetriever(
+            enabled=True,
+            walk_steps_per_entity=walk_steps,
+            top_k=top_k,
+            walk_length=2
+        ))
+        
     return retrievers
 
 

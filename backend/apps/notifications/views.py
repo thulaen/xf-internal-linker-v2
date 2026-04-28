@@ -56,13 +56,14 @@ _PREFS_DEFAULT = {
 
 
 def _load_prefs() -> dict:
-    try:
-        setting = AppSetting.objects.get(key=_PREFS_KEY)
-        return json.loads(setting.value)
-    except AppSetting.DoesNotExist:
+    """Group D consolidation (2026-04-28): replaced the inline
+    ``get(key=..)`` + try/except + json.loads pattern with the shared
+    ``AppSetting.get_json`` classmethod. Same fall-through semantics
+    (missing row OR malformed JSON → defaults), one source of truth."""
+    parsed = AppSetting.get_json(_PREFS_KEY, None)
+    if not isinstance(parsed, dict):
         return dict(_PREFS_DEFAULT)
-    except Exception:
-        return dict(_PREFS_DEFAULT)
+    return parsed
 
 
 def _save_prefs(data: dict) -> dict:

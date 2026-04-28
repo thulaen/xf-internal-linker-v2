@@ -512,12 +512,9 @@ def run_trustrank_propagation(job, checkpoint) -> None:
         checkpoint(progress_pct=100.0, message="Empty graph — skip")
         return
 
-    seed_ids_raw = (
-        AppSetting.objects.filter(key="trustrank.seed_ids")
-        .values_list("value", flat=True)
-        .first()
-        or ""
-    )
+    # Group D consolidation (2026-04-28): single shared helper instead
+    # of the inline filter + values_list + or-fallback chain.
+    seed_ids_raw = AppSetting.get_str("trustrank.seed_ids", "")
     seeds = [s for s in seed_ids_raw.split(",") if s]
     checkpoint(
         progress_pct=30.0,
@@ -742,11 +739,8 @@ def run_meta_hpo_rollback_watchdog(job, checkpoint) -> None:
     )
 
     checkpoint(progress_pct=0.0, message="Reading last applied timestamp")
-    applied_at_raw = (
-        AppSetting.objects.filter(key="meta_hpo.applied_at")
-        .values_list("value", flat=True)
-        .first()
-    )
+    # Group D consolidation (2026-04-28): single shared helper.
+    applied_at_raw = AppSetting.get_str("meta_hpo.applied_at", "")
     if not applied_at_raw:
         checkpoint(progress_pct=100.0, message="No prior apply — nothing to watch")
         return

@@ -470,7 +470,90 @@ def _parse_html(html: str, meta: CrawledPageMeta, base_url: str):
 
 
 def _save_page_meta(meta: CrawledPageMeta):
-    if not CrawledPageMeta.objects.filter(
-        session=meta.session, normalized_url=meta.normalized_url
-    ).exists():
-        meta.save()
+    """Persist (or reuse) a CrawledPageMeta row plus log a CrawlerVisit.
+
+    Group D.5 — cross-session dedup. If we've already captured this
+    URL with this exact body in any prior session, do NOT write a
+    new heavy row; just record a CrawlerVisit pointing at the
+    existing one. Disk cost on a stable corpus is now O(unique
+    content versions) instead of O(crawls × URLs).
+
+    The previous behaviour (per-session uniqueness via the
+    ``unique_page_per_session`` constraint) is preserved as a
+    secondary guard — a re-entrant crawler that visits the same URL
+    twice in one session still only writes one CrawlerVisit row
+    thanks to the ``unique_visit_per_session_page`` constraint.
+
+    Failure modes are handled defensively:
+      * The dedup lookup itself failing (unlikely, but possible on a
+        DB hiccup) falls through to the legacy save-if-new-in-session
+        path, so a transient error does not silently lose the page.
+      * The CrawlerVisit write is best-effort — if it fails, the
+        crawl continues; the heavy CrawledPageMeta row already
+        captures the page state.
+    """
+    from apps.crawler.models import CrawlerVisit
+
+    target: CrawledPageMeta | None = None
+
+    # 1) Cross-session dedup by (normalized_url, content_hash).
+    if meta.content_hash and meta.normalized_url:
+        try:
+            target = (
+                CrawledPageMeta.objects.filter(
+                    normalized_url=meta.normalized_url,
+                    content_hash=meta.content_hash,
+                )
+                .order_by("created_at")
+                .first()
+            )
+        except Exception:
+            target = None
+            logger.warning(
+                "_save_page_meta: dedup lookup failed for url=%s; "
+                "falling back to legacy save-if-new path",
+                meta.normalized_url,
+                exc_info=True,
+            )
+
+    # 2) If we found an existing canonical row, reuse it. Otherwise
+    # write a new row (preserving the legacy per-session uniqueness
+    # check so a re-entrant crawl in the same session never duplicates).
+    if target is None:
+        already_in_session = CrawledPageMeta.objects.filter(
+            session=meta.session, normalized_url=meta.normalized_url
+        ).exists()
+        if not already_in_session:
+            meta.save()
+            target = meta
+        else:
+            target = (
+                CrawledPageMeta.objects.filter(
+                    session=meta.session, normalized_url=meta.normalized_url
+                )
+                .first()
+            )
+
+    if target is None:
+        # Nothing to log against — defensive return.
+        return
+
+    # 3) Always log the visit. update_or_create handles the
+    # (session, page_meta) uniqueness and bumps content_hash /
+    # status_code if a re-entrant call hits the same pair.
+    try:
+        CrawlerVisit.objects.update_or_create(
+            page_meta=target,
+            session=meta.session,
+            defaults={
+                "status_code": meta.http_status,
+                "content_hash": meta.content_hash or "",
+            },
+        )
+    except Exception:
+        logger.warning(
+            "_save_page_meta: CrawlerVisit upsert failed for url=%s session=%s",
+            meta.normalized_url,
+            getattr(meta.session, "pk", None),
+            exc_info=True,
+        )

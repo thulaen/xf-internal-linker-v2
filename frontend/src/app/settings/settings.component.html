@@ -265,6 +265,9 @@
             </mat-card-content>
           </mat-card>
 
+          <!-- Passage-Level Relevance (FR-053) -->
+          <app-passage-relevance-card></app-passage-relevance-card>
+
           <!-- Field-Aware Relevance -->
           <mat-card class="settings-card">
             <mat-card-header>
@@ -800,7 +803,7 @@
           <!-- FR-099 DARB -->
           <mat-card class="settings-card" id="darb">
             <mat-card-header>
-              <mat-card-title>Dangling Authority Redistribution Bonus (FR-099)</mat-card-title>
+              <mat-card-title [matTooltip]="metaAlgoTip('darb')" matTooltipClass="setting-tooltip" matTooltipPosition="above">Dangling Authority Redistribution Bonus (FR-099)</mat-card-title>
             </mat-card-header>
             <mat-card-content class="card-content">
               <p class="hint">Boost candidates from high-value hosts that barely link out — fixes the Reddit-post "dead-end street" problem. Source: Page et al. 1999 §2.5.</p>
@@ -838,6 +841,12 @@
                 </mat-form-field>
               </div>
               <div class="card-actions-row">
+                @if (metaAlgoHasSpec('darb')) {
+                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('darb')" matTooltip="Open the FR-099 spec inside this page (no navigation away).">
+                    <mat-icon>description</mat-icon>
+                    View spec
+                  </button>
+                }
                 <button mat-flat-button color="primary" [disabled]="savingDarb" (click)="saveDarbSettings()">
                   <mat-icon>{{ savingDarb ? 'sync' : 'alt_route' }}</mat-icon>
                   {{ savingDarb ? 'Saving...' : 'Save DARB' }}
@@ -849,7 +858,7 @@
           <!-- FR-100 KMIG -->
           <mat-card class="settings-card" id="kmig">
             <mat-card-header>
-              <mat-card-title>Katz Marginal Information Gain (FR-100)</mat-card-title>
+              <mat-card-title [matTooltip]="metaAlgoTip('kmig')" matTooltipClass="setting-tooltip" matTooltipPosition="above">Katz Marginal Information Gain (FR-100)</mat-card-title>
             </mat-card-header>
             <mat-card-content class="card-content">
               <p class="hint">Penalises candidates already reachable within 1-2 hops via existing links — avoids redundant edges. Source: Katz 1953, Psychometrika 18(1) §2 eq. 2.</p>
@@ -887,6 +896,12 @@
                 </mat-form-field>
               </div>
               <div class="card-actions-row">
+                @if (metaAlgoHasSpec('kmig')) {
+                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('kmig')" matTooltip="Open the FR-100 spec inside this page (no navigation away).">
+                    <mat-icon>description</mat-icon>
+                    View spec
+                  </button>
+                }
                 <button mat-flat-button color="primary" [disabled]="savingKmig" (click)="saveKmigSettings()">
                   <mat-icon>{{ savingKmig ? 'sync' : 'route' }}</mat-icon>
                   {{ savingKmig ? 'Saving...' : 'Save KMIG' }}
@@ -898,7 +913,7 @@
           <!-- FR-101 TAPB -->
           <mat-card class="settings-card" id="tapb">
             <mat-card-header>
-              <mat-card-title>Tarjan Articulation Point Boost (FR-101)</mat-card-title>
+              <mat-card-title [matTooltip]="metaAlgoTip('tapb')" matTooltipClass="setting-tooltip" matTooltipPosition="above">Tarjan Articulation Point Boost (FR-101)</mat-card-title>
             </mat-card-header>
             <mat-card-content class="card-content">
               <p class="hint">Rewards candidates whose host is a structural cut vertex (bridge node). Source: Tarjan 1972 SIAM §3.</p>
@@ -932,6 +947,12 @@
                 </mat-form-field>
               </div>
               <div class="card-actions-row">
+                @if (metaAlgoHasSpec('tapb')) {
+                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('tapb')" matTooltip="Open the FR-101 spec inside this page (no navigation away).">
+                    <mat-icon>description</mat-icon>
+                    View spec
+                  </button>
+                }
                 <button mat-flat-button color="primary" [disabled]="savingTapb" (click)="saveTapbSettings()">
                   <mat-icon>{{ savingTapb ? 'sync' : 'account_tree' }}</mat-icon>
                   {{ savingTapb ? 'Saving...' : 'Save TAPB' }}
@@ -943,7 +964,7 @@
           <!-- FR-102 KCIB -->
           <mat-card class="settings-card" id="kcib">
             <mat-card-header>
-              <mat-card-title>K-Core Integration Boost (FR-102)</mat-card-title>
+              <mat-card-title [matTooltip]="metaAlgoTip('kcib')" matTooltipClass="setting-tooltip" matTooltipPosition="above">K-Core Integration Boost (FR-102)</mat-card-title>
             </mat-card-header>
             <mat-card-content class="card-content">
               <p class="hint">Rewards links from high-kcore hosts into low-kcore destinations — pulls peripheral pages into the core. Source: Seidman 1983 Social Networks 5(3) §2.</p>
@@ -974,6 +995,12 @@
                 </mat-form-field>
               </div>
               <div class="card-actions-row">
+                @if (metaAlgoHasSpec('kcib')) {
+                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('kcib')" matTooltip="Open the FR-102 spec inside this page (no navigation away).">
+                    <mat-icon>description</mat-icon>
+                    View spec
+                  </button>
+                }
                 <button mat-flat-button color="primary" [disabled]="savingKcib" (click)="saveKcibSettings()">
                   <mat-icon>{{ savingKcib ? 'sync' : 'filter_center_focus' }}</mat-icon>
                   {{ savingKcib ? 'Saving...' : 'Save KCIB' }}
@@ -985,7 +1012,7 @@
           <!-- FR-103 BERP -->
           <mat-card class="settings-card" id="berp">
             <mat-card-header>
-              <mat-card-title>Bridge-Edge Redundancy Penalty (FR-103)</mat-card-title>
+              <mat-card-title [matTooltip]="metaAlgoTip('berp')" matTooltipClass="setting-tooltip" matTooltipPosition="above">Bridge-Edge Redundancy Penalty (FR-103)</mat-card-title>
             </mat-card-header>
             <mat-card-content class="card-content">
               <p class="hint">Penalises candidates where host→dest would become a fragile single-path bridge. Source: Hopcroft-Tarjan 1973 CACM 16(6) §2.</p>
@@ -1016,6 +1043,12 @@
                 </mat-form-field>
               </div>
               <div class="card-actions-row">
+                @if (metaAlgoHasSpec('berp')) {
+                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('berp')" matTooltip="Open the FR-103 spec inside this page (no navigation away).">
+                    <mat-icon>description</mat-icon>
+                    View spec
+                  </button>
+                }
                 <button mat-flat-button color="primary" [disabled]="savingBerp" (click)="saveBerpSettings()">
                   <mat-icon>{{ savingBerp ? 'sync' : 'link_off' }}</mat-icon>
                   {{ savingBerp ? 'Saving...' : 'Save BERP' }}
@@ -1027,7 +1060,7 @@
           <!-- FR-104 HGTE -->
           <mat-card class="settings-card" id="hgte">
             <mat-card-header>
-              <mat-card-title>Host-Graph Topic Entropy Boost (FR-104)</mat-card-title>
+              <mat-card-title [matTooltip]="metaAlgoTip('hgte')" matTooltipClass="setting-tooltip" matTooltipPosition="above">Host-Graph Topic Entropy Boost (FR-104)</mat-card-title>
             </mat-card-header>
             <mat-card-content class="card-content">
               <p class="hint">Rewards candidates that diversify the host's outbound-link topic portfolio (Shannon entropy delta). Source: Shannon 1948 §6 eq. 4.</p>
@@ -1058,6 +1091,12 @@
                 </mat-form-field>
               </div>
               <div class="card-actions-row">
+                @if (metaAlgoHasSpec('hgte')) {
+                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('hgte')" matTooltip="Open the FR-104 spec inside this page (no navigation away).">
+                    <mat-icon>description</mat-icon>
+                    View spec
+                  </button>
+                }
                 <button mat-flat-button color="primary" [disabled]="savingHgte" (click)="saveHgteSettings()">
                   <mat-icon>{{ savingHgte ? 'sync' : 'pie_chart' }}</mat-icon>
                   {{ savingHgte ? 'Saving...' : 'Save HGTE' }}
@@ -1069,7 +1108,7 @@
           <!-- FR-105 RSQVA -->
           <mat-card class="settings-card" id="rsqva">
             <mat-card-header>
-              <mat-card-title>Reverse Search-Query Vocabulary Alignment (FR-105)</mat-card-title>
+              <mat-card-title [matTooltip]="metaAlgoTip('rsqva')" matTooltipClass="setting-tooltip" matTooltipPosition="above">Reverse Search-Query Vocabulary Alignment (FR-105)</mat-card-title>
             </mat-card-header>
             <mat-card-content class="card-content">
               <p class="hint">TF-IDF cosine between host's and destination's Google Search Console query vocabularies — rewards user-intent overlap. Source: Salton &amp; Buckley 1988, Järvelin &amp; Kekäläinen 2002.</p>
@@ -1114,6 +1153,12 @@
                 </mat-form-field>
               </div>
               <div class="card-actions-row">
+                @if (metaAlgoHasSpec('rsqva')) {
+                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('rsqva')" matTooltip="Open the FR-105 spec inside this page (no navigation away).">
+                    <mat-icon>description</mat-icon>
+                    View spec
+                  </button>
+                }
                 <button mat-flat-button color="primary" [disabled]="savingRsqva" (click)="saveRsqvaSettings()">
                   <mat-icon>{{ savingRsqva ? 'sync' : 'search' }}</mat-icon>
                   {{ savingRsqva ? 'Saving...' : 'Save RSQVA' }}

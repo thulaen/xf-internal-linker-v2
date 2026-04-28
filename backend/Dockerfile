@@ -27,7 +27,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libbz2-dev \
     liblzma-dev \
     zlib1g-dev \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
+
+# Why ``postgresql-client``:
+#   * Group L #91 (masterplan) — daily ``pg_dump`` snapshot to a local
+#     ``backups/`` directory. The Celery task at
+#     ``apps.core.tasks_backups.create_database_snapshot`` invokes
+#     ``pg_dump`` as a subprocess against the postgres service.
+#   * ~10 MB increment to the image vs the gain of a one-line
+#     restorable backup (``pg_restore`` is in the same package).
 
 WORKDIR /app
 

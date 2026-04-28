@@ -186,6 +186,25 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(minute="*/15"),
         "options": {"queue": "pipeline"},
     },
+    # FR-053 — Passage-Level Relevance Scoring (Group E). Bounded
+    # batch every 30 min so we never starve the GPU; the regenerator
+    # itself is idempotent so unchanged content does zero work.
+    "refresh-passage-embeddings": {
+        "task": "pipeline.refresh_passage_embeddings",
+        "schedule": crontab(minute="*/30"),
+        "options": {"queue": "pipeline"},
+    },
+    # Group L #91 — daily local Postgres backup. 02:30 UTC sits inside
+    # the operator's 11 AM – 11 PM laptop availability window across
+    # most timezones; the task is bounded by a soft time limit, so a
+    # missed-window run resumes on the next tick rather than starving
+    # the rest of the queue. See ``apps.core.backups`` for the
+    # disk-pressure pre-flight + retention policy (last 30 snapshots).
+    "daily-database-backup": {
+        "task": "core.create_database_snapshot",
+        "schedule": crontab(minute=30, hour=2),
+        "options": {"queue": "default"},
+    },
     # System heartbeat pulse: every 60 seconds.
     "pulse-heartbeat": {
         "task": "crawler.pulse_heartbeat",
@@ -253,5 +272,11 @@ CELERY_BEAT_SCHEDULE = {
         "task": "notifications.check_autotune_status",
         "schedule": crontab(hour=14, minute=45),
         "options": {"queue": "default"},
+    },
+    # Phase C — Weekly OPQ Codebook training: Sunday 14:55 UTC
+    "weekly-train-opq-codebook": {
+        "task": "passage_relevance.train_opq_codebook",
+        "schedule": crontab(hour=14, minute=55, day_of_week=0),
+        "options": {"queue": "pipeline"},
     },
 }

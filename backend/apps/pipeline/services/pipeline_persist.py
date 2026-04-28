@@ -398,6 +398,17 @@ def _build_suggestion_records(
                 berp_diagnostics=getattr(candidate, "berp_diagnostics", {}) or {},
                 hgte_diagnostics=getattr(candidate, "hgte_diagnostics", {}) or {},
                 rsqva_diagnostics=getattr(candidate, "rsqva_diagnostics", {}) or {},
+                # FR-053 Passage-Level Relevance (masterplan Group E).
+                # ``getattr`` defaults keep us safe when ScoredCandidate
+                # comes from older code paths or test fixtures that
+                # don't populate the new fields.
+                score_passage_relevance=getattr(
+                    candidate, "score_passage_relevance", 0.5
+                ),
+                passage_relevance_diagnostics=getattr(
+                    candidate, "passage_relevance_diagnostics", {}
+                )
+                or {},
                 score_final=candidate.score_final,
                 # Pick #32 — Platt-calibrated probability.
                 calibrated_probability=calibrated_probability,

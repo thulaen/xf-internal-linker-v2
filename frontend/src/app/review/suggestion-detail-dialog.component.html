@@ -105,6 +105,11 @@
       <p class="section-title">Score breakdown</p>
       <div class="scores-grid">
         <div class="score-item">
+          <span class="score-name">Passage Relevance</span>
+          <mat-progress-bar mode="determinate" [value]="scorePercent(detail.score_passage_relevance)" color="primary"></mat-progress-bar>
+          <span class="score-val">{{ (detail.score_passage_relevance * 100).toFixed(0) }}</span>
+        </div>
+        <div class="score-item">
           <span class="score-name">Semantic</span>
           <mat-progress-bar mode="determinate" [value]="scorePercent(detail.score_semantic)" color="primary"></mat-progress-bar>
           <span class="score-val">{{ (detail.score_semantic * 100).toFixed(0) }}</span>
@@ -180,6 +185,15 @@
             {{ detail.score_slate_diversity === null ? 'n/a' : (detail.score_slate_diversity * 100).toFixed(0) }}
           </span>
         </div>
+        <div class="score-item" matTooltip="FR-053 Passage-Level Relevance — best matching passage in the destination.">
+          <span class="score-name">Passage Relevance</span>
+          <mat-progress-bar
+            mode="determinate"
+            [value]="scorePercent(detail.score_passage_relevance ?? 0.5)"
+            color="primary"
+          ></mat-progress-bar>
+          <span class="score-val">{{ ((detail.score_passage_relevance ?? 0.5) * 100).toFixed(0) }}</span>
+        </div>
       </div>
 
       @if (detail.phrase_match_diagnostics) {
@@ -241,7 +255,25 @@
         }
       }
 
-      @if (hasRareTermDiagnostics()) {
+      
+      <p class="meta-line">
+        <mat-icon class="icon-sm">article</mat-icon>
+        {{ passageRelevanceStateLabel() }}.
+      </p>
+      <p class="meta-line">
+        {{ passageRelevanceSummary() }}
+      </p>
+      @if (detail.passage_relevance_diagnostics?.passage_relevance_state === 'computed') {
+        <p class="meta-line">
+          Best passage matched at index {{ detail.passage_relevance_diagnostics.best_passage_index }} 
+          out of {{ detail.passage_relevance_diagnostics.passage_count }} passages.
+        </p>
+        <p class="meta-line">
+          <em>"{{ detail.passage_relevance_diagnostics.best_passage_preview }}..."</em>
+        </p>
+      }
+      
+@if (hasRareTermDiagnostics()) {
         <p class="meta-line">
           <mat-icon class="icon-sm">hub</mat-icon>
           {{ rareTermStateLabel() }}.
@@ -459,6 +491,31 @@
               (host {{ d.host_query_count ?? 0 }} queries,
               dest {{ d.dest_query_count ?? 0 }} queries)
             }
+          </p>
+        }
+      }
+
+      <!-- FR-053 Passage-Level Relevance Scoring (masterplan Group E).
+           Shows the best matching passage from the destination plus a
+           short text preview so a reviewer can verify the match by eye.
+           Renders for every suggestion (the score is always populated to
+           the neutral 0.5 fallback) so the operator can tell *why* a
+           neutral score was returned, not just that it was. -->
+      @if (detail.passage_relevance_diagnostics; as p) {
+        <p class="meta-line">
+          <mat-icon class="icon-sm">article</mat-icon>
+          {{ passageRelevanceStateLabel() }}.
+        </p>
+        <p class="meta-line">
+          {{ passageRelevanceSummary() }}
+        </p>
+        @if (p.passage_relevance_state === 'computed' && p.best_passage_preview) {
+          <blockquote class="host-sentence">{{ p.best_passage_preview }}</blockquote>
+          <p class="meta-line">
+            Best passage #{{ (p.best_passage_index ?? 0) + 1 }} of {{ p.passage_count ?? 0 }}
+            - cosine {{ (p.best_passage_similarity ?? 0).toFixed(3) }}
+            - score {{ (detail.score_passage_relevance ?? 0.5).toFixed(3) }}
+            - {{ p.passage_words_setting ?? 200 }}-word window
           </p>
         }
       }

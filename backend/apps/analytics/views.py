@@ -88,33 +88,29 @@ def _google_oauth_client_secret() -> str:
 
 
 def _read_setting(key: str, default: str | None = None) -> str | None:
-    row = AppSetting.objects.filter(key=key).first()
+    """Group D consolidation (2026-04-28): kept as a thin wrapper that
+    preserves the ``None``-on-miss semantics this module's callers rely
+    on (``AppSetting.get_str`` returns ``""`` for missing keys, which
+    is sometimes — but not always — the same as None)."""
+    row = AppSetting.objects.filter(key=key).only("value").first()
     if row is None:
         return default
     return row.value
 
 
+# Module-local aliases for the new shared classmethods. Keeps existing
+# call sites (``_read_bool("foo", True)``) untouched while the cast
+# logic moves to the canonical ``AppSetting.get_*`` helpers.
 def _read_bool(key: str, default: bool) -> bool:
-    raw = _read_setting(key)
-    if raw is None:
-        return default
-    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+    return AppSetting.get_bool(key, default)
 
 
 def _read_int(key: str, default: int) -> int:
-    raw = _read_setting(key)
-    try:
-        return int(raw) if raw is not None else default
-    except (TypeError, ValueError):
-        return default
+    return AppSetting.get_int(key, default)
 
 
 def _read_float(key: str, default: float) -> float:
-    raw = _read_setting(key)
-    try:
-        return float(raw) if raw is not None else default
-    except (TypeError, ValueError):
-        return default
+    return AppSetting.get_float(key, default)
 
 
 def _latest_sync(source: str) -> dict | None:

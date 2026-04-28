@@ -21,6 +21,18 @@ Execution order and FR IDs are decoupled.
 
 This is the single source of truth for what every AI must read, update, and check. CLAUDE.md and AGENTS.md point here. Do not duplicate these rules elsewhere.
 
+### PARAMOUNT — Plain-English Communication Rule (all agents)
+
+This rule is **non-negotiable** and applies to every response, commit message, PR description, error report, status update, REPORT-REGISTRY entry, AGENT-HANDOFF entry, and any other surface a human reads. The user is a vibe coder — they use AI exclusively and don't write code.
+
+**Three required parts in every substantive response:**
+
+1. **What I'm doing / will do** — describe the action in everyday words. Define every technical term the moment it's used. No internal acronyms (FR-XXX, ISS-XXX, RPT-XXX, MMR, BGE-M3, FAISS, RSQVA, PPR, HITS, HGTE, etc.) without a one-line plain-English explanation on first use in a response.
+2. **What was accomplished** — at the end of every change, state in plain English what now works that didn't before, plus which files changed and why.
+3. **What has issues or errors** — surface failures honestly. If something broke, say what broke, why, and what you'll do about it. Never bury errors in jargon. Never silently move on after a failure. Never claim success when something is partial. If a step was skipped, say so.
+
+**Skipping any of the three parts is a protocol violation.** Silence on errors is forbidden. The rule applies to Claude, Codex, Gemini, Antigravity, and every future agent.
+
 ### MUST TELL THE USER IN CHAT at session start
 
 Before any other work — before reading further files, before writing code, before answering the user's actual request — every AI must post this 4-part **Session Start Snapshot** in chat, in plain English. This applies to Claude, Codex, Gemini, and any future agent.
@@ -496,6 +508,30 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 ## Pending Configuration
 
 ## Current Session Note
+
+### 2026-04-28 — Masterplan review + Wave 1 implementation (Claude)
+
+- **AI/tool:** Claude Opus 4.7 (1M context).
+- **Why:** Operator handed me five separate plans covering text-pipeline overhaul, 68-pick mega-plan, CUDA random walks, Resource Governor microservice, and a plan audit. Asked me to score each, consolidate the non-conflicting parts into a single masterplan, then implement.
+- **Branch:** stayed on `master` per Branch Transparency. No branch was created or switched.
+- **Plan-mode artefact:** consolidated masterplan at `C:\Users\goldm\.claude\plans\review-this-plan-and-prancy-teapot.md` — 22 groups across 6 waves. Locked decisions: spec-first as source of truth, all picks ON by default in Recommended preset at the spec's prior weight, TPE auto-tunes after 30-day burn-in, ISS-021 WebSocket auth is a critical blocker for everything realtime.
+- **Project-wide rule added (paramount):** Plain-English Communication Rule covering every response, commit message, error report, status update, and audit-log entry. Three required parts (what I'm doing / what was accomplished / what has issues). Added to `CLAUDE.md`, `AGENTS.md`, `AI-CONTEXT.md` Session Gate.
+- **Wave 1 implementation (~95 % complete):**
+  - **Group A (6/6):** RSQVA `max_vocab_size` 10000→25000, Graph-Candidate `walk_steps_per_entity` 1000→5000, A.3 spike confirmed nothing to dedup today, plain-English tooltips on all 7 FR-099–FR-105 cards, "View spec" Material dialog with server-side markdown rendering, cross-source `duplicate_of` FK + `find_cross_source_duplicate` helper.
+  - **Group B (3/3):** Removed `build_faiss_index()` from `PipelineConfig.ready()` entirely (closes ISS-003 cleanly), wired `_assert_single_worker()`, routed FAISS init failures to `/error-log` via `ingest_error()`.
+  - **Group D (8/8):** Embed source flipped from 5-sentence `distilled_text` to full `Post.clean_text` with 24 000-char soft cap and sentence-boundary truncation. New `embedding_text_hash` column for re-embed-on-text-change discipline. Added XenForo `[SPOILER]`/`[ISPOILER]` stripping. New `quotation_density` capture (FR-041 prep). New `CrawlerVisit` table + `_save_page_meta` upsert by `(normalized_url, content_hash)` so crawler disk growth is now O(unique content versions). Idempotent collapse-duplicates migration. 90-day `CrawlerVisit` retention added to `nightly_data_retention`. New `pipeline.backfill_long_tail_embeddings` Celery task with checkpointed AppSetting key.
+  - **Group F (4/4 via verification + D.7):** Existing `embedding_audit.py` + `SupersededEmbedding` already wired; D.7 covered the unified GC extension; existing FK on_delete behaviours already handle tombstone propagation.
+  - **Group C (7/8):** Added `cupy-cuda12x==13.3.0` + new `pagerank_cuda.py` with three GPU kernels (PageRank, Personalized PageRank, HITS) plus three safe-dispatchers with `/error-log` routing + CPU fallback. Wired CUDA-first in `personalized_pagerank.py` + `hits.py` (TrustRank gets it free via PPR). Mock-data parity tests + three-size benchmarks. **C.4 deferred** — promoting daily PR/HITS/TrustRank from `signal` to `heavy` weight class is harder than masterplan implied because the `scheduled_updates` runner-lock is orthogonal to the Heavy lock; needs its own session.
+- **Group E (FR-053 passage retrieval) NOT shipped.** Adds a new ranking signal (`score_passage_relevance`) so requires Gate A + Gate B paperwork per `docs/RANKING-GATES.md`. Operator-approval-bound multi-day session.
+- **Wave 2 NOT started.** Each group (G/H/I/J/K/L/M/N) is a multi-day session per the masterplan's own warnings.
+- **Migrations queued (run order):** `suggestions/0049_bump_rsqva_walk_steps_defaults`, `content/0032_contentitem_duplicate_of`, `content/0033_contentitem_embedding_text_hash`, `content/0034_contentitem_quotation_density`, `crawler/0003_crawler_dedup_and_visits`, `crawler/0004_collapse_crawled_page_meta_duplicates` (DELETES historical duplicate `CrawledPageMeta` rows; preview impact via `SELECT normalized_url, content_hash, COUNT(*) FROM crawler_crawledpagemeta WHERE content_hash <> '' GROUP BY normalized_url, content_hash HAVING COUNT(*) > 1` first).
+- **New pip deps:** `markdown==3.7` (A.5 spec viewer), `cupy-cuda12x==13.3.0` (C.1 CUDA random walks). Both pulled by next backend image rebuild.
+- **Relevant registry state:** ISS-003 RESOLVED again with the cleaner Group B fix path documented in REPORT-REGISTRY.md (the original 2026-04-27 fix kept resurfacing per Plan 5's audit — final fix removes the build call from `ready()` entirely).
+- **Code-duplication fixes inline:** caught and reverted my own duplicate beat-schedule entry for `pipeline.embedding_accuracy_audit` (already scheduled at line 16-21 of `celery_schedules.py`); replaced a brittle `.extra()` SQL fragment in D.8 with proper Django ORM `.annotate(Length(...))`; updated outdated `.claude/launch.json` port (4200→80) with a rebuild hint.
+- **Verification status:** every Python file touched compiled clean (full-session syntax check passed). **Docker rebuild + migrate REQUIRED before any of this is observable in the running stack.** From the project root: `docker compose --env-file .env up --build` then `docker compose exec backend python manage.py migrate`.
+- **Docker prune:** not run this session (no Docker invocations performed). Operator should run `powershell -ExecutionPolicy Bypass -File scripts\prune-verification-artifacts.ps1` after the rebuild + migrate cycle finishes.
+- **Commit status:** working tree currently dirty with this session's changes (≈30 backend files, 4 frontend files, 6 migrations, 5 new docs/governance files, 4 governance updates). Not committed; operator decides whether to commit now.
+- **Files changed list:** see the AGENT-HANDOFF.md entry dated `2026-04-28` for the complete itemised file list grouped by group letter.
 
 ### 2026-04-27 — Attribution trust, auto-tuner drift, and FAISS startup fixes (Codex)
 

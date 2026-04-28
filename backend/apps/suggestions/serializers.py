@@ -262,6 +262,19 @@ class SuggestionDetailSerializer(
             "score_keyword_stuffing",
             "score_link_farm",
             "score_slate_diversity",
+            # FR-099 through FR-105 — graph-topology ranking signals.
+            # Model columns existed since migration 0036 but were missing
+            # from the serializer fields list, so the frontend diagnostic
+            # blocks have been silently rendering blank. Wire them now.
+            "score_darb",
+            "score_kmig",
+            "score_tapb",
+            "score_kcib",
+            "score_berp",
+            "score_hgte",
+            "score_rsqva",
+            # FR-053 Passage-Level Relevance Scoring (masterplan Group E).
+            "score_passage_relevance",
             "destination",
             "destination_title",
             "destination_url",
@@ -305,6 +318,15 @@ class SuggestionDetailSerializer(
             "cluster_diagnostics",
             "slate_diversity_diagnostics",
             "link_freshness_diagnostics",
+            # FR-099-FR-105 + FR-053 explainable diagnostic blobs.
+            "darb_diagnostics",
+            "kmig_diagnostics",
+            "tapb_diagnostics",
+            "kcib_diagnostics",
+            "berp_diagnostics",
+            "hgte_diagnostics",
+            "rsqva_diagnostics",
+            "passage_relevance_diagnostics",
             "candidate_origin",
             "score_value_model",
             "value_model_diagnostics",
@@ -340,6 +362,16 @@ class SuggestionDetailSerializer(
             "score_keyword_stuffing",
             "score_link_farm",
             "score_slate_diversity",
+            # FR-099 through FR-105 — graph-topology ranking signals.
+            "score_darb",
+            "score_kmig",
+            "score_tapb",
+            "score_kcib",
+            "score_berp",
+            "score_hgte",
+            "score_rsqva",
+            # FR-053 Passage-Level Relevance Scoring.
+            "score_passage_relevance",
             "destination",
             "destination_title",
             "destination_url",
@@ -378,6 +410,15 @@ class SuggestionDetailSerializer(
             "cluster_diagnostics",
             "slate_diversity_diagnostics",
             "link_freshness_diagnostics",
+            # FR-099-FR-105 + FR-053 explainable diagnostic blobs.
+            "darb_diagnostics",
+            "kmig_diagnostics",
+            "tapb_diagnostics",
+            "kcib_diagnostics",
+            "berp_diagnostics",
+            "hgte_diagnostics",
+            "rsqva_diagnostics",
+            "passage_relevance_diagnostics",
             "candidate_origin",
             "score_value_model",
             "value_model_diagnostics",

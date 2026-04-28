@@ -16,7 +16,6 @@ from channels.layers import get_channel_layer
 
 from apps.pipeline.decorators import with_weight_lock
 from apps.core.pause_contract import JobPaused
-from json import JSONDecodeError
 from requests import RequestException
 from django.db import DatabaseError, IntegrityError
 from urllib.error import URLError
@@ -1444,6 +1443,37 @@ def nightly_data_retention(progress_callback=None):
             why="Check database connectivity and the suggestions.Suggestion table.",
         )
 
+    # Group D.7 — CrawlerVisit (Group D.5) retention. The visit log
+    # accumulates one row per (session, deduplicated page) and is
+    # store-only audit data, so a 90-day rolling window is plenty.
+    # The heavy ``CrawledPageMeta`` rows are NOT pruned here — they're
+    # already deduped via Group D.5 + D.6, so their growth is bounded
+    # by the count of distinct content versions per URL.
+    try:
+        from apps.crawler.models import CrawlerVisit
+
+        cutoff_90d = now - timedelta(days=90)
+        deleted, _ = CrawlerVisit.objects.filter(visited_at__lt=cutoff_90d).delete()
+        results["crawler_visits_deleted"] = deleted
+        logger.info(
+            "[nightly_data_retention] (D.7) Deleted %d CrawlerVisit rows older than 90 days.",
+            deleted,
+        )
+    except (DatabaseError, IntegrityError):
+        raw = traceback.format_exc()
+        logger.exception("[nightly_data_retention] CrawlerVisit purge failed.")
+        ErrorLog.objects.create(
+            job_type="data_retention",
+            step="crawler_visit_purge",
+            error_message="CrawlerVisit retention purge failed.",
+            raw_exception=raw,
+            why=(
+                "Check database connectivity and the crawler.CrawlerVisit table. "
+                "The dedup feature (D.5) requires this table; failure here means "
+                "the visit log will keep growing until disk runs out."
+            ),
+        )
+
     _persist_retention_run_timestamp(now.isoformat())
     _report(100.0, "Data retention complete")
     logger.info("[nightly_data_retention] Complete. Results: %s", results)
@@ -2042,14 +2072,12 @@ def check_gsc_spikes(self) -> dict:
     from apps.notifications.models import OperatorAlert
     from apps.notifications.services import emit_operator_alert
 
-    # Load thresholds from prefs (defaults if not set)
-    try:
-        from apps.core.models import AppSetting
+    # Group D consolidation (2026-04-28): the inline filter+json.loads
+    # block is now one call to the shared ``AppSetting.get_json``
+    # helper. The helper handles missing rows + malformed JSON itself.
+    from apps.core.models import AppSetting
 
-        raw = AppSetting.objects.filter(key="notifications.settings").first()
-        prefs = json.loads(raw.value) if raw else {}
-    except (JSONDecodeError, KeyError, TypeError):
-        prefs = {}
+    prefs = AppSetting.get_json("notifications.settings", {}) or {}
 
     min_impressions_delta = int(prefs.get("gsc_spike_min_impressions_delta", 50))
     min_clicks_delta = int(prefs.get("gsc_spike_min_clicks_delta", 5))
@@ -2162,7 +2190,293 @@ def check_gsc_spikes(self) -> dict:
 
 @shared_task(name="pipeline.refresh_faiss_index", time_limit=3600, soft_time_limit=3540)
 def refresh_faiss_index():
-    """FR-30 — Rebuild FAISS-GPU index to pick up newly generated embeddings."""
+    """FR-30 — Rebuild FAISS-GPU index to pick up newly generated embeddings.
+
+    Group B.3 — any rebuild failure routes to /error-log via
+    ``ingest_error`` so the noob-friendly errors page shows the
+    breakage with a plain-English why and how-to-fix instead of a
+    silent stack trace in container logs. Re-raises so Celery's own
+    retry/visibility mechanics still see the failure.
+    """
+    import traceback
+
+    from apps.audit.error_ingest import ingest_error
+    from apps.audit.models import ErrorLog
     from apps.pipeline.services.faiss_index import build_faiss_index
 
-    build_faiss_index()
+    try:
+        build_faiss_index()
+    except Exception as exc:
+        ingest_error(
+            job_type="faiss_init",
+            step="refresh_faiss_index",
+            error_message=str(exc) or exc.__class__.__name__,
+            raw_exception=traceback.format_exc(),
+            why=(
+                "Periodic FAISS index rebuild failed. The pipeline will fall "
+                "back to NumPy cosine search on the next query, which still "
+                "works but is slower."
+            ),
+            severity=ErrorLog.SEVERITY_HIGH,
+        )
+        raise
+
+
+# ---------------------------------------------------------------------------
+# Group D.8 — Long-tail full-body re-embed backfill.
+#
+# After D.1 + D.2 ship, the embed source flips from the 5-sentence
+# distilled summary to the full ``Post.clean_text``. Existing rows
+# keep their old (truncated) vector until something triggers a
+# re-embed. This task picks the highest-signal-loss candidates first
+# — posts whose body is at least 5× the size of their distilled
+# summary — and queues them in batches.
+#
+# Checkpointed via an AppSetting key so the task can resume after a
+# laptop close mid-run. Operator runs via Django shell or a future
+# admin button; not on Celery beat (one-shot work).
+# ---------------------------------------------------------------------------
+
+_BACKFILL_CHECKPOINT_KEY = "pipeline.backfill.long_tail_embeddings.last_pk"
+_BACKFILL_BATCH_SIZE = 100
+
+
+@shared_task(
+    name="pipeline.backfill_long_tail_embeddings",
+    time_limit=3600,
+    soft_time_limit=3540,
+)
+def backfill_long_tail_embeddings(
+    *,
+    body_to_distilled_ratio: float = 5.0,
+    max_items: int | None = None,
+):
+    """One-shot backfill: re-embed posts where the old summary lost the most signal.
+
+    Plain-English: find posts whose full body is at least
+    ``body_to_distilled_ratio`` times longer than the 5-sentence
+    summary we used to embed (default 5.0 — the post lost ≥ 80 % of
+    its content). Re-embed those first using the new full-body
+    pipeline (Group D.1) and write the new ``embedding_text_hash``
+    (Group D.2). The model signature filter inside
+    ``generate_content_item_embeddings`` skips items already on the
+    current model.
+
+    Resumable: stores the last processed PK in AppSetting under
+    ``pipeline.backfill.long_tail_embeddings.last_pk`` so a worker
+    restart picks up where the previous run stopped — nothing is
+    re-processed and nothing is lost.
+
+    Bounded: ``max_items`` caps the run. ``None`` = process every
+    eligible item until done.
+    """
+    from django.db.models import F
+    from django.db.models.functions import Length
+
+    from apps.content.models import ContentItem
+    from apps.core.models import AppSetting
+    from apps.pipeline.services.embeddings import (
+        generate_content_item_embeddings,
+    )
+    from apps.pipeline.services.passage_relevance import (
+        regenerate_passage_embeddings_for,
+    )
+
+    # Resume from the last checkpoint, or 0 on first run.
+    setting = AppSetting.objects.filter(key=_BACKFILL_CHECKPOINT_KEY).first()
+    last_pk = int(setting.value) if (setting and setting.value.isdigit()) else 0
+
+    # Integer ratio for the SQL multiplication. Float ratios round
+    # toward zero (e.g. 5.5 → 5) but the high-signal-loss heuristic
+    # is robust to that ±1 fuzz.
+    int_ratio = max(1, int(body_to_distilled_ratio))
+
+    eligible = (
+        ContentItem.objects.filter(
+            is_deleted=False,
+            duplicate_of__isnull=True,
+            pk__gt=last_pk,
+        )
+        .annotate(
+            body_len=Length("post__clean_text"),
+            distilled_len=Length("distilled_text"),
+        )
+        # Has a non-empty body and distilled summary; body is at least
+        # int_ratio times the summary. Items without a Post row are
+        # excluded because Length(NULL) is NULL and NULL > anything is false.
+        .filter(
+            distilled_len__gt=0,
+            body_len__gt=F("distilled_len") * int_ratio,
+        )
+        .order_by("pk")
+        .values_list("pk", flat=True)
+    )
+
+    processed = 0
+    batch: list[int] = []
+    iterator = eligible.iterator(chunk_size=_BACKFILL_BATCH_SIZE)
+    for pk in iterator:
+        batch.append(pk)
+        if len(batch) >= _BACKFILL_BATCH_SIZE:
+            # 1. Generate full-body document embeddings
+            generate_content_item_embeddings(
+                content_item_ids=batch,
+                force_reembed=True,
+            )
+            # 2. Trigger passage chunking for the same batch
+            # Fetch objects once to avoid N+1-style overhead in the loop
+            items = list(ContentItem.objects.filter(pk__in=batch))
+            for item in items:
+                regenerate_passage_embeddings_for(item)
+
+            processed += len(batch)
+            AppSetting.objects.update_or_create(
+                key=_BACKFILL_CHECKPOINT_KEY,
+                defaults={"value": str(batch[-1])},
+            )
+            batch.clear()
+            if max_items is not None and processed >= max_items:
+                logger.info(
+                    "[backfill_long_tail_embeddings] Stopping at max_items=%d "
+                    "(checkpoint=%s); re-run to continue.",
+                    max_items,
+                    AppSetting.objects.get(key=_BACKFILL_CHECKPOINT_KEY).value,
+                )
+                return {"processed": processed, "checkpointed": True}
+
+    # Tail flush.
+    if batch:
+        generate_content_item_embeddings(
+            content_item_ids=batch,
+            force_reembed=True,
+        )
+        items = list(ContentItem.objects.filter(pk__in=batch))
+        for item in items:
+            regenerate_passage_embeddings_for(item)
+            
+        processed += len(batch)
+        AppSetting.objects.update_or_create(
+            key=_BACKFILL_CHECKPOINT_KEY,
+            defaults={"value": str(batch[-1])},
+        )
+
+    logger.info(
+        "[backfill_long_tail_embeddings] Complete. processed=%d", processed
+    )
+    return {"processed": processed, "checkpointed": False}
+
+
+# ---------------------------------------------------------------------------
+# Group E / FR-053 — Passage-Level Relevance Scoring.
+#
+# Bounded periodic task that catches any ContentItem whose passage
+# embeddings are missing or stale and regenerates them via the
+# existing BGE-M3 model. Per-call cap keeps the GPU from starving
+# other Heavy work; the next tick picks up the rest.
+# ---------------------------------------------------------------------------
+
+_PASSAGE_REFRESH_CHECKPOINT_KEY = "pipeline.passage_relevance.last_pk"
+_PASSAGE_REFRESH_BATCH_SIZE = 100
+
+
+@shared_task(
+    name="pipeline.refresh_passage_embeddings",
+    time_limit=1800,
+    soft_time_limit=1740,
+)
+def refresh_passage_embeddings(*, max_items: int = _PASSAGE_REFRESH_BATCH_SIZE):
+    """Regenerate stale or missing PassageEmbedding rows in bounded batches.
+
+    Plain-English: walks ContentItems in PK order from the last
+    checkpoint, calls ``passage_relevance.regenerate_passage_embeddings_for``
+    on each. The regenerator is itself idempotent — items already at
+    the current text-hash + model signature do zero work. The
+    checkpoint advances after every item so a worker restart resumes
+    cleanly.
+
+    Bounded by ``max_items`` so a single tick never holds the GPU
+    longer than the soft time limit; the next beat tick picks up the
+    rest. When the cursor wraps (no eligible rows past the
+    checkpoint), the checkpoint resets to 0 so the next tick starts
+    a fresh sweep.
+    """
+    from apps.content.models import ContentItem
+    from apps.core.models import AppSetting
+    from apps.pipeline.services.passage_relevance import (
+        regenerate_passage_embeddings_for,
+    )
+
+    setting = AppSetting.objects.filter(key=_PASSAGE_REFRESH_CHECKPOINT_KEY).first()
+    last_pk = int(setting.value) if (setting and setting.value.isdigit()) else 0
+
+    qs = (
+        ContentItem.objects.filter(
+            is_deleted=False,
+            duplicate_of__isnull=True,
+            pk__gt=last_pk,
+        )
+        .order_by("pk")
+        .values_list("pk", flat=True)[:max_items]
+    )
+
+    pks = list(qs)
+    if not pks:
+        # Wrap the cursor — next tick starts from PK 0 again.
+        AppSetting.objects.update_or_create(
+            key=_PASSAGE_REFRESH_CHECKPOINT_KEY,
+            defaults={"value": "0"},
+        )
+        return {"processed": 0, "wrapped": True}
+
+    processed = 0
+    embedded = 0
+    last_seen = last_pk
+    for pk in pks:
+        try:
+            item = (
+                ContentItem.objects.select_related("post")
+                .filter(pk=pk)
+                .first()
+            )
+            if item is None:
+                continue
+            count = regenerate_passage_embeddings_for(item)
+            embedded += count
+            processed += 1
+            last_seen = pk
+        except Exception:
+            logger.exception(
+                "[refresh_passage_embeddings] failed for content_item=%s — "
+                "skipping and advancing checkpoint",
+                pk,
+            )
+            last_seen = pk
+
+    AppSetting.objects.update_or_create(
+        key=_PASSAGE_REFRESH_CHECKPOINT_KEY,
+        defaults={"value": str(last_seen)},
+    )
+    logger.info(
+        "[refresh_passage_embeddings] processed=%d embedded=%d "
+        "checkpoint=%d",
+        processed,
+        embedded,
+        last_seen,
+    )
+    return {"processed": processed, "embedded": embedded, "wrapped": False}
+
+@shared_task(
+    bind=True,
+    name="passage_relevance.train_opq_codebook",
+    time_limit=3600,
+    soft_time_limit=3540,
+)
+def train_opq_codebook(self, sample_size=100000) -> dict:
+    """Train OPQ codebooks periodically to adapt to corpus drift."""
+    try:
+        from apps.pipeline.services.opq_trainer import train_codebook
+        train_codebook(sample_size=sample_size)
+        return {"status": "completed"}
+    except Exception as exc:
+        logger.exception("OPQ codebook training failed")
+        raise

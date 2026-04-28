@@ -13,7 +13,7 @@ import logging
 import math
 import warnings
 import numpy as np
-from typing import Mapping, TypeAlias
+from typing import Any, Mapping, TypeAlias
 
 logger = logging.getLogger(__name__)
 
@@ -235,6 +235,11 @@ class ScoredCandidate:
     berp_diagnostics: dict[str, object] = field(default_factory=dict)
     hgte_diagnostics: dict[str, object] = field(default_factory=dict)
     rsqva_diagnostics: dict[str, object] = field(default_factory=dict)
+    # FR-053 — Passage-Level Relevance Scoring (masterplan Group E).
+    # Default 0.5 = neutral (centred component is 0.0, no contribution).
+    # See docs/specs/fr053-passage-level-relevance.md.
+    score_passage_relevance: float = 0.5
+    passage_relevance_diagnostics: dict[str, object] = field(default_factory=dict)
 
     @property
     def destination_key(self) -> ContentKey:
@@ -500,6 +505,52 @@ def score_destination_matches(
         destination.key,
         _neutral_link_farm_eval(link_farm_settings),
     )
+
+    # FR-053 bug-fix follow-up — prefetch host sentence embeddings.
+    # The original ranker hook (Group E V1) tried to read ``embedding``
+    # off ``SentenceRecord``, which doesn't carry the vector. The
+    # passage-relevance signal therefore never fired in production.
+    # One bulk query here gives the ranker hook the actual
+    # ``Sentence.embedding`` payload it needs, indexed by sentence_id.
+    # Empty dict on any failure → ``passage_relevance.score`` falls
+    # back to its neutral path, so the ranker stays defensive.
+    sentence_embedding_by_id: dict[int, Any] = {}
+    # The destination's underlying ``ContentItem`` ORM row is also
+    # needed for FR-053 — ``ContentRecord`` is a frozen dataclass and
+    # doesn't carry the ``duplicate_of`` FK or the ``passage_embeddings``
+    # related-name. One lookup per destination is fine because this
+    # function runs per-destination already.
+    destination_content_item: Any = None
+    try:
+        from apps.content.models import ContentItem as _ContentItemModel
+        from apps.content.models import Sentence as _SentenceModel
+
+        needed_ids = {match.sentence_id for match in sentence_matches}
+        if needed_ids:
+            sentence_embedding_by_id = {
+                pk: emb
+                for pk, emb in _SentenceModel.objects.filter(
+                    pk__in=needed_ids,
+                    embedding__isnull=False,
+                ).values_list("pk", "embedding")
+            }
+        destination_content_item = (
+            _ContentItemModel.objects.filter(
+                content_id=destination.content_id,
+                content_type=destination.content_type,
+            )
+            .only("pk", "duplicate_of_id")
+            .first()
+        )
+    except Exception:
+        logger.warning(
+            "score_destination_matches: failed to prefetch sentence "
+            "embeddings or destination ContentItem for FR-053 — passage "
+            "relevance will return neutral for this run",
+            exc_info=True,
+        )
+        sentence_embedding_by_id = {}
+        destination_content_item = None
 
     for match in sentence_matches:
         if match.score_semantic < min_semantic_score:
@@ -779,6 +830,49 @@ def score_destination_matches(
         score_final += fr099_contribution
         score_final += graph_signal_contribution
 
+        # FR-053 — Passage-Level Relevance Scoring (masterplan Group E).
+        # Read the destination's best-passage similarity to the host
+        # sentence embedding and add the centred component to score_final.
+        # Plain English: if any single paragraph in the destination is a
+        # very strong match for the host sentence, lift this candidate
+        # above destinations whose match was averaged out across the
+        # whole page. Patent US 9,940,367 B1 (Google 2018).
+        #
+        # Defensive: ``passage_relevance.score`` never raises into here;
+        # any failure path returns the neutral 0.5 score whose centred
+        # component is 0.0 (no contribution).
+        passage_relevance_score = 0.5
+        passage_relevance_diags: dict[str, Any] = {}
+        passage_relevance_contribution = 0.0
+        try:
+            from . import passage_relevance as passage_relevance_svc
+
+            # Look up the prefetched ``Sentence.embedding`` payload via the
+            # dict built above. Falls through to None when the sentence
+            # has no embedding yet (cold start) — score() handles None
+            # via the ``neutral_no_query_embedding`` state. Same for
+            # destination_content_item being None (prefetch failure) —
+            # score() returns the neutral_no_destination diagnostic.
+            host_q = sentence_embedding_by_id.get(match.sentence_id)
+            passage_relevance_score, passage_relevance_diags = (
+                passage_relevance_svc.score(host_q, destination_content_item)
+            )
+            passage_relevance_weight = passage_relevance_svc.ranking_weight()
+            passage_relevance_contribution = (
+                passage_relevance_weight
+                * passage_relevance_svc.score_component(passage_relevance_score)
+            )
+        except Exception:
+            # Any unexpected error stays out of score_final entirely.
+            logger.warning(
+                "passage_relevance contribution failed for sentence=%s destination=%s; "
+                "treating as neutral",
+                getattr(match, "sentence_id", None),
+                getattr(destination, "pk", None),
+                exc_info=True,
+            )
+        score_final += passage_relevance_contribution
+
         # Slice 5 — Phase 6 ranker-time contribution dispatcher.
         # Adds the operator-tunable contribution from each enabled
         # Phase 6 pick (VADER #22, KenLM #23, LDA #18, Node2Vec #37,
@@ -986,6 +1080,9 @@ def score_destination_matches(
                 berp_diagnostics=dict(fr099_diags.get("berp_diagnostics", {})),
                 hgte_diagnostics=dict(fr099_diags.get("hgte_diagnostics", {})),
                 rsqva_diagnostics=dict(fr099_diags.get("rsqva_diagnostics", {})),
+                # FR-053 Passage-Level Relevance (masterplan Group E).
+                score_passage_relevance=float(passage_relevance_score),
+                passage_relevance_diagnostics=dict(passage_relevance_diags),
             )
         )
 

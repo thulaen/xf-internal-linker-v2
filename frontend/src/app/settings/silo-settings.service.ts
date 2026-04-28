@@ -294,6 +294,13 @@ export interface GraphCandidateSettings {
   top_n_entities_per_article: number;
 }
 
+export interface PassageRelevanceSettings {
+  'passage_relevance.enabled': boolean;
+  'passage_relevance.passage_words': number;
+  'passage_relevance.passages_per_page_max': number;
+  'passage_relevance.ranking_weight': number;
+}
+
 export interface ValueModelSettings {
   enabled: boolean;
   w_relevance: number;
@@ -748,6 +755,14 @@ export class SiloSettingsService {
 
   getGraphCandidateSettings(): Observable<GraphCandidateSettings> {
     return this.http.get<GraphCandidateSettings>('/api/settings/graph-candidate/');
+  }
+
+  getPassageRelevanceSettings(): Observable<PassageRelevanceSettings> {
+    return this.http.get<PassageRelevanceSettings>(`${this.apiUrl}settings/passage-relevance/`);
+  }
+
+  updatePassageRelevanceSettings(settings: Partial<PassageRelevanceSettings>): Observable<PassageRelevanceSettings> {
+    return this.http.post<PassageRelevanceSettings>(`${this.apiUrl}settings/passage-relevance/`, settings);
   }
 
   getValueModelSettings(): Observable<ValueModelSettings> {

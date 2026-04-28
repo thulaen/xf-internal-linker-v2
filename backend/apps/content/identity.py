@@ -71,3 +71,59 @@ def mark_as_checked_if_unchanged(
             exc_info=True,
         )
         return None
+
+
+def find_cross_source_duplicate(
+    *,
+    content_hash: str,
+    exclude_id: Optional[int] = None,
+):
+    """Find a canonical ContentItem with the same content hash, if any (Group A.6).
+
+    Used by importers to detect when the same article has already been
+    pulled in from a different source (e.g. a forum thread that was also
+    re-published as a WordPress post). Returns the existing canonical
+    row, or None if no cross-source duplicate exists.
+
+    Plain-English flow:
+      1. Importer builds the new ContentItem and computes ``content_hash``.
+      2. Importer calls this helper.
+      3. If a match comes back, importer sets ``new_item.duplicate_of = match``
+         and SKIPS embedding generation — the duplicate reuses the
+         canonical's vector via the FK.
+      4. If no match, importer proceeds with the normal upsert (and
+         embedding generation runs as usual).
+
+    Filters applied:
+      - ``content_hash`` must match (exact equality on the SHA-256 hex).
+      - The candidate must NOT be soft-deleted (``is_deleted=False``).
+      - The candidate must itself BE the canonical row (``duplicate_of__isnull=True``).
+        This prevents two duplicates from chaining back through each other.
+      - The candidate is not the row we're currently processing (``exclude_id``).
+
+    The helper never raises — defaults to None on any exception so the
+    caller falls back to the safe non-deduplicated path.
+    """
+    if not content_hash:
+        return None
+
+    try:
+        from apps.content.models import ContentItem
+
+        qs = ContentItem.objects.filter(
+            content_hash=content_hash,
+            is_deleted=False,
+            duplicate_of__isnull=True,
+        ).only("pk", "title", "source_key")
+
+        if exclude_id is not None:
+            qs = qs.exclude(pk=exclude_id)
+
+        return qs.first()
+
+    except Exception:
+        logger.warning(
+            "find_cross_source_duplicate failed; caller should treat as no duplicate",
+            exc_info=True,
+        )
+        return None

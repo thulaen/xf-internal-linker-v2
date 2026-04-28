@@ -66,18 +66,18 @@ def load_alpha(*, default: float = DEFAULT_TARGET_ALPHA) -> float:
     this and uses it as its ``alpha`` parameter, so each weekly
     refit absorbs the latest drift correction.
     """
+    # Group D consolidation (2026-04-28): replaced inline
+    # ``filter(...).first()`` + try/except cast with the shared
+    # ``AppSetting.get_float`` helper. The helper returns ``default``
+    # on miss / parse fail, matching the previous behaviour. We keep
+    # the outer ImportError guard so the function still works during
+    # Django bootstrap (e.g. management commands that touch this
+    # module before AppSetting is migrated).
     try:
         from apps.core.models import AppSetting
     except Exception:  # pragma: no cover — Django not initialised
         return default
-    row = AppSetting.objects.filter(key=KEY_CURRENT_ALPHA).first()
-    if row is None:
-        return default
-    try:
-        return float(row.value)
-    except (TypeError, ValueError):
-        logger.warning("adaptive_conformal: malformed alpha row, using default")
-        return default
+    return AppSetting.get_float(KEY_CURRENT_ALPHA, default)
 
 
 def update_alpha_from_recent_outcomes(

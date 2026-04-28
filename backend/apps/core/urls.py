@@ -1,6 +1,7 @@
 """Core URL routes — system status + dashboard operating desk."""
 
 from django.urls import path
+from .views_docs import view_spec_markdown
 from .views_runbooks import RunbookExecuteView
 from .views_streaming import (
     StreamedSuggestionsHtmlView,
@@ -136,6 +137,15 @@ urlpatterns = [
     ),
     # Live system metrics for the noob-friendly dashboard meters
     path("system/metrics/", SystemMetricsView.as_view(), name="system-metrics"),
+    # Group A.5 — read-only spec viewer for the FR-099–FR-105 settings
+    # cards. Slug is path-traversal-guarded inside ``views_docs``; the
+    # response is JSON {slug, title, html, raw}. Frontend uses this to
+    # render the spec inside a Material dialog.
+    path(
+        "docs/specs/<slug:slug>/",
+        view_spec_markdown,
+        name="docs-spec-markdown",
+    ),
     # Safe-mode boot flag (arm now, consumed at next Django startup)
     path(
         "system/safe-mode-boot/",

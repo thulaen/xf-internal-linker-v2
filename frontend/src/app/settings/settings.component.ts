@@ -71,6 +71,15 @@ import { PerformanceSettingsComponent } from './performance-settings/performance
 import { HelpersSettingsComponent } from './helpers-settings/helpers-settings.component';
 // Phase MS — Meta Algorithm Settings tab (new at the end of the tab group).
 import { MetaAlgorithmsTabComponent } from './meta-algorithms-tab/meta-algorithms-tab.component';
+import { PassageRelevanceCardComponent } from './passage-relevance/passage-relevance-card.component';
+import { MatDialog } from '@angular/material/dialog';
+// Group A.4 + A.5 — plain-English tooltips and "View spec" dialog wiring
+// for the FR-099–FR-105 meta-algo cards.
+import {
+  metaAlgoSpecSlug,
+  metaAlgoTip,
+} from './meta-algo-tooltips';
+import { SpecViewerDialogComponent } from './spec-viewer-dialog/spec-viewer-dialog.component';
 
 interface SettingTooltip {
   definition: string;
@@ -2057,6 +2066,7 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
     MatProgressSpinnerModule,
     DatePipe,
     WeightDiagnosticsCardComponent,
+    PassageRelevanceCardComponent,
     PerformanceSettingsComponent,
     HelpersSettingsComponent,
     MetaAlgorithmsTabComponent,
@@ -2072,6 +2082,8 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   private route = inject(ActivatedRoute);
   private realtime = inject(RealtimeService);
   private cdr = inject(ChangeDetectorRef);
+  // Group A.5 — opens the "View spec" markdown dialog for FR-099–FR-105 cards.
+  private dialog = inject(MatDialog);
 
   /**
    * Phase R1.4 — tracks the last realtime refresh so we don't spam the user
@@ -2676,6 +2688,50 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     if (parts.length !== 2) return null;
     const [section, field] = parts;
     return (this as any)[section]?.[field];
+  }
+
+  /**
+   * Group A.4 — plain-English helper for meta-algo card titles.
+   * Returns a one-line description sourced from
+   * `frontend/src/app/settings/meta-algo-tooltips.ts`. Used as a
+   * `[matTooltip]` value on each FR-099–FR-105 card title so a
+   * vibe-coder operator can hover the header to learn what the card
+   * does without reading the full hint paragraph or the spec.
+   */
+  metaAlgoTip(key: string): string {
+    return metaAlgoTip(key);
+  }
+
+  /**
+   * Group A.5 — opens the spec markdown for an FR-099–FR-105 meta-algo
+   * inside a Material dialog. The dialog fetches
+   * ``GET /api/docs/specs/<slug>/`` (server-side renders the markdown
+   * to safe HTML) and shows it inline so the operator never leaves the
+   * Settings page. Closes via the dialog's own Close action.
+   *
+   * Returns silently when the meta key has no spec mapping — callers
+   * should hide the "View spec" button in that case (template uses
+   * ``@if (metaAlgoHasSpec('darb'))``).
+   */
+  openMetaAlgoSpec(key: string): void {
+    const slug = metaAlgoSpecSlug(key);
+    if (!slug) return;
+    this.dialog.open(SpecViewerDialogComponent, {
+      width: '720px',
+      maxWidth: '92vw',
+      maxHeight: '88vh',
+      autoFocus: true,
+      restoreFocus: true,
+      data: {
+        specSlug: slug,
+        fallbackTitle: key.toUpperCase(),
+      },
+    });
+  }
+
+  /** Template-side guard so the View spec button hides when no spec is mapped. */
+  metaAlgoHasSpec(key: string): boolean {
+    return metaAlgoSpecSlug(key).length > 0;
   }
 
   fieldSeverity(value: number | undefined | null, key: string): FieldSeverity {

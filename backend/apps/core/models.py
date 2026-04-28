@@ -92,6 +92,92 @@ class AppSetting(TimestampedModel):
     def __str__(self) -> str:
         return f"{self.key} = {self.value if not self.is_secret else '••••••••'}"
 
+    # ─────────────────────────────────────────────────────────────────
+    # Type-cast getters (Group D consolidation, 2026-04-28)
+    #
+    # Plain English: every place in the codebase that reads an
+    # ``AppSetting`` value did its own ``.objects.filter(key=...).first()``
+    # plus its own try/except cast. That pattern was duplicated across
+    # ~10 files (cooccurrence/tasks.py, health/services.py,
+    # sync/services/webhooks.py, suggestions/readiness.py, and so on).
+    # These classmethods centralise the cast + miss-fallback so the
+    # callers shrink to one line and the parse semantics stay
+    # consistent across the project.
+    #
+    # All getters:
+    #   * Never raise on missing key, blank value, or parse failure —
+    #     they return the supplied ``default``.
+    #   * Are safe to call from any session / queue / worker context.
+    #   * Match the existing "value.strip().lower() == 'true'" boolean
+    #     convention used by ``recommended_bool``.
+    # ─────────────────────────────────────────────────────────────────
+
+    @classmethod
+    def get_str(cls, key: str, default: str = "") -> str:
+        """Return the AppSetting's text value, or ``default`` on miss."""
+        try:
+            row = cls.objects.filter(key=key).only("value").first()
+        except Exception:
+            return default
+        if row is None or row.value is None:
+            return default
+        return row.value
+
+    @classmethod
+    def get_int(cls, key: str, default: int = 0) -> int:
+        """Return the AppSetting's value cast to int, or ``default`` on miss / parse fail."""
+        raw = cls.get_str(key, "")
+        if not raw:
+            return default
+        try:
+            # Allow operators to type "5.0" or " 5 " in the admin UI.
+            return int(float(raw.strip()))
+        except (TypeError, ValueError):
+            return default
+
+    @classmethod
+    def get_float(cls, key: str, default: float = 0.0) -> float:
+        """Return the AppSetting's value cast to float, or ``default`` on miss / parse fail."""
+        raw = cls.get_str(key, "")
+        if not raw:
+            return default
+        try:
+            return float(raw.strip())
+        except (TypeError, ValueError):
+            return default
+
+    @classmethod
+    def get_bool(cls, key: str, default: bool = False) -> bool:
+        """Return the AppSetting's value cast to bool, or ``default`` on miss.
+
+        Recognises the canonical Recommended-preset format (``"true"`` ⇒ True,
+        anything else ⇒ False — matching ``recommended_bool``) plus operator-
+        friendly variants ``1`` / ``yes`` / ``on`` / ``0`` / ``no`` / ``off``.
+        Unknown values fall back to ``default``.
+        """
+        raw = cls.get_str(key, "")
+        if not raw:
+            return default
+        v = raw.strip().lower()
+        if v in ("true", "1", "yes", "on"):
+            return True
+        if v in ("false", "0", "no", "off"):
+            return False
+        return default
+
+    @classmethod
+    def get_json(cls, key: str, default=None):
+        """Return the AppSetting's value parsed as JSON, or ``default`` on miss / parse fail."""
+        raw = cls.get_str(key, "")
+        if not raw:
+            return default
+        import json as _json
+
+        try:
+            return _json.loads(raw)
+        except (TypeError, ValueError):
+            return default
+
 
 class HelperNode(TimestampedModel):
     """A registered helper node for distributed workload execution (Stage 8/10).

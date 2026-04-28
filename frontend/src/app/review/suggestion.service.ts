@@ -103,6 +103,11 @@ export interface SuggestionDetail extends Suggestion {
   berp_diagnostics?: Fr103BerpDiagnostics;
   hgte_diagnostics?: Fr104HgteDiagnostics;
   rsqva_diagnostics?: Fr105RsqvaDiagnostics;
+  // FR-053 Passage-Level Relevance Scoring (masterplan Group E).
+  // Score is bounded in [0.5, 1.0]; 0.5 = neutral fallback. Diagnostics
+  // shape mirrors ``apps.pipeline.services.passage_relevance._empty_diagnostics``.
+  score_passage_relevance?: number;
+  passage_relevance_diagnostics?: PassageRelevanceDiagnostics;
   updated_at: string;
 }
 
@@ -375,6 +380,33 @@ export interface Fr105RsqvaDiagnostics {
   host_norm?: number;
   dest_norm?: number;
   path?: string;
+}
+
+/**
+ * FR-053 Passage-Level Relevance Scoring diagnostic shape.
+ *
+ * Mirrors ``apps.pipeline.services.passage_relevance._empty_diagnostics`` /
+ * the ``score()`` happy-path return blob. ``passage_relevance_state`` is
+ * the human-facing tag — every neutral fallback path uses a distinct
+ * ``neutral_*`` token so a reviewer can answer "why was this neutral".
+ */
+export interface PassageRelevanceDiagnostics {
+  score_passage_relevance?: number;
+  passage_relevance_state?:
+    | 'computed'
+    | 'neutral_no_query_embedding'
+    | 'neutral_no_destination'
+    | 'neutral_feature_disabled'
+    | 'neutral_destination_too_short'
+    | 'neutral_no_passages'
+    | 'neutral_processing_error';
+  best_passage_index?: number | null;
+  best_passage_similarity?: number;
+  passage_count?: number;
+  all_passage_similarities?: number[];
+  best_passage_preview?: string;
+  passages_per_page_setting?: number;
+  passage_words_setting?: number;
 }
 
 export interface ClickDistanceDiagnostics {

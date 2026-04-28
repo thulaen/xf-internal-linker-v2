@@ -757,15 +757,40 @@ SIGNALS: list[SignalDefinition] = [
     #     table_name="content_contentitem (readability_grade)",
     #     weight_key="readability_match.ranking_weight",
     # ),
-    # SignalDefinition(
-    #     id="passage_relevance",
-    #     name="Passage-Level Relevance",
-    #     type="ranking",
-    #     description="FR-053: Best-passage cosine similarity across 5 chunks per page.",
-    #     table_name="passage_embeddings",
-    #     cpp_kernel="passagesim.passage_max_sim",
-    #     weight_key="passage_relevance.ranking_weight",
-    # ),
+    # FR-053 Passage-Level Relevance Scoring (masterplan Group E) — shipped
+    # in Wave 1. Python-only today (no C++ kernel yet); the bake-off can
+    # promote the cosine loop to C++ later if a benchmark shows the
+    # CPU path is the bottleneck. Score is bounded in [0.5, 1.0] and the
+    # neutral 0.5 means no passage was matched (feature off, destination
+    # too short, or no passages indexed).
+    SignalDefinition(
+        id="passage_relevance",
+        name="Passage-Level Relevance",
+        type="ranking",
+        description=(
+            "FR-053: best-passage cosine similarity over fixed-size "
+            "chunks (default ~200 words, 5 passages per page)."
+        ),
+        table_name="content_passageembedding",
+        cpp_kernel=None,
+        weight_key="passage_relevance.ranking_weight",
+        fr_id="FR-053",
+        spec_path="docs/specs/fr053-passage-level-relevance.md",
+        academic_source=(
+            "Patent US 9,940,367 B1 (Google 2018) - Scoring Candidate "
+            "Answer Passages; Callan 1994 - Passage-Level Evidence in "
+            "Document Retrieval (SIGIR)"
+        ),
+        source_kind="patent",
+        architecture_lane="python_only",
+        neutral_value=0.5,
+        min_data_threshold=">=1 PassageEmbedding row indexed for the destination",
+        diagnostic_surfaces=("suggestion_detail", "weight_diagnostics"),
+        benchmark_module="backend/benchmarks/test_bench_passage_relevance.py",
+        autotune_included=False,
+        default_enabled=True,
+        added_in_phase="Wave 1 / Group E",
+    ),
     # SignalDefinition(
     #     id="boilerplate_ratio",
     #     name="Boilerplate-to-Content Ratio",

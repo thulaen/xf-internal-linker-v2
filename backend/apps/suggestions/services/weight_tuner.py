@@ -164,9 +164,18 @@ class WeightTuner:
 
         w_opt = _project_to_bounded_simplex(res.x, lower_bounds, upper_bounds)
 
-        # 4. Create Challenger
-        candidate = {self.weight_keys[i]: round(float(w_opt[i]), 4) for i in range(4)}
-        baseline = {self.weight_keys[i]: round(float(w_init[i]), 4) for i in range(4)}
+        # 4. Create Challenger.
+        # Use ``len(self.weight_keys)`` instead of a hardcoded 4 so adding a
+        # 5th tuneable weight in the future doesn't silently truncate the
+        # candidate dict. Today weight_keys is always length-4 per the
+        # FR-018 spec (semantic, keyword, node, quality).
+        n_weights = len(self.weight_keys)
+        candidate = {
+            self.weight_keys[i]: round(float(w_opt[i]), 4) for i in range(n_weights)
+        }
+        baseline = {
+            self.weight_keys[i]: round(float(w_init[i]), 4) for i in range(n_weights)
+        }
 
         # Check if change is significant (> 0.001)
         if np.allclose(w_init, w_opt, atol=1e-3):

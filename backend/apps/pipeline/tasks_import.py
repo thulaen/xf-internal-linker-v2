@@ -122,16 +122,16 @@ _DEFAULT_MAX_PAGES = 500
 
 
 def _get_max_pages() -> int:
-    """Read the import page cap from AppSetting, default 500."""
+    """Read the import page cap from AppSetting, default 500.
+
+    Group D consolidation (2026-04-28): replaced the inline
+    ``filter(...).first()`` + try/except cast with the shared
+    ``AppSetting.get_int`` helper. ``max(1, ...)`` clamp stays so
+    a misconfigured 0 / negative value can't disable imports.
+    """
     from apps.core.models import AppSetting
 
-    setting = AppSetting.objects.filter(key="import.max_pages").first()
-    if setting is None:
-        return _DEFAULT_MAX_PAGES
-    try:
-        return max(1, int(setting.value))
-    except (ValueError, TypeError):
-        return _DEFAULT_MAX_PAGES
+    return max(1, AppSetting.get_int("import.max_pages", _DEFAULT_MAX_PAGES))
 
 
 def import_xenforo_scopes(

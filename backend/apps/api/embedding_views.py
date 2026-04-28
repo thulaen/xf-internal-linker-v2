@@ -43,12 +43,12 @@ _SECRET_KEYS = {"embedding.api_key"}
 
 
 def _get_setting(key: str) -> str:
+    """Group D consolidation (2026-04-28): now a thin wrapper over
+    ``AppSetting.get_str``. Kept as a module-local helper so existing
+    call sites stay untouched."""
     from apps.core.models import AppSetting
 
-    row = AppSetting.objects.filter(key=key).first()
-    if row and row.value is not None:
-        return str(row.value)
-    return ""
+    return AppSetting.get_str(key, "")
 
 
 def _mask_secret(value: str) -> str:
