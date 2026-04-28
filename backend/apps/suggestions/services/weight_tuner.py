@@ -166,9 +166,7 @@ class WeightTuner:
 
         # 4. Create Challenger
         candidate = {self.weight_keys[i]: round(float(w_opt[i]), 4) for i in range(4)}
-        baseline = {
-            self.weight_keys[i]: round(float(w_init[i]), 4) for i in range(4)
-        }
+        baseline = {self.weight_keys[i]: round(float(w_init[i]), 4) for i in range(4)}
 
         # Check if change is significant (> 0.001)
         if np.allclose(w_init, w_opt, atol=1e-3):

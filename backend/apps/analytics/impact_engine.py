@@ -318,10 +318,22 @@ def compute_search_impact(
             t_i_post = int(target_post_agg.get("impressions") or 0)
 
             # Get control aggregates
-            c_c_base = int(control_baseline_agg.get("clicks") or 0) if control_baseline_agg else 0
-            c_i_base = int(control_baseline_agg.get("impressions") or 0) if control_baseline_agg else 0
-            c_c_post = int(control_post_agg.get("clicks") or 0) if control_post_agg else 0
-            c_i_post = int(control_post_agg.get("impressions") or 0) if control_post_agg else 0
+            c_c_base = (
+                int(control_baseline_agg.get("clicks") or 0)
+                if control_baseline_agg
+                else 0
+            )
+            c_i_base = (
+                int(control_baseline_agg.get("impressions") or 0)
+                if control_baseline_agg
+                else 0
+            )
+            c_c_post = (
+                int(control_post_agg.get("clicks") or 0) if control_post_agg else 0
+            )
+            c_i_post = (
+                int(control_post_agg.get("impressions") or 0) if control_post_agg else 0
+            )
 
             result = attributor.compute_uplift(
                 target_clicks_base=t_c_base,
