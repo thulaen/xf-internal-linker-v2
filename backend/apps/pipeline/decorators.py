@@ -18,6 +18,12 @@ import functools
 from collections.abc import Callable
 from typing import Any
 
+# Max retries for signal-lock contention. Combined with the 30s countdown
+# below, this yields ~1 hour total retry window before a deferred signal
+# task gives up. Extracted from the inline literal so the magic-number
+# linter passes on changed files.
+_SIGNAL_LOCK_MAX_RETRIES = 120
+
 
 def with_weight_lock(
     weight_class: str,
@@ -74,8 +80,8 @@ def with_signal_lock() -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     ``with_weight_lock("signal")``: it lives on its own Redis key
     namespace so medium / heavy tasks can still run alongside signal
     computes. On contention, the FIFO-defer timing is shorter (30s
-    retry, 120 max-retries = 1 hour patience) because signals are
-    typically faster than full pipeline runs.
+    retry × ``_SIGNAL_LOCK_MAX_RETRIES`` ≈ 1 hour patience) because
+    signals are typically faster than full pipeline runs.
 
     The wrapped task MUST be defined with ``bind=True``.
 
@@ -101,7 +107,7 @@ def with_signal_lock() -> Callable[[Callable[..., Any]], Callable[..., Any]]:
             if not acquire_task_lock("signal", func.__name__):
                 # Shorter retry cadence than with_weight_lock so the signal
                 # queue drains quickly during a busy compute window.
-                raise self.retry(countdown=30, max_retries=120)
+                raise self.retry(countdown=30, max_retries=_SIGNAL_LOCK_MAX_RETRIES)
             try:
                 return func(self, *args, **kwargs)
             finally:
