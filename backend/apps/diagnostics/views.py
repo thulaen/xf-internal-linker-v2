@@ -30,6 +30,7 @@ from .health import (
     check_native_scoring,
 )
 from .signal_registry import SIGNALS, validate_signal_contract
+from .signal_health import compute_wave2_signal_health
 
 
 class DiagnosticsOverviewView(views.APIView):
@@ -771,6 +772,7 @@ class WeightDiagnosticsView(views.APIView):
 
         # 5. Build final payload
         signal_data = []
+        signal_health = compute_wave2_signal_health()
         for sig in SIGNALS:
             # Resolve weight
             weight_val = (
@@ -831,6 +833,7 @@ class WeightDiagnosticsView(views.APIView):
                         "status": "healthy" if err_count == 0 else "degraded",
                         "recent_errors": err_count,
                     },
+                    "system_health": signal_health.get(sig.id),
                     "governance": {
                         "status": sig.status,
                         "fr_id": sig.fr_id,
@@ -880,6 +883,8 @@ class WeightDiagnosticsView(views.APIView):
             "cooccurrence_sessioncooccurrencepair",
             "graph_clickdistance",
             "audit_errorlog",
+            "content_passageembedding",
+            "suggestions_suggestion",
         ]
         stats = {}
         with connection.cursor() as cursor:

@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
+import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -17,13 +18,14 @@ import { ScrollAttentionService } from '../core/services/scroll-attention.servic
 import { TopicUpdate } from '../core/services/realtime.types';
 import { environment } from '../../environments/environment';
 import { buildAIPromptForError, diffErrorSnapshot, ErrorGroup, groupErrors, maxTrendCount as maxTrendCountFn, relatedErrors as relatedErrorsFn, trackErrorId as trackErrorIdFn, trackGroupFingerprint as trackGroupFingerprintFn, trackNodeId as trackNodeIdFn, trackTrendDate as trackTrendDateFn, trendLabel as trendLabelFn, uniqueNodeIds } from './diagnostics.error-log';
-import { DiagnosticsService, ErrorLogEntry, FeatureReadiness, NdcgEvalResult, NodeSummary, PipelineGate, ResourceUsage, RuntimeContext, ServiceStatus, SystemConflict } from './diagnostics.service';
+import { DiagnosticsService, ErrorLogEntry, FeatureReadiness, NdcgEvalResult, NodeSummary, PipelineGate, ResourceUsage, RuntimeContext, ServiceStatus, SystemConflict, WeightDiagnosticsResponse, WeightSignal } from './diagnostics.service';
 import { dispatchRealtimeUpdate, removeConflictFrom, removeServiceFrom, upsertConflictInto, upsertServiceInto } from './diagnostics.realtime';
 import { buildRuntimeExecutionCards, buildRuntimeLaneCards, RuntimeExecutionCard, RuntimeLaneCard } from './diagnostics.runtime-cards';
 import { ConflictListComponent } from './conflict-list/conflict-list.component';
 import { ReadinessMatrixComponent } from './readiness-matrix/readiness-matrix.component';
 import { ServiceCardComponent } from './service-card/service-card.component';
 import { SuppressedPairsCardComponent } from './suppressed-pairs-card/suppressed-pairs-card.component';
+import { SpecViewerDialogComponent } from '../settings/spec-viewer-dialog/spec-viewer-dialog.component';
 
 const RUNTIME_SUMMARY_SERVICES = new Set([
   'runtime_lanes', 'native_scoring', 'slate_diversity_runtime', 'embedding_specialist', 'scheduler_lane',
@@ -32,6 +34,16 @@ const GLITCHTIP_TAB_INDEX = 1;
 const ERROR_TAB_FRAGMENT_TO_INDEX: Record<string, number> = {
   'internal-errors-tab': 0, 'glitchtip-errors-tab': 1, 'all-errors-tab': 2,
 };
+const WAVE2_SIGNAL_IDS = [
+  'passage_relevance',
+  'darb',
+  'kmig',
+  'tapb',
+  'kcib',
+  'berp',
+  'hgte',
+  'rsqva',
+];
 
 @Component({
   selector: 'app-diagnostics',
@@ -48,6 +60,7 @@ const ERROR_TAB_FRAGMENT_TO_INDEX: Record<string, number> = {
 })
 export class DiagnosticsComponent implements OnInit, OnDestroy {
   private readonly diagnosticsService = inject(DiagnosticsService);
+  private readonly dialog = inject(MatDialog);
   private readonly glitchtipService = inject(GlitchtipService);
   private readonly realtime = inject(RealtimeService);
   private readonly route = inject(ActivatedRoute);
@@ -72,6 +85,7 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
   readonly glitchtipLastSyncedAt = signal<string | null>(null);
   readonly nodes = signal<NodeSummary[]>([]);
   readonly pipelineGate = signal<PipelineGate | null>(null);
+  readonly weightDiagnostics = signal<WeightDiagnosticsResponse | null>(null);
 
   // ── UI state signals ────────────────────────────────────────────
   readonly selectedErrorTabIndex = signal(0);
@@ -126,6 +140,14 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
     return Object.entries(breakdown)
       .map(([origin, score]) => ({ origin, score: score as number }))
       .sort((a, b) => b.score - a.score);
+  });
+
+  readonly wave2SignalCards = computed<WeightSignal[]>(() => {
+    const signals = this.weightDiagnostics()?.signals ?? [];
+    const byId = new Map(signals.map((signal) => [signal.id, signal]));
+    return WAVE2_SIGNAL_IDS
+      .map((id) => byId.get(id))
+      .filter((signal): signal is WeightSignal => Boolean(signal));
   });
 
   ngOnInit(): void {
@@ -230,6 +252,7 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
       nodes: this.diagnosticsService.getNodes().pipe(catchError(() => of<NodeSummary[]>([]))),
       pipelineGate: this.diagnosticsService.getPipelineGate().pipe(catchError(() => of<PipelineGate | null>(null))),
       ndcgEval: this.diagnosticsService.getNdcgEval().pipe(catchError(() => of<NdcgEvalResult | null>(null))),
+      weightDiagnostics: this.diagnosticsService.getWeightDiagnostics().pipe(catchError(() => of<WeightDiagnosticsResponse | null>(null))),
     }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (data) => {
         this.services.set(data.services);
@@ -240,6 +263,7 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
         this.nodes.set(data.nodes);
         this.pipelineGate.set(data.pipelineGate);
         this.ndcgEval.set(data.ndcgEval);
+        this.weightDiagnostics.set(data.weightDiagnostics);
         this.applyErrorsSnapshot(data.errors);
         // Runtime cards are computed() now — no rebuildRuntimeCards() call needed.
         this.loading.set(false);
@@ -417,6 +441,26 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
   }
 
   canRerun(error: ErrorLogEntry): boolean { return ['pipeline', 'sync', 'import'].includes(error.job_type); }
+  signalSpecSlug(signal: WeightSignal): string {
+    const path = signal.governance?.spec_path || '';
+    const filename = path.split('/').pop() || '';
+    return filename.endsWith('.md') ? filename.slice(0, -3) : '';
+  }
+  openSignalSpec(signal: WeightSignal): void {
+    const slug = this.signalSpecSlug(signal);
+    if (!slug) return;
+    this.dialog.open(SpecViewerDialogComponent, {
+      width: '720px',
+      maxWidth: '92vw',
+      maxHeight: '88vh',
+      autoFocus: true,
+      restoreFocus: true,
+      data: {
+        specSlug: slug,
+        fallbackTitle: signal.name,
+      },
+    });
+  }
   severityClass(error: ErrorLogEntry): string { return `severity-${error.severity ?? 'medium'}`; }
   nodeToneClass(node: NodeSummary): string {
     if (node.worst_severity === 'critical') return 'tone-bad';

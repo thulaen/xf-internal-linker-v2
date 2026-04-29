@@ -2291,21 +2291,21 @@
             <mat-card-header>
               <div class="header-main" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                 <mat-card-title>Google Search Console</mat-card-title>
-                <div class="health-indicator" [matTooltip]="ga4Gsc.health?.issue" matTooltipClass="setting-tooltip">
-                  <span class="status-pill" [ngClass]="telemetryStatusClass(ga4Gsc.health?.status)">
-                    <mat-icon>{{ getHealthIcon(ga4Gsc.health?.status) }}</mat-icon>
-                    {{ ga4Gsc.health?.label }}
+                <div class="health-indicator" [matTooltip]="ga4Gsc.health.issue" matTooltipClass="setting-tooltip">
+                  <span class="status-pill" [ngClass]="telemetryStatusClass(ga4Gsc.health.status)">
+                    <mat-icon>{{ getHealthIcon(ga4Gsc.health.status) }}</mat-icon>
+                    {{ ga4Gsc.health.label }}
                   </span>
                 </div>
               </div>
             </mat-card-header>
             <mat-card-content class="card-content">
               <p class="hint">Connect to Google Search Console to pull daily performance data and attribute search outcomes to your internal linking efforts.</p>
-              <div class="health-issue-box" *ngIf="!ga4Gsc.health?.is_healthy && ga4Gsc.health?.issue">
+              <div class="health-issue-box" *ngIf="!ga4Gsc.health.is_healthy && ga4Gsc.health.issue">
                 <mat-icon>error_outline</mat-icon>
                 <div class="issue-content">
-                  <strong>Issue:</strong> {{ ga4Gsc.health?.issue }}
-                  <p class="fix-text" *ngIf="ga4Gsc.health?.fix"><strong>Fix:</strong> {{ ga4Gsc.health?.fix }}</p>
+                  <strong>Issue:</strong> {{ ga4Gsc.health.issue }}
+                  <p class="fix-text" *ngIf="ga4Gsc.health.fix"><strong>Fix:</strong> {{ ga4Gsc.health.fix }}</p>
                 </div>
               </div>
               

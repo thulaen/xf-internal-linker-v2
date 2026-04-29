@@ -105,11 +105,6 @@
       <p class="section-title">Score breakdown</p>
       <div class="scores-grid">
         <div class="score-item">
-          <span class="score-name">Passage Relevance</span>
-          <mat-progress-bar mode="determinate" [value]="scorePercent(detail.score_passage_relevance)" color="primary"></mat-progress-bar>
-          <span class="score-val">{{ (detail.score_passage_relevance * 100).toFixed(0) }}</span>
-        </div>
-        <div class="score-item">
           <span class="score-name">Semantic</span>
           <mat-progress-bar mode="determinate" [value]="scorePercent(detail.score_semantic)" color="primary"></mat-progress-bar>
           <span class="score-val">{{ (detail.score_semantic * 100).toFixed(0) }}</span>
@@ -265,11 +260,11 @@
       </p>
       @if (detail.passage_relevance_diagnostics?.passage_relevance_state === 'computed') {
         <p class="meta-line">
-          Best passage matched at index {{ detail.passage_relevance_diagnostics.best_passage_index }} 
-          out of {{ detail.passage_relevance_diagnostics.passage_count }} passages.
+          Best passage matched at index {{ detail.passage_relevance_diagnostics?.best_passage_index ?? 'n/a' }}
+          out of {{ detail.passage_relevance_diagnostics?.passage_count ?? 'n/a' }} passages.
         </p>
         <p class="meta-line">
-          <em>"{{ detail.passage_relevance_diagnostics.best_passage_preview }}..."</em>
+          <em>"{{ detail.passage_relevance_diagnostics?.best_passage_preview ?? '' }}..."</em>
         </p>
       }
       

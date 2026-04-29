@@ -231,6 +231,14 @@ describe('SettingsComponent', () => {
               min_stable_candidates: 50,
               min_visit_threshold: 3,
             }),
+            getPassageRelevanceSettings: () => of({
+              enabled: true,
+              ranking_weight: 0.04,
+              passage_model_version: 'test',
+              neutral_score: 0.5,
+              max_passages_per_destination: 8,
+            }),
+            updatePassageRelevanceSettings: () => of({}),
             getValueModelSettings: () => of({
               enabled: true,
               w_traffic: 0.5,

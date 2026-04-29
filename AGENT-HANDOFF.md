@@ -2861,3 +2861,64 @@ Operator pasted a GitHub Actions failure log from CI step #14 (`cpp-format` — 
 ## Next Steps for User
 1. **Auto-Renewal**: Run scripts\install-cert-renewal-task.ps1 in an Administrator PowerShell to register the monthly certificate renewal task.
 2. **Verify**: Visit https://localhost and confirm the green padlock and the absence of the "Server error" toast on login.
+
+# 2026-04-29 - Codex - Checked Slice 2 diagnostics card status
+
+Answered the operator's question about whether Slice 2 was already done.
+- Checked the diagnostics frontend, diagnostics backend endpoint, signal registry, docs specs, settings warning area, and smoke-test coverage.
+- Found the slice is **not complete**: the existing code has FR-053 in the diagnostics signal registry and a general weight-diagnostics endpoint, but `/diagnostics` does not render the eight requested Wave-2 model cards, there is no neutral-fallback-rate helper, there is no `docs/specs/diagnostics-page.md`, and no diagnostics smoke test asserts the eight cards render.
+- Also confirmed the requested settings warning area still has optional chains at `frontend/src/app/settings/settings.component.html:2304-2308`, so that pass-by bug fix does not appear complete either.
+- No code changes were made in this check-only session.
+
+# 2026-04-29 05:13 - Codex - Implemented Slice 2 Wave-2 diagnostics health cards
+
+## What Was Done
+- Added eight compact Wave-2 System Health cards to `/diagnostics` for FR-053 passage relevance and FR-099 through FR-105 graph-topology signals.
+- Reused the existing weight-diagnostics API instead of adding a second endpoint.
+- Added backend health calculation for each signal from recent `Suggestion` diagnostics JSON: last run, sample count, neutral fallback count, and seven-day neutral fallback rate.
+- Added the missing diagnostics-page spec with citations back to the existing signal specs and their research sources.
+- Added FR-099 through FR-105 registry entries and marked FR-053 as visible on the System Health surface.
+- Reused the existing `View spec` dialog from settings so each diagnostics card can open its source spec.
+- Fixed the requested GA4 optional-chain warnings in the settings template.
+- Fixed verification blockers found in passing: two passage-relevance settings calls used a missing service field, the settings smoke test lacked the new passage-relevance methods, and the suggestion detail dialog had a duplicate unsafe Passage Relevance score row that broke the production build.
+
+## Files Changed
+- `backend/apps/diagnostics/signal_health.py`
+- `backend/apps/diagnostics/signal_registry.py`
+- `backend/apps/diagnostics/views.py`
+- `backend/apps/diagnostics/tests.py`
+- `docs/specs/diagnostics-page.md`
+- `frontend/src/app/diagnostics/diagnostics.service.ts`
+- `frontend/src/app/diagnostics/diagnostics.component.ts`
+- `frontend/src/app/diagnostics/diagnostics.component.html`
+- `frontend/src/app/diagnostics/diagnostics.component.scss`
+- `frontend/src/app/diagnostics/diagnostics.component.spec.ts`
+- `frontend/src/app/settings/settings.component.html`
+- `frontend/src/app/settings/settings.component.spec.ts`
+- `frontend/src/app/settings/silo-settings.service.ts`
+- `frontend/src/app/review/suggestion-detail-dialog.component.html`
+- `AI-CONTEXT.md`
+- `AGENT-HANDOFF.md`
+
+## Verification
+- `python -m py_compile backend\apps\diagnostics\views.py backend\apps\diagnostics\signal_health.py backend\apps\diagnostics\signal_registry.py` passed.
+- `docker compose exec backend python manage.py showmigrations` showed all migrations applied.
+- `docker compose exec backend python manage.py makemigrations --check --dry-run` reported no changes.
+- `docker compose exec backend python manage.py test apps.diagnostics.tests.Wave2SignalHealthViewTests apps.diagnostics.tests.SignalContractTests --settings=config.settings.test --noinput` passed: 6 tests OK.
+- Targeted frontend diagnostics smoke test passed.
+- Full frontend `npm run test:ci` passed: 34 tests OK.
+- `docker compose build frontend-build` passed, and passed again after the commit-hook template lint fix and the commit-hook SCSS cleanup.
+- `docker compose build backend` passed on a longer rerun after the first attempt hit the 10-minute command timeout.
+
+## Cleanup
+- Ran `powershell -ExecutionPolicy Bypass -File scripts\prune-verification-artifacts.ps1` four times. First run stripped a stale Gemini-breaking Git config flag and reclaimed 36.21 MB. Second run after backend image build reclaimed 16.42 GB. Third run after the template-lint frontend rebuild reclaimed 6.803 MB. Fourth run after the SCSS-cleanup frontend rebuild reclaimed 15.02 MB. VHDX compaction auto-skipped because containers were still running.
+
+## Commit And Push State
+- Committed locally on `master` as `Add Wave-2 diagnostics health cards`.
+- Push to `origin/master` was attempted and blocked by the repository pre-push hook on pre-existing full-backend Ruff lint failures outside this slice.
+- I briefly tried a broad lint cleanup, then backed it out because it would have turned this slice into a repo-wide lint rewrite. The working tree is clean.
+
+## Known Issues
+- Backend test startup still logs an existing FAISS worker warning and an existing `audit_errorlog.source` SQLite startup error during FAISS error ingest, but the targeted tests pass.
+- The frontend production build still shows older warnings in unrelated files, including Admin Models, Embeddings, Graph, Review, and XenForo/WordPress settings template lines. The GA4 warning lines requested by this slice are fixed.
+- Push is blocked until the repo-wide Ruff lint issues reported by the pre-push hook are cleaned up or the hook scope is corrected. I did not bypass the hook.

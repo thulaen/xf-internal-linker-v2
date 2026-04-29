@@ -143,6 +143,120 @@ class SignalContractTests(SimpleTestCase):
         self.assertEqual(status_sum, len(SIGNALS))
 
 
+class Wave2SignalHealthViewTests(TestCase):
+    def setUp(self) -> None:
+        from django.contrib.auth import get_user_model
+
+        self.client = APIClient()
+        user = get_user_model().objects.create_user(
+            username="wave2-diag-user",
+            password="pass",
+        )
+        self.client.force_authenticate(user=user)
+
+    def test_weight_diagnostics_includes_wave2_signal_health_cards(self) -> None:
+        from apps.content.models import ContentItem, Post, ScopeItem, Sentence
+        from apps.suggestions.models import Suggestion
+
+        scope = ScopeItem.objects.create(
+            scope_id=5300,
+            scope_type="node",
+            title="wave2-health",
+        )
+        host = ContentItem.objects.create(
+            content_id=5301,
+            content_type="thread",
+            title="Host",
+            scope=scope,
+        )
+        destination = ContentItem.objects.create(
+            content_id=5302,
+            content_type="thread",
+            title="Destination",
+            scope=scope,
+        )
+        host_post = Post.objects.create(
+            content_item=host,
+            raw_bbcode="A host sentence.",
+            clean_text="A host sentence.",
+        )
+        host_sentence = Sentence.objects.create(
+            content_item=host,
+            post=host_post,
+            text="A host sentence.",
+            position=0,
+            char_count=16,
+            start_char=0,
+            end_char=16,
+            word_position=0,
+        )
+
+        computed_graph_diag = {"fallback_triggered": False, "diagnostic": "computed"}
+        neutral_graph_diag = {
+            "fallback_triggered": True,
+            "diagnostic": "neutral_cold_start",
+        }
+        Suggestion.objects.create(
+            destination=destination,
+            host=host,
+            host_sentence=host_sentence,
+            destination_title="Destination",
+            host_sentence_text="A host sentence.",
+            passage_relevance_diagnostics={
+                "passage_relevance_state": "computed",
+                "score_passage_relevance": 0.8,
+            },
+            darb_diagnostics=computed_graph_diag,
+            kmig_diagnostics=computed_graph_diag,
+            tapb_diagnostics=computed_graph_diag,
+            kcib_diagnostics=computed_graph_diag,
+            berp_diagnostics=computed_graph_diag,
+            hgte_diagnostics=computed_graph_diag,
+            rsqva_diagnostics=computed_graph_diag,
+        )
+        Suggestion.objects.create(
+            destination=destination,
+            host=host,
+            host_sentence=host_sentence,
+            destination_title="Destination",
+            host_sentence_text="A host sentence.",
+            passage_relevance_diagnostics={
+                "passage_relevance_state": "neutral_no_passages",
+                "score_passage_relevance": 0.5,
+            },
+            darb_diagnostics=neutral_graph_diag,
+            kmig_diagnostics=neutral_graph_diag,
+            tapb_diagnostics=neutral_graph_diag,
+            kcib_diagnostics=neutral_graph_diag,
+            berp_diagnostics=neutral_graph_diag,
+            hgte_diagnostics=neutral_graph_diag,
+            rsqva_diagnostics=neutral_graph_diag,
+        )
+
+        response = self.client.get("/api/system/status/weights/")
+
+        self.assertEqual(response.status_code, 200)
+        signals = {item["id"]: item for item in response.json()["signals"]}
+        expected_ids = {
+            "passage_relevance",
+            "darb",
+            "kmig",
+            "tapb",
+            "kcib",
+            "berp",
+            "hgte",
+            "rsqva",
+        }
+        self.assertTrue(expected_ids.issubset(signals.keys()))
+        for signal_id in expected_ids:
+            system_health = signals[signal_id]["system_health"]
+            self.assertEqual(system_health["sample_count"], 2)
+            self.assertEqual(system_health["neutral_fallback_count"], 1)
+            self.assertEqual(system_health["neutral_fallback_rate"], 0.5)
+            self.assertIsNotNone(system_health["last_run_at"])
+            self.assertTrue(signals[signal_id]["governance"]["spec_path"])
+
+
 class NegativeMemoryDiagnosticsViewTests(TestCase):
     """Phase 1v — GET /api/diagnostics/suppressed-pairs/ surfaces RejectedPair
     counters for the Diagnostics page.

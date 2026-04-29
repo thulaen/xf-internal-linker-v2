@@ -162,6 +162,30 @@ export interface WeightSignal {
     status: 'healthy' | 'degraded';
     recent_errors: number;
   };
+  system_health?: {
+    window_days: number;
+    sample_count: number;
+    neutral_fallback_count: number;
+    neutral_fallback_rate: number | null;
+    last_run_at: string | null;
+    status_label: string;
+    plain_english: string;
+  } | null;
+  governance?: {
+    status: string;
+    fr_id: string | null;
+    spec_path: string | null;
+    academic_source: string | null;
+    source_kind: string | null;
+    architecture_lane: string;
+    neutral_value: number | null;
+    min_data_threshold: string | null;
+    diagnostic_surfaces: string[];
+    benchmark_module: string | null;
+    autotune_included: boolean;
+    default_enabled: boolean;
+    added_in_phase: string | null;
+  };
 }
 
 export interface WeightDiagnosticsResponse {

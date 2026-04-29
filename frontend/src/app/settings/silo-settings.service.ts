@@ -758,11 +758,11 @@ export class SiloSettingsService {
   }
 
   getPassageRelevanceSettings(): Observable<PassageRelevanceSettings> {
-    return this.http.get<PassageRelevanceSettings>(`${this.apiUrl}settings/passage-relevance/`);
+    return this.http.get<PassageRelevanceSettings>(`${this.baseUrl}/settings/passage-relevance/`);
   }
 
   updatePassageRelevanceSettings(settings: Partial<PassageRelevanceSettings>): Observable<PassageRelevanceSettings> {
-    return this.http.post<PassageRelevanceSettings>(`${this.apiUrl}settings/passage-relevance/`, settings);
+    return this.http.post<PassageRelevanceSettings>(`${this.baseUrl}/settings/passage-relevance/`, settings);
   }
 
   getValueModelSettings(): Observable<ValueModelSettings> {

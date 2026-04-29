@@ -437,6 +437,80 @@
          (owns its counter fetch + drilldown list + per-row clear action). -->
     <app-suppressed-pairs-card></app-suppressed-pairs-card>
 
+    @if (wave2SignalCards().length > 0) {
+      <section id="wave2-signal-health" class="wave2-signal-health-section">
+        <div class="section-heading">
+          <h2>Wave-2 Model Health</h2>
+          <p>These cards show whether the newest ranking models are using real evidence or their safe neutral fallback.</p>
+        </div>
+
+        <div class="wave2-signal-grid">
+          @for (signal of wave2SignalCards(); track signal.id) {
+            @let health = signal.system_health;
+            <mat-card [attr.id]="'wave2-signal-card-' + signal.id" class="wave2-signal-card">
+              <mat-card-header>
+                <mat-card-title [matTooltip]="signal.description">
+                  {{ signal.name }}
+                </mat-card-title>
+                <mat-card-subtitle>
+                  {{ signal.governance?.fr_id || signal.id }}
+                </mat-card-subtitle>
+              </mat-card-header>
+              <mat-card-content>
+                <div class="wave2-signal-status-row">
+                  <span class="lane-badge"
+                        [class.tone-good]="health?.neutral_fallback_count === 0 && (health?.sample_count || 0) > 0"
+                        [class.tone-warn]="(health?.neutral_fallback_count || 0) > 0 || (health?.sample_count || 0) === 0"
+                        matTooltip="A neutral fallback means the model safely used its no-op value because it did not have enough useful evidence.">
+                    {{ health?.status_label || 'No recent diagnostics' }}
+                  </span>
+                  <button mat-stroked-button
+                          type="button"
+                          (click)="openSignalSpec(signal)"
+                          [disabled]="!signalSpecSlug(signal)"
+                          matTooltip="Open the source-backed spec for this model in a dialog.">
+                    <mat-icon>article</mat-icon>
+                    View spec
+                  </button>
+                </div>
+
+                <div class="wave2-signal-metrics">
+                  <div class="wave2-signal-metric">
+                    <span matTooltip="The newest saved diagnostic for this model.">Last run</span>
+                    <strong>
+                      {{ health?.last_run_at ? (health?.last_run_at | date:'short') : 'No recent run' }}
+                    </strong>
+                  </div>
+                  <div class="wave2-signal-metric">
+                    <span matTooltip="The share of recent diagnostics that used the safe neutral value instead of real evidence.">
+                      Neutral fallback
+                    </span>
+                    <strong>
+                      @if (health?.neutral_fallback_rate === null) {
+                        Not enough data
+                      } @else {
+                        {{ health?.neutral_fallback_rate | percent:'1.0-1' }}
+                      }
+                    </strong>
+                  </div>
+                  <div class="wave2-signal-metric">
+                    <span matTooltip="How many recent suggestions had saved diagnostics for this model.">
+                      Sample size
+                    </span>
+                    <strong>{{ health?.sample_count || 0 }}</strong>
+                  </div>
+                </div>
+
+                <p class="wave2-signal-explanation">
+                  {{ health?.plain_english || 'No recent suggestion diagnostics were found for this signal.' }}
+                </p>
+              </mat-card-content>
+            </mat-card>
+          }
+        </div>
+      </section>
+    }
+
     <!-- Polish.B — NDCG@K retriever-quality readout. Daily refresh by
          the ndcg_smoke_test scheduled job. Sources: Järvelin & Kekäläinen
          2002 ACM TOIS, Sanderson 2010 FnTIR §5.2 sample-size gate. -->
