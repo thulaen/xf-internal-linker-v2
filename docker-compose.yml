@@ -222,7 +222,7 @@ services:
     image: xf-linker-backend:latest
     container_name: xf_linker_celery_beat
     restart: always
-    mem_limit: 128m
+    mem_limit: 256m
     env_file: .env
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
@@ -245,8 +245,7 @@ services:
       redis:
         condition: service_healthy
     command: >
-      sh -c "celery -A config.celery beat --loglevel=warning
-             --scheduler django_celery_beat.schedulers:DatabaseScheduler"
+      sh -c "celery -A config.celery beat --loglevel=warning --scheduler django_celery_beat.schedulers:DatabaseScheduler"
 
   # ─────────────────────────────────────────────
   # Angular prod bundle build — runs once, publishes to volume, exits

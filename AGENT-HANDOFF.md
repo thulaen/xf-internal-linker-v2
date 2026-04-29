@@ -1,4 +1,13 @@
 
+[HANDOFF READ: 2026-04-29 by Antigravity — Fixed backend migration failure and celery-beat OOM crash to restore login]
+
+# 2026-04-29 - Antigravity - Restored Login and Fixed Server Crash
+
+Fixed backend startup crashes that prevented the user from logging in.
+- Fixed a migration error in `0038_passage_overlap_rechunk.py` where a reverse foreign key was incorrectly used in `.update()`. Switched to `PassageEmbedding.objects.all().delete()`.
+- Fixed the `celery-beat` Docker container crash loop by increasing its memory limit from 128MB to 256MB to allow `faiss` to load, and fixed a command-line formatting error in `docker-compose.yml` that broke the `sh -c` string literal.
+- Restarted containers; backend and celery-beat are now healthy.
+
 [HANDOFF READ: 2026-04-28 by Antigravity — Finalized FR-053 Passage Relevance: increased embedding character limit to 1M, implemented Head-Tail thread sampling (first 20, last 10 pages), updated recommended weights to allow unlimited passages, and enforced mandatory C++ benchmarks in AGENTS.md.]
 
 # 2026-04-28 - Antigravity - Passage Relevance Pipeline Finalization (FR-053)
