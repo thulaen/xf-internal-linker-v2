@@ -1,0 +1,26 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project>
+  <ProjectOutputs>
+    <ProjectOutput>
+      <FullPath>C:\Users\goldm\Dev\xf-internal-linker-v2\backend\extensions\build_tests\x64\Release\ZERO_CHECK</FullPath>
+    </ProjectOutput>
+    <ProjectOutput>
+      <FullPath>C:\Users\goldm\Dev\xf-internal-linker-v2\backend\extensions\build_tests\Release\test_passagesim.exe</FullPath>
+    </ProjectOutput>
+    <ProjectOutput>
+      <FullPath>C:\Users\goldm\Dev\xf-internal-linker-v2\backend\extensions\build_tests\Release\test_quantemb.exe</FullPath>
+    </ProjectOutput>
+    <ProjectOutput>
+      <FullPath>C:\Users\goldm\Dev\xf-internal-linker-v2\backend\extensions\build_tests\Release\test_scoring.exe</FullPath>
+    </ProjectOutput>
+    <ProjectOutput>
+      <FullPath>C:\Users\goldm\Dev\xf-internal-linker-v2\backend\extensions\build_tests\Release\test_simsearch.exe</FullPath>
+    </ProjectOutput>
+    <ProjectOutput>
+      <FullPath>C:\Users\goldm\Dev\xf-internal-linker-v2\backend\extensions\build_tests\x64\Release\ALL_BUILD</FullPath>
+    </ProjectOutput>
+  </ProjectOutputs>
+  <ContentFiles />
+  <SatelliteDlls />
+  <NonRecipeFileRefs />
+</Project>

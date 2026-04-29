@@ -1,0 +1,7 @@
+add_test([=[CscoreAndTopk.ZeroCandidates]=]  C:/Users/goldm/Dev/xf-internal-linker-v2/backend/extensions/build_tests/Release/test_simsearch.exe [==[--gtest_filter=CscoreAndTopk.ZeroCandidates]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[CscoreAndTopk.ZeroCandidates]=]  PROPERTIES WORKING_DIRECTORY C:/Users/goldm/Dev/xf-internal-linker-v2/backend/extensions/build_tests SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+add_test([=[CscoreAndTopk.SingleCandidatePerfectDot]=]  C:/Users/goldm/Dev/xf-internal-linker-v2/backend/extensions/build_tests/Release/test_simsearch.exe [==[--gtest_filter=CscoreAndTopk.SingleCandidatePerfectDot]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[CscoreAndTopk.SingleCandidatePerfectDot]=]  PROPERTIES WORKING_DIRECTORY C:/Users/goldm/Dev/xf-internal-linker-v2/backend/extensions/build_tests SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+add_test([=[CscoreAndTopk.ThreeCandidatesTopTwo]=]  C:/Users/goldm/Dev/xf-internal-linker-v2/backend/extensions/build_tests/Release/test_simsearch.exe [==[--gtest_filter=CscoreAndTopk.ThreeCandidatesTopTwo]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[CscoreAndTopk.ThreeCandidatesTopTwo]=]  PROPERTIES WORKING_DIRECTORY C:/Users/goldm/Dev/xf-internal-linker-v2/backend/extensions/build_tests SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+set(  test_simsearch_TESTS CscoreAndTopk.ZeroCandidates CscoreAndTopk.SingleCandidatePerfectDot CscoreAndTopk.ThreeCandidatesTopTwo)

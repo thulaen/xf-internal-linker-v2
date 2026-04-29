@@ -1,0 +1,7 @@
+add_test([=[PassageSimMaxSim.EmptyMatrix]=]  C:/Users/goldm/Dev/xf-internal-linker-v2/backend/extensions/build_tests/Release/test_passagesim.exe [==[--gtest_filter=PassageSimMaxSim.EmptyMatrix]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[PassageSimMaxSim.EmptyMatrix]=]  PROPERTIES WORKING_DIRECTORY C:/Users/goldm/Dev/xf-internal-linker-v2/backend/extensions/build_tests SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+add_test([=[PassageSimMaxSim.SinglePassagePerfectMatch]=]  C:/Users/goldm/Dev/xf-internal-linker-v2/backend/extensions/build_tests/Release/test_passagesim.exe [==[--gtest_filter=PassageSimMaxSim.SinglePassagePerfectMatch]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[PassageSimMaxSim.SinglePassagePerfectMatch]=]  PROPERTIES WORKING_DIRECTORY C:/Users/goldm/Dev/xf-internal-linker-v2/backend/extensions/build_tests SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+add_test([=[PassageSimMaxSim.MultiplePassagesFindBest]=]  C:/Users/goldm/Dev/xf-internal-linker-v2/backend/extensions/build_tests/Release/test_passagesim.exe [==[--gtest_filter=PassageSimMaxSim.MultiplePassagesFindBest]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[PassageSimMaxSim.MultiplePassagesFindBest]=]  PROPERTIES WORKING_DIRECTORY C:/Users/goldm/Dev/xf-internal-linker-v2/backend/extensions/build_tests SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+set(  test_passagesim_TESTS PassageSimMaxSim.EmptyMatrix PassageSimMaxSim.SinglePassagePerfectMatch PassageSimMaxSim.MultiplePassagesFindBest)

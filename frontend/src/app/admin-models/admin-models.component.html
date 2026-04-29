@@ -1,0 +1,317 @@
+<section class="admin-models-page">
+  <header class="page-header">
+    <h1>
+      <mat-icon class="page-icon">developer_board</mat-icon>
+      Models
+    </h1>
+    <p class="page-subtitle">
+      Operator control for every registered ML model — embeddings, classifier, reranker, and the typed knowledge graph.
+      Pause, drain, promote, or roll back each one independently. Actions are audit-logged.
+    </p>
+  </header>
+
+  <mat-tab-group
+    [selectedIndex]="taskTypes.indexOf(activeTaskType())"
+    (selectedIndexChange)="onTabChange($event)"
+    mat-align-tabs="start"
+    [animationDuration]="'0ms'"
+  >
+    @for (t of taskTypes; track t) {
+      <mat-tab [label]="taskLabel(t)"></mat-tab>
+    }
+  </mat-tab-group>
+
+  @if (loading()) {
+    <div class="state-row">
+      <mat-spinner diameter="32"></mat-spinner>
+      <span>Loading registry…</span>
+    </div>
+  }
+
+  @if (error() && !loading()) {
+    <mat-card class="state-card error-card" appearance="outlined">
+      <mat-card-content>
+        <mat-icon>error_outline</mat-icon>
+        <div>
+          <p class="state-headline">Could not load the model registry.</p>
+          <p class="state-detail">{{ error() }}</p>
+        </div>
+        <button mat-stroked-button color="primary" (click)="refresh()">
+          <mat-icon>refresh</mat-icon>
+          Retry
+        </button>
+      </mat-card-content>
+    </mat-card>
+  }
+
+  @if (!loading() && !error() && !hasModels()) {
+    <mat-card class="state-card empty-card" appearance="outlined">
+      <mat-card-content>
+        <mat-icon class="empty-icon">inventory_2</mat-icon>
+        <div>
+          <p class="state-headline">No {{ taskLabel(activeTaskType()).toLowerCase() }} models registered yet.</p>
+          <p class="state-detail">
+            Models register themselves the first time the pipeline warms a fresh runtime. Run a pipeline pass and
+            come back — the registry will populate automatically.
+          </p>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  }
+
+  @if (!loading() && !error() && hasModels() && summary(); as s) {
+    <!-- Active champion + candidate side-by-side. Each gets the seven action buttons. -->
+    <div class="model-grid">
+      @if (s.active_model; as m) {
+        <mat-card class="model-card champion-card" appearance="outlined">
+          <mat-card-header>
+            <mat-card-title>
+              <mat-icon class="role-icon">workspace_premium</mat-icon>
+              Champion
+            </mat-card-title>
+            <mat-card-subtitle>{{ m.model_name }}</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="meta-grid">
+              <div class="meta-row">
+                <span class="meta-label">Family</span>
+                <span class="meta-value">{{ m.model_family || '—' }}</span>
+              </div>
+              <div class="meta-row">
+                <span class="meta-label">Status</span>
+                <mat-chip [color]="statusColor(m.status)" highlighted>{{ m.status }}</mat-chip>
+              </div>
+              <div class="meta-row">
+                <span class="meta-label">Device target</span>
+                <span class="meta-value">{{ m.device_target }}</span>
+              </div>
+              <div class="meta-row">
+                <span class="meta-label">Batch size</span>
+                <span class="meta-value">{{ m.batch_size }}</span>
+              </div>
+              @if (m.dimension !== null) {
+                <div class="meta-row">
+                  <span class="meta-label">Dimension</span>
+                  <span class="meta-value">{{ m.dimension }}</span>
+                </div>
+              }
+              <div class="meta-row">
+                <span class="meta-label">Algorithm version</span>
+                <span class="meta-value">{{ m.algorithm_version }}</span>
+              </div>
+              @if (m.promoted_at) {
+                <div class="meta-row">
+                  <span class="meta-label">Promoted</span>
+                  <span class="meta-value">{{ m.promoted_at | date:'medium' }}</span>
+                </div>
+              }
+            </div>
+
+            <div class="action-row">
+              <button
+                mat-stroked-button
+                [disabled]="!!busyAction()"
+                (click)="runAction(m, 'pause')"
+                matTooltip="Pause new work for this model. In-flight batches finish."
+              >
+                @if (isBusy(m.id, 'pause')) {
+                  <mat-spinner diameter="18"></mat-spinner>
+                } @else {
+                  <mat-icon>pause</mat-icon>
+                }
+                Pause
+              </button>
+              <button
+                mat-stroked-button
+                [disabled]="!!busyAction()"
+                (click)="runAction(m, 'resume')"
+                matTooltip="Resume normal work."
+              >
+                @if (isBusy(m.id, 'resume')) {
+                  <mat-spinner diameter="18"></mat-spinner>
+                } @else {
+                  <mat-icon>play_arrow</mat-icon>
+                }
+                Resume
+              </button>
+              <button
+                mat-stroked-button
+                color="warn"
+                [disabled]="!!busyAction()"
+                (click)="runAction(m, 'drain')"
+                matTooltip="Stop accepting work and finish what is in flight (destructive)."
+              >
+                @if (isBusy(m.id, 'drain')) {
+                  <mat-spinner diameter="18"></mat-spinner>
+                } @else {
+                  <mat-icon>do_not_disturb</mat-icon>
+                }
+                Drain
+              </button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      }
+
+      @if (s.candidate_model; as m) {
+        <mat-card class="model-card candidate-card" appearance="outlined">
+          <mat-card-header>
+            <mat-card-title>
+              <mat-icon class="role-icon">science</mat-icon>
+              Candidate
+            </mat-card-title>
+            <mat-card-subtitle>{{ m.model_name }}</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="meta-grid">
+              <div class="meta-row">
+                <span class="meta-label">Family</span>
+                <span class="meta-value">{{ m.model_family || '—' }}</span>
+              </div>
+              <div class="meta-row">
+                <span class="meta-label">Status</span>
+                <mat-chip [color]="statusColor(m.status)" highlighted>{{ m.status }}</mat-chip>
+              </div>
+              <div class="meta-row">
+                <span class="meta-label">Hot-swap safe</span>
+                <span class="meta-value">{{ s.hot_swap_safe ? 'yes' : 'not yet' }}</span>
+              </div>
+              <div class="meta-row">
+                <span class="meta-label">Algorithm version</span>
+                <span class="meta-value">{{ m.algorithm_version }}</span>
+              </div>
+            </div>
+
+            <div class="action-row">
+              <button
+                mat-stroked-button
+                color="primary"
+                [disabled]="!!busyAction() || !s.hot_swap_safe"
+                (click)="runAction(m, 'promote')"
+                matTooltip="Promote this candidate to champion. Requires status=ready."
+              >
+                @if (isBusy(m.id, 'promote')) {
+                  <mat-spinner diameter="18"></mat-spinner>
+                } @else {
+                  <mat-icon>upgrade</mat-icon>
+                }
+                Promote to champion
+              </button>
+              <button
+                mat-stroked-button
+                color="warn"
+                [disabled]="!!busyAction()"
+                (click)="runAction(m, 'rollback')"
+                matTooltip="Roll this candidate back to the previous champion (destructive)."
+              >
+                @if (isBusy(m.id, 'rollback')) {
+                  <mat-spinner diameter="18"></mat-spinner>
+                } @else {
+                  <mat-icon>undo</mat-icon>
+                }
+                Rollback
+              </button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      }
+    </div>
+
+    <!-- Backfill progress (when a swap is in flight). -->
+    @if (s.backfill; as b) {
+      <mat-card class="model-card backfill-card" appearance="outlined">
+        <mat-card-header>
+          <mat-card-title>
+            <mat-icon class="role-icon">sync</mat-icon>
+            Backfill in progress
+          </mat-card-title>
+          <mat-card-subtitle>{{ b.status }} · {{ b.compatibility_status }}</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <mat-progress-bar mode="determinate" [value]="b.progress_pct"></mat-progress-bar>
+          <p class="meta-line">{{ b.progress_pct }}% complete</p>
+          @if (b.last_error) {
+            <p class="meta-line warn"><mat-icon>warning</mat-icon> {{ b.last_error }}</p>
+          }
+        </mat-card-content>
+      </mat-card>
+    }
+
+    <!-- Placements: where each model is loaded (primary or helper PC). -->
+    @if (placements().length > 0) {
+      <mat-card class="model-card placements-card" appearance="outlined">
+        <mat-card-header>
+          <mat-card-title>
+            <mat-icon class="role-icon">memory</mat-icon>
+            Placements
+          </mat-card-title>
+          <mat-card-subtitle>
+            {{ placements().length }} placement(s) ·
+            {{ formatBytes(s.reclaimable_disk_bytes) }} reclaimable
+          </mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="placement-list">
+            @for (p of placements(); track trackByPlacement($index, p)) {
+              <div class="placement-row">
+                <div class="placement-main">
+                  <span class="placement-name">{{ p.model_name }}</span>
+                  <mat-chip class="role-chip">{{ p.role }}</mat-chip>
+                  <mat-chip [color]="statusColor(p.status)" highlighted>{{ p.status }}</mat-chip>
+                  <span class="placement-where">
+                    <mat-icon class="icon-2xs">{{ p.executor_type === 'helper' ? 'lan' : 'computer' }}</mat-icon>
+                    {{ p.executor_type === 'helper' ? (p.helper_name || 'helper') : 'primary' }}
+                  </span>
+                </div>
+                <div class="placement-meta">
+                  <span matTooltip="Disk used by this placement">{{ formatBytes(p.disk_bytes) }}</span>
+                  @if (p.warmed_at) {
+                    <span matTooltip="Warmed at">{{ p.warmed_at | date:'short' }}</span>
+                  }
+                  @if (p.last_error) {
+                    <span class="warn"><mat-icon class="icon-2xs">error_outline</mat-icon> {{ p.last_error }}</span>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        </mat-card-content>
+      </mat-card>
+    }
+
+    <!-- Recent audit log: last 10 actions on this registry. -->
+    <mat-card class="model-card audit-card" appearance="outlined">
+      <mat-card-header>
+        <mat-card-title>
+          <mat-icon class="role-icon">history</mat-icon>
+          Recent actions
+        </mat-card-title>
+        <mat-card-subtitle>
+          @if (s.last_audit_at) {
+            Last action {{ s.last_audit_at | date:'medium' }}
+          } @else {
+            No actions recorded yet
+          }
+        </mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        @if (auditEntries().length === 0) {
+          <p class="meta-line muted">Audit log is empty for this task type.</p>
+        } @else {
+          <ul class="audit-list">
+            @for (e of auditEntries(); track trackByAudit($index, e)) {
+              <li class="audit-row">
+                <span class="audit-when">{{ e.created_at | date:'short' }}</span>
+                <span class="audit-action">{{ e.action }}</span>
+                <span class="audit-message">{{ e.message }}</span>
+                @if (e.actor) {
+                  <span class="audit-actor">— {{ e.actor }}</span>
+                }
+              </li>
+            }
+          </ul>
+        }
+      </mat-card-content>
+    </mat-card>
+  }
+</section>

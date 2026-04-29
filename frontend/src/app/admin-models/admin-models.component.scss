@@ -1,0 +1,283 @@
+/**
+ * Group M.1 — Admin Models page styles.
+ *
+ * Strict adherence to FRONTEND-RULES.md:
+ *   - 4px-grid spacing only (var(--space-*) tokens).
+ *   - var(--color-*) tokens — never hard-coded hex.
+ *   - var(--card-border) on resting cards, no shadow at rest.
+ *   - 8px corner radius via var(--card-border-radius).
+ *   - System font stack via var(--font-family).
+ *   - Material primitives only — no custom dropdowns / buttons.
+ */
+
+.admin-models-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  padding: var(--space-lg);
+  font-family: var(--font-family);
+  color: var(--color-text-primary);
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+
+  h1 {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: 22px;
+    font-weight: 500;
+    margin: 0;
+  }
+
+  .page-icon {
+    color: var(--color-primary);
+  }
+
+  .page-subtitle {
+    color: var(--color-text-secondary);
+    margin: 0;
+    max-width: 760px;
+    line-height: 1.5;
+  }
+}
+
+.state-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--color-text-secondary);
+  padding: var(--space-md) 0;
+}
+
+.state-card {
+  border-radius: var(--card-border-radius);
+
+  &.error-card mat-card-content,
+  &.empty-card mat-card-content {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-md);
+    padding: var(--space-lg);
+  }
+
+  .empty-icon,
+  mat-icon[ng-reflect-color] {
+    color: var(--color-text-secondary);
+    width: 32px;
+    height: 32px;
+    font-size: 32px;
+    line-height: 32px;
+  }
+
+  .state-headline {
+    margin: 0 0 var(--space-xs) 0;
+    font-weight: 500;
+  }
+
+  .state-detail {
+    margin: 0;
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+  }
+}
+
+.model-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: var(--space-lg);
+}
+
+.model-card {
+  border-radius: var(--card-border-radius);
+
+  mat-card-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: 16px;
+    font-weight: 500;
+  }
+
+  .role-icon {
+    color: var(--color-primary);
+  }
+
+  &.candidate-card .role-icon {
+    color: var(--color-text-secondary);
+  }
+
+  &.backfill-card,
+  &.placements-card,
+  &.audit-card {
+    grid-column: 1 / -1;
+  }
+}
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-sm) var(--space-lg);
+  padding: var(--space-md) 0;
+}
+
+.meta-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+
+  .meta-label {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .meta-value {
+    font-weight: 500;
+    overflow-wrap: break-word;
+  }
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding-top: var(--space-md);
+  border-top: 0.8px solid var(--color-border);
+  margin-top: var(--space-md);
+
+  button {
+    min-width: 0;
+  }
+}
+
+.placement-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.placement-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md) 0;
+  border-bottom: 0.8px solid var(--color-border);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  .placement-main {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+  }
+
+  .placement-name {
+    font-weight: 500;
+  }
+
+  .placement-where {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    color: var(--color-text-secondary);
+  }
+
+  .placement-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    color: var(--color-text-secondary);
+    font-size: 12px;
+  }
+}
+
+.role-chip {
+  text-transform: capitalize;
+}
+
+.audit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.audit-row {
+  display: grid;
+  grid-template-columns: 140px 140px 1fr auto;
+  gap: var(--space-md);
+  padding: var(--space-sm) 0;
+  border-bottom: 0.8px solid var(--color-border);
+  font-size: 13px;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  .audit-when {
+    color: var(--color-text-secondary);
+  }
+
+  .audit-action {
+    font-weight: 500;
+    color: var(--color-primary);
+  }
+
+  .audit-message {
+    color: var(--color-text-primary);
+    overflow-wrap: break-word;
+  }
+
+  .audit-actor {
+    color: var(--color-text-secondary);
+    font-style: italic;
+  }
+}
+
+.meta-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: var(--space-sm) 0 0 0;
+  color: var(--color-text-secondary);
+
+  &.warn {
+    color: var(--color-error);
+  }
+
+  &.muted {
+    font-style: italic;
+  }
+}
+
+mat-progress-bar {
+  margin-top: var(--space-md);
+}
+
+/** Responsive — stack the model grid on narrow viewports. */
+@media (max-width: 720px) {
+  .model-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .audit-row {
+    grid-template-columns: 1fr;
+    gap: var(--space-xs);
+  }
+
+  .placement-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

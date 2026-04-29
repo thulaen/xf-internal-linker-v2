@@ -1,0 +1,5 @@
+if(EXISTS "C:/Users/goldm/Dev/xf-internal-linker-v2/backend/extensions/build_tests/test_quantemb[1]_tests.cmake")
+  include("C:/Users/goldm/Dev/xf-internal-linker-v2/backend/extensions/build_tests/test_quantemb[1]_tests.cmake")
+else()
+  add_test(test_quantemb_NOT_BUILT test_quantemb_NOT_BUILT)
+endif()
