@@ -107,6 +107,8 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "link_farm.min_scc_size": "3",
     "link_farm.density_threshold": "0.6",
     "link_farm.lambda": "0.8",
+    "spam_guards.max_anchor_words": "5",
+    "spam_guards.max_existing_links_per_host": "3",
     # Pipeline recall thresholds — tunable to trade recall vs. speed.
     # Research basis: Bruch et al. 2024 and Cormack et al. 2009 recommend
     # tunable fan-out over fixed budgets. These defaults match the original
