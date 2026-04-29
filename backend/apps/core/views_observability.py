@@ -27,7 +27,8 @@ from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework.views import APIView
 
-from .feature_flags import FeatureFlag, FeatureFlagExposure, serialise_for_user
+from apps.audit.models import FeatureFlag, FeatureFlagExposure
+from apps.audit.services.feature_flags import serialise_flags_for_user as serialise_for_user
 
 
 class RumSummaryView(APIView):
@@ -150,7 +151,11 @@ class FeatureFlagExposureView(APIView):
         user = (
             request.user if getattr(request.user, "is_authenticated", False) else None
         )
-        FeatureFlagExposure.objects.create(key=key, variant=variant[:60], user=user)
+        if user:
+            from apps.audit.services.feature_flags import _record_exposure
+            _record_exposure(key, user.id, variant[:60])
+        else:
+            FeatureFlagExposure.objects.create(key=key, variant=variant[:60], user=None)
         return Response({"status": "recorded"}, status=status.HTTP_201_CREATED)
 
 

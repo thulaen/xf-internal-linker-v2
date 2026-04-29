@@ -374,9 +374,8 @@ class QuarantineRecord(TimestampedModel):
 
 
 # Phase OB / Gaps 131 + 132 — Feature flags + A/B variants + exposures.
-# Defined in ``feature_flags.py`` to keep this file manageable; re-exported
-# so Django's app registry picks them up at makemigrations time.
-from .feature_flags import FeatureFlag, FeatureFlagExposure  # noqa: E402, F401
+# Migrated to ``apps.audit`` for unification.
+from apps.audit.models import FeatureFlag, FeatureFlagExposure  # noqa: E402, F401
 from .runtime_models import (  # noqa: E402, F401
     HardwareCapabilitySnapshot,
     RuntimeAuditLog,

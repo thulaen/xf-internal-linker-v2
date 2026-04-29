@@ -8,10 +8,28 @@ from unfold.admin import ModelAdmin
 from .models import (
     AuditEntry,
     ErrorLog,
+    FeatureFlag,
+    FeatureFlagExposure,
     FeatureRequest,
     FeatureRequestVote,
     ReviewerScorecard,
 )
+
+
+@admin.register(FeatureFlag)
+class FeatureFlagAdmin(ModelAdmin):
+    list_display = ["key", "enabled", "rollout_percent", "updated_at"]
+    list_filter = ["enabled"]
+    search_fields = ["key", "description"]
+    readonly_fields = ["created_at", "updated_at"]
+
+
+@admin.register(FeatureFlagExposure)
+class FeatureFlagExposureAdmin(ModelAdmin):
+    list_display = ["key", "variant", "user", "created_at"]
+    list_filter = ["key"]
+    search_fields = ["key", "variant", "user__username"]
+    readonly_fields = ["created_at"]
 
 
 @admin.register(AuditEntry)

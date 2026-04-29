@@ -77,6 +77,67 @@ class AuditEntry(models.Model):
             f"[{self.action}] {self.target_type}:{self.target_id} at {self.created_at}"
         )
 
+# Alias for Slice 5 "Unified Audit Log" nomenclature (Fowler 2005)
+AuditEvent = AuditEntry
+
+
+class FeatureFlag(models.Model):
+    """A single feature flag (Group L / FR-099).
+    Deterministic rollout via stable hashing of (user_id, key).
+    """
+
+    key = models.SlugField(max_length=80, unique=True)
+    description = models.CharField(max_length=255, blank=True)
+    enabled = models.BooleanField(default=False)
+    rollout_percent = models.PositiveSmallIntegerField(
+        default=100,
+        help_text="Percentage of eligible users who see this flag (0-100).",
+    )
+    variants = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='[{"name": "control", "weight": 50}, {"name": "variant-a", "weight": 50}]',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Feature Flag"
+        verbose_name_plural = "Feature Flags"
+        ordering = ["key"]
+
+    def __str__(self) -> str:
+        return f"{self.key} ({'on' if self.enabled else 'off'})"
+
+
+class FeatureFlagExposure(models.Model):
+    """Record of 'user saw flag X in variant Y' for analytics."""
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    key = models.SlugField(max_length=80, db_index=True)
+    variant = models.CharField(max_length=60, blank=True)
+    user = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="feature_flag_exposures",
+    )
+
+    class Meta:
+        verbose_name = "Feature Flag Exposure"
+        verbose_name_plural = "Feature Flag Exposures"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["key", "-created_at"],
+                name="audit_ffexp_key_created_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.key}={self.variant or 'on'} @ {self.created_at:%Y-%m-%d}"
+
 
 class ReviewerScorecard(models.Model):
     """
