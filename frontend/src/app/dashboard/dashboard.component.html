@@ -75,6 +75,10 @@
   />
 </section>
 
+@if (data?.show_quick_controls) {
+  <app-quick-controls class="d3-block" />
+}
+
 <!-- Global mode toggles + emergency stop live just below the ticker.
      Keeping them above raw system metrics so operators reach them fast. -->
 <div class="d3-row d3-row-actions">

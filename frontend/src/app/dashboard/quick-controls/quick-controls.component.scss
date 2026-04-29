@@ -1,0 +1,138 @@
+@use 'src/styles/theme-vars' as vars;
+
+:host {
+  display: block;
+}
+
+.quick-controls-card {
+  border: var(--card-border);
+  box-shadow: none;
+  transition: box-shadow 0.2s ease-in-out;
+  margin-bottom: var(--spacing-md);
+
+  &:hover {
+    box-shadow: var(--shadow-md);
+  }
+}
+
+.quick-loading, .quick-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-card);
+  min-height: 120px;
+  color: var(--color-text-secondary);
+  
+  mat-icon {
+    font-size: 32px;
+    height: 32px;
+    width: 32px;
+    margin-bottom: var(--spacing-sm);
+  }
+}
+
+.model-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: 8px 0;
+}
+
+.model-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-sm) var(--spacing-card);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-faint);
+  transition: background 0.2s;
+
+  &:hover {
+    background: var(--color-blue-50);
+  }
+}
+
+.model-info {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.model-name {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--color-text-primary);
+}
+
+.meta-sep {
+  color: var(--color-text-disabled);
+  font-size: 12px;
+}
+
+.model-task {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-wrap {
+  margin-left: 8px;
+}
+
+.model-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+
+  button {
+    height: 32px;
+    line-height: 32px;
+    font-size: 12px;
+    padding: 0 12px;
+
+    mat-icon {
+      font-size: 18px;
+      height: 18px;
+      width: 18px;
+      margin-right: 4px;
+    }
+    
+    mat-spinner {
+      margin-right: 4px;
+    }
+  }
+}
+
+/* Status chips matching GA4 style */
+.status-chip {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 12px;
+  text-transform: capitalize;
+  
+  &.status-ready {
+    background: var(--color-success-light);
+    color: var(--color-success-dark);
+  }
+  &.status-paused {
+    background: var(--color-warning-light);
+    color: var(--color-warning-dark);
+  }
+  &.status-draining {
+    background: var(--color-error-light);
+    color: var(--color-error-dark);
+  }
+  &.status-failed {
+    background: var(--color-error-light);
+    color: var(--color-error-dark);
+  }
+  &.status-registered {
+    background: var(--color-bg-faint);
+    color: var(--color-text-secondary);
+  }
+}

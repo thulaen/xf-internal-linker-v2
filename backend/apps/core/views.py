@@ -3036,6 +3036,7 @@ class DashboardView(APIView):
                 if last_pipeline_at
                 else None,
                 "runtime_mode": runtime_mode,
+                "show_quick_controls": recommended_bool("dashboard.show_quick_controls"),
             }
         )
 

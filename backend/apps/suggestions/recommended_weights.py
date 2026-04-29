@@ -375,6 +375,7 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "anchor_self_information.modified_z_threshold": "3.5",
     "anchor_self_information.corpus_entropy_median": "4.0",
     "anchor_self_information.corpus_entropy_mad": "0.5",
+    "dashboard.show_quick_controls": "true",
 }
 
 # Merge forward-declared FR keys into the main dict.

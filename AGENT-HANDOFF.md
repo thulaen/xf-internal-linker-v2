@@ -1,3 +1,12 @@
+[HANDOFF READ: 2026-04-29 by Antigravity — Implemented Dashboard Quick-Controls widget: backend seeding, API updates, and Angular component development with model control actions.]
+
+# 2026-04-29 - Antigravity - Dashboard Quick-Controls Widget
+
+Implemented a new Quick-Controls widget on the operator dashboard for direct management of model services.
+- **Backend**: Added `dashboard.show_quick_controls` feature flag (default: true). Created migration `0053_seed_quick_controls_setting.py` for seeding. Updated `DashboardView` in `apps.core.views.py` to include the toggle in the API response.
+- **Frontend**: Built `QuickControlsComponent` at `frontend/src/app/dashboard/quick-controls/` using OnPush/Signals. Models are sorted by status (Ready > Paused > Other).
+- **Design**: Integrated the widget into the dashboard hero area. Applied GA4-compliant design tokens and tokens-only SCSS (no hardcoded hex).
+- **Functionality**: Wired Pause, Resume, Promote, and Drain actions to `RuntimeModelsService`. The widget is conditionally rendered based on the feature toggle.
 
 [HANDOFF READ: 2026-04-29 by Antigravity — Fixed backend migration failure and celery-beat OOM crash to restore login]
 

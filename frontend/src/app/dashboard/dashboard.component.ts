@@ -81,6 +81,7 @@ import { MissionCriticalComponent } from './mission-critical/mission-critical.co
 // Skeleton placeholder for @defer blocks. Reused — single source of truth
 // at frontend/src/app/shared/skeleton.
 import { SkeletonComponent } from '../shared/skeleton/skeleton.component';
+import { QuickControlsComponent } from './quick-controls/quick-controls.component';
 
 @Component({
   selector: 'app-dashboard',
@@ -152,6 +153,7 @@ import { SkeletonComponent } from '../shared/skeleton/skeleton.component';
     MissionCriticalComponent,
     // Reused skeleton for @defer placeholders.
     SkeletonComponent,
+    QuickControlsComponent,
   ],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss'],

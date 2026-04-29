@@ -89,6 +89,7 @@ export interface DashboardData {
   last_analytics_at?: string | null;
   last_pipeline_at?: string | null;
   runtime_mode?: string;
+  show_quick_controls?: boolean;
 }
 
 /** Cache lives for 60 seconds before a fresh fetch is required. */

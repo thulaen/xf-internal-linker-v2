@@ -1,0 +1,138 @@
+import { ChangeDetectionStrategy, Component, inject, OnInit, signal, computed } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatIconModule } from '@angular/material/icon';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { forkJoin, of } from 'rxjs';
+import { catchError, finalize } from 'rxjs/operators';
+import {
+  RuntimeModel,
+  RuntimeModelsService,
+  RuntimeModelTaskType,
+  RuntimeModelsSummary
+} from '../../admin-models/runtime-models.service';
+
+/** 
+ * Status priority for sorting: 
+ * 'ready' (Running/Ready) first, then 'paused', then everything else.
+ */
+const STATUS_PRIORITY: Record<string, number> = {
+  'ready': 0,
+  'warming': 1,
+  'paused': 2,
+  'downloading': 3,
+  'registered': 4,
+  'draining': 5,
+  'failed': 6,
+  'retired': 7
+};
+
+@Component({
+  selector: 'app-quick-controls',
+  standalone: true,
+  imports: [
+    CommonModule,
+    MatButtonModule,
+    MatCardModule,
+    MatIconModule,
+    MatSnackBarModule,
+    MatProgressSpinnerModule,
+    MatTooltipModule
+  ],
+  templateUrl: './quick-controls.component.html',
+  styleUrls: ['./quick-controls.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class QuickControlsComponent implements OnInit {
+  private readonly svc = inject(RuntimeModelsService);
+  private readonly snack = inject(MatSnackBar);
+
+  readonly loading = signal<boolean>(true);
+  readonly error = signal<string>('');
+  readonly summaries = signal<RuntimeModelsSummary[]>([]);
+  readonly busyId = signal<string>('');
+
+  /** 
+   * Extract active (champion) models from all summaries, 
+   * then sort by status priority, then name.
+   */
+  readonly activeModels = computed(() => {
+    const active = this.summaries()
+      .map(s => s.active_model)
+      .filter((m): m is RuntimeModel => !!m);
+
+    return active.sort((a, b) => {
+      const pA = STATUS_PRIORITY[a.status] ?? 99;
+      const pB = STATUS_PRIORITY[b.status] ?? 99;
+      if (pA !== pB) return pA - pB;
+      return a.model_name.localeCompare(b.model_name);
+    });
+  });
+
+  ngOnInit(): void {
+    this.refresh();
+  }
+
+  refresh(): void {
+    this.loading.set(true);
+    this.error.set('');
+    
+    // Fetch summaries for the core model task types.
+    const tasks: RuntimeModelTaskType[] = ['embedding', 'reranker', 'kg'];
+    
+    forkJoin(
+      tasks.map(t => this.svc.list(t).pipe(
+        catchError(() => of(null))
+      ))
+    ).pipe(
+      finalize(() => this.loading.set(false))
+    ).subscribe(results => {
+      const valid = results.filter((r): r is RuntimeModelsSummary => !!r);
+      this.summaries.set(valid);
+      if (valid.length === 0) {
+        this.error.set('No active model services found.');
+      }
+    });
+  }
+
+  pause(model: RuntimeModel): void {
+    this.runAction(model, 'pause');
+  }
+
+  resume(model: RuntimeModel): void {
+    this.runAction(model, 'resume');
+  }
+
+  promote(model: RuntimeModel): void {
+    this.runAction(model, 'promote');
+  }
+
+  drain(model: RuntimeModel): void {
+    this.runAction(model, 'drain');
+  }
+
+  private runAction(model: RuntimeModel, action: any): void {
+    if (this.busyId()) return;
+    
+    this.busyId.set(`${model.id}:${action}`);
+    this.svc.action(model.id, action).subscribe({
+      next: () => {
+        this.snack.open(`Action "${action}" applied to ${model.model_name}.`, 'OK', { duration: 3000 });
+        this.refresh();
+      },
+      error: () => {
+        this.snack.open(`Failed to ${action} ${model.model_name}.`, 'Dismiss', { duration: 5000 });
+      },
+      complete: () => {
+        this.busyId.set('');
+      }
+    });
+  }
+
+  isBusy(modelId: number, action: string): boolean {
+    return this.busyId() === `${modelId}:${action}`;
+  }
+}
