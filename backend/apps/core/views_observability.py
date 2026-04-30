@@ -28,7 +28,9 @@ from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework.views import APIView
 
 from apps.audit.models import FeatureFlag, FeatureFlagExposure
+from apps.audit.services.audit_logger import record_audit
 from apps.audit.services.feature_flags import serialise_flags_for_user as serialise_for_user
+from apps.core.feature_flags import seed_declared_feature_flags
 
 
 class RumSummaryView(APIView):
@@ -159,6 +161,52 @@ class FeatureFlagExposureView(APIView):
         return Response({"status": "recorded"}, status=status.HTTP_201_CREATED)
 
 
+class FeatureFlagsAdminView(APIView):
+    """GET /api/feature-flags/admin/ for the Settings toggle panel."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        seed_declared_feature_flags()
+        rows = [
+            _serialize_flag(flag)
+            for flag in FeatureFlag.objects.order_by("key")
+        ]
+        return Response(rows)
+
+
+class FeatureFlagAdminDetailView(APIView):
+    """PATCH /api/feature-flags/admin/<key>/ to update operator toggles."""
+
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, key: str):
+        seed_declared_feature_flags()
+        try:
+            flag = FeatureFlag.objects.get(key=key)
+        except FeatureFlag.DoesNotExist:
+            return Response({"detail": "unknown flag"}, status=status.HTTP_404_NOT_FOUND)
+
+        if "enabled" in request.data:
+            flag.enabled = bool(request.data["enabled"])
+        if "rollout_percent" in request.data:
+            raw_percent = int(request.data["rollout_percent"])
+            flag.rollout_percent = max(0, min(100, raw_percent))
+        flag.save(update_fields=["enabled", "rollout_percent", "updated_at"])
+
+        record_audit(
+            "feature_flag.update",
+            ("feature_flag", flag.key),
+            request=request,
+            message=f"Feature flag '{flag.key}' updated.",
+            metadata={
+                "enabled": flag.enabled,
+                "rollout_percent": flag.rollout_percent,
+            },
+        )
+        return Response(_serialize_flag(flag))
+
+
 # ── helpers ────────────────────────────────────────────────────────────
 
 
@@ -174,8 +222,20 @@ def _percentile(sorted_vals: list[float], pct: float) -> float:
     return float(sorted_vals[f] + (sorted_vals[c] - sorted_vals[f]) * (k - f))
 
 
+def _serialize_flag(flag: FeatureFlag) -> dict:
+    return {
+        "key": flag.key,
+        "description": flag.description,
+        "enabled": flag.enabled,
+        "rollout_percent": flag.rollout_percent,
+        "variants": flag.variants or [],
+    }
+
+
 __all__ = [
     "RumSummaryView",
     "FeatureFlagsListView",
     "FeatureFlagExposureView",
+    "FeatureFlagAdminDetailView",
+    "FeatureFlagsAdminView",
 ]

@@ -40,6 +40,23 @@ def _notify(source: str) -> None:
         from apps.realtime.services import broadcast
 
         broadcast(_TOPIC, _EVENT, {"source": source})
+        try:
+            from apps.ops_feed.services import emit
+
+            emit(
+                event_type="suggestions.readiness_changed",
+                plain_english=(
+                    "Suggestion readiness changed: the Review page gate changed "
+                    "and connected screens were notified."
+                ),
+                source="suggestions",
+                severity="info",
+                related_entity_type="readiness_source",
+                related_entity_id=source,
+                runtime_context={"source": source},
+            )
+        except Exception:  # noqa: BLE001
+            logger.debug("[readiness] operations-feed emit failed", exc_info=True)
     except Exception:  # noqa: BLE001
         logger.debug("[readiness] broadcast failed", exc_info=True)
 

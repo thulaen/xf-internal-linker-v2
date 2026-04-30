@@ -13,7 +13,6 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
-from html import unescape
 from urllib.parse import urlparse
 
 try:
@@ -35,12 +34,6 @@ _HTML_LINK_RE = re.compile(
     r"<a\b[^>]*href=[\"']([^\"']+)[\"'][^>]*>(.*?)</a>",
     re.IGNORECASE | re.DOTALL,
 )
-_BARE_URL_RE = re.compile(
-    r"https?://[^\s\[\]<>\"']+",
-    re.IGNORECASE,
-)
-_HTML_TAG_RE = re.compile(r"<[^>]+>")
-_BBCODE_TAG_RE = re.compile(r"\[[^\]]+\]", re.IGNORECASE)
 _CONTEXT_TOKEN_RE = re.compile(r"[A-Za-z0-9]+(?:'[A-Za-z0-9]+)?")
 _CONTEXT_WINDOW_CHARS = 80
 
@@ -290,6 +283,8 @@ def _find_urls_py(raw_bbcode: str) -> list[_MatchedLink]:
             )
         )
 
+    from .text_cleaner import _BARE_URL_RE
+
     for match in _BARE_URL_RE.finditer(raw_bbcode):
         if _span_overlaps(match.span(), occupied_spans):
             continue
@@ -334,10 +329,9 @@ def normalize_internal_url(url: str) -> str:
 
 
 def _strip_markup(value: str) -> str:
-    cleaned = unescape(value or "")
-    cleaned = _HTML_TAG_RE.sub("", cleaned)
-    cleaned = _BBCODE_TAG_RE.sub("", cleaned)
-    return cleaned.strip()
+    from .text_cleaner import strip_markup
+
+    return strip_markup(value)
 
 
 def _span_overlaps(
@@ -368,9 +362,9 @@ def _classify_context(raw_bbcode: str, start: int, end: int) -> str:
 
 
 def _clean_context_window(value: str) -> str:
-    cleaned = unescape(value or "")
-    cleaned = _HTML_TAG_RE.sub(" ", cleaned)
-    cleaned = _BBCODE_TAG_RE.sub(" ", cleaned)
+    from .text_cleaner import _BARE_URL_RE, strip_markup
+
+    cleaned = strip_markup(value, replace_with=" ")
     cleaned = _BARE_URL_RE.sub(" ", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned)
     return cleaned.strip()

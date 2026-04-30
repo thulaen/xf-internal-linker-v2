@@ -13,6 +13,7 @@ import logging
 import math
 import warnings
 import numpy as np
+from rapidfuzz import fuzz
 from typing import Any, Mapping, TypeAlias
 
 logger = logging.getLogger(__name__)
@@ -137,6 +138,9 @@ class ContentRecord:
     # Consumers that opt in (e.g. rare-term propagation) read this
     # for stem-based comparison; everyone else keeps using ``tokens``.
     stemmed_tokens: frozenset[str] = frozenset()
+    # Group G (Harmonious-12) — NLP enrichment metadata.
+    # Stores acronyms, lemmas, and noun-chunks from ContentItem.nlp_metadata.
+    nlp_metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
     def key(self) -> ContentKey:
@@ -156,6 +160,8 @@ class SentenceRecord:
     position: int = 0  # zero-based sentence index within the post (Sentence.position)
     # Pick #21 — Snowball stems of ``tokens``. See ``ContentRecord.stemmed_tokens``.
     stemmed_tokens: frozenset[str] = frozenset()
+    # Group G (Harmonious-12) — NLP metadata (referenced from parent ContentItem).
+    nlp_metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
     def content_key(self) -> ContentKey:
@@ -315,6 +321,57 @@ def keyword_jaccard_similarity(
     if not union:
         return 0.0
     return len(destination_tokens & sentence_tokens) / len(union)
+
+
+def _score_fuzzy_match(anchor: str, target: str) -> float:
+    """Pick #62 — Fuzzy string matching score [0, 1] via RapidFuzz.
+
+    Uses Token Set Ratio to handle reordering and partial matches.
+     रिसर्च basis: Joachims 2007 §3 typo-tolerance in anchor text.
+    """
+    if not anchor or not target:
+        return 0.0
+    # ratio is [0, 100]
+    ratio = fuzz.token_set_ratio(anchor, target)
+    if ratio < 85:  # Research threshold gate (US8380722B2 §5)
+        return 0.0
+    return ratio / 100.0
+
+
+def _compute_jsd(p_tokens: list[str], q_tokens: list[str]) -> float:
+    """Pick #64 — Jensen-Shannon Divergence [0, 1] between token distributions.
+
+    Measure alignment between query distribution (source) and document
+    distribution (destination). 0.0 = identical distributions (max boost).
+    Citation: Lin, J. (1991). "Divergence measures based on the Shannon entropy."
+    """
+    if not p_tokens or not q_tokens:
+        return 1.0  # Max divergence
+
+    from collections import Counter
+
+    p_counts = Counter(p_tokens)
+    q_counts = Counter(q_tokens)
+    
+    total_p = sum(p_counts.values())
+    total_q = sum(q_counts.values())
+    
+    vocab = set(p_counts.keys()) | set(q_counts.keys())
+    p = {w: p_counts.get(w, 0) / total_p for w in vocab}
+    q = {w: q_counts.get(w, 0) / total_q for w in vocab}
+    
+    # Mixture distribution
+    m = {w: 0.5 * (p[w] + q[w]) for w in vocab}
+    
+    def kl_div(dist, ref):
+        res = 0.0
+        for w in vocab:
+            if dist[w] > 0:
+                res += dist[w] * math.log2(dist[w] / ref[w])
+        return res
+        
+    jsd = 0.5 * kl_div(p, m) + 0.5 * kl_div(q, m)
+    return jsd
 
 
 def score_node_affinity(destination: ContentRecord, host: ContentRecord) -> float:
@@ -604,7 +661,46 @@ def score_destination_matches(
             destination_title=destination.title,
             destination_distilled_text=destination.distilled_text,
             settings=phrase_matching_settings,
+            host_nlp_metadata=sentence_record.nlp_metadata,
+            destination_nlp_metadata=destination.nlp_metadata,
         )
+
+        # Pick #55 — Noun-chunk boost.
+        if (
+            phrase_match.anchor_phrase 
+            and sentence_record.nlp_metadata 
+            and any(phrase_match.anchor_phrase == chunk["text"] for chunk in sentence_record.nlp_metadata.get("noun_chunks", []))
+        ):
+            phrase_match.score_phrase_relevance = min(1.0, phrase_match.score_phrase_relevance + phrase_matching_settings.noun_chunk_boost_weight)
+
+        # Pick #57 — Lexical Richness boost.
+        if sentence_record.nlp_metadata:
+            richness = sentence_record.nlp_metadata.get("lexical_richness", {})
+            ttr = richness.get("ttr", 0.0)
+            if ttr > 0.4: # Only boost substantive sentences
+                phrase_match.score_phrase_relevance = min(1.0, phrase_match.score_phrase_relevance + phrase_matching_settings.lexical_richness_weight)
+
+        # Pick #62 — Fuzzy Match (RapidFuzz).
+        if phrase_match.anchor_phrase:
+            fuzzy_score = _score_fuzzy_match(phrase_match.anchor_phrase, destination.title)
+            if fuzzy_score > 0:
+                phrase_match.score_phrase_relevance = min(1.0, phrase_match.score_phrase_relevance + fuzzy_score * phrase_matching_settings.fuzzy_match_weight)
+
+        # Pick #61 — Phonetic Boost (Double Metaphone).
+        if sentence_record.nlp_metadata and destination.nlp_metadata:
+            host_keys = set(sentence_record.nlp_metadata.get("phonetic_keys", []))
+            dest_keys = set(destination.nlp_metadata.get("phonetic_keys", []))
+            if host_keys & dest_keys:
+                phrase_match.score_phrase_relevance = min(1.0, phrase_match.score_phrase_relevance + phrase_matching_settings.phonetic_boost_weight)
+
+        # Pick #64 — JSD alignment boost.
+        jsd = _compute_jsd(destination.tokens, sentence_record.tokens)
+        if jsd < 0.5: # Lower divergence = better alignment
+            jsd_boost = (1.0 - jsd) * phrase_matching_settings.jsd_boost_weight
+            phrase_match.score_phrase_relevance = min(1.0, phrase_match.score_phrase_relevance + jsd_boost)
+
+        # Re-center the component score after all NLP boosts
+        phrase_match.score_phrase_component = score_phrase_relevance_component(phrase_match.score_phrase_relevance)
 
         # Guard 2 — reject anchors that are too long (long-tail keyword stuffing).
         # Research basis: Google recommends 2–5 words (link best-practices docs);

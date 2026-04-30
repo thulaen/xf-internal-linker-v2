@@ -133,20 +133,15 @@ def record_runtime_audit(
     actor: str = "",
     metadata: dict[str, Any] | None = None,
 ) -> None:
-    RuntimeAuditLog.objects.create(
-        action=action,
-        subject_type=subject_type,
-        subject_id=subject_id,
+    from apps.audit.services.audit_logger import record_audit
+
+    record_audit(
+        action,
+        (subject_type, subject_id),
         actor=actor,
         message=message,
         metadata=metadata or {},
     )
-    retained_ids = list(
-        RuntimeAuditLog.objects.order_by("-created_at").values_list("id", flat=True)[
-            :_AUDIT_LOG_RETAIN_ROWS
-        ]
-    )
-    RuntimeAuditLog.objects.exclude(id__in=retained_ids).delete()
 
 
 def summarize_model_registry(task_type: str = MODEL_TASK_EMBEDDING) -> dict[str, Any]:
@@ -201,25 +196,47 @@ def summarize_model_registry(task_type: str = MODEL_TASK_EMBEDDING) -> dict[str,
         "backfill": _serialize_backfill(latest_backfill),
         "device": get_current_embedding_device(),
         "hot_swap_safe": candidate is None or candidate.status == "ready",
-        "recent_audit_log": [
-            {
-                "id": entry.id,
-                "created_at": entry.created_at.isoformat(),
-                "action": entry.action,
-                "subject_type": entry.subject_type,
-                "subject_id": entry.subject_id,
-                "actor": entry.actor,
-                "message": entry.message,
-                "metadata": entry.metadata,
-            }
-            for entry in RuntimeAuditLog.objects.order_by("-created_at")[:10]
-        ],
-        "last_audit_at": RuntimeAuditLog.objects.aggregate(m=Max("created_at"))[
-            "m"
-        ].isoformat()
-        if RuntimeAuditLog.objects.exists()
-        else None,
+        "recent_audit_log": _recent_runtime_audit_events(),
+        "last_audit_at": _last_runtime_audit_at(),
     }
+
+
+def _recent_runtime_audit_events() -> list[dict[str, Any]]:
+    try:
+        from apps.audit.models import AuditEvent
+
+        entries = AuditEvent.objects.filter(subject_type="runtime_model").order_by(
+            "-created_at"
+        )[:10]
+    except Exception:
+        entries = RuntimeAuditLog.objects.order_by("-created_at")[:10]
+    return [
+        {
+            "id": entry.id,
+            "created_at": entry.created_at.isoformat(),
+            "action": entry.action,
+            "subject_type": entry.subject_type,
+            "subject_id": entry.subject_id,
+            "actor": entry.actor,
+            "message": entry.message,
+            "metadata": entry.metadata,
+        }
+        for entry in entries
+    ]
+
+
+def _last_runtime_audit_at() -> str | None:
+    try:
+        from apps.audit.models import AuditEvent
+
+        latest = (
+            AuditEvent.objects.filter(subject_type="runtime_model")
+            .aggregate(m=Max("created_at"))
+            .get("m")
+        )
+    except Exception:
+        latest = RuntimeAuditLog.objects.aggregate(m=Max("created_at")).get("m")
+    return latest.isoformat() if latest else None
 
 
 def summarize_helpers() -> dict[str, Any]:

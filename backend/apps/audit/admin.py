@@ -7,6 +7,7 @@ from unfold.admin import ModelAdmin
 
 from .models import (
     AuditEntry,
+    AuditEvent,
     ErrorLog,
     FeatureFlag,
     FeatureFlagExposure,
@@ -44,6 +45,32 @@ class AuditEntryAdmin(ModelAdmin):
         "target_type",
         "target_id",
         "detail",
+        "ip_address",
+        "created_at",
+    ]
+    ordering = ["-created_at"]
+
+    def has_add_permission(self, request) -> bool:
+        return False
+
+    def has_change_permission(self, request, obj=None) -> bool:
+        return False
+
+
+@admin.register(AuditEvent)
+class AuditEventAdmin(ModelAdmin):
+    """Admin for the unified audit event trail. Records are read-only."""
+
+    list_display = ["action", "subject_type", "subject_id", "actor", "created_at"]
+    list_filter = ["action", "subject_type"]
+    search_fields = ["subject_id", "action", "actor", "message"]
+    readonly_fields = [
+        "action",
+        "subject_type",
+        "subject_id",
+        "actor",
+        "message",
+        "metadata",
         "ip_address",
         "created_at",
     ]

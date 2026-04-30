@@ -305,11 +305,71 @@ _FR099_FR105_ENTRIES: list[SearchSpaceEntry] = [
     ),
 ]
 
+_GROUP_G_HARMONIOUS_12_ENTRIES: list[SearchSpaceEntry] = [
+    # pick #56 — Phrase Matching weight
+    SearchSpaceEntry(
+        app_setting_key="phrase_matching.ranking_weight",
+        pick_number=56,
+        suggest=_suggest_float("phrase_matching.ranking_weight", 0.01, 0.20),
+        clip=_clip(0.01, 0.20),
+        to_appsetting=lambda v: f"{float(v):.4f}",
+    ),
+    # pick #55 — Noun Chunk Boost weight
+    SearchSpaceEntry(
+        app_setting_key="phrase_matching.noun_chunk_boost_weight",
+        pick_number=55,
+        suggest=_suggest_float("phrase_matching.noun_chunk_boost_weight", 0.0, 0.15),
+        clip=_clip(0.0, 0.15),
+        to_appsetting=lambda v: f"{float(v):.4f}",
+    ),
+    # pick #62 — Fuzzy Match weight
+    SearchSpaceEntry(
+        app_setting_key="phrase_matching.fuzzy_match_weight",
+        pick_number=62,
+        suggest=_suggest_float("phrase_matching.fuzzy_match_weight", 0.0, 0.15),
+        clip=_clip(0.0, 0.15),
+        to_appsetting=lambda v: f"{float(v):.4f}",
+    ),
+    # pick #64 — JSD Boost weight
+    SearchSpaceEntry(
+        app_setting_key="phrase_matching.jsd_boost_weight",
+        pick_number=64,
+        suggest=_suggest_float("phrase_matching.jsd_boost_weight", 0.0, 0.15),
+        clip=_clip(0.0, 0.15),
+        to_appsetting=lambda v: f"{float(v):.4f}",
+    ),
+    # pick #57 — Lexical Richness weight
+    SearchSpaceEntry(
+        app_setting_key="phrase_matching.lexical_richness_weight",
+        pick_number=57,
+        suggest=_suggest_float("phrase_matching.lexical_richness_weight", 0.0, 0.10),
+        clip=_clip(0.0, 0.10),
+        to_appsetting=lambda v: f"{float(v):.4f}",
+    ),
+    # pick #61 — Phonetic Boost weight
+    SearchSpaceEntry(
+        app_setting_key="phrase_matching.phonetic_boost_weight",
+        pick_number=61,
+        suggest=_suggest_float("phrase_matching.phonetic_boost_weight", 0.0, 0.10),
+        clip=_clip(0.0, 0.10),
+        to_appsetting=lambda v: f"{float(v):.4f}",
+    ),
+    # pick #54 — Lemma enabled (categorical)
+    SearchSpaceEntry(
+        app_setting_key="lemma.enabled",
+        pick_number=54,
+        suggest=_suggest_categorical("lemma.enabled", ["true", "false"]),
+        clip=_clip_categorical(["true", "false"]),
+        to_appsetting=lambda v: str(v),
+    ),
+]
+
 
 # Splice FR-099..FR-105 into SEARCH_SPACE iff the burn-in gate passes.
 # Evaluated at module-import time (stable for the process lifetime).
 if is_fr099_fr105_tpe_eligible():
     SEARCH_SPACE.extend(_FR099_FR105_ENTRIES)
+    SEARCH_SPACE.extend(_GROUP_G_HARMONIOUS_12_ENTRIES)
 
 
 # ── Study-level constants ─────────────────────────────────────────

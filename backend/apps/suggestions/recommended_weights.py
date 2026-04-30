@@ -8,6 +8,7 @@ keys.
 from __future__ import annotations
 
 from .recommended_weights_forward_settings import FORWARD_DECLARED_WEIGHTS
+from .recommended_weights_forward_249 import FORWARD_DECLARED_WEIGHTS_EXPANSION
 
 RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "w_semantic": "0.40",
@@ -89,7 +90,15 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "phrase_matching.ranking_weight": "0.08",
     "phrase_matching.enable_anchor_expansion": "true",
     "phrase_matching.enable_partial_matching": "true",
+    "phrase_matching.enable_lemma_matching": "true",
+    "phrase_matching.noun_chunk_boost_weight": "0.05",
+    "phrase_matching.fuzzy_match_weight": "0.08",
+    "phrase_matching.jsd_boost_weight": "0.10",
+    "phrase_matching.lexical_richness_weight": "0.05",
+    "phrase_matching.phonetic_boost_weight": "0.04",
     "phrase_matching.context_window_tokens": "8",
+    # ── Pick #54 Lemmatization Infrastructure ──
+    "lemma.enabled": "true",
     "learned_anchor.ranking_weight": "0.05",
     "learned_anchor.minimum_anchor_sources": "2",
     "learned_anchor.minimum_family_support_share": "0.15",
@@ -380,6 +389,7 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
 
 # Merge forward-declared FR keys into the main dict.
 RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS)
+RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_EXPANSION)
 
 
 def recommended_bool(key: str) -> bool:

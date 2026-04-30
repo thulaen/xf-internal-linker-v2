@@ -39,6 +39,9 @@ _ISPOILER_RE = re.compile(
 )
 
 _TAG_RE = re.compile(r"\[[^\]]+\]")
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_BBCODE_TAG_RE = re.compile(r"\[[^\]]+\]", re.IGNORECASE)
+_BARE_URL_RE = re.compile(r"https?://[^\s\[\]<>\"']+", re.IGNORECASE)
 _MULTI_WS_RE = re.compile(r"\s+")
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 _HTML_BLOCK_BREAK_RE = re.compile(
@@ -209,6 +212,20 @@ def clean_import_text(raw_text: str) -> str:
     text = _remove_noise_lines(text)
     text = _strip_inline_noise_phrases(text)
     return _nfkc(_MULTI_WS_RE.sub(" ", text).strip())
+
+
+def strip_markup(value: str, replace_with: str = "") -> str:
+    """Strip both HTML and BBCode tags from a string.
+    
+    Used for context window cleaning where we don't need the full
+    obliteration logic of clean_bbcode.
+    """
+    if not value:
+        return ""
+    cleaned = unescape(value)
+    cleaned = _HTML_TAG_RE.sub(replace_with, cleaned)
+    cleaned = _BBCODE_TAG_RE.sub(replace_with, cleaned)
+    return cleaned.strip()
 
 
 def _nfkc(text: str) -> str:

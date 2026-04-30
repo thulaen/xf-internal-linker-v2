@@ -59,6 +59,7 @@ import { MetaRow } from './meta-algorithms.service';
       <mat-slide-toggle
         class="mr-toggle"
         [checked]="row.enabled"
+        [disabled]="row.status === 'disabled-pending-implementation'"
         (change)="toggled.emit({ id: row.id, enabled: $event.checked })"
         [attr.aria-label]="'Enable ' + row.title"
       />
@@ -164,6 +165,7 @@ import { MetaRow } from './meta-algorithms.service';
     }
     .mr-status-active { background: #e6f4ea; color: #137333; }
     .mr-status-forward-declared { background: #f1f3f4; color: #5f6368; }
+    .mr-status-disabled-pending-implementation { background: #f1f3f4; color: #5f6368; }
     .mr-status-disabled { background: #fce8e6; color: #c5221f; }
     .mr-weight {
       font-variant-numeric: tabular-nums;
@@ -185,6 +187,7 @@ export class MetaRowComponent {
     switch (this.row.status) {
       case 'active': return 'Active';
       case 'disabled': return 'Disabled';
+      case 'disabled-pending-implementation': return 'Spec only';
       case 'forward-declared': return 'Forward';
       default: return this.row.status;
     }

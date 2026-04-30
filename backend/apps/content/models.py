@@ -497,6 +497,13 @@ class ContentItem(TimestampedModel):
     # See apps.sources.product_quantization for the FAISS wrapper
     # and apps.pipeline.services.product_quantization_producer for
     # the producer/backfill.
+    char_ngram_vector = VectorField(
+        null=True,
+        blank=True,
+        dimensions=256,
+        help_text="Pick #58: 256-dim hashed character n-gram (3-5) vector. Null until first NLP enrichment pass.",
+    )
+
     pq_code = models.BinaryField(
         null=True,
         blank=True,
@@ -515,6 +522,20 @@ class ContentItem(TimestampedModel):
             "Codebook version that produced pq_code. Re-encoded on "
             "every refit; consumers must reject codes whose version "
             "doesn't match the active codebook."
+        ),
+    )
+
+    # Picks #53, #54, #55 — NLP Enrichment Metadata.
+    # Stores acronyms, lemmas, and noun-chunks extracted by the
+    # NLPEnricher service during import.
+    # Shape: {"lemmas": [], "noun_chunks": [], "acronyms": {}}
+    nlp_metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Group G (Harmonious-12) — NLP enrichment metadata including "
+            "acronyms (Schwartz-Hearst 2003), lemmas, and noun-chunks. "
+            "Populated at import time for downstream anchor matching."
         ),
     )
 
@@ -726,6 +747,56 @@ class Sentence(models.Model):
 
     def __str__(self) -> str:
         return f"[pos={self.position}] {self.text[:80]}"
+
+
+class Token(models.Model):
+    """
+    Granular token information extracted from a Sentence via spaCy.
+
+    Pick #54 — stores the lemma for every word to enable high-accuracy
+    anchor matching and lexical overlap scoring.
+    """
+
+    sentence = models.ForeignKey(
+        Sentence,
+        on_delete=models.CASCADE,
+        related_name="tokens",
+        help_text="The sentence this token belongs to.",
+    )
+    text = models.CharField(
+        max_length=255,
+        help_text="The literal token text.",
+    )
+    lemma = models.CharField(
+        max_length=255,
+        db_index=True,
+        help_text="The base form of the word (token.lemma_).",
+    )
+    pos = models.CharField(
+        max_length=16,
+        db_index=True,
+        help_text="The Part-of-Speech tag (token.pos_).",
+    )
+    is_stop = models.BooleanField(
+        default=False,
+        help_text="True if this token is a standard English stopword.",
+    )
+    start_char = models.IntegerField(
+        help_text="Start offset within the sentence.",
+    )
+    end_char = models.IntegerField(
+        help_text="End offset within the sentence.",
+    )
+
+    class Meta:
+        verbose_name = "Token"
+        verbose_name_plural = "Tokens"
+        indexes = [
+            models.Index(fields=["lemma", "pos"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.text} -> {self.lemma} ({self.pos})"
 
 
 class ContentMetricSnapshot(models.Model):

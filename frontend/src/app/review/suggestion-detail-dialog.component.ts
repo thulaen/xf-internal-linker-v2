@@ -77,6 +77,12 @@ export class SuggestionDetailDialogComponent implements OnInit {
       autoFocus: false,
     });
   }
+
+  /** Pick #55 — one-click anchor selection from alternative candidates. */
+  selectAlternativeAnchor(text: string): void {
+    this.anchorEdited = text;
+    this.cdr.markForCheck();
+  }
   // Phase E2 / Gap 41 — cancel in-flight HTTP if dialog closes first.
   private destroyRef = inject(DestroyRef);
   // The template has ~60 interpolated expressions. With default CD

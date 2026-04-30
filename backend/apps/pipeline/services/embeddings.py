@@ -22,6 +22,7 @@ from typing import Any
 import numpy as np
 from django.conf import settings
 
+from apps.ops_feed.services import emit
 from apps.core.performance_mode import (
     PERFORMANCE_MODE_HIGH,
     get_requested_performance_mode,
@@ -139,7 +140,15 @@ def _cuda_warmup_ok() -> bool:
         torch.cuda.synchronize()
         return True
     except Exception as exc:  # broad on purpose — any CUDA failure must fall back
-        logger.warning("CUDA warmup failed: %s", exc)
+        msg = f"CUDA warmup failed: {exc}"
+        logger.warning(msg)
+        emit(
+            "gpu.warmup_failed",
+            msg,
+            source="embeddings",
+            severity="warning",
+            runtime_context={"error": str(exc)},
+        )
         return False
 
 
@@ -355,10 +364,14 @@ def _check_gpu_temperature() -> bool:
         ceiling = _get_gpu_temp_pause_c()
 
         if temp >= ceiling:
-            logger.warning(
-                "GPU temperature %d°C >= %d°C ceiling — pausing GPU work",
-                temp,
-                ceiling,
+            msg = f"GPU temperature {temp}°C >= {ceiling}°C ceiling — pausing GPU work"
+            logger.warning(msg)
+            emit(
+                "gpu.thermal_pause",
+                msg,
+                source="embeddings",
+                severity="warning",
+                runtime_context={"temperature": temp, "ceiling": ceiling},
             )
             return False
         return True
@@ -600,29 +613,44 @@ def _load_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
 
     from sentence_transformers import SentenceTransformer
 
-    logger.info("Loading embedding model '%s' on device='%s'...", model_name, device)
-    _emit_model_alert(
-        "model.warming",
-        "info",
-        "Embedding model is loading",
-        f"The app is loading the embedding model '{model_name}' into memory. The first run may be slower than normal.",
-        model_name,
+    msg = f"Loading embedding model '{model_name}' on device='{device}'..."
+    logger.info(msg)
+    emit(
+        "model.loading",
+        msg,
+        source="embeddings",
+        severity="info",
+        runtime_context={"model_name": model_name, "device": device},
     )
     start = time.monotonic()
     try:
         model = SentenceTransformer(model_name, device=device, trust_remote_code=True)
         profile = _assert_model_dimension_supported(model_name, model)
     except Exception as exc:
-        _emit_model_alert(
+        msg = f"The app could not load the embedding model '{model_name}': {exc}"
+        emit(
             "model.load_failed",
-            "error",
-            "Embedding model failed to load",
-            f"The app could not load the embedding model '{model_name}': {exc}. Open Jobs or Error Log for details.",
-            model_name,
+            msg,
+            source="embeddings",
+            severity="error",
+            runtime_context={"model_name": model_name, "error": str(exc)},
         )
         raise
     elapsed = time.monotonic() - start
-    logger.info("Model loaded in %.2fs.", elapsed)
+    msg = f"Model '{model_name}' loaded successfully in {elapsed:.1f}s on {device}."
+    logger.info(msg)
+    emit(
+        "model.ready",
+        msg,
+        source="embeddings",
+        severity="success",
+        runtime_context={
+            "model_name": model_name,
+            "device": device,
+            "elapsed_seconds": elapsed,
+        },
+    )
+
     if device == "cuda":
         try:
             model.half()
@@ -631,6 +659,7 @@ def _load_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
             logger.debug(
                 "fp16 conversion not supported for model '%s', using fp32", model_name
             )
+
     if profile["recommended_batch_size"] < profile["configured_batch_size"]:
         logger.info(
             "Model '%s' recommends batch size %d instead of configured %d because it reports %d dimensions.",
@@ -639,14 +668,8 @@ def _load_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
             profile["configured_batch_size"],
             profile["embedding_dim"],
         )
+
     _model_cache[cache_key] = model
-    _emit_model_alert(
-        "model.ready",
-        "success",
-        "Embedding model ready",
-        f"Model '{model_name}' loaded successfully in {elapsed:.1f}s on {device}.",
-        model_name,
-    )
     if device == "cpu":
         try:
             import torch

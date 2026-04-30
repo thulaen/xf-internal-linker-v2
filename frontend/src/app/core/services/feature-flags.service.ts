@@ -81,7 +81,7 @@ export class FeatureFlagsService {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((list) => {
-        if (!Array.isArray(list) || list.length === 0) return;
+        if (!Array.isArray(list)) return;
         const map: Record<string, FeatureFlag> = {};
         for (const f of list) map[f.key] = f;
         this.flags.set(map);

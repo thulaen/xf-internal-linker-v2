@@ -149,7 +149,7 @@ def _load_pipeline_content(
 
     progress_fn(0.08, "Loading sentence records...")
     sentence_records, content_to_sentence_ids = _load_sentence_records(
-        set(content_records.keys())
+        content_records
     )
 
     progress_fn(0.12, "Loading existing links...")
@@ -538,17 +538,18 @@ def _load_content_records(
             grandparent_scope_title=grandparent.title if grandparent else "",
             cluster_id=ci.cluster_id,
             is_canonical=ci.is_canonical,
+            nlp_metadata=ci.nlp_metadata or {},
         )
     return records
 
 
 def _load_sentence_records(
-    content_keys: set[ContentKey],
+    content_records: dict[ContentKey, ContentRecord],
 ) -> tuple[dict[int, SentenceRecord], dict[ContentKey, pr.BitMap]]:
     """Load sentence records for the given content keys with bounded memory use."""
     from django.db import connection
 
-    content_pks = sorted({pk for pk, _ in content_keys})
+    content_pks = sorted({pk for pk, _ in content_records.keys()})
     if not content_pks:
         return {}, {}
 
@@ -585,6 +586,7 @@ def _load_sentence_records(
                     tokens=tokenize_text(text),
                     stemmed_tokens=tokenize_text_stemmed(text),
                     position=position or 0,
+                    nlp_metadata=content_records[ckey].nlp_metadata if ckey in content_records else {},
                 )
                 content_to_sentence_ids[ckey].add(sid)
 

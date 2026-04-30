@@ -16,6 +16,23 @@ _attempted = False
 logger = logging.getLogger(__name__)
 
 
+def _emit_spacy_event(event_type: str, title: str, message: str, severity: str) -> None:
+    try:
+        from apps.ops_feed.services import emit
+
+        emit(
+            event_type=event_type,
+            plain_english=f"{title}: {message}",
+            source="nlp",
+            severity=severity,
+            related_entity_type="component",
+            related_entity_id="spacy_loader",
+            runtime_context={"component": "spacy_loader"},
+        )
+    except Exception:  # noqa: BLE001
+        logger.debug("spacy_loader: operations-feed emit failed", exc_info=True)
+
+
 def get_spacy_nlp() -> Any | None:
     """Return the shared spaCy NLP model, loading it lazily if needed.
 
@@ -30,13 +47,25 @@ def get_spacy_nlp() -> Any | None:
     try:
         import spacy
 
-        _nlp = spacy.load("en_core_web_sm", disable=["lemmatizer"])
+        _nlp = spacy.load("en_core_web_sm")
         _spacy_available = True
         logger.info("Successfully loaded shared spaCy model (en_core_web_sm).")
+        _emit_spacy_event(
+            "nlp.spacy_ready",
+            "spaCy NLP model loaded",
+            "The shared English NLP model is ready for sentence splitting and text enrichment.",
+            "success",
+        )
     except Exception as e:
         _nlp = None
         _spacy_available = False
         logger.warning("spaCy or en_core_web_sm not available, using fallbacks: %s", e)
+        _emit_spacy_event(
+            "nlp.spacy_fallback",
+            "spaCy NLP fallback active",
+            "The English NLP model is not available, so the pipeline is using simpler fallback text handling.",
+            "warning",
+        )
 
     return _nlp
 

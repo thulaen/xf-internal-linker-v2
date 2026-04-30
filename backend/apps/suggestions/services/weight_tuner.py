@@ -13,6 +13,29 @@ _DRIFT_LIMIT_PER_RUN = 0.05
 _WEIGHT_EPSILON = 1e-9
 
 
+def _emit_weight_tuner_event(
+    event_type: str,
+    title: str,
+    message: str,
+    severity: str = "info",
+    **metadata,
+) -> None:
+    try:
+        from apps.ops_feed.services import emit
+
+        emit(
+            event_type=event_type,
+            plain_english=f"{title}: {message}",
+            source="weight_tuner",
+            severity=severity,
+            related_entity_type="weight_tune_run",
+            related_entity_id=str(metadata.get("run_id", "")),
+            runtime_context=metadata,
+        )
+    except Exception:  # noqa: BLE001
+        logger.debug("weight_tuner: operations-feed emit failed", exc_info=True)
+
+
 def _normalize_weight_vector(weights: np.ndarray) -> np.ndarray:
     """Return a finite weight vector with sum 1.0."""
     values = np.asarray(weights, dtype=np.float64)
@@ -93,6 +116,13 @@ class WeightTuner:
 
     def run(self, run_id: str) -> RankingChallenger | None:
         """Execute the tuning loop and return a new RankingChallenger if improved."""
+        _emit_weight_tuner_event(
+            "meta_algorithm.tune_started",
+            "Weight tuning started",
+            "The ranking weight tuner started looking for a better scoring mix.",
+            run_id=run_id,
+            lookback_days=self.lookback_days,
+        )
         # 1. Collect Data
         cutoff = timezone.now() - timedelta(days=self.lookback_days)
         samples = Suggestion.objects.filter(
@@ -102,6 +132,14 @@ class WeightTuner:
         if len(samples) < 50:
             logger.info(
                 "[WeightTuner] Insufficient samples (%d) for tuning.", len(samples)
+            )
+            _emit_weight_tuner_event(
+                "meta_algorithm.tune_skipped",
+                "Weight tuning skipped",
+                "The tuner did not have enough reviewed suggestions to make a safe change.",
+                "warning",
+                run_id=run_id,
+                sample_count=len(samples),
             )
             return None
 
@@ -160,6 +198,14 @@ class WeightTuner:
 
         if not res.success:
             logger.warning("[WeightTuner] Optimization failed: %s", res.message)
+            _emit_weight_tuner_event(
+                "meta_algorithm.tune_failed",
+                "Weight tuning failed",
+                "The tuner could not finish its optimisation pass.",
+                "warning",
+                run_id=run_id,
+                reason=str(res.message),
+            )
             return None
 
         w_opt = _project_to_bounded_simplex(res.x, lower_bounds, upper_bounds)
@@ -180,6 +226,14 @@ class WeightTuner:
         # Check if change is significant (> 0.001)
         if np.allclose(w_init, w_opt, atol=1e-3):
             logger.info("[WeightTuner] No significant weight improvement found.")
+            _emit_weight_tuner_event(
+                "meta_algorithm.tune_finished",
+                "Weight tuning finished with no change",
+                "The tuner checked the latest feedback and found no safer improvement.",
+                "info",
+                run_id=run_id,
+                sample_count=len(samples),
+            )
             return None
 
         # Compute predicted vs champion quality scores using the same objective
@@ -211,5 +265,16 @@ class WeightTuner:
             res.nit,
             champion_loss,
             candidate_loss,
+        )
+        _emit_weight_tuner_event(
+            "meta_algorithm.tune_finished",
+            "Weight tuning created a challenger",
+            "The tuner found a candidate scoring mix for review.",
+            "success",
+            run_id=run_id,
+            challenger_id=str(challenger.pk),
+            sample_count=len(samples),
+            champion_loss=champion_loss,
+            candidate_loss=candidate_loss,
         )
         return challenger

@@ -12,6 +12,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Mapping
 
+from apps.ops_feed.services import emit
+
 import numpy as np
 from scipy.sparse import coo_matrix, csr_matrix
 
@@ -295,8 +297,14 @@ def persist_weighted_pagerank(scores: dict[NodeKey, float]) -> int:
             march_2026_pagerank_score=0.0
         )
 
-    logger.info(
-        "March 2026 PageRank persisted: %d items updated.", len(items_to_update)
+    msg = f"March 2026 PageRank persisted: {len(items_to_update)} items updated."
+    logger.info(msg)
+    emit(
+        "pagerank.persisted",
+        msg,
+        source="pipeline",
+        severity="success",
+        runtime_context={"items_updated": len(items_to_update)},
     )
     return len(items_to_update)
 

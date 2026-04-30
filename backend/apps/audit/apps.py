@@ -9,12 +9,6 @@ class AuditConfig(AppConfig):
     verbose_name = "Audit Trail"
 
     def ready(self):
-        from django.db.models.signals import post_migrate
-        from .integrity import verify_artefact_integrity
-
-        def run_integrity_checks(sender, **kwargs):
-            # Only run for this app to avoid duplicate triggers during migrate
-            if sender.name == self.name:
-                verify_artefact_integrity()
-
-        post_migrate.connect(run_integrity_checks, sender=self)
+        # Startup smoke tests are wired from CoreConfig. Keeping this app
+        # side-effect free avoids duplicate post-migrate audits.
+        return None

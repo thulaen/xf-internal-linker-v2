@@ -3811,6 +3811,33 @@ class MasterPauseToggleView(APIView):
                 "category": "performance",
             },
         )
+        try:
+            from apps.audit.services.audit_logger import record_audit
+            from apps.ops_feed.services import emit
+
+            message = (
+                "Master pause enabled. Background workers will stop taking new batches."
+                if desired_bool
+                else "Master pause disabled. Background workers can take new batches again."
+            )
+            record_audit(
+                "master_pause.toggle",
+                ("app_setting", "system.master_pause"),
+                request=request,
+                message=message,
+                metadata={"previous": current_bool, "current": desired_bool},
+            )
+            emit(
+                "master_pause.toggled",
+                message,
+                source="core",
+                severity="warning" if desired_bool else "success",
+                related_entity_type="app_setting",
+                related_entity_id="system.master_pause",
+                runtime_context={"previous": current_bool, "current": desired_bool},
+            )
+        except Exception:
+            logger.exception("master-pause audit emit failed")
         logger.info("master-pause toggled: %s -> %s", current_bool, desired_bool)
         return Response({"master_pause": desired_bool})
 

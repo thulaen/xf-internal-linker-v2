@@ -72,6 +72,27 @@
       }
     </section>
 
+    @if (detail.phrase_match_diagnostics?.alternative_anchors?.length) {
+      <mat-divider></mat-divider>
+      <section class="section">
+        <p class="section-title">Alternative anchor candidates (noun chunks)</p>
+        <mat-chip-listbox aria-label="Alternative anchors">
+          @for (alt of detail.phrase_match_diagnostics.alternative_anchors; track alt.text) {
+            <mat-chip-option 
+              (click)="selectAlternativeAnchor(alt.text)"
+              [selected]="anchorEdited === alt.text"
+            >
+              {{ alt.text }}
+            </mat-chip-option>
+          }
+        </mat-chip-listbox>
+        <p class="meta-line">
+          <mat-icon class="icon-sm">info</mat-icon>
+          Click a candidate to switch the anchor text.
+        </p>
+      </section>
+    }
+
     <mat-divider></mat-divider>
 
     <section class="section">

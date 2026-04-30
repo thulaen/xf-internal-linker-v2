@@ -9,7 +9,7 @@ import { Observable } from 'rxjs';
  * matches `apps.suggestions.views.MetaAlgorithmSettingsView`.
  */
 
-export type MetaStatus = 'active' | 'forward-declared' | 'disabled';
+export type MetaStatus = 'active' | 'forward-declared' | 'disabled' | 'disabled-pending-implementation';
 
 export interface MetaRow {
   id: string;

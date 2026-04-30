@@ -18,6 +18,8 @@ import logging
 from dataclasses import dataclass
 from math import log1p
 
+from apps.ops_feed.services import emit
+
 logger = logging.getLogger(__name__)
 NodeKey = tuple[int, str]
 
@@ -250,7 +252,15 @@ def persist_velocity(scores: dict[NodeKey, float]) -> int:
         updated_pks = [item.pk for item in items_to_update]
         ContentItem.objects.exclude(pk__in=updated_pks).update(velocity_score=0.0)
 
-    logger.info("Velocity scores persisted: %d items updated.", len(items_to_update))
+    msg = f"Velocity scores persisted: {len(items_to_update)} items updated."
+    logger.info(msg)
+    emit(
+        "velocity.persisted",
+        msg,
+        source="pipeline",
+        severity="success",
+        runtime_context={"items_updated": len(items_to_update)},
+    )
     return len(items_to_update)
 
 

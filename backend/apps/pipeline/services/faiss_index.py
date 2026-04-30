@@ -25,6 +25,7 @@ import threading
 
 import numpy as np
 
+from apps.ops_feed.services import emit
 from apps.core.performance_mode import (
     PERFORMANCE_MODE_HIGH,
     get_requested_performance_mode,
@@ -107,6 +108,14 @@ def _assert_single_worker() -> None:
         logger.exception(
             "single-worker assertion fired but audit-log ingestion failed"
         )
+    
+    emit(
+        "faiss.concurrency_warning",
+        message,
+        source="faiss",
+        severity="critical",
+        runtime_context={"concurrency": concurrency},
+    )
 
 
 def build_faiss_index() -> None:
@@ -118,7 +127,14 @@ def build_faiss_index() -> None:
     global _faiss_index, _faiss_id_map, _faiss_content_type_map
 
     if not HAS_FAISS:
-        logger.warning("faiss not installed — FAISS-GPU path disabled")
+        msg = "faiss not installed — FAISS-GPU path disabled"
+        logger.warning(msg)
+        emit(
+            "faiss.dependency_missing",
+            msg,
+            source="faiss",
+            severity="warning",
+        )
         return
 
     from apps.content.models import ContentItem
@@ -148,7 +164,14 @@ def build_faiss_index() -> None:
             vectors.append(vec)
 
     if not vectors:
-        logger.warning("FAISS index build: no embeddings found in DB")
+        msg = "FAISS index build: no embeddings found in DB"
+        logger.warning(msg)
+        emit(
+            "faiss.build_empty",
+            msg,
+            source="faiss",
+            severity="warning",
+        )
         return
 
     matrix = np.vstack(vectors).astype(np.float32)
@@ -173,11 +196,14 @@ def build_faiss_index() -> None:
         _faiss_id_map = pks
         _faiss_content_type_map = content_types
 
-    logger.info(
-        "FAISS index built: %d vectors, dim=%d, device=%s",
-        len(pks),
-        dim,
-        device,
+    msg = f"FAISS index built: {len(pks)} vectors, dim={dim}, device={device}"
+    logger.info(msg)
+    emit(
+        "faiss.index_ready",
+        msg,
+        source="faiss",
+        severity="success",
+        runtime_context={"vectors": len(pks), "dim": dim, "device": device},
     )
 
 

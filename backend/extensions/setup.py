@@ -136,6 +136,27 @@ ext_modules = [
         if sys.platform != "win32"
         else ["/O2", "/std:c++17", "/arch:AVX2"],
     ),
+    Pybind11Extension(
+        "counting_bloom",
+        ["counting_bloom.cpp"],
+        extra_compile_args=["-O3", "-std=c++17"]
+        if sys.platform != "win32"
+        else ["/O2", "/std:c++17"],
+    ),
+    Pybind11Extension(
+        "compressed_bloom",
+        ["compressed_bloom.cpp"],
+        extra_compile_args=["-O3", "-std=c++17"]
+        if sys.platform != "win32"
+        else ["/O2", "/std:c++17"],
+    ),
+    Pybind11Extension(
+        "count_min_sketch",
+        ["count_min_sketch.cpp"],
+        extra_compile_args=["-O3", "-std=c++17"]
+        if sys.platform != "win32"
+        else ["/O2", "/std:c++17"],
+    ),
 ]
 
 

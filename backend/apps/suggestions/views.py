@@ -17,7 +17,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from apps.audit.models import AuditEntry
+from apps.audit.services.audit_logger import record_audit, record_legacy_audit
 from .models import (
     PipelineDiagnostic,
     PipelineRun,
@@ -343,6 +343,7 @@ class SuggestionViewSet(viewsets.ModelViewSet):
                 reviewed_at=now,
                 updated_at=now,
             )
+            self._log_batch_audit(action_name, ids, updated, request)
         elif action_name == "reject":
             # Capture (host, destination) pairs BEFORE the bulk update so we
             # can upsert RejectedPair rows for each rejection.
@@ -355,6 +356,7 @@ class SuggestionViewSet(viewsets.ModelViewSet):
                 rejection_reason=request.data.get("rejection_reason", "other"),
                 updated_at=now,
             )
+            self._log_batch_audit(action_name, ids, updated, request)
             # Upsert RejectedPair per pair. Bounded by the 500-ID batch cap
             # above, so worst-case we do 500 ORM round-trips — acceptable for
             # an operator batch action. Failures are logged but non-fatal.
@@ -372,6 +374,7 @@ class SuggestionViewSet(viewsets.ModelViewSet):
                     )
         else:
             updated = suggestions.update(updated_at=now)
+            self._log_batch_audit(action_name, ids, updated, request)
 
         return Response({"updated": updated})
 
@@ -380,23 +383,42 @@ class SuggestionViewSet(viewsets.ModelViewSet):
     def _log_audit(self, action_name: str, suggestion: Suggestion, request) -> None:
         """Write an audit entry for a review action."""
         try:
-            AuditEntry.objects.create(
+            payload = {
+                "status": suggestion.status,
+                "rejection_reason": suggestion.rejection_reason,
+                "anchor_edited": suggestion.anchor_edited,
+                "score_final": suggestion.score_final,
+            }
+            record_audit(
                 action=action_name,
-                target_type="suggestion",
-                target_id=str(suggestion.suggestion_id),
-                detail={
-                    "status": suggestion.status,
-                    "rejection_reason": suggestion.rejection_reason,
-                    "anchor_edited": suggestion.anchor_edited,
-                    "score_final": suggestion.score_final,
-                },
-                ip_address=request.META.get("REMOTE_ADDR"),
+                subject=("suggestion", str(suggestion.suggestion_id)),
+                request=request,
+                message=f"Suggestion {action_name} recorded.",
+                metadata=payload,
+            )
+            record_legacy_audit(
+                action_name,
+                ("suggestion", str(suggestion.suggestion_id)),
+                detail=payload,
+                request=request,
             )
         except Exception:
             logger.exception(
                 "Failed to write audit entry for suggestion %s",
                 suggestion.suggestion_id,
             )
+
+    def _log_batch_audit(self, action_name: str, ids: list, updated: int, request) -> None:
+        try:
+            record_audit(
+                f"suggestion.batch_{action_name}",
+                ("suggestion_batch", action_name),
+                request=request,
+                message=f"Batch suggestion action '{action_name}' updated {updated} rows.",
+                metadata={"requested_ids": len(ids), "updated": updated},
+            )
+        except Exception:
+            logger.exception("Failed to write batch suggestion audit event")
 
     def _record_rejected_pair(self, suggestion: Suggestion) -> None:
         """Upsert a RejectedPair row for (host, destination).
@@ -433,17 +455,24 @@ class SuggestionViewSet(viewsets.ModelViewSet):
         raised — audit write failures must not break the approve flow.
         """
         try:
-            AuditEntry.objects.create(
+            payload = {
+                "anchor_original": original,
+                "anchor_final": final,
+                "original_length": len(original),
+                "final_length": len(final),
+            }
+            record_audit(
                 action="edit_anchor",
-                target_type="suggestion",
-                target_id=str(suggestion.suggestion_id),
-                detail={
-                    "anchor_original": original,
-                    "anchor_final": final,
-                    "original_length": len(original),
-                    "final_length": len(final),
-                },
-                ip_address=request.META.get("REMOTE_ADDR"),
+                subject=("suggestion", str(suggestion.suggestion_id)),
+                request=request,
+                message="Reviewer edited a suggestion anchor.",
+                metadata=payload,
+            )
+            record_legacy_audit(
+                "edit_anchor",
+                ("suggestion", str(suggestion.suggestion_id)),
+                detail=payload,
+                request=request,
             )
         except Exception:
             logger.exception(
@@ -612,6 +641,13 @@ class RankingChallengerViewSet(viewsets.ReadOnlyModelViewSet):
             )
         challenger.status = "rejected"
         challenger.save(update_fields=["status", "updated_at"])
+        record_audit(
+            "weight_challenger.reject",
+            ("ranking_challenger", challenger.run_id),
+            request=request,
+            message=f"Ranking challenger {challenger.run_id[:16]} rejected.",
+            metadata={"challenger_id": str(challenger.pk)},
+        )
         return Response({"detail": f"Challenger {challenger.run_id[:16]} rejected."})
 
 
@@ -674,7 +710,9 @@ class MetaAlgorithmSettingsView(views.APIView):
                     "meta_code": m.meta_code,
                     "family": m.family,
                     "title": m.title,
-                    "status": "disabled"
+                    "status": "disabled-pending-implementation"
+                    if m.status == "forward-declared"
+                    else "disabled"
                     if enabled_raw is not None and not enabled
                     else m.status,
                     "enabled": enabled,
@@ -762,6 +800,16 @@ class MetaAlgorithmToggleView(views.APIView):
                 {"detail": f"unknown meta-algorithm id: {algo_id}"},
                 status=status.HTTP_404_NOT_FOUND,
             )
+        if meta.status == "forward-declared":
+            return Response(
+                {
+                    "detail": (
+                        "This meta-algorithm is spec-only for now. "
+                        "It cannot be enabled until its implementation lands."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         raw_enabled = request.data.get("enabled")
         if raw_enabled is None:
@@ -783,8 +831,17 @@ class MetaAlgorithmToggleView(views.APIView):
         )
 
         # Best-effort realtime nudge — every Settings tab viewer refreshes.
+        record_audit(
+            "meta_algorithm.toggle",
+            ("meta_algorithm", meta.id),
+            request=request,
+            message=f"Meta-algorithm {meta.meta_code or meta.id} {'enabled' if enabled else 'disabled'}.",
+            metadata={"enabled": enabled, "enabled_key": meta.enabled_key},
+        )
+
         try:
             from apps.realtime.services import broadcast
+            from apps.ops_feed.services import emit
 
             broadcast(
                 "meta_algorithms.state",
@@ -794,6 +851,15 @@ class MetaAlgorithmToggleView(views.APIView):
                     "meta_code": meta.meta_code,
                     "enabled": enabled,
                 },
+            )
+            emit(
+                event_type="meta_algorithm.toggled",
+                plain_english=f"Meta-algorithm setting changed: {meta.meta_code or meta.id} was {'enabled' if enabled else 'disabled'}.",
+                source="settings",
+                severity="info",
+                related_entity_type="meta_algorithm",
+                related_entity_id=meta.id,
+                runtime_context={"id": meta.id, "enabled": enabled},
             )
         except Exception:  # noqa: BLE001
             pass

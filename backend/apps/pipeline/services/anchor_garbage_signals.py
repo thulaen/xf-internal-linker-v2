@@ -70,6 +70,7 @@ import re
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Iterable, Mapping
+from .pattern_matcher import AhoCorasickMatcher
 
 logger = logging.getLogger(__name__)
 
@@ -230,7 +231,13 @@ def _compiled_lexicon(lexicon_path: str | None) -> tuple[tuple[str, ...], object
             return phrases, automaton
         except Exception as exc:  # pragma: no cover — defensive
             logger.warning("anchor_garbage: C++ build failed: %s", exc)
-    return phrases, None
+    
+    # Python fallback: build a token-aware Aho-Corasick automaton
+    matcher = AhoCorasickMatcher(case_sensitive=False)
+    for phrase in phrases:
+        matcher.add_pattern(phrase, phrase)
+    matcher.build()
+    return phrases, matcher
 
 
 def generic_score(
@@ -255,14 +262,14 @@ def generic_score(
     if not phrases:
         return GenericMatchResult(False, (), 0.0)
 
-    if automaton is not None:  # pragma: no cover — needs C++ build
+    if _HAS_CPP_MATCHER and automaton is not None and not isinstance(automaton, AhoCorasickMatcher):
         try:
             matches = _cpp_matcher.find_all(automaton, needle)  # type: ignore[union-attr]
         except Exception as exc:
             logger.warning("anchor_garbage: C++ find_all failed: %s", exc)
-            matches = _python_find_all(needle, phrases)
+            matches = _python_find_all(needle, automaton)
     else:
-        matches = _python_find_all(needle, phrases)
+        matches = _python_find_all(needle, automaton)
 
     if not matches:
         return GenericMatchResult(False, (), 0.0)
@@ -281,20 +288,18 @@ def generic_score(
     )
 
 
-def _python_find_all(needle: str, phrases: tuple[str, ...]) -> list[str]:
-    """Pure-Python fallback for the Aho-Corasick matcher.
-
-    Slower than the C++ kernel (O(n × m) vs O(n + m + k)), but
-    produces identical match lists. Used in tests + cold-start
-    installs where the C++ kernel hasn't been built yet.
+def _python_find_all(needle: str, matcher: object) -> list[str]:
+    """Pure-Python fallback using Aho-Corasick.
+    
+    Replaces the O(n*m) loop with O(n) scanning.
     """
-    out: list[str] = []
-    seen: set[str] = set()
-    for phrase in phrases:
-        if phrase in needle and phrase not in seen:
-            out.append(phrase)
-            seen.add(phrase)
-    return out
+    if matcher is None or not isinstance(matcher, AhoCorasickMatcher):
+        return []
+        
+    # matcher.find_all returns PatternMatch objects.
+    # We only want the values (original phrases).
+    matches = matcher.find_all(needle)
+    return sorted(list({m.value for m in matches}))
 
 
 # ─────────────────────────────────────────────────────────────────────

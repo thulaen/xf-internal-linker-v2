@@ -44,6 +44,15 @@ def _consume_safe_mode_boot_flag(sender, **kwargs):
         logger.exception("Could not consume safe-mode-boot flag")
 
 
+def _run_startup_smoke_tests(sender, **kwargs):
+    try:
+        from apps.core.services.self_test_smoke import run_startup_smoke_tests
+
+        run_startup_smoke_tests()
+    except Exception:
+        logger.exception("Could not run startup smoke tests")
+
+
 class CoreConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.core"
@@ -52,6 +61,7 @@ class CoreConfig(AppConfig):
     def ready(self):
         # Run after migrations to avoid touching the table before it exists.
         post_migrate.connect(_consume_safe_mode_boot_flag, sender=self)
+        post_migrate.connect(_run_startup_smoke_tests, sender=self)
 
         # Phase R1.3 — realtime broadcast signals for AppSetting changes.
         # Idempotent via dispatch_uid on each receiver.

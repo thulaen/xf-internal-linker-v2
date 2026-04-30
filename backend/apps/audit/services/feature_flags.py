@@ -25,6 +25,13 @@ def is_flag_enabled(
         user_id: ID of the user (used for sticky bucketing)
         log_exposure: If True, records a FeatureFlagExposure on access
     """
+    try:
+        from apps.core.feature_flags import seed_declared_feature_flags
+
+        seed_declared_feature_flags()
+    except Exception:  # noqa: BLE001
+        logger.debug("[feature_flags] declared flag seed skipped", exc_info=True)
+
     flag = FeatureFlag.objects.filter(key=flag_key).first()
     if not flag:
         return False
@@ -93,11 +100,18 @@ def _record_exposure(flag_key: str, user_id: int, variant: str):
             user_id=user_id,
             variant=variant
         )
-    except Exception as e:
-        logger.error(f"[feature_flags] Failed to record exposure: {e}")
+    except Exception:
+        logger.error("[feature_flags] Failed to record exposure", exc_info=True)
 
 def serialise_flags_for_user(user_id: Optional[int]) -> list[dict[str, Any]]:
     """Snapshot of all active flags for the frontend."""
+    try:
+        from apps.core.feature_flags import seed_declared_feature_flags
+
+        seed_declared_feature_flags()
+    except Exception:  # noqa: BLE001
+        logger.debug("[feature_flags] declared flag seed skipped", exc_info=True)
+
     out = []
     # Only return flags that are at least partially enabled
     for flag in FeatureFlag.objects.filter(enabled=True):

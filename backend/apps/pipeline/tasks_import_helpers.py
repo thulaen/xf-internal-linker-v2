@@ -10,6 +10,8 @@ import logging
 from html import unescape
 from typing import Any, NamedTuple
 
+from apps.ops_feed.services import emit
+
 logger = logging.getLogger(__name__)
 
 
@@ -143,9 +145,16 @@ def _fetch_thread_full_body(xf_client: Any, thread_id: int) -> str:
         return "\n\n".join(filter(None, messages))
 
     except Exception as exc:
-        logger.error(
-            "Failed to fetch full body for thread %s: %s", 
-            thread_id, exc, exc_info=True
+        msg = f"Failed to fetch full body for thread {thread_id}: {exc}"
+        logger.error(msg, exc_info=True)
+        emit(
+            "import.thread_body_failed",
+            msg,
+            source="import",
+            severity="error",
+            related_entity_type="thread",
+            related_entity_id=str(thread_id),
+            runtime_context={"error": str(exc)},
         )
         return ""
 
@@ -314,6 +323,7 @@ def _persist_content_body(
     from apps.pipeline.services.sentence_splitter import (
         split_sentence_spans_with_doc,
     )
+    from apps.pipeline.services.nlp_enrichment import NLPEnricher
     from apps.sources.entity_salience import rank_entities
     from apps.sources.readability import score as readability_score
 
@@ -420,6 +430,31 @@ def _persist_content_body(
                 )
         else:
             content_item.salient_entities = []
+
+        # Group G (Harmonious-12) — NLP enrichment metadata.
+        # Captures acronyms, lemmas, noun-chunks, lexical richness,
+        # MinHash sketches, phonetic keys, and char-ngram vectors.
+        try:
+            enricher = NLPEnricher()
+            enriched, char_ngram_vector, token_data = enricher.enrich(clean_text, doc=doc)
+            content_item.nlp_metadata = {
+                "lemmas": enriched.lemmas,
+                "noun_chunks": enriched.noun_chunks,
+                "acronyms": enriched.acronyms,
+                "lexical_richness": enriched.lexical_richness,
+                "minhash_sketch": enriched.minhash_sketch,
+                "phonetic_keys": enriched.phonetic_keys,
+                "summary": enriched.summary,
+            }
+            content_item.char_ngram_vector = char_ngram_vector
+        except Exception:
+            logger.exception(
+                "NLP enrichment failed for content_item=%s; "
+                "leaving nlp_metadata empty",
+                content_item.pk,
+            )
+            content_item.nlp_metadata = {}
+            content_item.char_ngram_vector = None
         sentence_objs = [
             Sentence(
                 content_item=content_item,
@@ -436,7 +471,30 @@ def _persist_content_body(
 
         with transaction.atomic():
             Sentence.objects.filter(content_item=content_item).delete()
-            Sentence.objects.bulk_create(sentence_objs)
+            created_sentences = Sentence.objects.bulk_create(sentence_objs)
+
+            # Pick #54 Lemmatization Infrastructure — Token persistence
+            if doc is not None:
+                from apps.content.models import Token
+
+                token_objs = []
+                # Map created sentences back to their spans to reuse doc info
+                for sent_obj in created_sentences:
+                    span = doc.char_span(sent_obj.start_char, sent_obj.end_char)
+                    if span:
+                        for token in span:
+                            token_objs.append(
+                                Token(
+                                    sentence=sent_obj,
+                                    text=token.text,
+                                    lemma=token.lemma_,
+                                    pos=token.pos_,
+                                    is_stop=token.is_stop,
+                                    start_char=token.idx - sent_obj.start_char,
+                                    end_char=token.idx + len(token.text) - sent_obj.start_char,
+                                )
+                            )
+                Token.objects.bulk_create(token_objs)
 
         content_item.distilled_text = distill_body(
             [s.text for s in sentence_objs], max_sentences=5
@@ -481,6 +539,9 @@ def _persist_content_body(
                 # Group D.4 — same reason: the new quotation_density
                 # value won't persist unless it's in this list.
                 "quotation_density",
+                # Group G (Harmonious-12) — NLP enrichment metadata.
+                "nlp_metadata",
+                "char_ngram_vector",
                 "updated_at",
             ]
         )
@@ -541,10 +602,16 @@ def handle_resource_updates(
                 )
             Sentence.objects.bulk_create(sentence_objs)
     except (TimeoutError, RequestException, URLError) as exc:
-        logger.warning(
-            "Failed to fetch updates for resource %s: %s",
-            resource.get("resource_id"),
-            exc,
+        msg = f"Failed to fetch updates for resource {resource.get('resource_id')}: {exc}"
+        logger.warning(msg)
+        emit(
+            "import.resource_updates_failed",
+            msg,
+            source="import",
+            severity="warning",
+            related_entity_type="resource",
+            related_entity_id=str(resource.get("resource_id")),
+            runtime_context={"error": str(exc)},
         )
 
 

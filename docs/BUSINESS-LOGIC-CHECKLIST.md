@@ -276,10 +276,10 @@ The 52-pick plan spans every pipeline stage and ships across 10+ sub-PRs. Each p
 
 Operator directive (2026-04-22): "all things need to be turned on with good starting points from sources of truth or specs".
 
-- [ ] Every shipped pick has `<prefix>.enabled=true` seeded in `backend/apps/suggestions/recommended_weights.py`.
-- [ ] A migration upserts those keys into the existing `WeightPreset` row where `is_system=True AND name='Recommended'`.
-- [ ] Every hyperparameter default cites its source section/paragraph in the per-pick spec §6 table.
-- [ ] No pick ships with a "round-number" default that lacks a paper, RFC, patent, or project-decision citation.
+- [x] Every shipped pick has `<prefix>.enabled=true` seeded in `backend/apps/suggestions/recommended_weights.py`. (Note: Forward-declared slots are set to false until activated).
+- [x] A migration upserts those keys into the existing `WeightPreset` row where `is_system=True AND name='Recommended'`.
+- [x] Every hyperparameter default cites its source section/paragraph in the per-pick spec §6 table.
+- [x] No pick ships with a "round-number" default that lacks a paper, RFC, patent, or project-decision citation.
 
 ### 7.2 Academic source is pinned per pick
 

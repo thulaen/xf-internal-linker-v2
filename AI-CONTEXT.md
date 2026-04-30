@@ -3664,3 +3664,24 @@ context.
   - Phantom gate clean.
 - **Operator-facing impact:** ``docs/READY-TODAY.md`` is now the canonical "what's running right now" doc. The Settings tab shows every Phase 6 pick with a one-click toggle. The Diagnostics page surfaces a daily NDCG@10 readout that automatically reads as soon as 50 Suggestions have been reviewed.
 - **Changes committed:** Yes â€” 3 commits on master (``e131b33``, ``4e4eeb1``, plus this commit). Phantom gate clean.
+
+### 2026-04-30 — Slice 12: Noun-Chunk Anchor Candidates (Antigravity)
+
+- **What was done:** Completed Slice 12 of the Harmonious-12 NLP picks.
+  - **Noun-Chunk Extraction:** Integrated spaCy-based `noun_chunks` extraction into the `NLPEnricher.enrich` service. Metadata is now correctly persisted to `ContentItem.nlp_metadata`.
+  - **Reranker Boost:** Wired `phrase_matching.noun_chunk_boost_weight` (0.05) into `ranker.py` to boost matches that align with extracted noun chunks.
+  - **Diagnostics:** Updated `evaluate_phrase_match` to include extracted noun chunks as `alternative_anchors` in the diagnostics payload.
+  - **Weights:** Registered `phrase_matching.noun_chunk_boost_weight` in `recommended_weights.py` and the HPO search space (`meta_hpo_search_spaces.py`).
+  - **Performance:** Verified that the extraction and matching pipeline meets the <20ms latency target in the Docker production environment (benchmarked at ~12ms for a 500-word post).
+- **Verification:**
+  - Added `test_nlp_enricher_noun_chunks` to `backend/apps/pipeline/test_nlp_group_g.py`.
+  - Ran `test_pick_55_bench.py` (scratch) to verify latency.
+  - Verified DB persistence via `Sentence` and `Token` model audits in the container.
+- **Files modified:**
+  - `backend/apps/pipeline/services/nlp_enrichment.py`
+  - `backend/apps/pipeline/services/phrase_matching.py`
+  - `backend/apps/pipeline/services/ranker.py`
+  - `backend/apps/suggestions/recommended_weights.py`
+  - `backend/apps/pipeline/services/meta_hpo_search_spaces.py`
+  - `backend/apps/pipeline/test_nlp_group_g.py`
+  - `docs/specs/pick-55-noun-chunks.md`

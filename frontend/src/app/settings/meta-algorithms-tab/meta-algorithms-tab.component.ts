@@ -21,6 +21,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import {
@@ -30,6 +31,7 @@ import {
   MetaStatus,
 } from './meta-algorithms.service';
 import { MetaRowComponent } from './meta-row.component';
+import { SpecViewerDialogComponent } from '../spec-viewer-dialog/spec-viewer-dialog.component';
 
 /**
  * Phase MS — Meta Algorithm Settings tab.
@@ -68,6 +70,7 @@ import { MetaRowComponent } from './meta-row.component';
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
+    MatDialogModule,
     MatProgressSpinnerModule,
     MatSelectModule,
     MatSnackBarModule,
@@ -124,8 +127,9 @@ import { MetaRowComponent } from './meta-row.component';
             [value]="statusFilter()"
             (valueChange)="onStatusChange($event)"
           >
-            <mat-option value="active">Active only (noob default)</mat-option>
             <mat-option value="">All</mat-option>
+            <mat-option value="active">Active only</mat-option>
+            <mat-option value="disabled-pending-implementation">Spec only</mat-option>
             <mat-option value="forward-declared">Forward-declared</mat-option>
             <mat-option value="disabled">Disabled</mat-option>
           </mat-select>
@@ -270,13 +274,14 @@ export class MetaAlgorithmsTabComponent implements OnInit {
   private service = inject(MetaAlgorithmsService);
   private snack = inject(MatSnackBar);
   private router = inject(Router);
+  private dialog = inject(MatDialog);
   private destroyRef = inject(DestroyRef);
 
   // ── Reactive state ────────────────────────────────────────────
   protected readonly loading = signal(false);
   protected readonly rows = signal<MetaRow[]>([]);
   protected readonly families = signal<FamilySummary[]>([]);
-  protected readonly statusFilter = signal<MetaStatus | ''>('active');
+  protected readonly statusFilter = signal<MetaStatus | ''>('');
   protected readonly familyFilter = signal<string>('');
   protected readonly search = signal<string>('');
   protected searchModel = '';
@@ -339,7 +344,7 @@ export class MetaAlgorithmsTabComponent implements OnInit {
   }
 
   resetFilters(): void {
-    this.statusFilter.set('active');
+    this.statusFilter.set('');
     this.familyFilter.set('');
     this.search.set('');
     this.searchModel = '';
@@ -396,11 +401,14 @@ export class MetaAlgorithmsTabComponent implements OnInit {
         break;
       case 'spec':
         if (row.spec_path) {
-          this.snack.open(
-            `Spec at ${row.spec_path} — open in your editor.`,
-            'OK',
-            { duration: 4000 },
-          );
+          this.dialog.open(SpecViewerDialogComponent, {
+            width: '860px',
+            maxWidth: '92vw',
+            data: {
+              specSlug: this.specSlug(row.spec_path),
+              fallbackTitle: row.title,
+            },
+          });
         }
         break;
       case 'ops_feed':
@@ -432,5 +440,10 @@ export class MetaAlgorithmsTabComponent implements OnInit {
 
   trackById(_: number, row: MetaRow): string {
     return row.id;
+  }
+
+  private specSlug(specPath: string): string {
+    const leaf = specPath.split(/[\\/]/).pop() || specPath;
+    return leaf.replace(/\.md$/i, '');
   }
 }

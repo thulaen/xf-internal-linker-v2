@@ -77,8 +77,29 @@ class AuditEntry(models.Model):
             f"[{self.action}] {self.target_type}:{self.target_id} at {self.created_at}"
         )
 
-# Alias for Slice 5 "Unified Audit Log" nomenclature (Fowler 2005)
-AuditEvent = AuditEntry
+class AuditEvent(models.Model):
+    """Unified append-only event trail for operator-visible state changes."""
+
+    action = models.CharField(max_length=80, db_index=True)
+    subject_type = models.CharField(max_length=80, db_index=True)
+    subject_id = models.CharField(max_length=120, blank=True, db_index=True)
+    actor = models.CharField(max_length=150, blank=True, db_index=True)
+    message = models.TextField()
+    metadata = models.JSONField(default=dict, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = "Audit Event"
+        verbose_name_plural = "Audit Events"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["subject_type", "subject_id"], name="audit_evt_subject_idx"),
+            models.Index(fields=["action", "-created_at"], name="audit_evt_action_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.action} {self.subject_type}:{self.subject_id}"
 
 
 class FeatureFlag(models.Model):
@@ -88,7 +109,7 @@ class FeatureFlag(models.Model):
 
     key = models.SlugField(max_length=80, unique=True)
     description = models.CharField(max_length=255, blank=True)
-    enabled = models.BooleanField(default=False)
+    enabled = models.BooleanField(default=True)
     rollout_percent = models.PositiveSmallIntegerField(
         default=100,
         help_text="Percentage of eligible users who see this flag (0-100).",
@@ -225,11 +246,13 @@ class ErrorLog(models.Model):
     SEVERITY_CRITICAL = "critical"
     SEVERITY_HIGH = "high"
     SEVERITY_MEDIUM = "medium"
+    SEVERITY_WARNING = "warning"
     SEVERITY_LOW = "low"
     SEVERITY_CHOICES = [
         (SEVERITY_CRITICAL, "Critical"),
         (SEVERITY_HIGH, "High"),
         (SEVERITY_MEDIUM, "Medium"),
+        (SEVERITY_WARNING, "Warning"),
         (SEVERITY_LOW, "Low"),
     ]
 

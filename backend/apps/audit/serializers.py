@@ -4,6 +4,7 @@ from rest_framework import serializers
 
 from .models import (
     AuditEntry,
+    AuditEvent,
     ErrorLog,
     FeatureRequest,
     ReviewerScorecard,
@@ -19,6 +20,23 @@ class AuditEntrySerializer(serializers.ModelSerializer):
             "target_type",
             "target_id",
             "detail",
+            "ip_address",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+
+class AuditEventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AuditEvent
+        fields = [
+            "id",
+            "action",
+            "subject_type",
+            "subject_id",
+            "actor",
+            "message",
+            "metadata",
             "ip_address",
             "created_at",
         ]

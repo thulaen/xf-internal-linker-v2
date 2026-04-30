@@ -8,7 +8,9 @@ from .views_streaming import (
     StreamedSuggestionsSseView,
 )
 from .views_observability import (
+    FeatureFlagAdminDetailView,
     FeatureFlagExposureView,
+    FeatureFlagsAdminView,
     FeatureFlagsListView,
     RumSummaryView,
 )
@@ -240,6 +242,16 @@ urlpatterns = [
         "feature-flags/",
         FeatureFlagsListView.as_view(),
         name="feature-flags-list",
+    ),
+    path(
+        "feature-flags/admin/",
+        FeatureFlagsAdminView.as_view(),
+        name="feature-flags-admin",
+    ),
+    path(
+        "feature-flags/admin/<slug:key>/",
+        FeatureFlagAdminDetailView.as_view(),
+        name="feature-flags-admin-detail",
     ),
     path(
         "feature-flags/exposures/",

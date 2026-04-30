@@ -84,6 +84,7 @@ add_bench(simsearch       "${EXT_ROOT}/simsearch.cpp")
 add_bench(scoring         "${EXT_ROOT}/scoring.cpp")
 add_bench(passagesim     "${EXT_ROOT}/passagesim.cpp")
 add_bench(quantemb       "${EXT_ROOT}/quantemb.cpp")
+add_bench(streaming_sketches)
 
 # Category B: pure STL signatures
 # add_bench(phrasematch "${EXT_ROOT}/phrasematch.cpp")

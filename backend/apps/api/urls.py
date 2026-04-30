@@ -88,7 +88,6 @@ from apps.suggestions.views import (
     PipelineRunViewSet,
     RankingChallengerViewSet,
     SuggestionImpressionLogView,
-    SuggestionReadinessView,
     SuggestionViewSet,
     WeightAdjustmentHistoryViewSet,
     WeightPresetViewSet,
@@ -216,6 +215,7 @@ urlpatterns = [
     path("analytics/", include("apps.analytics.urls")),
     path("", include("apps.audit.urls")),
     path("", include("apps.plugins.urls")),
+    path("suggestions/", include("apps.suggestions.urls")),
     # Keep these ahead of the health viewset routes so "disk" and "gpu"
     # are not mistaken for service-key detail lookups.
     path("health/disk/", HealthDiskView.as_view(), name="health-disk"),
@@ -224,11 +224,6 @@ urlpatterns = [
     # URL prefixes with DRF router ViewSets below. Must come BEFORE the
     # router include or DRF treats "readiness" and "<id>/toggle" as pk
     # lookups on SuggestionViewSet / non-existent meta ViewSet and 404s.
-    path(
-        "suggestions/readiness/",
-        SuggestionReadinessView.as_view(),
-        name="suggestion-readiness",
-    ),
     # Pick #33 + #34 — bulk impression logger. The frontend POSTs
     # ``[{suggestion_id, position, clicked, dwell_ms?}, ...]`` whenever
     # suggestions enter / leave the operator's viewport. Producers

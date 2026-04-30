@@ -142,7 +142,12 @@ _ACTIVE_METAS: tuple[dict, ...] = (
 
 # File → family range. Pending Phase-2 meta weight files were removed per
 # PR-A slice 5 — the 52-pick roster gets fresh specs/weights in later PRs.
-_FILE_TO_FAMILY_RANGE: dict[str, tuple[str, ...]] = {}
+_FILE_TO_FAMILY_RANGE: dict[str, tuple[str, ...]] = {
+    "recommended_weights_forward_249.py": (
+        "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "P11", "P12",
+        "Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7", "Q8", "Q9"
+    ),
+}
 
 _META_COMMENT_RE = re.compile(
     r"""^\s*\#\s*META-(?P<num>\d+)\s*[—\-]\s*(?P<title>[^\[\(]+)""",
@@ -258,10 +263,7 @@ def _spec_path_for(meta_code: str) -> str | None:
     """Canonical spec filename — returns string, existence not verified."""
     if not meta_code or not meta_code.startswith("META-"):
         return None
-    # `docs/specs/meta-40-lbfgs-b.md` style; we only know the number here,
-    # so return the fuzzy prefix the frontend can glob-link to.
-    num = meta_code.split("-", 1)[1].lstrip("0") or "0"
-    return f"docs/specs/meta-{num.zfill(2)}-*.md"
+    return "docs/specs/aa13-meta-registry-expansion.md"
 
 
 def _params_for(prefix: str) -> tuple[str, ...]:

@@ -9,6 +9,7 @@ from django.utils import timezone
 
 import httpx
 
+from apps.ops_feed.services import emit
 from apps.crawler.models import CrawledPageMeta, CrawlSession, SitemapConfig
 from apps.pipeline.services.async_http import crawl_sitemap, fetch_urls
 from apps.pipeline.services.circuit_breaker import CircuitBreaker
@@ -70,12 +71,32 @@ def run_crawl_session_sync(session_id) -> None:
             session.save(update_fields=["status", "error_message", "updated_at"])
         except CrawlSession.DoesNotExist:
             logger.debug("CrawlSession %s not found during error update", session_id)
+        
+        emit(
+            "crawler.session_failed",
+            f"Crawl session {session_id} failed: {exc}",
+            source="crawler",
+            severity="error",
+            related_entity_type="crawl_session",
+            related_entity_id=str(session_id),
+            runtime_context={"error": str(exc)},
+        )
 
 
 async def _execute_crawl_session(session_id) -> None:
     session = await CrawlSession.objects.select_related().aget(pk=session_id)
     if session.status not in ("pending", "paused"):
-        logger.warning(f"Session {session_id} is in status {session.status}, skipping.")
+        msg = f"Session {session_id} is in status {session.status}, skipping."
+        logger.warning(msg)
+        emit(
+            "crawler.session_skipped",
+            msg,
+            source="crawler",
+            severity="warning",
+            related_entity_type="crawl_session",
+            related_entity_id=str(session_id),
+            runtime_context={"status": session.status},
+        )
         return
 
     session.status = "running"
@@ -83,6 +104,16 @@ async def _execute_crawl_session(session_id) -> None:
         session.started_at = timezone.now()
     session.message = "Initializing frontier..."
     await session.asave(update_fields=["status", "started_at", "message"])
+    
+    emit(
+        "crawler.session_started",
+        f"Crawl session started for {session.site_domain}",
+        source="crawler",
+        severity="info",
+        related_entity_type="crawl_session",
+        related_entity_id=str(session_id),
+        runtime_context={"domain": session.site_domain},
+    )
 
     domain = session.site_domain
     base_url = f"https://{domain}"
@@ -136,11 +167,16 @@ async def _execute_crawl_session(session_id) -> None:
                 # Robots fetch hiccup — fail open, queue the URL.
                 allowed.append(u)
         if blocked:
-            logger.info(
-                "robots.txt: filtered %d / %d URLs in session %s",
-                blocked,
-                len(to_crawl),
-                session_id,
+            msg = f"robots.txt: filtered {blocked} / {len(to_crawl)} URLs in session {session_id}"
+            logger.info(msg)
+            emit(
+                "crawler.robots_filtered",
+                msg,
+                source="crawler",
+                severity="info",
+                related_entity_type="crawl_session",
+                related_entity_id=str(session_id),
+                runtime_context={"blocked": blocked, "total": len(to_crawl)},
             )
         to_crawl = allowed
 
@@ -156,12 +192,19 @@ async def _execute_crawl_session(session_id) -> None:
             logger.debug("freshness_skip_set failed; not filtering", exc_info=True)
             skipped = set()
         if skipped:
-            logger.info(
-                "freshness gate: skipping %d / %d URLs in session %s "
-                "(crawled too recently)",
-                len(skipped),
-                len(to_crawl),
-                session_id,
+            msg = (
+                f"freshness gate: skipping {len(skipped)} / {len(to_crawl)} URLs "
+                f"in session {session_id} (crawled too recently)"
+            )
+            logger.info(msg)
+            emit(
+                "crawler.freshness_skipped",
+                msg,
+                source="crawler",
+                severity="info",
+                related_entity_type="crawl_session",
+                related_entity_id=str(session_id),
+                runtime_context={"skipped": len(skipped), "total": len(to_crawl)},
             )
             to_crawl = [u for u in to_crawl if u not in skipped]
 
@@ -333,6 +376,20 @@ async def _execute_crawl_session(session_id) -> None:
     session.message = "Crawl completed successfully."
     session.progress = 1.0
     await session.asave(update_fields=["status", "completed_at", "message", "progress"])
+    
+    emit(
+        "crawler.session_completed",
+        f"Crawl session {session_id} completed successfully. Pages: {session.pages_crawled}",
+        source="crawler",
+        severity="success",
+        related_entity_type="crawl_session",
+        related_entity_id=str(session_id),
+        runtime_context={
+            "pages": session.pages_crawled,
+            "bytes": session.bytes_downloaded,
+            "broken": session.broken_links_found,
+        },
+    )
 
     # Pick #05 — flush the in-memory cardinality counter to its
     # snapshot file so dashboard reads survive a process restart.

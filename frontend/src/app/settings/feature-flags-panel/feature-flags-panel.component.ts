@@ -65,7 +65,7 @@ interface FlagRow {
         @if (unavailable()) {
           <p class="ffp-hint">
             The admin API isn't configured on this server yet. Use
-            <a href="/admin/core/featureflag/" target="_blank" rel="noopener">
+            <a href="/admin/audit/featureflag/" target="_blank" rel="noopener">
               Django admin
             </a>
             to manage flags.

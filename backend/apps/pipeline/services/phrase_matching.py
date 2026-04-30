@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 import re
 
 try:
@@ -13,6 +14,7 @@ except ImportError:
     HAS_CPP_EXT = False
 
 from .text_tokens import STANDARD_ENGLISH_STOPWORDS, TOKEN_RE
+from .pattern_matcher import AhoCorasickMatcher
 
 
 MAX_PHRASE_TOKENS = 5
@@ -31,6 +33,12 @@ class PhraseMatchingSettings:
     ranking_weight: float = 0.0
     enable_anchor_expansion: bool = True
     enable_partial_matching: bool = True
+    enable_lemma_matching: bool = True
+    noun_chunk_boost_weight: float = 0.05
+    fuzzy_match_weight: float = 0.08
+    jsd_boost_weight: float = 0.10
+    lexical_richness_weight: float = 0.05
+    phonetic_boost_weight: float = 0.04
     context_window_tokens: int = 8
 
 
@@ -68,6 +76,7 @@ class _PhraseOccurrence:
 @dataclass(frozen=True, slots=True)
 class _DestinationPhrase:
     tokens: tuple[str, ...]
+    lemmas: tuple[str, ...]
     surface: str
     source_field: str
     source_rank: int
@@ -107,6 +116,7 @@ class _MatchCandidate:
     is_exact: bool
     source_rank: int
     sentence_position: int
+    alternative_anchors: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def score_phrase_component(self) -> float:
@@ -127,6 +137,7 @@ class _MatchCandidate:
             "context_window_tokens": context_window_tokens,
             "context_corroborating_hits": self.context_corroborating_hits,
             "destination_phrase_count": destination_phrase_count,
+            "alternative_anchors": self.alternative_anchors,
         }
 
 
@@ -141,8 +152,14 @@ def evaluate_phrase_match(
     destination_title: str,
     destination_distilled_text: str,
     settings: PhraseMatchingSettings | None = None,
+    host_nlp_metadata: dict[str, Any] | None = None,
+    destination_nlp_metadata: dict[str, Any] | None = None,
 ) -> PhraseMatchResult:
-    """Return the FR-008 phrase score, diagnostics, and chosen anchor."""
+    """Entry point for the ranker (Stage 2).
+    
+    Checks if a host sentence contains any phrases that strongly match
+    the destination content (title or body extracts).
+    """
     config = settings or PhraseMatchingSettings()
     try:
         return _evaluate_phrase_match(
@@ -150,6 +167,8 @@ def evaluate_phrase_match(
             destination_title=destination_title,
             destination_distilled_text=destination_distilled_text,
             settings=config,
+            host_nlp_metadata=host_nlp_metadata,
+            destination_nlp_metadata=destination_nlp_metadata,
         )
     except Exception:
         fallback = _run_current_fallback(host_sentence_text, destination_title)
@@ -180,10 +199,13 @@ def _evaluate_phrase_match(
     destination_title: str,
     destination_distilled_text: str,
     settings: PhraseMatchingSettings,
+    host_nlp_metadata: dict[str, Any] | None = None,
+    destination_nlp_metadata: dict[str, Any] | None = None,
 ) -> PhraseMatchResult:
     destination_phrases = _build_destination_phrase_inventory(
         destination_title=destination_title,
         destination_distilled_text=destination_distilled_text,
+        nlp_metadata=destination_nlp_metadata,
     )
     destination_phrase_count = len(destination_phrases)
     if destination_phrase_count == 0:
@@ -223,9 +245,40 @@ def _evaluate_phrase_match(
     best_partial: _MatchCandidate | None = None
     partial_below_threshold = False
 
+    # Pick #56 — High-performance multi-pattern matching via Aho-Corasick.
+    # We build an automaton for all destination phrases joined by a separator.
+    # This replaces the O(HostSpans * DestinationPhrases) nested loop.
+    matcher = AhoCorasickMatcher(case_sensitive=False)
+    lemma_matcher = AhoCorasickMatcher(case_sensitive=False) if settings.enable_lemma_matching else None
+    
+    _TOKEN_SEP = "\u0000"
+    
+    for phrase in destination_phrases:
+        pattern = _TOKEN_SEP.join(phrase.tokens)
+        matcher.add_pattern(pattern, phrase)
+        
+        if lemma_matcher and phrase.lemmas:
+            lemma_pattern = _TOKEN_SEP.join(phrase.lemmas)
+            lemma_matcher.add_pattern(lemma_pattern, phrase)
+
+    matcher.build()
+    if lemma_matcher:
+        lemma_matcher.build()
+
+    # Pick #55 — Noun-chunk alternatives.
+    # Collect all noun chunks from the host sentence to surface as alternative anchor options.
+    alternative_anchors = []
+    if host_nlp_metadata:
+        alternative_anchors = host_nlp_metadata.get("noun_chunks", [])
+
+    # Scan host spans using the matcher
     for span in host_spans:
-        for phrase in destination_phrases:
-            if span.tokens == phrase.tokens:
+        span_pattern = _TOKEN_SEP.join(span.tokens)
+        
+        matches = matcher.find_all(span_pattern)
+        for match in matches:
+            if match.pattern == span_pattern:
+                phrase = match.value
                 candidate = _build_match_candidate(
                     span=span,
                     phrase=phrase,
@@ -238,42 +291,71 @@ def _evaluate_phrase_match(
                         destination_token_set=destination_token_set,
                         context_window_tokens=settings.context_window_tokens,
                     ),
+                    alternative_anchors=alternative_anchors,
                 )
-                if best_exact is None or _match_sort_key(candidate) < _match_sort_key(
-                    best_exact
-                ):
+                if best_exact is None or _match_sort_key(candidate) < _match_sort_key(best_exact):
                     best_exact = candidate
-                continue
 
-            if not settings.enable_partial_matching:
-                continue
+        # Pick #55 — Lemma match via Aho-Corasick.
+        # If no surface match, check if lemmas match. This handles pluralization,
+        # verb tenses, and minor linguistic variations.
+        if not best_exact and lemma_matcher and host_nlp_metadata:
+            host_lemmas = host_nlp_metadata.get("lemmas", [])
+            # We need to find the lemmas corresponding to the current span.
+            # host_nlp_metadata.lemmas is a flat list for the whole sentence.
+            # We need to slice it to match host_tokens.
+            span_lemmas = host_lemmas[span.start_index : span.end_index]
+            if len(span_lemmas) == len(span.tokens):
+                lemma_pattern = _TOKEN_SEP.join(span_lemmas)
+                lemma_matches = lemma_matcher.find_all(lemma_pattern)
+                for match in lemma_matches:
+                    if match.pattern == lemma_pattern:
+                        phrase = match.value
+                        candidate = _build_match_candidate(
+                            span=span,
+                            phrase=phrase,
+                            match_type="lemma",
+                            context_hits=_count_context_hits(
+                                span=span,
+                                host_tokens=host_tokens,
+                                host_spans=host_spans,
+                                destination_phrases=destination_phrases,
+                                destination_token_set=destination_token_set,
+                                context_window_tokens=settings.context_window_tokens,
+                            ),
+                            alternative_anchors=alternative_anchors,
+                        )
+                        if best_exact is None or _match_sort_key(candidate) < _match_sort_key(best_exact):
+                            best_exact = candidate
 
-            overlap_len = _longest_contiguous_overlap(span.tokens, phrase.tokens)
-            if overlap_len < PARTIAL_MIN_TOKEN_OVERLAP:
-                continue
-            overlap_ratio = overlap_len / min(len(span.tokens), len(phrase.tokens))
-            context_hits = _count_context_hits(
-                span=span,
-                host_tokens=host_tokens,
-                host_spans=host_spans,
-                destination_phrases=destination_phrases,
-                destination_token_set=destination_token_set,
-                context_window_tokens=settings.context_window_tokens,
-            )
-            if overlap_ratio < PARTIAL_MIN_OVERLAP_RATIO or context_hits < 1:
-                partial_below_threshold = True
-                continue
+        if not best_exact and settings.enable_partial_matching:
+            # Partial matching still uses the slow loop for now as it's harder to Aho-Corasick.
+            for phrase in destination_phrases:
+                overlap_len = _longest_contiguous_overlap(span.tokens, phrase.tokens)
+                if overlap_len < PARTIAL_MIN_TOKEN_OVERLAP:
+                    continue
+                overlap_ratio = overlap_len / min(len(span.tokens), len(phrase.tokens))
+                context_hits = _count_context_hits(
+                    span=span,
+                    host_tokens=host_tokens,
+                    host_spans=host_spans,
+                    destination_phrases=destination_phrases,
+                    destination_token_set=destination_token_set,
+                    context_window_tokens=settings.context_window_tokens,
+                )
+                if overlap_ratio < PARTIAL_MIN_OVERLAP_RATIO or context_hits < 1:
+                    partial_below_threshold = True
+                    continue
 
-            candidate = _build_match_candidate(
-                span=span,
-                phrase=phrase,
-                match_type="partial",
-                context_hits=context_hits,
-            )
-            if best_partial is None or _match_sort_key(candidate) < _match_sort_key(
-                best_partial
-            ):
-                best_partial = candidate
+                candidate = _build_match_candidate(
+                    span=span,
+                    phrase=phrase,
+                    match_type="partial",
+                    context_hits=context_hits,
+                    alternative_anchors=alternative_anchors,
+                )
+                if best_partial is None or _match_sort_key(candidate) < _match_sort_key(best_partial):
+                    best_partial = candidate
 
     winner = best_exact or best_partial
     if winner is not None:
@@ -295,13 +377,17 @@ def _evaluate_phrase_match(
         if partial_below_threshold
         else "neutral_no_host_match"
     )
-    return _neutral_with_fallback(
+    res = _neutral_with_fallback(
         host_sentence_text=host_sentence_text,
         destination_title=destination_title,
         phrase_match_state=neutral_state,
         destination_phrase_count=destination_phrase_count,
         context_window_tokens=settings.context_window_tokens,
     )
+    # Even if neutral, we might have noun chunks to show.
+    if alternative_anchors:
+        res.phrase_match_diagnostics["alternative_anchors"] = alternative_anchors
+    return res
 
 
 def _neutral_with_fallback(
@@ -352,6 +438,7 @@ def _neutral_result(
         "context_window_tokens": context_window_tokens,
         "context_corroborating_hits": 0,
         "destination_phrase_count": destination_phrase_count,
+        "alternative_anchors": [],
     }
     return PhraseMatchResult(
         score_phrase_relevance=0.5,
@@ -368,7 +455,9 @@ def _build_destination_phrase_inventory(
     *,
     destination_title: str,
     destination_distilled_text: str,
+    nlp_metadata: dict[str, Any] | None = None,
 ) -> list[_DestinationPhrase]:
+    """Return all n-gram phrases extracted from title and distilled body."""
     occurrences: list[_PhraseOccurrence] = []
     source_order = 0
     segment_index = 0
@@ -414,7 +503,13 @@ def _build_destination_phrase_inventory(
             [],
         ).append(occurrence)
 
-    unique: dict[tuple[str, ...], _DestinationPhrase] = {}
+    # Heuristic for title lemmas if metadata exists
+    title_lemmas = []
+    if nlp_metadata and "lemmas" in nlp_metadata:
+        title_tokens_count = len(_tokenize_with_offsets(title))
+        title_lemmas = nlp_metadata["lemmas"][:title_tokens_count]
+
+    inventory: list[_DestinationPhrase] = []
     for occurrence in occurrences:
         same_start_group = grouped_by_start[
             (occurrence.source_field, occurrence.segment_index, occurrence.start_index)
@@ -431,19 +526,23 @@ def _build_destination_phrase_inventory(
         if should_skip_prefix and has_longer_same_start and not appears_elsewhere:
             continue
 
-        candidate = _DestinationPhrase(
-            tokens=occurrence.tokens,
-            surface=occurrence.surface,
-            source_field=occurrence.source_field,
-            source_rank=occurrence.source_rank,
-            source_order=occurrence.source_order,
-        )
-        existing = unique.get(candidate.tokens)
-        if existing is None or _phrase_sort_key(candidate) < _phrase_sort_key(existing):
-            unique[candidate.tokens] = candidate
+        # Map lemmas for title phrases
+        lemmas = ()
+        if occurrence.source_field == "title" and title_lemmas:
+            # Simple slice for title
+            lemmas = tuple(title_lemmas[:len(occurrence.tokens)])
 
-    phrases = sorted(unique.values(), key=_phrase_sort_key)
-    return phrases[:MAX_DESTINATION_PHRASES]
+        inventory.append(
+            _DestinationPhrase(
+                tokens=occurrence.tokens,
+                lemmas=lemmas,
+                surface=occurrence.surface,
+                source_field=occurrence.source_field,
+                source_rank=occurrence.source_rank,
+                source_order=occurrence.source_order,
+            )
+        )
+    return inventory
 
 
 def _collect_phrase_occurrences(
@@ -607,6 +706,7 @@ def _build_match_candidate(
     phrase: _DestinationPhrase,
     match_type: str,
     context_hits: int,
+    alternative_anchors: list[dict[str, Any]] | None = None,
 ) -> _MatchCandidate:
     is_exact = match_type == "exact"
     selected_phrase_source = phrase.source_field
@@ -639,6 +739,7 @@ def _build_match_candidate(
         is_exact=is_exact,
         source_rank=phrase.source_rank,
         sentence_position=span.start_index,
+        alternative_anchors=alternative_anchors or [],
     )
 
 

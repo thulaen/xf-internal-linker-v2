@@ -17,6 +17,7 @@ from rest_framework.views import APIView
 
 from .models import (
     AuditEntry,
+    AuditEvent,
     ClientErrorLog,
     FeatureRequest,
     FeatureRequestVote,
@@ -25,6 +26,7 @@ from .models import (
 )
 from .serializers import (
     AuditEntrySerializer,
+    AuditEventSerializer,
     ClientErrorLogSerializer,
     FeatureRequestSerializer,
     ReviewerScorecardSerializer,
@@ -39,16 +41,26 @@ class AuditEntryViewSet(viewsets.ReadOnlyModelViewSet):
     GET /api/audit-entries/summary/  — action counts grouped by day
     """
 
-    queryset = AuditEntry.objects.all()
-    serializer_class = AuditEntrySerializer
+    queryset = AuditEvent.objects.all()
+    serializer_class = AuditEventSerializer
     permission_classes = [IsAuthenticated]
-    filterset_fields = ["action", "target_type"]
+    filterset_fields = ["action", "subject_type"]
+
+    def get_queryset(self):
+        qs = AuditEvent.objects.all()
+        target_type = self.request.query_params.get("target_type")
+        target_id = self.request.query_params.get("target_id")
+        if target_type:
+            qs = qs.filter(subject_type=target_type)
+        if target_id:
+            qs = qs.filter(subject_id=target_id)
+        return qs
 
     @action(detail=False, methods=["get"])
     def summary(self, request):
         """Action counts grouped by day (last 30 days by default)."""
         rows = (
-            AuditEntry.objects.annotate(date=TruncDate("created_at"))
+            AuditEvent.objects.annotate(date=TruncDate("created_at"))
             .values("date", "action")
             .annotate(count=Count("id"))
             .order_by("-date")[:210]  # 30 days * 7 action types max

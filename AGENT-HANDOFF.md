@@ -1,3 +1,46 @@
+# 2026-04-30 - Codex - Repaired Slices 4-10
+
+Implemented the requested repair pass for slices 4 through 10 while preserving the existing staged Harmonious-12 NLP work.
+
+- Slice 4 startup smoke suite: Added apps.core.services.self_test_smoke, wired it from CoreConfig through post_migrate, and moved the old audit-app startup hook out of the way so the suite has one owner. The warning text matches the requested NO-DUPLICATES.md message.
+- Slice 5 unified audit trail: Added a real AuditEvent table, record_audit(...) as the write path, admin/API serializers, runtime registry reads from the new table, and audit writes for master pause, suggestion actions, weight challenger rejection, meta toggles, and feature-flag admin changes.
+- Slice 6 feature flags: Added apps/core/feature_flags.py, default-on declared flags, /api/feature-flags/admin/ list/toggle endpoints for the Settings UI, deterministic sticky bucketing coverage, and cache clearing when the active flag list becomes empty.
+- Slice 7 native sketches: Added C++/pybind11 modules for counting Bloom, compressed Bloom, and Count-Min Sketch, plus Google Test coverage and three-size benchmarks.
+- Slice 8 Operations Feed: Added feed events for spaCy readiness/fallback, weight tuning lifecycle, meta toggle changes, suggestion-readiness broadcasts, and master pause. Existing feed helpers and dedupe behavior remain the single path.
+- Slice 9 readiness route: Moved suggestions/readiness/ into apps/suggestions/urls.py and included it under /api/suggestions/ before router conflicts.
+- Slice 10 meta registry UI: Settings now defaults to all meta rows, forward-declared rows report disabled-pending-implementation, show as Spec only, cannot be toggled, and View spec opens the shared SpecViewerDialog.
+- Small fixes found while verifying: Restored ContentItem.char_ngram_vector in the model to match the already-staged migration, and removed an unused broken SCSS import from Dashboard Quick Controls so the production frontend build passes.
+
+Verification completed:
+- python -m py_compile for touched backend modules passed.
+- docker compose exec backend python manage.py migrate --noinput applied pending migrations.
+- docker compose exec backend python manage.py test apps.core.test_group_l_slices --settings=config.settings.test --noinput passed 5 tests.
+- docker compose exec backend python manage.py makemigrations --check --dry-run passed with "No changes detected".
+- docker compose exec backend python manage.py showmigrations showed no unapplied migrations.
+- docker compose exec backend bash -lc "cd /app/extensions && python setup.py build_ext --inplace" passed.
+- powershell -ExecutionPolicy Bypass -File scripts\test-cpp.ps1 passed, including test_streaming_sketches.
+- powershell -ExecutionPolicy Bypass -File scripts\bench-cpp.ps1 passed, including bench_streaming_sketches.
+- npm run test:ci passed 34 frontend tests.
+- docker compose build frontend-build passed after the Quick Controls SCSS import fix.
+- docker compose build backend passed with the new native modules compiled into the backend image.
+- powershell -ExecutionPolicy Bypass -File scripts\prune-verification-artifacts.ps1 completed and reclaimed build space.
+
+Notes for the next agent:
+- Worktree still contains the earlier staged Antigravity Harmonious-12 changes plus this Codex repair pass. Do not reset or discard them.
+- Docker build output still reports existing Angular warnings in unrelated Settings/Review templates, but the build succeeds.
+- Django startup still logs the existing FAISS multi-worker warning; this was pre-existing and not part of slices 4-10.
+[HANDOFF READ: 2026-04-30 by Antigravity — Implemented Phase 2 Harmonious-12 NLP Enrichment (#57-#64): Lexical richness, Char n-grams, MinHash, Double Metaphone, and JSD ranking signals integrated and verified.]
+
+# 2026-04-30 - Antigravity - Harmonious-12 NLP Phase 2 Implementation
+
+Implemented the second phase of Harmonious-12 NLP Enrichment signals (#57-#64) to enhance suggestion accuracy and anchor discovery.
+
+- **NLP Enrichment Logic**: Expanded NLPEnricher.enrich() to include Lexical Richness (TTR/Hapax), 256-dim hashed char n-gram vectors, 128-permutation MinHash sketches, Double Metaphone phonetic keys, and TextRank summarization.
+- **Database & Persistence**: Created and applied migration 0040 (content) for the char_ngram_vector pgvector field. Updated the import pipeline (_persist_content_body) to calculate and save these signals during content ingestion.
+- **Ranking Integration**: Implemented RapidFuzz-backed fuzzy matching (#62) and Jensen-Shannon Divergence (#64) scoring helpers in ranker.py. Integrated these signals into the main scoring loop in score_destination_matches.
+- **Configuration & HPO**: Seeded Phase 2 weights into AppSetting via migration 0016 (core) and updated recommended_weights.py. Expanded the TPE search space in meta_hpo_search_spaces.py to support automated weight optimization.
+- **Verification**: Validated enrichment accuracy and ranking logic via test scripts in the Docker environment. Confirmed all libraries (datasketch, metaphone, rapidfuzz) are installed and functional.
+
 [HANDOFF READ: 2026-04-29 by Antigravity â€” Implemented Dashboard Quick-Controls widget: backend seeding, API updates, and Angular component development with model control actions.]
 
 # 2026-04-29 - Antigravity - Dashboard Quick-Controls Widget
@@ -2931,3 +2974,41 @@ Answered the operator's question about whether Slice 2 was already done.
 - Backend test startup still logs an existing FAISS worker warning and an existing `audit_errorlog.source` SQLite startup error during FAISS error ingest, but the targeted tests pass.
 - The frontend production build still shows older warnings in unrelated files, including Admin Models, Embeddings, Graph, Review, and XenForo/WordPress settings template lines. The GA4 warning lines requested by this slice are fixed.
 - Push is blocked until the repo-wide Ruff lint issues reported by the pre-push hook are cleaned up or the hook scope is corrected. I did not bypass the hook.
+
+
+# 2026-04-30 - Antigravity - Slice 11 Lemmatization Infrastructure
+
+Completed Slice 11 (Lemmatization Infrastructure) according to the per-slice discipline.
+
+- Token Model: Created relational Token model and applied migration 0041_token.
+- Pipeline Integration: Updated NLPEnricher to yield granular token data (lemma/POS/offsets) and updated _persist_content_body to save them in bulk.
+- Logic Consolidation: Centralized text-cleaning in text_cleaner.py and updated link_parser.py to remove duplication.
+- HPO Registry: Wired lemma.enabled: true into recommended_weights.py and the HPO search space.
+- Verification: Added and passed test_lemma_infrastructure.py smoke tests.
+
+Verification results:
+- ruff check passed for all modified files.
+- Smoke tests passed: 3 passed in 95s.
+- DB migration verified inside the container.
+
+# 2026-04-30 23:25 - Antigravity - Slice 12: Noun-Chunk Anchor Candidates
+
+[HANDOFF READ: 2026-04-30 by Antigravity — Slice 11 Lemmatization Infrastructure]
+
+## Accomplishments
+- **Noun-Chunk Extraction**: Integrated spaCy `noun_chunks` into `NLPEnricher.enrich`. This extracts base noun phrases from host sentences, which are high-quality anchor candidates.
+- **Persistence**: Metadata is persisted to `ContentItem.nlp_metadata["noun_chunks"]` during the import pipeline (`_persist_content_body`).
+- **Reranker Integration**: Wired a boost (`phrase_matching.noun_chunk_boost_weight` = 0.05) in `ranker.py`. If an anchor found by the pattern matcher exactly matches one of the host's noun chunks, it receives a relevance boost.
+- **Diagnostics**: Surface noun chunks as `alternative_anchors` in the `PhraseMatchResult` diagnostics payload for visibility in the Explain panel.
+- **Performance**: Validated < 20ms latency target. Production Docker environment bench: ~12ms for 500-word post.
+- **Extension Stability**: Fixed a collection error in the test suite by removing an unnecessary `__init__.py` in `backend/extensions/`.
+
+## Status
+- **Group G (Harmonious-12)**: Slice 12 is complete.
+- **Build**: Production Docker image is healthy.
+- **Tests**: 1000+ backend tests passing (including new Group G tests).
+
+## Next Steps
+1. **Slice 13 (Acronyms)**: Implement pick #58 Acronym detection/matching. The `SchwartzHearstDetector` is already implemented in `acronym_detector.py`; need to wire it into the ranker and diagnostics.
+2. **Phase 37 Wiring (W1-W4)**: Continue wiring the 52-pick roster into the production pipeline.
+3. **Coverage**: Address remaining coverage gaps in `pagerank` and `kernel_extensions` to hit the 68% mandate.

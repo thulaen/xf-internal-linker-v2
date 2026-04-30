@@ -173,6 +173,11 @@ export interface PhraseMatchDiagnostics {
   context_window_tokens: number;
   context_corroborating_hits: number;
   destination_phrase_count: number;
+  alternative_anchors?: Array<{
+    text: string;
+    start_char: number;
+    end_char: number;
+  }>;
 }
 
 export interface LinkFreshnessDiagnostics {

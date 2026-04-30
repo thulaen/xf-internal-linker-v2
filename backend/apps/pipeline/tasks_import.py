@@ -10,6 +10,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
+from apps.ops_feed.services import emit
 from apps.pipeline.tasks_import_helpers import (
     _maybe_flush_and_checkpoint,
     _parse_wp_item,
@@ -194,12 +195,20 @@ def _import_xenforo_threads(
             break
         page += 1
     if not exhausted:
-        logger.warning(
-            "Import reached page cap (%s) for scope %s. "
+        msg = (
+            f"Import reached page cap ({max_pages}) for scope {scope.title}. "
             "Some content may not have been imported. "
-            "Increase import.max_pages in Settings to import more.",
-            max_pages,
-            scope.title,
+            "Increase import.max_pages in Settings to import more."
+        )
+        logger.warning(msg)
+        emit(
+            "import.page_cap_reached",
+            msg,
+            source="import",
+            severity="warning",
+            related_entity_type="scope",
+            related_entity_id=str(scope.scope_id),
+            runtime_context={"max_pages": max_pages, "scope_title": scope.title},
         )
 
 
@@ -278,8 +287,13 @@ def import_wordpress_content(
         last_job = SyncJob.objects.filter(source="wp", status="completed").first()
         if last_job and last_job.completed_at:
             last_sync_date = last_job.completed_at.isoformat()
-            logger.info(
-                "Using incremental sync for WordPress: after=%s", last_sync_date
+            msg = f"Using incremental sync for WordPress: after={last_sync_date}"
+            logger.info(msg)
+            emit(
+                "import.incremental_sync_started",
+                msg,
+                source="wp_import",
+                runtime_context={"after": last_sync_date},
             )
 
     for index, (content_type, label, iterator) in enumerate(

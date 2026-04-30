@@ -6,6 +6,7 @@ from collections import Counter
 from dataclasses import dataclass
 
 from .text_tokens import STANDARD_ENGLISH_STOPWORDS, TOKEN_RE
+from .pattern_matcher import AhoCorasickMatcher
 
 
 MAX_ANCHOR_FAMILIES = 8
@@ -436,9 +437,33 @@ def _find_host_canonical_variant(
     host_sentence_text: str,
     families: tuple[_AnchorFamily, ...],
 ) -> _AnchorFamily | None:
+    if not families:
+        return None
+        
+    sentence_tokens = _normalize_anchor_tokens(host_sentence_text)
+    if not sentence_tokens:
+        return None
+        
+    # Pick #56 — Multi-pattern matching via Aho-Corasick.
+    # Replaces the nested loop (O(Families * SentenceLength)) with O(SentenceLength).
+    matcher = AhoCorasickMatcher(case_sensitive=False)
+    _SEP = "\u0000"
+    
     for family in families:
-        if _sentence_contains_tokens(host_sentence_text, family.canonical_tokens):
-            return family
+        pattern = _SEP.join(family.canonical_tokens)
+        matcher.add_pattern(pattern, family)
+        
+    matcher.build()
+    
+    # We scan all possible windows in the sentence tokens
+    for window_size in {len(f.canonical_tokens) for f in families}:
+        for i in range(len(sentence_tokens) - window_size + 1):
+            window_pattern = _SEP.join(sentence_tokens[i : i + window_size])
+            matches = matcher.find_all(window_pattern)
+            for match in matches:
+                if match.pattern == window_pattern:
+                    return match.value
+                    
     return None
 
 
