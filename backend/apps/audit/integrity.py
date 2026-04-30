@@ -4,7 +4,7 @@ Ensures no-dups, no-circular-refs, and retention consistency.
 """
 
 import logging
-from django.db.models import Count, F, Q
+from django.db.models import Count, F
 from django.utils import timezone
 from apps.audit.error_ingest import ingest_error
 from apps.crawler.models import CrawledPageMeta

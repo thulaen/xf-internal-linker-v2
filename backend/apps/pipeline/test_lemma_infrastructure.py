@@ -1,8 +1,7 @@
 """Smoke tests for Lemmatization Infrastructure (Slice 11)."""
 
 import pytest
-from django.db import transaction
-from apps.content.models import ContentItem, Post, Sentence, Token
+from apps.content.models import ContentItem, Sentence, Token
 from apps.pipeline.services.nlp_enrichment import NLPEnricher
 from apps.pipeline.tasks_import_helpers import _persist_content_body
 

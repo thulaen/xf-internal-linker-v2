@@ -457,7 +457,7 @@ class PixieRetriever:
             logger.warning("pixie_walk C++ extension not found. Skipping PixieRetriever.")
             return {}
 
-        from apps.knowledge_graph.models import EntityNode, ArticleEntityEdge, PixieWalkVisit
+        from apps.knowledge_graph.models import ArticleEntityEdge, PixieWalkVisit
         import numpy as np
 
         # Fetch the entire graph edges to build CSR

@@ -91,7 +91,11 @@ from .learned_anchor import (
 )
 from .link_farm import LinkFarmEvaluation, LinkFarmSettings
 from .link_freshness import score_link_freshness_component
-from .phrase_matching import PhraseMatchingSettings, evaluate_phrase_match
+from .phrase_matching import (
+    PhraseMatchingSettings,
+    evaluate_phrase_match,
+    score_phrase_relevance_component,
+)
 from .rare_term_propagation import (
     RareTermProfile,
     RareTermPropagationSettings,

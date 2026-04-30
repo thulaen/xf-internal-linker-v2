@@ -29,9 +29,8 @@ import logging
 import os
 import shutil
 import subprocess
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import Iterable
 
 from django.conf import settings
 

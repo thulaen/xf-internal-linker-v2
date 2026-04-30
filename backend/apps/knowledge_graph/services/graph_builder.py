@@ -53,8 +53,7 @@ def build_knowledge_graph(batch_size=1000):
             if not token_sets or not token_sets[0]:
                 continue
                 
-            tokens = list(token_sets[0])
-            
+
             # Since tokenize_text_batch returns a frozenset of unique tokens, we don't have frequencies.
             # We need to count the actual words to get frequency.
             # Let's tokenize manually or use a simple regex to get list of words.

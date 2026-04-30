@@ -16,7 +16,6 @@ from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework.views import APIView
 
 from .models import (
-    AuditEntry,
     AuditEvent,
     ClientErrorLog,
     FeatureRequest,
@@ -25,7 +24,6 @@ from .models import (
     WebVital,
 )
 from .serializers import (
-    AuditEntrySerializer,
     AuditEventSerializer,
     ClientErrorLogSerializer,
     FeatureRequestSerializer,

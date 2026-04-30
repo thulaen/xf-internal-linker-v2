@@ -1,6 +1,6 @@
 import pytest
 from django.contrib.auth import get_user_model
-from apps.audit.models import AuditEntry, FeatureFlag, ErrorLog
+from apps.audit.models import FeatureFlag, ErrorLog
 from apps.audit.services.audit_logger import record_audit
 from apps.audit.services.feature_flags import is_flag_enabled, get_flag_variant
 from apps.audit.integrity import verify_artefact_integrity

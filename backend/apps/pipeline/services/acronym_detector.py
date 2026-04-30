@@ -74,7 +74,7 @@ class SchwartzHearstDetector:
         candidate_words = words[-search_window:]
 
         # Matching starts from the end of the acronym and the end of candidate words.
-        a_idx = len(acronym) - 1
+
         w_idx = len(candidate_words) - 1
 
         # The last character of the acronym must match a character in the last word.

@@ -23,7 +23,7 @@ class PassageRelevanceSettingsView(APIView):
             row = AppSetting.objects.filter(key=key).first()
             if row and row.value:
                 try:
-                    if typ == bool:
+                    if typ is bool:
                         val = row.value.strip().lower() == "true"
                     else:
                         val = typ(row.value)
@@ -34,9 +34,9 @@ class PassageRelevanceSettingsView(APIView):
             
             # Fallbacks
             try:
-                if typ == bool:
+                if typ is bool:
                     data[key] = recommended_bool(key)
-                elif typ == int:
+                elif typ is int:
                     data[key] = recommended_int(key)
                 else:
                     data[key] = recommended_float(key)

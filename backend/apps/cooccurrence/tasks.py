@@ -146,7 +146,6 @@ def compute_session_cooccurrence(self) -> dict:
 )
 def detect_behavioral_hubs() -> dict:
     """Run hub detection from existing co-occurrence data."""
-    from apps.core.models import AppSetting
     from .services import detect_behavioral_hubs as _detect
 
     # Group U cleanup (2026-04-28): _read_int / _read_float are now

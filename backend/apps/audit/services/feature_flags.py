@@ -7,7 +7,6 @@ from __future__ import annotations
 import hashlib
 import logging
 from typing import Optional, Any
-from django.db import models
 from apps.audit.models import FeatureFlag, FeatureFlagExposure
 
 logger = logging.getLogger(__name__)

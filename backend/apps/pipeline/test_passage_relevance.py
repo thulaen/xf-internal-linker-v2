@@ -17,7 +17,7 @@ values.
 from __future__ import annotations
 
 import numpy as np
-from django.test import TestCase, override_settings
+from django.test import TestCase
 
 from apps.content.models import (
     ContentItem,

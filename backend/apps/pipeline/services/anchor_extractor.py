@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .text_tokens import STANDARD_ENGLISH_STOPWORDS, TOKEN_RE
+from .pattern_matcher import AhoCorasickMatcher
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,32 +43,42 @@ def extract_anchor(
     title_norms = [token.normalized for token in title_tokens]
     host_norms = [token.normalized for token in host_tokens]
 
-    max_window = min(len(title_norms), len(host_norms))
-    for window_size in range(max_window, 0, -1):
-        title_ngrams = _build_title_ngram_set(title_norms, window_size)
-        if not title_ngrams:
-            continue
-
-        for host_start_idx in range(0, len(host_norms) - window_size + 1):
-            host_ngram = tuple(
-                host_norms[host_start_idx : host_start_idx + window_size]
-            )
-            if host_ngram not in title_ngrams:
+    matcher = AhoCorasickMatcher(case_sensitive=False)
+    _SEP = "\u0000"
+    
+    # Build patterns for all possible title n-grams
+    max_title_window = len(title_norms)
+    for window_size in range(max_title_window, 0, -1):
+        for start_idx in range(len(title_norms) - window_size + 1):
+            ngram = title_norms[start_idx : start_idx + window_size]
+            if window_size == 1 and len(ngram[0]) < 5:
                 continue
+            matcher.add_pattern(_SEP.join(ngram), window_size)
+    
+    matcher.build()
+    
+    # Scan host sentence for matches, preferring longest match first
+    for window_size in range(len(host_norms), 0, -1):
+        for host_start_idx in range(len(host_norms) - window_size + 1):
+            host_ngram = host_norms[host_start_idx : host_start_idx + window_size]
+            match_pattern = _SEP.join(host_ngram)
+            matches = matcher.find_all(match_pattern)
+            
+            # We only care if the entire window matches a title n-gram
+            if any(m.pattern == match_pattern for m in matches):
+                first_token = host_tokens[host_start_idx]
+                last_token = host_tokens[host_start_idx + window_size - 1]
+                phrase = host_sentence_text[first_token.start : last_token.end]
+                confidence = _confidence_for_match(tuple(host_ngram))
+                if confidence == "none":
+                    continue
 
-            first_token = host_tokens[host_start_idx]
-            last_token = host_tokens[host_start_idx + window_size - 1]
-            phrase = host_sentence_text[first_token.start : last_token.end]
-            confidence = _confidence_for_match(host_ngram)
-            if confidence == "none":
-                continue
-
-            return AnchorExtraction(
-                anchor_phrase=phrase,
-                anchor_start=first_token.start,
-                anchor_end=last_token.end,
-                anchor_confidence=confidence,
-            )
+                return AnchorExtraction(
+                    anchor_phrase=phrase,
+                    anchor_start=first_token.start,
+                    anchor_end=last_token.end,
+                    anchor_confidence=confidence,
+                )
 
     return AnchorExtraction(None, None, None, "none")
 
@@ -86,22 +97,6 @@ def _tokenize_with_offsets(text: str) -> list[_TokenSpan]:
             )
         )
     return spans
-
-
-def _build_title_ngram_set(
-    title_norms: list[str],
-    window_size: int,
-) -> set[tuple[str, ...]]:
-    if window_size <= 0 or window_size > len(title_norms):
-        return set()
-
-    if window_size == 1:
-        return {(token,) for token in title_norms if len(token) >= 5}
-
-    return {
-        tuple(title_norms[start_idx : start_idx + window_size])
-        for start_idx in range(0, len(title_norms) - window_size + 1)
-    }
 
 
 def _confidence_for_match(match_tokens: tuple[str, ...]) -> str:

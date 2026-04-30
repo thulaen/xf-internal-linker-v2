@@ -2062,7 +2062,6 @@ def check_gsc_spikes(self) -> dict:
     Thresholds are read from the notifications.settings AppSetting so
     the operator can tune them from the UI.
     """
-    import json
     from datetime import date, timedelta
 
     from django.db.models import Avg
@@ -2477,6 +2476,6 @@ def train_opq_codebook(self, sample_size=100000) -> dict:
         from apps.pipeline.services.opq_trainer import train_codebook
         train_codebook(sample_size=sample_size)
         return {"status": "completed"}
-    except Exception as exc:
+    except Exception:
         logger.exception("OPQ codebook training failed")
         raise

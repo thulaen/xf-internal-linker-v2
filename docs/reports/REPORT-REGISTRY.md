@@ -224,6 +224,19 @@ This file is the single index of all audit reports and individual issues found b
 
 ---
 
+### ISS-028 - Division by zero in ranker.py when phrase_matching.ranking_weight is 0 (2026-04-30)
+
+- **Found by:** Antigravity (during Aho-Corasick pipeline integration)
+- **Severity:** high
+- **Affected files:** `backend/apps/pipeline/services/ranker.py`
+- **Description:** The ranker crashed with `ZeroDivisionError` if `phrase_matching.ranking_weight` was set to exactly `0.0`. This is a valid configuration for operators who want to disable the signal's contribution without disabling the signal itself (e.g. for telemetry-only mode).
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-30
+- **Fixed in:** Added `max(1e-9, weight)` guard to the denominator in the phrase relevance calculation.
+- **Regression watch:** Any new signal in `ranker.py` that uses weighted normalization must include a zero-weight guard.
+
+---
+
 ### ISS-011 — 101 stalled-job alerts flooding the Alerts page with 142× duplicates (2026-04-12)
 
 - **Found by:** Claude
