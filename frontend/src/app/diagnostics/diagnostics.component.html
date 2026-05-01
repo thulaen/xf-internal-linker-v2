@@ -719,6 +719,21 @@
         <section class="services-section">
           <h2>Core Runtime & Services</h2>
 
+          <!-- Phase 4.14 — C++ Fallback Warning banner. Renders only when
+               at least one native kernel has dropped to its Python
+               fallback path (typically 5-10x slower). Operator sees this
+               immediately on /diagnostics so a silent perf regression
+               can't hide behind a green System Health chip. -->
+          @if (cppFallbackStatus().fallbackCount > 0) {
+            <div class="cpp-fallback-banner" role="alert">
+              <mat-icon aria-hidden="true">warning</mat-icon>
+              <div class="cpp-fallback-text">
+                <strong>{{ cppFallbackStatus().fallbackCount }} of {{ cppFallbackStatus().totalModules }} C++ kernels are on the Python fallback.</strong>
+                <span>Performance may be 5-10x slower than expected. Affected: {{ cppFallbackStatus().fallbackModules.join(', ') }}.</span>
+              </div>
+            </div>
+          }
+
           <!-- Phase 0.14 — filter bar lets the operator focus on what's
                broken vs everything; default chip is "Issues" so problems
                surface first. Counts update live via signals. Layout

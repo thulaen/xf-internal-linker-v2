@@ -75,6 +75,15 @@ Language-specific rules files:
 | 3 | `FEATURE-REQUESTS.md` — FR status | If an FR was completed or partially completed |
 | 4 | `docs/reports/REPORT-REGISTRY.md` | If you found a new issue, created a report, or resolved a finding |
 | 5 | `FEATURE-REQUESTS.md` — `## Pending Slices` section | If you deferred sub-feature work to a future session, before ending |
+| 6 | `AGENT-HANDOFF.md` — "Tech-debt delta" line | Always (mandated by `TECH-DEBT-MANDATE.md`) |
+
+### MUST REFACTOR — Tech-Debt Mandate (NEW, paramount)
+
+Every session MUST resolve ≥5 tech-debt items as part of its normal work — not as an optional add-on. Targets are listed in [`TECH-DEBT-MANDATE.md`](TECH-DEBT-MANDATE.md): duplicated boilerplate, magic numbers, silent excepts, dead code, stale comments, long files, hardcoded paths, untracked TODOs, forbidden patterns. The session-end `AGENT-HANDOFF.md` entry MUST include a "Tech-debt delta" line listing what was fixed. Sessions without that line fail the handoff protocol equivalent to skipping the session-end snapshot.
+
+Cumulative target: reduce overall codebase debt by 80 % across the next 8-12 sessions. Per-session minimum: 5 items resolved.
+
+When you open any file to add or modify code, ALSO scan it for the highest-impact debt item (1 per file, max 3 per PR). Resist the urge to refactor the whole repo in one PR — the mandate is steady cumulative pressure, not bankruptcy push.
 
 ### MUST PRUNE Docker build caches before session end
 
@@ -3679,7 +3688,7 @@ context.
 - **Operator-facing impact:** ``docs/READY-TODAY.md`` is now the canonical "what's running right now" doc. The Settings tab shows every Phase 6 pick with a one-click toggle. The Diagnostics page surfaces a daily NDCG@10 readout that automatically reads as soon as 50 Suggestions have been reviewed.
 - **Changes committed:** Yes — 3 commits on master (``e131b33``, ``4e4eeb1``, plus this commit). Phantom gate clean.
 
-### 2026-04-30 � Slice 12: Noun-Chunk Anchor Candidates (Antigravity)
+### 2026-04-30 � Slice 12: Noun-Chunk Anchor Candidates (Antigravity)
 
 - **What was done:** Completed Slice 12 of the Harmonious-12 NLP picks.
   - **Noun-Chunk Extraction:** Integrated spaCy-based `noun_chunks` extraction into the `NLPEnricher.enrich` service. Metadata is now correctly persisted to `ContentItem.nlp_metadata`.

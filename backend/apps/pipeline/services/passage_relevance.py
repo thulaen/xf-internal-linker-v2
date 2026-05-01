@@ -43,77 +43,18 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Settings access — wraps the recommended-preset dict so the live AppSetting
-# overrides take precedence at query time.
+# Settings access — three-tier helper (operator override → recommended preset
+# → hardcoded fallback) extracted to ``apps.core.services.settings_helpers``
+# (Phase 4 tech-debt sweep). The wrappers below stay so existing call sites
+# keep working without churn — each is a 1-line proxy now instead of a
+# 15-line copy of the same boilerplate.
 # ---------------------------------------------------------------------------
 
-
-def _setting_int(key: str, fallback: int) -> int:
-    """Return the operator's AppSetting value, or the recommended-preset
-    default, or the supplied fallback if neither exists.
-
-    Group E V1 keeps its own three-tier helper (operator → recommended
-    preset → hardcoded) instead of using the project-wide
-    ``AppSetting.get_int`` because the latter is two-tier (operator →
-    fallback). The recommended-preset middle layer matters here:
-    Wave-2 ranking signals all start at the spec's prior weight, not
-    a hardcoded fallback. If the operator has overridden the value, we
-    use that; otherwise the recommended-preset value (cited in spec)
-    wins; otherwise the safety fallback.
-    """
-    try:
-        from apps.core.models import AppSetting
-        from apps.suggestions.recommended_weights import recommended_int
-
-        row = AppSetting.objects.filter(key=key).first()
-        if row and row.value:
-            try:
-                return int(float(row.value))
-            except (TypeError, ValueError):
-                pass
-        try:
-            return recommended_int(key)
-        except KeyError:
-            return fallback
-    except Exception:
-        return fallback
-
-
-def _setting_bool(key: str, fallback: bool) -> bool:
-    """Operator override → recommended preset → hardcoded fallback (FR-053)."""
-    try:
-        from apps.core.models import AppSetting
-        from apps.suggestions.recommended_weights import recommended_bool
-
-        row = AppSetting.objects.filter(key=key).first()
-        if row and row.value:
-            return row.value.strip().lower() == "true"
-        try:
-            return recommended_bool(key)
-        except KeyError:
-            return fallback
-    except Exception:
-        return fallback
-
-
-def _setting_float(key: str, fallback: float) -> float:
-    """Operator override → recommended preset → hardcoded fallback (FR-053)."""
-    try:
-        from apps.core.models import AppSetting
-        from apps.suggestions.recommended_weights import recommended_float
-
-        row = AppSetting.objects.filter(key=key).first()
-        if row and row.value:
-            try:
-                return float(row.value)
-            except (TypeError, ValueError):
-                pass
-        try:
-            return recommended_float(key)
-        except KeyError:
-            return fallback
-    except Exception:
-        return fallback
+from apps.core.services.settings_helpers import (
+    setting_bool as _setting_bool,
+    setting_float as _setting_float,
+    setting_int as _setting_int,
+)
 
 
 # ---------------------------------------------------------------------------

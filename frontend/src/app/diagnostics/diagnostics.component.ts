@@ -182,6 +182,32 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Phase 4.14 — C++ Fallback Warning aggregator.
+  // Walks the native_scoring service's per-module statuses and reports
+  // the count + names of any kernel currently running on the slower
+  // Python fallback. The banner the template renders below the filter
+  // bar is the operator's first-look signal that performance may have
+  // regressed since their last visit. The cpp/python state is already
+  // persisted by ``apps.diagnostics.health._native_module_runtime_status``.
+  readonly cppFallbackStatus = computed<{
+    fallbackCount: number;
+    fallbackModules: string[];
+    totalModules: number;
+  }>(() => {
+    const native = this.services().find((s) => s.service_name === 'native_scoring');
+    const moduleStatuses = (native?.metadata?.module_statuses as
+      | Array<{ label?: string; module?: string; runtime_path?: string; fallback_active?: boolean }>
+      | undefined) ?? [];
+    const fallback = moduleStatuses.filter(
+      (m) => m?.fallback_active === true || m?.runtime_path === 'python',
+    );
+    return {
+      fallbackCount: fallback.length,
+      fallbackModules: fallback.map((m) => m.label || m.module || 'unknown'),
+      totalModules: moduleStatuses.length,
+    };
+  });
+
   readonly groupedErrors = computed(() => groupErrors(this.errors(), this.filterNodeId()));
 
   readonly activeGroupedErrors = computed<ErrorGroup[]>(() => {

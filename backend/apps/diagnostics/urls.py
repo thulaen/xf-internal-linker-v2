@@ -72,4 +72,13 @@ urlpatterns = [
         views.SchedulerDispatchView.as_view(),
         name="scheduler-dispatch",
     ),
+    # Phase 4.7 — "Why Is It Slow?" bottleneck analyzer.
+    # GET /api/diagnostics/why-slow/ samples live system state and
+    # returns a one-word verdict + plain-English reason. Used by the
+    # operator's per-job slowness panel.
+    path(
+        "why-slow/",
+        views.WhyIsItSlowView.as_view(),
+        name="why-is-it-slow",
+    ),
 ]

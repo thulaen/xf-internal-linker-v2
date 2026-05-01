@@ -40,6 +40,29 @@ from apps.suggestions.recommended_weights import (
 )
 
 
+def _safe_confidence_snapshot() -> dict | None:
+    """Phase 4.3 — return the Confidence Meter snapshot or None on failure.
+
+    Wraps ``apps.core.services.confidence_meter.get_confidence_snapshot``
+    in a try/except so a confidence-meter regression cannot break the
+    dashboard endpoint. The frontend simply hides the chip when the
+    payload is None.
+    """
+    try:
+        from apps.core.services.confidence_meter import get_confidence_snapshot
+        from dataclasses import asdict
+
+        snap = get_confidence_snapshot()
+        return {
+            "total": snap.total,
+            "label": snap.label,
+            "contributors": [asdict(c) for c in snap.contributors],
+        }
+    except Exception:
+        logger.debug("confidence_meter snapshot failed", exc_info=True)
+        return None
+
+
 DEFAULT_APPEARANCE = {
     "primaryColor": "#1a73e8",
     "accentColor": "#f4b400",
@@ -3044,6 +3067,11 @@ class DashboardView(APIView):
                 else None,
                 "runtime_mode": runtime_mode,
                 "show_quick_controls": recommended_bool("dashboard.show_quick_controls"),
+                # Phase 4.3 — Confidence Meter "Ready to Rock" snapshot.
+                # Cached 60 s in Redis so the dashboard read is cheap.
+                # Falls back to None on any failure so the chip just
+                # hides instead of breaking the dashboard.
+                "confidence": _safe_confidence_snapshot(),
             }
         )
 

@@ -1642,3 +1642,39 @@ def _humanize_age(delta: timedelta) -> str:
     if s < _SECONDS_PER_DAY:
         return f"{s // _SECONDS_PER_HOUR}h ago"
     return f"{s // _SECONDS_PER_DAY}d ago"
+
+
+# ── Phase 4.7 — "Why Is It Slow?" view ────────────────────────────
+
+
+class WhyIsItSlowView(views.APIView):
+    """GET /api/diagnostics/why-slow/
+
+    Samples live system state and returns a one-word verdict + one-sentence
+    plain-English reason. Wraps the cheap ``slowness_analyzer.analyze_slowness``
+    service so the operator can hit a button and see why a job is slow
+    without poring over Postgres / GPU / CPU dashboards.
+
+    Plain-English: pressing this button asks the system to look at right-now
+    CPU / RAM / disk / GPU / Postgres-locks and report which one is the
+    likely cause of the current slowdown. Returns within ~50 ms.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.diagnostics.services.slowness_analyzer import (
+            analyze_slowness,
+        )
+
+        task_name = request.query_params.get("task", "")
+        verdict = analyze_slowness(task_name=task_name)
+        return response.Response(
+            {
+                "verdict": verdict.verdict,
+                "why": verdict.why,
+                "confidence": verdict.confidence,
+                "sampled_at": verdict.sampled_at,
+                "task_name": task_name,
+            }
+        )
