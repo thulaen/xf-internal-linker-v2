@@ -25,6 +25,7 @@ const emptySummary: RuntimeModelsSummary = {
   backfill: null,
   device: 'cpu',
   hot_swap_safe: true,
+  master_paused: false,
   recent_audit_log: [],
   last_audit_at: null,
 };

@@ -250,6 +250,19 @@ This file is the single index of all audit reports and individual issues found b
 
 ---
 
+### ISS-029 - Quick Controls showed Pause while model work was already globally paused (2026-05-01)
+
+- **Found by:** Codex
+- **Severity:** high
+- **Affected files:** `backend/apps/core/runtime_registry.py`, `frontend/src/app/dashboard/quick-controls/quick-controls.component.ts`, `frontend/src/app/dashboard/quick-controls/quick-controls.component.html`
+- **Description:** The Dashboard Quick Controls card used each model's stored status to decide whether to show Pause or Resume. The Pause action actually flips the app-wide `system.master_pause` switch, so the model row could still look ready and keep showing Pause after all model work was paused. That made it hard for the operator to understand or reverse the paused state from the dashboard.
+- **Status:** RESOLVED
+- **Resolved:** 2026-05-01
+- **Fixed in:** 2026-05-01 Codex Quick Controls pause/resume fix.
+- **Regression watch:** Runtime model summaries must keep exposing the app-wide pause state, and Quick Controls tests must keep covering both the unpaused Pause button and globally paused Resume button.
+
+---
+
 ## Resolved Reports
 
 _(None yet. When all findings in a report are resolved, move the report entry here with resolution dates.)_

@@ -11,6 +11,8 @@ import { catchError, finalize } from 'rxjs/operators';
 import {
   RuntimeModel,
   RuntimeModelsService,
+  RuntimeModelAction,
+  RuntimeModelStatus,
   RuntimeModelTaskType,
   RuntimeModelsSummary
 } from '../../admin-models/runtime-models.service';
@@ -28,6 +30,10 @@ const STATUS_PRIORITY: Record<string, number> = {
   'draining': 5,
   'failed': 6,
   'retired': 7
+};
+
+type QuickControlModel = RuntimeModel & {
+  display_status: RuntimeModelStatus;
 };
 
 @Component({
@@ -59,14 +65,20 @@ export class QuickControlsComponent implements OnInit {
    * Extract active (champion) models from all summaries, 
    * then sort by status priority, then name.
    */
-  readonly activeModels = computed(() => {
+  readonly activeModels = computed<QuickControlModel[]>(() => {
     const active = this.summaries()
-      .map(s => s.active_model)
-      .filter((m): m is RuntimeModel => !!m);
+      .map(s => {
+        if (!s.active_model) return null;
+        return {
+          ...s.active_model,
+          display_status: s.master_paused ? 'paused' : s.active_model.status,
+        };
+      })
+      .filter((m): m is QuickControlModel => !!m);
 
     return active.sort((a, b) => {
-      const pA = STATUS_PRIORITY[a.status] ?? 99;
-      const pB = STATUS_PRIORITY[b.status] ?? 99;
+      const pA = STATUS_PRIORITY[a.display_status] ?? 99;
+      const pB = STATUS_PRIORITY[b.display_status] ?? 99;
       if (pA !== pB) return pA - pB;
       return a.model_name.localeCompare(b.model_name);
     });
@@ -114,7 +126,7 @@ export class QuickControlsComponent implements OnInit {
     this.runAction(model, 'drain');
   }
 
-  private runAction(model: RuntimeModel, action: any): void {
+  private runAction(model: RuntimeModel, action: RuntimeModelAction): void {
     if (this.busyId()) return;
     
     this.busyId.set(`${model.id}:${action}`);

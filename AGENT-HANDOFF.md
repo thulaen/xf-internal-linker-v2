@@ -1,3 +1,26 @@
+# 2026-05-01 - Codex - Fixed Quick Controls Pause/Resume State
+
+Fixed a major Dashboard Quick Controls bug where clicking Pause globally paused model work, but the card still showed the model as ready and kept offering Pause instead of Resume.
+
+- Added `master_paused` to the runtime model summary returned by `/api/settings/runtime/models/`.
+- Updated Quick Controls to display a paused status and Resume button when `system.master_pause` is on.
+- Added backend regression coverage for the summary field before pause, after pause, and after resume.
+- Added frontend Quick Controls coverage for the Pause-vs-Resume button state.
+- Logged the fixed bug as `ISS-029` in the Report Registry.
+
+Verification completed:
+- `docker compose exec backend python manage.py showmigrations` showed all migrations applied.
+- `docker compose exec backend python manage.py test apps.core.test_runtime_model_pause_summary --settings=config.settings.test --noinput` passed 1 test.
+- `docker compose exec backend python manage.py makemigrations --check --dry-run` passed with "No changes detected".
+- `npm run test:ci` passed 36 frontend tests.
+- `npm run build:prod` passed.
+- `docker compose build backend` passed after one timeout and a longer rerun.
+- `docker compose build frontend-build` passed.
+
+Notes for the next agent:
+- Frontend builds still show unrelated Angular warnings in Admin Models, Embeddings, Graph, Review, and Settings templates.
+- Backend startup/test commands still show the existing FAISS multi-worker warning and a test-startup SQLite error from FAISS error ingest before the test DB is fully ready; the targeted test passed.
+- `npm ci` in the frontend Docker build reports 7 moderate npm audit findings; not part of this fix.
 # 2026-04-30 - Codex - Repaired Slices 4-10
 
 Implemented the requested repair pass for slices 4 through 10 while preserving the existing staged Harmonious-12 NLP work.

@@ -115,6 +115,7 @@ export interface RuntimeModelsSummary {
   backfill: RuntimeBackfillPlan | null;
   device: string;
   hot_swap_safe: boolean;
+  master_paused: boolean;
   recent_audit_log: RuntimeAuditEntry[];
   last_audit_at: string | null;
 }

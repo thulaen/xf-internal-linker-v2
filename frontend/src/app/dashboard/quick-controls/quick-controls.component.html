@@ -24,27 +24,27 @@
               <span class="meta-sep"> • </span>
               <span class="model-task">{{ model.task_type }}</span>
               <div class="status-wrap">
-                <span class="status-chip status-{{ model.status }}">
-                  {{ model.status }}
+                <span class="status-chip status-{{ model.display_status }}">
+                  {{ model.display_status }}
                 </span>
               </div>
             </div>
 
             <div class="model-actions">
-              @if (model.status === 'ready') {
+              @if (model.display_status === 'ready') {
                 <button mat-stroked-button color="primary" 
                         [disabled]="isBusy(model.id, 'pause')"
                         (click)="pause(model)"
-                        matTooltip="Pause this model's work">
+                        matTooltip="Pause all model work">
                   @if (isBusy(model.id, 'pause')) { <mat-spinner diameter="16"></mat-spinner> }
                   @else { <mat-icon>pause</mat-icon> }
                   Pause
                 </button>
-              } @else if (model.status === 'paused') {
+              } @else if (model.display_status === 'paused') {
                 <button mat-stroked-button color="primary" 
                         [disabled]="isBusy(model.id, 'resume')"
                         (click)="resume(model)"
-                        matTooltip="Resume this model's work">
+                        matTooltip="Resume all model work">
                   @if (isBusy(model.id, 'resume')) { <mat-spinner diameter="16"></mat-spinner> }
                   @else { <mat-icon>play_arrow</mat-icon> }
                   Resume
@@ -63,7 +63,7 @@
               }
 
               <button mat-stroked-button color="warn"
-                      [disabled]="model.status === 'draining' || isBusy(model.id, 'drain')"
+                      [disabled]="model.display_status === 'draining' || isBusy(model.id, 'drain')"
                       (click)="drain(model)"
                       matTooltip="Drain and retire this placement">
                 @if (isBusy(model.id, 'drain')) { <mat-spinner diameter="16"></mat-spinner> }

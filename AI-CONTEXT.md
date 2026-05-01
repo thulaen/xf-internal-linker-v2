@@ -509,6 +509,20 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-05-01 - Quick Controls pause/resume truth fix (Codex)
+
+- **AI/tool:** Codex.
+- **Why:** User asked to find and fix one major bug. I found that Dashboard Quick Controls paused all model work through `system.master_pause`, but the card still read each model's stored `ready` status and kept showing the Pause button instead of Resume.
+- **Branch:** Stayed on `master`; no branch was created or switched.
+- **Relevant open findings disclosed in chat:** None overlapped this narrow runtime-summary / dashboard Quick Controls fix. The unrelated open attribution and placeholder registry entries were not touched.
+- **Forward-clash check:** No clash with the next three queued phases. This fix only exposes existing pause state in the runtime summary and does not change ranking, scoring, attribution, imports, model promotion, or runtime switching behavior.
+- **Intentional files changed:** `backend/apps/core/runtime_registry.py`, `backend/apps/core/test_runtime_model_pause_summary.py`, `frontend/src/app/admin-models/runtime-models.service.ts`, `frontend/src/app/admin-models/admin-models.component.spec.ts`, `frontend/src/app/dashboard/quick-controls/quick-controls.component.ts`, `frontend/src/app/dashboard/quick-controls/quick-controls.component.html`, `frontend/src/app/dashboard/quick-controls/quick-controls.component.spec.ts`, `docs/reports/REPORT-REGISTRY.md`, `AI-CONTEXT.md`, and `AGENT-HANDOFF.md`.
+- **What now works:** `/api/settings/runtime/models/` now reports `master_paused`, and the dashboard Quick Controls card shows Resume and a paused status when all model work is globally paused. The card still shows Pause when model work is not globally paused.
+- **Issue logged:** Added resolved registry entry `ISS-029` for the misleading Quick Controls pause/resume state.
+- **Verification:** Docker `showmigrations` showed all migrations applied before and after the fix. Docker `makemigrations --check --dry-run` reported "No changes detected." Targeted backend test `apps.core.test_runtime_model_pause_summary` passed. Frontend `npm run test:ci` passed 36 tests. Local frontend `npm run build:prod` passed. `docker compose build backend` passed after one 10-minute timeout and a longer rerun. `docker compose build frontend-build` passed.
+- **Known issues noticed:** Docker/backend startup still logs the existing FAISS multi-worker warning and a test-startup SQLite error while FAISS error ingest runs before the test database is fully ready; the targeted backend test still passed. Frontend production builds still report unrelated Angular warnings in Admin Models, Embeddings, Graph, Review, and Settings templates. `npm ci` inside the frontend Docker build reports 7 moderate npm audit findings, pre-existing and not part of this bug fix.
+- **Docker prune:** Ran `powershell -ExecutionPolicy Bypass -File scripts\prune-verification-artifacts.ps1`; it reclaimed 16.47 GB and reported `.git/config` already clean. VHDX compaction was attempted by the script.
+- **Commit/push state:** Committed locally on `master` as `Fix Quick Controls pause and resume state`. Push to `origin/master` was attempted and blocked by the repository pre-push hook on pre-existing backend `ruff format --check` failures across 70 unrelated files. No push reached GitHub.
 ### 2026-04-29 — Slice 2 Wave-2 diagnostics health cards (Codex)
 
 - **AI/tool:** Codex.

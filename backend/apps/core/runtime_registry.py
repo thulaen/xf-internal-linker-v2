@@ -147,6 +147,12 @@ def record_runtime_audit(
 def summarize_model_registry(task_type: str = MODEL_TASK_EMBEDDING) -> dict[str, Any]:
     champion = get_active_runtime_model(task_type)
     candidate = get_candidate_runtime_model(task_type)
+    master_paused = (
+        AppSetting.objects.filter(key="system.master_pause")
+        .values_list("value", flat=True)
+        .first()
+        or ""
+    ).strip().lower() == "true"
     latest_backfill = (
         RuntimeModelBackfillPlan.objects.select_related("from_model", "to_model")
         .order_by("-created_at")
@@ -196,6 +202,7 @@ def summarize_model_registry(task_type: str = MODEL_TASK_EMBEDDING) -> dict[str,
         "backfill": _serialize_backfill(latest_backfill),
         "device": get_current_embedding_device(),
         "hot_swap_safe": candidate is None or candidate.status == "ready",
+        "master_paused": master_paused,
         "recent_audit_log": _recent_runtime_audit_events(),
         "last_audit_at": _last_runtime_audit_at(),
     }
