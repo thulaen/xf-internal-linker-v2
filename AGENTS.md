@@ -18,6 +18,13 @@ Skipping step 1 or 2 is a protocol violation. The acknowledgement line in your f
 The rule applies to chat output, commit messages, PR descriptions, REPORT-REGISTRY entries, AGENT-HANDOFF entries, and any other surface a human reads. Skipping any of the three required parts is a protocol violation. Silence on errors is forbidden.
 
 **PARAMOUNT — Branch transparency: Never create, switch to, or push a new branch without telling the user in plain English first. Work done on a branch does not appear on `master` until merged. If the user did not ask for a branch, stay on `master`. Silence is forbidden.**
+**PARAMOUNT — Strict no-duplicates rule: No persistent storage may pile up duplicate artefacts. Read [`NO-DUPLICATES.md`](NO-DUPLICATES.md) before adding any new artefact table.**
+**PARAMOUNT — C++ first for hot paths: Read [`CPP-FIRST.md`](CPP-FIRST.md) before adding or modifying any hot-path function.**
+**PARAMOUNT — Hardware-aware defaults: Read [`HARDWARE-PROFILES.md`](HARDWARE-PROFILES.md).**
+**PARAMOUNT — Disk-pressure circuit breaker: Read [`DISK-PRESSURE-RULES.md`](DISK-PRESSURE-RULES.md).**
+**PARAMOUNT — Deep-linking catalog: Read [`DEEP-LINKING-CATALOG.md`](DEEP-LINKING-CATALOG.md).**
+**PARAMOUNT — Plain-English helpers: Read [`PLAIN-ENGLISH-HELPER-RULE.md`](PLAIN-ENGLISH-HELPER-RULE.md).**
+**PARAMOUNT — Citations on every default: Read [`CITATION-RULE.md`](CITATION-RULE.md).**
 **Before any work, follow the Session Gate in `AI-CONTEXT.md` — it is the single source of truth for what to read, update, check, and log.**
 **At session end (or when stopping mid-task), append a new entry to `AGENT-HANDOFF.md` using the template at the top of that file. See the SESSION START block at the top of this file for the mandatory read + acknowledgement steps.**
 **If the Report Registry shows an open or reopened finding in the area you are about to touch, tell the user in chat before writing code. Silence is forbidden.**

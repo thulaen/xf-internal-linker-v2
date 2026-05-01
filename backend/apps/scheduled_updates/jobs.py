@@ -53,6 +53,36 @@ class DeferredPickError(RuntimeError):
     """
 
 
+class HeavyLockBusyError(RuntimeError):
+    """Raised when a Heavy-tier scheduled job cannot acquire the global
+    Heavy lock (e.g. an embedding job is running). The runner converts
+    this into a clean defer — the next beat tick will re-attempt.
+    """
+
+
+def _acquire_heavy_or_defer(task_name: str, *, timeout_seconds: int = 1800) -> bool:
+    """Phase 0.8 (Wave 1 C.4) — bridge the scheduled-updates runner to the
+    pipeline's Heavy weight class.
+
+    Plain-English: PR / HITS / TrustRank are GPU-or-CPU-heavy daily jobs
+    that previously ran whenever the scheduled_updates runner-lock was
+    free, even if a heavy embedding pass was simultaneously hogging the
+    GPU. That competition slowed both. The fix promotes them to the
+    project-wide Heavy weight class so they queue strictly serially with
+    embedding / FAISS / quantization. If the lock is busy, this returns
+    False and the calling job exits cleanly — the next 5-minute beat
+    tick will retry. Net effect: same total work per day, no GPU
+    contention, predictable wall-clock per job.
+
+    Returns True when the lock is acquired (caller must call
+    ``apps.pipeline.services.task_lock.release_task_lock("heavy", ...)``
+    when done). Returns False to signal "defer to next tick".
+    """
+    from apps.pipeline.services.task_lock import acquire_task_lock
+
+    return acquire_task_lock("heavy", task_name, timeout=timeout_seconds)
+
+
 # ────────────────────────────────────────────────────────────────────
 # CRITICAL — daily runs near window open
 # ────────────────────────────────────────────────────────────────────
@@ -228,14 +258,27 @@ def run_crawl_freshness_scan(job, checkpoint) -> None:
     priority=JOB_PRIORITY_HIGH,
 )
 def run_pagerank_refresh(job, checkpoint) -> None:
-    """Daily PageRank refresh over the internal content graph (pre-existing META-06)."""
+    """Daily PageRank refresh over the internal content graph (pre-existing META-06).
+
+    Phase 0.8: acquires the project-wide Heavy lock so it can't fight
+    embedding / FAISS / OPQ work for the GPU. Defers to the next beat
+    tick if the lock is busy.
+    """
+    from apps.pipeline.services.task_lock import release_task_lock
     from apps.pipeline.services.weighted_pagerank import run_weighted_pagerank
 
-    checkpoint(progress_pct=0.0, message="Loading weighted graph")
-    scores = run_weighted_pagerank()
-    checkpoint(
-        progress_pct=100.0, message=f"PageRank refreshed for {len(scores or {})} nodes"
-    )
+    if not _acquire_heavy_or_defer("pagerank_refresh"):
+        checkpoint(progress_pct=0.0, message="Heavy lock busy — deferring to next tick")
+        return
+    try:
+        checkpoint(progress_pct=0.0, message="Loading weighted graph")
+        scores = run_weighted_pagerank()
+        checkpoint(
+            progress_pct=100.0,
+            message=f"PageRank refreshed for {len(scores or {})} nodes",
+        )
+    finally:
+        release_task_lock("heavy", "pagerank_refresh")
 
 
 def _load_networkx_graph(checkpoint):
@@ -267,33 +310,41 @@ def _load_networkx_graph(checkpoint):
     priority=JOB_PRIORITY_HIGH,
 )
 def run_personalized_pagerank_refresh(job, checkpoint) -> None:
+    """Phase 0.8: Heavy-lock-aware PPR refresh."""
     from apps.content.models import ContentItem
     from apps.pipeline.services.graph_signal_store import (
         SIGNAL_PPR,
         persist_top_n,
     )
     from apps.pipeline.services.personalized_pagerank import compute
+    from apps.pipeline.services.task_lock import release_task_lock
 
-    g = _load_networkx_graph(checkpoint)
-    if g.number_of_nodes() == 0:
-        checkpoint(progress_pct=100.0, message="Empty graph — skip")
+    if not _acquire_heavy_or_defer("personalized_pagerank_refresh"):
+        checkpoint(progress_pct=0.0, message="Heavy lock busy — deferring to next tick")
         return
+    try:
+        g = _load_networkx_graph(checkpoint)
+        if g.number_of_nodes() == 0:
+            checkpoint(progress_pct=100.0, message="Empty graph — skip")
+            return
 
-    # Seed set: top-N nodes by the already-computed PageRank.
-    seed_pks = list(
-        ContentItem.objects.filter(is_deleted=False)
-        .order_by("-march_2026_pagerank_score")[:50]
-        .values_list("pk", "content_type")
-    )
-    seeds = [(pk, ct) for pk, ct in seed_pks if g.has_node((pk, ct))]
-    checkpoint(progress_pct=30.0, message=f"Computing PPR over {len(seeds)} seeds")
-    result = compute(g, seeds=seeds)
-    checkpoint(progress_pct=70.0, message="Persisting PPR top-N")
-    written = persist_top_n(signal=SIGNAL_PPR, scores=result.scores)
-    checkpoint(
-        progress_pct=100.0,
-        message=f"PPR persisted: {written} of {len(result.scores)} nodes",
-    )
+        # Seed set: top-N nodes by the already-computed PageRank.
+        seed_pks = list(
+            ContentItem.objects.filter(is_deleted=False)
+            .order_by("-march_2026_pagerank_score")[:50]
+            .values_list("pk", "content_type")
+        )
+        seeds = [(pk, ct) for pk, ct in seed_pks if g.has_node((pk, ct))]
+        checkpoint(progress_pct=30.0, message=f"Computing PPR over {len(seeds)} seeds")
+        result = compute(g, seeds=seeds)
+        checkpoint(progress_pct=70.0, message="Persisting PPR top-N")
+        written = persist_top_n(signal=SIGNAL_PPR, scores=result.scores)
+        checkpoint(
+            progress_pct=100.0,
+            message=f"PPR persisted: {written} of {len(result.scores)} nodes",
+        )
+    finally:
+        release_task_lock("heavy", "personalized_pagerank_refresh")
 
 
 @scheduled_job(
@@ -304,29 +355,37 @@ def run_personalized_pagerank_refresh(job, checkpoint) -> None:
     priority=JOB_PRIORITY_HIGH,
 )
 def run_hits_refresh(job, checkpoint) -> None:
+    """Phase 0.8: Heavy-lock-aware HITS refresh."""
     from apps.pipeline.services.graph_signal_store import (
         SIGNAL_HITS_AUTHORITY,
         SIGNAL_HITS_HUB,
         persist_top_n,
     )
     from apps.pipeline.services.hits import compute
+    from apps.pipeline.services.task_lock import release_task_lock
 
-    g = _load_networkx_graph(checkpoint)
-    if g.number_of_nodes() == 0:
-        checkpoint(progress_pct=100.0, message="Empty graph — skip")
+    if not _acquire_heavy_or_defer("hits_refresh"):
+        checkpoint(progress_pct=0.0, message="Heavy lock busy — deferring to next tick")
         return
-    checkpoint(progress_pct=30.0, message="Computing HITS scores")
-    scores = compute(g)
-    checkpoint(progress_pct=70.0, message="Persisting authority + hub top-N")
-    auth_count = persist_top_n(signal=SIGNAL_HITS_AUTHORITY, scores=scores.authority)
-    hub_count = persist_top_n(signal=SIGNAL_HITS_HUB, scores=scores.hub)
-    checkpoint(
-        progress_pct=100.0,
-        message=(
-            f"HITS persisted: {auth_count} authorities + {hub_count} hubs "
-            f"(of {len(scores.authority)} nodes)"
-        ),
-    )
+    try:
+        g = _load_networkx_graph(checkpoint)
+        if g.number_of_nodes() == 0:
+            checkpoint(progress_pct=100.0, message="Empty graph — skip")
+            return
+        checkpoint(progress_pct=30.0, message="Computing HITS scores")
+        scores = compute(g)
+        checkpoint(progress_pct=70.0, message="Persisting authority + hub top-N")
+        auth_count = persist_top_n(signal=SIGNAL_HITS_AUTHORITY, scores=scores.authority)
+        hub_count = persist_top_n(signal=SIGNAL_HITS_HUB, scores=scores.hub)
+        checkpoint(
+            progress_pct=100.0,
+            message=(
+                f"HITS persisted: {auth_count} authorities + {hub_count} hubs "
+                f"(of {len(scores.authority)} nodes)"
+            ),
+        )
+    finally:
+        release_task_lock("heavy", "hits_refresh")
 
 
 @scheduled_job(
@@ -357,6 +416,7 @@ def run_trustrank_auto_seeder(job, checkpoint) -> None:
     """
     from apps.content.models import ContentItem, Post
     from apps.core.models import AppSetting
+    from apps.pipeline.services.task_lock import release_task_lock
     from apps.pipeline.services.trustrank_auto_seeder import (
         DEFAULT_CANDIDATE_POOL_SIZE,
         DEFAULT_POST_QUALITY_MIN,
@@ -365,8 +425,14 @@ def run_trustrank_auto_seeder(job, checkpoint) -> None:
         pick_seeds,
     )
 
+    # Phase 0.8: Heavy-lock-aware TrustRank.
+    if not _acquire_heavy_or_defer("trustrank_auto_seeder"):
+        checkpoint(progress_pct=0.0, message="Heavy lock busy — deferring to next tick")
+        return
+
     g = _load_networkx_graph(checkpoint)
     if g.number_of_nodes() == 0:
+        release_task_lock("heavy", "trustrank_auto_seeder")
         checkpoint(progress_pct=100.0, message="Empty graph — skip")
         return
 
@@ -464,32 +530,35 @@ def run_trustrank_auto_seeder(job, checkpoint) -> None:
             f"spam={len(spam_flagged)})"
         ),
     )
-    result = pick_seeds(
-        g,
-        candidate_pool_size=candidate_pool_size,
-        seed_count_k=seed_count_k,
-        spam_flagged=spam_flagged,
-        post_quality=post_quality,
-        post_quality_min=post_quality_min,
-        readability_grade=readability_grade,
-        readability_grade_max=readability_grade_max,
-    )
-    seed_ids = ",".join(str(s) for s in result.seeds)
-    AppSetting.objects.update_or_create(
-        key="trustrank.seed_ids",
-        defaults={
-            "value": seed_ids,
-            "description": "Auto-picked TrustRank seeds (daily refresh).",
-        },
-    )
-    checkpoint(
-        progress_pct=100.0,
-        message=(
-            f"Picked {len(result.seeds)} seeds "
-            f"({result.reason}; rejected={result.rejected_count}, "
-            f"fallback={'yes' if result.fallback_used else 'no'})"
-        ),
-    )
+    try:
+        result = pick_seeds(
+            g,
+            candidate_pool_size=candidate_pool_size,
+            seed_count_k=seed_count_k,
+            spam_flagged=spam_flagged,
+            post_quality=post_quality,
+            post_quality_min=post_quality_min,
+            readability_grade=readability_grade,
+            readability_grade_max=readability_grade_max,
+        )
+        seed_ids = ",".join(str(s) for s in result.seeds)
+        AppSetting.objects.update_or_create(
+            key="trustrank.seed_ids",
+            defaults={
+                "value": seed_ids,
+                "description": "Auto-picked TrustRank seeds (daily refresh).",
+            },
+        )
+        checkpoint(
+            progress_pct=100.0,
+            message=(
+                f"Picked {len(result.seeds)} seeds "
+                f"({result.reason}; rejected={result.rejected_count}, "
+                f"fallback={'yes' if result.fallback_used else 'no'})"
+            ),
+        )
+    finally:
+        release_task_lock("heavy", "trustrank_auto_seeder")
 
 
 @scheduled_job(
@@ -500,36 +569,46 @@ def run_trustrank_auto_seeder(job, checkpoint) -> None:
     priority=JOB_PRIORITY_HIGH,
 )
 def run_trustrank_propagation(job, checkpoint) -> None:
+    """Phase 0.8: Heavy-lock-aware TrustRank propagation."""
     from apps.core.models import AppSetting
     from apps.pipeline.services.graph_signal_store import (
         SIGNAL_TRUSTRANK,
         persist_top_n,
     )
+    from apps.pipeline.services.task_lock import release_task_lock
     from apps.pipeline.services.trustrank import compute
+
+    if not _acquire_heavy_or_defer("trustrank_propagation"):
+        checkpoint(progress_pct=0.0, message="Heavy lock busy — deferring to next tick")
+        return
 
     g = _load_networkx_graph(checkpoint)
     if g.number_of_nodes() == 0:
+        release_task_lock("heavy", "trustrank_propagation")
         checkpoint(progress_pct=100.0, message="Empty graph — skip")
         return
 
     # Group D consolidation (2026-04-28): single shared helper instead
     # of the inline filter + values_list + or-fallback chain.
-    seed_ids_raw = AppSetting.get_str("trustrank.seed_ids", "")
-    seeds = [s for s in seed_ids_raw.split(",") if s]
-    checkpoint(
-        progress_pct=30.0,
-        message=f"Propagating trust from {len(seeds)} seeds",
-    )
-    result = compute(g, trusted_seeds=seeds)
-    checkpoint(progress_pct=70.0, message="Persisting TrustRank top-N")
-    written = persist_top_n(signal=SIGNAL_TRUSTRANK, scores=result.scores)
-    checkpoint(
-        progress_pct=100.0,
-        message=(
-            f"TrustRank persisted: {written} of {len(result.scores)} nodes "
-            f"({result.reason})"
-        ),
-    )
+    try:
+        seed_ids_raw = AppSetting.get_str("trustrank.seed_ids", "")
+        seeds = [s for s in seed_ids_raw.split(",") if s]
+        checkpoint(
+            progress_pct=30.0,
+            message=f"Propagating trust from {len(seeds)} seeds",
+        )
+        result = compute(g, trusted_seeds=seeds)
+        checkpoint(progress_pct=70.0, message="Persisting TrustRank top-N")
+        written = persist_top_n(signal=SIGNAL_TRUSTRANK, scores=result.scores)
+        checkpoint(
+            progress_pct=100.0,
+            message=(
+                f"TrustRank persisted: {written} of {len(result.scores)} nodes "
+                f"({result.reason})"
+            ),
+        )
+    finally:
+        release_task_lock("heavy", "trustrank_propagation")
 
 
 @scheduled_job(

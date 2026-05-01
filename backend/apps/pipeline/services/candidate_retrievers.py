@@ -507,12 +507,18 @@ class PixieRetriever:
         if not valid_dest_keys:
             return {}
 
-        # Overwrite policy: delete old ones for these destinations (Group A.3)
-        dest_pks = [k[0] for k in valid_dest_keys]
-        PixieWalkVisit.objects.filter(source_content_id__in=dest_pks).delete()
-
+        # Phase 0.9 (Wave 1 A.3): atomic UPSERT instead of delete+recreate.
+        # Django 5.2's ``bulk_create(..., update_conflicts=True, ...)`` maps
+        # to Postgres ``INSERT ... ON CONFLICT (...) DO UPDATE`` which:
+        #   * never deletes existing rows (so concurrent readers don't see
+        #     a partial-empty walk graph mid-write);
+        #   * lets the next walk overwrite the visit_count atomically;
+        #   * removes the per-batch DELETE round-trip.
+        # The previous delete+bulk_create pattern worked under last-write-
+        # wins semantics but had a brief gap where readers saw zero walks
+        # for a destination, and burnt one DELETE statement per refresh.
         visits_to_create = []
-        
+
         for dest_key in valid_dest_keys:
             dest_pk = dest_key[0]
             q_node = np.array([c_to_idx[dest_pk]], dtype=np.uint32)
@@ -554,7 +560,13 @@ class PixieRetriever:
                 result[dest_key] = sentence_ids
 
         if visits_to_create:
-            PixieWalkVisit.objects.bulk_create(visits_to_create, batch_size=1000)
+            PixieWalkVisit.objects.bulk_create(
+                visits_to_create,
+                batch_size=1000,
+                update_conflicts=True,
+                update_fields=["visit_count", "created_at"],
+                unique_fields=["source_content", "visited_content", "signal_version"],
+            )
 
         return result
 

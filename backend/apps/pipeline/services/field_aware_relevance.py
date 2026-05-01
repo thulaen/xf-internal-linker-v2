@@ -325,7 +325,14 @@ def _score_field(
             )
         )
     else:
-        field_raw = sum(float(row["token_score"]) for row in top_terms) / len(top_terms)
+        # Phase 0.13 — empty top_terms means no matched tokens for this
+        # field; neutral 0.0 score keeps the field out of the BM25 sum
+        # without raising. The downstream score saturates at 0/(1+0)=0.0
+        # which is exactly what a missing field should contribute.
+        if not top_terms:
+            field_raw = 0.0
+        else:
+            field_raw = sum(float(row["token_score"]) for row in top_terms) / len(top_terms)
         field_score = field_raw / (1.0 + field_raw)
     return field_score, top_terms
 

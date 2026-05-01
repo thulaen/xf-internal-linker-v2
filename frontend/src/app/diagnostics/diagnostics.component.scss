@@ -470,10 +470,29 @@
   h2 { margin: 0 0 24px; font-size: 20px; font-weight: 600; color: var(--color-text-primary); }
 }
 
+// Phase 0.14 — System Health filter bar.
+// AGENTS.md Layout Precision Rule A: 16px left clearance before the
+// first chip. Bottom margin keeps the chips from kissing the grid.
+.service-filter-bar {
+  margin: 0 0 var(--spacing-md);
+  padding-left: var(--spacing-md);
+}
+
 .services-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 24px;
+}
+
+.empty-state {
+  grid-column: 1 / -1;
+  margin: var(--spacing-md) 0;
+  padding: var(--spacing-card);
+  border: var(--card-border);
+  border-radius: var(--card-border-radius);
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: 14px;
 }
 
 .side-content {

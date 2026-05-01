@@ -2366,6 +2366,122 @@ def backfill_long_tail_embeddings(
 
 
 # ---------------------------------------------------------------------------
+# Phase 0.0 — Catch-up re-embed for orphan rows nulled by a migration.
+#
+# Some schema migrations (e.g. ``content/0010_bge_m3_embedding_dim_1024``)
+# legitimately null all embedding rows because the pgvector dimension
+# changed. Without an automatic catch-up step, ``ContentItem.embedding``
+# stays NULL on every affected row until something triggers a re-embed —
+# silently degrading retrieval. This task closes that gap:
+#
+#   - Walks ContentItems with ``embedding IS NULL`` in PK order.
+#   - Calls ``generate_content_item_embeddings`` for each batch (which
+#     itself respects the existing skip-on-unchanged filter and writes
+#     ``embedding_text_hash`` per Group D.2).
+#   - Checkpoints the last completed PK so a restart resumes cleanly.
+#   - Idempotent: a fresh DB or one with no orphans completes
+#     immediately with ``processed=0``.
+#
+# Migrations that null embeddings should queue this task at the end of
+# their RunPython block so the gap closes automatically. The catch-up
+# migration ``content/0042_queue_orphan_reembed.py`` runs it once for
+# any orphans that pre-date this fix.
+# ---------------------------------------------------------------------------
+
+_NULL_REEMBED_CHECKPOINT_KEY = "pipeline.reembed.null_embeddings.last_pk"
+_NULL_REEMBED_BATCH_SIZE = 100
+
+
+@shared_task(
+    name="pipeline.reembed_null_embeddings",
+    time_limit=3600,
+    soft_time_limit=3540,
+)
+def reembed_null_embeddings(
+    *,
+    batch_size: int = _NULL_REEMBED_BATCH_SIZE,
+    max_items: int | None = None,
+):
+    """Re-embed ContentItems whose embedding was nulled (e.g. by a dim-change migration).
+
+    Plain-English: walks every ContentItem whose embedding column is
+    blank and re-runs the embed pipeline for it. The skip-on-unchanged
+    filter in ``generate_content_item_embeddings`` automatically
+    excludes anything that already has a current-signature vector, so
+    calling this task on a healthy corpus is a fast no-op. Resumable
+    via an AppSetting checkpoint key so a laptop close mid-run loses
+    nothing.
+
+    Args:
+        batch_size: how many orphans to embed per checkpointed batch.
+                    Default 100 matches the long-tail backfill.
+        max_items: cap the run to this many items (None = process every
+                   orphan until the queue is empty).
+
+    Returns:
+        Dict with ``processed`` (count of items successfully embedded)
+        and ``complete`` (True if every orphan was handled, False if
+        the run stopped early at ``max_items``).
+    """
+    from apps.content.models import ContentItem
+    from apps.core.models import AppSetting
+    from apps.pipeline.services.embeddings import (
+        generate_content_item_embeddings,
+    )
+
+    setting = AppSetting.objects.filter(key=_NULL_REEMBED_CHECKPOINT_KEY).first()
+    last_pk = int(setting.value) if (setting and setting.value.isdigit()) else 0
+
+    orphans = (
+        ContentItem.objects.filter(
+            embedding__isnull=True,
+            is_deleted=False,
+            duplicate_of__isnull=True,
+            pk__gt=last_pk,
+        )
+        .order_by("pk")
+        .values_list("pk", flat=True)
+    )
+
+    processed = 0
+    batch: list[int] = []
+    for pk in orphans.iterator(chunk_size=batch_size):
+        batch.append(pk)
+        if len(batch) >= batch_size:
+            generate_content_item_embeddings(content_item_ids=batch)
+            processed += len(batch)
+            AppSetting.objects.update_or_create(
+                key=_NULL_REEMBED_CHECKPOINT_KEY,
+                defaults={"value": str(batch[-1])},
+            )
+            batch.clear()
+            if max_items is not None and processed >= max_items:
+                logger.info(
+                    "[reembed_null_embeddings] Stopping at max_items=%d "
+                    "(checkpoint=%s); re-run to continue.",
+                    max_items,
+                    AppSetting.objects.get(key=_NULL_REEMBED_CHECKPOINT_KEY).value,
+                )
+                return {"processed": processed, "complete": False}
+
+    if batch:
+        generate_content_item_embeddings(content_item_ids=batch)
+        processed += len(batch)
+        AppSetting.objects.update_or_create(
+            key=_NULL_REEMBED_CHECKPOINT_KEY,
+            defaults={"value": str(batch[-1])},
+        )
+
+    # Reset checkpoint when complete so the next run starts from PK 0.
+    AppSetting.objects.filter(key=_NULL_REEMBED_CHECKPOINT_KEY).delete()
+
+    logger.info(
+        "[reembed_null_embeddings] Complete. processed=%d", processed
+    )
+    return {"processed": processed, "complete": True}
+
+
+# ---------------------------------------------------------------------------
 # Group E / FR-053 — Passage-Level Relevance Scoring.
 #
 # Bounded periodic task that catches any ContentItem whose passage

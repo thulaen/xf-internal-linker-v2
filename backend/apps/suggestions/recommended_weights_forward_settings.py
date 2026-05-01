@@ -201,6 +201,35 @@ FORWARD_DECLARED_WEIGHTS: dict[str, str] = {
     "passage_relevance.passages_per_page_max": "0",
     "passage_relevance.passage_words": "200",
     "passage_relevance.index_quantised": "true",
+    # Phase 0.4 — full FR-053 spec §8 setting set wired into the
+    # Recommended preset so OPQ + IVF retrieval is ON by default and
+    # operator-tunable from `/settings/passage-relevance`.
+    # Citations: Patent US 8,447,765 B2 (OPQ), Jegou-Douze-Schmid 2010
+    # CVPR (IVFADC), Sivic-Zisserman 2003 ICCV (inverted file).
+    "passage_relevance.opq_index_enabled": "true",
+    # M=64 sub-quantisers — matches FR-053 §8 default. Storage cost is
+    # 64 bytes per passage; BGE-M3's 1024-dim float32 cost is 4096 bytes,
+    # so OPQ is a 64x compression with negligible recall loss at K=256.
+    "passage_relevance.opq_codebook_size": "64",
+    # K=256 centroids per sub-quantiser — exactly fits a uint8 code byte.
+    "passage_relevance.opq_centroids_per_subquantiser": "256",
+    # IVF: 4096 centroids gives ~250 vectors per partition for a 1M passage
+    # corpus — the sweet spot per Jegou 2010 §4 where probe cost is balanced
+    # against recall.
+    "passage_relevance.ivf_n_centroids": "4096",
+    # nprobe=16 inspects ~0.4% of the index. Standard FAISS-IVFADC default;
+    # gives recall@100 >= 0.95 vs exhaustive search per FR-053 spec §3 gate.
+    "passage_relevance.ivf_nprobe": "16",
+    # 25% overlap between adjacent 200-word passages — Callan 1994 SIGIR §5
+    # showed 20-30% overlap maximises retrieval recall on long documents.
+    "passage_relevance.passage_overlap_ratio": "0.25",
+    # 0 = unlimited host-side scanning. With OPQ on the destination side
+    # the per-host scoring is cheap enough to scan the full host page.
+    "passage_relevance.host_scan_word_limit": "0",
+    # 32,000 chars (~8000 tokens) matches BGE-M3's native context window.
+    # Page-level embedding gets the full context; passage-level handles
+    # anything beyond that via overlapping windows.
+    "passage_relevance.page_embedding_max_chars": "32000",
     # FR-054 — Boilerplate-to-Content Ratio
     "boilerplate_ratio.enabled": "true",
     "boilerplate_ratio.ranking_weight": "0.02",

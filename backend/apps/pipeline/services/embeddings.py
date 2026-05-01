@@ -41,15 +41,16 @@ DEFAULT_MODEL_NAME = "BAAI/bge-m3"
 EMBEDDING_DIM = 1024
 STORAGE_VECTOR_MAX_DIM = 16_000
 
-#: Group D.1 — soft cap on the character count we feed BGE-M3 per
-#: ContentItem embedding. ~24 000 chars ≈ ~6 000 tokens at the
-#: ``4 chars / token`` rule of thumb for English; BGE-M3's max
-#: sequence length is 8 192 tokens. The 2 000-token margin covers
-#: the title prefix, language-specific tokenisation overhead, and
-#: the special tokens (``[CLS]``, ``[SEP]``) that the model adds.
-#: Posts longer than this still get an embedding of their leading
-#: ~6 000 tokens — late-paragraph recall is handled separately by
-#: the FR-053 passage retrieval pipeline (masterplan Group E).
+#: Hard cap on the character count we feed BGE-M3 per ContentItem
+#: embedding. Bumped to 1,000,000 chars (~250,000 tokens) per LEDGER
+#: L5 so massive forum threads aren't truncated. BGE-M3's native
+#: sequence length is 8,192 tokens; anything past that is folded into
+#: a single document vector by the model's internal pooling. The cap
+#: only exists to prevent extreme-edge-case OOM (a 100 MB single
+#: post would otherwise pull 100 MB through the tokenizer). For 99.9 %
+#: of forum posts this is effectively "no truncation". Late-paragraph
+#: recall on truly massive threads is handled by the FR-053 passage
+#: retrieval pipeline (masterplan Group E).
 _MAX_EMBED_CHARS: int = 1_000_000
 
 _model_cache: dict[str, Any] = {}

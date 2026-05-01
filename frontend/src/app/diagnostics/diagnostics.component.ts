@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatChipsModule } from '@angular/material/chips';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -50,7 +51,7 @@ const WAVE2_SIGNAL_IDS = [
   standalone: true,
   imports: [
     CommonModule, MatTooltipModule, MatButtonModule, MatIconModule, MatTabsModule,
-    MatCardModule,
+    MatCardModule, MatChipsModule,
     PersistTabDirective, ServiceCardComponent, ConflictListComponent,
     ReadinessMatrixComponent, SuppressedPairsCardComponent,
   ],
@@ -113,6 +114,73 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
   readonly coreServices = computed(() =>
     this.services().filter((service) => !RUNTIME_SUMMARY_SERVICES.has(service.service_name)),
   );
+
+  // Phase 0.14 — System Health filter bar.
+  // Persists the operator's last-used chip across reloads via
+  // localStorage so refreshing the page doesn't lose context.
+  readonly serviceFilter = signal<'all' | 'issues' | 'warnings' | 'healthy' | 'not_configured' | 'down'>(
+    (typeof localStorage !== 'undefined'
+      ? (localStorage.getItem('diagnostics.serviceFilter') as
+        | 'all' | 'issues' | 'warnings' | 'healthy' | 'not_configured' | 'down' | null)
+      : null) ?? 'issues',
+  );
+
+  readonly filteredCoreServices = computed(() => {
+    const services = this.coreServices();
+    const filter = this.serviceFilter();
+    if (filter === 'all') {
+      return services;
+    }
+    return services.filter((s) => {
+      const state = s.state;
+      switch (filter) {
+        case 'issues':
+          return state === 'failed' || state === 'partial_or_conflicting';
+        case 'warnings':
+          return state === 'degraded';
+        case 'healthy':
+          return state === 'healthy';
+        case 'not_configured':
+          return (
+            state === 'not_configured' ||
+            state === 'not_installed' ||
+            state === 'spec_missing' ||
+            state === 'spec_exists_not_implemented' ||
+            state === 'planned_only'
+          );
+        case 'down':
+          return state === 'disabled';
+        default:
+          return true;
+      }
+    });
+  });
+
+  readonly serviceFilterCounts = computed(() => {
+    const counts = {
+      all: 0, issues: 0, warnings: 0, healthy: 0, not_configured: 0, down: 0,
+    };
+    for (const s of this.coreServices()) {
+      counts.all++;
+      if (s.state === 'failed' || s.state === 'partial_or_conflicting') counts.issues++;
+      else if (s.state === 'degraded') counts.warnings++;
+      else if (s.state === 'healthy') counts.healthy++;
+      else if (
+        s.state === 'not_configured' || s.state === 'not_installed' ||
+        s.state === 'spec_missing' || s.state === 'spec_exists_not_implemented' ||
+        s.state === 'planned_only'
+      ) counts.not_configured++;
+      else if (s.state === 'disabled') counts.down++;
+    }
+    return counts;
+  });
+
+  setServiceFilter(filter: 'all' | 'issues' | 'warnings' | 'healthy' | 'not_configured' | 'down'): void {
+    this.serviceFilter.set(filter);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('diagnostics.serviceFilter', filter);
+    }
+  }
 
   readonly groupedErrors = computed(() => groupErrors(this.errors(), this.filterNodeId()));
 

@@ -74,6 +74,16 @@ _DEFAULT_MIN_HOST_CHARS = 300
 _THIN_WORD_HARD_THRESHOLD = 100
 _THIN_WORD_SOFT_THRESHOLD = 200
 
+#: Neutral mid-point used as the default value for every ranker score
+#: that maps a [0, 1] component into a centred [-1, +1] contribution
+#: via ``2 * (score - 0.5)``. A score of exactly ``_NEUTRAL_SCORE``
+#: contributes zero to ``score_final`` (the centred component is 0.0)
+#: so a missing or fallback value never tilts the ranking. Source:
+#: FR-053 §6 ("neutral is the centred zero, not the lowest score") and
+#: Croft-Metzler-Strohman 2010 §8.3 ("missing-feature defaults must
+#: not bias the composite score").
+_NEUTRAL_SCORE: float = 0.5
+
 from .field_aware_relevance import (
     FieldAwareRelevanceSettings,
     evaluate_field_aware_relevance,
@@ -130,7 +140,7 @@ class ContentRecord:
     primary_post_char_count: int
     tokens: frozenset[str]
     content_value_score: float = 0.0
-    click_distance_score: float = 0.5
+    click_distance_score: float = _NEUTRAL_SCORE
     scope_title: str = ""
     parent_scope_title: str = ""
     grandparent_scope_title: str = ""
@@ -220,9 +230,9 @@ class ScoredCandidate:
     cluster_diagnostics: dict[str, object]
     explore_exploit_diagnostics: dict[str, object]
     click_distance_diagnostics: dict[str, object]
-    score_anchor_diversity: float = 0.5
-    score_keyword_stuffing: float = 0.5
-    score_link_farm: float = 0.5
+    score_anchor_diversity: float = _NEUTRAL_SCORE
+    score_keyword_stuffing: float = _NEUTRAL_SCORE
+    score_link_farm: float = _NEUTRAL_SCORE
     repeated_anchor: bool = False
     anchor_diversity_diagnostics: dict[str, object] = field(default_factory=dict)
     keyword_stuffing_diagnostics: dict[str, object] = field(default_factory=dict)
@@ -248,7 +258,7 @@ class ScoredCandidate:
     # FR-053 — Passage-Level Relevance Scoring (masterplan Group E).
     # Default 0.5 = neutral (centred component is 0.0, no contribution).
     # See docs/specs/fr053-passage-level-relevance.md.
-    score_passage_relevance: float = 0.5
+    score_passage_relevance: float = _NEUTRAL_SCORE
     passage_relevance_diagnostics: dict[str, object] = field(default_factory=dict)
 
     @property
@@ -425,13 +435,13 @@ def log_minmax_normalize_score(
 ) -> float:
     """Logarithmic min-max normalization for positive authority-like scores."""
     if score_min == score_max:
-        return 0.5
+        return _NEUTRAL_SCORE
 
     epsilon = 1e-9
     min_log = math.log(score_min + epsilon)
     max_log = math.log(score_max + epsilon)
     if min_log == max_log:
-        return 0.5
+        return _NEUTRAL_SCORE
 
     score_log = math.log(score + epsilon)
     normalized = (score_log - min_log) / (max_log - min_log)
@@ -603,12 +613,25 @@ def score_destination_matches(
             .only("pk", "duplicate_of_id")
             .first()
         )
-    except Exception:
+    except Exception as exc:
         logger.warning(
             "score_destination_matches: failed to prefetch sentence "
             "embeddings or destination ContentItem for FR-053 — passage "
             "relevance will return neutral for this run",
             exc_info=True,
+        )
+        # Phase 0.2 — surface to /error-log so the operator sees the
+        # silent neutral-fallback instead of it being buried in worker
+        # logs. ingest_error() is dedup-by-fingerprint and never raises.
+        from apps.audit.error_ingest import ingest_error
+        from apps.audit.models import ErrorLog
+        ingest_error(
+            job_type="ranker_signal",
+            step="prefetch_passage_relevance",
+            error_message=str(exc),
+            raw_exception=repr(exc),
+            why="FR-053 passage relevance returned neutral 0.5 for this run.",
+            severity=ErrorLog.SEVERITY_MEDIUM,
         )
         sentence_embedding_by_id = {}
         destination_content_item = None
@@ -941,7 +964,7 @@ def score_destination_matches(
         # Defensive: ``passage_relevance.score`` never raises into here;
         # any failure path returns the neutral 0.5 score whose centred
         # component is 0.0 (no contribution).
-        passage_relevance_score = 0.5
+        passage_relevance_score = _NEUTRAL_SCORE
         passage_relevance_diags: dict[str, Any] = {}
         passage_relevance_contribution = 0.0
         try:
@@ -962,14 +985,25 @@ def score_destination_matches(
                 passage_relevance_weight
                 * passage_relevance_svc.score_component(passage_relevance_score)
             )
-        except Exception:
-            # Any unexpected error stays out of score_final entirely.
+        except Exception as exc:
             logger.warning(
                 "passage_relevance contribution failed for sentence=%s destination=%s; "
                 "treating as neutral",
                 getattr(match, "sentence_id", None),
                 getattr(destination, "pk", None),
                 exc_info=True,
+            )
+            # Phase 0.2 — fingerprinted dedup so a recurring failure
+            # rolls into one /error-log row with occurrence_count++.
+            from apps.audit.error_ingest import ingest_error
+            from apps.audit.models import ErrorLog
+            ingest_error(
+                job_type="ranker_signal",
+                step="passage_relevance_contribution",
+                error_message=str(exc),
+                raw_exception=repr(exc),
+                why="FR-053 contribution suppressed; ranker continues with score_final unchanged.",
+                severity=ErrorLog.SEVERITY_MEDIUM,
             )
         score_final += passage_relevance_contribution
 
@@ -1034,6 +1068,17 @@ def score_destination_matches(
                     "phase6_contribution.contribute_total raised: %s",
                     exc,
                 )
+                # Phase 0.2 — surface to deduped error log.
+                from apps.audit.error_ingest import ingest_error
+                from apps.audit.models import ErrorLog
+                ingest_error(
+                    job_type="ranker_signal",
+                    step="phase6_contribution",
+                    error_message=str(exc),
+                    raw_exception=repr(exc),
+                    why="Phase 6 picks (VADER/KenLM/LDA/Node2Vec/BPR/FM) returned no contribution.",
+                    severity=ErrorLog.SEVERITY_LOW,
+                )
 
         # PR-Anchor — anti-generic / pro-descriptive anchor signals.
         # Three composable algos via apps.pipeline.services.
@@ -1071,6 +1116,18 @@ def score_destination_matches(
                 logger.warning(
                     "anchor_garbage_dispatcher.contribution raised: %s",
                     exc,
+                )
+                # Phase 0.2 — surface to deduped error log so an
+                # anchor-classifier regression isn't silently lost.
+                from apps.audit.error_ingest import ingest_error
+                from apps.audit.models import ErrorLog
+                ingest_error(
+                    job_type="ranker_signal",
+                    step="anchor_garbage_dispatcher",
+                    error_message=str(exc),
+                    raw_exception=repr(exc),
+                    why="PR-Anchor anti-generic / pro-descriptive contribution skipped for this candidate.",
+                    severity=ErrorLog.SEVERITY_LOW,
                 )
 
         # FR-014 Clustering Suppression
@@ -1202,13 +1259,13 @@ def _neutral_keyword_stuffing_eval(
     settings: KeywordStuffingSettings,
 ) -> KeywordStuffingEvaluation:
     return KeywordStuffingEvaluation(
-        score_keyword_stuffing=0.5,
+        score_keyword_stuffing=_NEUTRAL_SCORE,
         score_component=0.0,
         diagnostics={
             "stuffing_state": "neutral",
             "stuff_score": 0.0,
             "stuff_penalty": 0.0,
-            "score_keyword_stuffing": 0.5,
+            "score_keyword_stuffing": _NEUTRAL_SCORE,
             "algorithm_version": settings.algorithm_version,
         },
     )
@@ -1216,13 +1273,13 @@ def _neutral_keyword_stuffing_eval(
 
 def _neutral_link_farm_eval(settings: LinkFarmSettings) -> LinkFarmEvaluation:
     return LinkFarmEvaluation(
-        score_link_farm=0.5,
+        score_link_farm=_NEUTRAL_SCORE,
         score_component=0.0,
         diagnostics={
             "link_farm_state": "neutral",
             "ring_score": 0.0,
             "ring_penalty": 0.0,
-            "score_link_farm": 0.5,
+            "score_link_farm": _NEUTRAL_SCORE,
             "algorithm_version": settings.algorithm_version,
         },
     )

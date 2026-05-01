@@ -47,7 +47,9 @@ def null_embeddings(apps, schema_editor):
         f"dependency point (the archive table is added later in 0020). The "
         f"runtime archival hook in apps/pipeline/services/embeddings.py "
         f"preserves future provider-swap and model-upgrade vectors. "
-        f"Re-run the embed pipeline to repopulate."
+        f"The catch-up migration content/0042 will queue an automatic "
+        f"re-embed via pipeline.reembed_null_embeddings the next time "
+        f"`manage.py migrate` runs."
     )
 
 

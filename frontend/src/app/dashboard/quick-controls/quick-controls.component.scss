@@ -34,7 +34,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
-  padding: 8px 0;
+  padding: var(--spacing-sm) 0;
 }
 
 .model-row {
@@ -56,7 +56,7 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--space-xs);
 }
 
 .model-name {
@@ -78,12 +78,12 @@
 }
 
 .status-wrap {
-  margin-left: 8px;
+  margin-left: var(--spacing-sm);
 }
 
 .model-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--spacing-sm);
   align-items: center;
 
   button {
@@ -96,11 +96,11 @@
       font-size: 18px;
       height: 18px;
       width: 18px;
-      margin-right: 4px;
+      margin-right: var(--space-xs);
     }
-    
+
     mat-spinner {
-      margin-right: 4px;
+      margin-right: var(--space-xs);
     }
   }
 }
@@ -109,7 +109,10 @@
 .status-chip {
   font-size: 11px;
   font-weight: 500;
-  padding: 2px 8px;
+  /* 4px vertical padding satisfies the 4px-grid rule per AGENTS.md
+     §"Spacing, Breathing Room & Edge Clearance"; previous value was
+     2px which violated the grid. */
+  padding: var(--space-xs) var(--spacing-sm);
   border-radius: 12px;
   text-transform: capitalize;
   

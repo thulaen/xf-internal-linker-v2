@@ -718,9 +718,49 @@
       <div class="grid-column">
         <section class="services-section">
           <h2>Core Runtime & Services</h2>
+
+          <!-- Phase 0.14 — filter bar lets the operator focus on what's
+               broken vs everything; default chip is "Issues" so problems
+               surface first. Counts update live via signals. Layout
+               Precision Rule A: 16px left clearance on first chip
+               handled via .service-filter-bar SCSS padding. -->
+          <mat-chip-listbox
+            class="service-filter-bar"
+            aria-label="Filter services by status"
+            [value]="serviceFilter()"
+            (change)="setServiceFilter($event.value)"
+          >
+            <mat-chip-option
+              value="all"
+              matTooltip="Show every service regardless of status"
+            >All ({{ serviceFilterCounts().all }})</mat-chip-option>
+            <mat-chip-option
+              value="issues"
+              matTooltip="Failed services and partial/conflicting runtime states — fix these first"
+            >Issues ({{ serviceFilterCounts().issues }})</mat-chip-option>
+            <mat-chip-option
+              value="warnings"
+              matTooltip="Degraded services — running but slower or missing capability"
+            >Warnings ({{ serviceFilterCounts().warnings }})</mat-chip-option>
+            <mat-chip-option
+              value="healthy"
+              matTooltip="Services reporting healthy"
+            >Healthy ({{ serviceFilterCounts().healthy }})</mat-chip-option>
+            <mat-chip-option
+              value="not_configured"
+              matTooltip="Services not configured, not installed, or pending implementation"
+            >Not configured ({{ serviceFilterCounts().not_configured }})</mat-chip-option>
+            <mat-chip-option
+              value="down"
+              matTooltip="Services explicitly disabled by an operator"
+            >Down ({{ serviceFilterCounts().down }})</mat-chip-option>
+          </mat-chip-listbox>
+
           <div class="services-grid">
-            @for (s of coreServices(); track s.service_name) {
+            @for (s of filteredCoreServices(); track s.service_name) {
               <app-service-card [service]="s"></app-service-card>
+            } @empty {
+              <p class="empty-state">No services match the current filter.</p>
             }
           </div>
         </section>

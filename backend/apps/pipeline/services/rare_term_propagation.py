@@ -314,7 +314,13 @@ def _evaluate_rare_term_propagation(
         )
     )
     top_matches = tuple(matched_terms[:MAX_TERMS_PER_SUGGESTION])
-    rare_term_lift = sum(term.term_evidence for term in top_matches) / len(top_matches)
+    # Phase 0.13 — guard against the (rare) case where matched_terms is
+    # empty by the time we reach here. The neutral 0.0 lift means no
+    # rare-term contribution, matching the no-signal default.
+    if not top_matches:
+        rare_term_lift = 0.0
+    else:
+        rare_term_lift = sum(term.term_evidence for term in top_matches) / len(top_matches)
     score = 0.5 + (0.5 * rare_term_lift)
     diagnostics = _build_diagnostics(
         rare_term_state="computed_match",
@@ -532,9 +538,15 @@ def _build_propagated_terms(
         relationship_weights = tuple(
             float(weight) for weight in support["supporting_relationship_weights"]
         )
-        average_relationship_weight = sum(relationship_weights) / len(
-            relationship_weights
-        )
+        # Phase 0.13 — neutral fallback when the supporting-relationship
+        # list is empty (the upstream join can return zero rows). 0.0 keeps
+        # the term out of the propagation pool without raising.
+        if relationship_weights:
+            average_relationship_weight = sum(relationship_weights) / len(
+                relationship_weights
+            )
+        else:
+            average_relationship_weight = 0.0
         rarity_strength = 1.0 - (
             (int(support["document_frequency"]) - 1)
             / max(settings.max_document_frequency, 1)

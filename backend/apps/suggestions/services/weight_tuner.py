@@ -39,6 +39,11 @@ def _emit_weight_tuner_event(
 def _normalize_weight_vector(weights: np.ndarray) -> np.ndarray:
     """Return a finite weight vector with sum 1.0."""
     values = np.asarray(weights, dtype=np.float64)
+    # Phase 0.13: empty input would otherwise raise ZeroDivisionError on
+    # the 1/len(values) fallback. An empty weight vector is a sensible
+    # caller error (no signals to blend) so we return it unchanged.
+    if values.size == 0:
+        return values
     total = float(np.sum(values))
     if not np.isfinite(total) or total <= _WEIGHT_EPSILON:
         return np.full(len(values), 1.0 / len(values), dtype=np.float64)
