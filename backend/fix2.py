@@ -1,4 +1,3 @@
-import os
 
 txt = open('apps/pipeline/services/passage_relevance.py').read()
 

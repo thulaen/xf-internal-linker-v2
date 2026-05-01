@@ -3034,3 +3034,19 @@ Verification results:
 2. **Phase 38 Wiring**: Continue the 52-pick roster integration.
 3. **Benchmark Regression**: Monitor for throughput improvements in the staging environment.
 
+
+# 2026-05-01 - Codex - Reviewed Slices 4-10 Fixes And Committed Minor Repairs
+
+Reviewed the current slice 4 through 10 repair code against the user's findings before committing.
+
+- Confirmed the pasted review findings are already addressed in the current codebase: readiness routing lives under suggestions, the meta algorithm tab uses the shared spec viewer and defaults to all rows, the pending implementation state is distinct, and Operations Feed wiring is present in the repaired paths.
+- Fixed a real feature-flag admin bug found during review: sending `"false"` as text now turns a flag off instead of being treated as true. Invalid rollout percentages now return a plain 400 response instead of raising an error.
+- Added a regression test so the feature-flag admin API keeps string `"false"` disabled.
+- Kept the generated Google Test dependency tree clean and removed unused imports from the small backend helper scripts that were already dirty.
+
+Verification completed:
+- python -m py_compile backend/apps/core/views_observability.py backend/apps/core/test_group_l_slices.py passed.
+- docker compose exec backend python manage.py test apps.core.test_group_l_slices --settings=config.settings.test --noinput passed 5 tests.
+
+Notes for the next agent:
+- Django test startup still logs the pre-existing FAISS process warning and a couple of early audit/ops-feed table warnings while the sqlite test database is being prepared, but the targeted tests pass.

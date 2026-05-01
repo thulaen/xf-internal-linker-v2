@@ -188,9 +188,15 @@ class FeatureFlagAdminDetailView(APIView):
             return Response({"detail": "unknown flag"}, status=status.HTTP_404_NOT_FOUND)
 
         if "enabled" in request.data:
-            flag.enabled = bool(request.data["enabled"])
+            flag.enabled = _coerce_bool(request.data["enabled"])
         if "rollout_percent" in request.data:
-            raw_percent = int(request.data["rollout_percent"])
+            try:
+                raw_percent = int(request.data["rollout_percent"])
+            except (TypeError, ValueError):
+                return Response(
+                    {"detail": "rollout_percent must be a number from 0 to 100."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             flag.rollout_percent = max(0, min(100, raw_percent))
         flag.save(update_fields=["enabled", "rollout_percent", "updated_at"])
 
@@ -220,6 +226,12 @@ def _percentile(sorted_vals: list[float], pct: float) -> float:
     if f == c:
         return float(sorted_vals[f])
     return float(sorted_vals[f] + (sorted_vals[c] - sorted_vals[f]) * (k - f))
+
+
+def _coerce_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "on", "t", "y"}
 
 
 def _serialize_flag(flag: FeatureFlag) -> dict:

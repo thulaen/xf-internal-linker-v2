@@ -58,6 +58,15 @@ class GroupLInfrastructureSmokeTests(TestCase):
         self.assertFalse(FeatureFlag.objects.get(key="slice-test").enabled)
         self.assertFalse(is_flag_enabled("slice-test", user.id))
 
+        response = self.client.patch(
+            "/api/feature-flags/admin/slice-test/",
+            data={"enabled": "false"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(FeatureFlag.objects.get(key="slice-test").enabled)
+
     def test_ops_feed_dedupes_within_window(self):
         emit(
             "slice.smoke",

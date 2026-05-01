@@ -1,4 +1,3 @@
-import os
 
 txt = open('apps/pipeline/tasks.py').read()
 
