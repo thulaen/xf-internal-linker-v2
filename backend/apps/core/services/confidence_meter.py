@@ -37,6 +37,33 @@ logger = logging.getLogger(__name__)
 CACHE_KEY = "confidence_meter.snapshot"
 CACHE_TTL_SECONDS = 60
 
+# Phase 4 fix #3 — embedding signature cached as a single AppSetting row.
+# The embed pipeline writes this key the first time it loads the model
+# in a worker process (apps.pipeline.services.embeddings.publish_current_embedding_signature).
+# Reading it on the dashboard hot-path avoids a cold model load.
+APP_SETTING_EMBEDDING_SIGNATURE = "embedding.current_signature"
+
+
+def _read_cached_embedding_signature() -> str:
+    """Return the BGE-M3 signature from the AppSetting cache, or "" if unset.
+
+    Never loads the model. The embed pipeline writes this key on its
+    first encode op per worker process. If no worker has run yet, the
+    Confidence Meter treats freshness as "match by row presence" rather
+    than blocking on a cold load.
+    """
+    try:
+        from apps.core.models import AppSetting
+
+        row = AppSetting.objects.filter(key=APP_SETTING_EMBEDDING_SIGNATURE).first()
+        if row and row.value:
+            return str(row.value).strip()
+    except Exception:
+        logger.debug(
+            "confidence_meter: embedding signature cache read failed", exc_info=True
+        )
+    return ""
+
 
 @dataclass(frozen=True)
 class ContributorResult:
@@ -124,24 +151,20 @@ def _check_content_imported() -> ContributorResult:
 
 
 def _check_embeddings_fresh() -> ContributorResult:
-    """20 pts: fraction of ContentItems whose embedding matches the current model version."""
+    """20 pts: fraction of ContentItems whose embedding matches the current model version.
+
+    Phase 4 fix #3 — read the BGE-M3 signature from a cached AppSetting
+    row (key ``embedding.current_signature``) instead of loading the
+    model on every dashboard refresh. The cache is populated by the
+    embed pipeline (which already loads the model for real work) and
+    refreshed weekly by the existing ``embedding_audit`` Celery task.
+    Cold dashboards now respond instantly rather than blocking on a
+    ~10 s model load.
+    """
     try:
         from apps.content.models import ContentItem
-        from apps.pipeline.services.embeddings import (
-            get_current_embedding_signature,
-            _get_model_name,
-            _load_model,
-        )
 
-        # Defensive: signature lookup needs the model loaded; if it
-        # fails (e.g. no GPU + slow CPU load), fall back to assuming
-        # the column matches itself (so freshness reads as "1.0").
-        try:
-            model_name = _get_model_name()
-            model = _load_model(model_name)
-            signature = get_current_embedding_signature(model=model, model_name=model_name)
-        except Exception:
-            signature = ""
+        signature = _read_cached_embedding_signature()
 
         total = ContentItem.objects.filter(is_deleted=False, duplicate_of__isnull=True).count()
         if total == 0:

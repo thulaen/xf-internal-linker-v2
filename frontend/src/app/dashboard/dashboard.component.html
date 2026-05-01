@@ -79,6 +79,15 @@
   <app-quick-controls class="d3-block" />
 }
 
+<!-- Phase 4.3 — Confidence Meter "Ready to Rock" chip. Renders only
+     when the backend payload includes a confidence snapshot (the
+     helper hides itself silently on backend failure). The chip sits
+     above the global mode-toggles so it's the first thing the
+     operator sees after the hero ticker. -->
+@if (data?.confidence) {
+  <app-confidence-meter class="d3-block" [snapshot]="data!.confidence!" />
+}
+
 <!-- Global mode toggles + emergency stop live just below the ticker.
      Keeping them above raw system metrics so operators reach them fast. -->
 <div class="d3-row d3-row-actions">

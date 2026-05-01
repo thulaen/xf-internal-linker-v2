@@ -90,6 +90,24 @@ export interface DashboardData {
   last_pipeline_at?: string | null;
   runtime_mode?: string;
   show_quick_controls?: boolean;
+  // Phase 4.3 — Confidence Meter "Ready to Rock" snapshot. Null when
+  // the backend snapshot helper failed (frontend hides the chip).
+  confidence?: ConfidenceSnapshot | null;
+}
+
+export interface ConfidenceContributor {
+  name: string;
+  label: string;
+  score: number;       // 0.0 - 1.0
+  max_pts: number;
+  points: number;      // score * max_pts
+  fix_hint: string;
+}
+
+export interface ConfidenceSnapshot {
+  total: number;       // 0 - 100
+  label: string;       // "Ready to rock" | "Mostly ready" | "Issues — review breakdown" | "Needs setup"
+  contributors: ConfidenceContributor[];
 }
 
 /** Cache lives for 60 seconds before a fresh fetch is required. */

@@ -339,3 +339,89 @@ class FeatureRequestViewSet(viewsets.ModelViewSet):
         req.admin_reply = body
         req.save(update_fields=["admin_reply", "updated_at"])
         return Response(self.get_serializer(req).data, status=status.HTTP_200_OK)
+
+
+# ── Phase 4.1 — Undo History Timeline views ──────────────────────
+
+
+class UndoTimelineView(APIView):
+    """GET /api/audit/timeline/
+
+    Returns the most recent restorable AuditEvent rows the operator
+    can roll back. Supports filters: ``?subject_type=appsetting``,
+    ``?actor=jane``, ``?lookback_days=7``, ``?limit=50``.
+
+    Plain-English: shows yesterday-and-earlier setting changes with a
+    Restore button next to each one. Backend returns enough info
+    (old vs new value) to render a side-by-side diff.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from dataclasses import asdict
+
+        from apps.audit.services.undo_timeline import (
+            DEFAULT_LOOKBACK_DAYS,
+            list_restorable_events,
+        )
+
+        try:
+            lookback_days = int(
+                request.query_params.get("lookback_days") or DEFAULT_LOOKBACK_DAYS
+            )
+        except (TypeError, ValueError):
+            lookback_days = DEFAULT_LOOKBACK_DAYS
+        try:
+            limit = int(request.query_params.get("limit") or 100)
+        except (TypeError, ValueError):
+            limit = 100
+        subject_type_filter = request.query_params.get("subject_type") or None
+        actor_filter = request.query_params.get("actor") or None
+
+        entries = list_restorable_events(
+            lookback_days=lookback_days,
+            subject_type_filter=subject_type_filter,
+            actor_filter=actor_filter,
+            limit=limit,
+        )
+        return Response(
+            {
+                "lookback_days": lookback_days,
+                "count": len(entries),
+                "entries": [asdict(e) for e in entries],
+            }
+        )
+
+
+class UndoRestoreView(APIView):
+    """POST /api/audit/timeline/<event_id>/restore/
+
+    Applies the inverse of one audit event. Records a NEW AuditEvent
+    for the rollback (so timeline stays honest). Returns 200 with
+    ``{ok, message, new_event_id}`` even on logical failure (UI shows
+    the message); only 4xx/5xx for auth or shape errors.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, event_id: int):
+        from apps.audit.services.undo_timeline import restore_event
+
+        try:
+            actor = (
+                getattr(request.user, "username", "")
+                or str(getattr(request.user, "pk", ""))
+            )
+        except Exception:  # noqa: forbidden-pattern silent-except — anonymous-user / weird auth payload; empty actor string is the right default.
+            actor = ""
+
+        result = restore_event(int(event_id), actor=actor, request=request)
+        return Response(
+            {
+                "ok": result.ok,
+                "message": result.message,
+                "new_event_id": result.new_event_id,
+            },
+            status=status.HTTP_200_OK,
+        )

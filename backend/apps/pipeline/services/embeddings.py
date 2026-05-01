@@ -773,7 +773,33 @@ def get_current_embedding_signature(
         model=model,
         model_name=resolved_model_name,
     )
-    return f"{resolved_model_name}:{dimension}"
+    signature = f"{resolved_model_name}:{dimension}"
+    # Phase 4 fix #3 — write-through to AppSetting so the Confidence
+    # Meter can read the signature without a cold model load.
+    # Best-effort: failure to cache must not break the embed flow.
+    _publish_signature_to_appsetting(signature)
+    return signature
+
+
+def _publish_signature_to_appsetting(signature: str) -> None:
+    """Cache the signature in AppSetting for fast lookup by other services.
+
+    Single row keyed by ``embedding.current_signature``. Update is
+    idempotent — overwrites if the value differs, no-op if the same
+    (so concurrent embed workers don't fight). Best-effort: any DB
+    error is logged at debug and the embed flow continues.
+    """
+    try:
+        from apps.core.models import AppSetting
+
+        AppSetting.objects.update_or_create(
+            key="embedding.current_signature",
+            defaults={"value": signature},
+        )
+    except Exception:
+        logger.debug(
+            "Could not cache embedding signature to AppSetting", exc_info=True
+        )
 
 
 def get_current_embedding_filter(

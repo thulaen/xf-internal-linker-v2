@@ -202,12 +202,22 @@ def _sample_cpu_mem() -> dict[str, float]:
 
 
 def _sample_disk() -> dict[str, float]:
-    """Disk-wait % via psutil + free-disk fraction via shutil."""
+    """Disk-wait % + free-disk fraction.
+
+    Linux: ``psutil.cpu_times_percent`` exposes ``iowait`` directly.
+    Windows: ``iowait`` doesn't exist, so derive a proxy from
+    ``psutil.disk_io_counters().busy_time`` (Windows-only attribute,
+    in ms over a 0.5 s window). Falls back to 0.0 if neither source
+    is available.
+    """
+    import os
+
     out: dict[str, float] = {}
     try:
         import shutil
 
-        usage = shutil.disk_usage("/")
+        # Use the project root on Windows (drive root) and / on POSIX.
+        usage = shutil.disk_usage(os.environ.get("HOMEDRIVE", "/") or "/")
         out["disk_free_fraction"] = float(usage.free) / max(float(usage.total), 1.0)
     except Exception:
         logger.debug("slowness_analyzer: disk_free sample failed", exc_info=True)
@@ -215,11 +225,32 @@ def _sample_disk() -> dict[str, float]:
     try:
         import psutil
 
-        # cpu_times_percent has 'iowait' on Linux only; on Windows the
-        # field doesn't exist and we skip the disk-wait check.
+        # Linux path: iowait is directly available.
         times = psutil.cpu_times_percent(interval=0.5, percpu=False)
         iowait = float(getattr(times, "iowait", 0.0) or 0.0)
-        out["disk_wait_pct"] = iowait
+        if iowait > 0.0:
+            out["disk_wait_pct"] = iowait
+            return out
+
+        # Windows fallback: derive from disk_io_counters().busy_time
+        # (milliseconds the disk has been busy in the sampling window).
+        # We sample twice 250 ms apart and convert delta-busy-time to %.
+        before = psutil.disk_io_counters(perdisk=False)
+        if before is not None and hasattr(before, "busy_time"):
+            import time
+
+            time.sleep(0.25)
+            after = psutil.disk_io_counters(perdisk=False)
+            if after is not None and hasattr(after, "busy_time"):
+                delta_ms = max(0.0, float(after.busy_time) - float(before.busy_time))
+                # 250 ms wall-clock window; busy_time is the disk's "in flight"
+                # ms across the same window. Cap at 100% for sanity.
+                pct = min(100.0, (delta_ms / 250.0) * 100.0)
+                out["disk_wait_pct"] = pct
+                return out
+
+        # Final fallback: no signal available on this platform.
+        out["disk_wait_pct"] = 0.0
     except Exception:
         logger.debug("slowness_analyzer: disk_wait sample failed", exc_info=True)
     return out
@@ -241,7 +272,7 @@ def _sample_gpu() -> dict[str, float]:
 
         try:
             out["gpu_util_pct"] = float(torch.cuda.utilization())
-        except Exception:
+        except Exception:  # noqa: forbidden-pattern silent-except — torch.cuda.utilization is unavailable on torch <2.0; sample skip is the intended fallback.
             pass
 
         try:

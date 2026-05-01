@@ -250,6 +250,18 @@ This file is the single index of all audit reports and individual issues found b
 
 ---
 
+### ISS-030 - backend/apps/diagnostics/views.py exceeds 1500-line threshold (2026-05-01)
+
+- **Found by:** Claude (Phase 4 perf + tech-debt session)
+- **Severity:** low
+- **Affected files:** `backend/apps/diagnostics/views.py` (1644 lines)
+- **Description:** The diagnostics views module is 1644 lines, over the 1500-line threshold from `PERFORMANCE-SAFE-DEFAULTS.md` ("Long files"). The file is internally cohesive (DRF viewsets, single-purpose views, helpers) but its size makes new view additions harder to review and slows the IDE's symbol index. Recommend splitting into a `views/` package with submodules: `views/health.py` (ServiceStatusViewSet, FeatureReadinessView, ResourceUsageView, WeightDiagnosticsView, NdcgEvalView, NodesView), `views/operator.py` (DiagnosticsOverviewView, RuntimeContextView, PipelineGateView, MissionCriticalView, WhyIsItSlowView), `views/negative_memory.py` (the three `NegativeMemoryView*` classes), `views/internal.py` (SchedulerDispatchView). Keep `views.py` as a 5-line re-export shim so existing `from . import views; views.SomeView` import paths keep working.
+- **Status:** OPEN
+- **Recommended fix:** dedicated session; ~1.5 hours; touches imports across diagnostics/urls.py + 1 test module. Risk-mitigated by the re-export shim.
+- **Regression watch:** Once split, every new diagnostics view must land in the right submodule, not a new monolith. Pre-commit hook extension in `.githooks/check-forbidden-patterns.py` already flags files exceeding 50-line functions; long-file check could be added when the split lands.
+
+---
+
 ### ISS-029 - Quick Controls showed Pause while model work was already globally paused (2026-05-01)
 
 - **Found by:** Codex

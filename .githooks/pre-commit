@@ -53,3 +53,14 @@ if [ -n "$STAGED_MIGRATIONS" ] && command -v python > /dev/null; then
   echo "→ NO-DUPLICATES invariant (staged migrations)"
   python "$HOOK_DIR/check-no-duplicates-invariant.py" $STAGED_MIGRATIONS
 fi
+
+# 6. Forbidden patterns from PERFORMANCE-SAFE-DEFAULTS.md (silent excepts,
+#    unbounded loops, unbounded iter, unscoped TODOs). Blocks commit on
+#    rules 1-4; emits warnings only for rules 5-6 (long functions, missing
+#    docstring). Override per-instance with
+#       # noqa: forbidden-pattern <rule>  # justification: ...
+#    near the violation. Skipped if Python isn't on PATH.
+if [ -n "$STAGED_PY" ] && command -v python > /dev/null; then
+  echo "→ Forbidden patterns (PERFORMANCE-SAFE-DEFAULTS.md)"
+  python "$HOOK_DIR/check-forbidden-patterns.py" $STAGED_PY
+fi

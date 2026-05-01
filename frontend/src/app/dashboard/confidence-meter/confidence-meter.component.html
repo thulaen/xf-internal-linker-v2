@@ -1,0 +1,53 @@
+@if (snapshot()) {
+  <mat-card class="confidence-card" [class]="'tone-' + tone()">
+    <div class="confidence-summary">
+      <mat-icon
+        class="confidence-icon"
+        aria-hidden="true"
+        [matTooltip]="'Ready-to-Rock score: ' + snapshot()!.label">
+        {{ toneIcon() }}
+      </mat-icon>
+      <div class="confidence-text">
+        <div class="confidence-score">{{ snapshot()!.total }}<span class="confidence-score-suffix">/100</span></div>
+        <div class="confidence-label">{{ snapshot()!.label }}</div>
+      </div>
+    </div>
+
+    <mat-progress-bar
+      class="confidence-bar"
+      mode="determinate"
+      [value]="snapshot()!.total"
+      [color]="tone() === 'green' ? 'primary' : (tone() === 'red' ? 'warn' : 'accent')">
+    </mat-progress-bar>
+
+    @if (contributorCount() > 0) {
+      <mat-expansion-panel class="confidence-drill-down" hideToggle>
+        <mat-expansion-panel-header>
+          <mat-panel-title>
+            <mat-icon class="drill-icon" aria-hidden="true">expand_more</mat-icon>
+            Score breakdown
+          </mat-panel-title>
+          @if (weakestContributors().length > 0) {
+            <mat-panel-description>
+              {{ weakestContributors().length }} item{{ weakestContributors().length === 1 ? '' : 's' }} need attention
+            </mat-panel-description>
+          } @else {
+            <mat-panel-description>All contributors at full marks</mat-panel-description>
+          }
+        </mat-expansion-panel-header>
+
+        <ul class="contributor-list">
+          @for (c of snapshot()!.contributors; track trackByName($index, c)) {
+            <li class="contributor-row" [class.contributor-low]="c.points < c.max_pts">
+              <span class="contributor-label">{{ c.label }}</span>
+              <span class="contributor-points">{{ c.points | number:'1.0-1' }} / {{ c.max_pts }}</span>
+              @if (c.fix_hint) {
+                <span class="contributor-hint">{{ c.fix_hint }}</span>
+              }
+            </li>
+          }
+        </ul>
+      </mat-expansion-panel>
+    }
+  </mat-card>
+}

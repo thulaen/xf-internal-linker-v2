@@ -9,6 +9,8 @@ from .views import (
     FeatureRequestViewSet,
     ReviewerScorecardViewSet,
     SiloLeakageView,
+    UndoRestoreView,
+    UndoTimelineView,
     WebVitalView,
 )
 
@@ -34,5 +36,18 @@ urlpatterns = [
         "telemetry/web-vitals/",
         WebVitalView.as_view(),
         name="web-vitals",
+    ),
+    # Phase 4.1 — Undo History Timeline.
+    # GET  /api/audit/timeline/ — restorable AuditEvent rows
+    # POST /api/audit/timeline/<event_id>/restore/ — apply the inverse
+    path(
+        "timeline/",
+        UndoTimelineView.as_view(),
+        name="undo-timeline",
+    ),
+    path(
+        "timeline/<int:event_id>/restore/",
+        UndoRestoreView.as_view(),
+        name="undo-restore",
     ),
 ]

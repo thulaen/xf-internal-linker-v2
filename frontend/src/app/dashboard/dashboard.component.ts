@@ -82,6 +82,8 @@ import { MissionCriticalComponent } from './mission-critical/mission-critical.co
 // at frontend/src/app/shared/skeleton.
 import { SkeletonComponent } from '../shared/skeleton/skeleton.component';
 import { QuickControlsComponent } from './quick-controls/quick-controls.component';
+// Phase 4.3 — Confidence Meter "Ready to Rock" chip + drill-down.
+import { ConfidenceMeterComponent } from './confidence-meter/confidence-meter.component';
 
 @Component({
   selector: 'app-dashboard',
@@ -154,6 +156,7 @@ import { QuickControlsComponent } from './quick-controls/quick-controls.componen
     // Reused skeleton for @defer placeholders.
     SkeletonComponent,
     QuickControlsComponent,
+    ConfidenceMeterComponent,
   ],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss'],
