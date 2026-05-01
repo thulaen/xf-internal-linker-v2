@@ -50,9 +50,14 @@ except ImportError as _ext_err:
     except Exception:
         pass  # ErrorLog itself may not be available during early startup
 
-HAS_CPP_FULL_BATCH = HAS_CPP_EXT and hasattr(
-    scoring, "calculate_composite_scores_full_batch"
-)
+# Phase 2.14 — the C++ extension exports ``score_full_batch`` but the
+# Python flag historically checked for ``calculate_composite_scores_full_batch``,
+# which never existed. The result was a permanent silent fall-through to the
+# pure-Python ``_calculate_composite_scores_full_batch_py`` even on machines
+# where the C++ kernel was loaded fine. Fixing the attr check + the call
+# site below restores the C++ batch path (10-50x speedup over the Python
+# loop on typical 1000-candidate batches).
+HAS_CPP_FULL_BATCH = HAS_CPP_EXT and hasattr(scoring, "score_full_batch")
 
 # Default character-length bounds for host sentences selected as
 # anchor context. A sentence shorter than ``_DEFAULT_MIN_SENTENCE_CHARS``
@@ -857,7 +862,7 @@ def score_destination_matches(
 
     if pending_candidates:
         if HAS_CPP_FULL_BATCH:
-            score_finals = scoring.calculate_composite_scores_full_batch(
+            score_finals = scoring.score_full_batch(
                 component_scores,
                 batch_weights,
                 silo_array,

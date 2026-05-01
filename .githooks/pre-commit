@@ -43,3 +43,13 @@ if [ -n "$STAGED_SCSS" ] && [ -d "$REPO_ROOT/frontend/node_modules/stylelint" ];
   SCSS_RELATIVE=$(echo "$STAGED_SCSS" | sed "s|^frontend/||")
   (cd "$REPO_ROOT/frontend" && npx stylelint $SCSS_RELATIVE)
 fi
+
+# 5. No-duplicates invariant on new migrations. Block commits that
+#    introduce per-content artefact tables without the
+#    (content_hash, signal_version) + supersede + retention pattern
+#    from NO-DUPLICATES.md. Skipped if Python isn't on PATH.
+STAGED_MIGRATIONS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^backend/.*/migrations/.*\.py$' || true)
+if [ -n "$STAGED_MIGRATIONS" ] && command -v python > /dev/null; then
+  echo "→ NO-DUPLICATES invariant (staged migrations)"
+  python "$HOOK_DIR/check-no-duplicates-invariant.py" $STAGED_MIGRATIONS
+fi

@@ -275,6 +275,85 @@ static py::array_t<int32_t> ivf_search(
     return out;
 }
 
+/**
+ * Per-destination ADC scoring used by FR-053 ``passage_relevance.score()``.
+ *
+ * Loads only the OPQ codes for ONE destination (typically <50 passages),
+ * builds the per-query ADC LUT once, scores each code, returns the
+ * best (index, similarity) pair where similarity = 1 - sqrt(dist)/2
+ * mapped from squared-L2 back to cosine. Both the query and the codes
+ * encode L2-normalised vectors so the back-projection is exact.
+ *
+ * Args:
+ *   query                  — float32[dim].
+ *   opq_codes              — uint8[N_passages, m] for this destination.
+ *   rotation, codebooks    — current OPQ codebook.
+ *
+ * Returns: tuple (best_index, best_cosine_sim).
+ *
+ * Why a separate function from ``ivf_search``: ``ivf_search`` walks IVF
+ * partitions across the WHOLE corpus to find top-k destinations.
+ * ``adc_score_destination`` scores one already-chosen destination's
+ * passages — the per-destination scoring step in the ranker hot path.
+ */
+static py::tuple adc_score_destination(
+    py::array_t<float, py::array::c_style | py::array::forcecast> query,
+    py::array_t<uint8_t, py::array::c_style | py::array::forcecast> opq_codes,
+    py::array_t<float, py::array::c_style | py::array::forcecast> rotation,
+    py::array_t<float, py::array::c_style | py::array::forcecast> codebooks) {
+
+    const auto q_info = query.request();
+    const auto codes_info = opq_codes.request();
+    const auto r_info = rotation.request();
+    const auto cb_info = codebooks.request();
+
+    if (q_info.ndim != 1) throw std::runtime_error("query must be 1D");
+    if (codes_info.ndim != 2) throw std::runtime_error("opq_codes must be 2D");
+    if (r_info.ndim != 2) throw std::runtime_error("rotation must be 2D");
+    if (cb_info.ndim != 3) throw std::runtime_error("codebooks must be 3D (m, k, sub_dim)");
+
+    const size_t dim = static_cast<size_t>(q_info.shape[0]);
+    const size_t n_passages = static_cast<size_t>(codes_info.shape[0]);
+    const size_t m = static_cast<size_t>(codes_info.shape[1]);
+    const size_t k = static_cast<size_t>(cb_info.shape[1]);
+
+    if (n_passages == 0) {
+        return py::make_tuple(0, 0.0f);
+    }
+    if (static_cast<size_t>(cb_info.shape[0]) != m)
+        throw std::runtime_error("codebooks first dim (m) must equal opq_codes second dim");
+    if (static_cast<size_t>(r_info.shape[0]) != dim ||
+        static_cast<size_t>(r_info.shape[1]) != dim)
+        throw std::runtime_error("rotation must be (dim, dim)");
+
+    const float* query_ptr = static_cast<const float*>(q_info.ptr);
+    const uint8_t* codes_ptr = static_cast<const uint8_t*>(codes_info.ptr);
+    const float* rotation_ptr = static_cast<const float*>(r_info.ptr);
+    const float* codebooks_ptr = static_cast<const float*>(cb_info.ptr);
+
+    std::vector<float> lut(m * k);
+    c_ivf_build_adc_lut(query_ptr, rotation_ptr, codebooks_ptr,
+                        dim, m, k, lut.data());
+
+    int best_idx = 0;
+    float best_dist = 1e30f;
+    for (size_t i = 0; i < n_passages; ++i) {
+        const uint8_t* code = codes_ptr + (i * m);
+        const float dist = c_ivf_adc_distance(code, lut.data(), m, k);
+        if (dist < best_dist) {
+            best_dist = dist;
+            best_idx = static_cast<int>(i);
+        }
+    }
+
+    // Squared-L2 between two L2-normalised vectors a and b is
+    //   ||a-b||² = 2 - 2·cos(a, b)
+    // so cos(a, b) = 1 - dist/2. Clamp to [0, 1] for numerical safety
+    // (small negative cosines from quantisation noise become 0).
+    const float cosine_sim = std::max(0.0f, std::min(1.0f, 1.0f - best_dist * 0.5f));
+    return py::make_tuple(best_idx, cosine_sim);
+}
+
 PYBIND11_MODULE(ivf_index, m) {
     m.doc() =
         "Inverted File index search over OPQ-quantised vectors. "
@@ -290,6 +369,13 @@ PYBIND11_MODULE(ivf_index, m) {
           py::arg("codebooks"),
           py::arg("nprobe") = 16,
           py::arg("top_k") = 100);
+    m.def("adc_score_destination", &adc_score_destination,
+          "Per-destination OPQ ADC scoring. Returns (best_passage_index, "
+          "best_cosine_similarity). Used by FR-053 passage_relevance.score().",
+          py::arg("query"),
+          py::arg("opq_codes"),
+          py::arg("rotation"),
+          py::arg("codebooks"));
 }
 
 #endif  // XF_BENCH_MODE

@@ -252,6 +252,17 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": 300.0,
         "options": {"queue": "default", "expires": 290},
     },
+    # Phase 2.18 — refresh dashboard materialised views every 5 minutes.
+    # The matview pre-computes the suggestion-status histogram so the
+    # Dashboard view reads it in microseconds instead of running a
+    # full-table aggregate on every refresh. CONCURRENTLY refresh keeps
+    # readers unblocked. 5-minute window keeps the data fresh enough for
+    # operator decisions without the per-request query cost.
+    "refresh-dashboard-matviews": {
+        "task": "core.refresh_dashboard_matviews",
+        "schedule": 300.0,
+        "options": {"queue": "default", "expires": 290},
+    },
     # ── Stage 9 alert rules: 14:30–14:45 UTC ────────────────────
     "check-silent-failure": {
         "task": "notifications.check_silent_failure",
