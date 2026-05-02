@@ -906,7 +906,7 @@ class WeightDiagnosticsView(views.APIView):
                         stats[table] = {"rows": row[0], "size_bytes": row[1]}
                     else:
                         stats[table] = {"rows": 0, "size_bytes": 0}
-                except Exception:
+                except Exception:  # noqa: BLE001 — per-table stats are best-effort; missing table just reports zero.
                     stats[table] = {"rows": 0, "size_bytes": 0}
         return stats
 
@@ -1678,3 +1678,45 @@ class WhyIsItSlowView(views.APIView):
                 "task_name": task_name,
             }
         )
+
+
+# ── Phase 4.5 — "Why Is This Taking So Long?" Panel view ──────────
+
+
+class WhySoLongPanelView(views.APIView):
+    """GET /api/diagnostics/why-so-long/?job=<job_key>
+
+    Returns the structured panel state for one running job: current
+    stage, items done / total, items-per-second, ETA, bottleneck
+    verdict, plain-English why, action chips for the operator.
+
+    Plain-English: pressing the "Why's this slow?" button on a running
+    job's modal calls this endpoint. The backend reads live stage state
+    from Redis (emitted by the task itself via
+    ``why_so_long.publish_stage_update()``), runs the slowness analyzer,
+    and bundles the answer for one operator-facing render. ~50 ms.
+
+    When no stage update has been published for the job_key (task hasn't
+    reached its first ``publish_stage_update`` call yet, or Redis state
+    expired), returns ``found=False`` so the UI can hide the panel
+    instead of showing empty fields.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from dataclasses import asdict
+
+        from apps.diagnostics.services.why_so_long import get_panel
+
+        job_key = request.query_params.get("job") or request.query_params.get("task") or ""
+        if not job_key:
+            return response.Response(
+                {"detail": "?job=<key> is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        panel = get_panel(job_key)
+        # Convert dataclass to JSON-friendly dict; nested StageUpdate
+        # also unfolds.
+        payload = asdict(panel)
+        return response.Response(payload)

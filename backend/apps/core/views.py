@@ -5815,6 +5815,82 @@ class ActiveUsersView(APIView):
 # ── Phase 4.9 — Helper PC roster endpoint ─────────────────────────
 
 
+class BudgetForecastView(APIView):
+    """GET /api/system/budget-forecast/?task=<task_name>&kwarg1=value...
+
+    Phase 4.2 — Budget & Space Forecasts pre-flight estimator.
+
+    Returns an operator-facing forecast: estimated bytes, projected
+    free-disk after the job, traffic-light verdict (safe / yellow / red),
+    plain-English why, and the calibration history used.
+
+    Query params:
+        ?task=<task_name>      — required; must be a registered estimator
+                                 (see GET /api/system/budget-forecast/tasks/
+                                 for the full list)
+        ?safety_margin_pct=N   — optional; overrides the 20% default
+        ?<kwarg>=<value>       — every other query param is passed to the
+                                 estimator function as a string-typed kwarg
+                                 (the estimator coerces with int())
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from dataclasses import asdict
+
+        from apps.core.services.budget_forecaster import (
+            forecast,
+            get_registered_tasks,
+        )
+
+        task_name = request.query_params.get("task", "")
+        if not task_name:
+            return Response(
+                {
+                    "detail": "?task=<task_name> is required",
+                    "available_tasks": get_registered_tasks(),
+                },
+                status=400,
+            )
+
+        kwargs: dict = {}
+        for k, v in request.query_params.items():
+            if k in {"task", "safety_margin_pct"}:
+                continue
+            kwargs[k] = v
+
+        margin_param = request.query_params.get("safety_margin_pct")
+        margin = None
+        if margin_param:
+            try:
+                margin = int(margin_param)
+            except ValueError:
+                pass
+
+        result = forecast(
+            task_name=task_name,
+            kwargs=kwargs,
+            safety_margin_pct=margin,
+        )
+        return Response(asdict(result))
+
+
+class BudgetForecastTasksView(APIView):
+    """GET /api/system/budget-forecast/tasks/
+
+    Lists the task_names the budget forecaster knows about. Used by the
+    pre-flight chip's task picker.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.core.services.budget_forecaster import get_registered_tasks
+
+        return Response({"tasks": get_registered_tasks()})
+
+
 class HelpersRosterView(APIView):
     """GET /api/helpers/
 

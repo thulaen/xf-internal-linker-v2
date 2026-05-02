@@ -48,6 +48,8 @@ from .views import (
     HelperNodeDetailView,
     HelperNodeHeartbeatView,
     HelpersRosterView,
+    BudgetForecastView,
+    BudgetForecastTasksView,
 )
 
 urlpatterns = [
@@ -167,6 +169,19 @@ urlpatterns = [
         "helpers/",
         HelpersRosterView.as_view(),
         name="helpers-roster",
+    ),
+    # Phase 4.2 — Budget & Space Forecasts pre-flight estimator.
+    # GET /api/system/budget-forecast/?task=<name>&<kwarg>=<value>
+    # Returns estimated bytes + projected free disk + verdict chip.
+    path(
+        "system/budget-forecast/",
+        BudgetForecastView.as_view(),
+        name="budget-forecast",
+    ),
+    path(
+        "system/budget-forecast/tasks/",
+        BudgetForecastTasksView.as_view(),
+        name="budget-forecast-tasks",
     ),
     # Heartbeat must come before the detail route so it isn't swallowed
     # if a future router-style refactor lands here (cf. ISS-012).

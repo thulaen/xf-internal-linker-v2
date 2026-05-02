@@ -81,4 +81,15 @@ urlpatterns = [
         views.WhyIsItSlowView.as_view(),
         name="why-is-it-slow",
     ),
+    # Phase 4.5 — "Why Is This Taking So Long?" structured panel.
+    # GET /api/diagnostics/why-so-long/?job=<job_key>
+    # Returns stage progress + items/sec + ETA + bottleneck verdict
+    # + action chips for one running job. Long-running tasks publish
+    # their live stage state via
+    # apps.diagnostics.services.why_so_long.publish_stage_update().
+    path(
+        "why-so-long/",
+        views.WhySoLongPanelView.as_view(),
+        name="why-so-long-panel",
+    ),
 ]

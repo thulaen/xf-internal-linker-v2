@@ -138,6 +138,13 @@ def is_exempt(path: Path) -> bool:
 
 _NOQA_LINE_RE = re.compile(r"#\s*noqa:\s*forbidden-pattern\b", re.IGNORECASE)
 
+# Sites that already carry the standard ruff broad-except suppression
+# (`# noqa: BLE001`) have been intentionally accepted by review and the
+# author has decided the silent fallback is correct. Treat that as
+# equivalent to the project-specific ``# noqa: forbidden-pattern silent-except``
+# so the linter doesn't double-flag well-curated code.
+_BLE001_NOQA_RE = re.compile(r"#\s*noqa:\s*BLE001\b", re.IGNORECASE)
+
 
 def _has_noqa(source_lines: list[str], lineno: int, window: int = 1) -> bool:
     """True if any line within ``window`` of ``lineno`` carries the noqa marker."""
@@ -145,6 +152,16 @@ def _has_noqa(source_lines: list[str], lineno: int, window: int = 1) -> bool:
     hi = min(len(source_lines), lineno + window)
     for line in source_lines[lo:hi]:
         if _NOQA_LINE_RE.search(line):
+            return True
+    return False
+
+
+def _has_ble001_noqa(source_lines: list[str], lineno: int, window: int = 1) -> bool:
+    """True if any line within ``window`` carries the ruff BLE001 suppression."""
+    lo = max(0, lineno - 1 - window)
+    hi = min(len(source_lines), lineno + window)
+    for line in source_lines[lo:hi]:
+        if _BLE001_NOQA_RE.search(line):
             return True
     return False
 
@@ -169,6 +186,10 @@ def scan_silent_except(tree: ast.Module, source_lines: list[str], path: Path) ->
         if not is_broad:
             continue
         if _has_noqa(source_lines, node.lineno, window=2):
+            continue
+        # The standard ruff `# noqa: BLE001` suppression at the same line
+        # also counts as an intentional acceptance — see _BLE001_NOQA_RE.
+        if _has_ble001_noqa(source_lines, node.lineno, window=2):
             continue
         # Check whether the body calls ingest_error / re-raises / logs.
         # ``logger.debug`` is acceptable too — it lands in container
