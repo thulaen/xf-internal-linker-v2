@@ -272,3 +272,76 @@ def _float_or(raw: Any, default: float) -> float:
     if math.isnan(value) or math.isinf(value):
         return default
     return value
+
+
+# ── Phase 4.9 — HelperConstraint → required_capabilities bridge ────
+
+
+def route_task(
+    task_name: str,
+    *,
+    queue: str = "default",
+    extra_capabilities: dict[str, Any] | None = None,
+    now=None,
+):
+    """Pick the best helper for a task by reading its ``@HelperConstraint``.
+
+    Plain-English: instead of the caller hand-building a
+    ``required_capabilities`` dict for every Celery task, this function
+    looks up the ``HelperConstraint`` annotation that lives on the task
+    itself and translates it into the router's existing capability-match
+    vocabulary. Returns the chosen ``HelperNode`` or ``None`` to fall
+    back to the main coordinator.
+
+    Constraint → capability mapping:
+        * ``gpu_required=True``    → ``gpu_required: True`` (router rejects
+                                     helpers without a GPU)
+        * ``ram_peak_mb``          → ``ram_gb`` floor (peak / 1024)
+        * ``requires_warmed_models`` → ``warmed_model_key`` for each entry
+        * ``cpu_intensive``        → ``demand_cpu: True`` (load-projection
+                                     hint; doesn't gate selection but
+                                     biases the router toward less-busy
+                                     candidates)
+        * ``storage_writes_to == "postgres_main"`` → no helper-routing
+                                     when the task writes directly to
+                                     Postgres (helpers are read-mostly
+                                     per Phase 4.9 hard rule). Returns
+                                     None so the caller stays on main.
+
+    ``extra_capabilities`` lets the caller layer in dynamic requirements
+    (e.g. ``"max_network_rtt_ms": 50`` for a latency-sensitive job).
+    """
+    try:
+        from apps.core.helpers import get_constraint
+    except Exception:  # noqa: BLE001 — helpers package may not be installed in some test envs.
+        get_constraint = None  # type: ignore[assignment]
+
+    constraint = get_constraint(task_name) if get_constraint else None
+    if constraint is None:
+        # No annotation = no opinion. Caller stays on main.
+        return None
+
+    # Phase 4.9 hard rule: tasks that write directly to Postgres do not
+    # route to helpers (helpers are read-mostly; results queue back via
+    # Celery to the main coordinator for persistence).
+    if constraint.storage_writes_to == "postgres_main":
+        return None
+
+    required: dict[str, Any] = {}
+    if constraint.gpu_required:
+        required["gpu_required"] = True
+    if constraint.ram_peak_mb > 0:
+        required["ram_gb"] = constraint.ram_peak_mb / 1024.0
+    for key in constraint.requires_warmed_models:
+        required["warmed_model_key"] = key  # router's existing handler matches a single key per call
+    if constraint.cpu_intensive:
+        required["demand_cpu"] = True
+    if extra_capabilities:
+        required.update(extra_capabilities)
+
+    return select_best_helper_node(
+        job_type=task_name.split(".")[0] or "default",
+        queue=queue,
+        required_capabilities=required,
+        now=now,
+    )

@@ -50,6 +50,9 @@ from .views import (
     HelpersRosterView,
     BudgetForecastView,
     BudgetForecastTasksView,
+    CachePolicySummaryView,
+    CachePolicyPinView,
+    CachePolicyEvictView,
 )
 
 urlpatterns = [
@@ -182,6 +185,23 @@ urlpatterns = [
         "system/budget-forecast/tasks/",
         BudgetForecastTasksView.as_view(),
         name="budget-forecast-tasks",
+    ),
+    # Phase 4.13 — Cache Eviction Policy. GET stats, POST/DELETE pin,
+    # POST evict (per-key or whole-layer with pin-skipping).
+    path(
+        "system/cache-policy/",
+        CachePolicySummaryView.as_view(),
+        name="cache-policy-summary",
+    ),
+    path(
+        "system/cache-policy/<str:layer>/pin/",
+        CachePolicyPinView.as_view(),
+        name="cache-policy-pin",
+    ),
+    path(
+        "system/cache-policy/<str:layer>/evict/",
+        CachePolicyEvictView.as_view(),
+        name="cache-policy-evict",
     ),
     # Heartbeat must come before the detail route so it isn't swallowed
     # if a future router-style refactor lands here (cf. ISS-012).

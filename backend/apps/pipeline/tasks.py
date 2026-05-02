@@ -16,6 +16,7 @@ from channels.layers import get_channel_layer
 
 from apps.pipeline.decorators import with_weight_lock
 from apps.core.pause_contract import JobPaused
+from apps.core.helpers.resource_aware_retry import resource_aware_retry
 from requests import RequestException
 from django.db import DatabaseError, IntegrityError
 from urllib.error import URLError
@@ -2393,11 +2394,18 @@ _NULL_REEMBED_BATCH_SIZE = 100
 
 
 @shared_task(
+    bind=True,
     name="pipeline.reembed_null_embeddings",
     time_limit=3600,
     soft_time_limit=3540,
 )
+@resource_aware_retry(
+    max_retries=5,
+    oom_batch_shrink_ratio=0.5,
+    batch_size_kwarg="batch_size",
+)
 def reembed_null_embeddings(
+    self,
     *,
     batch_size: int = _NULL_REEMBED_BATCH_SIZE,
     max_items: int | None = None,

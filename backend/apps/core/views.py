@@ -5876,6 +5876,76 @@ class BudgetForecastView(APIView):
         return Response(asdict(result))
 
 
+class CachePolicySummaryView(APIView):
+    """GET /api/system/cache-policy/
+
+    Phase 4.13 — operator-facing cache stats. Returns one summary per
+    cache layer with hit/miss/evict counts, hit ratio, estimated size,
+    max-size budget, pin-count, and the list of pinned keys.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from dataclasses import asdict
+
+        from apps.core.services.cache_policy import summarise_all_layers
+
+        return Response(
+            {
+                "layers": [asdict(s) for s in summarise_all_layers()],
+            }
+        )
+
+
+class CachePolicyPinView(APIView):
+    """POST /api/system/cache-policy/<layer>/pin/   {"key": "<cache_key>"}
+    DELETE /api/system/cache-policy/<layer>/pin/   {"key": "<cache_key>"}
+
+    Phase 4.13 — pin / unpin a cache key so the eviction policy keeps
+    or releases it. Pin-set lives in AppSetting (one row per pin).
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, layer: str):
+        from apps.core.services.cache_policy import pin_key
+
+        key = (request.data.get("key") or "").strip()
+        if not key:
+            return Response({"detail": "Body must include 'key'."}, status=400)
+        pin_key(layer, key)
+        return Response({"layer": layer, "key": key, "pinned": True})
+
+    def delete(self, request, layer: str):
+        from apps.core.services.cache_policy import unpin_key
+
+        key = (request.data.get("key") or "").strip()
+        if not key:
+            return Response({"detail": "Body must include 'key'."}, status=400)
+        unpin_key(layer, key)
+        return Response({"layer": layer, "key": key, "pinned": False})
+
+
+class CachePolicyEvictView(APIView):
+    """POST /api/system/cache-policy/<layer>/evict/   {"key": "<key>"} (optional)
+
+    Phase 4.13 — operator-triggered cache purge. With ``key`` set the
+    single entry is removed; without ``key`` the whole layer is
+    purged (pinned keys are skipped). Returns the lists of
+    ``removed_keys`` and ``skipped_pinned`` for the UI snackbar.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, layer: str):
+        from apps.core.services.cache_policy import evict_on_demand
+
+        key = (request.data.get("key") or "").strip() or None
+        result = evict_on_demand(layer, key=key)
+        return Response({"layer": layer, **result})
+
+
 class BudgetForecastTasksView(APIView):
     """GET /api/system/budget-forecast/tasks/
 
