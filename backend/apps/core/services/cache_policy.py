@@ -113,13 +113,13 @@ def summarise_layer(cache_layer: str) -> CacheLayerSummary:
     total_lookups = hit_count + miss_count
     hit_ratio = (hit_count / total_lookups) if total_lookups > 0 else 0.0
 
-    # Crude size estimate: sum of bytes_size on the most recent
+    # Crude size estimate: average of bytes_size on the most recent
     # hit/miss events (each event includes the cached payload size).
     # Real cache backends report exact size via their own commands;
-    # this approximation is sufficient for the operator chip.
-    estimated = sum(
-        e.bytes_size for e in events if e.event in {"hit", "miss"}
-    ) // max(len([e for e in events if e.event in {"hit", "miss"}]), 1)
+    # this approximation is sufficient for the operator chip. Single-
+    # pass over events; ``max(..., 1)`` guards the empty-events case.
+    hit_or_miss_sizes = [e.bytes_size for e in events if e.event in {"hit", "miss"}]
+    estimated = sum(hit_or_miss_sizes) // max(len(hit_or_miss_sizes), 1)
 
     pinned = list_pinned_keys(cache_layer)
 

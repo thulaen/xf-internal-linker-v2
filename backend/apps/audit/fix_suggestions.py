@@ -209,6 +209,83 @@ _GENERIC = (
 # next to the fix-suggestion text on /error-log so the operator can act
 # without copy-pasting commands. ``action_url`` is the POST endpoint;
 # empty action_url = informational chip (no click handler).
+#
+# Module-level so the regex compile + literal dict construction runs
+# ONCE at import time, not on every error-log render.
+_ACTION_CHIPS: list[tuple[re.Pattern[str], list[dict[str, str]]]] = [
+    (
+        re.compile(r"DiskPressureError|disk.*full|No space left|ENOSPC", re.I),
+        [
+            {
+                "label": "Free Docker disk now",
+                "action_url": "/api/system/disk-prune/",
+                "tooltip": "Runs the safe-prune script (~16 GB typical reclaim).",
+            },
+            {
+                "label": "View disk pressure",
+                "action_url": "/diagnostics?focus=disk-pressure",
+                "tooltip": "Open the disk-pressure card with current watermarks.",
+            },
+        ],
+    ),
+    (
+        re.compile(r"CUDA.*out of memory|OOM|MemoryError", re.I),
+        [
+            {
+                "label": "Reclaim GPU cache",
+                "action_url": "/api/diagnostics/gpu-memory-cleanup/",
+                "tooltip": "Clears unused VRAM PyTorch is hoarding.",
+            },
+            {
+                "label": "Lower batch size",
+                "action_url": "/settings/passage-relevance",
+                "tooltip": "Open the embedding batch-size setting.",
+            },
+        ],
+    ),
+    (
+        re.compile(r"WebSocket.*4003|websocket.*token", re.I),
+        [
+            {
+                "label": "Re-login",
+                "action_url": "/login",
+                "tooltip": "Refresh the auth token used in the WebSocket handshake.",
+            },
+        ],
+    ),
+    (
+        re.compile(r"FAISS|index.*not.*loaded|opq_codebook", re.I),
+        [
+            {
+                "label": "Rebuild index",
+                "action_url": "/api/settings/passage-relevance/rebuild-index/",
+                "tooltip": "Triggers an immediate FAISS / OPQ codebook rebuild.",
+            },
+        ],
+    ),
+    (
+        re.compile(r"Celery.*worker|worker lost|WorkerLostError", re.I),
+        [
+            {
+                "label": "Pause everything",
+                "action_url": "/api/system/master-pause/",
+                "tooltip": "Stops all background work so the failing worker can be safely restarted.",
+            },
+        ],
+    ),
+    (
+        re.compile(r"ThermalThrottleError|thermal", re.I),
+        [
+            {
+                "label": "Wait for cooldown",
+                "action_url": "",
+                "tooltip": "GPU is above 85 °C. Job auto-resumes when it cools below 75 °C.",
+            },
+        ],
+    ),
+]
+
+
 def suggest_action_chips(
     error_message: str = "",
     fingerprint: str = "",
@@ -221,89 +298,11 @@ def suggest_action_chips(
     them. Each chip declares its own endpoint + tooltip so the UI
     renders without per-error custom code.
 
-    The mapping is keyed by the fix's regex pattern (we re-run the
-    pattern match here rather than passing through the rule index).
-    Returns [] when no specific action exists — UI falls back to the
+    Returns [] when no specific action exists — the UI falls back to the
     generic 'Copy for AI' button.
     """
     blob = f"{error_message}\n{fingerprint}\n{step}"
-
-    # Each pattern → list of one or more chips. Order matters: the
-    # operator's most-likely-useful action first.
-    _CHIPS = [
-        (
-            re.compile(r"DiskPressureError|disk.*full|No space left|ENOSPC", re.I),
-            [
-                {
-                    "label": "Free Docker disk now",
-                    "action_url": "/api/system/disk-prune/",
-                    "tooltip": "Runs the safe-prune script (~16 GB typical reclaim).",
-                },
-                {
-                    "label": "View disk pressure",
-                    "action_url": "/diagnostics?focus=disk-pressure",
-                    "tooltip": "Open the disk-pressure card with current watermarks.",
-                },
-            ],
-        ),
-        (
-            re.compile(r"CUDA.*out of memory|OOM|MemoryError", re.I),
-            [
-                {
-                    "label": "Reclaim GPU cache",
-                    "action_url": "/api/diagnostics/gpu-memory-cleanup/",
-                    "tooltip": "Clears unused VRAM PyTorch is hoarding.",
-                },
-                {
-                    "label": "Lower batch size",
-                    "action_url": "/settings/passage-relevance",
-                    "tooltip": "Open the embedding batch-size setting.",
-                },
-            ],
-        ),
-        (
-            re.compile(r"WebSocket.*4003|websocket.*token", re.I),
-            [
-                {
-                    "label": "Re-login",
-                    "action_url": "/login",
-                    "tooltip": "Refresh the auth token used in the WebSocket handshake.",
-                },
-            ],
-        ),
-        (
-            re.compile(r"FAISS|index.*not.*loaded|opq_codebook", re.I),
-            [
-                {
-                    "label": "Rebuild index",
-                    "action_url": "/api/settings/passage-relevance/rebuild-index/",
-                    "tooltip": "Triggers an immediate FAISS / OPQ codebook rebuild.",
-                },
-            ],
-        ),
-        (
-            re.compile(r"Celery.*worker|worker lost|WorkerLostError", re.I),
-            [
-                {
-                    "label": "Pause everything",
-                    "action_url": "/api/system/master-pause/",
-                    "tooltip": "Stops all background work so the failing worker can be safely restarted.",
-                },
-            ],
-        ),
-        (
-            re.compile(r"ThermalThrottleError|thermal", re.I),
-            [
-                {
-                    "label": "Wait for cooldown",
-                    "action_url": "",
-                    "tooltip": "GPU is above 85 °C. Job auto-resumes when it cools below 75 °C.",
-                },
-            ],
-        ),
-    ]
-
-    for pattern, chips in _CHIPS:
+    for pattern, chips in _ACTION_CHIPS:
         if pattern.search(blob):
             return chips
     return []

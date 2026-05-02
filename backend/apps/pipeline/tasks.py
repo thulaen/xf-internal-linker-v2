@@ -16,6 +16,7 @@ from channels.layers import get_channel_layer
 
 from apps.pipeline.decorators import with_weight_lock
 from apps.core.pause_contract import JobPaused
+from apps.core.helpers import HelperConstraint
 from apps.core.helpers.resource_aware_retry import resource_aware_retry
 from requests import RequestException
 from django.db import DatabaseError, IntegrityError
@@ -2242,14 +2243,28 @@ _BACKFILL_BATCH_SIZE = 100
 
 
 @shared_task(
+    bind=True,
     name="pipeline.backfill_long_tail_embeddings",
     time_limit=3600,
     soft_time_limit=3540,
 )
+@HelperConstraint(
+    gpu_required=True,            # BGE-M3 encode runs on GPU
+    storage_writes_to="postgres_main",
+    ram_peak_mb=4000,             # BGE-M3 fp16 + batch + working memory
+    expected_seconds_p50=600,
+)
+@resource_aware_retry(
+    max_retries=5,
+    oom_batch_shrink_ratio=0.5,
+    batch_size_kwarg="batch_size",
+)
 def backfill_long_tail_embeddings(
+    self,
     *,
     body_to_distilled_ratio: float = 5.0,
     max_items: int | None = None,
+    batch_size: int = _BACKFILL_BATCH_SIZE,
 ):
     """One-shot backfill: re-embed posts where the old summary lost the most signal.
 
@@ -2314,10 +2329,10 @@ def backfill_long_tail_embeddings(
 
     processed = 0
     batch: list[int] = []
-    iterator = eligible.iterator(chunk_size=_BACKFILL_BATCH_SIZE)
+    iterator = eligible.iterator(chunk_size=batch_size)
     for pk in iterator:
         batch.append(pk)
-        if len(batch) >= _BACKFILL_BATCH_SIZE:
+        if len(batch) >= batch_size:
             # 1. Generate full-body document embeddings
             generate_content_item_embeddings(
                 content_item_ids=batch,
@@ -2398,6 +2413,12 @@ _NULL_REEMBED_BATCH_SIZE = 100
     name="pipeline.reembed_null_embeddings",
     time_limit=3600,
     soft_time_limit=3540,
+)
+@HelperConstraint(
+    gpu_required=True,            # BGE-M3 encode runs on GPU
+    storage_writes_to="postgres_main",
+    ram_peak_mb=4000,
+    expected_seconds_p50=300,
 )
 @resource_aware_retry(
     max_retries=5,
@@ -2503,11 +2524,23 @@ _PASSAGE_REFRESH_BATCH_SIZE = 100
 
 
 @shared_task(
+    bind=True,
     name="pipeline.refresh_passage_embeddings",
     time_limit=1800,
     soft_time_limit=1740,
 )
-def refresh_passage_embeddings(*, max_items: int = _PASSAGE_REFRESH_BATCH_SIZE):
+@HelperConstraint(
+    gpu_required=True,            # passage encode runs on GPU
+    storage_writes_to="postgres_main",
+    ram_peak_mb=3500,
+    expected_seconds_p50=180,
+)
+@resource_aware_retry(
+    max_retries=5,
+    oom_batch_shrink_ratio=0.5,
+    batch_size_kwarg="max_items",
+)
+def refresh_passage_embeddings(self, *, max_items: int = _PASSAGE_REFRESH_BATCH_SIZE):
     """Regenerate stale or missing PassageEmbedding rows in bounded batches.
 
     Plain-English: walks ContentItems in PK order from the last
@@ -2594,12 +2627,30 @@ def refresh_passage_embeddings(*, max_items: int = _PASSAGE_REFRESH_BATCH_SIZE):
     time_limit=3600,
     soft_time_limit=3540,
 )
-def train_opq_codebook(self, sample_size=100000) -> dict:
-    """Train OPQ codebooks periodically to adapt to corpus drift."""
-    try:
-        from apps.pipeline.services.opq_trainer import train_codebook
-        train_codebook(sample_size=sample_size)
-        return {"status": "completed"}
-    except Exception:
-        logger.exception("OPQ codebook training failed")
-        raise
+@HelperConstraint(
+    gpu_required=False,           # OPQ training is CPU-bound (k-means + rotation)
+    cpu_intensive=True,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=1500,             # ~400 MB sample @ 100k * 1024-d float32 + working memory
+    expected_seconds_p50=900,
+)
+@resource_aware_retry(
+    max_retries=4,
+    oom_batch_shrink_ratio=0.5,
+    batch_size_kwarg="sample_size",
+)
+def train_opq_codebook(self, *, sample_size: int = 100_000) -> dict:
+    """Train OPQ codebooks periodically to adapt to corpus drift.
+
+    Plain-English: OPQ training loads up to ``sample_size`` passage
+    embeddings into RAM at once (~400 MB at sample_size=100k for 1024-d
+    float32). On a 16 GB box that's safe; on a tight box it may OOM.
+    The ``@resource_aware_retry`` decorator catches an OOM, halves
+    ``sample_size`` to 50k, then 25k, and retries automatically. The
+    last-OOM size is remembered in AppSetting so the next scheduled run
+    starts at the smaller size without OOMing again.
+    """
+    from apps.pipeline.services.opq_trainer import train_codebook
+
+    train_codebook(sample_size=sample_size)
+    return {"status": "completed", "sample_size": sample_size}

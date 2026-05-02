@@ -31,11 +31,17 @@ from typing import Any
 
 from django.core.cache import cache
 
+from apps.core.services.cache_policy import record_event
+
 logger = logging.getLogger(__name__)
 
 
 CACHE_KEY = "confidence_meter.snapshot"
 CACHE_TTL_SECONDS = 60
+
+# Approximate JSON-encoded snapshot size (8 contributors × ~120 bytes each).
+# Used for the cache-policy size estimate.
+_SNAPSHOT_PAYLOAD_BYTES = 1024
 
 # Phase 4 fix #3 — embedding signature cached as a single AppSetting row.
 # The embed pipeline writes this key the first time it loads the model
@@ -90,10 +96,22 @@ class ConfidenceSnapshot:
 
 
 def get_confidence_snapshot(force_refresh: bool = False) -> ConfidenceSnapshot:
-    """Compute (or read from cache) the current readiness snapshot."""
+    """Compute (or read from cache) the current readiness snapshot.
+
+    Plain-English: every read pings the cache-policy meter (Phase 4.13)
+    so operators can see how often the dashboard is reading from cache
+    vs paying the recompute cost. A "hit" = served from the 60-second
+    Redis cache; a "miss" = full recompute (eight contributor checks).
+    """
     if not force_refresh:
         cached = cache.get(CACHE_KEY)
         if cached is not None:
+            record_event(
+                "dashboard",
+                "hit",
+                key="confidence_snapshot",
+                bytes_size=_SNAPSHOT_PAYLOAD_BYTES,
+            )
             return cached
 
     contributors = [
@@ -116,6 +134,12 @@ def get_confidence_snapshot(force_refresh: bool = False) -> ConfidenceSnapshot:
     label = _label_for(total)
     snapshot = ConfidenceSnapshot(total=round(total, 1), label=label, contributors=contributors)
     cache.set(CACHE_KEY, snapshot, CACHE_TTL_SECONDS)
+    record_event(
+        "dashboard",
+        "miss",
+        key="confidence_snapshot",
+        bytes_size=_SNAPSHOT_PAYLOAD_BYTES,
+    )
     return snapshot
 
 
@@ -156,6 +180,31 @@ def _check_content_imported() -> ContributorResult:
         )
 
 
+def _count_fresh_vs_total(signature: str) -> tuple[int, int]:
+    """Return ``(fresh_count, total_count)`` of non-deleted ContentItems.
+
+    Plain-English: ``total`` = all live content; ``fresh`` = content whose
+    stored embedding matches the current model signature. When no
+    signature is known yet (no worker has run encode op), counts only
+    require ``embedding IS NOT NULL`` so a fresh install isn't penalised.
+    Pulled out of ``_check_embeddings_fresh`` for testability + brevity.
+    """
+    from apps.content.models import ContentItem
+
+    base_qs = ContentItem.objects.filter(is_deleted=False, duplicate_of__isnull=True)
+    total = base_qs.count()
+    if total == 0:
+        return 0, 0
+    if signature:
+        fresh = base_qs.filter(
+            embedding__isnull=False,
+            embedding_model_version=signature,
+        ).count()
+    else:
+        fresh = base_qs.filter(embedding__isnull=False).count()
+    return fresh, total
+
+
 def _check_embeddings_fresh() -> ContributorResult:
     """20 pts: fraction of ContentItems whose embedding matches the current model version.
 
@@ -168,11 +217,8 @@ def _check_embeddings_fresh() -> ContributorResult:
     ~10 s model load.
     """
     try:
-        from apps.content.models import ContentItem
-
         signature = _read_cached_embedding_signature()
-
-        total = ContentItem.objects.filter(is_deleted=False, duplicate_of__isnull=True).count()
+        fresh, total = _count_fresh_vs_total(signature)
         if total == 0:
             # No content yet → freshness is N/A; full pts so we don't penalise a fresh install.
             return ContributorResult(
@@ -181,19 +227,8 @@ def _check_embeddings_fresh() -> ContributorResult:
                 score=1.0,
                 max_pts=20,
             )
-        if signature:
-            fresh = ContentItem.objects.filter(
-                is_deleted=False,
-                duplicate_of__isnull=True,
-                embedding__isnull=False,
-                embedding_model_version=signature,
-            ).count()
-        else:
-            fresh = ContentItem.objects.filter(
-                is_deleted=False,
-                duplicate_of__isnull=True,
-                embedding__isnull=False,
-            ).count()
+        # Guard: ``total`` is already non-zero here (early-return above);
+        # ``max(total, 1)`` is belt-and-braces against future refactors.
         ratio = fresh / max(total, 1)
         hint = ""
         if ratio < 0.95:
@@ -206,7 +241,7 @@ def _check_embeddings_fresh() -> ContributorResult:
             max_pts=20,
             fix_hint=hint,
         )
-    except Exception:
+    except Exception:  # noqa: BLE001 — debug-log is the visible signal; contributor degrades to 0 instead of breaking the dashboard.
         logger.debug("confidence_meter: embeddings_fresh check failed", exc_info=True)
         return ContributorResult(
             name="embeddings_fresh",

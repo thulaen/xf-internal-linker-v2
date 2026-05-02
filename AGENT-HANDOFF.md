@@ -1,3 +1,51 @@
+# 2026-05-02 - Claude Opus 4.7 (1M context) - Cache-policy instrumentation + 4 OOM tasks annotated + 3 long-function refactors
+
+What I'm doing: Continuation. User asked to "proceed with the next phase and fix minor bugs". Did exactly that — wired the cache-policy meter into the two heaviest dashboard reads so operators can see the matview/Redis hit ratios, decorated three more OOM-prone Celery tasks with `@resource_aware_retry` + `@HelperConstraint` (so the helper-router knows they must stay on the GPU/main PC), and refactored three long functions into named helpers per the TECH-DEBT-MANDATE.
+
+What was accomplished:
+
+**CACHE-POLICY METER NOW LIVE FOR DASHBOARD:**
+- `apps/core/services/dashboard_aggregates.py` — `get_suggestion_status_counts()` now emits `record_event("dashboard", "hit"|"miss", key="suggestion_status_counts")` on the matview success / DB-error / unexpected-error paths. The 64-line function was split into three named helpers (`_emit_cache_event`, `_read_status_counts_matview`, `_read_status_counts_live`) so the public function is back under 20 lines.
+- `apps/core/services/confidence_meter.py` — `get_confidence_snapshot()` emits `record_event("dashboard", "hit"|"miss", key="confidence_snapshot")` on the Redis-cache success / recompute paths. Added `_count_fresh_vs_total(signature)` helper extracted from `_check_embeddings_fresh` (which dropped from 59 to 35 lines).
+- Verified end-to-end inside the running container: one dashboard read produced `cache.dashboard: 1 hits, 1 misses` on `summarise_layer("dashboard")`. The Phase 4.13 summary endpoint now shows real data instead of zero events.
+
+**3 MORE TASKS NOW HAVE @resource_aware_retry + @HelperConstraint:**
+- `pipeline.train_opq_codebook` (NEW): added `bind=True` + `@resource_aware_retry(batch_size_kwarg="sample_size")` — on OOM the decorator halves `sample_size` (100k → 50k → 25k → 12.5k) and persists the post-shrink size to AppSetting so the next scheduled run starts smaller. The redundant `try/except logger.exception/raise` was removed (the decorator handles classification + ingest_error routing already).
+- `pipeline.backfill_long_tail_embeddings`, `pipeline.reembed_null_embeddings`, `pipeline.refresh_passage_embeddings`, `pipeline.train_opq_codebook` — all four now wear `@HelperConstraint(gpu_required=True OR cpu_intensive=True, storage_writes_to="postgres_main", ram_peak_mb=...)`. The `helper_router.route_task()` reads these annotations and returns None (= stay on main PC) because they all write directly to Postgres — Phase 4.9 hard rule "helpers stay read-mostly".
+
+**3 LONG-FUNCTION REFACTORS (Section 4.6.5 of the plan):**
+- `_check_embeddings_fresh` (59 → 35 lines) — extracted `_count_fresh_vs_total(signature)` helper.
+- `get_suggestion_status_counts` (64 → 19 lines) — extracted `_read_status_counts_matview`, `_read_status_counts_live`, `_emit_cache_event` helpers.
+- `suggest_action_chips` (98 → 12 lines) — hoisted the regex chip table to module level (`_ACTION_CHIPS`) so the regex compile + literal dict construction runs ONCE at import time, not per error-log render. Small perf win + the function is now declarative.
+
+**SMALL CODE-SMELL FIX:**
+- `cache_policy.summarise_layer()` was double-scanning the events list (once for `sum`, once for `len`). Replaced with a single list-comprehension + arithmetic. Same correctness, ~50 % less work for layers with many events.
+
+What has issues or errors:
+- **`/api/system/cache-policy/` will only show `dashboard` events for now.** Other cache layers (`model_weights`, `faiss_index`, `settings`) need similar `record_event` instrumentation in their wrappers. Schedule alongside the next round of helper-router work.
+- **Action chips still not rendered on the frontend** — backend returns them; the Angular `/error-log` component needs ~30 lines added to consume them. Carryover from prior session.
+- **Strict-mode lint surfaces 24 `missing-helper-constraint` warnings on `tasks.py`** — only the 4 OOM-prone tasks have annotations so far. The remaining 20 tasks are mostly pipeline orchestration (run_pipeline, generate_embeddings, import_content, etc.). Schedule a dedicated annotation pass; default for most Postgres-writing tasks is `gpu_required=False, storage_writes_to="postgres_main"` (= stay on main PC).
+
+Tech-debt delta:
+  Long-function reductions: 3 (`_check_embeddings_fresh` 59→35, `get_suggestion_status_counts` 64→19, `suggest_action_chips` 98→12)
+  New named helpers extracted: 4 (`_count_fresh_vs_total`, `_emit_cache_event`, `_read_status_counts_matview`, `_read_status_counts_live`)
+  Module-level data hoisted: 1 (`_ACTION_CHIPS` regex table — one-time compile)
+  Code-smell fixes: 1 (cache_policy double-scan → single-pass)
+  Silent-except clean-up: 3 wraps now have `# noqa: BLE001` justification per the linter heuristic
+  Magic-number documentation: 2 (`_DASHBOARD_PAYLOAD_BYTES`, `_SNAPSHOT_PAYLOAD_BYTES`) hoisted with rationale
+  Resource-aware retry coverage: +1 task (`train_opq_codebook`); cumulative coverage now 4 OOM-prone tasks
+  HelperConstraint coverage: +4 tasks (was 0 in production code)
+  Total touched: +255 / -129 across 5 files
+
+Verified:
+- python -m py_compile in container: clean for every touched file
+- python .githooks/check-forbidden-patterns.py (diff-aware, default): 0 blocking violations
+- python .githooks/check-forbidden-patterns.py --strict: 0 NEW blocking violations on touched files (long-function warnings are pre-existing)
+- Functional smoke inside container: `summarise_layer("dashboard")` returns real hit/miss counts after a single dashboard read
+
+Next agent: ship the frontend pieces (Why-So-Long Panel modal, Budget Forecast pre-flight chip, action-chip rendering on /error-log), annotate the remaining 20 Celery tasks with `@HelperConstraint`, and instrument the model_weights / faiss_index / settings cache wrappers to call `cache_policy.record_event()` so the per-layer summary becomes useful for those too. Plan: C:\\Users\\goldm\\.claude\\plans\\check-if-everything-in-vectorized-cook.md
+
+[HANDOFF READ: 2026-05-02 by Claude Opus 4.7 — Resource-aware retry wiring + HelperConstraint router bridge commit ed4ed8e]
 # 2026-05-02 - Claude Opus 4.7 (1M context) - Resource-aware retry wiring + HelperConstraint router bridge + Cache Eviction Policy + fix_suggestions extension
 
 What I'm doing: Continuation. User asked to proceed with the next phase. Wired the resource-aware retry decorator into a real OOM-prone Celery task to validate it end-to-end, bridged HelperConstraint metadata into the existing helper_router so the routing engine actually consumes the new annotations, shipped Phase 4.13 Cache Eviction Policy as a reusable module + 3 endpoints, and extended fix_suggestions from 10 → 31 rules + a new action-chips helper for /error-log.

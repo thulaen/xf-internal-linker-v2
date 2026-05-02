@@ -22,7 +22,72 @@ import logging
 
 from django.db import DatabaseError, connection
 
+from apps.core.services.cache_policy import record_event
+
 logger = logging.getLogger(__name__)
+
+
+# Approximate payload size for one suggestion-status histogram (~6 statuses
+# × 24 bytes per ``{"status": int}`` row when JSON-encoded). Used for the
+# cache-policy size estimate; exact byte count would require serialising
+# the dict on every call which defeats the purpose of the matview.
+_DASHBOARD_PAYLOAD_BYTES = 256
+
+
+def _emit_cache_event(event: str) -> None:
+    """Tiny wrapper so callers don't repeat the kwarg list."""
+    record_event(
+        "dashboard",
+        event,
+        key="suggestion_status_counts",
+        bytes_size=_DASHBOARD_PAYLOAD_BYTES,
+    )
+
+
+def _read_status_counts_matview() -> dict[str, int] | None:
+    """Read the pre-aggregated histogram. Returns ``None`` on any failure.
+
+    A ``None`` return means the caller must fall back to the live ORM
+    aggregate. The cache-policy event is also emitted so the operator
+    sees both the fast and the slow paths on ``/diagnostics``.
+    """
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT status, count FROM dashboard_suggestion_counts_mv")
+            rows = cursor.fetchall()
+        _emit_cache_event("hit")
+        return {status: int(count) for status, count in rows}
+    except DatabaseError:
+        logger.debug(
+            "dashboard_suggestion_counts_mv unavailable; falling back to live aggregate",
+            exc_info=True,
+        )
+        _emit_cache_event("miss")
+        return None
+    except Exception:  # noqa: BLE001 — fallback path is the visible signal; the warn-log surfaces unexpected errors.
+        logger.warning(
+            "dashboard_suggestion_counts_mv read failed; falling back to live aggregate",
+            exc_info=True,
+        )
+        _emit_cache_event("miss")
+        return None
+
+
+def _read_status_counts_live() -> dict[str, int]:
+    """Live ORM aggregate fallback. Returns empty dict on total failure."""
+    try:
+        from django.db.models import Count
+
+        from apps.suggestions.models import Suggestion
+
+        rows = Suggestion.objects.values("status").annotate(count=Count("pk"))
+        return {row["status"]: int(row["count"]) for row in rows}
+    except Exception:  # noqa: BLE001 — empty dict is the contract on total failure; callers treat no-data identically to no-suggestions.
+        logger.warning(
+            "Live suggestion-status aggregate also failed; returning empty dict",
+            exc_info=True,
+        )
+        return {}
 
 
 def get_suggestion_status_counts() -> dict[str, int]:
@@ -32,40 +97,16 @@ def get_suggestion_status_counts() -> dict[str, int]:
     live ``Suggestion.objects.values("status").annotate(count=Count(...))``
     aggregate if the matview is unavailable. Empty dict on total failure
     so callers can treat "no data" identically to "no suggestions".
+
+    Plain-English: every read here also pings the cache-policy meter so
+    operators can see the matview's hit ratio on ``/diagnostics`` (Phase
+    4.13). A "hit" is the fast matview path; a "miss" means the matview
+    was unavailable and we paid for a live aggregate.
     """
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT status, count FROM dashboard_suggestion_counts_mv"
-            )
-            rows = cursor.fetchall()
-        return {status: int(count) for status, count in rows}
-    except DatabaseError:
-        # Matview not yet created (fresh install pre-migration) OR Postgres
-        # rejected the query for some other reason. Fall back to live ORM.
-        logger.debug(
-            "dashboard_suggestion_counts_mv unavailable; falling back to live aggregate",
-            exc_info=True,
-        )
-    except Exception:
-        logger.warning(
-            "dashboard_suggestion_counts_mv read failed; falling back to live aggregate",
-            exc_info=True,
-        )
-
-    try:
-        from django.db.models import Count
-
-        from apps.suggestions.models import Suggestion
-
-        rows = Suggestion.objects.values("status").annotate(count=Count("pk"))
-        return {row["status"]: int(row["count"]) for row in rows}
-    except Exception:
-        logger.warning(
-            "Live suggestion-status aggregate also failed; returning empty dict",
-            exc_info=True,
-        )
-        return {}
+    cached = _read_status_counts_matview()
+    if cached is not None:
+        return cached
+    return _read_status_counts_live()
 
 
 def refresh_suggestion_counts_matview(*, concurrently: bool = True) -> bool:
