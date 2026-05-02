@@ -157,29 +157,45 @@ class HelperArchive:
 
         retention = retention_days or _DEFAULT_RETENTIONS.get(self.archive_name, 30)
         file_id = uuid.uuid4().hex[:16]
-        filename = f"{file_id}{suffix}"
-        path = root / filename
+        path = root / f"{file_id}{suffix}"
 
-        # Pre-flight disk-pressure guard per DISK-PRESSURE-RULES.md.
-        # Best-effort: if the import fails we still return a path.
-        if size_bytes > 0:
-            try:
-                from apps.pipeline.services.disk_pressure import (
-                    require_free_disk,
-                )
+        self._try_disk_pressure_guard(size_bytes)
+        self._persist_archive_metadata(file_id, path, retention, is_helper_backed)
 
-                require_free_disk(estimated_bytes=size_bytes, safety_margin_gb=5)
-            except ImportError:
-                # disk_pressure module not yet shipped; skip guard.
-                pass
-            except Exception:
-                logger.warning(
-                    "HelperArchive: disk-pressure guard failed for %s; proceeding",
-                    self.archive_name,
-                    exc_info=True,
-                )
+        return AllocatedFile(
+            path=path,
+            archive_name=self.archive_name,
+            file_id=file_id,
+            is_helper_backed=is_helper_backed,
+            retention_days=retention,
+        )
 
-        # Stash metadata for nightly_data_retention to find later.
+    def _try_disk_pressure_guard(self, size_bytes: int) -> None:
+        """Pre-flight DISK-PRESSURE-RULES guard. Best-effort; never raises here."""
+        if size_bytes <= 0:
+            return
+        try:
+            from apps.pipeline.services.disk_pressure import require_free_disk
+
+            require_free_disk(estimated_bytes=size_bytes, safety_margin_gb=5)
+        except ImportError:
+            # disk_pressure module not yet shipped; skip guard cleanly.
+            return
+        except Exception:
+            logger.warning(
+                "HelperArchive: disk-pressure guard failed for %s; proceeding",
+                self.archive_name,
+                exc_info=True,
+            )
+
+    def _persist_archive_metadata(
+        self,
+        file_id: str,
+        path: Path,
+        retention: int,
+        is_helper_backed: bool,
+    ) -> None:
+        """Stash a single AppSetting row so nightly_data_retention can find this file."""
         try:
             from apps.core.models import AppSetting
             from django.utils import timezone
@@ -201,14 +217,6 @@ class HelperArchive:
                 self.archive_name,
                 exc_info=True,
             )
-
-        return AllocatedFile(
-            path=path,
-            archive_name=self.archive_name,
-            file_id=file_id,
-            is_helper_backed=is_helper_backed,
-            retention_days=retention,
-        )
 
     def read_path(self, file_id: str) -> Path | None:
         """Return the Path a previously-allocated file lives at, or None."""

@@ -377,6 +377,15 @@ export class AppComponent implements OnInit {
           route: '/admin/models',
           tooltip: 'ML model registry — pause, resume, promote, drain, rollback',
         },
+        // Phase 4.1 — Undo History Timeline. Lists restorable
+        // setting / preset changes so the operator can roll back
+        // accidents without diving into the audit table.
+        {
+          label: 'Undo History',
+          icon: 'restore',
+          route: '/audit/undo-timeline',
+          tooltip: 'Recent setting + preset changes you can roll back',
+        },
       ],
     },
   ];

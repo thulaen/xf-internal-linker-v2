@@ -93,22 +93,32 @@ services:
              --prefetch-multiplier 1
              -Q cpu_only,enrichment,audience,scheduled"
 
-  # Optional: a heartbeat reporter that POSTs to the main PC's
-  # /api/settings/helpers/<id>/heartbeat/ every 30 s with the live
-  # CPU/RAM/active-jobs snapshot. Implemented as a tiny Python
-  # script in apps/core/helpers/heartbeat_reporter.py (Phase 4.9
-  # follow-up; not yet shipped). Keep this commented out until the
-  # reporter lands so the compose file boots cleanly today.
+  # Heartbeat reporter — POSTs CPU/RAM/active-jobs snapshot to the
+  # main PC's /api/settings/helpers/<id>/heartbeat/ every 30 s.
+  # The main PC's roster + the operator's /api/helpers/ + the
+  # Confidence Meter contributor all see this helper as "online"
+  # because of these heartbeats. Implementation: see
+  # apps/core/helpers/heartbeat_reporter.py.
   #
-  # helper-heartbeat:
-  #   image: xf-linker-backend:latest
-  #   container_name: xf_linker_helper_heartbeat
-  #   restart: always
-  #   mem_limit: 128m
-  #   env_file: .env
-  #   environment:
-  #     HELPER_NODE_ROLE: cpu_helper
-  #     HELPER_NODE_NAME: ${HELPER_NODE_NAME:-helper-cpu-1}
-  #     HELPER_NODE_TOKEN: ${HELPER_NODE_TOKEN:-}
-  #     MAIN_PC_BASE_URL: ${MAIN_PC_BASE_URL:-http://main-pc.local}
-  #   command: python -m apps.core.helpers.heartbeat_reporter
+  # Operator workflow:
+  #   1. On the main PC: python manage.py drf_create_token helper-cpu-1
+  #      (creates a Django authtoken for the helper service user)
+  #   2. Enroll the helper via POST /api/settings/helpers/
+  #   3. Copy the helper's .env file with HELPER_AUTH_TOKEN set to the
+  #      drf_create_token output, MAIN_PC_BASE_URL set to the main
+  #      PC's URL, and HELPER_NODE_NAME matching the enrollment name.
+  #   4. docker compose -f docker-compose-helper.yml up -d
+  helper-heartbeat:
+    image: xf-linker-backend:latest
+    container_name: xf_linker_helper_heartbeat
+    restart: always
+    mem_limit: 128m
+    env_file: .env
+    environment:
+      HELPER_NODE_ROLE: cpu_helper
+      HELPER_NODE_NAME: ${HELPER_NODE_NAME:-helper-cpu-1}
+      HELPER_AUTH_TOKEN: ${HELPER_AUTH_TOKEN:-}
+      MAIN_PC_BASE_URL: ${MAIN_PC_BASE_URL:-http://main-pc.local}
+      HEARTBEAT_INTERVAL_SECS: ${HEARTBEAT_INTERVAL_SECS:-30}
+      HELPER_REPORTER_LOG_LEVEL: ${HELPER_REPORTER_LOG_LEVEL:-INFO}
+    command: python -m apps.core.helpers.heartbeat_reporter

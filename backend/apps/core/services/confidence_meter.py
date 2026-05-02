@@ -410,64 +410,38 @@ def _check_helpers_healthy() -> ContributorResult:
     try:
         from apps.core.helpers import roster
 
-        snap = roster()
-        total_configured = len(snap.helpers)
-        if total_configured == 0:
-            # No helpers — main PC handles everything; this is fine.
-            return ContributorResult(
-                name="helpers_healthy",
-                label="Helper PCs healthy",
-                score=1.0,
-                max_pts=5,
-            )
-
-        if snap.online_count == 0:
-            return ContributorResult(
-                name="helpers_healthy",
-                label="Helper PCs healthy",
-                score=0.0,
-                max_pts=5,
-                fix_hint=(
-                    f"{total_configured} helper(s) configured but none online — "
-                    "check helper docker compose + network connectivity."
-                ),
-            )
-
-        if snap.accepting_work_count == 0:
-            return ContributorResult(
-                name="helpers_healthy",
-                label="Helper PCs healthy",
-                score=0.3,
-                max_pts=5,
-                fix_hint=(
-                    f"{snap.online_count} helper(s) online but none accepting work — "
-                    "toggle 'Accept work' on /settings/helpers."
-                ),
-            )
-
-        accepting_ratio = snap.accepting_work_count / max(total_configured, 1)
-        if accepting_ratio >= 1.0:
-            return ContributorResult(
-                name="helpers_healthy",
-                label="Helper PCs healthy",
-                score=1.0,
-                max_pts=5,
-            )
-        return ContributorResult(
-            name="helpers_healthy",
-            label="Helper PCs healthy",
-            score=0.7,
-            max_pts=5,
-            fix_hint=(
-                f"{snap.accepting_work_count} of {total_configured} helper(s) accepting work — "
-                "review /settings/helpers."
-            ),
-        )
+        score, hint = _score_helpers_state(roster())
     except Exception:
         logger.debug("confidence_meter: helpers_healthy check failed", exc_info=True)
-        return ContributorResult(
-            name="helpers_healthy",
-            label="Helper PCs healthy",
-            score=0.5,
-            max_pts=5,
+        score, hint = 0.5, ""
+    return ContributorResult(
+        name="helpers_healthy",
+        label="Helper PCs healthy",
+        score=score,
+        max_pts=5,
+        fix_hint=hint,
+    )
+
+
+def _score_helpers_state(snap) -> tuple[float, str]:
+    """Map a roster snapshot to a (score, fix_hint) pair. Pure function — testable."""
+    total_configured = len(snap.helpers)
+    if total_configured == 0:
+        return 1.0, ""
+    if snap.online_count == 0:
+        return 0.0, (
+            f"{total_configured} helper(s) configured but none online — "
+            "check helper docker compose + network connectivity."
         )
+    if snap.accepting_work_count == 0:
+        return 0.3, (
+            f"{snap.online_count} helper(s) online but none accepting work — "
+            "toggle 'Accept work' on /settings/helpers."
+        )
+    accepting_ratio = snap.accepting_work_count / max(total_configured, 1)
+    if accepting_ratio >= 1.0:
+        return 1.0, ""
+    return 0.7, (
+        f"{snap.accepting_work_count} of {total_configured} helper(s) accepting work — "
+        "review /settings/helpers."
+    )

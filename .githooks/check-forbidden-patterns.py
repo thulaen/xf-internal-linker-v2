@@ -289,6 +289,68 @@ def scan_unscoped_todo(source: str, source_lines: list[str], path: Path) -> list
     return out
 
 
+def scan_missing_helper_constraint(tree: ast.Module, path: Path) -> list[Violation]:
+    """Rule 7 (warn): ``@shared_task`` without an adjacent ``@HelperConstraint``.
+
+    Phase 4.9 — every NEW Celery task should declare its resource
+    constraints so the helper-PC routing engine can pick the right node.
+    Warns on staged-line additions only (diff-aware mode); does not block.
+
+    The check looks at decorator names directly. ``@shared_task(...)`` /
+    ``@app.task(...)`` / ``@celery.task(...)`` all qualify. The check
+    is satisfied if ANY decorator on the same function is named
+    ``HelperConstraint`` (the class-style decorator from
+    ``apps.core.helpers``).
+    """
+    out: list[Violation] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if not node.decorator_list:
+            continue
+
+        is_celery_task = False
+        has_helper_constraint = False
+        for dec in node.decorator_list:
+            name = _decorator_name(dec)
+            if name in {"shared_task", "task"}:
+                is_celery_task = True
+            elif name == "HelperConstraint":
+                has_helper_constraint = True
+
+        if not is_celery_task or has_helper_constraint:
+            continue
+
+        out.append(
+            Violation(
+                path=path,
+                lineno=node.lineno,
+                rule="missing-helper-constraint",
+                severity="warn",
+                detail=(
+                    f"Celery task `{node.name}` has no @HelperConstraint annotation. "
+                    f"Add one from apps.core.helpers so the routing engine can pick "
+                    f"main vs helper PC. Example: "
+                    f"@HelperConstraint(cpu_intensive=True, gpu_required=False, "
+                    f"storage_writes_to='postgres_main', ram_peak_mb=512)"
+                ),
+            )
+        )
+    return out
+
+
+def _decorator_name(dec: ast.expr) -> str:
+    """Return the bare name of a decorator (e.g. 'shared_task' from
+    ``@shared_task(name=...)`` or ``@celery.shared_task``)."""
+    if isinstance(dec, ast.Call):
+        return _decorator_name(dec.func)
+    if isinstance(dec, ast.Attribute):
+        return dec.attr
+    if isinstance(dec, ast.Name):
+        return dec.id
+    return ""
+
+
 def scan_long_functions(tree: ast.Module, path: Path, max_lines: int = 50) -> list[Violation]:
     """Rule 5 (warn): function over 50 lines encourages splitting."""
     out: list[Violation] = []
@@ -360,6 +422,7 @@ def lint_file(path: Path, *, strict: bool = False) -> list[Violation]:
     violations.extend(scan_unscoped_todo(source, source_lines, path))
     violations.extend(scan_long_functions(tree, path))
     violations.extend(scan_missing_docstring(tree, path))
+    violations.extend(scan_missing_helper_constraint(tree, path))
 
     # Diff-awareness: drop pre-existing violations unless --strict.
     if strict:

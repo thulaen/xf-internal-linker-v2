@@ -86,36 +86,11 @@ def _build_roster() -> RosterSnapshot:
     accepting = 0
     try:
         for node in HelperNode.objects.all():
-            heartbeat_age: int | None = None
-            if node.last_heartbeat:
-                heartbeat_age = int((now - node.last_heartbeat).total_seconds())
-
-            caps = node.capabilities or {}
-            has_gpu = bool(caps.get("gpu_vram_gb", 0) and float(caps.get("gpu_vram_gb", 0)) > 0)
-
+            helpers.append(_node_to_summary(node, now))
             if node.status in ("online", "busy"):
                 online += 1
             if node.accepting_work and node.status in ("online", "busy"):
                 accepting += 1
-
-            helpers.append(
-                HelperSummary(
-                    name=node.name,
-                    role=node.role,
-                    status=node.status,
-                    accepting_work=node.accepting_work,
-                    heartbeat_age_seconds=heartbeat_age,
-                    has_gpu=has_gpu,
-                    cpu_pct=float(node.cpu_pct or 0.0),
-                    ram_pct=float(node.ram_pct or 0.0),
-                    active_jobs=int(node.active_jobs or 0),
-                    queued_jobs=int(node.queued_jobs or 0),
-                    allowed_queues=list(node.allowed_queues or []),
-                    allowed_job_types=list(node.allowed_job_types or []),
-                    warmed_model_keys=list(node.warmed_model_keys or []),
-                    capabilities=dict(caps),
-                )
-            )
     except Exception:
         logger.debug("roster: HelperNode iteration failed", exc_info=True)
 
@@ -124,4 +99,33 @@ def _build_roster() -> RosterSnapshot:
         online_count=online,
         accepting_work_count=accepting,
         sampled_at=now.isoformat(),
+    )
+
+
+def _node_to_summary(node, now) -> HelperSummary:
+    """Convert a HelperNode ORM row to the read-shaped HelperSummary."""
+    heartbeat_age: int | None = None
+    if node.last_heartbeat:
+        heartbeat_age = int((now - node.last_heartbeat).total_seconds())
+
+    caps = node.capabilities or {}
+    has_gpu = bool(
+        caps.get("gpu_vram_gb", 0)
+        and float(caps.get("gpu_vram_gb", 0)) > 0
+    )
+    return HelperSummary(
+        name=node.name,
+        role=node.role,
+        status=node.status,
+        accepting_work=node.accepting_work,
+        heartbeat_age_seconds=heartbeat_age,
+        has_gpu=has_gpu,
+        cpu_pct=float(node.cpu_pct or 0.0),
+        ram_pct=float(node.ram_pct or 0.0),
+        active_jobs=int(node.active_jobs or 0),
+        queued_jobs=int(node.queued_jobs or 0),
+        allowed_queues=list(node.allowed_queues or []),
+        allowed_job_types=list(node.allowed_job_types or []),
+        warmed_model_keys=list(node.warmed_model_keys or []),
+        capabilities=dict(caps),
     )
