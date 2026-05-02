@@ -182,6 +182,19 @@ export const routes: Routes = [
     canActivate: [authGuard],
     data: { breadcrumb: 'Models' },
   },
+  // Phase 4.1 — Undo History Timeline. List restorable AuditEvent
+  // rows + per-row Restore button. Backend endpoints shipped 2026-05-01
+  // commit fffed67; this route surfaces the page in the sidenav.
+  {
+    path: 'audit/undo-timeline',
+    loadComponent: () =>
+      import('./audit/undo-timeline/undo-timeline.component').then(
+        (m) => m.UndoTimelineComponent,
+      ),
+    title: 'Undo History — XF Internal Linker',
+    canActivate: [authGuard],
+    data: { breadcrumb: 'Undo History' },
+  },
   // Phase U1 / Gap 18 — dedicated 500 / "something went wrong" page.
   // The Global ErrorHandler (Gap 26) navigates here on unrecoverable
   // errors. Must come BEFORE the wildcard `**` below so a direct

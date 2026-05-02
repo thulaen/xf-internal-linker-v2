@@ -104,6 +104,12 @@ def get_confidence_snapshot(force_refresh: bool = False) -> ConfidenceSnapshot:
         _check_migrations_clean(),
         _check_frontend_built(),
         _check_errors_acknowledged(),
+        # Phase 4.6.10 / 4.9 — helper-PC contributor. Adds visibility
+        # for whether the operator's helper PCs (if any) are healthy
+        # and accepting work. Default 5 pts; reduces _check_errors
+        # max_pts from 20 to 15 inside that helper to keep the total
+        # at 100 — see _check_errors_acknowledged().
+        _check_helpers_healthy(),
     ]
 
     total = sum(c.points for c in contributors)
@@ -352,7 +358,9 @@ def _check_frontend_built() -> ContributorResult:
 
 
 def _check_errors_acknowledged() -> ContributorResult:
-    """20 pts: every unresolved ErrorLog has been acknowledged.
+    """15 pts (was 20; reduced 2026-05-02 to make room for the new
+    helpers contributor — total still adds to 100): every unresolved
+    ErrorLog has been acknowledged.
 
     Plain-English: an unack'd error means the operator hasn't seen and
     accepted (or fixed) it yet. The contributor scales linearly: 0 unack
@@ -371,7 +379,7 @@ def _check_errors_acknowledged() -> ContributorResult:
             name="errors_acknowledged",
             label="Errors acknowledged",
             score=score,
-            max_pts=20,
+            max_pts=15,
             fix_hint=hint,
         )
     except Exception:
@@ -380,5 +388,86 @@ def _check_errors_acknowledged() -> ContributorResult:
             name="errors_acknowledged",
             label="Errors acknowledged",
             score=0.5,
-            max_pts=20,
+            max_pts=15,
+        )
+
+
+def _check_helpers_healthy() -> ContributorResult:
+    """Phase 4.6.10 / 4.9 — 5 pts: helper PCs are healthy and accepting work.
+
+    Reads from the cached helper roster. Scoring rules:
+        * No helpers configured        → 1.0 (full marks; not all
+                                         operators have a 2nd PC; we
+                                         don't penalise that case).
+        * 1+ helpers, all accepting    → 1.0
+        * 1+ helpers, some not         → 0.7
+        * 1+ helpers, none accepting   → 0.3
+        * Helpers configured but offline → 0.0 (with hint)
+
+    Storage discipline: roster() is cache-backed (60 s TTL); zero new
+    queries on the dashboard hot path.
+    """
+    try:
+        from apps.core.helpers import roster
+
+        snap = roster()
+        total_configured = len(snap.helpers)
+        if total_configured == 0:
+            # No helpers — main PC handles everything; this is fine.
+            return ContributorResult(
+                name="helpers_healthy",
+                label="Helper PCs healthy",
+                score=1.0,
+                max_pts=5,
+            )
+
+        if snap.online_count == 0:
+            return ContributorResult(
+                name="helpers_healthy",
+                label="Helper PCs healthy",
+                score=0.0,
+                max_pts=5,
+                fix_hint=(
+                    f"{total_configured} helper(s) configured but none online — "
+                    "check helper docker compose + network connectivity."
+                ),
+            )
+
+        if snap.accepting_work_count == 0:
+            return ContributorResult(
+                name="helpers_healthy",
+                label="Helper PCs healthy",
+                score=0.3,
+                max_pts=5,
+                fix_hint=(
+                    f"{snap.online_count} helper(s) online but none accepting work — "
+                    "toggle 'Accept work' on /settings/helpers."
+                ),
+            )
+
+        accepting_ratio = snap.accepting_work_count / max(total_configured, 1)
+        if accepting_ratio >= 1.0:
+            return ContributorResult(
+                name="helpers_healthy",
+                label="Helper PCs healthy",
+                score=1.0,
+                max_pts=5,
+            )
+        return ContributorResult(
+            name="helpers_healthy",
+            label="Helper PCs healthy",
+            score=0.7,
+            max_pts=5,
+            fix_hint=(
+                f"{snap.accepting_work_count} of {total_configured} helper(s) accepting work — "
+                "review /settings/helpers."
+            ),
+        )
+    except Exception:
+        logger.debug("confidence_meter: helpers_healthy check failed", exc_info=True)
+        return ContributorResult(
+            name="helpers_healthy",
+            label="Helper PCs healthy",
+            score=0.5,
+            max_pts=5,
         )

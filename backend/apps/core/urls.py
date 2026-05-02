@@ -47,6 +47,7 @@ from .views import (
     HelperNodeListView,
     HelperNodeDetailView,
     HelperNodeHeartbeatView,
+    HelpersRosterView,
 )
 
 urlpatterns = [
@@ -157,8 +158,16 @@ urlpatterns = [
     # Jobs execution center (Stage 5)
     path("jobs/queue/", JobQueueView.as_view(), name="jobs-queue"),
     path("jobs/quarantine/", JobQuarantineView.as_view(), name="jobs-quarantine"),
-    # Helper nodes (Stage 8)
+    # Helper nodes (Stage 8 + Phase 4.9)
     path("settings/helpers/", HelperNodeListView.as_view(), name="helpers-list"),
+    # Phase 4.9 — operator-facing roster endpoint. Returns the
+    # right-now state of every connected helper PC + free-disk +
+    # heartbeat-age + has_gpu flag. Cached 60 s in Redis.
+    path(
+        "helpers/",
+        HelpersRosterView.as_view(),
+        name="helpers-roster",
+    ),
     # Heartbeat must come before the detail route so it isn't swallowed
     # if a future router-style refactor lands here (cf. ISS-012).
     path(

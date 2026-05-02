@@ -1,3 +1,51 @@
+# 2026-05-02 - Claude Opus 4.7 (1M context) - Helper-PC topology foundation + Undo Timeline frontend + 7 FRs marked Done
+
+What I'm doing: Continuation. User added the Helper-PC topology directive (second PC = CPU/RAM relief + heavy-data store, NO GPU; Lightsail optional cloud helper) and asked to mark every Pending FR Done where the integration has actually shipped. Built the Helper-PC integration foundation, the operator-facing roster API, the helper-side compose file, the Confidence Meter contributor, the carryover Undo Timeline frontend page, and audited+marked 7 stale "Partial" FRs as Complete.
+
+What was accomplished:
+
+**Helper-PC topology foundation (Phase 4.9):**
+- New ``apps/core/helpers/`` package — three exports:
+  * ``HelperConstraint`` — class-style decorator that annotates Celery tasks with `cpu_intensive / gpu_required / storage_writes_to / ram_peak_mb / expected_seconds_p50 / requires_warmed_models`. The routing engine (existing `helper_router.py`) reads this metadata to pick which node should run the task. Hard rule: gpu_required tasks NEVER land on a helper.
+  * ``HelperArchive`` — heavy-data storage abstraction. Returns a Path that lives on a helper SMB / NFS / local share when one is connected, falls back to project-relative `media/helper_archive/` otherwise. Handles disk-pressure pre-flight + per-file metadata in a single AppSetting row (NO new tables). Per-archive default retentions (7-90 days) wired into the existing `nightly_data_retention` task pattern.
+  * ``roster()`` — read-only summary of every connected helper PC. Cached 60 s in Redis. Returns name / role / status / heartbeat-age / has_gpu / cpu_pct / ram_pct / active_jobs / queued_jobs / allowed_queues / warmed_models / capabilities. Bridges existing `HelperNode` model + the new operator UI.
+- New endpoint ``GET /api/helpers/`` (``HelpersRosterView`` in `apps/core/views.py`) returns the snapshot. Empty list when no helpers configured (operator hasn't enrolled any) — UI treats empty as "main PC handles everything".
+- New ``docker-compose-helper.yml`` for the second PC. Single ``celery-worker-cpu-helper`` service that subscribes ONLY to `cpu_only,enrichment,audience,scheduled` queues (NEVER `gpu`). Docs the storage layout (`/srv/xf-helper-archive/<archive_name>/`), the network ports needed (only outbound 6379 / 5432), and the operator workflow (copy .env, set HELPER_NODE_NAME + HELPER_NODE_TOKEN, run `docker compose -f docker-compose-helper.yml up -d`).
+
+**Confidence Meter contributor (4.6.10):**
+- New ``_check_helpers_healthy`` contributor adds 5 pts to the Ready-to-Rock score. Reads from `roster()`. No-helpers-configured = full marks (we don't penalise a 1-PC operator). 1+ helpers, all online + accepting work = full marks. Helpers offline / not-accepting = 0-0.7 pts with a plain-English fix hint.
+- Reduced ``_check_errors_acknowledged`` from 20 → 15 pts to keep the total at exactly 100. Per-contributor weights now: content (10) + embeddings (20) + cpp (20) + dedup (15) + migrations (10) + frontend (5) + errors (15) + helpers (5) = 100.
+
+**Carryover #4.6.1: Frontend Undo History Timeline page:**
+- Standalone Angular component at `frontend/src/app/audit/undo-timeline/`. Lists restorable AuditEvent rows from `GET /api/audit/timeline/` with side-by-side old→new diff (red→green pre tags), filters (look-back / subject_type / actor), per-row Restore button gated by ConfirmDialog, Material spinner + snackbar feedback. Route registered at `/audit/undo-timeline`. Sidenav entry deferred to the Group X Deep Linking Catalog session.
+
+**FR audit pass — 7 FRs marked Complete:**
+- FR-099 DARB, FR-100 KMIG, FR-101 TAPB, FR-102 KCIB, FR-103 BERP, FR-104 HGTE, FR-105 RSQVA — all 7 had stale "Partial — hot-path integration pending" status in `FEATURE-REQUESTS.md` despite the integration ALREADY shipping (`evaluate_all_fr099_fr105` dispatcher at `ranker.py:885`; per-FR `score_*` write-back at `:1231`; recommended-preset defaults via migration `suggestions/0052_activate_graph_topology_weights.py`; settings card on /settings with View-spec dialog). Updated each entry to "Complete" with verification anchors. RSQVA's daily GSC refresh was also already wired via `apps/scheduled_updates/jobs.py:run_rsqva_tfidf_refresh` — corrected the status to reflect that.
+
+What has issues or errors:
+- **Helper-PC heartbeat reporter not yet shipped.** The compose file commented-out the `helper-heartbeat` service so the helper boots cleanly; the actual heartbeat reporter (POST to `/api/settings/helpers/<id>/heartbeat/` every 30 s) is a tiny Python script that's a follow-up.
+- **Pre-commit hook extension (Phase 4.9 sub-gap 1)** — flagging Celery tasks without `@HelperConstraint` is documented in the plan but not enforced via the linter yet. Schedule in the next forbidden-patterns linter session.
+- **Sidenav entry for Undo Timeline not added** — the page works via direct URL `/audit/undo-timeline` today; sidenav wiring is part of Group X Deep Linking Catalog (deferred).
+- **Lightsail Terraform module** (Section 4.9 sub-gap 5) not yet shipped — documented in the plan; no immediate operator need.
+
+Tech-debt delta this session:
+  Boilerplate extracted: `HelperConstraint` decorator + `HelperArchive` archive abstraction + `roster()` helper (3 reusable patterns)
+  Stale FR statuses corrected: 7 (FR-099 through FR-105)
+  Files split: 0 (views.py at 1644 lines still pending ISS-030)
+  Magic numbers hoisted: 1 (`_DEFAULT_RETENTIONS` per-archive in helpers/archive.py)
+  Silent excepts wrapped: 0 added; my new code uses `logger.debug` per the linter's expanded heuristic
+  Dead code removed: 0
+  TODOs resolved: 1 (FR audit pass)
+
+Verified:
+- ``python -m py_compile`` on every touched .py file: clean
+- Pre-commit forbidden-patterns linter (diff-aware): 0 blocking violations on staged files
+- ``docker compose build frontend-build``: clean (xf-linker-frontend-prod:latest)
+- ``docker compose build backend``: in progress at handoff write time
+
+Next agent: extend the pre-commit linter to flag missing `@HelperConstraint` annotations on new `@shared_task` definitions (Phase 4.9 sub-gap 1). Then ship the helper-PC heartbeat reporter (`apps/core/helpers/heartbeat_reporter.py`) so operator can actually enroll a helper end-to-end. Then the Lightsail Terraform module. Then continue Tier-3 Phase 4 items (Budget Forecasts, Beginner-Friendly Failure Recovery, Why-So-Long Panel) and the views.py split per ISS-030.
+
+[HANDOFF READ: 2026-05-01 by Claude Opus 4.7 — Pending-fixes sweep + Undo Timeline backend commit fffed67]
 # 2026-05-01 - Claude Opus 4.7 (1M context) - Pending-fixes sweep + Phase 4.1 Undo History Timeline backend
 
 What I'm doing: Continuation of the prior session. User asked to "fix all pending issues then proceed to next phase". Resolved 5 of 6 pending fixes from the prior session and shipped the Phase 4.1 Undo History Timeline backend (service + 2 views + URL routes; frontend page is a follow-up).

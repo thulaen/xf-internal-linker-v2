@@ -831,7 +831,7 @@ Future deferred work will be listed here as new checkbox entries.
 **Target phase:** TBD (foundation landed this session; hot-path integration pending)
 **Priority:** High (operator request via Reddit-post dangling-node concern)
 **Spec:** `docs/specs/fr099-dangling-authority-redistribution-bonus.md`
-**Status:** **Partial** — foundation shipped (Python module + tests + benchmark + preset defaults + migrations + model fields); hot-path ranker integration pending.
+**Status:** **Complete** — verified wired in `backend/apps/pipeline/services/ranker.py:885` (`evaluate_all_fr099_fr105` dispatcher) and `:1231` (per-FR `score_*` write-back). Recommended-preset defaults seeded via migration `suggestions/0052_activate_graph_topology_weights.py`. Settings card on `/settings` with View-spec dialog (commit 4d58475). Marked Done 2026-05-02.
 **Academic source:** Page, Brin, Motwani, Winograd 1999, Stanford InfoLab 1999-66 §2.5 + §3.2 eq. 1
 **What's wanted:** Per-pair ranker bonus for candidates from high-authority hosts with low out-degree — operationalizes the "dangling-node hoarder" concept as a ranking signal.
 
@@ -885,7 +885,7 @@ Future deferred work will be listed here as new checkbox entries.
 **Target phase:** TBD
 **Priority:** High
 **Spec:** `docs/specs/fr105-reverse-search-query-vocabulary-alignment.md`
-**Status:** **Partial** — foundation shipped; hot-path integration + GSC refresh task pending.
+**Status:** **Complete** — verified wired in ranker.py via the FR-099-105 dispatcher. Daily GSC refresh runs from `apps/scheduled_updates/jobs.py:run_rsqva_tfidf_refresh` (calls `apps.analytics.gsc_query_vocab.refresh_gsc_query_tfidf`). `rsqva.max_vocab_size=25000` seeded via migration `suggestions/0049_bump_rsqva_walk_steps_defaults.py`. Marked Done 2026-05-02.
 **Academic source:** Salton & Buckley 1988, IP&M 24(5):513–523, DOI `10.1016/0306-4573(88)90021-0` §3-4; Järvelin & Kekäläinen 2002, ACM TOIS 20(4) DOI `10.1145/582415.582418` §2.1
 **What's wanted:** TF-IDF cosine between host's and destination's GSC-query vocabularies — rewards pages that serve overlapping user search intent even when body embeddings differ.
 

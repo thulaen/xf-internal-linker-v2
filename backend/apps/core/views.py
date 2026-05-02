@@ -5810,3 +5810,61 @@ class ActiveUsersView(APIView):
             for r in rows
         ]
         return Response(payload)
+
+
+# ── Phase 4.9 — Helper PC roster endpoint ─────────────────────────
+
+
+class HelpersRosterView(APIView):
+    """GET /api/helpers/
+
+    Returns the right-now state of every connected helper PC, shaped
+    for the frontend roster card + Confidence Meter contributor.
+    Cached 60 s in Redis via the ``roster()`` helper. Empty list when
+    no helpers are connected (the operator hasn't enrolled any yet) —
+    callers should treat empty as "main PC handles everything",
+    not as an error.
+
+    Response shape::
+
+        {
+            "online_count": 1,
+            "accepting_work_count": 1,
+            "sampled_at": "2026-05-02T12:34:56+00:00",
+            "helpers": [
+                {
+                    "name": "helper-cpu-1",
+                    "role": "worker",
+                    "status": "online",
+                    "accepting_work": true,
+                    "heartbeat_age_seconds": 12,
+                    "has_gpu": false,
+                    "cpu_pct": 22.4,
+                    "ram_pct": 41.0,
+                    "active_jobs": 1,
+                    "queued_jobs": 0,
+                    "allowed_queues": ["cpu_only", "default"],
+                    "allowed_job_types": ["enrichment", "audience"],
+                    "warmed_model_keys": [],
+                    "capabilities": {"cpu_cores": 8, "ram_gb": 16, "gpu_vram_gb": 0}
+                }
+            ]
+        }
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from dataclasses import asdict
+
+        from apps.core.helpers import roster
+
+        snap = roster()
+        return Response(
+            {
+                "online_count": snap.online_count,
+                "accepting_work_count": snap.accepting_work_count,
+                "sampled_at": snap.sampled_at,
+                "helpers": [asdict(h) for h in snap.helpers],
+            }
+        )

@@ -1,0 +1,114 @@
+# Phase 4.9 — Helper PC compose file.
+#
+# Run on a SECOND PC (no GPU required) to relieve CPU + RAM pressure
+# on the main PC and serve as the heavy-data store.
+#
+# Hard constraints (paramount, see PERFORMANCE-SAFE-DEFAULTS.md):
+#   * No GPU services. Helpers subscribe ONLY to the cpu_only +
+#     enrichment + audience + scheduled queues. The router on the
+#     main PC keeps every gpu-tagged task on main.
+#   * Helpers do NOT run Postgres, Redis, or nginx — they connect
+#     to the main PC's instances over the network.
+#   * Helpers DO run a Celery worker tagged with
+#     HELPER_NODE_ROLE=cpu_helper so the routing engine picks them
+#     for CPU-bound work.
+#
+# Operator workflow:
+#   1. Copy .env from main PC to this helper, edit:
+#        - REDIS_URL=redis://<main-pc-host>:6379/0
+#        - POSTGRES_HOST=<main-pc-host>     (if helper writes to PG;
+#          most helper tasks just queue results back via Redis)
+#        - HELPER_NODE_NAME=helper-cpu-1     (unique per helper)
+#        - HELPER_NODE_TOKEN=<one-time enrollment token from main PC>
+#   2. Mount the helper's storage at /srv/xf-helper-archive/ (SMB or
+#      NFS or local SSD). The HelperArchive Python helper will write
+#      large blobs here and the main PC reads via the corresponding
+#      mount point.
+#   3. Run: docker compose -f docker-compose-helper.yml up -d
+#   4. Confirm enrollment via the main PC's /api/helpers/ endpoint;
+#      the helper appears within ~30 s after the first heartbeat.
+#
+# Storage layout (inside /srv/xf-helper-archive/):
+#   * rotate_checkpoints/     — RotatE training checkpoints (30 d TTL)
+#   * opq_codebooks/          — OPQ codebook backups (90 d TTL)
+#   * crawler_raw_html/       — pre-extraction HTML cache (7 d TTL)
+#   * postgres_backups/       — nightly pg_dump (90 d TTL)
+#   * embedding_comparison_runs/ — provider A vs B run state (30 d TTL)
+#   * deberta_finetune_state/    — DeBERTa fine-tune intermediate
+#                                   tensors (30 d TTL)
+#
+# Network ports needed FROM helper TO main PC:
+#   * 6379 (Redis)            — Celery broker + results
+#   * 5432 (Postgres)         — only if helper writes directly
+#                                (most don't; results queue via Redis)
+#   * 80 (nginx)              — only for the operator's browser
+#                                if they want to log in from the
+#                                helper itself
+# No inbound ports needed on the helper itself unless the operator
+# wants to ssh / RDP for maintenance.
+
+services:
+  celery-worker-cpu-helper:
+    image: xf-linker-backend:latest
+    container_name: xf_linker_helper_cpu
+    restart: always
+    mem_limit: 4g
+    cpus: 4.0
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DJANGO_DEBUG: "False"
+      HOME: /tmp
+      REPO_ROOT: /repo
+      # Phase 4.9 — flag this Celery worker as a helper. The routing
+      # engine reads this env var (via apps.core.helpers) to pick
+      # which tasks land here vs the main PC.
+      HELPER_NODE_ROLE: cpu_helper
+      # HELPER_NODE_NAME and HELPER_NODE_TOKEN come from the operator's
+      # local .env file (see workflow above). The token is hashed +
+      # stored on the main PC's HelperNode row at enrollment time.
+      HELPER_NODE_NAME: ${HELPER_NODE_NAME:-helper-cpu-1}
+      HELPER_NODE_TOKEN: ${HELPER_NODE_TOKEN:-}
+      # Concurrency tuned for a 4-core helper. Bump on bigger boxes
+      # via override or env-file.
+      CELERY_WORKER_CONCURRENCY: ${HELPER_CONCURRENCY:-4}
+    volumes:
+      - ./backend:/app
+      - .:/repo:ro
+      # Phase 4.9 — heavy-data archive mount. Helper writes large
+      # blobs here; the main PC reads via its own mount of the same
+      # underlying SMB / NFS share.
+      - /srv/xf-helper-archive:/srv/xf-helper-archive
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A config.celery inspect ping -d celery@$$HOSTNAME -t 10 2>&1 | grep -q pong"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 120s
+    # Subscribe only to non-GPU queues. The router enforces gpu_required
+    # tasks land elsewhere.
+    command: >
+      sh -c "celery -A config.celery worker --loglevel=warning
+             --concurrency=$${CELERY_WORKER_CONCURRENCY:-4}
+             --prefetch-multiplier 1
+             -Q cpu_only,enrichment,audience,scheduled"
+
+  # Optional: a heartbeat reporter that POSTs to the main PC's
+  # /api/settings/helpers/<id>/heartbeat/ every 30 s with the live
+  # CPU/RAM/active-jobs snapshot. Implemented as a tiny Python
+  # script in apps/core/helpers/heartbeat_reporter.py (Phase 4.9
+  # follow-up; not yet shipped). Keep this commented out until the
+  # reporter lands so the compose file boots cleanly today.
+  #
+  # helper-heartbeat:
+  #   image: xf-linker-backend:latest
+  #   container_name: xf_linker_helper_heartbeat
+  #   restart: always
+  #   mem_limit: 128m
+  #   env_file: .env
+  #   environment:
+  #     HELPER_NODE_ROLE: cpu_helper
+  #     HELPER_NODE_NAME: ${HELPER_NODE_NAME:-helper-cpu-1}
+  #     HELPER_NODE_TOKEN: ${HELPER_NODE_TOKEN:-}
+  #     MAIN_PC_BASE_URL: ${MAIN_PC_BASE_URL:-http://main-pc.local}
+  #   command: python -m apps.core.helpers.heartbeat_reporter
