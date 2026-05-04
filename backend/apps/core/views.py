@@ -2284,7 +2284,13 @@ class GSCConnectionTestView(APIView):
                 service_account_email=service_account_email, private_key=private_key
             )
             response = service.sites().list().execute()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — connection-test endpoint surfaces the error to the operator via the response body; logger keeps a paper trail.
+            logger.warning(
+                "GSC connection test failed for %s: %s",
+                service_account_email[:60],
+                exc,
+                exc_info=True,
+            )
             return Response(
                 {
                     "status": "error",
@@ -2540,7 +2546,10 @@ class XenForoTestConnectionView(APIView):
                 timeout=10,
             )
             payload = resp.json()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — connection-test endpoint surfaces the error in the response body; logger keeps a paper trail.
+            logger.warning(
+                "XenForo connection test failed: %s", exc, exc_info=True
+            )
             return Response(
                 {"status": "error", "message": f"Could not reach XenForo: {exc}"},
                 status=502,
@@ -2613,7 +2622,10 @@ class WordPressTestConnectionView(APIView):
                 timeout=10,
             )
             payload = resp.json()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — connection-test endpoint surfaces the error in the response body; logger keeps a paper trail.
+            logger.warning(
+                "WordPress connection test failed: %s", exc, exc_info=True
+            )
             return Response(
                 {"status": "error", "message": f"Could not reach WordPress: {exc}"},
                 status=502,
@@ -2662,7 +2674,8 @@ class WebhookTestView(APIView):
                 if xf_response.status_code == 403
                 else f"Unexpected response: HTTP {xf_response.status_code}",
             }
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — webhook self-test surfaces the error in the response body; logger keeps a paper trail.
+            logger.warning("XF webhook self-test failed: %s", exc, exc_info=True)
             results["xenforo"] = {"status": "error", "message": str(exc)}
 
         # Test WordPress webhook endpoint
@@ -2682,7 +2695,8 @@ class WebhookTestView(APIView):
                 if wp_response.status_code == 403
                 else f"Unexpected response: HTTP {wp_response.status_code}",
             }
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — webhook self-test surfaces the error in the response body; logger keeps a paper trail.
+            logger.warning("WP webhook self-test failed: %s", exc, exc_info=True)
             results["wordpress"] = {"status": "error", "message": str(exc)}
 
         all_ok = all(r.get("status") == "ok" for r in results.values())
@@ -2905,173 +2919,27 @@ class DashboardView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from apps.suggestions.models import Suggestion, PipelineRun
-        from apps.content.models import ContentItem
-        from apps.sync.models import SyncJob
-        from apps.graph.models import BrokenLink
-        from apps.core.services.dashboard_aggregates import (
-            get_suggestion_status_counts,
-        )
-        from django.db.models import Count
+        """Aggregate every dashboard panel into one Response.
 
-        # Phase 2.18 — read suggestion-status counts from the
-        # dashboard_suggestion_counts_mv materialised view (refreshed every
-        # 5 min by ``apps.core.tasks_dashboard.refresh_dashboard_matviews``).
-        # Falls back to a live aggregate on the first install before the
-        # matview is created. Saves 600-900 ms per dashboard request on
-        # corpora with 100 K+ suggestions; live aggregate stays a safety net.
-        suggestion_counts = get_suggestion_status_counts()
-
-        # Total content items
-        content_count = ContentItem.objects.count()
-
-        open_broken_links = BrokenLink.objects.filter(status="open").count()
-
-        # Last completed sync
-        last_sync = (
-            SyncJob.objects.filter(status="completed")
-            .values("completed_at", "source", "mode", "items_synced")
-            .order_by("-completed_at")
-            .first()
-        )
-
-        # Recent pipeline runs (last 5)
-        pipeline_runs = list(
-            PipelineRun.objects.values(
-                "run_id",
-                "run_state",
-                "rerun_mode",
-                "suggestions_created",
-                "destinations_processed",
-                "duration_seconds",
-                "created_at",
-            ).order_by("-created_at")[:5]
-        )
-        for run in pipeline_runs:
-            run["run_id"] = str(run["run_id"])
-            if run["created_at"]:
-                run["created_at"] = run["created_at"].isoformat()
-            ds = run.pop("duration_seconds")
-            if ds is not None:
-                minutes, seconds = divmod(int(ds), 60)
-                run["duration_display"] = (
-                    f"{minutes}m {seconds}s" if minutes else f"{seconds}s"
-                )
-            else:
-                run["duration_display"] = None
-
-        # Recent import jobs (last 5)
-        recent_imports = list(
-            SyncJob.objects.values(
-                "job_id",
-                "status",
-                "source",
-                "mode",
-                "items_synced",
-                "created_at",
-                "completed_at",
-            ).order_by("-created_at")[:5]
-        )
-        for job in recent_imports:
-            job["job_id"] = str(job["job_id"])
-            if job["created_at"]:
-                job["created_at"] = job["created_at"].isoformat()
-            if job["completed_at"]:
-                job["completed_at"] = job["completed_at"].isoformat()
-
-        # System Health Summary
-        from apps.health.models import ServiceHealthRecord
-
-        health_records = ServiceHealthRecord.objects.all()
-        status_counts = health_records.values("status").annotate(count=Count("status"))
-        summary = {row["status"]: row["count"] for row in status_counts}
-
-        # Determine overall system state
-        overall_status = ServiceHealthRecord.STATUS_HEALTHY
-        if any(r.status == ServiceHealthRecord.STATUS_DOWN for r in health_records):
-            overall_status = ServiceHealthRecord.STATUS_DOWN
-        elif any(
-            r.status
-            in (ServiceHealthRecord.STATUS_ERROR, ServiceHealthRecord.STATUS_STALE)
-            for r in health_records
-        ):
-            overall_status = ServiceHealthRecord.STATUS_ERROR
-        elif any(
-            r.status == ServiceHealthRecord.STATUS_WARNING for r in health_records
-        ):
-            overall_status = ServiceHealthRecord.STATUS_WARNING
-
-        # Freshness ribbon timestamps
-        last_sync_at = (
-            SyncJob.objects.filter(status="completed")
-            .values_list("completed_at", flat=True)
-            .order_by("-completed_at")
-            .first()
-        )
-        last_pipeline_at = (
-            PipelineRun.objects.filter(run_state="completed")
-            .values_list("updated_at", flat=True)
-            .order_by("-updated_at")
-            .first()
-        )
-
-        # Analytics freshness — check for most recent GSC sync if model exists
-        last_analytics_at = None
-        try:
-            from apps.analytics.models import GSCSyncRun
-
-            last_analytics_at = (
-                GSCSyncRun.objects.filter(status="completed")
-                .values_list("completed_at", flat=True)
-                .order_by("-completed_at")
-                .first()
-            )
-        except Exception:
-            logger.debug("GSCSyncRun model not available, skipping analytics freshness")
-
-        # Runtime mode shown on the dashboard reflects the live effective device,
-        # not the drain-and-resume runtime switch target row.
-        runtime_mode = "CPU"
-        try:
-            from apps.pipeline.services.embeddings import (
-                get_effective_runtime_resolution,
-            )
-
-            runtime_mode = get_effective_runtime_resolution()[
-                "effective_runtime_mode"
-            ].upper()
-        except Exception:
-            logger.debug("Embedding runtime unavailable, using default runtime_mode")
-
+        Refactored 2026-05-04: was a 175-line monolith. Now delegates
+        every panel to a per-section helper (``_dashboard_*``) so each
+        piece is independently testable and the handler reads top-down
+        like documentation. Behaviour preserved exactly.
+        """
         return Response(
             {
-                "suggestion_counts": {
-                    "pending": suggestion_counts.get("pending", 0),
-                    "approved": suggestion_counts.get("approved", 0),
-                    "rejected": suggestion_counts.get("rejected", 0),
-                    "applied": suggestion_counts.get("applied", 0),
-                    "total": sum(suggestion_counts.values()),
-                },
-                "content_count": content_count,
-                "open_broken_links": open_broken_links,
-                "last_sync": last_sync,
-                "pipeline_runs": pipeline_runs,
-                "recent_imports": recent_imports,
-                "system_health": {
-                    "status": overall_status,
-                    "summary": summary,
-                    "total_monitored": health_records.count(),
-                },
-                # Freshness ribbon
-                "last_sync_at": last_sync_at.isoformat() if last_sync_at else None,
-                "last_analytics_at": last_analytics_at.isoformat()
-                if last_analytics_at
-                else None,
-                "last_pipeline_at": last_pipeline_at.isoformat()
-                if last_pipeline_at
-                else None,
-                "runtime_mode": runtime_mode,
-                "show_quick_controls": recommended_bool("dashboard.show_quick_controls"),
+                "suggestion_counts": _dashboard_suggestion_counts(),
+                "content_count": _dashboard_content_count(),
+                "open_broken_links": _dashboard_open_broken_links(),
+                "last_sync": _dashboard_last_completed_sync(),
+                "pipeline_runs": _dashboard_recent_pipeline_runs(),
+                "recent_imports": _dashboard_recent_imports(),
+                "system_health": _dashboard_system_health(),
+                **_dashboard_freshness_timestamps(),
+                "runtime_mode": _dashboard_runtime_mode_display(),
+                "show_quick_controls": recommended_bool(
+                    "dashboard.show_quick_controls"
+                ),
                 # Phase 4.3 — Confidence Meter "Ready to Rock" snapshot.
                 # Cached 60 s in Redis so the dashboard read is cheap.
                 # Falls back to None on any failure so the chip just
@@ -3079,6 +2947,204 @@ class DashboardView(APIView):
                 "confidence": _safe_confidence_snapshot(),
             }
         )
+
+
+# ── Dashboard panel helpers ──────────────────────────────────────
+# Extracted from DashboardView.get to keep that handler under the
+# 50-line lint budget AND make each panel independently testable.
+
+
+def _dashboard_suggestion_counts() -> dict[str, int]:
+    """Phase 2.18 — read from the matview (with live-ORM fallback).
+
+    Returns a dict shaped for the frontend with every status the UI
+    knows about, even when the count is 0 — so downstream JS doesn't
+    need null-checks.
+    """
+    from apps.core.services.dashboard_aggregates import (
+        get_suggestion_status_counts,
+    )
+
+    counts = get_suggestion_status_counts()
+    return {
+        "pending": counts.get("pending", 0),
+        "approved": counts.get("approved", 0),
+        "rejected": counts.get("rejected", 0),
+        "applied": counts.get("applied", 0),
+        "total": sum(counts.values()),
+    }
+
+
+def _dashboard_content_count() -> int:
+    from apps.content.models import ContentItem
+
+    return ContentItem.objects.count()
+
+
+def _dashboard_open_broken_links() -> int:
+    from apps.graph.models import BrokenLink
+
+    return BrokenLink.objects.filter(status="open").count()
+
+
+def _dashboard_last_completed_sync():
+    from apps.sync.models import SyncJob
+
+    return (
+        SyncJob.objects.filter(status="completed")
+        .values("completed_at", "source", "mode", "items_synced")
+        .order_by("-completed_at")
+        .first()
+    )
+
+
+def _dashboard_recent_pipeline_runs() -> list[dict]:
+    """Last 5 pipeline runs with stringified IDs + duration display."""
+    from apps.suggestions.models import PipelineRun
+
+    runs = list(
+        PipelineRun.objects.values(
+            "run_id",
+            "run_state",
+            "rerun_mode",
+            "suggestions_created",
+            "destinations_processed",
+            "duration_seconds",
+            "created_at",
+        ).order_by("-created_at")[:5]
+    )
+    for run in runs:
+        run["run_id"] = str(run["run_id"])
+        if run["created_at"]:
+            run["created_at"] = run["created_at"].isoformat()
+        ds = run.pop("duration_seconds")
+        if ds is not None:
+            minutes, seconds = divmod(int(ds), 60)
+            run["duration_display"] = (
+                f"{minutes}m {seconds}s" if minutes else f"{seconds}s"
+            )
+        else:
+            run["duration_display"] = None
+    return runs
+
+
+def _dashboard_recent_imports() -> list[dict]:
+    """Last 5 SyncJob rows with stringified IDs + ISO timestamps."""
+    from apps.sync.models import SyncJob
+
+    jobs = list(
+        SyncJob.objects.values(
+            "job_id",
+            "status",
+            "source",
+            "mode",
+            "items_synced",
+            "created_at",
+            "completed_at",
+        ).order_by("-created_at")[:5]
+    )
+    for job in jobs:
+        job["job_id"] = str(job["job_id"])
+        if job["created_at"]:
+            job["created_at"] = job["created_at"].isoformat()
+        if job["completed_at"]:
+            job["completed_at"] = job["completed_at"].isoformat()
+    return jobs
+
+
+def _dashboard_system_health() -> dict:
+    """Aggregate per-status counts + overall verdict from health records."""
+    from django.db.models import Count
+
+    from apps.health.models import ServiceHealthRecord
+
+    records = ServiceHealthRecord.objects.all()
+    status_counts = records.values("status").annotate(count=Count("status"))
+    summary = {row["status"]: row["count"] for row in status_counts}
+    return {
+        "status": _dashboard_overall_health_status(records),
+        "summary": summary,
+        "total_monitored": records.count(),
+    }
+
+
+def _dashboard_overall_health_status(records) -> str:
+    """Pure function: pick the worst severity present across health records."""
+    from apps.health.models import ServiceHealthRecord
+
+    if any(r.status == ServiceHealthRecord.STATUS_DOWN for r in records):
+        return ServiceHealthRecord.STATUS_DOWN
+    if any(
+        r.status in (ServiceHealthRecord.STATUS_ERROR, ServiceHealthRecord.STATUS_STALE)
+        for r in records
+    ):
+        return ServiceHealthRecord.STATUS_ERROR
+    if any(r.status == ServiceHealthRecord.STATUS_WARNING for r in records):
+        return ServiceHealthRecord.STATUS_WARNING
+    return ServiceHealthRecord.STATUS_HEALTHY
+
+
+def _dashboard_freshness_timestamps() -> dict[str, str | None]:
+    """Three ISO timestamps for the dashboard's freshness ribbon."""
+    from apps.suggestions.models import PipelineRun
+    from apps.sync.models import SyncJob
+
+    last_sync = (
+        SyncJob.objects.filter(status="completed")
+        .values_list("completed_at", flat=True)
+        .order_by("-completed_at")
+        .first()
+    )
+    last_pipeline = (
+        PipelineRun.objects.filter(run_state="completed")
+        .values_list("updated_at", flat=True)
+        .order_by("-updated_at")
+        .first()
+    )
+    last_analytics = _dashboard_last_analytics_completed_at()
+    return {
+        "last_sync_at": last_sync.isoformat() if last_sync else None,
+        "last_pipeline_at": last_pipeline.isoformat() if last_pipeline else None,
+        "last_analytics_at": last_analytics.isoformat() if last_analytics else None,
+    }
+
+
+def _dashboard_last_analytics_completed_at():
+    """Defensive: returns the last GSC sync timestamp or None.
+
+    The GSC analytics model isn't shipped in every install (older
+    deployments + minimal configurations); a missing import is normal
+    and should not break the dashboard.
+    """
+    try:
+        from apps.analytics.models import GSCSyncRun
+
+        return (
+            GSCSyncRun.objects.filter(status="completed")
+            .values_list("completed_at", flat=True)
+            .order_by("-completed_at")
+            .first()
+        )
+    except Exception:  # noqa: BLE001 — analytics module is optional; missing-import is documented behaviour.
+        logger.debug(
+            "GSCSyncRun model not available, skipping analytics freshness"
+        )
+        return None
+
+
+def _dashboard_runtime_mode_display() -> str:
+    """Live effective device (CPU / GPU) — uppercase for the dashboard chip."""
+    try:
+        from apps.pipeline.services.embeddings import (
+            get_effective_runtime_resolution,
+        )
+
+        return get_effective_runtime_resolution()["effective_runtime_mode"].upper()
+    except Exception:  # noqa: BLE001 — embeddings module unavailable on cold start; CPU is the safe default.
+        logger.debug(
+            "Embedding runtime unavailable, using default runtime_mode"
+        )
+        return "CPU"
 
 
 # ---------------------------------------------------------------------------
@@ -3759,7 +3825,11 @@ class RuntimeSwitchView(APIView):
             effective_runtime_mode = get_effective_runtime_resolution()[
                 "effective_runtime_mode"
             ]
-        except Exception:
+        except Exception:  # noqa: BLE001 — runtime resolution falls back to CPU on any failure (no GPU detected, embeddings module unavailable, etc.); logger keeps a paper trail.
+            logger.debug(
+                "Effective runtime resolution failed; defaulting to cpu",
+                exc_info=True,
+            )
             effective_runtime_mode = "cpu"
 
         return Response(
@@ -5192,6 +5262,13 @@ class ValueModelSettingsView(APIView):
         return Response(get_value_model_settings())
 
     def put(self, request):
+        """Persist a validated value-model settings payload.
+
+        Refactored 2026-05-04: was a 143-line monolith mostly composed
+        of a giant ``rows`` dict literal. Extracted that into the pure
+        helper ``_build_value_model_rows`` so the handler stays under
+        the lint budget AND the row-shape is independently testable.
+        """
         from apps.core.models import AppSetting
 
         current = get_value_model_settings()
@@ -5200,129 +5277,7 @@ class ValueModelSettingsView(APIView):
         except ValueError as exc:
             return Response({"error": str(exc)}, status=400)
 
-        rows = {
-            "value_model.enabled": {
-                "value": "true" if validated["enabled"] else "false",
-                "value_type": "bool",
-                "description": "Whether FR-021 Instagram-style value pre-scoring is active.",
-            },
-            "value_model.w_relevance": {
-                "value": str(validated["w_relevance"]),
-                "value_type": "float",
-                "description": "Value component weight: semantic relevance.",
-            },
-            "value_model.w_traffic": {
-                "value": str(validated["w_traffic"]),
-                "value_type": "float",
-                "description": "Value component weight: historical traffic.",
-            },
-            "value_model.w_freshness": {
-                "value": str(validated["w_freshness"]),
-                "value_type": "float",
-                "description": "Value component weight: content freshness.",
-            },
-            "value_model.w_authority": {
-                "value": str(validated["w_authority"]),
-                "value_type": "float",
-                "description": "Value component weight: content authority.",
-            },
-            "value_model.w_penalty": {
-                "value": str(validated["w_penalty"]),
-                "value_type": "float",
-                "description": "Value component weight: blocklist/penalty sink.",
-            },
-            "value_model.traffic_lookback_days": {
-                "value": str(validated["traffic_lookback_days"]),
-                "value_type": "int",
-                "description": "Number of days of traffic history to look back.",
-            },
-            "value_model.traffic_fallback_value": {
-                "value": str(validated["traffic_fallback_value"]),
-                "value_type": "float",
-                "description": "Default traffic score to use if no data exists.",
-            },
-            "value_model.engagement_signal_enabled": {
-                "value": "true" if validated["engagement_signal_enabled"] else "false",
-                "value_type": "bool",
-                "description": "Whether FR-024 engagement (read-through rate) signal is active.",
-            },
-            "value_model.w_engagement": {
-                "value": str(validated["w_engagement"]),
-                "value_type": "float",
-                "description": "Value component weight: engagement / read-through rate signal.",
-            },
-            "value_model.engagement_lookback_days": {
-                "value": str(validated["engagement_lookback_days"]),
-                "value_type": "int",
-                "description": "Rolling window (days) for averaging SearchMetric engagement rows.",
-            },
-            "value_model.engagement_words_per_minute": {
-                "value": str(validated["engagement_words_per_minute"]),
-                "value_type": "int",
-                "description": "WPM constant used to estimate article read time.",
-            },
-            "value_model.engagement_cap_ratio": {
-                "value": str(validated["engagement_cap_ratio"]),
-                "value_type": "float",
-                "description": "Cap applied to raw read-through rate before site-wide normalization.",
-            },
-            "value_model.engagement_fallback_value": {
-                "value": str(validated["engagement_fallback_value"]),
-                "value_type": "float",
-                "description": "Fallback signal value when no SearchMetric rows exist for a destination.",
-            },
-            # FR-023 hot decay signal
-            "value_model.hot_decay_enabled": {
-                "value": "true" if validated["hot_decay_enabled"] else "false",
-                "value_type": "bool",
-                "description": "Whether FR-023 Reddit Hot decay replaces flat traffic averaging.",
-            },
-            "value_model.hot_gravity": {
-                "value": str(validated["hot_gravity"]),
-                "value_type": "float",
-                "description": "Time-decay gravity factor for the Reddit Hot formula.",
-            },
-            "value_model.hot_clicks_weight": {
-                "value": str(validated["hot_clicks_weight"]),
-                "value_type": "float",
-                "description": "Weight applied to click volume in hot score calculation.",
-            },
-            "value_model.hot_impressions_weight": {
-                "value": str(validated["hot_impressions_weight"]),
-                "value_type": "float",
-                "description": "Weight applied to impression volume in hot score calculation.",
-            },
-            "value_model.hot_lookback_days": {
-                "value": str(validated["hot_lookback_days"]),
-                "value_type": "int",
-                "description": "Number of days of daily traffic data to feed into hot scoring.",
-            },
-            # FR-025 co-occurrence signal
-            "value_model.co_occurrence_signal_enabled": {
-                "value": "true"
-                if validated["co_occurrence_signal_enabled"]
-                else "false",
-                "value_type": "bool",
-                "description": "Whether the FR-025 session co-occurrence signal is active.",
-            },
-            "value_model.w_cooccurrence": {
-                "value": str(validated["w_cooccurrence"]),
-                "value_type": "float",
-                "description": "Value component weight: session co-occurrence signal.",
-            },
-            "value_model.co_occurrence_fallback_value": {
-                "value": str(validated["co_occurrence_fallback_value"]),
-                "value_type": "float",
-                "description": "Fallback signal value when no co-occurrence pair exists.",
-            },
-            "value_model.co_occurrence_min_co_sessions": {
-                "value": str(validated["co_occurrence_min_co_sessions"]),
-                "value_type": "int",
-                "description": "Minimum co-session count for a pair to be used in scoring.",
-            },
-        }
-
-        for key, row in rows.items():
+        for key, row in _build_value_model_rows(validated).items():
             AppSetting.objects.update_or_create(
                 key=key,
                 defaults={
@@ -5334,6 +5289,138 @@ class ValueModelSettingsView(APIView):
                 },
             )
         return Response(validated)
+
+
+def _build_value_model_rows(validated: dict) -> dict[str, dict[str, str]]:
+    """Pure function — turn a validated value-model dict into AppSetting rows.
+
+    Each entry maps an AppSetting key to ``{value, value_type, description}``.
+    Keeping this declarative + outside the view handler means tests can
+    pin the per-key serialisation (bool→"true"/"false", numerics→str)
+    without spinning up a request lifecycle.
+    """
+    def _bool_str(v: object) -> str:
+        return "true" if v else "false"
+
+    return {
+        "value_model.enabled": {
+            "value": _bool_str(validated["enabled"]),
+            "value_type": "bool",
+            "description": "Whether FR-021 Instagram-style value pre-scoring is active.",
+        },
+        "value_model.w_relevance": {
+            "value": str(validated["w_relevance"]),
+            "value_type": "float",
+            "description": "Value component weight: semantic relevance.",
+        },
+        "value_model.w_traffic": {
+            "value": str(validated["w_traffic"]),
+            "value_type": "float",
+            "description": "Value component weight: historical traffic.",
+        },
+        "value_model.w_freshness": {
+            "value": str(validated["w_freshness"]),
+            "value_type": "float",
+            "description": "Value component weight: content freshness.",
+        },
+        "value_model.w_authority": {
+            "value": str(validated["w_authority"]),
+            "value_type": "float",
+            "description": "Value component weight: content authority.",
+        },
+        "value_model.w_penalty": {
+            "value": str(validated["w_penalty"]),
+            "value_type": "float",
+            "description": "Value component weight: blocklist/penalty sink.",
+        },
+        "value_model.traffic_lookback_days": {
+            "value": str(validated["traffic_lookback_days"]),
+            "value_type": "int",
+            "description": "Number of days of traffic history to look back.",
+        },
+        "value_model.traffic_fallback_value": {
+            "value": str(validated["traffic_fallback_value"]),
+            "value_type": "float",
+            "description": "Default traffic score to use if no data exists.",
+        },
+        "value_model.engagement_signal_enabled": {
+            "value": _bool_str(validated["engagement_signal_enabled"]),
+            "value_type": "bool",
+            "description": "Whether FR-024 engagement (read-through rate) signal is active.",
+        },
+        "value_model.w_engagement": {
+            "value": str(validated["w_engagement"]),
+            "value_type": "float",
+            "description": "Value component weight: engagement / read-through rate signal.",
+        },
+        "value_model.engagement_lookback_days": {
+            "value": str(validated["engagement_lookback_days"]),
+            "value_type": "int",
+            "description": "Rolling window (days) for averaging SearchMetric engagement rows.",
+        },
+        "value_model.engagement_words_per_minute": {
+            "value": str(validated["engagement_words_per_minute"]),
+            "value_type": "int",
+            "description": "WPM constant used to estimate article read time.",
+        },
+        "value_model.engagement_cap_ratio": {
+            "value": str(validated["engagement_cap_ratio"]),
+            "value_type": "float",
+            "description": "Cap applied to raw read-through rate before site-wide normalization.",
+        },
+        "value_model.engagement_fallback_value": {
+            "value": str(validated["engagement_fallback_value"]),
+            "value_type": "float",
+            "description": "Fallback signal value when no SearchMetric rows exist for a destination.",
+        },
+        # FR-023 hot decay signal
+        "value_model.hot_decay_enabled": {
+            "value": _bool_str(validated["hot_decay_enabled"]),
+            "value_type": "bool",
+            "description": "Whether FR-023 Reddit Hot decay replaces flat traffic averaging.",
+        },
+        "value_model.hot_gravity": {
+            "value": str(validated["hot_gravity"]),
+            "value_type": "float",
+            "description": "Time-decay gravity factor for the Reddit Hot formula.",
+        },
+        "value_model.hot_clicks_weight": {
+            "value": str(validated["hot_clicks_weight"]),
+            "value_type": "float",
+            "description": "Weight applied to click volume in hot score calculation.",
+        },
+        "value_model.hot_impressions_weight": {
+            "value": str(validated["hot_impressions_weight"]),
+            "value_type": "float",
+            "description": "Weight applied to impression volume in hot score calculation.",
+        },
+        "value_model.hot_lookback_days": {
+            "value": str(validated["hot_lookback_days"]),
+            "value_type": "int",
+            "description": "Number of days of daily traffic data to feed into hot scoring.",
+        },
+        # FR-025 co-occurrence signal
+        "value_model.co_occurrence_signal_enabled": {
+            "value": _bool_str(validated["co_occurrence_signal_enabled"]),
+            "value_type": "bool",
+            "description": "Whether the FR-025 session co-occurrence signal is active.",
+        },
+        "value_model.w_cooccurrence": {
+            "value": str(validated["w_cooccurrence"]),
+            "value_type": "float",
+            "description": "Value component weight: session co-occurrence signal.",
+        },
+        "value_model.co_occurrence_fallback_value": {
+            "value": str(validated["co_occurrence_fallback_value"]),
+            "value_type": "float",
+            "description": "Fallback signal value when no co-occurrence pair exists.",
+        },
+        "value_model.co_occurrence_min_co_sessions": {
+            "value": str(validated["co_occurrence_min_co_sessions"]),
+            "value_type": "int",
+            "description": "Minimum co-session count for a pair to be used in scoring.",
+        },
+    }
 
 
 DEFAULT_SPAM_GUARD_SETTINGS: dict[str, int] = {
