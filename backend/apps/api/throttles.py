@@ -56,3 +56,14 @@ class SettingsWriteThrottle(UserRateThrottle):
 
     scope = "settings_write"
     rate = "10/minute"
+
+
+class CompressionAuditRunThrottle(UserRateThrottle):
+    """Phase 4.9 — synchronous compression audit. Each run takes 30-120 s
+    and walks ~10k rows of zlib compression; rate-limit so an
+    accidentally-mashed button (or compromised token) can't pin the
+    request worker.
+    """
+
+    scope = "compression_audit_run"
+    rate = "3/hour"

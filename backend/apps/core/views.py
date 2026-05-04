@@ -20,7 +20,7 @@ from urllib.parse import urlparse
 from django.conf import settings as django_settings
 from django.http import JsonResponse
 from django.views import View
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -28,9 +28,10 @@ logger = logging.getLogger(__name__)
 
 from apps.api.query_params import coerce_bool, coerce_int
 from apps.api.throttles import (
+    ChallengerEvalThrottle as _ChallengerEvalThrottle,
+    CompressionAuditRunThrottle,
     GraphRebuildThrottle as _GraphRebuildThrottle,
     WeightRecalcThrottle as _WeightRecalcThrottle,
-    ChallengerEvalThrottle as _ChallengerEvalThrottle,
 )
 
 from apps.suggestions.recommended_weights import (
@@ -6014,10 +6015,14 @@ class CompressionAuditRunView(APIView):
     instead of waiting until Sunday's beat tick.
 
     Returns the freshly-computed report. Synchronous — typically takes
-    30-120 seconds depending on corpus size.
+    30-120 seconds depending on corpus size. Restricted to staff users
+    + rate-limited at 3/hour per user (``CompressionAuditRunThrottle``)
+    so an accidentally-mashed button (or compromised non-admin token)
+    can't pin the request-worker pool.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
+    throttle_classes = [CompressionAuditRunThrottle]
 
     def post(self, request):
         from dataclasses import asdict

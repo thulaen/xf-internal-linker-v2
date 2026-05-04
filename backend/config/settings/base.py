@@ -420,6 +420,11 @@ REST_FRAMEWORK = {
         "ml_embed": "5/minute",
         "challenger_eval": "1/minute",
         "settings_write": "10/minute",
+        # Phase 4.9 — synchronous compression audit. Each call walks
+        # ~10k rows of zlib compression and pins the request worker
+        # for 30-120 s; rate-limit so an accidentally-mashed button
+        # (or compromised token) can't DoS the worker pool.
+        "compression_audit_run": "3/hour",
     },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
