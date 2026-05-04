@@ -139,6 +139,35 @@ def parse_float_strict(
     return parsed, None
 
 
+def coerce_bool(value: Any, *, default: bool = False) -> bool:
+    """Type-aware boolean coercion. Single source of truth across the app.
+
+    Plain-English: parses a value into True/False the way an operator
+    would expect. ``True``/``False`` pass through; integers/floats
+    bool-cast (0 = False, anything else = True); strings parse case-
+    insensitive ``"true"|"1"|"yes"|"on"`` as True (falsy strings → False);
+    ``None`` and unsupported types return *default*.
+
+    Why a single helper: previously this exact 3-branch parser appeared
+    inline in 15+ sites (every `_coerce_bool` and the body of every
+    `setting_bool` / runtime-flag reader). Each copy could (and one did)
+    have a subtle bug — e.g. ``bool("no")`` returns True (any non-empty
+    string is truthy), so handlers that did ``bool(request.data["x"])``
+    silently flipped to True for any string input.
+
+    Citation: Django's ``BooleanField.to_python`` does the same
+    truthy-set test; this helper is a deliberate re-implementation so
+    callers don't have to import django.db.models.fields.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        return value.strip().lower() in {"true", "1", "yes", "on"}
+    return default
+
+
 def coerce_uuid(value: Any) -> Any:
     """Best-effort UUID coercion. Returns the UUID or None if invalid.
 

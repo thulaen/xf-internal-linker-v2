@@ -90,10 +90,15 @@ def setting_float(key: str, fallback: float) -> float:
 
 
 def setting_bool(key: str, fallback: bool) -> bool:
-    """Operator-tier → recommended-preset tier → hardcoded fallback (bool)."""
+    """Operator-tier → recommended-preset tier → hardcoded fallback (bool).
+
+    Refactor 2026-05-04: shared coerce_bool from apps.api.query_params.
+    """
+    from apps.api.query_params import coerce_bool
+
     raw = _read_operator(key)
     if raw is not None:
-        return raw.strip().lower() in {"true", "1", "yes", "on"}
+        return coerce_bool(raw, default=fallback)
     try:
         from apps.suggestions.recommended_weights import recommended_bool
 

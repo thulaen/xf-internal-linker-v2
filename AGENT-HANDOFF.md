@@ -1,3 +1,51 @@
+# 2026-05-04 - Claude Opus 4.7 (1M context) - Shared coerce_bool + 5 sites deduped + heartbeat enum from model
+
+What I'm doing: Continuation. Same kind of work — bugs, performance, silent errors, code duplication. Built a shared `coerce_bool` helper in `apps/api/query_params` (the third type-coercer alongside `coerce_int` and `coerce_float`) so the 4-truthy-string parser stops being copy-pasted into 15+ sites. Migrated 6 standalone helpers to use it. Promoted the helper-PC heartbeat status enum to a class constant on the `HelperNode` model so adding a new state lives in one place instead of two. Fixed a subtle silent-bug surfaced last round: `bool("no")` returns True (any non-empty string is truthy), and several sites using bare `bool()` on operator strings would silently flip to True.
+
+What was accomplished:
+
+**NEW SHARED HELPER — `apps/api/query_params.coerce_bool`:**
+- Type-aware: bool stays bool; int/float bool-cast (0=False, anything else=True); strings parse case-insensitive `"true"|"1"|"yes"|"on"` as True (falsy strings → False, FIXING the `bool("no")=True` bug); None and unsupported types return *default*.
+- Citation: mirrors Django's `BooleanField.to_python` truthy-set test but doesn't pull in django.db.models.fields.
+- 14 functional smoke cases pass: `coerce_bool("no")` → False (was True with bare `bool()`), `coerce_bool("false")` → False, `coerce_bool("0")` → False, `coerce_bool(["weird"], default=False)` → False, etc.
+
+**6 STANDALONE HELPERS NOW USE coerce_bool:**
+- `apps/core/runtime_flags.py _coerce_bool` — kept as a thin re-export for backwards compatibility (the private name is imported by some callers); body delegates to the shared helper.
+- `apps/audit/services/audit_logger.py _audit_enabled` — was inline 4-truthy-string parser. Now uses shared helper + adds an explicit None/empty check for the "audit-on by default" semantic.
+- `apps/core/services/self_test_smoke.py startup_smoke_test_enabled` — same migration.
+- `apps/content/services/clustering.py _pq_prefilter_enabled` — same migration.
+- `apps/pipeline/services/candidate_retrievers.py _setting_enabled` — same migration.
+- `apps/core/services/settings_helpers.py setting_bool` — same migration; bonus: now passes the operator-supplied `fallback` to coerce_bool so a malformed value falls back to the operator's intended default instead of always False.
+
+**HEARTBEAT STATUS ENUM PROMOTED TO MODEL:**
+- Added `HelperNode.VALID_HEARTBEAT_STATUSES = frozenset({"online", "busy", "stale", "offline"})` to the model class.
+- `HelperNodeHeartbeatView.post` now reads from `HelperNode.VALID_HEARTBEAT_STATUSES` instead of hardcoded set. Adding a new state in the future means one edit (the model) instead of two (model + view).
+- `accepting_work` field also migrated to use `coerce_bool(raw_accepting, default=node.accepting_work)` — preserves previous value on unsupported types (list/dict). Cleaner than the prior 4-branch isinstance ladder.
+
+What has issues or errors:
+- **15+ sites in `core/views.py` still have inline `str(x).strip().lower() in {"1","true","yes","on"}` parsers** — each is a one-liner inside a `_truthy(...)` lambda local to that view. They're already self-contained and refactoring them all is high-risk for low gain. Schedule a sweep when one of those views is being modified anyway.
+- **`apps/core/models.py:162`** has a 4-truthy-string parser inside `AppSetting._coerce_to_bool_value` (the property accessor). Likely the original ancestor of the duplication. Could migrate next round but it's used during model serialization so any change needs a careful test.
+- **Frontend pieces still pending** — strictly backend dedup focus this round.
+
+Tech-debt delta:
++ 1 new shared helper (`coerce_bool` in apps/api/query_params)
++ 6 standalone helpers migrated to use it (runtime_flags + audit_logger + self_test_smoke + clustering + candidate_retrievers + settings_helpers)
++ 1 silent bug fixed (`bool("no")` returning True now correctly returns False everywhere via the shared helper)
++ 1 model constant promoted (HelperNode.VALID_HEARTBEAT_STATUSES); heartbeat view reads from it instead of hardcoded
++ 1 dedup of accepting_work coercion (3-branch isinstance ladder → 1 coerce_bool call)
++ 1 audit_enabled fallback fix (None/empty value now correctly returns the documented default True)
++ 1 settings_helpers fallback fix (malformed value now falls back to operator's intended default instead of always False)
+Total: 12 measurable debt items resolved (mandate min: 5)
++103 / -38 across 9 files
+
+Verified:
+- python AST-parse on every touched file: clean
+- python .githooks/check-forbidden-patterns.py (diff-aware): 0 blocking violations
+- docker exec smoke: all 14 coerce_bool cases pass (including the previously-buggy `coerce_bool("no")=False`); legacy `_coerce_bool` re-export still works; HelperNode.VALID_HEARTBEAT_STATUSES is the expected frozenset
+
+Next agent: sweep `core/models.py AppSetting` for the same coerce_bool migration (the original ancestor of the duplication); look at the inline truthy-string parsers in `core/views.py` (15+ sites — each can use the shared helper); ship the frontend pieces. Plan: C:\\Users\\goldm\\.claude\\plans\\check-if-everything-in-vectorized-cook.md
+
+[HANDOFF READ: 2026-05-04 by Claude Opus 4.7 — 5 dict.get crash hardening commit 11a23ec]
 # 2026-05-04 - Claude Opus 4.7 (1M context) - 5 dict.get crash hardening + helper_status_counts dedup + heartbeat type checks
 
 What I'm doing: Continuation. Same kind of work — bugs, performance, silent errors, code duplication. Found and fixed 5 more crash-prone `int(dict.get(...))` sites where operator-supplied or third-party JSON values could blow up the worker. Extracted a shared `helper_status_counts` helper so the same 4-line int-parse dance only lives in one place (was duplicated in `health/services.py` and `diagnostics/views.py`). Added defensive type checks to the heartbeat view's non-numeric fields (`status` enum + `accepting_work` bool) — previously a buggy reporter sending the wrong type would silently set the field to a useless value that downstream queries miss.

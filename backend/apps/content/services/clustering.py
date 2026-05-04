@@ -16,16 +16,21 @@ KEY_PQ_PREFILTER_ENABLED = "clustering.pq_prefilter_enabled"
 
 
 def _pq_prefilter_enabled() -> bool:
-    """Cold-start safe read of the clustering PQ-prefilter flag."""
+    """Cold-start safe read of the clustering PQ-prefilter flag.
+
+    Refactor 2026-05-04: shared coerce_bool from apps.api.query_params.
+    """
+    from apps.api.query_params import coerce_bool
+
     try:
         from apps.core.models import AppSetting
 
         row = AppSetting.objects.filter(key=KEY_PQ_PREFILTER_ENABLED).first()
-    except Exception:
+    except Exception:  # noqa: BLE001 — pre-Django-init / fresh-install path: PQ prefilter is opt-in, default off.
         return False
     if row is None or not row.value:
         return False
-    return str(row.value).strip().lower() in {"1", "true", "yes", "on"}
+    return coerce_bool(row.value, default=False)
 
 
 class ClusteringService:

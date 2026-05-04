@@ -746,13 +746,17 @@ def _setting_enabled(key: str) -> bool:
     ``SimpleTestCase`` DatabaseOperationForbidden guard) and returns
     False. Opt-in retrievers stay off until the operator deliberately
     flips them on.
+
+    Refactor 2026-05-04: shared coerce_bool from apps.api.query_params.
     """
+    from apps.api.query_params import coerce_bool
+
     try:
         from apps.core.models import AppSetting
 
         row = AppSetting.objects.filter(key=key).first()
-    except Exception:
+    except Exception:  # noqa: BLE001 — cold-start / boot-order safe; opt-in retrievers default off.
         return False
     if row is None or not row.value:
         return False
-    return str(row.value).strip().lower() in {"1", "true", "yes", "on"}
+    return coerce_bool(row.value, default=False)

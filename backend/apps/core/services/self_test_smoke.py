@@ -48,6 +48,13 @@ ARTIFACT_RULES: tuple[ArtifactRule, ...] = (
 
 
 def startup_smoke_test_enabled() -> bool:
+    """Smoke test runs by default; operator can disable via AppSetting.
+
+    Refactor 2026-05-04: shared coerce_bool — was an inline copy of the
+    standard 4-truthy-string parser.
+    """
+    from apps.api.query_params import coerce_bool
+
     try:
         from apps.core.models import AppSetting
 
@@ -56,10 +63,12 @@ def startup_smoke_test_enabled() -> bool:
             .values_list("value", flat=True)
             .first()
         )
-    except Exception:
+    except Exception:  # noqa: BLE001 — AppSetting unavailable on cold-start; default to "smoke on" so operator sees boot issues.
         logger.debug("Startup smoke setting unavailable", exc_info=True)
         return True
-    return str(value or "true").lower() in {"true", "1", "yes", "on"}
+    if value is None or value == "":
+        return True
+    return coerce_bool(value, default=True)
 
 
 def run_startup_smoke_tests() -> list[str]:

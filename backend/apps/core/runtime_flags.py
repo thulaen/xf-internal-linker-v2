@@ -43,13 +43,13 @@ DEFAULT_CACHE_TTL_SECONDS: int = 60
 
 
 def _coerce_bool(value: str | bool | int) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, int):
-        return bool(value)
-    if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "yes", "on"}
-    return False
+    """Thin re-export of the shared coerce_bool helper. Kept for
+    backwards-compatibility with callers that imported the private
+    name; new code should use ``apps.api.query_params.coerce_bool``.
+    """
+    from apps.api.query_params import coerce_bool
+
+    return coerce_bool(value, default=False)
 
 
 def is_enabled(

@@ -4728,16 +4728,18 @@ class HelperNodeHeartbeatView(APIView):
         # `{"accepting_work": "yes"}` would set the field to surprising
         # values that downstream queries (`HelperNode.objects.filter(
         # status="online")`) silently miss. Strings are restricted to
-        # the documented enum; accepting_work coerces "yes"/"true"/"1"
-        # to True consistently.
+        # the documented enum (sourced from the HelperNode model so a
+        # new state can be added in one place); accepting_work uses the
+        # shared coerce_bool so behaviour stays consistent with every
+        # other operator-toggle field across the app.
+        from apps.api.query_params import coerce_bool
+
         if "status" in request.data:
             raw_status = request.data["status"]
-            if isinstance(raw_status, str) and raw_status in {
-                "online",
-                "busy",
-                "stale",
-                "offline",
-            }:
+            if (
+                isinstance(raw_status, str)
+                and raw_status in HelperNode.VALID_HEARTBEAT_STATUSES
+            ):
                 node.status = raw_status
         if "capabilities" in request.data and isinstance(
             request.data["capabilities"], dict
@@ -4746,19 +4748,12 @@ class HelperNodeHeartbeatView(APIView):
             merged.update(request.data["capabilities"])
             node.capabilities = merged
         if "accepting_work" in request.data:
+            # Preserve previous value on unsupported types (list/dict).
             raw_accepting = request.data["accepting_work"]
-            if isinstance(raw_accepting, bool):
-                node.accepting_work = raw_accepting
-            elif isinstance(raw_accepting, (int, float)):
-                node.accepting_work = bool(raw_accepting)
-            elif isinstance(raw_accepting, str):
-                node.accepting_work = raw_accepting.strip().lower() in {
-                    "true",
-                    "1",
-                    "yes",
-                    "on",
-                }
-            # else: unsupported type (list/dict) — keep previous value
+            if isinstance(raw_accepting, (bool, int, float, str)):
+                node.accepting_work = coerce_bool(
+                    raw_accepting, default=node.accepting_work
+                )
         # Bug fix 2026-05-04: every numeric helper-heartbeat field
         # previously crashed with HTTP 500 on malformed input (e.g.
         # `"cpu_pct": "high"` from a buggy reporter). A failed

@@ -110,6 +110,13 @@ def _ip_from_request(request: Optional[HttpRequest]) -> str | None:
 
 
 def _audit_enabled() -> bool:
+    """Audit logging is on by default; operator can disable via AppSetting.
+
+    Refactor 2026-05-04: shared coerce_bool — was an inline copy of the
+    standard 4-truthy-string parser.
+    """
+    from apps.api.query_params import coerce_bool
+
     try:
         from apps.core.models import AppSetting
 
@@ -118,9 +125,13 @@ def _audit_enabled() -> bool:
             .values_list("value", flat=True)
             .first()
         )
-    except Exception:
+    except Exception:  # noqa: BLE001 — AppSetting unavailable on cold-start; default to "audit on" so events aren't silently dropped.
         return True
-    return str(value or "true").lower() in {"true", "1", "yes", "on"}
+    # Treat missing / empty value as enabled — the explicit "false"
+    # opt-out is the only way to disable audit logging.
+    if value is None or value == "":
+        return True
+    return coerce_bool(value, default=True)
 
 
 record_event = record_audit

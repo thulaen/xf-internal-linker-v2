@@ -191,6 +191,13 @@ class HelperNode(TimestampedModel):
         ("maintenance", "Maintenance windows only"),
     ]
 
+    # Heartbeat status enum. The HelperNodeHeartbeatView uses this set
+    # to validate operator-supplied status values so a buggy reporter
+    # can't set status to a list / dict / unknown string. Kept as a
+    # frozenset on the model so the view can `import HelperNode` and
+    # do `if status in HelperNode.VALID_HEARTBEAT_STATUSES`.
+    VALID_HEARTBEAT_STATUSES = frozenset({"online", "busy", "stale", "offline"})
+
     name = models.CharField(max_length=100, unique=True)
     token_hash = models.CharField(
         max_length=128,
