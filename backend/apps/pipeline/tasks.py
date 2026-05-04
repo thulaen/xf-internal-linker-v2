@@ -1660,6 +1660,13 @@ def cleanup_stuck_sync_jobs():
     max_retries=3,
     retry_backoff=60,
 )
+@HelperConstraint(
+    cpu_intensive=False,            # network IO bound (XF API)
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=128,
+    expected_seconds_p50=15,
+)
 def sync_single_xf_item(
     content_id: int, content_type: str = "thread", node_id: int | None = None
 ) -> dict:
@@ -1731,6 +1738,13 @@ def sync_single_xf_item(
     max_retries=3,
     retry_backoff=60,
 )
+@HelperConstraint(
+    cpu_intensive=False,            # network IO bound (WP REST API)
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=128,
+    expected_seconds_p50=15,
+)
 def sync_single_wp_item(post_id: int, content_type: str = "post") -> dict:
     """Real-time sync for a single WordPress post/page via webhook."""
     from apps.core.views import get_wordpress_runtime_config
@@ -1778,6 +1792,13 @@ def sync_single_wp_item(post_id: int, content_type: str = "post") -> dict:
     time_limit=600,
     soft_time_limit=540,
     acks_late=True,
+)
+@HelperConstraint(
+    cpu_intensive=True,             # TPE optimisation walk
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=240,
 )
 @with_weight_lock("medium")
 def monthly_weight_tune(self):
@@ -1827,6 +1848,13 @@ def monthly_weight_tune(self):
 
 
 @shared_task(bind=True, name="pipeline.evaluate_weight_challenger")
+@HelperConstraint(
+    cpu_intensive=True,             # NDCG@k bootstrap evaluation
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=1024,
+    expected_seconds_p50=600,
+)
 def evaluate_weight_challenger(self, *, run_id: str):
     """Evaluate a pending RankingChallenger and promote it if it beats the champion.
 
@@ -1977,6 +2005,13 @@ def evaluate_weight_challenger(self, *, run_id: str):
 
 
 @shared_task(name="pipeline.check_weight_rollback")
+@HelperConstraint(
+    cpu_intensive=False,            # short DB read + comparison
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=128,
+    expected_seconds_p50=15,
+)
 def check_weight_rollback():
     """Check recently-promoted challengers for a GSC regression and roll back if found.
 

@@ -4732,34 +4732,73 @@ class HelperNodeHeartbeatView(APIView):
             node.capabilities = merged
         if "accepting_work" in request.data:
             node.accepting_work = bool(request.data["accepting_work"])
+        # Bug fix 2026-05-04: every numeric helper-heartbeat field
+        # previously crashed with HTTP 500 on malformed input (e.g.
+        # `"cpu_pct": "high"` from a buggy reporter). A failed
+        # heartbeat means the helper drops out of the roster, so a
+        # garbage value would silently disconnect the whole node.
+        # Routed through coerce_int / coerce_float — bad values fall
+        # back to the previously-stored value (no update).
+        from apps.api.query_params import coerce_float as _cf
+        from apps.api.query_params import coerce_int as _ci
+
         if "active_jobs" in request.data:
-            node.active_jobs = max(0, int(request.data["active_jobs"]))
+            node.active_jobs = _ci(
+                request.data["active_jobs"], default=node.active_jobs, min_value=0
+            )
         if "queued_jobs" in request.data:
-            node.queued_jobs = max(0, int(request.data["queued_jobs"]))
+            node.queued_jobs = _ci(
+                request.data["queued_jobs"], default=node.queued_jobs, min_value=0
+            )
         if "cpu_pct" in request.data:
-            node.cpu_pct = max(0.0, min(100.0, float(request.data["cpu_pct"])))
+            node.cpu_pct = _cf(
+                request.data["cpu_pct"],
+                default=node.cpu_pct or 0.0,
+                min_value=0.0,
+                max_value=100.0,
+            )
         if "ram_pct" in request.data:
-            node.ram_pct = max(0.0, min(100.0, float(request.data["ram_pct"])))
+            node.ram_pct = _cf(
+                request.data["ram_pct"],
+                default=node.ram_pct or 0.0,
+                min_value=0.0,
+                max_value=100.0,
+            )
         if "gpu_util_pct" in request.data:
             gpu_util = request.data["gpu_util_pct"]
             node.gpu_util_pct = (
                 None
                 if gpu_util in ("", None)
-                else max(0.0, min(100.0, float(gpu_util)))
+                else _cf(
+                    gpu_util,
+                    default=node.gpu_util_pct or 0.0,
+                    min_value=0.0,
+                    max_value=100.0,
+                )
             )
         if "gpu_vram_used_mb" in request.data:
             gpu_vram_used = request.data["gpu_vram_used_mb"]
             node.gpu_vram_used_mb = (
-                None if gpu_vram_used in ("", None) else max(0, int(gpu_vram_used))
+                None
+                if gpu_vram_used in ("", None)
+                else _ci(gpu_vram_used, default=node.gpu_vram_used_mb or 0, min_value=0)
             )
         if "gpu_vram_total_mb" in request.data:
             gpu_vram_total = request.data["gpu_vram_total_mb"]
             node.gpu_vram_total_mb = (
-                None if gpu_vram_total in ("", None) else max(0, int(gpu_vram_total))
+                None
+                if gpu_vram_total in ("", None)
+                else _ci(
+                    gpu_vram_total, default=node.gpu_vram_total_mb or 0, min_value=0
+                )
             )
         if "network_rtt_ms" in request.data:
             rtt = request.data["network_rtt_ms"]
-            node.network_rtt_ms = None if rtt in ("", None) else max(0, int(rtt))
+            node.network_rtt_ms = (
+                None
+                if rtt in ("", None)
+                else _ci(rtt, default=node.network_rtt_ms or 0, min_value=0)
+            )
         if "native_kernels_healthy" in request.data:
             node.native_kernels_healthy = bool(request.data["native_kernels_healthy"])
         if "warmed_model_keys" in request.data and isinstance(
