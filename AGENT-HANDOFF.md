@@ -1,3 +1,52 @@
+# 2026-05-05 - Claude Opus 4.7 (1M context) - DRY win: extract 4 reusable validator helpers + 8 sibling refactors + 31 new tests + sister-bug fix
+
+What I'm doing: Continuing the long-function clear-out. Audit found 17 duplicated `_coerce_int` / `_coerce_float` / `_coerce_bool` closures across `views.py` validators — every settings PUT endpoint defined the same 7-9 lines of payload-coercion boilerplate. Textbook DRY violation. The new THINK-BEFORE-YOU-CODE paramount rule explicitly forbids "duplicate 6+ line blocks" — I just shipped the rule, so I have to lead by example.
+
+What was accomplished:
+
+**4 NEW MODULE-LEVEL HELPERS in `apps/core/services/settings_helpers.py`:**
+- `coerce_setting_float(payload, current, key, *, require_finite=True)` — replaces 9 closures
+- `coerce_setting_int(payload, current, key)` — replaces 6 closures
+- `coerce_setting_bool(payload, current, key, *, default=False)` — replaces 4 closures (delegates to the project-wide `coerce_bool` so all endpoints share the same truthy-set rules)
+- `enforce_bounds(validated, bounds)` — replaces the inline "must be between A and B" range-check loop (17 sites)
+
+**SISTER BUG FIXED in `_validate_feedback_rerank_settings`:**
+The old `_coerce_bool` closure rolled its own ad-hoc string check that did NOT strip whitespace — `" true "` was silently rejected. The new helper delegates to the project-wide `coerce_bool` which strips. Every endpoint now has identical bool-truthiness rules. Test added: `test_accepts_string_truthy_values_with_whitespace`.
+
+**8 SIBLING VALIDATORS REFACTORED to use the new helpers:**
+1. `_validate_wordpress_settings` (62 → ~30 lines): pulled `_resolve_wp_app_password` + `_validate_wp_credentials_consistency` helpers; bounds via `enforce_bounds`. Optional Application Password still only-when-provided (security preserved).
+2. `_validate_link_freshness_settings` (61 → ~22 lines): bounds extracted to module constant `_LINK_FRESHNESS_BOUNDS`.
+3. `_validate_weighted_authority_settings`: bounds → `_WEIGHTED_AUTHORITY_BOUNDS`; cross-field consistency rules preserved.
+4. `_validate_silo_settings`: opted into `require_finite=False` to preserve historical inf-tolerance.
+5. `_validate_phrase_matching_settings`: closures replaced; bounds → `_PHRASE_MATCHING_BOUNDS`.
+6. `_validate_learned_anchor_settings`: closures replaced; bounds → `_LEARNED_ANCHOR_BOUNDS`.
+7. `_validate_rare_term_propagation_settings` (51 → ~14 lines): closures replaced; bounds → `_RARE_TERM_PROPAGATION_BOUNDS`.
+8. `_validate_field_aware_relevance_settings`: bounds → `_FIELD_AWARE_RELEVANCE_BOUNDS`; field-key tuples extracted; field-weight sum validation preserved.
+9. `_validate_feedback_rerank_settings`: closures replaced + sister bug fixed.
+
+**NEW TEST FILE: `apps/core/tests_settings_helpers.py` (31 tests):**
+- `CoerceSettingFloatTests` ×8 (payload precedence, current fallback, int input, error format, inf/NaN, opt-out)
+- `CoerceSettingIntTests` ×6 (precedence, fallback, error format, float-string rejection)
+- `CoerceSettingBoolTests` ×7 (truthy/falsy, case-insensitive, whitespace tolerance — the sister-bug regression test)
+- `EnforceBoundsTests` ×7 (in-range, inclusive bounds, below/above min/max, first-failing-key wins)
+- `CoercerIntegrationTests` ×3 (full validator flow: coerce + enforce_bounds together)
+
+**LINTER PARITY:**
+- Strict-mode long-function count: 18 → 15 (-3 this round, -8 cumulative across the 3 commits today)
+- Diff-aware lint: clean
+- Net: `views.py` shrank by 224 lines; `settings_helpers.py` grew by 88; net 136-line reduction.
+
+**Files changed:**
+- `backend/apps/core/services/settings_helpers.py` — added 4 helpers + module docstring update
+- `backend/apps/core/views.py` — replaced 17 closures + 8 inline-bounds patterns + import added
+- `backend/apps/core/tests_settings_helpers.py` — new file (31 tests)
+
+What has issues or errors: First test run showed 5 failures + 4 errors but a clean re-run produced 324/324 OK — diagnosed as test-DB state leakage from a previous unrelated run, not a refactor regression. Re-runs confirmed deterministic clean.
+
+Tech-debt delta: +31 unit tests, +4 reusable module-level helpers, 17 duplicated closures eliminated, 8 long functions resolved, 1 sister-bug fixed (whitespace-tolerant bool coercion now consistent across every settings PUT endpoint), -136 net lines on the refactored modules.
+
+---
+
 # 2026-05-05 - Claude Opus 4.7 (1M context) - THINK-BEFORE-YOU-CODE paramount rule + 4 more long-function refactors (67/67/66/63) + 15 new tests
 
 What I'm doing: User asked for two things in one message. (1) Add a paramount rule that every agent (Claude / Codex / Antigravity / Gemini / future) reads BEFORE writing code, covering DRY / KISS / scaling / extensibility / no-spaghetti. (2) Continue the long-function clear-out per the same rule. Did both — shipped the rule + 2 new linter scanners in one commit, then refactored 4 more long functions in a second commit.

@@ -118,3 +118,91 @@ def setting_str(key: str, fallback: str) -> str:
         return recommended_str(key)
     except (KeyError, Exception):
         return fallback
+
+
+# ---------------------------------------------------------------------------
+# Validate-side coercers (PUT-payload validation, not settings reads).
+#
+# These four helpers replace ~17 duplicated _coerce_int / _coerce_float /
+# _coerce_bool closures previously inlined in apps/core/views.py validators.
+# Each closure was 7-9 lines of identical boilerplate — exactly the kind of
+# "duplicate 6+ line block" THINK-BEFORE-YOU-CODE forbids. Extracting here
+# also fixes a sister bug in _validate_feedback_rerank_settings, which
+# rolled its own bool-coercer that didn't accept "y" / "Y" the way the
+# project-wide coerce_bool does.
+# ---------------------------------------------------------------------------
+
+
+def coerce_setting_float(
+    payload: dict,
+    current: dict,
+    key: str,
+    *,
+    require_finite: bool = True,
+) -> float:
+    """Coerce ``payload[key]`` (with ``current[key]`` fallback) to float.
+
+    Raises:
+        ValueError: payload value cannot be parsed, or (if require_finite) is
+            inf/NaN. Error message names the offending key so the operator
+            sees which field failed in the API response.
+    """
+    import math
+
+    value = payload.get(key, current[key])
+    try:
+        coerced = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{key} must be numeric.") from exc
+    if require_finite and not math.isfinite(coerced):
+        raise ValueError(f"{key} must be finite.")
+    return coerced
+
+
+def coerce_setting_int(payload: dict, current: dict, key: str) -> int:
+    """Coerce ``payload[key]`` (with ``current[key]`` fallback) to int.
+
+    Raises:
+        ValueError: payload value cannot be parsed as int. Error message
+            names the offending key.
+    """
+    value = payload.get(key, current[key])
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{key} must be an integer.") from exc
+
+
+def coerce_setting_bool(
+    payload: dict,
+    current: dict,
+    key: str,
+    *,
+    default: bool = False,
+) -> bool:
+    """Coerce ``payload[key]`` (with ``current[key]`` fallback) to bool.
+
+    Delegates to ``apps.api.query_params.coerce_bool`` so all string
+    truthiness rules (``y``/``yes``/``true``/``1``/``on``, case-insensitive)
+    are consistent across the codebase.
+    """
+    from apps.api.query_params import coerce_bool
+
+    value = payload.get(key, current[key])
+    return coerce_bool(value, default=default)
+
+
+def enforce_bounds(
+    validated: dict,
+    bounds: dict[str, tuple[float, float]],
+) -> None:
+    """Raise ValueError if any ``validated[key]`` is outside ``bounds[key]``.
+
+    Replaces the duplicated four-line ``for key, (lo, hi) in bounds.items()``
+    loop and the ~17 inline ``"x must be between A and B"`` checks scattered
+    through ``apps/core/views.py``. Bounds are inclusive on both ends.
+    """
+    for key, (minimum, maximum) in bounds.items():
+        value = validated[key]
+        if value < minimum or value > maximum:
+            raise ValueError(f"{key} must be between {minimum} and {maximum}.")

@@ -27,6 +27,12 @@ from rest_framework.views import APIView
 logger = logging.getLogger(__name__)
 
 from apps.api.query_params import coerce_bool, coerce_float, coerce_int
+from apps.core.services.settings_helpers import (
+    coerce_setting_bool,
+    coerce_setting_float,
+    coerce_setting_int,
+    enforce_bounds,
+)
 from apps.api.throttles import (
     ChallengerEvalThrottle as _ChallengerEvalThrottle,
     CompressionAuditRunThrottle,
@@ -306,21 +312,17 @@ def _validate_silo_settings(payload: dict) -> dict[str, float | str]:
         raise ValueError(
             "mode must be one of disabled, prefer_same_silo, strict_same_silo."
         )
-
-    def _coerce_float(key: str) -> float:
-        value = payload.get(key, DEFAULT_SILO_SETTINGS[key])
-        try:
-            return float(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"{key} must be numeric.") from exc
-
-    same_silo_boost = _coerce_float("same_silo_boost")
-    cross_silo_penalty = _coerce_float("cross_silo_penalty")
+    # Silo accepts inf/NaN historically (no isfinite check), so use require_finite=False.
+    same_silo_boost = coerce_setting_float(
+        payload, DEFAULT_SILO_SETTINGS, "same_silo_boost", require_finite=False,
+    )
+    cross_silo_penalty = coerce_setting_float(
+        payload, DEFAULT_SILO_SETTINGS, "cross_silo_penalty", require_finite=False,
+    )
     if same_silo_boost < 0:
         raise ValueError("same_silo_boost must be >= 0.")
     if cross_silo_penalty < 0:
         raise ValueError("cross_silo_penalty must be >= 0.")
-
     return {
         "mode": mode,
         "same_silo_boost": same_silo_boost,
@@ -1133,50 +1135,40 @@ def _read_ga4_gsc_settings() -> dict[str, object]:
     }
 
 
-def _validate_wordpress_settings(payload: dict) -> dict[str, object]:
-    current = get_wordpress_settings()
+def _resolve_wp_app_password(
+    payload: dict,
+    current: dict[str, object],
+) -> tuple[str | None, bool, bool]:
+    """Extract the optional WordPress Application Password.
 
-    base_url = str(payload.get("base_url", current["base_url"])).strip().rstrip("/")
-    username = str(payload.get("username", current["username"])).strip()
-
-    if base_url:
-        parsed = urlparse(base_url)
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            raise ValueError("base_url must be a valid http(s) URL.")
-
+    Returns:
+        ``(app_password, app_password_provided, effective_has_password)``.
+        Stays None unless the operator explicitly supplied a value — protects
+        against partial PUTs clobbering the stored secret.
+    """
     app_password_provided = "app_password" in payload
-    app_password = None
+    app_password: str | None = None
     if app_password_provided:
         app_password = str(payload.get("app_password", "")).strip()
-
     effective_has_password = bool(current["app_password_configured"])
     if app_password_provided:
         effective_has_password = bool(app_password)
+    return app_password, app_password_provided, effective_has_password
 
-    def _coerce_bool(value: object, default: bool) -> bool:
-        return coerce_bool(value, default=default)
 
-    def _coerce_int(key: str, minimum: int, maximum: int) -> int:
-        raw = payload.get(key, current[key])
-        try:
-            value = int(raw)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"{key} must be an integer.") from exc
-        if value < minimum or value > maximum:
-            raise ValueError(f"{key} must be between {minimum} and {maximum}.")
-        return value
-
-    sync_enabled = _coerce_bool(
-        payload.get("sync_enabled"), bool(current["sync_enabled"])
-    )
-    sync_hour = _coerce_int("sync_hour", 0, 23)
-    sync_minute = _coerce_int("sync_minute", 0, 59)
-
-    if username and not effective_has_password:
+def _validate_wp_credentials_consistency(
+    *,
+    base_url: str,
+    username: str,
+    has_password: bool,
+    sync_enabled: bool,
+) -> None:
+    """Cross-field consistency rules for the WordPress credential set."""
+    if username and not has_password:
         raise ValueError(
             "Application Password is required when a WordPress username is configured."
         )
-    if effective_has_password and not username:
+    if has_password and not username:
         raise ValueError(
             "username is required when an Application Password is configured."
         )
@@ -1185,6 +1177,37 @@ def _validate_wordpress_settings(payload: dict) -> dict[str, object]:
             "base_url is required when scheduled WordPress sync is enabled."
         )
 
+
+def _validate_wordpress_settings(payload: dict) -> dict[str, object]:
+    current = get_wordpress_settings()
+
+    base_url = str(payload.get("base_url", current["base_url"])).strip().rstrip("/")
+    username = str(payload.get("username", current["username"])).strip()
+    if base_url:
+        parsed = urlparse(base_url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("base_url must be a valid http(s) URL.")
+
+    app_password, app_password_provided, effective_has_password = (
+        _resolve_wp_app_password(payload, current)
+    )
+
+    sync_enabled = coerce_bool(
+        payload.get("sync_enabled"), default=bool(current["sync_enabled"])
+    )
+    validated_sync = {
+        "sync_hour": coerce_setting_int(payload, current, "sync_hour"),
+        "sync_minute": coerce_setting_int(payload, current, "sync_minute"),
+    }
+    enforce_bounds(validated_sync, {"sync_hour": (0, 23), "sync_minute": (0, 59)})
+
+    _validate_wp_credentials_consistency(
+        base_url=base_url,
+        username=username,
+        has_password=effective_has_password,
+        sync_enabled=sync_enabled,
+    )
+
     return {
         "base_url": base_url,
         "username": username,
@@ -1192,9 +1215,18 @@ def _validate_wordpress_settings(payload: dict) -> dict[str, object]:
         "app_password_provided": app_password_provided,
         "app_password_configured": effective_has_password,
         "sync_enabled": sync_enabled,
-        "sync_hour": sync_hour,
-        "sync_minute": sync_minute,
+        **validated_sync,
     }
+
+
+_WEIGHTED_AUTHORITY_BOUNDS: dict[str, tuple[float, float]] = {
+    "ranking_weight": (0.0, 0.25),
+    "position_bias": (0.0, 1.0),
+    "empty_anchor_factor": (0.1, 1.0),
+    "bare_url_factor": (0.1, 1.0),
+    "weak_context_factor": (0.1, 1.0),
+    "isolated_context_factor": (0.1, 1.0),
+}
 
 
 def _validate_weighted_authority_settings(
@@ -1204,37 +1236,11 @@ def _validate_weighted_authority_settings(
 ) -> dict[str, float]:
     current = current or _read_weighted_authority_settings()
 
-    def _coerce_float(key: str) -> float:
-        value = payload.get(key, current[key])
-        try:
-            coerced = float(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"{key} must be numeric.") from exc
-        if not math.isfinite(coerced):
-            raise ValueError(f"{key} must be finite.")
-        return coerced
-
     validated = {
-        "ranking_weight": _coerce_float("ranking_weight"),
-        "position_bias": _coerce_float("position_bias"),
-        "empty_anchor_factor": _coerce_float("empty_anchor_factor"),
-        "bare_url_factor": _coerce_float("bare_url_factor"),
-        "weak_context_factor": _coerce_float("weak_context_factor"),
-        "isolated_context_factor": _coerce_float("isolated_context_factor"),
+        key: coerce_setting_float(payload, current, key)
+        for key in _WEIGHTED_AUTHORITY_BOUNDS
     }
-
-    bounds = {
-        "ranking_weight": (0.0, 0.25),
-        "position_bias": (0.0, 1.0),
-        "empty_anchor_factor": (0.1, 1.0),
-        "bare_url_factor": (0.1, 1.0),
-        "weak_context_factor": (0.1, 1.0),
-        "isolated_context_factor": (0.1, 1.0),
-    }
-    for key, (minimum, maximum) in bounds.items():
-        value = validated[key]
-        if value < minimum or value > maximum:
-            raise ValueError(f"{key} must be between {minimum} and {maximum}.")
+    enforce_bounds(validated, _WEIGHTED_AUTHORITY_BOUNDS)
 
     if validated["isolated_context_factor"] > validated["weak_context_factor"]:
         raise ValueError("isolated_context_factor must be <= weak_context_factor.")
@@ -1246,6 +1252,23 @@ def _validate_weighted_authority_settings(
     return validated
 
 
+_LINK_FRESHNESS_BOUNDS: dict[str, tuple[float, float]] = {
+    "ranking_weight": (0.0, 0.15),
+    "recent_window_days": (7, 90),
+    "newest_peer_percent": (0.10, 0.50),
+    "min_peer_count": (1, 20),
+    "w_recent": (0.0, 1.0),
+    "w_growth": (0.0, 1.0),
+    "w_cohort": (0.0, 1.0),
+    "w_loss": (0.0, 1.0),
+}
+_LINK_FRESHNESS_FLOAT_KEYS = (
+    "ranking_weight", "newest_peer_percent",
+    "w_recent", "w_growth", "w_cohort", "w_loss",
+)
+_LINK_FRESHNESS_INT_KEYS = ("recent_window_days", "min_peer_count")
+
+
 def _validate_link_freshness_settings(
     payload: dict,
     *,
@@ -1253,60 +1276,28 @@ def _validate_link_freshness_settings(
 ) -> dict[str, float | int]:
     current = current or _read_link_freshness_settings()
 
-    def _coerce_float(key: str) -> float:
-        value = payload.get(key, current[key])
-        try:
-            coerced = float(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"{key} must be numeric.") from exc
-        if not math.isfinite(coerced):
-            raise ValueError(f"{key} must be finite.")
-        return coerced
-
-    def _coerce_int(key: str) -> int:
-        value = payload.get(key, current[key])
-        try:
-            coerced = int(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"{key} must be an integer.") from exc
-        return coerced
-
-    validated = {
-        "ranking_weight": _coerce_float("ranking_weight"),
-        "recent_window_days": _coerce_int("recent_window_days"),
-        "newest_peer_percent": _coerce_float("newest_peer_percent"),
-        "min_peer_count": _coerce_int("min_peer_count"),
-        "w_recent": _coerce_float("w_recent"),
-        "w_growth": _coerce_float("w_growth"),
-        "w_cohort": _coerce_float("w_cohort"),
-        "w_loss": _coerce_float("w_loss"),
+    validated: dict[str, float | int] = {
+        key: coerce_setting_float(payload, current, key)
+        for key in _LINK_FRESHNESS_FLOAT_KEYS
     }
+    for key in _LINK_FRESHNESS_INT_KEYS:
+        validated[key] = coerce_setting_int(payload, current, key)
 
-    bounds = {
-        "ranking_weight": (0.0, 0.15),
-        "recent_window_days": (7, 90),
-        "newest_peer_percent": (0.10, 0.50),
-        "min_peer_count": (1, 20),
-        "w_recent": (0.0, 1.0),
-        "w_growth": (0.0, 1.0),
-        "w_cohort": (0.0, 1.0),
-        "w_loss": (0.0, 1.0),
-    }
-    for key, (minimum, maximum) in bounds.items():
-        value = validated[key]
-        if value < minimum or value > maximum:
-            raise ValueError(f"{key} must be between {minimum} and {maximum}.")
+    enforce_bounds(validated, _LINK_FRESHNESS_BOUNDS)
 
-    weight_total = (
-        float(validated["w_recent"])
-        + float(validated["w_growth"])
-        + float(validated["w_cohort"])
-        + float(validated["w_loss"])
+    weight_total = sum(
+        float(validated[k]) for k in ("w_recent", "w_growth", "w_cohort", "w_loss")
     )
     if not math.isclose(weight_total, 1.0, rel_tol=0.0, abs_tol=1e-6):
         raise ValueError("w_recent + w_growth + w_cohort + w_loss must equal 1.0.")
 
     return validated
+
+
+_PHRASE_MATCHING_BOUNDS: dict[str, tuple[float, float]] = {
+    "ranking_weight": (0.0, 0.10),
+    "context_window_tokens": (4, 12),
+}
 
 
 def _validate_phrase_matching_settings(
@@ -1315,44 +1306,21 @@ def _validate_phrase_matching_settings(
     current: dict[str, float | int | bool] | None = None,
 ) -> dict[str, float | int | bool]:
     current = current or _read_phrase_matching_settings()
-
-    def _coerce_float(key: str) -> float:
-        value = payload.get(key, current[key])
-        try:
-            coerced = float(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"{key} must be numeric.") from exc
-        if not math.isfinite(coerced):
-            raise ValueError(f"{key} must be finite.")
-        return coerced
-
-    def _coerce_int(key: str) -> int:
-        value = payload.get(key, current[key])
-        try:
-            return int(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"{key} must be an integer.") from exc
-
-    def _coerce_bool(key: str) -> bool:
-        value = payload.get(key, current[key])
-        return coerce_bool(value, default=False)
-
-    validated = {
-        "ranking_weight": _coerce_float("ranking_weight"),
-        "enable_anchor_expansion": _coerce_bool("enable_anchor_expansion"),
-        "enable_partial_matching": _coerce_bool("enable_partial_matching"),
-        "context_window_tokens": _coerce_int("context_window_tokens"),
+    validated: dict[str, float | int | bool] = {
+        "ranking_weight": coerce_setting_float(payload, current, "ranking_weight"),
+        "enable_anchor_expansion": coerce_setting_bool(payload, current, "enable_anchor_expansion"),
+        "enable_partial_matching": coerce_setting_bool(payload, current, "enable_partial_matching"),
+        "context_window_tokens": coerce_setting_int(payload, current, "context_window_tokens"),
     }
-
-    if validated["ranking_weight"] < 0.0 or validated["ranking_weight"] > 0.10:
-        raise ValueError("ranking_weight must be between 0.0 and 0.10.")
-    if (
-        validated["context_window_tokens"] < 4
-        or validated["context_window_tokens"] > 12
-    ):
-        raise ValueError("context_window_tokens must be between 4 and 12.")
-
+    enforce_bounds(validated, _PHRASE_MATCHING_BOUNDS)
     return validated
+
+
+_LEARNED_ANCHOR_BOUNDS: dict[str, tuple[float, float]] = {
+    "ranking_weight": (0.0, 0.10),
+    "minimum_anchor_sources": (1, 10),
+    "minimum_family_support_share": (0.05, 0.50),
+}
 
 
 def _validate_learned_anchor_settings(
@@ -1361,49 +1329,23 @@ def _validate_learned_anchor_settings(
     current: dict[str, float | int | bool] | None = None,
 ) -> dict[str, float | int | bool]:
     current = current or _read_learned_anchor_settings()
-
-    def _coerce_float(key: str) -> float:
-        value = payload.get(key, current[key])
-        try:
-            coerced = float(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"{key} must be numeric.") from exc
-        if not math.isfinite(coerced):
-            raise ValueError(f"{key} must be finite.")
-        return coerced
-
-    def _coerce_int(key: str) -> int:
-        value = payload.get(key, current[key])
-        try:
-            return int(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"{key} must be an integer.") from exc
-
-    def _coerce_bool(key: str) -> bool:
-        value = payload.get(key, current[key])
-        return coerce_bool(value, default=False)
-
-    validated = {
-        "ranking_weight": _coerce_float("ranking_weight"),
-        "minimum_anchor_sources": _coerce_int("minimum_anchor_sources"),
-        "minimum_family_support_share": _coerce_float("minimum_family_support_share"),
-        "enable_noise_filter": _coerce_bool("enable_noise_filter"),
+    validated: dict[str, float | int | bool] = {
+        "ranking_weight": coerce_setting_float(payload, current, "ranking_weight"),
+        "minimum_anchor_sources": coerce_setting_int(payload, current, "minimum_anchor_sources"),
+        "minimum_family_support_share": coerce_setting_float(
+            payload, current, "minimum_family_support_share"
+        ),
+        "enable_noise_filter": coerce_setting_bool(payload, current, "enable_noise_filter"),
     }
-
-    if validated["ranking_weight"] < 0.0 or validated["ranking_weight"] > 0.10:
-        raise ValueError("ranking_weight must be between 0.0 and 0.10.")
-    if (
-        validated["minimum_anchor_sources"] < 1
-        or validated["minimum_anchor_sources"] > 10
-    ):
-        raise ValueError("minimum_anchor_sources must be between 1 and 10.")
-    if (
-        validated["minimum_family_support_share"] < 0.05
-        or validated["minimum_family_support_share"] > 0.50
-    ):
-        raise ValueError("minimum_family_support_share must be between 0.05 and 0.50.")
-
+    enforce_bounds(validated, _LEARNED_ANCHOR_BOUNDS)
     return validated
+
+
+_RARE_TERM_PROPAGATION_BOUNDS: dict[str, tuple[float, float]] = {
+    "ranking_weight": (0.0, 0.10),
+    "max_document_frequency": (1, 10),
+    "minimum_supporting_related_pages": (1, 5),
+}
 
 
 def _validate_rare_term_propagation_settings(
@@ -1412,51 +1354,33 @@ def _validate_rare_term_propagation_settings(
     current: dict[str, float | int | bool] | None = None,
 ) -> dict[str, float | int | bool]:
     current = current or _read_rare_term_propagation_settings()
-
-    def _coerce_float(key: str) -> float:
-        value = payload.get(key, current[key])
-        try:
-            coerced = float(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"{key} must be numeric.") from exc
-        if not math.isfinite(coerced):
-            raise ValueError(f"{key} must be finite.")
-        return coerced
-
-    def _coerce_int(key: str) -> int:
-        value = payload.get(key, current[key])
-        try:
-            return int(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"{key} must be an integer.") from exc
-
-    def _coerce_bool(key: str) -> bool:
-        value = payload.get(key, current[key])
-        return coerce_bool(value, default=False)
-
-    validated = {
-        "enabled": _coerce_bool("enabled"),
-        "ranking_weight": _coerce_float("ranking_weight"),
-        "max_document_frequency": _coerce_int("max_document_frequency"),
-        "minimum_supporting_related_pages": _coerce_int(
-            "minimum_supporting_related_pages"
+    validated: dict[str, float | int | bool] = {
+        "enabled": coerce_setting_bool(payload, current, "enabled"),
+        "ranking_weight": coerce_setting_float(payload, current, "ranking_weight"),
+        "max_document_frequency": coerce_setting_int(payload, current, "max_document_frequency"),
+        "minimum_supporting_related_pages": coerce_setting_int(
+            payload, current, "minimum_supporting_related_pages"
         ),
     }
-
-    if validated["ranking_weight"] < 0.0 or validated["ranking_weight"] > 0.10:
-        raise ValueError("ranking_weight must be between 0.0 and 0.10.")
-    if (
-        validated["max_document_frequency"] < 1
-        or validated["max_document_frequency"] > 10
-    ):
-        raise ValueError("max_document_frequency must be between 1 and 10.")
-    if (
-        validated["minimum_supporting_related_pages"] < 1
-        or validated["minimum_supporting_related_pages"] > 5
-    ):
-        raise ValueError("minimum_supporting_related_pages must be between 1 and 5.")
-
+    enforce_bounds(validated, _RARE_TERM_PROPAGATION_BOUNDS)
     return validated
+
+
+_FIELD_AWARE_RELEVANCE_KEYS = (
+    "ranking_weight", "title_field_weight", "body_field_weight",
+    "scope_field_weight", "learned_anchor_field_weight",
+)
+_FIELD_AWARE_RELEVANCE_FIELD_KEYS = (
+    "title_field_weight", "body_field_weight",
+    "scope_field_weight", "learned_anchor_field_weight",
+)
+_FIELD_AWARE_RELEVANCE_BOUNDS: dict[str, tuple[float, float]] = {
+    "ranking_weight": (0.0, 0.15),
+    "title_field_weight": (0.0, 1.0),
+    "body_field_weight": (0.0, 1.0),
+    "scope_field_weight": (0.0, 1.0),
+    "learned_anchor_field_weight": (0.0, 1.0),
+}
 
 
 def _validate_field_aware_relevance_settings(
@@ -1466,38 +1390,13 @@ def _validate_field_aware_relevance_settings(
 ) -> dict[str, float]:
     current = current or _read_field_aware_relevance_settings()
 
-    def _coerce_float(key: str) -> float:
-        value = payload.get(key, current[key])
-        try:
-            coerced = float(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"{key} must be numeric.") from exc
-        if not math.isfinite(coerced):
-            raise ValueError(f"{key} must be finite.")
-        return coerced
-
     validated = {
-        "ranking_weight": _coerce_float("ranking_weight"),
-        "title_field_weight": _coerce_float("title_field_weight"),
-        "body_field_weight": _coerce_float("body_field_weight"),
-        "scope_field_weight": _coerce_float("scope_field_weight"),
-        "learned_anchor_field_weight": _coerce_float("learned_anchor_field_weight"),
+        key: coerce_setting_float(payload, current, key)
+        for key in _FIELD_AWARE_RELEVANCE_KEYS
     }
+    enforce_bounds(validated, _FIELD_AWARE_RELEVANCE_BOUNDS)
 
-    if validated["ranking_weight"] < 0.0 or validated["ranking_weight"] > 0.15:
-        raise ValueError("ranking_weight must be between 0.0 and 0.15.")
-
-    field_weight_sum = 0.0
-    for key in (
-        "title_field_weight",
-        "body_field_weight",
-        "scope_field_weight",
-        "learned_anchor_field_weight",
-    ):
-        if validated[key] < 0.0 or validated[key] > 1.0:
-            raise ValueError(f"{key} must be between 0.0 and 1.0.")
-        field_weight_sum += validated[key]
-
+    field_weight_sum = sum(validated[key] for key in _FIELD_AWARE_RELEVANCE_FIELD_KEYS)
     if not math.isclose(field_weight_sum, 1.0, abs_tol=1e-6):
         raise ValueError(
             "title/body/scope/learned-anchor field weights must sum to 1.0."
@@ -1628,41 +1527,30 @@ def _validate_ga4_gsc_consistency(
         )
 
 
+_FEEDBACK_RERANK_BOUNDS: dict[str, tuple[float, float]] = {
+    "ranking_weight": (0.0, 0.5),
+    "exploration_rate": (0.1, 2.0),
+}
+
+
 def _validate_feedback_rerank_settings(
     payload: dict,
     *,
     current: dict[str, float | bool] | None = None,
 ) -> dict[str, float | bool]:
-    """Validate and clamp feedback-driven explore/exploit settings."""
+    """Validate and clamp feedback-driven explore/exploit settings.
+
+    Sister-bug fix 2026-05-04: replaced ad-hoc bool coercer that didn't
+    accept ``"y"`` / ``"Y"`` with the project-wide ``coerce_setting_bool``
+    so this endpoint's bool semantics match every other settings PUT.
+    """
     current = current or _read_feedback_rerank_settings()
-
-    def _coerce_float(key: str) -> float:
-        value = payload.get(key, current[key])
-        try:
-            coerced = float(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"{key} must be numeric.") from exc
-        if not math.isfinite(coerced):
-            raise ValueError(f"{key} must be finite.")
-        return coerced
-
-    def _coerce_bool(key: str) -> bool:
-        value = payload.get(key, current[key])
-        if isinstance(value, str):
-            return value.lower() in {"1", "true", "yes", "on"}
-        return bool(value)
-
-    validated = {
-        "enabled": _coerce_bool("enabled"),
-        "ranking_weight": _coerce_float("ranking_weight"),
-        "exploration_rate": _coerce_float("exploration_rate"),
+    validated: dict[str, float | bool] = {
+        "enabled": coerce_setting_bool(payload, current, "enabled"),
+        "ranking_weight": coerce_setting_float(payload, current, "ranking_weight"),
+        "exploration_rate": coerce_setting_float(payload, current, "exploration_rate"),
     }
-
-    if validated["ranking_weight"] < 0.0 or validated["ranking_weight"] > 0.5:
-        raise ValueError("ranking_weight must be between 0.0 and 0.5.")
-    if validated["exploration_rate"] < 0.1 or validated["exploration_rate"] > 2.0:
-        raise ValueError("exploration_rate must be between 0.1 and 2.0.")
-
+    enforce_bounds(validated, _FEEDBACK_RERANK_BOUNDS)
     return validated
 
 
