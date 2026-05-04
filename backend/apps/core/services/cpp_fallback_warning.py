@@ -95,80 +95,121 @@ def check_and_emit_fallback_events() -> list[FallbackEvent]:
 
     events: list[FallbackEvent] = []
     for status in statuses:
-        module = status.get("module", "")
-        if not module:
-            continue
-        previous = _read_previous_state(module)
-        current_path = str(status.get("runtime_path", "python"))
-        label = str(status.get("label") or module)
-        critical = bool(status.get("critical"))
-        now = timezone.now()
-
-        # First-ever observation of this extension. Just persist the
-        # baseline; don't emit (operator doesn't need an event for
-        # "system started up with cpp loaded" — that's the happy path).
-        if previous is None:
-            _persist_state(module, current_path, since=now)
-            continue
-
-        prev_path = previous.get("runtime_path", "python")
-        prev_since = _parse_iso(previous.get("since_iso", ""))
-
-        if current_path != prev_path:
-            # Transition. Emit + persist new baseline.
-            duration = (now - prev_since).total_seconds() if prev_since else 0.0
-            event = _build_transition_event(
-                module=module,
-                label=label,
-                from_path=prev_path,
-                to_path=current_path,
-                duration_seconds=duration,
-                critical=critical,
-            )
+        event = _process_one_extension(status)
+        if event is not None:
             events.append(event)
-            _emit_event(event, status=status)
-            _persist_state(module, current_path, since=now)
-            continue
-
-        # No transition. Decide whether to re-warn that fallback persists.
-        # The persists event fires only when:
-        #   1. the fallback is python (cpp doesn't need a "still healthy"
-        #      reminder),
-        #   2. the fallback has been active ≥ _PERSIST_REMINDER_INTERVAL_SECONDS
-        #      (so a freshly-observed fallback gets one transition event,
-        #      not an immediate "still down" follow-up), AND
-        #   3. either we've never warned about this persist, or the
-        #      previous warn was ≥ _PERSIST_REMINDER_INTERVAL_SECONDS ago.
-        # Without rule (2), the very next call after baseline persisted
-        # python state would emit one "persists" event per extension.
-        if current_path == "python" and prev_since is not None:
-            secs_since_started = (now - prev_since).total_seconds()
-            if secs_since_started < _PERSIST_REMINDER_INTERVAL_SECONDS:
-                continue
-            last_warned = _parse_iso(previous.get("last_warned_iso", ""))
-            secs_since_warn = (
-                (now - last_warned).total_seconds()
-                if last_warned
-                else secs_since_started
-            )
-            if secs_since_warn >= _PERSIST_REMINDER_INTERVAL_SECONDS:
-                event = _build_persists_event(
-                    module=module,
-                    label=label,
-                    duration_seconds=secs_since_started,
-                    critical=critical,
-                )
-                events.append(event)
-                _emit_event(event, status=status)
-                # Update last_warned_iso so we don't spam the operator.
-                _persist_state(
-                    module,
-                    current_path,
-                    since=prev_since,
-                    last_warned=now,
-                )
-
     return events
+
+
+def _process_one_extension(status: dict[str, Any]) -> FallbackEvent | None:
+    """Inspect one extension; emit + persist if a transition happened.
+
+    Returns the emitted event (or ``None`` if no event fired). Splits
+    out of ``check_and_emit_fallback_events`` for testability + length.
+    """
+    module = status.get("module", "")
+    if not module:
+        return None
+    previous = _read_previous_state(module)
+    current_path = str(status.get("runtime_path", "python"))
+    now = timezone.now()
+
+    # First-ever observation: persist baseline silently. Operator
+    # doesn't need an event for "system started up" — that's normal.
+    if previous is None:
+        _persist_state(module, current_path, since=now)
+        return None
+
+    prev_path = previous.get("runtime_path", "python")
+    prev_since = _parse_iso(previous.get("since_iso", ""))
+
+    if current_path != prev_path:
+        return _emit_transition(
+            module=module,
+            status=status,
+            from_path=prev_path,
+            to_path=current_path,
+            prev_since=prev_since,
+            now=now,
+        )
+
+    # No transition. Maybe re-warn that fallback still persists.
+    if current_path == "python" and prev_since is not None:
+        return _maybe_emit_persists(
+            module=module,
+            label=str(status.get("label") or module),
+            critical=bool(status.get("critical")),
+            prev_since=prev_since,
+            previous=previous,
+            current_path=current_path,
+            status=status,
+            now=now,
+        )
+    return None
+
+
+def _emit_transition(
+    *,
+    module: str,
+    status: dict[str, Any],
+    from_path: str,
+    to_path: str,
+    prev_since,
+    now,
+) -> FallbackEvent:
+    """Build + emit + persist a cpp↔python transition. Pure-side-effect."""
+    duration = (now - prev_since).total_seconds() if prev_since else 0.0
+    event = _build_transition_event(
+        module=module,
+        label=str(status.get("label") or module),
+        from_path=from_path,
+        to_path=to_path,
+        duration_seconds=duration,
+        critical=bool(status.get("critical")),
+    )
+    _emit_event(event, status=status)
+    _persist_state(module, to_path, since=now)
+    return event
+
+
+def _maybe_emit_persists(
+    *,
+    module: str,
+    label: str,
+    critical: bool,
+    prev_since,
+    previous: dict[str, Any],
+    current_path: str,
+    status: dict[str, Any],
+    now,
+) -> FallbackEvent | None:
+    """Re-warn about a persistent fallback if both age conditions hold.
+
+    The persists event fires only when:
+      1. the fallback has been active ≥ ``_PERSIST_REMINDER_INTERVAL_SECONDS``
+         (so a freshly-observed fallback gets one transition event,
+         not an immediate "still down" follow-up), AND
+      2. either we've never warned about this persist, or the previous
+         warn was ≥ ``_PERSIST_REMINDER_INTERVAL_SECONDS`` ago.
+    """
+    secs_since_started = (now - prev_since).total_seconds()
+    if secs_since_started < _PERSIST_REMINDER_INTERVAL_SECONDS:
+        return None
+    last_warned = _parse_iso(previous.get("last_warned_iso", ""))
+    secs_since_warn = (
+        (now - last_warned).total_seconds() if last_warned else secs_since_started
+    )
+    if secs_since_warn < _PERSIST_REMINDER_INTERVAL_SECONDS:
+        return None
+    event = _build_persists_event(
+        module=module,
+        label=label,
+        duration_seconds=secs_since_started,
+        critical=critical,
+    )
+    _emit_event(event, status=status)
+    _persist_state(module, current_path, since=prev_since, last_warned=now)
+    return event
 
 
 def get_current_fallback_status() -> FallbackStatusSummary:

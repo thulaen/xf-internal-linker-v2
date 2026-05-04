@@ -15,6 +15,8 @@ import logging
 
 from celery import shared_task
 
+from apps.core.helpers import HelperConstraint
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,6 +25,13 @@ logger = logging.getLogger(__name__)
     time_limit=60,
     soft_time_limit=45,
     ignore_result=True,
+)
+@HelperConstraint(
+    cpu_intensive=False,            # imports + state checks; no heavy compute
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=64,
+    expected_seconds_p50=2,
 )
 def cpp_fallback_check() -> dict[str, int]:
     """Detect cpp↔python transitions; emit Operations Feed events.
