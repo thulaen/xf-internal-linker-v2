@@ -1249,14 +1249,12 @@ def _model_runtime_tile() -> dict:
 
 def _helper_nodes_tile() -> dict:
     try:
-        from apps.core.runtime_registry import summarize_helpers
+        from apps.core.runtime_registry import helper_status_counts, summarize_helpers
 
         summary = summarize_helpers()
-        counts = summary.get("counts") or {}
-        online = int(counts.get("online", 0))
-        busy = int(counts.get("busy", 0))
-        stale = int(counts.get("stale", 0))
-        offline = int(counts.get("offline", 0))
+        # Refactor 2026-05-04: shared helper_status_counts (also used by
+        # apps.health.services.check_helper_nodes_health).
+        online, busy, stale, offline = helper_status_counts(summary)
         aggregate_ram_pressure = float(summary.get("aggregate_ram_pressure") or 0.0)
         busiest = summary.get("busiest") or {}
 

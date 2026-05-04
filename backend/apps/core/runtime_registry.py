@@ -246,6 +246,32 @@ def _last_runtime_audit_at() -> str | None:
     return latest.isoformat() if latest else None
 
 
+def helper_status_counts(summary: dict[str, Any]) -> tuple[int, int, int, int]:
+    """Return ``(online, busy, stale, offline)`` from a ``summarize_helpers``
+    payload. Defensive: missing counts dict, missing keys, and non-numeric
+    values all coerce to 0 so the caller always gets a 4-tuple of ints.
+
+    Plain-English: every operator-facing helper-PC tile parses the same
+    four counts from the summary dict. This helper is the single source
+    of truth — used by `apps.health.services.check_helper_nodes_health`
+    and `apps.diagnostics.views._helper_nodes_tile`.
+    """
+    counts = summary.get("counts") or {}
+
+    def _safe_int(key: str) -> int:
+        try:
+            return int(counts.get(key, 0) or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    return (
+        _safe_int("online"),
+        _safe_int("busy"),
+        _safe_int("stale"),
+        _safe_int("offline"),
+    )
+
+
 def summarize_helpers() -> dict[str, Any]:
     now = timezone.now()
     online = 0

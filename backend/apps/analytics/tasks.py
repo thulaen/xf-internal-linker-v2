@@ -7,6 +7,8 @@ from datetime import timedelta
 from celery import shared_task
 from django.utils import timezone
 
+from apps.api.query_params import coerce_int
+
 from .models import AnalyticsSyncRun
 from .sync import run_ga4_sync, run_matomo_sync, run_gsc_sync
 
@@ -136,9 +138,13 @@ def sync_gsc_performance(self, sync_run_id: int) -> dict[str, int | str]:
 
     sync_run.status = "completed"
     sync_run.completed_at = timezone.now()
-    sync_run.rows_read = int(stats.get("rows_read", 0))
-    sync_run.rows_written = int(stats.get("rows_written", 0))
-    sync_run.rows_updated = int(stats.get("rows_updated", 0))
+    # Bug fix 2026-05-04: bare int() crashed if a sync backend
+    # returned a non-numeric stats value (e.g. "N/A" instead of 0).
+    # coerce_int treats bad input as 0 so the sync run still saves
+    # cleanly; the operator can investigate the bad backend later.
+    sync_run.rows_read = coerce_int(stats.get("rows_read"), default=0, min_value=0)
+    sync_run.rows_written = coerce_int(stats.get("rows_written"), default=0, min_value=0)
+    sync_run.rows_updated = coerce_int(stats.get("rows_updated"), default=0, min_value=0)
     sync_run.save(
         update_fields=[
             "status",
@@ -193,9 +199,19 @@ def schedule_gsc_performance_daily() -> dict[str, int | str]:
     from .views import get_gsc_settings
 
     settings = get_gsc_settings()
+    # Bug fix 2026-05-04: bare int() crashed if operator-supplied
+    # sync_lookback_days was non-numeric (e.g. "fortnight"). Now
+    # falls back to 14 + clamps to a sensible range so an over-large
+    # value can't trigger an unbounded GSC pull.
+    lookback = coerce_int(
+        settings.get("sync_lookback_days"),
+        default=14,
+        min_value=1,
+        max_value=365,
+    )
     return _queue_scheduled_sync(
         source="gsc",
-        lookback_days=int(settings.get("sync_lookback_days") or 14),
+        lookback_days=lookback,
         task_fn=sync_gsc_performance,
     )
 

@@ -1,3 +1,50 @@
+# 2026-05-04 - Claude Opus 4.7 (1M context) - 5 dict.get crash hardening + helper_status_counts dedup + heartbeat type checks
+
+What I'm doing: Continuation. Same kind of work — bugs, performance, silent errors, code duplication. Found and fixed 5 more crash-prone `int(dict.get(...))` sites where operator-supplied or third-party JSON values could blow up the worker. Extracted a shared `helper_status_counts` helper so the same 4-line int-parse dance only lives in one place (was duplicated in `health/services.py` and `diagnostics/views.py`). Added defensive type checks to the heartbeat view's non-numeric fields (`status` enum + `accepting_work` bool) — previously a buggy reporter sending the wrong type would silently set the field to a useless value that downstream queries miss.
+
+What was accomplished:
+
+**5 MORE CRASH BUGS FIXED — `int(dict.get(...))` sweep:**
+- `analytics/tasks.py schedule_gsc_performance_daily` — `int(settings.get("sync_lookback_days") or 14)` crashed if operator typed "fortnight". Routed through `coerce_int(default=14, min=1, max=365)`.
+- `analytics/tasks.py _commit_sync_run` — three lines `int(stats.get("rows_*", 0))` crashed if a sync backend returned a non-numeric stats value. Now `coerce_int(default=0, min_value=0)`.
+- `analytics/integration_snippet.py build_browser_bridge_snippet` — three GA4 settings (`impression_visible_ratio`, `impression_min_ms`, `engaged_min_seconds`) parsed via bare `int()`/`float()`. If the operator typed "half-second" the snippet rendering crashed — meaning the integration page broke for everyone. Now `coerce_*` with documented defaults + clamps.
+- `audit/tasks.py glitchtip_dedup_sweep` — `int(issue.get("count", 1))` crashed if GlitchTip returned `count="1.5"`. Now `coerce_int(default=1, min=1)`.
+
+**CODE-DEDUP — `helper_status_counts` extracted:**
+- The same 4-line `int(counts.get("online"|"busy"|"stale"|"offline", 0))` block appeared in:
+  * `apps.health.services.check_helper_nodes_health` (lines 473-476)
+  * `apps.diagnostics.views._helper_nodes_tile` (lines 1256-1259)
+- Extracted to `apps.core.runtime_registry.helper_status_counts(summary) -> tuple[int, int, int, int]` with documentation citing both call sites.
+- Bonus: the helper is fully defensive (missing counts dict, non-numeric values all coerce to 0) so neither call site can crash on a bad summary payload.
+
+**HEARTBEAT VIEW DEFENSIVE TYPE CHECKS:**
+- `core/views.py HelperNodeHeartbeatView.post` — non-numeric heartbeat fields previously had:
+  * `node.status = request.data["status"]` — buggy reporter sending `["online"]` (list) would set status to a list, breaking all downstream `HelperNode.objects.filter(status="online")` queries.
+  * `node.accepting_work = bool(request.data["accepting_work"])` — `bool("yes")` returns `True` but `bool("no")` ALSO returns `True` (any non-empty string is truthy). Operators trying to set "false" via curl would have it silently flip to True.
+- Now: status restricted to the documented enum (`online|busy|stale|offline`); accepting_work coerces by type (bool stays bool, int/float bool-cast, string parses "true|1|yes|on" case-insensitive, anything else keeps previous value).
+
+What has issues or errors:
+- **The heartbeat status-enum guard is hardcoded** — should ideally read from `HelperNode.STATUS_CHOICES` so adding a new state in the model doesn't silently fail validation here. Future cleanup.
+- **The `accepting_work` coercion now mirrors `_coerce_bool` in `runtime_flags.py`** — that's a 4th copy of the same boolean-string parser. Could extract a shared `coerce_bool` in `apps/api/query_params` next round to fully dedup.
+- **No frontend pieces shipped** — strictly backend bug-fix focus. The action chips, Why-So-Long Panel, and Budget Forecast pre-flight chip still pending.
+
+Tech-debt delta:
++ 5 real crash bugs fixed (3x bare int() on operator settings; 1x bare int() on sync stats; 1x GlitchTip count parse)
++ 1 code-duplication helper extracted (helper_status_counts; replaces 8 lines × 2 sites = 16 → ~3 each)
++ 2 defensive type checks added (status enum, accepting_work multi-type bool coercion)
++ 1 dead-defaults bug surfaced (`bool("no")` always True)
+Total: 9 measurable debt items resolved (mandate min: 5)
++117 / -23 across 7 files
+
+Verified:
+- python AST-parse on every touched file: clean
+- python .githooks/check-forbidden-patterns.py (diff-aware): 0 blocking violations
+- docker exec smoke: helper_status_counts returns (0,0,0,0) on empty/malformed/garbage input AND on the real summarize_helpers output
+- helper_nodes_health + _helper_nodes_tile both still resolve via the new helper
+
+Next agent: extract a shared `coerce_bool` helper into `apps/api/query_params` (3 copies of the boolean-string parser exist across the codebase); ship the frontend pieces (action chips, Why-So-Long Panel, Budget Forecast chip); audit `apps/sources/` for any remaining N+1 patterns that the prior superficial grep missed. Plan: C:\\Users\\goldm\\.claude\\plans\\check-if-everything-in-vectorized-cook.md
+
+[HANDOFF READ: 2026-05-04 by Claude Opus 4.7 — All 24 Celery tasks annotated commit 9fc1490]
 # 2026-05-04 - Claude Opus 4.7 (1M context) - All 24 Celery tasks annotated + 2 silent-error promotions + 1 heartbeat crash fix
 
 What I'm doing: Continuation. Annotated the final 4 Celery tasks in `tasks.py` (run_pipeline, generate_embeddings, import_content, check_gsc_spikes) — strict-mode missing-helper-constraint warnings now ZERO. Promoted two silent-error returns in `embedding_audit._resample_check` to logger.warning so audit-skipped rounds are visible. Fixed one more crash-prone bare `int(row.get("id"))` in the helper-PC heartbeat lookup. Audited audit/ + suggestions/ + scheduled_updates/ + content/ — all came back clean.

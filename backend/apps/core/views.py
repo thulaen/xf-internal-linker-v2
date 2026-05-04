@@ -4722,8 +4722,23 @@ class HelperNodeHeartbeatView(APIView):
 
         node.last_heartbeat = timezone.now()
         node.last_snapshot_at = timezone.now()
+        # Bug fix 2026-05-04: defensive type-checks on the non-numeric
+        # heartbeat fields too. Previously a buggy reporter sending
+        # `{"status": ["online"]}` (list instead of string) or
+        # `{"accepting_work": "yes"}` would set the field to surprising
+        # values that downstream queries (`HelperNode.objects.filter(
+        # status="online")`) silently miss. Strings are restricted to
+        # the documented enum; accepting_work coerces "yes"/"true"/"1"
+        # to True consistently.
         if "status" in request.data:
-            node.status = request.data["status"]
+            raw_status = request.data["status"]
+            if isinstance(raw_status, str) and raw_status in {
+                "online",
+                "busy",
+                "stale",
+                "offline",
+            }:
+                node.status = raw_status
         if "capabilities" in request.data and isinstance(
             request.data["capabilities"], dict
         ):
@@ -4731,7 +4746,19 @@ class HelperNodeHeartbeatView(APIView):
             merged.update(request.data["capabilities"])
             node.capabilities = merged
         if "accepting_work" in request.data:
-            node.accepting_work = bool(request.data["accepting_work"])
+            raw_accepting = request.data["accepting_work"]
+            if isinstance(raw_accepting, bool):
+                node.accepting_work = raw_accepting
+            elif isinstance(raw_accepting, (int, float)):
+                node.accepting_work = bool(raw_accepting)
+            elif isinstance(raw_accepting, str):
+                node.accepting_work = raw_accepting.strip().lower() in {
+                    "true",
+                    "1",
+                    "yes",
+                    "on",
+                }
+            # else: unsupported type (list/dict) — keep previous value
         # Bug fix 2026-05-04: every numeric helper-heartbeat field
         # previously crashed with HTTP 500 on malformed input (e.g.
         # `"cpu_pct": "high"` from a buggy reporter). A failed

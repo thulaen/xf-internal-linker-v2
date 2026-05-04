@@ -13,6 +13,8 @@ from datetime import timedelta
 from celery import shared_task
 from django.utils import timezone
 
+from apps.api.query_params import coerce_int
+
 logger = logging.getLogger(__name__)
 
 _GLITCHTIP_FINGERPRINT_NOISE_RE = re.compile(
@@ -211,7 +213,12 @@ def sync_glitchtip_issues():
         status_ = issue.get("status", "")
         title = issue.get("title") or "Untitled"
         culprit = issue.get("culprit", "")
-        count = int(issue.get("count", 1))
+        # Bug fix 2026-05-04: GlitchTip API may return count as a
+        # stringified float ("1.5") or other non-int value depending on
+        # version. coerce_int falls back to 1 (the safe minimum for an
+        # event count) so a single malformed issue doesn't kill the
+        # whole sync sweep.
+        count = coerce_int(issue.get("count"), default=1, min_value=1)
         level = issue.get("level", "error")
         severity = severity_map.get(level, ErrorLog.SEVERITY_MEDIUM)
         url = f"{api_url}/issues/{gt_id}/"

@@ -23,6 +23,8 @@ from __future__ import annotations
 
 import json
 
+from apps.api.query_params import coerce_float, coerce_int
+
 from ._bridge_js_template import BRIDGE_JS_TEMPLATE
 
 #: Time after view beyond which a session no longer counts as a quick-exit.
@@ -114,15 +116,30 @@ def build_integration_payload(
         status = "needs_settings"
         message = "Turn on GA4 browser events or Matomo collection first, then copy the browser snippet into the live site."
 
+    # Bug fix 2026-05-04: bare int() / float() crashed if operator-
+    # supplied GA4 settings were non-numeric strings (e.g. "half-second"
+    # for impression_visible_ratio). coerce_* falls back to documented
+    # defaults so the snippet always renders.
     snippet = build_browser_bridge_snippet(
         event_schema=event_schema,
-        impression_visible_ratio=float(
-            ga4_settings.get("impression_visible_ratio") or 0.5
+        impression_visible_ratio=coerce_float(
+            ga4_settings.get("impression_visible_ratio"),
+            default=0.5,
+            min_value=0.0,
+            max_value=1.0,
         ),
-        impression_min_ms=int(
-            ga4_settings.get("impression_min_ms") or DEFAULT_IMPRESSION_MIN_MS
+        impression_min_ms=coerce_int(
+            ga4_settings.get("impression_min_ms"),
+            default=DEFAULT_IMPRESSION_MIN_MS,
+            min_value=0,
+            max_value=60_000,
         ),
-        engaged_min_seconds=int(ga4_settings.get("engaged_min_seconds") or 10),
+        engaged_min_seconds=coerce_int(
+            ga4_settings.get("engaged_min_seconds"),
+            default=10,
+            min_value=1,
+            max_value=600,
+        ),
         ga4_measurement_id=measurement_id,
         ga4_enabled=ga4_enabled,
         matomo_enabled=matomo_enabled,

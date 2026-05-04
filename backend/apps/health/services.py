@@ -468,12 +468,15 @@ def check_model_runtime_health() -> ServiceHealthResult:
 )
 def check_helper_nodes_health() -> ServiceHealthResult:
     try:
+        from apps.core.runtime_registry import helper_status_counts
+
         summary = summarize_helpers()
-        counts = summary.get("counts") or {}
-        online_count = int(counts.get("online", 0))
-        busy_count = int(counts.get("busy", 0))
-        stale_count = int(counts.get("stale", 0))
-        offline_count = int(counts.get("offline", 0))
+        # Refactor 2026-05-04: shared helper_status_counts (also used by
+        # diagnostics/views._helper_nodes_tile) — single source of truth
+        # for the (online, busy, stale, offline) 4-tuple parsing.
+        online_count, busy_count, stale_count, offline_count = helper_status_counts(
+            summary
+        )
         aggregate_ram_pressure = float(summary.get("aggregate_ram_pressure") or 0.0)
         busiest = summary.get("busiest") or {}
         metadata = {
