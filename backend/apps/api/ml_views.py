@@ -13,6 +13,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 
+from apps.api.query_params import coerce_int
 from apps.api.throttles import MLEmbedThrottle as _MLEmbedThrottle
 from apps.pipeline.services.distiller import distill_body
 from apps.pipeline.services.embeddings import (
@@ -41,12 +42,21 @@ class MLDistillView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        max_sentences = int(request.data.get("max_sentences", 5))
+        # Bug fix 2026-05-04: bare int(...) crashed with HTTP 500 on
+        # `{"max_sentences": "foo"}`. Routed through coerce_int so a
+        # typo falls back to the default 5 and is clamped to a sane
+        # range — distill_body misbehaves badly with negative values.
+        max_sentences = coerce_int(
+            request.data.get("max_sentences"),
+            default=5,
+            min_value=1,
+            max_value=100,
+        )
 
         try:
             distilled_text = distill_body(sentences, max_sentences=max_sentences)
             return Response({"distilled": distilled_text})
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — distiller errors must not 500 the worker; surface message to caller.
             return Response(
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

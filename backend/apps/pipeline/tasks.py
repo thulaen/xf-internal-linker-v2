@@ -478,6 +478,13 @@ def generate_embeddings(
     time_limit=1800,
     soft_time_limit=1740,
 )
+@HelperConstraint(
+    cpu_intensive=True,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=120,
+)
 def recalculate_weighted_authority(self, job_id: str | None = None) -> dict:
     """Recompute Weighted PageRank from the stored graph and current settings."""
     job_id = job_id or str(uuid.uuid4())
@@ -514,6 +521,13 @@ def recalculate_weighted_authority(self, job_id: str | None = None) -> dict:
     name="pipeline.recalculate_link_freshness",
     time_limit=1800,
     soft_time_limit=1740,
+)
+@HelperConstraint(
+    cpu_intensive=True,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=180,
 )
 def recalculate_link_freshness(self, job_id: str | None = None) -> dict:
     """Recompute Link Freshness from the stored link-history rows and current settings."""
@@ -566,6 +580,13 @@ def dispatch_graph_rebuild(job_id: str | None = None) -> dict[str, Any]:
     name="pipeline.build_knowledge_graph",
     time_limit=1800,
     soft_time_limit=1740,
+)
+@HelperConstraint(
+    cpu_intensive=True,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=1024,
+    expected_seconds_p50=240,
 )
 def build_knowledge_graph(self, job_id: str | None = None) -> dict:
     """Python fallback for building the bipartite knowledge graph."""
@@ -813,6 +834,13 @@ def import_content(
     soft_time_limit=7140,
     acks_late=True,
 )
+@HelperConstraint(
+    cpu_intensive=False,            # network IO bound; CPU mostly idle
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+    expected_seconds_p50=900,
+)
 def scan_broken_links(self, job_id: str | None = None) -> dict:
     """Scan live URLs referenced in content and persist broken-link findings."""
     from django.utils import timezone
@@ -892,6 +920,13 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
 
 @shared_task(
     bind=True, name="pipeline.verify_suggestions", time_limit=3600, soft_time_limit=3540
+)
+@HelperConstraint(
+    cpu_intensive=False,            # network IO bound (HEAD probes)
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+    expected_seconds_p50=300,
 )
 def verify_suggestions(self, suggestion_ids: list[str] | None = None) -> dict:
     """Check whether applied suggestions are still live via XenForo API."""

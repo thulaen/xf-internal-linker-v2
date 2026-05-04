@@ -16,6 +16,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from apps.api.query_params import coerce_int
+
 
 _PROVIDER_KEYS = ["embedding.provider", "embedding.fallback_provider"]
 _PROVIDER_CONFIG_KEYS = [
@@ -288,7 +290,15 @@ def embedding_bakeoff_run(request: Request) -> Response:
     """Trigger a bake-off run asynchronously."""
     from apps.pipeline.tasks_embedding_bakeoff import embedding_provider_bakeoff
 
-    sample_size = int(request.data.get("sample_size") or 1000)
+    # Bug fix 2026-05-04: bare int() crashed with HTTP 500 on
+    # `{"sample_size": "foo"}`. Routed through coerce_int + clamp so
+    # an over-large request can't trigger an OOM during bake-off.
+    sample_size = coerce_int(
+        request.data.get("sample_size"),
+        default=1000,
+        min_value=1,
+        max_value=200_000,
+    )
     async_result = embedding_provider_bakeoff.delay(sample_size=sample_size)
     return Response({"task_id": async_result.id})
 

@@ -52,12 +52,19 @@ def setting_int(key: str, fallback: int) -> int:
         try:
             return int(float(raw))
         except (TypeError, ValueError):
-            pass
+            # Bad operator value falls through to the recommended
+            # preset; debug-log so the operator can find the bad row.
+            logger.debug(
+                "settings_helpers: setting_int(%s) bad operator value %r; "
+                "falling back to recommended preset",
+                key,
+                raw,
+            )
     try:
         from apps.suggestions.recommended_weights import recommended_int
 
         return recommended_int(key)
-    except (KeyError, Exception):
+    except KeyError:
         return fallback
 
 
@@ -68,12 +75,17 @@ def setting_float(key: str, fallback: float) -> float:
         try:
             return float(raw)
         except (TypeError, ValueError):
-            pass
+            logger.debug(
+                "settings_helpers: setting_float(%s) bad operator value %r; "
+                "falling back to recommended preset",
+                key,
+                raw,
+            )
     try:
         from apps.suggestions.recommended_weights import recommended_float
 
         return recommended_float(key)
-    except (KeyError, Exception):
+    except KeyError:
         return fallback
 
 
@@ -86,7 +98,7 @@ def setting_bool(key: str, fallback: bool) -> bool:
         from apps.suggestions.recommended_weights import recommended_bool
 
         return recommended_bool(key)
-    except (KeyError, Exception):
+    except KeyError:
         return fallback
 
 

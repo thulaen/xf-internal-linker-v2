@@ -123,7 +123,7 @@ def _reset_quarantined_job(request) -> dict:
             run.is_quarantined = False
             run.save(update_fields=["is_quarantined"])
             changed = True
-    except (PipelineRun.DoesNotExist, ValueError, ValidationError):
+    except (PipelineRun.DoesNotExist, ValueError, ValidationError):  # noqa: forbidden-pattern silent-except — non-UUID id is expected; the QuarantineRecord update above is the visible signal.
         pass
 
     if not changed:

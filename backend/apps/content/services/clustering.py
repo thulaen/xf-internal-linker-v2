@@ -39,17 +39,49 @@ class ClusteringService:
         self.similarity_threshold = similarity_threshold
 
     def run_clustering_pass(self):
-        """Batch job to cluster all items that are currently unclustered."""
-        unclustered = ContentItem.objects.filter(
-            cluster__isnull=True,
-            **get_current_embedding_filter(),
-        ).only("id", "embedding", "embedding_model_version")
-        count = unclustered.count()
-        logger.info(f"Starting clustering pass for {count} unclustered items.")
+        """Batch job to cluster all items that are currently unclustered.
+
+        Performance refactor 2026-05-04: previously this loop called
+        ``self.update_item_cluster(item.id)`` which then re-fetched the
+        same row via ``ContentItem.objects.get(id=item_id)`` — a
+        double-round-trip per item. Plus the loop walked the full
+        queryset without ``.iterator()`` which loaded every unclustered
+        row into RAM. Both fixed by:
+          1. ``.iterator(chunk_size=500)`` — server-side cursor.
+          2. Passing the in-memory item to a new ``_update_cluster_for``
+             helper so the round-trip in ``_get_clusterable_item`` is
+             skipped on the bulk path.
+        """
+        unclustered = (
+            ContentItem.objects.filter(
+                cluster__isnull=True,
+                **get_current_embedding_filter(),
+            )
+            .only("id", "embedding", "embedding_model_version")
+            .iterator(chunk_size=500)
+        )
 
         for item in unclustered:
             if item.embedding is not None:
-                self.update_item_cluster(item.id)
+                self._update_cluster_for(item)
+
+    def _update_cluster_for(self, item):
+        """Same effect as ``update_item_cluster(item.id)`` but reuses
+        an already-fetched ``ContentItem`` instance — saves one SELECT
+        per call. The signature filter still applies (so a stale-model
+        item is skipped here just as it would be in the by-id path)."""
+        if item.embedding is None:
+            return
+        current_signature = get_current_embedding_filter()["embedding_model_version"]
+        if item.embedding_model_version != current_signature:
+            return
+        rows = self._find_neighbor_rows(item)
+        neighbor_ids = [row[0] for row in rows]
+        neighbor_cluster_ids = {row[1] for row in rows if row[1] is not None}
+        existing_clusters = list(
+            ContentCluster.objects.filter(id__in=neighbor_cluster_ids)
+        )
+        self._assign_item_to_neighbor_clusters(item, neighbor_ids, existing_clusters)
 
     def _get_clusterable_item(self, item_id):
         try:

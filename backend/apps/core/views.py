@@ -26,6 +26,7 @@ from rest_framework.views import APIView
 
 logger = logging.getLogger(__name__)
 
+from apps.api.query_params import coerce_int
 from apps.api.throttles import (
     GraphRebuildThrottle as _GraphRebuildThrottle,
     WeightRecalcThrottle as _WeightRecalcThrottle,
@@ -5860,13 +5861,22 @@ class BudgetForecastView(APIView):
                 continue
             kwargs[k] = v
 
-        margin_param = request.query_params.get("safety_margin_pct")
-        margin = None
-        if margin_param:
-            try:
-                margin = int(margin_param)
-            except ValueError:
-                pass
+        # Refactor 2026-05-04: shared coerce_int helper. Bad
+        # `?safety_margin_pct=foo` falls back to None (= use the
+        # forecaster's default 20% headroom) instead of being silently
+        # dropped or crashing.
+        margin = (
+            coerce_int(
+                request.query_params.get("safety_margin_pct"),
+                default=-1,
+                min_value=0,
+                max_value=200,
+            )
+            if request.query_params.get("safety_margin_pct")
+            else None
+        )
+        if margin is not None and margin < 0:
+            margin = None
 
         result = forecast(
             task_name=task_name,

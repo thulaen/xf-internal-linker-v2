@@ -74,10 +74,20 @@ def _read_env() -> dict[str, str | int]:
         sys.exit(2)
 
     interval = DEFAULT_INTERVAL_SECS
-    try:
-        interval = int(os.environ.get("HEARTBEAT_INTERVAL_SECS", DEFAULT_INTERVAL_SECS))
-    except ValueError:
-        pass
+    raw_interval = os.environ.get("HEARTBEAT_INTERVAL_SECS")
+    if raw_interval:
+        try:
+            interval = int(raw_interval)
+        except ValueError:
+            # Bad operator-supplied env var. Fall back to default but
+            # log a warning so the operator sees the typo via container
+            # stdout — `pass`-with-no-log made this previously invisible.
+            logger.warning(
+                "heartbeat_reporter: HEARTBEAT_INTERVAL_SECS=%r is not an integer; "
+                "falling back to default %ds",
+                raw_interval,
+                DEFAULT_INTERVAL_SECS,
+            )
     return {**required, "interval": max(5, interval)}
 
 
