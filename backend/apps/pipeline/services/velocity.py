@@ -87,7 +87,15 @@ def load_velocity_settings() -> VelocitySettings:
         try:
             kwargs[field_name] = _coerce(value, value_type)
         except (ValueError, TypeError):
-            pass
+            # One bad setting row should not blow away the rest. Log debug
+            # so the operator can find it via /error-log if curious; the
+            # field falls back to its dataclass default.
+            logger.debug(
+                "velocity: skipped malformed AppSetting key=%s value=%r type=%s",
+                key,
+                value,
+                value_type,
+            )
     return VelocitySettings(**kwargs)
 
 

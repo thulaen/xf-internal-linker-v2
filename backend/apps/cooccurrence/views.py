@@ -85,21 +85,41 @@ class CoOccurrencePairListView(APIView):
             "source_content_item", "dest_content_item"
         ).order_by("-jaccard_similarity")
 
-        min_jaccard = request.query_params.get("min_jaccard")
-        min_co = request.query_params.get("min_co_sessions")
-        if min_jaccard:
+        # Bug fix 2026-05-04: previously bad query params either silently
+        # dropped the filter (min_jaccard / min_co) or crashed with 500
+        # (page / page_size). Now: coerce with sensible defaults + return
+        # 400 with a clear message when the input is malformed.
+        min_jaccard_raw = request.query_params.get("min_jaccard")
+        min_co_raw = request.query_params.get("min_co_sessions")
+        if min_jaccard_raw:
             try:
-                qs = qs.filter(jaccard_similarity__gte=float(min_jaccard))
+                qs = qs.filter(jaccard_similarity__gte=float(min_jaccard_raw))
             except ValueError:
-                pass
-        if min_co:
+                return Response(
+                    {"detail": "min_jaccard must be a number (e.g. 0.5)."},
+                    status=400,
+                )
+        if min_co_raw:
             try:
-                qs = qs.filter(co_session_count__gte=int(min_co))
+                qs = qs.filter(co_session_count__gte=int(min_co_raw))
             except ValueError:
-                pass
+                return Response(
+                    {"detail": "min_co_sessions must be an integer (e.g. 3)."},
+                    status=400,
+                )
 
-        page_size = min(int(request.query_params.get("page_size", 50)), 200)
-        page = max(int(request.query_params.get("page", 1)), 1)
+        try:
+            raw_page_size = int(request.query_params.get("page_size", 50))
+        except (TypeError, ValueError):
+            raw_page_size = 50
+        try:
+            raw_page = int(request.query_params.get("page", 1))
+        except (TypeError, ValueError):
+            raw_page = 1
+        # Clamp to safe ranges so an operator can't trigger a slow query
+        # by asking for page_size=10000 or page=-5.
+        page_size = max(1, min(raw_page_size, 200))
+        page = max(raw_page, 1)
         offset = (page - 1) * page_size
         total = qs.count()
         pairs = qs[offset : offset + page_size]
@@ -175,8 +195,18 @@ class BehavioralHubListView(APIView):
         from .serializers import BehavioralHubSerializer
 
         qs = BehavioralHub.objects.all()
-        page_size = min(int(request.query_params.get("page_size", 25)), 100)
-        page = max(int(request.query_params.get("page", 1)), 1)
+        # Bug fix 2026-05-04: bad `?page=foo` previously crashed with
+        # 500. Now: defensive coercion to defaults + clamp to safe range.
+        try:
+            raw_page_size = int(request.query_params.get("page_size", 25))
+        except (TypeError, ValueError):
+            raw_page_size = 25
+        try:
+            raw_page = int(request.query_params.get("page", 1))
+        except (TypeError, ValueError):
+            raw_page = 1
+        page_size = max(1, min(raw_page_size, 100))
+        page = max(raw_page, 1)
         offset = (page - 1) * page_size
         total = qs.count()
         hubs = qs[offset : offset + page_size]
@@ -337,6 +367,12 @@ class CoOccurrenceSettingsView(APIView):
                 defaults={"value": "true" if val else "false", "value_type": "bool"},
             )
 
+        # Bug fix 2026-05-04: previously bad numeric input on settings
+        # PUT silently did NOT persist, but returned 200 OK so the
+        # operator thought the setting saved when it didn't. Collect
+        # validation errors and surface them as a 400 below.
+        validation_errors: dict[str, str] = {}
+
         def _persist_int(key: str, field: str, lo: int, hi: int) -> None:
             val = data.get(field)
             if val is None:
@@ -348,7 +384,9 @@ class CoOccurrenceSettingsView(APIView):
                     defaults={"value": str(clamped), "value_type": "int"},
                 )
             except (ValueError, TypeError):
-                pass
+                validation_errors[field] = (
+                    f"must be an integer between {lo} and {hi}"
+                )
 
         def _persist_float(key: str, field: str, lo: float, hi: float) -> None:
             val = data.get(field)
@@ -361,7 +399,9 @@ class CoOccurrenceSettingsView(APIView):
                     defaults={"value": str(clamped), "value_type": "float"},
                 )
             except (ValueError, TypeError):
-                pass
+                validation_errors[field] = (
+                    f"must be a number between {lo} and {hi}"
+                )
 
         _persist_bool("cooccurrence.enabled", "cooccurrence_enabled", True)
         _persist_int("cooccurrence.data_window_days", "data_window_days", 7, 365)
@@ -376,4 +416,17 @@ class CoOccurrenceSettingsView(APIView):
         )
         _persist_bool("cooccurrence.schedule_weekly", "schedule_weekly", True)
 
+        if validation_errors:
+            # Some fields persisted, some failed validation. Return 400
+            # so the operator sees which inputs were rejected; the saved
+            # ones are reflected in the response body so the UI can
+            # update partially-applied state.
+            return Response(
+                {
+                    "detail": "Some fields could not be saved.",
+                    "validation_errors": validation_errors,
+                    "current_values": _read_cooccurrence_settings(),
+                },
+                status=400,
+            )
         return Response(_read_cooccurrence_settings())

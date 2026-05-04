@@ -83,23 +83,24 @@ def gpu_memory_cleanup() -> dict[str, float | str]:
             )
             return {"reclaimed_mb": 0.0, "before_mb": 0.0, "after_mb": 0.0, "status": "no_cuda"}
 
-        before_bytes = torch.cuda.memory_allocated()
+        # Bug fix 2026-05-04: previously `empty_cache()` + `synchronize()`
+        # ran twice on modern PyTorch (once for memory_allocated, again
+        # inside the memory_reserved fallback) — the second call always
+        # found the cache already empty, so the reported reclaimed_mb
+        # was 0 even when the first sweep freed real memory. Restructured
+        # to: (1) snapshot baseline once, (2) sweep once, (3) snapshot
+        # after once. Prefer `memory_reserved` when available because
+        # that's what's actually returned to the driver; fall back to
+        # `memory_allocated` on older PyTorch.
+        if hasattr(torch.cuda, "memory_reserved"):
+            measure = torch.cuda.memory_reserved
+        else:
+            measure = torch.cuda.memory_allocated
+
+        reserved_before = measure()
         torch.cuda.empty_cache()
         torch.cuda.synchronize()
-        after_bytes = torch.cuda.memory_allocated()
-        # ``memory_allocated`` only counts torch's own allocations — the
-        # cache returned to the driver is the more interesting number.
-        # ``memory_reserved`` minus ``memory_allocated`` ≈ reclaimable
-        # cache. We report reclaimed = (reserved_before - reserved_after).
-        reserved_before = before_bytes  # safe approx; full reserved metric only on newer torch
-        reserved_after = after_bytes
-        try:
-            reserved_before = torch.cuda.memory_reserved()
-            torch.cuda.empty_cache()
-            torch.cuda.synchronize()
-            reserved_after = torch.cuda.memory_reserved()
-        except AttributeError:
-            pass
+        reserved_after = measure()
 
         reclaimed_bytes = max(0, reserved_before - reserved_after)
         reclaimed_mb = reclaimed_bytes / (1024 * 1024)
@@ -137,7 +138,7 @@ def gpu_memory_cleanup() -> dict[str, float | str]:
     except ImportError:
         _persist(0.0, 0.0, 0.0, "no_cuda")
         return {"reclaimed_mb": 0.0, "before_mb": 0.0, "after_mb": 0.0, "status": "no_cuda"}
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — outer catch routes to ingest_error; we never want a GPU cleanup hook to crash a Celery worker.
         logger.warning("[gpu_memory_cleanup] failed: %s", exc, exc_info=True)
         # Phase 4.0 / TECH-DEBT-MANDATE — surface to /error-log dedup.
         try:
@@ -152,7 +153,10 @@ def gpu_memory_cleanup() -> dict[str, float | str]:
                 why="GPU memory cleanup hook failed; cache will be reclaimed on next torch op.",
                 severity=ErrorLog.SEVERITY_LOW,
             )
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001 — last-resort logger path; swallowing here is correct (we cannot error-log a failed error-log call).
+            logger.debug(
+                "[gpu_memory_cleanup] ingest_error itself failed; suppressed",
+                exc_info=True,
+            )
         _persist(0.0, 0.0, 0.0, "error")
         return {"reclaimed_mb": 0.0, "before_mb": 0.0, "after_mb": 0.0, "status": "error"}

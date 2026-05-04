@@ -619,12 +619,18 @@ def _load_learned_anchor_rows_by_destination() -> (
     rows_by_destination: dict[ContentKey, list[LearnedAnchorInputRow]] = defaultdict(
         list
     )
-    for row in ExistingLink.objects.values(
+    # Performance refactor 2026-05-04: stream ExistingLink rows in 2000-
+    # row chunks via a server-side cursor so a corpus with 1M+ links
+    # doesn't materialise into Python memory at once. The accumulating
+    # dict still grows linearly with destinations but each row is
+    # released after defaultdict insert.
+    link_rows = ExistingLink.objects.values(
         "to_content_item__pk",
         "to_content_item__content_type",
         "from_content_item_id",
         "anchor_text",
-    ):
+    ).iterator(chunk_size=2000)
+    for row in link_rows:
         destination_key: ContentKey = (
             row["to_content_item__pk"],
             row["to_content_item__content_type"],

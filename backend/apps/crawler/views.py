@@ -167,13 +167,25 @@ class CrawledPageMetaViewSet(ReadOnlyModelViewSet):
     pagination_class = None
 
     def get_queryset(self):
+        # Bug fix 2026-05-04: malformed `?session=foo` or `?http_status=
+        # bar` previously crashed with 500 (uuid_mod.UUID + int both
+        # raise ValueError on garbage input). Now: silently ignore the
+        # bad filter so the queryset returns unfiltered. Operator-visible
+        # validation feedback is a follow-up; this fix is purely the
+        # crash hardening.
         qs = CrawledPageMeta.objects.all()
         session_id = self.request.query_params.get("session")
         if session_id:
-            qs = qs.filter(session_id=uuid_mod.UUID(session_id))
+            try:
+                qs = qs.filter(session_id=uuid_mod.UUID(session_id))
+            except (ValueError, TypeError, AttributeError):
+                pass
         http_status = self.request.query_params.get("http_status")
         if http_status:
-            qs = qs.filter(http_status=int(http_status))
+            try:
+                qs = qs.filter(http_status=int(http_status))
+            except (ValueError, TypeError):
+                pass
         return qs
 
     def get_serializer_class(self):

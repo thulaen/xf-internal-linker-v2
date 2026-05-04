@@ -346,14 +346,20 @@ def load_all_link_freshness_scores(
 
     settings = settings or load_link_freshness_settings()
     history_by_destination: dict[int, list[LinkFreshnessPeerRow]] = {}
-    for row in LinkFreshnessEdge.objects.order_by("to_content_item_id").values(
+    # Performance refactor 2026-05-04: stream rows in 2000-edge chunks
+    # via a server-side cursor (`.iterator(chunk_size=...)`) so a 1M+
+    # row LinkFreshnessEdge table doesn't materialise into RAM at once.
+    # The dict still grows linearly with destinations but each row is
+    # released once `setdefault().append()` returns.
+    edge_rows = LinkFreshnessEdge.objects.order_by("to_content_item_id").values(
         "to_content_item_id",
         "to_content_item__content_type",
         "first_seen_at",
         "last_seen_at",
         "last_disappeared_at",
         "is_active",
-    ):
+    ).iterator(chunk_size=2000)
+    for row in edge_rows:
         history_by_destination.setdefault(row["to_content_item_id"], []).append(
             LinkFreshnessPeerRow(
                 first_seen_at=row["first_seen_at"],
@@ -364,9 +370,13 @@ def load_all_link_freshness_scores(
         )
 
     results: dict[NodeKey, LinkFreshnessResult] = {}
-    for pk, content_type in ContentItem.objects.values_list(
-        "pk", "content_type"
-    ).order_by("pk"):
+    # Same streaming pattern for the content-item walk.
+    content_rows = (
+        ContentItem.objects.values_list("pk", "content_type")
+        .order_by("pk")
+        .iterator(chunk_size=2000)
+    )
+    for pk, content_type in content_rows:
         results[(pk, content_type)] = calculate_link_freshness(
             history_by_destination.get(pk, []),
             reference_time=reference_time,
