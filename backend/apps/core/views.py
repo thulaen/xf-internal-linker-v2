@@ -2206,6 +2206,30 @@ class FieldAwareRelevanceSettingsView(APIView):
         return Response(validated)
 
 
+# GA4/GSC row spec: (validated_key, setting_key, value_type, category, description, transform, is_secret)
+# Pulling the row-shape config out of the helper keeps the helper pure-function
+# and under the 50-line cap. New rows only require a tuple addition here.
+_GA4_GSC_ROW_SPEC: tuple[tuple[str, str, str, str, str], ...] = (
+    ("ranking_weight", "ga4_gsc.ranking_weight", "float", "ml",
+     "Ranking weight for the GA4/GSC content-value signal."),
+    ("property_url", "ga4_gsc.property_url", "str", "analytics",
+     "Google Search Console property URL for read access."),
+    ("service_account_email", "ga4_gsc.service_account_email", "str", "analytics",
+     "Service-account email used for Search Console read access."),
+    ("sync_enabled", "ga4_gsc.sync_enabled", "bool", "analytics",
+     "Whether Search Console sync is enabled when the importer is added."),
+    ("sync_lookback_days", "ga4_gsc.sync_lookback_days", "int", "analytics",
+     "How many days the future Search Console sync should reread."),
+)
+
+
+def _format_setting_value(raw: object, value_type: str) -> str:
+    """Coerce a Python value into the on-disk AppSetting string form."""
+    if value_type == "bool":
+        return "true" if raw else "false"
+    return str(raw)
+
+
 def _build_ga4_gsc_rows(validated: dict) -> dict[str, dict]:
     """Pure function — turn a validated GA4/GSC dict into AppSetting row dicts.
 
@@ -2213,41 +2237,14 @@ def _build_ga4_gsc_rows(validated: dict) -> dict[str, dict]:
     only included when the operator explicitly supplied a new value.
     """
     rows: dict[str, dict] = {
-        "ga4_gsc.ranking_weight": {
-            "value": str(validated["ranking_weight"]),
-            "value_type": "float",
-            "description": "Ranking weight for the GA4/GSC content-value signal.",
-            "category": "ml",
+        setting_key: {
+            "value": _format_setting_value(validated[validated_key], value_type),
+            "value_type": value_type,
+            "description": description,
+            "category": category,
             "is_secret": False,
-        },
-        "ga4_gsc.property_url": {
-            "value": str(validated["property_url"]),
-            "value_type": "str",
-            "description": "Google Search Console property URL for read access.",
-            "category": "analytics",
-            "is_secret": False,
-        },
-        "ga4_gsc.service_account_email": {
-            "value": str(validated["service_account_email"]),
-            "value_type": "str",
-            "description": "Service-account email used for Search Console read access.",
-            "category": "analytics",
-            "is_secret": False,
-        },
-        "ga4_gsc.sync_enabled": {
-            "value": "true" if validated["sync_enabled"] else "false",
-            "value_type": "bool",
-            "description": "Whether Search Console sync is enabled when the importer is added.",
-            "category": "analytics",
-            "is_secret": False,
-        },
-        "ga4_gsc.sync_lookback_days": {
-            "value": str(validated["sync_lookback_days"]),
-            "value_type": "int",
-            "description": "How many days the future Search Console sync should reread.",
-            "category": "analytics",
-            "is_secret": False,
-        },
+        }
+        for validated_key, setting_key, value_type, category, description in _GA4_GSC_ROW_SPEC
     }
     if validated["private_key_provided"]:
         rows["ga4_gsc.private_key"] = {
