@@ -53,6 +53,7 @@ from .views import (
     CachePolicySummaryView,
     CachePolicyPinView,
     CachePolicyEvictView,
+    CppFallbackStatusView,
 )
 
 urlpatterns = [
@@ -202,6 +203,15 @@ urlpatterns = [
         "system/cache-policy/<str:layer>/evict/",
         CachePolicyEvictView.as_view(),
         name="cache-policy-evict",
+    ),
+    # Phase 4.14 — C++ Fallback Warning. Returns the live runtime-path
+    # status of every C++ extension plus a one-line dashboard banner.
+    # The cpp_fallback_check Celery beat (every 5 min) emits ops feed
+    # events on transitions; this endpoint is the read-only mirror.
+    path(
+        "system/cpp-fallback/",
+        CppFallbackStatusView.as_view(),
+        name="cpp-fallback-status",
     ),
     # Heartbeat must come before the detail route so it isn't swallowed
     # if a future router-style refactor lands here (cf. ISS-012).

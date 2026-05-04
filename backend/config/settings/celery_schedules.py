@@ -290,4 +290,14 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=14, minute=55, day_of_week=0),
         "options": {"queue": "pipeline"},
     },
+    # Phase 4.14 — C++ Fallback Warning watcher.
+    # Every 5 minutes: detect cpp↔python transitions, emit Operations
+    # Feed events on transitions, re-emit "still down" reminders every
+    # 1 h while a fallback persists. Cheap (just imports + state checks);
+    # storage stays bounded via 1 AppSetting row per extension.
+    "cpp-fallback-check": {
+        "task": "core.cpp_fallback_check",
+        "schedule": crontab(minute="*/5"),
+        "options": {"queue": "default", "expires": 290},
+    },
 }

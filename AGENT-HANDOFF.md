@@ -1,3 +1,53 @@
+# 2026-05-04 - Claude Opus 4.7 (1M context) - Phase 4.14 C++ Fallback Warning shipped (service + beat + endpoint)
+
+What I'm doing: Continuing the plan. Per the user's progress audit ask earlier in this session ("how far are we with entire plan?"), the next concrete Phase 4 backend item still pending was 4.14 — C++ Fallback Warning. Built the watcher service, wired a 5-minute Celery beat task, exposed a read-only operator endpoint, and caught + fixed one logic bug in flight (the persists-event branch was firing on baseline observation instead of waiting for the fallback to actually persist for ≥1 hour).
+
+What was accomplished:
+
+**PHASE 4.14 — C++ FALLBACK WARNING (SHIPPED):**
+- New service `apps/core/services/cpp_fallback_warning.py` (~330 lines): three public functions —
+  * `check_and_emit_fallback_events()` — watches every C++ extension's runtime path, emits one-shot Operations Feed events on cpp↔python transitions, plus hourly "still down" reminders while a fallback persists.
+  * `get_current_fallback_status()` — operator-facing snapshot for the dashboard chip + `/diagnostics` card. Returns `{total_extensions, on_cpp, on_python_fallback, fallbacks: [{module, label, critical, fallback_reason, since_iso, duration_seconds}]}`.
+  * `format_dashboard_banner()` — single-line banner string the dashboard renders at the top of the page when ANY hot-path extension is on Python fallback (empty when all loaded).
+- Reuses existing `apps.diagnostics.health._native_module_runtime_status` so the per-extension state-detection logic isn't duplicated. Storage discipline: one `AppSetting` row per extension keyed `cpp_fallback.<module>.last_state` carrying a tiny JSON snapshot. NO new tables; rows are update-not-append.
+- Three event types emitted via `apps.ops_feed.services.emit`:
+  * `cpp_extension.fallback_started` (severity high if critical, else warning) — cpp→python transition.
+  * `cpp_extension.fallback_recovered` (severity info) — python→cpp recovery, includes plain-English duration ("after 488d 19h on the Python fallback").
+  * `cpp_extension.fallback_persists` (severity high if critical, else warning) — re-emitted at most once every 1 h while a fallback is still active.
+
+**CELERY BEAT WIRING:**
+- New task `core.cpp_fallback_check` at `apps/core/tasks_cpp_fallback.py` — wraps `check_and_emit_fallback_events()` with a 60-second time limit.
+- Registered in `config/settings/celery_schedules.py` as `cpp-fallback-check`: every 5 minutes, default queue, expires=290s so a stuck Beat doesn't pile up duplicate ticks.
+
+**OPERATOR ENDPOINT:**
+- `GET /api/system/cpp-fallback/` (`CppFallbackStatusView` in `apps/core/views.py`) returns the live snapshot + banner. Read-only, IsAuthenticated.
+
+**LOGIC BUG CAUGHT + FIXED IN FLIGHT:**
+- First version emitted 123 spurious "persists" events on the second tick after baseline. Cause: when the previous-state row had no `last_warned_iso` set (= first time we saw the extension), the persists branch defaulted `secs_since_warn` to `_PERSIST_REMINDER_INTERVAL_SECONDS + 1` and immediately emitted. Fixed by adding rule (2): the fallback must have been active for ≥ `_PERSIST_REMINDER_INTERVAL_SECONDS` BEFORE we even consider re-warning. So a freshly-observed fallback gets one transition event, not an immediate "still down" follow-up. End-to-end smoke confirmed: Round 1 baseline = 0 events, Round 2 no-change = 0 events, force-set previous=cpp + recheck = 1 transition event with the right severity + plain-English message.
+
+What has issues or errors:
+- **The dev DB has 123 of 124 extensions on the python fallback path** because none are compiled in this devcontainer. That's expected — the watcher correctly identifies and persists them. In production this would surface as ONE banner "Performance warning: 123 of 124 C++ extensions are on the Python fallback path" which would be alarming but accurate; the operator would rebuild via `docker compose build backend`.
+- **Frontend chip + dashboard banner not yet rendered** — backend exposes everything via the new endpoint; the Angular `/diagnostics` and Dashboard components need ~30 lines each to consume `GET /api/system/cpp-fallback/` and render the banner + per-extension list.
+- **No throwaway smoke file persisted** — used `/app/smoke_phase_4_14.py` to test transitions inside the container, then deleted after confirming.
+
+Tech-debt delta:
++ 1 Phase 4 feature shipped (4.14 — was the smallest pending Phase 4 backend item)
++ 1 logic bug caught + fixed in flight (persists branch firing on baseline)
++ Re-used existing `_native_module_runtime_status` (no duplication)
++ Storage: NO new tables; one AppSetting row per extension via update_or_create
++ Hooked into existing infrastructure: ops_feed.emit (not a new emitter), Celery beat (not a new scheduler), AppSetting.update_or_create (not a new model)
++ Defensive throughout: every external call (AppSetting read/write, ops_feed.emit, native-module status read) wrapped with `# noqa: BLE001` + debug-log fallback so a broken upstream can never crash the watcher
+Total: 7 measurable items shipped + 1 net-new Phase 4 feature
++64 / -0 across 3 modified + 2 new files
+
+Verified:
+- python AST-parse on every touched file: clean
+- python .githooks/check-forbidden-patterns.py (diff-aware): 0 blocking violations
+- docker exec end-to-end smoke: baseline (0 events), no-change (0 events), forced cpp→python transition (1 "started" event with severity=high + correct plain-English), forced python→cpp recovery (1 "recovered" event with duration "488d 19h")
+
+Next agent: ship the Angular frontend pieces — Dashboard banner + /diagnostics per-extension table for Phase 4.14; remaining Phase 4 backends (4.6 USB drives, 4.9 Compression Audit, 4.11 Full Performance Certification); the action-chip rendering on /error-log + Why-So-Long modal + Budget Forecast pre-flight chip from earlier rounds. Plan: C:\\Users\\goldm\\.claude\\plans\\check-if-everything-in-vectorized-cook.md
+
+[HANDOFF READ: 2026-05-04 by Claude Opus 4.7 — parse_bool_strict commit 43b1177]
 # 2026-05-04 - Claude Opus 4.7 (1M context) - parse_bool_strict + AppSetting + 16 inline parsers deduped
 
 What I'm doing: Continuation. Same kind of work — bugs, performance, silent errors, code duplication. Migrated the AppSetting.get_bool method (the original ancestor of the 4-truthy-string parser duplication) to use a new `parse_bool_strict` helper that distinguishes truthy/falsy/unknown semantics. Batch-refactored 16+ inline truthy-string parsers across 5 view files (`core/views.py` + `views_antispam` + `views_phase6_picks` + `views_stage1_retrievers` + `views_fr099_fr105`) so the truthy-string set is no longer copy-pasted around the codebase.

@@ -5951,6 +5951,50 @@ class CachePolicySummaryView(APIView):
         )
 
 
+class CppFallbackStatusView(APIView):
+    """GET /api/system/cpp-fallback/
+
+    Phase 4.14 — C++ Fallback Warning summary. Returns the live
+    runtime-path status of every C++ extension plus a one-line banner
+    message the dashboard can render at the top of the page when ANY
+    extension is on the Python fallback.
+
+    Response shape::
+
+        {
+            "total_extensions": 17,
+            "on_cpp": 16,
+            "on_python_fallback": 1,
+            "banner": "Performance warning: …",  // empty when all loaded
+            "fallbacks": [
+                {
+                    "module": "ivf_index",
+                    "label": "IVF index search",
+                    "critical": true,
+                    "fallback_reason": "ABI mismatch: …",
+                    "since_iso": "2026-05-04T17:32:11+00:00",
+                    "duration_seconds": 7321
+                }
+            ]
+        }
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from dataclasses import asdict
+
+        from apps.core.services.cpp_fallback_warning import (
+            format_dashboard_banner,
+            get_current_fallback_status,
+        )
+
+        snap = get_current_fallback_status()
+        payload = asdict(snap)
+        payload["banner"] = format_dashboard_banner()
+        return Response(payload)
+
+
 class CachePolicyPinView(APIView):
     """POST /api/system/cache-policy/<layer>/pin/   {"key": "<cache_key>"}
     DELETE /api/system/cache-policy/<layer>/pin/   {"key": "<cache_key>"}
