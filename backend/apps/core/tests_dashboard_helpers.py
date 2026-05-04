@@ -1025,3 +1025,210 @@ class JobQueueHelperTests(TestCase):
         SyncJob.objects.create(source="xenforo", status="running", mode="full")
         syncs = _job_queue_active_syncs()
         self.assertEqual(syncs[0]["type"], "sync")
+
+
+# ── GA4/GSC + Link Freshness row builders + WP credentials helpers ──
+
+
+class BuildGa4GscRowsTests(SimpleTestCase):
+    """Pin the GA4/GSC row builder pattern (same as WP / value-model)."""
+
+    def _validated(self, *, private_key_provided: bool = False) -> dict:
+        return {
+            "ranking_weight": 0.05,
+            "property_url": "https://example.com",
+            "service_account_email": "svc@example.com",
+            "sync_enabled": True,
+            "sync_lookback_days": 14,
+            "private_key": "secret",
+            "private_key_provided": private_key_provided,
+        }
+
+    def test_required_rows_present(self) -> None:
+        from apps.core.views import _build_ga4_gsc_rows
+
+        rows = _build_ga4_gsc_rows(self._validated())
+        for key in (
+            "ga4_gsc.ranking_weight",
+            "ga4_gsc.property_url",
+            "ga4_gsc.service_account_email",
+            "ga4_gsc.sync_enabled",
+            "ga4_gsc.sync_lookback_days",
+        ):
+            with self.subTest(key=key):
+                self.assertIn(key, rows)
+
+    def test_private_key_omitted_when_not_provided(self) -> None:
+        from apps.core.views import _build_ga4_gsc_rows
+
+        rows = _build_ga4_gsc_rows(self._validated(private_key_provided=False))
+        # Same security pattern as WP app_password — partial re-PUT
+        # without the secret must NOT clobber the stored value.
+        self.assertNotIn("ga4_gsc.private_key", rows)
+
+    def test_private_key_included_when_provided(self) -> None:
+        from apps.core.views import _build_ga4_gsc_rows
+
+        rows = _build_ga4_gsc_rows(self._validated(private_key_provided=True))
+        self.assertIn("ga4_gsc.private_key", rows)
+        self.assertTrue(rows["ga4_gsc.private_key"]["is_secret"])
+
+
+class BuildLinkFreshnessRowsTests(SimpleTestCase):
+    """Pin the Link Freshness row builder pattern."""
+
+    def _validated(self) -> dict:
+        return {
+            "ranking_weight": 0.05,
+            "recent_window_days": 30,
+            "newest_peer_percent": 0.25,
+            "min_peer_count": 5,
+            "w_recent": 0.4,
+            "w_growth": 0.3,
+            "w_cohort": 0.2,
+            "w_loss": 0.1,
+        }
+
+    def test_all_8_rows_present(self) -> None:
+        from apps.core.views import _build_link_freshness_rows
+
+        rows = _build_link_freshness_rows(self._validated())
+        self.assertEqual(len(rows), 8)
+        for key in (
+            "link_freshness.ranking_weight",
+            "link_freshness.recent_window_days",
+            "link_freshness.newest_peer_percent",
+            "link_freshness.min_peer_count",
+            "link_freshness.w_recent",
+            "link_freshness.w_growth",
+            "link_freshness.w_cohort",
+            "link_freshness.w_loss",
+        ):
+            with self.subTest(key=key):
+                self.assertIn(key, rows)
+
+    def test_weight_serialised_as_float(self) -> None:
+        from apps.core.views import _build_link_freshness_rows
+
+        rows = _build_link_freshness_rows(self._validated())
+        self.assertEqual(rows["link_freshness.w_recent"]["value_type"], "float")
+
+    def test_int_settings_serialised_as_str(self) -> None:
+        from apps.core.views import _build_link_freshness_rows
+
+        rows = _build_link_freshness_rows(self._validated())
+        self.assertEqual(rows["link_freshness.recent_window_days"]["value"], "30")
+        self.assertEqual(
+            rows["link_freshness.recent_window_days"]["value_type"], "int"
+        )
+
+
+class WpResolveCredentialsTests(TestCase):
+    """Credential precedence: request body > AppSetting > Django settings."""
+
+    def setUp(self) -> None:
+        from apps.core.models import AppSetting
+
+        AppSetting.objects.filter(key__startswith="wordpress.").delete()
+
+    def test_request_body_wins(self) -> None:
+        from apps.core.views import _wp_resolve_credentials
+
+        creds = _wp_resolve_credentials(
+            {"base_url": "https://body.example.com", "username": "u", "app_password": "p"}
+        )
+        self.assertEqual(creds["base_url"], "https://body.example.com")
+        self.assertEqual(creds["username"], "u")
+
+    def test_falls_back_to_appsetting(self) -> None:
+        from apps.core.models import AppSetting
+        from apps.core.views import _wp_resolve_credentials
+
+        AppSetting.objects.update_or_create(
+            key="wordpress.base_url",
+            defaults={"value": "https://stored.example.com"},
+        )
+        creds = _wp_resolve_credentials({})
+        self.assertEqual(creds["base_url"], "https://stored.example.com")
+
+    def test_strips_trailing_slash_from_url(self) -> None:
+        from apps.core.views import _wp_resolve_credentials
+
+        creds = _wp_resolve_credentials({"base_url": "https://x.com/"})
+        self.assertEqual(creds["base_url"], "https://x.com")
+
+    def test_strips_whitespace(self) -> None:
+        from apps.core.views import _wp_resolve_credentials
+
+        creds = _wp_resolve_credentials(
+            {"base_url": "  https://x.com  ", "username": "  user  ", "app_password": "  p  "}
+        )
+        self.assertEqual(creds["base_url"], "https://x.com")
+        self.assertEqual(creds["username"], "user")
+        self.assertEqual(creds["app_password"], "p")
+
+
+class RuntimeSettingsSnapshotTests(TestCase):
+    """Cold-start defaults + bulk-read happy path."""
+
+    def setUp(self) -> None:
+        from apps.core.models import AppSetting
+
+        AppSetting.objects.filter(key__in=[
+            "system.runtime_mode",
+            "system.performance_mode",
+            "system.performance_mode_expiry",
+            "system.performance_mode_expires_at",
+            "system.master_pause",
+        ]).delete()
+
+    def test_defaults_when_no_appsettings_exist(self) -> None:
+        from apps.core.views import _runtime_settings_snapshot
+
+        snap = _runtime_settings_snapshot()
+        self.assertEqual(snap["runtime_mode"], "cpu")
+        self.assertEqual(snap["performance_mode_expiry"], "none")
+        self.assertEqual(snap["performance_mode_expires_at"], "")
+        self.assertFalse(snap["master_pause"])
+
+    def test_master_pause_parses_true_string(self) -> None:
+        from apps.core.models import AppSetting
+        from apps.core.views import _runtime_settings_snapshot
+
+        AppSetting.objects.update_or_create(
+            key="system.master_pause", defaults={"value": "true"}
+        )
+        snap = _runtime_settings_snapshot()
+        self.assertTrue(snap["master_pause"])
+
+    def test_master_pause_false_for_other_values(self) -> None:
+        from apps.core.models import AppSetting
+        from apps.core.views import _runtime_settings_snapshot
+
+        AppSetting.objects.update_or_create(
+            key="system.master_pause", defaults={"value": "garbage"}
+        )
+        snap = _runtime_settings_snapshot()
+        self.assertFalse(snap["master_pause"])
+
+    def test_unknown_expiry_falls_back_to_none(self) -> None:
+        from apps.core.models import AppSetting
+        from apps.core.views import _runtime_settings_snapshot
+
+        AppSetting.objects.update_or_create(
+            key="system.performance_mode_expiry",
+            defaults={"value": "garbage"},
+        )
+        snap = _runtime_settings_snapshot()
+        self.assertEqual(snap["performance_mode_expiry"], "none")
+
+    def test_known_expiry_preserved(self) -> None:
+        from apps.core.models import AppSetting
+        from apps.core.views import _runtime_settings_snapshot
+
+        AppSetting.objects.update_or_create(
+            key="system.performance_mode_expiry",
+            defaults={"value": "night"},
+        )
+        snap = _runtime_settings_snapshot()
+        self.assertEqual(snap["performance_mode_expiry"], "night")

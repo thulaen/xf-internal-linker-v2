@@ -1,3 +1,75 @@
+# 2026-05-05 - Claude Opus 4.7 (1M context) - THINK-BEFORE-YOU-CODE paramount rule + 4 more long-function refactors (67/67/66/63) + 15 new tests
+
+What I'm doing: User asked for two things in one message. (1) Add a paramount rule that every agent (Claude / Codex / Antigravity / Gemini / future) reads BEFORE writing code, covering DRY / KISS / scaling / extensibility / no-spaghetti. (2) Continue the long-function clear-out per the same rule. Did both — shipped the rule + 2 new linter scanners in one commit, then refactored 4 more long functions in a second commit.
+
+What was accomplished:
+
+**NEW PARAMOUNT RULE — `THINK-BEFORE-YOU-CODE.md`:**
+The upstream design discipline that prevents the messes the other paramount files clean up after.
+- 5 mandatory pre-write questions (DRY / KISS / Scaling / Extensibility / Testability) every agent answers BEFORE typing.
+- 10 hard limits (function ≤ 50 lines, file ≤ 1500, cyclomatic ≤ 10, args ≤ 7, nesting ≤ 4, no duplicated 6+ line blocks, no inline magic numbers, no silent excepts, module docstring required).
+- 7 soft rules (single responsibility, pure functions, dependency injection, composition over inheritance, names are documentation, no premature abstraction, migrate-as-you-touch).
+- Code-duplication test (3 questions to ask before every commit).
+- Scalability + extensibility pre-flight (storage growth / time complexity / concurrency / failure mode / next-feature seam).
+- Anti-patterns explicitly named: 200-line view handlers, 12-method classes where 1 does 200 lines, three near-duplicate `process_v1/v2/new` functions, "config" dicts hiding flow control, etc.
+- Citations: McConnell Code Complete (50-line rule), McCabe (cyclomatic ≤ 10), Hunt & Thomas (DRY), Sandi Metz (premature abstraction), GoF (composition over inheritance).
+
+**WIRED INTO ALL AGENT FILES:**
+- `CLAUDE.md` — paramount line at the top of the rules block
+- `AGENTS.md` — paramount line above Plain-English rule (Codex / Antigravity)
+- `GEMINI.md` — paramount line at the top
+- `AI-CONTEXT.md` — new "MUST THINK BEFORE YOU CODE" session-gate section above the existing tech-debt mandate
+
+**LINTER EXTENDED — 2 new machine-checkable scanners:**
+- `scan_too_many_args` — warns when a function has >7 args (excludes self/cls; excludes *args/**kwargs)
+- `scan_deep_nesting` — warns when a function nests >4 levels of if/for/while/with/try
+- Both are warnings (not blockers) so existing code can opt in gradually
+- Smoke-tested: scanners produce expected violations on synthetic over-the-limit cases AND zero false positives on existing healthy files
+
+**4 MORE LONG FUNCTIONS REFACTORED — all under 50 lines now:**
+
+1. **RuntimeSettingsView.get** (67 → 1 line): pulled the entire body into `_runtime_settings_snapshot()` helper. Bonus performance win: replaced the 5 separate `.first()` queries with ONE bulk `.filter(key__in=[...])` query (5× fewer DB round trips).
+
+2. **WordPressTestConnectionView.post** (67 → 11 lines): split into `_wp_resolve_credentials` (precedence: body > AppSetting > Django settings) + `_wp_probe_credentials` (the actual REST call). Each is independently testable.
+
+3. **GA4GSCSettingsView.put** (66 → 17 lines): pulled the row-builder pattern into `_build_ga4_gsc_rows`. Optional `private_key` row stays only-when-provided so partial re-PUT doesn't clobber the secret. Mirrors the WP / value-model pattern (DRY across 3 settings views now).
+
+4. **LinkFreshnessSettingsView.put** (63 → 18 lines): pulled the row-builder into `_build_link_freshness_rows`. Same pattern as the other 3 settings put endpoints.
+
+**15 NEW UNIT TESTS — all pass:**
+- 3 `_build_ga4_gsc_rows` tests including the security "private_key omitted when not provided" rule
+- 3 `_build_link_freshness_rows` tests (8-row count, value_type metadata, int→str serialisation)
+- 4 `_wp_resolve_credentials` tests (precedence rule, AppSetting fallback, trailing-slash strip, whitespace strip)
+- 5 `_runtime_settings_snapshot` tests (defaults, master_pause true/garbage, expiry unknown→none, expiry known preserved)
+
+What has issues or errors:
+- **19 long-function warnings remain** (down from 36 → 30 → 26 → 23 → 19 across 5 refactor commits this session). Worst: 62, 61, 61, 60, 60. Same per-handler refactor pace (~4 per session).
+- **Frontend pieces still pending** for the recent backend features.
+- **4.6 USB drives** still the only remaining Phase 4 backend.
+
+Tech-debt delta:
++ 1 NEW PARAMOUNT RULE (THINK-BEFORE-YOU-CODE.md) + 4 agent-file paramount lines added
++ 2 new linter scanners (too-many-args + deep-nesting)
++ 4 long-function refactors (67 + 67 + 66 + 63 → all under 20 lines)
++ 15 new unit tests
++ 1 perf win (5 separate .first() queries → 1 bulk query in runtime snapshot)
++ 1 secret-protection guard pinned by test (ga4_gsc.private_key omit-when-not-provided)
++ Storage discipline preserved: 0 new tables
++ Behaviour preserved exactly: 268 / 268 tests pass (was 253 → 268)
++ Strict-mode lint: 23 → 19 long-function warnings; silent-except stays at 0
+Total: 16 measurable items shipped (mandate min: 5)
++253 / -1 (rule + linter commit) + ~+460/-280 (refactor commit)
+
+Verified:
+- python AST-parse on every touched file: clean
+- python .githooks/check-forbidden-patterns.py (diff-aware): 0 NEW blocking violations
+- python .githooks/check-forbidden-patterns.py --strict (core/views.py): 0 silent-except, 19 long-function (was 23)
+- Smoke test of new linter scanners on synthetic over-limit cases + zero false positives on existing healthy files
+- manage.py test apps.api.tests apps.core.tests_cpp_fallback_warning apps.core.tests_compression_audit apps.core.tests_performance_certification apps.core.tests_dashboard_helpers apps.benchmarks: **268 / 268 PASS in 22.5 s**
+
+Next agent: long-function clear-out continues (next batch ≤62 lines each); ship the frontend pieces; 4.6 USB drives. Plan: C:\\Users\\goldm\\.claude\\plans\\check-if-everything-in-vectorized-cook.md
+
+[HANDOFF READ: 2026-05-04 by Claude Opus 4.7 — 4 long-function refactors commit 0e9489c + 28007a7]
 # 2026-05-04 - Claude Opus 4.7 (1M context) - 4 more long-function refactors (76/75/68/67) + 21 new tests
 
 What I'm doing: Continuing the long-function clear-out per "fix all + don't defer". Refactored the next 4 worst (76 + 75 + 68 + 67 = 286 lines compressed into ≤20-line handlers + 14 reusable helpers). Wrote 21 new unit tests. Zero regressions across the now-253-test suite. Strict-mode long-function count: 26 → **23**.

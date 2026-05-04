@@ -1875,6 +1875,57 @@ class WeightedAuthorityRecalculateView(APIView):
         return Response({"job_id": job_id}, status=202)
 
 
+def _build_link_freshness_rows(validated: dict) -> dict[str, dict[str, str]]:
+    """Pure function — turn a validated Link Freshness dict into AppSetting rows.
+
+    Each entry maps an AppSetting key to ``{value, value_type, description}``
+    — the caller wraps with the shared category + is_secret. Mirrors the
+    value-model / WordPress / GA4-GSC row-builder pattern (DRY).
+    """
+    return {
+        "link_freshness.ranking_weight": {
+            "value": str(validated["ranking_weight"]),
+            "value_type": "float",
+            "description": "Ranking weight applied to the centered Link Freshness component.",
+        },
+        "link_freshness.recent_window_days": {
+            "value": str(validated["recent_window_days"]),
+            "value_type": "int",
+            "description": "Day window used to compare recent link growth vs. the prior window.",
+        },
+        "link_freshness.newest_peer_percent": {
+            "value": str(validated["newest_peer_percent"]),
+            "value_type": "float",
+            "description": "Share of newest inbound peers used for cohort freshness.",
+        },
+        "link_freshness.min_peer_count": {
+            "value": str(validated["min_peer_count"]),
+            "value_type": "int",
+            "description": "Minimum inbound peer history rows required before Link Freshness stops being neutral.",
+        },
+        "link_freshness.w_recent": {
+            "value": str(validated["w_recent"]),
+            "value_type": "float",
+            "description": "Weight for the recent-new-links share component.",
+        },
+        "link_freshness.w_growth": {
+            "value": str(validated["w_growth"]),
+            "value_type": "float",
+            "description": "Weight for the recent-vs-previous growth delta component.",
+        },
+        "link_freshness.w_cohort": {
+            "value": str(validated["w_cohort"]),
+            "value_type": "float",
+            "description": "Weight for the newest-cohort freshness component.",
+        },
+        "link_freshness.w_loss": {
+            "value": str(validated["w_loss"]),
+            "value_type": "float",
+            "description": "Weight for recent inbound-link disappearance pressure.",
+        },
+    }
+
+
 class LinkFreshnessSettingsView(APIView):
     """
     GET  /api/settings/link-freshness/ - returns Link Freshness settings
@@ -1887,6 +1938,11 @@ class LinkFreshnessSettingsView(APIView):
         return Response(get_link_freshness_settings())
 
     def put(self, request):
+        """Persist a validated Link Freshness settings payload.
+
+        Refactored 2026-05-04: was 63 lines. Same per-feature row-builder
+        pattern used by value-model + WordPress + GA4-GSC settings.
+        """
         from apps.core.models import AppSetting
 
         try:
@@ -1894,50 +1950,7 @@ class LinkFreshnessSettingsView(APIView):
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=400)
 
-        rows = {
-            "link_freshness.ranking_weight": {
-                "value": str(validated["ranking_weight"]),
-                "value_type": "float",
-                "description": "Ranking weight applied to the centered Link Freshness component.",
-            },
-            "link_freshness.recent_window_days": {
-                "value": str(validated["recent_window_days"]),
-                "value_type": "int",
-                "description": "Day window used to compare recent link growth vs. the prior window.",
-            },
-            "link_freshness.newest_peer_percent": {
-                "value": str(validated["newest_peer_percent"]),
-                "value_type": "float",
-                "description": "Share of newest inbound peers used for cohort freshness.",
-            },
-            "link_freshness.min_peer_count": {
-                "value": str(validated["min_peer_count"]),
-                "value_type": "int",
-                "description": "Minimum inbound peer history rows required before Link Freshness stops being neutral.",
-            },
-            "link_freshness.w_recent": {
-                "value": str(validated["w_recent"]),
-                "value_type": "float",
-                "description": "Weight for the recent-new-links share component.",
-            },
-            "link_freshness.w_growth": {
-                "value": str(validated["w_growth"]),
-                "value_type": "float",
-                "description": "Weight for the recent-vs-previous growth delta component.",
-            },
-            "link_freshness.w_cohort": {
-                "value": str(validated["w_cohort"]),
-                "value_type": "float",
-                "description": "Weight for the newest-cohort freshness component.",
-            },
-            "link_freshness.w_loss": {
-                "value": str(validated["w_loss"]),
-                "value_type": "float",
-                "description": "Weight for recent inbound-link disappearance pressure.",
-            },
-        }
-
-        for key, row in rows.items():
+        for key, row in _build_link_freshness_rows(validated).items():
             AppSetting.objects.update_or_create(
                 key=key,
                 defaults={
@@ -2193,6 +2206,60 @@ class FieldAwareRelevanceSettingsView(APIView):
         return Response(validated)
 
 
+def _build_ga4_gsc_rows(validated: dict) -> dict[str, dict]:
+    """Pure function — turn a validated GA4/GSC dict into AppSetting row dicts.
+
+    Mirrors the WordPress + value-model pattern. Optional secret row
+    only included when the operator explicitly supplied a new value.
+    """
+    rows: dict[str, dict] = {
+        "ga4_gsc.ranking_weight": {
+            "value": str(validated["ranking_weight"]),
+            "value_type": "float",
+            "description": "Ranking weight for the GA4/GSC content-value signal.",
+            "category": "ml",
+            "is_secret": False,
+        },
+        "ga4_gsc.property_url": {
+            "value": str(validated["property_url"]),
+            "value_type": "str",
+            "description": "Google Search Console property URL for read access.",
+            "category": "analytics",
+            "is_secret": False,
+        },
+        "ga4_gsc.service_account_email": {
+            "value": str(validated["service_account_email"]),
+            "value_type": "str",
+            "description": "Service-account email used for Search Console read access.",
+            "category": "analytics",
+            "is_secret": False,
+        },
+        "ga4_gsc.sync_enabled": {
+            "value": "true" if validated["sync_enabled"] else "false",
+            "value_type": "bool",
+            "description": "Whether Search Console sync is enabled when the importer is added.",
+            "category": "analytics",
+            "is_secret": False,
+        },
+        "ga4_gsc.sync_lookback_days": {
+            "value": str(validated["sync_lookback_days"]),
+            "value_type": "int",
+            "description": "How many days the future Search Console sync should reread.",
+            "category": "analytics",
+            "is_secret": False,
+        },
+    }
+    if validated["private_key_provided"]:
+        rows["ga4_gsc.private_key"] = {
+            "value": str(validated["private_key"] or ""),
+            "value_type": "str",
+            "description": "Service-account private key for Search Console read access.",
+            "category": "analytics",
+            "is_secret": True,
+        }
+    return rows
+
+
 class GA4GSCSettingsView(APIView):
     """
     GET  /api/settings/ga4-gsc/ - returns GA4/GSC settings including GSC credentials
@@ -2205,6 +2272,15 @@ class GA4GSCSettingsView(APIView):
         return Response(get_ga4_gsc_settings())
 
     def put(self, request):
+        """Persist a validated GA4/GSC settings payload.
+
+        Refactored 2026-05-04: was 66 lines mostly composed of the
+        same row-builder pattern from value-model + WordPress puts.
+        Pulled into ``_build_ga4_gsc_rows`` so the row shapes are
+        independently testable. Optional ``private_key`` row stays
+        only-when-provided so partial re-PUT doesn't clobber the
+        stored secret.
+        """
         from apps.core.models import AppSetting
 
         try:
@@ -2212,63 +2288,9 @@ class GA4GSCSettingsView(APIView):
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=400)
 
-        rows = {
-            "ga4_gsc.ranking_weight": {
-                "value": str(validated["ranking_weight"]),
-                "value_type": "float",
-                "description": "Ranking weight for the GA4/GSC content-value signal.",
-                "category": "ml",
-                "is_secret": False,
-            },
-            "ga4_gsc.property_url": {
-                "value": str(validated["property_url"]),
-                "value_type": "str",
-                "description": "Google Search Console property URL for read access.",
-                "category": "analytics",
-                "is_secret": False,
-            },
-            "ga4_gsc.service_account_email": {
-                "value": str(validated["service_account_email"]),
-                "value_type": "str",
-                "description": "Service-account email used for Search Console read access.",
-                "category": "analytics",
-                "is_secret": False,
-            },
-            "ga4_gsc.sync_enabled": {
-                "value": "true" if validated["sync_enabled"] else "false",
-                "value_type": "bool",
-                "description": "Whether Search Console sync is enabled when the importer is added.",
-                "category": "analytics",
-                "is_secret": False,
-            },
-            "ga4_gsc.sync_lookback_days": {
-                "value": str(validated["sync_lookback_days"]),
-                "value_type": "int",
-                "description": "How many days the future Search Console sync should reread.",
-                "category": "analytics",
-                "is_secret": False,
-            },
-        }
-        if validated["private_key_provided"]:
-            rows["ga4_gsc.private_key"] = {
-                "value": str(validated["private_key"] or ""),
-                "value_type": "str",
-                "description": "Service-account private key for Search Console read access.",
-                "category": "analytics",
-                "is_secret": True,
-            }
+        for key, row in _build_ga4_gsc_rows(validated).items():
+            AppSetting.objects.update_or_create(key=key, defaults=row)
 
-        for key, row in rows.items():
-            AppSetting.objects.update_or_create(
-                key=key,
-                defaults={
-                    "value": row["value"],
-                    "value_type": row["value_type"],
-                    "category": row["category"],
-                    "description": row["description"],
-                    "is_secret": row["is_secret"],
-                },
-            )
         return Response(get_ga4_gsc_settings())
 
 
@@ -2629,43 +2651,96 @@ class XenForoTestConnectionView(APIView):
         )
 
 
+def _wp_resolve_credentials(data: dict) -> dict[str, str]:
+    """Pick credentials from request body → AppSetting → Django settings.
+
+    Precedence: explicit body value > stored AppSetting > Django settings
+    fallback. Stripped + URL-trailing-slash-removed for the base URL.
+    """
+    base_url = (
+        (
+            data.get("base_url")
+            or _get_app_setting_value(
+                "wordpress.base_url",
+                getattr(django_settings, "WORDPRESS_BASE_URL", ""),
+            )
+            or ""
+        )
+        .strip()
+        .rstrip("/")
+    )
+    username = (
+        data.get("username")
+        or _get_app_setting_value(
+            "wordpress.username",
+            getattr(django_settings, "WORDPRESS_USERNAME", ""),
+        )
+        or ""
+    ).strip()
+    app_password = (
+        data.get("app_password")
+        or _get_app_setting_value(
+            "wordpress.app_password",
+            getattr(django_settings, "WORDPRESS_APP_PASSWORD", ""),
+        )
+        or ""
+    ).strip()
+    return {
+        "base_url": base_url,
+        "username": username,
+        "app_password": app_password,
+    }
+
+
+def _wp_probe_credentials(creds: dict[str, str]) -> Response:
+    """Run the actual ``/wp-json/wp/v2/users/me`` probe + format the response.
+
+    Defensive try wraps the network call so the connection-test
+    endpoint surfaces the error in the response body (operator sees
+    the failure clearly) rather than crashing with HTTP 500.
+    """
+    import requests as http_requests
+
+    try:
+        resp = http_requests.get(
+            f"{creds['base_url']}/wp-json/wp/v2/users/me",
+            auth=(creds["username"], creds["app_password"]),
+            timeout=10,
+        )
+        payload = resp.json()
+    except Exception as exc:  # noqa: BLE001 — connection-test endpoint surfaces the error in the response body; logger keeps a paper trail.
+        logger.warning("WordPress connection test failed: %s", exc, exc_info=True)
+        return Response(
+            {"status": "error", "message": f"Could not reach WordPress: {exc}"},
+            status=502,
+        )
+    if resp.status_code != 200:
+        detail = payload.get("message", f"HTTP {resp.status_code}")
+        return Response({"status": "error", "message": detail}, status=400)
+    display_name = payload.get("name", "unknown")
+    return Response(
+        {
+            "status": "connected",
+            "message": f"Connected to WordPress as '{display_name}'.",
+        }
+    )
+
+
 class WordPressTestConnectionView(APIView):
     """POST /api/settings/wordpress/test-connection/ — verify WordPress REST API credentials."""
 
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        import requests as http_requests
+        """Test WordPress REST API credentials.
 
-        base_url = (
-            (
-                request.data.get("base_url")
-                or _get_app_setting_value(
-                    "wordpress.base_url",
-                    getattr(django_settings, "WORDPRESS_BASE_URL", ""),
-                )
-                or ""
-            )
-            .strip()
-            .rstrip("/")
-        )
-        username = (
-            request.data.get("username")
-            or _get_app_setting_value(
-                "wordpress.username", getattr(django_settings, "WORDPRESS_USERNAME", "")
-            )
-            or ""
-        ).strip()
-        app_password = (
-            request.data.get("app_password")
-            or _get_app_setting_value(
-                "wordpress.app_password",
-                getattr(django_settings, "WORDPRESS_APP_PASSWORD", ""),
-            )
-            or ""
-        ).strip()
-
-        if not base_url or not username or not app_password:
+        Refactored 2026-05-04: was 67 lines. Credential resolution +
+        the actual probe are now per-domain helpers so the handler
+        stays small and the credential-fallback chain is testable
+        in isolation.
+        """
+        creds = _wp_resolve_credentials(request.data)
+        if not creds["base_url"] or not creds["username"] or not creds["app_password"]:
             return Response(
                 {
                     "status": "not_configured",
@@ -2673,34 +2748,7 @@ class WordPressTestConnectionView(APIView):
                 },
                 status=400,
             )
-
-        try:
-            resp = http_requests.get(
-                f"{base_url}/wp-json/wp/v2/users/me",
-                auth=(username, app_password),
-                timeout=10,
-            )
-            payload = resp.json()
-        except Exception as exc:  # noqa: BLE001 — connection-test endpoint surfaces the error in the response body; logger keeps a paper trail.
-            logger.warning(
-                "WordPress connection test failed: %s", exc, exc_info=True
-            )
-            return Response(
-                {"status": "error", "message": f"Could not reach WordPress: {exc}"},
-                status=502,
-            )
-
-        if resp.status_code != 200:
-            detail = payload.get("message", f"HTTP {resp.status_code}")
-            return Response({"status": "error", "message": detail}, status=400)
-
-        display_name = payload.get("name", "unknown")
-        return Response(
-            {
-                "status": "connected",
-                "message": f"Connected to WordPress as '{display_name}'.",
-            }
-        )
+        return _wp_probe_credentials(creds)
 
 
 class WebhookTestView(APIView):
@@ -3874,6 +3922,62 @@ def _today_view_sentence_watch(top_alert) -> str:
     return f'Watch: {top_alert.severity} alert — "{top_alert.title[:80]}".'
 
 
+_RUNTIME_SETTINGS_KEYS = (
+    "system.runtime_mode",
+    "system.performance_mode",
+    "system.performance_mode_expiry",
+    "system.performance_mode_expires_at",
+    "system.master_pause",
+)
+
+
+def _runtime_settings_snapshot() -> dict[str, object]:
+    """Return the live runtime / performance / master-pause snapshot.
+
+    Defensive: any failure (cold-start AppSetting unavailable, embeddings
+    module not importable, etc.) returns the safe defaults so the
+    settings page still renders. Single bulk query (one round trip) is
+    used instead of the original inline 5×.first() pattern (DRY win).
+    """
+    from apps.core.models import AppSetting
+    from apps.core.performance_mode import get_requested_performance_mode
+
+    defaults: dict[str, object] = {
+        "runtime_mode": "cpu",
+        "performance_mode": "balanced",
+        "effective_runtime_mode": "cpu",
+        "performance_mode_expiry": "none",
+        "performance_mode_expires_at": "",
+        "master_pause": False,
+    }
+    try:
+        # ONE bulk query covers all 5 keys; original was 5 separate
+        # round trips. Operator-tunable performance — pure perf win.
+        rows = dict(
+            AppSetting.objects.filter(key__in=list(_RUNTIME_SETTINGS_KEYS)).values_list(
+                "key", "value"
+            )
+        )
+    except Exception:  # noqa: BLE001 — AppSetting table unavailable on cold start; defaults render the page.
+        logger.debug(
+            "AppSetting table not available, using default runtime modes"
+        )
+        return defaults
+
+    expiry_raw = rows.get("system.performance_mode_expiry")
+    expiry = expiry_raw if expiry_raw in ("none", "activity", "night") else "none"
+    return {
+        "runtime_mode": rows.get("system.runtime_mode") or defaults["runtime_mode"],
+        "performance_mode": get_requested_performance_mode(),
+        "effective_runtime_mode": _read_effective_runtime_mode(),
+        "performance_mode_expiry": expiry,
+        "performance_mode_expires_at": rows.get(
+            "system.performance_mode_expires_at"
+        ) or "",
+        "master_pause": (rows.get("system.master_pause") or "false").lower() == "true",
+    }
+
+
 class RuntimeSettingsView(APIView):
     """GET /api/settings/runtime/ — current runtime mode and state.
 
@@ -3886,72 +3990,13 @@ class RuntimeSettingsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from apps.core.models import AppSetting
-        from apps.core.performance_mode import get_requested_performance_mode
+        """Return current runtime + performance + master-pause snapshot.
 
-        mode = "cpu"
-        perf_mode = get_requested_performance_mode()
-        expiry = "none"
-        expires_at = ""
-        effective_runtime_mode = "cpu"
-        try:
-            mode_val = (
-                AppSetting.objects.filter(key="system.runtime_mode")
-                .values_list("value", flat=True)
-                .first()
-            )
-            if mode_val:
-                mode = mode_val
-            perf_val = (
-                AppSetting.objects.filter(key="system.performance_mode")
-                .values_list("value", flat=True)
-                .first()
-            )
-            if perf_val:
-                perf_mode = get_requested_performance_mode()
-            expiry_val = (
-                AppSetting.objects.filter(key="system.performance_mode_expiry")
-                .values_list("value", flat=True)
-                .first()
-            )
-            if expiry_val in ("none", "activity", "night"):
-                expiry = expiry_val
-            expires_at_val = (
-                AppSetting.objects.filter(key="system.performance_mode_expires_at")
-                .values_list("value", flat=True)
-                .first()
-            )
-            if expires_at_val:
-                expires_at = expires_at_val
-            master_pause_val = (
-                AppSetting.objects.filter(key="system.master_pause")
-                .values_list("value", flat=True)
-                .first()
-            )
-            master_pause = (master_pause_val or "false").lower() == "true"
-            from apps.pipeline.services.embeddings import (
-                get_effective_runtime_resolution,
-            )
-
-            effective_runtime_mode = get_effective_runtime_resolution()[
-                "effective_runtime_mode"
-            ]
-        except Exception:
-            logger.debug(
-                "AppSetting table not available, using default runtime and performance modes"
-            )
-            master_pause = False
-
-        return Response(
-            {
-                "runtime_mode": mode,
-                "performance_mode": perf_mode,
-                "effective_runtime_mode": effective_runtime_mode,
-                "performance_mode_expiry": expiry,
-                "performance_mode_expires_at": expires_at,
-                "master_pause": master_pause,
-            }
-        )
+        Refactored 2026-05-04: was 67 lines of inline AppSetting reads.
+        Now bundled into a single defensive helper that returns a typed
+        snapshot on success or sane defaults on cold-start.
+        """
+        return Response(_runtime_settings_snapshot())
 
 
 # ── RuntimeSwitchView helpers (extracted from .post) ─────────────
