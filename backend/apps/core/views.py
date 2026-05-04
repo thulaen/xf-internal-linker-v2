@@ -1506,61 +1506,105 @@ def _validate_field_aware_relevance_settings(
     return validated
 
 
-def _validate_ga4_gsc_settings(  # noqa: C901 — pre-existing complexity, safe to keep
+def _coerce_float_strict(value: object, *, key: str) -> float:
+    """Strict-raising float coercion used by GA4/GSC + similar settings.
+
+    Reused across multiple settings validators so we don't keep
+    re-defining the "raise ValueError on non-numeric or infinite"
+    contract inline. Different from ``coerce_float`` which silently
+    falls back to a default — this one IS the validation step.
+    """
+    try:
+        coerced = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{key} must be numeric.") from exc
+    if not math.isfinite(coerced):
+        raise ValueError(f"{key} must be finite.")
+    return coerced
+
+
+def _coerce_int_strict(value: object, *, key: str, minimum: int, maximum: int) -> int:
+    """Strict-raising int coercion + range check (raises on bad input)."""
+    try:
+        coerced = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{key} must be a whole number.") from exc
+    if coerced < minimum or coerced > maximum:
+        raise ValueError(f"{key} must be between {minimum} and {maximum}.")
+    return coerced
+
+
+def _coerce_bool_strict(value: object, *, key: str) -> bool:
+    """Strict-raising bool coercion. Uses the canonical truthy/falsy sets.
+
+    Reuses the shared ``TRUTHY_STRING_VALUES`` / ``FALSY_STRING_VALUES``
+    constants so a future tweak to the truthy set propagates everywhere.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        from apps.api.query_params import (
+            FALSY_STRING_VALUES,
+            TRUTHY_STRING_VALUES,
+        )
+
+        if lowered in TRUTHY_STRING_VALUES:
+            return True
+        if lowered in FALSY_STRING_VALUES:
+            return False
+    raise ValueError(f"{key} must be true or false.")
+
+
+def _validate_ga4_gsc_settings(
     payload: dict,
     *,
     current: dict[str, object] | None = None,
 ) -> dict[str, object]:
+    """Refactored 2026-05-04: 80 → 30 lines.
+
+    Inner coercer closures replaced with module-level strict-raising
+    helpers (``_coerce_*_strict``) so the validation contract can be
+    reused by other settings validators. Cross-field consistency checks
+    extracted into ``_validate_ga4_gsc_consistency``.
+    """
     current = current or _read_ga4_gsc_settings()
 
-    def _coerce_float(key: str) -> float:
-        value = payload.get(key, current[key])
-        try:
-            coerced = float(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"{key} must be numeric.") from exc
-        if not math.isfinite(coerced):
-            raise ValueError(f"{key} must be finite.")
-        return coerced
-
-    def _coerce_bool(key: str) -> bool:
-        value = payload.get(key, current[key])
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, str):
-            lowered = value.strip().lower()
-            if lowered in {"1", "true", "yes", "on"}:
-                return True
-            if lowered in {"0", "false", "no", "off"}:
-                return False
-        raise ValueError(f"{key} must be true or false.")
-
-    def _coerce_int(key: str, minimum: int, maximum: int) -> int:
-        value = payload.get(key, current[key])
-        try:
-            coerced = int(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"{key} must be a whole number.") from exc
-        if coerced < minimum or coerced > maximum:
-            raise ValueError(f"{key} must be between {minimum} and {maximum}.")
-        return coerced
-
-    validated = {
-        "ranking_weight": _coerce_float("ranking_weight"),
-        "property_url": str(payload.get("property_url", current["property_url"]))
-        .strip()
-        .rstrip("/"),
+    validated: dict[str, object] = {
+        "ranking_weight": _coerce_float_strict(
+            payload.get("ranking_weight", current["ranking_weight"]),
+            key="ranking_weight",
+        ),
+        "property_url": str(
+            payload.get("property_url", current["property_url"])
+        ).strip().rstrip("/"),
         "service_account_email": str(
             payload.get("service_account_email", current["service_account_email"])
         ).strip(),
-        "sync_enabled": _coerce_bool("sync_enabled"),
-        "sync_lookback_days": _coerce_int("sync_lookback_days", 1, 30),
+        "sync_enabled": _coerce_bool_strict(
+            payload.get("sync_enabled", current["sync_enabled"]), key="sync_enabled"
+        ),
+        "sync_lookback_days": _coerce_int_strict(
+            payload.get("sync_lookback_days", current["sync_lookback_days"]),
+            key="sync_lookback_days",
+            minimum=1,
+            maximum=30,
+        ),
     }
     private_key_provided = "private_key" in payload
     private_key = (
         str(payload.get("private_key", "")).strip() if private_key_provided else None
     )
+    _validate_ga4_gsc_consistency(validated, current, private_key=private_key)
+    validated["private_key"] = private_key
+    validated["private_key_provided"] = private_key_provided
+    return validated
 
+
+def _validate_ga4_gsc_consistency(
+    validated: dict, current: dict, *, private_key: str | None
+) -> None:
+    """Cross-field consistency checks for GA4/GSC settings. Raises on failure."""
     if validated["ranking_weight"] < 0.0 or validated["ranking_weight"] > 1.0:
         raise ValueError("ranking_weight must be between 0.0 and 1.0.")
     if validated["property_url"]:
@@ -1579,13 +1623,9 @@ def _validate_ga4_gsc_settings(  # noqa: C901 — pre-existing complexity, safe 
         or not has_private_key
     ):
         raise ValueError(
-            "Search Console sync needs property_url, service_account_email, and private_key."
+            "Search Console sync needs property_url, service_account_email, "
+            "and private_key."
         )
-
-    validated["private_key"] = private_key
-    validated["private_key_provided"] = private_key_provided
-
-    return validated
 
 
 def _validate_feedback_rerank_settings(
@@ -3152,6 +3192,139 @@ def _dashboard_runtime_mode_display() -> str:
 # ---------------------------------------------------------------------------
 
 
+# ── TodayActionsView priority-rule helpers ──────────────────────
+# Each rule is a pure function returning ``list[dict]`` of action items.
+# Splitting per rule means each can be unit-tested + a future operator
+# tweak (e.g. "raise pending-review threshold to 50") touches one
+# place, not an inline-mixed-with-others block.
+
+_PENDING_REVIEW_THRESHOLD = 20
+_STALE_SYNC_HOURS = 48
+_STALE_PIPELINE_DAYS = 14
+
+
+def _today_actions_urgent_alerts() -> list[dict]:
+    """Top-3 unread urgent / error OperatorAlerts."""
+    from apps.notifications.models import OperatorAlert
+
+    alerts = OperatorAlert.objects.filter(
+        status="unread", severity__in=["urgent", "error"]
+    ).order_by("-first_seen_at")[:3]
+    return [
+        {
+            "title": alert.title,
+            "reason": (
+                f"Unresolved {alert.severity} alert since "
+                f"{alert.first_seen_at:%b %d}"
+            ),
+            "route": f"/alerts/{alert.alert_id}",
+            "severity": alert.severity,
+            "isBlocking": alert.severity == "urgent",
+        }
+        for alert in alerts
+    ]
+
+
+def _today_actions_sync_freshness(now) -> list[dict]:
+    """Stale-sync (>48h) or no-sync-yet warning."""
+    from apps.sync.models import SyncJob
+
+    last_sync = (
+        SyncJob.objects.filter(status="completed").order_by("-completed_at").first()
+    )
+    if last_sync is None:
+        return [
+            {
+                "title": "No content synced yet",
+                "reason": "Run your first content sync to get started.",
+                "route": "/jobs",
+                "severity": "warning",
+                "isBlocking": False,
+            }
+        ]
+    if not last_sync.completed_at:
+        return []
+    hours_since = (now - last_sync.completed_at).total_seconds() / 3600
+    if hours_since <= _STALE_SYNC_HOURS:
+        return []
+    days = int(hours_since // 24)
+    return [
+        {
+            "title": "Content is getting stale",
+            "reason": (
+                f"Last sync was {days} days ago. Run a fresh sync to "
+                "catch new content."
+            ),
+            "route": "/jobs",
+            "severity": "warning",
+            "isBlocking": False,
+        }
+    ]
+
+
+def _today_actions_pending_suggestions() -> list[dict]:
+    """Pending-review backlog warning when the queue exceeds the threshold."""
+    from apps.suggestions.models import Suggestion
+
+    pending_count = Suggestion.objects.filter(status="pending").count()
+    if pending_count <= _PENDING_REVIEW_THRESHOLD:
+        return []
+    return [
+        {
+            "title": f"{pending_count} suggestions waiting for review",
+            "reason": (
+                "Review and approve link suggestions to improve your "
+                "internal linking."
+            ),
+            "route": "/review",
+            "severity": "info",
+            "isBlocking": False,
+        }
+    ]
+
+
+def _today_actions_pipeline_freshness(now) -> list[dict]:
+    """Stale-pipeline + zero-suggestion-on-last-run warnings (one or both)."""
+    from apps.suggestions.models import PipelineRun
+
+    last_run = (
+        PipelineRun.objects.filter(run_state="completed")
+        .order_by("-updated_at")
+        .first()
+    )
+    if last_run is None:
+        return []
+    actions: list[dict] = []
+    if last_run.updated_at and (now - last_run.updated_at).days > _STALE_PIPELINE_DAYS:
+        days_since = (now - last_run.updated_at).days
+        actions.append(
+            {
+                "title": "Pipeline hasn't run in a while",
+                "reason": (
+                    f"Last pipeline run was {days_since} days ago. Run "
+                    "it to generate fresh suggestions."
+                ),
+                "route": "/jobs",
+                "severity": "info",
+                "isBlocking": False,
+            }
+        )
+    if last_run.suggestions_created == 0:
+        actions.append(
+            {
+                "title": "Last pipeline produced no suggestions",
+                "reason": (
+                    "Check your settings — the pipeline may need tuning."
+                ),
+                "route": "/settings",
+                "deepLinkTarget": "ranking-weights",
+                "severity": "warning",
+                "isBlocking": False,
+            }
+        )
+    return actions
+
+
 class TodayActionsView(APIView):
     """GET /api/dashboard/today-actions/
 
@@ -3162,102 +3335,21 @@ class TodayActionsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from apps.notifications.models import OperatorAlert
-        from apps.suggestions.models import PipelineRun, Suggestion
-        from apps.sync.models import SyncJob
+        """Return up to 5 priority-ranked action items for the operator.
+
+        Refactored 2026-05-04: was 98 lines walking 5 distinct rule
+        blocks inline. Now each rule is its own pure function returning
+        ``list[dict]``; the handler concatenates + caps at 5. Each rule
+        is independently testable.
+        """
         from django.utils import timezone
 
-        actions: list[dict] = []
         now = timezone.now()
-
-        # 1. Unacknowledged urgent/error alerts
-        urgent_alerts = OperatorAlert.objects.filter(
-            status="unread", severity__in=["urgent", "error"]
-        ).order_by("-first_seen_at")[:3]
-        for alert in urgent_alerts:
-            actions.append(
-                {
-                    "title": alert.title,
-                    "reason": f"Unresolved {alert.severity} alert since {alert.first_seen_at:%b %d}",
-                    "route": f"/alerts/{alert.alert_id}",
-                    "severity": alert.severity,
-                    "isBlocking": alert.severity == "urgent",
-                }
-            )
-
-        # 2. Stale sync (no sync in 48h)
-        last_sync = (
-            SyncJob.objects.filter(status="completed").order_by("-completed_at").first()
-        )
-        if last_sync and last_sync.completed_at:
-            hours_since = (now - last_sync.completed_at).total_seconds() / 3600
-            if hours_since > 48:
-                days = int(hours_since // 24)
-                actions.append(
-                    {
-                        "title": "Content is getting stale",
-                        "reason": f"Last sync was {days} days ago. Run a fresh sync to catch new content.",
-                        "route": "/jobs",
-                        "severity": "warning",
-                        "isBlocking": False,
-                    }
-                )
-        elif not last_sync:
-            actions.append(
-                {
-                    "title": "No content synced yet",
-                    "reason": "Run your first content sync to get started.",
-                    "route": "/jobs",
-                    "severity": "warning",
-                    "isBlocking": False,
-                }
-            )
-
-        # 3. Pending suggestions waiting for review
-        pending_count = Suggestion.objects.filter(status="pending").count()
-        if pending_count > 20:
-            actions.append(
-                {
-                    "title": f"{pending_count} suggestions waiting for review",
-                    "reason": "Review and approve link suggestions to improve your internal linking.",
-                    "route": "/review",
-                    "severity": "info",
-                    "isBlocking": False,
-                }
-            )
-
-        # 4. Pipeline stale (no run in 14 days)
-        last_run = (
-            PipelineRun.objects.filter(run_state="completed")
-            .order_by("-updated_at")
-            .first()
-        )
-        if last_run and last_run.updated_at:
-            days_since = (now - last_run.updated_at).days
-            if days_since > 14:
-                actions.append(
-                    {
-                        "title": "Pipeline hasn't run in a while",
-                        "reason": f"Last pipeline run was {days_since} days ago. Run it to generate fresh suggestions.",
-                        "route": "/jobs",
-                        "severity": "info",
-                        "isBlocking": False,
-                    }
-                )
-
-        # 5. Zero suggestions on last run
-        if last_run and last_run.suggestions_created == 0:
-            actions.append(
-                {
-                    "title": "Last pipeline produced no suggestions",
-                    "reason": "Check your settings — the pipeline may need tuning.",
-                    "route": "/settings",
-                    "deepLinkTarget": "ranking-weights",
-                    "severity": "warning",
-                    "isBlocking": False,
-                }
-            )
-
+        actions: list[dict] = []
+        actions.extend(_today_actions_urgent_alerts())
+        actions.extend(_today_actions_sync_freshness(now))
+        actions.extend(_today_actions_pending_suggestions())
+        actions.extend(_today_actions_pipeline_freshness(now))
         return Response(actions[:5])
 
 
@@ -3322,6 +3414,98 @@ class WhatChangedView(APIView):
         )
 
 
+# ── ResumeStateView helpers (extracted from .get) ────────────────
+
+
+def _resume_view_interrupted_runs() -> list[dict]:
+    """Top-3 pipeline runs still in 'running' state (likely interrupted)."""
+    from apps.suggestions.models import PipelineRun
+
+    runs = list(
+        PipelineRun.objects.filter(run_state="running")
+        .values("run_id", "run_state", "created_at", "updated_at")
+        .order_by("-created_at")[:3]
+    )
+    for run in runs:
+        run["run_id"] = str(run["run_id"])
+        if run["created_at"]:
+            run["created_at"] = run["created_at"].isoformat()
+        if run["updated_at"]:
+            run["updated_at"] = run["updated_at"].isoformat()
+    return runs
+
+
+def _resume_view_resumable_syncs() -> list[dict]:
+    """Top-3 sync jobs flagged resumable + not yet completed."""
+    from apps.sync.models import SyncJob
+
+    jobs = list(
+        SyncJob.objects.filter(is_resumable=True)
+        .exclude(status="completed")
+        .values(
+            "job_id",
+            "status",
+            "source",
+            "mode",
+            "checkpoint_stage",
+            "checkpoint_items_processed",
+        )
+        .order_by("-created_at")[:3]
+    )
+    for job in jobs:
+        job["job_id"] = str(job["job_id"])
+    return jobs
+
+
+def _resume_view_missed_tasks() -> list[dict]:
+    """Catch-up registry: tasks past their threshold or never-ran.
+
+    Defensive: catch-up registry / django_celery_beat may not be loaded
+    on minimal installs; returns empty list silently in that case.
+    """
+    try:
+        from django.utils import timezone
+        from django_celery_beat.models import PeriodicTask
+
+        from config.catchup_registry import CATCHUP_REGISTRY
+    except Exception:  # noqa: BLE001 — optional dependency on minimal installs.
+        logger.debug("Catch-up registry unavailable, skipping missed tasks check")
+        return []
+
+    now = timezone.now()
+    missed: list[dict] = []
+    for task_name, entry in CATCHUP_REGISTRY.items():
+        periodic = PeriodicTask.objects.filter(name=task_name).first()
+        if periodic is None:
+            continue
+        if periodic.last_run_at is None:
+            missed.append(
+                {
+                    "task_name": task_name,
+                    "weight_class": entry.weight_class,
+                    "hours_overdue": None,
+                    "reason": "Never ran",
+                }
+            )
+            continue
+        hours_since = (now - periodic.last_run_at).total_seconds() / 3600
+        if hours_since > entry.threshold_hours:
+            missed.append(
+                {
+                    "task_name": task_name,
+                    "weight_class": entry.weight_class,
+                    "hours_overdue": round(
+                        hours_since - entry.threshold_hours, 1
+                    ),
+                    "reason": (
+                        f"Last ran {int(hours_since)}h ago "
+                        f"(threshold: {int(entry.threshold_hours)}h)"
+                    ),
+                }
+            )
+    return missed
+
+
 class ResumeStateView(APIView):
     """GET /api/dashboard/resume-state/
 
@@ -3332,83 +3516,124 @@ class ResumeStateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from apps.suggestions.models import PipelineRun
-        from apps.sync.models import SyncJob
-        from django.utils import timezone
+        """Return interrupted runs + resumable syncs + missed-task breadcrumbs.
 
-        # Interrupted pipeline runs
-        interrupted_runs = list(
-            PipelineRun.objects.filter(run_state="running")
-            .values("run_id", "run_state", "created_at", "updated_at")
-            .order_by("-created_at")[:3]
-        )
-        for run in interrupted_runs:
-            run["run_id"] = str(run["run_id"])
-            if run["created_at"]:
-                run["created_at"] = run["created_at"].isoformat()
-            if run["updated_at"]:
-                run["updated_at"] = run["updated_at"].isoformat()
-
-        # Resumable sync jobs
-        resumable_syncs = list(
-            SyncJob.objects.filter(is_resumable=True)
-            .exclude(status="completed")
-            .values(
-                "job_id",
-                "status",
-                "source",
-                "mode",
-                "checkpoint_stage",
-                "checkpoint_items_processed",
-            )
-            .order_by("-created_at")[:3]
-        )
-        for job in resumable_syncs:
-            job["job_id"] = str(job["job_id"])
-
-        # Missed tasks from catch-up registry
-        missed_tasks: list[dict] = []
-        try:
-            from config.catchup_registry import CATCHUP_REGISTRY
-            from django_celery_beat.models import PeriodicTask
-
-            now = timezone.now()
-            for task_name, entry in CATCHUP_REGISTRY.items():
-                periodic = PeriodicTask.objects.filter(name=task_name).first()
-                if periodic is None:
-                    continue
-                if periodic.last_run_at is None:
-                    missed_tasks.append(
-                        {
-                            "task_name": task_name,
-                            "weight_class": entry.weight_class,
-                            "hours_overdue": None,
-                            "reason": "Never ran",
-                        }
-                    )
-                else:
-                    hours_since = (now - periodic.last_run_at).total_seconds() / 3600
-                    if hours_since > entry.threshold_hours:
-                        missed_tasks.append(
-                            {
-                                "task_name": task_name,
-                                "weight_class": entry.weight_class,
-                                "hours_overdue": round(
-                                    hours_since - entry.threshold_hours, 1
-                                ),
-                                "reason": f"Last ran {int(hours_since)}h ago (threshold: {int(entry.threshold_hours)}h)",
-                            }
-                        )
-        except Exception:
-            logger.debug("Catch-up registry unavailable, skipping missed tasks check")
-
+        Refactored 2026-05-04: was 78 lines. Each section is now its own
+        helper so a future operator-UX tweak (e.g. raise the limit
+        from 3 → 10) is one edit per section.
+        """
         return Response(
             {
-                "interrupted_runs": interrupted_runs,
-                "resumable_syncs": resumable_syncs,
-                "missed_tasks": missed_tasks,
+                "interrupted_runs": _resume_view_interrupted_runs(),
+                "resumable_syncs": _resume_view_resumable_syncs(),
+                "missed_tasks": _resume_view_missed_tasks(),
             }
         )
+
+
+# ── Status-story helpers (extracted from StatusStoryView.get) ───
+# Each query is a thin defensive helper that returns 0 / "unknown" if
+# the upstream model isn't loadable (cold start, optional-app missing).
+# Each fragment-builder is pure so the narrative copy is testable
+# without spinning up a request lifecycle.
+
+
+def _status_story_alert_count(since: object) -> int:
+    """Count today's unread urgent / error / warning alerts."""
+    from apps.notifications.models import OperatorAlert
+
+    return OperatorAlert.objects.filter(
+        first_seen_at__gte=since,
+        status="unread",
+        severity__in=["urgent", "error", "warning"],
+    ).count()
+
+
+def _status_story_pending_count() -> int:
+    from apps.suggestions.models import Suggestion
+
+    return Suggestion.objects.filter(status="pending").count()
+
+
+def _status_story_health_status() -> str:
+    """Best-effort: 'unknown' when the health app can't compute a summary."""
+    try:
+        from apps.health.services import compute_system_summary
+
+        return compute_system_summary().get("system_status", "unknown")
+    except Exception:  # noqa: BLE001 — health app is optional; narrative gracefully omits the fragment when unknown.
+        logger.debug("health summary unavailable for status story")
+        return "unknown"
+
+
+def _status_story_broken_links_count() -> int:
+    """Best-effort: 0 when the graph app isn't migrated."""
+    try:
+        from apps.graph.models import BrokenLink
+
+        return BrokenLink.objects.filter(status="open").count()
+    except Exception:  # noqa: BLE001 — graph app is optional on cold start.
+        logger.debug("BrokenLink not available for status story")
+        return 0
+
+
+def _status_story_alerts_fragment(alerts_today: int) -> str:
+    if alerts_today == 0:
+        return "no new alerts"
+    if alerts_today == 1:
+        return "1 alert fired today"
+    return f"{alerts_today} alerts fired today"
+
+
+def _status_story_health_fragment(health_status: str) -> str | None:
+    """Returns ``None`` when health is 'unknown' — narrative omits it."""
+    if health_status == "healthy":
+        return "all systems healthy"
+    if health_status == "degraded":
+        return "some services degraded"
+    if health_status in ("critical", "error"):
+        return "a critical service is down"
+    return None  # 'unknown' stays silent rather than mislead
+
+
+def _status_story_pending_fragment(pending_reviews: int) -> str:
+    if pending_reviews == 0:
+        return "no suggestions waiting"
+    if pending_reviews == 1:
+        return "1 suggestion waiting for review"
+    return f"{pending_reviews} suggestions waiting for review"
+
+
+def _status_story_broken_fragment(broken_links_open: int) -> str | None:
+    """Only mentioned when broken-link count > 0 — silence is healthy."""
+    if broken_links_open <= 0:
+        return None
+    return _pluralise(broken_links_open, "broken link")
+
+
+def _status_story_fragments(
+    *,
+    alerts_today: int,
+    health_status: str,
+    pending_reviews: int,
+    broken_links_open: int,
+) -> list[str]:
+    """Compose the per-bullet narrative; drop None fragments."""
+    candidates = [
+        _status_story_alerts_fragment(alerts_today),
+        _status_story_health_fragment(health_status),
+        _status_story_pending_fragment(pending_reviews),
+        _status_story_broken_fragment(broken_links_open),
+    ]
+    return [f for f in candidates if f]
+
+
+def _status_story_time_prefix(hour: int) -> str:
+    if hour < 12:
+        return "This morning"
+    if hour < 17:
+        return "This afternoon"
+    return "This evening"
 
 
 class StatusStoryView(APIView):
@@ -3431,92 +3656,32 @@ class StatusStoryView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from django.utils import timezone
+        """Return a 1-line operator narrative + supporting counts.
 
-        from apps.notifications.models import OperatorAlert
-        from apps.suggestions.models import Suggestion
+        Refactored 2026-05-04: was 95 lines. Each data-source query +
+        each fragment-builder is now its own pure function so adding a
+        new narrative bullet (or unit-testing the existing ones) is a
+        single edit.
+        """
+        from django.utils import timezone
 
         now = timezone.now()
         since_morning = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
-        # Count today's unacknowledged alerts (excluding 'info' noise).
-        alerts_today = OperatorAlert.objects.filter(
-            first_seen_at__gte=since_morning,
-            status="unread",
-            severity__in=["urgent", "error", "warning"],
-        ).count()
+        alerts_today = _status_story_alert_count(since_morning)
+        pending_reviews = _status_story_pending_count()
+        health_status = _status_story_health_status()
+        broken_links_open = _status_story_broken_links_count()
 
-        # Pending suggestions waiting for review.
-        pending_reviews = Suggestion.objects.filter(status="pending").count()
-
-        # System health — best-effort. If the health app isn't happy,
-        # treat as 'unknown' rather than crash the narrative.
-        try:
-            from apps.health.services import compute_system_summary
-
-            summary = compute_system_summary()
-            health_status = summary.get("system_status", "unknown")
-        except Exception:
-            logger.debug("health summary unavailable for status story")
-            health_status = "unknown"
-
-        # Broken links open count — reuses the existing dashboard view's
-        # model if available.
-        broken_links_open = 0
-        try:
-            from apps.graph.models import BrokenLink
-
-            broken_links_open = BrokenLink.objects.filter(status="open").count()
-        except Exception:
-            logger.debug("BrokenLink not available for status story")
-
-        # Compose. The phrasing is deliberately short: three to six
-        # items max. Noobs need to read this in under two seconds.
-        fragments: list[str] = []
-
-        if alerts_today == 0:
-            fragments.append("no new alerts")
-        elif alerts_today == 1:
-            fragments.append("1 alert fired today")
-        else:
-            fragments.append(f"{alerts_today} alerts fired today")
-
-        if health_status == "healthy":
-            fragments.append("all systems healthy")
-        elif health_status == "degraded":
-            fragments.append("some services degraded")
-        elif health_status in ("critical", "error"):
-            fragments.append("a critical service is down")
-        # 'unknown' — stay silent rather than mislead.
-
-        if pending_reviews == 0:
-            fragments.append("no suggestions waiting")
-        elif pending_reviews == 1:
-            fragments.append("1 suggestion waiting for review")
-        else:
-            fragments.append(f"{pending_reviews} suggestions waiting for review")
-
-        if broken_links_open > 0:
-            fragments.append(
-                f"{broken_links_open} broken link"
-                + ("s" if broken_links_open != 1 else "")
-            )
-
-        # Title cases the first fragment, joins with commas + "and".
-        headline = self._join_fragments(fragments)
-
-        # Choose a time-of-day greeting so the narrative feels alive.
-        hour = now.hour
-        if hour < 12:
-            prefix = "This morning"
-        elif hour < 17:
-            prefix = "This afternoon"
-        else:
-            prefix = "This evening"
-
+        fragments = _status_story_fragments(
+            alerts_today=alerts_today,
+            health_status=health_status,
+            pending_reviews=pending_reviews,
+            broken_links_open=broken_links_open,
+        )
         return Response(
             {
-                "headline": f"{prefix}: {headline}.",
+                "headline": f"{_status_story_time_prefix(now.hour)}: {self._join_fragments(fragments)}.",
                 "fragments": fragments,
                 "alerts_today": alerts_today,
                 "pending_reviews": pending_reviews,

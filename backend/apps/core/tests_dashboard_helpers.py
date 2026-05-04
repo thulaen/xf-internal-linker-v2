@@ -24,6 +24,9 @@ from apps.core.views import (
     _apply_heartbeat_load_metrics,
     _apply_heartbeat_network_health,
     _build_value_model_rows,
+    _coerce_bool_strict,
+    _coerce_float_strict,
+    _coerce_int_strict,
     _dashboard_content_count,
     _dashboard_open_broken_links,
     _dashboard_overall_health_status,
@@ -33,6 +36,19 @@ from apps.core.views import (
     _dashboard_suggestion_counts,
     _dashboard_system_health,
     _pluralise,
+    _resume_view_interrupted_runs,
+    _resume_view_missed_tasks,
+    _resume_view_resumable_syncs,
+    _status_story_alerts_fragment,
+    _status_story_broken_fragment,
+    _status_story_fragments,
+    _status_story_health_fragment,
+    _status_story_pending_fragment,
+    _status_story_time_prefix,
+    _today_actions_pending_suggestions,
+    _today_actions_pipeline_freshness,
+    _today_actions_sync_freshness,
+    _today_actions_urgent_alerts,
     _today_view_sentence_today,
     _today_view_sentence_watch,
     _today_view_sentence_yesterday,
@@ -574,3 +590,211 @@ class ApplyHeartbeatNetworkHealthTests(SimpleTestCase):
         node = _FakeHelperNode()
         _apply_heartbeat_network_health(node, {"native_kernels_healthy": 1})
         self.assertTrue(node.native_kernels_healthy)
+
+
+# ── Strict-raising coercers (extracted from _validate_ga4_gsc_settings) ──
+
+
+class CoerceFloatStrictTests(SimpleTestCase):
+    def test_valid_float_returned(self) -> None:
+        self.assertEqual(_coerce_float_strict("0.5", key="x"), 0.5)
+        self.assertEqual(_coerce_float_strict(1, key="x"), 1.0)
+
+    def test_garbage_raises_with_field_name(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            _coerce_float_strict("foo", key="ranking_weight")
+        self.assertIn("ranking_weight", str(ctx.exception))
+        self.assertIn("numeric", str(ctx.exception))
+
+    def test_infinity_raises(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            _coerce_float_strict(float("inf"), key="x")
+        self.assertIn("finite", str(ctx.exception))
+
+    def test_nan_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            _coerce_float_strict(float("nan"), key="x")
+
+
+class CoerceIntStrictTests(SimpleTestCase):
+    def test_in_range_returned(self) -> None:
+        self.assertEqual(
+            _coerce_int_strict("5", key="x", minimum=1, maximum=10), 5
+        )
+
+    def test_below_min_raises(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            _coerce_int_strict(0, key="lookback", minimum=1, maximum=10)
+        self.assertIn("between 1 and 10", str(ctx.exception))
+
+    def test_above_max_raises(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            _coerce_int_strict(99, key="lookback", minimum=1, maximum=10)
+        self.assertIn("between 1 and 10", str(ctx.exception))
+
+    def test_garbage_raises(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            _coerce_int_strict("not-a-number", key="lookback", minimum=1, maximum=10)
+        self.assertIn("whole number", str(ctx.exception))
+
+
+class CoerceBoolStrictTests(SimpleTestCase):
+    def test_native_bool_returned(self) -> None:
+        self.assertTrue(_coerce_bool_strict(True, key="x"))
+        self.assertFalse(_coerce_bool_strict(False, key="x"))
+
+    def test_truthy_string(self) -> None:
+        for v in ("true", "1", "yes", "on", "TRUE"):
+            with self.subTest(v=v):
+                self.assertTrue(_coerce_bool_strict(v, key="x"))
+
+    def test_falsy_string(self) -> None:
+        for v in ("false", "0", "no", "off", "NO"):
+            with self.subTest(v=v):
+                self.assertFalse(_coerce_bool_strict(v, key="x"))
+
+    def test_unknown_string_raises(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            _coerce_bool_strict("maybe", key="sync_enabled")
+        self.assertIn("sync_enabled", str(ctx.exception))
+        self.assertIn("true or false", str(ctx.exception))
+
+    def test_non_string_non_bool_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            _coerce_bool_strict([True], key="x")
+
+
+# ── Status-story fragments (extracted from StatusStoryView.get) ──
+
+
+class StatusStoryFragmentTests(SimpleTestCase):
+    def test_alerts_fragment_zero(self) -> None:
+        self.assertEqual(_status_story_alerts_fragment(0), "no new alerts")
+
+    def test_alerts_fragment_one(self) -> None:
+        self.assertEqual(_status_story_alerts_fragment(1), "1 alert fired today")
+
+    def test_alerts_fragment_many(self) -> None:
+        self.assertEqual(_status_story_alerts_fragment(7), "7 alerts fired today")
+
+    def test_health_fragment_healthy(self) -> None:
+        self.assertEqual(
+            _status_story_health_fragment("healthy"), "all systems healthy"
+        )
+
+    def test_health_fragment_unknown_returns_none(self) -> None:
+        # Unknown health is silent — we don't mislead the operator
+        self.assertIsNone(_status_story_health_fragment("unknown"))
+
+    def test_health_fragment_critical_or_error(self) -> None:
+        for v in ("critical", "error"):
+            with self.subTest(v=v):
+                self.assertEqual(
+                    _status_story_health_fragment(v), "a critical service is down"
+                )
+
+    def test_pending_fragment_pluralisation(self) -> None:
+        self.assertEqual(_status_story_pending_fragment(0), "no suggestions waiting")
+        self.assertEqual(
+            _status_story_pending_fragment(1), "1 suggestion waiting for review"
+        )
+        self.assertEqual(
+            _status_story_pending_fragment(5), "5 suggestions waiting for review"
+        )
+
+    def test_broken_fragment_zero_returns_none(self) -> None:
+        self.assertIsNone(_status_story_broken_fragment(0))
+
+    def test_broken_fragment_singular(self) -> None:
+        self.assertEqual(_status_story_broken_fragment(1), "1 broken link")
+
+    def test_broken_fragment_plural(self) -> None:
+        self.assertEqual(_status_story_broken_fragment(3), "3 broken links")
+
+    def test_fragments_drops_none_values(self) -> None:
+        # Both health=unknown AND broken=0 drop out of the list
+        result = _status_story_fragments(
+            alerts_today=0,
+            health_status="unknown",
+            pending_reviews=0,
+            broken_links_open=0,
+        )
+        self.assertEqual(len(result), 2)  # only alerts + pending
+        self.assertNotIn(None, result)
+
+    def test_time_prefix_morning(self) -> None:
+        for h in (0, 6, 11):
+            with self.subTest(hour=h):
+                self.assertEqual(_status_story_time_prefix(h), "This morning")
+
+    def test_time_prefix_afternoon(self) -> None:
+        for h in (12, 14, 16):
+            with self.subTest(hour=h):
+                self.assertEqual(_status_story_time_prefix(h), "This afternoon")
+
+    def test_time_prefix_evening(self) -> None:
+        for h in (17, 20, 23):
+            with self.subTest(hour=h):
+                self.assertEqual(_status_story_time_prefix(h), "This evening")
+
+
+# ── Today-actions priority rules (extracted from TodayActionsView.get) ──
+
+
+class TodayActionsPriorityRuleTests(TestCase):
+    def setUp(self) -> None:
+        # Defensive cleanup: each rule queries a different model.
+        from apps.notifications.models import OperatorAlert
+        from apps.suggestions.models import PipelineRun, Suggestion
+        from apps.sync.models import SyncJob
+
+        OperatorAlert.objects.all().delete()
+        PipelineRun.objects.all().delete()
+        Suggestion.objects.all().delete()
+        SyncJob.objects.all().delete()
+
+    def test_urgent_alerts_returns_empty_when_none(self) -> None:
+        self.assertEqual(_today_actions_urgent_alerts(), [])
+
+    def test_pending_suggestions_below_threshold(self) -> None:
+        # Empty queue → no action
+        self.assertEqual(_today_actions_pending_suggestions(), [])
+
+    def test_no_sync_yet_returns_first_sync_action(self) -> None:
+        from django.utils import timezone
+
+        actions = _today_actions_sync_freshness(timezone.now())
+        self.assertEqual(len(actions), 1)
+        self.assertIn("first content sync", actions[0]["reason"])
+
+    def test_no_pipeline_run_returns_empty(self) -> None:
+        from django.utils import timezone
+
+        # No PipelineRun → no action (this rule doesn't generate an
+        # "onboarding" action like the sync one does)
+        self.assertEqual(_today_actions_pipeline_freshness(timezone.now()), [])
+
+
+# ── Resume-view helpers (extracted from ResumeStateView.get) ─────
+
+
+class ResumeViewHelperTests(TestCase):
+    def setUp(self) -> None:
+        from apps.suggestions.models import PipelineRun
+        from apps.sync.models import SyncJob
+
+        PipelineRun.objects.all().delete()
+        SyncJob.objects.all().delete()
+
+    def test_interrupted_runs_returns_empty(self) -> None:
+        self.assertEqual(_resume_view_interrupted_runs(), [])
+
+    def test_resumable_syncs_returns_empty(self) -> None:
+        self.assertEqual(_resume_view_resumable_syncs(), [])
+
+    def test_missed_tasks_handles_missing_registry_gracefully(self) -> None:
+        # Either succeeds with [] (registry empty) or returns the actual
+        # missed-task list — both are acceptable. The defensive helper
+        # must not raise either way.
+        result = _resume_view_missed_tasks()
+        self.assertIsInstance(result, list)

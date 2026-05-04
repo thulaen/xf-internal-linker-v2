@@ -1,3 +1,64 @@
+# 2026-05-04 - Claude Opus 4.7 (1M context) - 4 more long-function refactors (98/95/80/78) + 34 new tests + 3 strict-coercer helpers extracted
+
+What I'm doing: Continuing the long-function clear-out per "fix all + don't defer". Refactored 4 more (98 + 95 + 80 + 78 lines = 351 lines compressed) into per-domain helpers. Extracted 3 strict-raising coercer helpers (`_coerce_float_strict`, `_coerce_int_strict`, `_coerce_bool_strict`) so other validators can stop redefining the inner-closure pattern. Wrote 34 new unit tests pinning every helper. Zero regressions across the now-232-test suite.
+
+What was accomplished:
+
+**4 LONG FUNCTIONS REFACTORED — all under 60 lines now:**
+
+1. **TodayActionsView.get** (98 → 18 lines): split into 4 priority-rule helpers each returning ``list[dict]``. Module-level constants extracted (``_PENDING_REVIEW_THRESHOLD``, ``_STALE_SYNC_HOURS``, ``_STALE_PIPELINE_DAYS``) so operator-tunable thresholds are one-line edits.
+   - `_today_actions_urgent_alerts` — top-3 unread urgent/error alerts
+   - `_today_actions_sync_freshness` — stale-sync OR no-sync-yet warning
+   - `_today_actions_pending_suggestions` — backlog warning when pending > 20
+   - `_today_actions_pipeline_freshness` — stale-pipeline + zero-suggestions-on-last-run
+
+2. **StatusStoryView.get** (95 → 25 lines): split into 4 data-source helpers + 4 fragment builders + 1 time-prefix helper. Each fragment is a pure function returning ``str | None``; the master helper drops None values for KISS-compliant narrative composition.
+   - Reuses `_pluralise` from the prior round (DRY)
+   - Each defensive helper (`_status_story_health_status`, `_status_story_broken_links_count`) returns "unknown" / 0 on optional-app failure rather than crashing the narrative.
+
+3. **_validate_ga4_gsc_settings** (80 → 30 lines): inner closures replaced with 3 module-level strict-raising helpers extracted to top-level so OTHER validators can use them too. Cross-field consistency checks extracted into `_validate_ga4_gsc_consistency`.
+   - `_coerce_float_strict(value, *, key)` — raises ValueError on non-numeric or non-finite
+   - `_coerce_int_strict(value, *, key, minimum, maximum)` — raises on bad input or out-of-range
+   - `_coerce_bool_strict(value, *, key)` — raises on unknown strings (uses canonical TRUTHY/FALSY frozensets)
+
+4. **ResumeStateView.get** (78 → 12 lines): split into 3 section helpers (`_resume_view_interrupted_runs`, `_resume_view_resumable_syncs`, `_resume_view_missed_tasks`). The catch-up registry path is wrapped in a defensive try with explicit "optional dependency" justification.
+
+**34 NEW UNIT TESTS — all pass:**
+- 4 `_coerce_float_strict` (valid float, garbage raises with field name, infinity raises, NaN raises)
+- 4 `_coerce_int_strict` (in-range, below-min, above-max, garbage)
+- 5 `_coerce_bool_strict` (native bool, truthy/falsy strings, unknown raises with field name, non-string-non-bool raises)
+- 14 status-story fragment tests (every alert/health/pending/broken count → expected sentence; time-prefix morning/afternoon/evening; fragment composer drops None values)
+- 4 today-actions priority-rule tests (defensive cleanup in setUp, empty queue, no sync yet, no pipeline run)
+- 3 resume-view helper tests (graceful empty + missed-tasks defensive return)
+
+Test suite: was **198 → 232** = +34 new tests across the 5 new helper families.
+
+What has issues or errors:
+- **26 long-function warnings remain in core/views.py** (down from 36 → 30 → 26 across this session). Worst remaining: 76, 75, 68, 67, 67, 66, 64, 63, 62, 61. Each is a per-handler refactor needing test coverage. At the current 4-per-session pace this clears in ~6-7 more sessions.
+- **Frontend pieces still pending** for the recent backend features (compression-audit table, cpp-fallback banner, performance-cert badge, action chips, Why-So-Long modal, Budget Forecast pre-flight chip).
+- **4.6 USB drives** is still the only remaining Phase 4 backend.
+
+Tech-debt delta:
++ 4 long-function refactors (98 + 95 + 80 + 78 → all under 60 lines)
++ 34 new unit tests (covers every helper family)
++ 3 strict-raising coercer helpers extracted to module level (DRY win across multiple validators)
++ Module-level threshold constants extracted (`_PENDING_REVIEW_THRESHOLD`, etc.)
++ Reused `_pluralise` from prior round (DRY)
++ Storage discipline preserved: 0 new tables
++ Behaviour preserved exactly: 232 / 232 tests pass
++ Strict-mode lint: 30 → 26 long-function warnings; silent-excepts stay at 0
+Total: 13 measurable items shipped (mandate min: 5)
++678 / -289 across 2 files
+
+Verified:
+- python AST-parse: clean
+- python .githooks/check-forbidden-patterns.py (diff-aware): 0 NEW blocking violations
+- python .githooks/check-forbidden-patterns.py --strict: 0 silent-except, 26 long-function (was 36 at session start, 30 last commit)
+- manage.py test apps.api.tests apps.core.tests_cpp_fallback_warning apps.core.tests_compression_audit apps.core.tests_performance_certification apps.core.tests_dashboard_helpers apps.benchmarks: **232 / 232 PASS in 12.9 s**
+
+Next agent: continue the long-function clear-out batch (next 4: 76/75/68/67); ship the frontend pieces; 4.6 USB drives. Plan: C:\\Users\\goldm\\.claude\\plans\\check-if-everything-in-vectorized-cook.md
+
+[HANDOFF READ: 2026-05-04 by Claude Opus 4.7 — 4 long-function refactors commit 9f06795]
 # 2026-05-04 - Claude Opus 4.7 (1M context) - 4 more long-function refactors (138/121/114/108) + 32 new tests
 
 What I'm doing: Continuing the long-function clear-out per "fix all + don't defer". Refactored the next 4 longest functions in core/views.py (138 + 121 + 114 + 108 lines) into per-domain helpers. Added 32 new unit tests pinning every helper's behaviour. 198 / 198 tests pass — zero regressions.
