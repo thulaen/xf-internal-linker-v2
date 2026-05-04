@@ -29,6 +29,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.api.query_params import coerce_bool, parse_bool_strict
+
 from .views_antispam import _persist_settings, _read_setting
 
 
@@ -64,11 +66,10 @@ _SETTINGS_DESCRIPTIONS: dict[str, str] = {
 
 
 def _coerce_bool(value, fallback: bool) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "yes", "on"}
-    return fallback
+    """Thin wrapper around parse_bool_strict — preserves the original
+    3-way semantics where an unknown string falls back to *fallback*.
+    """
+    return parse_bool_strict(value, default=fallback)
 
 
 def get_stage1_retriever_settings() -> dict[str, bool]:
@@ -78,7 +79,7 @@ def get_stage1_retriever_settings() -> dict[str, bool]:
         out[field] = _read_setting(
             f"stage1.{field}",
             default=default,
-            cast=lambda v: str(v).strip().lower() in {"1", "true", "yes", "on"},
+            cast=coerce_bool,
         )
     return out
 

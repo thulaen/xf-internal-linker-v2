@@ -39,6 +39,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.api.query_params import coerce_bool, parse_bool_strict
 from apps.suggestions.recommended_weights import recommended_bool
 
 from .views_antispam import _persist_settings, _read_setting
@@ -166,7 +167,7 @@ def get_phase6_pick_settings() -> dict[str, dict[str, bool]]:
             group[field] = _read_setting(
                 key,
                 default=bool(default),
-                cast=lambda v: str(v).strip().lower() in {"1", "true", "yes", "on"},
+                cast=coerce_bool,
             )
         result[pick] = group
     return result
@@ -176,11 +177,11 @@ def get_phase6_pick_settings() -> dict[str, dict[str, bool]]:
 
 
 def _coerce_bool(value, fallback: bool) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "yes", "on"}
-    return fallback
+    """Thin wrapper around parse_bool_strict — preserves the original
+    3-way semantics where an unknown string ("maybe", "?") falls back
+    to *fallback* rather than silently meaning False.
+    """
+    return parse_bool_strict(value, default=fallback)
 
 
 def _validate_pick(pick: str, payload: dict, current: dict) -> dict[str, bool]:

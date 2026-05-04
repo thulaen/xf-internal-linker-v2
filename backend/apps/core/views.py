@@ -26,7 +26,7 @@ from rest_framework.views import APIView
 
 logger = logging.getLogger(__name__)
 
-from apps.api.query_params import coerce_int
+from apps.api.query_params import coerce_bool, coerce_int
 from apps.api.throttles import (
     GraphRebuildThrottle as _GraphRebuildThrottle,
     WeightRecalcThrottle as _WeightRecalcThrottle,
@@ -356,9 +356,9 @@ def get_wordpress_settings() -> dict[str, object]:
         except (TypeError, ValueError):
             return default
 
-    sync_enabled = (
-        _get_app_setting_value("wordpress.sync_enabled") or ""
-    ).strip().lower() in {"1", "true", "yes", "on"}
+    sync_enabled = coerce_bool(
+        _get_app_setting_value("wordpress.sync_enabled"), default=False
+    )
 
     from apps.health.services import get_service_health_status
 
@@ -568,9 +568,7 @@ def _read_clustering_settings() -> dict[str, float | bool]:
         raw = _get_app_setting_value(key)
         if raw is None:
             return default
-        if isinstance(raw, str):
-            return raw.strip().lower() in {"1", "true", "yes", "on"}
-        return bool(raw)
+        return coerce_bool(raw, default=default)
 
     return {
         "enabled": _read_bool(
@@ -706,7 +704,7 @@ def _read_phrase_matching_settings() -> dict[str, float | int | bool]:
         raw = _get_app_setting_value(key)
         if raw is None:
             return default
-        return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+        return coerce_bool(raw, default=default)
 
     return {
         "ranking_weight": _read_float(
@@ -823,7 +821,7 @@ def _read_slate_diversity_settings() -> dict:
         raw = _get_app_setting_value(key)
         if raw is None:
             return default
-        return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+        return coerce_bool(raw, default=default)
 
     return {
         "enabled": _read_bool(
@@ -865,9 +863,7 @@ def _validate_slate_diversity_settings(payload: dict, current: dict) -> dict:
 
     def _get_bool(key: str) -> bool:
         val = payload.get(key, current.get(key))
-        if isinstance(val, bool):
-            return val
-        return str(val).strip().lower() in {"1", "true", "yes", "on"}
+        return coerce_bool(val, default=False)
 
     return {
         "enabled": _get_bool("enabled"),
@@ -930,7 +926,7 @@ def _read_learned_anchor_settings() -> dict[str, float | int | bool]:
         raw = _get_app_setting_value(key)
         if raw is None:
             return default
-        return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+        return coerce_bool(raw, default=default)
 
     return {
         "ranking_weight": _read_float(
@@ -977,7 +973,7 @@ def _read_rare_term_propagation_settings() -> dict[str, float | int | bool]:
         raw = _get_app_setting_value(key)
         if raw is None:
             return default
-        return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+        return coerce_bool(raw, default=default)
 
     return {
         "enabled": _read_bool(
@@ -1076,7 +1072,7 @@ def _read_ga4_gsc_settings() -> dict[str, object]:
         raw = _get_app_setting_value(key)
         if raw is None:
             return default
-        return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+        return coerce_bool(raw, default=default)
 
     def _read_int(key: str, default: int) -> int:
         raw = _get_app_setting_value(key)
@@ -1140,11 +1136,7 @@ def _validate_wordpress_settings(payload: dict) -> dict[str, object]:
         effective_has_password = bool(app_password)
 
     def _coerce_bool(value: object, default: bool) -> bool:
-        if value is None:
-            return default
-        if isinstance(value, bool):
-            return value
-        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+        return coerce_bool(value, default=default)
 
     def _coerce_int(key: str, minimum: int, maximum: int) -> int:
         raw = payload.get(key, current[key])
@@ -1325,9 +1317,7 @@ def _validate_phrase_matching_settings(
 
     def _coerce_bool(key: str) -> bool:
         value = payload.get(key, current[key])
-        if isinstance(value, bool):
-            return value
-        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+        return coerce_bool(value, default=False)
 
     validated = {
         "ranking_weight": _coerce_float("ranking_weight"),
@@ -1373,9 +1363,7 @@ def _validate_learned_anchor_settings(
 
     def _coerce_bool(key: str) -> bool:
         value = payload.get(key, current[key])
-        if isinstance(value, bool):
-            return value
-        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+        return coerce_bool(value, default=False)
 
     validated = {
         "ranking_weight": _coerce_float("ranking_weight"),
@@ -1426,9 +1414,7 @@ def _validate_rare_term_propagation_settings(
 
     def _coerce_bool(key: str) -> bool:
         value = payload.get(key, current[key])
-        if isinstance(value, bool):
-            return value
-        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+        return coerce_bool(value, default=False)
 
     validated = {
         "enabled": _coerce_bool("enabled"),
@@ -5491,7 +5477,7 @@ def _read_graph_candidate_settings() -> dict[str, float | int | bool]:
         raw = _get_app_setting_value(key)
         if raw is None:
             return default
-        return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+        return coerce_bool(raw, default=default)
 
     return {
         "enabled": _read_bool(
@@ -5537,9 +5523,7 @@ def _validate_graph_candidate_settings(payload: dict, current: dict) -> dict:
 
     def _get_bool(key: str) -> bool:
         val = payload.get(key, current.get(key))
-        if isinstance(val, bool):
-            return val
-        return str(val).strip().lower() in {"1", "true", "yes", "on"}
+        return coerce_bool(val, default=False)
 
     return {
         "enabled": _get_bool("enabled"),
@@ -5572,7 +5556,7 @@ def _read_value_model_settings() -> dict[str, float | int | bool]:
         raw = _get_app_setting_value(key)
         if raw is None:
             return default
-        return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+        return coerce_bool(raw, default=default)
 
     return {
         "enabled": _read_bool(
@@ -5680,9 +5664,7 @@ def _validate_value_model_settings(payload: dict, current: dict) -> dict:
 
     def _get_bool(key: str) -> bool:
         val = payload.get(key, current.get(key))
-        if isinstance(val, bool):
-            return val
-        return str(val).strip().lower() in {"1", "true", "yes", "on"}
+        return coerce_bool(val, default=False)
 
     return {
         "enabled": _get_bool("enabled"),

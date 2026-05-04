@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.api.query_params import coerce_bool
 from apps.core.models import AppSetting
 from apps.suggestions.recommended_weights import (
     recommended_bool,
@@ -63,7 +64,7 @@ def get_anchor_diversity_settings() -> dict[str, object]:
         "enabled": _read_setting(
             "anchor_diversity.enabled",
             default=DEFAULT_ANCHOR_DIVERSITY_SETTINGS["enabled"],
-            cast=lambda v: str(v).strip().lower() in {"1", "true", "yes", "on"},
+            cast=coerce_bool,
         ),
         "ranking_weight": _read_setting(
             "anchor_diversity.ranking_weight",
@@ -88,7 +89,7 @@ def get_anchor_diversity_settings() -> dict[str, object]:
         "hard_cap_enabled": _read_setting(
             "anchor_diversity.hard_cap_enabled",
             default=DEFAULT_ANCHOR_DIVERSITY_SETTINGS["hard_cap_enabled"],
-            cast=lambda v: str(v).strip().lower() in {"1", "true", "yes", "on"},
+            cast=coerce_bool,
         ),
     }
 
@@ -98,7 +99,7 @@ def get_keyword_stuffing_settings() -> dict[str, object]:
         "enabled": _read_setting(
             "keyword_stuffing.enabled",
             default=DEFAULT_KEYWORD_STUFFING_SETTINGS["enabled"],
-            cast=lambda v: str(v).strip().lower() in {"1", "true", "yes", "on"},
+            cast=coerce_bool,
         ),
         "ranking_weight": _read_setting(
             "keyword_stuffing.ranking_weight",
@@ -133,7 +134,7 @@ def get_link_farm_settings() -> dict[str, object]:
         "enabled": _read_setting(
             "link_farm.enabled",
             default=DEFAULT_LINK_FARM_SETTINGS["enabled"],
-            cast=lambda v: str(v).strip().lower() in {"1", "true", "yes", "on"},
+            cast=coerce_bool,
         ),
         "ranking_weight": _read_setting(
             "link_farm.ranking_weight",
@@ -190,11 +191,7 @@ def _validate_anchor_diversity_settings(
 ) -> dict[str, object]:
     def _bool(key: str) -> bool:
         raw = payload.get(key, current[key])
-        return (
-            raw
-            if isinstance(raw, bool)
-            else str(raw).strip().lower() in {"1", "true", "yes", "on"}
-        )
+        return coerce_bool(raw, default=bool(current.get(key, False)))
 
     def _int(key: str, lo: int, hi: int) -> int:
         try:
@@ -223,11 +220,7 @@ def _validate_keyword_stuffing_settings(
 ) -> dict[str, object]:
     def _bool(key: str) -> bool:
         raw = payload.get(key, current[key])
-        return (
-            raw
-            if isinstance(raw, bool)
-            else str(raw).strip().lower() in {"1", "true", "yes", "on"}
-        )
+        return coerce_bool(raw, default=bool(current.get(key, False)))
 
     def _int(key: str, lo: int, hi: int) -> int:
         try:
@@ -256,11 +249,7 @@ def _validate_link_farm_settings(
 ) -> dict[str, object]:
     def _bool(key: str) -> bool:
         raw = payload.get(key, current[key])
-        return (
-            raw
-            if isinstance(raw, bool)
-            else str(raw).strip().lower() in {"1", "true", "yes", "on"}
-        )
+        return coerce_bool(raw, default=bool(current.get(key, False)))
 
     def _int(key: str, lo: int, hi: int) -> int:
         try:

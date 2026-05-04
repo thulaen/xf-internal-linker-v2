@@ -154,16 +154,18 @@ class AppSetting(TimestampedModel):
         anything else ⇒ False — matching ``recommended_bool``) plus operator-
         friendly variants ``1`` / ``yes`` / ``on`` / ``0`` / ``no`` / ``off``.
         Unknown values fall back to ``default``.
+
+        Refactor 2026-05-04: parse_bool_strict from apps.api.query_params is
+        the single source of truth for the 3-way truthy/falsy/unknown
+        semantics. Previously this method was the original ancestor of the
+        4-truthy-string parser duplication that proliferated across the app.
         """
+        from apps.api.query_params import parse_bool_strict
+
         raw = cls.get_str(key, "")
         if not raw:
             return default
-        v = raw.strip().lower()
-        if v in ("true", "1", "yes", "on"):
-            return True
-        if v in ("false", "0", "no", "off"):
-            return False
-        return default
+        return parse_bool_strict(raw, default=default)
 
     @classmethod
     def get_json(cls, key: str, default=None):

@@ -139,14 +139,22 @@ def parse_float_strict(
     return parsed, None
 
 
+# Shared truthy/falsy string sets — operators can spell "true" any of
+# these ways. Module-level constants so callers (`coerce_bool` plus
+# `AppSetting.get_bool`'s explicit 3-way parser) all read from one
+# source of truth.
+TRUTHY_STRING_VALUES: frozenset[str] = frozenset({"true", "1", "yes", "on"})
+FALSY_STRING_VALUES: frozenset[str] = frozenset({"false", "0", "no", "off"})
+
+
 def coerce_bool(value: Any, *, default: bool = False) -> bool:
     """Type-aware boolean coercion. Single source of truth across the app.
 
     Plain-English: parses a value into True/False the way an operator
     would expect. ``True``/``False`` pass through; integers/floats
     bool-cast (0 = False, anything else = True); strings parse case-
-    insensitive ``"true"|"1"|"yes"|"on"`` as True (falsy strings → False);
-    ``None`` and unsupported types return *default*.
+    insensitive ``"true"|"1"|"yes"|"on"`` as True (every other string
+    → False); ``None`` and unsupported types return *default*.
 
     Why a single helper: previously this exact 3-branch parser appeared
     inline in 15+ sites (every `_coerce_bool` and the body of every
@@ -154,6 +162,10 @@ def coerce_bool(value: Any, *, default: bool = False) -> bool:
     have a subtle bug — e.g. ``bool("no")`` returns True (any non-empty
     string is truthy), so handlers that did ``bool(request.data["x"])``
     silently flipped to True for any string input.
+
+    Note on string semantics: this helper treats unknown strings (e.g.
+    "maybe") as False. Use ``parse_bool_strict`` if you need to
+    distinguish unknown-string from explicit-false.
 
     Citation: Django's ``BooleanField.to_python`` does the same
     truthy-set test; this helper is a deliberate re-implementation so
@@ -164,7 +176,29 @@ def coerce_bool(value: Any, *, default: bool = False) -> bool:
     if isinstance(value, (int, float)):
         return bool(value)
     if isinstance(value, str):
-        return value.strip().lower() in {"true", "1", "yes", "on"}
+        return value.strip().lower() in TRUTHY_STRING_VALUES
+    return default
+
+
+def parse_bool_strict(value: Any, *, default: bool) -> bool:
+    """3-way bool parser: explicit-true / explicit-false / unknown→default.
+
+    Plain-English: like ``coerce_bool`` but distinguishes "I typed
+    something I don't recognise" from "I explicitly said false". Used
+    by ``AppSetting.get_bool`` so an unknown operator value falls back
+    to the per-call default rather than silently meaning False.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in TRUTHY_STRING_VALUES:
+            return True
+        if v in FALSY_STRING_VALUES:
+            return False
+        return default
     return default
 
 

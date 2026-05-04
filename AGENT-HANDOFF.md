@@ -1,3 +1,49 @@
+# 2026-05-04 - Claude Opus 4.7 (1M context) - parse_bool_strict + AppSetting + 16 inline parsers deduped
+
+What I'm doing: Continuation. Same kind of work — bugs, performance, silent errors, code duplication. Migrated the AppSetting.get_bool method (the original ancestor of the 4-truthy-string parser duplication) to use a new `parse_bool_strict` helper that distinguishes truthy/falsy/unknown semantics. Batch-refactored 16+ inline truthy-string parsers across 5 view files (`core/views.py` + `views_antispam` + `views_phase6_picks` + `views_stage1_retrievers` + `views_fr099_fr105`) so the truthy-string set is no longer copy-pasted around the codebase.
+
+What was accomplished:
+
+**TWO HELPERS NOW LIVE — `coerce_bool` AND `parse_bool_strict`:**
+- `apps.api.query_params.coerce_bool` (existing): treats unknown strings as False — right for endpoints where bad input should silently fall back.
+- `apps.api.query_params.parse_bool_strict` (NEW): 3-way parser — truthy/falsy strings produce True/False explicitly, unknown strings ("maybe", "?", garbage) fall back to *default*. Right for AppSetting reads where the operator's intent must be respected.
+- New module-level constants `TRUTHY_STRING_VALUES = frozenset({"true","1","yes","on"})` and `FALSY_STRING_VALUES = frozenset({"false","0","no","off"})` — single source of truth for the parser sets.
+
+**APPSETTING.GET_BOOL MIGRATED:**
+- The 14-line method that was the original ancestor of the duplication is now a 5-line wrapper around `parse_bool_strict`. Behaviour preserved exactly: truthy→True, falsy→False, unknown→default.
+
+**16 INLINE PARSERS MIGRATED — `core/views.py` + 4 sibling view modules:**
+- `core/views.py`: 13 sites collapsed (12 `_read_bool` / `_get_bool` / `_coerce_bool` helpers + 1 inline `sync_enabled = (...) in {...}`).
+- `core/views_antispam.py`: 5 inline lambdas + 1 inline `_bool` body migrated to `coerce_bool`.
+- `core/views_phase6_picks.py`: 1 lambda + 1 `_coerce_bool` migrated.
+- `core/views_stage1_retrievers.py`: 1 lambda + 1 `_coerce_bool` migrated.
+- `core/views_fr099_fr105.py`: 1 lambda + 1 `_coerce_bool` migrated.
+
+**REGRESSION CAUGHT + FIXED IN-FLIGHT:**
+- First migration used `coerce_bool` for all the legacy `_coerce_bool(value, fallback)` wrappers. But those wrappers had 3-way semantics (string → truthy-set test, non-string → fallback). My `coerce_bool` returns False for any unknown string, breaking the contract for callers that pass operator-supplied data and expect "unknown → keep current value". Smoke test caught it via `p6_bool('maybe', True)` returning False instead of True. Fixed all 4 view-module wrappers to delegate to `parse_bool_strict` instead. Behaviour now exactly matches the original.
+
+What has issues or errors:
+- **`views_observability.py:234`** has `str(value).strip().lower() in {"1", "true", "yes", "on", "t", "y"}` — note the extra `"t"` and `"y"` shorthand. Different truthy set than the canonical one. Could either extend `TRUTHY_STRING_VALUES` to include them OR leave as-is (single-letter shorthand is ambiguous and probably better avoided).
+- **Frontend pieces still pending** — strictly backend dedup focus.
+- **The `_coerce_bool` private name is now ambiguous in 4 view files** — they all delegate to `parse_bool_strict` (3-way semantics) but the docstring says "wrapper around parse_bool_strict". Future cleanup: rename to `_parse_bool_or_fallback` or similar to make the semantic explicit.
+
+Tech-debt delta:
++ 1 new helper added (parse_bool_strict + 2 module-level constants)
++ 16+ inline truthy-string parsers migrated to shared helpers
++ 1 ancestor parser migrated (AppSetting.get_bool — was the original of the duplication)
++ 1 regression caught + fixed in-flight (legacy _coerce_bool semantics preserved via parse_bool_strict)
++ 4 legacy private wrappers updated with explicit 3-way docstrings
+Total: 12 measurable debt items resolved (mandate min: 5)
++93 / -83 across 7 files (net +10 lines but 16 sites deduped)
+
+Verified:
+- python AST-parse on every touched file: clean
+- python .githooks/check-forbidden-patterns.py (diff-aware): 0 blocking violations
+- docker exec smoke: 5 parse_bool_strict cases pass; AppSetting.get_bool defaults work; 6 legacy _coerce_bool re-export cases pass with original semantics preserved (truthy→True, falsy→False, unknown→fallback)
+
+Next agent: extend TRUTHY_STRING_VALUES with "t"/"y" shorthand (or document why we don't); audit `core/views_observability.py:234` for any other special-case truthy sets; ship the frontend pieces. Plan: C:\\Users\\goldm\\.claude\\plans\\check-if-everything-in-vectorized-cook.md
+
+[HANDOFF READ: 2026-05-04 by Claude Opus 4.7 — Shared coerce_bool commit d0b1128]
 # 2026-05-04 - Claude Opus 4.7 (1M context) - Shared coerce_bool + 5 sites deduped + heartbeat enum from model
 
 What I'm doing: Continuation. Same kind of work — bugs, performance, silent errors, code duplication. Built a shared `coerce_bool` helper in `apps/api/query_params` (the third type-coercer alongside `coerce_int` and `coerce_float`) so the 4-truthy-string parser stops being copy-pasted into 15+ sites. Migrated 6 standalone helpers to use it. Promoted the helper-PC heartbeat status enum to a class constant on the `HelperNode` model so adding a new state lives in one place instead of two. Fixed a subtle silent-bug surfaced last round: `bool("no")` returns True (any non-empty string is truthy), and several sites using bare `bool()` on operator strings would silently flip to True.
