@@ -18,20 +18,29 @@ class PassageRelevanceSettingsView(APIView):
     }
 
     def get(self, request):
-        data = {}
+        # Refactor 2026-05-04: previously this issued FOUR separate
+        # SELECT queries (one per AppSetting key inside the loop).
+        # Replaced with a single bulk fetch — N times faster.
+        rows = {
+            row.key: row.value
+            for row in AppSetting.objects.filter(key__in=list(self.KEYS.keys()))
+        }
+        data: dict[str, object] = {}
         for key, typ in self.KEYS.items():
-            row = AppSetting.objects.filter(key=key).first()
-            if row and row.value:
+            raw = rows.get(key)
+            if raw:
                 try:
                     if typ is bool:
-                        val = row.value.strip().lower() == "true"
+                        data[key] = raw.strip().lower() == "true"
                     else:
-                        val = typ(row.value)
-                    data[key] = val
+                        data[key] = typ(raw)
                     continue
                 except ValueError:
+                    # Bad row value falls through to the recommended-
+                    # defaults block below; the operator's malformed
+                    # setting is not allowed to break the page.
                     pass
-            
+
             # Fallbacks
             try:
                 if typ is bool:
@@ -49,7 +58,7 @@ class PassageRelevanceSettingsView(APIView):
                     data[key] = 0
                 elif key == "passage_relevance.ranking_weight":
                     data[key] = 0.05
-                    
+
         return Response(data)
 
     def post(self, request):

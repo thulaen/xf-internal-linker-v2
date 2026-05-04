@@ -8,6 +8,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.api.query_params import (
+    coerce_pagination,
+    parse_float_strict,
+    parse_int_strict,
+)
 from apps.api.throttles import (
     CoOccurrenceComputeThrottle as _CoOccurrenceComputeThrottle,
 )
@@ -85,42 +90,36 @@ class CoOccurrencePairListView(APIView):
             "source_content_item", "dest_content_item"
         ).order_by("-jaccard_similarity")
 
-        # Bug fix 2026-05-04: previously bad query params either silently
-        # dropped the filter (min_jaccard / min_co) or crashed with 500
-        # (page / page_size). Now: coerce with sensible defaults + return
-        # 400 with a clear message when the input is malformed.
+        # Refactor 2026-05-04: filter-coercion + pagination via the
+        # shared apps.api.query_params helpers. Strict parsing on the
+        # filter inputs (operator must see typos), silent fallback on
+        # the paginator (operator should not get a 500 over a bad
+        # `?page=foo`).
         min_jaccard_raw = request.query_params.get("min_jaccard")
-        min_co_raw = request.query_params.get("min_co_sessions")
         if min_jaccard_raw:
-            try:
-                qs = qs.filter(jaccard_similarity__gte=float(min_jaccard_raw))
-            except ValueError:
-                return Response(
-                    {"detail": "min_jaccard must be a number (e.g. 0.5)."},
-                    status=400,
-                )
+            parsed, err = parse_float_strict(
+                min_jaccard_raw,
+                field_name="min_jaccard",
+                min_value=0.0,
+                max_value=1.0,
+            )
+            if err:
+                return Response({"detail": err}, status=400)
+            qs = qs.filter(jaccard_similarity__gte=parsed)
+        min_co_raw = request.query_params.get("min_co_sessions")
         if min_co_raw:
-            try:
-                qs = qs.filter(co_session_count__gte=int(min_co_raw))
-            except ValueError:
-                return Response(
-                    {"detail": "min_co_sessions must be an integer (e.g. 3)."},
-                    status=400,
-                )
+            parsed_int, err = parse_int_strict(
+                min_co_raw,
+                field_name="min_co_sessions",
+                min_value=1,
+            )
+            if err:
+                return Response({"detail": err}, status=400)
+            qs = qs.filter(co_session_count__gte=parsed_int)
 
-        try:
-            raw_page_size = int(request.query_params.get("page_size", 50))
-        except (TypeError, ValueError):
-            raw_page_size = 50
-        try:
-            raw_page = int(request.query_params.get("page", 1))
-        except (TypeError, ValueError):
-            raw_page = 1
-        # Clamp to safe ranges so an operator can't trigger a slow query
-        # by asking for page_size=10000 or page=-5.
-        page_size = max(1, min(raw_page_size, 200))
-        page = max(raw_page, 1)
-        offset = (page - 1) * page_size
+        page, page_size, offset = coerce_pagination(
+            request.query_params, default_page_size=50, max_page_size=200
+        )
         total = qs.count()
         pairs = qs[offset : offset + page_size]
 
@@ -195,19 +194,12 @@ class BehavioralHubListView(APIView):
         from .serializers import BehavioralHubSerializer
 
         qs = BehavioralHub.objects.all()
-        # Bug fix 2026-05-04: bad `?page=foo` previously crashed with
-        # 500. Now: defensive coercion to defaults + clamp to safe range.
-        try:
-            raw_page_size = int(request.query_params.get("page_size", 25))
-        except (TypeError, ValueError):
-            raw_page_size = 25
-        try:
-            raw_page = int(request.query_params.get("page", 1))
-        except (TypeError, ValueError):
-            raw_page = 1
-        page_size = max(1, min(raw_page_size, 100))
-        page = max(raw_page, 1)
-        offset = (page - 1) * page_size
+        # Refactor 2026-05-04: pagination via shared
+        # apps.api.query_params.coerce_pagination — same safe-fallback +
+        # range-clamp behaviour as the cooccurrence pairs endpoint.
+        page, page_size, offset = coerce_pagination(
+            request.query_params, default_page_size=25, max_page_size=100
+        )
         total = qs.count()
         hubs = qs[offset : offset + page_size]
         return Response(
@@ -377,31 +369,31 @@ class CoOccurrenceSettingsView(APIView):
             val = data.get(field)
             if val is None:
                 return
-            try:
-                clamped = max(lo, min(hi, int(val)))
-                AppSetting.objects.update_or_create(
-                    key=key,
-                    defaults={"value": str(clamped), "value_type": "int"},
-                )
-            except (ValueError, TypeError):
-                validation_errors[field] = (
-                    f"must be an integer between {lo} and {hi}"
-                )
+            parsed, err = parse_int_strict(
+                val, field_name=field, min_value=lo, max_value=hi
+            )
+            if err:
+                validation_errors[field] = err
+                return
+            AppSetting.objects.update_or_create(
+                key=key,
+                defaults={"value": str(parsed), "value_type": "int"},
+            )
 
         def _persist_float(key: str, field: str, lo: float, hi: float) -> None:
             val = data.get(field)
             if val is None:
                 return
-            try:
-                clamped = max(lo, min(hi, float(val)))
-                AppSetting.objects.update_or_create(
-                    key=key,
-                    defaults={"value": str(clamped), "value_type": "float"},
-                )
-            except (ValueError, TypeError):
-                validation_errors[field] = (
-                    f"must be a number between {lo} and {hi}"
-                )
+            parsed, err = parse_float_strict(
+                val, field_name=field, min_value=lo, max_value=hi
+            )
+            if err:
+                validation_errors[field] = err
+                return
+            AppSetting.objects.update_or_create(
+                key=key,
+                defaults={"value": str(parsed), "value_type": "float"},
+            )
 
         _persist_bool("cooccurrence.enabled", "cooccurrence_enabled", True)
         _persist_int("cooccurrence.data_window_days", "data_window_days", 7, 365)

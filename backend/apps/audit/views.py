@@ -15,6 +15,8 @@ from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework.views import APIView
 
+from apps.api.query_params import coerce_int
+
 from .models import (
     AuditEvent,
     ClientErrorLog,
@@ -366,16 +368,20 @@ class UndoTimelineView(APIView):
             list_restorable_events,
         )
 
-        try:
-            lookback_days = int(
-                request.query_params.get("lookback_days") or DEFAULT_LOOKBACK_DAYS
-            )
-        except (TypeError, ValueError):
-            lookback_days = DEFAULT_LOOKBACK_DAYS
-        try:
-            limit = int(request.query_params.get("limit") or 100)
-        except (TypeError, ValueError):
-            limit = 100
+        # Refactor 2026-05-04: shared apps.api.query_params.coerce_int
+        # — same safe-fallback as the rest of the views.
+        lookback_days = coerce_int(
+            request.query_params.get("lookback_days"),
+            default=DEFAULT_LOOKBACK_DAYS,
+            min_value=1,
+            max_value=365,
+        )
+        limit = coerce_int(
+            request.query_params.get("limit"),
+            default=100,
+            min_value=1,
+            max_value=1000,
+        )
         subject_type_filter = request.query_params.get("subject_type") or None
         actor_filter = request.query_params.get("actor") or None
 

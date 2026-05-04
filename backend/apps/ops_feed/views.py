@@ -6,6 +6,8 @@ from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from apps.api.query_params import coerce_int
+
 from .models import OperationEvent
 from .serializers import OperationEventSerializer
 
@@ -38,7 +40,15 @@ class OperationEventViewSet(viewsets.ReadOnlyModelViewSet):
         if search:
             qs = qs.filter(plain_english__icontains=search)
 
-        limit = min(int(request.query_params.get("limit", "500") or 500), 2000)
+        # Bug fix 2026-05-04: bare int() call previously crashed with
+        # HTTP 500 on `?limit=foo`. Routed through coerce_int with a
+        # safe range so a typo just returns the default 500-event feed.
+        limit = coerce_int(
+            request.query_params.get("limit"),
+            default=500,
+            min_value=1,
+            max_value=2000,
+        )
         qs = qs[:limit]
         ser = self.get_serializer(qs, many=True)
         return Response(ser.data)

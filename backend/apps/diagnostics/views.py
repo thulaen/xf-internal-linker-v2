@@ -31,6 +31,7 @@ from .health import (
 )
 from .signal_registry import SIGNALS, validate_signal_contract
 from .signal_health import compute_wave2_signal_health
+from apps.api.query_params import coerce_pagination
 
 
 class DiagnosticsOverviewView(views.APIView):
@@ -149,19 +150,14 @@ class NegativeMemoryListView(views.APIView):
             RejectedPair,
         )
 
-        try:
-            page = max(1, int(request.query_params.get("page", 1)))
-        except (TypeError, ValueError):
-            page = 1
-        try:
-            page_size = int(
-                request.query_params.get(
-                    "page_size", _SUPPRESSED_PAIRS_PAGE_SIZE_DEFAULT
-                )
-            )
-        except (TypeError, ValueError):
-            page_size = _SUPPRESSED_PAIRS_PAGE_SIZE_DEFAULT
-        page_size = max(1, min(_SUPPRESSED_PAIRS_PAGE_SIZE_MAX, page_size))
+        # Refactor 2026-05-04: pagination via shared
+        # apps.api.query_params.coerce_pagination — same safe-fallback +
+        # range-clamp behaviour as cooccurrence + behavioural-hubs.
+        page, page_size, offset = coerce_pagination(
+            request.query_params,
+            default_page_size=_SUPPRESSED_PAIRS_PAGE_SIZE_DEFAULT,
+            max_page_size=_SUPPRESSED_PAIRS_PAGE_SIZE_MAX,
+        )
 
         now = timezone.now()
         window_start = now - timedelta(days=REJECTED_PAIR_SUPPRESSION_DAYS)
@@ -170,7 +166,6 @@ class NegativeMemoryListView(views.APIView):
             "-last_rejected_at"
         )
         total = qs.count()
-        offset = (page - 1) * page_size
         rows = qs[offset : offset + page_size]
 
         items = []

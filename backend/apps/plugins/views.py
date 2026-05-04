@@ -37,17 +37,32 @@ class PluginViewSet(viewsets.ModelViewSet):
                     {"error": "Expected a JSON object of key-value pairs."}, status=400
                 )
 
-            updated = []
+            # Refactor 2026-05-04: previously this was an N+1 (one
+            # SELECT per key). One bulk fetch + single iteration is N
+            # times faster on a multi-key update. Also surfaces unknown
+            # keys in the response so the operator can spot typos
+            # instead of seeing a silent partial-success.
+            existing = {
+                s.key: s
+                for s in PluginSetting.objects.filter(
+                    plugin=plugin, key__in=list(updates.keys())
+                )
+            }
+            updated: list[str] = []
+            not_found: list[str] = []
             for key, value in updates.items():
-                try:
-                    setting = PluginSetting.objects.get(plugin=plugin, key=key)
-                    setting.value = str(value)
-                    setting.save(update_fields=["value", "updated_at"])
-                    updated.append(key)
-                except PluginSetting.DoesNotExist:
-                    pass
+                setting = existing.get(key)
+                if setting is None:
+                    not_found.append(key)
+                    continue
+                setting.value = str(value)
+                setting.save(update_fields=["value", "updated_at"])
+                updated.append(key)
 
-            return Response({"updated": updated})
+            payload: dict[str, object] = {"updated": updated}
+            if not_found:
+                payload["not_found"] = not_found
+            return Response(payload)
 
         settings_qs = PluginSetting.objects.filter(plugin=plugin)
         return Response(PluginSettingSerializer(settings_qs, many=True).data)

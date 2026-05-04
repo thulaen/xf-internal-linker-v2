@@ -6,7 +6,6 @@ results, and the system activity feed.
 """
 
 import logging
-import uuid as uuid_mod
 
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
@@ -15,6 +14,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
+
+from apps.api.query_params import coerce_int, coerce_uuid
 
 from .models import (
     CrawlSession,
@@ -167,25 +168,24 @@ class CrawledPageMetaViewSet(ReadOnlyModelViewSet):
     pagination_class = None
 
     def get_queryset(self):
-        # Bug fix 2026-05-04: malformed `?session=foo` or `?http_status=
-        # bar` previously crashed with 500 (uuid_mod.UUID + int both
-        # raise ValueError on garbage input). Now: silently ignore the
-        # bad filter so the queryset returns unfiltered. Operator-visible
-        # validation feedback is a follow-up; this fix is purely the
-        # crash hardening.
+        # Refactor 2026-05-04: filter coercion now goes through the
+        # shared apps.api.query_params helpers (silent fallback —
+        # malformed input drops the filter rather than crashing or
+        # surfacing 400, matching the existing crawler-list convention).
         qs = CrawledPageMeta.objects.all()
-        session_id = self.request.query_params.get("session")
-        if session_id:
-            try:
-                qs = qs.filter(session_id=uuid_mod.UUID(session_id))
-            except (ValueError, TypeError, AttributeError):
-                pass
-        http_status = self.request.query_params.get("http_status")
-        if http_status:
-            try:
-                qs = qs.filter(http_status=int(http_status))
-            except (ValueError, TypeError):
-                pass
+        session_uuid = coerce_uuid(self.request.query_params.get("session"))
+        if session_uuid is not None:
+            qs = qs.filter(session_id=session_uuid)
+        # ``coerce_int`` returns the default (-1) on bad input; we only
+        # apply the filter when the value is a sane HTTP status code.
+        http_status = coerce_int(
+            self.request.query_params.get("http_status"),
+            default=-1,
+            min_value=100,
+            max_value=599,
+        )
+        if http_status >= 100:
+            qs = qs.filter(http_status=http_status)
         return qs
 
     def get_serializer_class(self):
@@ -204,10 +204,13 @@ class CrawledLinkViewSet(ReadOnlyModelViewSet):
     pagination_class = None
 
     def get_queryset(self):
+        # Bug fix 2026-05-04: same crash class as CrawledPageMetaViewSet
+        # — malformed `?session=foo` raised ValueError → HTTP 500.
+        # Routed through coerce_uuid (silent fallback).
         qs = CrawledLink.objects.select_related("page").all()
-        session_id = self.request.query_params.get("session")
-        if session_id:
-            qs = qs.filter(page__session_id=uuid_mod.UUID(session_id))
+        session_uuid = coerce_uuid(self.request.query_params.get("session"))
+        if session_uuid is not None:
+            qs = qs.filter(page__session_id=session_uuid)
         context = self.request.query_params.get("context")
         if context:
             qs = qs.filter(context_class=context)

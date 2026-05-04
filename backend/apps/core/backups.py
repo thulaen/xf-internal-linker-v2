@@ -112,6 +112,28 @@ def list_existing_snapshots(path: Path = DEFAULT_BACKUP_DIR) -> list[Path]:
 # ────────────────────────────────────────────────────────────────────
 
 
+def _cleanup_partial_backup(output_file: Path) -> None:
+    """Delete a half-written backup file. Best-effort — never raises.
+
+    Plain-English: when pg_dump times out or exits non-zero, it may have
+    left a partial output file behind. We try to delete it so the
+    operator doesn't think they have a usable backup. If the unlink
+    fails (file locked by another process / permissions / disk error),
+    log debug — the orphan will be cleaned up by ``prune_old_snapshots``
+    on the next nightly run.
+    """
+    if not output_file.exists():
+        return
+    try:
+        output_file.unlink()
+    except OSError:  # noqa: forbidden-pattern silent-except — orphan cleanup is best-effort; debug-log is the visible signal.
+        logger.debug(
+            "backups: could not unlink partial file %s; will be pruned on next nightly run",
+            output_file,
+            exc_info=True,
+        )
+
+
 def _build_pg_dump_command(
     *,
     db_settings: dict,
@@ -208,12 +230,7 @@ def create_snapshot(
             "Increase timeout_seconds or investigate slow Postgres state.",
             timeout_seconds,
         )
-        # Clean up the partial file if any.
-        if output_file.exists():
-            try:
-                output_file.unlink()
-            except OSError:
-                pass
+        _cleanup_partial_backup(output_file)
         return None
 
     if result.returncode != 0:
@@ -222,12 +239,7 @@ def create_snapshot(
             result.returncode,
             (result.stderr or "")[:2000],
         )
-        # Clean up the partial / empty file pg_dump may have started.
-        if output_file.exists():
-            try:
-                output_file.unlink()
-            except OSError:
-                pass
+        _cleanup_partial_backup(output_file)
         return None
 
     if not output_file.exists() or output_file.stat().st_size == 0:
