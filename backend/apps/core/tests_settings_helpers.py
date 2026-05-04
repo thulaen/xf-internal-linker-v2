@@ -227,3 +227,173 @@ class CoercerIntegrationTests(SimpleTestCase):
         with self.assertRaises(ValueError) as ctx:
             coerce_setting_float(payload, current, "weight")
         self.assertIn("weight must be finite", str(ctx.exception))
+
+
+# ---------------------------------------------------------------------------
+# Tests for the clamp variants (lenient — silently clamps instead of raising)
+# ---------------------------------------------------------------------------
+
+
+class CoerceClampFloatTests(SimpleTestCase):
+    """Verify the clamp-float helper used by value-model settings."""
+
+    def test_in_range_passes_through(self):
+        from apps.core.services.settings_helpers import coerce_clamp_float
+        result = coerce_clamp_float({"x": 0.5}, {"x": 0.0}, "x", 0.0, 1.0)
+        self.assertEqual(result, 0.5)
+
+    def test_below_min_clamps_to_min(self):
+        from apps.core.services.settings_helpers import coerce_clamp_float
+        result = coerce_clamp_float({"x": -1.0}, {"x": 0.0}, "x", 0.0, 1.0)
+        self.assertEqual(result, 0.0)
+
+    def test_above_max_clamps_to_max(self):
+        from apps.core.services.settings_helpers import coerce_clamp_float
+        result = coerce_clamp_float({"x": 5.0}, {"x": 0.0}, "x", 0.0, 1.0)
+        self.assertEqual(result, 1.0)
+
+    def test_bad_string_falls_back_to_current(self):
+        from apps.core.services.settings_helpers import coerce_clamp_float
+        result = coerce_clamp_float({"x": "abc"}, {"x": 0.7}, "x", 0.0, 1.0)
+        self.assertEqual(result, 0.7)
+
+    def test_bad_string_with_no_current_falls_back_to_zero(self):
+        from apps.core.services.settings_helpers import coerce_clamp_float
+        # Spec: missing-from-current AND non-numeric → 0.0 (then clamped).
+        result = coerce_clamp_float({"x": "abc"}, {}, "x", 0.5, 1.0)
+        self.assertEqual(result, 0.5)  # clamps 0.0 up to 0.5 (the lo bound)
+
+    def test_uses_current_when_payload_missing(self):
+        from apps.core.services.settings_helpers import coerce_clamp_float
+        result = coerce_clamp_float({}, {"x": 0.42}, "x", 0.0, 1.0)
+        self.assertEqual(result, 0.42)
+
+
+class CoerceClampIntTests(SimpleTestCase):
+    """Verify the clamp-int helper used by value-model settings."""
+
+    def test_in_range_passes_through(self):
+        from apps.core.services.settings_helpers import coerce_clamp_int
+        self.assertEqual(coerce_clamp_int({"n": 5}, {"n": 0}, "n", 1, 10), 5)
+
+    def test_below_min_clamps_to_min(self):
+        from apps.core.services.settings_helpers import coerce_clamp_int
+        self.assertEqual(coerce_clamp_int({"n": -5}, {"n": 0}, "n", 1, 10), 1)
+
+    def test_above_max_clamps_to_max(self):
+        from apps.core.services.settings_helpers import coerce_clamp_int
+        self.assertEqual(coerce_clamp_int({"n": 99}, {"n": 0}, "n", 1, 10), 10)
+
+    def test_bad_string_falls_back_to_current_then_clamps(self):
+        from apps.core.services.settings_helpers import coerce_clamp_int
+        # "abc" -> int() raises -> falls back to current["n"]=7 -> in range -> 7
+        self.assertEqual(coerce_clamp_int({"n": "abc"}, {"n": 7}, "n", 1, 10), 7)
+
+
+class CoerceLenientBoolTests(SimpleTestCase):
+    """Verify the lenient bool reader used by value-model + similar partial-PUTs."""
+
+    def test_uses_current_get_not_indexer(self):
+        from apps.core.services.settings_helpers import coerce_lenient_bool
+        # Key missing from BOTH payload and current -> would KeyError on
+        # the strict variant; lenient must return False (default).
+        self.assertFalse(coerce_lenient_bool({}, {}, "missing"))
+
+    def test_payload_truthy_string_wins(self):
+        from apps.core.services.settings_helpers import coerce_lenient_bool
+        self.assertTrue(coerce_lenient_bool({"b": "yes"}, {"b": False}, "b"))
+
+    def test_falls_back_to_current_when_payload_missing(self):
+        from apps.core.services.settings_helpers import coerce_lenient_bool
+        self.assertTrue(coerce_lenient_bool({}, {"b": True}, "b"))
+
+
+# ---------------------------------------------------------------------------
+# Tests for the two-tier AppSetting readers (operator → fallback).
+# ---------------------------------------------------------------------------
+
+
+from django.test import TestCase  # TestCase needed for DB-touching tests
+from apps.core.models import AppSetting
+from apps.core.services.settings_helpers import (
+    read_app_setting_bool,
+    read_app_setting_float,
+    read_app_setting_int,
+)
+
+
+class ReadAppSettingFloatTests(TestCase):
+    """Verify two-tier float reader semantics."""
+
+    def setUp(self):
+        AppSetting.objects.filter(key__startswith="test.read_float.").delete()
+
+    def test_returns_default_when_no_app_setting(self):
+        self.assertEqual(read_app_setting_float("test.read_float.missing", 0.42), 0.42)
+
+    def test_reads_from_app_setting(self):
+        AppSetting.objects.create(key="test.read_float.x", value="1.5", value_type="float")
+        self.assertEqual(read_app_setting_float("test.read_float.x", 0.0), 1.5)
+
+    def test_falls_back_on_bad_string(self):
+        AppSetting.objects.create(key="test.read_float.bad", value="abc", value_type="float")
+        # Bad operator value falls back silently to default — no exception.
+        self.assertEqual(read_app_setting_float("test.read_float.bad", 0.5), 0.5)
+
+    def test_falls_back_on_inf_when_finite_required(self):
+        AppSetting.objects.create(key="test.read_float.inf", value="inf", value_type="float")
+        self.assertEqual(read_app_setting_float("test.read_float.inf", 0.5), 0.5)
+
+    def test_allows_inf_when_finite_check_disabled(self):
+        AppSetting.objects.create(key="test.read_float.inf2", value="inf", value_type="float")
+        result = read_app_setting_float(
+            "test.read_float.inf2", 0.5, require_finite=False,
+        )
+        self.assertEqual(result, float("inf"))
+
+
+class ReadAppSettingIntTests(TestCase):
+    """Verify two-tier int reader semantics."""
+
+    def setUp(self):
+        AppSetting.objects.filter(key__startswith="test.read_int.").delete()
+
+    def test_returns_default_when_no_app_setting(self):
+        self.assertEqual(read_app_setting_int("test.read_int.missing", 42), 42)
+
+    def test_reads_from_app_setting(self):
+        AppSetting.objects.create(key="test.read_int.x", value="7", value_type="int")
+        self.assertEqual(read_app_setting_int("test.read_int.x", 0), 7)
+
+    def test_falls_back_on_bad_string(self):
+        AppSetting.objects.create(key="test.read_int.bad", value="abc", value_type="int")
+        self.assertEqual(read_app_setting_int("test.read_int.bad", 99), 99)
+
+
+class ReadAppSettingBoolTests(TestCase):
+    """Verify two-tier bool reader + sister-bug fix vs old _read_bool closures."""
+
+    def setUp(self):
+        AppSetting.objects.filter(key__startswith="test.read_bool.").delete()
+
+    def test_returns_default_when_no_app_setting(self):
+        self.assertTrue(read_app_setting_bool("test.read_bool.missing", True))
+        self.assertFalse(read_app_setting_bool("test.read_bool.missing", False))
+
+    def test_reads_truthy_string_from_app_setting(self):
+        # The OLD _read_feedback_rerank_settings closure only accepted "true".
+        # The new shared reader also accepts "1" / "yes" / "on", which is
+        # the project-wide convention. Test all four to lock the contract.
+        for truthy in ("true", "1", "yes", "on"):
+            AppSetting.objects.update_or_create(
+                key="test.read_bool.x",
+                defaults={"value": truthy, "value_type": "bool"},
+            )
+            self.assertTrue(
+                read_app_setting_bool("test.read_bool.x", False),
+                msg=f"{truthy!r} should read True",
+            )
+
+    def test_reads_falsy_string_from_app_setting(self):
+        AppSetting.objects.create(key="test.read_bool.f", value="false", value_type="bool")
+        self.assertFalse(read_app_setting_bool("test.read_bool.f", True))

@@ -28,10 +28,16 @@ logger = logging.getLogger(__name__)
 
 from apps.api.query_params import coerce_bool, coerce_float, coerce_int
 from apps.core.services.settings_helpers import (
+    coerce_clamp_float,
+    coerce_clamp_int,
+    coerce_lenient_bool,
     coerce_setting_bool,
     coerce_setting_float,
     coerce_setting_int,
     enforce_bounds,
+    read_app_setting_bool,
+    read_app_setting_float,
+    read_app_setting_int,
 )
 from apps.api.throttles import (
     ChallengerEvalThrottle as _ChallengerEvalThrottle,
@@ -287,21 +293,18 @@ def get_silo_settings() -> dict[str, float | str]:
     )
     if mode not in {"disabled", "prefer_same_silo", "strict_same_silo"}:
         mode = DEFAULT_SILO_SETTINGS["mode"]
-
-    def _read_float(key: str, default: float) -> float:
-        raw = _get_app_setting_value(key)
-        try:
-            return float(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-
+    # silo accepts inf/NaN historically (no isfinite check) — opt out.
     return {
         "mode": mode,
-        "same_silo_boost": _read_float(
-            "silo.same_silo_boost", DEFAULT_SILO_SETTINGS["same_silo_boost"]
+        "same_silo_boost": read_app_setting_float(
+            "silo.same_silo_boost",
+            DEFAULT_SILO_SETTINGS["same_silo_boost"],
+            require_finite=False,
         ),
-        "cross_silo_penalty": _read_float(
-            "silo.cross_silo_penalty", DEFAULT_SILO_SETTINGS["cross_silo_penalty"]
+        "cross_silo_penalty": read_app_setting_float(
+            "silo.cross_silo_penalty",
+            DEFAULT_SILO_SETTINGS["cross_silo_penalty"],
+            require_finite=False,
         ),
     }
 
@@ -330,56 +333,47 @@ def _validate_silo_settings(payload: dict) -> dict[str, float | str]:
     }
 
 
+def _read_wp_string(key: str, django_default: str, *, rstrip_slash: bool = False) -> str:
+    """Read + strip a WordPress AppSetting, falling back to a Django default.
+
+    All four WP string columns share the same shape — operator's AppSetting
+    if set, else Django settings, normalise trailing whitespace, optionally
+    strip a trailing slash. Pulling it out keeps ``get_wordpress_settings``
+    readable.
+    """
+    raw = (_get_app_setting_value(key, django_default) or "").strip()
+    return raw.rstrip("/") if rstrip_slash else raw
+
+
 def get_wordpress_settings() -> dict[str, object]:
     """Load persisted WordPress sync settings with environment fallbacks."""
-    base_url = (
-        (
-            _get_app_setting_value(
-                "wordpress.base_url", django_settings.WORDPRESS_BASE_URL
-            )
-            or ""
-        )
-        .strip()
-        .rstrip("/")
+    base_url = _read_wp_string(
+        "wordpress.base_url", django_settings.WORDPRESS_BASE_URL, rstrip_slash=True,
     )
-    username = (
-        _get_app_setting_value("wordpress.username", django_settings.WORDPRESS_USERNAME)
-        or ""
-    ).strip()
+    username = _read_wp_string("wordpress.username", django_settings.WORDPRESS_USERNAME)
     app_password = (
         _get_app_setting_value(
             "wordpress.app_password", django_settings.WORDPRESS_APP_PASSWORD
         )
         or ""
     )
-
-    def _read_int(key: str, default: int) -> int:
-        raw = _get_app_setting_value(key)
-        try:
-            return int(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-
     sync_enabled = coerce_bool(
         _get_app_setting_value("wordpress.sync_enabled"), default=False
     )
-
     from apps.health.services import get_service_health_status
-
-    health = get_service_health_status("wordpress")
 
     return {
         "base_url": base_url,
         "username": username,
         "app_password_configured": bool(app_password.strip()),
         "sync_enabled": sync_enabled,
-        "sync_hour": _read_int(
-            "wordpress.sync_hour", DEFAULT_WORDPRESS_SETTINGS["sync_hour"]
+        "sync_hour": read_app_setting_int(
+            "wordpress.sync_hour", DEFAULT_WORDPRESS_SETTINGS["sync_hour"],
         ),
-        "sync_minute": _read_int(
-            "wordpress.sync_minute", DEFAULT_WORDPRESS_SETTINGS["sync_minute"]
+        "sync_minute": read_app_setting_int(
+            "wordpress.sync_minute", DEFAULT_WORDPRESS_SETTINGS["sync_minute"],
         ),
-        "health": health,
+        "health": get_service_health_status("wordpress"),
     }
 
 
@@ -569,251 +563,111 @@ def get_clustering_settings() -> dict[str, float | bool]:
 
 def _read_clustering_settings() -> dict[str, float | bool]:
     """Read near-duplicate clustering settings from AppSetting without applying bounds."""
-
-    def _read_float(key: str, default: float) -> float:
-        raw = _get_app_setting_value(key)
-        try:
-            value = float(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-        if not math.isfinite(value):
-            return default
-        return value
-
-    def _read_bool(key: str, default: bool) -> bool:
-        raw = _get_app_setting_value(key)
-        if raw is None:
-            return default
-        return coerce_bool(raw, default=default)
-
     return {
-        "enabled": _read_bool(
-            "clustering.enabled", DEFAULT_CLUSTERING_SETTINGS["enabled"]
+        "enabled": read_app_setting_bool(
+            "clustering.enabled", DEFAULT_CLUSTERING_SETTINGS["enabled"],
         ),
-        "similarity_threshold": _read_float(
+        "similarity_threshold": read_app_setting_float(
             "clustering.similarity_threshold",
             DEFAULT_CLUSTERING_SETTINGS["similarity_threshold"],
         ),
-        "suppression_penalty": _read_float(
+        "suppression_penalty": read_app_setting_float(
             "clustering.suppression_penalty",
             DEFAULT_CLUSTERING_SETTINGS["suppression_penalty"],
         ),
     }
 
 
+_WEIGHTED_AUTHORITY_KEYS = (
+    "ranking_weight", "position_bias", "empty_anchor_factor",
+    "bare_url_factor", "weak_context_factor", "isolated_context_factor",
+)
+
+
 def _read_weighted_authority_settings() -> dict[str, float]:
     """Read weighted-authority settings from AppSetting without applying bounds."""
-
-    def _read_float(key: str, default: float) -> float:
-        raw = _get_app_setting_value(key)
-        try:
-            value = float(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-        if not math.isfinite(value):
-            return default
-        return value
-
     return {
-        "ranking_weight": _read_float(
-            "weighted_authority.ranking_weight",
-            DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["ranking_weight"],
-        ),
-        "position_bias": _read_float(
-            "weighted_authority.position_bias",
-            DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["position_bias"],
-        ),
-        "empty_anchor_factor": _read_float(
-            "weighted_authority.empty_anchor_factor",
-            DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["empty_anchor_factor"],
-        ),
-        "bare_url_factor": _read_float(
-            "weighted_authority.bare_url_factor",
-            DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["bare_url_factor"],
-        ),
-        "weak_context_factor": _read_float(
-            "weighted_authority.weak_context_factor",
-            DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["weak_context_factor"],
-        ),
-        "isolated_context_factor": _read_float(
-            "weighted_authority.isolated_context_factor",
-            DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["isolated_context_factor"],
-        ),
+        key: read_app_setting_float(
+            f"weighted_authority.{key}", DEFAULT_WEIGHTED_AUTHORITY_SETTINGS[key],
+        )
+        for key in _WEIGHTED_AUTHORITY_KEYS
     }
+
+
+_LINK_FRESHNESS_FLOAT_DEFAULT_KEYS = (
+    "ranking_weight", "newest_peer_percent",
+    "w_recent", "w_growth", "w_cohort", "w_loss",
+)
+_LINK_FRESHNESS_INT_DEFAULT_KEYS = ("recent_window_days", "min_peer_count")
 
 
 def _read_link_freshness_settings() -> dict[str, float | int]:
     """Read link-freshness settings from AppSetting without applying bounds."""
-
-    def _read_float(key: str, default: float) -> float:
-        raw = _get_app_setting_value(key)
-        try:
-            value = float(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-        if not math.isfinite(value):
-            return default
-        return value
-
-    def _read_int(key: str, default: int) -> int:
-        raw = _get_app_setting_value(key)
-        try:
-            value = int(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-        return value
-
-    return {
-        "ranking_weight": _read_float(
-            "link_freshness.ranking_weight",
-            DEFAULT_LINK_FRESHNESS_SETTINGS["ranking_weight"],
-        ),
-        "recent_window_days": _read_int(
-            "link_freshness.recent_window_days",
-            DEFAULT_LINK_FRESHNESS_SETTINGS["recent_window_days"],
-        ),
-        "newest_peer_percent": _read_float(
-            "link_freshness.newest_peer_percent",
-            DEFAULT_LINK_FRESHNESS_SETTINGS["newest_peer_percent"],
-        ),
-        "min_peer_count": _read_int(
-            "link_freshness.min_peer_count",
-            DEFAULT_LINK_FRESHNESS_SETTINGS["min_peer_count"],
-        ),
-        "w_recent": _read_float(
-            "link_freshness.w_recent", DEFAULT_LINK_FRESHNESS_SETTINGS["w_recent"]
-        ),
-        "w_growth": _read_float(
-            "link_freshness.w_growth", DEFAULT_LINK_FRESHNESS_SETTINGS["w_growth"]
-        ),
-        "w_cohort": _read_float(
-            "link_freshness.w_cohort", DEFAULT_LINK_FRESHNESS_SETTINGS["w_cohort"]
-        ),
-        "w_loss": _read_float(
-            "link_freshness.w_loss", DEFAULT_LINK_FRESHNESS_SETTINGS["w_loss"]
-        ),
+    out: dict[str, float | int] = {
+        key: read_app_setting_float(
+            f"link_freshness.{key}", DEFAULT_LINK_FRESHNESS_SETTINGS[key],
+        )
+        for key in _LINK_FRESHNESS_FLOAT_DEFAULT_KEYS
     }
+    for key in _LINK_FRESHNESS_INT_DEFAULT_KEYS:
+        out[key] = read_app_setting_int(
+            f"link_freshness.{key}", DEFAULT_LINK_FRESHNESS_SETTINGS[key],
+        )
+    return out
 
 
 def _read_phrase_matching_settings() -> dict[str, float | int | bool]:
     """Read phrase-matching settings from AppSetting without applying bounds."""
-
-    def _read_float(key: str, default: float) -> float:
-        raw = _get_app_setting_value(key)
-        try:
-            value = float(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-        if not math.isfinite(value):
-            return default
-        return value
-
-    def _read_int(key: str, default: int) -> int:
-        raw = _get_app_setting_value(key)
-        try:
-            value = int(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-        return value
-
-    def _read_bool(key: str, default: bool) -> bool:
-        raw = _get_app_setting_value(key)
-        if raw is None:
-            return default
-        return coerce_bool(raw, default=default)
-
     return {
-        "ranking_weight": _read_float(
+        "ranking_weight": read_app_setting_float(
             "phrase_matching.ranking_weight",
             DEFAULT_PHRASE_MATCHING_SETTINGS["ranking_weight"],
         ),
-        "enable_anchor_expansion": _read_bool(
+        "enable_anchor_expansion": read_app_setting_bool(
             "phrase_matching.enable_anchor_expansion",
             DEFAULT_PHRASE_MATCHING_SETTINGS["enable_anchor_expansion"],
         ),
-        "enable_partial_matching": _read_bool(
+        "enable_partial_matching": read_app_setting_bool(
             "phrase_matching.enable_partial_matching",
             DEFAULT_PHRASE_MATCHING_SETTINGS["enable_partial_matching"],
         ),
-        "context_window_tokens": _read_int(
+        "context_window_tokens": read_app_setting_int(
             "phrase_matching.context_window_tokens",
             DEFAULT_PHRASE_MATCHING_SETTINGS["context_window_tokens"],
         ),
     }
 
 
-def _read_learned_anchor_settings() -> dict[str, float | int | bool]:
-    """Read learned-anchor settings from AppSetting without applying bounds."""
-
-    def _read_float(key: str, default: float) -> float:
-        raw = _get_app_setting_value(key)
-        try:
-            value = float(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-        if not math.isfinite(value):
-            return default
-        return value
+_CLICK_DISTANCE_KEYS = ("ranking_weight", "k_cd", "b_cd", "b_ud")
 
 
 def _read_click_distance_settings() -> dict[str, float]:
     """Read click-distance settings from AppSetting without applying bounds."""
-
-    def _read_float(key: str, default: float) -> float:
-        raw = _get_app_setting_value(key)
-        try:
-            value = float(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-        if not math.isfinite(value):
-            return default
-        return value
-
     return {
-        "ranking_weight": _read_float(
-            "click_distance.ranking_weight",
-            DEFAULT_CLICK_DISTANCE_SETTINGS["ranking_weight"],
-        ),
-        "k_cd": _read_float(
-            "click_distance.k_cd", DEFAULT_CLICK_DISTANCE_SETTINGS["k_cd"]
-        ),
-        "b_cd": _read_float(
-            "click_distance.b_cd", DEFAULT_CLICK_DISTANCE_SETTINGS["b_cd"]
-        ),
-        "b_ud": _read_float(
-            "click_distance.b_ud", DEFAULT_CLICK_DISTANCE_SETTINGS["b_ud"]
-        ),
+        key: read_app_setting_float(
+            f"click_distance.{key}", DEFAULT_CLICK_DISTANCE_SETTINGS[key],
+        )
+        for key in _CLICK_DISTANCE_KEYS
     }
 
 
 def _read_feedback_rerank_settings() -> dict[str, float | bool]:
-    """Read feedback-driven explore/exploit settings from AppSetting without applying bounds."""
+    """Read feedback-driven explore/exploit settings from AppSetting without applying bounds.
 
-    def _read_float(key: str, default: float) -> float:
-        raw = _get_app_setting_value(key)
-        try:
-            value = float(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-        if not math.isfinite(value):
-            return default
-        return value
-
-    def _read_bool(key: str, default: bool) -> bool:
-        raw = _get_app_setting_value(key)
-        if raw is None:
-            return default
-        return raw.lower() == "true"
-
+    Sister-bug fix 2026-05-04: prior _read_bool closure only accepted the
+    literal "true" string — was inconsistent with every other settings
+    reader. Now uses read_app_setting_bool which delegates to the
+    project-wide coerce_bool (accepts "true"/"1"/"yes"/"on", case-insensitive).
+    """
     return {
-        "enabled": _read_bool(
-            "explore_exploit.enabled", DEFAULT_FEEDBACK_RERANK_SETTINGS["enabled"]
+        "enabled": read_app_setting_bool(
+            "explore_exploit.enabled", DEFAULT_FEEDBACK_RERANK_SETTINGS["enabled"],
         ),
-        "ranking_weight": _read_float(
+        "ranking_weight": read_app_setting_float(
             "explore_exploit.ranking_weight",
             DEFAULT_FEEDBACK_RERANK_SETTINGS["ranking_weight"],
         ),
-        "exploration_rate": _read_float(
+        "exploration_rate": read_app_setting_float(
             "explore_exploit.exploration_rate",
             DEFAULT_FEEDBACK_RERANK_SETTINGS["exploration_rate"],
         ),
@@ -822,36 +676,19 @@ def _read_feedback_rerank_settings() -> dict[str, float | bool]:
 
 def _read_slate_diversity_settings() -> dict:
     """Read FR-015 slate diversity settings from AppSetting without applying bounds."""
-
-    def _read_float(key: str, default: float) -> float:
-        raw = _get_app_setting_value(key)
-        try:
-            value = float(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-        if not math.isfinite(value):
-            return default
-        return value
-
-    def _read_bool(key: str, default: bool) -> bool:
-        raw = _get_app_setting_value(key)
-        if raw is None:
-            return default
-        return coerce_bool(raw, default=default)
-
     return {
-        "enabled": _read_bool(
-            "slate_diversity.enabled", DEFAULT_SLATE_DIVERSITY_SETTINGS["enabled"]
+        "enabled": read_app_setting_bool(
+            "slate_diversity.enabled", DEFAULT_SLATE_DIVERSITY_SETTINGS["enabled"],
         ),
-        "diversity_lambda": _read_float(
+        "diversity_lambda": read_app_setting_float(
             "slate_diversity.diversity_lambda",
             DEFAULT_SLATE_DIVERSITY_SETTINGS["diversity_lambda"],
         ),
-        "score_window": _read_float(
+        "score_window": read_app_setting_float(
             "slate_diversity.score_window",
             DEFAULT_SLATE_DIVERSITY_SETTINGS["score_window"],
         ),
-        "similarity_cap": _read_float(
+        "similarity_cap": read_app_setting_float(
             "slate_diversity.similarity_cap",
             DEFAULT_SLATE_DIVERSITY_SETTINGS["similarity_cap"],
         ),
@@ -923,45 +760,20 @@ def _validate_click_distance_settings(payload: dict, current: dict) -> dict[str,
 
 def _read_learned_anchor_settings() -> dict[str, float | int | bool]:
     """Read learned-anchor settings from AppSetting without applying bounds."""
-
-    def _read_float(key: str, default: float) -> float:
-        raw = _get_app_setting_value(key)
-        try:
-            value = float(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-        if not math.isfinite(value):
-            return default
-        return value
-
-    def _read_int(key: str, default: int) -> int:
-        raw = _get_app_setting_value(key)
-        try:
-            value = int(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-        return value
-
-    def _read_bool(key: str, default: bool) -> bool:
-        raw = _get_app_setting_value(key)
-        if raw is None:
-            return default
-        return coerce_bool(raw, default=default)
-
     return {
-        "ranking_weight": _read_float(
+        "ranking_weight": read_app_setting_float(
             "learned_anchor.ranking_weight",
             DEFAULT_LEARNED_ANCHOR_SETTINGS["ranking_weight"],
         ),
-        "minimum_anchor_sources": _read_int(
+        "minimum_anchor_sources": read_app_setting_int(
             "learned_anchor.minimum_anchor_sources",
             DEFAULT_LEARNED_ANCHOR_SETTINGS["minimum_anchor_sources"],
         ),
-        "minimum_family_support_share": _read_float(
+        "minimum_family_support_share": read_app_setting_float(
             "learned_anchor.minimum_family_support_share",
             DEFAULT_LEARNED_ANCHOR_SETTINGS["minimum_family_support_share"],
         ),
-        "enable_noise_filter": _read_bool(
+        "enable_noise_filter": read_app_setting_bool(
             "learned_anchor.enable_noise_filter",
             DEFAULT_LEARNED_ANCHOR_SETTINGS["enable_noise_filter"],
         ),
@@ -970,85 +782,40 @@ def _read_learned_anchor_settings() -> dict[str, float | int | bool]:
 
 def _read_rare_term_propagation_settings() -> dict[str, float | int | bool]:
     """Read FR-010 rare-term settings from AppSetting without applying bounds."""
-
-    def _read_float(key: str, default: float) -> float:
-        raw = _get_app_setting_value(key)
-        try:
-            value = float(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-        if not math.isfinite(value):
-            return default
-        return value
-
-    def _read_int(key: str, default: int) -> int:
-        raw = _get_app_setting_value(key)
-        try:
-            value = int(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-        return value
-
-    def _read_bool(key: str, default: bool) -> bool:
-        raw = _get_app_setting_value(key)
-        if raw is None:
-            return default
-        return coerce_bool(raw, default=default)
-
     return {
-        "enabled": _read_bool(
+        "enabled": read_app_setting_bool(
             "rare_term_propagation.enabled",
             DEFAULT_RARE_TERM_PROPAGATION_SETTINGS["enabled"],
         ),
-        "ranking_weight": _read_float(
+        "ranking_weight": read_app_setting_float(
             "rare_term_propagation.ranking_weight",
             DEFAULT_RARE_TERM_PROPAGATION_SETTINGS["ranking_weight"],
         ),
-        "max_document_frequency": _read_int(
+        "max_document_frequency": read_app_setting_int(
             "rare_term_propagation.max_document_frequency",
             DEFAULT_RARE_TERM_PROPAGATION_SETTINGS["max_document_frequency"],
         ),
-        "minimum_supporting_related_pages": _read_int(
+        "minimum_supporting_related_pages": read_app_setting_int(
             "rare_term_propagation.minimum_supporting_related_pages",
             DEFAULT_RARE_TERM_PROPAGATION_SETTINGS["minimum_supporting_related_pages"],
         ),
     }
 
 
+_FIELD_AWARE_RELEVANCE_KEY_NAMES = (
+    "ranking_weight", "title_field_weight", "body_field_weight",
+    "scope_field_weight", "learned_anchor_field_weight",
+)
+
+
 def _read_field_aware_relevance_settings() -> dict[str, float]:
     """Read FR-011 field-aware settings from AppSetting without applying bounds."""
-
-    def _read_float(key: str, default: float) -> float:
-        raw = _get_app_setting_value(key)
-        try:
-            value = float(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-        if not math.isfinite(value):
-            return default
-        return value
-
     return {
-        "ranking_weight": _read_float(
-            "field_aware_relevance.ranking_weight",
-            DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS["ranking_weight"],
-        ),
-        "title_field_weight": _read_float(
-            "field_aware_relevance.title_field_weight",
-            DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS["title_field_weight"],
-        ),
-        "body_field_weight": _read_float(
-            "field_aware_relevance.body_field_weight",
-            DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS["body_field_weight"],
-        ),
-        "scope_field_weight": _read_float(
-            "field_aware_relevance.scope_field_weight",
-            DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS["scope_field_weight"],
-        ),
-        "learned_anchor_field_weight": _read_float(
-            "field_aware_relevance.learned_anchor_field_weight",
-            DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS["learned_anchor_field_weight"],
-        ),
+        key: read_app_setting_float(
+            f"field_aware_relevance.{key}",
+            DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS[key],
+        )
+        for key in _FIELD_AWARE_RELEVANCE_KEY_NAMES
     }
 
 
@@ -1075,33 +842,25 @@ def _validate_clustering_settings(
     }
 
 
+def _ga4_gsc_connection_status(
+    property_url: str,
+    service_account_email: str,
+    private_key: str,
+) -> tuple[str, str]:
+    """Return ``(status, plain-English message)`` for the GA4/GSC connection card."""
+    if property_url and service_account_email and private_key:
+        return (
+            "saved",
+            "Search Console credentials are saved. Run Test Connection to confirm access.",
+        )
+    return (
+        "not_configured",
+        "Fill in the Search Console property URL and service-account credentials.",
+    )
+
+
 def _read_ga4_gsc_settings() -> dict[str, object]:
     """Read GA4/GSC settings from AppSetting without applying bounds."""
-
-    def _read_float(key: str, default: float) -> float:
-        raw = _get_app_setting_value(key)
-        try:
-            value = float(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-        if not math.isfinite(value):
-            return default
-        return value
-
-    def _read_bool(key: str, default: bool) -> bool:
-        raw = _get_app_setting_value(key)
-        if raw is None:
-            return default
-        return coerce_bool(raw, default=default)
-
-    def _read_int(key: str, default: int) -> int:
-        raw = _get_app_setting_value(key)
-        try:
-            value = int(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-        return value
-
     property_url = (
         (_get_app_setting_value("ga4_gsc.property_url", "") or "").strip().rstrip("/")
     )
@@ -1109,26 +868,21 @@ def _read_ga4_gsc_settings() -> dict[str, object]:
         _get_app_setting_value("ga4_gsc.service_account_email", "") or ""
     ).strip()
     private_key = (_get_app_setting_value("ga4_gsc.private_key", "") or "").strip()
-    connection_status = "not_configured"
-    connection_message = (
-        "Fill in the Search Console property URL and service-account credentials."
+    connection_status, connection_message = _ga4_gsc_connection_status(
+        property_url, service_account_email, private_key,
     )
-    if property_url and service_account_email and private_key:
-        connection_status = "saved"
-        connection_message = "Search Console credentials are saved. Run Test Connection to confirm access."
-
     return {
-        "ranking_weight": _read_float(
-            "ga4_gsc.ranking_weight", DEFAULT_GA4_GSC_SETTINGS["ranking_weight"]
+        "ranking_weight": read_app_setting_float(
+            "ga4_gsc.ranking_weight", DEFAULT_GA4_GSC_SETTINGS["ranking_weight"],
         ),
         "property_url": property_url,
         "service_account_email": service_account_email,
         "private_key_configured": bool(private_key),
-        "sync_enabled": _read_bool(
-            "ga4_gsc.sync_enabled", DEFAULT_GA4_GSC_SETTINGS["sync_enabled"]
+        "sync_enabled": read_app_setting_bool(
+            "ga4_gsc.sync_enabled", DEFAULT_GA4_GSC_SETTINGS["sync_enabled"],
         ),
-        "sync_lookback_days": _read_int(
-            "ga4_gsc.sync_lookback_days", DEFAULT_GA4_GSC_SETTINGS["sync_lookback_days"]
+        "sync_lookback_days": read_app_setting_int(
+            "ga4_gsc.sync_lookback_days", DEFAULT_GA4_GSC_SETTINGS["sync_lookback_days"],
         ),
         "connection_status": connection_status,
         "connection_message": connection_message,
@@ -5692,29 +5446,18 @@ DEFAULT_SPAM_GUARD_SETTINGS: dict[str, int] = {
 }
 
 
+_SPAM_GUARD_KEYS = (
+    "max_existing_links_per_host", "max_anchor_words", "paragraph_window",
+)
+
+
 def get_spam_guard_settings() -> dict[str, int]:
     """Return current spam-guard limits, falling back to patent-backed defaults."""
-
-    def _read_int(key: str, default: int) -> int:
-        raw = _get_app_setting_value(key)
-        try:
-            return int(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-
     return {
-        "max_existing_links_per_host": _read_int(
-            "spam_guards.max_existing_links_per_host",
-            DEFAULT_SPAM_GUARD_SETTINGS["max_existing_links_per_host"],
-        ),
-        "max_anchor_words": _read_int(
-            "spam_guards.max_anchor_words",
-            DEFAULT_SPAM_GUARD_SETTINGS["max_anchor_words"],
-        ),
-        "paragraph_window": _read_int(
-            "spam_guards.paragraph_window",
-            DEFAULT_SPAM_GUARD_SETTINGS["paragraph_window"],
-        ),
+        key: read_app_setting_int(
+            f"spam_guards.{key}", DEFAULT_SPAM_GUARD_SETTINGS[key],
+        )
+        for key in _SPAM_GUARD_KEYS
     }
 
 
@@ -5825,83 +5568,39 @@ class GraphRebuildView(APIView):
         return Response(payload, status=202)
 
 
+_GRAPH_CANDIDATE_INT_KEYS = (
+    "walk_steps_per_entity", "min_stable_candidates", "min_visit_threshold",
+    "top_k_candidates", "top_n_entities_per_article",
+)
+
+
 def _read_graph_candidate_settings() -> dict[str, float | int | bool]:
-    def _read_float(key: str, default: float) -> float:
-        raw = _get_app_setting_value(key)
-        try:
-            return float(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-
-    def _read_int(key: str, default: int) -> int:
-        raw = _get_app_setting_value(key)
-        try:
-            return int(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-
-    def _read_bool(key: str, default: bool) -> bool:
-        raw = _get_app_setting_value(key)
-        if raw is None:
-            return default
-        return coerce_bool(raw, default=default)
-
-    return {
-        "enabled": _read_bool(
-            "graph_candidate.enabled", DEFAULT_GRAPH_CANDIDATE_SETTINGS["enabled"]
-        ),
-        "walk_steps_per_entity": _read_int(
-            "graph_candidate.walk_steps_per_entity",
-            DEFAULT_GRAPH_CANDIDATE_SETTINGS["walk_steps_per_entity"],
-        ),
-        "min_stable_candidates": _read_int(
-            "graph_candidate.min_stable_candidates",
-            DEFAULT_GRAPH_CANDIDATE_SETTINGS["min_stable_candidates"],
-        ),
-        "min_visit_threshold": _read_int(
-            "graph_candidate.min_visit_threshold",
-            DEFAULT_GRAPH_CANDIDATE_SETTINGS["min_visit_threshold"],
-        ),
-        "top_k_candidates": _read_int(
-            "graph_candidate.top_k_candidates",
-            DEFAULT_GRAPH_CANDIDATE_SETTINGS["top_k_candidates"],
-        ),
-        "top_n_entities_per_article": _read_int(
-            "graph_candidate.top_n_entities_per_article",
-            DEFAULT_GRAPH_CANDIDATE_SETTINGS["top_n_entities_per_article"],
+    out: dict[str, float | int | bool] = {
+        "enabled": read_app_setting_bool(
+            "graph_candidate.enabled", DEFAULT_GRAPH_CANDIDATE_SETTINGS["enabled"],
         ),
     }
+    for key in _GRAPH_CANDIDATE_INT_KEYS:
+        out[key] = read_app_setting_int(
+            f"graph_candidate.{key}", DEFAULT_GRAPH_CANDIDATE_SETTINGS[key],
+        )
+    return out
+
+
+_GRAPH_CANDIDATE_INT_BOUNDS: dict[str, tuple[int, int]] = {
+    "walk_steps_per_entity": (10, 10000),
+    "min_stable_candidates": (5, 500),
+    "min_visit_threshold": (1, 20),
+    "top_k_candidates": (10, 1000),
+    "top_n_entities_per_article": (1, 100),
+}
 
 
 def _validate_graph_candidate_settings(payload: dict, current: dict) -> dict:
-    def _get_float(key: str) -> float:
-        val = payload.get(key, current.get(key))
-        try:
-            return float(val)
-        except (TypeError, ValueError):
-            return float(current.get(key, 0.0))
-
-    def _get_int(key: str) -> int:
-        val = payload.get(key, current.get(key))
-        try:
-            return int(val)
-        except (TypeError, ValueError):
-            return int(current.get(key, 0))
-
-    def _get_bool(key: str) -> bool:
-        val = payload.get(key, current.get(key))
-        return coerce_bool(val, default=False)
-
-    return {
-        "enabled": _get_bool("enabled"),
-        "walk_steps_per_entity": max(10, min(10000, _get_int("walk_steps_per_entity"))),
-        "min_stable_candidates": max(5, min(500, _get_int("min_stable_candidates"))),
-        "min_visit_threshold": max(1, min(20, _get_int("min_visit_threshold"))),
-        "top_k_candidates": max(10, min(1000, _get_int("top_k_candidates"))),
-        "top_n_entities_per_article": max(
-            1, min(100, _get_int("top_n_entities_per_article"))
-        ),
-    }
+    out: dict = {"enabled": coerce_lenient_bool(payload, current, "enabled")}
+    for key, (lo, hi) in _GRAPH_CANDIDATE_INT_BOUNDS.items():
+        out[key] = coerce_clamp_int(payload, current, key, lo, hi)
+    return out
 
 
 def _vm_read_float(key: str, default: float) -> float:
@@ -6033,66 +5732,53 @@ def _vm_settings_co_occurrence() -> dict[str, float | int | bool]:
     }
 
 
+# Per-key (lo, hi) for the value-model settings.
+# Spec is "clamp don't reject" so out-of-range values silently become the
+# nearest endpoint via coerce_clamp_*. Adding a new value-model knob =
+# add the key here + one line in the helper below.
+_VALUE_MODEL_FLOAT_BOUNDS: dict[str, tuple[float, float]] = {
+    "w_relevance": (0.0, 1.0),
+    "w_traffic": (0.0, 1.0),
+    "w_freshness": (0.0, 1.0),
+    "w_authority": (0.0, 1.0),
+    "w_penalty": (0.0, 1.0),
+    "traffic_fallback_value": (0.0, 1.0),
+    "w_engagement": (0.0, 1.0),
+    "engagement_cap_ratio": (1.0, 5.0),
+    "engagement_fallback_value": (0.0, 1.0),
+    "hot_gravity": (0.001, 0.5),  # FR-023
+    "hot_clicks_weight": (0.0, 5.0),  # FR-023
+    "hot_impressions_weight": (0.0, 5.0),  # FR-023
+    "w_cooccurrence": (0.0, 1.0),  # FR-025
+    "co_occurrence_fallback_value": (0.0, 1.0),  # FR-025
+}
+_VALUE_MODEL_INT_BOUNDS: dict[str, tuple[int, int]] = {
+    "traffic_lookback_days": (1, 365),
+    "engagement_lookback_days": (1, 365),
+    "engagement_words_per_minute": (50, 600),
+    "hot_lookback_days": (7, 365),  # FR-023
+    "co_occurrence_min_co_sessions": (1, 100),  # FR-025
+}
+_VALUE_MODEL_BOOL_KEYS: tuple[str, ...] = (
+    "enabled",
+    "engagement_signal_enabled",
+    "hot_decay_enabled",  # FR-023
+    "co_occurrence_signal_enabled",  # FR-025
+)
+
+
 def _validate_value_model_settings(payload: dict, current: dict) -> dict:
-    def _get_float(key: str) -> float:
-        val = payload.get(key, current.get(key))
-        try:
-            return float(val)
-        except (TypeError, ValueError):
-            return float(current.get(key, 0.0))
+    """Validate value-model settings with the lenient "clamp don't reject" contract.
 
-    def _get_int(key: str) -> int:
-        val = payload.get(key, current.get(key))
-        try:
-            return int(val)
-        except (TypeError, ValueError):
-            return int(current.get(key, 0))
-
-    def _get_bool(key: str) -> bool:
-        val = payload.get(key, current.get(key))
-        return coerce_bool(val, default=False)
-
-    return {
-        "enabled": _get_bool("enabled"),
-        "w_relevance": max(0.0, min(1.0, _get_float("w_relevance"))),
-        "w_traffic": max(0.0, min(1.0, _get_float("w_traffic"))),
-        "w_freshness": max(0.0, min(1.0, _get_float("w_freshness"))),
-        "w_authority": max(0.0, min(1.0, _get_float("w_authority"))),
-        "w_penalty": max(0.0, min(1.0, _get_float("w_penalty"))),
-        "traffic_lookback_days": max(1, min(365, _get_int("traffic_lookback_days"))),
-        "traffic_fallback_value": max(
-            0.0, min(1.0, _get_float("traffic_fallback_value"))
-        ),
-        "engagement_signal_enabled": _get_bool("engagement_signal_enabled"),
-        "w_engagement": max(0.0, min(1.0, _get_float("w_engagement"))),
-        "engagement_lookback_days": max(
-            1, min(365, _get_int("engagement_lookback_days"))
-        ),
-        "engagement_words_per_minute": max(
-            50, min(600, _get_int("engagement_words_per_minute"))
-        ),
-        "engagement_cap_ratio": max(1.0, min(5.0, _get_float("engagement_cap_ratio"))),
-        "engagement_fallback_value": max(
-            0.0, min(1.0, _get_float("engagement_fallback_value"))
-        ),
-        # FR-023 hot decay signal
-        "hot_decay_enabled": _get_bool("hot_decay_enabled"),
-        "hot_gravity": max(0.001, min(0.5, _get_float("hot_gravity"))),
-        "hot_clicks_weight": max(0.0, min(5.0, _get_float("hot_clicks_weight"))),
-        "hot_impressions_weight": max(
-            0.0, min(5.0, _get_float("hot_impressions_weight"))
-        ),
-        "hot_lookback_days": max(7, min(365, _get_int("hot_lookback_days"))),
-        # FR-025 co-occurrence signal
-        "co_occurrence_signal_enabled": _get_bool("co_occurrence_signal_enabled"),
-        "w_cooccurrence": max(0.0, min(1.0, _get_float("w_cooccurrence"))),
-        "co_occurrence_fallback_value": max(
-            0.0, min(1.0, _get_float("co_occurrence_fallback_value"))
-        ),
-        "co_occurrence_min_co_sessions": max(
-            1, min(100, _get_int("co_occurrence_min_co_sessions"))
-        ),
-    }
+    Bad operator input is silently clamped to the nearest valid value instead
+    of raising — matches spec FR-013 / FR-023 / FR-025 expectations.
+    """
+    validated: dict = {key: coerce_lenient_bool(payload, current, key) for key in _VALUE_MODEL_BOOL_KEYS}
+    for key, (lo, hi) in _VALUE_MODEL_FLOAT_BOUNDS.items():
+        validated[key] = coerce_clamp_float(payload, current, key, lo, hi)
+    for key, (lo_i, hi_i) in _VALUE_MODEL_INT_BOUNDS.items():
+        validated[key] = coerce_clamp_int(payload, current, key, lo_i, hi_i)
+    return validated
 
 
 class UserMeView(APIView):

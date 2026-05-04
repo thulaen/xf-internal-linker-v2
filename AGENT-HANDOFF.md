@@ -1,3 +1,61 @@
+# 2026-05-05 - Claude Opus 4.7 (1M context) - 7 more reusable helpers + 13 _read_* refactors + 1 dead-code deletion + 2 sister-bug fixes + 24 new tests
+
+What I'm doing: Continuing the DRY pass. After extracting 4 validate-side coercer helpers in the previous commit, audit found another 29 duplicated `_read_float` / `_read_int` / `_read_bool` closures across `views.py` reader functions, plus a clamp-pattern duplicated in 4 more validators. Same DRY violation, same fix.
+
+What was accomplished:
+
+**7 NEW MODULE-LEVEL HELPERS in `apps/core/services/settings_helpers.py`:**
+- `coerce_clamp_float(payload, current, key, lo, hi)` — value-model lenient float coercion + clamp (replaces `_get_float`/`max`/`min` chain)
+- `coerce_clamp_int(payload, current, key, lo, hi)` — same for ints
+- `coerce_lenient_bool(payload, current, key)` — bool variant using `current.get()` for partial PUTs
+- `read_app_setting_float(key, default, *, require_finite=True)` — two-tier reader (operator → fallback) with safe float parse
+- `read_app_setting_int(key, default)` — two-tier int reader
+- `read_app_setting_bool(key, default)` — two-tier bool reader (delegates to project-wide coerce_bool)
+
+**2 SISTER BUGS FIXED (silent semantic drift across endpoints):**
+1. `_read_feedback_rerank_settings._read_bool` previously did `raw.lower() == "true"` — accepted ONLY the literal `"true"`, rejected `"1"`, `"yes"`, `"on"`. Inconsistent with every other settings reader. Replaced with `read_app_setting_bool` which uses the project-wide truthy set.
+2. `get_silo_settings` was missing the `require_finite=False` opt-out the historical closure had — the new `read_app_setting_float` defaults to finite-required, would have silently changed silo behaviour. Explicit opt-out added.
+
+**1 DEAD-CODE BUG REMOVED:**
+`_read_learned_anchor_settings` was DEFINED TWICE (line 669 incomplete + line 848 complete). Python silently shadows the first with the second. The first def had a closure body but no return statement — would have returned None if ever called, but is unreachable. Deleted.
+
+**13 _read_*_settings FUNCTIONS REFACTORED:**
+- `get_silo_settings`, `get_wordpress_settings`, `get_spam_guard_settings`
+- `_read_clustering_settings`, `_read_weighted_authority_settings`, `_read_link_freshness_settings`
+- `_read_phrase_matching_settings`, `_read_click_distance_settings`, `_read_feedback_rerank_settings`, `_read_slate_diversity_settings`
+- `_read_learned_anchor_settings` (the surviving one), `_read_rare_term_propagation_settings`, `_read_field_aware_relevance_settings`
+- `_read_ga4_gsc_settings` (extracted `_ga4_gsc_connection_status` helper)
+- `_read_graph_candidate_settings`
+
+**2 VALIDATORS REFACTORED to clamp-pattern helpers:**
+- `_validate_value_model_settings` (60 → ~15 lines): pulled per-key bounds into 3 module-level constants (`_VALUE_MODEL_FLOAT_BOUNDS`, `_VALUE_MODEL_INT_BOUNDS`, `_VALUE_MODEL_BOOL_KEYS`); each new value-model knob = 1 tuple-entry now, not a hand-rolled `max(lo, min(hi, _get_float(key)))` line.
+- `_validate_graph_candidate_settings`: bounds → `_GRAPH_CANDIDATE_INT_BOUNDS` constant; closures replaced.
+
+**24 NEW UNIT TESTS in `apps/core/tests_settings_helpers.py` (now 55 tests total):**
+- `CoerceClampFloatTests` ×6 (passes-through, below-min clamps, above-max clamps, bad string → current, missing-current → 0 then clamp)
+- `CoerceClampIntTests` ×4
+- `CoerceLenientBoolTests` ×3 (incl. missing-from-both-payload-and-current → False, no KeyError)
+- `ReadAppSettingFloatTests` ×5 (incl. inf opt-out)
+- `ReadAppSettingIntTests` ×3
+- `ReadAppSettingBoolTests` ×3 (incl. ALL FOUR truthy strings: "true"/"1"/"yes"/"on" — sister-bug regression test)
+
+**LINTER PARITY:**
+- Strict-mode long-function count: 15 → 11 (-4 this round). Cumulative across the 4 commits today: 23 → 11 (-12 long functions resolved).
+- Diff-aware lint: clean
+- Net: views.py shrank by ~445 lines; settings_helpers.py grew by 124; tests grew by 170.
+
+**Files changed:**
+- `backend/apps/core/services/settings_helpers.py` — added 7 helpers, two new sub-section docblocks
+- `backend/apps/core/views.py` — 13 readers + 2 validators refactored; dead def deleted; 2 sister bugs fixed
+- `backend/apps/core/tests_settings_helpers.py` — 24 new tests
+- `AGENT-HANDOFF.md` — this entry
+
+What has issues or errors: 348/348 apps.core tests pass. Diff-aware lint clean. The 11 remaining long functions are all unnamed `post`/`get`/`put` handlers (60/61/59/57/55/54/53/53/52/51) — separate refactors for a future session, each handler is its own structure.
+
+Tech-debt delta: +24 unit tests (+55 cumulative across 3 commits today), +7 reusable module-level helpers, 29 duplicated read closures eliminated, 13 readers + 2 validators resolved as long functions, 1 dead-code definition deleted, 2 sister-bugs fixed (feedback_rerank truthy-set + silo finite-tolerance now consistent across every settings reader). -445 net lines on views.py.
+
+---
+
 # 2026-05-05 - Claude Opus 4.7 (1M context) - DRY win: extract 4 reusable validator helpers + 8 sibling refactors + 31 new tests + sister-bug fix
 
 What I'm doing: Continuing the long-function clear-out. Audit found 17 duplicated `_coerce_int` / `_coerce_float` / `_coerce_bool` closures across `views.py` validators — every settings PUT endpoint defined the same 7-9 lines of payload-coercion boilerplate. Textbook DRY violation. The new THINK-BEFORE-YOU-CODE paramount rule explicitly forbids "duplicate 6+ line blocks" — I just shipped the rule, so I have to lead by example.

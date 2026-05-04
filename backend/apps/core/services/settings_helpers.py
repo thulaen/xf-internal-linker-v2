@@ -206,3 +206,127 @@ def enforce_bounds(
         value = validated[key]
         if value < minimum or value > maximum:
             raise ValueError(f"{key} must be between {minimum} and {maximum}.")
+
+
+# ---------------------------------------------------------------------------
+# Lenient (clamping) variants — used by ``_validate_value_model_settings``
+# and similar endpoints where bad operator input should be silently clamped
+# rather than rejected. The strict raise-on-error helpers above are the
+# default; reach for these only when the spec explicitly says "clamp".
+# ---------------------------------------------------------------------------
+
+
+def coerce_clamp_float(
+    payload: dict,
+    current: dict,
+    key: str,
+    lo: float,
+    hi: float,
+) -> float:
+    """Coerce ``payload[key]`` (with ``current[key]`` fallback) and clamp to ``[lo, hi]``.
+
+    Lenient: bad strings fall back to ``current.get(key, 0.0)`` instead of
+    raising. Used by value-model settings where the spec is "clamp don't reject".
+    """
+    val = payload.get(key, current.get(key))
+    try:
+        coerced = float(val)
+    except (TypeError, ValueError):
+        coerced = float(current.get(key, 0.0))
+    return max(lo, min(hi, coerced))
+
+
+def coerce_clamp_int(
+    payload: dict,
+    current: dict,
+    key: str,
+    lo: int,
+    hi: int,
+) -> int:
+    """Coerce ``payload[key]`` (with ``current[key]`` fallback) and clamp to ``[lo, hi]``.
+
+    Lenient int variant: bad input falls back to ``current.get(key, 0)``.
+    """
+    val = payload.get(key, current.get(key))
+    try:
+        coerced = int(val)
+    except (TypeError, ValueError):
+        coerced = int(current.get(key, 0))
+    return max(lo, min(hi, coerced))
+
+
+def coerce_lenient_bool(payload: dict, current: dict, key: str) -> bool:
+    """Coerce ``payload[key]`` (with ``current.get(key)`` fallback) to bool.
+
+    Lenient variant of ``coerce_setting_bool`` — uses ``current.get()`` so
+    a missing-from-current key doesn't KeyError. Used by the value-model
+    validator and any other endpoint that accepts partial PUTs.
+    """
+    from apps.api.query_params import coerce_bool
+
+    val = payload.get(key, current.get(key))
+    return coerce_bool(val, default=False)
+
+
+# ---------------------------------------------------------------------------
+# Two-tier AppSetting readers (operator → fallback, no preset middle layer).
+#
+# These three helpers replace ~29 duplicated _read_float / _read_int /
+# _read_bool closures previously inlined in apps/core/views.py "load X
+# settings from AppSetting" functions. Each closure was 5-7 lines of
+# identical try/except/finite-check boilerplate.
+#
+# Why a separate set vs setting_int/float/bool above: those are 3-tier
+# (operator → recommended-preset → fallback). The "_read_*" closures
+# being replaced are deliberately 2-tier — they implement the per-feature
+# defaults file (DEFAULT_*_SETTINGS dict) as the second tier rather than
+# pulling from recommended_weights. Keeping the 2-tier semantic is a
+# hard-correctness requirement: changing it to 3-tier would silently
+# change every settings page's default values.
+# ---------------------------------------------------------------------------
+
+
+def read_app_setting_float(
+    key: str,
+    default: float,
+    *,
+    require_finite: bool = True,
+) -> float:
+    """Read a float AppSetting with safe fallback. Two-tier: operator → default.
+
+    Returns ``default`` on parse error or (if require_finite) inf/NaN.
+    No exception raised, no logging — silent fall-through is the contract.
+    """
+    import math
+
+    raw = _read_operator(key)
+    if raw is None:
+        return default
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return default
+    if require_finite and not math.isfinite(value):
+        return default
+    return value
+
+
+def read_app_setting_int(key: str, default: int) -> int:
+    """Read an int AppSetting with safe fallback. Two-tier: operator → default."""
+    raw = _read_operator(key)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return default
+
+
+def read_app_setting_bool(key: str, default: bool) -> bool:
+    """Read a bool AppSetting with safe fallback. Two-tier: operator → default."""
+    from apps.api.query_params import coerce_bool
+
+    raw = _read_operator(key)
+    if raw is None:
+        return default
+    return coerce_bool(raw, default=default)
