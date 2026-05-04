@@ -5291,20 +5291,33 @@ class ValueModelSettingsView(APIView):
         return Response(validated)
 
 
+def _vm_bool_str(v: object) -> str:
+    """Bool → "true"/"false" — single source for value-model rows."""
+    return "true" if v else "false"
+
+
 def _build_value_model_rows(validated: dict) -> dict[str, dict[str, str]]:
     """Pure function — turn a validated value-model dict into AppSetting rows.
 
     Each entry maps an AppSetting key to ``{value, value_type, description}``.
-    Keeping this declarative + outside the view handler means tests can
-    pin the per-key serialisation (bool→"true"/"false", numerics→str)
-    without spinning up a request lifecycle.
+    The body is split into per-feature-area helpers so the table data
+    stays scannable while no single function exceeds the 50-line lint
+    budget. Tests pin every serialisation rule + the "every input key
+    produces a row" invariant.
     """
-    def _bool_str(v: object) -> str:
-        return "true" if v else "false"
+    return {
+        **_vm_rows_core(validated),
+        **_vm_rows_engagement(validated),
+        **_vm_rows_hot_decay(validated),
+        **_vm_rows_co_occurrence(validated),
+    }
 
+
+def _vm_rows_core(validated: dict) -> dict[str, dict[str, str]]:
+    """FR-021 base value-model: enabled flag + 5 component weights + traffic."""
     return {
         "value_model.enabled": {
-            "value": _bool_str(validated["enabled"]),
+            "value": _vm_bool_str(validated["enabled"]),
             "value_type": "bool",
             "description": "Whether FR-021 Instagram-style value pre-scoring is active.",
         },
@@ -5343,8 +5356,14 @@ def _build_value_model_rows(validated: dict) -> dict[str, dict[str, str]]:
             "value_type": "float",
             "description": "Default traffic score to use if no data exists.",
         },
+    }
+
+
+def _vm_rows_engagement(validated: dict) -> dict[str, dict[str, str]]:
+    """FR-024 engagement / read-through rate signal."""
+    return {
         "value_model.engagement_signal_enabled": {
-            "value": _bool_str(validated["engagement_signal_enabled"]),
+            "value": _vm_bool_str(validated["engagement_signal_enabled"]),
             "value_type": "bool",
             "description": "Whether FR-024 engagement (read-through rate) signal is active.",
         },
@@ -5373,9 +5392,14 @@ def _build_value_model_rows(validated: dict) -> dict[str, dict[str, str]]:
             "value_type": "float",
             "description": "Fallback signal value when no SearchMetric rows exist for a destination.",
         },
-        # FR-023 hot decay signal
+    }
+
+
+def _vm_rows_hot_decay(validated: dict) -> dict[str, dict[str, str]]:
+    """FR-023 Reddit-style hot-decay signal."""
+    return {
         "value_model.hot_decay_enabled": {
-            "value": _bool_str(validated["hot_decay_enabled"]),
+            "value": _vm_bool_str(validated["hot_decay_enabled"]),
             "value_type": "bool",
             "description": "Whether FR-023 Reddit Hot decay replaces flat traffic averaging.",
         },
@@ -5399,9 +5423,14 @@ def _build_value_model_rows(validated: dict) -> dict[str, dict[str, str]]:
             "value_type": "int",
             "description": "Number of days of daily traffic data to feed into hot scoring.",
         },
-        # FR-025 co-occurrence signal
+    }
+
+
+def _vm_rows_co_occurrence(validated: dict) -> dict[str, dict[str, str]]:
+    """FR-025 session co-occurrence signal."""
+    return {
         "value_model.co_occurrence_signal_enabled": {
-            "value": _bool_str(validated["co_occurrence_signal_enabled"]),
+            "value": _vm_bool_str(validated["co_occurrence_signal_enabled"]),
             "value_type": "bool",
             "description": "Whether the FR-025 session co-occurrence signal is active.",
         },
