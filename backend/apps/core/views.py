@@ -31,6 +31,7 @@ from apps.api.throttles import (
     ChallengerEvalThrottle as _ChallengerEvalThrottle,
     CompressionAuditRunThrottle,
     GraphRebuildThrottle as _GraphRebuildThrottle,
+    PerformanceCertRunThrottle,
     WeightRecalcThrottle as _WeightRecalcThrottle,
 )
 
@@ -486,7 +487,11 @@ def get_graph_candidate_settings() -> dict[str, float | int | bool]:
             settings,
             current=dict(DEFAULT_GRAPH_CANDIDATE_SETTINGS),
         )
-    except Exception:
+    except Exception:  # noqa: BLE001 — bad operator-stored settings fall back to safe defaults; logger keeps a paper trail.
+        logger.warning(
+            "Graph candidate settings validation failed; using defaults",
+            exc_info=True,
+        )
         return dict(DEFAULT_GRAPH_CANDIDATE_SETTINGS)
 
 
@@ -498,7 +503,11 @@ def get_value_model_settings() -> dict[str, float | int | bool]:
             settings,
             current=dict(DEFAULT_VALUE_MODEL_SETTINGS),
         )
-    except Exception:
+    except Exception:  # noqa: BLE001 — bad operator-stored settings fall back to safe defaults; logger keeps a paper trail.
+        logger.warning(
+            "Value-model settings validation failed; using defaults",
+            exc_info=True,
+        )
         return dict(DEFAULT_VALUE_MODEL_SETTINGS)
 
 
@@ -548,7 +557,11 @@ def get_clustering_settings() -> dict[str, float | bool]:
             settings,
             current=dict(DEFAULT_CLUSTERING_SETTINGS),
         )
-    except Exception:
+    except Exception:  # noqa: BLE001 — bad operator-stored settings fall back to safe defaults; logger keeps a paper trail.
+        logger.warning(
+            "Clustering settings validation failed; using defaults",
+            exc_info=True,
+        )
         return dict(DEFAULT_CLUSTERING_SETTINGS)
 
 
@@ -848,7 +861,11 @@ def get_slate_diversity_settings() -> dict:
     """Return current FR-015 slate diversity settings with defaults applied."""
     try:
         return _read_slate_diversity_settings()
-    except Exception:
+    except Exception:  # noqa: BLE001 — read failure falls back to defaults; logger keeps a paper trail.
+        logger.warning(
+            "Slate diversity settings read failed; using defaults",
+            exc_info=True,
+        )
         return dict(DEFAULT_SLATE_DIVERSITY_SETTINGS)
 
 
@@ -6037,6 +6054,87 @@ class CompressionAuditRunView(APIView):
             report.total_estimated_savings_bytes // (1024 * 1024)
         )
         return Response(payload)
+
+
+class PerformanceCertView(APIView):
+    """GET /api/system/performance-cert/
+
+    Phase 4.11 — read-only "Ready to Ship?" badge. Returns the
+    persisted pass/fail verdict computed by the Celery beat (daily) or
+    by an operator-triggered run-now (POST run/ below).
+
+    Response shape::
+
+        {
+            "run_at_iso": "2026-05-04T04:00:11+00:00",
+            "verdict": "pass" | "warn" | "fail" | "unknown",
+            "label": "Ready to ship — every benchmark meets baseline.",
+            "benchmark_run_id": 42,
+            "benchmark_run_started_at_iso": "2026-05-03T04:00:00+00:00",
+            "areas": [
+                {"area": "cpp", "fast_count": 8, "ok_count": 4,
+                 "slow_count": 0, "total": 12, "verdict": "pass",
+                 "note": "All 12 cpp benchmarks meet baseline."},
+                ...
+            ],
+            "note": "All systems go..."
+        }
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from dataclasses import asdict
+
+        from apps.core.services.performance_certification import (
+            get_last_certification,
+        )
+
+        verdict = get_last_certification()
+        if verdict is None:
+            return Response(
+                {
+                    "run_at_iso": "",
+                    "verdict": "unknown",
+                    "label": (
+                        "No performance certification has run yet. The first "
+                        "cert fires daily at 04:00 UTC; trigger immediately "
+                        "via POST /api/system/performance-cert/run/."
+                    ),
+                    "benchmark_run_id": None,
+                    "benchmark_run_started_at_iso": "",
+                    "areas": [],
+                    "note": "",
+                }
+            )
+        return Response(asdict(verdict))
+
+
+class PerformanceCertRunView(APIView):
+    """POST /api/system/performance-cert/run/
+
+    Phase 4.11 — operator-triggered immediate cert recompute. Cheap
+    (~1-2 s) — aggregates the latest BenchmarkRun without re-running
+    benchmarks. Restricted to staff users + 6/hour throttle so an
+    accidentally-mashed button can't pile up audit-event noise.
+
+    To trigger a FRESH benchmark run (5-15 minutes) use
+    ``POST /api/benchmarks/trigger/``; this endpoint only re-aggregates
+    the latest existing run.
+    """
+
+    permission_classes = [IsAdminUser]
+    throttle_classes = [PerformanceCertRunThrottle]
+
+    def post(self, request):
+        from dataclasses import asdict
+
+        from apps.core.services.performance_certification import (
+            run_performance_certification,
+        )
+
+        verdict = run_performance_certification()
+        return Response(asdict(verdict))
 
 
 class CppFallbackStatusView(APIView):

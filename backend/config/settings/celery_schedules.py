@@ -310,4 +310,14 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(day_of_week=0, hour=3, minute=0),
         "options": {"queue": "default"},
     },
+    # Phase 4.11 — Performance Certification recompute.
+    # Daily at 04:00 UTC: aggregate the latest completed BenchmarkRun
+    # into a pass/fail verdict for the dashboard. Cheap (~1-2 s); does
+    # NOT trigger a fresh benchmark run (that's a separate manual
+    # operator action). Storage: 2 AppSetting rows total.
+    "daily-performance-cert": {
+        "task": "core.performance_cert_recompute",
+        "schedule": crontab(hour=4, minute=0),
+        "options": {"queue": "default"},
+    },
 }

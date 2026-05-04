@@ -67,3 +67,26 @@ class CompressionAuditRunThrottle(UserRateThrottle):
 
     scope = "compression_audit_run"
     rate = "3/hour"
+
+
+class BenchmarkRunTriggerThrottle(UserRateThrottle):
+    """Phase 4.11 — manual benchmark run trigger. Each run schedules a
+    Celery task that takes 5-15 minutes to walk every C++ + Python
+    benchmark; rate-limit so an accidentally-mashed button can't pile
+    up runs in the queue.
+    """
+
+    scope = "benchmark_run_trigger"
+    rate = "2/hour"
+
+
+class PerformanceCertRunThrottle(UserRateThrottle):
+    """Phase 4.11 — synchronous certification verdict. The cert itself
+    is a fast aggregation over the latest BenchmarkRun (~1-2 s), but
+    paired with a manual benchmark trigger this can become expensive.
+    Rate limit at 6/hour leaves room for the operator to iterate
+    without thrashing.
+    """
+
+    scope = "performance_cert_run"
+    rate = "6/hour"

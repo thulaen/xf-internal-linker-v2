@@ -425,6 +425,12 @@ REST_FRAMEWORK = {
         # for 30-120 s; rate-limit so an accidentally-mashed button
         # (or compromised token) can't DoS the worker pool.
         "compression_audit_run": "3/hour",
+        # Phase 4.11 — benchmark trigger queues a 5-15 minute Celery
+        # job; cap at 2/hour so a flood of triggers can't backlog the
+        # benchmark queue. Cert run-now is a cheaper aggregation over
+        # the latest BenchmarkRun (~1-2 s) so it gets a higher cap.
+        "benchmark_run_trigger": "2/hour",
+        "performance_cert_run": "6/hour",
     },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }

@@ -1,11 +1,24 @@
+"""DRF views for the benchmarks app.
+
+Read endpoints (list/retrieve/latest/report/trends) are open to any
+authenticated operator. The expensive ``trigger`` endpoint is staff-
+only + rate-limited (``BenchmarkRunTriggerThrottle``) so an
+accidentally-mashed button can't backlog the benchmark queue.
+"""
+
+from __future__ import annotations
+
 import logging
 from datetime import timedelta
 
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
+
+from apps.api.throttles import BenchmarkRunTriggerThrottle
 
 from .models import BenchmarkResult, BenchmarkRun
 from .serializers import (
@@ -18,9 +31,17 @@ logger = logging.getLogger(__name__)
 
 
 class BenchmarkViewSet(GenericViewSet):
-    """API for benchmark runs, results, trends, and manual triggers."""
+    """API for benchmark runs, results, trends, and manual triggers.
+
+    Read endpoints (list/retrieve/latest/report/trends) are open to any
+    authenticated operator. The expensive ``trigger`` endpoint is
+    restricted to staff + rate-limited so it can't be used to backlog
+    the benchmark queue. Security tightening landed 2026-05-04 alongside
+    the Phase 4.11 Performance Certification work.
+    """
 
     queryset = BenchmarkRun.objects.all()
+    permission_classes = [IsAuthenticated]
 
     def list(self, request):
         """GET /api/benchmarks/ — list all runs."""
@@ -47,9 +68,20 @@ class BenchmarkViewSet(GenericViewSet):
         serializer = BenchmarkRunSerializer(run)
         return Response(serializer.data)
 
-    @action(detail=False, methods=["post"])
+    @action(
+        detail=False,
+        methods=["post"],
+        permission_classes=[IsAdminUser],
+        throttle_classes=[BenchmarkRunTriggerThrottle],
+    )
     def trigger(self, request):
-        """POST /api/benchmarks/trigger/ — start a manual benchmark run."""
+        """POST /api/benchmarks/trigger/ — start a manual benchmark run.
+
+        Restricted to staff + 2/hour throttle. Each call schedules a
+        Celery task that walks every C++ + Python benchmark (5-15 min);
+        without these guards a stolen non-admin token (or an over-eager
+        UI) could backlog the benchmark queue indefinitely.
+        """
         from .tasks import run_all_benchmarks
 
         run = BenchmarkRun.objects.create(trigger="manual")

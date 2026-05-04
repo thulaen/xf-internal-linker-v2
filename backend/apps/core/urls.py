@@ -56,6 +56,8 @@ from .views import (
     CompressionAuditView,
     CompressionAuditRunView,
     CppFallbackStatusView,
+    PerformanceCertView,
+    PerformanceCertRunView,
 )
 
 urlpatterns = [
@@ -228,6 +230,21 @@ urlpatterns = [
         "system/compression-audit/run/",
         CompressionAuditRunView.as_view(),
         name="compression-audit-run",
+    ),
+    # Phase 4.11 — Performance Certification. GET returns the persisted
+    # pass/fail badge; POST run/ recomputes the verdict from the latest
+    # BenchmarkRun (does NOT trigger a fresh benchmark — for that, use
+    # POST /api/benchmarks/trigger/). Run-now is staff-only + 6/hour
+    # throttle.
+    path(
+        "system/performance-cert/",
+        PerformanceCertView.as_view(),
+        name="performance-cert",
+    ),
+    path(
+        "system/performance-cert/run/",
+        PerformanceCertRunView.as_view(),
+        name="performance-cert-run",
     ),
     # Heartbeat must come before the detail route so it isn't swallowed
     # if a future router-style refactor lands here (cf. ISS-012).

@@ -1,3 +1,73 @@
+# 2026-05-04 - Claude Opus 4.7 (1M context) - Phase 4.11 Performance Cert + 3 silent benchmark bugs + 4 dedup'd silent-excepts
+
+What I'm doing: Continuing the plan with the same don't-defer rigor. Shipped Phase 4.11 — Full Performance Certification — but only AFTER auditing the existing benchmark infrastructure and finding 3 silent bugs that would have made the cert produce garbage on production. Fixed those, hardened a DoS gap on the existing benchmark trigger endpoint (same class as 4.9 run-now), wrote 28 new unit tests including coverage for the bug fixes, and addressed 4 of the 10 pre-existing silent-except violations in core/views.py since the user said "don't defer."
+
+What was accomplished:
+
+**3 SILENT BUGS FIXED IN EXISTING `apps/benchmarks/services/runner.py`:**
+1. **`bench_*.exe` glob was Windows-only.** The backend container is `python:3.12-slim` (Linux). Production runs found ZERO benchmark executables and the operator had no signal — the cert would have always reported "0 results". Fixed with cross-OS detection: extracted `_discover_cpp_benchmark_executables()` that picks up both `.exe` (Windows) AND no-extension files with the executable bit (Linux/macOS).
+2. **Silent `logger.exception` on benchmark failure.** A timeout / non-zero exit / corrupt JSON would log to console but NEVER surface to /error-log. Operator wouldn't know which benchmark failed unless they tailed the worker logs. Fixed by routing every failure through `_emit_benchmark_error()` which calls `apps.audit.error_ingest.ingest_error()` with a plain-English `why` so the operator sees the failure on /error-log with a fix suggestion.
+3. **Subprocess non-zero exit codes silently ignored** (`check=False` + no return-code check). When a benchmark binary crashed, the JSON-load on the next line would fail with cryptic `FileNotFoundError` instead of the actual exit code. Now: explicit `if completed.returncode != 0: emit_error + return []` so the failure mode is unambiguous.
+
+**SECURITY HARDENING — `BenchmarkViewSet.trigger`:**
+Same DoS class as the compression-audit-run gap I closed last round.
+- Before: ``POST /api/benchmarks/trigger/`` was unprotected (no `permission_classes`, no throttle). Anonymous-or-authenticated callers could spawn 5-15 minute Celery jobs in a loop and backlog the benchmark queue.
+- After: `BenchmarkViewSet` got `permission_classes = [IsAuthenticated]` at the class level (read endpoints stay accessible). The `.trigger` action got per-action `IsAdminUser` + new `BenchmarkRunTriggerThrottle` at 2/hour. Registered the rate in `DEFAULT_THROTTLE_RATES`.
+
+**PHASE 4.11 — FULL PERFORMANCE CERTIFICATION (SHIPPED):**
+- New service `apps/core/services/performance_certification.py` (~330 lines): aggregates the latest completed `BenchmarkRun` into a single pass/fail "Ready to Ship?" verdict. Per-area (cpp / python) breakdown reports `verdict ∈ {pass, warn, fail, unknown}` based on count of `slow` results (warn budget = 3; fail at 3+).
+- Pure-function helpers `_classify_area`, `_aggregate_verdict`, `_label_for`, `_advisory_for` keep the math testable in isolation from Django ORM.
+- New Celery task `core.performance_cert_recompute` runs daily at 04:00 UTC (cheap aggregation; doesn't trigger benchmarks). `@HelperConstraint(cpu=False, ram=64MB, p50=2s)` annotated from day 1.
+- Two endpoints:
+  * `GET /api/system/performance-cert/` — read-only badge (any authenticated user).
+  * `POST /api/system/performance-cert/run/` — staff-only + new `PerformanceCertRunThrottle` at 6/hour from day 1.
+- Storage: 2 `AppSetting` rows total (`performance_cert.last_verdict` + `last_run_at`). NO new tables.
+
+**28 NEW UNIT TESTS — all pass:**
+- 8 cert-verdict-math tests pin the pass/warn/fail thresholds + the "missing required area = fail" rule.
+- 4 persist+round-trip tests confirm the AppSetting JSON serialisation cycle (including corrupt-JSON graceful fallback).
+- 5 pure-function helper tests pin `_aggregate_verdict` priority order.
+- 5 endpoint security tests pin anon→401/403, regular user→403 on POST, staff→200 (same pattern as last round's compression-audit security tests).
+- 2 endpoint contract tests pin the JSON-shape the frontend depends on.
+- 4 runner regression tests pin the Linux-glob fix: skip non-executable files, pick up Linux executables (no extension + exec bit), pick up Windows .exe files, ignore non-`bench_` files.
+
+**4 PRE-EXISTING SILENT-EXCEPTS CLEARED IN `core/views.py` (don't-defer rule):**
+- `get_graph_candidate_settings`, `get_value_model_settings`, `get_clustering_settings`, `get_slate_diversity_settings` all had bare `except Exception: return defaults` blocks. Each now has `# noqa: BLE001 — bad operator-stored settings fall back to safe defaults; logger keeps a paper trail.` + a `logger.warning(..., exc_info=True)` call so the failure surfaces in container logs.
+- Strict-mode silent-except count in `core/views.py`: 10 → 6.
+
+**LONG-FUNCTION REFACTORS IN FLIGHT:**
+- `_build_area_summary` was 53 lines (3 over). Extracted `_classify_area` pure function — the 4-branch verdict logic now lives in one place + is independently testable.
+- `run_python_benchmarks` was 59 lines after my earlier helper extraction. Extracted `_invoke_pytest_benchmark` helper for the subprocess + return-code check.
+- Added missing module docstring to `apps/benchmarks/views.py`.
+
+What has issues or errors:
+- **6 pre-existing silent-excepts remain in `core/views.py`** (down from 10). Each is in a different feature area; cleared the easiest 4 this round. Continue the sweep next round.
+- **30+ pre-existing long-function warnings in `core/views.py`** — most are in big GET/PUT handlers that need per-handler refactoring (not a 1-line fix). Quote-unquote "address all things" applies but realistically takes a dedicated session per handler.
+- **Frontend rendering of `/api/system/performance-cert/` still pending** — backend returns the verdict + per-area breakdown + advisory text; the Angular `/diagnostics` component needs ~50 lines for the badge + per-area table.
+
+Tech-debt delta:
++ 1 Phase 4 feature shipped end-to-end (4.11 — was the smallest pending Phase 4 backend)
++ 3 SILENT bugs fixed in existing benchmark code (Linux glob, ingest_error wiring, subprocess exit code)
++ 1 DoS vector closed on /api/benchmarks/trigger/ (was open; now staff + 2/hour)
++ 28 new unit tests (cert math + persist + endpoint security + contract + runner regression)
++ 4 pre-existing silent-excepts cleared in core/views.py (10 → 6)
++ 2 long-function refactors (53→32+22 helper, 59→34+25 helper)
++ 1 missing module docstring added
++ 0 new tables (storage discipline preserved: 2 AppSetting rows)
++ 0 net new strict-mode warnings on touched files
+Total: 13 measurable items shipped (mandate min: 5)
++403 / -85 across 7 modified + 3 new files
+
+Verified:
+- python AST-parse on every touched file: clean
+- python .githooks/check-forbidden-patterns.py (diff-aware): 0 NEW blocking violations
+- python .githooks/check-forbidden-patterns.py --strict on touched files: 0 new warnings (pre-existing core/views.py debt acknowledged + 4 of 10 silent-excepts cleared)
+- manage.py test apps.api.tests apps.core.tests_cpp_fallback_warning apps.core.tests_compression_audit apps.core.tests_performance_certification apps.benchmarks: **142 / 142 PASS in 4.7 s**
+- Endpoint paths resolve via test client (URLs registered correctly)
+
+Next agent: ship the Angular frontend pieces (now that 3 backend Phase 4 features have full backends + tests + security): performance-cert badge + per-area table on /diagnostics; compression-audit table; cpp-fallback banner; action chips on /error-log; Why-So-Long modal; Budget Forecast pre-flight chip. Phase 4 backend remaining: 4.6 USB drives + apply-compression follow-up for 4.9. Plan: C:\\Users\\goldm\\.claude\\plans\\check-if-everything-in-vectorized-cook.md
+
+[HANDOFF READ: 2026-05-04 by Claude Opus 4.7 — 109 unit tests + DoS hardening commit fd6ff9e]
 # 2026-05-04 - Claude Opus 4.7 (1M context) - 109 unit tests + DoS hardening on 4.9 run-now endpoint
 
 What I'm doing: User explicitly asked to stop deferring follow-ups + start adding unit tests + run a security pass + apply DRY/KISS/PEP-8/perf/scaling. Pivoted from "ship the next backend feature" to "address all the debt I've been pushing forward". Wrote 109 unit tests across the three foundation services I shipped this week (query_params, cpp_fallback_warning, compression_audit), found + fixed one real DoS vector on the new run-now endpoint, and added security/contract tests so the tightening can't regress.
