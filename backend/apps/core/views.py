@@ -26,7 +26,7 @@ from rest_framework.views import APIView
 
 logger = logging.getLogger(__name__)
 
-from apps.api.query_params import coerce_bool, coerce_int
+from apps.api.query_params import coerce_bool, coerce_float, coerce_int
 from apps.api.throttles import (
     ChallengerEvalThrottle as _ChallengerEvalThrottle,
     CompressionAuditRunThrottle,
@@ -3555,119 +3555,139 @@ class MissionBriefView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        """Return the 3-sentence "Today" summary + supporting counts.
+
+        Refactored 2026-05-04: was 114 lines. Each sentence + the
+        top-alert lookup is now a separate helper so the handler reads
+        like a brief — and each helper is independently testable.
+        """
         from datetime import timedelta
 
         from django.utils import timezone
 
-        from apps.notifications.models import OperatorAlert
-        from apps.suggestions.models import PipelineRun, Suggestion
-        from apps.sync.models import SyncJob
-
         now = timezone.now()
         yesterday_cutoff = now - timedelta(hours=24)
-        # (today_cutoff retained for future midnight-scoped queries)
 
-        # ── Sentence 1: Yesterday ────────────────────────────────
-        approved_yday = Suggestion.objects.filter(
-            status="approved", reviewed_at__gte=yesterday_cutoff
-        ).count()
-        synced_yday = SyncJob.objects.filter(
-            status="completed", completed_at__gte=yesterday_cutoff
-        ).count()
-        pipeline_runs_yday = PipelineRun.objects.filter(
-            created_at__gte=yesterday_cutoff
-        ).count()
-
-        if approved_yday == 0 and synced_yday == 0 and pipeline_runs_yday == 0:
-            sentence_yesterday = "In the last 24 hours nothing was approved or synced."
-        else:
-            parts: list[str] = []
-            if approved_yday:
-                parts.append(
-                    f"{approved_yday} suggestion"
-                    + ("s" if approved_yday != 1 else "")
-                    + " approved"
-                )
-            if synced_yday:
-                parts.append(
-                    f"{synced_yday} sync job"
-                    + ("s" if synced_yday != 1 else "")
-                    + " finished"
-                )
-            if pipeline_runs_yday:
-                parts.append(
-                    f"{pipeline_runs_yday} pipeline run"
-                    + ("s" if pipeline_runs_yday != 1 else "")
-                )
-            sentence_yesterday = "In the last 24 hours: " + ", ".join(parts) + "."
-
-        # ── Sentence 2: Today's queue ───────────────────────────
-        pending_reviews = Suggestion.objects.filter(status="pending").count()
-        running_syncs = SyncJob.objects.filter(
-            status__in=["running", "pending"]
-        ).count()
-
-        queue_parts: list[str] = []
-        if pending_reviews:
-            queue_parts.append(
-                f"{pending_reviews} suggestion"
-                + ("s" if pending_reviews != 1 else "")
-                + " waiting for review"
-            )
-        if running_syncs:
-            queue_parts.append(
-                f"{running_syncs} sync"
-                + ("s" if running_syncs != 1 else "")
-                + " in flight"
-            )
-
-        if queue_parts:
-            sentence_today = "Right now: " + " and ".join(queue_parts) + "."
-        else:
-            sentence_today = "Right now the queue is clear."
-
-        # ── Sentence 3: Watch (most pressing) ───────────────────
-        top_alert = (
-            OperatorAlert.objects.filter(
-                status="unread", severity__in=["urgent", "error"]
-            )
-            .order_by("-first_seen_at")
-            .first()
-        )
-
-        if top_alert:
-            sentence_watch = (
-                f'Watch: {top_alert.severity} alert — "{top_alert.title[:80]}".'
-            )
-        else:
-            sentence_watch = "Nothing is on fire."
+        yesterday = _today_view_yesterday_counts(yesterday_cutoff)
+        today_queue = _today_view_today_queue_counts()
+        top_alert = _today_view_top_alert()
 
         return Response(
             {
                 "sentences": [
-                    sentence_yesterday,
-                    sentence_today,
-                    sentence_watch,
+                    _today_view_sentence_yesterday(yesterday),
+                    _today_view_sentence_today(today_queue),
+                    _today_view_sentence_watch(top_alert),
                 ],
                 "counts": {
-                    "approved_last_24h": approved_yday,
-                    "synced_last_24h": synced_yday,
-                    "pipeline_runs_last_24h": pipeline_runs_yday,
-                    "pending_reviews": pending_reviews,
-                    "running_syncs": running_syncs,
+                    "approved_last_24h": yesterday["approved"],
+                    "synced_last_24h": yesterday["synced"],
+                    "pipeline_runs_last_24h": yesterday["pipeline_runs"],
+                    "pending_reviews": today_queue["pending_reviews"],
+                    "running_syncs": today_queue["running_syncs"],
                 },
-                "top_alert": (
-                    {
-                        "alert_id": str(top_alert.alert_id),
-                        "severity": top_alert.severity,
-                        "title": top_alert.title,
-                    }
-                    if top_alert
-                    else None
-                ),
+                "top_alert": _today_view_top_alert_dict(top_alert),
                 "generated_at": now.isoformat(),
             }
         )
+
+
+# ── Today-actions helpers (extracted from TodayActionsView.get) ──
+
+
+def _today_view_yesterday_counts(cutoff) -> dict[str, int]:
+    """Count approvals / sync completions / pipeline runs since *cutoff*."""
+    from apps.suggestions.models import PipelineRun, Suggestion
+    from apps.sync.models import SyncJob
+
+    return {
+        "approved": Suggestion.objects.filter(
+            status="approved", reviewed_at__gte=cutoff
+        ).count(),
+        "synced": SyncJob.objects.filter(
+            status="completed", completed_at__gte=cutoff
+        ).count(),
+        "pipeline_runs": PipelineRun.objects.filter(created_at__gte=cutoff).count(),
+    }
+
+
+def _today_view_today_queue_counts() -> dict[str, int]:
+    """Live queue counts (pending reviews + in-flight syncs)."""
+    from apps.suggestions.models import Suggestion
+    from apps.sync.models import SyncJob
+
+    return {
+        "pending_reviews": Suggestion.objects.filter(status="pending").count(),
+        "running_syncs": SyncJob.objects.filter(
+            status__in=["running", "pending"]
+        ).count(),
+    }
+
+
+def _today_view_top_alert():
+    """Most pressing unread alert (urgent or error severity), or None."""
+    from apps.notifications.models import OperatorAlert
+
+    return (
+        OperatorAlert.objects.filter(
+            status="unread", severity__in=["urgent", "error"]
+        )
+        .order_by("-first_seen_at")
+        .first()
+    )
+
+
+def _today_view_top_alert_dict(top_alert) -> dict | None:
+    """Serialise the top-alert object for the JSON payload, or None."""
+    if top_alert is None:
+        return None
+    return {
+        "alert_id": str(top_alert.alert_id),
+        "severity": top_alert.severity,
+        "title": top_alert.title,
+    }
+
+
+def _pluralise(n: int, singular: str, plural: str = "") -> str:
+    """Format ``"N word"`` / ``"N words"`` — single source for the
+    pluralisation that was inline in 5+ places in the today-view body."""
+    word = singular if n == 1 else (plural or f"{singular}s")
+    return f"{n} {word}"
+
+
+def _today_view_sentence_yesterday(counts: dict[str, int]) -> str:
+    """Build the plain-English sentence describing the last 24 hours."""
+    parts: list[str] = []
+    if counts["approved"]:
+        parts.append(f"{_pluralise(counts['approved'], 'suggestion')} approved")
+    if counts["synced"]:
+        parts.append(f"{_pluralise(counts['synced'], 'sync job')} finished")
+    if counts["pipeline_runs"]:
+        parts.append(_pluralise(counts["pipeline_runs"], "pipeline run"))
+    if not parts:
+        return "In the last 24 hours nothing was approved or synced."
+    return "In the last 24 hours: " + ", ".join(parts) + "."
+
+
+def _today_view_sentence_today(queue: dict[str, int]) -> str:
+    """Build the plain-English sentence describing the right-now queue."""
+    parts: list[str] = []
+    if queue["pending_reviews"]:
+        parts.append(
+            f"{_pluralise(queue['pending_reviews'], 'suggestion')} waiting for review"
+        )
+    if queue["running_syncs"]:
+        parts.append(f"{_pluralise(queue['running_syncs'], 'sync')} in flight")
+    if not parts:
+        return "Right now the queue is clear."
+    return "Right now: " + " and ".join(parts) + "."
+
+
+def _today_view_sentence_watch(top_alert) -> str:
+    """Build the plain-English sentence describing the most pressing alert."""
+    if top_alert is None:
+        return "Nothing is on fire."
+    return f'Watch: {top_alert.severity} alert — "{top_alert.title[:80]}".'
 
 
 class RuntimeSettingsView(APIView):
@@ -4339,110 +4359,48 @@ class RuntimeConfigView(APIView):
         )
 
     def post(self, request):
-        updated = {}
-        errors = {}
+        """Persist runtime resource settings.
+
+        Refactored 2026-05-04: was 121 lines of repeated try/except +
+        range-check blocks (one per setting). Now a single declarative
+        spec table + ``_apply_int_range_setting`` helper that runs each
+        rule. Behaviour preserved exactly, including the
+        ``default_queue_concurrency`` / ``celery_concurrency`` alias.
+        """
+        updated: dict[str, object] = {}
+        errors: dict[str, str] = {}
         data = request.data or {}
-        cpu_thread_cap = self._cpu_thread_cap()
 
-        if "embedding_batch_size" in data:
-            try:
-                bs = int(data["embedding_batch_size"])
-            except (TypeError, ValueError):
-                errors["embedding_batch_size"] = "Must be an integer."
-            else:
-                if not (self.BATCH_SIZE_MIN <= bs <= self.BATCH_SIZE_MAX):
-                    errors["embedding_batch_size"] = (
-                        f"Must be between {self.BATCH_SIZE_MIN} and {self.BATCH_SIZE_MAX}."
-                    )
-                else:
-                    self._upsert_setting(
-                        key="system.embedding_batch_size",
-                        value=bs,
-                    )
-                    updated["embedding_batch_size"] = bs
+        for spec in self._int_field_specs():
+            self._apply_int_range_setting(
+                data=data,
+                spec=spec,
+                updated=updated,
+                errors=errors,
+            )
 
-        if "gpu_memory_budget_pct" in data:
-            try:
-                budget = int(data["gpu_memory_budget_pct"])
-            except (TypeError, ValueError):
-                errors["gpu_memory_budget_pct"] = "Must be an integer."
-            else:
-                if not (
-                    self.GPU_MEMORY_BUDGET_MIN <= budget <= self.GPU_MEMORY_BUDGET_MAX
-                ):
-                    errors["gpu_memory_budget_pct"] = (
-                        f"Must be between {self.GPU_MEMORY_BUDGET_MIN} and "
-                        f"{self.GPU_MEMORY_BUDGET_MAX}."
-                    )
-                else:
-                    self._upsert_setting(
-                        key="system.gpu_memory_budget_pct",
-                        value=budget,
-                    )
-                    updated["gpu_memory_budget_pct"] = budget
-
-        if "gpu_temp_pause_c" in data:
-            try:
-                pause_temp = int(data["gpu_temp_pause_c"])
-            except (TypeError, ValueError):
-                errors["gpu_temp_pause_c"] = "Must be an integer."
-            else:
-                if not (
-                    self.GPU_TEMP_PAUSE_MIN <= pause_temp <= self.GPU_TEMP_PAUSE_MAX
-                ):
-                    errors["gpu_temp_pause_c"] = (
-                        f"Must be between {self.GPU_TEMP_PAUSE_MIN} and "
-                        f"{self.GPU_TEMP_PAUSE_MAX}."
-                    )
-                else:
-                    self._upsert_setting(
-                        key="system.gpu_temp_pause_c",
-                        value=pause_temp,
-                    )
-                    updated["gpu_temp_pause_c"] = pause_temp
-
-        if "cpu_encode_threads" in data:
-            try:
-                cpu_threads = int(data["cpu_encode_threads"])
-            except (TypeError, ValueError):
-                errors["cpu_encode_threads"] = "Must be an integer."
-            else:
-                if not (1 <= cpu_threads <= cpu_thread_cap):
-                    errors["cpu_encode_threads"] = (
-                        f"Must be between 1 and {cpu_thread_cap}."
-                    )
-                else:
-                    self._upsert_setting(
-                        key="system.cpu_encode_threads",
-                        value=cpu_threads,
-                    )
-                    updated["cpu_encode_threads"] = cpu_threads
-
-        if "default_queue_concurrency" in data or "celery_concurrency" in data:
+        # ``default_queue_concurrency`` accepts the legacy alias
+        # ``celery_concurrency`` and broadcasts back under both names.
+        if (
+            "default_queue_concurrency" in data
+            or "celery_concurrency" in data
+        ):
             raw_value = data.get(
                 "default_queue_concurrency", data.get("celery_concurrency")
             )
-            try:
-                queue_concurrency = int(raw_value)
-            except (TypeError, ValueError):
-                errors["default_queue_concurrency"] = "Must be an integer."
-            else:
-                if not (
-                    self.DEFAULT_QUEUE_CONCURRENCY_MIN
-                    <= queue_concurrency
-                    <= self.DEFAULT_QUEUE_CONCURRENCY_MAX
-                ):
-                    errors["default_queue_concurrency"] = (
-                        f"Must be between {self.DEFAULT_QUEUE_CONCURRENCY_MIN} and "
-                        f"{self.DEFAULT_QUEUE_CONCURRENCY_MAX}."
-                    )
-                else:
-                    self._upsert_setting(
-                        key="system.default_queue_concurrency",
-                        value=queue_concurrency,
-                    )
-                    updated["default_queue_concurrency"] = queue_concurrency
-                    updated["celery_concurrency"] = queue_concurrency
+            self._apply_int_range_setting(
+                data={"default_queue_concurrency": raw_value},
+                spec={
+                    "field": "default_queue_concurrency",
+                    "db_key": "system.default_queue_concurrency",
+                    "lo": self.DEFAULT_QUEUE_CONCURRENCY_MIN,
+                    "hi": self.DEFAULT_QUEUE_CONCURRENCY_MAX,
+                },
+                updated=updated,
+                errors=errors,
+            )
+            if "default_queue_concurrency" in updated:
+                updated["celery_concurrency"] = updated["default_queue_concurrency"]
 
         if "aggressive_oom_backoff" in data:
             try:
@@ -4459,6 +4417,71 @@ class RuntimeConfigView(APIView):
         if errors:
             return Response({"errors": errors, "updated": updated}, status=400)
         return Response({"updated": updated})
+
+    def _int_field_specs(self) -> list[dict]:
+        """Declarative spec for every int-typed resource setting on this view.
+
+        Adding a new int field is one entry here — no copy-paste of the
+        try/range/upsert dance. Each entry is ``{field, db_key, lo, hi}``;
+        the loop in ``post()`` runs them all through
+        ``_apply_int_range_setting``.
+        """
+        return [
+            {
+                "field": "embedding_batch_size",
+                "db_key": "system.embedding_batch_size",
+                "lo": self.BATCH_SIZE_MIN,
+                "hi": self.BATCH_SIZE_MAX,
+            },
+            {
+                "field": "gpu_memory_budget_pct",
+                "db_key": "system.gpu_memory_budget_pct",
+                "lo": self.GPU_MEMORY_BUDGET_MIN,
+                "hi": self.GPU_MEMORY_BUDGET_MAX,
+            },
+            {
+                "field": "gpu_temp_pause_c",
+                "db_key": "system.gpu_temp_pause_c",
+                "lo": self.GPU_TEMP_PAUSE_MIN,
+                "hi": self.GPU_TEMP_PAUSE_MAX,
+            },
+            {
+                "field": "cpu_encode_threads",
+                "db_key": "system.cpu_encode_threads",
+                "lo": 1,
+                "hi": self._cpu_thread_cap(),
+            },
+        ]
+
+    def _apply_int_range_setting(
+        self,
+        *,
+        data: dict,
+        spec: dict,
+        updated: dict,
+        errors: dict,
+    ) -> None:
+        """Validate one int-range setting; persist on success, record error on fail.
+
+        Pure-function on the validate step + side-effect on the upsert
+        + the in-place mutation of ``updated`` / ``errors``. Keeps the
+        try/range/upsert dance in ONE place instead of repeating it
+        per-field as the original 121-line handler did.
+        """
+        field = spec["field"]
+        if field not in data:
+            return
+        try:
+            value = int(data[field])
+        except (TypeError, ValueError):
+            errors[field] = "Must be an integer."
+            return
+        lo, hi = spec["lo"], spec["hi"]
+        if not (lo <= value <= hi):
+            errors[field] = f"Must be between {lo} and {hi}."
+            return
+        self._upsert_setting(key=spec["db_key"], value=value)
+        updated[field] = value
 
 
 class SafeModeBootView(APIView):
@@ -4769,6 +4792,137 @@ class HelperNodeDetailView(APIView):
         return Response(status=204)
 
 
+# ── Heartbeat helpers (extracted from HelperNodeHeartbeatView.post) ──
+# Each helper mutates the in-memory HelperNode, leaving persistence to
+# the caller. Splitting per field group keeps the main handler small +
+# makes each defensive coercion independently testable.
+
+# Save fields list — single source of truth so adding a new field
+# updates the helper AND the caller's update_fields=[...] list together.
+_HEARTBEAT_UPDATE_FIELDS = (
+    "last_heartbeat",
+    "last_snapshot_at",
+    "status",
+    "capabilities",
+    "accepting_work",
+    "active_jobs",
+    "queued_jobs",
+    "cpu_pct",
+    "ram_pct",
+    "gpu_util_pct",
+    "gpu_vram_used_mb",
+    "gpu_vram_total_mb",
+    "network_rtt_ms",
+    "native_kernels_healthy",
+    "warmed_model_keys",
+    "updated_at",
+)
+
+
+def _apply_heartbeat_identity(node, data: dict) -> None:
+    """Apply non-numeric identity fields: status enum + capabilities + accepting_work.
+
+    Defensive type checks: status restricted to documented enum,
+    accepting_work routed through ``coerce_bool`` so non-bool truthy
+    inputs ("yes", 1) parse correctly without silently flipping
+    operators trying to disable a feature via curl.
+    """
+    from apps.core.models import HelperNode
+
+    if "status" in data:
+        raw_status = data["status"]
+        if (
+            isinstance(raw_status, str)
+            and raw_status in HelperNode.VALID_HEARTBEAT_STATUSES
+        ):
+            node.status = raw_status
+    if "capabilities" in data and isinstance(data["capabilities"], dict):
+        merged = dict(node.capabilities or {})
+        merged.update(data["capabilities"])
+        node.capabilities = merged
+    if "accepting_work" in data:
+        raw_accepting = data["accepting_work"]
+        if isinstance(raw_accepting, (bool, int, float, str)):
+            node.accepting_work = coerce_bool(
+                raw_accepting, default=node.accepting_work
+            )
+
+
+def _apply_heartbeat_load_metrics(node, data: dict) -> None:
+    """Apply CPU + queue-depth metrics with defensive int / float clamps."""
+    if "active_jobs" in data:
+        node.active_jobs = coerce_int(
+            data["active_jobs"], default=node.active_jobs, min_value=0
+        )
+    if "queued_jobs" in data:
+        node.queued_jobs = coerce_int(
+            data["queued_jobs"], default=node.queued_jobs, min_value=0
+        )
+    if "cpu_pct" in data:
+        node.cpu_pct = coerce_float(
+            data["cpu_pct"],
+            default=node.cpu_pct or 0.0,
+            min_value=0.0,
+            max_value=100.0,
+        )
+    if "ram_pct" in data:
+        node.ram_pct = coerce_float(
+            data["ram_pct"],
+            default=node.ram_pct or 0.0,
+            min_value=0.0,
+            max_value=100.0,
+        )
+
+
+def _apply_heartbeat_gpu_metrics(node, data: dict) -> None:
+    """Apply GPU utilisation + VRAM metrics. Empty / null clears the field."""
+    if "gpu_util_pct" in data:
+        gpu_util = data["gpu_util_pct"]
+        node.gpu_util_pct = (
+            None
+            if gpu_util in ("", None)
+            else coerce_float(
+                gpu_util,
+                default=node.gpu_util_pct or 0.0,
+                min_value=0.0,
+                max_value=100.0,
+            )
+        )
+    if "gpu_vram_used_mb" in data:
+        gpu_vram_used = data["gpu_vram_used_mb"]
+        node.gpu_vram_used_mb = (
+            None
+            if gpu_vram_used in ("", None)
+            else coerce_int(
+                gpu_vram_used, default=node.gpu_vram_used_mb or 0, min_value=0
+            )
+        )
+    if "gpu_vram_total_mb" in data:
+        gpu_vram_total = data["gpu_vram_total_mb"]
+        node.gpu_vram_total_mb = (
+            None
+            if gpu_vram_total in ("", None)
+            else coerce_int(
+                gpu_vram_total, default=node.gpu_vram_total_mb or 0, min_value=0
+            )
+        )
+
+
+def _apply_heartbeat_network_health(node, data: dict) -> None:
+    """Apply network RTT + kernel health + warmed-model-keys list."""
+    if "network_rtt_ms" in data:
+        rtt = data["network_rtt_ms"]
+        node.network_rtt_ms = (
+            None
+            if rtt in ("", None)
+            else coerce_int(rtt, default=node.network_rtt_ms or 0, min_value=0)
+        )
+    if "native_kernels_healthy" in data:
+        node.native_kernels_healthy = bool(data["native_kernels_healthy"])
+    if "warmed_model_keys" in data and isinstance(data["warmed_model_keys"], list):
+        node.warmed_model_keys = data["warmed_model_keys"]
+
+
 class HelperNodeHeartbeatView(APIView):
     """POST /api/settings/helpers/<id>/heartbeat/
 
@@ -4785,6 +4939,15 @@ class HelperNodeHeartbeatView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        """Accept one helper-PC heartbeat payload + persist any updated fields.
+
+        Refactored 2026-05-04: was 138 lines. Each field group is now a
+        per-domain helper (``_apply_heartbeat_*``) so the handler stays
+        small, the per-field defensive logic is reusable, and each helper
+        can be unit-tested without spinning up the full request lifecycle.
+        Behaviour preserved exactly — every defensive type check + range
+        clamp survives unchanged.
+        """
         from django.utils import timezone
 
         from apps.core.models import HelperNode
@@ -4796,131 +4959,11 @@ class HelperNodeHeartbeatView(APIView):
 
         node.last_heartbeat = timezone.now()
         node.last_snapshot_at = timezone.now()
-        # Bug fix 2026-05-04: defensive type-checks on the non-numeric
-        # heartbeat fields too. Previously a buggy reporter sending
-        # `{"status": ["online"]}` (list instead of string) or
-        # `{"accepting_work": "yes"}` would set the field to surprising
-        # values that downstream queries (`HelperNode.objects.filter(
-        # status="online")`) silently miss. Strings are restricted to
-        # the documented enum (sourced from the HelperNode model so a
-        # new state can be added in one place); accepting_work uses the
-        # shared coerce_bool so behaviour stays consistent with every
-        # other operator-toggle field across the app.
-        from apps.api.query_params import coerce_bool
-
-        if "status" in request.data:
-            raw_status = request.data["status"]
-            if (
-                isinstance(raw_status, str)
-                and raw_status in HelperNode.VALID_HEARTBEAT_STATUSES
-            ):
-                node.status = raw_status
-        if "capabilities" in request.data and isinstance(
-            request.data["capabilities"], dict
-        ):
-            merged = dict(node.capabilities or {})
-            merged.update(request.data["capabilities"])
-            node.capabilities = merged
-        if "accepting_work" in request.data:
-            # Preserve previous value on unsupported types (list/dict).
-            raw_accepting = request.data["accepting_work"]
-            if isinstance(raw_accepting, (bool, int, float, str)):
-                node.accepting_work = coerce_bool(
-                    raw_accepting, default=node.accepting_work
-                )
-        # Bug fix 2026-05-04: every numeric helper-heartbeat field
-        # previously crashed with HTTP 500 on malformed input (e.g.
-        # `"cpu_pct": "high"` from a buggy reporter). A failed
-        # heartbeat means the helper drops out of the roster, so a
-        # garbage value would silently disconnect the whole node.
-        # Routed through coerce_int / coerce_float — bad values fall
-        # back to the previously-stored value (no update).
-        from apps.api.query_params import coerce_float as _cf
-        from apps.api.query_params import coerce_int as _ci
-
-        if "active_jobs" in request.data:
-            node.active_jobs = _ci(
-                request.data["active_jobs"], default=node.active_jobs, min_value=0
-            )
-        if "queued_jobs" in request.data:
-            node.queued_jobs = _ci(
-                request.data["queued_jobs"], default=node.queued_jobs, min_value=0
-            )
-        if "cpu_pct" in request.data:
-            node.cpu_pct = _cf(
-                request.data["cpu_pct"],
-                default=node.cpu_pct or 0.0,
-                min_value=0.0,
-                max_value=100.0,
-            )
-        if "ram_pct" in request.data:
-            node.ram_pct = _cf(
-                request.data["ram_pct"],
-                default=node.ram_pct or 0.0,
-                min_value=0.0,
-                max_value=100.0,
-            )
-        if "gpu_util_pct" in request.data:
-            gpu_util = request.data["gpu_util_pct"]
-            node.gpu_util_pct = (
-                None
-                if gpu_util in ("", None)
-                else _cf(
-                    gpu_util,
-                    default=node.gpu_util_pct or 0.0,
-                    min_value=0.0,
-                    max_value=100.0,
-                )
-            )
-        if "gpu_vram_used_mb" in request.data:
-            gpu_vram_used = request.data["gpu_vram_used_mb"]
-            node.gpu_vram_used_mb = (
-                None
-                if gpu_vram_used in ("", None)
-                else _ci(gpu_vram_used, default=node.gpu_vram_used_mb or 0, min_value=0)
-            )
-        if "gpu_vram_total_mb" in request.data:
-            gpu_vram_total = request.data["gpu_vram_total_mb"]
-            node.gpu_vram_total_mb = (
-                None
-                if gpu_vram_total in ("", None)
-                else _ci(
-                    gpu_vram_total, default=node.gpu_vram_total_mb or 0, min_value=0
-                )
-            )
-        if "network_rtt_ms" in request.data:
-            rtt = request.data["network_rtt_ms"]
-            node.network_rtt_ms = (
-                None
-                if rtt in ("", None)
-                else _ci(rtt, default=node.network_rtt_ms or 0, min_value=0)
-            )
-        if "native_kernels_healthy" in request.data:
-            node.native_kernels_healthy = bool(request.data["native_kernels_healthy"])
-        if "warmed_model_keys" in request.data and isinstance(
-            request.data["warmed_model_keys"], list
-        ):
-            node.warmed_model_keys = request.data["warmed_model_keys"]
-        node.save(
-            update_fields=[
-                "last_heartbeat",
-                "last_snapshot_at",
-                "status",
-                "capabilities",
-                "accepting_work",
-                "active_jobs",
-                "queued_jobs",
-                "cpu_pct",
-                "ram_pct",
-                "gpu_util_pct",
-                "gpu_vram_used_mb",
-                "gpu_vram_total_mb",
-                "network_rtt_ms",
-                "native_kernels_healthy",
-                "warmed_model_keys",
-                "updated_at",
-            ]
-        )
+        _apply_heartbeat_identity(node, request.data)
+        _apply_heartbeat_load_metrics(node, request.data)
+        _apply_heartbeat_gpu_metrics(node, request.data)
+        _apply_heartbeat_network_health(node, request.data)
+        node.save(update_fields=_HEARTBEAT_UPDATE_FIELDS)
         return Response(status=204)
 
 
@@ -5671,112 +5714,131 @@ def _validate_graph_candidate_settings(payload: dict, current: dict) -> dict:
     }
 
 
+def _vm_read_float(key: str, default: float) -> float:
+    """Read one float-typed value-model AppSetting; fall back to default."""
+    return coerce_float(_get_app_setting_value(key), default=default)
+
+
+def _vm_read_int(key: str, default: int) -> int:
+    """Read one int-typed value-model AppSetting; fall back to default."""
+    return coerce_int(_get_app_setting_value(key), default=default)
+
+
+def _vm_read_bool(key: str, default: bool) -> bool:
+    """Read one bool-typed value-model AppSetting; fall back to default.
+
+    Reuses the shared coerce_bool helper so a future tweak to the
+    truthy-string rules propagates everywhere automatically.
+    """
+    raw = _get_app_setting_value(key)
+    if raw is None:
+        return default
+    return coerce_bool(raw, default=default)
+
+
 def _read_value_model_settings() -> dict[str, float | int | bool]:
-    def _read_float(key: str, default: float) -> float:
-        raw = _get_app_setting_value(key)
-        try:
-            return float(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
+    """Mirror of _build_value_model_rows: read every value-model setting.
 
-    def _read_int(key: str, default: int) -> int:
-        raw = _get_app_setting_value(key)
-        try:
-            return int(raw) if raw is not None else default
-        except (TypeError, ValueError):
-            return default
-
-    def _read_bool(key: str, default: bool) -> bool:
-        raw = _get_app_setting_value(key)
-        if raw is None:
-            return default
-        return coerce_bool(raw, default=default)
-
+    Refactored 2026-05-04: was 108 lines of inline reads. Now delegates
+    each feature area to its own pure-function reader so the master
+    function fits in a single screen + each feature area can be tested
+    in isolation. Behaviour preserved exactly.
+    """
     return {
-        "enabled": _read_bool(
-            "value_model.enabled", DEFAULT_VALUE_MODEL_SETTINGS["enabled"]
+        **_vm_settings_core(),
+        **_vm_settings_engagement(),
+        **_vm_settings_hot_decay(),
+        **_vm_settings_co_occurrence(),
+    }
+
+
+def _vm_settings_core() -> dict[str, float | int | bool]:
+    """FR-021 base value-model settings (enabled + 5 weights + traffic)."""
+    d = DEFAULT_VALUE_MODEL_SETTINGS
+    return {
+        "enabled": _vm_read_bool("value_model.enabled", d["enabled"]),
+        "w_relevance": _vm_read_float("value_model.w_relevance", d["w_relevance"]),
+        "w_traffic": _vm_read_float("value_model.w_traffic", d["w_traffic"]),
+        "w_freshness": _vm_read_float("value_model.w_freshness", d["w_freshness"]),
+        "w_authority": _vm_read_float("value_model.w_authority", d["w_authority"]),
+        "w_penalty": _vm_read_float("value_model.w_penalty", d["w_penalty"]),
+        "traffic_lookback_days": _vm_read_int(
+            "value_model.traffic_lookback_days", d["traffic_lookback_days"]
         ),
-        "w_relevance": _read_float(
-            "value_model.w_relevance", DEFAULT_VALUE_MODEL_SETTINGS["w_relevance"]
+        "traffic_fallback_value": _vm_read_float(
+            "value_model.traffic_fallback_value", d["traffic_fallback_value"]
         ),
-        "w_traffic": _read_float(
-            "value_model.w_traffic", DEFAULT_VALUE_MODEL_SETTINGS["w_traffic"]
-        ),
-        "w_freshness": _read_float(
-            "value_model.w_freshness", DEFAULT_VALUE_MODEL_SETTINGS["w_freshness"]
-        ),
-        "w_authority": _read_float(
-            "value_model.w_authority", DEFAULT_VALUE_MODEL_SETTINGS["w_authority"]
-        ),
-        "w_penalty": _read_float(
-            "value_model.w_penalty", DEFAULT_VALUE_MODEL_SETTINGS["w_penalty"]
-        ),
-        "traffic_lookback_days": _read_int(
-            "value_model.traffic_lookback_days",
-            DEFAULT_VALUE_MODEL_SETTINGS["traffic_lookback_days"],
-        ),
-        "traffic_fallback_value": _read_float(
-            "value_model.traffic_fallback_value",
-            DEFAULT_VALUE_MODEL_SETTINGS["traffic_fallback_value"],
-        ),
-        "engagement_signal_enabled": _read_bool(
+    }
+
+
+def _vm_settings_engagement() -> dict[str, float | int | bool]:
+    """FR-024 read-through-rate engagement signal settings."""
+    d = DEFAULT_VALUE_MODEL_SETTINGS
+    return {
+        "engagement_signal_enabled": _vm_read_bool(
             "value_model.engagement_signal_enabled",
-            DEFAULT_VALUE_MODEL_SETTINGS["engagement_signal_enabled"],
+            d["engagement_signal_enabled"],
         ),
-        "w_engagement": _read_float(
-            "value_model.w_engagement", DEFAULT_VALUE_MODEL_SETTINGS["w_engagement"]
+        "w_engagement": _vm_read_float(
+            "value_model.w_engagement", d["w_engagement"]
         ),
-        "engagement_lookback_days": _read_int(
-            "value_model.engagement_lookback_days",
-            DEFAULT_VALUE_MODEL_SETTINGS["engagement_lookback_days"],
+        "engagement_lookback_days": _vm_read_int(
+            "value_model.engagement_lookback_days", d["engagement_lookback_days"]
         ),
-        "engagement_words_per_minute": _read_int(
+        "engagement_words_per_minute": _vm_read_int(
             "value_model.engagement_words_per_minute",
-            DEFAULT_VALUE_MODEL_SETTINGS["engagement_words_per_minute"],
+            d["engagement_words_per_minute"],
         ),
-        "engagement_cap_ratio": _read_float(
-            "value_model.engagement_cap_ratio",
-            DEFAULT_VALUE_MODEL_SETTINGS["engagement_cap_ratio"],
+        "engagement_cap_ratio": _vm_read_float(
+            "value_model.engagement_cap_ratio", d["engagement_cap_ratio"]
         ),
-        "engagement_fallback_value": _read_float(
+        "engagement_fallback_value": _vm_read_float(
             "value_model.engagement_fallback_value",
-            DEFAULT_VALUE_MODEL_SETTINGS["engagement_fallback_value"],
+            d["engagement_fallback_value"],
         ),
-        # FR-023 hot decay signal
-        "hot_decay_enabled": _read_bool(
-            "value_model.hot_decay_enabled",
-            DEFAULT_VALUE_MODEL_SETTINGS["hot_decay_enabled"],
+    }
+
+
+def _vm_settings_hot_decay() -> dict[str, float | int | bool]:
+    """FR-023 Reddit-style hot-decay signal settings."""
+    d = DEFAULT_VALUE_MODEL_SETTINGS
+    return {
+        "hot_decay_enabled": _vm_read_bool(
+            "value_model.hot_decay_enabled", d["hot_decay_enabled"]
         ),
-        "hot_gravity": _read_float(
-            "value_model.hot_gravity", DEFAULT_VALUE_MODEL_SETTINGS["hot_gravity"]
+        "hot_gravity": _vm_read_float(
+            "value_model.hot_gravity", d["hot_gravity"]
         ),
-        "hot_clicks_weight": _read_float(
-            "value_model.hot_clicks_weight",
-            DEFAULT_VALUE_MODEL_SETTINGS["hot_clicks_weight"],
+        "hot_clicks_weight": _vm_read_float(
+            "value_model.hot_clicks_weight", d["hot_clicks_weight"]
         ),
-        "hot_impressions_weight": _read_float(
-            "value_model.hot_impressions_weight",
-            DEFAULT_VALUE_MODEL_SETTINGS["hot_impressions_weight"],
+        "hot_impressions_weight": _vm_read_float(
+            "value_model.hot_impressions_weight", d["hot_impressions_weight"]
         ),
-        "hot_lookback_days": _read_int(
-            "value_model.hot_lookback_days",
-            DEFAULT_VALUE_MODEL_SETTINGS["hot_lookback_days"],
+        "hot_lookback_days": _vm_read_int(
+            "value_model.hot_lookback_days", d["hot_lookback_days"]
         ),
-        # FR-025 co-occurrence signal
-        "co_occurrence_signal_enabled": _read_bool(
+    }
+
+
+def _vm_settings_co_occurrence() -> dict[str, float | int | bool]:
+    """FR-025 session co-occurrence signal settings."""
+    d = DEFAULT_VALUE_MODEL_SETTINGS
+    return {
+        "co_occurrence_signal_enabled": _vm_read_bool(
             "value_model.co_occurrence_signal_enabled",
-            DEFAULT_VALUE_MODEL_SETTINGS["co_occurrence_signal_enabled"],
+            d["co_occurrence_signal_enabled"],
         ),
-        "w_cooccurrence": _read_float(
-            "value_model.w_cooccurrence", DEFAULT_VALUE_MODEL_SETTINGS["w_cooccurrence"]
+        "w_cooccurrence": _vm_read_float(
+            "value_model.w_cooccurrence", d["w_cooccurrence"]
         ),
-        "co_occurrence_fallback_value": _read_float(
+        "co_occurrence_fallback_value": _vm_read_float(
             "value_model.co_occurrence_fallback_value",
-            DEFAULT_VALUE_MODEL_SETTINGS["co_occurrence_fallback_value"],
+            d["co_occurrence_fallback_value"],
         ),
-        "co_occurrence_min_co_sessions": _read_int(
+        "co_occurrence_min_co_sessions": _vm_read_int(
             "value_model.co_occurrence_min_co_sessions",
-            DEFAULT_VALUE_MODEL_SETTINGS["co_occurrence_min_co_sessions"],
+            d["co_occurrence_min_co_sessions"],
         ),
     }
 

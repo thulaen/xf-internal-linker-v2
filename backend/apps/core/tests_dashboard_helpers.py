@@ -19,6 +19,10 @@ from django.test import SimpleTestCase, TestCase
 from rest_framework.test import APIClient
 
 from apps.core.views import (
+    _apply_heartbeat_gpu_metrics,
+    _apply_heartbeat_identity,
+    _apply_heartbeat_load_metrics,
+    _apply_heartbeat_network_health,
     _build_value_model_rows,
     _dashboard_content_count,
     _dashboard_open_broken_links,
@@ -28,6 +32,11 @@ from apps.core.views import (
     _dashboard_runtime_mode_display,
     _dashboard_suggestion_counts,
     _dashboard_system_health,
+    _pluralise,
+    _today_view_sentence_today,
+    _today_view_sentence_watch,
+    _today_view_sentence_yesterday,
+    _today_view_top_alert_dict,
 )
 
 
@@ -325,3 +334,243 @@ class BuildValueModelRowsTests(SimpleTestCase):
     def test_falsy_non_bool_inputs_treated_as_false(self) -> None:
         rows = _build_value_model_rows(self._validated(enabled=0))
         self.assertEqual(rows["value_model.enabled"]["value"], "false")
+
+
+# ── Today-view helpers (extracted from TodayActionsView.get) ─────
+
+
+class PluraliseTests(SimpleTestCase):
+    """Pure helper — single source for the n / n+s pluralisation rule."""
+
+    def test_singular(self) -> None:
+        self.assertEqual(_pluralise(1, "suggestion"), "1 suggestion")
+
+    def test_plural_default_appends_s(self) -> None:
+        self.assertEqual(_pluralise(3, "suggestion"), "3 suggestions")
+
+    def test_zero_uses_plural_form(self) -> None:
+        self.assertEqual(_pluralise(0, "suggestion"), "0 suggestions")
+
+    def test_explicit_plural_form(self) -> None:
+        self.assertEqual(_pluralise(5, "child", "children"), "5 children")
+
+
+class TodayViewSentenceYesterdayTests(SimpleTestCase):
+    def test_zero_counts_returns_empty_message(self) -> None:
+        msg = _today_view_sentence_yesterday(
+            {"approved": 0, "synced": 0, "pipeline_runs": 0}
+        )
+        self.assertIn("nothing was approved", msg)
+
+    def test_one_approval_uses_singular(self) -> None:
+        msg = _today_view_sentence_yesterday(
+            {"approved": 1, "synced": 0, "pipeline_runs": 0}
+        )
+        self.assertIn("1 suggestion approved", msg)
+        self.assertNotIn("suggestions", msg)
+
+    def test_multiple_categories_concatenated(self) -> None:
+        msg = _today_view_sentence_yesterday(
+            {"approved": 5, "synced": 2, "pipeline_runs": 1}
+        )
+        self.assertIn("5 suggestions approved", msg)
+        self.assertIn("2 sync jobs finished", msg)
+        self.assertIn("1 pipeline run", msg)
+        self.assertTrue(msg.endswith("."))
+
+
+class TodayViewSentenceTodayTests(SimpleTestCase):
+    def test_empty_queue(self) -> None:
+        msg = _today_view_sentence_today(
+            {"pending_reviews": 0, "running_syncs": 0}
+        )
+        self.assertIn("queue is clear", msg)
+
+    def test_pending_only(self) -> None:
+        msg = _today_view_sentence_today(
+            {"pending_reviews": 3, "running_syncs": 0}
+        )
+        self.assertIn("3 suggestions waiting for review", msg)
+
+    def test_both_categories_use_and(self) -> None:
+        msg = _today_view_sentence_today(
+            {"pending_reviews": 2, "running_syncs": 1}
+        )
+        self.assertIn("2 suggestions waiting for review", msg)
+        self.assertIn("and", msg)
+        self.assertIn("1 sync in flight", msg)
+
+
+class TodayViewSentenceWatchTests(SimpleTestCase):
+    def test_no_alert_returns_calm_message(self) -> None:
+        self.assertEqual(_today_view_sentence_watch(None), "Nothing is on fire.")
+
+    def test_alert_includes_severity_and_truncated_title(self) -> None:
+        class FakeAlert:
+            severity = "urgent"
+            title = "x" * 200
+
+        msg = _today_view_sentence_watch(FakeAlert())
+        self.assertIn("urgent", msg)
+        # Title truncated at 80 chars
+        self.assertIn("x" * 80, msg)
+        self.assertNotIn("x" * 81, msg)
+
+
+class TodayViewTopAlertDictTests(SimpleTestCase):
+    def test_none_passthrough(self) -> None:
+        self.assertIsNone(_today_view_top_alert_dict(None))
+
+    def test_serialises_required_fields(self) -> None:
+        import uuid
+
+        class FakeAlert:
+            alert_id = uuid.uuid4()
+            severity = "urgent"
+            title = "Sample"
+
+        result = _today_view_top_alert_dict(FakeAlert())
+        self.assertEqual(set(result.keys()), {"alert_id", "severity", "title"})
+        self.assertIsInstance(result["alert_id"], str)
+
+
+# ── Heartbeat helpers (extracted from HelperNodeHeartbeatView.post) ──
+
+
+class _FakeHelperNode:
+    """In-memory stand-in for HelperNode — exercises mutation contract.
+
+    Avoids creating real DB rows for unit tests of pure-mutation helpers.
+    """
+
+    def __init__(self) -> None:
+        self.status = "offline"
+        self.capabilities: dict = {}
+        self.accepting_work = True
+        self.active_jobs = 0
+        self.queued_jobs = 0
+        self.cpu_pct = 0.0
+        self.ram_pct = 0.0
+        self.gpu_util_pct: float | None = None
+        self.gpu_vram_used_mb: int | None = None
+        self.gpu_vram_total_mb: int | None = None
+        self.network_rtt_ms: int | None = None
+        self.native_kernels_healthy = False
+        self.warmed_model_keys: list = []
+
+
+class ApplyHeartbeatIdentityTests(TestCase):
+    """Pin the defensive type checks on status / capabilities / accepting_work."""
+
+    def test_valid_status_applied(self) -> None:
+        node = _FakeHelperNode()
+        _apply_heartbeat_identity(node, {"status": "online"})
+        self.assertEqual(node.status, "online")
+
+    def test_invalid_status_string_ignored(self) -> None:
+        node = _FakeHelperNode()
+        _apply_heartbeat_identity(node, {"status": "not-a-real-status"})
+        # Status preserved (defensive guard against unknown enum values)
+        self.assertEqual(node.status, "offline")
+
+    def test_status_as_list_ignored(self) -> None:
+        node = _FakeHelperNode()
+        _apply_heartbeat_identity(node, {"status": ["online"]})
+        self.assertEqual(node.status, "offline")
+
+    def test_capabilities_dict_merged_not_replaced(self) -> None:
+        node = _FakeHelperNode()
+        node.capabilities = {"existing": "value"}
+        _apply_heartbeat_identity(node, {"capabilities": {"new": "key"}})
+        self.assertEqual(node.capabilities, {"existing": "value", "new": "key"})
+
+    def test_capabilities_non_dict_ignored(self) -> None:
+        node = _FakeHelperNode()
+        node.capabilities = {"existing": "value"}
+        _apply_heartbeat_identity(node, {"capabilities": "not a dict"})
+        self.assertEqual(node.capabilities, {"existing": "value"})
+
+    def test_accepting_work_true_string_parses(self) -> None:
+        node = _FakeHelperNode()
+        node.accepting_work = False
+        _apply_heartbeat_identity(node, {"accepting_work": "yes"})
+        self.assertTrue(node.accepting_work)
+
+    def test_accepting_work_false_string_parses(self) -> None:
+        # The original silent bug: bool("no") returns True. coerce_bool
+        # is the fix — pin it here so a future regression fails loudly.
+        node = _FakeHelperNode()
+        node.accepting_work = True
+        _apply_heartbeat_identity(node, {"accepting_work": "no"})
+        self.assertFalse(node.accepting_work)
+
+    def test_accepting_work_unsupported_type_keeps_previous(self) -> None:
+        node = _FakeHelperNode()
+        node.accepting_work = True
+        _apply_heartbeat_identity(node, {"accepting_work": ["yes"]})
+        # List is unsupported → previous value preserved.
+        self.assertTrue(node.accepting_work)
+
+
+class ApplyHeartbeatLoadMetricsTests(SimpleTestCase):
+    def test_garbage_int_falls_back_to_previous(self) -> None:
+        node = _FakeHelperNode()
+        node.active_jobs = 3
+        _apply_heartbeat_load_metrics(node, {"active_jobs": "high"})
+        self.assertEqual(node.active_jobs, 3)
+
+    def test_negative_int_clamped_to_zero(self) -> None:
+        node = _FakeHelperNode()
+        _apply_heartbeat_load_metrics(node, {"active_jobs": -5})
+        self.assertEqual(node.active_jobs, 0)
+
+    def test_cpu_pct_clamped_to_max_100(self) -> None:
+        node = _FakeHelperNode()
+        _apply_heartbeat_load_metrics(node, {"cpu_pct": 150.0})
+        self.assertEqual(node.cpu_pct, 100.0)
+
+    def test_garbage_float_falls_back_to_previous(self) -> None:
+        node = _FakeHelperNode()
+        node.cpu_pct = 42.5
+        _apply_heartbeat_load_metrics(node, {"cpu_pct": "high"})
+        self.assertEqual(node.cpu_pct, 42.5)
+
+
+class ApplyHeartbeatGpuMetricsTests(SimpleTestCase):
+    def test_empty_string_clears_field(self) -> None:
+        node = _FakeHelperNode()
+        node.gpu_util_pct = 42.0
+        _apply_heartbeat_gpu_metrics(node, {"gpu_util_pct": ""})
+        self.assertIsNone(node.gpu_util_pct)
+
+    def test_none_clears_field(self) -> None:
+        node = _FakeHelperNode()
+        node.gpu_util_pct = 42.0
+        _apply_heartbeat_gpu_metrics(node, {"gpu_util_pct": None})
+        self.assertIsNone(node.gpu_util_pct)
+
+    def test_valid_value_applied(self) -> None:
+        node = _FakeHelperNode()
+        _apply_heartbeat_gpu_metrics(node, {"gpu_vram_used_mb": 4096})
+        self.assertEqual(node.gpu_vram_used_mb, 4096)
+
+
+class ApplyHeartbeatNetworkHealthTests(SimpleTestCase):
+    def test_warmed_model_keys_list_accepted(self) -> None:
+        node = _FakeHelperNode()
+        _apply_heartbeat_network_health(
+            node, {"warmed_model_keys": ["bge-m3", "deberta"]}
+        )
+        self.assertEqual(node.warmed_model_keys, ["bge-m3", "deberta"])
+
+    def test_warmed_model_keys_non_list_ignored(self) -> None:
+        node = _FakeHelperNode()
+        node.warmed_model_keys = ["existing"]
+        _apply_heartbeat_network_health(node, {"warmed_model_keys": "bge-m3"})
+        # Non-list ignored to prevent surprising downstream queries.
+        self.assertEqual(node.warmed_model_keys, ["existing"])
+
+    def test_native_kernels_healthy_truthy_int_becomes_true(self) -> None:
+        node = _FakeHelperNode()
+        _apply_heartbeat_network_health(node, {"native_kernels_healthy": 1})
+        self.assertTrue(node.native_kernels_healthy)
