@@ -155,8 +155,11 @@ def refresh_gsc_query_tfidf(
         if checkpoint is not None:
             try:
                 checkpoint(progress_pct=pct, message=msg)
-            except Exception:
-                pass  # progress callback failure must never abort the rebuild
+            except Exception:  # noqa: BLE001 — progress callback failure must never abort the rebuild; debug-log keeps a paper trail.
+                logger.debug(
+                    "gsc_query_vocab: progress callback raised; suppressing",
+                    exc_info=True,
+                )
 
     _progress(0.0, "RSQVA: counting recent GSC query rows")
 

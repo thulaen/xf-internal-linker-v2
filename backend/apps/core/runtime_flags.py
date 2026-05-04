@@ -111,7 +111,7 @@ def is_enabled(
             from django.core.cache import cache
 
             cache.set(cache_key, result, cache_seconds)
-        except Exception:
+        except Exception:  # noqa: BLE001 — cache backend transient failure; per-call fallback already returned the right value.
             pass  # cache backend unavailable; per-call fallback already returned
     return result
 
@@ -126,5 +126,5 @@ def invalidate(key: str) -> None:
         from django.core.cache import cache
 
         cache.delete(f"runtime_flag:{key}")
-    except Exception:
+    except Exception:  # noqa: BLE001 — cache backend transient failure; next read hits the DB and refreshes the cache anyway.
         pass  # cache backend unavailable; next read will hit the DB anyway

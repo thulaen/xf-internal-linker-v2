@@ -1019,6 +1019,13 @@ def verify_suggestions(self, suggestion_ids: list[str] | None = None) -> dict:
     time_limit=1800,
     soft_time_limit=1740,
 )
+@HelperConstraint(
+    cpu_intensive=True,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=180,
+)
 def recalculate_click_distance_task(self, job_id: str | None = None) -> dict:
     """Recompute Phase 15 Click-Distance scores for all active ContentItems."""
     job_id = job_id or str(uuid.uuid4())
@@ -1082,6 +1089,13 @@ def _status_label(http_status: int) -> str:
 
 
 @shared_task(name="pipeline.run_clustering_pass", time_limit=1800, soft_time_limit=1740)
+@HelperConstraint(
+    cpu_intensive=True,             # k-means + pgvector queries
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=1024,
+    expected_seconds_p50=300,
+)
 def run_clustering_pass(job_id: str | None = None) -> dict:
     """Run a batch clustering pass over all ContentItems with embeddings."""
     from apps.content.models import ContentItem
@@ -1134,6 +1148,13 @@ def run_clustering_pass(job_id: str | None = None) -> dict:
 
 @shared_task(
     name="pipeline.nightly_data_retention", time_limit=1800, soft_time_limit=1740
+)
+@HelperConstraint(
+    cpu_intensive=False,            # bulk Postgres deletes; mostly DB-bound
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+    expected_seconds_p50=600,
 )
 def nightly_data_retention(progress_callback=None):
     """Purge stale data rows according to the retention policy.
@@ -1570,6 +1591,13 @@ def _persist_retention_run_timestamp(iso: str) -> None:
 
 
 @shared_task(name="pipeline.cleanup_stuck_sync_jobs")
+@HelperConstraint(
+    cpu_intensive=False,            # short DB-only sweep
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=64,
+    expected_seconds_p50=10,
+)
 def cleanup_stuck_sync_jobs():
     """Mark SyncJob records that have been stuck in 'running' for over 2 hours as failed.
 
@@ -2225,6 +2253,13 @@ def check_gsc_spikes(self) -> dict:
 
 
 @shared_task(name="pipeline.refresh_faiss_index", time_limit=3600, soft_time_limit=3540)
+@HelperConstraint(
+    cpu_intensive=False,            # FAISS-GPU rebuild — GPU-bound
+    gpu_required=True,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=2048,
+    expected_seconds_p50=300,
+)
 def refresh_faiss_index():
     """FR-30 — Rebuild FAISS-GPU index to pick up newly generated embeddings.
 

@@ -106,9 +106,9 @@ def emit_operator_alert(
                 from apps.audit.models import ErrorLog
 
                 error_log = ErrorLog.objects.get(pk=error_log_id)
-            except ErrorLog.DoesNotExist:
+            except ErrorLog.DoesNotExist:  # noqa: forbidden-pattern silent-except — DoesNotExist is the documented contract; alert proceeds with error_log=None.
                 pass  # ErrorLog row absent (deleted / never existed); keep error_log=None default
-            except Exception:
+            except Exception:  # noqa: BLE001 — unexpected DB error must not break alert emission; debug-log keeps a paper trail.
                 logger.debug("Failed to fetch ErrorLog %s", error_log_id, exc_info=True)
 
         alert = OperatorAlert.objects.create(

@@ -82,8 +82,14 @@ class ImportUploadView(APIView):
                     )
 
             file_obj.seek(0)  # rewind for the actual save below
-        except Exception:
-            pass  # file-read errors will surface during the real import
+        except Exception:  # noqa: BLE001 — pre-validation is best-effort; the real import path raises a typed error if the file is malformed.
+            # Debug-log so an operator can find the cause via /error-log
+            # if the subsequent import also fails for the same reason.
+            import logging
+            logging.getLogger(__name__).debug(
+                "sync_views: pre-validation pass raised; deferring to import",
+                exc_info=True,
+            )
 
         if validation_errors:
             return Response(

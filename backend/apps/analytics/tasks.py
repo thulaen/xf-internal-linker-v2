@@ -267,48 +267,83 @@ def detect_traffic_spikes() -> dict[str, int]:
 
     # 2. Identify candidates (pages with at least some traffic on the target date)
     # We only care about pages with > 10 clicks to avoid noise from 1 click vs 0.
-    candidates = SearchMetric.objects.filter(
-        date=target_date, source="gsc", clicks__gt=10
-    ).values_list("content_item_id", flat=True)
+    candidates = list(
+        SearchMetric.objects.filter(
+            date=target_date, source="gsc", clicks__gt=10
+        ).values_list("content_item_id", flat=True)
+    )
+    if not candidates:
+        return {"alerts_emitted": 0}
 
-    alerts_count = 0
+    # Performance refactor 2026-05-04: previously this loop issued
+    # 2 queries per candidate (avg_clicks + latest_clicks via two
+    # separate aggregates) plus one ContentItem.objects.get per spike
+    # — N+1 × 3. Replaced with two GROUP BY queries (one per window)
+    # and one bulk ContentItem fetch keyed on PK.
+    avg_rows = SearchMetric.objects.filter(
+        content_item_id__in=candidates,
+        source="gsc",
+        date__range=[seven_days_ago, one_day_ago],
+    ).values("content_item_id").annotate(avg_clicks=Avg("clicks"))
+    avg_by_item: dict[int, float] = {
+        r["content_item_id"]: float(r["avg_clicks"] or 0) for r in avg_rows
+    }
+
+    latest_rows = SearchMetric.objects.filter(
+        content_item_id__in=candidates, source="gsc", date=target_date
+    ).values("content_item_id").annotate(latest=Sum("clicks"))
+    latest_by_item: dict[int, int] = {
+        r["content_item_id"]: int(r["latest"] or 0) for r in latest_rows
+    }
+
+    # First pass: pick the items that actually fired the spike rule so
+    # we only have to bulk-fetch their titles, not every candidate.
+    spiking: list[tuple[int, int, float]] = []
     for item_id in candidates:
-        stats = SearchMetric.objects.filter(
-            content_item_id=item_id,
-            source="gsc",
-            date__range=[seven_days_ago, one_day_ago],
-        ).aggregate(avg_clicks=Avg("clicks"))
-
-        avg_clicks = stats["avg_clicks"] or 0
-        latest_clicks = (
-            SearchMetric.objects.filter(
-                content_item_id=item_id, source="gsc", date=target_date
-            ).aggregate(total=Sum("clicks"))["total"]
-            or 0
-        )
-
+        avg_clicks = avg_by_item.get(item_id, 0.0)
+        latest_clicks = latest_by_item.get(item_id, 0)
         # Threshold: 300% above average (i.e., 4x the average)
         if avg_clicks > 0 and latest_clicks > (avg_clicks * 4):
-            item = ContentItem.objects.get(pk=item_id)
-            emit_operator_alert(
-                event_type="traffic_spike",
-                severity=OperatorAlert.SEVERITY_INFO,
-                title=f"Traffic Spike: {item.title[:40]}...",
-                message=(
-                    f"Page '{item.title}' saw {latest_clicks} clicks on {target_date}, "
-                    f"which is {((latest_clicks / avg_clicks) - 1) * 100:.0f}% above its 7-day average ({avg_clicks:.1f})."
-                ),
-                source_area=OperatorAlert.AREA_PIPELINE,
-                dedupe_key=f"traffic-spike-{item_id}-{target_date}",
-                related_object_type="content_item",
-                related_object_id=str(item_id),
-                payload={
-                    "item_id": item_id,
-                    "date": str(target_date),
-                    "latest_clicks": latest_clicks,
-                    "avg_clicks": float(avg_clicks),
-                },
-            )
-            alerts_count += 1
+            spiking.append((item_id, latest_clicks, avg_clicks))
+
+    if not spiking:
+        return {"alerts_emitted": 0}
+
+    # Bulk fetch titles in one round trip. Use a dict keyed on PK so a
+    # dangling SearchMetric.content_item_id (item deleted between the
+    # filter and this loop) just yields a None title — bug fix: the
+    # previous code did `ContentItem.objects.get(pk=item_id)` which
+    # raised DoesNotExist and killed the whole task on the first orphan.
+    spiking_ids = [item_id for item_id, _, _ in spiking]
+    titles_by_id: dict[int, str] = dict(
+        ContentItem.objects.filter(pk__in=spiking_ids).values_list("pk", "title")
+    )
+
+    alerts_count = 0
+    for item_id, latest_clicks, avg_clicks in spiking:
+        title = titles_by_id.get(item_id) or f"(deleted item #{item_id})"
+        # Defensive: title could legitimately be empty for newly-imported
+        # rows; guard the slice + the format so the f-string can't crash.
+        title_short = (title or "")[:40] or f"item #{item_id}"
+        emit_operator_alert(
+            event_type="traffic_spike",
+            severity=OperatorAlert.SEVERITY_INFO,
+            title=f"Traffic Spike: {title_short}...",
+            message=(
+                f"Page '{title}' saw {latest_clicks} clicks on {target_date}, "
+                f"which is {((latest_clicks / avg_clicks) - 1) * 100:.0f}% above its 7-day average ({avg_clicks:.1f})."
+            ),
+            source_area=OperatorAlert.AREA_PIPELINE,
+            dedupe_key=f"traffic-spike-{item_id}-{target_date}",
+            related_object_type="content_item",
+            related_object_id=str(item_id),
+            payload={
+                "item_id": item_id,
+                "date": str(target_date),
+                "latest_clicks": latest_clicks,
+                "avg_clicks": float(avg_clicks),
+            },
+        )
+        alerts_count += 1
 
     return {"alerts_emitted": alerts_count}

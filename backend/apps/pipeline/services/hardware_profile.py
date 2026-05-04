@@ -215,7 +215,7 @@ def _read_setting_override() -> str:
         row = AppSetting.objects.filter(key="performance.profile_override").first()
         if row and row.value:
             return str(row.value).strip().lower()
-    except Exception:
+    except Exception:  # noqa: BLE001 — pre-Django-init / fresh-install path: no AppSetting table yet, fall back to auto-detect.
         pass  # AppSetting unavailable; return empty (no override)
     return ""
 

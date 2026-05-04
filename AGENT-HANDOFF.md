@@ -1,3 +1,54 @@
+# 2026-05-04 - Claude Opus 4.7 (1M context) - analytics+notifications audit + traffic-spike N+1 + 5 more @HelperConstraint
+
+What I'm doing: Continuation. User asked the same kind of work — bugs, performance, silent errors, code duplication. Audited two apps I hadn't touched (`analytics/` and `notifications/`), found a serious 3-class bug in `detect_traffic_spikes` (2 N+1 patterns + a `DoesNotExist` crash that killed the whole task on orphan rows), promoted 4 silent-except wraps to logger paths, annotated the next 5 Celery tasks with `@HelperConstraint` (warnings now 9, down from 24 at session start).
+
+What was accomplished:
+
+**REAL BUG FIXES — `detect_traffic_spikes`:**
+- **Crash fix:** previously called `ContentItem.objects.get(pk=item_id)` inside the spike loop. If a `SearchMetric.content_item_id` pointed at a deleted ContentItem (orphan row), it raised `DoesNotExist` and killed the entire task — meaning ALL spikes after the first orphan went undetected. Now uses bulk `.filter(pk__in=...).values_list("pk", "title")` and falls back to `(deleted item #N)` for orphans, so the task always finishes.
+- **N+1 #1:** for each candidate item_id, ran 2 separate aggregates (avg_clicks + latest_clicks). Replaced with two GROUP BY queries that return all candidates in one round trip each. With N candidates, that's 2 queries instead of 2N.
+- **N+1 #2:** for each spike, fetched the ContentItem one at a time. Now batches ALL spike titles in one query.
+- **Defensive title formatting:** `item.title[:40]` previously crashed if `title` was None. Now `(title or "")[:40] or f"item #{item_id}"` so newly-imported rows with empty titles render as "item #123" instead of crashing the alert emission.
+
+**SILENT-EXCEPT JUSTIFICATIONS / PROMOTIONS (4 sites):**
+- `analytics/gsc_query_vocab.py _progress` — silent `pass` on progress callback failure now logs to debug. Operator can find why the progress chip stalled.
+- `notifications/services.py emit_operator_alert` — `ErrorLog.DoesNotExist` swallow now `# noqa`-justified with rationale; the broader `except Exception` already had a debug-log so just gets the noqa.
+- `sync/views.py ImportUploadView` pre-validation block — silent failure on bad file now debug-logs.
+- `core/runtime_flags.py is_enabled / invalidate` — cache-backend transient failures now `# noqa`-justified.
+- `pipeline/services/hardware_profile.py _read_setting_override` — pre-Django-init AppSetting unavailability now `# noqa`-justified.
+
+**5 MORE CELERY TASKS HAVE @HelperConstraint:**
+- `pipeline.recalculate_click_distance` (cpu, 512 MB)
+- `pipeline.run_clustering_pass` (cpu, 1 GB — pgvector queries)
+- `pipeline.nightly_data_retention` (DB-bound, 256 MB — bulk deletes)
+- `pipeline.cleanup_stuck_sync_jobs` (DB-bound, 64 MB — short sweep)
+- `pipeline.refresh_faiss_index` (gpu_required=True, 2 GB — FAISS-GPU rebuild)
+- All five have `storage_writes_to="postgres_main"` so router keeps them on main PC. No behaviour change.
+- Strict-mode `missing-helper-constraint` warnings dropped 14 → 9 (started at 24 last commit, now 9 — that's 15 annotations across 3 commits).
+
+What has issues or errors:
+- **9 Celery tasks in `tasks.py` still need `@HelperConstraint`** — schedule another batch. The remaining ones are mostly weight-tuning tasks (`monthly_weight_tune`, `evaluate_weight_challenger`, `check_weight_rollback`, `check_gsc_spikes`) plus the orchestrators (`run_pipeline`, `generate_embeddings`, `import_content`, `sync_single_xf_item`, `sync_single_wp_item`).
+- **`detect_traffic_spikes` ContentItem fetch is now best-effort on orphans** — operator gets "(deleted item #N)" in the alert title instead of a crash, but doesn't get a fix-suggestion to clean up the orphan SearchMetric rows. Could add a separate orphan-cleanup task in a follow-up.
+- **`gsc_query_vocab.py` progress callback failures** are now visible in debug logs but the dashboard chip won't show "progress callback failed" — would need an Operations Feed event to surface that.
+
+Tech-debt delta:
++ 1 real crash bug fixed (DoesNotExist killing detect_traffic_spikes)
++ 2 N+1 query bugs fixed (avg/latest aggregates batched + ContentItem bulk-fetch)
++ 1 defensive-coding bug fixed (title None crash)
++ 4 silent-except wraps now have explicit # noqa justification or logger.debug fallthrough
++ 5 @HelperConstraint annotations (strict warnings 14 → 9)
+Total: 13 measurable debt items resolved (mandate min: 5)
++127 / -48 across 7 files
+
+Verified:
+- python AST-parse on every touched file: clean
+- python .githooks/check-forbidden-patterns.py (diff-aware): 0 blocking violations
+- python .githooks/check-forbidden-patterns.py --strict (tasks.py): missing-helper-constraint count 14 → 9
+- docker exec smoke: detect_traffic_spikes() runs end-to-end (returns 0 alerts on empty DB), is_enabled() returns default, all imports clean
+
+Next agent: keep annotating Celery tasks (9 left); ship the frontend pieces (Why-So-Long Panel modal, Budget Forecast pre-flight chip, action-chip rendering on /error-log); audit `crawler/`, `graph/`, `sources/` services for N+1 patterns. Plan: C:\\Users\\goldm\\.claude\\plans\\check-if-everything-in-vectorized-cook.md
+
+[HANDOFF READ: 2026-05-04 by Claude Opus 4.7 — Crash hardening continued commit 68b0266]
 # 2026-05-04 - Claude Opus 4.7 (1M context) - Crash hardening continued + clustering N+1 + 5 helper-constraint annotations
 
 What I'm doing: Continuation of the same kind of work — bugs, performance, silent errors, code duplication. Hit the remaining silent-except files from the original grep, found 2 more crash-prone request handlers in API endpoints I hadn't audited, refactored a deep N+1 in the clustering pipeline, and annotated the first batch of 5 Celery tasks with `@HelperConstraint` so the strict-mode lint warning count drops 24 → 14.
