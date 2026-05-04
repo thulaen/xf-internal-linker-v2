@@ -231,6 +231,13 @@ def dispatch_pipeline_run(
     soft_time_limit=7140,
     acks_late=True,
 )
+@HelperConstraint(
+    cpu_intensive=True,             # Stage 1-3 ranker walks
+    gpu_required=False,             # GPU embed work happens inside generate_embeddings
+    storage_writes_to="postgres_main",
+    ram_peak_mb=2048,
+    expected_seconds_p50=1800,
+)
 def run_pipeline(
     self,
     run_id: str,
@@ -363,6 +370,12 @@ def run_pipeline(
     time_limit=7200,
     soft_time_limit=7140,
     acks_late=True,
+)
+@HelperConstraint(
+    gpu_required=True,              # BGE-M3 encode runs on GPU
+    storage_writes_to="postgres_main",
+    ram_peak_mb=4000,
+    expected_seconds_p50=1200,
 )
 def generate_embeddings(
     self,
@@ -621,6 +634,13 @@ def build_knowledge_graph(self, job_id: str | None = None) -> dict:
     time_limit=7200,
     soft_time_limit=7140,
     acks_late=True,
+)
+@HelperConstraint(
+    cpu_intensive=True,             # text_cleaner + NLP enrichment + spaCy
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=2048,
+    expected_seconds_p50=2400,
 )
 @with_weight_lock("heavy")
 def import_content(
@@ -2150,6 +2170,13 @@ def _check_single_rollback(challenger):
 
 
 @shared_task(bind=True, name="pipeline.check_gsc_spikes")
+@HelperConstraint(
+    cpu_intensive=False,            # GROUP BY queries against SearchMetric
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+    expected_seconds_p50=120,
+)
 def check_gsc_spikes(self) -> dict:
     """
     Detect significant week-on-week Google Search Console demand spikes.

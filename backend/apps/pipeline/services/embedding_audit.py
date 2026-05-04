@@ -133,7 +133,12 @@ def _resample_check(
     try:
         from apps.content.models import ContentItem
         from apps.pipeline.services.embedding_providers import get_provider
-    except Exception:
+    except Exception:  # noqa: BLE001 — Django boot order or test sandbox: returning [] preserves audit semantics (no flagged rows).
+        logger.warning(
+            "embedding_audit._resample_check: imports unavailable; "
+            "returning empty flag list (auditing skipped this round)",
+            exc_info=True,
+        )
         return []
 
     rows = {
@@ -145,7 +150,12 @@ def _resample_check(
 
     try:
         provider = get_provider()
-    except Exception:
+    except Exception:  # noqa: BLE001 — provider missing/misconfigured: log so operator sees it on /error-log; audit returns no flags this round.
+        logger.warning(
+            "embedding_audit._resample_check: get_provider() failed; "
+            "skipping resample audit (no rows flagged this round)",
+            exc_info=True,
+        )
         return []
 
     flagged: list[int] = []

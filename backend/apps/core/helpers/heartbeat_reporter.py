@@ -177,7 +177,20 @@ def _resolve_node_id(env: dict[str, str | int]) -> int | None:
         return None
     for row in rows or []:
         if row.get("name") == name:
-            return int(row.get("id"))
+            # Bug fix 2026-05-04: bare int(row.get("id")) crashed with
+            # TypeError if the main-PC payload missed the id field or
+            # returned a non-numeric value. Defensive coercion + log.
+            raw_id = row.get("id")
+            try:
+                return int(raw_id)
+            except (TypeError, ValueError):
+                logger.warning(
+                    "heartbeat_reporter: helper '%s' lookup returned "
+                    "non-integer id %r — treating as not-registered",
+                    name,
+                    raw_id,
+                )
+                return None
     logger.warning(
         "heartbeat_reporter: this helper '%s' is not registered on the main PC; "
         "run POST /api/settings/helpers/ to enroll it",
