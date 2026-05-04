@@ -300,4 +300,14 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(minute="*/5"),
         "options": {"queue": "default", "expires": 290},
     },
+    # Phase 4.9 — Compression Audit (weekly read-only scan).
+    # Sundays at 03:00 UTC: walk ~10 candidate tables, sample 1000
+    # rows each, measure zlib compression ratio, persist a top-10
+    # "would benefit from compression" report. Storage: 2 AppSetting
+    # rows total (report + run-at timestamp); NO new tables.
+    "weekly-compression-audit": {
+        "task": "core.compression_audit",
+        "schedule": crontab(day_of_week=0, hour=3, minute=0),
+        "options": {"queue": "default"},
+    },
 }

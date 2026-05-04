@@ -5951,6 +5951,89 @@ class CachePolicySummaryView(APIView):
         )
 
 
+class CompressionAuditView(APIView):
+    """GET /api/system/compression-audit/
+
+    Phase 4.9 — read-only view of the latest compression audit report.
+
+    Returns the top-N tables where compression would save meaningful
+    disk, plus the timestamp of the last audit run. The audit itself
+    is a Celery beat task (``core.compression_audit``) that runs
+    weekly; this endpoint is the operator-facing read.
+
+    Response shape::
+
+        {
+            "run_at_iso": "2026-05-04T03:00:11+00:00",  // empty if never run
+            "sample_size": 1000,
+            "candidates": [...],
+            "total_estimated_savings_bytes": 524288000,
+            "total_estimated_savings_mb": 500,
+            "note": "Audited 10 candidate tables; 7 have ≥1 MB projected savings."
+        }
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from dataclasses import asdict
+
+        from apps.core.services.compression_audit import get_last_compression_audit
+
+        report = get_last_compression_audit()
+        if report is None:
+            return Response(
+                {
+                    "run_at_iso": "",
+                    "sample_size": 0,
+                    "candidates": [],
+                    "total_estimated_savings_bytes": 0,
+                    "total_estimated_savings_mb": 0,
+                    "note": (
+                        "No compression audit has run yet. The first audit "
+                        "fires Sundays at 03:00 UTC; trigger immediately via "
+                        "POST /api/system/compression-audit/run/."
+                    ),
+                }
+            )
+        payload = asdict(report)
+        # Convert tuples → lists for JSON serialisation
+        for c in payload["candidates"]:
+            c["columns"] = list(c["columns"])
+        payload["total_estimated_savings_mb"] = int(
+            report.total_estimated_savings_bytes // (1024 * 1024)
+        )
+        return Response(payload)
+
+
+class CompressionAuditRunView(APIView):
+    """POST /api/system/compression-audit/run/
+
+    Phase 4.9 — operator-triggered immediate audit. Useful when the
+    operator just freed disk + wants to confirm the candidate list
+    instead of waiting until Sunday's beat tick.
+
+    Returns the freshly-computed report. Synchronous — typically takes
+    30-120 seconds depending on corpus size.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from dataclasses import asdict
+
+        from apps.core.services.compression_audit import run_compression_audit
+
+        report = run_compression_audit()
+        payload = asdict(report)
+        for c in payload["candidates"]:
+            c["columns"] = list(c["columns"])
+        payload["total_estimated_savings_mb"] = int(
+            report.total_estimated_savings_bytes // (1024 * 1024)
+        )
+        return Response(payload)
+
+
 class CppFallbackStatusView(APIView):
     """GET /api/system/cpp-fallback/
 

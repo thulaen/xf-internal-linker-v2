@@ -53,6 +53,8 @@ from .views import (
     CachePolicySummaryView,
     CachePolicyPinView,
     CachePolicyEvictView,
+    CompressionAuditView,
+    CompressionAuditRunView,
     CppFallbackStatusView,
 )
 
@@ -212,6 +214,20 @@ urlpatterns = [
         "system/cpp-fallback/",
         CppFallbackStatusView.as_view(),
         name="cpp-fallback-status",
+    ),
+    # Phase 4.9 — Compression Audit. Read-only weekly scan that
+    # identifies tables where compression would save meaningful disk.
+    # GET returns the latest report; POST run/ triggers an immediate
+    # audit (synchronous, ~30-120 s).
+    path(
+        "system/compression-audit/",
+        CompressionAuditView.as_view(),
+        name="compression-audit",
+    ),
+    path(
+        "system/compression-audit/run/",
+        CompressionAuditRunView.as_view(),
+        name="compression-audit-run",
     ),
     # Heartbeat must come before the detail route so it isn't swallowed
     # if a future router-style refactor lands here (cf. ISS-012).
