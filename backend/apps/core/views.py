@@ -2358,11 +2358,19 @@ def _build_wordpress_rows(validated: dict) -> dict[str, dict]:
     """Pure function — turn a validated WordPress dict into AppSetting row dicts.
 
     Each value is the ``defaults={}`` payload for ``update_or_create``.
-    The optional ``app_password`` row is only included when the operator
-    explicitly supplied a new value (so re-PUTting without the field
-    doesn't clobber the existing secret).
+    Split into a base-rows dict + an optional secret-row appendix so
+    the function stays under the lint budget and the secret-handling
+    rule lives in its own block.
     """
-    rows: dict[str, dict] = {
+    rows = _wordpress_base_rows(validated)
+    if validated["app_password_provided"]:
+        rows["wordpress.app_password"] = _wordpress_app_password_row(validated)
+    return rows
+
+
+def _wordpress_base_rows(validated: dict) -> dict[str, dict]:
+    """Always-persisted WordPress AppSetting rows (no secrets)."""
+    return {
         "wordpress.base_url": {
             "value": str(validated["base_url"]),
             "value_type": "str",
@@ -2399,15 +2407,17 @@ def _build_wordpress_rows(validated: dict) -> dict[str, dict]:
             "is_secret": False,
         },
     }
-    if validated["app_password_provided"]:
-        rows["wordpress.app_password"] = {
-            "value": str(validated["app_password"] or ""),
-            "value_type": "str",
-            "description": "WordPress Application Password for private-content reads.",
-            "category": "api",
-            "is_secret": True,
-        }
-    return rows
+
+
+def _wordpress_app_password_row(validated: dict) -> dict:
+    """The is_secret=True app-password row — only included when provided."""
+    return {
+        "value": str(validated["app_password"] or ""),
+        "value_type": "str",
+        "description": "WordPress Application Password for private-content reads.",
+        "category": "api",
+        "is_secret": True,
+    }
 
 
 class WordPressSettingsView(APIView):
