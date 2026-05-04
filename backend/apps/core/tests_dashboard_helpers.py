@@ -24,6 +24,7 @@ from apps.core.views import (
     _apply_heartbeat_load_metrics,
     _apply_heartbeat_network_health,
     _build_value_model_rows,
+    _build_wordpress_rows,
     _coerce_bool_strict,
     _coerce_float_strict,
     _coerce_int_strict,
@@ -35,7 +36,15 @@ from apps.core.views import (
     _dashboard_runtime_mode_display,
     _dashboard_suggestion_counts,
     _dashboard_system_health,
+    _job_queue_active_runs,
+    _job_queue_active_syncs,
+    _legacy_quarantine_row,
+    _persist_performance_mode_settings,
     _pluralise,
+    _quarantine_legacy_rows,
+    _quarantine_records_and_run_ids,
+    _read_runtime_mode_setting,
+    _resolve_performance_expiry_choice,
     _resume_view_interrupted_runs,
     _resume_view_missed_tasks,
     _resume_view_resumable_syncs,
@@ -798,3 +807,221 @@ class ResumeViewHelperTests(TestCase):
         # must not raise either way.
         result = _resume_view_missed_tasks()
         self.assertIsInstance(result, list)
+
+
+# ── Quarantine helpers (extracted from JobQuarantineView.get) ─────
+
+
+class QuarantineHelperTests(TestCase):
+    def setUp(self) -> None:
+        from apps.core.models import QuarantineRecord
+        from apps.suggestions.models import PipelineRun
+
+        QuarantineRecord.objects.all().delete()
+        PipelineRun.objects.all().delete()
+
+    def test_records_and_run_ids_empty(self) -> None:
+        records, run_ids = _quarantine_records_and_run_ids()
+        self.assertEqual(records, [])
+        self.assertEqual(run_ids, set())
+
+    def test_legacy_rows_empty(self) -> None:
+        self.assertEqual(_quarantine_legacy_rows(skip_run_ids=set()), [])
+
+    def test_legacy_rows_dedup_against_skip_set(self) -> None:
+        from apps.suggestions.models import PipelineRun
+
+        run = PipelineRun.objects.create(
+            run_state="failed", rerun_mode="full", is_quarantined=True
+        )
+        rid = str(run.run_id)
+        # Without skip → 1 result
+        rows = _quarantine_legacy_rows(skip_run_ids=set())
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["run_id"], rid)
+        # With matching skip → 0 results
+        rows = _quarantine_legacy_rows(skip_run_ids={rid})
+        self.assertEqual(rows, [])
+
+    def test_legacy_row_shape(self) -> None:
+        run_dict = {
+            "run_id": "abc-123",
+            "run_state": "failed",
+            "rerun_mode": "full",
+            "error_message": "boom",
+            "phase_log": ["a", "b"],
+            "created_at": None,
+            "updated_at": None,
+        }
+        row = _legacy_quarantine_row(run_dict, "abc-123")
+        # Required keys for the frontend
+        for key in (
+            "id",
+            "kind",
+            "run_id",
+            "related_object_type",
+            "reason",
+            "reason_display",
+            "fix_available",
+        ):
+            with self.subTest(key=key):
+                self.assertIn(key, row)
+        self.assertEqual(row["kind"], "legacy")
+        self.assertEqual(row["fix_available"], "reset-quarantined-job")
+
+
+# ── Performance-mode helpers (extracted from RuntimeSwitchView.post) ──
+
+
+class ResolvePerformanceExpiryChoiceTests(SimpleTestCase):
+    def test_safe_mode_forces_none(self) -> None:
+        self.assertEqual(
+            _resolve_performance_expiry_choice(mode="safe", raw_expiry="night"),
+            "none",
+        )
+
+    def test_balanced_mode_forces_none(self) -> None:
+        self.assertEqual(
+            _resolve_performance_expiry_choice(mode="balanced", raw_expiry="activity"),
+            "none",
+        )
+
+    def test_high_mode_accepts_documented_expiry_values(self) -> None:
+        for v in ("none", "activity", "night"):
+            with self.subTest(v=v):
+                self.assertEqual(
+                    _resolve_performance_expiry_choice(mode="high", raw_expiry=v),
+                    v,
+                )
+
+    def test_high_mode_rejects_unknown_expiry_to_none(self) -> None:
+        self.assertEqual(
+            _resolve_performance_expiry_choice(mode="high", raw_expiry="garbage"),
+            "none",
+        )
+
+
+class PersistPerformanceModeSettingsTests(TestCase):
+    def setUp(self) -> None:
+        from apps.core.models import AppSetting
+
+        AppSetting.objects.filter(key__startswith="system.performance_mode").delete()
+
+    def test_persists_three_appsetting_rows(self) -> None:
+        from apps.core.models import AppSetting
+
+        _persist_performance_mode_settings(
+            mode="high", expiry="activity", expires_at=""
+        )
+        for key in (
+            "system.performance_mode",
+            "system.performance_mode_expiry",
+            "system.performance_mode_expires_at",
+        ):
+            with self.subTest(key=key):
+                row = AppSetting.objects.filter(key=key).first()
+                self.assertIsNotNone(row)
+
+
+class ReadRuntimeModeSettingTests(TestCase):
+    def test_defaults_to_cpu_when_unset(self) -> None:
+        from apps.core.models import AppSetting
+
+        AppSetting.objects.filter(key="system.runtime_mode").delete()
+        self.assertEqual(_read_runtime_mode_setting(), "cpu")
+
+    def test_returns_persisted_value(self) -> None:
+        from apps.core.models import AppSetting
+
+        AppSetting.objects.update_or_create(
+            key="system.runtime_mode",
+            defaults={"value": "gpu", "value_type": "str"},
+        )
+        self.assertEqual(_read_runtime_mode_setting(), "gpu")
+
+
+# ── WordPress row builder (extracted from WordPressSettingsView.put) ──
+
+
+class BuildWordpressRowsTests(SimpleTestCase):
+    def _validated(self, *, app_password_provided: bool = False) -> dict:
+        return {
+            "base_url": "https://blog.example.com",
+            "username": "editor",
+            "app_password": "secret",
+            "app_password_provided": app_password_provided,
+            "sync_enabled": True,
+            "sync_hour": 4,
+            "sync_minute": 15,
+        }
+
+    def test_required_rows_present(self) -> None:
+        rows = _build_wordpress_rows(self._validated())
+        for key in (
+            "wordpress.base_url",
+            "wordpress.username",
+            "wordpress.sync_enabled",
+            "wordpress.sync_hour",
+            "wordpress.sync_minute",
+        ):
+            with self.subTest(key=key):
+                self.assertIn(key, rows)
+
+    def test_app_password_omitted_when_not_provided(self) -> None:
+        rows = _build_wordpress_rows(self._validated(app_password_provided=False))
+        # Operator can re-PUT base settings without clobbering the secret
+        self.assertNotIn("wordpress.app_password", rows)
+
+    def test_app_password_included_when_provided(self) -> None:
+        rows = _build_wordpress_rows(self._validated(app_password_provided=True))
+        self.assertIn("wordpress.app_password", rows)
+        self.assertTrue(rows["wordpress.app_password"]["is_secret"])
+
+    def test_bool_serialised_as_string(self) -> None:
+        rows = _build_wordpress_rows(self._validated())
+        self.assertEqual(rows["wordpress.sync_enabled"]["value"], "true")
+
+    def test_int_serialised_as_string(self) -> None:
+        rows = _build_wordpress_rows(self._validated())
+        self.assertEqual(rows["wordpress.sync_hour"]["value"], "4")
+        self.assertEqual(rows["wordpress.sync_minute"]["value"], "15")
+
+
+# ── JobQueue helpers (extracted from JobQueueView.get) ───────────
+
+
+class JobQueueHelperTests(TestCase):
+    def setUp(self) -> None:
+        from apps.suggestions.models import PipelineRun
+        from apps.sync.models import SyncJob
+
+        PipelineRun.objects.all().delete()
+        SyncJob.objects.all().delete()
+
+    def test_active_runs_empty(self) -> None:
+        self.assertEqual(_job_queue_active_runs(), [])
+
+    def test_active_syncs_empty(self) -> None:
+        self.assertEqual(_job_queue_active_syncs(), [])
+
+    def test_active_runs_caps_at_20(self) -> None:
+        from apps.suggestions.models import PipelineRun
+
+        for _ in range(25):
+            PipelineRun.objects.create(run_state="queued", rerun_mode="full")
+        self.assertEqual(len(_job_queue_active_runs()), 20)
+
+    def test_active_runs_stringify_run_id(self) -> None:
+        from apps.suggestions.models import PipelineRun
+
+        run = PipelineRun.objects.create(run_state="running", rerun_mode="full")
+        runs = _job_queue_active_runs()
+        self.assertEqual(runs[0]["run_id"], str(run.run_id))
+        self.assertEqual(runs[0]["type"], "pipeline")
+
+    def test_active_syncs_includes_type_field(self) -> None:
+        from apps.sync.models import SyncJob
+
+        SyncJob.objects.create(source="xenforo", status="running", mode="full")
+        syncs = _job_queue_active_syncs()
+        self.assertEqual(syncs[0]["type"], "sync")
