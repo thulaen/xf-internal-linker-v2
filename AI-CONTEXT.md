@@ -77,7 +77,21 @@ Language-specific rules files:
 | 5 | `FEATURE-REQUESTS.md` — `## Pending Slices` section | If you deferred sub-feature work to a future session, before ending |
 | 6 | `AGENT-HANDOFF.md` — "Tech-debt delta" line | Always (mandated by `TECH-DEBT-MANDATE.md`) |
 
-### MUST REFACTOR — Tech-Debt Mandate (NEW, paramount)
+### MUST THINK BEFORE YOU CODE — Upstream Design Discipline (NEW, paramount)
+
+Before writing any new function/class/view/service, answer the **5 pre-write questions** from [`THINK-BEFORE-YOU-CODE.md`](THINK-BEFORE-YOU-CODE.md):
+
+1. **DRY:** Does this already exist? (Search the codebase first; if a near-duplicate exists, refactor BOTH sites in the same change.)
+2. **KISS:** What is the simplest thing that works? (No premature abstraction; concrete code first, abstract on the second use.)
+3. **Scaling:** What happens at 10× and 100× input?
+4. **Extensibility:** Where is the seam for the next feature? (Declare it BEFORE shipping the first version.)
+5. **Testability:** How will I prove this works without spinning up Docker? (Pure functions + small classes that test in `SimpleTestCase`.)
+
+**Hard limits enforced at commit time:** ≤50 lines per function, ≤1500 per file, ≤10 cyclomatic complexity, ≤7 args, ≤4 nesting levels, no duplicated 6+ line blocks. The pre-commit hook flags violations; the strict-mode CI catches the long tail.
+
+**Leave every file in BETTER shape than you found it** — if you touch a 200-line handler and add a feature, you ALSO refactor the handler. This is the upstream rule that prevents the messes the other paramount files clean up after.
+
+### MUST REFACTOR — Tech-Debt Mandate (paramount)
 
 Every session MUST resolve ≥5 tech-debt items as part of its normal work — not as an optional add-on. Targets are listed in [`TECH-DEBT-MANDATE.md`](TECH-DEBT-MANDATE.md): duplicated boilerplate, magic numbers, silent excepts, dead code, stale comments, long files, hardcoded paths, untracked TODOs, forbidden patterns. The session-end `AGENT-HANDOFF.md` entry MUST include a "Tech-debt delta" line listing what was fixed. Sessions without that line fail the handoff protocol equivalent to skipping the session-end snapshot.
 

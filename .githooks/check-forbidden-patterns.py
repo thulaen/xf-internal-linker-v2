@@ -413,6 +413,88 @@ def scan_missing_docstring(tree: ast.Module, path: Path) -> list[Violation]:
     ]
 
 
+def scan_too_many_args(tree: ast.Module, path: Path, max_args: int = 7) -> list[Violation]:
+    """Rule 8 (warn): function with >7 positional + keyword-only args.
+
+    Per ``THINK-BEFORE-YOU-CODE.md``: signatures over 7 args become
+    hard to call correctly; group related args into a dataclass /
+    TypedDict / kwargs dict.
+
+    ``self`` / ``cls`` / `*args` / `**kwargs` don't count toward the
+    cap (those are framework-mandated, not operator design choices).
+    """
+    out: list[Violation] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        args = node.args
+        # Count: positional + keyword-only. Exclude self/cls.
+        positional = [
+            a for a in args.args if a.arg not in ("self", "cls")
+        ]
+        kw_only = list(args.kwonlyargs)
+        total = len(positional) + len(kw_only)
+        if total <= max_args:
+            continue
+        out.append(
+            Violation(
+                path=path,
+                lineno=node.lineno,
+                rule="too-many-args",
+                severity="warn",
+                detail=(
+                    f"function `{node.name}` has {total} args (limit {max_args}). "
+                    f"Group related args into a dataclass / TypedDict / kwargs dict."
+                ),
+            )
+        )
+    return out
+
+
+def scan_deep_nesting(tree: ast.Module, path: Path, max_depth: int = 4) -> list[Violation]:
+    """Rule 9 (warn): function body with >4 levels of if/for/with/try.
+
+    Per ``THINK-BEFORE-YOU-CODE.md``: deep nesting becomes hard to
+    follow; early-return + extract helper. The depth counter only
+    increments on the 4 nesting-introducing statements; expression-
+    level depth (list comprehensions, ternaries) doesn't count.
+    """
+    out: list[Violation] = []
+    nesting_types = (ast.If, ast.For, ast.While, ast.With, ast.AsyncFor, ast.AsyncWith, ast.Try)
+
+    def _max_depth(node: ast.AST, current: int = 0) -> int:
+        """Recurse the AST counting nesting-introducing nodes."""
+        depth = current
+        for child in ast.iter_child_nodes(node):
+            child_depth = current
+            if isinstance(child, nesting_types):
+                child_depth = current + 1
+            sub = _max_depth(child, child_depth)
+            if sub > depth:
+                depth = sub
+        return depth
+
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        depth = _max_depth(node)
+        if depth <= max_depth:
+            continue
+        out.append(
+            Violation(
+                path=path,
+                lineno=node.lineno,
+                rule="deep-nesting",
+                severity="warn",
+                detail=(
+                    f"function `{node.name}` has {depth} nesting levels (limit {max_depth}). "
+                    f"Use early-return + extract helper to flatten."
+                ),
+            )
+        )
+    return out
+
+
 # ── Top-level lint loop ────────────────────────────────────────────
 
 
@@ -444,6 +526,8 @@ def lint_file(path: Path, *, strict: bool = False) -> list[Violation]:
     violations.extend(scan_long_functions(tree, path))
     violations.extend(scan_missing_docstring(tree, path))
     violations.extend(scan_missing_helper_constraint(tree, path))
+    violations.extend(scan_too_many_args(tree, path))
+    violations.extend(scan_deep_nesting(tree, path))
 
     # Diff-awareness: drop pre-existing violations unless --strict.
     if strict:
