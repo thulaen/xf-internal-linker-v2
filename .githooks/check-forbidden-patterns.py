@@ -413,7 +413,9 @@ def scan_missing_docstring(tree: ast.Module, path: Path) -> list[Violation]:
     ]
 
 
-def scan_too_many_args(tree: ast.Module, path: Path, max_args: int = 7) -> list[Violation]:
+def scan_too_many_args(
+    tree: ast.Module, source_lines: list[str], path: Path, max_args: int = 7,
+) -> list[Violation]:
     """Rule 8 (warn): function with >7 positional + keyword-only args.
 
     Per ``THINK-BEFORE-YOU-CODE.md``: signatures over 7 args become
@@ -422,6 +424,10 @@ def scan_too_many_args(tree: ast.Module, path: Path, max_args: int = 7) -> list[
 
     ``self`` / ``cls`` / `*args` / `**kwargs` don't count toward the
     cap (those are framework-mandated, not operator design choices).
+
+    Honors `# noqa: forbidden-pattern` (or `# noqa: forbidden-pattern too-many-args`)
+    on the def line — useful when a helper has 8+ kwargs by design and a
+    dataclass would hurt more than help.
     """
     out: list[Violation] = []
     for node in ast.walk(tree):
@@ -435,6 +441,8 @@ def scan_too_many_args(tree: ast.Module, path: Path, max_args: int = 7) -> list[
         kw_only = list(args.kwonlyargs)
         total = len(positional) + len(kw_only)
         if total <= max_args:
+            continue
+        if _has_noqa(source_lines, node.lineno, window=1):
             continue
         out.append(
             Violation(
@@ -451,13 +459,18 @@ def scan_too_many_args(tree: ast.Module, path: Path, max_args: int = 7) -> list[
     return out
 
 
-def scan_deep_nesting(tree: ast.Module, path: Path, max_depth: int = 4) -> list[Violation]:
+def scan_deep_nesting(
+    tree: ast.Module, source_lines: list[str], path: Path, max_depth: int = 4,
+) -> list[Violation]:
     """Rule 9 (warn): function body with >4 levels of if/for/with/try.
 
     Per ``THINK-BEFORE-YOU-CODE.md``: deep nesting becomes hard to
     follow; early-return + extract helper. The depth counter only
     increments on the 4 nesting-introducing statements; expression-
     level depth (list comprehensions, ternaries) doesn't count.
+
+    Honors `# noqa: forbidden-pattern` (or `# noqa: forbidden-pattern deep-nesting`)
+    on the def line.
     """
     out: list[Violation] = []
     nesting_types = (ast.If, ast.For, ast.While, ast.With, ast.AsyncFor, ast.AsyncWith, ast.Try)
@@ -479,6 +492,8 @@ def scan_deep_nesting(tree: ast.Module, path: Path, max_depth: int = 4) -> list[
             continue
         depth = _max_depth(node)
         if depth <= max_depth:
+            continue
+        if _has_noqa(source_lines, node.lineno, window=1):
             continue
         out.append(
             Violation(
@@ -526,8 +541,8 @@ def lint_file(path: Path, *, strict: bool = False) -> list[Violation]:
     violations.extend(scan_long_functions(tree, path))
     violations.extend(scan_missing_docstring(tree, path))
     violations.extend(scan_missing_helper_constraint(tree, path))
-    violations.extend(scan_too_many_args(tree, path))
-    violations.extend(scan_deep_nesting(tree, path))
+    violations.extend(scan_too_many_args(tree, source_lines, path))
+    violations.extend(scan_deep_nesting(tree, source_lines, path))
 
     # Diff-awareness: drop pre-existing violations unless --strict.
     if strict:

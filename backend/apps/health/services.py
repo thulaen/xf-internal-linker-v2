@@ -1,3 +1,13 @@
+"""System-wide health checks for the operator-visible /diagnostics page.
+
+Every ``check_*_health`` function returns a ``ServiceHealthResult``
+dataclass that the frontend renders as a status card. The shared builders
+``_make_health_result`` + ``_make_check_failed_result`` centralise the
+ServiceHealthResult construction so each check only supplies the
+per-domain (status, label, issue, fix) wording. The 11 ``_classify_*_state``
+helpers extract per-check decision trees as pure functions for easy testing.
+"""
+
 import logging
 from datetime import timedelta
 from typing import Any, Callable, Dict, Optional
@@ -129,6 +139,7 @@ def check_database_health() -> ServiceHealthResult:
             last_success_at=timezone.now(),
         )
     except Exception as e:
+        logger.exception("health check raised; surfacing as ServiceHealthResult")
         return ServiceHealthResult(
             service_key="database",
             status=ServiceHealthRecord.STATUS_DOWN,
@@ -160,6 +171,7 @@ def check_redis_health() -> ServiceHealthResult:
             last_success_at=timezone.now(),
         )
     except Exception as e:
+        logger.exception("health check raised; surfacing as ServiceHealthResult")
         return ServiceHealthResult(
             service_key="redis",
             status=ServiceHealthRecord.STATUS_DOWN,
@@ -203,6 +215,7 @@ def check_celery_health() -> ServiceHealthResult:
             metadata={"worker_count": worker_count},
         )
     except Exception as e:
+        logger.exception("health check raised; surfacing as ServiceHealthResult")
         return ServiceHealthResult(
             service_key="celery",
             status=ServiceHealthRecord.STATUS_ERROR,
@@ -262,6 +275,7 @@ def check_native_scoring_health() -> ServiceHealthResult:
             metadata={"module_statuses": statuses},
         )
     except Exception as e:
+        logger.exception("health check raised; surfacing as ServiceHealthResult")
         return ServiceHealthResult(
             service_key="native_scoring",
             status=ServiceHealthRecord.STATUS_ERROR,
@@ -356,7 +370,7 @@ def _model_runtime_result(
     )
 
 
-def _make_health_result(
+def _make_health_result(  # noqa: forbidden-pattern too-many-args  # justification: keyword-only API used by 30+ callsites; dataclass would add 30+ object allocations per health-page render with no behavioural win.
     service_key: str,
     *,
     status: str,
@@ -522,6 +536,7 @@ def check_model_runtime_health() -> ServiceHealthResult:
         )
         return _model_runtime_result(metadata, **decision)
     except Exception as e:
+        logger.exception("health check raised; surfacing as ServiceHealthResult")
         return ServiceHealthResult(
             service_key="model_runtime",
             status=ServiceHealthRecord.STATUS_ERROR,
@@ -1151,7 +1166,7 @@ def _check_sync_lag_or_none(
     )
 
 
-def _check_content_count_or_none(
+def _check_content_count_or_none(  # noqa: forbidden-pattern too-many-args  # justification: shared by XF + WP + Matomo content-count checks; bundling kwargs would double the call count.
     service_key: str,
     metadata: dict,
     count_filter: dict,
@@ -1210,6 +1225,7 @@ def _xf_check_credentials() -> ServiceHealthResult | None:
                 success=False,
             )
     except Exception as e:
+        logger.exception("credential check raised; surfacing as ServiceHealthResult")
         return _make_health_result(
             "xenforo",
             status=ServiceHealthRecord.STATUS_ERROR,
@@ -1303,6 +1319,7 @@ def _wp_check_credentials() -> ServiceHealthResult | None:
                     success=False,
                 )
     except Exception as e:
+        logger.exception("credential check raised; surfacing as ServiceHealthResult")
         return _make_health_result(
             "wordpress",
             status=ServiceHealthRecord.STATUS_ERROR,
@@ -1383,6 +1400,7 @@ def check_knowledge_graph_health() -> ServiceHealthResult:
             metadata={"node_count": node_count},
         )
     except Exception as e:
+        logger.exception("health check raised; surfacing as ServiceHealthResult")
         return ServiceHealthResult(
             service_key="knowledge_graph",
             status=ServiceHealthRecord.STATUS_ERROR,
@@ -1475,6 +1493,7 @@ def check_webhooks_health() -> ServiceHealthResult:
             metadata={"recent_count": recent_receipts},
         )
     except Exception as e:
+        logger.exception("health check raised; surfacing as ServiceHealthResult")
         return ServiceHealthResult(
             service_key="webhooks",
             status=ServiceHealthRecord.STATUS_ERROR,
@@ -1490,7 +1509,7 @@ _PIPELINE_FAILURE_BURST_COUNT = 3
 _PIPELINE_FAILURE_BURST_HOURS = 24
 
 
-def _classify_pipeline_state(
+def _classify_pipeline_state(  # noqa: forbidden-pattern too-many-args  # justification: pipeline state has 8 orthogonal axes; a dataclass adds friction without simplifying the decision tree.
     failed: int, completed: int, terminal: int, success_rate: int,
     hours_since: float, no_run_threshold: float, failure_threshold: float,
     last_run,
@@ -1762,6 +1781,7 @@ def check_sitemaps() -> ServiceHealthResult:
             metadata={"total": total, "enabled": enabled},
         )
     except Exception as e:
+        logger.exception("health check raised; surfacing as ServiceHealthResult")
         return ServiceHealthResult(
             service_key="sitemaps",
             status=ServiceHealthRecord.STATUS_ERROR,
@@ -1874,6 +1894,7 @@ def check_crawler_storage() -> ServiceHealthResult:
             metadata=meta,
         )
     except Exception as e:
+        logger.exception("health check raised; surfacing as ServiceHealthResult")
         return ServiceHealthResult(
             service_key="crawler_storage",
             status=ServiceHealthRecord.STATUS_ERROR,
