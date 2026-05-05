@@ -376,8 +376,7 @@ def _check_gpu_temperature() -> bool:
             )
             return False
         return True
-    except Exception:
-        # If pynvml is not available, assume safe (CPU fallback handles it).
+    except Exception:  # noqa: BLE001 — pynvml unavailable / unrecognised driver: assume CPU-safe.
         return True
 
 
@@ -392,6 +391,114 @@ def _thermal_guard_before_gpu_batch() -> None:
         _wait_for_gpu_cooldown()
 
 
+def _model_supports_field(model_class: type, field_name: str) -> bool:
+    """True if the Django model has a Meta-registered field by that name."""
+    try:
+        model_class._meta.get_field(field_name)
+    except Exception:  # noqa: BLE001 — Django raises FieldDoesNotExist; treat as missing.
+        return False
+    return True
+
+
+def _archive_existing_content_item_embeddings(
+    *, model_class: type, pks_slice: list[int],
+    supports_model_version: bool, embedding_signature: str | None,
+) -> None:
+    """Best-effort archive of pre-existing ContentItem embeddings before overwrite.
+
+    Scope: ContentItem only — ``SupersededEmbedding.content_item`` is a FK
+    to ContentItem, not Sentence. Skips rows that are empty or already at
+    the target signature. Archive failure NEVER blocks the bulk_update.
+    """
+    if getattr(model_class, "__name__", "") != "ContentItem" or not pks_slice:
+        return
+    try:
+        from apps.content.models import SupersededEmbedding
+        archive_qs = model_class.objects.filter(
+            pk__in=pks_slice, embedding__isnull=False,
+        )
+        if supports_model_version and embedding_signature:
+            archive_qs = archive_qs.exclude(
+                embedding_model_version=embedding_signature,
+            )
+        archive_rows = [
+            SupersededEmbedding(
+                content_item=row,
+                embedding=row.embedding,
+                embedding_model_version=getattr(row, "embedding_model_version", "") or "",
+                content_hash=getattr(row, "content_hash", "") or "",
+                content_version=getattr(row, "content_version", 1) or 1,
+            )
+            for row in archive_qs.iterator(chunk_size=500)
+        ]
+        if archive_rows:
+            SupersededEmbedding.objects.bulk_create(
+                archive_rows, batch_size=500, ignore_conflicts=True,
+            )
+    except Exception:
+        logger.warning(
+            "SupersededEmbedding archive batch failed; bulk_update will proceed",
+            exc_info=True,
+        )
+
+
+def _build_bulk_update_rows(
+    model_class: type, pks_slice: list[int], normalised, *,
+    supports_model_version: bool, embedding_signature: str | None,
+    use_text_hashes: bool, text_hashes: list[str] | None,
+) -> list:
+    """Construct the per-row instances for bulk_update.
+
+    Conditionally includes ``embedding_model_version`` and
+    ``embedding_text_hash`` so each row sets only the fields the model
+    actually supports.
+    """
+    hashes_iter = text_hashes if use_text_hashes else [""] * len(pks_slice)
+    return [
+        model_class(**({
+            "pk": pk,
+            "embedding": vec.tolist(),
+            **(
+                {"embedding_model_version": embedding_signature}
+                if supports_model_version and embedding_signature else {}
+            ),
+            **({"embedding_text_hash": text_hash} if use_text_hashes else {}),
+        }))
+        for pk, vec, text_hash in zip(pks_slice, normalised, hashes_iter, strict=True)
+    ]
+
+
+def _apply_quality_gate_filter(
+    *, model_class, pks_slice: list[int], normalised, embedding_signature: str | None,
+    text_hashes: list[str] | None,
+) -> tuple[list[int], object, list[str] | None] | None:
+    """Run the embedding quality gate and filter the kept-indices.
+
+    Returns ``None`` when the gate kept ZERO rows (caller should bail).
+    Returns ``(pks_slice, normalised, text_hashes)`` filtered down to the
+    kept-indices set. If the gate is disabled the inputs pass through.
+    """
+    gate_kept_indices, gate_pks_kept = _run_quality_gate(
+        model_class=model_class, pks_slice=pks_slice,
+        normalised=normalised, embedding_signature=embedding_signature,
+    )
+    if gate_kept_indices is None:
+        return pks_slice, normalised, text_hashes
+    if not gate_kept_indices:
+        return None
+    if len(gate_kept_indices) < len(pks_slice):
+        normalised = normalised[gate_kept_indices]
+        pks_slice = gate_pks_kept
+        # Group D.2 bug-fix: also filter ``text_hashes`` so the length-match
+        # check stays honest. Without this the gate-pruned set would have
+        # ``len(text_hashes) > len(pks_slice)`` and the hash write would
+        # silently disable. The signature filter then wouldn't be able to
+        # short-circuit unchanged content on subsequent passes.
+        if text_hashes is not None and len(text_hashes) > len(pks_slice):
+            text_hashes = [text_hashes[i] for i in gate_kept_indices]
+    return pks_slice, normalised, text_hashes
+
+
 def _flush_embeddings_slice(
     model_class: type,
     pks_slice: list[int],
@@ -402,146 +509,62 @@ def _flush_embeddings_slice(
 ) -> None:
     """L2-normalise accumulated vectors and bulk_update the given PK slice.
 
-    Clears ``raw_vectors_list`` in place. No-op if the buffer is empty,
-    so call sites don't need their own ``if raw_vectors_list:`` guard.
-    Shared between the ContentItem and Sentence embedding paths.
-
-    ``text_hashes`` (Group D.2) is optional and only honoured when the
-    target model has an ``embedding_text_hash`` column (currently only
-    ``ContentItem``). Length must match ``pks_slice`` 1:1; passing a
-    shorter or longer list silently disables the hash write so a
-    miscall can't corrupt the stored values.
+    No-op when ``raw_vectors_list`` is empty. Quality gate (FR-236)
+    filters pks/vectors/hashes; archive runs only for ContentItem.
     """
     if not raw_vectors_list:
         return
     normalised = _l2_normalize(np.vstack(raw_vectors_list))
-    fields = ["embedding"]
-    supports_model_version = False
-    try:
-        model_class._meta.get_field("embedding_model_version")
-        supports_model_version = True
-    except Exception:
-        supports_model_version = False
-
-    # Group D.2 — only write text hashes if the model supports the column
-    # AND the caller passed a length-matched list.
-    supports_text_hash = False
-    try:
-        model_class._meta.get_field("embedding_text_hash")
-        supports_text_hash = True
-    except Exception:
-        supports_text_hash = False
+    supports_model_version = _model_supports_field(model_class, "embedding_model_version")
+    supports_text_hash = _model_supports_field(model_class, "embedding_text_hash")
+    gate_result = _apply_quality_gate_filter(
+        model_class=model_class, pks_slice=pks_slice,
+        normalised=normalised, embedding_signature=embedding_signature,
+        text_hashes=text_hashes,
+    )
+    if gate_result is None:
+        raw_vectors_list.clear()
+        return
+    pks_slice, normalised, text_hashes = gate_result
     use_text_hashes = (
-        supports_text_hash
-        and text_hashes is not None
+        supports_text_hash and text_hashes is not None
         and len(text_hashes) == len(pks_slice)
     )
-
-    # Quality gate (plan Part 9, FR-236) — decides per-item REPLACE / REJECT /
-    # NOOP / ACCEPT_NEW before we archive + overwrite. Filters pks_slice + the
-    # normalised matrix to only the rows the gate approves. If the gate is
-    # disabled (AppSetting embedding.gate_enabled = false), behaviour matches
-    # the pre-gate pipeline exactly.
-    gate_kept_indices, gate_pks_kept = _run_quality_gate(
-        model_class=model_class,
-        pks_slice=pks_slice,
-        normalised=normalised,
+    _archive_existing_content_item_embeddings(
+        model_class=model_class, pks_slice=pks_slice,
+        supports_model_version=supports_model_version,
         embedding_signature=embedding_signature,
     )
-    if gate_kept_indices is not None:
-        # Gate active and produced a filtered set. If nothing kept, bail early.
-        if not gate_kept_indices:
-            raw_vectors_list.clear()
-            return
-        if len(gate_kept_indices) < len(pks_slice):
-            normalised = normalised[gate_kept_indices]
-            pks_slice = gate_pks_kept
-            # Group D.2 bug-fix: also filter ``text_hashes`` so the
-            # length-match check below stays honest. Without this the
-            # gate-pruned set would have ``len(text_hashes) > len(pks_slice)``,
-            # ``use_text_hashes`` would silently flip to False, and no row
-            # would get its ``embedding_text_hash`` written. The signature
-            # filter then wouldn't be able to short-circuit unchanged
-            # content on subsequent passes.
-            if text_hashes is not None and len(text_hashes) > len(pks_slice):
-                text_hashes = [text_hashes[i] for i in gate_kept_indices]
-
-    # Archive existing embeddings before overwrite (plan Part 2). Scope: ContentItem
-    # only — SupersededEmbedding.content_item is a FK to ContentItem, not Sentence.
-    # Skips rows that are empty or already at the target signature (nothing to preserve).
-    # Best-effort: archive failure never blocks the bulk_update.
-    if getattr(model_class, "__name__", "") == "ContentItem" and pks_slice:
-        try:
-            from apps.content.models import SupersededEmbedding
-
-            archive_qs = model_class.objects.filter(
-                pk__in=pks_slice, embedding__isnull=False
-            )
-            if supports_model_version and embedding_signature:
-                archive_qs = archive_qs.exclude(
-                    embedding_model_version=embedding_signature
-                )
-            archive_rows = [
-                SupersededEmbedding(
-                    content_item=row,
-                    embedding=row.embedding,
-                    embedding_model_version=getattr(row, "embedding_model_version", "")
-                    or "",
-                    content_hash=getattr(row, "content_hash", "") or "",
-                    content_version=getattr(row, "content_version", 1) or 1,
-                )
-                for row in archive_qs.iterator(chunk_size=500)
-            ]
-            if archive_rows:
-                SupersededEmbedding.objects.bulk_create(
-                    archive_rows, batch_size=500, ignore_conflicts=True
-                )
-        except Exception:
-            logger.warning(
-                "SupersededEmbedding archive batch failed; bulk_update will proceed",
-                exc_info=True,
-            )
-
-    # Group D.2 — bulk_update payload includes the text hash when the
-    # model supports it AND a hash list was supplied. The zip pairs each
-    # (pk, vector, text_hash) so they line up by index.
-    hashes_iter = (
-        text_hashes if use_text_hashes else [""] * len(pks_slice)
-    )
-    model_class.objects.bulk_update(
-        [
-            model_class(
-                **(
-                    {
-                        "pk": pk,
-                        "embedding": vec.tolist(),
-                        **(
-                            {"embedding_model_version": embedding_signature}
-                            if supports_model_version and embedding_signature
-                            else {}
-                        ),
-                        **(
-                            {"embedding_text_hash": text_hash}
-                            if use_text_hashes
-                            else {}
-                        ),
-                    }
-                )
-            )
-            for pk, vec, text_hash in zip(
-                pks_slice, normalised, hashes_iter, strict=True
-            )
-        ],
-        fields=fields
-        + (
-            ["embedding_model_version"]
-            if supports_model_version and embedding_signature
-            else []
-        )
-        + (["embedding_text_hash"] if use_text_hashes else []),
-        batch_size=500,
+    _bulk_update_embeddings(
+        model_class=model_class, pks_slice=pks_slice, normalised=normalised,
+        supports_model_version=supports_model_version,
+        embedding_signature=embedding_signature,
+        use_text_hashes=use_text_hashes, text_hashes=text_hashes,
     )
     raw_vectors_list.clear()
+
+
+def _bulk_update_embeddings(  # noqa: forbidden-pattern too-many-args  # justification: kwargs are the deliberate API; collapsing into a state object obscures which fields are being persisted at the bulk_update boundary.
+    *, model_class, pks_slice: list[int], normalised,
+    supports_model_version: bool, embedding_signature: str | None,
+    use_text_hashes: bool, text_hashes: list[str] | None,
+) -> None:
+    """Build the bulk_update payload + fields list and write."""
+    fields = (
+        ["embedding"]
+        + (["embedding_model_version"] if supports_model_version and embedding_signature else [])
+        + (["embedding_text_hash"] if use_text_hashes else [])
+    )
+    model_class.objects.bulk_update(
+        _build_bulk_update_rows(
+            model_class, pks_slice, normalised,
+            supports_model_version=supports_model_version,
+            embedding_signature=embedding_signature,
+            use_text_hashes=use_text_hashes, text_hashes=text_hashes,
+        ),
+        fields=fields,
+        batch_size=500,
+    )
 
 
 def _wait_for_gpu_cooldown() -> None:
@@ -566,8 +589,8 @@ def _wait_for_gpu_cooldown() -> None:
             if temp <= resume_temp:
                 logger.info("GPU cooled to %d°C — resuming", temp)
                 return
-        except Exception:
-            return  # pynvml unavailable — skip waiting
+        except Exception:  # noqa: BLE001 — pynvml unavailable mid-wait: stop waiting.
+            return
 
         time.sleep(5)
 
@@ -605,79 +628,73 @@ def _get_model_cache_key(model_name: str, device: str) -> str:
     return f"{model_name}::{device}"
 
 
-def _load_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
-    """Load and cache a sentence-transformers model."""
-    device = _resolve_device()
-    cache_key = _get_model_cache_key(model_name, device)
-    if cache_key in _model_cache:
-        return _model_cache[cache_key]
-
+def _instantiate_sentence_transformer(model_name: str, device: str):
+    """Construct the SentenceTransformer with operations-feed instrumentation."""
     from sentence_transformers import SentenceTransformer
-
     msg = f"Loading embedding model '{model_name}' on device='{device}'..."
     logger.info(msg)
     emit(
-        "model.loading",
-        msg,
-        source="embeddings",
-        severity="info",
+        "model.loading", msg, source="embeddings", severity="info",
         runtime_context={"model_name": model_name, "device": device},
     )
-    start = time.monotonic()
     try:
         model = SentenceTransformer(model_name, device=device, trust_remote_code=True)
         profile = _assert_model_dimension_supported(model_name, model)
     except Exception as exc:
-        msg = f"The app could not load the embedding model '{model_name}': {exc}"
         emit(
             "model.load_failed",
-            msg,
-            source="embeddings",
-            severity="error",
+            f"The app could not load the embedding model '{model_name}': {exc}",
+            source="embeddings", severity="error",
             runtime_context={"model_name": model_name, "error": str(exc)},
         )
         raise
-    elapsed = time.monotonic() - start
-    msg = f"Model '{model_name}' loaded successfully in {elapsed:.1f}s on {device}."
-    logger.info(msg)
-    emit(
-        "model.ready",
-        msg,
-        source="embeddings",
-        severity="success",
-        runtime_context={
-            "model_name": model_name,
-            "device": device,
-            "elapsed_seconds": elapsed,
-        },
-    )
+    return model, profile
 
+
+def _post_load_model_tuning(model, *, model_name: str, device: str, profile: dict) -> None:
+    """fp16 + thread-count + recommended-batch-size diagnostics post-load."""
     if device == "cuda":
         try:
             model.half()
             logger.info("fp16 inference enabled for model '%s'.", model_name)
         except Exception:
             logger.debug(
-                "fp16 conversion not supported for model '%s', using fp32", model_name
+                "fp16 conversion not supported for model '%s', using fp32", model_name,
             )
-
     if profile["recommended_batch_size"] < profile["configured_batch_size"]:
         logger.info(
             "Model '%s' recommends batch size %d instead of configured %d because it reports %d dimensions.",
-            model_name,
-            profile["recommended_batch_size"],
-            profile["configured_batch_size"],
-            profile["embedding_dim"],
+            model_name, profile["recommended_batch_size"],
+            profile["configured_batch_size"], profile["embedding_dim"],
         )
-
-    _model_cache[cache_key] = model
     if device == "cpu":
         try:
             import torch
-
             torch.set_num_threads(_get_cpu_encode_threads())
         except Exception:
             logger.debug("torch not available, skipping CPU thread limit")
+
+
+def _load_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
+    """Load and cache a sentence-transformers model."""
+    device = _resolve_device()
+    cache_key = _get_model_cache_key(model_name, device)
+    if cache_key in _model_cache:
+        return _model_cache[cache_key]
+    start = time.monotonic()
+    model, profile = _instantiate_sentence_transformer(model_name, device)
+    elapsed = time.monotonic() - start
+    msg = f"Model '{model_name}' loaded successfully in {elapsed:.1f}s on {device}."
+    logger.info(msg)
+    emit(
+        "model.ready", msg, source="embeddings", severity="success",
+        runtime_context={
+            "model_name": model_name, "device": device,
+            "elapsed_seconds": elapsed,
+        },
+    )
+    _post_load_model_tuning(model, model_name=model_name, device=device, profile=profile)
+    _model_cache[cache_key] = model
     return model
 
 
@@ -863,20 +880,13 @@ def _assert_model_dimension_supported(model_name: str, model: Any) -> dict[str, 
     )
 
 
-def _get_configured_batch_size() -> int:
-    """Resolve the configured embedding batch size before model-aware tuning.
-
-    Priority: AppSetting override (key=system.embedding_batch_size, set by the
-    noob-friendly slider in Settings > Performance) → performance mode default.
-    Read on every pipeline run so the user does not need a restart.
-    """
+def _read_batch_size_override() -> int | None:
+    """Read AppSetting override (system.embedding_batch_size); None on absence/invalid."""
     try:
         from apps.core.models import AppSetting
-
         raw = (
             AppSetting.objects.filter(key="system.embedding_batch_size")
-            .values_list("value", flat=True)
-            .first()
+            .values_list("value", flat=True).first()
         )
         if raw is not None:
             val = int(raw)
@@ -884,31 +894,29 @@ def _get_configured_batch_size() -> int:
                 return val
     except Exception:
         logger.debug("AppSetting unavailable; falling back to mode-based batch size")
+    return None
 
-    # Hardware-aware auto-tuning (plan Part 8a, FR-233): if the operator has
-    # not set an explicit override, let the hardware profile pick a batch size
-    # scaled to RAM / VRAM / current provider dimension. Falls back to the
-    # mode-based default on any failure so this path is always safe.
+
+def _resolve_provider_embedding_dimension() -> int:
+    """Return the active provider's output dimension; falls back to EMBEDDING_DIM."""
+    try:
+        from apps.pipeline.services.embedding_providers import get_provider
+        provider = get_provider()
+        return int(getattr(provider, "dimension", EMBEDDING_DIM)) or EMBEDDING_DIM
+    except Exception:  # noqa: BLE001 — provider abstraction optional; fall back to local BGE dim.
+        return EMBEDDING_DIM
+
+
+def _read_hardware_recommended_batch_size() -> int | None:
+    """Hardware-aware auto-tuning per FR-233; None on any failure."""
     try:
         from apps.pipeline.services.hardware_profile import (
-            detect_profile,
-            recommended_batch_size,
+            detect_profile, recommended_batch_size,
         )
-
-        prof = detect_profile()
-        # Resolve the current provider's output dimension if the abstraction
-        # is installed; otherwise fall back to the local BGE dim.
-        dimension = EMBEDDING_DIM
-        try:
-            from apps.pipeline.services.embedding_providers import get_provider
-
-            provider = get_provider()
-            dimension = (
-                int(getattr(provider, "dimension", EMBEDDING_DIM)) or EMBEDDING_DIM
-            )
-        except Exception:
-            pass  # provider unresolvable; keep EMBEDDING_DIM default
-        auto_batch = recommended_batch_size(dimension=dimension, profile=prof)
+        auto_batch = recommended_batch_size(
+            dimension=_resolve_provider_embedding_dimension(),
+            profile=detect_profile(),
+        )
         if _BATCH_SIZE_MIN <= auto_batch <= _BATCH_SIZE_MAX:
             return auto_batch
     except Exception:
@@ -916,7 +924,20 @@ def _get_configured_batch_size() -> int:
             "Hardware-aware batch sizing unavailable; using mode-based default",
             exc_info=True,
         )
+    return None
 
+
+def _get_configured_batch_size() -> int:
+    """Resolve the configured embedding batch size before model-aware tuning.
+
+    Priority: AppSetting override → hardware-aware auto-tune → performance-mode default.
+    """
+    override = _read_batch_size_override()
+    if override is not None:
+        return override
+    auto_batch = _read_hardware_recommended_batch_size()
+    if auto_batch is not None:
+        return auto_batch
     return (
         _BATCH_SIZE_HIGH
         if _get_performance_mode() == PERFORMANCE_MODE_HIGH
@@ -1120,6 +1141,62 @@ throttles at the IP layer, so an instant retry can trip the same limit.
 """
 
 
+_PROVIDER_FALLBACK_REASON_CODES = ("auth", "rate_limit", "budget", "transient")
+
+
+def _encode_via_local_model(model, batch_texts: list[str], batch_size: int) -> np.ndarray:
+    """Direct ``model.encode`` call — preserves the legacy GPU/CPU/OOM path."""
+    return model.encode(
+        batch_texts, batch_size=batch_size,
+        show_progress_bar=False, convert_to_numpy=True,
+    )
+
+
+def _try_get_active_provider():
+    """Return the active embedding provider or None on import / lookup failure."""
+    try:
+        from apps.pipeline.services.embedding_providers import get_provider
+        return get_provider()
+    except Exception:
+        logger.exception("get_provider failed; falling back to local encode")
+        return None
+
+
+def _encode_via_provider_with_fallback(
+    *, provider, batch_texts: list[str], batch_size: int, job_id: str | None,
+):
+    """Call provider.embed; on auth/budget/rate_limit/transient errors, swap to fallback.
+
+    Returns the EmbeddingResult AND the (possibly swapped) provider so the
+    caller can record cost ledger entries against the actual provider used.
+    Re-raises non-recoverable errors.
+    """
+    from apps.pipeline.services.embedding_providers import (
+        BudgetExceededError, ProviderError,
+    )
+    captured_exc: Exception | None = None
+    reason_code = "provider_error"
+    try:
+        return provider.embed(batch_texts, batch_size=batch_size, job_id=job_id), provider
+    except BudgetExceededError as exc:
+        captured_exc = exc
+        reason_code = "budget"
+    except ProviderError as exc:
+        captured_exc = exc
+        reason_code = getattr(exc, "reason", "provider_error")
+        if reason_code not in _PROVIDER_FALLBACK_REASON_CODES:
+            raise
+    # Recoverable error path — captured_exc is guaranteed set by the except blocks above.
+    fallback = _attempt_graceful_fallback(
+        failing_provider_name=getattr(provider, "name", "unknown"),
+        reason=str(captured_exc), reason_code=reason_code, job_id=job_id,
+    )
+    if fallback is None:
+        raise captured_exc
+    time.sleep(_FALLBACK_RETRY_COOLDOWN_SECONDS)
+    return fallback.embed(batch_texts, batch_size=batch_size, job_id=job_id), fallback
+
+
 def _encode_batch_via_provider(
     *,
     batch_texts: list[str],
@@ -1129,96 +1206,51 @@ def _encode_batch_via_provider(
 ) -> np.ndarray:
     """Encode a batch through the active provider abstraction.
 
-    Fast path: if the active provider is ``local``, delegates straight to the
-    already-loaded ``model.encode()`` — preserves the existing GPU/CPU path,
-    OOM-retry behaviour, and thermal guard surrounding calls. Zero overhead.
-
-    API path: when the user has flipped ``AppSetting("embedding.provider")`` to
-    ``openai`` or ``gemini``, calls ``provider.embed()`` and records token +
-    cost usage in ``EmbeddingCostLedger`` via upsert (unique on (job_id,
-    provider) so resume never duplicates). Provider-side pause checks and
-    retries are handled inside the provider class.
+    Fast path: ``local`` provider goes straight to ``model.encode`` so the
+    existing OOM/thermal behaviour is unchanged. API path (openai/gemini)
+    goes through provider.embed with graceful fallback (FR-234) and records
+    token + cost usage in ``EmbeddingCostLedger``.
     """
     try:
-        from apps.pipeline.services.embedding_providers import (
-            BudgetExceededError,
-            ProviderError,
-            get_provider,
-        )
+        from apps.pipeline.services.embedding_providers import get_provider  # noqa: F401
     except ImportError:
-        # Provider module not present → legacy local path.
-        return model.encode(
-            batch_texts,
-            batch_size=batch_size,
-            show_progress_bar=False,
-            convert_to_numpy=True,
-        )
-
-    try:
-        provider = get_provider()
-    except Exception:
-        logger.exception("get_provider failed; falling back to local encode")
-        return model.encode(
-            batch_texts,
-            batch_size=batch_size,
-            show_progress_bar=False,
-            convert_to_numpy=True,
-        )
-
-    if getattr(provider, "name", "local") == "local":
-        # Existing fast path — nothing gained by routing through the wrapper,
-        # and we preserve all surrounding OOM / thermal behaviour.
-        return model.encode(
-            batch_texts,
-            batch_size=batch_size,
-            show_progress_bar=False,
-            convert_to_numpy=True,
-        )
-
-    # API-provider path with graceful fallback (plan Part 8b, FR-234):
-    # if the provider raises BudgetExceededError / AuthenticationError /
-    # RateLimitError, switch to the configured fallback provider (default
-    # ``local``) and retry the batch once. On double failure, re-raise.
-    try:
-        result = provider.embed(batch_texts, batch_size=batch_size, job_id=job_id)
-    except BudgetExceededError as exc:
-        fallback = _attempt_graceful_fallback(
-            failing_provider_name=getattr(provider, "name", "unknown"),
-            reason=str(exc),
-            reason_code="budget",
-            job_id=job_id,
-        )
-        if fallback is None:
-            raise
-        time.sleep(_FALLBACK_RETRY_COOLDOWN_SECONDS)
-        provider = fallback
-        result = provider.embed(batch_texts, batch_size=batch_size, job_id=job_id)
-    except ProviderError as exc:
-        reason_code = getattr(exc, "reason", "provider_error")
-        if reason_code not in ("auth", "rate_limit", "budget", "transient"):
-            raise
-        fallback = _attempt_graceful_fallback(
-            failing_provider_name=getattr(provider, "name", "unknown"),
-            reason=str(exc),
-            reason_code=reason_code,
-            job_id=job_id,
-        )
-        if fallback is None:
-            raise
-        time.sleep(_FALLBACK_RETRY_COOLDOWN_SECONDS)
-        provider = fallback
-        result = provider.embed(batch_texts, batch_size=batch_size, job_id=job_id)
-
+        return _encode_via_local_model(model, batch_texts, batch_size)
+    provider = _try_get_active_provider()
+    if provider is None or getattr(provider, "name", "local") == "local":
+        return _encode_via_local_model(model, batch_texts, batch_size)
+    result, used_provider = _encode_via_provider_with_fallback(
+        provider=provider, batch_texts=batch_texts,
+        batch_size=batch_size, job_id=job_id,
+    )
     if job_id:
         _record_provider_usage(
             job_id=job_id,
-            provider_name=getattr(provider, "name", "unknown"),
-            signature=getattr(provider, "signature", ""),
+            provider_name=getattr(used_provider, "name", "unknown"),
+            signature=getattr(used_provider, "signature", ""),
             items=len(batch_texts),
             tokens=getattr(result, "tokens_input", 0),
             cost_usd=getattr(result, "cost_usd", 0.0),
         )
     return result.vectors
+
+
+def _read_fallback_provider_name() -> str:
+    """Read ``AppSetting("embedding.fallback_provider")``; default ``local``."""
+    from apps.core.models import AppSetting
+    fallback_row = AppSetting.objects.filter(key="embedding.fallback_provider").first()
+    fallback_name = str(fallback_row.value).strip().lower() if fallback_row else "local"
+    return fallback_name or "local"
+
+
+def _swap_active_provider(fallback_name: str):
+    """Persist the new provider name + reset cache + return the new provider instance."""
+    from apps.core.models import AppSetting
+    AppSetting.objects.update_or_create(
+        key="embedding.provider", defaults={"value": fallback_name},
+    )
+    from apps.pipeline.services.embedding_providers import clear_cache, get_provider
+    clear_cache()
+    return get_provider()
 
 
 def _attempt_graceful_fallback(
@@ -1231,71 +1263,37 @@ def _attempt_graceful_fallback(
     """Switch ``embedding.provider`` to the configured fallback and return the new provider.
 
     Called from ``_encode_batch_via_provider`` when the primary provider raises
-    a recoverable error (auth / rate-limit / budget / transient). Operations:
-      1. Read ``AppSetting("embedding.fallback_provider")``; default ``local``.
-      2. If fallback equals the failing provider, do nothing (avoid infinite loop).
-      3. **Persist a fallback checkpoint to SyncJob** (FR-234) so an operator
-         inspecting the row mid-swap sees the in-flight state.
-      4. Update ``AppSetting("embedding.provider")`` in place so subsequent
-         batches resolve to the new provider immediately.
-      5. Clear the provider cache so ``get_provider()`` re-instantiates.
-      6. Emit an operator alert so the Embeddings page surfaces the switch.
-      7. Return the new provider.
-
-    On any internal failure, returns ``None`` — the caller re-raises the original
-    error so the operator is not silently stuck.
+    a recoverable error (auth / rate-limit / budget / transient). Persists a
+    SyncJob fallback checkpoint (FR-234) so the operator sees the in-flight
+    state, updates ``AppSetting("embedding.provider")``, clears the provider
+    cache, and emits an operator alert. Returns ``None`` on any internal
+    failure so the caller re-raises the original error.
     """
     try:
-        from apps.core.models import AppSetting
-
-        fallback_row = AppSetting.objects.filter(
-            key="embedding.fallback_provider"
-        ).first()
-        fallback_name = (
-            str(fallback_row.value).strip().lower() if fallback_row else "local"
-        ) or "local"
+        fallback_name = _read_fallback_provider_name()
         if fallback_name == failing_provider_name:
             logger.warning(
                 "Fallback provider equals failing provider (%s); cannot recover",
                 failing_provider_name,
             )
             return None
-
         _save_fallback_checkpoint(
-            job_id=job_id,
-            failing_provider=failing_provider_name,
-            fallback_provider=fallback_name,
-            reason_code=reason_code,
+            job_id=job_id, failing_provider=failing_provider_name,
+            fallback_provider=fallback_name, reason_code=reason_code,
         )
-
-        AppSetting.objects.update_or_create(
-            key="embedding.provider",
-            defaults={"value": fallback_name},
-        )
-
-        from apps.pipeline.services.embedding_providers import clear_cache, get_provider
-
-        clear_cache()
-        new_provider = get_provider()
-
+        new_provider = _swap_active_provider(fallback_name)
         logger.warning(
             "Embedding provider fallback: %s → %s (reason=%s: %s)",
-            failing_provider_name,
-            fallback_name,
-            reason_code,
-            reason,
+            failing_provider_name, fallback_name, reason_code, reason,
         )
-
         _emit_fallback_alert(
-            failing=failing_provider_name,
-            fallback=fallback_name,
-            reason_code=reason_code,
-            reason_message=reason,
+            failing=failing_provider_name, fallback=fallback_name,
+            reason_code=reason_code, reason_message=reason,
         )
         return new_provider
     except Exception:
         logger.exception(
-            "Graceful fallback failed for provider=%s", failing_provider_name
+            "Graceful fallback failed for provider=%s", failing_provider_name,
         )
         return None
 
@@ -1326,6 +1324,76 @@ def _emit_fallback_alert(
         logger.debug("emit_operator_alert unavailable", exc_info=True)
 
 
+def _quality_gate_should_skip(
+    *, model_class: type, pks_slice: list[int], embedding_signature: str | None,
+) -> bool:
+    """Pre-flight check: gate runs only for ContentItem with non-empty PKs + a signature."""
+    return (
+        getattr(model_class, "__name__", "") != "ContentItem"
+        or not pks_slice
+        or embedding_signature is None
+    )
+
+
+def _fetch_existing_quality_gate_rows(
+    model_class: type, pks_slice: list[int],
+) -> tuple[dict, bool] | None:
+    """Bulk-fetch the (embedding, signature, text) rows the gate inspects.
+
+    Returns ``(by_pk_dict, has_signature_field)`` on success, ``None`` if
+    the fetch failed (caller treats as gate-disabled).
+    """
+    try:
+        has_signature_field = _model_supports_field(model_class, "embedding_model_version")
+        values_fields = ["pk", "embedding", "title", "distilled_text"]
+        if has_signature_field:
+            values_fields.append("embedding_model_version")
+        existing = {
+            row["pk"]: row
+            for row in model_class.objects.filter(pk__in=pks_slice).values(*values_fields)
+        }
+    except Exception:
+        logger.warning("Gate: existing-row fetch failed; skipping gate", exc_info=True)
+        return None
+    return existing, has_signature_field
+
+
+def _build_quality_gate_instance(thresholds: tuple):
+    """Construct the QualityGate with provider lookup + threshold kwargs."""
+    from apps.pipeline.services.embedding_quality_gate import QualityGate, load_provider_ranking
+    try:
+        from apps.pipeline.services.embedding_providers import get_provider
+        provider = get_provider()
+    except Exception:  # noqa: BLE001 — gate works without a provider (uses cosine alone).
+        provider = None
+    return QualityGate(
+        provider_ranking=load_provider_ranking(),
+        provider=provider,
+        quality_delta_threshold=thresholds[0],
+        noop_cosine_threshold=thresholds[1],
+        stability_threshold=thresholds[2],
+    )
+
+
+def _extract_existing_quality_gate_inputs(
+    row: dict | None, has_signature_field: bool,
+) -> tuple[np.ndarray | None, str, str | None]:
+    """Pull (old_vec, old_sig, text) out of an existing-row dict."""
+    if row is None:
+        return None, "", None
+    raw_emb = row.get("embedding")
+    old_vec = None
+    if raw_emb is not None:
+        try:
+            old_vec = np.asarray(raw_emb, dtype=np.float32)
+        except Exception:  # noqa: BLE001 — corrupt vector becomes "no prior" so the gate accepts the new one.
+            old_vec = None
+    old_sig = (row.get("embedding_model_version") or "") if has_signature_field else ""
+    title = row.get("title") or ""
+    distilled = row.get("distilled_text") or ""
+    return old_vec, old_sig, f"{title}\n\n{distilled}".strip()
+
+
 def _run_quality_gate(
     *,
     model_class: type,
@@ -1335,108 +1403,43 @@ def _run_quality_gate(
 ) -> tuple[list[int] | None, list[int]]:
     """Apply the measure-twice gate to this flush batch.
 
-    Returns a ``(kept_indices, kept_pks)`` tuple:
-        kept_indices: Row indices into ``normalised`` the gate approved, or
-                      ``None`` if the gate is disabled (caller should act as
-                      pre-feature).
-        kept_pks: ``pks_slice`` filtered to the same set.
-
-    Only ContentItem currently goes through the gate (Sentence embeddings have
-    no archive table and no provider-aware signature yet).
+    Returns ``(kept_indices, kept_pks)``. ``kept_indices=None`` means the
+    gate is disabled (caller should act as pre-feature). Only ContentItem
+    currently goes through the gate.
     """
     try:
         from apps.pipeline.services.embedding_quality_gate import (
-            QualityGate,
-            is_gate_enabled,
-            load_gate_thresholds,
-            load_provider_ranking,
-            persist_decisions,
+            is_gate_enabled, load_gate_thresholds, persist_decisions,
         )
     except ImportError:
         return None, pks_slice
-
-    if not is_gate_enabled():
+    if not is_gate_enabled() or _quality_gate_should_skip(
+        model_class=model_class, pks_slice=pks_slice,
+        embedding_signature=embedding_signature,
+    ):
         return None, pks_slice
-    if getattr(model_class, "__name__", "") != "ContentItem" or not pks_slice:
+    fetch_result = _fetch_existing_quality_gate_rows(model_class, pks_slice)
+    if fetch_result is None:
         return None, pks_slice
-    if embedding_signature is None:
-        return None, pks_slice
-
-    # Fetch existing rows once: (pk, embedding, embedding_model_version, text).
-    try:
-        has_signature_field = True
-        try:
-            model_class._meta.get_field("embedding_model_version")
-        except Exception:
-            has_signature_field = False
-
-        values_fields = ["pk", "embedding", "title", "distilled_text"]
-        if has_signature_field:
-            values_fields.append("embedding_model_version")
-        existing = {
-            row["pk"]: row
-            for row in model_class.objects.filter(pk__in=pks_slice).values(
-                *values_fields
-            )
-        }
-    except Exception:
-        logger.warning("Gate: existing-row fetch failed; skipping gate", exc_info=True)
-        return None, pks_slice
-
-    thresholds = load_gate_thresholds()
-    ranking = load_provider_ranking()
-    try:
-        from apps.pipeline.services.embedding_providers import get_provider
-
-        provider = get_provider()
-    except Exception:
-        provider = None
-
-    gate = QualityGate(
-        provider_ranking=ranking,
-        provider=provider,
-        quality_delta_threshold=thresholds[0],
-        noop_cosine_threshold=thresholds[1],
-        stability_threshold=thresholds[2],
-    )
-
+    existing, has_signature_field = fetch_result
+    gate = _build_quality_gate_instance(load_gate_thresholds())
     decisions_to_log: list = []
     kept_indices: list[int] = []
     kept_pks: list[int] = []
     for idx, pk in enumerate(pks_slice):
-        row = existing.get(pk)
-        new_vec = normalised[idx]
-        old_vec = None
-        old_sig = ""
-        text = None
-        if row is not None:
-            raw_emb = row.get("embedding")
-            if raw_emb is not None:
-                try:
-                    old_vec = np.asarray(raw_emb, dtype=np.float32)
-                except Exception:
-                    old_vec = None
-            if has_signature_field:
-                old_sig = row.get("embedding_model_version") or ""
-            title = row.get("title") or ""
-            distilled = row.get("distilled_text") or ""
-            text = f"{title}\n\n{distilled}".strip()
-
+        old_vec, old_sig, text = _extract_existing_quality_gate_inputs(
+            existing.get(pk), has_signature_field,
+        )
         decision = gate.evaluate(
-            text=text,
-            old_vec=old_vec,
-            old_sig=old_sig,
-            new_vec=new_vec,
-            new_sig=embedding_signature,
+            text=text, old_vec=old_vec, old_sig=old_sig,
+            new_vec=normalised[idx], new_sig=embedding_signature,
         )
         decisions_to_log.append(
-            (pk, "content_item", decision, old_sig, embedding_signature)
+            (pk, "content_item", decision, old_sig, embedding_signature),
         )
         if decision.action in ("REPLACE", "ACCEPT_NEW"):
             kept_indices.append(idx)
             kept_pks.append(pk)
-
-    # Log all decisions (batched).
     persist_decisions(decisions_to_log)
     return kept_indices, kept_pks
 
@@ -1480,6 +1483,242 @@ def _record_provider_usage(
         logger.warning("EmbeddingCostLedger write failed", exc_info=True)
 
 
+# Checkpoint cadence — every Nth batch flushes the in-memory vector buffer to
+# DB so a worker crash mid-run doesn't lose all the work since the last
+# successful batch. The same cadence throttles the SyncJob progress save so
+# the embeddings phase doesn't issue O(N/batch_size) UPDATE statements.
+_EMBEDDING_CHECKPOINT_FLUSH_EVERY_N_BATCHES = 5
+
+
+def _build_content_item_text_inputs(
+    items: list[tuple],
+) -> tuple[list[int], list[str], list[str]]:
+    """Build (pks, texts, text_hashes) from raw ContentItem rows.
+
+    Each text = ``{title}\n\n{body}``. ``body`` prefers ``post.clean_text``
+    over ``distilled_text``. Empty rows skipped. Texts > _MAX_EMBED_CHARS
+    truncated at the nearest sentence boundary.
+    """
+    pks: list[int] = []
+    texts: list[str] = []
+    text_hashes: list[str] = []  # Group D.2 — SHA-256 of exact embed text
+    for pk, title, clean_text, distilled in items:
+        title_clean = (title or "").strip()
+        body_source = (clean_text or "").strip() or (distilled or "").strip()
+        text = f"{title_clean}\n\n{body_source}".strip() if body_source else title_clean
+        if not text:
+            continue
+        if len(text) > _MAX_EMBED_CHARS:
+            text = _truncate_at_sentence(text, _MAX_EMBED_CHARS)
+        pks.append(pk)
+        texts.append(text)
+        text_hashes.append(_compute_embed_text_hash(text))
+    return pks, texts, text_hashes
+
+
+def _build_sentence_text_inputs(
+    sentences: list[tuple],
+) -> tuple[list[int], list[str]]:
+    """Build (pks, texts) from raw Sentence rows. Skips empty sentences."""
+    pks: list[int] = []
+    texts: list[str] = []
+    for pk, text in sentences:
+        if text and text.strip():
+            pks.append(pk)
+            texts.append(text.strip())
+    return pks, texts
+
+
+def _encode_one_batch_with_oom_recovery(
+    *, batch_texts: list[str], model, batch_size: int, model_name: str,
+    job_id: str | None,
+) -> tuple[Any, int] | None:
+    """Encode one batch; on OOM, return (None, retry_batch_size) so the caller can retry.
+
+    Returns:
+        (vectors, batch_size) on success — caller advances the cursor.
+        (None, retry_batch_size) on OOM — caller retries SAME cursor with new size.
+        Re-raises non-OOM exceptions.
+    """
+    _thermal_guard_before_gpu_batch()
+    try:
+        vectors = _encode_batch_via_provider(
+            batch_texts=batch_texts, model=model,
+            batch_size=batch_size, job_id=job_id,
+        )
+    except Exception as exc:
+        if not _is_embedding_oom_error(exc):
+            raise
+        retry_batch_size = _get_retry_batch_size_after_oom(
+            job_id=job_id, model_name=model_name,
+            failed_batch_size=batch_size, exc=exc,
+        )
+        if retry_batch_size is None:
+            raise
+        return None, retry_batch_size
+    return vectors, batch_size
+
+
+def _flush_loop_slice(
+    *, model_class, pks: list[int], raw_vectors_list: list,
+    embedding_signature: str, text_hashes: list[str] | None,
+    flushed_count: int, cursor: int,
+) -> None:
+    """Slice + flush helper used by both the pause-flush and checkpoint-flush paths."""
+    _flush_embeddings_slice(
+        model_class, pks[flushed_count:cursor], raw_vectors_list,
+        embedding_signature=embedding_signature,
+        text_hashes=(text_hashes[flushed_count:cursor] if text_hashes is not None else None),
+    )
+
+
+def _handle_embedding_pause(  # noqa: forbidden-pattern too-many-args  # justification: kwargs preserve readability at the single shared callsite; collapsing into a state object would obscure which state matters at the pause boundary.
+    *, model_class, pks: list[int], raw_vectors_list: list,
+    embedding_signature: str, text_hashes: list[str] | None,
+    flushed_count: int, cursor: int, job_id: str | None, pause_reason: str,
+) -> None:
+    """Flush buffered vectors, mark the SyncJob paused, then raise JobPaused."""
+    _flush_loop_slice(
+        model_class=model_class, pks=pks,
+        raw_vectors_list=raw_vectors_list,
+        embedding_signature=embedding_signature,
+        text_hashes=text_hashes, flushed_count=flushed_count, cursor=cursor,
+    )
+    _mark_embedding_job_paused(job_id, pause_reason)
+    from apps.core.pause_contract import JobPaused
+    raise JobPaused(pause_reason)
+
+
+def _run_embedding_loop(  # noqa: forbidden-pattern too-many-args  # justification: kwargs are the deliberate API to keep callsite intent explicit; collapsing to a dict obscures which fields the loop actually reads.
+    *,
+    model_class,
+    pks: list[int],
+    texts: list[str],
+    text_hashes: list[str] | None,
+    model,
+    batch_size: int,
+    embedding_signature: str,
+    model_name: str,
+    job_id: str | None,
+    on_progress,
+) -> None:
+    """Encode + checkpoint-flush in batches.
+
+    Shared between :func:`generate_content_item_embeddings` and
+    :func:`generate_sentence_embeddings`. Handles pause / OOM-recovery /
+    checkpoint flushing uniformly.
+
+    ``on_progress(processed, total, batch_num)`` is invoked after every
+    successful batch so callers can publish progress / save SyncJob rows.
+    """
+    raw_vectors_list: list = []
+    total = len(texts)
+    state = {"batch_num": 0, "flushed_count": 0, "cursor": 0, "batch_size": batch_size}
+    while state["cursor"] < total:
+        pause_reason = _get_embedding_pause_reason(job_id)
+        if pause_reason:
+            _handle_embedding_pause(
+                model_class=model_class, pks=pks,
+                raw_vectors_list=raw_vectors_list,
+                embedding_signature=embedding_signature,
+                text_hashes=text_hashes, flushed_count=state["flushed_count"],
+                cursor=state["cursor"], job_id=job_id, pause_reason=pause_reason,
+            )
+        _process_one_embedding_batch(
+            state=state, model_class=model_class, pks=pks, texts=texts,
+            text_hashes=text_hashes, raw_vectors_list=raw_vectors_list,
+            model=model, embedding_signature=embedding_signature,
+            model_name=model_name, job_id=job_id, on_progress=on_progress,
+        )
+    # Tail flush — helper no-ops on empty buffer.
+    _flush_loop_slice(
+        model_class=model_class, pks=pks, raw_vectors_list=raw_vectors_list,
+        embedding_signature=embedding_signature,
+        text_hashes=text_hashes, flushed_count=state["flushed_count"], cursor=total,
+    )
+
+
+def _process_one_embedding_batch(  # noqa: forbidden-pattern too-many-args  # justification: state-mutating shared body, single callsite.
+    *, state: dict, model_class, pks: list[int], texts: list[str],
+    text_hashes: list[str] | None, raw_vectors_list: list, model,
+    embedding_signature: str, model_name: str, job_id: str | None, on_progress,
+) -> None:
+    """Encode-and-buffer one batch + checkpoint-flush every Nth batch.
+
+    Mutates ``state`` in place so the outer loop sees cursor / batch_num /
+    flushed_count / batch_size advances even after OOM-driven batch shrinks.
+    """
+    batch_texts = texts[state["cursor"]:state["cursor"] + state["batch_size"]]
+    vectors, state["batch_size"] = _encode_one_batch_with_oom_recovery(
+        batch_texts=list(batch_texts), model=model,
+        batch_size=state["batch_size"], model_name=model_name, job_id=job_id,
+    )
+    if vectors is None:
+        return  # OOM auto-retried with smaller batch_size next iteration
+    raw_vectors_list.append(vectors)
+    state["batch_num"] += 1
+    state["cursor"] += len(batch_texts)
+    on_progress(processed=state["cursor"], total=len(texts), batch_num=state["batch_num"])
+    if state["batch_num"] % _EMBEDDING_CHECKPOINT_FLUSH_EVERY_N_BATCHES == 0:
+        _flush_loop_slice(
+            model_class=model_class, pks=pks,
+            raw_vectors_list=raw_vectors_list,
+            embedding_signature=embedding_signature,
+            text_hashes=text_hashes,
+            flushed_count=state["flushed_count"], cursor=state["cursor"],
+        )
+        state["flushed_count"] = state["cursor"]
+
+
+def _build_content_item_queryset(
+    content_item_ids: list[int] | None, force_reembed: bool, embedding_signature: str,
+):
+    """Filter ContentItem rows down to "still needs an embedding"."""
+    from apps.content.models import ContentItem
+    # Group A.6 — exclude rows flagged as cross-source duplicates. Their
+    # embedding is reused from ``duplicate_of`` at retrieval time, so
+    # generating one here would just waste GPU and disk.
+    qs = ContentItem.objects.filter(is_deleted=False, duplicate_of__isnull=True)
+    if content_item_ids is not None:
+        qs = qs.filter(pk__in=content_item_ids)
+    if not force_reembed:
+        qs = qs.exclude(
+            embedding__isnull=False,
+            embedding_model_version=embedding_signature,
+        )
+    return qs.values_list("pk", "title", "post__clean_text", "distilled_text")
+
+
+def _make_content_item_progress_callback(job_id: str | None):
+    """Return an ``on_progress(processed, total, batch_num)`` that publishes the
+    Content embeddings progress + writes ``SyncJob.embedding_items_completed``."""
+    if not job_id:
+        return lambda **_: None
+    from apps.sync.models import SyncJob
+    from apps.pipeline.tasks import _publish_progress
+    job = SyncJob.objects.filter(job_id=job_id).first()
+
+    def _on_progress(*, processed: int, total: int, batch_num: int) -> None:
+        pct = processed / total
+        if job:
+            job.embedding_items_completed = processed
+            # Throttle SyncJob writes — saving every batch issues
+            # O(N/batch_size) UPDATEs; every Nth batch cuts that drastically
+            # with negligible progress-reporting lag.
+            if (
+                batch_num % _EMBEDDING_CHECKPOINT_FLUSH_EVERY_N_BATCHES == 0
+                or processed == total
+            ):
+                job.save(update_fields=["embedding_items_completed", "updated_at"])
+        _publish_progress(
+            job_id, "running", 0.8 + (pct * 0.1),
+            f"Content embeddings: {processed}/{total}...",
+            embedding_progress=pct * 0.5,  # CIs are first half
+            ml_progress=0.7 + (pct * 0.15),
+        )
+    return _on_progress
+
+
 def generate_content_item_embeddings(
     content_item_ids: list[int] | None = None,
     job_id: str | None = None,
@@ -1488,7 +1727,7 @@ def generate_content_item_embeddings(
     """Generate and store embeddings for ContentItem.embedding (destination embeddings).
 
     Each ContentItem's embedding = L2-normalized encoding of:
-        '{title}\\n\\n{distilled_text}'.strip()
+        '{title}\\n\\n{post.clean_text or distilled_text}'.strip()
 
     Args:
         content_item_ids: List of ContentItem PKs to embed.
@@ -1498,186 +1737,62 @@ def generate_content_item_embeddings(
         Dict with 'embedded' and 'skipped' counts.
     """
     from apps.content.models import ContentItem
-
     model_name = _get_model_name()
     model = _load_model(model_name)
-    embedding_signature = get_current_embedding_signature(
-        model=model,
-        model_name=model_name,
-    )
+    embedding_signature = get_current_embedding_signature(model=model, model_name=model_name)
     batch_size = _get_batch_size(model)
+    items = list(_build_content_item_queryset(
+        content_item_ids, force_reembed, embedding_signature,
+    ))
+    if not items:
+        return {"embedded": 0, "skipped": 0}
+    pks, texts, text_hashes = _build_content_item_text_inputs(items)
+    if not texts:
+        return {"embedded": 0, "skipped": len(items)}
+    logger.info("Embedding %d content items...", len(texts))
+    start = time.monotonic()
+    _run_embedding_loop(
+        model_class=ContentItem, pks=pks, texts=texts, text_hashes=text_hashes,
+        model=model, batch_size=batch_size,
+        embedding_signature=embedding_signature, model_name=model_name,
+        job_id=job_id,
+        on_progress=_make_content_item_progress_callback(job_id),
+    )
+    logger.info("Encoded %d items in %.2fs.", len(texts), time.monotonic() - start)
+    return {"embedded": len(pks), "skipped": len(items) - len(pks)}
 
-    # Group A.6 — exclude rows flagged as cross-source duplicates.
-    # Their embedding is reused from ``duplicate_of`` at retrieval
-    # time, so generating one here would just waste GPU and disk.
-    qs = ContentItem.objects.filter(is_deleted=False, duplicate_of__isnull=True)
+
+def _build_sentence_queryset(
+    content_item_ids: list[int] | None, force_reembed: bool, embedding_signature: str,
+):
+    """Filter Sentence rows down to "in HOST_SCAN_WORD_LIMIT window AND still needs embedding"."""
+    from apps.content.models import Sentence
+    qs = Sentence.objects.filter(content_item__is_deleted=False)
     if content_item_ids is not None:
-        qs = qs.filter(pk__in=content_item_ids)
-
+        qs = qs.filter(content_item__pk__in=content_item_ids)
     if not force_reembed:
         qs = qs.exclude(
             embedding__isnull=False,
             embedding_model_version=embedding_signature,
         )
+    return qs.filter(word_position__lte=settings.HOST_SCAN_WORD_LIMIT).values_list("pk", "text")
 
-    # Group D.1 — embed the FULL post body (clean_text) instead of the
-    # 5-sentence distilled summary. Long posts that previously lost
-    # most of their signal at the cap (think 3 000-word how-tos) now
-    # contribute their full content to the document vector.
-    #
-    # ``Post.clean_text`` is the BBCode-stripped body the importer
-    # already builds — the right shape for embedding. ``distilled_text``
-    # remains the fallback for items without a Post row (e.g. WP
-    # articles imported through paths that haven't created a Post yet)
-    # AND for legacy rows where the long-tail backfill has not run.
-    qs = qs.values_list("pk", "title", "post__clean_text", "distilled_text")
 
-    items = list(qs)
-    if not items:
-        return {"embedded": 0, "skipped": 0}
+def _make_sentence_progress_callback(job_id: str | None):
+    """Return an ``on_progress(processed, total, batch_num)`` for sentence embeddings."""
+    if not job_id:
+        return lambda **_: None
+    from apps.pipeline.tasks import _publish_progress
 
-    pks: list[int] = []
-    texts: list[str] = []
-    # Group D.2 — parallel list of SHA-256 hashes of the exact text we
-    # send to the model. Persisted alongside the vector so the next
-    # re-embed can skip rows whose text and model both still match.
-    text_hashes: list[str] = []
-    for pk, title, clean_text, distilled in items:
-        title_clean = (title or "").strip()
-        body_source = (clean_text or "").strip() or (distilled or "").strip()
-        if body_source:
-            text = f"{title_clean}\n\n{body_source}".strip()
-        else:
-            text = title_clean
-        if not text:
-            continue
-        # Group D.1 — capture full body text for long-tail embedding. 
-        # Cap at 1 000 000 characters (~250 000 tokens) to prevent
-        # extreme OOM on edge-case threads, while effectively providing
-        # "no truncation" for 99.9% of forum content.
-        if len(text) > _MAX_EMBED_CHARS:
-            text = _truncate_at_sentence(text, _MAX_EMBED_CHARS)
-        pks.append(pk)
-        texts.append(text)
-        text_hashes.append(_compute_embed_text_hash(text))
-
-    if not texts:
-        return {"embedded": 0, "skipped": len(items)}
-
-    logger.info("Embedding %d content items...", len(texts))
-    start = time.monotonic()
-
-    # Process in batches to report progress
-    raw_vectors_list = []
-    total_items = len(texts)
-
-    if job_id:
-        from apps.sync.models import SyncJob
-        from apps.pipeline.tasks import _publish_progress
-
-        job = SyncJob.objects.filter(job_id=job_id).first()
-    else:
-        job = None
-
-    batch_num = 0
-    flushed_count = 0  # how many items already persisted to DB
-    cursor = 0
-    while cursor < total_items:
-        pause_reason = _get_embedding_pause_reason(job_id)
-        if pause_reason:
-            _flush_embeddings_slice(
-                ContentItem,
-                pks[flushed_count:cursor],
-                raw_vectors_list,
-                embedding_signature=embedding_signature,
-                text_hashes=text_hashes[flushed_count:cursor],
-            )
-            flushed_count = cursor
-            _mark_embedding_job_paused(job_id, pause_reason)
-            from apps.core.pause_contract import JobPaused
-
-            raise JobPaused(pause_reason)
-
-        batch_texts = texts[cursor : cursor + batch_size]
-        _thermal_guard_before_gpu_batch()
-        try:
-            batch_vectors = _encode_batch_via_provider(
-                batch_texts=list(batch_texts),
-                model=model,
-                batch_size=batch_size,
-                job_id=job_id,
-            )
-        except Exception as exc:
-            if not _is_embedding_oom_error(exc):
-                raise
-            retry_batch_size = _get_retry_batch_size_after_oom(
-                job_id=job_id,
-                model_name=model_name,
-                failed_batch_size=batch_size,
-                exc=exc,
-            )
-            if retry_batch_size is None:
-                raise
-            batch_size = retry_batch_size
-            continue
-
-        raw_vectors_list.append(batch_vectors)
-        batch_num += 1
-        cursor += len(batch_texts)
-        processed = cursor
-
-        # Report progress
-        if job_id:
-            pct = processed / total_items
-
-            if job:
-                job.embedding_items_completed = processed
-                # Throttle DB writes — saving every batch issues O(N/batch_size) UPDATEs;
-                # every 5th batch cuts that by 5x with negligible progress-reporting lag.
-                if batch_num % 5 == 0:
-                    job.save(update_fields=["embedding_items_completed", "updated_at"])
-
-            _publish_progress(
-                job_id,
-                "running",
-                0.8 + (pct * 0.1),
-                f"Content embeddings: {processed}/{total_items}...",
-                embedding_progress=pct
-                * 0.5,  # Content items are first half of embedding phase
-                ml_progress=0.7 + (pct * 0.15),
-            )
-
-        # Checkpoint flush every 5 batches — same cadence as the progress save above.
-        # If the worker dies mid-run, items already flushed have embeddings persisted
-        # and the resume run skips them once their embedding_model_version matches.
-        if batch_num % 5 == 0:
-            _flush_embeddings_slice(
-                ContentItem,
-                pks[flushed_count:processed],
-                raw_vectors_list,
-                embedding_signature=embedding_signature,
-                text_hashes=text_hashes[flushed_count:processed],
-            )
-            flushed_count = processed
-
-    # Persist final count regardless of whether the last batch fell on a multiple-of-5 boundary.
-    if job_id and job:
-        job.save(update_fields=["embedding_items_completed", "updated_at"])
-
-    # Tail flush — any batches since the last checkpoint flush. Helper no-ops
-    # if the buffer is empty, so no call-site guard needed.
-    _flush_embeddings_slice(
-        ContentItem,
-        pks[flushed_count:],
-        raw_vectors_list,
-        embedding_signature=embedding_signature,
-        text_hashes=text_hashes[flushed_count:],
-    )
-
-    elapsed = time.monotonic() - start
-    logger.info("Encoded %d items in %.2fs.", len(texts), elapsed)
-
-    return {"embedded": len(pks), "skipped": len(items) - len(pks)}
+    def _on_progress(*, processed: int, total: int, batch_num: int) -> None:
+        pct = processed / total
+        _publish_progress(
+            job_id, "running", 0.9 + (pct * 0.09),
+            f"Sentence embeddings: {processed}/{total}...",
+            embedding_progress=0.5 + (pct * 0.5),  # Sentences = second half
+            ml_progress=0.85 + (pct * 0.14),
+        )
+    return _on_progress
 
 
 def generate_sentence_embeddings(
@@ -1698,139 +1813,28 @@ def generate_sentence_embeddings(
         Dict with 'embedded' and 'skipped' counts.
     """
     from apps.content.models import Sentence
-
     model_name = _get_model_name()
     model = _load_model(model_name)
-    embedding_signature = get_current_embedding_signature(
-        model=model,
-        model_name=model_name,
-    )
+    embedding_signature = get_current_embedding_signature(model=model, model_name=model_name)
     batch_size = _get_batch_size(model)
-
-    qs = Sentence.objects.filter(
-        content_item__is_deleted=False,
-    )
-    if content_item_ids is not None:
-        qs = qs.filter(content_item__pk__in=content_item_ids)
-
-    if not force_reembed:
-        qs = qs.exclude(
-            embedding__isnull=False,
-            embedding_model_version=embedding_signature,
-        )
-
-    # Only embed sentences within the HOST_SCAN_WORD_LIMIT window
-    qs = qs.filter(word_position__lte=settings.HOST_SCAN_WORD_LIMIT).values_list(
-        "pk", "text"
-    )
-
-    sentences = list(qs)
+    sentences = list(_build_sentence_queryset(
+        content_item_ids, force_reembed, embedding_signature,
+    ))
     if not sentences:
         return {"embedded": 0, "skipped": 0}
-
-    pks: list[int] = []
-    texts: list[str] = []
-    for pk, text in sentences:
-        if text and text.strip():
-            pks.append(pk)
-            texts.append(text.strip())
-
+    pks, texts = _build_sentence_text_inputs(sentences)
     if not texts:
         return {"embedded": 0, "skipped": len(sentences)}
-
     logger.info("Embedding %d sentences...", len(texts))
     start = time.monotonic()
-
-    # Process in batches to report progress
-    raw_vectors_list = []
-    total_sentences = len(texts)
-
-    from apps.content.models import Sentence as SentenceModel
-
-    batch_num = 0
-    flushed_count = 0  # how many sentences already persisted to DB
-    cursor = 0
-    while cursor < total_sentences:
-        pause_reason = _get_embedding_pause_reason(job_id)
-        if pause_reason:
-            _flush_embeddings_slice(
-                SentenceModel,
-                pks[flushed_count:cursor],
-                raw_vectors_list,
-                embedding_signature=embedding_signature,
-            )
-            flushed_count = cursor
-            _mark_embedding_job_paused(job_id, pause_reason)
-            from apps.core.pause_contract import JobPaused
-
-            raise JobPaused(pause_reason)
-
-        batch_texts = texts[cursor : cursor + batch_size]
-        _thermal_guard_before_gpu_batch()
-        try:
-            batch_vectors = _encode_batch_via_provider(
-                batch_texts=list(batch_texts),
-                model=model,
-                batch_size=batch_size,
-                job_id=job_id,
-            )
-        except Exception as exc:
-            if not _is_embedding_oom_error(exc):
-                raise
-            retry_batch_size = _get_retry_batch_size_after_oom(
-                job_id=job_id,
-                model_name=model_name,
-                failed_batch_size=batch_size,
-                exc=exc,
-            )
-            if retry_batch_size is None:
-                raise
-            batch_size = retry_batch_size
-            continue
-
-        raw_vectors_list.append(batch_vectors)
-        batch_num += 1
-        cursor += len(batch_texts)
-        processed = cursor
-
-        # Report progress
-        if job_id:
-            from apps.pipeline.tasks import _publish_progress
-
-            pct = processed / total_sentences
-
-            _publish_progress(
-                job_id,
-                "running",
-                0.9 + (pct * 0.09),
-                f"Sentence embeddings: {processed}/{total_sentences}...",
-                embedding_progress=0.5 + (pct * 0.5),  # Sentences are second half
-                ml_progress=0.85 + (pct * 0.14),
-            )
-
-        # Checkpoint flush every 5 batches — if the worker dies mid-run, items
-        # already flushed have embeddings persisted and the resume run skips them
-        # once their embedding_model_version matches the active signature.
-        if batch_num % 5 == 0:
-            _flush_embeddings_slice(
-                SentenceModel,
-                pks[flushed_count:processed],
-                raw_vectors_list,
-                embedding_signature=embedding_signature,
-            )
-            flushed_count = processed
-
-    # Tail flush — helper no-ops on empty buffer.
-    _flush_embeddings_slice(
-        SentenceModel,
-        pks[flushed_count:],
-        raw_vectors_list,
-        embedding_signature=embedding_signature,
+    _run_embedding_loop(
+        model_class=Sentence, pks=pks, texts=texts, text_hashes=None,
+        model=model, batch_size=batch_size,
+        embedding_signature=embedding_signature, model_name=model_name,
+        job_id=job_id,
+        on_progress=_make_sentence_progress_callback(job_id),
     )
-
-    elapsed = time.monotonic() - start
-    logger.info("Encoded %d sentences in %.2fs.", len(texts), elapsed)
-
+    logger.info("Encoded %d sentences in %.2fs.", len(texts), time.monotonic() - start)
     return {"embedded": len(pks), "skipped": len(sentences) - len(pks)}
 
 
