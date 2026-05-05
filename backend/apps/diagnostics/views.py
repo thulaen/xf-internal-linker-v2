@@ -1,3 +1,14 @@
+"""Diagnostics REST views.
+
+Hosts the Mission Critical aggregator, the negative-memory drilldown
+endpoints, the signal-queue inspector, the scheduler-control dispatcher,
+the NDCG eval reader, and the weight-diagnostics overview. All view
+classes here are read-mostly aggregators over health checks + AppSetting
++ ErrorLog data — none of them mutate persistent state outside of
+``NegativeMemoryClearView.post`` (which deletes one ``RejectedPair`` row)
+and ``SchedulerDispatchView.post`` (which queues a Celery job).
+"""
+
 import hmac
 
 from django.conf import settings
@@ -131,6 +142,29 @@ _SUPPRESSED_PAIRS_PAGE_SIZE_DEFAULT = 25
 _SUPPRESSED_PAIRS_PAGE_SIZE_MAX = 100
 
 
+def _serialize_rejected_pair(row, *, now, window_start) -> dict:
+    """Serialise one ``RejectedPair`` for the negative-memory list endpoint."""
+    age_seconds = (now - row.last_rejected_at).total_seconds()
+    return {
+        "id": row.pk,
+        "host": {
+            "id": row.host_id,
+            "title": row.host.title,
+            "content_type": row.host.content_type,
+        },
+        "destination": {
+            "id": row.destination_id,
+            "title": row.destination.title,
+            "content_type": row.destination.content_type,
+        },
+        "first_rejected_at": row.first_rejected_at.isoformat(),
+        "last_rejected_at": row.last_rejected_at.isoformat(),
+        "rejection_count": row.rejection_count,
+        "days_since_last": int(age_seconds // _SECONDS_PER_DAY),
+        "within_suppression_window": row.last_rejected_at >= window_start,
+    }
+
+
 class NegativeMemoryListView(views.APIView):
     """Tier 2 slice 4 — paginated list of individual ``RejectedPair`` rows
     for the Diagnostics page drilldown.
@@ -149,7 +183,6 @@ class NegativeMemoryListView(views.APIView):
             REJECTED_PAIR_SUPPRESSION_DAYS,
             RejectedPair,
         )
-
         # Refactor 2026-05-04: pagination via shared
         # apps.api.query_params.coerce_pagination — same safe-fallback +
         # range-clamp behaviour as cooccurrence + behavioural-hubs.
@@ -158,49 +191,24 @@ class NegativeMemoryListView(views.APIView):
             default_page_size=_SUPPRESSED_PAIRS_PAGE_SIZE_DEFAULT,
             max_page_size=_SUPPRESSED_PAIRS_PAGE_SIZE_MAX,
         )
-
         now = timezone.now()
         window_start = now - timedelta(days=REJECTED_PAIR_SUPPRESSION_DAYS)
-
         qs = RejectedPair.objects.select_related("host", "destination").order_by(
-            "-last_rejected_at"
+            "-last_rejected_at",
         )
         total = qs.count()
-        rows = qs[offset : offset + page_size]
-
-        items = []
-        for row in rows:
-            age_seconds = (now - row.last_rejected_at).total_seconds()
-            items.append(
-                {
-                    "id": row.pk,
-                    "host": {
-                        "id": row.host_id,
-                        "title": row.host.title,
-                        "content_type": row.host.content_type,
-                    },
-                    "destination": {
-                        "id": row.destination_id,
-                        "title": row.destination.title,
-                        "content_type": row.destination.content_type,
-                    },
-                    "first_rejected_at": row.first_rejected_at.isoformat(),
-                    "last_rejected_at": row.last_rejected_at.isoformat(),
-                    "rejection_count": row.rejection_count,
-                    "days_since_last": int(age_seconds // _SECONDS_PER_DAY),
-                    "within_suppression_window": row.last_rejected_at >= window_start,
-                }
-            )
-
-        return response.Response(
-            {
-                "total": total,
-                "page": page,
-                "page_size": page_size,
-                "active_suppression_window_days": REJECTED_PAIR_SUPPRESSION_DAYS,
-                "items": items,
-            }
-        )
+        rows = qs[offset:offset + page_size]
+        items = [
+            _serialize_rejected_pair(row, now=now, window_start=window_start)
+            for row in rows
+        ]
+        return response.Response({
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "active_suppression_window_days": REJECTED_PAIR_SUPPRESSION_DAYS,
+            "items": items,
+        })
 
 
 class NegativeMemoryClearView(views.APIView):
@@ -436,6 +444,33 @@ class NodesView(views.APIView):
         return response.Response(payload)
 
 
+def _inspect_celery_signal_queue() -> list[dict]:
+    """Best-effort fetch of pending compute_signal_* tasks via Celery inspect.
+
+    Returns ``[]`` when Celery is not reachable or returns no rows. Each
+    entry is ``{"task": <short_name>, "id": <celery_id>, "eta": <iso|None>}``.
+    """
+    try:
+        from config.celery import app as celery_app
+        inspector = celery_app.control.inspect(timeout=0.3)
+        scheduled = inspector.scheduled() or {}
+        reserved = inspector.reserved() or {}
+    except Exception:  # noqa: BLE001 — best-effort; broker may be unreachable
+        return []
+    queued: list[dict] = []
+    for worker_entries in (*scheduled.values(), *reserved.values()):
+        for entry in worker_entries or []:
+            task = entry.get("request", entry)
+            task_name = (task.get("name") or "").split(".")[-1]
+            if task_name.startswith("compute_signal_"):
+                queued.append({
+                    "task": task_name,
+                    "id": task.get("id"),
+                    "eta": task.get("eta"),
+                })
+    return queued
+
+
 class SignalQueueView(views.APIView):
     """
     Phase SEQ — ranking signal execution queue visibility.
@@ -457,66 +492,25 @@ class SignalQueueView(views.APIView):
     def get(self, request):
         from apps.pipeline.services.task_lock import get_active_locks
         from django.core.cache import cache
-
         locks = get_active_locks()
-        signal_holder = locks.get("signal")
-
-        # Phase MX1 extras — read Celery's scheduled/reserved queues via
-        # the inspect API when available. Best-effort: if Celery isn't
-        # reachable we still return the running holder so the UI doesn't
-        # flash empty.
-        queued: list[dict] = []
-        queue_depth = 0
-        try:
-            from config.celery import app as celery_app
-
-            inspector = celery_app.control.inspect(timeout=0.3)
-            scheduled = inspector.scheduled() or {}
-            reserved = inspector.reserved() or {}
-            for worker_entries in (*scheduled.values(), *reserved.values()):
-                for entry in worker_entries or []:
-                    task = entry.get("request", entry)
-                    task_name = (task.get("name") or "").split(".")[-1]
-                    if task_name.startswith("compute_signal_"):
-                        queued.append(
-                            {
-                                "task": task_name,
-                                "id": task.get("id"),
-                                "eta": task.get("eta"),
-                            }
-                        )
-            queue_depth = len(queued)
-        except Exception:  # noqa: BLE001
-            pass
-
-        # Phase MX1 / Gap 288 — total queue ETA, based on a coarse
-        # `avg_signal_ms` hint cached by recent completions.
+        queued = _inspect_celery_signal_queue()
         avg_ms = cache.get("signal_exec:avg_ms", 30_000)
-        eta_total_ms = queue_depth * int(avg_ms)
-
-        # Phase MX1 / Gap 289 — last-run-per-signal map kept in cache by
-        # the wrapper on completion.
-        last_run_map: dict = cache.get("signal_exec:last_run", {}) or {}
-
-        return response.Response(
-            {
-                "running": signal_holder,
-                "queued": queued,
-                "queue_depth": queue_depth,
-                "eta_total_ms": eta_total_ms,
-                "avg_signal_ms": avg_ms,
-                "last_run": last_run_map,
-                "lock_class": "signal",
-                "pause_after_current": bool(
-                    cache.get("signal_exec:pause_after_current", False)
-                ),
-                "other_lock_holders": {
-                    wc: holder
-                    for wc, holder in locks.items()
-                    if wc != "signal" and holder
-                },
-            }
-        )
+        return response.Response({
+            "running": locks.get("signal"),
+            "queued": queued,
+            "queue_depth": len(queued),
+            "eta_total_ms": len(queued) * int(avg_ms),
+            "avg_signal_ms": avg_ms,
+            "last_run": cache.get("signal_exec:last_run", {}) or {},
+            "lock_class": "signal",
+            "pause_after_current": bool(
+                cache.get("signal_exec:pause_after_current", False),
+            ),
+            "other_lock_holders": {
+                wc: holder for wc, holder in locks.items()
+                if wc != "signal" and holder
+            },
+        })
 
     def post(self, request):
         """Phase MX1 — operator controls for the signal queue.
@@ -601,98 +595,96 @@ class PipelineGateView(views.APIView):
         return response.Response({"can_run": len(blockers) == 0, "blockers": blockers})
 
 
+def _validate_scheduler_token(request):
+    """Validate the X-Scheduler-Token header. Return Response on failure or None on success."""
+    configured_token = getattr(settings, "SCHEDULER_CONTROL_TOKEN", "")
+    request_token = request.headers.get("X-Scheduler-Token", "")
+    if not configured_token:
+        return response.Response(
+            {"detail": "Scheduler control token is missing, so Django cannot trust scheduler-triggered dispatch."},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    if not hmac.compare_digest(configured_token, request_token):
+        return response.Response(
+            {"detail": "Scheduler control token did not match."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    return None
+
+
+def _dispatch_import_content_task(kwargs: dict, periodic_task_name: str):
+    from apps.pipeline.tasks import dispatch_import_content
+    result = dispatch_import_content(
+        scope_ids=kwargs.get("scope_ids"),
+        mode=str(kwargs.get("mode") or "full"),
+        source=str(kwargs.get("source") or "api"),
+        file_path=kwargs.get("file_path"),
+        job_id=kwargs.get("job_id"),
+        force_reembed=bool(kwargs.get("force_reembed") or False),
+    )
+    return response.Response(
+        {
+            "status": "queued",
+            "task": "pipeline.import_content",
+            "periodic_task_name": periodic_task_name,
+            **result,
+        },
+        status=status.HTTP_202_ACCEPTED,
+    )
+
+
+def _dispatch_run_now_task(task_name: str, periodic_task_name: str, runner):
+    """Run a no-arg task synchronously and return a 200 response."""
+    result = runner()
+    return response.Response(
+        {
+            "status": "completed",
+            "task": task_name,
+            "periodic_task_name": periodic_task_name,
+            "result": result,
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+def _dispatch_scheduler_task(task_name: str, kwargs: dict, periodic_task_name: str):
+    """Route a scheduler-control task to the right dispatcher."""
+    if task_name == "pipeline.import_content":
+        return _dispatch_import_content_task(kwargs, periodic_task_name)
+    if task_name == "pipeline.nightly_data_retention":
+        from apps.pipeline.tasks import nightly_data_retention
+        return _dispatch_run_now_task(task_name, periodic_task_name, nightly_data_retention.run)
+    if task_name == "pipeline.cleanup_stuck_sync_jobs":
+        from apps.pipeline.tasks import cleanup_stuck_sync_jobs
+        return _dispatch_run_now_task(task_name, periodic_task_name, cleanup_stuck_sync_jobs.run)
+    return response.Response(
+        {
+            "detail": (
+                f"Scheduler task '{task_name}' is not supported by the Django control plane yet. "
+                "Add an explicit dispatcher before letting Celery Beat own it."
+            ),
+        },
+        status=status.HTTP_400_BAD_REQUEST,
+    )
+
+
 class SchedulerDispatchView(views.APIView):
     authentication_classes = []
     permission_classes = []
 
     def post(self, request):
-        configured_token = getattr(settings, "SCHEDULER_CONTROL_TOKEN", "")
-        request_token = request.headers.get("X-Scheduler-Token", "")
-
-        if not configured_token:
-            return response.Response(
-                {
-                    "detail": "Scheduler control token is missing, so Django cannot trust scheduler-triggered dispatch.",
-                },
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-
-        if not hmac.compare_digest(configured_token, request_token):
-            return response.Response(
-                {
-                    "detail": "Scheduler control token did not match.",
-                },
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
+        token_error = _validate_scheduler_token(request)
+        if token_error is not None:
+            return token_error
         task_name = str(request.data.get("task") or "").strip()
         kwargs = request.data.get("kwargs") or {}
         periodic_task_name = str(request.data.get("periodic_task_name") or "").strip()
-
         if not isinstance(kwargs, dict):
             return response.Response(
                 {"detail": "Scheduler kwargs must be a JSON object."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        if task_name == "pipeline.import_content":
-            from apps.pipeline.tasks import dispatch_import_content
-
-            result = dispatch_import_content(
-                scope_ids=kwargs.get("scope_ids"),
-                mode=str(kwargs.get("mode") or "full"),
-                source=str(kwargs.get("source") or "api"),
-                file_path=kwargs.get("file_path"),
-                job_id=kwargs.get("job_id"),
-                force_reembed=bool(kwargs.get("force_reembed") or False),
-            )
-            return response.Response(
-                {
-                    "status": "queued",
-                    "task": task_name,
-                    "periodic_task_name": periodic_task_name,
-                    **result,
-                },
-                status=status.HTTP_202_ACCEPTED,
-            )
-
-        if task_name == "pipeline.nightly_data_retention":
-            from apps.pipeline.tasks import nightly_data_retention
-
-            result = nightly_data_retention.run()
-            return response.Response(
-                {
-                    "status": "completed",
-                    "task": task_name,
-                    "periodic_task_name": periodic_task_name,
-                    "result": result,
-                },
-                status=status.HTTP_200_OK,
-            )
-
-        if task_name == "pipeline.cleanup_stuck_sync_jobs":
-            from apps.pipeline.tasks import cleanup_stuck_sync_jobs
-
-            result = cleanup_stuck_sync_jobs.run()
-            return response.Response(
-                {
-                    "status": "completed",
-                    "task": task_name,
-                    "periodic_task_name": periodic_task_name,
-                    "result": result,
-                },
-                status=status.HTTP_200_OK,
-            )
-
-        return response.Response(
-            {
-                "detail": (
-                    f"Scheduler task '{task_name}' is not supported by the Django control plane yet. "
-                    "Add an explicit dispatcher before letting Celery Beat own it."
-                ),
-            },
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        return _dispatch_scheduler_task(task_name, kwargs, periodic_task_name)
 
 
 class NdcgEvalView(views.APIView):
@@ -739,6 +731,93 @@ class NdcgEvalView(views.APIView):
         return response.Response(body)
 
 
+def _gather_recent_error_counts() -> dict[str, int]:
+    """Aggregate the last 24 h of unacknowledged ErrorLog rows by job_type:step."""
+    yesterday = timezone.now() - timedelta(hours=24)
+    counts: dict[str, int] = {}
+    logs = ErrorLog.objects.filter(created_at__gte=yesterday, acknowledged=False)
+    for log in logs:
+        key = f"{log.job_type}:{log.step}".lower()
+        counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+def _resolve_signal_weight(sig, settings_map: dict):
+    """Coerce the AppSetting value at ``sig.weight_key`` into a float, with N/A fallback."""
+    weight_val = settings_map.get(sig.weight_key, "0.0") if sig.weight_key else "N/A"
+    try:
+        return float(weight_val) if weight_val != "N/A" else 0.0
+    except ValueError:
+        return weight_val
+
+
+def _resolve_signal_cpp_status(sig, cpp_module_map: dict) -> tuple[bool, str]:
+    """Return ``(cpp_active, status_label)`` for the signal's C++ kernel."""
+    if not sig.cpp_kernel:
+        return False, "Not Supported"
+    mod_name = sig.cpp_kernel.split(".")[0]
+    mod_info = cpp_module_map.get(mod_name)
+    if mod_info is None:
+        return False, "Available (Not Loaded)"
+    cpp_active = mod_info.get("state") == "healthy"
+    return cpp_active, "Active (C++)" if cpp_active else "Degraded (Python Fallback)"
+
+
+def _count_signal_errors(sig, error_counts: dict) -> int:
+    """Sum ErrorLog occurrences attributable to this signal."""
+    err = 0
+    for err_key, count in error_counts.items():
+        if sig.id.lower() in err_key or (
+            sig.cpp_kernel and sig.cpp_kernel.split(".")[0].lower() in err_key
+        ):
+            err += count
+    return err
+
+
+def _build_weight_diagnostics_signal_payload(
+    sig, *, settings_map: dict, cpp_module_map: dict,
+    error_counts: dict, table_stats: dict, signal_health: dict, human_size,
+) -> dict:
+    """Build one row of the WeightDiagnosticsView signals list."""
+    weight_display = _resolve_signal_weight(sig, settings_map)
+    cpp_active, cpp_status = _resolve_signal_cpp_status(sig, cpp_module_map)
+    raw_table = sig.table_name.split(" ")[0].lower()
+    stats = table_stats.get(raw_table, {"rows": 0, "size_bytes": 0})
+    err_count = _count_signal_errors(sig, error_counts)
+    return {
+        "id": sig.id, "name": sig.name, "type": sig.type,
+        "description": sig.description, "weight": weight_display,
+        "cpp_acceleration": {
+            "active": cpp_active, "status_label": cpp_status,
+            "kernel": sig.cpp_kernel,
+        },
+        "storage": {
+            "table": raw_table, "row_count": stats["rows"],
+            "size_bytes": stats["size_bytes"],
+            "size_human": human_size(stats["size_bytes"]),
+        },
+        "health": {
+            "status": "healthy" if err_count == 0 else "degraded",
+            "recent_errors": err_count,
+        },
+        "system_health": signal_health.get(sig.id),
+        "governance": {
+            "status": sig.status, "fr_id": sig.fr_id,
+            "spec_path": sig.spec_path,
+            "academic_source": sig.academic_source,
+            "source_kind": sig.source_kind,
+            "architecture_lane": sig.architecture_lane,
+            "neutral_value": sig.neutral_value,
+            "min_data_threshold": sig.min_data_threshold,
+            "diagnostic_surfaces": list(sig.diagnostic_surfaces),
+            "benchmark_module": sig.benchmark_module,
+            "autotune_included": sig.autotune_included,
+            "default_enabled": sig.default_enabled,
+            "added_in_phase": sig.added_in_phase,
+        },
+    }
+
+
 class WeightDiagnosticsView(views.APIView):
     """
     FR-028: Algorithm Weight Diagnostics.
@@ -749,128 +828,39 @@ class WeightDiagnosticsView(views.APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # 1. Fetch current settings/weights
-        settings = {s.key: s.value for s in AppSetting.objects.all()}
-
-        # 2. Get C++ status
+        settings_map = {s.key: s.value for s in AppSetting.objects.all()}
         _state, _expl, _step, native_metadata = check_native_scoring()
         cpp_module_map = {
             m["module"]: m for m in native_metadata.get("module_statuses", [])
         }
-
-        # 3. Get recent error counts per area (last 24h)
-        yesterday = timezone.now() - timedelta(hours=24)
-        error_counts = {}
-        # Simple heuristic: map signal keywords to job_type or step
-        logs = ErrorLog.objects.filter(created_at__gte=yesterday, acknowledged=False)
-        for log in logs:
-            key = f"{log.job_type}:{log.step}".lower()
-            error_counts[key] = error_counts.get(key, 0) + 1
-
-        # 4. Gather storage stats for referenced tables
+        error_counts = _gather_recent_error_counts()
         table_stats = self._get_table_stats()
-
-        # 5. Build final payload
-        signal_data = []
         signal_health = compute_wave2_signal_health()
-        for sig in SIGNALS:
-            # Resolve weight
-            weight_val = (
-                settings.get(sig.weight_key, "0.0") if sig.weight_key else "N/A"
+        signal_data = [
+            _build_weight_diagnostics_signal_payload(
+                sig, settings_map=settings_map, cpp_module_map=cpp_module_map,
+                error_counts=error_counts, table_stats=table_stats,
+                signal_health=signal_health, human_size=self._human_size,
             )
-            try:
-                weight_display = float(weight_val) if weight_val != "N/A" else 0.0
-            except ValueError:
-                weight_display = weight_val
-
-            # Resolve C++ status
-            cpp_active = False
-            cpp_status = "Not Supported"
-            if sig.cpp_kernel:
-                mod_name = sig.cpp_kernel.split(".")[0]
-                mod_info = cpp_module_map.get(mod_name)
-                if mod_info:
-                    cpp_active = mod_info.get("state") == "healthy"
-                    cpp_status = (
-                        "Active (C++)" if cpp_active else "Degraded (Python Fallback)"
-                    )
-                else:
-                    cpp_status = "Available (Not Loaded)"
-
-            # Resolve storage
-            # sig.table_name might contain multiple tables or extra info, take first word as table name
-            raw_table = sig.table_name.split(" ")[0].lower()
-            stats = table_stats.get(raw_table, {"rows": 0, "size_bytes": 0})
-
-            # Resolve errors
-            # Look for signal ID or job_type matches in error_counts
-            err_count = 0
-            for err_key, count in error_counts.items():
-                if sig.id.lower() in err_key or (
-                    sig.cpp_kernel and sig.cpp_kernel.split(".")[0].lower() in err_key
-                ):
-                    err_count += count
-
-            signal_data.append(
-                {
-                    "id": sig.id,
-                    "name": sig.name,
-                    "type": sig.type,
-                    "description": sig.description,
-                    "weight": weight_display,
-                    "cpp_acceleration": {
-                        "active": cpp_active,
-                        "status_label": cpp_status,
-                        "kernel": sig.cpp_kernel,
-                    },
-                    "storage": {
-                        "table": raw_table,
-                        "row_count": stats["rows"],
-                        "size_bytes": stats["size_bytes"],
-                        "size_human": self._human_size(stats["size_bytes"]),
-                    },
-                    "health": {
-                        "status": "healthy" if err_count == 0 else "degraded",
-                        "recent_errors": err_count,
-                    },
-                    "system_health": signal_health.get(sig.id),
-                    "governance": {
-                        "status": sig.status,
-                        "fr_id": sig.fr_id,
-                        "spec_path": sig.spec_path,
-                        "academic_source": sig.academic_source,
-                        "source_kind": sig.source_kind,
-                        "architecture_lane": sig.architecture_lane,
-                        "neutral_value": sig.neutral_value,
-                        "min_data_threshold": sig.min_data_threshold,
-                        "diagnostic_surfaces": list(sig.diagnostic_surfaces),
-                        "benchmark_module": sig.benchmark_module,
-                        "autotune_included": sig.autotune_included,
-                        "default_enabled": sig.default_enabled,
-                        "added_in_phase": sig.added_in_phase,
-                    },
-                }
-            )
-
+            for sig in SIGNALS
+        ]
         contract_violations = validate_signal_contract()
-        return response.Response(
-            {
-                "signals": signal_data,
-                "summary": {
-                    "total_signals": len(SIGNALS),
-                    "active_signals": sum(1 for s in SIGNALS if s.status == "active"),
-                    "cpp_accelerated_count": sum(
-                        1 for s in signal_data if s["cpp_acceleration"]["active"]
-                    ),
-                    "healthy_count": sum(
-                        1 for s in signal_data if s["health"]["status"] == "healthy"
-                    ),
-                    "contract_violations": contract_violations,
-                    "contract_clean": len(contract_violations) == 0,
-                    "last_refreshed": timezone.now(),
-                },
-            }
-        )
+        return response.Response({
+            "signals": signal_data,
+            "summary": {
+                "total_signals": len(SIGNALS),
+                "active_signals": sum(1 for s in SIGNALS if s.status == "active"),
+                "cpp_accelerated_count": sum(
+                    1 for s in signal_data if s["cpp_acceleration"]["active"]
+                ),
+                "healthy_count": sum(
+                    1 for s in signal_data if s["health"]["status"] == "healthy"
+                ),
+                "contract_violations": contract_violations,
+                "contract_clean": len(contract_violations) == 0,
+                "last_refreshed": timezone.now(),
+            },
+        })
 
     def _get_table_stats(self):
         """Fetch row counts and disk usage for core algorithm tables."""
@@ -918,6 +908,71 @@ class WeightDiagnosticsView(views.APIView):
         return f"{bytes_val:.1f} PB"
 
 
+def _pipeline_tile(locks: dict, master_pause: bool) -> dict:
+    """Build the Mission Critical Pipeline tile from current lock state."""
+    if master_pause:
+        return _tile(
+            "pipeline", "Pipeline", "PAUSED",
+            "Master pause active — workers at safe checkpoint.",
+            actions=["Resume"],
+        )
+    heavy_holder = locks.get("heavy")
+    if heavy_holder:
+        return _tile(
+            "pipeline", "Pipeline", "WORKING",
+            f"Running: {_owner_label(heavy_holder)}.",
+            actions=["Pause"],
+        )
+    return _tile(
+        "pipeline", "Pipeline", "IDLE",
+        "No heavy task currently running.",
+        actions=["Pause"],
+    )
+
+
+def _signals_tile(locks: dict) -> dict:
+    """Build the Mission Critical Ranking signals tile."""
+    signal_holder = locks.get("signal")
+    if signal_holder:
+        return _tile(
+            "signals", "Ranking signals", "WORKING",
+            f"Computing {_owner_label(signal_holder)}.",
+            actions=["Pause"],
+        )
+    return _tile(
+        "signals", "Ranking signals", "IDLE",
+        "Signal queue empty — no compute in flight.",
+    )
+
+
+def _suggestion_readiness_tile(prereqs: list[dict]) -> dict:
+    """Build the Mission Critical Suggestion-readiness tile."""
+    blocking = [p for p in prereqs if p["status"] != "ready"]
+    if not blocking:
+        return _tile(
+            "suggestion_readiness", "Suggestion readiness", "WORKING",
+            "All prerequisites ready.",
+        )
+    first = blocking[0]
+    mc_state = "DEGRADED" if first["status"] != "blocked" else "FAILED"
+    return _tile(
+        "suggestion_readiness", "Suggestion readiness", mc_state,
+        f"Blocking: {first['name']} — {first['plain_english']}",
+    )
+
+
+def _apply_root_cause_dedup(tiles: list[dict], prereqs: list[dict]) -> None:
+    """Mark tiles downstream of a blocked pipeline_gate so the UI collapses them."""
+    for p in prereqs:
+        if p["id"] == "pipeline_gate" and p["status"] == "blocked":
+            for tile in tiles:
+                if (
+                    tile["id"] in ("pipeline", "signals", "embeddings")
+                    or tile.get("group") == "algorithms"
+                ):
+                    tile["root_cause"] = "pipeline_gate"
+
+
 class MissionCriticalView(views.APIView):
     """Phase MC — single aggregator the dashboard's Mission Critical tab reads.
 
@@ -951,135 +1006,39 @@ class MissionCriticalView(views.APIView):
     def get(self, request):
         from apps.pipeline.services.task_lock import get_active_locks
         from apps.suggestions.readiness import assemble_prerequisites
-
         locks = get_active_locks()
-        tiles: list[dict] = []
-
-        # ── Pipeline ─────────────────────────────────────────────
-        heavy_holder = locks.get("heavy")
-        master_pause = _read_master_pause()
-        if master_pause:
-            tiles.append(
-                _tile(
-                    "pipeline",
-                    "Pipeline",
-                    "PAUSED",
-                    "Master pause active — workers at safe checkpoint.",
-                    actions=["Resume"],
-                )
-            )
-        elif heavy_holder:
-            tiles.append(
-                _tile(
-                    "pipeline",
-                    "Pipeline",
-                    "WORKING",
-                    f"Running: {_owner_label(heavy_holder)}.",
-                    actions=["Pause"],
-                )
-            )
-        else:
-            tiles.append(
-                _tile(
-                    "pipeline",
-                    "Pipeline",
-                    "IDLE",
-                    "No heavy task currently running.",
-                    actions=["Pause"],
-                )
-            )
-
-        # ── Ranking signals (Phase SEQ namespace) ────────────────
-        signal_holder = locks.get("signal")
-        if signal_holder:
-            tiles.append(
-                _tile(
-                    "signals",
-                    "Ranking signals",
-                    "WORKING",
-                    f"Computing {_owner_label(signal_holder)}.",
-                    actions=["Pause"],
-                )
-            )
-        else:
-            tiles.append(
-                _tile(
-                    "signals",
-                    "Ranking signals",
-                    "IDLE",
-                    "Signal queue empty — no compute in flight.",
-                )
-            )
-
-        # ── Embeddings ────────────────────────────────────────────
-        tiles.append(_embeddings_tile())
-        tiles.append(_model_runtime_tile())
-        tiles.append(_helper_nodes_tile())
-        tiles.append(_anti_spam_tile())
-
-        # ── Algorithms accordion ─────────────────────────────────
-        tiles.append(_meta_tile_native_scoring())
-        tiles.append(_meta_tile_slate_diversity())
-        tiles.append(_meta_tile_weight_tuning())
-        tiles.append(_meta_tile_attribution())
-        tiles.append(_meta_tile_cooccurrence())
-
-        # ── External data sources ────────────────────────────────
-        tiles.append(_external_tile("gsc", "Google Search Console"))
-        tiles.append(_external_tile("ga4", "Google Analytics 4"))
-        tiles.append(_external_tile("matomo", "Matomo"))
-
-        # ── Crawler + Import + Webhooks ──────────────────────────
-        tiles.append(_crawler_tile())
-        tiles.append(_import_tile())
-        tiles.append(_webhooks_tile())
-
-        # ── Suggestion Readiness (Phase SR) ──────────────────────
+        tiles: list[dict] = [
+            _pipeline_tile(locks, _read_master_pause()),
+            _signals_tile(locks),
+            _embeddings_tile(),
+            _model_runtime_tile(),
+            _helper_nodes_tile(),
+            _anti_spam_tile(),
+            _meta_tile_native_scoring(),
+            _meta_tile_slate_diversity(),
+            _meta_tile_weight_tuning(),
+            _meta_tile_attribution(),
+            _meta_tile_cooccurrence(),
+            _external_tile("gsc", "Google Search Console"),
+            _external_tile("ga4", "Google Analytics 4"),
+            _external_tile("matomo", "Matomo"),
+            _crawler_tile(),
+            _import_tile(),
+            _webhooks_tile(),
+        ]
         prereqs = assemble_prerequisites()
-        blocking = [p for p in prereqs if p["status"] != "ready"]
-        if not blocking:
-            tiles.append(
-                _tile(
-                    "suggestion_readiness",
-                    "Suggestion readiness",
-                    "WORKING",
-                    "All prerequisites ready.",
-                )
-            )
-        else:
-            first = blocking[0]
-            mc_state = "DEGRADED" if first["status"] != "blocked" else "FAILED"
-            tiles.append(
-                _tile(
-                    "suggestion_readiness",
-                    "Suggestion readiness",
-                    mc_state,
-                    f"Blocking: {first['name']} — {first['plain_english']}",
-                )
-            )
-
-        # ── Root-cause dedup ─────────────────────────────────────
-        for p in prereqs:
-            if p["id"] == "pipeline_gate" and p["status"] == "blocked":
-                for tile in tiles:
-                    if (
-                        tile["id"] in ("pipeline", "signals", "embeddings")
-                        or tile.get("group") == "algorithms"
-                    ):
-                        tile["root_cause"] = "pipeline_gate"
-
-        return response.Response(
-            {
-                "tiles": tiles,
-                "updated_at": timezone.now().isoformat(),
-            }
-        )
+        tiles.append(_suggestion_readiness_tile(prereqs))
+        _apply_root_cause_dedup(tiles, prereqs)
+        return response.Response({
+            "tiles": tiles,
+            "updated_at": timezone.now().isoformat(),
+        })
 
 
 # ── MC helpers ───────────────────────────────────────────────────────
 
 
-def _tile(
+def _tile(  # noqa: forbidden-pattern too-many-args  # justification: small dict-builder with named kwargs each callsite reads at a glance; a TypedDict would force every callsite to construct an intermediate dict.
     tile_id: str,
     name: str,
     state: str,
@@ -1117,6 +1076,35 @@ def _read_master_pause() -> bool:
     return str(row.value).strip().lower() in ("1", "true", "yes", "on")
 
 
+def _build_embeddings_label(active_model: dict, runtime: dict) -> tuple[str, str]:
+    """Return ``(model_name, model_label)`` for the embeddings tile."""
+    model_name = active_model.get("model_name") or "BAAI/bge-m3"
+    dimension = active_model.get("dimension")
+    device = active_model.get("device_target") or runtime.get("device") or "cpu"
+    label = f"{model_name} on {device}"
+    if dimension:
+        label = f"{label} ({dimension}d)"
+    return model_name, label
+
+
+def _count_ready_embeddings(model_name: str) -> int:
+    """Count ContentItems that already have an embedding for ``model_name``."""
+    from apps.content.models import ContentItem
+    from apps.pipeline.services.embeddings import get_current_embedding_filter
+    return ContentItem.objects.filter(
+        embedding__isnull=False,
+        **get_current_embedding_filter(model_name=model_name),
+    ).count()
+
+
+def _embeddings_tile_message(*, done: int, total: int, model_label: str, helper_assisted: bool) -> str:
+    """Format the embeddings progress sentence (extracted for testability)."""
+    helper_word = "yes" if helper_assisted else "no"
+    if done >= total:
+        return f"All {total:,} items embedded with {model_label}. Helper-assisted: {helper_word}."
+    return f"{done:,} of {total:,} items embedded with {model_label}. Helper-assisted: {helper_word}."
+
+
 def _embeddings_tile() -> dict:
     try:
         from apps.content.models import ContentItem
@@ -1124,187 +1112,179 @@ def _embeddings_tile() -> dict:
             summarize_helpers,
             summarize_model_registry,
         )
-
         runtime = summarize_model_registry()
         helpers = summarize_helpers()
         active_model = runtime.get("active_model") or {}
-        model_name = active_model.get("model_name") or "BAAI/bge-m3"
-        dimension = active_model.get("dimension")
-        device = active_model.get("device_target") or runtime.get("device") or "cpu"
-        helper_assisted = bool(
-            helpers.get("counts", {}).get("online", 0)
-            or helpers.get("counts", {}).get("busy", 0)
-        )
-        model_label = f"{model_name} on {device}"
-        if dimension:
-            model_label = f"{model_label} ({dimension}d)"
-
+        model_name, model_label = _build_embeddings_label(active_model, runtime)
+        helper_counts = helpers.get("counts", {})
+        helper_assisted = bool(helper_counts.get("online", 0) or helper_counts.get("busy", 0))
         total = ContentItem.objects.count()
         if total == 0:
             return _tile(
-                "embeddings",
-                "Embeddings",
-                "IDLE",
+                "embeddings", "Embeddings", "IDLE",
                 f"No in-scope content yet. Active model: {model_label}.",
             )
-        from apps.pipeline.services.embeddings import get_current_embedding_filter
-
-        ready_count = ContentItem.objects.filter(
-            embedding__isnull=False,
-            **get_current_embedding_filter(model_name=model_name),
-        ).count()
-        missing = total - ready_count
-        if missing == 0:
-            return _tile(
-                "embeddings",
-                "Embeddings",
-                "WORKING",
-                (
-                    f"All {total:,} items embedded with {model_label}. "
-                    f"Helper-assisted: {'yes' if helper_assisted else 'no'}."
-                ),
-                progress=1.0,
-            )
-        done = ready_count
+        done = _count_ready_embeddings(model_name)
+        message = _embeddings_tile_message(
+            done=done, total=total, model_label=model_label,
+            helper_assisted=helper_assisted,
+        )
+        if done >= total:
+            return _tile("embeddings", "Embeddings", "WORKING", message, progress=1.0)
         return _tile(
-            "embeddings",
-            "Embeddings",
-            "WORKING",
-            (
-                f"{done:,} of {total:,} items embedded with {model_label}. "
-                f"Helper-assisted: {'yes' if helper_assisted else 'no'}."
-            ),
-            actions=["Pause"],
-            progress=done / total,
+            "embeddings", "Embeddings", "WORKING", message,
+            actions=["Pause"], progress=done / total,
         )
     except Exception:  # noqa: BLE001
         return _tile(
-            "embeddings",
-            "Embeddings",
-            "DEGRADED",
-            "Could not read embedding state.",
+            "embeddings", "Embeddings", "DEGRADED", "Could not read embedding state.",
         )
+
+
+def _classify_model_runtime(
+    *, active_name: str, active_status: str, device: str,
+    backfill: dict, candidate_model: dict,
+) -> dict:
+    """Pick the right Mission Critical tile for the model runtime state."""
+    if active_status in {"failed", "deleted"}:
+        return _tile(
+            "model_runtime", "Model runtime", "FAILED",
+            (
+                f"{active_name} is {active_status} on {device}. "
+                "Open Settings > Runtime to warm, roll back, or replace it."
+            ),
+        )
+    if backfill and backfill.get("status") in {"queued", "running", "paused"}:
+        return _tile(
+            "model_runtime", "Model runtime", "DEGRADED",
+            f"{active_name} is active on {device}, and a backfill is {backfill.get('status')}.",
+            actions=["Pause", "Resume"],
+            progress=(backfill.get("progress_pct") or 0.0) * _PCT_TO_FRACTION,
+        )
+    if candidate_model:
+        return _tile(
+            "model_runtime", "Model runtime", "DEGRADED",
+            (
+                f"{active_name} is champion on {device}. Candidate "
+                f"{candidate_model.get('model_name')} is {candidate_model.get('status')}."
+            ),
+            actions=["Resume"],
+        )
+    return _tile(
+        "model_runtime", "Model runtime", "WORKING",
+        f"{active_name} is the active embedding model on {device}. Hot swap is ready.",
+    )
 
 
 def _model_runtime_tile() -> dict:
     try:
         from apps.core.runtime_registry import summarize_model_registry
-
         summary = summarize_model_registry()
         active_model = summary.get("active_model") or {}
-        candidate_model = summary.get("candidate_model") or {}
-        backfill = summary.get("backfill") or {}
-        active_name = active_model.get("model_name") or "Unknown model"
-        active_status = active_model.get("status") or "unknown"
-        device = active_model.get("device_target") or summary.get("device") or "cpu"
-
-        if active_status in {"failed", "deleted"}:
-            return _tile(
-                "model_runtime",
-                "Model runtime",
-                "FAILED",
-                (
-                    f"{active_name} is {active_status} on {device}. "
-                    "Open Settings > Runtime to warm, roll back, or replace it."
-                ),
-            )
-        if backfill and backfill.get("status") in {"queued", "running", "paused"}:
-            return _tile(
-                "model_runtime",
-                "Model runtime",
-                "DEGRADED",
-                (
-                    f"{active_name} is active on {device}, and a backfill is "
-                    f"{backfill.get('status')}."
-                ),
-                actions=["Pause", "Resume"],
-                progress=(backfill.get("progress_pct") or 0.0) * _PCT_TO_FRACTION,
-            )
-        if candidate_model:
-            return _tile(
-                "model_runtime",
-                "Model runtime",
-                "DEGRADED",
-                (
-                    f"{active_name} is champion on {device}. Candidate "
-                    f"{candidate_model.get('model_name')} is "
-                    f"{candidate_model.get('status')}."
-                ),
-                actions=["Resume"],
-            )
-        return _tile(
-            "model_runtime",
-            "Model runtime",
-            "WORKING",
-            f"{active_name} is the active embedding model on {device}. Hot swap is ready.",
+        return _classify_model_runtime(
+            active_name=active_model.get("model_name") or "Unknown model",
+            active_status=active_model.get("status") or "unknown",
+            device=active_model.get("device_target") or summary.get("device") or "cpu",
+            backfill=summary.get("backfill") or {},
+            candidate_model=summary.get("candidate_model") or {},
         )
     except Exception:  # noqa: BLE001
         return _tile(
-            "model_runtime",
-            "Model runtime",
-            "DEGRADED",
+            "model_runtime", "Model runtime", "DEGRADED",
             "Could not read model runtime state.",
         )
+
+
+_HELPER_NODES_RAM_PRESSURE_DEGRADED = 0.9
+
+
+def _classify_helper_nodes(
+    *, online: int, busy: int, stale: int, offline: int,
+    aggregate_ram_pressure: float, busiest: dict,
+) -> dict:
+    """Pick the right Mission Critical tile for the helper-nodes state."""
+    if online == 0 and busy == 0 and stale == 0 and offline == 0:
+        return _tile(
+            "helper_nodes", "Helper nodes", "IDLE",
+            "No helper nodes configured. The primary machine is handling all work.",
+        )
+    if online == 0 and busy == 0:
+        state = "FAILED" if stale == 0 else "DEGRADED"
+        return _tile(
+            "helper_nodes", "Helper nodes", state,
+            (
+                f"No helpers are available right now. Counts: online {online}, "
+                f"busy {busy}, stale {stale}, offline {offline}."
+            ),
+        )
+    if aggregate_ram_pressure >= _HELPER_NODES_RAM_PRESSURE_DEGRADED:
+        return _tile(
+            "helper_nodes", "Helper nodes", "DEGRADED",
+            (
+                f"Helpers are online, but RAM pressure is high "
+                f"({aggregate_ram_pressure:.0%}). Busiest: {busiest.get('name') or 'n/a'}."
+            ),
+            progress=aggregate_ram_pressure,
+        )
+    return _tile(
+        "helper_nodes", "Helper nodes", "WORKING",
+        (
+            f"Online {online}, busy {busy}, stale {stale}, offline {offline}. "
+            f"Busiest load: {(busiest.get('effective_load') or 0.0):.0%}."
+        ),
+        progress=aggregate_ram_pressure,
+    )
 
 
 def _helper_nodes_tile() -> dict:
     try:
         from apps.core.runtime_registry import helper_status_counts, summarize_helpers
-
         summary = summarize_helpers()
         # Refactor 2026-05-04: shared helper_status_counts (also used by
         # apps.health.services.check_helper_nodes_health).
         online, busy, stale, offline = helper_status_counts(summary)
-        aggregate_ram_pressure = float(summary.get("aggregate_ram_pressure") or 0.0)
-        busiest = summary.get("busiest") or {}
-
-        if online == 0 and busy == 0 and stale == 0 and offline == 0:
-            return _tile(
-                "helper_nodes",
-                "Helper nodes",
-                "IDLE",
-                "No helper nodes configured. The primary machine is handling all work.",
-            )
-        if online == 0 and busy == 0:
-            state = "FAILED" if stale == 0 else "DEGRADED"
-            return _tile(
-                "helper_nodes",
-                "Helper nodes",
-                state,
-                (
-                    f"No helpers are available right now. Counts: online {online}, "
-                    f"busy {busy}, stale {stale}, offline {offline}."
-                ),
-            )
-        if aggregate_ram_pressure >= 0.9:
-            return _tile(
-                "helper_nodes",
-                "Helper nodes",
-                "DEGRADED",
-                (
-                    f"Helpers are online, but RAM pressure is high "
-                    f"({aggregate_ram_pressure:.0%}). Busiest: "
-                    f"{busiest.get('name') or 'n/a'}."
-                ),
-                progress=aggregate_ram_pressure,
-            )
-        return _tile(
-            "helper_nodes",
-            "Helper nodes",
-            "WORKING",
-            (
-                f"Online {online}, busy {busy}, stale {stale}, offline {offline}. "
-                f"Busiest load: {(busiest.get('effective_load') or 0.0):.0%}."
-            ),
-            progress=aggregate_ram_pressure,
+        return _classify_helper_nodes(
+            online=online, busy=busy, stale=stale, offline=offline,
+            aggregate_ram_pressure=float(summary.get("aggregate_ram_pressure") or 0.0),
+            busiest=summary.get("busiest") or {},
         )
     except Exception:  # noqa: BLE001
         return _tile(
-            "helper_nodes",
-            "Helper nodes",
-            "DEGRADED",
+            "helper_nodes", "Helper nodes", "DEGRADED",
             "Could not read helper node state.",
         )
+
+
+def _classify_anti_spam(signals: dict) -> dict:
+    """Pick the right Mission Critical tile for the anti-spam state."""
+    disabled = [name for name, cfg in signals.items() if not bool(cfg.get("enabled"))]
+    zero_weight = [
+        name for name, cfg in signals.items()
+        if float(cfg.get("ranking_weight") or 0.0) <= 0.0
+    ]
+    if disabled:
+        return _tile(
+            "anti_spam", "Anti-spam", "DEGRADED",
+            (
+                f"Disabled signals: {', '.join(disabled)}. Open Settings to "
+                "restore the default anti-spam stack."
+            ),
+        )
+    if zero_weight:
+        return _tile(
+            "anti_spam", "Anti-spam", "DEGRADED",
+            (
+                f"Zero-weight signals: {', '.join(zero_weight)}. Recommended "
+                "preset expects all three penalties to stay active."
+            ),
+        )
+    return _tile(
+        "anti_spam", "Anti-spam", "WORKING",
+        (
+            "Anchor diversity, keyword stuffing, and link-farm penalties are "
+            "enabled with active weights."
+        ),
+    )
 
 
 def _anti_spam_tile() -> dict:
@@ -1314,54 +1294,14 @@ def _anti_spam_tile() -> dict:
             get_keyword_stuffing_settings,
             get_link_farm_settings,
         )
-
-        signals = {
+        return _classify_anti_spam({
             "Anchor diversity": get_anchor_diversity_settings(),
             "Keyword stuffing": get_keyword_stuffing_settings(),
             "Link farm": get_link_farm_settings(),
-        }
-        disabled = [
-            name for name, cfg in signals.items() if not bool(cfg.get("enabled"))
-        ]
-        zero_weight = [
-            name
-            for name, cfg in signals.items()
-            if float(cfg.get("ranking_weight") or 0.0) <= 0.0
-        ]
-        if disabled:
-            return _tile(
-                "anti_spam",
-                "Anti-spam",
-                "DEGRADED",
-                (
-                    f"Disabled signals: {', '.join(disabled)}. Open Settings to "
-                    "restore the default anti-spam stack."
-                ),
-            )
-        if zero_weight:
-            return _tile(
-                "anti_spam",
-                "Anti-spam",
-                "DEGRADED",
-                (
-                    f"Zero-weight signals: {', '.join(zero_weight)}. Recommended "
-                    "preset expects all three penalties to stay active."
-                ),
-            )
-        return _tile(
-            "anti_spam",
-            "Anti-spam",
-            "WORKING",
-            (
-                "Anchor diversity, keyword stuffing, and link-farm penalties are "
-                "enabled with active weights."
-            ),
-        )
+        })
     except Exception:  # noqa: BLE001
         return _tile(
-            "anti_spam",
-            "Anti-spam",
-            "DEGRADED",
+            "anti_spam", "Anti-spam", "DEGRADED",
             "Could not read anti-spam settings.",
         )
 

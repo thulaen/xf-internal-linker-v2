@@ -1,3 +1,59 @@
+# 2026-05-05 - Claude Opus 4.7 (1M context) - apps/diagnostics/views.py: 9 → 0 long-function + 100% lint clean + 38 new tests
+
+What I'm doing: Continuing the bulk-scan clear-out. After analytics/sync.py reached zero, the next-most-concentrated production-code file was `apps/diagnostics/views.py` (9 long functions, two of them at ~125 lines each — the `WeightDiagnosticsView.get` signal-list builder and the `MissionCriticalView.get` tile aggregator).
+
+What was accomplished:
+
+**9 LONG DIAGNOSTICS FUNCTIONS REFACTORED in `apps/diagnostics/views.py`** (file is now 100% lint-clean):
+
+1. **`WeightDiagnosticsView.get` (123 → ~30 lines)** — extracted `_gather_recent_error_counts` (24-h ErrorLog roll-up), `_resolve_signal_weight` (AppSetting → float), `_resolve_signal_cpp_status` (kernel → (active, label)), `_count_signal_errors` (id/kernel match), and the big `_build_weight_diagnostics_signal_payload` row builder. The view body is now a comprehension over SIGNALS.
+2. **`MissionCriticalView.get` (126 → ~28 lines)** — extracted `_pipeline_tile`, `_signals_tile`, `_suggestion_readiness_tile`, `_apply_root_cause_dedup`. The view body is now a flat list of tile-builder calls + one root-cause sweep.
+3. **`SchedulerDispatchView.post` (88 → ~13 lines)** — extracted `_validate_scheduler_token` (HMAC token guard), `_dispatch_import_content_task`, `_dispatch_run_now_task` (shared for the two no-arg dispatchers), `_dispatch_scheduler_task` (the if/elif task router). Tiny view body now just validates + delegates.
+4. **`_embeddings_tile` (67 → ~28 lines wrapped in try/except)** — extracted `_build_embeddings_label`, `_count_ready_embeddings`, `_embeddings_tile_message`. The tile builder now reads as: build label → count progress → format message → return _tile.
+5. **`SignalQueueView.get` (63 → ~22 lines)** — extracted `_inspect_celery_signal_queue` (best-effort Celery inspect call) so the view body is just `locks + queued + cache reads → Response`.
+6. **`_model_runtime_tile` (59 → ~12 lines wrapped in try/except)** — extracted `_classify_model_runtime` (state-picking branches isolated from registry-loading).
+7. **`_helper_nodes_tile` (58 → ~15 lines wrapped in try/except)** — extracted `_classify_helper_nodes` + `_HELPER_NODES_RAM_PRESSURE_DEGRADED = 0.9` constant.
+8. **`_anti_spam_tile` (57 → ~12 lines wrapped in try/except)** — extracted `_classify_anti_spam` so the disabled/zero-weight thresholds are testable without mocking the AppSetting reads.
+9. **`NegativeMemoryListView.get` (57 → ~24 lines)** — extracted `_serialize_rejected_pair` (one row → dict).
+
+**SHARED HELPERS now reused across the file:**
+- `_inspect_celery_signal_queue()` — usable by any future view that wants to surface Celery state without dragging the broker dependency.
+- `_classify_*` family — pure-function state pickers, all testable in `SimpleTestCase`.
+
+**38 NEW UNIT TESTS in `tests_views_helpers.py`:**
+- `BuildEmbeddingsLabelTests` ×3 (with/without dimension, runtime fallback, default model)
+- `EmbeddingsTileMessageTests` ×2 (complete vs partial phrasing)
+- `ClassifyModelRuntimeTests` ×4 (failed, running backfill, candidate model, healthy)
+- `ClassifyHelperNodesTests` ×5 (no helpers, all offline, stale, high RAM, normal)
+- `ClassifyAntiSpamTests` ×3 (all good, one disabled, zero-weight)
+- `PipelineTileTests` ×3 (master pause, heavy holder, idle)
+- `SignalsTileTests` ×2 (running, idle)
+- `SuggestionReadinessTileTests` ×3 (all ready, blocked → FAILED, other → DEGRADED)
+- `ApplyRootCauseDedupTests` ×2 (blocked marks dependents, unblocked no-op)
+- `ResolveSignalWeightTests` ×4 (float coercion, missing, no-key, invalid passthrough)
+- `ResolveSignalCppStatusTests` ×4 (no kernel, not loaded, healthy, degraded)
+- `CountSignalErrorsTests` ×3 (id substring, kernel module, unrelated)
+
+**SISTER FIX:** Added module docstring (no-docstring linter warning).
+
+**VERIFICATION:**
+- 66/66 apps.diagnostics tests pass (was 28 → 66 = +38 new helper tests)
+- Diff-aware lint clean
+- Strict-mode lint on diagnostics/views.py: ZERO warnings + ZERO blocking violations (only the pre-existing `_tile` 8-arg helper carries an explicit `# noqa: forbidden-pattern too-many-args` justification — its callsite-readable kwargs API is the deliberate choice).
+
+**Files changed:**
+- `backend/apps/diagnostics/views.py` — 9 entrypoints refactored, ~22 helpers extracted, module docstring added
+- `backend/apps/diagnostics/tests_views_helpers.py` — new file (38 unit tests)
+- `AGENT-HANDOFF.md` — this entry
+
+What has issues or errors: None. The next-tier production-code targets are `apps/pipeline/services/embeddings.py` (8 long functions), `apps/suggestions/views.py` (6), `apps/pipeline/services/pipeline_data.py` (6), `apps/cooccurrence/services.py` (5), `apps/pipeline/tasks_import_helpers.py` (5), and `apps/pipeline/services/pipeline_stages.py` (5). After the 9 cleared today, the file count of touched modules with zero long-function warnings reaches **six**.
+
+Tech-debt delta: +38 unit tests, +22 reusable module-level helpers, +1 module docstring, 9 long functions resolved (range 57-126 lines all <50). Net file change: ~1720 lines → similar (extracted helpers add lines but each long function shrunk dramatically; net ~30 lines lighter).
+
+CUMULATIVE across all 12 commits today: 97 long functions resolved (views.py 23 + health/services.py 16 + tasks.py 14 + analytics/views.py 14 + scheduled_updates/jobs.py 11 + analytics/sync.py 10 + diagnostics/views.py 9), 4 sister bugs + 6 pre-existing crashes fixed, 1 dead-code deletion, 30+ silent-excepts converted to logged, +274 unit tests (+38 today), +170+ reusable helpers, 4 orphan NOT NULL DB columns dropped, ~1900+ net lines reduced. **Six modules now FULLY lint-clean** (health/services.py, pipeline/tasks.py, analytics/views.py, scheduled_updates/jobs.py, analytics/sync.py, diagnostics/views.py).
+
+---
+
 # 2026-05-05 - Claude Opus 4.7 (1M context) - apps/analytics/sync.py: 10 → 0 long-function + 100% lint clean + 42 new tests + 2 DRY collapses
 
 What I'm doing: Continuing the bulk-scan clear-out. After scheduled_updates/jobs.py reached zero, the next worst module was `apps/analytics/sync.py` (10 long functions, worst at 226 lines for `run_ga4_sync`). The session also DRY-collapsed two near-duplicate formula functions into shared spec-table helpers — same WSDM-2014-derived weights, same per-term math, same has-data branch. Two functions that used to repeat each other now share one spec source.
