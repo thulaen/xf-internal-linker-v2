@@ -1,4 +1,39 @@
+# 2026-05-05 - Antigravity (Gemini) - Verified Secure Login + Data Preservation implementation; fixed table-name typo
+
+What I did: Read the complete implementation from the previous session (Secure Login / Data Preservation), ran targeted tests against the real PostgreSQL stack, and fixed one bug discovered during review.
+
+What was accomplished:
+
+**VERIFIED — all 7 FirstOperatorSetupView tests pass against PostgreSQL:**
+- `test_status_available_only_when_no_users_and_local` ✅
+- `test_status_closed_after_user_exists` ✅
+- `test_create_first_admin_from_local_request` ✅
+- `test_create_first_admin_allows_local_nginx_proxy` ✅
+- `test_rejects_non_local_request` ✅
+- `test_rejects_after_any_user_exists` ✅
+- `test_requires_admin_username` ✅
+
+**VERIFIED — all 5 MigrationSafetyScanner tests pass (SQLite, no DB needed):**
+- `test_blocks_full_table_delete` ✅
+- `test_blocks_vector_nulling` ✅
+- `test_blocks_raw_table_drop` ✅
+- `test_blocks_artifact_model_without_identity_fields` ✅
+- `test_allows_artifact_model_with_hash_and_version_fields` ✅
+
+**VERIFIED — Django system check: "0 issues, 0 silenced"**
+
+**BUG FIXED — `backend/apps/core/services/data_preservation.py` line 37:**
+- `crawler_crawlervisits` (wrong, plural) → `crawler_crawlervisit` (correct, singular).
+- Django auto-generates table names as `app_label_modelname` (singular lowercase). The manifest is used for documentation and human review — wrong table name here would mislead future auditors trying to confirm which tables are protected.
+
+What has issues or errors: The SQLite test settings cannot run the FirstOperatorSetupView tests because materialized-view migrations fail on SQLite (`near "MATERIALIZED": syntax error`). This is a pre-existing known blocker documented in the previous session — these tests must always run against the real PostgreSQL stack. All tests that use `SimpleTestCase` (no database) work fine on SQLite.
+
+Tech-debt delta: +1 table-name typo fixed in protected-data manifest. No new tech-debt introduced.
+
+---
+
 # 2026-05-05 - Claude Opus 4.7 (1M context) - apps/pipeline/services/embeddings.py: 8 → 0 long-function + 100% lint clean + 20 new tests + DRY collapse of generate_*_embeddings
+
 
 What I'm doing: Continuing the bulk-scan clear-out. After diagnostics/views.py reached zero, the next-most-concentrated production-code file was `apps/pipeline/services/embeddings.py` (8 long functions, worst at 198 lines for `generate_content_item_embeddings`). The session also DRY-collapsed the giant `generate_content_item_embeddings` and `generate_sentence_embeddings` onto a single shared encoding loop — they used to repeat the entire pause-OOM-checkpoint dance.
 

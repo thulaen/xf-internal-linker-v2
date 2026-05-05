@@ -37,6 +37,7 @@ from apps.core.views import (
     WeightedAuthoritySettingsView,
     UserMeView,
     UserLogoutView,
+    FirstOperatorSetupView,
     LocalVerificationBootstrapView,
     ActiveUsersView,
     GraphCandidateSettingsView,
@@ -184,6 +185,11 @@ urlpatterns = [
     path("auth/token/", obtain_auth_token, name="auth-token"),
     path("auth/me/", UserMeView.as_view(), name="user-me"),
     path("auth/logout/", UserLogoutView.as_view(), name="user-logout"),
+    path(
+        "auth/first-operator/",
+        FirstOperatorSetupView.as_view(),
+        name="auth-first-operator",
+    ),
     path(
         "auth/local-verification-bootstrap/",
         LocalVerificationBootstrapView.as_view(),

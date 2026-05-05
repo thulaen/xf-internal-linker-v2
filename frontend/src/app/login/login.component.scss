@@ -3,7 +3,7 @@
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: var(--color-surface-variant, #f8f9fa);
+  background: var(--color-bg-faint);
 }
 
 .login-card {
@@ -31,7 +31,7 @@
   margin: 0;
   font-size: 22px;
   font-weight: 400;
-  color: var(--color-text-primary, #202124);
+  color: var(--color-text-primary);
 }
 
 .login-subtitle {
@@ -53,7 +53,15 @@
 .login-error {
   margin: 0;
   font-size: 13px;
-  color: var(--color-error, #d93025);
+  color: var(--color-error);
+}
+
+.setup-note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: var(--line-height-base);
+  text-align: center;
 }
 
 .login-btn {
@@ -73,7 +81,7 @@
 .login-divider {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-sm);
   margin: var(--space-md) 0;
   color: var(--color-text-secondary);
   font-size: 12px;
@@ -91,8 +99,4 @@
 
 .login-passkey-btn {
   width: 100%;
-
-  mat-icon {
-    margin-right: 6px;
-  }
 }

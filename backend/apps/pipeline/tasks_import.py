@@ -408,6 +408,7 @@ def run_post_import_steps(
             job_id=job_id,
             force_reembed=state.force_reembed,
         )
+        _refresh_passages_for_updated_content(unique_updated_pks)
 
     if state.mode in {"titles", "full"}:
         _maybe_flush_and_checkpoint(state, job, interval=1, stage="pipeline")
@@ -422,3 +423,19 @@ def run_post_import_steps(
 
         run_weighted_pagerank()
         run_velocity(reference_ts=int(time.time()))
+
+
+def _refresh_passages_for_updated_content(content_item_ids: list[int]) -> int:
+    """Regenerate passage vectors only for content changed in this import run."""
+    from apps.content.models import ContentItem
+    from apps.pipeline.services.passage_relevance import regenerate_passage_embeddings_for
+
+    refreshed = 0
+    queryset = ContentItem.objects.select_related("post").filter(
+        pk__in=content_item_ids,
+        is_deleted=False,
+        duplicate_of__isnull=True,
+    )
+    for item in queryset.iterator(chunk_size=100):
+        refreshed += regenerate_passage_embeddings_for(item)
+    return refreshed

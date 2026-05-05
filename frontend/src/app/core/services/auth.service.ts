@@ -11,6 +11,11 @@ export interface AuthUser {
   date_joined: string;
 }
 
+export interface FirstOperatorSetupStatus {
+  available: boolean;
+  username: string;
+}
+
 /** Shared constant — also used by auth.interceptor.ts */
 export const TOKEN_KEY = 'xfil_auth_token';
 
@@ -75,6 +80,22 @@ export class AuthService {
       tap(({ token }) => {
         localStorage.setItem(TOKEN_KEY, token);
         // Gap 42 — anchor the countdown.
+        this.markTokenRefreshed();
+      }),
+      switchMap(() => this.http.get<AuthUser>('/api/auth/me/')),
+      tap(user => this.currentUserSub.next(user)),
+      map(() => void 0)
+    );
+  }
+
+  firstOperatorSetupStatus(): Observable<FirstOperatorSetupStatus> {
+    return this.http.get<FirstOperatorSetupStatus>('/api/auth/first-operator/');
+  }
+
+  setupFirstOperator(username: string, password: string): Observable<void> {
+    return this.http.post<{ token: string }>('/api/auth/first-operator/', { username, password }).pipe(
+      tap(({ token }) => {
+        localStorage.setItem(TOKEN_KEY, token);
         this.markTokenRefreshed();
       }),
       switchMap(() => this.http.get<AuthUser>('/api/auth/me/')),

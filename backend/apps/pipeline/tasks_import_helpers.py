@@ -329,6 +329,9 @@ def _persist_content_body(
 
     with transaction.atomic():
         content_item.content_hash = new_hash
+        content_item.content_version += 1
+        content_item.embedding_model_version = ""
+        content_item.embedding_text_hash = ""
 
         # Group D.4 — capture quotation density from the raw body BEFORE
         # the text_cleaner strip ran. We don't have the pre-strip text
@@ -530,6 +533,9 @@ def _persist_content_body(
         content_item.save(
             update_fields=[
                 "content_hash",
+                "content_version",
+                "embedding_model_version",
+                "embedding_text_hash",
                 "distilled_text",
                 "salient_entities",
                 "passages",

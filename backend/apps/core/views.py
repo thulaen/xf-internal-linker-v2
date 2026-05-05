@@ -5890,6 +5890,72 @@ class LocalVerificationBootstrapView(APIView):
         return user
 
 
+def _client_is_local_setup_request(request) -> bool:
+    """Return True only for localhost or the local Docker proxy path."""
+    peer_ip = request.META.get("REMOTE_ADDR", "")
+    forwarded_for = (
+        request.META.get("HTTP_X_FORWARDED_FOR") or ""
+    ).split(",")[0].strip()
+    if peer_ip in {"127.0.0.1", "::1"}:
+        return True
+    return peer_ip.startswith("172.") and forwarded_for in {"127.0.0.1", "::1"}
+
+
+class FirstOperatorSetupView(APIView):
+    """Create the first local operator account when the user table is empty."""
+
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        from django.contrib.auth import get_user_model
+
+        available = (
+            _client_is_local_setup_request(request)
+            and not get_user_model().objects.exists()
+        )
+        return Response({"available": available, "username": "admin"})
+
+    def post(self, request):
+        from django.contrib.auth import get_user_model
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError
+        from rest_framework.authtoken.models import Token
+
+        if not _client_is_local_setup_request(request):
+            return Response({"detail": "Not found."}, status=404)
+
+        user_model = get_user_model()
+        if user_model.objects.exists():
+            return Response(
+                {"detail": "First operator setup is already closed."},
+                status=404,
+            )
+
+        username = str(request.data.get("username") or "").strip()
+        password = str(request.data.get("password") or "")
+        email = str(request.data.get("email") or "admin@example.com").strip()
+        if username != "admin":
+            return Response(
+                {"detail": "The first operator username must be admin."},
+                status=400,
+            )
+        if not password:
+            return Response({"detail": "Password is required."}, status=400)
+        try:
+            validate_password(password)
+        except ValidationError as exc:
+            return Response({"detail": " ".join(exc.messages)}, status=400)
+
+        user = user_model.objects.create_superuser(
+            username=username,
+            email=email,
+            password=password,
+        )
+        token, _ = Token.objects.get_or_create(user=user)
+        return Response({"token": token.key, "username": user.username})
+
+
 class ActiveUsersView(APIView):
     """GET /api/auth/active-users/ — who has made an authenticated request recently.
 

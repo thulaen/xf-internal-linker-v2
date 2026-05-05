@@ -1094,3 +1094,90 @@ class LocalVerificationBootstrapTests(APITestCase):
         stale.refresh_from_db()
         self.assertTrue(stale.is_superuser)
         self.assertFalse(stale.has_usable_password())
+
+
+class FirstOperatorSetupTests(APITestCase):
+    def test_status_available_only_when_no_users_and_local(self):
+        response = self.client.get(
+            "/api/auth/first-operator/",
+            REMOTE_ADDR="127.0.0.1",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["available"])
+        self.assertEqual(response.json()["username"], "admin")
+
+    def test_status_closed_after_user_exists(self):
+        get_user_model().objects.create_user(username="existing", password="secret12345")
+
+        response = self.client.get(
+            "/api/auth/first-operator/",
+            REMOTE_ADDR="127.0.0.1",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["available"])
+
+    def test_create_first_admin_from_local_request(self):
+        response = self.client.post(
+            "/api/auth/first-operator/",
+            {"username": "admin", "password": "xyxy1022_XF_django"},
+            format="json",
+            REMOTE_ADDR="127.0.0.1",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["username"], "admin")
+        user = get_user_model().objects.get(username="admin")
+        self.assertTrue(user.is_staff)
+        self.assertTrue(user.is_superuser)
+        self.assertTrue(user.check_password("xyxy1022_XF_django"))
+        self.assertTrue(Token.objects.filter(user=user, key=data["token"]).exists())
+
+    def test_create_first_admin_allows_local_nginx_proxy(self):
+        response = self.client.post(
+            "/api/auth/first-operator/",
+            {"username": "admin", "password": "xyxy1022_XF_django"},
+            format="json",
+            REMOTE_ADDR="172.19.0.5",
+            HTTP_X_FORWARDED_FOR="127.0.0.1",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(get_user_model().objects.filter(username="admin").exists())
+
+    def test_rejects_non_local_request(self):
+        response = self.client.post(
+            "/api/auth/first-operator/",
+            {"username": "admin", "password": "xyxy1022_XF_django"},
+            format="json",
+            REMOTE_ADDR="203.0.113.42",
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(get_user_model().objects.exists())
+
+    def test_rejects_after_any_user_exists(self):
+        get_user_model().objects.create_user(username="existing", password="secret12345")
+
+        response = self.client.post(
+            "/api/auth/first-operator/",
+            {"username": "admin", "password": "xyxy1022_XF_django"},
+            format="json",
+            REMOTE_ADDR="127.0.0.1",
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(get_user_model().objects.filter(username="admin").exists())
+
+    def test_requires_admin_username(self):
+        response = self.client.post(
+            "/api/auth/first-operator/",
+            {"username": "other", "password": "xyxy1022_XF_django"},
+            format="json",
+            REMOTE_ADDR="127.0.0.1",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(get_user_model().objects.exists())

@@ -41,6 +41,7 @@ export class LoginComponent implements OnInit {
    *  endpoints respond (HEAD probe). */
   readonly passkeyAvailable = signal(false);
   readonly passkeyBusy = signal(false);
+  readonly firstOperatorSetupAvailable = signal(false);
 
   // ReactiveForms manages its own change detection internally — keep
   // the FormGroup as a plain field. Templates read `form.controls.X`
@@ -62,6 +63,17 @@ export class LoginComponent implements OnInit {
 
     // Phase F1 / Gap 95 — detect passkey availability.
     void this.passkey.isAvailable().then((avail) => this.passkeyAvailable.set(avail));
+    this.auth.firstOperatorSetupStatus()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (status) => {
+          this.firstOperatorSetupAvailable.set(status.available);
+          if (status.available) {
+            this.form.controls.username.setValue(status.username || 'admin');
+          }
+        },
+        error: () => this.firstOperatorSetupAvailable.set(false),
+      });
 
     // Redirect already-authenticated users away from login page
     this.auth.isChecking$.pipe(
@@ -84,7 +96,10 @@ export class LoginComponent implements OnInit {
     this.errorMessage.set('');
 
     const { username, password } = this.form.getRawValue();
-    this.auth.login(username, password)
+    const request$ = this.firstOperatorSetupAvailable()
+      ? this.auth.setupFirstOperator(username, password)
+      : this.auth.login(username, password);
+    request$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
       next: () => this.router.navigateByUrl(this.returnUrl),
@@ -123,6 +138,9 @@ export class LoginComponent implements OnInit {
       return 'Cannot reach the server. Check your connection.';
     }
     if (err.status === 401 || err.status === 400) {
+      if (this.firstOperatorSetupAvailable()) {
+        return err.error?.detail || 'Could not create the first operator account.';
+      }
       return 'Invalid username or password.';
     }
     if (err.status === 429) {
