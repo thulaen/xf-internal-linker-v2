@@ -388,6 +388,181 @@ def run_hits_refresh(job, checkpoint) -> None:
         release_task_lock("heavy", "hits_refresh")
 
 
+def _coerce_setting_int(raw_map: dict, key: str, default: int) -> int:
+    """Coerce a bulk-loaded AppSetting string to int with a default fallback."""
+    raw = raw_map.get(key)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return default
+
+
+def _coerce_setting_float(raw_map: dict, key: str, default: float) -> float:
+    """Coerce a bulk-loaded AppSetting string to float with a default fallback."""
+    raw = raw_map.get(key)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return default
+
+
+def _bulk_load_settings(keys: tuple[str, ...]) -> dict[str, str]:
+    """Single ``filter(key__in=...)`` query → dict for cheap dict.get coercions.
+
+    Use when a job needs ≥3 AppSetting reads at once. One DB round-trip
+    instead of N saves ~30-50ms per job invocation; multiplied across
+    daily / hourly schedules it's worth more than the function call cost.
+    """
+    from apps.core.models import AppSetting
+    return dict(
+        AppSetting.objects.filter(key__in=keys).values_list("key", "value"),
+    )
+
+
+_TRUSTRANK_SETTING_KEYS = (
+    "trustrank_auto_seeder.candidate_pool_size",
+    "trustrank_auto_seeder.seed_count_k",
+    "trustrank_auto_seeder.post_quality_min",
+    "trustrank_auto_seeder.readability_grade_max",
+    "trustrank_auto_seeder.spam_content_value_floor",
+)
+
+
+def _read_trustrank_seeder_settings() -> dict:
+    """Read all TrustRank tunables in one query; coerce + apply defaults."""
+    from apps.pipeline.services.trustrank_auto_seeder import (
+        DEFAULT_CANDIDATE_POOL_SIZE,
+        DEFAULT_POST_QUALITY_MIN,
+        DEFAULT_READABILITY_GRADE_MAX,
+        DEFAULT_SEED_COUNT_K,
+    )
+    raw = _bulk_load_settings(_TRUSTRANK_SETTING_KEYS)
+    return {
+        "candidate_pool_size": _coerce_setting_int(
+            raw, "trustrank_auto_seeder.candidate_pool_size", DEFAULT_CANDIDATE_POOL_SIZE,
+        ),
+        "seed_count_k": _coerce_setting_int(
+            raw, "trustrank_auto_seeder.seed_count_k", DEFAULT_SEED_COUNT_K,
+        ),
+        "post_quality_min": _coerce_setting_float(
+            raw, "trustrank_auto_seeder.post_quality_min", DEFAULT_POST_QUALITY_MIN,
+        ),
+        "readability_grade_max": _coerce_setting_float(
+            raw, "trustrank_auto_seeder.readability_grade_max",
+            DEFAULT_READABILITY_GRADE_MAX,
+        ),
+        # Spam flagging — no dedicated column, so very low content_value_score is
+        # the proxy. Tunable via AppSetting; 0.0 disables the spam filter entirely.
+        "spam_quality_floor": _coerce_setting_float(
+            raw, "trustrank_auto_seeder.spam_content_value_floor", 0.15,
+        ),
+    }
+
+
+def _build_trustrank_quality_maps(spam_quality_floor: float) -> tuple[dict, set]:
+    """Build per-node ``post_quality`` map + ``spam_flagged`` set from ContentItem."""
+    from apps.content.models import ContentItem
+    quality_rows = ContentItem.objects.filter(is_deleted=False).values_list(
+        "pk", "content_type", "content_value_score",
+    )
+    post_quality: dict = {}
+    spam_flagged: set = set()
+    for pk, content_type, value_score in quality_rows:
+        if value_score is None:
+            continue
+        key = (pk, content_type)
+        post_quality[key] = float(value_score)
+        if spam_quality_floor > 0.0 and float(value_score) <= spam_quality_floor:
+            spam_flagged.add(key)
+    return post_quality, spam_flagged
+
+
+def _build_trustrank_readability_map() -> dict:
+    """Build per-node ``readability_grade`` map from Post.flesch_kincaid_grade."""
+    from apps.content.models import Post
+    readability_grade: dict = {}
+    rows = (
+        Post.objects.select_related("content_item")
+        .filter(content_item__is_deleted=False)
+        .values_list(
+            "content_item__pk",
+            "content_item__content_type",
+            "flesch_kincaid_grade",
+        )
+    )
+    for pk, content_type, grade in rows:
+        if grade is not None and grade > 0.0:
+            readability_grade[(pk, content_type)] = float(grade)
+    return readability_grade
+
+
+def _persist_trustrank_seeds(seeds: list, reason: str, fallback_used: bool, rejected_count: int, checkpoint) -> None:
+    """Write the daily TrustRank seed list to AppSetting + report final progress."""
+    from apps.core.models import AppSetting
+    seed_ids = ",".join(str(s) for s in seeds)
+    AppSetting.objects.update_or_create(
+        key="trustrank.seed_ids",
+        defaults={
+            "value": seed_ids,
+            "description": "Auto-picked TrustRank seeds (daily refresh).",
+        },
+    )
+    checkpoint(
+        progress_pct=100.0,
+        message=(
+            f"Picked {len(seeds)} seeds "
+            f"({reason}; rejected={rejected_count}, "
+            f"fallback={'yes' if fallback_used else 'no'})"
+        ),
+    )
+
+
+def _run_trustrank_seeder_pipeline(checkpoint) -> None:
+    """Happy-path body for ``run_trustrank_auto_seeder`` (heavy-lock acquired)."""
+    from apps.pipeline.services.trustrank_auto_seeder import pick_seeds
+
+    g = _load_networkx_graph(checkpoint)
+    if g.number_of_nodes() == 0:
+        checkpoint(progress_pct=100.0, message="Empty graph — skip")
+        return
+    settings = _read_trustrank_seeder_settings()
+    checkpoint(
+        progress_pct=20.0,
+        message="Loading per-node quality + readability + spam maps",
+    )
+    post_quality, spam_flagged = _build_trustrank_quality_maps(
+        settings["spam_quality_floor"],
+    )
+    readability_grade = _build_trustrank_readability_map()
+    checkpoint(
+        progress_pct=50.0,
+        message=(
+            f"Picking seeds from pool={settings['candidate_pool_size']} "
+            f"k={settings['seed_count_k']} "
+            f"(quality={len(post_quality)}, "
+            f"readability={len(readability_grade)}, spam={len(spam_flagged)})"
+        ),
+    )
+    result = pick_seeds(
+        g,
+        candidate_pool_size=settings["candidate_pool_size"],
+        seed_count_k=settings["seed_count_k"],
+        spam_flagged=spam_flagged,
+        post_quality=post_quality,
+        post_quality_min=settings["post_quality_min"],
+        readability_grade=readability_grade,
+        readability_grade_max=settings["readability_grade_max"],
+    )
+    _persist_trustrank_seeds(
+        result.seeds, result.reason, result.fallback_used,
+        result.rejected_count, checkpoint,
+    )
+
+
 @scheduled_job(
     "trustrank_auto_seeder",
     display_name="TrustRank auto-seeder (inverse PageRank)",
@@ -398,165 +573,21 @@ def run_hits_refresh(job, checkpoint) -> None:
 def run_trustrank_auto_seeder(job, checkpoint) -> None:
     """Phase 5c — pick #51 wiring.
 
-    Reads the operator-tunable AppSettings the plan specified
-    (``trustrank_auto_seeder.*``) and feeds the seed picker
-    real per-node quality data:
-
-    - ``post_quality`` from ``ContentItem.content_value_score``
-    - ``readability_grade`` from ``Post.flesch_kincaid_grade``
-      (the Phase 3 #19 column we just shipped — single source of
-      truth for readability, no duplicate computation)
-    - ``spam_flagged`` from a low-quality threshold on
-      content_value_score (no dedicated spam column on ContentItem
-      yet; this is the closest available proxy)
-
-    Cold-start safe: every quality input is optional. Missing rows
-    pass the filter (the picker only rejects on affirmative low-
-    quality evidence — see ``pick_seeds`` docstring §3).
+    Reads ``trustrank_auto_seeder.*`` AppSettings + feeds the seed picker
+    per-node quality data: ``post_quality`` from ContentItem.content_value_score,
+    ``readability_grade`` from Post.flesch_kincaid_grade, ``spam_flagged``
+    from a low-quality threshold on content_value_score. Cold-start safe:
+    every quality input is optional and the picker only rejects on
+    affirmative low-quality evidence.
     """
-    from apps.content.models import ContentItem, Post
-    from apps.core.models import AppSetting
     from apps.pipeline.services.task_lock import release_task_lock
-    from apps.pipeline.services.trustrank_auto_seeder import (
-        DEFAULT_CANDIDATE_POOL_SIZE,
-        DEFAULT_POST_QUALITY_MIN,
-        DEFAULT_READABILITY_GRADE_MAX,
-        DEFAULT_SEED_COUNT_K,
-        pick_seeds,
-    )
 
     # Phase 0.8: Heavy-lock-aware TrustRank.
     if not _acquire_heavy_or_defer("trustrank_auto_seeder"):
         checkpoint(progress_pct=0.0, message="Heavy lock busy — deferring to next tick")
         return
-
-    g = _load_networkx_graph(checkpoint)
-    if g.number_of_nodes() == 0:
-        release_task_lock("heavy", "trustrank_auto_seeder")
-        checkpoint(progress_pct=100.0, message="Empty graph — skip")
-        return
-
-    # A.3 — batch all five AppSetting reads into one ``filter(key__in=...)``
-    # query so the daily run does ONE round-trip instead of five.
-    _SETTING_KEYS = (
-        "trustrank_auto_seeder.candidate_pool_size",
-        "trustrank_auto_seeder.seed_count_k",
-        "trustrank_auto_seeder.post_quality_min",
-        "trustrank_auto_seeder.readability_grade_max",
-        "trustrank_auto_seeder.spam_content_value_floor",
-    )
-    _settings_raw = dict(
-        AppSetting.objects.filter(key__in=_SETTING_KEYS).values_list("key", "value")
-    )
-
-    def _coerce_int(key: str, default: int) -> int:
-        raw = _settings_raw.get(key)
-        if raw is None:
-            return default
-        try:
-            return int(raw)
-        except (TypeError, ValueError):
-            return default
-
-    def _coerce_float(key: str, default: float) -> float:
-        raw = _settings_raw.get(key)
-        if raw is None:
-            return default
-        try:
-            return float(raw)
-        except (TypeError, ValueError):
-            return default
-
-    candidate_pool_size = _coerce_int(
-        "trustrank_auto_seeder.candidate_pool_size", DEFAULT_CANDIDATE_POOL_SIZE
-    )
-    seed_count_k = _coerce_int(
-        "trustrank_auto_seeder.seed_count_k", DEFAULT_SEED_COUNT_K
-    )
-    post_quality_min = _coerce_float(
-        "trustrank_auto_seeder.post_quality_min", DEFAULT_POST_QUALITY_MIN
-    )
-    readability_grade_max = _coerce_float(
-        "trustrank_auto_seeder.readability_grade_max",
-        DEFAULT_READABILITY_GRADE_MAX,
-    )
-    # Spam flagging — no dedicated column, so we treat very low
-    # content_value_score as the proxy. Tunable via AppSetting; 0.0
-    # disables the spam filter entirely.
-    spam_quality_floor = _coerce_float(
-        "trustrank_auto_seeder.spam_content_value_floor", 0.15
-    )
-
-    checkpoint(
-        progress_pct=20.0,
-        message="Loading per-node quality + readability + spam maps",
-    )
-
-    # Build per-node quality maps keyed by the (pk, content_type)
-    # tuple the graph uses. Single DB query each — O(N) memory but
-    # bounded by the active ContentItem table size, well below the
-    # 50 MB / 50 MB budget the plan calls out for pick #51.
-    quality_rows = ContentItem.objects.filter(is_deleted=False).values_list(
-        "pk", "content_type", "content_value_score"
-    )
-    post_quality: dict = {}
-    spam_flagged: set = set()
-    for pk, content_type, value_score in quality_rows:
-        key = (pk, content_type)
-        if value_score is not None:
-            post_quality[key] = float(value_score)
-            if spam_quality_floor > 0.0 and float(value_score) <= spam_quality_floor:
-                spam_flagged.add(key)
-
-    readability_rows = (
-        Post.objects.select_related("content_item")
-        .filter(content_item__is_deleted=False)
-        .values_list(
-            "content_item__pk",
-            "content_item__content_type",
-            "flesch_kincaid_grade",
-        )
-    )
-    readability_grade: dict = {}
-    for pk, content_type, grade in readability_rows:
-        if grade is not None and grade > 0.0:
-            readability_grade[(pk, content_type)] = float(grade)
-
-    checkpoint(
-        progress_pct=50.0,
-        message=(
-            f"Picking seeds from pool={candidate_pool_size} k={seed_count_k} "
-            f"(quality={len(post_quality)}, readability={len(readability_grade)}, "
-            f"spam={len(spam_flagged)})"
-        ),
-    )
     try:
-        result = pick_seeds(
-            g,
-            candidate_pool_size=candidate_pool_size,
-            seed_count_k=seed_count_k,
-            spam_flagged=spam_flagged,
-            post_quality=post_quality,
-            post_quality_min=post_quality_min,
-            readability_grade=readability_grade,
-            readability_grade_max=readability_grade_max,
-        )
-        seed_ids = ",".join(str(s) for s in result.seeds)
-        AppSetting.objects.update_or_create(
-            key="trustrank.seed_ids",
-            defaults={
-                "value": seed_ids,
-                "description": "Auto-picked TrustRank seeds (daily refresh).",
-            },
-        )
-        checkpoint(
-            progress_pct=100.0,
-            message=(
-                f"Picked {len(result.seeds)} seeds "
-                f"({result.reason}; rejected={result.rejected_count}, "
-                f"fallback={'yes' if result.fallback_used else 'no'})"
-            ),
-        )
+        _run_trustrank_seeder_pipeline(checkpoint)
     finally:
         release_task_lock("heavy", "trustrank_auto_seeder")
 
@@ -652,6 +683,16 @@ def run_weight_tuner_lbfgs_tpe(job, checkpoint) -> None:
         )
 
 
+def _log_aci_alpha_update(aci) -> None:
+    """Log the ACI α adaptation iff observations were processed."""
+    if aci.observations_processed > 0:
+        logger.info(
+            "ACI: α %.4f → %.4f after %d observations (coverage %.2f)",
+            aci.previous_alpha, aci.current_alpha,
+            aci.observations_processed, aci.observed_coverage,
+        )
+
+
 @scheduled_job(
     "conformal_prediction_refresh",
     display_name="Conformal prediction calibration refresh",
@@ -662,19 +703,11 @@ def run_weight_tuner_lbfgs_tpe(job, checkpoint) -> None:
 def run_conformal_prediction_refresh(job, checkpoint) -> None:
     """Pick #50 + #52 — weekly conformal refresh with online α adaptation.
 
-    Two-step refresh that wires both picks in one scheduled job:
-
-    1. **Pick #52 (ACI)** — pull recent reviewed Suggestions whose
-       conformal bounds were populated, compute observed coverage,
-       update the persisted α via Gibbs-Candès Algorithm 1. Cold
-       start: no observations → α stays at the static target.
-    2. **Pick #50** — fit a fresh split-conformal calibration using
-       the (possibly adapted) α from step 1, persist the four
-       AppSetting rows the Suggestion-write consumer reads.
-
-    Either step can no-op without breaking the other — ACI returns
-    the prior α when there's nothing to observe, and the conformal
-    fit runs on whatever α it gets.
+    Two-step: (1) Pick #52 ACI updates α via Gibbs-Candès Algorithm 1
+    from recent reviewed Suggestions; (2) Pick #50 fits fresh
+    split-conformal calibration with the adapted α and persists the
+    4 AppSetting rows the Suggestion-write consumer reads. Either
+    step can no-op safely.
     """
     from apps.pipeline.services.adaptive_conformal_producer import (
         update_alpha_from_recent_outcomes,
@@ -684,18 +717,10 @@ def run_conformal_prediction_refresh(job, checkpoint) -> None:
     )
 
     checkpoint(
-        progress_pct=10.0, message="ACI: updating α from recent outcomes (pick #52)"
+        progress_pct=10.0, message="ACI: updating α from recent outcomes (pick #52)",
     )
     aci = update_alpha_from_recent_outcomes()
-    if aci.observations_processed > 0:
-        logger.info(
-            "ACI: α %.4f → %.4f after %d observations (coverage %.2f)",
-            aci.previous_alpha,
-            aci.current_alpha,
-            aci.observations_processed,
-            aci.observed_coverage,
-        )
-
+    _log_aci_alpha_update(aci)
     checkpoint(progress_pct=50.0, message="Fitting conformal calibration (pick #50)")
     snapshot = fit_and_persist_from_history(alpha=aci.current_alpha)
     if snapshot is None:
@@ -794,6 +819,23 @@ def run_meta_hyperparameter_hpo(job, checkpoint) -> None:
     logger.info("meta_hyperparameter_hpo: %s", msg)
 
 
+def _read_meta_hpo_applied_at(checkpoint):
+    """Parse the persisted apply-timestamp; return datetime or None to short-circuit."""
+    from datetime import datetime
+    from apps.core.models import AppSetting
+
+    applied_at_raw = AppSetting.get_str("meta_hpo.applied_at", "")
+    if not applied_at_raw:
+        checkpoint(progress_pct=100.0, message="No prior apply — nothing to watch")
+        return None
+    try:
+        return datetime.fromisoformat(applied_at_raw)
+    except ValueError:
+        logger.warning("meta_hpo_rollback_watchdog: bad applied_at: %s", applied_at_raw)
+        checkpoint(progress_pct=100.0, message="Malformed applied_at — skip")
+        return None
+
+
 @scheduled_job(
     "meta_hpo_rollback_watchdog",
     display_name="Meta-HPO rollback watchdog (CTR regression check)",
@@ -804,13 +846,10 @@ def run_meta_hyperparameter_hpo(job, checkpoint) -> None:
 def run_meta_hpo_rollback_watchdog(job, checkpoint) -> None:
     """Daily check — did CTR drop materially since the last auto-apply?
 
-    Rail 3 of the fully-automatic safety stack. Restores the
-    previous snapshot when the drop exceeds 5% over a 24-h post-apply
-    window.
+    Rail 3 of the fully-automatic safety stack. Restores the previous
+    snapshot when the drop exceeds 5% over a 24-h post-apply window.
     """
-    from datetime import datetime, timedelta
-
-    from apps.core.models import AppSetting
+    from datetime import timedelta
     from apps.pipeline.services.meta_hpo_safety import (
         ROLLBACK_OBSERVATION_HOURS,
         restore_previous_snapshot,
@@ -818,57 +857,37 @@ def run_meta_hpo_rollback_watchdog(job, checkpoint) -> None:
     )
 
     checkpoint(progress_pct=0.0, message="Reading last applied timestamp")
-    # Group D consolidation (2026-04-28): single shared helper.
-    applied_at_raw = AppSetting.get_str("meta_hpo.applied_at", "")
-    if not applied_at_raw:
-        checkpoint(progress_pct=100.0, message="No prior apply — nothing to watch")
+    applied_at = _read_meta_hpo_applied_at(checkpoint)
+    if applied_at is None:
         return
-
-    try:
-        applied_at = datetime.fromisoformat(applied_at_raw)
-    except ValueError:
-        logger.warning("meta_hpo_rollback_watchdog: bad applied_at: %s", applied_at_raw)
-        checkpoint(progress_pct=100.0, message="Malformed applied_at — skip")
-        return
-
     if timezone.now() - applied_at < timedelta(hours=ROLLBACK_OBSERVATION_HOURS):
         checkpoint(
             progress_pct=100.0,
             message="Post-apply window not yet elapsed — nothing to decide",
         )
         return
-
-    # W1 ships the decision path with placeholder CTR values so the
-    # rail is installed and tested. W3 wires GSC / click-log
-    # ingestion to fill these in with real data.
+    # W1 ships the decision path with placeholder CTR values so the rail
+    # is installed and tested. W3 wires GSC / click-log ingestion in.
     checkpoint(
         progress_pct=40.0,
         message="Computing 24-h CTR vs 7-day baseline (placeholder until W3)",
     )
-    baseline_ctr = 0.20
-    observed_ctr = 0.20
-    decision = should_rollback(baseline_ctr=baseline_ctr, observed_ctr=observed_ctr)
-
-    if decision.rollback:
-        checkpoint(
-            progress_pct=70.0,
-            message=f"ROLLBACK triggered: {decision.reason}",
-        )
-        restored = restore_previous_snapshot()
-        logger.warning(
-            "meta_hpo_rollback_watchdog: rolled back (%s); %d params restored",
-            decision.reason,
-            len(restored),
-        )
-        checkpoint(
-            progress_pct=100.0,
-            message=f"Rolled back — {len(restored)} params restored",
-        )
-    else:
-        checkpoint(
-            progress_pct=100.0,
-            message=f"No regression ({decision.reason})",
-        )
+    decision = should_rollback(baseline_ctr=0.20, observed_ctr=0.20)
+    if not decision.rollback:
+        checkpoint(progress_pct=100.0, message=f"No regression ({decision.reason})")
+        return
+    checkpoint(
+        progress_pct=70.0, message=f"ROLLBACK triggered: {decision.reason}",
+    )
+    restored = restore_previous_snapshot()
+    logger.warning(
+        "meta_hpo_rollback_watchdog: rolled back (%s); %d params restored",
+        decision.reason, len(restored),
+    )
+    checkpoint(
+        progress_pct=100.0,
+        message=f"Rolled back — {len(restored)} params restored",
+    )
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -890,6 +909,53 @@ def _deferred_pick_entrypoint(pick_name: str, pip_dep: str):
     return _entrypoint
 
 
+_LDA_MIN_TOKEN_LENGTH = 3
+_LDA_MIN_DOCUMENT_COUNT = 2
+
+
+def _build_lda_documents() -> list[list[str]]:
+    """Tokenise ContentItem titles into a per-document list of stop-filtered tokens.
+
+    Uses the existing simple word splitter so the vocabulary is consistent
+    with the lexical retriever.
+    """
+    from apps.content.models import ContentItem
+    from apps.pipeline.services.text_tokens import (
+        STANDARD_ENGLISH_STOPWORDS, TOKEN_RE,
+    )
+
+    documents: list[list[str]] = []
+    title_iter = ContentItem.objects.exclude(embedding__isnull=True).values_list(
+        "title", flat=True,
+    )
+    for clean_text in title_iter:
+        if not clean_text:
+            continue
+        toks = [
+            t.lower()
+            for t in TOKEN_RE.findall(clean_text)
+            if len(t) >= _LDA_MIN_TOKEN_LENGTH and t.lower() not in STANDARD_ENGLISH_STOPWORDS
+        ]
+        if toks:
+            documents.append(toks)
+    return documents
+
+
+def _persist_lda_model_paths(model_path: str, dict_path: str) -> None:
+    """Write both AppSetting rows that ``lda_topics.infer_topics`` reads."""
+    from apps.core.models import AppSetting
+    from apps.pipeline.services import lda_topics
+
+    description = "Pick #18 LDA topic model — refit weekly by lda_topic_refresh."
+    for key, value in (
+        (lda_topics.KEY_MODEL_PATH, model_path),
+        (lda_topics.KEY_DICT_PATH, dict_path),
+    ):
+        AppSetting.objects.update_or_create(
+            key=key, defaults={"value": value, "description": description},
+        )
+
+
 @scheduled_job(
     "lda_topic_refresh",
     display_name="LDA topic refresh",
@@ -900,17 +966,15 @@ def _deferred_pick_entrypoint(pick_name: str, pip_dep: str):
 def run_lda_topic_refresh(job, checkpoint) -> None:
     """Weekly LDA topic-model refit over the corpus (pick #18, gensim).
 
-    Phase 6.3 wiring: if gensim is installed, train LDA over the
-    cleaned text of every ContentItem with a non-null
-    ``clean_text``. Persist the model + dictionary on disk and
-    point the AppSetting paths at them so :func:`lda_topics.infer_topics`
-    picks up the fresh model on the next call.
+    If gensim is installed, train LDA over the cleaned text of every
+    ContentItem with a non-null clean_text. Persist the model + dictionary
+    on disk and point the AppSetting paths at them so
+    ``lda_topics.infer_topics`` picks up the fresh model.
 
-    Cold-start safe: gensim missing → raises ``DeferredPickError``
-    so operators see the deferred state in the Scheduled Updates
-    History tab. Insufficient corpus (<2 docs) → no-op with progress
-    note.
+    Cold-start safe: gensim missing → DeferredPickError; <2 docs → no-op.
     """
+    import os
+    from django.conf import settings as django_settings
     from apps.pipeline.services import lda_topics
 
     if not lda_topics.is_available():
@@ -919,80 +983,88 @@ def run_lda_topic_refresh(job, checkpoint) -> None:
             message="LDA topic refresh deferred — install `gensim` to enable",
         )
         raise DeferredPickError(
-            "LDA topic refresh depends on `gensim` which is not installed."
+            "LDA topic refresh depends on `gensim` which is not installed.",
         )
-
-    import os
-
-    from apps.content.models import ContentItem
-    from apps.core.models import AppSetting
-    from django.conf import settings as django_settings
-
     checkpoint(progress_pct=10.0, message="Loading corpus from ContentItem.clean_text")
-
-    # Tokenise via the existing simple word splitter so the
-    # vocabulary is consistent with the lexical retriever.
-    from apps.pipeline.services.text_tokens import (
-        STANDARD_ENGLISH_STOPWORDS,
-        TOKEN_RE,
-    )
-
-    documents: list[list[str]] = []
-    for clean_text in ContentItem.objects.exclude(embedding__isnull=True).values_list(
-        "title", flat=True
-    ):
-        if not clean_text:
-            continue
-        toks = [
-            t.lower()
-            for t in TOKEN_RE.findall(clean_text)
-            if len(t) >= 3 and t.lower() not in STANDARD_ENGLISH_STOPWORDS
-        ]
-        if toks:
-            documents.append(toks)
-
-    if len(documents) < 2:
+    documents = _build_lda_documents()
+    if len(documents) < _LDA_MIN_DOCUMENT_COUNT:
         checkpoint(
             progress_pct=100.0,
             message=f"Only {len(documents)} corpus docs — refit skipped",
         )
         return
-
     # Persist on the media volume so docker mounts survive rebuilds.
     media_root = getattr(django_settings, "MEDIA_ROOT", "/app/media")
     out_dir = os.path.join(media_root, "lda")
     os.makedirs(out_dir, exist_ok=True)
     model_path = os.path.join(out_dir, "lda.model")
     dict_path = os.path.join(out_dir, "lda.dict")
-
     checkpoint(progress_pct=40.0, message=f"Training LDA over {len(documents)} docs")
-    ok = lda_topics.fit_and_save(
-        documents,
-        model_path=model_path,
-        dict_path=dict_path,
-    )
-    if not ok:
+    if not lda_topics.fit_and_save(
+        documents, model_path=model_path, dict_path=dict_path,
+    ):
         checkpoint(progress_pct=100.0, message="LDA training reported failure")
         return
-
-    for key, value in (
-        (lda_topics.KEY_MODEL_PATH, model_path),
-        (lda_topics.KEY_DICT_PATH, dict_path),
-    ):
-        AppSetting.objects.update_or_create(
-            key=key,
-            defaults={
-                "value": value,
-                "description": (
-                    "Pick #18 LDA topic model — refit weekly by " "lda_topic_refresh."
-                ),
-            },
-        )
-
+    _persist_lda_model_paths(model_path, dict_path)
     checkpoint(
         progress_pct=100.0,
         message=f"LDA model refit complete — {len(documents)} docs trained",
     )
+
+
+_KENLM_MIN_CORPUS_LINES = 100
+_KENLM_MIN_SENTENCE_CHARS = 10
+_KENLM_SENTENCE_CHUNK_SIZE = 5000
+_KENLM_MODEL_DESCRIPTION = (
+    "Pick #23 KenLM trigram fluency model — refit weekly by "
+    "kenlm_retrain via the lmplz binary. ARPA format; "
+    "loaded directly by kenlm.Model."
+)
+
+
+def _check_kenlm_dependencies(checkpoint) -> bool:
+    """Verify pip + binary deps. Raises DeferredPickError or returns the pip-state flag."""
+    from apps.pipeline.services import kenlm_fluency
+
+    pip_ok = kenlm_fluency.is_available()
+    binary_ok = kenlm_fluency.lmplz_available()
+    if not (pip_ok or binary_ok):
+        checkpoint(
+            progress_pct=0.0,
+            message="KenLM deferred — install `kenlm` pip dep AND `lmplz` binary",
+        )
+        raise DeferredPickError(
+            "KenLM retrain requires both the `kenlm` pip package (for inference) "
+            "and the `lmplz` binary (for training). Neither is currently available.",
+        )
+    if not binary_ok:
+        checkpoint(
+            progress_pct=0.0,
+            message="`lmplz` binary not on PATH — KenLM retrain deferred",
+        )
+        raise DeferredPickError(
+            "KenLM retrain requires the `lmplz` binary. Install via "
+            "`apt install kenlm-tools` or build from source.",
+        )
+    return pip_ok
+
+
+def _build_kenlm_corpus_lines() -> list[str]:
+    """Stream Sentence.text rows + filter blanks/very-short lines."""
+    from apps.content.models import Sentence
+
+    corpus_lines: list[str] = []
+    iterator = Sentence.objects.values_list("text", flat=True).iterator(
+        chunk_size=_KENLM_SENTENCE_CHUNK_SIZE,
+    )
+    for text in iterator:
+        if not text:
+            continue
+        cleaned = " ".join(text.split())
+        if len(cleaned) < _KENLM_MIN_SENTENCE_CHARS:
+            continue
+        corpus_lines.append(cleaned)
+    return corpus_lines
 
 
 @scheduled_job(
@@ -1005,110 +1077,42 @@ def run_lda_topic_refresh(job, checkpoint) -> None:
 def run_kenlm_retrain(job, checkpoint) -> None:
     """Weekly KenLM trigram refit over corpus sentences (pick #23).
 
-    W1.4 wiring (replaces the deferred stub): builds a corpus of
-    sentence text from existing :class:`Sentence` rows, pipes it to
-    the ``lmplz`` binary via subprocess, and writes the resulting
-    ARPA file to ``MEDIA_ROOT/kenlm/model.arpa``. Sets the
-    ``kenlm.model_path`` AppSetting so :func:`kenlm_fluency.score_fluency`
-    auto-activates on the next call.
+    Builds a corpus of sentence text from existing Sentence rows, pipes
+    it to the lmplz binary via subprocess, and writes the resulting ARPA
+    file to MEDIA_ROOT/kenlm/model.arpa. Sets kenlm.model_path AppSetting
+    so kenlm_fluency.score_fluency auto-activates on the next call.
 
-    Cold-start safe at every layer:
-    - ``kenlm`` pip dep missing AND ``lmplz`` not on PATH →
-      ``DeferredPickError`` so the operator sees the deferred state.
-    - ``lmplz`` available but ``kenlm`` pip missing → still trains
-      the ARPA file (operator can install ``kenlm`` later for
-      inference). Reports the half-state in the progress message.
-    - <100 sentences → no-op (lmplz needs a real corpus).
-    - Subprocess failure → logged + AppSetting untouched.
-
-    Real-data ready: install ``kenlm`` (pip) and `lmplz` (apt /
-    brew / source build) and the W1 job auto-fits.
+    Cold-start safe: pip + binary missing → DeferredPickError; <100
+    sentences → no-op; subprocess failure → previous model preserved.
     """
+    from apps.core.models import AppSetting
     from apps.pipeline.services import kenlm_fluency
 
-    pip_ok = kenlm_fluency.is_available()
-    binary_ok = kenlm_fluency.lmplz_available()
-
-    if not (pip_ok or binary_ok):
-        checkpoint(
-            progress_pct=0.0,
-            message="KenLM deferred — install `kenlm` pip dep AND `lmplz` binary",
-        )
-        raise DeferredPickError(
-            "KenLM retrain requires both the `kenlm` pip package (for inference) "
-            "and the `lmplz` binary (for training). Neither is currently available."
-        )
-
-    if not binary_ok:
-        checkpoint(
-            progress_pct=0.0,
-            message="`lmplz` binary not on PATH — KenLM retrain deferred",
-        )
-        raise DeferredPickError(
-            "KenLM retrain requires the `lmplz` binary. Install via "
-            "`apt install kenlm-tools` or build from source."
-        )
-
-    import os
-
-    from django.conf import settings as django_settings
-
-    from apps.content.models import Sentence
-    from apps.core.models import AppSetting
-
+    pip_ok = _check_kenlm_dependencies(checkpoint)
     checkpoint(progress_pct=10.0, message="Loading sentences from corpus")
-
-    # Only feed reasonably-clean sentences. Skip empty / very short
-    # rows — they don't help trigram statistics.
-    corpus_lines: list[str] = []
-    for text in Sentence.objects.values_list("text", flat=True).iterator(
-        chunk_size=5000
-    ):
-        if not text:
-            continue
-        cleaned = " ".join(text.split())
-        if len(cleaned) < 10:
-            continue
-        corpus_lines.append(cleaned)
-
-    if len(corpus_lines) < 100:
+    corpus_lines = _build_kenlm_corpus_lines()
+    if len(corpus_lines) < _KENLM_MIN_CORPUS_LINES:
         checkpoint(
             progress_pct=100.0,
-            message=f"Only {len(corpus_lines)} sentences (<100) — KenLM retrain skipped",
+            message=f"Only {len(corpus_lines)} sentences (<{_KENLM_MIN_CORPUS_LINES}) — KenLM retrain skipped",
         )
         return
-
-    media_root = getattr(django_settings, "MEDIA_ROOT", "/app/media")
-    out_dir = os.path.join(media_root, "kenlm")
-    os.makedirs(out_dir, exist_ok=True)
-    output_path = os.path.join(out_dir, "model.arpa")
-
+    output_path = _ensure_model_output_path("kenlm", filename="model.arpa")
     checkpoint(
         progress_pct=30.0,
         message=f"Running lmplz over {len(corpus_lines)} sentences (trigram)",
     )
-    ok = kenlm_fluency.fit_arpa_with_lmplz(
-        corpus_lines=corpus_lines,
-        output_arpa_path=output_path,
-        order=3,
-    )
-    if not ok:
+    if not kenlm_fluency.fit_arpa_with_lmplz(
+        corpus_lines=corpus_lines, output_arpa_path=output_path, order=3,
+    ):
         checkpoint(
             progress_pct=100.0,
             message="lmplz reported failure — keeping previous KenLM model",
         )
         return
-
     AppSetting.objects.update_or_create(
         key=kenlm_fluency.KEY_MODEL_PATH,
-        defaults={
-            "value": output_path,
-            "description": (
-                "Pick #23 KenLM trigram fluency model — refit weekly by "
-                "kenlm_retrain via the lmplz binary. ARPA format; "
-                "loaded directly by kenlm.Model."
-            ),
-        },
+        defaults={"value": output_path, "description": _KENLM_MODEL_DESCRIPTION},
     )
     half_state = (
         "" if pip_ok else " (kenlm pip dep still missing — install for inference)"
@@ -1116,6 +1120,37 @@ def run_kenlm_retrain(job, checkpoint) -> None:
     checkpoint(
         progress_pct=100.0,
         message=f"KenLM ARPA persisted from {len(corpus_lines)} sentences{half_state}",
+    )
+
+
+def _build_node2vec_edge_triples(graph) -> list[tuple]:
+    """Convert directed graph's edges into ``(src, dst, weight)`` string triples.
+
+    node2vec internally treats them as undirected for walks; weights bias
+    the walk transition probabilities. String keys are required because
+    the underlying Word2Vec needs hashable string nodes.
+    """
+    edges: list[tuple] = []
+    for src, dst, data in graph.edges(data=True):
+        weight = float(data.get("weight", 1.0)) if data else 1.0
+        edges.append((str(src), str(dst), weight))
+    return edges
+
+
+_NODE2VEC_DESCRIPTION = (
+    "Pick #37 Node2Vec embeddings — refit weekly by node2vec_walks. "
+    "Pickled dict {node_str: vector}."
+)
+
+
+def _persist_node2vec_path(output_path: str) -> None:
+    """Write the Node2Vec embeddings-path AppSetting row."""
+    from apps.core.models import AppSetting
+    from apps.pipeline.services import node2vec_embeddings
+
+    AppSetting.objects.update_or_create(
+        key=node2vec_embeddings.KEY_EMBEDDINGS_PATH,
+        defaults={"value": output_path, "description": _NODE2VEC_DESCRIPTION},
     )
 
 
@@ -1129,21 +1164,9 @@ def run_kenlm_retrain(job, checkpoint) -> None:
 def run_node2vec_walks(job, checkpoint) -> None:
     """Weekly Node2Vec embedding refit over the internal-link graph (pick #37).
 
-    W1.1 wiring (replaces the deferred stub): reuses the same
-    weighted-PageRank graph loader that the HITS / PPR / TrustRank
-    jobs use — no new graph extractor. Edge list is derived from the
-    persisted adjacency matrix, fed straight into the
-    :func:`node2vec_embeddings.fit_and_save` helper, which trains
-    via ``node2vec`` + ``gensim`` and pickles the per-node vector dict.
-
-    Cold-start safe end-to-end:
-    - Pip dep missing → raises ``DeferredPickError`` so operators see
-      the deferred state in the dashboard.
-    - Graph empty (no internal links yet) → no-op with progress note.
-    - Training raises → ``fit_and_save`` returns False; job logs and
-      finishes cleanly.
-    - Successful train → AppSetting ``node2vec.embeddings_path`` points
-      at the persisted pickle so :func:`vector_for` auto-activates.
+    Reuses the weighted-PageRank graph loader as HITS / PPR / TrustRank.
+    Cold-start safe: pip dep missing → defer; empty graph → no-op;
+    training failure → previous embeddings preserved.
     """
     from apps.pipeline.services import node2vec_embeddings
 
@@ -1154,13 +1177,8 @@ def run_node2vec_walks(job, checkpoint) -> None:
         )
         raise DeferredPickError(
             "Node2Vec depends on `node2vec` (which itself wraps gensim + networkx) "
-            "which is not installed."
+            "which is not installed.",
         )
-
-    import os
-
-    from django.conf import settings as django_settings
-
     g = _load_networkx_graph(checkpoint)
     if g.number_of_nodes() < 2:
         checkpoint(
@@ -1168,53 +1186,22 @@ def run_node2vec_walks(job, checkpoint) -> None:
             message=f"Graph has only {g.number_of_nodes()} nodes — skip Node2Vec",
         )
         return
-
-    # Convert the directed graph's edges into (src, dst, weight) triples.
-    # node2vec internally treats them as undirected for walks; weights
-    # bias the walk transition probabilities.
-    edges: list[tuple] = []
-    for src, dst, data in g.edges(data=True):
-        weight = float(data.get("weight", 1.0)) if data else 1.0
-        # Use a string-stable key per the helper's API contract — the
-        # underlying Word2Vec needs hashable string nodes.
-        edges.append((str(src), str(dst), weight))
-
+    edges = _build_node2vec_edge_triples(g)
     if not edges:
         checkpoint(progress_pct=100.0, message="No edges in graph — skip Node2Vec")
         return
-
-    media_root = getattr(django_settings, "MEDIA_ROOT", "/app/media")
-    out_dir = os.path.join(media_root, "node2vec")
-    os.makedirs(out_dir, exist_ok=True)
-    output_path = os.path.join(out_dir, "embeddings.pkl")
-
+    output_path = _ensure_model_output_path("node2vec", filename="embeddings.pkl")
     checkpoint(
         progress_pct=20.0,
         message=f"Training Node2Vec over {g.number_of_nodes()} nodes / {len(edges)} edges",
     )
-    ok = node2vec_embeddings.fit_and_save(
-        edges=edges,
-        output_path=output_path,
-    )
-    if not ok:
+    if not node2vec_embeddings.fit_and_save(edges=edges, output_path=output_path):
         checkpoint(
             progress_pct=100.0,
             message="Node2Vec training reported failure — keeping previous embeddings",
         )
         return
-
-    from apps.core.models import AppSetting
-
-    AppSetting.objects.update_or_create(
-        key=node2vec_embeddings.KEY_EMBEDDINGS_PATH,
-        defaults={
-            "value": output_path,
-            "description": (
-                "Pick #37 Node2Vec embeddings — refit weekly by node2vec_walks. "
-                "Pickled dict {node_str: vector}."
-            ),
-        },
-    )
+    _persist_node2vec_path(output_path)
     checkpoint(
         progress_pct=100.0,
         message=f"Node2Vec persisted: {g.number_of_nodes()} node embeddings",
@@ -1340,6 +1327,28 @@ def run_near_duplicate_cluster_refresh(job, checkpoint) -> None:
 # ────────────────────────────────────────────────────────────────────
 
 
+def _summarize_cascade_snapshots(review_snap, impression_snap) -> str:
+    """Build a one-line summary of cascade re-estimate snapshots."""
+    parts: list[str] = []
+    if review_snap is not None:
+        parts.append(
+            f"review-queue Cascade: {len(review_snap.cascade_relevance)} dests "
+            f"+ IPS CTR: {len(review_snap.ips_weighted_ctr)} positions "
+            f"({review_snap.training_runs} runs)",
+        )
+    else:
+        parts.append("review-queue Cascade: insufficient history")
+    if impression_snap is not None:
+        parts.append(
+            f"impression Cascade: {len(impression_snap.relevance)} dests "
+            f"({impression_snap.sessions} sessions, "
+            f"{impression_snap.observations} impressions)",
+        )
+    else:
+        parts.append("impression Cascade: cold-start (insufficient impressions)")
+    return "; ".join(parts)
+
+
 @scheduled_job(
     "cascade_click_em_re_estimate",
     display_name="Cascade click-model re-estimate",
@@ -1350,23 +1359,11 @@ def run_near_duplicate_cluster_refresh(job, checkpoint) -> None:
 def run_cascade_click_em_re_estimate(job, checkpoint) -> None:
     """Weekly re-estimate of Cascade doc relevance (pick #34).
 
-    Two complementary fits run side-by-side:
-
-    1. :func:`feedback_relevance.compute_and_persist` — uses the
-       review-queue history (PipelineRun + Suggestion ranks) as the
-       click stream. Always-on data on an internal-linker product.
-       Persists to ``feedback_relevance.cascade.json``.
-    2. :func:`cascade_click_em_producer.fit_and_persist_from_impressions`
-       — uses the new ``SuggestionImpression`` rows logged by the
-       frontend's review-queue viewport hook. Direct cascade EM on
-       per-impression click data. Cold-start safe: until the
-       frontend hook lands and impressions accumulate, this no-ops
-       cleanly. Persists to ``cascade_click_em.relevance.json``.
-
-    The two tables live in separate AppSetting namespaces — neither
-    overwrites the other. Group A.4 will wire consumers to prefer
-    the impression-based table when populated and fall back to the
-    review-queue table otherwise.
+    Two complementary fits side-by-side: review-queue history (always-on)
+    via ``feedback_relevance.compute_and_persist`` and frontend-logged
+    impressions via ``cascade_click_em_producer.fit_and_persist_from_impressions``.
+    Cold-start safe: impression fit no-ops until the frontend hook lands.
+    Both persist to separate AppSetting namespaces.
     """
     from apps.pipeline.services.cascade_click_em_producer import (
         fit_and_persist_from_impressions as fit_cascade_from_impressions,
@@ -1375,32 +1372,34 @@ def run_cascade_click_em_re_estimate(job, checkpoint) -> None:
 
     checkpoint(progress_pct=0.0, message="Aggregating Cascade + IPS feedback")
     review_snap = compute_and_persist()
-
     checkpoint(
         progress_pct=50.0,
         message="Fitting Cascade from SuggestionImpression rows",
     )
     impression_snap = fit_cascade_from_impressions()
+    checkpoint(
+        progress_pct=100.0,
+        message=_summarize_cascade_snapshots(review_snap, impression_snap),
+    )
 
+
+def _summarize_position_bias_snapshots(cascade_snap, eta_snap) -> str:
+    """Build a one-line summary of position-bias IPS refit snapshots."""
     parts: list[str] = []
-    if review_snap is not None:
+    if cascade_snap is not None:
         parts.append(
-            f"review-queue Cascade: {len(review_snap.cascade_relevance)} dests "
-            f"+ IPS CTR: {len(review_snap.ips_weighted_ctr)} positions "
-            f"({review_snap.training_runs} runs)"
+            f"per-position CTR: {len(cascade_snap.ips_weighted_ctr)} positions "
+            f"({cascade_snap.training_runs} runs)",
         )
     else:
-        parts.append("review-queue Cascade: insufficient history")
-    if impression_snap is not None:
+        parts.append("per-position CTR: insufficient review history")
+    if eta_snap is not None:
         parts.append(
-            f"impression Cascade: {len(impression_snap.relevance)} dests "
-            f"({impression_snap.sessions} sessions, "
-            f"{impression_snap.observations} impressions)"
+            f"η fit: {eta_snap.eta:.3f} from {eta_snap.observations} impressions",
         )
     else:
-        parts.append("impression Cascade: cold-start (insufficient impressions)")
-
-    checkpoint(progress_pct=100.0, message="; ".join(parts))
+        parts.append("η fit: cold-start (insufficient impressions)")
+    return "; ".join(parts)
 
 
 @scheduled_job(
@@ -1413,24 +1412,11 @@ def run_cascade_click_em_re_estimate(job, checkpoint) -> None:
 def run_position_bias_ips_refit(job, checkpoint) -> None:
     """Weekly refit of position-bias IPS weights (pick #33).
 
-    Two complementary refits run side-by-side:
-
-    1. :func:`feedback_relevance.compute_and_persist` — uses the
-       review-queue history (PipelineRun + Suggestion ranks) as the
-       click stream. Persists per-position IPS-weighted CTR. This
-       always has data because operator review is the click stream
-       for an internal-linker product.
-    2. :func:`position_bias_ips_producer.fit_and_persist_from_impressions`
-       — uses the new ``SuggestionImpression`` rows logged by the
-       frontend's review-queue viewport hook. Fits the η exponent of
-       the power-law propensity. Cold-start safe: until the frontend
-       hook lands and impressions accumulate, this no-ops cleanly
-       and the consumer (``feedback_relevance._compute_ips_ctr`` once
-       Group A.4 wires it) keeps using the helper's default η=1.0.
-
-    Both keys are namespaced separately in AppSetting
-    (``feedback_relevance.*`` vs ``position_bias_ips.*``) so neither
-    overwrites the other's data.
+    Two complementary refits side-by-side: review-queue history (always-on)
+    persists per-position IPS-weighted CTR; frontend-logged impressions
+    fit the η exponent of the power-law propensity. Cold-start safe: η
+    no-ops until impressions accumulate; consumer falls back to η=1.0.
+    Both persist to separate AppSetting namespaces.
     """
     from apps.pipeline.services.feedback_relevance import compute_and_persist
     from apps.pipeline.services.position_bias_ips_producer import (
@@ -1439,29 +1425,96 @@ def run_position_bias_ips_refit(job, checkpoint) -> None:
 
     checkpoint(progress_pct=0.0, message="Refitting IPS weights from review history")
     cascade_snap = compute_and_persist()
-
     checkpoint(
         progress_pct=50.0,
         message="Fitting η from SuggestionImpression rows",
     )
     eta_snap = fit_and_persist_from_impressions()
+    checkpoint(
+        progress_pct=100.0,
+        message=_summarize_position_bias_snapshots(cascade_snap, eta_snap),
+    )
 
-    parts: list[str] = []
-    if cascade_snap is not None:
-        parts.append(
-            f"per-position CTR: {len(cascade_snap.ips_weighted_ctr)} positions "
-            f"({cascade_snap.training_runs} runs)"
-        )
-    else:
-        parts.append("per-position CTR: insufficient review history")
-    if eta_snap is not None:
-        parts.append(
-            f"η fit: {eta_snap.eta:.3f} from {eta_snap.observations} impressions"
-        )
-    else:
-        parts.append("η fit: cold-start (insufficient impressions)")
 
-    checkpoint(progress_pct=100.0, message="; ".join(parts))
+_FM_FEEDBACK_LOOKBACK_DAYS = 90
+_FM_MIN_TRAINING_ROWS = 5
+
+_FM_SCORE_COLUMNS = (
+    "score_semantic",
+    "score_keyword",
+    "score_node_affinity",
+    "score_quality",
+    "score_link_freshness",
+    "score_phrase_relevance",
+    "score_field_aware_relevance",
+    "score_rare_term_propagation",
+    "score_anchor_diversity",
+)
+
+
+def _load_fm_feedback_rows(lookback_days: int) -> list[dict]:
+    """Pull every approved/rejected Suggestion in the lookback window with score cols."""
+    from datetime import timedelta
+    from django.utils import timezone
+    from apps.suggestions.models import Suggestion
+
+    cutoff = timezone.now() - timedelta(days=lookback_days)
+    return list(
+        Suggestion.objects.filter(
+            updated_at__gte=cutoff,
+            status__in=["approved", "rejected"],
+        ).values(
+            *_FM_SCORE_COLUMNS,
+            "anchor_confidence",
+            "status",
+        ),
+    )
+
+
+def _build_fm_features(rows: list[dict]) -> tuple[list[dict], list[float]]:
+    """Convert each row into a DictVectorizer-friendly feature dict + target.
+
+    DictVectorizer turns the categorical ``anchor_confidence`` value into
+    one-hot columns automatically and leaves numeric fields alone — no
+    manual encoding needed here.
+    """
+    features: list[dict] = []
+    targets: list[float] = []
+    for row in rows:
+        feats: dict = {col: float(row.get(col) or 0.0) for col in _FM_SCORE_COLUMNS}
+        feats[f"anchor_confidence={row.get('anchor_confidence') or 'none'}"] = 1.0
+        features.append(feats)
+        targets.append(1.0 if row.get("status") == "approved" else 0.0)
+    return features, targets
+
+
+def _ensure_model_output_path(subdir: str, filename: str = "model.pkl") -> str:
+    """Compute + ensure the model output dir under MEDIA_ROOT; return full path."""
+    import os
+    from django.conf import settings as django_settings
+
+    media_root = getattr(django_settings, "MEDIA_ROOT", "/app/media")
+    out_dir = os.path.join(media_root, subdir)
+    os.makedirs(out_dir, exist_ok=True)
+    return os.path.join(out_dir, filename)
+
+
+_FM_MODEL_DESCRIPTION = (
+    "Pick #39 Factorization Machines — refit weekly by "
+    "factorization_machines_refit. Captures pairwise score "
+    "interactions linear blends miss."
+)
+
+
+def _persist_fm_model_path(output_path: str) -> None:
+    """Write the FM model-path AppSetting row read by predict()."""
+    from apps.core.models import AppSetting
+    from apps.pipeline.services import factorization_machines
+
+    AppSetting.objects.update_or_create(
+        key=factorization_machines.KEY_MODEL_PATH,
+        defaults={"value": output_path, "description": _FM_MODEL_DESCRIPTION},
+    )
 
 
 @scheduled_job(
@@ -1474,22 +1527,11 @@ def run_position_bias_ips_refit(job, checkpoint) -> None:
 def run_factorization_machines_refit(job, checkpoint) -> None:
     """Weekly FM refit over operator-feedback Suggestion features (pick #39).
 
-    W1.3 wiring (replaces the deferred stub): builds DictVectorizer-
-    friendly feature dicts from each reviewed Suggestion's existing
-    score columns (semantic, keyword, node, quality, FR099-FR105
-    diagnostics if populated). Target = 1.0 for approved, 0.0 for
-    rejected. The trained FM learns pairwise interactions between
-    those scores that linear blends miss.
-
-    Cold-start safe end-to-end:
-    - Pip dep missing → ``DeferredPickError``.
-    - <5 reviewed rows → no-op.
-    - All targets identical (no signal) → no-op via
-      :func:`fit_and_save`'s internal guard.
-    - Training failure → logged + previous model preserved.
-
-    Real-data ready: install ``pyfm`` + ``scikit-learn`` and the next
-    weekly run starts producing FM scores via :func:`predict`.
+    Builds DictVectorizer-friendly feature dicts from reviewed Suggestion
+    score columns (semantic / keyword / node / quality / FR099-FR105).
+    Target = 1.0 approved, 0.0 rejected. FM learns pairwise interactions
+    that linear blends miss. Cold-start safe: missing pip dep → defer;
+    <5 reviewed rows → no-op; training failure → previous model preserved.
     """
     from apps.pipeline.services import factorization_machines
 
@@ -1501,105 +1543,78 @@ def run_factorization_machines_refit(job, checkpoint) -> None:
         raise DeferredPickError(
             "Factorization Machines (hand-rolled NumPy implementation) "
             "still requires `scikit-learn` for DictVectorizer; "
-            "scikit-learn is in requirements.txt."
+            "scikit-learn is in requirements.txt.",
         )
-
-    import os
-    from datetime import timedelta
-
-    from django.conf import settings as django_settings
-    from django.utils import timezone
-
-    from apps.core.models import AppSetting
-    from apps.suggestions.models import Suggestion
-
-    cutoff = timezone.now() - timedelta(days=90)
-    rows = list(
-        Suggestion.objects.filter(
-            updated_at__gte=cutoff,
-            status__in=["approved", "rejected"],
-        ).values(
-            "score_semantic",
-            "score_keyword",
-            "score_node_affinity",
-            "score_quality",
-            "score_link_freshness",
-            "score_phrase_relevance",
-            "score_field_aware_relevance",
-            "score_rare_term_propagation",
-            "score_anchor_diversity",
-            "anchor_confidence",
-            "status",
-        )
-    )
-    if len(rows) < 5:
+    rows = _load_fm_feedback_rows(_FM_FEEDBACK_LOOKBACK_DAYS)
+    if len(rows) < _FM_MIN_TRAINING_ROWS:
         checkpoint(
             progress_pct=100.0,
             message=f"Only {len(rows)} reviewed rows — FM refit skipped",
         )
         return
-
-    # Build feature dicts. DictVectorizer turns categorical strings
-    # (anchor_confidence) into one-hot columns automatically and
-    # leaves numeric fields alone — no manual encoding.
-    features: list[dict] = []
-    targets: list[float] = []
-    for row in rows:
-        feats: dict = {
-            "score_semantic": float(row.get("score_semantic") or 0.0),
-            "score_keyword": float(row.get("score_keyword") or 0.0),
-            "score_node_affinity": float(row.get("score_node_affinity") or 0.0),
-            "score_quality": float(row.get("score_quality") or 0.0),
-            "score_link_freshness": float(row.get("score_link_freshness") or 0.0),
-            "score_phrase_relevance": float(row.get("score_phrase_relevance") or 0.0),
-            "score_field_aware_relevance": float(
-                row.get("score_field_aware_relevance") or 0.0
-            ),
-            "score_rare_term_propagation": float(
-                row.get("score_rare_term_propagation") or 0.0
-            ),
-            "score_anchor_diversity": float(row.get("score_anchor_diversity") or 0.0),
-            f"anchor_confidence={row.get('anchor_confidence') or 'none'}": 1.0,
-        }
-        features.append(feats)
-        targets.append(1.0 if row.get("status") == "approved" else 0.0)
-
-    media_root = getattr(django_settings, "MEDIA_ROOT", "/app/media")
-    out_dir = os.path.join(media_root, "fm")
-    os.makedirs(out_dir, exist_ok=True)
-    output_path = os.path.join(out_dir, "model.pkl")
-
+    features, targets = _build_fm_features(rows)
+    output_path = _ensure_model_output_path("fm")
     checkpoint(
         progress_pct=20.0,
         message=f"Training FM over {len(features)} reviewed Suggestions",
     )
-    ok = factorization_machines.fit_and_save(
-        features=features,
-        targets=targets,
-        output_path=output_path,
-        task="classification",
-    )
-    if not ok:
+    if not factorization_machines.fit_and_save(
+        features=features, targets=targets,
+        output_path=output_path, task="classification",
+    ):
         checkpoint(
             progress_pct=100.0,
             message="FM training reported failure — keeping previous model",
         )
         return
-
-    AppSetting.objects.update_or_create(
-        key=factorization_machines.KEY_MODEL_PATH,
-        defaults={
-            "value": output_path,
-            "description": (
-                "Pick #39 Factorization Machines — refit weekly by "
-                "factorization_machines_refit. Captures pairwise score "
-                "interactions linear blends miss."
-            ),
-        },
-    )
+    _persist_fm_model_path(output_path)
     checkpoint(
         progress_pct=100.0,
         message=f"FM persisted: {len(features)} samples × {len(features[0])} features",
+    )
+
+
+def _load_bpr_interactions(lookback_days: int) -> list[tuple[str, str, float]]:
+    """Build BPR-style ``(user_id, item_id, weight)`` interactions from feedback.
+
+    ``approved`` → weight 1.0 (strong positive). ``rejected`` → weight 0.1
+    (weak signal — BPR uses the implicit-feedback convention where any
+    nonzero weight means "the user saw this item"; the pairwise loss does
+    the rest). Lookback matches IPS / Cascade producers so we never train
+    on a stale pool that diverges from the other feedback signals.
+    """
+    from datetime import timedelta
+    from django.utils import timezone
+    from apps.suggestions.models import Suggestion
+
+    cutoff = timezone.now() - timedelta(days=lookback_days)
+    rows = Suggestion.objects.filter(
+        updated_at__gte=cutoff, status__in=["approved", "rejected"],
+    ).values_list("host_id", "destination_id", "status")
+    interactions: list[tuple[str, str, float]] = []
+    for host_id, dest_id, status in rows:
+        if host_id is None or dest_id is None:
+            continue
+        interactions.append(
+            (str(host_id), str(dest_id), 1.0 if status == "approved" else 0.1),
+        )
+    return interactions
+
+
+_BPR_DESCRIPTION = (
+    "Pick #38 BPR (Bayesian Personalized Ranking) — refit "
+    "weekly by bpr_refit. Pickled implicit.bpr model + indexes."
+)
+
+
+def _persist_bpr_model_path(output_path: str) -> None:
+    """Write the BPR model-path AppSetting row read by score_for_user()."""
+    from apps.core.models import AppSetting
+    from apps.pipeline.services import bpr_ranking
+
+    AppSetting.objects.update_or_create(
+        key=bpr_ranking.KEY_MODEL_PATH,
+        defaults={"value": output_path, "description": _BPR_DESCRIPTION},
     )
 
 
@@ -1613,23 +1628,10 @@ def run_factorization_machines_refit(job, checkpoint) -> None:
 def run_bpr_refit(job, checkpoint) -> None:
     """Weekly BPR refit over operator approve/reject feedback (pick #38).
 
-    W1.2 wiring (replaces the deferred stub): treats every host-content
-    item as a "user" in BPR's terminology and every destination as
-    an "item". An *approved* Suggestion is a positive interaction
-    (weight 1.0), a *rejected* one is implicit-skip evidence
-    (negative example via BPR's pairwise loss). The result is a
-    user-item factorisation that captures latent affinity between
-    hosts and destinations beyond what cosine alone shows.
-
-    Cold-start safe at every layer:
-    - Pip dep missing → ``DeferredPickError``.
-    - Fewer than 5 interactions in the lookback window → no-op.
-    - Training failure → logged, AppSetting untouched, prior model
-      remains active.
-
-    Real-data ready: install ``implicit`` and the W1 job auto-fits
-    the next time it runs. ``score_for_user(host_pk_str, dest_pks)``
-    returns dense scores once the AppSetting path is populated.
+    Treats host-content as BPR "user", destination as "item". Approved →
+    positive; rejected → implicit-skip via pairwise loss. Cold-start safe:
+    missing pip dep → defer; <5 interactions → no-op; training failure
+    → previous model preserved.
     """
     from apps.pipeline.services import bpr_ranking
 
@@ -1639,77 +1641,29 @@ def run_bpr_refit(job, checkpoint) -> None:
             message="BPR deferred — install `implicit` to enable",
         )
         raise DeferredPickError(
-            "BPR depends on `implicit` (Cython-backed pairwise LTR) which is not installed."
+            "BPR depends on `implicit` (Cython-backed pairwise LTR) which is not installed.",
         )
-
-    import os
-    from datetime import timedelta
-
-    from django.conf import settings as django_settings
-    from django.utils import timezone
-
-    from apps.core.models import AppSetting
-    from apps.suggestions.models import Suggestion
-
-    # Lookback window — match the IPS / Cascade producers so we
-    # never train on a stale pool that diverges from the other
-    # feedback signals.
-    cutoff = timezone.now() - timedelta(days=90)
-    rows = list(
-        Suggestion.objects.filter(
-            updated_at__gte=cutoff,
-            status__in=["approved", "rejected"],
-        ).values_list("host_id", "destination_id", "status")
-    )
-    if len(rows) < 5:
+    interactions = _load_bpr_interactions(_FM_FEEDBACK_LOOKBACK_DAYS)
+    if len(interactions) < _FM_MIN_TRAINING_ROWS:
         checkpoint(
             progress_pct=100.0,
-            message=f"Only {len(rows)} approve/reject rows — refit skipped",
+            message=f"Only {len(interactions)} approve/reject rows — refit skipped",
         )
         return
-
-    # Translate each row into BPR-style ``(user_id, item_id, weight)``.
-    # ``approved`` → weight 1.0 (strong positive). ``rejected`` →
-    # weight 0.1 (weak signal — BPR uses the implicit-feedback
-    # convention where any nonzero weight means "the user saw this
-    # item"; the pairwise loss does the rest).
-    interactions: list[tuple[str, str, float]] = []
-    for host_id, dest_id, status in rows:
-        if host_id is None or dest_id is None:
-            continue
-        weight = 1.0 if status == "approved" else 0.1
-        interactions.append((str(host_id), str(dest_id), weight))
-
-    media_root = getattr(django_settings, "MEDIA_ROOT", "/app/media")
-    out_dir = os.path.join(media_root, "bpr")
-    os.makedirs(out_dir, exist_ok=True)
-    output_path = os.path.join(out_dir, "model.pkl")
-
+    output_path = _ensure_model_output_path("bpr")
     checkpoint(
         progress_pct=20.0,
         message=f"Training BPR over {len(interactions)} interactions",
     )
-    ok = bpr_ranking.fit_and_save(
-        interactions=interactions,
-        output_path=output_path,
-    )
-    if not ok:
+    if not bpr_ranking.fit_and_save(
+        interactions=interactions, output_path=output_path,
+    ):
         checkpoint(
             progress_pct=100.0,
             message="BPR training reported failure — keeping previous model",
         )
         return
-
-    AppSetting.objects.update_or_create(
-        key=bpr_ranking.KEY_MODEL_PATH,
-        defaults={
-            "value": output_path,
-            "description": (
-                "Pick #38 BPR (Bayesian Personalized Ranking) — refit "
-                "weekly by bpr_refit. Pickled implicit.bpr model + indexes."
-            ),
-        },
-    )
+    _persist_bpr_model_path(output_path)
     checkpoint(
         progress_pct=100.0,
         message=f"BPR persisted: {len(interactions)} interactions trained",
@@ -1885,71 +1839,49 @@ def run_daily_data_retention(job, checkpoint) -> None:
 # ────────────────────────────────────────────────────────────────────
 
 
-@scheduled_job(
-    "anchor_self_information_corpus_stats_refresh",
-    display_name="Anchor self-information corpus stats refresh",
-    cadence_seconds=WEEK,
-    estimate_seconds=5 * 60,
-    priority=JOB_PRIORITY_LOW,
-)
-def run_anchor_self_information_corpus_stats_refresh(job, checkpoint) -> None:
-    """Refit the corpus-wide median + MAD of character-bigram entropy.
+_ANCHOR_STATS_MIN_ANCHORS = 30  # Iglewicz-Hoaglin 1993 §3.2 minimum sample size
+_ANCHOR_STATS_MAX_ANCHORS = 50_000
 
-    Reads up to ~50k recent anchor texts from approved Suggestions,
-    computes Shannon bigram entropy per anchor, persists the median
-    and MAD to AppSetting so the dispatcher's Iglewicz-Hoaglin
-    modified z-score uses fresh corpus norms instead of the
-    sensible-English defaults.
 
-    Cold-start safe: if there are fewer than 30 approved Suggestions
-    with anchor text, the W1 job logs and exits. The Iglewicz-Hoaglin
-    1993 §3.2 minimum-sample-size guidance is N ≥ 30 for stable
-    median/MAD estimates.
-    """
-    from apps.core.models import AppSetting
-    from apps.pipeline.services.anchor_garbage_signals import (
-        KEY_CORPUS_ENTROPY_MAD,
-        KEY_CORPUS_ENTROPY_MEDIAN,
-        _bigram_entropy,
-    )
+def _load_recent_approved_anchors() -> list[str]:
+    """Pull up to 50k anchor texts from approved/applied/verified Suggestions."""
     from apps.suggestions.models import Suggestion
 
-    checkpoint(progress_pct=10.0, message="Loading recent anchor texts")
-    rows = list(
+    rows = (
         Suggestion.objects.filter(
             status__in=("approved", "applied", "verified"),
         )
         .order_by("-updated_at")
-        .values_list("anchor_phrase", flat=True)[:50_000]
+        .values_list("anchor_phrase", flat=True)[:_ANCHOR_STATS_MAX_ANCHORS]
     )
-    anchors = [a for a in rows if a]
-    if len(anchors) < 30:
-        checkpoint(
-            progress_pct=100.0,
-            message=(
-                f"Only {len(anchors)} approved anchors — using "
-                "sensible-English defaults until ≥ 30 are available."
-            ),
-        )
-        return
+    return [a for a in rows if a]
 
-    checkpoint(
-        progress_pct=40.0,
-        message=f"Computing bigram entropy across {len(anchors)} anchors",
-    )
+
+def _median(sorted_values: list[float]) -> float:
+    """Median of a sorted list. ValueError on empty input."""
+    n = len(sorted_values)
+    if n == 0:
+        raise ValueError("median() on empty list")
+    if n % 2:
+        return sorted_values[n // 2]
+    return (sorted_values[n // 2 - 1] + sorted_values[n // 2]) / 2.0
+
+
+def _compute_anchor_entropy_stats(anchors: list[str]) -> tuple[float, float, int]:
+    """Return ``(median, mad, n)`` for character-bigram entropy across anchors."""
+    from apps.pipeline.services.anchor_garbage_signals import _bigram_entropy
+
     entropies = sorted(_bigram_entropy(a.lower()) for a in anchors)
-    n = len(entropies)
-    median = (
-        entropies[n // 2]
-        if n % 2
-        else (entropies[n // 2 - 1] + entropies[n // 2]) / 2.0
-    )
-    abs_dev = sorted(abs(e - median) for e in entropies)
-    mad = abs_dev[n // 2] if n % 2 else (abs_dev[n // 2 - 1] + abs_dev[n // 2]) / 2.0
+    median = _median(entropies)
+    mad = _median(sorted(abs(e - median) for e in entropies))
+    return median, mad, len(entropies)
 
-    checkpoint(
-        progress_pct=80.0,
-        message=f"Persisting median={median:.3f} mad={mad:.3f}",
+
+def _persist_anchor_entropy_stats(median: float, mad: float) -> None:
+    """Write the median + MAD to AppSetting so the dispatcher reads fresh corpus norms."""
+    from apps.core.models import AppSetting
+    from apps.pipeline.services.anchor_garbage_signals import (
+        KEY_CORPUS_ENTROPY_MAD, KEY_CORPUS_ENTROPY_MEDIAN,
     )
     AppSetting.objects.update_or_create(
         key=KEY_CORPUS_ENTROPY_MEDIAN,
@@ -1971,6 +1903,49 @@ def run_anchor_self_information_corpus_stats_refresh(job, checkpoint) -> None:
             ),
         },
     )
+
+
+@scheduled_job(
+    "anchor_self_information_corpus_stats_refresh",
+    display_name="Anchor self-information corpus stats refresh",
+    cadence_seconds=WEEK,
+    estimate_seconds=5 * 60,
+    priority=JOB_PRIORITY_LOW,
+)
+def run_anchor_self_information_corpus_stats_refresh(job, checkpoint) -> None:
+    """Refit the corpus-wide median + MAD of character-bigram entropy.
+
+    Reads up to ~50k recent anchor texts from approved Suggestions,
+    computes Shannon bigram entropy per anchor, persists the median + MAD
+    to AppSetting so the dispatcher's Iglewicz-Hoaglin modified z-score
+    uses fresh corpus norms instead of the sensible-English defaults.
+
+    Cold-start safe: < 30 approved Suggestions → log and exit. Per
+    Iglewicz-Hoaglin 1993 §3.2, N ≥ 30 is the minimum for stable
+    median/MAD estimates.
+    """
+    checkpoint(progress_pct=10.0, message="Loading recent anchor texts")
+    anchors = _load_recent_approved_anchors()
+    if len(anchors) < _ANCHOR_STATS_MIN_ANCHORS:
+        checkpoint(
+            progress_pct=100.0,
+            message=(
+                f"Only {len(anchors)} approved anchors — using "
+                f"sensible-English defaults until ≥ {_ANCHOR_STATS_MIN_ANCHORS} "
+                "are available."
+            ),
+        )
+        return
+    checkpoint(
+        progress_pct=40.0,
+        message=f"Computing bigram entropy across {len(anchors)} anchors",
+    )
+    median, mad, n = _compute_anchor_entropy_stats(anchors)
+    checkpoint(
+        progress_pct=80.0,
+        message=f"Persisting median={median:.3f} mad={mad:.3f}",
+    )
+    _persist_anchor_entropy_stats(median, mad)
     checkpoint(
         progress_pct=100.0,
         message=f"Stats refreshed: N={n}, median={median:.3f}, MAD={mad:.3f}",

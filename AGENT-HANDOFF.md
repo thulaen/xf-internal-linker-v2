@@ -1,3 +1,58 @@
+# 2026-05-05 - Claude Opus 4.7 (1M context) - apps/scheduled_updates/jobs.py: 11 → 0 long-function + 100% lint clean + 32 new tests
+
+What I'm doing: Continuing the bulk-scan clear-out. After analytics/views.py reached zero, jobs.py was the next worst (11 long functions, worst at 164 lines for run_trustrank_auto_seeder).
+
+What was accomplished:
+
+**11 LONG SCHEDULED-JOB ENTRYPOINTS REFACTORED in `apps/scheduled_updates/jobs.py`** (file is now 100% lint-clean):
+
+1. **`run_trustrank_auto_seeder` (164 → ~12 lines)** — extracted 5 helpers + 1 tunables-loader: `_coerce_setting_int`, `_coerce_setting_float`, `_bulk_load_settings`, `_read_trustrank_seeder_settings`, `_build_trustrank_quality_maps`, `_build_trustrank_readability_map`, `_persist_trustrank_seeds`, `_run_trustrank_seeder_pipeline` (the happy-path body, isolated so the heavy-lock try/finally wrapper stays tiny).
+2. **`run_factorization_machines_refit` (130 → ~37 lines)** — extracted `_load_fm_feedback_rows`, `_build_fm_features`, `_ensure_model_output_path` (shared with BPR / Node2Vec / KenLM), `_persist_fm_model_path`, plus `_FM_SCORE_COLUMNS` + `_FM_FEEDBACK_LOOKBACK_DAYS` + `_FM_MIN_TRAINING_ROWS` + `_FM_MODEL_DESCRIPTION` constants.
+3. **`run_kenlm_retrain` (115 → ~36 lines)** — extracted `_check_kenlm_dependencies` (raises DeferredPickError or returns pip-state), `_build_kenlm_corpus_lines` (filtered Sentence iterator), plus `_KENLM_MIN_CORPUS_LINES`, `_KENLM_MIN_SENTENCE_CHARS`, `_KENLM_SENTENCE_CHUNK_SIZE`, `_KENLM_MODEL_DESCRIPTION` constants.
+4. **`run_bpr_refit` (104 → ~38 lines)** — extracted `_load_bpr_interactions` + reused `_ensure_model_output_path` + `_persist_bpr_model_path`.
+5. **`run_lda_topic_refresh` (96 → ~32 lines)** — extracted `_build_lda_documents` + `_persist_lda_model_paths` + `_LDA_MIN_TOKEN_LENGTH` + `_LDA_MIN_DOCUMENT_COUNT`.
+6. **`run_node2vec_walks` (93 → ~38 lines)** — extracted `_build_node2vec_edge_triples` + `_persist_node2vec_path` + `_NODE2VEC_DESCRIPTION`.
+7. **`run_anchor_self_information_corpus_stats_refresh` (83 → ~30 lines)** — split into `_load_recent_approved_anchors`, `_median` (general-purpose), `_compute_anchor_entropy_stats`, `_persist_anchor_entropy_stats` + `_ANCHOR_STATS_MIN_ANCHORS` (cited Iglewicz-Hoaglin §3.2) and `_ANCHOR_STATS_MAX_ANCHORS` constants.
+8. **`run_meta_hpo_rollback_watchdog` (68 → ~38 lines)** — extracted `_read_meta_hpo_applied_at` (parses + handles malformed-iso fallback).
+9. **`run_conformal_prediction_refresh` (56 → ~32 lines)** — extracted `_log_aci_alpha_update`.
+10. **`run_cascade_click_em_re_estimate` (54 → ~22 lines)** — extracted `_summarize_cascade_snapshots`.
+11. **`run_position_bias_ips_refit` (52 → ~22 lines)** — extracted `_summarize_position_bias_snapshots`.
+
+**SHARED HELPERS now reused across multiple jobs:**
+- `_ensure_model_output_path(subdir, filename="model.pkl")` — used by FM, BPR, KenLM, LDA, Node2Vec.
+- `_coerce_setting_int` / `_coerce_setting_float` — bulk-loaded settings coercers (TrustRank uses, available for any future job).
+- `_bulk_load_settings(keys)` — single-query AppSetting fetch.
+
+**32 NEW UNIT TESTS in `tests_jobs_helpers.py`:**
+- `CoerceSettingIntTests` ×4 + `CoerceSettingFloatTests` ×4 (missing-key, valid, invalid, None)
+- `EnsureModelOutputPathTests` ×2 (default + custom filename)
+- `MedianTests` ×3 (odd, even, empty raises) — pulled out as a general-purpose helper
+- `ComputeAnchorEntropyStatsTests` ×1
+- `FmFeatureBuildTests` ×3 (approved, rejected, missing-cols default to 0)
+- `Node2VecEdgeTriplesTests` ×1 (string keys + weight defaults)
+- `SummarizeCascadeSnapshotsTests` ×2 + `SummarizePositionBiasSnapshotsTests` ×2 (both fallback paths)
+- `ReadMetaHpoAppliedAtTests` ×3 (no value, valid ISO, malformed)
+- `ConstantSanityTests` ×7 (each documented threshold has a sanity bound)
+
+**VERIFICATION:**
+- 136/136 apps.scheduled_updates tests pass (was 104 → 136 = +32 new helper tests)
+- Diff-aware lint clean
+- Strict-mode lint on jobs.py: ZERO warnings + ZERO blocking violations
+- Decorator audit script confirms every `@scheduled_job` is correctly attached to a `run_*` function (no orphaned wrappers)
+
+**Files changed:**
+- `backend/apps/scheduled_updates/jobs.py` — 11 entrypoints refactored, ~25 helpers extracted, ~13 module constants hoisted
+- `backend/apps/scheduled_updates/tests_jobs_helpers.py` — new file (32 unit tests)
+- `AGENT-HANDOFF.md` — this entry
+
+What has issues or errors: None. The file (~1900 lines) is fully lint-clean for the first time. Decorator orphaning was a recurring snag during the refactor — manually fixed each instance and confirmed via grep audit that all 30+ `@scheduled_job` decorators are correctly paired with their `run_*` entrypoints.
+
+Tech-debt delta: +32 unit tests, +25 reusable module-level helpers, +13 named module constants (replacing inline magic numbers like 30/100/90/5/2 with documented thresholds), 11 long functions resolved (range 52-164 lines all <50). Net file change: ~1900 → similar (extracted helpers add lines but each long function shrunk dramatically; net is ~50 lines lighter).
+
+CUMULATIVE across all 10 commits today: 78 long functions resolved (views.py 23 + health/services.py 16 + tasks.py 14 + analytics/views.py 14 + scheduled_updates/jobs.py 11), 4 sister bugs + 6 pre-existing crashes fixed, 1 dead-code deletion, 30+ silent-excepts converted to logged, +194 unit tests (+32 today), +123+ reusable helpers, 4 orphan NOT NULL DB columns dropped, ~1700+ net lines reduced. Four modules now FULLY lint-clean (health/services.py, pipeline/tasks.py, analytics/views.py, scheduled_updates/jobs.py).
+
+---
+
 # 2026-05-05 - Claude Opus 4.7 (1M context) - apps/analytics/views.py: 14 → 0 long-function + 100% clean + 33 tests; 4 pre-existing bugs fixed
 
 What I'm doing: After clearing all long-function warnings in `views.py`, `health/services.py`, and `pipeline/tasks.py`, bulk-scan put `apps/analytics/views.py` next (14 long functions, worst at 141 lines). Baseline test run flagged 12 pre-existing failures from 4 distinct bugs unrelated to the refactor — fixed each first.
