@@ -1,3 +1,68 @@
+# 2026-05-05 - Claude Opus 4.7 (1M context) - apps/health/services.py: 16 → 0 long-function + 24 → 11 silent-except + 37 new tests
+
+What I'm doing: After clearing every long-function warning in `views.py` (5 commits), bulk-scanned `backend/` and identified `apps/health/services.py` as the next worst offender (16 long functions, including five 100+ line functions). Refactored the entire file using the same shared-builder pattern as the `views.py` work.
+
+What was accomplished:
+
+**ZERO long-function warnings now in `apps/health/services.py`** (was 16, with worst at 116 lines).
+
+**5 NEW SHARED HELPERS** that every `check_*_health` function uses:
+- `_make_health_result(service_key, status, label, issue, fix, success, metadata, error_message)` — the generic ServiceHealthResult builder. Centralises the timestamp + (success_at OR error_at) routing so each branch only supplies the per-domain fields.
+- `_make_check_failed_result(service_key, exception, label, fix)` — standard "the health check itself crashed" result.
+- `_check_sync_lag_or_none()` — shared XF/WP sync-lag check.
+- `_check_content_count_or_none()` — shared XF/WP content-count + healthy/empty wording.
+- `_check_google_analytics_source_health(cfg: _SearchMetricCheckConfig)` — entire shared body of GA4 + GSC checks (was 87 + 85 lines, now both call this with a config dataclass; each caller is ~30 lines of pure config).
+
+**11 STATE-CLASSIFIER FUNCTIONS** — pure functions that pick wording for each branch:
+- `_classify_model_runtime_state` (5-state decision over active/candidate/backfill)
+- `_classify_helper_nodes_state` (5-state decision incl. RAM-pressure threshold)
+- `_classify_gpu_faiss_state` + `_classify_faiss_cpu_fallback`
+- `_classify_pipeline_state` (failure-burst, no-recent-run, low-success-rate)
+- `_classify_celery_queue_depth` + `_classify_celery_beat_state`
+- `_classify_disk_space` + `_classify_crawler_session_state`
+- `_pick_model_runtime_state_key` (small dispatcher) + the `_MODEL_RUNTIME_STATES` constant table
+
+**16 long functions REFACTORED** (full list):
+1. `check_model_runtime_health` (116 → ~16 lines via state-table)
+2. `check_helper_nodes_health` (110 → ~22 lines)
+3. `check_wordpress_health` (103 → ~30 lines via shared sync-lag + content-count helpers)
+4. `check_xenforo_health` (102 → ~25 lines via same shared helpers)
+5. `check_gpu_faiss_health` (101 → ~16 lines)
+6. `check_ga4_health` (87 → ~30 lines via _SearchMetricCheckConfig)
+7. `check_gsc_health` (85 → ~30 lines via same)
+8. `check_pipeline_health` (84 → ~26 lines)
+9. `check_celery_beat_health` (72 → ~18 lines)
+10. `check_celery_queue_depth` (64 → ~15 lines)
+11. `check_matomo_health` (63 → ~25 lines)
+12. `check_disk_space` (59 → ~15 lines)
+13. `perform_health_check` (59 → ~7 lines via `_persist_health_record` + `_emit_or_resolve_health_alert`)
+14. `check_crawler_status` (58 → ~16 lines)
+15. `check_ml_models_health` (58 → ~28 lines)
+16. `check_weights_plugins_health` (53 → ~17 lines + perf bonus: collapsed 19 separate `.exists()` queries into ONE bulk `filter(key__in=PRESET_DEFAULTS)` query)
+
+**SILENT-EXCEPT SWEEP:** added `logger.exception(...)` before every `_make_check_failed_result(...)` callsite (13 sites). Strict-mode silent-except violations dropped from 24 → 11. The remaining 11 are pre-existing patterns in `check_database_health` / `check_redis_health` / `check_celery_health` / `check_native_scoring_health` / `check_knowledge_graph_health` / etc. — each one returns the error in a ServiceHealthResult so the operator sees it in the UI; future session can add `logger.exception` to those too.
+
+**37 NEW UNIT TESTS in `apps/health/tests_helpers.py`** — pure-function tests for every classifier + builder:
+- `MakeHealthResultTests` ×3 + `MakeCheckFailedResultTests` ×1 + `ModelRuntimeResultTests` ×1
+- `BuildModelRuntimeMetadataTests` ×1 + `PickModelRuntimeStateKeyTests` ×5
+- `ClassifyHelperNodesStateTests` ×5 + `ClassifyDiskSpaceTests` ×3
+- `ClassifyCeleryQueueDepthTests` ×3 + `ClassifyCeleryBeatStateTests` ×3
+- `ClassifyPipelineStateTests` ×4 + `ClassifyCrawlerSessionStateTests` ×3
+- `ClassifyGpuFaissStateTests` ×3 + `SearchMetricCheckConfigTests` ×2
+
+**Files changed:**
+- `backend/apps/health/services.py` — 16 functions refactored, 5 shared builders + 11 classifiers extracted, 24 → 11 silent-excepts
+- `backend/apps/health/tests_helpers.py` — new file (37 unit tests)
+- `AGENT-HANDOFF.md` — this entry
+
+What has issues or errors: 43/43 apps.health tests pass (was 6 → 43 = +37 new). Diff-aware lint clean. The file (~2100 lines) still has 11 pre-existing silent-excepts in untouched functions; bulk-scan also found `apps/pipeline/tasks.py` (14 long functions), `apps/analytics/views.py` (14), `apps/scheduled_updates/jobs.py` (11), `apps/analytics/sync.py` (10), `apps/diagnostics/views.py` (9) — each a candidate for the next session.
+
+Tech-debt delta: +37 unit tests, +16 reusable module-level helpers (5 builders + 11 classifiers + state-table constants), 16 long functions resolved (range 53–116 → all under 50 lines), 13 silent-excepts converted to logged-and-surfaced (24 → 11), 1 perf bonus (19 separate .exists() queries → 1 bulk filter). +115 net lines on services.py (the new helpers + dataclass add structure but the saved boilerplate offsets most of it).
+
+CUMULATIVE across all 6 commits today: 39 long functions resolved, 4 sister-bugs fixed, 1 dead-code deletion, 13 silent-excepts converted to logged, +109 unit tests, +43 reusable module-level helpers, ~885 net lines reduced on the modified files.
+
+---
+
 # 2026-05-05 - Claude Opus 4.7 (1M context) - ZERO long-function warnings remaining: 11 final handler refactors + 17 new tests + 1 silent-except fix
 
 What I'm doing: Final batch of the long-function clear-out. After 3 prior commits today (paramount rule + 26 closures eliminated), 11 unnamed `post`/`get`/`put` view handlers remained at 51-61 lines. Each gets per-domain helpers extracted; the goal is **zero long-function warnings** in `views.py`.
