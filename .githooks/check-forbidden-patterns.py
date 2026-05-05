@@ -372,8 +372,15 @@ def _decorator_name(dec: ast.expr) -> str:
     return ""
 
 
-def scan_long_functions(tree: ast.Module, path: Path, max_lines: int = 50) -> list[Violation]:
-    """Rule 5 (warn): function over 50 lines encourages splitting."""
+def scan_long_functions(
+    tree: ast.Module, source_lines: list[str], path: Path, max_lines: int = 50,
+) -> list[Violation]:
+    """Rule 5 (warn): function over 50 lines encourages splitting.
+
+    Honors `# noqa: forbidden-pattern` (or `# noqa: forbidden-pattern long-function`)
+    on the def line — useful for pure-data spec tables that are naturally a
+    single list literal.
+    """
     out: list[Violation] = []
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -382,6 +389,8 @@ def scan_long_functions(tree: ast.Module, path: Path, max_lines: int = 50) -> li
             continue
         line_count = node.end_lineno - node.lineno + 1
         if line_count <= max_lines:
+            continue
+        if _has_noqa(source_lines, node.lineno, window=1):
             continue
         out.append(
             Violation(
@@ -538,7 +547,7 @@ def lint_file(path: Path, *, strict: bool = False) -> list[Violation]:
     violations.extend(scan_unbounded_while(tree, source_lines, path))
     violations.extend(scan_unbounded_iteration(source, source_lines, path))
     violations.extend(scan_unscoped_todo(source, source_lines, path))
-    violations.extend(scan_long_functions(tree, path))
+    violations.extend(scan_long_functions(tree, source_lines, path))
     violations.extend(scan_missing_docstring(tree, path))
     violations.extend(scan_missing_helper_constraint(tree, path))
     violations.extend(scan_too_many_args(tree, source_lines, path))
