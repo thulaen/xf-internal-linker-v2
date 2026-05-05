@@ -1392,6 +1392,9 @@ class GSCSlice3Tests(APITestCase):
     @patch("apps.analytics.sync.build_gsc_service")
     @patch("apps.analytics.sync.fetch_gsc_performance_data")
     def test_run_gsc_sync_populates_models(self, fetch_mock, build_mock):
+        from datetime import timedelta
+        from django.utils import timezone
+
         from apps.analytics.sync import run_gsc_sync
         from apps.analytics.models import (
             GSCDailyPerformance,
@@ -1399,18 +1402,24 @@ class GSCSlice3Tests(APITestCase):
             AnalyticsSyncRun,
         )
 
+        # Bug fix 2026-05-05: this test used a hardcoded date "2026-04-01" which
+        # falls outside the 28-day content_value_score lookback window once the
+        # calendar moves forward. Use yesterday so the row is always inside the
+        # window regardless of when the test runs.
+        recent_date = (timezone.now().date() - timedelta(days=1)).isoformat()
+
         # Mock GSC Response (page-level total)
         fetch_mock.side_effect = [
             [
                 {
-                    "keys": ["2026-04-01", "https://example.com/ingested-page"],
+                    "keys": [recent_date, "https://example.com/ingested-page"],
                     "clicks": 10,
                     "impressions": 100,
                     "ctr": 0.1,
                     "position": 5.5,
                 },
                 {
-                    "keys": ["2026-04-01", "https://example.com/untracked-page"],
+                    "keys": [recent_date, "https://example.com/untracked-page"],
                     "clicks": 5,
                     "impressions": 50,
                     "ctr": 0.1,
@@ -1420,7 +1429,7 @@ class GSCSlice3Tests(APITestCase):
             [
                 {
                     "keys": [
-                        "2026-04-01",
+                        recent_date,
                         "https://example.com/ingested-page",
                         "ingested page",
                     ],

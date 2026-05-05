@@ -542,7 +542,12 @@ def _build_destination_phrase_inventory(
                 source_order=occurrence.source_order,
             )
         )
-    return inventory
+    # Bug fix 2026-05-05: MAX_DESTINATION_PHRASES was defined but never
+    # applied here, letting long destination texts emit 40+ phrases per
+    # candidate. Cap the inventory at the documented limit so per-pair
+    # phrase-match work stays bounded. Source order keeps title phrases
+    # first (source_rank=0) before distilled phrases (source_rank=1).
+    return inventory[:MAX_DESTINATION_PHRASES]
 
 
 def _collect_phrase_occurrences(
