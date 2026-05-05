@@ -126,3 +126,31 @@ class PassageSegmentationImportWiringTests(TestCase):
         # Import row still saved despite the helper hiccup.
         self.content_item.refresh_from_db()
         self.assertEqual(self.content_item.content_hash, "hash_passages_failure")
+
+    def test_changed_body_marks_current_embedding_stale_without_duplicate_row(self) -> None:
+        self.content_item.content_hash = "old_hash"
+        self.content_item.content_version = 3
+        self.content_item.embedding_model_version = "bge-m3::1024"
+        self.content_item.embedding_text_hash = "old_text_hash"
+        self.content_item.save(
+            update_fields=[
+                "content_hash",
+                "content_version",
+                "embedding_model_version",
+                "embedding_text_hash",
+            ]
+        )
+
+        _persist_content_body(
+            content_item=self.content_item,
+            raw_body="Updated live-site body.",
+            clean_text="Updated live-site body.",
+            new_hash="new_hash",
+            first_post_id=None,
+        )
+
+        self.content_item.refresh_from_db()
+        self.assertEqual(self.content_item.content_hash, "new_hash")
+        self.assertEqual(self.content_item.content_version, 4)
+        self.assertEqual(self.content_item.embedding_model_version, "")
+        self.assertEqual(self.content_item.embedding_text_hash, "")

@@ -54,6 +54,27 @@ DROP INDEX IF EXISTS dashboard_suggestion_counts_mv_status_idx;
 """
 
 
+def create_dashboard_mv(apps, schema_editor):
+    if schema_editor.connection.vendor == "sqlite":
+        schema_editor.execute(
+            "CREATE VIEW IF NOT EXISTS dashboard_suggestion_counts_mv AS "
+            "SELECT status, COUNT(*) AS count FROM suggestions_suggestion GROUP BY status;"
+        )
+    else:
+        schema_editor.execute(SQL_CREATE_MV)
+        schema_editor.execute(SQL_CREATE_INDEX)
+
+
+def drop_dashboard_mv(apps, schema_editor):
+    if schema_editor.connection.vendor == "sqlite":
+        schema_editor.execute("DROP VIEW IF EXISTS dashboard_suggestion_counts_mv;")
+    else:
+        # Cannot reliably DROP IF EXISTS for index in standard SQL without risking errors
+        # but since we used IF EXISTS in the raw SQL constants, we can just run them.
+        schema_editor.execute(SQL_DROP_INDEX)
+        schema_editor.execute(SQL_DROP_MV)
+
+
 class Migration(migrations.Migration):
     dependencies = [
         ("core", "0017_seed_group_l_defaults"),
@@ -61,12 +82,8 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunSQL(
-            sql=SQL_CREATE_MV,
-            reverse_sql=SQL_DROP_MV,
-        ),
-        migrations.RunSQL(
-            sql=SQL_CREATE_INDEX,
-            reverse_sql=SQL_DROP_INDEX,
+        migrations.RunPython(
+            code=create_dashboard_mv,
+            reverse_code=drop_dashboard_mv,
         ),
     ]

@@ -1,3 +1,18 @@
+# 2026-05-05 - Antigravity (Gemini) - Fixed SQLite Migration Blockers
+
+What I did: Investigated the pre-existing SQLite test blocker documented in the previous handoff. The issue was caused by PostgreSQL-specific `MATERIALIZED VIEW` syntax and `information_schema.columns` queries in migrations `0018_dashboard_suggestion_counts_mv` and `0060_drop_orphan_feedback_bucket_key`.
+
+What was accomplished:
+- Modified `0018_dashboard_suggestion_counts_mv.py` to use a standard `VIEW` when running on SQLite instead of a `MATERIALIZED VIEW`.
+- Modified `0060_drop_orphan_feedback_bucket_key.py` to check for column existence using `connection.introspection.get_table_description` and to degrade gracefully when dropping columns under SQLite.
+- Verified that `manage.py test apps.core.tests` now succeeds on SQLite without requiring PostgreSQL.
+
+What has issues or errors: None. The SQLite blocker for running the auth/core tests is resolved. The user mentioned something about login, which is pending clarification.
+
+Tech-debt delta: Fixed 2 migration compatibility issues, enabling the test suite to run out-of-the-box on SQLite without raising OperationalError.
+
+---
+
 # 2026-05-05 - Antigravity (Gemini) - Verified Secure Login + Data Preservation implementation; fixed table-name typo
 
 What I did: Read the complete implementation from the previous session (Secure Login / Data Preservation), ran targeted tests against the real PostgreSQL stack, and fixed one bug discovered during review.
