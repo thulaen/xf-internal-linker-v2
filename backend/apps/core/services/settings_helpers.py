@@ -108,7 +108,13 @@ def setting_bool(key: str, fallback: bool) -> bool:
 
 
 def setting_str(key: str, fallback: str) -> str:
-    """Operator-tier → recommended-preset tier → hardcoded fallback (str)."""
+    """Operator-tier → recommended-preset tier → hardcoded fallback (str).
+
+    The preset-tier exception is intentionally broad: any failure (module
+    not yet loaded during migration, missing key, import error) falls
+    through to the hardcoded fallback so settings reads NEVER raise.
+    Logs at debug so operators can grep for missing preset keys.
+    """
     raw = _read_operator(key)
     if raw is not None:
         return raw
@@ -116,7 +122,14 @@ def setting_str(key: str, fallback: str) -> str:
         from apps.suggestions.recommended_weights import recommended_str
 
         return recommended_str(key)
-    except (KeyError, Exception):
+    except KeyError:
+        logger.debug("settings_helpers: setting_str(%s) missing from recommended preset", key)
+        return fallback
+    except Exception:
+        logger.debug(
+            "settings_helpers: setting_str(%s) preset import failed; using fallback",
+            key, exc_info=True,
+        )
         return fallback
 
 

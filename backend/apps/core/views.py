@@ -1959,19 +1959,8 @@ class GSCConnectionTestView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        current = get_ga4_gsc_settings()
-        property_url = (
-            str(request.data.get("property_url") or current["property_url"] or "")
-            .strip()
-            .rstrip("/")
-        )
-        service_account_email = str(
-            request.data.get("service_account_email")
-            or current["service_account_email"]
-            or ""
-        ).strip()
-        private_key = str(request.data.get("private_key") or _gsc_private_key()).strip()
-        if not property_url or not service_account_email or not private_key:
+        creds = _gsc_resolve_credentials(request.data)
+        if not creds["property_url"] or not creds["service_account_email"] or not creds["private_key"]:
             return Response(
                 {
                     "status": "not_configured",
@@ -1979,40 +1968,55 @@ class GSCConnectionTestView(APIView):
                 },
                 status=400,
             )
+        return _gsc_probe_credentials(creds)
 
-        try:
-            service = _build_gsc_service(
-                service_account_email=service_account_email, private_key=private_key
-            )
-            response = service.sites().list().execute()
-        except Exception as exc:  # noqa: BLE001 — connection-test endpoint surfaces the error to the operator via the response body; logger keeps a paper trail.
-            logger.warning(
-                "GSC connection test failed for %s: %s",
-                service_account_email[:60],
-                exc,
-                exc_info=True,
-            )
-            return Response(
-                {
-                    "status": "error",
-                    "message": f"Search Console connection failed: {exc}",
-                },
-                status=400,
-            )
 
-        site_entries = (
-            response.get("siteEntry", []) if isinstance(response, dict) else []
+def _gsc_resolve_credentials(data: dict) -> dict[str, str]:
+    """Resolve GA4/GSC credentials. Precedence: body > AppSetting > Django settings."""
+    current = get_ga4_gsc_settings()
+    return {
+        "property_url": (
+            str(data.get("property_url") or current["property_url"] or "")
+            .strip()
+            .rstrip("/")
+        ),
+        "service_account_email": str(
+            data.get("service_account_email") or current["service_account_email"] or ""
+        ).strip(),
+        "private_key": str(data.get("private_key") or _gsc_private_key()).strip(),
+    }
+
+
+def _gsc_probe_credentials(creds: dict[str, str]) -> Response:
+    """Probe GSC sites().list(); surfaces auth + property-visibility status."""
+    try:
+        service = _build_gsc_service(
+            service_account_email=creds["service_account_email"],
+            private_key=creds["private_key"],
         )
-        property_match = any(
-            str(entry.get("siteUrl") or "").rstrip("/") == property_url
-            for entry in site_entries
+        response = service.sites().list().execute()
+    except Exception as exc:  # noqa: BLE001 — surfaces in response body; logger keeps a paper trail.
+        logger.warning(
+            "GSC connection test failed for %s: %s",
+            creds["service_account_email"][:60], exc, exc_info=True,
         )
-        message = "Search Console credentials worked and the property is visible."
-        if not property_match:
-            message = "Search Console credentials worked, but this property URL was not listed for the service account."
         return Response(
-            {"status": "connected" if property_match else "saved", "message": message}
+            {"status": "error", "message": f"Search Console connection failed: {exc}"},
+            status=400,
         )
+    site_entries = response.get("siteEntry", []) if isinstance(response, dict) else []
+    property_match = any(
+        str(entry.get("siteUrl") or "").rstrip("/") == creds["property_url"]
+        for entry in site_entries
+    )
+    return Response({
+        "status": "connected" if property_match else "saved",
+        "message": (
+            "Search Console credentials worked and the property is visible."
+            if property_match
+            else "Search Console credentials worked, but this property URL was not listed for the service account."
+        ),
+    })
 
 
 def _build_wordpress_rows(validated: dict) -> dict[str, dict]:
@@ -2223,33 +2227,65 @@ class XenForoSettingsView(APIView):
         return Response({"status": "saved"})
 
 
+def _xf_resolve_credentials(data: dict) -> tuple[str, str]:
+    """Resolve XenForo credentials. Precedence: body > AppSetting > Django settings."""
+    base_url = (
+        (
+            data.get("base_url")
+            or _get_app_setting_value(
+                "xenforo.base_url", getattr(django_settings, "XENFORO_BASE_URL", ""),
+            )
+            or ""
+        )
+        .strip()
+        .rstrip("/")
+    )
+    api_key = (
+        data.get("api_key")
+        or _get_app_setting_value(
+            "xenforo.api_key", getattr(django_settings, "XENFORO_API_KEY", ""),
+        )
+        or ""
+    ).strip()
+    return base_url, api_key
+
+
+def _xf_probe_credentials(base_url: str, api_key: str) -> Response:
+    """Probe XenForo /api/me; return a Response that the view returns directly."""
+    import requests as http_requests
+    try:
+        resp = http_requests.get(
+            f"{base_url}/api/me",
+            headers={"XF-Api-Key": api_key},
+            timeout=10,
+        )
+        payload = resp.json()
+    except Exception as exc:  # noqa: BLE001 — surfaces in response body; logger keeps a paper trail.
+        logger.warning("XenForo connection test failed: %s", exc, exc_info=True)
+        return Response(
+            {"status": "error", "message": f"Could not reach XenForo: {exc}"},
+            status=502,
+        )
+    if resp.status_code != 200:
+        errors = payload.get("errors", [])
+        detail = (
+            errors[0].get("message", "Authentication failed.")
+            if errors else f"HTTP {resp.status_code}"
+        )
+        return Response({"status": "error", "message": detail}, status=400)
+    username = payload.get("me", {}).get("username", "unknown")
+    return Response(
+        {"status": "connected", "message": f"Connected to XenForo as '{username}'."},
+    )
+
+
 class XenForoTestConnectionView(APIView):
     """POST /api/settings/xenforo/test-connection/ — verify XenForo API credentials."""
 
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        import requests as http_requests
-
-        base_url = (
-            (
-                request.data.get("base_url")
-                or _get_app_setting_value(
-                    "xenforo.base_url", getattr(django_settings, "XENFORO_BASE_URL", "")
-                )
-                or ""
-            )
-            .strip()
-            .rstrip("/")
-        )
-        api_key = (
-            request.data.get("api_key")
-            or _get_app_setting_value(
-                "xenforo.api_key", getattr(django_settings, "XENFORO_API_KEY", "")
-            )
-            or ""
-        ).strip()
-
+        base_url, api_key = _xf_resolve_credentials(request.data)
         if not base_url or not api_key:
             return Response(
                 {
@@ -2258,36 +2294,7 @@ class XenForoTestConnectionView(APIView):
                 },
                 status=400,
             )
-
-        try:
-            resp = http_requests.get(
-                f"{base_url}/api/me",
-                headers={"XF-Api-Key": api_key},
-                timeout=10,
-            )
-            payload = resp.json()
-        except Exception as exc:  # noqa: BLE001 — connection-test endpoint surfaces the error in the response body; logger keeps a paper trail.
-            logger.warning(
-                "XenForo connection test failed: %s", exc, exc_info=True
-            )
-            return Response(
-                {"status": "error", "message": f"Could not reach XenForo: {exc}"},
-                status=502,
-            )
-
-        if resp.status_code != 200:
-            errors = payload.get("errors", [])
-            detail = (
-                errors[0].get("message", "Authentication failed.")
-                if errors
-                else f"HTTP {resp.status_code}"
-            )
-            return Response({"status": "error", "message": detail}, status=400)
-
-        username = payload.get("me", {}).get("username", "unknown")
-        return Response(
-            {"status": "connected", "message": f"Connected to XenForo as '{username}'."}
-        )
+        return _xf_probe_credentials(base_url, api_key)
 
 
 def _wp_resolve_credentials(data: dict) -> dict[str, str]:
@@ -2390,70 +2397,69 @@ class WordPressTestConnectionView(APIView):
         return _wp_probe_credentials(creds)
 
 
+def _probe_webhook_endpoint(view_class, url: str, slug: str, secret_env_name: str) -> dict:
+    """Probe a single webhook receiver via Django's RequestFactory.
+
+    Returns a result dict with status / http_status / message. The factory
+    bypass means we don't need a live HTTP server to self-test.
+    """
+    from django.test import RequestFactory
+    factory = RequestFactory()
+    try:
+        req = factory.post(
+            url,
+            data={"event": "connection_test"},
+            content_type="application/json",
+        )
+        resp = view_class.as_view()(req)
+    except Exception as exc:  # noqa: BLE001 — webhook self-test surfaces the error in the response body; logger keeps a paper trail.
+        logger.warning("%s webhook self-test failed: %s", slug.upper(), exc, exc_info=True)
+        return {"status": "error", "message": str(exc)}
+
+    code = resp.status_code
+    if code == 200:
+        message = "Endpoint reachable."
+    elif code == 403:
+        message = (
+            f"Endpoint reachable but webhook secret mismatch — check {secret_env_name}."
+        )
+    else:
+        message = f"Unexpected response: HTTP {code}"
+    return {
+        "status": "ok" if code in (200, 403) else "error",
+        "http_status": code,
+        "message": message,
+    }
+
+
 class WebhookTestView(APIView):
     """POST /api/settings/webhooks/test/ — verify internal webhook receiver endpoints are alive."""
 
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        from django.test import RequestFactory
-
         from apps.sync.views import WordPressWebhookView, XenForoWebhookView
 
-        factory = RequestFactory()
-        results = {}
-
-        # Test XenForo webhook endpoint
-        try:
-            xf_request = factory.post(
-                "/api/sync/webhooks/xenforo/",
-                data={"event": "connection_test"},
-                content_type="application/json",
-            )
-            xf_response = XenForoWebhookView.as_view()(xf_request)
-            results["xenforo"] = {
-                "status": "ok" if xf_response.status_code in (200, 403) else "error",
-                "http_status": xf_response.status_code,
-                "message": "Endpoint reachable."
-                if xf_response.status_code == 200
-                else "Endpoint reachable but webhook secret mismatch — check XENFORO_WEBHOOK_SECRET."
-                if xf_response.status_code == 403
-                else f"Unexpected response: HTTP {xf_response.status_code}",
-            }
-        except Exception as exc:  # noqa: BLE001 — webhook self-test surfaces the error in the response body; logger keeps a paper trail.
-            logger.warning("XF webhook self-test failed: %s", exc, exc_info=True)
-            results["xenforo"] = {"status": "error", "message": str(exc)}
-
-        # Test WordPress webhook endpoint
-        try:
-            wp_request = factory.post(
-                "/api/sync/webhooks/wordpress/",
-                data={"event": "connection_test"},
-                content_type="application/json",
-            )
-            wp_response = WordPressWebhookView.as_view()(wp_request)
-            results["wordpress"] = {
-                "status": "ok" if wp_response.status_code in (200, 403) else "error",
-                "http_status": wp_response.status_code,
-                "message": "Endpoint reachable."
-                if wp_response.status_code == 200
-                else "Endpoint reachable but webhook secret mismatch — check WORDPRESS_WEBHOOK_SECRET."
-                if wp_response.status_code == 403
-                else f"Unexpected response: HTTP {wp_response.status_code}",
-            }
-        except Exception as exc:  # noqa: BLE001 — webhook self-test surfaces the error in the response body; logger keeps a paper trail.
-            logger.warning("WP webhook self-test failed: %s", exc, exc_info=True)
-            results["wordpress"] = {"status": "error", "message": str(exc)}
-
+        results = {
+            "xenforo": _probe_webhook_endpoint(
+                XenForoWebhookView, "/api/sync/webhooks/xenforo/",
+                "xf", "XENFORO_WEBHOOK_SECRET",
+            ),
+            "wordpress": _probe_webhook_endpoint(
+                WordPressWebhookView, "/api/sync/webhooks/wordpress/",
+                "wp", "WORDPRESS_WEBHOOK_SECRET",
+            ),
+        }
         all_ok = all(r.get("status") == "ok" for r in results.values())
         return Response(
             {
                 "status": "connected" if all_ok else "partial",
-                "message": "All webhook endpoints are reachable."
-                if all_ok
-                else "Some webhook endpoints have issues.",
+                "message": (
+                    "All webhook endpoints are reachable." if all_ok
+                    else "Some webhook endpoints have issues."
+                ),
                 "details": results,
-            }
+            },
         )
 
 
@@ -3068,56 +3074,56 @@ class WhatChangedView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from apps.suggestions.models import PipelineRun, Suggestion
-        from apps.sync.models import SyncJob
         from django.utils import timezone
         from datetime import timedelta
 
         since = timezone.now() - timedelta(hours=24)
+        return Response({
+            "period_hours": 24,
+            **_today_summary_counts(since),
+            "autotuner_outcome": _today_autotuner_outcome(since),
+        })
 
-        # Counts
-        new_suggestions = Suggestion.objects.filter(created_at__gte=since).count()
-        reviewed = Suggestion.objects.filter(reviewed_at__gte=since).count()
-        synced_items = SyncJob.objects.filter(
-            status="completed", completed_at__gte=since
-        ).values_list("items_synced", flat=True)
-        total_synced = sum(synced_items)
-        pipeline_runs = PipelineRun.objects.filter(created_at__gte=since).count()
 
-        # Autotuner outcomes (if any challenger was promoted/rolled back)
-        autotuner_outcome = None
-        try:
-            from apps.suggestions.models import RankingChallenger
+def _today_summary_counts(since) -> dict[str, int]:
+    """Counts of suggestions / reviews / sync items / pipeline runs since ``since``."""
+    from apps.suggestions.models import PipelineRun, Suggestion
+    from apps.sync.models import SyncJob
+    synced_items = SyncJob.objects.filter(
+        status="completed", completed_at__gte=since,
+    ).values_list("items_synced", flat=True)
+    return {
+        "new_suggestions": Suggestion.objects.filter(created_at__gte=since).count(),
+        "reviewed": Suggestion.objects.filter(reviewed_at__gte=since).count(),
+        "items_synced": sum(synced_items),
+        "pipeline_runs": PipelineRun.objects.filter(created_at__gte=since).count(),
+    }
 
-            recent_challenger = (
-                RankingChallenger.objects.filter(updated_at__gte=since)
-                .exclude(status="pending")
-                .order_by("-updated_at")
-                .first()
-            )
-            if recent_challenger:
-                autotuner_outcome = {
-                    "status": recent_challenger.status,
-                    "label": recent_challenger.label
-                    if hasattr(recent_challenger, "label")
-                    else str(recent_challenger.pk),
-                    "updated_at": recent_challenger.updated_at.isoformat(),
-                }
-        except Exception:
-            logger.debug(
-                "RankingChallenger model not available, skipping autotuner outcome"
-            )
 
-        return Response(
-            {
-                "period_hours": 24,
-                "new_suggestions": new_suggestions,
-                "reviewed": reviewed,
-                "items_synced": total_synced,
-                "pipeline_runs": pipeline_runs,
-                "autotuner_outcome": autotuner_outcome,
-            }
-        )
+def _today_autotuner_outcome(since) -> dict | None:
+    """Most-recent challenger promoted/rolled-back since ``since``; None if none."""
+    try:
+        from apps.suggestions.models import RankingChallenger
+    except Exception:
+        logger.debug("RankingChallenger model not available, skipping autotuner outcome")
+        return None
+    recent_challenger = (
+        RankingChallenger.objects.filter(updated_at__gte=since)
+        .exclude(status="pending")
+        .order_by("-updated_at")
+        .first()
+    )
+    if recent_challenger is None:
+        return None
+    return {
+        "status": recent_challenger.status,
+        "label": (
+            recent_challenger.label
+            if hasattr(recent_challenger, "label")
+            else str(recent_challenger.pk)
+        ),
+        "updated_at": recent_challenger.updated_at.isoformat(),
+    }
 
 
 # ── ResumeStateView helpers (extracted from .get) ────────────────
@@ -3817,58 +3823,69 @@ class MasterPauseToggleView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        from apps.core.models import AppSetting
-
-        current = (
-            AppSetting.objects.filter(key="system.master_pause")
-            .values_list("value", flat=True)
-            .first()
-        )
-        current_bool = (current or "false").lower() == "true"
-
+        current_bool = _read_master_pause_state()
         desired_raw = (request.data or {}).get("paused")
-        if desired_raw is None:
-            desired_bool = not current_bool
-        else:
-            desired_bool = bool(desired_raw)
-
-        AppSetting.objects.update_or_create(
-            key="system.master_pause",
-            defaults={
-                "value": "true" if desired_bool else "false",
-                "value_type": "bool",
-                "category": "performance",
-            },
-        )
-        try:
-            from apps.audit.services.audit_logger import record_audit
-            from apps.ops_feed.services import emit
-
-            message = (
-                "Master pause enabled. Background workers will stop taking new batches."
-                if desired_bool
-                else "Master pause disabled. Background workers can take new batches again."
-            )
-            record_audit(
-                "master_pause.toggle",
-                ("app_setting", "system.master_pause"),
-                request=request,
-                message=message,
-                metadata={"previous": current_bool, "current": desired_bool},
-            )
-            emit(
-                "master_pause.toggled",
-                message,
-                source="core",
-                severity="warning" if desired_bool else "success",
-                related_entity_type="app_setting",
-                related_entity_id="system.master_pause",
-                runtime_context={"previous": current_bool, "current": desired_bool},
-            )
-        except Exception:
-            logger.exception("master-pause audit emit failed")
+        desired_bool = (not current_bool) if desired_raw is None else bool(desired_raw)
+        _persist_master_pause_state(desired_bool)
+        _record_master_pause_audit_safe(request, current_bool, desired_bool)
         logger.info("master-pause toggled: %s -> %s", current_bool, desired_bool)
         return Response({"master_pause": desired_bool})
+
+
+def _read_master_pause_state() -> bool:
+    """Current value of ``system.master_pause`` (False if unset)."""
+    from apps.core.models import AppSetting
+
+    current = (
+        AppSetting.objects.filter(key="system.master_pause")
+        .values_list("value", flat=True)
+        .first()
+    )
+    return (current or "false").lower() == "true"
+
+
+def _persist_master_pause_state(desired_bool: bool) -> None:
+    """Write the new master_pause value to AppSetting."""
+    from apps.core.models import AppSetting
+
+    AppSetting.objects.update_or_create(
+        key="system.master_pause",
+        defaults={
+            "value": "true" if desired_bool else "false",
+            "value_type": "bool",
+            "category": "performance",
+        },
+    )
+
+
+def _record_master_pause_audit_safe(request, previous: bool, current: bool) -> None:
+    """Record audit + ops-feed for master_pause toggle. Fail-soft so the toggle
+    succeeds even if audit/ops-feed are temporarily down (recorded via logger.exception)."""
+    try:
+        from apps.audit.services.audit_logger import record_audit
+        from apps.ops_feed.services import emit
+
+        message = (
+            "Master pause enabled. Background workers will stop taking new batches."
+            if current
+            else "Master pause disabled. Background workers can take new batches again."
+        )
+        record_audit(
+            "master_pause.toggle",
+            ("app_setting", "system.master_pause"),
+            request=request, message=message,
+            metadata={"previous": previous, "current": current},
+        )
+        emit(
+            "master_pause.toggled", message,
+            source="core",
+            severity="warning" if current else "success",
+            related_entity_type="app_setting",
+            related_entity_id="system.master_pause",
+            runtime_context={"previous": previous, "current": current},
+        )
+    except Exception:
+        logger.exception("master-pause audit emit failed")
 
 
 class MaintenanceModeSettingsView(APIView):
@@ -4000,6 +4017,65 @@ class RuntimeActivityResumedView(APIView):
 
 _BYTES_PER_MEGABYTE = 1024 * 1024
 _FRACTION_TO_PERCENT = 100.0
+_GPU_NULL_PAYLOAD: dict[str, object] = {
+    "available": False,
+    "temp_c": None,
+    "vram_used_mb": None,
+    "vram_total_mb": None,
+    "vram_percent": None,
+    "utilization_pct": None,
+}
+
+
+def _sample_cpu_ram_metrics() -> dict[str, object]:
+    """Snapshot CPU% and RAM via psutil; fail-soft to null fields."""
+    try:
+        import psutil
+    except Exception:
+        logger.debug("psutil unavailable; CPU/RAM fields returned as null")
+        return {
+            "cpu_percent": None,
+            "ram_used_mb": None,
+            "ram_total_mb": None,
+            "ram_percent": None,
+        }
+    # Non-blocking CPU sample (0s interval avoids a 1s delay per request).
+    vm = psutil.virtual_memory()
+    return {
+        "cpu_percent": psutil.cpu_percent(interval=None),
+        "ram_used_mb": round(vm.used / _BYTES_PER_MEGABYTE),
+        "ram_total_mb": round(vm.total / _BYTES_PER_MEGABYTE),
+        "ram_percent": vm.percent,
+    }
+
+
+def _sample_gpu_metrics() -> dict[str, object]:
+    """Snapshot GPU temp + VRAM + utilisation via pynvml; fail-soft to ``available=False``."""
+    try:
+        import pynvml
+
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+        temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
+        mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+        util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+        pynvml.nvmlShutdown()
+    except Exception:
+        logger.debug("pynvml unavailable or GPU missing; returning available=False")
+        return dict(_GPU_NULL_PAYLOAD)
+    vram_total_mb = round(mem_info.total / _BYTES_PER_MEGABYTE)
+    vram_used_mb = round(mem_info.used / _BYTES_PER_MEGABYTE)
+    return {
+        "available": True,
+        "temp_c": temp,
+        "vram_used_mb": vram_used_mb,
+        "vram_total_mb": vram_total_mb,
+        "vram_percent": (
+            round(_FRACTION_TO_PERCENT * vram_used_mb / vram_total_mb, 1)
+            if vram_total_mb else None
+        ),
+        "utilization_pct": util.gpu,
+    }
 
 
 class SystemMetricsView(APIView):
@@ -4014,66 +4090,8 @@ class SystemMetricsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        cpu_percent = None
-        ram_used_mb = None
-        ram_total_mb = None
-        ram_percent = None
-        try:
-            import psutil
-
-            # Non-blocking CPU sample (0s interval avoids a 1s delay per request).
-            cpu_percent = psutil.cpu_percent(interval=None)
-            vm = psutil.virtual_memory()
-            ram_used_mb = round(vm.used / _BYTES_PER_MEGABYTE)
-            ram_total_mb = round(vm.total / _BYTES_PER_MEGABYTE)
-            ram_percent = vm.percent
-        except Exception:
-            logger.debug("psutil unavailable; CPU/RAM fields returned as null")
-
-        gpu = {
-            "available": False,
-            "temp_c": None,
-            "vram_used_mb": None,
-            "vram_total_mb": None,
-            "vram_percent": None,
-            "utilization_pct": None,
-        }
-        try:
-            import pynvml
-
-            pynvml.nvmlInit()
-            handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-            temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
-            mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
-            util = pynvml.nvmlDeviceGetUtilizationRates(handle)
-            pynvml.nvmlShutdown()
-
-            vram_total_mb = round(mem_info.total / _BYTES_PER_MEGABYTE)
-            vram_used_mb = round(mem_info.used / _BYTES_PER_MEGABYTE)
-            gpu = {
-                "available": True,
-                "temp_c": temp,
-                "vram_used_mb": vram_used_mb,
-                "vram_total_mb": vram_total_mb,
-                "vram_percent": round(
-                    _FRACTION_TO_PERCENT * vram_used_mb / vram_total_mb, 1
-                )
-                if vram_total_mb
-                else None,
-                "utilization_pct": util.gpu,
-            }
-        except Exception:
-            logger.debug("pynvml unavailable or GPU missing; returning available=False")
-
-        return Response(
-            {
-                "cpu_percent": cpu_percent,
-                "ram_used_mb": ram_used_mb,
-                "ram_total_mb": ram_total_mb,
-                "ram_percent": ram_percent,
-                "gpu": gpu,
-            }
-        )
+        cpu_ram = _sample_cpu_ram_metrics()
+        return Response({**cpu_ram, "gpu": _sample_gpu_metrics()})
 
 
 class RuntimeConfigView(APIView):
@@ -4200,6 +4218,10 @@ class RuntimeConfigView(APIView):
         )
 
     def get(self, request):
+        return Response(self._runtime_config_snapshot())
+
+    def _runtime_config_snapshot(self) -> dict[str, object]:
+        """Build the GET payload — current values + valid ranges for every field."""
         from django.conf import settings as django_conf
 
         default_batch = int(getattr(django_conf, "EMBEDDING_BATCH_SIZE", 32) or 32)
@@ -4209,53 +4231,26 @@ class RuntimeConfigView(APIView):
         default_gpu_budget = self._default_gpu_memory_budget_pct(django_conf)
         default_gpu_pause = int(getattr(django_conf, "GPU_TEMP_CEILING_C", 90) or 90)
         queue_concurrency = self._read_int(
-            "system.default_queue_concurrency",
-            default_queue_concurrency,
+            "system.default_queue_concurrency", default_queue_concurrency,
         )
-        return Response(
-            {
-                "embedding_batch_size": self._read_int(
-                    "system.embedding_batch_size", default_batch
-                ),
-                "gpu_memory_budget_pct": self._read_int(
-                    "system.gpu_memory_budget_pct", default_gpu_budget
-                ),
-                "gpu_temp_pause_c": self._read_int(
-                    "system.gpu_temp_pause_c", default_gpu_pause
-                ),
-                "cpu_encode_threads": self._read_int(
-                    "system.cpu_encode_threads", default_cpu_threads
-                ),
-                "default_queue_concurrency": queue_concurrency,
-                "celery_concurrency": queue_concurrency,
-                "aggressive_oom_backoff": self._read_bool(
-                    "system.aggressive_oom_backoff", True
-                ),
-                "embedding_batch_size_range": [
-                    self.BATCH_SIZE_MIN,
-                    self.BATCH_SIZE_MAX,
-                ],
-                "gpu_memory_budget_pct_range": [
-                    self.GPU_MEMORY_BUDGET_MIN,
-                    self.GPU_MEMORY_BUDGET_MAX,
-                ],
-                "gpu_temp_pause_c_range": [
-                    self.GPU_TEMP_PAUSE_MIN,
-                    self.GPU_TEMP_PAUSE_MAX,
-                ],
-                "cpu_encode_threads_range": [1, cpu_thread_cap],
-                "default_queue_concurrency_range": [
-                    self.DEFAULT_QUEUE_CONCURRENCY_MIN,
-                    self.DEFAULT_QUEUE_CONCURRENCY_MAX,
-                ],
-                "celery_concurrency_range": [
-                    self.DEFAULT_QUEUE_CONCURRENCY_MIN,
-                    self.DEFAULT_QUEUE_CONCURRENCY_MAX,
-                ],
-                "default_queue_concurrency_requires_restart": True,
-                "celery_concurrency_requires_restart": True,
-            }
-        )
+        qc_range = [self.DEFAULT_QUEUE_CONCURRENCY_MIN, self.DEFAULT_QUEUE_CONCURRENCY_MAX]
+        return {
+            "embedding_batch_size": self._read_int("system.embedding_batch_size", default_batch),
+            "gpu_memory_budget_pct": self._read_int("system.gpu_memory_budget_pct", default_gpu_budget),
+            "gpu_temp_pause_c": self._read_int("system.gpu_temp_pause_c", default_gpu_pause),
+            "cpu_encode_threads": self._read_int("system.cpu_encode_threads", default_cpu_threads),
+            "default_queue_concurrency": queue_concurrency,
+            "celery_concurrency": queue_concurrency,
+            "aggressive_oom_backoff": self._read_bool("system.aggressive_oom_backoff", True),
+            "embedding_batch_size_range": [self.BATCH_SIZE_MIN, self.BATCH_SIZE_MAX],
+            "gpu_memory_budget_pct_range": [self.GPU_MEMORY_BUDGET_MIN, self.GPU_MEMORY_BUDGET_MAX],
+            "gpu_temp_pause_c_range": [self.GPU_TEMP_PAUSE_MIN, self.GPU_TEMP_PAUSE_MAX],
+            "cpu_encode_threads_range": [1, cpu_thread_cap],
+            "default_queue_concurrency_range": qc_range,
+            "celery_concurrency_range": qc_range,
+            "default_queue_concurrency_requires_restart": True,
+            "celery_concurrency_requires_restart": True,
+        }
 
     def post(self, request):
         """Persist runtime resource settings.
@@ -4269,53 +4264,51 @@ class RuntimeConfigView(APIView):
         updated: dict[str, object] = {}
         errors: dict[str, str] = {}
         data = request.data or {}
-
         for spec in self._int_field_specs():
-            self._apply_int_range_setting(
-                data=data,
-                spec=spec,
-                updated=updated,
-                errors=errors,
-            )
-
-        # ``default_queue_concurrency`` accepts the legacy alias
-        # ``celery_concurrency`` and broadcasts back under both names.
-        if (
-            "default_queue_concurrency" in data
-            or "celery_concurrency" in data
-        ):
-            raw_value = data.get(
-                "default_queue_concurrency", data.get("celery_concurrency")
-            )
-            self._apply_int_range_setting(
-                data={"default_queue_concurrency": raw_value},
-                spec={
-                    "field": "default_queue_concurrency",
-                    "db_key": "system.default_queue_concurrency",
-                    "lo": self.DEFAULT_QUEUE_CONCURRENCY_MIN,
-                    "hi": self.DEFAULT_QUEUE_CONCURRENCY_MAX,
-                },
-                updated=updated,
-                errors=errors,
-            )
-            if "default_queue_concurrency" in updated:
-                updated["celery_concurrency"] = updated["default_queue_concurrency"]
-
-        if "aggressive_oom_backoff" in data:
-            try:
-                oom_backoff = self._parse_bool(data["aggressive_oom_backoff"])
-            except ValueError:
-                errors["aggressive_oom_backoff"] = "Must be true or false."
-            else:
-                self._upsert_setting(
-                    key="system.aggressive_oom_backoff",
-                    value=str(oom_backoff).lower(),
-                )
-                updated["aggressive_oom_backoff"] = oom_backoff
-
+            self._apply_int_range_setting(data=data, spec=spec, updated=updated, errors=errors)
+        self._apply_queue_concurrency_alias(data, updated, errors)
+        self._apply_oom_backoff(data, updated, errors)
         if errors:
             return Response({"errors": errors, "updated": updated}, status=400)
         return Response({"updated": updated})
+
+    def _apply_queue_concurrency_alias(
+        self, data: dict, updated: dict, errors: dict,
+    ) -> None:
+        """``default_queue_concurrency`` accepts the legacy ``celery_concurrency`` alias
+        and broadcasts back under both names."""
+        if "default_queue_concurrency" not in data and "celery_concurrency" not in data:
+            return
+        raw_value = data.get(
+            "default_queue_concurrency", data.get("celery_concurrency"),
+        )
+        self._apply_int_range_setting(
+            data={"default_queue_concurrency": raw_value},
+            spec={
+                "field": "default_queue_concurrency",
+                "db_key": "system.default_queue_concurrency",
+                "lo": self.DEFAULT_QUEUE_CONCURRENCY_MIN,
+                "hi": self.DEFAULT_QUEUE_CONCURRENCY_MAX,
+            },
+            updated=updated, errors=errors,
+        )
+        if "default_queue_concurrency" in updated:
+            updated["celery_concurrency"] = updated["default_queue_concurrency"]
+
+    def _apply_oom_backoff(self, data: dict, updated: dict, errors: dict) -> None:
+        """Persist the aggressive_oom_backoff bool setting if present in payload."""
+        if "aggressive_oom_backoff" not in data:
+            return
+        try:
+            oom_backoff = self._parse_bool(data["aggressive_oom_backoff"])
+        except ValueError:
+            errors["aggressive_oom_backoff"] = "Must be true or false."
+            return
+        self._upsert_setting(
+            key="system.aggressive_oom_backoff",
+            value=str(oom_backoff).lower(),
+        )
+        updated["aggressive_oom_backoff"] = oom_backoff
 
     def _int_field_specs(self) -> list[dict]:
         """Declarative spec for every int-typed resource setting on this view.
@@ -5190,40 +5183,7 @@ class GraphCandidateSettingsView(APIView):
         except ValueError as exc:
             return Response({"error": str(exc)}, status=400)
 
-        rows = {
-            "graph_candidate.enabled": {
-                "value": "true" if validated["enabled"] else "false",
-                "value_type": "bool",
-                "description": "Whether FR-021 Pixie walk candidate generation is active.",
-            },
-            "graph_candidate.walk_steps_per_entity": {
-                "value": str(validated["walk_steps_per_entity"]),
-                "value_type": "int",
-                "description": "Number of Pixie random walk steps to perform per query entity.",
-            },
-            "graph_candidate.min_stable_candidates": {
-                "value": str(validated["min_stable_candidates"]),
-                "value_type": "int",
-                "description": "Minimum number of stable candidates to find before early stopping.",
-            },
-            "graph_candidate.min_visit_threshold": {
-                "value": str(validated["min_visit_threshold"]),
-                "value_type": "int",
-                "description": "Minimum walk visits required for a node to be considered stable.",
-            },
-            "graph_candidate.top_k_candidates": {
-                "value": str(validated["top_k_candidates"]),
-                "value_type": "int",
-                "description": "Max number of top-visited candidates to return to the pipeline.",
-            },
-            "graph_candidate.top_n_entities_per_article": {
-                "value": str(validated["top_n_entities_per_article"]),
-                "value_type": "int",
-                "description": "Max number of top entities to extract per article for graph linking.",
-            },
-        }
-
-        for key, row in rows.items():
+        for key, row in _build_graph_candidate_rows(validated).items():
             AppSetting.objects.update_or_create(
                 key=key,
                 defaults={
@@ -5235,6 +5195,35 @@ class GraphCandidateSettingsView(APIView):
                 },
             )
         return Response(validated)
+
+
+# (validated_key, setting_key, value_type, description) for graph-candidate rows.
+_GRAPH_CANDIDATE_ROW_SPEC: tuple[tuple[str, str, str, str], ...] = (
+    ("enabled", "graph_candidate.enabled", "bool",
+     "Whether FR-021 Pixie walk candidate generation is active."),
+    ("walk_steps_per_entity", "graph_candidate.walk_steps_per_entity", "int",
+     "Number of Pixie random walk steps to perform per query entity."),
+    ("min_stable_candidates", "graph_candidate.min_stable_candidates", "int",
+     "Minimum number of stable candidates to find before early stopping."),
+    ("min_visit_threshold", "graph_candidate.min_visit_threshold", "int",
+     "Minimum walk visits required for a node to be considered stable."),
+    ("top_k_candidates", "graph_candidate.top_k_candidates", "int",
+     "Max number of top-visited candidates to return to the pipeline."),
+    ("top_n_entities_per_article", "graph_candidate.top_n_entities_per_article", "int",
+     "Max number of top entities to extract per article for graph linking."),
+)
+
+
+def _build_graph_candidate_rows(validated: dict) -> dict[str, dict]:
+    """Pure function — turn a validated graph-candidate dict into AppSetting rows."""
+    return {
+        setting_key: {
+            "value": _format_setting_value(validated[validated_key], value_type),
+            "value_type": value_type,
+            "description": description,
+        }
+        for validated_key, setting_key, value_type, description in _GRAPH_CANDIDATE_ROW_SPEC
+    }
 
 
 class ValueModelSettingsView(APIView):
@@ -5508,39 +5497,7 @@ class SpamGuardSettingsView(APIView):
             validated = _validate_spam_guard_settings(request.data, current)
         except ValueError as exc:
             return Response({"error": str(exc)}, status=400)
-
-        rows = {
-            "spam_guards.max_existing_links_per_host": {
-                "value": str(validated["max_existing_links_per_host"]),
-                "value_type": "int",
-                "description": (
-                    "Maximum number of existing outgoing body links a host page may "
-                    "already carry before the pipeline skips it. "
-                    "Default 3 — Ntoulas et al. anchor-word fraction research (US20060184500A1)."
-                ),
-            },
-            "spam_guards.max_anchor_words": {
-                "value": str(validated["max_anchor_words"]),
-                "value_type": "int",
-                "description": (
-                    "Maximum number of words allowed in a suggested anchor phrase. "
-                    "Default 4 — Google recommends 2–5 words; US8380722B2 confirms "
-                    "anchors are 'usually short and descriptive'."
-                ),
-            },
-            "spam_guards.paragraph_window": {
-                "value": str(validated["paragraph_window"]),
-                "value_type": "int",
-                "description": (
-                    "Sentence-position window for paragraph-cluster detection. "
-                    "Two suggestions within this many sentences of each other on "
-                    "the same host are treated as the same paragraph — only the "
-                    "higher-scoring one is kept. Default 3 — US8577893B1."
-                ),
-            },
-        }
-
-        for key, row in rows.items():
+        for key, row in _build_spam_guard_rows(validated).items():
             AppSetting.objects.update_or_create(
                 key=key,
                 defaults={
@@ -5552,6 +5509,46 @@ class SpamGuardSettingsView(APIView):
                 },
             )
         return Response(validated)
+
+
+# Spam-guard row spec. Descriptions cite the specific patent / source so the
+# operator-visible AppSetting row carries provenance.
+_SPAM_GUARD_ROW_SPEC: tuple[tuple[str, str, str, str], ...] = (
+    (
+        "max_existing_links_per_host",
+        "spam_guards.max_existing_links_per_host", "int",
+        "Maximum number of existing outgoing body links a host page may "
+        "already carry before the pipeline skips it. "
+        "Default 3 — Ntoulas et al. anchor-word fraction research (US20060184500A1).",
+    ),
+    (
+        "max_anchor_words",
+        "spam_guards.max_anchor_words", "int",
+        "Maximum number of words allowed in a suggested anchor phrase. "
+        "Default 4 — Google recommends 2–5 words; US8380722B2 confirms "
+        "anchors are 'usually short and descriptive'.",
+    ),
+    (
+        "paragraph_window",
+        "spam_guards.paragraph_window", "int",
+        "Sentence-position window for paragraph-cluster detection. "
+        "Two suggestions within this many sentences of each other on "
+        "the same host are treated as the same paragraph — only the "
+        "higher-scoring one is kept. Default 3 — US8577893B1.",
+    ),
+)
+
+
+def _build_spam_guard_rows(validated: dict) -> dict[str, dict]:
+    """Pure function — turn a validated spam-guard dict into AppSetting rows."""
+    return {
+        setting_key: {
+            "value": _format_setting_value(validated[validated_key], value_type),
+            "value_type": value_type,
+            "description": description,
+        }
+        for validated_key, setting_key, value_type, description in _SPAM_GUARD_ROW_SPEC
+    }
 
 
 class GraphRebuildView(APIView):
@@ -5837,23 +5834,35 @@ class LocalVerificationBootstrapView(APIView):
     _PLAYWRIGHT_EMAIL = "playwright-local@example.invalid"
 
     def post(self, request):
-        if not getattr(django_settings, "LOCAL_VERIFICATION_BOOTSTRAP_ENABLED", False):
-            return Response({"detail": "Not found."}, status=404)
-        if request.META.get(self.VERIFICATION_HEADER) != "playwright":
+        if not self._request_is_authorised(request):
             return Response({"detail": "Not found."}, status=404)
 
-        # Use the TCP peer IP, not the Host header (which is attacker-controlled).
-        peer_ip = request.META.get("REMOTE_ADDR", "")
-        if peer_ip not in {"127.0.0.1", "::1"}:
-            return Response({"detail": "Not found."}, status=404)
-
-        from django.contrib.auth import get_user_model
         from rest_framework.authtoken.models import Token
 
-        user_model = get_user_model()
+        user = self._get_or_repair_playwright_user()
+        token, _ = Token.objects.get_or_create(user=user)
+        return Response({"token": token.key, "username": user.username})
 
-        # Always target playwright-local specifically — never any other account.
-        # This guarantees real admin credentials are never touched or returned.
+    def _request_is_authorised(self, request) -> bool:
+        """Three-gate guard: feature flag, secret header, and loopback peer IP."""
+        if not getattr(django_settings, "LOCAL_VERIFICATION_BOOTSTRAP_ENABLED", False):
+            return False
+        if request.META.get(self.VERIFICATION_HEADER) != "playwright":
+            return False
+        # Use the TCP peer IP, not the Host header (which is attacker-controlled).
+        peer_ip = request.META.get("REMOTE_ADDR", "")
+        return peer_ip in {"127.0.0.1", "::1"}
+
+    def _get_or_repair_playwright_user(self):
+        """Get-or-create + heal the playwright-local account.
+
+        Repairs stale playwright-local accounts unconditionally (not only on
+        first creation) so a previously-downgraded account is always healed.
+        Touches the playwright-local account and only the playwright-local
+        account — protected by ABSOLUTE rule "Never change user passwords".
+        """
+        from django.contrib.auth import get_user_model
+        user_model = get_user_model()
         user, _ = user_model.objects.get_or_create(
             username=self._PLAYWRIGHT_USERNAME,
             defaults={
@@ -5862,10 +5871,7 @@ class LocalVerificationBootstrapView(APIView):
                 "is_superuser": True,
             },
         )
-
-        # Repair stale playwright-local accounts unconditionally (not only on
-        # first creation) so a previously-downgraded account is always healed.
-        fields_to_update = []
+        fields_to_update: list[str] = []
         if not user.is_staff:
             user.is_staff = True
             fields_to_update.append("is_staff")
@@ -5881,14 +5887,7 @@ class LocalVerificationBootstrapView(APIView):
             fields_to_update.append("password")
         if fields_to_update:
             user.save(update_fields=fields_to_update)
-
-        token, _ = Token.objects.get_or_create(user=user)
-        return Response(
-            {
-                "token": token.key,
-                "username": user.username,
-            }
-        )
+        return user
 
 
 class ActiveUsersView(APIView):

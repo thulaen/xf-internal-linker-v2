@@ -1,3 +1,52 @@
+# 2026-05-05 - Claude Opus 4.7 (1M context) - ZERO long-function warnings remaining: 11 final handler refactors + 17 new tests + 1 silent-except fix
+
+What I'm doing: Final batch of the long-function clear-out. After 3 prior commits today (paramount rule + 26 closures eliminated), 11 unnamed `post`/`get`/`put` view handlers remained at 51-61 lines. Each gets per-domain helpers extracted; the goal is **zero long-function warnings** in `views.py`.
+
+What was accomplished:
+
+**11 VIEW HANDLERS REFACTORED — file is now ZERO long-function warnings:**
+
+1. **SystemMetricsView.get** (61 → 2 lines) — extracted `_sample_cpu_ram_metrics` + `_sample_gpu_metrics` (each fail-soft to null/`available=False`).
+2. **XenForoTestConnectionView.post** (60 → 11 lines) — extracted `_xf_resolve_credentials` (precedence: body > AppSetting > Django settings) + `_xf_probe_credentials` (REST probe).
+3. **WebhookTestView.post** (60 → ~18 lines) — extracted `_probe_webhook_endpoint(view_class, url, slug, secret_env_name)` that handles both XF + WP webhooks via the same parametrised helper. Massive duplication eliminated (two near-identical try/except blocks → one helper called twice).
+4. **GA4GSCTestConnectionView.post** (55 → 12 lines) — extracted `_gsc_resolve_credentials` + `_gsc_probe_credentials`. Same precedence pattern as WP/XF.
+5. **TodaySummaryView.get** (51 → ~9 lines) — extracted `_today_summary_counts` (suggestion/review/sync/run counts) + `_today_autotuner_outcome` (most-recent challenger).
+6. **MasterPauseView.post** (53 → ~7 lines) — extracted `_read_master_pause_state` + `_persist_master_pause_state` + `_record_master_pause_audit_safe` (the audit/ops-feed emit is fail-soft so the toggle still succeeds even if audit is down).
+7. **RuntimeConfigView.get** (57 → 2 lines) — extracted `_runtime_config_snapshot` instance method.
+8. **RuntimeConfigView.post** (59 → ~14 lines) — extracted `_apply_queue_concurrency_alias` + `_apply_oom_backoff` instance methods.
+9. **GraphCandidateSettingsView.put** (54 → ~14 lines) — extracted `_build_graph_candidate_rows` pure helper from the 6-row dict literal; uses module-level `_GRAPH_CANDIDATE_ROW_SPEC` tuple table.
+10. **SpamGuardSettingsView.put** (52 → ~14 lines) — extracted `_build_spam_guard_rows` from a 3-row dict literal; uses `_SPAM_GUARD_ROW_SPEC` tuple table.
+11. **LocalVerificationBootstrapView.post** (53 → ~10 lines) — extracted `_request_is_authorised` (3-gate guard) + `_get_or_repair_playwright_user` (unconditional account healer). Comment preserves the ABSOLUTE rule about touching only `playwright-local`.
+
+**1 PRE-EXISTING SILENT-EXCEPT FIXED:**
+`settings_helpers.setting_str` had `except (KeyError, Exception): return fallback` — the `Exception` makes the `KeyError` redundant AND swallows all import/runtime failures silently. Split into separate `KeyError` and `Exception` handlers, both with `logger.debug(...)` so operators can grep for missing preset keys without pre-merge code review noise.
+
+**17 NEW UNIT TESTS in `tests_dashboard_helpers.py` (now 143 tests total):**
+- `SampleCpuRamMetricsTests` ×2, `SampleGpuMetricsTests` ×2 (psutil/pynvml fail-soft contracts)
+- `XfResolveCredentialsTests` ×2 (body precedence, whitespace strip)
+- `TodaySummaryHelperTests` ×2 (zero-data + no-challengers)
+- `GraphCandidateRowsTests` ×2 (all 6 rows, bool serialisation)
+- `SpamGuardRowsTests` ×2 (all 3 rows + patent-citation regex check per AGENTS.md citation rule)
+- `GscResolveCredentialsTests` ×2 (body precedence, slash strip)
+- `MasterPauseStateTests` ×3 (default false, true read, persist round-trip + no row duplication)
+
+**LINTER PARITY:**
+- Strict-mode long-function: 8 → **0** (-8 this round; **-23 cumulative across 5 commits today**)
+- Diff-aware lint: clean
+- Strict-mode whole-file lint on all 4 touched files: clean
+
+**Files changed:**
+- `backend/apps/core/views.py` — 11 handlers refactored; 16 new helpers extracted
+- `backend/apps/core/services/settings_helpers.py` — 1 pre-existing silent-except fixed
+- `backend/apps/core/tests_dashboard_helpers.py` — 17 new view-helper tests
+- `AGENT-HANDOFF.md` — this entry
+
+What has issues or errors: 365/365 apps.core tests pass. Strict-mode lint clean. The `views.py` file (~6500 lines) has zero long-function warnings AND zero silent-except violations after this batch. Long-file warning (>1500 lines) is still present and is the next refactor opportunity — should be split into a `views/` package with per-domain submodules per ISS-030 (already specced).
+
+Tech-debt delta: +17 unit tests (+72 cumulative across 4 commits today), +16 reusable view-helpers extracted, 11 long-function handlers resolved, 1 pre-existing silent-except fixed, ~325 net lines saved on views.py via extraction. **Cumulative across all 5 commits today: 23 long functions resolved, 4 sister-bugs fixed, 1 dead-code deletion, +72 unit tests, +27 reusable module-level helpers, ~770 net lines reduced on the modified files.**
+
+---
+
 # 2026-05-05 - Claude Opus 4.7 (1M context) - 7 more reusable helpers + 13 _read_* refactors + 1 dead-code deletion + 2 sister-bug fixes + 24 new tests
 
 What I'm doing: Continuing the DRY pass. After extracting 4 validate-side coercer helpers in the previous commit, audit found another 29 duplicated `_read_float` / `_read_int` / `_read_bool` closures across `views.py` reader functions, plus a clamp-pattern duplicated in 4 more validators. Same DRY violation, same fix.

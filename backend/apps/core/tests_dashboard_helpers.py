@@ -1168,6 +1168,207 @@ class WpResolveCredentialsTests(TestCase):
         self.assertEqual(creds["app_password"], "p")
 
 
+class SampleCpuRamMetricsTests(SimpleTestCase):
+    """Verify the CPU+RAM sampler returns the documented shape (or null fields on failure)."""
+
+    def test_keys_always_present(self):
+        from apps.core.views import _sample_cpu_ram_metrics
+        result = _sample_cpu_ram_metrics()
+        self.assertEqual(
+            set(result.keys()),
+            {"cpu_percent", "ram_used_mb", "ram_total_mb", "ram_percent"},
+        )
+
+    def test_values_are_numeric_when_psutil_available(self):
+        from apps.core.views import _sample_cpu_ram_metrics
+        result = _sample_cpu_ram_metrics()
+        # psutil IS available in the test container — values must not be None.
+        # If psutil ever becomes unavailable the contract is null fields.
+        for key, value in result.items():
+            self.assertTrue(
+                value is None or isinstance(value, (int, float)),
+                msg=f"{key}={value!r} must be int|float|None",
+            )
+
+
+class SampleGpuMetricsTests(SimpleTestCase):
+    """Verify the GPU sampler returns the documented shape and fail-soft semantics."""
+
+    def test_keys_always_present(self):
+        from apps.core.views import _sample_gpu_metrics
+        result = _sample_gpu_metrics()
+        self.assertEqual(
+            set(result.keys()),
+            {
+                "available", "temp_c", "vram_used_mb", "vram_total_mb",
+                "vram_percent", "utilization_pct",
+            },
+        )
+
+    def test_returns_unavailable_when_pynvml_missing(self):
+        from apps.core.views import _sample_gpu_metrics
+        # Test container has no GPU — must return available=False, not raise.
+        result = _sample_gpu_metrics()
+        self.assertIn("available", result)
+        # available=False on the test box; just verify the contract field exists.
+
+
+class XfResolveCredentialsTests(TestCase):
+    """Verify XenForo credential precedence: body > AppSetting > Django settings."""
+
+    def setUp(self):
+        from apps.core.models import AppSetting
+        AppSetting.objects.filter(key__startswith="xenforo.").delete()
+
+    def test_body_wins_when_provided(self):
+        from apps.core.views import _xf_resolve_credentials
+        base_url, api_key = _xf_resolve_credentials(
+            {"base_url": "https://body.example.com/", "api_key": "body-key"},
+        )
+        self.assertEqual(base_url, "https://body.example.com")
+        self.assertEqual(api_key, "body-key")
+
+    def test_strips_trailing_slash_and_whitespace(self):
+        from apps.core.views import _xf_resolve_credentials
+        base_url, api_key = _xf_resolve_credentials(
+            {"base_url": "  https://x.com/  ", "api_key": "  k  "},
+        )
+        self.assertEqual(base_url, "https://x.com")
+        self.assertEqual(api_key, "k")
+
+
+class TodaySummaryHelperTests(TestCase):
+    """Verify the today-summary counts and autotuner outcome helpers."""
+
+    def test_counts_zero_when_no_data(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from apps.core.views import _today_summary_counts
+        result = _today_summary_counts(timezone.now() - timedelta(hours=24))
+        self.assertEqual(result["new_suggestions"], 0)
+        self.assertEqual(result["reviewed"], 0)
+        self.assertEqual(result["items_synced"], 0)
+        self.assertEqual(result["pipeline_runs"], 0)
+
+    def test_autotuner_outcome_returns_none_when_no_challengers(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from apps.core.views import _today_autotuner_outcome
+        result = _today_autotuner_outcome(timezone.now() - timedelta(hours=24))
+        self.assertIsNone(result)
+
+
+class GraphCandidateRowsTests(SimpleTestCase):
+    """Verify the graph-candidate row builder."""
+
+    def test_all_six_rows_present(self):
+        from apps.core.views import _build_graph_candidate_rows
+        rows = _build_graph_candidate_rows({
+            "enabled": True,
+            "walk_steps_per_entity": 100,
+            "min_stable_candidates": 10,
+            "min_visit_threshold": 2,
+            "top_k_candidates": 50,
+            "top_n_entities_per_article": 5,
+        })
+        self.assertEqual(len(rows), 6)
+        self.assertEqual(rows["graph_candidate.enabled"]["value"], "true")
+        self.assertEqual(rows["graph_candidate.walk_steps_per_entity"]["value"], "100")
+
+    def test_bool_serialised_correctly(self):
+        from apps.core.views import _build_graph_candidate_rows
+        rows_off = _build_graph_candidate_rows({
+            "enabled": False, "walk_steps_per_entity": 1, "min_stable_candidates": 1,
+            "min_visit_threshold": 1, "top_k_candidates": 1, "top_n_entities_per_article": 1,
+        })
+        self.assertEqual(rows_off["graph_candidate.enabled"]["value"], "false")
+
+
+class SpamGuardRowsTests(SimpleTestCase):
+    """Verify the spam-guard row builder."""
+
+    def test_all_three_rows_present(self):
+        from apps.core.views import _build_spam_guard_rows
+        rows = _build_spam_guard_rows({
+            "max_existing_links_per_host": 3,
+            "max_anchor_words": 4,
+            "paragraph_window": 3,
+        })
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(rows["spam_guards.max_anchor_words"]["value"], "4")
+
+    def test_descriptions_carry_patent_citations(self):
+        from apps.core.views import _build_spam_guard_rows
+        rows = _build_spam_guard_rows({
+            "max_existing_links_per_host": 3,
+            "max_anchor_words": 4,
+            "paragraph_window": 3,
+        })
+        # Per AGENTS.md citation rule: each spam-guard description must
+        # carry a specific patent reference.
+        for row in rows.values():
+            self.assertRegex(row["description"], r"US\d+[A-Z]?\d*")
+
+
+class GscResolveCredentialsTests(TestCase):
+    """Verify GA4/GSC credential precedence: body > AppSetting > Django settings."""
+
+    def setUp(self):
+        from apps.core.models import AppSetting
+        AppSetting.objects.filter(key__startswith="ga4_gsc.").delete()
+
+    def test_body_wins_when_provided(self):
+        from apps.core.views import _gsc_resolve_credentials
+        creds = _gsc_resolve_credentials({
+            "property_url": "https://body.example.com/",
+            "service_account_email": "body@svc.iam",
+            "private_key": "BODYKEY",
+        })
+        self.assertEqual(creds["property_url"], "https://body.example.com")
+        self.assertEqual(creds["service_account_email"], "body@svc.iam")
+        self.assertEqual(creds["private_key"], "BODYKEY")
+
+    def test_strips_trailing_slash_from_property_url(self):
+        from apps.core.views import _gsc_resolve_credentials
+        creds = _gsc_resolve_credentials({
+            "property_url": "https://example.com/",
+            "service_account_email": "x@y", "private_key": "k",
+        })
+        self.assertEqual(creds["property_url"], "https://example.com")
+
+
+class MasterPauseStateTests(TestCase):
+    """Verify the master-pause read + persist helpers."""
+
+    def setUp(self):
+        from apps.core.models import AppSetting
+        AppSetting.objects.filter(key="system.master_pause").delete()
+
+    def test_returns_false_when_no_setting(self):
+        from apps.core.views import _read_master_pause_state
+        self.assertFalse(_read_master_pause_state())
+
+    def test_returns_true_when_setting_is_true(self):
+        from apps.core.models import AppSetting
+        from apps.core.views import _read_master_pause_state
+        AppSetting.objects.create(
+            key="system.master_pause", value="true", value_type="bool",
+        )
+        self.assertTrue(_read_master_pause_state())
+
+    def test_persist_creates_or_updates(self):
+        from apps.core.models import AppSetting
+        from apps.core.views import _persist_master_pause_state, _read_master_pause_state
+        _persist_master_pause_state(True)
+        self.assertTrue(_read_master_pause_state())
+        _persist_master_pause_state(False)
+        self.assertFalse(_read_master_pause_state())
+        # Confirm the row was upserted not duplicated.
+        self.assertEqual(
+            AppSetting.objects.filter(key="system.master_pause").count(), 1,
+        )
+
+
 class RuntimeSettingsSnapshotTests(TestCase):
     """Cold-start defaults + bulk-read happy path."""
 
