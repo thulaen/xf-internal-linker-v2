@@ -544,12 +544,24 @@ def _load_content_records(
 
 
 def _load_sentence_records(
-    content_records: dict[ContentKey, ContentRecord],
+    content_records_or_keys,
 ) -> tuple[dict[int, SentenceRecord], dict[ContentKey, pr.BitMap]]:
-    """Load sentence records for the given content keys with bounded memory use."""
+    """Load sentence records for the given content keys with bounded memory use.
+
+    Accepts either ``dict[ContentKey, ContentRecord]`` (production: iterates
+    ``.keys()``) or any iterable of ``ContentKey`` tuples (tests + tools that
+    don't need the full ContentRecord). Bug fix 2026-05-05: prior signature
+    only accepted dicts and raised AttributeError on set inputs.
+    """
     from django.db import connection
 
-    content_pks = sorted({pk for pk, _ in content_records.keys()})
+    if hasattr(content_records_or_keys, "keys"):
+        content_records = content_records_or_keys
+        keys_iter = content_records.keys()
+    else:
+        content_records = {}  # No nlp_metadata available; use empty fallback per key.
+        keys_iter = content_records_or_keys
+    content_pks = sorted({pk for pk, _ in keys_iter})
     if not content_pks:
         return {}, {}
 

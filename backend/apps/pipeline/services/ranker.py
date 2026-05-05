@@ -7,6 +7,7 @@ by the pipeline service which passes pre-built records into these functions.
 from __future__ import annotations
 
 from collections import Counter
+import dataclasses
 from dataclasses import dataclass, field
 import heapq
 import logging
@@ -696,43 +697,58 @@ def score_destination_matches(
             host_nlp_metadata=sentence_record.nlp_metadata,
             destination_nlp_metadata=destination.nlp_metadata,
         )
+        # Bug fix 2026-05-05: PhraseMatchResult is a frozen dataclass; the
+        # original code assigned to `.score_phrase_relevance` directly which
+        # raised FrozenInstanceError. Compute boosts into a local then
+        # rebuild the dataclass once via `replace()`.
+        relevance = phrase_match.score_phrase_relevance
 
         # Pick #55 — Noun-chunk boost.
         if (
-            phrase_match.anchor_phrase 
-            and sentence_record.nlp_metadata 
-            and any(phrase_match.anchor_phrase == chunk["text"] for chunk in sentence_record.nlp_metadata.get("noun_chunks", []))
+            phrase_match.anchor_phrase
+            and sentence_record.nlp_metadata
+            and any(
+                phrase_match.anchor_phrase == chunk["text"]
+                for chunk in sentence_record.nlp_metadata.get("noun_chunks", [])
+            )
         ):
-            phrase_match.score_phrase_relevance = min(1.0, phrase_match.score_phrase_relevance + phrase_matching_settings.noun_chunk_boost_weight)
+            relevance = min(1.0, relevance + phrase_matching_settings.noun_chunk_boost_weight)
 
         # Pick #57 — Lexical Richness boost.
         if sentence_record.nlp_metadata:
             richness = sentence_record.nlp_metadata.get("lexical_richness", {})
             ttr = richness.get("ttr", 0.0)
-            if ttr > 0.4: # Only boost substantive sentences
-                phrase_match.score_phrase_relevance = min(1.0, phrase_match.score_phrase_relevance + phrase_matching_settings.lexical_richness_weight)
+            if ttr > 0.4:  # Only boost substantive sentences
+                relevance = min(1.0, relevance + phrase_matching_settings.lexical_richness_weight)
 
         # Pick #62 — Fuzzy Match (RapidFuzz).
         if phrase_match.anchor_phrase:
             fuzzy_score = _score_fuzzy_match(phrase_match.anchor_phrase, destination.title)
             if fuzzy_score > 0:
-                phrase_match.score_phrase_relevance = min(1.0, phrase_match.score_phrase_relevance + fuzzy_score * phrase_matching_settings.fuzzy_match_weight)
+                relevance = min(
+                    1.0,
+                    relevance + fuzzy_score * phrase_matching_settings.fuzzy_match_weight,
+                )
 
         # Pick #61 — Phonetic Boost (Double Metaphone).
         if sentence_record.nlp_metadata and destination.nlp_metadata:
             host_keys = set(sentence_record.nlp_metadata.get("phonetic_keys", []))
             dest_keys = set(destination.nlp_metadata.get("phonetic_keys", []))
             if host_keys & dest_keys:
-                phrase_match.score_phrase_relevance = min(1.0, phrase_match.score_phrase_relevance + phrase_matching_settings.phonetic_boost_weight)
+                relevance = min(1.0, relevance + phrase_matching_settings.phonetic_boost_weight)
 
         # Pick #64 — JSD alignment boost.
         jsd = _compute_jsd(destination.tokens, sentence_record.tokens)
-        if jsd < 0.5: # Lower divergence = better alignment
+        if jsd < 0.5:  # Lower divergence = better alignment
             jsd_boost = (1.0 - jsd) * phrase_matching_settings.jsd_boost_weight
-            phrase_match.score_phrase_relevance = min(1.0, phrase_match.score_phrase_relevance + jsd_boost)
+            relevance = min(1.0, relevance + jsd_boost)
 
-        # Re-center the component score after all NLP boosts
-        phrase_match.score_phrase_component = score_phrase_relevance_component(phrase_match.score_phrase_relevance)
+        # Re-center the component score after all NLP boosts.
+        phrase_match = dataclasses.replace(
+            phrase_match,
+            score_phrase_relevance=relevance,
+            score_phrase_component=score_phrase_relevance_component(relevance),
+        )
 
         # Guard 2 — reject anchors that are too long (long-tail keyword stuffing).
         # Research basis: Google recommends 2–5 words (link best-practices docs);
