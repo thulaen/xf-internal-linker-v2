@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 from urllib.parse import urljoin, urlparse
 
 import requests
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 from django.db.models import Sum
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
@@ -174,89 +177,117 @@ def get_google_oauth_settings() -> dict:
     }
 
 
-def get_ga4_telemetry_settings() -> dict:
-    property_id = (_read_setting("analytics.ga4_property_id", "") or "").strip()
-    measurement_id = (_read_setting("analytics.ga4_measurement_id", "") or "").strip()
-    api_secret = (_read_setting("analytics.ga4_api_secret", "") or "").strip()
-    read_project_id = (_read_setting("analytics.ga4_read_project_id", "") or "").strip()
-    read_client_email = (
-        _read_setting("analytics.ga4_read_client_email", "") or ""
-    ).strip()
-    read_private_key = (
-        _read_setting("analytics.ga4_read_private_key", "") or ""
-    ).strip()
-    sync = _latest_sync("ga4")
-    status = "not_configured"
-    message = "Fill in the browser-event fields and test the connection."
+def _ga4_browser_status(measurement_id: str, api_secret: str) -> tuple[str, str]:
+    """Browser-event ``(status, plain-English message)`` for the GA4 settings card."""
     if measurement_id and api_secret:
-        status = "saved"
-        message = "Browser-event credentials are saved. Run Test Connection to confirm they work."
-    read_status = "not_configured"
-    read_message = "Connect Google once or add a GA4 read key."
-
-    oauth_client_id = _google_oauth_client_id()
-    oauth_client_secret = _google_oauth_client_secret()
-    oauth_refresh_token = _google_oauth_refresh_token()
-    oauth_connected = bool(
-        oauth_refresh_token and oauth_client_id and oauth_client_secret
+        return (
+            "saved",
+            "Browser-event credentials are saved. Run Test Connection to confirm they work.",
+        )
+    return (
+        "not_configured",
+        "Fill in the browser-event fields and test the connection.",
     )
 
-    if oauth_connected:
-        read_status = "connected"
-        read_message = "Connected to Google. GA4 read access can reuse this login."
-    elif property_id and read_client_email and read_private_key:
-        read_status = "saved"
-        read_message = "Read-access credentials (service account) are saved. Run Test Read Access to confirm they work."
 
+def _ga4_read_status(
+    *,
+    oauth_connected: bool,
+    property_id: str,
+    read_client_email: str,
+    read_private_key: str,
+    sync: dict | None,
+) -> tuple[str, str]:
+    """Read-access ``(status, plain-English message)``. Sync result wins over creds state."""
     if sync and sync["status"] == "completed":
-        read_status = "connected"
-        read_message = "GA4 read sync completed successfully the last time it ran."
-    elif sync and sync["status"] == "failed":
-        read_status = "error"
-        read_message = sync["error_message"] or "The last GA4 sync failed."
+        return ("connected", "GA4 read sync completed successfully the last time it ran.")
+    if sync and sync["status"] == "failed":
+        return (
+            "error", sync["error_message"] or "The last GA4 sync failed.",
+        )
+    if oauth_connected:
+        return (
+            "connected",
+            "Connected to Google. GA4 read access can reuse this login.",
+        )
+    if property_id and read_client_email and read_private_key:
+        return (
+            "saved",
+            "Read-access credentials (service account) are saved. "
+            "Run Test Read Access to confirm they work.",
+        )
+    return ("not_configured", "Connect Google once or add a GA4 read key.")
 
+
+def _read_stripped_setting(key: str, default: str = "") -> str:
+    """Read an AppSetting string + strip whitespace + fall back to default."""
+    return (_read_setting(key, default) or default).strip()
+
+
+def _ga4_settings_telemetry_block() -> dict:
+    """Return the 12 telemetry config keys (no creds, no statuses, no oauth)."""
     return {
         "behavior_enabled": _read_bool(
-            "analytics.ga4_behavior_enabled", GA4_DEFAULTS["behavior_enabled"]
+            "analytics.ga4_behavior_enabled", GA4_DEFAULTS["behavior_enabled"],
         ),
-        "property_id": property_id,
-        "measurement_id": measurement_id,
-        "api_secret_configured": bool(api_secret),
-        "read_project_id": read_project_id,
-        "read_client_email": read_client_email,
-        "read_private_key_configured": bool(read_private_key),
         "sync_enabled": _read_bool(
-            "analytics.ga4_sync_enabled", GA4_DEFAULTS["sync_enabled"]
+            "analytics.ga4_sync_enabled", GA4_DEFAULTS["sync_enabled"],
         ),
         "sync_lookback_days": _read_int(
-            "analytics.ga4_sync_lookback_days", GA4_DEFAULTS["sync_lookback_days"]
+            "analytics.ga4_sync_lookback_days", GA4_DEFAULTS["sync_lookback_days"],
         ),
-        "event_schema": (
-            _read_setting(
-                "analytics.telemetry_event_schema", GA4_DEFAULTS["event_schema"]
-            )
-            or GA4_DEFAULTS["event_schema"]
-        ).strip(),
-        "geo_granularity": (
-            _read_setting(
-                "analytics.telemetry_geo_granularity", GA4_DEFAULTS["geo_granularity"]
-            )
-            or GA4_DEFAULTS["geo_granularity"]
-        ).strip(),
+        "event_schema": _read_stripped_setting(
+            "analytics.telemetry_event_schema", GA4_DEFAULTS["event_schema"],
+        ),
+        "geo_granularity": _read_stripped_setting(
+            "analytics.telemetry_geo_granularity", GA4_DEFAULTS["geo_granularity"],
+        ),
         "retention_days": _read_int(
-            "analytics.telemetry_retention_days", GA4_DEFAULTS["retention_days"]
+            "analytics.telemetry_retention_days", GA4_DEFAULTS["retention_days"],
         ),
         "impression_visible_ratio": _read_float(
             "analytics.telemetry_impression_visible_ratio",
             GA4_DEFAULTS["impression_visible_ratio"],
         ),
         "impression_min_ms": _read_int(
-            "analytics.telemetry_impression_min_ms", GA4_DEFAULTS["impression_min_ms"]
+            "analytics.telemetry_impression_min_ms", GA4_DEFAULTS["impression_min_ms"],
         ),
         "engaged_min_seconds": _read_int(
             "analytics.telemetry_engaged_min_seconds",
             GA4_DEFAULTS["engaged_min_seconds"],
         ),
+    }
+
+
+def get_ga4_telemetry_settings() -> dict:
+    property_id = _read_stripped_setting("analytics.ga4_property_id")
+    measurement_id = _read_stripped_setting("analytics.ga4_measurement_id")
+    api_secret = _read_stripped_setting("analytics.ga4_api_secret")
+    read_project_id = _read_stripped_setting("analytics.ga4_read_project_id")
+    read_client_email = _read_stripped_setting("analytics.ga4_read_client_email")
+    read_private_key = _read_stripped_setting("analytics.ga4_read_private_key")
+    sync = _latest_sync("ga4")
+    oauth_client_id = _google_oauth_client_id()
+    oauth_client_secret = _google_oauth_client_secret()
+    oauth_connected = bool(
+        _google_oauth_refresh_token() and oauth_client_id and oauth_client_secret
+    )
+    status, message = _ga4_browser_status(measurement_id, api_secret)
+    read_status, read_message = _ga4_read_status(
+        oauth_connected=oauth_connected,
+        property_id=property_id,
+        read_client_email=read_client_email,
+        read_private_key=read_private_key,
+        sync=sync,
+    )
+    return {
+        **_ga4_settings_telemetry_block(),
+        "property_id": property_id,
+        "measurement_id": measurement_id,
+        "api_secret_configured": bool(api_secret),
+        "read_project_id": read_project_id,
+        "read_client_email": read_client_email,
+        "read_private_key_configured": bool(read_private_key),
         "connection_status": status,
         "connection_message": message,
         "read_connection_status": read_status,
@@ -268,50 +299,64 @@ def get_ga4_telemetry_settings() -> dict:
     }
 
 
-def get_gsc_settings() -> dict:
-    property_url = (_read_setting("analytics.gsc_property_url", "") or "").strip()
-    client_email = (_read_setting("analytics.gsc_client_email", "") or "").strip()
-    private_key = (_read_setting("analytics.gsc_private_key", "") or "").strip()
-    ranking_weight = _read_float("analytics.gsc_ranking_weight", 0.05)
-    sync = _latest_sync("gsc")
+def _gsc_connection_status(
+    *,
+    oauth_connected: bool,
+    property_url: str,
+    client_email: str,
+    private_key: str,
+    sync: dict | None,
+) -> tuple[str, str]:
+    """Pick the ``(status, plain-English message)`` for the GSC settings card."""
+    if sync and sync["status"] == "completed":
+        return ("connected", "GSC performance sync completed successfully the last time it ran.")
+    if sync and sync["status"] == "failed":
+        return ("error", sync["error_message"] or "The last GSC sync failed.")
+    if oauth_connected:
+        if property_url:
+            return ("connected", "Connected to Google.")
+        return (
+            "saved",
+            "Connected to Google. Add the Search Console property URL to finish setup.",
+        )
+    if property_url and client_email and private_key:
+        return (
+            "saved",
+            "GSC credentials (service account) are saved. Run Test Connection to confirm they work.",
+        )
+    return (
+        "not_configured",
+        "Connect via Google OAuth or fill in service-account credentials.",
+    )
 
-    oauth_refresh_token = _google_oauth_refresh_token()
+
+def get_gsc_settings() -> dict:
+    property_url = _read_stripped_setting("analytics.gsc_property_url")
+    client_email = _read_stripped_setting("analytics.gsc_client_email")
+    private_key = _read_stripped_setting("analytics.gsc_private_key")
+    sync = _latest_sync("gsc")
     oauth_connected = bool(
-        oauth_refresh_token
+        _google_oauth_refresh_token()
         and _google_oauth_client_id()
         and _google_oauth_client_secret()
     )
-
-    status = "not_configured"
-    message = "Connect via Google OAuth or fill in service-account credentials."
-    if oauth_connected:
-        status = "connected" if property_url else "saved"
-        message = (
-            "Connected to Google. Add the Search Console property URL to finish setup."
-            if not property_url
-            else "Connected to Google."
-        )
-    elif property_url and client_email and private_key:
-        status = "saved"
-        message = "GSC credentials (service account) are saved. Run Test Connection to confirm they work."
-
-    if sync and sync["status"] == "completed":
-        status = "connected"
-        message = "GSC performance sync completed successfully the last time it ran."
-    elif sync and sync["status"] == "failed":
-        status = "error"
-        message = sync["error_message"] or "The last GSC sync failed."
-
+    status, message = _gsc_connection_status(
+        oauth_connected=oauth_connected,
+        property_url=property_url,
+        client_email=client_email,
+        private_key=private_key,
+        sync=sync,
+    )
     return {
-        "ranking_weight": ranking_weight,
+        "ranking_weight": _read_float("analytics.gsc_ranking_weight", 0.05),
         "property_url": property_url,
         "client_email": client_email,
         "private_key_configured": bool(private_key),
         "sync_enabled": _read_bool(
-            "analytics.gsc_sync_enabled", GSC_DEFAULTS["sync_enabled"]
+            "analytics.gsc_sync_enabled", GSC_DEFAULTS["sync_enabled"],
         ),
         "sync_lookback_days": _read_int(
-            "analytics.gsc_sync_lookback_days", GSC_DEFAULTS["sync_lookback_days"]
+            "analytics.gsc_sync_lookback_days", GSC_DEFAULTS["sync_lookback_days"],
         ),
         "manual_backfill_max_days": GSC_MANUAL_BACKFILL_MAX_DAYS,
         "manual_backfill_suggested_days": GSC_MANUAL_BACKFILL_SUGGESTED_DAYS,
@@ -393,8 +438,8 @@ def _coerce_float(value, field_name: str, minimum: float, maximum: float) -> flo
     return parsed
 
 
-def _validate_ga4_payload(payload: dict) -> tuple[dict, bool]:
-    current = get_ga4_telemetry_settings()
+def _ga4_extract_identifiers(payload: dict, current: dict) -> dict[str, str]:
+    """Pull + normalise the 4 identifier strings; raise on format errors."""
     property_id = str(payload.get("property_id", current["property_id"])).strip()
     measurement_id = (
         str(payload.get("measurement_id", current["measurement_id"])).strip().upper()
@@ -411,103 +456,121 @@ def _validate_ga4_payload(payload: dict) -> tuple[dict, bool]:
         raise ValueError("measurement_id must start with G-.")
     if read_client_email and "@" not in read_client_email:
         raise ValueError("read_client_email must look like an email address.")
+    return {
+        "property_id": property_id,
+        "measurement_id": measurement_id,
+        "read_project_id": read_project_id,
+        "read_client_email": read_client_email,
+    }
 
+
+def _ga4_extract_optional_secrets(payload: dict) -> dict:
+    """Pull secret + OAuth fields. Each ``*_provided`` flag mirrors operator intent.
+
+    Optional secrets stay ``None`` when not provided so the persist step
+    can preserve the existing AppSetting row instead of clobbering it.
+    """
     api_secret_provided = "api_secret" in payload
-    api_secret = (
-        str(payload.get("api_secret", "")).strip() if api_secret_provided else None
-    )
     read_private_key_provided = "read_private_key" in payload
-    read_private_key = (
-        str(payload.get("read_private_key", "")).strip()
-        if read_private_key_provided
-        else None
-    )
     oauth_client_id_provided = "google_oauth_client_id" in payload
+    oauth_client_secret_provided = "google_oauth_client_secret" in payload
     oauth_client_id = str(
         payload.get("google_oauth_client_id", _google_oauth_client_id())
     ).strip()
-    oauth_client_secret_provided = "google_oauth_client_secret" in payload
-    oauth_client_secret = (
-        str(payload.get("google_oauth_client_secret", "")).strip()
-        if oauth_client_secret_provided
-        else None
-    )
+    if oauth_client_id and ".apps.googleusercontent.com" not in oauth_client_id:
+        raise ValueError(
+            "google_oauth_client_id must look like a Google OAuth client ID."
+        )
+    return {
+        "api_secret": (
+            str(payload.get("api_secret", "")).strip() if api_secret_provided else None
+        ),
+        "api_secret_provided": api_secret_provided,
+        "read_private_key": (
+            str(payload.get("read_private_key", "")).strip()
+            if read_private_key_provided else None
+        ),
+        "read_private_key_provided": read_private_key_provided,
+        "google_oauth_client_id": oauth_client_id,
+        "oauth_client_id_provided": oauth_client_id_provided,
+        "google_oauth_client_secret": (
+            str(payload.get("google_oauth_client_secret", "")).strip()
+            if oauth_client_secret_provided else None
+        ),
+        "oauth_client_secret_provided": oauth_client_secret_provided,
+    }
 
+
+def _ga4_build_validated_dict(payload: dict, current: dict, identifiers: dict) -> dict:
+    """Assemble the validated dict from coerced enums + bounded numerics."""
     geo_granularity = str(
         payload.get("geo_granularity", current["geo_granularity"])
     ).strip()
     if geo_granularity not in {"none", "country", "country_region"}:
         raise ValueError("geo_granularity must be none, country, or country_region.")
-    if oauth_client_id and ".apps.googleusercontent.com" not in oauth_client_id:
-        raise ValueError(
-            "google_oauth_client_id must look like a Google OAuth client ID."
-        )
-
     event_schema = (
         str(payload.get("event_schema", current["event_schema"])).strip()
         or GA4_DEFAULTS["event_schema"]
     )
-
-    validated = {
+    return {
+        **identifiers,
         "behavior_enabled": _coerce_bool(
             payload.get("behavior_enabled", current["behavior_enabled"]),
             "behavior_enabled",
         ),
-        "property_id": property_id,
-        "measurement_id": measurement_id,
-        "read_project_id": read_project_id,
-        "read_client_email": read_client_email,
         "sync_enabled": _coerce_bool(
-            payload.get("sync_enabled", current["sync_enabled"]), "sync_enabled"
+            payload.get("sync_enabled", current["sync_enabled"]), "sync_enabled",
         ),
         "sync_lookback_days": _coerce_int(
             payload.get("sync_lookback_days", current["sync_lookback_days"]),
-            "sync_lookback_days",
-            1,
-            30,
+            "sync_lookback_days", 1, 30,
         ),
         "event_schema": event_schema,
         "geo_granularity": geo_granularity,
         "retention_days": _coerce_int(
             payload.get("retention_days", current["retention_days"]),
-            "retention_days",
-            1,
-            _RETENTION_DAYS_MAX,
+            "retention_days", 1, _RETENTION_DAYS_MAX,
         ),
         "impression_visible_ratio": _coerce_float(
             payload.get(
-                "impression_visible_ratio", current["impression_visible_ratio"]
+                "impression_visible_ratio", current["impression_visible_ratio"],
             ),
-            "impression_visible_ratio",
-            0.25,
-            1.0,
+            "impression_visible_ratio", 0.25, 1.0,
         ),
         "impression_min_ms": _coerce_int(
             payload.get("impression_min_ms", current["impression_min_ms"]),
-            "impression_min_ms",
-            _IMPRESSION_MIN_MS_MIN,
-            _IMPRESSION_MIN_MS_MAX,
+            "impression_min_ms", _IMPRESSION_MIN_MS_MIN, _IMPRESSION_MIN_MS_MAX,
         ),
         "engaged_min_seconds": _coerce_int(
             payload.get("engaged_min_seconds", current["engaged_min_seconds"]),
-            "engaged_min_seconds",
-            5,
-            60,
+            "engaged_min_seconds", 5, 60,
         ),
     }
+
+
+def _ga4_check_credential_consistency(
+    validated: dict, current: dict, secrets: dict,
+) -> None:
+    """Cross-field rules: behavior-needs-measurement-id, sync-needs-creds."""
     if validated["behavior_enabled"] and (
         not validated["measurement_id"]
-        or not (api_secret_provided and api_secret or current["api_secret_configured"])
+        or not (
+            secrets["api_secret_provided"] and secrets["api_secret"]
+            or current["api_secret_configured"]
+        )
     ):
         raise ValueError("GA4 browser events need both measurement_id and api_secret.")
-    has_saved_read_key = bool(current["read_private_key_configured"])
-    has_new_read_key = bool(read_private_key_provided and read_private_key)
     has_google_login = bool(
         current["oauth_connected"]
         and _google_oauth_refresh_token()
-        and oauth_client_id
-        and (_google_oauth_client_secret() or oauth_client_secret)
+        and secrets["google_oauth_client_id"]
+        and (
+            _google_oauth_client_secret() or secrets["google_oauth_client_secret"]
+        )
     )
+    has_read_key = bool(
+        secrets["read_private_key_provided"] and secrets["read_private_key"]
+    ) or bool(current["read_private_key_configured"])
     if validated["sync_enabled"] and (
         not validated["property_id"]
         or (
@@ -515,24 +578,33 @@ def _validate_ga4_payload(payload: dict) -> tuple[dict, bool]:
             and (
                 not validated["read_project_id"]
                 or not validated["read_client_email"]
-                or not (has_new_read_key or has_saved_read_key)
+                or not has_read_key
             )
         )
     ):
         raise ValueError(
-            "GA4 sync needs property_id plus either Google login or read_project_id, read_client_email, and read_private_key."
+            "GA4 sync needs property_id plus either Google login or "
+            "read_project_id, read_client_email, and read_private_key."
         )
-    validated["api_secret"] = api_secret
-    validated["read_private_key"] = read_private_key
-    validated["google_oauth_client_id"] = oauth_client_id
-    validated["google_oauth_client_secret"] = oauth_client_secret
-    return (
-        validated,
-        api_secret_provided
-        or read_private_key_provided
-        or oauth_client_id_provided
-        or oauth_client_secret_provided,
+
+
+def _validate_ga4_payload(payload: dict) -> tuple[dict, bool]:
+    current = get_ga4_telemetry_settings()
+    identifiers = _ga4_extract_identifiers(payload, current)
+    secrets = _ga4_extract_optional_secrets(payload)
+    validated = _ga4_build_validated_dict(payload, current, identifiers)
+    _ga4_check_credential_consistency(validated, current, secrets)
+    validated["api_secret"] = secrets["api_secret"]
+    validated["read_private_key"] = secrets["read_private_key"]
+    validated["google_oauth_client_id"] = secrets["google_oauth_client_id"]
+    validated["google_oauth_client_secret"] = secrets["google_oauth_client_secret"]
+    any_secret_provided = (
+        secrets["api_secret_provided"]
+        or secrets["read_private_key_provided"]
+        or secrets["oauth_client_id_provided"]
+        or secrets["oauth_client_secret_provided"]
     )
+    return validated, any_secret_provided
 
 
 def _validate_matomo_payload(payload: dict) -> tuple[dict, bool]:
@@ -582,6 +654,31 @@ def _validate_matomo_payload(payload: dict) -> tuple[dict, bool]:
     return validated, token_provided
 
 
+def _check_gsc_sync_credentials_valid(
+    validated: dict, current: dict, private_key_provided: bool, private_key: str | None,
+) -> None:
+    """Cross-field rule: sync needs property_url + (Google login OR service-account creds)."""
+    has_google_login = bool(
+        current["oauth_connected"]
+        and _google_oauth_refresh_token()
+        and _google_oauth_client_id()
+        and _google_oauth_client_secret()
+    )
+    if not validated["sync_enabled"]:
+        return
+    has_service_account_key = bool(
+        private_key_provided and private_key
+    ) or bool(current["private_key_configured"])
+    if not validated["property_url"] or (
+        not has_google_login
+        and (not validated["client_email"] or not has_service_account_key)
+    ):
+        raise ValueError(
+            "GSC sync needs property_url plus either Google login or "
+            "client_email and private_key."
+        )
+
+
 def _validate_gsc_payload(payload: dict) -> tuple[dict, bool]:
     current = get_gsc_settings()
     property_url = (
@@ -596,54 +693,28 @@ def _validate_gsc_payload(payload: dict) -> tuple[dict, bool]:
         )
     if client_email and "@" not in client_email:
         raise ValueError("client_email must look like an email address.")
-
     private_key_provided = "private_key" in payload
     private_key = (
         str(payload.get("private_key", "")).strip() if private_key_provided else None
     )
-
     validated = {
         "property_url": property_url,
         "client_email": client_email,
         "ranking_weight": _coerce_float(
             payload.get("ranking_weight", current["ranking_weight"]),
-            "ranking_weight",
-            0.0,
-            1.0,
+            "ranking_weight", 0.0, 1.0,
         ),
         "sync_enabled": _coerce_bool(
-            payload.get("sync_enabled", current["sync_enabled"]), "sync_enabled"
+            payload.get("sync_enabled", current["sync_enabled"]), "sync_enabled",
         ),
         "sync_lookback_days": _coerce_int(
             payload.get("sync_lookback_days", current["sync_lookback_days"]),
-            "sync_lookback_days",
-            1,
-            90,
+            "sync_lookback_days", 1, 90,
         ),
     }
-    has_google_login = bool(
-        current["oauth_connected"]
-        and _google_oauth_refresh_token()
-        and _google_oauth_client_id()
-        and _google_oauth_client_secret()
+    _check_gsc_sync_credentials_valid(
+        validated, current, private_key_provided, private_key,
     )
-    if validated["sync_enabled"] and (
-        not validated["property_url"]
-        or (
-            not has_google_login
-            and (
-                not validated["client_email"]
-                or not (
-                    private_key_provided
-                    and private_key
-                    or current["private_key_configured"]
-                )
-            )
-        )
-    ):
-        raise ValueError(
-            "GSC sync needs property_url plus either Google login or client_email and private_key."
-        )
     validated["private_key"] = private_key
     return validated, private_key_provided
 
@@ -695,147 +766,132 @@ def _gsc_private_key() -> str:
     return (_read_setting("analytics.gsc_private_key", "") or "").strip()
 
 
-def _sync_analytics_periodic_tasks(
-    *,
-    ga4_config: dict[str, object] | None = None,
-    matomo_config: dict[str, object] | None = None,
-) -> None:
-    from django_celery_beat.models import CrontabSchedule, PeriodicTask
-
-    if ga4_config is not None:
-        hourly_ga4, _ = CrontabSchedule.objects.get_or_create(
-            minute="20",
-            hour="*",
-            day_of_week="*",
-            day_of_month="*",
-            month_of_year="*",
-            timezone="UTC",
-        )
-        daily_ga4, _ = CrontabSchedule.objects.get_or_create(
-            minute="35",
-            hour="2",
-            day_of_week="*",
-            day_of_month="*",
-            month_of_year="*",
-            timezone="UTC",
-        )
-        ga4_enabled = (
-            bool(ga4_config["sync_enabled"])
-            and bool(ga4_config["property_id"])
-            and bool(ga4_config["read_project_id"])
-            and bool(ga4_config["read_client_email"])
-            and bool(ga4_config["read_private_key_configured"])
-        )
-        PeriodicTask.objects.update_or_create(
-            name="analytics-ga4-telemetry-hourly-restatement",
-            defaults={
-                "task": "analytics.schedule_ga4_telemetry_hourly",
-                "crontab": hourly_ga4,
-                "queue": "pipeline",
-                "enabled": ga4_enabled,
-                "description": "Hourly GA4 telemetry reread for the freshest FR-016 days.",
-            },
-        )
-        PeriodicTask.objects.update_or_create(
-            name="analytics-ga4-telemetry-daily-catchup",
-            defaults={
-                "task": "analytics.schedule_ga4_telemetry_daily",
-                "crontab": daily_ga4,
-                "queue": "pipeline",
-                "enabled": ga4_enabled,
-                "description": "Daily GA4 telemetry catch-up for delayed FR-016 rows.",
-            },
-        )
-
-    if matomo_config is not None:
-        hourly_matomo, _ = CrontabSchedule.objects.get_or_create(
-            minute="10",
-            hour="*",
-            day_of_week="*",
-            day_of_month="*",
-            month_of_year="*",
-            timezone="UTC",
-        )
-        daily_matomo, _ = CrontabSchedule.objects.get_or_create(
-            minute="25",
-            hour="2",
-            day_of_week="*",
-            day_of_month="*",
-            month_of_year="*",
-            timezone="UTC",
-        )
-        matomo_enabled = (
-            bool(matomo_config["enabled"])
-            and bool(matomo_config["sync_enabled"])
-            and bool(matomo_config["url"])
-            and bool(matomo_config["site_id_xenforo"])
-            and bool(matomo_config["token_auth_configured"])
-        )
-        PeriodicTask.objects.update_or_create(
-            name="analytics-matomo-telemetry-hourly",
-            defaults={
-                "task": "analytics.schedule_matomo_telemetry_hourly",
-                "crontab": hourly_matomo,
-                "queue": "pipeline",
-                "enabled": matomo_enabled,
-                "description": "Hourly Matomo telemetry reread for FR-016.",
-            },
-        )
-        PeriodicTask.objects.update_or_create(
-            name="analytics-matomo-telemetry-daily-catchup",
-            defaults={
-                "task": "analytics.schedule_matomo_telemetry_daily",
-                "crontab": daily_matomo,
-                "queue": "pipeline",
-                "enabled": matomo_enabled,
-                "description": "Daily Matomo telemetry catch-up for FR-016.",
-            },
-        )
-
-    gsc_config = get_gsc_settings()
-    daily_gsc, _ = CrontabSchedule.objects.get_or_create(
-        minute="50",
-        hour="2",
-        day_of_week="*",
-        day_of_month="*",
-        month_of_year="*",
+def _ensure_daily_crontab(*, minute: str, hour: str):
+    """Get-or-create a daily Celery Beat crontab at the given minute/hour (UTC)."""
+    from django_celery_beat.models import CrontabSchedule
+    schedule, _ = CrontabSchedule.objects.get_or_create(
+        minute=minute, hour=hour,
+        day_of_week="*", day_of_month="*", month_of_year="*",
         timezone="UTC",
     )
-    gsc_enabled = (
+    return schedule
+
+
+def _ensure_hourly_crontab(*, minute: str):
+    """Get-or-create an hourly Celery Beat crontab at the given minute (UTC)."""
+    return _ensure_daily_crontab(minute=minute, hour="*")
+
+
+def _upsert_periodic_task(name: str, *, task: str, crontab, enabled: bool, description: str) -> None:
+    """Upsert a Celery Beat PeriodicTask row routed through the pipeline queue."""
+    from django_celery_beat.models import PeriodicTask
+    PeriodicTask.objects.update_or_create(
+        name=name,
+        defaults={
+            "task": task, "crontab": crontab, "queue": "pipeline",
+            "enabled": enabled, "description": description,
+        },
+    )
+
+
+def _ga4_periodic_enabled(ga4_config: dict[str, object]) -> bool:
+    """Truth-table for whether the GA4 periodic tasks should run."""
+    return (
+        bool(ga4_config["sync_enabled"])
+        and bool(ga4_config["property_id"])
+        and bool(ga4_config["read_project_id"])
+        and bool(ga4_config["read_client_email"])
+        and bool(ga4_config["read_private_key_configured"])
+    )
+
+
+def _matomo_periodic_enabled(matomo_config: dict[str, object]) -> bool:
+    """Truth-table for whether the Matomo periodic tasks should run."""
+    return (
+        bool(matomo_config["enabled"])
+        and bool(matomo_config["sync_enabled"])
+        and bool(matomo_config["url"])
+        and bool(matomo_config["site_id_xenforo"])
+        and bool(matomo_config["token_auth_configured"])
+    )
+
+
+def _gsc_periodic_enabled(gsc_config: dict[str, object]) -> bool:
+    """Truth-table for whether the GSC periodic task should run."""
+    return (
         bool(gsc_config["sync_enabled"])
         and bool(gsc_config["property_url"])
         and bool(gsc_config["client_email"])
         and bool(gsc_config["private_key_configured"])
     )
-    PeriodicTask.objects.update_or_create(
-        name="analytics-gsc-performance-daily",
-        defaults={
-            "task": "analytics.sync_gsc_performance_daily",
-            "crontab": daily_gsc,
-            "queue": "pipeline",
-            "enabled": gsc_enabled,
-            "description": "Daily GSC search performance sync for FR-017.",
-        },
+
+
+def _sync_ga4_periodic_tasks(ga4_config: dict[str, object]) -> None:
+    """Wire the 2 GA4 PeriodicTasks (hourly restatement + daily catch-up)."""
+    enabled = _ga4_periodic_enabled(ga4_config)
+    _upsert_periodic_task(
+        "analytics-ga4-telemetry-hourly-restatement",
+        task="analytics.schedule_ga4_telemetry_hourly",
+        crontab=_ensure_hourly_crontab(minute="20"),
+        enabled=enabled,
+        description="Hourly GA4 telemetry reread for the freshest FR-016 days.",
+    )
+    _upsert_periodic_task(
+        "analytics-ga4-telemetry-daily-catchup",
+        task="analytics.schedule_ga4_telemetry_daily",
+        crontab=_ensure_daily_crontab(minute="35", hour="2"),
+        enabled=enabled,
+        description="Daily GA4 telemetry catch-up for delayed FR-016 rows.",
     )
 
-    daily_spikes, _ = CrontabSchedule.objects.get_or_create(
-        minute="30",
-        hour="4",
-        day_of_week="*",
-        day_of_month="*",
-        month_of_year="*",
-        timezone="UTC",
+
+def _sync_matomo_periodic_tasks(matomo_config: dict[str, object]) -> None:
+    """Wire the 2 Matomo PeriodicTasks (hourly + daily catch-up)."""
+    enabled = _matomo_periodic_enabled(matomo_config)
+    _upsert_periodic_task(
+        "analytics-matomo-telemetry-hourly",
+        task="analytics.schedule_matomo_telemetry_hourly",
+        crontab=_ensure_hourly_crontab(minute="10"),
+        enabled=enabled,
+        description="Hourly Matomo telemetry reread for FR-016.",
     )
-    PeriodicTask.objects.update_or_create(
-        name="analytics-traffic-spike-detection",
-        defaults={
-            "task": "analytics.detect_traffic_spikes",
-            "crontab": daily_spikes,
-            "queue": "pipeline",
-            "enabled": True,
-            "description": "Daily momentum-based traffic spike detection for FR-023.",
-        },
+    _upsert_periodic_task(
+        "analytics-matomo-telemetry-daily-catchup",
+        task="analytics.schedule_matomo_telemetry_daily",
+        crontab=_ensure_daily_crontab(minute="25", hour="2"),
+        enabled=enabled,
+        description="Daily Matomo telemetry catch-up for FR-016.",
     )
+
+
+def _sync_gsc_and_spike_periodic_tasks() -> None:
+    """Wire the GSC daily sync + traffic-spike-detection PeriodicTasks."""
+    _upsert_periodic_task(
+        "analytics-gsc-performance-daily",
+        task="analytics.sync_gsc_performance_daily",
+        crontab=_ensure_daily_crontab(minute="50", hour="2"),
+        enabled=_gsc_periodic_enabled(get_gsc_settings()),
+        description="Daily GSC search performance sync for FR-017.",
+    )
+    _upsert_periodic_task(
+        "analytics-traffic-spike-detection",
+        task="analytics.detect_traffic_spikes",
+        crontab=_ensure_daily_crontab(minute="30", hour="4"),
+        enabled=True,
+        description="Daily momentum-based traffic spike detection for FR-023.",
+    )
+
+
+def _sync_analytics_periodic_tasks(
+    *,
+    ga4_config: dict[str, object] | None = None,
+    matomo_config: dict[str, object] | None = None,
+) -> None:
+    if ga4_config is not None:
+        _sync_ga4_periodic_tasks(ga4_config)
+    if matomo_config is not None:
+        _sync_matomo_periodic_tasks(matomo_config)
+    _sync_gsc_and_spike_periodic_tasks()
 
 
 def _telemetry_source_filter(request) -> str | None:
@@ -1011,69 +1067,50 @@ class AnalyticsTelemetryBreakdownView(APIView):
 
     def get(self, request):
         queryset, days, source = _telemetry_queryset(request)
-        device_rows = (
-            queryset.values("device_category")
-            .annotate(
-                impressions=Sum("impressions"),
-                clicks=Sum("clicks"),
-                engaged_sessions=Sum("engaged_sessions"),
-            )
-            .order_by("-clicks", "-impressions", "device_category")[:6]
+        return Response({
+            "days": days,
+            "selected_source": source or "all",
+            "device_categories": _format_breakdown_rows(
+                _aggregate_breakdown(queryset, "device_category"), "device_category",
+            ),
+            "channel_groups": _format_breakdown_rows(
+                _aggregate_breakdown(queryset, "default_channel_group"),
+                "default_channel_group",
+            ),
+            "countries": _format_breakdown_rows(
+                _aggregate_breakdown(queryset, "country"), "country",
+            ),
+        })
+
+
+_BREAKDOWN_TOP_N = 6
+
+
+def _aggregate_breakdown(queryset, dimension: str):
+    """GROUP BY ``dimension`` + sum impressions/clicks/engaged_sessions, top-6."""
+    return (
+        queryset.values(dimension)
+        .annotate(
+            impressions=Sum("impressions"),
+            clicks=Sum("clicks"),
+            engaged_sessions=Sum("engaged_sessions"),
         )
-        channel_rows = (
-            queryset.values("default_channel_group")
-            .annotate(
-                impressions=Sum("impressions"),
-                clicks=Sum("clicks"),
-                engaged_sessions=Sum("engaged_sessions"),
-            )
-            .order_by("-clicks", "-impressions", "default_channel_group")[:6]
-        )
-        country_rows = (
-            queryset.values("country")
-            .annotate(
-                impressions=Sum("impressions"),
-                clicks=Sum("clicks"),
-                engaged_sessions=Sum("engaged_sessions"),
-            )
-            .order_by("-clicks", "-impressions", "country")[:6]
-        )
-        return Response(
-            {
-                "days": days,
-                "selected_source": source or "all",
-                "device_categories": [
-                    {
-                        "label": _label_or_unknown(row["device_category"]),
-                        "impressions": int(row["impressions"] or 0),
-                        "clicks": int(row["clicks"] or 0),
-                        "engaged_sessions": int(row["engaged_sessions"] or 0),
-                        "ctr": _safe_rate(row["clicks"] or 0, row["impressions"] or 0),
-                    }
-                    for row in device_rows
-                ],
-                "channel_groups": [
-                    {
-                        "label": _label_or_unknown(row["default_channel_group"]),
-                        "impressions": int(row["impressions"] or 0),
-                        "clicks": int(row["clicks"] or 0),
-                        "engaged_sessions": int(row["engaged_sessions"] or 0),
-                        "ctr": _safe_rate(row["clicks"] or 0, row["impressions"] or 0),
-                    }
-                    for row in channel_rows
-                ],
-                "countries": [
-                    {
-                        "label": _label_or_unknown(row["country"]),
-                        "impressions": int(row["impressions"] or 0),
-                        "clicks": int(row["clicks"] or 0),
-                        "engaged_sessions": int(row["engaged_sessions"] or 0),
-                        "ctr": _safe_rate(row["clicks"] or 0, row["impressions"] or 0),
-                    }
-                    for row in country_rows
-                ],
-            }
-        )
+        .order_by("-clicks", "-impressions", dimension)[:_BREAKDOWN_TOP_N]
+    )
+
+
+def _format_breakdown_rows(rows, dimension: str) -> list[dict]:
+    """Convert aggregated rows into the {label, impressions, clicks, ctr, ...} API shape."""
+    return [
+        {
+            "label": _label_or_unknown(row[dimension]),
+            "impressions": int(row["impressions"] or 0),
+            "clicks": int(row["clicks"] or 0),
+            "engaged_sessions": int(row["engaged_sessions"] or 0),
+            "ctr": _safe_rate(row["clicks"] or 0, row["impressions"] or 0),
+        }
+        for row in rows
+    ]
 
 
 class AnalyticsTelemetryFunnelView(APIView):
@@ -1233,86 +1270,92 @@ class AnalyticsTelemetryTopSuggestionsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from django.db.models import ExpressionWrapper, F, FloatField
-
         queryset, days, source = _telemetry_queryset(request)
         order = (request.query_params.get("order") or "clicks").strip().lower()
         if order not in {"clicks", "quick_exit"}:
             order = "clicks"
-        grouped = queryset.values(
-            "suggestion_id",
-            "suggestion__destination_title",
-            "suggestion__anchor_phrase",
-            "suggestion__status",
-            "telemetry_source",
-        ).annotate(
-            impressions=Sum("impressions"),
-            clicks=Sum("clicks"),
-            destination_views=Sum("destination_views"),
-            engaged_sessions=Sum("engaged_sessions"),
-            conversions=Sum("conversions"),
-            # Phase 2c — expose the new engagement tiers per suggestion so
-            # operators can spot individual bad-match rows (high
-            # quick_exit_rate) and standout good-match rows (high
-            # dwell_60s_rate).
-            quick_exit_sessions=Sum("quick_exit_sessions"),
-            dwell_60s_sessions=Sum("dwell_60s_sessions"),
-        )
-        if order == "quick_exit":
-            # Sort by the derived quick-exit share of destination views. Filter
-            # destination_views > 0 to avoid SQL division by zero and to keep
-            # rows that only received impressions out of the bad-match list.
-            rows = (
-                grouped.filter(destination_views__gt=0)
-                .annotate(
-                    _quick_exit_ratio=ExpressionWrapper(
-                        F("quick_exit_sessions") * 1.0 / F("destination_views"),
-                        output_field=FloatField(),
-                    ),
-                )
-                .order_by("-_quick_exit_ratio", "-destination_views", "-clicks")[:8]
+        grouped = _aggregate_top_suggestions_grouped(queryset)
+        rows = _order_top_suggestions_rows(grouped, order)
+        return Response({
+            "days": days,
+            "selected_source": source or "all",
+            "items": [_format_top_suggestion_row(row) for row in rows],
+        })
+
+
+_TOP_SUGGESTIONS_LIMIT = 8
+
+
+def _aggregate_top_suggestions_grouped(queryset):
+    """GROUP BY suggestion + telemetry_source with the 7 metric Sum() annotations."""
+    return queryset.values(
+        "suggestion_id",
+        "suggestion__destination_title",
+        "suggestion__anchor_phrase",
+        "suggestion__status",
+        "telemetry_source",
+    ).annotate(
+        impressions=Sum("impressions"),
+        clicks=Sum("clicks"),
+        destination_views=Sum("destination_views"),
+        engaged_sessions=Sum("engaged_sessions"),
+        conversions=Sum("conversions"),
+        # Phase 2c — expose the new engagement tiers per suggestion so
+        # operators can spot individual bad-match rows (high quick_exit_rate)
+        # and standout good-match rows (high dwell_60s_rate).
+        quick_exit_sessions=Sum("quick_exit_sessions"),
+        dwell_60s_sessions=Sum("dwell_60s_sessions"),
+    )
+
+
+def _order_top_suggestions_rows(grouped, order: str):
+    """Apply the per-order sort + top-N slice. Quick-exit needs a derived ratio."""
+    if order == "quick_exit":
+        from django.db.models import ExpressionWrapper, F, FloatField
+        # Sort by the derived quick-exit share of destination views. Filter
+        # destination_views > 0 to avoid SQL division-by-zero and to keep
+        # impressions-only rows out of the bad-match list.
+        return (
+            grouped.filter(destination_views__gt=0)
+            .annotate(
+                _quick_exit_ratio=ExpressionWrapper(
+                    F("quick_exit_sessions") * 1.0 / F("destination_views"),
+                    output_field=FloatField(),
+                ),
             )
-        else:
-            rows = grouped.order_by("-clicks", "-engaged_sessions", "-impressions")[:8]
-        items = []
-        for row in rows:
-            impressions = int(row["impressions"] or 0)
-            clicks = int(row["clicks"] or 0)
-            destination_views = int(row["destination_views"] or 0)
-            engaged_sessions = int(row["engaged_sessions"] or 0)
-            conversions = int(row["conversions"] or 0)
-            quick_exit_sessions = int(row["quick_exit_sessions"] or 0)
-            dwell_60s_sessions = int(row["dwell_60s_sessions"] or 0)
-            items.append(
-                {
-                    "suggestion_id": str(row["suggestion_id"]),
-                    "telemetry_source": row["telemetry_source"],
-                    "destination_title": row["suggestion__destination_title"]
-                    or "Unknown destination",
-                    "anchor_phrase": row["suggestion__anchor_phrase"] or "",
-                    "status": row["suggestion__status"] or "unknown",
-                    "impressions": impressions,
-                    "clicks": clicks,
-                    "destination_views": destination_views,
-                    "engaged_sessions": engaged_sessions,
-                    "conversions": conversions,
-                    "quick_exit_sessions": quick_exit_sessions,
-                    "dwell_60s_sessions": dwell_60s_sessions,
-                    "ctr": _safe_rate(clicks, impressions),
-                    "engagement_rate": _safe_rate(engaged_sessions, destination_views),
-                    "quick_exit_rate": _safe_rate(
-                        quick_exit_sessions, destination_views
-                    ),
-                    "dwell_60s_rate": _safe_rate(dwell_60s_sessions, destination_views),
-                }
-            )
-        return Response(
-            {
-                "days": days,
-                "selected_source": source or "all",
-                "items": items,
-            }
+            .order_by("-_quick_exit_ratio", "-destination_views", "-clicks")[:_TOP_SUGGESTIONS_LIMIT]
         )
+    return grouped.order_by("-clicks", "-engaged_sessions", "-impressions")[:_TOP_SUGGESTIONS_LIMIT]
+
+
+def _format_top_suggestion_row(row: dict) -> dict:
+    """Convert one aggregated row into the public {suggestion_id, ...} API shape."""
+    impressions = int(row["impressions"] or 0)
+    clicks = int(row["clicks"] or 0)
+    destination_views = int(row["destination_views"] or 0)
+    engaged_sessions = int(row["engaged_sessions"] or 0)
+    quick_exit_sessions = int(row["quick_exit_sessions"] or 0)
+    dwell_60s_sessions = int(row["dwell_60s_sessions"] or 0)
+    return {
+        "suggestion_id": str(row["suggestion_id"]),
+        "telemetry_source": row["telemetry_source"],
+        "destination_title": (
+            row["suggestion__destination_title"] or "Unknown destination"
+        ),
+        "anchor_phrase": row["suggestion__anchor_phrase"] or "",
+        "status": row["suggestion__status"] or "unknown",
+        "impressions": impressions,
+        "clicks": clicks,
+        "destination_views": destination_views,
+        "engaged_sessions": engaged_sessions,
+        "conversions": int(row["conversions"] or 0),
+        "quick_exit_sessions": quick_exit_sessions,
+        "dwell_60s_sessions": dwell_60s_sessions,
+        "ctr": _safe_rate(clicks, impressions),
+        "engagement_rate": _safe_rate(engaged_sessions, destination_views),
+        "quick_exit_rate": _safe_rate(quick_exit_sessions, destination_views),
+        "dwell_60s_rate": _safe_rate(dwell_60s_sessions, destination_views),
+    }
 
 
 class AnalyticsTelemetryIntegrationView(APIView):
@@ -1350,103 +1393,77 @@ class AnalyticsGA4SettingsView(APIView):
             validated, _ = _validate_ga4_payload(request.data)
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=400)
-
-        _upsert_setting(
-            "analytics.ga4_behavior_enabled",
-            "true" if validated["behavior_enabled"] else "false",
-            "bool",
-            "Whether browser-side GA4 telemetry events are enabled.",
-        )
-        _upsert_setting(
-            "analytics.ga4_property_id",
-            validated["property_id"],
-            "str",
-            "GA4 property ID used for telemetry reporting.",
-        )
-        _upsert_setting(
-            "analytics.ga4_measurement_id",
-            validated["measurement_id"],
-            "str",
-            "GA4 Measurement ID used by the site event bridge.",
-        )
-        _upsert_setting(
-            "analytics.ga4_read_project_id",
-            validated["read_project_id"],
-            "str",
-            "Google Cloud project ID for GA4 Data API read access.",
-        )
-        _upsert_setting(
-            "analytics.ga4_read_client_email",
-            validated["read_client_email"],
-            "str",
-            "Service-account client email for GA4 Data API read access.",
-        )
-        _upsert_setting(
-            "analytics.ga4_sync_enabled",
-            "true" if validated["sync_enabled"] else "false",
-            "bool",
-            "Whether scheduled GA4 telemetry sync is enabled.",
-        )
-        _upsert_setting(
-            "analytics.ga4_sync_lookback_days",
-            str(validated["sync_lookback_days"]),
-            "int",
-            "How many days each GA4 sync should reread.",
-        )
-        _upsert_setting(
-            "analytics.telemetry_event_schema",
-            validated["event_schema"],
-            "str",
-            "Telemetry event schema name for FR-016.",
-        )
-        _upsert_setting(
-            "analytics.telemetry_geo_granularity",
-            validated["geo_granularity"],
-            "str",
-            "Telemetry geography granularity.",
-        )
-        _upsert_setting(
-            "analytics.telemetry_retention_days",
-            str(validated["retention_days"]),
-            "int",
-            "How long telemetry rows should be kept.",
-        )
-        _upsert_setting(
-            "analytics.telemetry_impression_visible_ratio",
-            str(validated["impression_visible_ratio"]),
-            "float",
-            "Visible ratio needed before counting an impression.",
-        )
-        _upsert_setting(
-            "analytics.telemetry_impression_min_ms",
-            str(validated["impression_min_ms"]),
-            "int",
-            "How long a link must stay visible before it counts as an impression.",
-        )
-        _upsert_setting(
-            "analytics.telemetry_engaged_min_seconds",
-            str(validated["engaged_min_seconds"]),
-            "int",
-            "How many focused seconds count as engaged destination time.",
-        )
-        if "api_secret" in request.data:
-            _upsert_setting(
-                "analytics.ga4_api_secret",
-                validated["api_secret"] or "",
-                "str",
-                "GA4 Measurement Protocol API secret.",
-                is_secret=True,
-            )
-        if "read_private_key" in request.data:
-            _upsert_setting(
-                "analytics.ga4_read_private_key",
-                validated["read_private_key"] or "",
-                "str",
-                "Service-account private key for GA4 Data API read access.",
-                is_secret=True,
-            )
+        _persist_ga4_telemetry_settings(validated, request.data)
         _sync_analytics_periodic_tasks(ga4_config=get_ga4_telemetry_settings())
         return Response(get_ga4_telemetry_settings())
+
+
+def _format_setting_value(value, value_type: str) -> str:
+    """Coerce an in-memory value into the on-disk AppSetting string form."""
+    if value_type == "bool":
+        return "true" if value else "false"
+    return str(value)
+
+
+# (validated_key, setting_key, value_type, description) for GA4 telemetry rows.
+# Adding a new GA4 settings row = one entry here, not a new copy of the
+# 5-line _upsert_setting block.
+_GA4_TELEMETRY_ROW_SPEC: tuple[tuple[str, str, str, str], ...] = (
+    ("behavior_enabled", "analytics.ga4_behavior_enabled", "bool",
+     "Whether browser-side GA4 telemetry events are enabled."),
+    ("property_id", "analytics.ga4_property_id", "str",
+     "GA4 property ID used for telemetry reporting."),
+    ("measurement_id", "analytics.ga4_measurement_id", "str",
+     "GA4 Measurement ID used by the site event bridge."),
+    ("read_project_id", "analytics.ga4_read_project_id", "str",
+     "Google Cloud project ID for GA4 Data API read access."),
+    ("read_client_email", "analytics.ga4_read_client_email", "str",
+     "Service-account client email for GA4 Data API read access."),
+    ("sync_enabled", "analytics.ga4_sync_enabled", "bool",
+     "Whether scheduled GA4 telemetry sync is enabled."),
+    ("sync_lookback_days", "analytics.ga4_sync_lookback_days", "int",
+     "How many days each GA4 sync should reread."),
+    ("event_schema", "analytics.telemetry_event_schema", "str",
+     "Telemetry event schema name for FR-016."),
+    ("geo_granularity", "analytics.telemetry_geo_granularity", "str",
+     "Telemetry geography granularity."),
+    ("retention_days", "analytics.telemetry_retention_days", "int",
+     "How long telemetry rows should be kept."),
+    ("impression_visible_ratio", "analytics.telemetry_impression_visible_ratio",
+     "float", "Visible ratio needed before counting an impression."),
+    ("impression_min_ms", "analytics.telemetry_impression_min_ms", "int",
+     "How long a link must stay visible before it counts as an impression."),
+    ("engaged_min_seconds", "analytics.telemetry_engaged_min_seconds", "int",
+     "How many focused seconds count as engaged destination time."),
+)
+
+# (validated_key, setting_key, description) for OPTIONAL GA4 secrets.
+# Persist only when the operator sent a value, so partial PUTs don't clobber
+# existing secrets.
+_GA4_OPTIONAL_SECRET_SPEC: tuple[tuple[str, str, str], ...] = (
+    ("api_secret", "analytics.ga4_api_secret",
+     "GA4 Measurement Protocol API secret."),
+    ("read_private_key", "analytics.ga4_read_private_key",
+     "Service-account private key for GA4 Data API read access."),
+)
+
+
+def _persist_ga4_telemetry_settings(validated: dict, raw_payload: dict) -> None:
+    """Write 13 standard rows + up to 2 optional secret rows for GA4 telemetry."""
+    for validated_key, setting_key, value_type, description in _GA4_TELEMETRY_ROW_SPEC:
+        _upsert_setting(
+            setting_key,
+            _format_setting_value(validated[validated_key], value_type),
+            value_type,
+            description,
+        )
+    for payload_key, setting_key, description in _GA4_OPTIONAL_SECRET_SPEC:
+        if payload_key in raw_payload:
+            _upsert_setting(
+                setting_key,
+                validated[payload_key] or "",
+                "str", description, is_secret=True,
+            )
 
 
 class AnalyticsGoogleOAuthSettingsView(APIView):
@@ -1491,9 +1508,7 @@ class AnalyticsGA4TestConnectionView(APIView):
                 request.data.get("measurement_id")
                 or _read_setting("analytics.ga4_measurement_id", "")
                 or ""
-            )
-            .strip()
-            .upper()
+            ).strip().upper()
         )
         api_secret = str(request.data.get("api_secret") or _ga4_secret()).strip()
         if not measurement_id or not api_secret:
@@ -1504,45 +1519,51 @@ class AnalyticsGA4TestConnectionView(APIView):
                 },
                 status=400,
             )
+        return _probe_ga4_browser_endpoint(measurement_id, api_secret)
 
-        url = f"https://www.google-analytics.com/debug/mp/collect?measurement_id={measurement_id}&api_secret={api_secret}"
-        try:
-            response = requests.post(
-                url,
-                json={
-                    "client_id": "xf-internal-linker-test",
-                    "events": [
-                        {
-                            "name": "xfil_connection_test",
-                            "params": {
-                                "engagement_time_msec": 1,
-                                "session_id": "fr016-test",
-                            },
-                        }
-                    ],
-                },
-                timeout=10,
-            )
-            response.raise_for_status()
-            payload = response.json()
-        except Exception as exc:
-            return Response(
-                {"status": "error", "message": f"GA4 test failed: {exc}"}, status=502
-            )
 
-        messages = payload.get("validationMessages") or []
-        if messages:
-            first = messages[0]
-            detail = (
-                first.get("description")
-                or first.get("fieldPath")
-                or "Google rejected the test event."
-            )
-            return Response({"status": "error", "message": detail}, status=400)
-
-        return Response(
-            {"status": "connected", "message": "GA4 accepted the test event."}
+def _probe_ga4_browser_endpoint(measurement_id: str, api_secret: str) -> Response:
+    """POST a debug test event to Google's MP debug endpoint; classify the response."""
+    url = (
+        "https://www.google-analytics.com/debug/mp/collect"
+        f"?measurement_id={measurement_id}&api_secret={api_secret}"
+    )
+    try:
+        response = requests.post(
+            url,
+            json={
+                "client_id": "xf-internal-linker-test",
+                "events": [
+                    {
+                        "name": "xfil_connection_test",
+                        "params": {
+                            "engagement_time_msec": 1,
+                            "session_id": "fr016-test",
+                        },
+                    }
+                ],
+            },
+            timeout=10,
         )
+        response.raise_for_status()
+        payload = response.json()
+    except Exception as exc:
+        logger.exception("GA4 browser endpoint probe failed")
+        return Response(
+            {"status": "error", "message": f"GA4 test failed: {exc}"}, status=502,
+        )
+    messages = payload.get("validationMessages") or []
+    if messages:
+        first = messages[0]
+        detail = (
+            first.get("description")
+            or first.get("fieldPath")
+            or "Google rejected the test event."
+        )
+        return Response({"status": "error", "message": detail}, status=400)
+    return Response(
+        {"status": "connected", "message": "GA4 accepted the test event."},
+    )
 
 
 class AnalyticsGA4ReadConnectionView(APIView):
@@ -1556,61 +1577,75 @@ class AnalyticsGA4ReadConnectionView(APIView):
             or _read_setting("analytics.ga4_property_id", "")
             or ""
         ).strip()
-        refresh_token = _google_oauth_refresh_token()
-        client_id = _google_oauth_client_id()
-        client_secret = _google_oauth_client_secret()
-
         try:
-            if refresh_token and client_id and client_secret:
-                service = build_ga4_data_service(
-                    property_id=property_id,
-                    refresh_token=refresh_token,
-                    client_id=client_id,
-                    client_secret=client_secret,
-                )
-            else:
-                project_id = str(
-                    request.data.get("read_project_id")
-                    or _read_setting("analytics.ga4_read_project_id", "")
-                    or ""
-                ).strip()
-                client_email = str(
-                    request.data.get("read_client_email")
-                    or _read_setting("analytics.ga4_read_client_email", "")
-                    or ""
-                ).strip()
-                private_key = str(
-                    request.data.get("read_private_key") or _ga4_read_private_key()
-                ).strip()
-                if (
-                    not property_id
-                    or not project_id
-                    or not client_email
-                    or not private_key
-                ):
-                    return Response(
-                        {
-                            "status": "error",
-                            "message": "Save GA4 read credentials or connect Google account first.",
-                        },
-                        status=400,
-                    )
-                service = build_ga4_data_service(
-                    property_id=property_id,
-                    project_id=project_id,
-                    client_email=client_email,
-                    private_key=private_key,
-                )
-            test_ga4_data_api_access(service=service, property_id=property_id)
+            service_or_response = _build_ga4_read_service_or_error_response(
+                property_id, request.data,
+            )
         except Exception as exc:
+            logger.exception("GA4 Data API service build failed")
             return Response(
                 {"status": "error", "message": f"GA4 read access failed: {exc}"},
                 status=502,
             )
-
+        if isinstance(service_or_response, Response):
+            return service_or_response
+        try:
+            test_ga4_data_api_access(
+                service=service_or_response, property_id=property_id,
+            )
+        except Exception as exc:
+            logger.exception("GA4 Data API read probe failed")
+            return Response(
+                {"status": "error", "message": f"GA4 read access failed: {exc}"},
+                status=502,
+            )
         return Response(
-            {"status": "connected", "message": "GA4 read access successful."}
+            {"status": "connected", "message": "GA4 read access successful."},
         )
+
+
+def _build_ga4_read_service_or_error_response(property_id: str, data: dict):
+    """Build a GA4 Data API service via OAuth (preferred) or service-account creds.
+
+    Returns the service object on success or a 400 ``Response`` to short-circuit.
+    """
+    refresh_token = _google_oauth_refresh_token()
+    client_id = _google_oauth_client_id()
+    client_secret = _google_oauth_client_secret()
+    if refresh_token and client_id and client_secret:
+        return build_ga4_data_service(
+            property_id=property_id,
+            refresh_token=refresh_token,
+            client_id=client_id,
+            client_secret=client_secret,
+        )
+    project_id = str(
+        data.get("read_project_id")
+        or _read_setting("analytics.ga4_read_project_id", "")
+        or ""
+    ).strip()
+    client_email = str(
+        data.get("read_client_email")
+        or _read_setting("analytics.ga4_read_client_email", "")
+        or ""
+    ).strip()
+    private_key = str(
+        data.get("read_private_key") or _ga4_read_private_key()
+    ).strip()
+    if not property_id or not project_id or not client_email or not private_key:
+        return Response(
+            {
+                "status": "error",
+                "message": "Save GA4 read credentials or connect Google account first.",
+            },
+            status=400,
+        )
+    return build_ga4_data_service(
+        property_id=property_id,
+        project_id=project_id,
+        client_email=client_email,
+        private_key=private_key,
+    )
 
 
 class AnalyticsMatomoSettingsView(APIView):
@@ -1626,53 +1661,41 @@ class AnalyticsMatomoSettingsView(APIView):
             validated, token_provided = _validate_matomo_payload(request.data)
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=400)
-
-        _upsert_setting(
-            "analytics.matomo_enabled",
-            "true" if validated["enabled"] else "false",
-            "bool",
-            "Whether Matomo telemetry collection is enabled.",
-        )
-        _upsert_setting(
-            "analytics.matomo_url",
-            validated["url"],
-            "str",
-            "Base URL for the Matomo instance.",
-        )
-        _upsert_setting(
-            "analytics.matomo_site_id_xenforo",
-            validated["site_id_xenforo"],
-            "str",
-            "Matomo site ID for XenForo.",
-        )
-        _upsert_setting(
-            "analytics.matomo_site_id_wordpress",
-            validated["site_id_wordpress"],
-            "str",
-            "Matomo site ID for WordPress.",
-        )
-        _upsert_setting(
-            "analytics.matomo_sync_enabled",
-            "true" if validated["sync_enabled"] else "false",
-            "bool",
-            "Whether scheduled Matomo telemetry sync is enabled.",
-        )
-        _upsert_setting(
-            "analytics.matomo_sync_lookback_days",
-            str(validated["sync_lookback_days"]),
-            "int",
-            "How many days each Matomo sync should reread.",
-        )
-        if token_provided:
-            _upsert_setting(
-                "analytics.matomo_token_auth",
-                validated["token_auth"] or "",
-                "str",
-                "Matomo API token auth value.",
-                is_secret=True,
-            )
+        _persist_matomo_settings(validated, token_provided)
         _sync_analytics_periodic_tasks(matomo_config=get_matomo_settings())
         return Response(get_matomo_settings())
+
+
+_MATOMO_ROW_SPEC: tuple[tuple[str, str, str, str], ...] = (
+    ("enabled", "analytics.matomo_enabled", "bool",
+     "Whether Matomo telemetry collection is enabled."),
+    ("url", "analytics.matomo_url", "str",
+     "Base URL for the Matomo instance."),
+    ("site_id_xenforo", "analytics.matomo_site_id_xenforo", "str",
+     "Matomo site ID for XenForo."),
+    ("site_id_wordpress", "analytics.matomo_site_id_wordpress", "str",
+     "Matomo site ID for WordPress."),
+    ("sync_enabled", "analytics.matomo_sync_enabled", "bool",
+     "Whether scheduled Matomo telemetry sync is enabled."),
+    ("sync_lookback_days", "analytics.matomo_sync_lookback_days", "int",
+     "How many days each Matomo sync should reread."),
+)
+
+
+def _persist_matomo_settings(validated: dict, token_provided: bool) -> None:
+    """Persist 6 standard Matomo rows + the optional token (only when supplied)."""
+    for validated_key, setting_key, value_type, description in _MATOMO_ROW_SPEC:
+        _upsert_setting(
+            setting_key,
+            _format_setting_value(validated[validated_key], value_type),
+            value_type, description,
+        )
+    if token_provided:
+        _upsert_setting(
+            "analytics.matomo_token_auth",
+            validated["token_auth"] or "",
+            "str", "Matomo API token auth value.", is_secret=True,
+        )
 
 
 class AnalyticsMatomoTestConnectionView(APIView):
@@ -1681,22 +1704,8 @@ class AnalyticsMatomoTestConnectionView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        base_url = (
-            str(
-                request.data.get("url")
-                or _read_setting("analytics.matomo_url", "")
-                or ""
-            )
-            .strip()
-            .rstrip("/")
-        )
-        site_id = str(
-            request.data.get("site_id_xenforo")
-            or _read_setting("analytics.matomo_site_id_xenforo", "")
-            or ""
-        ).strip()
-        token_auth = str(request.data.get("token_auth") or _matomo_token()).strip()
-        if not base_url or not site_id or not token_auth:
+        creds = _resolve_matomo_test_credentials(request.data)
+        if not creds["base_url"] or not creds["site_id"] or not creds["token_auth"]:
             return Response(
                 {
                     "status": "not_configured",
@@ -1704,39 +1713,58 @@ class AnalyticsMatomoTestConnectionView(APIView):
                 },
                 status=400,
             )
+        return _probe_matomo_endpoint(creds)
 
-        api_url = urljoin(
-            base_url + "/", "?module=API&method=SitesManager.getSiteFromId&format=JSON"
+
+def _resolve_matomo_test_credentials(data: dict) -> dict[str, str]:
+    """Resolve Matomo test credentials. Precedence: body > AppSetting."""
+    return {
+        "base_url": (
+            str(
+                data.get("url") or _read_setting("analytics.matomo_url", "") or "",
+            ).strip().rstrip("/")
+        ),
+        "site_id": str(
+            data.get("site_id_xenforo")
+            or _read_setting("analytics.matomo_site_id_xenforo", "") or "",
+        ).strip(),
+        "token_auth": str(data.get("token_auth") or _matomo_token()).strip(),
+    }
+
+
+def _probe_matomo_endpoint(creds: dict[str, str]) -> Response:
+    """Hit Matomo SitesManager.getSiteFromId; classify the response."""
+    api_url = urljoin(
+        creds["base_url"] + "/",
+        "?module=API&method=SitesManager.getSiteFromId&format=JSON",
+    )
+    try:
+        response = requests.get(
+            api_url,
+            params={"idSite": creds["site_id"], "token_auth": creds["token_auth"]},
+            timeout=10,
         )
-        try:
-            response = requests.get(
-                api_url,
-                params={"idSite": site_id, "token_auth": token_auth},
-                timeout=10,
-            )
-            response.raise_for_status()
-            payload = response.json()
-        except Exception as exc:
-            return Response(
-                {"status": "error", "message": f"Matomo test failed: {exc}"}, status=502
-            )
-
-        if isinstance(payload, dict) and payload.get("result") == "error":
-            return Response(
-                {
-                    "status": "error",
-                    "message": payload.get("message")
-                    or "Matomo rejected the credentials.",
-                },
-                status=400,
-            )
-
+        response.raise_for_status()
+        payload = response.json()
+    except Exception as exc:
+        logger.exception("Matomo endpoint probe failed")
+        return Response(
+            {"status": "error", "message": f"Matomo test failed: {exc}"}, status=502,
+        )
+    if isinstance(payload, dict) and payload.get("result") == "error":
         return Response(
             {
-                "status": "connected",
-                "message": "Matomo returned site details successfully.",
-            }
+                "status": "error",
+                "message": payload.get("message") or "Matomo rejected the credentials.",
+            },
+            status=400,
         )
+    return Response(
+        {
+            "status": "connected",
+            "message": "Matomo returned site details successfully.",
+        },
+    )
 
 
 class AnalyticsGA4SyncView(APIView):
@@ -2014,6 +2042,7 @@ class AnalyticsGSCTestConnectionView(APIView):
 
             test_gsc_access(service, property_url)
         except Exception as exc:
+            logger.exception("GSC test access failed")
             return Response(
                 {"status": "error", "message": f"GSC connection failed: {exc}"},
                 status=502,
@@ -2097,62 +2126,60 @@ class AnalyticsGoogleOAuthStartView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        import google_auth_oauthlib.flow
-
         client_id = _google_oauth_client_id()
         client_secret = _google_oauth_client_secret()
-
         if not client_id or not client_secret:
             return Response(
                 {
-                    "detail": "Google OAuth Client ID and Secret must be configured in settings first."
+                    "detail": (
+                        "Google OAuth Client ID and Secret must be configured "
+                        "in settings first."
+                    ),
                 },
                 status=400,
             )
+        flow = _build_google_oauth_flow(
+            client_id=client_id, client_secret=client_secret,
+            redirect_uri=request.build_absolute_uri("/api/analytics/oauth/callback/"),
+            scopes=_GOOGLE_OAUTH_SCOPES,
+        )
+        authorization_url, state = flow.authorization_url(
+            access_type="offline",
+            include_granted_scopes="true",
+            prompt="consent",
+        )
+        # Store state in session for CSRF verification in the callback view.
+        request.session["google_oauth_state"] = state
+        request.session["google_oauth_frontend_origin"] = (
+            request.headers.get("Origin") or ""
+        ).strip()
+        return Response({"authorization_url": authorization_url})
 
-        # Scopes for both GA4 and GSC
-        scopes = [
-            "https://www.googleapis.com/auth/analytics.readonly",
-            "https://www.googleapis.com/auth/webmasters.readonly",
-        ]
 
-        # Use a dict for client configuration
-        client_config = {
+_GOOGLE_OAUTH_SCOPES = (
+    "https://www.googleapis.com/auth/analytics.readonly",
+    "https://www.googleapis.com/auth/webmasters.readonly",
+)
+
+
+def _build_google_oauth_flow(
+    *, client_id: str, client_secret: str, redirect_uri: str, scopes: tuple | None,
+):
+    """Construct a google_auth_oauthlib.Flow with the standard XF-internal-linker config."""
+    import google_auth_oauthlib.flow
+
+    return google_auth_oauthlib.flow.Flow.from_client_config(
+        {
             "web": {
                 "client_id": client_id,
                 "client_secret": client_secret,
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
             }
-        }
-
-        # The redirect URI must match exactly what is in Google Cloud Console.
-        # We'll use the current request to build it if possible, or fall back to a setting.
-        redirect_uri = request.build_absolute_uri("/api/analytics/oauth/callback/")
-
-        # In case of local dev via docker-compose vs host browser:
-        # If the user is on localhost:4200, but the backend is localhost:8000.
-        # We might need to handle the origin mismatch.
-
-        flow = google_auth_oauthlib.flow.Flow.from_client_config(
-            client_config,
-            scopes=scopes,
-            redirect_uri=redirect_uri,
-        )
-
-        authorization_url, state = flow.authorization_url(
-            access_type="offline",
-            include_granted_scopes="true",
-            prompt="consent",
-        )
-
-        # Store state in session for verification in callback
-        request.session["google_oauth_state"] = state
-        request.session["google_oauth_frontend_origin"] = (
-            request.headers.get("Origin") or ""
-        ).strip()
-
-        return Response({"authorization_url": authorization_url})
+        },
+        scopes=list(scopes) if scopes else None,
+        redirect_uri=redirect_uri,
+    )
 
 
 class AnalyticsGoogleOAuthCallbackView(APIView):
@@ -2164,73 +2191,70 @@ class AnalyticsGoogleOAuthCallbackView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        import google_auth_oauthlib.flow
         from django.shortcuts import redirect
 
-        state = request.GET.get("state")
-        code = request.GET.get("code")
-        error = request.GET.get("error")
-
-        # Basic error handling
         frontend_settings_url = _frontend_settings_url(request)
-
-        if error:
-            return redirect(f"{frontend_settings_url}?oauth_error={error}")
-
-        if not state or not code:
-            return redirect(f"{frontend_settings_url}?oauth_error=missing_params")
-
-        # Verify state to prevent CSRF (if session is working)
-        saved_state = request.session.get("google_oauth_state")
-        if saved_state and state != saved_state:
-            return redirect(f"{frontend_settings_url}?oauth_error=invalid_state")
-
+        guard_url = _validate_oauth_callback_inputs(request, frontend_settings_url)
+        if guard_url is not None:
+            return redirect(guard_url)
         client_id = _google_oauth_client_id()
         client_secret = _google_oauth_client_secret()
         if not client_id or not client_secret:
             return redirect(
-                f"{frontend_settings_url}?oauth_error=missing_client_settings"
+                f"{frontend_settings_url}?oauth_error=missing_client_settings",
             )
+        return redirect(_exchange_oauth_code_and_persist(
+            request=request,
+            code=request.GET.get("code"),
+            client_id=client_id,
+            client_secret=client_secret,
+            frontend_settings_url=frontend_settings_url,
+        ))
 
-        client_config = {
-            "web": {
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-            }
-        }
 
-        redirect_uri = request.build_absolute_uri("/api/analytics/oauth/callback/")
+def _validate_oauth_callback_inputs(request, frontend_settings_url: str) -> str | None:
+    """Return an error redirect URL if the callback inputs are invalid, else None."""
+    error = request.GET.get("error")
+    if error:
+        return f"{frontend_settings_url}?oauth_error={error}"
+    state = request.GET.get("state")
+    code = request.GET.get("code")
+    if not state or not code:
+        return f"{frontend_settings_url}?oauth_error=missing_params"
+    saved_state = request.session.get("google_oauth_state")
+    if saved_state and state != saved_state:
+        return f"{frontend_settings_url}?oauth_error=invalid_state"
+    return None
 
-        flow = google_auth_oauthlib.flow.Flow.from_client_config(
-            client_config,
-            scopes=None,  # Scopes are already in the code
-            redirect_uri=redirect_uri,
-        )
 
-        try:
-            flow.fetch_token(code=code)
-            credentials = flow.credentials
-
-            if not credentials.refresh_token:
-                # If we don't get a refresh token, it might be because the user already authorized.
-                # prompt="consent" in the start view should prevent this, but just in case:
-                return redirect(f"{frontend_settings_url}?oauth_error=no_refresh_token")
-
-            # Save the refresh token
-            _upsert_setting(
-                "analytics.google_oauth_refresh_token",
-                credentials.refresh_token,
-                "str",
-                "Google OAuth Refresh Token for GA4 and GSC access.",
-                is_secret=True,
-            )
-
-            return redirect(f"{frontend_settings_url}?oauth_success=1")
-
-        except Exception as exc:
-            return redirect(f"{frontend_settings_url}?oauth_error={str(exc)}")
+def _exchange_oauth_code_and_persist(
+    *, request, code: str, client_id: str, client_secret: str,
+    frontend_settings_url: str,
+) -> str:
+    """Exchange the OAuth code for a refresh token, persist it, return redirect URL."""
+    flow = _build_google_oauth_flow(
+        client_id=client_id, client_secret=client_secret,
+        redirect_uri=request.build_absolute_uri("/api/analytics/oauth/callback/"),
+        scopes=None,  # Scopes are already encoded in the auth code.
+    )
+    try:
+        flow.fetch_token(code=code)
+        credentials = flow.credentials
+    except Exception as exc:
+        logger.exception("Google OAuth token exchange failed")
+        return f"{frontend_settings_url}?oauth_error={exc}"
+    if not credentials.refresh_token:
+        # prompt="consent" in the start view should always force a fresh token,
+        # but a re-authorisation can still skip it; surface as a recoverable error.
+        return f"{frontend_settings_url}?oauth_error=no_refresh_token"
+    _upsert_setting(
+        "analytics.google_oauth_refresh_token",
+        credentials.refresh_token,
+        "str",
+        "Google OAuth Refresh Token for GA4 and GSC access.",
+        is_secret=True,
+    )
+    return f"{frontend_settings_url}?oauth_success=1"
 
 
 class AnalyticsGoogleOAuthUnlinkView(APIView):
