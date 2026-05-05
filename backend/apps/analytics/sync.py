@@ -277,9 +277,7 @@ def _upsert_telemetry_row(
         "algorithm_key": algorithm_key,
         "algorithm_version_date": algorithm_version_date,
         "event_schema": event_schema,
-        "source_label": "wordpress"
-        if suggestion.host.content_type.startswith("wp_")
-        else "xenforo",
+        "source_label": _source_label_for(suggestion),
         "same_silo": _same_silo(suggestion),
         "impressions": int(field_totals.get("impressions", 0)),
         "clicks": int(field_totals.get("clicks", 0)),
@@ -311,29 +309,31 @@ def _upsert_telemetry_row(
     return (1, 0) if created else (0, 1)
 
 
-def _upsert_ga4_row(
+def _source_label_for(suggestion: Suggestion) -> str:
+    """Return ``"wordpress"`` when the host is a WP content_type, else ``"xenforo"``."""
+    return "wordpress" if suggestion.host.content_type.startswith("wp_") else "xenforo"
+
+
+def _build_ga4_defaults(
     *,
-    target_date: date,
     suggestion: Suggestion,
+    algorithm_key: str,
+    algorithm_version_date,
+    event_schema: str,
     key_fields: dict[str, str],
     field_totals: dict[str, int | float],
-    event_schema: str,
-) -> tuple[int, int]:
-    algorithm_key, algorithm_version_date, algorithm_version_slug = (
-        _algorithm_version_parts(suggestion)
-    )
+) -> dict:
+    """Build the ``defaults=`` payload for a GA4 SuggestionTelemetryDaily upsert."""
     sessions = int(field_totals.get("sessions", 0))
     engaged_sessions = int(field_totals.get("engaged_sessions", 0))
     total_engagement = float(field_totals.get("total_engagement_time_seconds", 0.0))
-    defaults = {
+    return {
         "destination": suggestion.destination,
         "host": suggestion.host,
         "algorithm_key": algorithm_key,
         "algorithm_version_date": algorithm_version_date,
         "event_schema": event_schema,
-        "source_label": "wordpress"
-        if suggestion.host.content_type.startswith("wp_")
-        else "xenforo",
+        "source_label": _source_label_for(suggestion),
         "same_silo": _same_silo(suggestion),
         "device_category": key_fields["device_category"],
         "default_channel_group": key_fields["default_channel_group"],
@@ -352,13 +352,32 @@ def _upsert_ga4_row(
         "quick_exit_sessions": int(field_totals.get("quick_exit_sessions", 0)),
         "dwell_30s_sessions": int(field_totals.get("dwell_30s_sessions", 0)),
         "dwell_60s_sessions": int(field_totals.get("dwell_60s_sessions", 0)),
-        "avg_engagement_time_seconds": (total_engagement / sessions)
-        if sessions
-        else 0.0,
+        "avg_engagement_time_seconds": (total_engagement / sessions) if sessions else 0.0,
         "total_engagement_time_seconds": total_engagement,
         "event_count": int(field_totals.get("event_count", 0)),
         "is_attributed": True,
     }
+
+
+def _upsert_ga4_row(
+    *,
+    target_date: date,
+    suggestion: Suggestion,
+    key_fields: dict[str, str],
+    field_totals: dict[str, int | float],
+    event_schema: str,
+) -> tuple[int, int]:
+    algorithm_key, algorithm_version_date, algorithm_version_slug = (
+        _algorithm_version_parts(suggestion)
+    )
+    defaults = _build_ga4_defaults(
+        suggestion=suggestion,
+        algorithm_key=algorithm_key,
+        algorithm_version_date=algorithm_version_date,
+        event_schema=event_schema,
+        key_fields=key_fields,
+        field_totals=field_totals,
+    )
     _, created = SuggestionTelemetryDaily.objects.update_or_create(
         date=target_date,
         telemetry_source="ga4",
@@ -375,7 +394,8 @@ def _upsert_ga4_row(
     return (1, 0) if created else (0, 1)
 
 
-def run_matomo_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
+def _validate_matomo_sync_settings_or_raise() -> tuple[str, str, str, str]:
+    """Validate the Matomo settings; return (base_url, site_id, token_auth, event_schema)."""
     from .views import get_ga4_telemetry_settings, get_matomo_settings, _matomo_token
 
     settings = get_matomo_settings()
@@ -387,463 +407,495 @@ def run_matomo_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
         raise RuntimeError("Matomo sync is disabled in settings.")
     if not base_url or not site_id:
         raise RuntimeError("Matomo sync needs the URL and XenForo site ID.")
-
     token_auth = _matomo_token()
     if not token_auth:
         raise RuntimeError("Matomo sync needs the saved token_auth secret.")
-
     event_schema = str(get_ga4_telemetry_settings().get("event_schema") or "fr016_v1")
+    return base_url, site_id, token_auth, event_schema
+
+
+def _aggregate_matomo_suggestion_totals(parsed_rows) -> dict[str, dict[str, int]]:
+    """Roll up parsed Matomo events into per-suggestion field totals."""
+    suggestion_totals: dict[str, dict[str, int]] = defaultdict(
+        lambda: defaultdict(int),
+    )
+    for suggestion_id, event_name, count in parsed_rows:
+        if event_name not in MATOMO_EVENT_FIELDS:
+            continue
+        suggestion_totals[suggestion_id][MATOMO_EVENT_FIELDS[event_name]] += count
+    return suggestion_totals
+
+
+def _bulk_load_suggestions_map(suggestion_ids: list[str]) -> dict:
+    """Pre-fetch all referenced suggestions in ONE query."""
+    return {
+        str(s.suggestion_id): s
+        for s in Suggestion.objects.select_related(
+            "destination", "destination__scope",
+            "host", "host__scope", "pipeline_run",
+        ).filter(suggestion_id__in=suggestion_ids)
+    }
+
+
+def _persist_matomo_day_writes(
+    suggestion_totals: dict, suggestions_map: dict, target_date,
+    event_schema: str, touched_destination_ids: set, counters: dict,
+) -> tuple[int, int]:
+    """Write all merged rows for one day; return (rows_written, rows_updated)."""
+    rows_written = 0
+    rows_updated = 0
+    for suggestion_id, field_totals in suggestion_totals.items():
+        suggestion = suggestions_map.get(suggestion_id)
+        if suggestion is None:
+            counters["missing_metadata_events"] += int(sum(field_totals.values()))
+            continue
+        written, updated = _upsert_telemetry_row(
+            target_date=target_date, suggestion=suggestion,
+            field_totals=field_totals, event_schema=event_schema,
+        )
+        touched_destination_ids.add(suggestion.destination_id)
+        rows_written += written
+        rows_updated += updated
+        if field_totals.get("impressions", 0) > 0:
+            counters["observed_impression_links"] += 1
+        if field_totals.get("clicks", 0) > 0:
+            counters["observed_click_links"] += 1
+        counters["attributed_destination_sessions"] += int(
+            field_totals.get("destination_views", 0),
+        )
+    return rows_written, rows_updated
+
+
+def _record_coverage_row(
+    *, target_date, event_schema: str, source_label: str,
+    counters: dict, rows_updated: int,
+) -> None:
+    """Persist one TelemetryCoverageDaily row. Shared between GA4 + Matomo paths."""
+    has_links = (
+        counters["observed_impression_links"] or counters["observed_click_links"]
+    )
+    TelemetryCoverageDaily.objects.update_or_create(
+        date=target_date, event_schema=event_schema,
+        source_label=source_label, algorithm_version_slug="",
+        defaults={
+            "expected_instrumented_links": 0,
+            "observed_impression_links": counters["observed_impression_links"],
+            "observed_click_links": counters["observed_click_links"],
+            "attributed_destination_sessions": counters["attributed_destination_sessions"],
+            "unattributed_destination_sessions": 0,
+            "duplicate_event_drops": 0,
+            "missing_metadata_events": counters["missing_metadata_events"],
+            "delayed_rows_rewritten": rows_updated,
+            "coverage_state": "healthy" if has_links else "partial",
+        },
+    )
+
+
+def _process_matomo_day(
+    *, base_url: str, token_auth: str, site_id: str, target_date,
+    event_schema: str, touched_destination_ids: set,
+) -> tuple[int, int, int]:
+    """Process one day of Matomo sync. Returns (rows_read, rows_written, rows_updated)."""
+    counters = {
+        "missing_metadata_events": 0,
+        "observed_impression_links": 0,
+        "observed_click_links": 0,
+        "attributed_destination_sessions": 0,
+    }
+    parsed_rows, source_rows = _fetch_matomo_event_rows(
+        base_url=base_url, token_auth=token_auth,
+        site_id=site_id, target_date=target_date,
+    )
+    suggestion_totals = _aggregate_matomo_suggestion_totals(parsed_rows)
+    suggestions_map = _bulk_load_suggestions_map(list(suggestion_totals.keys()))
+    rows_written, rows_updated = _persist_matomo_day_writes(
+        suggestion_totals, suggestions_map, target_date,
+        event_schema, touched_destination_ids, counters,
+    )
+    _record_coverage_row(
+        target_date=target_date, event_schema=event_schema,
+        source_label="matomo", counters=counters, rows_updated=rows_updated,
+    )
+    return source_rows, rows_written, rows_updated
+
+
+def run_matomo_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
+    base_url, site_id, token_auth, event_schema = (
+        _validate_matomo_sync_settings_or_raise()
+    )
     rows_read = 0
     rows_written = 0
     rows_updated = 0
     touched_destination_ids: set[int] = set()
-
     for offset in range(max(sync_run.lookback_days, 1)):
         target_date = timezone.now().date() - timedelta(days=offset)
-        missing_metadata_events = 0
-        observed_impression_links = 0
-        observed_click_links = 0
-        attributed_destination_sessions = 0
-        parsed_rows, source_rows = _fetch_matomo_event_rows(
-            base_url=base_url,
-            token_auth=token_auth,
-            site_id=site_id,
-            target_date=target_date,
+        day_read, day_written, day_updated = _process_matomo_day(
+            base_url=base_url, token_auth=token_auth, site_id=site_id,
+            target_date=target_date, event_schema=event_schema,
+            touched_destination_ids=touched_destination_ids,
         )
-        rows_read += source_rows
-        suggestion_totals: dict[str, dict[str, int]] = defaultdict(
-            lambda: defaultdict(int)
-        )
-
-        for suggestion_id, event_name, count in parsed_rows:
-            if event_name not in MATOMO_EVENT_FIELDS:
-                continue
-            suggestion_totals[suggestion_id][MATOMO_EVENT_FIELDS[event_name]] += count
-
-        # Bulk-load all referenced suggestions in one query instead of one per row.
-        suggestion_ids_for_day = list(suggestion_totals.keys())
-        suggestions_map = {
-            str(s.suggestion_id): s
-            for s in Suggestion.objects.select_related(
-                "destination",
-                "destination__scope",
-                "host",
-                "host__scope",
-                "pipeline_run",
-            ).filter(suggestion_id__in=suggestion_ids_for_day)
-        }
-
-        for suggestion_id, field_totals in suggestion_totals.items():
-            suggestion = suggestions_map.get(suggestion_id)
-            if suggestion is None:
-                missing_metadata_events += int(sum(field_totals.values()))
-                continue
-
-            written, updated = _upsert_telemetry_row(
-                target_date=target_date,
-                suggestion=suggestion,
-                field_totals=field_totals,
-                event_schema=event_schema,
-            )
-            touched_destination_ids.add(suggestion.destination_id)
-            rows_written += written
-            rows_updated += updated
-            if field_totals.get("impressions", 0) > 0:
-                observed_impression_links += 1
-            if field_totals.get("clicks", 0) > 0:
-                observed_click_links += 1
-            attributed_destination_sessions += int(
-                field_totals.get("destination_views", 0)
-            )
-
-        coverage_defaults = {
-            "expected_instrumented_links": 0,
-            "observed_impression_links": observed_impression_links,
-            "observed_click_links": observed_click_links,
-            "attributed_destination_sessions": attributed_destination_sessions,
-            "unattributed_destination_sessions": 0,
-            "duplicate_event_drops": 0,
-            "missing_metadata_events": missing_metadata_events,
-            "delayed_rows_rewritten": rows_updated,
-            "coverage_state": "healthy"
-            if observed_impression_links or observed_click_links
-            else "partial",
-        }
-        TelemetryCoverageDaily.objects.update_or_create(
-            date=target_date,
-            event_schema=event_schema,
-            source_label="matomo",
-            algorithm_version_slug="",
-            defaults=coverage_defaults,
-        )
-
+        rows_read += day_read
+        rows_written += day_written
+        rows_updated += day_updated
     _refresh_content_value_scores(destination_ids=touched_destination_ids)
     _refresh_engagement_quality_scores(destination_ids=touched_destination_ids)
-
     return {
-        "rows_read": rows_read,
-        "rows_written": rows_written,
+        "rows_read": rows_read, "rows_written": rows_written,
         "rows_updated": rows_updated,
     }
 
 
-def run_ga4_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
+def _build_ga4_service_or_raise(settings: dict):
+    """Build a GA4 Data API service via OAuth (preferred) or service-account creds.
+
+    Centralises the OAuth-vs-service-account selection so ``run_ga4_sync``
+    stays focused on the per-day fetch loop. Raises RuntimeError with an
+    operator-actionable message if neither credential set is complete.
+    """
     from .views import (
-        get_ga4_telemetry_settings,
         _google_oauth_client_secret,
         _google_oauth_refresh_token,
         _read_setting,
     )
 
-    settings = get_ga4_telemetry_settings()
     property_id = str(settings.get("property_id") or "").strip()
-    project_id = str(settings.get("read_project_id") or "").strip()
-    client_email = str(settings.get("read_client_email") or "").strip()
-    private_key = _read_setting("analytics.ga4_read_private_key", "") or ""
-    geo_granularity = str(settings.get("geo_granularity") or "country").strip()
-    # OAuth credentials
     refresh_token = settings.get("oauth_connected") and _google_oauth_refresh_token()
     client_id = settings.get("google_oauth_client_id")
     client_secret = _google_oauth_client_secret()
 
     if refresh_token and client_id and client_secret:
-        service = build_ga4_data_service(
+        return build_ga4_data_service(
             property_id=property_id,
             refresh_token=refresh_token,
             client_id=client_id,
             client_secret=client_secret,
         )
-    else:
-        if not property_id or not project_id or not client_email or not private_key:
-            raise RuntimeError(
-                "GA4 sync needs the property ID plus saved GA4 read-access credentials on the settings page."
-            )
-
-        service = build_ga4_data_service(
-            property_id=property_id,
-            project_id=project_id,
-            client_email=client_email,
-            private_key=private_key,
+    project_id = str(settings.get("read_project_id") or "").strip()
+    client_email = str(settings.get("read_client_email") or "").strip()
+    private_key = _read_setting("analytics.ga4_read_private_key", "") or ""
+    if not property_id or not project_id or not client_email or not private_key:
+        raise RuntimeError(
+            "GA4 sync needs the property ID plus saved GA4 read-access "
+            "credentials on the settings page.",
         )
+    return build_ga4_data_service(
+        property_id=property_id,
+        project_id=project_id,
+        client_email=client_email,
+        private_key=private_key,
+    )
 
+
+def _new_ga4_merged_rows() -> dict:
+    """Default-dict factory for the per-key field-totals map."""
+    return defaultdict(
+        lambda: {
+            "impressions": 0,
+            "clicks": 0,
+            "destination_views": 0,
+            "engaged_sessions": 0,
+            "conversions": 0,
+            "sessions": 0,
+            "event_count": 0,
+            "total_engagement_time_seconds": 0.0,
+            # Phase 2 engagement signals.
+            "quick_exit_sessions": 0,
+            "dwell_30s_sessions": 0,
+            "dwell_60s_sessions": 0,
+        },
+    )
+
+
+def _ga4_row_key(parsed: dict) -> tuple:
+    """Build the 6-tuple key used by ``merged_rows``."""
+    return (
+        parsed["suggestion_id"],
+        parsed["device_category"],
+        parsed["default_channel_group"],
+        parsed["source_medium"],
+        parsed["country"],
+        parsed["region"],
+    )
+
+
+def _accumulate_ga4_event_rows(
+    *, service, property_id: str, target_date, geo_granularity: str,
+    merged_rows: dict,
+) -> int:
+    """Fetch + merge per-event GA4 rows; return total rows_read across event names."""
     rows_read = 0
-    rows_written = 0
-    rows_updated = 0
-    event_schema = str(settings.get("event_schema") or "fr016_v1")
-    touched_destination_ids: set[int] = set()
-
-    for offset in range(max(sync_run.lookback_days, 1)):
-        target_date = timezone.now().date() - timedelta(days=offset)
-        merged_rows: dict[
-            tuple[str, str, str, str, str, str], dict[str, int | float]
-        ] = defaultdict(
-            lambda: {
-                "impressions": 0,
-                "clicks": 0,
-                "destination_views": 0,
-                "engaged_sessions": 0,
-                "conversions": 0,
-                "sessions": 0,
-                "event_count": 0,
-                "total_engagement_time_seconds": 0.0,
-                # Phase 2 engagement signals.
-                "quick_exit_sessions": 0,
-                "dwell_30s_sessions": 0,
-                "dwell_60s_sessions": 0,
-            }
+    dim_names = _ga4_dimension_names(geo_granularity=geo_granularity)
+    for event_name, field_name in GA4_EVENT_FIELDS.items():
+        rows = _fetch_ga4_rows(
+            service=service, property_id=property_id, target_date=target_date,
+            geo_granularity=geo_granularity, event_name=event_name,
+            metrics=["eventCount"],
         )
-        missing_metadata_events = 0
-        observed_impression_links = 0
-        observed_click_links = 0
-        attributed_destination_sessions = 0
-
-        for event_name, field_name in GA4_EVENT_FIELDS.items():
-            rows = _fetch_ga4_rows(
-                service=service,
-                property_id=property_id,
-                target_date=target_date,
-                geo_granularity=geo_granularity,
-                event_name=event_name,
-                metrics=["eventCount"],
-            )
-            rows_read += len(rows)
-            for row in rows:
-                parsed = _ga4_dimensions_from_row(
-                    row=row,
-                    dimension_names=_ga4_dimension_names(
-                        geo_granularity=geo_granularity
-                    ),
-                    geo_granularity=geo_granularity,
-                )
-                if is_blocked_country(parsed["country"]):
-                    continue
-                key = (
-                    parsed["suggestion_id"],
-                    parsed["device_category"],
-                    parsed["default_channel_group"],
-                    parsed["source_medium"],
-                    parsed["country"],
-                    parsed["region"],
-                )
-                count = _ga4_metric_int(row, 0)
-                merged_rows[key][field_name] = int(merged_rows[key][field_name]) + count
-                merged_rows[key]["event_count"] = (
-                    int(merged_rows[key]["event_count"]) + count
-                )
-
-        session_rows = _fetch_ga4_rows(
-            service=service,
-            property_id=property_id,
-            target_date=target_date,
-            geo_granularity=geo_granularity,
-            event_name="suggestion_destination_view",
-            metrics=[
-                "eventCount",
-                "sessions",
-                "engagedSessions",
-                "userEngagementDuration",
-            ],
-        )
-        rows_read += len(session_rows)
-        for row in session_rows:
+        rows_read += len(rows)
+        for row in rows:
             parsed = _ga4_dimensions_from_row(
-                row=row,
-                dimension_names=_ga4_dimension_names(geo_granularity=geo_granularity),
-                geo_granularity=geo_granularity,
+                row=row, dimension_names=dim_names, geo_granularity=geo_granularity,
             )
             if is_blocked_country(parsed["country"]):
                 continue
-            key = (
-                parsed["suggestion_id"],
-                parsed["device_category"],
-                parsed["default_channel_group"],
-                parsed["source_medium"],
-                parsed["country"],
-                parsed["region"],
+            key = _ga4_row_key(parsed)
+            count = _ga4_metric_int(row, 0)
+            merged_rows[key][field_name] = int(merged_rows[key][field_name]) + count
+            merged_rows[key]["event_count"] = (
+                int(merged_rows[key]["event_count"]) + count
             )
-            merged_rows[key]["destination_views"] = _ga4_metric_int(row, 0)
-            merged_rows[key]["sessions"] = _ga4_metric_int(row, 1)
-            merged_rows[key]["engaged_sessions"] = max(
-                int(merged_rows[key]["engaged_sessions"]),
-                _ga4_metric_int(row, 2),
-            )
-            merged_rows[key]["total_engagement_time_seconds"] = _ga4_metric_float(
-                row, 3
-            )
+    return rows_read
 
-        suggestion_ids = [key[0] for key in merged_rows.keys() if key[0]]
-        suggestions = {
-            str(suggestion.suggestion_id): suggestion
-            for suggestion in Suggestion.objects.select_related(
-                "destination",
-                "destination__scope",
-                "host",
-                "host__scope",
-                "pipeline_run",
-            ).filter(suggestion_id__in=suggestion_ids)
-        }
 
-        for key, field_totals in merged_rows.items():
-            (
-                suggestion_id,
-                device_category,
-                default_channel_group,
-                source_medium,
-                country,
-                region,
-            ) = key
-            event_count = int(field_totals.get("event_count", 0))
-            if not suggestion_id:
-                missing_metadata_events += event_count
-                continue
-            suggestion = suggestions.get(suggestion_id)
-            if suggestion is None:
-                missing_metadata_events += event_count
-                continue
-
-            written, updated = _upsert_ga4_row(
-                target_date=target_date,
-                suggestion=suggestion,
-                key_fields={
-                    "device_category": device_category,
-                    "default_channel_group": default_channel_group,
-                    "source_medium": source_medium,
-                    "country": country,
-                    "region": region,
-                },
-                field_totals=field_totals,
-                event_schema=event_schema,
-            )
-            touched_destination_ids.add(suggestion.destination_id)
-            rows_written += written
-            rows_updated += updated
-            if int(field_totals.get("impressions", 0)) > 0:
-                observed_impression_links += 1
-            if int(field_totals.get("clicks", 0)) > 0:
-                observed_click_links += 1
-            attributed_destination_sessions += int(
-                field_totals.get("destination_views", 0)
-            )
-
-        TelemetryCoverageDaily.objects.update_or_create(
-            date=target_date,
-            event_schema=event_schema,
-            source_label="ga4",
-            algorithm_version_slug="",
-            defaults={
-                "expected_instrumented_links": 0,
-                "observed_impression_links": observed_impression_links,
-                "observed_click_links": observed_click_links,
-                "attributed_destination_sessions": attributed_destination_sessions,
-                "unattributed_destination_sessions": 0,
-                "duplicate_event_drops": 0,
-                "missing_metadata_events": missing_metadata_events,
-                "delayed_rows_rewritten": rows_updated,
-                "coverage_state": "healthy"
-                if observed_impression_links or observed_click_links
-                else "partial",
-            },
+def _accumulate_ga4_session_rows(
+    *, service, property_id: str, target_date, geo_granularity: str,
+    merged_rows: dict,
+) -> int:
+    """Fetch + merge GA4 destination_view session rows; return rows_read."""
+    session_rows = _fetch_ga4_rows(
+        service=service, property_id=property_id, target_date=target_date,
+        geo_granularity=geo_granularity,
+        event_name="suggestion_destination_view",
+        metrics=[
+            "eventCount", "sessions", "engagedSessions", "userEngagementDuration",
+        ],
+    )
+    dim_names = _ga4_dimension_names(geo_granularity=geo_granularity)
+    for row in session_rows:
+        parsed = _ga4_dimensions_from_row(
+            row=row, dimension_names=dim_names, geo_granularity=geo_granularity,
         )
+        if is_blocked_country(parsed["country"]):
+            continue
+        key = _ga4_row_key(parsed)
+        merged_rows[key]["destination_views"] = _ga4_metric_int(row, 0)
+        merged_rows[key]["sessions"] = _ga4_metric_int(row, 1)
+        merged_rows[key]["engaged_sessions"] = max(
+            int(merged_rows[key]["engaged_sessions"]),
+            _ga4_metric_int(row, 2),
+        )
+        merged_rows[key]["total_engagement_time_seconds"] = _ga4_metric_float(row, 3)
+    return len(session_rows)
 
+
+def _bulk_load_ga4_suggestions(merged_rows: dict) -> dict:
+    """Pre-fetch every Suggestion referenced in merged_rows in ONE query."""
+    suggestion_ids = [key[0] for key in merged_rows if key[0]]
+    return {
+        str(suggestion.suggestion_id): suggestion
+        for suggestion in Suggestion.objects.select_related(
+            "destination", "destination__scope",
+            "host", "host__scope", "pipeline_run",
+        ).filter(suggestion_id__in=suggestion_ids)
+    }
+
+
+def _persist_ga4_day_writes(
+    merged_rows: dict, suggestions: dict, target_date, event_schema: str,
+    touched_destination_ids: set, counters: dict,
+) -> tuple[int, int]:
+    """Write all merged rows for one day; return (rows_written, rows_updated)."""
+    rows_written = 0
+    rows_updated = 0
+    for key, field_totals in merged_rows.items():
+        suggestion_id, device_category, default_channel_group, source_medium, country, region = key
+        event_count = int(field_totals.get("event_count", 0))
+        if not suggestion_id:
+            counters["missing_metadata_events"] += event_count
+            continue
+        suggestion = suggestions.get(suggestion_id)
+        if suggestion is None:
+            counters["missing_metadata_events"] += event_count
+            continue
+        written, updated = _upsert_ga4_row(
+            target_date=target_date, suggestion=suggestion,
+            key_fields={
+                "device_category": device_category,
+                "default_channel_group": default_channel_group,
+                "source_medium": source_medium,
+                "country": country, "region": region,
+            },
+            field_totals=field_totals, event_schema=event_schema,
+        )
+        touched_destination_ids.add(suggestion.destination_id)
+        rows_written += written
+        rows_updated += updated
+        if int(field_totals.get("impressions", 0)) > 0:
+            counters["observed_impression_links"] += 1
+        if int(field_totals.get("clicks", 0)) > 0:
+            counters["observed_click_links"] += 1
+        counters["attributed_destination_sessions"] += int(
+            field_totals.get("destination_views", 0),
+        )
+    return rows_written, rows_updated
+
+
+def _process_ga4_day(
+    *, service, property_id: str, target_date, geo_granularity: str,
+    event_schema: str, touched_destination_ids: set,
+) -> tuple[int, int, int]:
+    """Process one day of GA4 sync. Returns (rows_read, rows_written, rows_updated)."""
+    merged_rows = _new_ga4_merged_rows()
+    counters = {
+        "missing_metadata_events": 0,
+        "observed_impression_links": 0,
+        "observed_click_links": 0,
+        "attributed_destination_sessions": 0,
+    }
+    rows_read = _accumulate_ga4_event_rows(
+        service=service, property_id=property_id, target_date=target_date,
+        geo_granularity=geo_granularity, merged_rows=merged_rows,
+    )
+    rows_read += _accumulate_ga4_session_rows(
+        service=service, property_id=property_id, target_date=target_date,
+        geo_granularity=geo_granularity, merged_rows=merged_rows,
+    )
+    suggestions = _bulk_load_ga4_suggestions(merged_rows)
+    rows_written, rows_updated = _persist_ga4_day_writes(
+        merged_rows, suggestions, target_date, event_schema,
+        touched_destination_ids, counters,
+    )
+    _record_coverage_row(
+        target_date=target_date, event_schema=event_schema,
+        source_label="ga4", counters=counters, rows_updated=rows_updated,
+    )
+    return rows_read, rows_written, rows_updated
+
+
+def run_ga4_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
+    from .views import get_ga4_telemetry_settings
+
+    settings = get_ga4_telemetry_settings()
+    service = _build_ga4_service_or_raise(settings)
+    property_id = str(settings.get("property_id") or "").strip()
+    geo_granularity = str(settings.get("geo_granularity") or "country").strip()
+    event_schema = str(settings.get("event_schema") or "fr016_v1")
+    touched_destination_ids: set[int] = set()
+    rows_read = 0
+    rows_written = 0
+    rows_updated = 0
+    for offset in range(max(sync_run.lookback_days, 1)):
+        target_date = timezone.now().date() - timedelta(days=offset)
+        day_read, day_written, day_updated = _process_ga4_day(
+            service=service, property_id=property_id, target_date=target_date,
+            geo_granularity=geo_granularity, event_schema=event_schema,
+            touched_destination_ids=touched_destination_ids,
+        )
+        rows_read += day_read
+        rows_written += day_written
+        rows_updated += day_updated
     _refresh_content_value_scores(destination_ids=touched_destination_ids)
     _refresh_engagement_quality_scores(destination_ids=touched_destination_ids)
-
     return {
-        "rows_read": rows_read,
-        "rows_written": rows_written,
+        "rows_read": rows_read, "rows_written": rows_written,
         "rows_updated": rows_updated,
     }
 
 
-def run_gsc_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
-    """
-    Fetch search performance metrics from GSC and store them as raw daily logs.
-    These logs feed the attribution engine in Slice 4.
-    """
+_GSC_LAG_DAYS = 3
+
+
+def _build_gsc_service_or_raise(settings: dict):
+    """Build a GSC API service via OAuth (preferred) or service-account creds."""
     from .views import (
-        get_gsc_settings,
-        _gsc_private_key,
-        _google_oauth_refresh_token,
-        _google_oauth_client_id,
-        _google_oauth_client_secret,
+        _google_oauth_client_id, _google_oauth_client_secret,
+        _google_oauth_refresh_token, _gsc_private_key,
     )
-    from .models import GSCDailyPerformance
 
-    settings = get_gsc_settings()
-    if not settings.get("sync_enabled"):
-        return {
-            "rows_read": 0,
-            "rows_written": 0,
-            "rows_updated": 0,
-            "error": "GSC sync is disabled.",
-        }
-
-    property_url = settings.get("property_url")
-
-    # OAuth credentials
     refresh_token = settings.get("oauth_connected") and _google_oauth_refresh_token()
     client_id = _google_oauth_client_id()
     client_secret = _google_oauth_client_secret()
-
     if refresh_token and client_id and client_secret:
-        service = build_gsc_service(
+        return build_gsc_service(
             refresh_token=refresh_token,
-            client_id=client_id,
-            client_secret=client_secret,
+            client_id=client_id, client_secret=client_secret,
         )
-    else:
-        client_email = settings.get("client_email")
-        private_key = _gsc_private_key()
+    property_url = settings.get("property_url")
+    client_email = settings.get("client_email")
+    private_key = _gsc_private_key()
+    if not property_url or not client_email or not private_key:
+        raise RuntimeError(
+            "GSC sync needs property_url, client_email, and private_key.",
+        )
+    return build_gsc_service(client_email=client_email, private_key=private_key)
 
-        if not property_url or not client_email or not private_key:
-            raise RuntimeError(
-                "GSC sync needs property_url, client_email, and private_key."
-            )
 
-        service = build_gsc_service(client_email=client_email, private_key=private_key)
-
-    # Search Console data has a ~2-3 day processing lag.
-    # We look back from 3 days ago to ensure we have data.
-    end_date = timezone.now().date() - timedelta(days=3)
-    start_date = end_date - timedelta(days=sync_run.lookback_days)
-
-    # Pull page totals for the raw ingestion table.
+def _fetch_gsc_dimensions_pair(
+    *, service, property_url: str, start_date, end_date,
+) -> tuple[list, list]:
+    """Fetch the (page-totals, query-detail) row pairs from GSC."""
+    excluded = list(BLOCKED_COUNTRY_CODES_ALPHA3)
     page_rows = fetch_gsc_performance_data(
-        service=service,
-        property_url=property_url,
-        start_date=start_date,
-        end_date=end_date,
-        dimensions=["date", "page"],
-        excluded_country_codes=list(BLOCKED_COUNTRY_CODES_ALPHA3),
+        service=service, property_url=property_url,
+        start_date=start_date, end_date=end_date,
+        dimensions=["date", "page"], excluded_country_codes=excluded,
     )
     query_rows = fetch_gsc_performance_data(
-        service=service,
-        property_url=property_url,
-        start_date=start_date,
-        end_date=end_date,
-        dimensions=["date", "page", "query"],
-        excluded_country_codes=list(BLOCKED_COUNTRY_CODES_ALPHA3),
+        service=service, property_url=property_url,
+        start_date=start_date, end_date=end_date,
+        dimensions=["date", "page", "query"], excluded_country_codes=excluded,
     )
+    return page_rows, query_rows
 
-    rows_read = len(page_rows) + len(query_rows)
-    rows_written = 0
-    rows_updated = 0
 
-    # Group by Page URL to find ContentItems efficiently for the legacy SearchMetric link
-    page_urls_in_batch = list(
-        {
-            row["keys"][1]
-            for row in page_rows + query_rows
-            if len(row.get("keys", [])) >= 2
-        }
-    )
-    content_map = {
+def _build_gsc_content_url_map(page_rows: list, query_rows: list) -> dict[str, ContentItem]:
+    """Bulk-fetch ContentItems for every page URL in either row set in ONE query."""
+    page_urls_in_batch = list({
+        row["keys"][1]
+        for row in page_rows + query_rows
+        if len(row.get("keys", [])) >= 2
+    })
+    return {
         item.url: item
         for item in ContentItem.objects.filter(url__in=page_urls_in_batch)
     }
-    page_totals_by_item_date: dict[tuple[int, str], dict[str, float | int]] = {}
-    item_dates_with_query_rows: set[tuple[int, str]] = set()
-    touched_destination_ids: set[int] = set()
 
+
+def _persist_gsc_page_rows(
+    page_rows: list, content_map: dict, property_url: str,
+    page_totals_by_item_date: dict, touched_destination_ids: set,
+) -> tuple[int, int]:
+    """Write GSCDailyPerformance for every page row + cache item totals.
+
+    Returns (rows_written, rows_updated). Bug-safe: no division-by-zero risk.
+    """
+    from .models import GSCDailyPerformance
+
+    rows_written = 0
+    rows_updated = 0
     for row in page_rows:
-        # dimensions=['date', 'page']
         dt_str = row["keys"][0]
         page_url = row["keys"][1]
-
         impressions = int(row.get("impressions", 0))
         clicks = int(row.get("clicks", 0))
         ctr = float(row.get("ctr", 0.0))
         avg_pos = float(row.get("position", 0.0))
-
-        # 1. Store in the new GSCDailyPerformance raw log table (Slice 3 focus)
         _, created = GSCDailyPerformance.objects.update_or_create(
-            page_url=page_url,
-            date=dt_str,
-            property_url=property_url,
+            page_url=page_url, date=dt_str, property_url=property_url,
             defaults={
-                "impressions": impressions,
-                "clicks": clicks,
-                "ctr": ctr,
-                "avg_position": avg_pos,
+                "impressions": impressions, "clicks": clicks,
+                "ctr": ctr, "avg_position": avg_pos,
             },
         )
         if created:
             rows_written += 1
         else:
             rows_updated += 1
-
-        # 2. Also update legacy SearchMetric if we can map to a ContentItem (for repo stability)
         item = content_map.get(page_url)
         if item:
             page_totals_by_item_date[(item.pk, dt_str)] = {
-                "item": item,
-                "impressions": impressions,
-                "clicks": clicks,
-                "ctr": ctr,
-                "average_position": avg_pos,
+                "item": item, "impressions": impressions, "clicks": clicks,
+                "ctr": ctr, "average_position": avg_pos,
             }
             touched_destination_ids.add(item.pk)
+    return rows_written, rows_updated
 
+
+def _persist_gsc_query_rows(
+    query_rows: list, content_map: dict,
+    item_dates_with_query_rows: set,
+) -> None:
+    """Write per-query SearchMetric rows + record (item, date) pairs that have queries."""
     for row in query_rows:
         if len(row.get("keys", [])) < 3:
             continue
@@ -851,38 +903,38 @@ def run_gsc_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
         page_url = row["keys"][1]
         query_text = str(row["keys"][2] or "").strip()
         item = content_map.get(page_url)
-        if item is None:
+        if item is None or not query_text:
             continue
-        if query_text:
-            item_dates_with_query_rows.add((item.pk, dt_str))
-            SearchMetric.objects.update_or_create(
-                content_item=item,
-                date=dt_str,
-                source="gsc",
-                query=query_text,
-                defaults={
-                    "impressions": int(row.get("impressions", 0)),
-                    "clicks": int(row.get("clicks", 0)),
-                    "ctr": float(row.get("ctr", 0.0)),
-                    "average_position": float(row.get("position", 0.0)),
-                },
-            )
+        item_dates_with_query_rows.add((item.pk, dt_str))
+        SearchMetric.objects.update_or_create(
+            content_item=item, date=dt_str, source="gsc", query=query_text,
+            defaults={
+                "impressions": int(row.get("impressions", 0)),
+                "clicks": int(row.get("clicks", 0)),
+                "ctr": float(row.get("ctr", 0.0)),
+                "average_position": float(row.get("position", 0.0)),
+            },
+        )
 
+
+def _persist_gsc_page_total_search_metrics(
+    page_totals_by_item_date: dict, item_dates_with_query_rows: set,
+) -> None:
+    """Per (item, date) page total: drop any zero-query row + upsert the totals row.
+
+    The drop-empty-query-row path runs when query rows already covered the
+    same (item, date) — we don't want both a "" total AND query-detail rows
+    confusing the breakdown.
+    """
     for (item_pk, dt_str), totals in page_totals_by_item_date.items():
         item = totals["item"]
         if (item_pk, dt_str) in item_dates_with_query_rows:
             SearchMetric.objects.filter(
-                content_item=item,
-                date=dt_str,
-                source="gsc",
-                query="",
+                content_item=item, date=dt_str, source="gsc", query="",
             ).delete()
             continue
         SearchMetric.objects.update_or_create(
-            content_item=item,
-            date=dt_str,
-            source="gsc",
-            query="",
+            content_item=item, date=dt_str, source="gsc", query="",
             defaults={
                 "impressions": int(totals["impressions"]),
                 "clicks": int(totals["clicks"]),
@@ -891,17 +943,53 @@ def run_gsc_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
             },
         )
 
+
+def run_gsc_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
+    """Fetch GSC search-performance metrics + store them as raw daily logs.
+
+    Powered by the GSCDailyPerformance + SearchMetric tables that feed the
+    attribution engine. Cold-start safe: returns an error dict (not an
+    exception) if sync is disabled.
+    """
+    from .views import get_gsc_settings
+
+    settings = get_gsc_settings()
+    if not settings.get("sync_enabled"):
+        return {
+            "rows_read": 0, "rows_written": 0, "rows_updated": 0,
+            "error": "GSC sync is disabled.",
+        }
+    service = _build_gsc_service_or_raise(settings)
+    property_url = settings.get("property_url")
+    # GSC has a ~2-3 day processing lag; look back from 3 days ago.
+    end_date = timezone.now().date() - timedelta(days=_GSC_LAG_DAYS)
+    start_date = end_date - timedelta(days=sync_run.lookback_days)
+    page_rows, query_rows = _fetch_gsc_dimensions_pair(
+        service=service, property_url=property_url,
+        start_date=start_date, end_date=end_date,
+    )
+    rows_read = len(page_rows) + len(query_rows)
+    content_map = _build_gsc_content_url_map(page_rows, query_rows)
+    page_totals_by_item_date: dict[tuple[int, str], dict] = {}
+    item_dates_with_query_rows: set[tuple[int, str]] = set()
+    touched_destination_ids: set[int] = set()
+    rows_written, rows_updated = _persist_gsc_page_rows(
+        page_rows, content_map, property_url,
+        page_totals_by_item_date, touched_destination_ids,
+    )
+    _persist_gsc_query_rows(query_rows, content_map, item_dates_with_query_rows)
+    _persist_gsc_page_total_search_metrics(
+        page_totals_by_item_date, item_dates_with_query_rows,
+    )
     _refresh_content_value_scores(destination_ids=touched_destination_ids)
     _refresh_engagement_quality_scores(destination_ids=touched_destination_ids)
-
     return {
-        "rows_read": rows_read,
-        "rows_written": rows_written,
+        "rows_read": rows_read, "rows_written": rows_written,
         "rows_updated": rows_updated,
     }
 
 
-def compute_content_value_raw(
+def compute_content_value_raw(  # noqa: forbidden-pattern too-many-args  # justification: keyword-only telemetry signature is the public API mirroring compute_content_value_breakdown; collapsing to a kwargs dict would break call-site type checking.
     *,
     gsc_clicks: int,
     gsc_ctr: float,
@@ -933,188 +1021,134 @@ def compute_content_value_raw(
     # Neutral fallback: if all three new counts are zero (no telemetry
     # wired yet or no Phase 2 events fired) all three terms add to 0,
     # leaving the pre-Phase 3a formula intact.
+
+    Body delegates to the shared spec-table helpers used by the breakdown
+    counterpart so the formula stays in exactly one place.
     """
-    if not any(
-        [
-            gsc_clicks,
-            gsc_impressions,
-            destination_views,
-            engaged_sessions,
-            conversions,
-            telemetry_clicks,
-            quick_exit_sessions,
-            dwell_30s_sessions,
-            dwell_60s_sessions,
-        ]
-    ):
+    if not any([
+        gsc_clicks, gsc_impressions, destination_views, engaged_sessions,
+        conversions, telemetry_clicks, quick_exit_sessions,
+        dwell_30s_sessions, dwell_60s_sessions,
+    ]):
         return None
-
-    engagement_rate = engaged_sessions / max(destination_views, 1)
-    conversion_rate = conversions / max(destination_views, 1)
-    click_rate = telemetry_clicks / max(destination_views, 1)
-    dwell_30s_rate = dwell_30s_sessions / max(destination_views, 1)
-    dwell_60s_rate = dwell_60s_sessions / max(destination_views, 1)
-    quick_exit_rate = quick_exit_sessions / max(destination_views, 1)
-
-    return (
-        (0.40 * math.log1p(gsc_clicks))
-        + (0.20 * gsc_ctr * 100.0)
-        + (0.20 * math.log1p(destination_views))
-        + (0.10 * engagement_rate * 10.0)
-        + (0.05 * conversion_rate * 10.0)
-        + (0.05 * click_rate * 10.0)
-        # Phase 3a/3c — dwell-gradient credits + quick-exit penalty (Kim et al. WSDM 2014).
-        + (0.025 * dwell_30s_rate * 10.0)
-        + (0.05 * dwell_60s_rate * 10.0)
-        - (0.05 * quick_exit_rate * 10.0)
+    inputs = _build_content_value_term_inputs(
+        gsc_clicks=gsc_clicks, gsc_ctr=gsc_ctr,
+        destination_views=destination_views,
+        engaged_sessions=engaged_sessions, conversions=conversions,
+        telemetry_clicks=telemetry_clicks,
+        quick_exit_sessions=quick_exit_sessions,
+        dwell_30s_sessions=dwell_30s_sessions,
+        dwell_60s_sessions=dwell_60s_sessions,
+    )
+    return sum(
+        _term_contribution(inputs[name], weight, sign, multiplier, kind)
+        for name, weight, sign, multiplier, kind in _CONTENT_VALUE_TERM_SPEC
     )
 
 
-def compute_content_value_breakdown(
+# Per-term spec for the content_value breakdown. Each tuple:
+# (name, weight, sign, multiplier, kind)
+#   kind ∈ {"log1p", "raw_pct", "rate"} — selects how `value` maps into `contribution`.
+# Mirrors Kim et al. WSDM 2014 dwell-gradient + quick-exit weights one-for-one.
+_CONTENT_VALUE_TERM_SPEC: tuple[tuple[str, float, str, float, str], ...] = (
+    ("gsc_clicks", 0.40, "+", 0.0, "log1p"),
+    ("gsc_ctr", 0.20, "+", 100.0, "raw_pct"),
+    ("destination_views", 0.20, "+", 0.0, "log1p"),
+    ("engagement_rate", 0.10, "+", 10.0, "rate"),
+    ("conversion_rate", 0.05, "+", 10.0, "rate"),
+    ("click_rate", 0.05, "+", 10.0, "rate"),
+    ("dwell_30s_rate", 0.025, "+", 10.0, "rate"),
+    ("dwell_60s_rate", 0.05, "+", 10.0, "rate"),
+    ("quick_exit_rate", 0.05, "-", 10.0, "rate"),
+)
+
+
+def _build_content_value_term_inputs(  # noqa: forbidden-pattern too-many-args  # justification: kwargs mirror compute_content_value_raw 1:1; collapsing breaks call-site type checking.
+    *, gsc_clicks: int, gsc_ctr: float, destination_views: int,
+    engaged_sessions: int, conversions: int, telemetry_clicks: int,
+    quick_exit_sessions: int, dwell_30s_sessions: int, dwell_60s_sessions: int,
+) -> dict[str, float]:
+    """Compute the per-term ``value`` inputs (raw counts + per-view rates)."""
+    safe_views = max(destination_views, 1)
+    return {
+        "gsc_clicks": float(gsc_clicks),
+        "gsc_ctr": float(gsc_ctr),
+        "destination_views": float(destination_views),
+        "engagement_rate": engaged_sessions / safe_views,
+        "conversion_rate": conversions / safe_views,
+        "click_rate": telemetry_clicks / safe_views,
+        "dwell_30s_rate": dwell_30s_sessions / safe_views,
+        "dwell_60s_rate": dwell_60s_sessions / safe_views,
+        "quick_exit_rate": quick_exit_sessions / safe_views,
+    }
+
+
+def _term_contribution(value: float, weight: float, sign: str, multiplier: float, kind: str) -> float:
+    """Map a (value, weight, sign, multiplier, kind) spec row to a signed contribution."""
+    if kind == "log1p":
+        magnitude = weight * math.log1p(value)
+    elif kind == "raw_pct":
+        magnitude = weight * value * multiplier
+    elif kind == "rate":
+        magnitude = weight * value * multiplier
+    else:  # pragma: no cover — guarded by the constant table
+        raise ValueError(f"Unknown content-value term kind: {kind}")
+    return -magnitude if sign == "-" else magnitude
+
+
+def compute_content_value_breakdown(  # noqa: forbidden-pattern too-many-args  # justification: kwargs mirror compute_content_value_raw 1:1 so callers reuse the same row dict.
     *,
-    gsc_clicks: int,
-    gsc_ctr: float,
-    gsc_impressions: int,
-    destination_views: int,
-    engaged_sessions: int,
-    conversions: int,
-    telemetry_clicks: int,
-    quick_exit_sessions: int = 0,
-    dwell_30s_sessions: int = 0,
-    dwell_60s_sessions: int = 0,
+    gsc_clicks: int, gsc_ctr: float, gsc_impressions: int,
+    destination_views: int, engaged_sessions: int, conversions: int,
+    telemetry_clicks: int, quick_exit_sessions: int = 0,
+    dwell_30s_sessions: int = 0, dwell_60s_sessions: int = 0,
 ) -> dict:
     """Tier 2 slice 5 — per-term decomposition of ``compute_content_value_raw``.
 
-    Mirrors the additive formula exactly (Kim et al. WSDM 2014 for the
-    dwell-gradient and quick-exit terms). Returns a dict shaped as::
-
-        {
-            "raw": float,          # sum of all ``contribution`` values
-            "terms": [
-                {"name": str, "value": float, "weight": float,
-                 "contribution": float, "sign": "+" | "-"},
-                ...
-            ],
-            "has_data": bool,      # mirrors the any(...) guard on the raw formula
-        }
-
-    Empty ``terms`` and ``has_data=False`` when no telemetry is available,
-    so the detail dialog can show "no data yet" instead of a zero-filled
-    table. No formula change — this is purely a visibility helper.
+    Mirrors the additive Kim-et-al. WSDM 2014 formula one-for-one. Returns
+    ``{"raw": float, "terms": [...], "has_data": bool}``. Empty terms +
+    has_data=False when no telemetry is available so the detail dialog
+    can render "no data yet" instead of a zero-filled table.
     """
-    has_data = any(
-        [
-            gsc_clicks,
-            gsc_impressions,
-            destination_views,
-            engaged_sessions,
-            conversions,
-            telemetry_clicks,
-            quick_exit_sessions,
-            dwell_30s_sessions,
-            dwell_60s_sessions,
-        ]
-    )
+    has_data = any([
+        gsc_clicks, gsc_impressions, destination_views, engaged_sessions,
+        conversions, telemetry_clicks, quick_exit_sessions,
+        dwell_30s_sessions, dwell_60s_sessions,
+    ])
     if not has_data:
         return {"raw": 0.0, "terms": [], "has_data": False}
-
-    engagement_rate = engaged_sessions / max(destination_views, 1)
-    conversion_rate = conversions / max(destination_views, 1)
-    click_rate = telemetry_clicks / max(destination_views, 1)
-    dwell_30s_rate = dwell_30s_sessions / max(destination_views, 1)
-    dwell_60s_rate = dwell_60s_sessions / max(destination_views, 1)
-    quick_exit_rate = quick_exit_sessions / max(destination_views, 1)
-
-    # Each term mirrors one line of the return expression in
-    # compute_content_value_raw above. "value" is the raw signal (what the
-    # operator actually measured); "contribution" is the signed number that
-    # goes into the final sum.
-    terms = [
-        {
-            "name": "gsc_clicks",
-            "value": float(gsc_clicks),
-            "weight": 0.40,
-            "contribution": 0.40 * math.log1p(gsc_clicks),
-            "sign": "+",
-        },
-        {
-            "name": "gsc_ctr",
-            "value": float(gsc_ctr),
-            "weight": 0.20,
-            "contribution": 0.20 * gsc_ctr * 100.0,
-            "sign": "+",
-        },
-        {
-            "name": "destination_views",
-            "value": float(destination_views),
-            "weight": 0.20,
-            "contribution": 0.20 * math.log1p(destination_views),
-            "sign": "+",
-        },
-        {
-            "name": "engagement_rate",
-            "value": engagement_rate,
-            "weight": 0.10,
-            "contribution": 0.10 * engagement_rate * 10.0,
-            "sign": "+",
-        },
-        {
-            "name": "conversion_rate",
-            "value": conversion_rate,
-            "weight": 0.05,
-            "contribution": 0.05 * conversion_rate * 10.0,
-            "sign": "+",
-        },
-        {
-            "name": "click_rate",
-            "value": click_rate,
-            "weight": 0.05,
-            "contribution": 0.05 * click_rate * 10.0,
-            "sign": "+",
-        },
-        {
-            "name": "dwell_30s_rate",
-            "value": dwell_30s_rate,
-            "weight": 0.025,
-            "contribution": 0.025 * dwell_30s_rate * 10.0,
-            "sign": "+",
-        },
-        {
-            "name": "dwell_60s_rate",
-            "value": dwell_60s_rate,
-            "weight": 0.05,
-            "contribution": 0.05 * dwell_60s_rate * 10.0,
-            "sign": "+",
-        },
-        {
-            "name": "quick_exit_rate",
-            "value": quick_exit_rate,
-            "weight": 0.05,
-            "contribution": -0.05 * quick_exit_rate * 10.0,
-            "sign": "-",
-        },
-    ]
+    inputs = _build_content_value_term_inputs(
+        gsc_clicks=gsc_clicks, gsc_ctr=gsc_ctr,
+        destination_views=destination_views,
+        engaged_sessions=engaged_sessions, conversions=conversions,
+        telemetry_clicks=telemetry_clicks,
+        quick_exit_sessions=quick_exit_sessions,
+        dwell_30s_sessions=dwell_30s_sessions,
+        dwell_60s_sessions=dwell_60s_sessions,
+    )
+    terms = []
+    for name, weight, sign, multiplier, kind in _CONTENT_VALUE_TERM_SPEC:
+        value = inputs[name]
+        terms.append({
+            "name": name, "value": value, "weight": weight, "sign": sign,
+            "contribution": _term_contribution(value, weight, sign, multiplier, kind),
+        })
     raw = sum(term["contribution"] for term in terms)
     return {"raw": raw, "terms": terms, "has_data": True}
 
 
-def _refresh_content_value_scores(
-    *, destination_ids: set[int] | None = None, lookback_days: int = 28
-) -> int:
-    item_qs = ContentItem.objects.all()
-    if destination_ids is not None:
-        if not destination_ids:
-            return 0
-        item_qs = item_qs.filter(pk__in=destination_ids)
+_CONTENT_VALUE_LOOKBACK_DEFAULT_DAYS = 28
+_CONTENT_VALUE_NEUTRAL_SCORE = 0.5
+_CONTENT_VALUE_NORMALIZED_FLOOR = 0.30
+_CONTENT_VALUE_NORMALIZED_RANGE = 0.60
+_CONTENT_VALUE_SINGLE_ITEM_SCORE = 0.75
 
-    item_ids = list(item_qs.values_list("pk", flat=True))
-    if not item_ids:
-        return 0
 
-    window_start = timezone.now().date() - timedelta(days=max(lookback_days, 1) - 1)
+def _aggregate_telemetry_for_score(item_ids: list[int], window_start) -> dict:
+    """Bulk-sum telemetry per destination + Phase 3a/3c engagement signals."""
     telemetry_rows = (
         SuggestionTelemetryDaily.objects.filter(
-            destination_id__in=item_ids, date__gte=window_start
+            destination_id__in=item_ids, date__gte=window_start,
         )
         .exclude(country__in=BLOCKED_TELEMETRY_COUNTRY_VALUES)
         .values("destination_id")
@@ -1123,72 +1157,91 @@ def _refresh_content_value_scores(
             destination_views=Sum("destination_views"),
             engaged_sessions=Sum("engaged_sessions"),
             conversions=Sum("conversions"),
-            # Phase 3a/3c — dwell-30s + dwell-60s credits + quick-exit penalty
-            # in compute_content_value_raw.
+            # Phase 3a/3c — dwell-30s/60s credits + quick-exit penalty.
             quick_exit_sessions=Sum("quick_exit_sessions"),
             dwell_30s_sessions=Sum("dwell_30s_sessions"),
             dwell_60s_sessions=Sum("dwell_60s_sessions"),
         )
     )
+    return {int(row["destination_id"]): row for row in telemetry_rows}
+
+
+def _aggregate_gsc_for_score(item_ids: list[int], window_start) -> dict:
+    """Bulk-sum GSC clicks/impressions + avg CTR per content item."""
     gsc_rows = (
         SearchMetric.objects.filter(
-            content_item_id__in=item_ids, source="gsc", date__gte=window_start
+            content_item_id__in=item_ids, source="gsc", date__gte=window_start,
         )
         .exclude(query="")
         .values("content_item_id")
         .annotate(
-            clicks=Sum("clicks"),
-            impressions=Sum("impressions"),
-            ctr=Avg("ctr"),
+            clicks=Sum("clicks"), impressions=Sum("impressions"), ctr=Avg("ctr"),
         )
     )
-    telemetry_map = {int(row["destination_id"]): row for row in telemetry_rows}
-    gsc_map = {int(row["content_item_id"]): row for row in gsc_rows}
+    return {int(row["content_item_id"]): row for row in gsc_rows}
 
+
+def _build_content_value_kwargs(telemetry: dict, gsc: dict) -> dict:
+    """Convert raw aggregated rows into compute_content_value_raw kwargs."""
+    return {
+        "gsc_clicks": int(gsc.get("clicks") or 0),
+        "gsc_ctr": float(gsc.get("ctr") or 0.0),
+        "gsc_impressions": int(gsc.get("impressions") or 0),
+        "destination_views": int(telemetry.get("destination_views") or 0),
+        "engaged_sessions": int(telemetry.get("engaged_sessions") or 0),
+        "conversions": int(telemetry.get("conversions") or 0),
+        "telemetry_clicks": int(telemetry.get("clicks") or 0),
+        "quick_exit_sessions": int(telemetry.get("quick_exit_sessions") or 0),
+        "dwell_30s_sessions": int(telemetry.get("dwell_30s_sessions") or 0),
+        "dwell_60s_sessions": int(telemetry.get("dwell_60s_sessions") or 0),
+    }
+
+
+def _compute_raw_scores_and_breakdowns(
+    item_ids: list[int], telemetry_map: dict, gsc_map: dict,
+) -> tuple[dict[int, float], dict[int, dict]]:
+    """Compute raw + breakdown for each item; skip items with no data."""
     raw_scores: dict[int, float] = {}
     breakdowns: dict[int, dict] = {}
     for item_id in item_ids:
-        telemetry = telemetry_map.get(item_id, {})
-        gsc = gsc_map.get(item_id, {})
-        kwargs = {
-            "gsc_clicks": int(gsc.get("clicks") or 0),
-            "gsc_ctr": float(gsc.get("ctr") or 0.0),
-            "gsc_impressions": int(gsc.get("impressions") or 0),
-            "destination_views": int(telemetry.get("destination_views") or 0),
-            "engaged_sessions": int(telemetry.get("engaged_sessions") or 0),
-            "conversions": int(telemetry.get("conversions") or 0),
-            "telemetry_clicks": int(telemetry.get("clicks") or 0),
-            "quick_exit_sessions": int(telemetry.get("quick_exit_sessions") or 0),
-            "dwell_30s_sessions": int(telemetry.get("dwell_30s_sessions") or 0),
-            "dwell_60s_sessions": int(telemetry.get("dwell_60s_sessions") or 0),
-        }
+        kwargs = _build_content_value_kwargs(
+            telemetry_map.get(item_id, {}), gsc_map.get(item_id, {}),
+        )
         raw = compute_content_value_raw(**kwargs)
         if raw is not None:
             raw_scores[item_id] = raw
             breakdowns[item_id] = compute_content_value_breakdown(**kwargs)
+    return raw_scores, breakdowns
 
-    item_qs.update(content_value_score=0.5, content_value_diagnostics={})
-    if not raw_scores:
-        return 0
 
+def _normalise_content_value_score(raw: float, min_raw: float, max_raw: float) -> float:
+    """Min-max normalise a raw score to ``[FLOOR, FLOOR+RANGE]``.
+
+    Returns SINGLE_ITEM_SCORE when min == max (only one item or all-equal).
+    """
+    if max_raw <= min_raw:
+        return _CONTENT_VALUE_SINGLE_ITEM_SCORE
+    normalized = (raw - min_raw) / (max_raw - min_raw)
+    return _CONTENT_VALUE_NORMALIZED_FLOOR + (_CONTENT_VALUE_NORMALIZED_RANGE * normalized)
+
+
+def _persist_content_value_scores(raw_scores: dict, breakdowns: dict) -> int:
+    """Min-max normalise raw scores + bulk-update ContentItem rows. Returns count."""
     min_raw = min(raw_scores.values())
     max_raw = max(raw_scores.values())
     updates = []
     for item in ContentItem.objects.filter(pk__in=raw_scores.keys()):
-        if max_raw > min_raw:
-            normalized = (raw_scores[item.pk] - min_raw) / (max_raw - min_raw)
-            score = 0.30 + (0.60 * normalized)
-        else:
-            score = 0.75
+        score = _normalise_content_value_score(
+            raw_scores[item.pk], min_raw, max_raw,
+        )
         item.content_value_score = round(score, 6)
-        # Tier 2 slice 5 — store the per-term decomposition alongside the
-        # normalized score so the suggestion-detail dialog can render the
-        # "why this score" breakdown without recomputing.
+        # Tier 2 slice 5 — store per-term breakdown alongside the normalized
+        # score so the suggestion-detail dialog can render "why this score"
+        # without recomputing.
         breakdown = breakdowns[item.pk]
         breakdown["normalized"] = item.content_value_score
         item.content_value_diagnostics = breakdown
         updates.append(item)
-
     if updates:
         ContentItem.objects.bulk_update(
             updates,
@@ -1198,7 +1251,40 @@ def _refresh_content_value_scores(
     return len(updates)
 
 
+def _refresh_content_value_scores(
+    *, destination_ids: set[int] | None = None,
+    lookback_days: int = _CONTENT_VALUE_LOOKBACK_DEFAULT_DAYS,
+) -> int:
+    item_qs = ContentItem.objects.all()
+    if destination_ids is not None:
+        if not destination_ids:
+            return 0
+        item_qs = item_qs.filter(pk__in=destination_ids)
+    item_ids = list(item_qs.values_list("pk", flat=True))
+    if not item_ids:
+        return 0
+    window_start = timezone.now().date() - timedelta(days=max(lookback_days, 1) - 1)
+    telemetry_map = _aggregate_telemetry_for_score(item_ids, window_start)
+    gsc_map = _aggregate_gsc_for_score(item_ids, window_start)
+    raw_scores, breakdowns = _compute_raw_scores_and_breakdowns(
+        item_ids, telemetry_map, gsc_map,
+    )
+    item_qs.update(
+        content_value_score=_CONTENT_VALUE_NEUTRAL_SCORE,
+        content_value_diagnostics={},
+    )
+    if not raw_scores:
+        return 0
+    return _persist_content_value_scores(raw_scores, breakdowns)
+
+
 _ENGAGEMENT_TIME_CAP_SECONDS = 180.0  # cap for avg engagement time normalization
+
+
+def _engagement_term_contribution(value: float, weight: float, sign: str) -> float:
+    """Map an engagement spec row to its signed contribution."""
+    magnitude = weight * value
+    return -magnitude if sign == "-" else magnitude
 
 
 def _compute_engagement_raw_score(telemetry: dict) -> float | None:
@@ -1222,6 +1308,36 @@ def _compute_engagement_raw_score(telemetry: dict) -> float | None:
     # mirror the Phase 3a/3c ``compute_content_value_raw`` extension for
     # cross-signal consistency — conservative starting values per BLC §1.3,
     # tunable later by FR-018 auto-tuner.
+
+    Body delegates to the shared spec-table helpers used by the breakdown
+    counterpart so the formula stays in exactly one place.
+    """
+    inputs = _build_engagement_term_inputs(telemetry)
+    if inputs is None:
+        return None
+    raw = sum(
+        _engagement_term_contribution(inputs[name], weight, sign)
+        for name, weight, sign in _ENGAGEMENT_QUALITY_TERM_SPEC
+    )
+    return max(0.0, min(1.0, raw))
+
+
+# Per-term spec for the engagement-quality breakdown.
+# (name, weight, sign) — contribution = weight * value (negated when sign == "-").
+_ENGAGEMENT_QUALITY_TERM_SPEC: tuple[tuple[str, float, str], ...] = (
+    ("engagement_rate", 0.50, "+"),
+    ("normalized_engagement_time", 0.30, "+"),
+    ("inverse_bounce", 0.20, "+"),
+    ("dwell_30s_rate", 0.025, "+"),
+    ("dwell_60s_rate", 0.05, "+"),
+    ("quick_exit_rate", 0.05, "-"),
+)
+
+
+def _build_engagement_term_inputs(telemetry: dict) -> dict[str, float] | None:
+    """Compute the per-term ``value`` inputs from a telemetry aggregate row.
+
+    Returns None when every input is zero (the no-data short-circuit).
     """
     dest_views = int(telemetry.get("destination_views") or 0)
     engaged = int(telemetry.get("engaged_sessions") or 0)
@@ -1231,153 +1347,60 @@ def _compute_engagement_raw_score(telemetry: dict) -> float | None:
     quick_exit_sessions = int(telemetry.get("quick_exit_sessions") or 0)
     dwell_30s_sessions = int(telemetry.get("dwell_30s_sessions") or 0)
     dwell_60s_sessions = int(telemetry.get("dwell_60s_sessions") or 0)
-
     if (
-        dest_views == 0
-        and sessions == 0
+        dest_views == 0 and sessions == 0
         and quick_exit_sessions == 0
         and dwell_30s_sessions == 0
         and dwell_60s_sessions == 0
     ):
         return None
-
-    engagement_rate = engaged / max(dest_views, 1)
-    avg_time = total_time / max(sessions, 1)
-    normalized_time = min(avg_time / _ENGAGEMENT_TIME_CAP_SECONDS, 1.0)
-    bounce_rate = bounced / max(sessions, 1)
-    inverse_bounce = 1.0 - min(bounce_rate, 1.0)
-    dwell_30s_rate = min(dwell_30s_sessions / max(dest_views, 1), 1.0)
-    dwell_60s_rate = min(dwell_60s_sessions / max(dest_views, 1), 1.0)
-    quick_exit_rate = min(quick_exit_sessions / max(dest_views, 1), 1.0)
-
-    raw = (
-        0.50 * engagement_rate
-        + 0.30 * normalized_time
-        + 0.20 * inverse_bounce
-        # Phase 3b/3c — bounded dwell-gradient credits + quick-exit penalty
-        # (Kim et al. WSDM 2014).
-        + 0.025 * dwell_30s_rate
-        + 0.05 * dwell_60s_rate
-        - 0.05 * quick_exit_rate
-    )
-    return max(0.0, min(1.0, raw))
+    safe_views = max(dest_views, 1)
+    safe_sessions = max(sessions, 1)
+    avg_time = total_time / safe_sessions
+    return {
+        "engagement_rate": engaged / safe_views,
+        "normalized_engagement_time": min(avg_time / _ENGAGEMENT_TIME_CAP_SECONDS, 1.0),
+        "inverse_bounce": 1.0 - min(bounced / safe_sessions, 1.0),
+        "dwell_30s_rate": min(dwell_30s_sessions / safe_views, 1.0),
+        "dwell_60s_rate": min(dwell_60s_sessions / safe_views, 1.0),
+        "quick_exit_rate": min(quick_exit_sessions / safe_views, 1.0),
+    }
 
 
 def compute_engagement_quality_breakdown(telemetry: dict) -> dict:
     """Tier 2 slice 5 — per-term decomposition of ``_compute_engagement_raw_score``.
 
-    Mirrors the six-term additive formula exactly. Returns the same shape
-    as ``compute_content_value_breakdown``::
-
-        {"raw": float, "terms": [...], "has_data": bool}
-
-    ``has_data=False`` when every input is zero; the caller should treat
-    this as "no telemetry yet" and hide the breakdown in the UI. Before the
-    final clamp the raw sum can sit outside [0, 1]; the refresh layer
-    stores the clamped ``normalized`` alongside the per-term contributions
-    so the dialog can show both numbers.
+    Mirrors the six-term additive formula exactly. Returns
+    ``{"raw": float, "terms": [...], "has_data": bool}``. ``has_data=False``
+    when every input is zero; caller treats this as "no telemetry yet" and
+    hides the breakdown. The refresh layer stores the clamped ``normalized``
+    alongside the per-term contributions so the dialog can show both numbers.
     """
-    dest_views = int(telemetry.get("destination_views") or 0)
-    engaged = int(telemetry.get("engaged_sessions") or 0)
-    bounced = int(telemetry.get("bounce_sessions") or 0)
-    total_time = float(telemetry.get("total_engagement_time") or 0.0)
-    sessions = int(telemetry.get("sessions") or 0)
-    quick_exit_sessions = int(telemetry.get("quick_exit_sessions") or 0)
-    dwell_30s_sessions = int(telemetry.get("dwell_30s_sessions") or 0)
-    dwell_60s_sessions = int(telemetry.get("dwell_60s_sessions") or 0)
-
-    if (
-        dest_views == 0
-        and sessions == 0
-        and quick_exit_sessions == 0
-        and dwell_30s_sessions == 0
-        and dwell_60s_sessions == 0
-    ):
+    inputs = _build_engagement_term_inputs(telemetry)
+    if inputs is None:
         return {"raw": 0.0, "terms": [], "has_data": False}
-
-    engagement_rate = engaged / max(dest_views, 1)
-    avg_time = total_time / max(sessions, 1)
-    normalized_time = min(avg_time / _ENGAGEMENT_TIME_CAP_SECONDS, 1.0)
-    bounce_rate = bounced / max(sessions, 1)
-    inverse_bounce = 1.0 - min(bounce_rate, 1.0)
-    dwell_30s_rate = min(dwell_30s_sessions / max(dest_views, 1), 1.0)
-    dwell_60s_rate = min(dwell_60s_sessions / max(dest_views, 1), 1.0)
-    quick_exit_rate = min(quick_exit_sessions / max(dest_views, 1), 1.0)
-
     terms = [
         {
-            "name": "engagement_rate",
-            "value": engagement_rate,
-            "weight": 0.50,
-            "contribution": 0.50 * engagement_rate,
-            "sign": "+",
-        },
-        {
-            "name": "normalized_engagement_time",
-            "value": normalized_time,
-            "weight": 0.30,
-            "contribution": 0.30 * normalized_time,
-            "sign": "+",
-        },
-        {
-            "name": "inverse_bounce",
-            "value": inverse_bounce,
-            "weight": 0.20,
-            "contribution": 0.20 * inverse_bounce,
-            "sign": "+",
-        },
-        {
-            "name": "dwell_30s_rate",
-            "value": dwell_30s_rate,
-            "weight": 0.025,
-            "contribution": 0.025 * dwell_30s_rate,
-            "sign": "+",
-        },
-        {
-            "name": "dwell_60s_rate",
-            "value": dwell_60s_rate,
-            "weight": 0.05,
-            "contribution": 0.05 * dwell_60s_rate,
-            "sign": "+",
-        },
-        {
-            "name": "quick_exit_rate",
-            "value": quick_exit_rate,
-            "weight": 0.05,
-            "contribution": -0.05 * quick_exit_rate,
-            "sign": "-",
-        },
+            "name": name, "value": inputs[name], "weight": weight, "sign": sign,
+            "contribution": _engagement_term_contribution(inputs[name], weight, sign),
+        }
+        for name, weight, sign in _ENGAGEMENT_QUALITY_TERM_SPEC
     ]
     raw = sum(term["contribution"] for term in terms)
     return {"raw": raw, "terms": terms, "has_data": True}
 
 
-def _refresh_engagement_quality_scores(
-    *, destination_ids: set[int] | None = None, lookback_days: int = 28
-) -> int:
-    """Compute a distinct engagement quality score from GA4 behavioural data.
+_ENGAGEMENT_NEUTRAL_SCORE = 0.5
+_ENGAGEMENT_NORMALIZED_FLOOR = 0.30
+_ENGAGEMENT_NORMALIZED_RANGE = 0.60
+_ENGAGEMENT_SINGLE_ITEM_SCORE = 0.60
 
-    Isolates user engagement quality (engaged-session rate, avg engagement
-    time, inverse bounce) separately from traffic volume.
-    """
-    import logging
 
-    logger_local = logging.getLogger(__name__)
-
-    item_qs = ContentItem.objects.all()
-    if destination_ids is not None:
-        if not destination_ids:
-            return 0
-        item_qs = item_qs.filter(pk__in=destination_ids)
-
-    item_ids = list(item_qs.values_list("pk", flat=True))
-    if not item_ids:
-        return 0
-
-    window_start = timezone.now().date() - timedelta(days=max(lookback_days, 1) - 1)
-    telemetry_rows = (
+def _aggregate_engagement_telemetry(item_ids: list[int], window_start) -> dict:
+    """Bulk-sum per-destination engagement telemetry + Phase 3b/3c signals."""
+    rows = (
         SuggestionTelemetryDaily.objects.filter(
-            destination_id__in=item_ids, date__gte=window_start
+            destination_id__in=item_ids, date__gte=window_start,
         )
         .exclude(country__in=BLOCKED_TELEMETRY_COUNTRY_VALUES)
         .values("destination_id")
@@ -1387,51 +1410,96 @@ def _refresh_engagement_quality_scores(
             bounce_sessions=Sum("bounce_sessions"),
             total_engagement_time=Sum("total_engagement_time_seconds"),
             sessions=Sum("sessions"),
-            # Phase 3b/3c — dwell-30s + dwell-60s credits + quick-exit penalty
-            # in _compute_engagement_raw_score.
+            # Phase 3b/3c — dwell-30s/60s credits + quick-exit penalty.
             quick_exit_sessions=Sum("quick_exit_sessions"),
             dwell_30s_sessions=Sum("dwell_30s_sessions"),
             dwell_60s_sessions=Sum("dwell_60s_sessions"),
         )
     )
-    telemetry_map = {int(row["destination_id"]): row for row in telemetry_rows}
+    return {int(row["destination_id"]): row for row in rows}
 
+
+def _compute_engagement_raw_and_breakdowns(
+    item_ids: list[int], telemetry_map: dict,
+) -> tuple[dict[int, float], dict[int, dict]]:
+    """For each item with telemetry, compute the raw + breakdown."""
     raw_scores: dict[int, float] = {}
     breakdowns: dict[int, dict] = {}
     for item_id in item_ids:
         telemetry = telemetry_map.get(item_id)
-        if telemetry is not None:
-            score = _compute_engagement_raw_score(telemetry)
-            if score is not None:
-                raw_scores[item_id] = score
-                breakdowns[item_id] = compute_engagement_quality_breakdown(telemetry)
+        if telemetry is None:
+            continue
+        score = _compute_engagement_raw_score(telemetry)
+        if score is None:
+            continue
+        raw_scores[item_id] = score
+        breakdowns[item_id] = compute_engagement_quality_breakdown(telemetry)
+    return raw_scores, breakdowns
 
-    item_qs.update(engagement_quality_score=0.5, engagement_quality_diagnostics={})
-    if not raw_scores:
-        return 0
 
+def _normalise_engagement_score(raw: float, min_raw: float, max_raw: float) -> float:
+    """Min-max normalise raw score to [FLOOR, FLOOR+RANGE]; SINGLE_ITEM when min==max."""
+    if max_raw <= min_raw:
+        return _ENGAGEMENT_SINGLE_ITEM_SCORE
+    normalized = (raw - min_raw) / (max_raw - min_raw)
+    return _ENGAGEMENT_NORMALIZED_FLOOR + (_ENGAGEMENT_NORMALIZED_RANGE * normalized)
+
+
+def _persist_engagement_quality_scores(raw_scores: dict, breakdowns: dict) -> int:
+    """Min-max normalise + bulk-update ContentItem rows. Returns count."""
     min_raw, max_raw = min(raw_scores.values()), max(raw_scores.values())
     updates = []
     for item in ContentItem.objects.filter(pk__in=raw_scores.keys()):
-        if max_raw > min_raw:
-            normalized = (raw_scores[item.pk] - min_raw) / (max_raw - min_raw)
-            score = 0.30 + (0.60 * normalized)
-        else:
-            score = 0.60
+        score = _normalise_engagement_score(raw_scores[item.pk], min_raw, max_raw)
         item.engagement_quality_score = round(score, 6)
-        # Tier 2 slice 5 — store the per-term decomposition alongside the
-        # clamped score so the suggestion-detail dialog renders "why this
-        # score" without a second API round-trip.
+        # Tier 2 slice 5 — store per-term breakdown alongside the clamped
+        # score so the suggestion-detail dialog renders "why this score"
+        # without a second API round-trip.
         breakdown = breakdowns[item.pk]
         breakdown["normalized"] = item.engagement_quality_score
         item.engagement_quality_diagnostics = breakdown
         updates.append(item)
-
     if updates:
         ContentItem.objects.bulk_update(
             updates,
             ["engagement_quality_score", "engagement_quality_diagnostics"],
             batch_size=500,
         )
-    logger_local.info("Refreshed engagement_quality_score for %s items", len(updates))
     return len(updates)
+
+
+def _refresh_engagement_quality_scores(
+    *, destination_ids: set[int] | None = None,
+    lookback_days: int = _CONTENT_VALUE_LOOKBACK_DEFAULT_DAYS,
+) -> int:
+    """Compute a distinct engagement quality score from GA4 behavioural data.
+
+    Isolates user engagement quality (engaged-session rate, avg engagement
+    time, inverse bounce) separately from traffic volume.
+    """
+    import logging
+
+    item_qs = ContentItem.objects.all()
+    if destination_ids is not None:
+        if not destination_ids:
+            return 0
+        item_qs = item_qs.filter(pk__in=destination_ids)
+    item_ids = list(item_qs.values_list("pk", flat=True))
+    if not item_ids:
+        return 0
+    window_start = timezone.now().date() - timedelta(days=max(lookback_days, 1) - 1)
+    telemetry_map = _aggregate_engagement_telemetry(item_ids, window_start)
+    raw_scores, breakdowns = _compute_engagement_raw_and_breakdowns(
+        item_ids, telemetry_map,
+    )
+    item_qs.update(
+        engagement_quality_score=_ENGAGEMENT_NEUTRAL_SCORE,
+        engagement_quality_diagnostics={},
+    )
+    if not raw_scores:
+        return 0
+    count = _persist_engagement_quality_scores(raw_scores, breakdowns)
+    logging.getLogger(__name__).info(
+        "Refreshed engagement_quality_score for %s items", count,
+    )
+    return count
