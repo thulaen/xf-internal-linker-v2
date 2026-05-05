@@ -1,12 +1,13 @@
 # Claude Instructions
 
-**PARAMOUNT — THINK BEFORE YOU CODE (the upstream rule):** STOP and answer the 5 pre-write questions BEFORE typing any new function/class/view/service. (1) DRY — search the codebase first; reuse or refactor BOTH sites if a near-duplicate exists. (2) KISS — write the simplest thing that works; no premature abstraction. (3) Scaling — declare what happens at 10× and 100× input. (4) Extensibility — declare WHERE the next feature lands BEFORE shipping the first version. (5) Testability — pure functions + small classes that test in `SimpleTestCase` without Docker. Hard limits: ≤50 lines per function, ≤1500 per file, ≤10 cyclomatic complexity, ≤7 args, ≤4 nesting levels, no duplicated 6+ line blocks. **Leave every file in BETTER shape than you found it.** Read [`THINK-BEFORE-YOU-CODE.md`](THINK-BEFORE-YOU-CODE.md) before writing a single line — this is the upstream rule that prevents the messes the other paramount files clean up after.
-
-**PARAMOUNT — Plain-English Communication Rule (all agents — Claude / Codex / Gemini / Antigravity / every future agent):** Every response, commit message, error report, status update, and user-facing surface MUST be written in plain English the user can understand. The user is a vibe coder — they use AI exclusively and don't write code. Three required parts:
-1. **What I'm doing / will do** — describe the action in everyday words. Define every technical term the moment it's used. No internal acronyms (FR-XXX, ISS-XXX, MMR, BGE-M3, FAISS, etc.) without a one-line explanation on first use in a response.
+**PARAMOUNT — Plain-English Communication Rule (all agents — Claude / Codex / Gemini / Antigravity / every future agent):** Read [`PLAIN-ENGLISH-RULE.md`](PLAIN-ENGLISH-RULE.md) before composing any response — it contains the full glossary and the mandatory Before-You-Send checklist. Every response, commit message, error report, status update, and user-facing surface MUST be written in plain English the user can understand. The user is a vibe coder — they use AI exclusively and don't write code. Three required parts:
+1. **What I'm doing / will do** — describe the action in everyday words. Define every technical term the moment it's used. No unexplained acronyms (FR-XXX, ISS-XXX, RPT-XXX, MMR, BGE-M3, FAISS, RSQVA, etc.) — use the plain-English substitutes from the glossary in [`PLAIN-ENGLISH-RULE.md`](PLAIN-ENGLISH-RULE.md).
 2. **What was accomplished** — at the end of every change, state in plain English what now works that didn't before, plus which files changed and why.
-3. **What has issues or errors** — surface failures honestly. If something broke, say what broke, why, and what you'll do about it. Never bury errors in jargon. Never silently move on after a failure. Never claim success when something is partial.
+3. **What has issues or errors** — surface failures honestly. If something broke, say what broke, why, and what you'll do about it. Never bury errors in jargon. Never silently move on after a failure. Never claim success when something is partial. If a step was skipped, say so.
 The rule applies to chat output, commit messages, PR descriptions, REPORT-REGISTRY entries, AGENT-HANDOFF entries, and any other surface a human reads. Skipping any of the three required parts is a protocol violation. Silence on errors is forbidden.
+**Before sending any response, run the Before-You-Send checklist in [`PLAIN-ENGLISH-RULE.md`](PLAIN-ENGLISH-RULE.md). If any of the four checklist questions is NO, rewrite the response before sending.**
+
+**PARAMOUNT — THINK BEFORE YOU CODE (the upstream rule):** STOP and answer the 5 pre-write questions BEFORE typing any new function/class/view/service. (1) DRY — search the codebase first; reuse or refactor BOTH sites if a near-duplicate exists. (2) KISS — write the simplest thing that works; no premature abstraction. (3) Scaling — declare what happens at 10× and 100× input. (4) Extensibility — declare WHERE the next feature lands BEFORE shipping the first version. (5) Testability — pure functions + small classes that test in `SimpleTestCase` without Docker. Hard limits: ≤50 lines per function, ≤1500 per file, ≤10 cyclomatic complexity, ≤7 args, ≤4 nesting levels, no duplicated 6+ line blocks. **Leave every file in BETTER shape than you found it.** Read [`THINK-BEFORE-YOU-CODE.md`](THINK-BEFORE-YOU-CODE.md) before writing a single line — this is the upstream rule that prevents the messes the other paramount files clean up after.
 
 **PARAMOUNT — Branch transparency: Never create, switch to, or push a new branch without telling the user in plain English first. Work done on a branch does not appear on `master` until merged. If the user did not ask for a branch, stay on `master`. Silence is forbidden.**
 **PARAMOUNT — Strict no-duplicates rule: No persistent storage may pile up duplicate artefacts. Every per-content table follows the `(content_hash, signal_version)` skip-if-unchanged + supersede + retention pattern. Read [`NO-DUPLICATES.md`](NO-DUPLICATES.md) before adding any new artefact table.**
@@ -52,13 +53,7 @@ Before implementing any new feature or idea:
 4. **Architecture alignment** — Verify the approach fits the existing architecture (C++ for CPU, Python for ML/Orchestration, Angular for UI).
 5. **Flag conflicts** — If the idea conflicts with an existing feature, flag it for review before proceeding.
 
-When responding to the user in this repository:
-
-- Talk in plain English.
-- Explain things like the user is five.
-- Give the simple explanation first.
-- Prefer short sentences and everyday words.
-- Define technical terms immediately if they are needed.
+When responding to the user in this repository, follow all rules in [`PLAIN-ENGLISH-RULE.md`](PLAIN-ENGLISH-RULE.md). Quick summary: talk in plain English, explain things like the user is five, give the simple explanation first, prefer short sentences and everyday words, define technical terms immediately. Run the Before-You-Send checklist before every response.
 
 # Design System Rules — No Exceptions
 

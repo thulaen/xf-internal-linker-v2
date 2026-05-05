@@ -33,6 +33,14 @@ This rule is **non-negotiable** and applies to every response, commit message, P
 
 **Skipping any of the three parts is a protocol violation.** Silence on errors is forbidden. The rule applies to Claude, Codex, Gemini, Antigravity, and every future agent.
 
+**Before-You-Send checklist — answer YES to all four before sending any response. If any is NO, rewrite first.**
+1. Is every technical term defined in plain English in the same sentence where it first appears?
+2. Would someone who has never written code understand every sentence without help?
+3. Have I covered all three required parts: what I'm doing, what was accomplished, what has issues?
+4. Have I avoided all unexplained acronyms (FR-XXX, ISS-XXX, MMR, BGE-M3, FAISS, RSQVA, PPR, HITS, HGTE, and any other project shorthand)?
+
+See [`PLAIN-ENGLISH-RULE.md`](PLAIN-ENGLISH-RULE.md) for the full glossary of plain-English substitutes for common technical terms.
+
 ### MUST TELL THE USER IN CHAT at session start
 
 Before any other work — before reading further files, before writing code, before answering the user's actual request — every AI must post this 4-part **Session Start Snapshot** in chat, in plain English. This applies to Claude, Codex, Gemini, and any future agent.
