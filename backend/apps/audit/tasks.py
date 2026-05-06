@@ -1,5 +1,5 @@
 """
-Periodic audit tasks — reviewer scorecard computation.
+Periodic audit tasks — reviewer scorecard computation and GlitchTip issue sync.
 """
 
 from __future__ import annotations
@@ -8,7 +8,8 @@ import hashlib
 import logging
 import re
 from collections import Counter
-from datetime import timedelta
+from datetime import date, timedelta
+from typing import Any, Callable
 
 from celery import shared_task
 from django.utils import timezone
@@ -17,11 +18,36 @@ from apps.api.query_params import coerce_int
 
 logger = logging.getLogger(__name__)
 
+# ── Fingerprint normalisation ──────────────────────────────────────────────
 _GLITCHTIP_FINGERPRINT_NOISE_RE = re.compile(
     r"(\d{2,}|[0-9a-f]{8,}|/[/\w.\-]+|0x[0-9a-f]+)",
     re.IGNORECASE,
 )
 
+# ── Scorecard constants ────────────────────────────────────────────────────
+_MAX_REVIEW_TIME_SECONDS: int = 604_800  # 7 days — cap to filter re-opened-suggestion outliers
+_REVIEW_ACTIONS_SAMPLE: int = 200        # max audit rows to scan when averaging review time
+_REJECTION_SAMPLE: int = 200             # max rejection rows to scan for reason bucketing
+_TOP_REASONS_LIMIT: int = 5
+
+# ── GlitchTip sync constants ───────────────────────────────────────────────
+_GLITCHTIP_FETCH_LIMIT: int = 100
+_GLITCHTIP_REQUEST_TIMEOUT: int = 15  # seconds
+
+# Spec table: GlitchTip level string → ErrorLog severity string.
+# Mirrors the _RULES pattern in fix_suggestions.py — data-driven lookup
+# replaces inline conditional logic.  ErrorLog.SEVERITY_* are plain
+# strings so no model import is needed at module level.
+_GLITCHTIP_SEVERITY_MAP: dict[str, str] = {
+    "fatal":   "critical",
+    "error":   "high",
+    "warning": "medium",
+    "info":    "low",
+    "debug":   "low",
+}
+
+
+# ── Pure helpers: fingerprints ─────────────────────────────────────────────
 
 def _canonicalize_glitchtip_fingerprint(raw_fingerprint: object) -> str:
     if isinstance(raw_fingerprint, (list, tuple)):
@@ -40,108 +66,224 @@ def _fallback_glitchtip_fingerprint(title: str, culprit: str) -> str:
     ).hexdigest()
 
 
-@shared_task(name="audit.compute_weekly_reviewer_scorecard")
-def compute_weekly_reviewer_scorecard():
-    """Compute and store a weekly ReviewerScorecard for the previous calendar week.
+# ── Pure helpers: scorecard ────────────────────────────────────────────────
 
-    Runs every Monday 03:00 UTC via Celery beat.
-    Period is the previous Monday–Sunday.
-    """
-    from apps.audit.models import AuditEntry, ReviewerScorecard
-    from apps.suggestions.models import Suggestion
-
-    today = timezone.now().date()
-    period_end = today - timedelta(days=1)  # Sunday
+def _scorecard_week_period(today: date) -> tuple[date, date]:
+    """Return (period_start, period_end) for the Monday–Sunday week ending yesterday."""
+    period_end = today - timedelta(days=1)    # Sunday
     period_start = period_end - timedelta(days=6)  # Monday
+    return period_start, period_end
 
-    # Skip if scorecard already exists for this period
-    if ReviewerScorecard.objects.filter(
-        period_start=period_start, period_end=period_end
-    ).exists():
-        logger.info(
-            "[reviewer_scorecard] Scorecard already exists for %s–%s",
-            period_start,
-            period_end,
-        )
-        return {"status": "already_exists"}
 
-    # ── Gather review actions ──────────────────────────────────
-    review_actions = AuditEntry.objects.filter(
-        action__in=("approve", "reject"),
-        target_type="suggestion",
-        created_at__date__gte=period_start,
-        created_at__date__lte=period_end,
-    )
-    total_reviewed = review_actions.count()
-    approved_count = review_actions.filter(action="approve").count()
-    rejected_count = total_reviewed - approved_count
+def _compute_rate(numerator: int, denominator: int) -> float:
+    """Return numerator/denominator * 100, or 0.0 when denominator is zero."""
+    return (numerator / denominator * 100.0) if denominator > 0 else 0.0
 
-    approval_rate = (
-        (approved_count / total_reviewed * 100.0) if total_reviewed > 0 else 0.0
-    )
 
-    # ── Verified rate: approved suggestions later verified as live ──
-    verified_count = Suggestion.objects.filter(
+def _compute_avg_review_time(pairs: list[tuple]) -> float | None:
+    """Mean elapsed seconds from (audit_dt, suggestion_dt) pairs.
+
+    Pairs outside [0, _MAX_REVIEW_TIME_SECONDS] are dropped as outliers.
+    Returns None when no valid pairs remain.
+    """
+    times = [
+        (a - s).total_seconds()
+        for a, s in pairs
+        if 0 <= (a - s).total_seconds() <= _MAX_REVIEW_TIME_SECONDS
+    ]
+    return (sum(times) / len(times)) if times else None
+
+
+def _extract_top_rejection_reasons(details: list) -> list[dict[str, Any]]:
+    """Count rejection_reason across detail dicts, return top _TOP_REASONS_LIMIT."""
+    reason_counts: Counter[str] = Counter()
+    for detail in details:
+        reason = (detail or {}).get("rejection_reason", "unknown")
+        reason_counts[reason] += 1
+    return [{"reason": r, "count": c} for r, c in reason_counts.most_common(_TOP_REASONS_LIMIT)]
+
+
+# ── DB helpers: scorecard (non-pure — query DB) ────────────────────────────
+
+def _fetch_period_metrics(
+    review_actions: Any,
+    suggestion_model: Any,
+    period_start: date,
+    period_end: date,
+) -> dict[str, int]:
+    """Run count queries for the scorecard period and return a metrics dict."""
+    total = review_actions.count()
+    approved = review_actions.filter(action="approve").count()
+    verified = suggestion_model.objects.filter(
         status__in=("verified", "applied"),
         updated_at__date__gte=period_start,
         updated_at__date__lte=period_end,
     ).count()
-    verified_rate = (
-        (verified_count / approved_count * 100.0) if approved_count > 0 else 0.0
-    )
-
-    # ── Stale rate ──
-    stale_count = Suggestion.objects.filter(
+    stale = suggestion_model.objects.filter(
         status="stale",
         updated_at__date__gte=period_start,
         updated_at__date__lte=period_end,
     ).count()
-    stale_rate = (stale_count / approved_count * 100.0) if approved_count > 0 else 0.0
+    return {"total": total, "approved": approved, "rejected": total - approved,
+            "verified": verified, "stale": stale}
 
-    # ── Average review time (audit.created_at - suggestion.created_at) ──
-    review_times: list[float] = []
-    for audit in review_actions.only("target_id", "created_at")[:200]:
+
+def _collect_review_pairs(review_actions: Any, suggestion_model: Any) -> list[tuple]:
+    """Return (audit_dt, suggestion_dt) datetime pairs for review-time averaging."""
+    pairs: list[tuple] = []
+    for audit in review_actions.only("target_id", "created_at")[:_REVIEW_ACTIONS_SAMPLE]:
         try:
-            suggestion = Suggestion.objects.only("created_at").get(
+            sug = suggestion_model.objects.only("created_at").get(
                 suggestion_id=audit.target_id
             )
-            elapsed = (audit.created_at - suggestion.created_at).total_seconds()
-            if 0 <= elapsed <= 604_800:  # cap at 7 days to filter outliers
-                review_times.append(elapsed)
-        except (Suggestion.DoesNotExist, ValueError):
+            pairs.append((audit.created_at, sug.created_at))
+        except (suggestion_model.DoesNotExist, ValueError):
             continue
+    return pairs
 
-    avg_review_time = (sum(review_times) / len(review_times)) if review_times else None
 
-    # ── Top rejection reasons ──
-    reason_counts: Counter[str] = Counter()
-    for audit in review_actions.filter(action="reject").only("detail")[:200]:
-        reason = (audit.detail or {}).get("rejection_reason", "unknown")
-        reason_counts[reason] += 1
-    top_reasons = [{"reason": r, "count": c} for r, c in reason_counts.most_common(5)]
+# ── Pure helpers: GlitchTip sync ──────────────────────────────────────────
 
-    # ── Persist ──
-    scorecard = ReviewerScorecard.objects.create(
-        period_start=period_start,
-        period_end=period_end,
-        total_reviewed=total_reviewed,
-        approved_count=approved_count,
-        rejected_count=rejected_count,
-        approval_rate=round(approval_rate, 2),
-        verified_rate=round(verified_rate, 2),
-        stale_rate=round(stale_rate, 2),
-        avg_review_time_seconds=round(avg_review_time, 1)
-        if avg_review_time is not None
-        else None,
-        top_rejection_reasons=top_reasons,
+def _parse_glitchtip_tags(tags_raw: object) -> dict[str, str]:
+    """Convert GlitchTip [[key, val], ...] tag list to a plain dict."""
+    return {
+        t[0]: t[1]
+        for t in (tags_raw or [])
+        if isinstance(t, (list, tuple)) and len(t) == 2
+    }
+
+
+def _glitchtip_why_message(level: str, culprit: str, count: int) -> str:
+    """Plain-English 'why' string for a GlitchTip error log row."""
+    culprit_text = culprit or "unknown"
+    return (
+        f"GlitchTip captured a '{level}' event. "
+        f"Culprit: {culprit_text}. Seen {count} time(s)."
     )
 
+
+def _build_glitchtip_issue_kwargs(
+    issue: dict,
+    api_url: str,
+    suggest_fn: Callable[[str, str, str], str],
+) -> dict[str, Any]:
+    """Map a raw GlitchTip issue dict to ErrorLog.objects.create() kwargs.
+
+    Does not include runtime_context — the caller supplies that at create time.
+    Uses "glitchtip" (= ErrorLog.SOURCE_GLITCHTIP) as a plain string to avoid
+    a model import at module level.
+    """
+    gt_id = str(issue.get("id", ""))
+    title = issue.get("title") or "Untitled"
+    culprit = issue.get("culprit", "")
+    level = issue.get("level", "error")
+    # Bug fix 2026-05-04: coerce_int guards against stringified floats from
+    # older GlitchTip API versions (e.g. "1.5"); falls back to 1 (safe min).
+    count = coerce_int(issue.get("count"), default=1, min_value=1)
+    tags = _parse_glitchtip_tags(issue.get("tags"))
+    fingerprint = _canonicalize_glitchtip_fingerprint(issue.get("fingerprint"))
+    if not fingerprint:
+        fingerprint = _fallback_glitchtip_fingerprint(title, culprit)
+    return {
+        "source": "glitchtip",  # ErrorLog.SOURCE_GLITCHTIP
+        "job_type": (culprit.split(".")[0][:50] if culprit else "unknown"),
+        "step": (culprit[:100] if culprit else "unknown"),
+        "error_message": title[:4000],
+        "why": _glitchtip_why_message(level, culprit, count),
+        "how_to_fix": suggest_fn(title, fingerprint, culprit),
+        "glitchtip_issue_id": gt_id,
+        "glitchtip_url": f"{api_url}/issues/{gt_id}/",
+        "fingerprint": fingerprint[:255],
+        "occurrence_count": count,
+        "severity": _GLITCHTIP_SEVERITY_MAP.get(level, "medium"),
+        "node_id": tags.get("node_id", "primary"),
+        "node_role": tags.get("node_role", "primary"),
+        "node_hostname": tags.get("server_name", ""),
+    }
+
+
+# ── DB helper: GlitchTip sync (non-pure — queries ErrorLog) ───────────────
+
+def _sync_one_glitchtip_issue(
+    issue: dict,
+    api_url: str,
+    suggest_fn: Callable,
+    error_log_cls: Any,
+    runtime_snapshot: Callable,
+) -> str:
+    """Upsert one GlitchTip issue into ErrorLog.
+
+    Returns 'created' | 'updated' | 'resolved' | 'skipped'.
+    """
+    gt_id = str(issue.get("id", ""))
+    if not gt_id:
+        return "skipped"
+    existing = error_log_cls.objects.filter(glitchtip_issue_id=gt_id).first()
+
+    if issue.get("status") == "resolved":
+        if existing is not None and not existing.acknowledged:
+            existing.acknowledged = True
+            existing.save(update_fields=["acknowledged"])
+            return "resolved"
+        return "skipped"
+
+    kwargs = _build_glitchtip_issue_kwargs(issue, api_url, suggest_fn)
+    if existing is not None:
+        existing.occurrence_count = kwargs["occurrence_count"]
+        existing.severity = kwargs["severity"]
+        existing.fingerprint = kwargs["fingerprint"]
+        existing.save(update_fields=["occurrence_count", "severity", "fingerprint"])
+        return "updated"
+
+    error_log_cls.objects.create(**kwargs, runtime_context=runtime_snapshot())
+    return "created"
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Celery tasks
+# ─────────────────────────────────────────────────────────────────────────
+
+
+@shared_task(name="audit.compute_weekly_reviewer_scorecard")
+def compute_weekly_reviewer_scorecard():
+    """Compute ReviewerScorecard for the previous calendar week. Runs Monday 03:00 UTC."""
+    from apps.audit.models import AuditEntry, ReviewerScorecard
+    from apps.suggestions.models import Suggestion
+
+    today = timezone.now().date()
+    period_start, period_end = _scorecard_week_period(today)
+
+    if ReviewerScorecard.objects.filter(
+        period_start=period_start, period_end=period_end
+    ).exists():
+        logger.info(
+            "[reviewer_scorecard] Scorecard already exists for %s–%s", period_start, period_end
+        )
+        return {"status": "already_exists"}
+
+    review_actions = AuditEntry.objects.filter(
+        action__in=("approve", "reject"), target_type="suggestion",
+        created_at__date__gte=period_start, created_at__date__lte=period_end,
+    )
+    counts = _fetch_period_metrics(review_actions, Suggestion, period_start, period_end)
+    avg = _compute_avg_review_time(_collect_review_pairs(review_actions, Suggestion))
+    top_reasons = _extract_top_rejection_reasons(
+        [a.detail for a in review_actions.filter(action="reject").only("detail")[:_REJECTION_SAMPLE]]
+    )
+    scorecard = ReviewerScorecard.objects.create(
+        period_start=period_start, period_end=period_end,
+        total_reviewed=counts["total"], approved_count=counts["approved"],
+        rejected_count=counts["rejected"],
+        approval_rate=round(_compute_rate(counts["approved"], counts["total"]), 2),
+        verified_rate=round(_compute_rate(counts["verified"], counts["approved"]), 2),
+        stale_rate=round(_compute_rate(counts["stale"], counts["approved"]), 2),
+        avg_review_time_seconds=round(avg, 1) if avg is not None else None,
+        top_rejection_reasons=top_reasons,
+    )
     logger.info(
-        "[reviewer_scorecard] Created scorecard for %s–%s: %d reviewed, %.1f%% approved",
-        period_start,
-        period_end,
-        total_reviewed,
-        approval_rate,
+        "[reviewer_scorecard] Created for %s–%s: %d reviewed, %.1f%% approved",
+        period_start, period_end, counts["total"],
+        _compute_rate(counts["approved"], counts["total"]),
     )
     return {"status": "created", "scorecard_id": scorecard.id}
 
@@ -153,20 +295,12 @@ def compute_weekly_reviewer_scorecard():
 
 @shared_task(name="audit.sync_glitchtip_issues")
 def sync_glitchtip_issues():
-    """
-    Pull open issues from the GlitchTip REST API and mirror them into
-    ErrorLog so the operator can triage internal + third-party errors
-    in one Diagnostics view. Runs every 30 minutes via Celery Beat.
+    """Pull open GlitchTip issues and mirror them into ErrorLog for operator triage.
 
-    Dedup rule: `source='glitchtip'` + `glitchtip_issue_id` is the unique
-    key. An issue that flips to `resolved` upstream auto-acknowledges
-    its mirrored row.
-
-    Graceful no-op when any of the required env vars is missing — that
-    way a project without GlitchTip doesn't see Beat errors every 30 min.
+    Runs every 30 minutes via Celery Beat.  Graceful no-op when env vars are
+    missing so a project without GlitchTip doesn't see Beat errors every 30 min.
     """
     import os
-
     import requests
 
     from apps.audit.fix_suggestions import suggest
@@ -184,8 +318,8 @@ def sync_glitchtip_issues():
         response = requests.get(
             f"{api_url}/api/0/projects/{org}/{proj}/issues/",
             headers={"Authorization": f"Bearer {token}"},
-            params={"limit": 100},
-            timeout=15,
+            params={"limit": _GLITCHTIP_FETCH_LIMIT},
+            timeout=_GLITCHTIP_REQUEST_TIMEOUT,
         )
         response.raise_for_status()
         issues = response.json()
@@ -196,90 +330,17 @@ def sync_glitchtip_issues():
         logger.warning("[glitchtip-sync] Response not JSON: %s", exc)
         return {"status": "error", "detail": str(exc)}
 
-    severity_map = {
-        "fatal": ErrorLog.SEVERITY_CRITICAL,
-        "error": ErrorLog.SEVERITY_HIGH,
-        "warning": ErrorLog.SEVERITY_MEDIUM,
-        "info": ErrorLog.SEVERITY_LOW,
-        "debug": ErrorLog.SEVERITY_LOW,
-    }
-
     created = updated = resolved = 0
-
     for issue in issues:
-        gt_id = str(issue.get("id", ""))
-        if not gt_id:
-            continue
-        status_ = issue.get("status", "")
-        title = issue.get("title") or "Untitled"
-        culprit = issue.get("culprit", "")
-        # Bug fix 2026-05-04: GlitchTip API may return count as a
-        # stringified float ("1.5") or other non-int value depending on
-        # version. coerce_int falls back to 1 (the safe minimum for an
-        # event count) so a single malformed issue doesn't kill the
-        # whole sync sweep.
-        count = coerce_int(issue.get("count"), default=1, min_value=1)
-        level = issue.get("level", "error")
-        severity = severity_map.get(level, ErrorLog.SEVERITY_MEDIUM)
-        url = f"{api_url}/issues/{gt_id}/"
-        fingerprint = _canonicalize_glitchtip_fingerprint(issue.get("fingerprint"))
-        if not fingerprint:
-            fingerprint = _fallback_glitchtip_fingerprint(title, culprit)
-        fingerprint = fingerprint[:255]
-        tags = {
-            t[0]: t[1]
-            for t in (issue.get("tags") or [])
-            if isinstance(t, (list, tuple)) and len(t) == 2
-        }
-
-        existing = ErrorLog.objects.filter(glitchtip_issue_id=gt_id).first()
-
-        if status_ == "resolved":
-            if existing is not None and not existing.acknowledged:
-                existing.acknowledged = True
-                existing.save(update_fields=["acknowledged"])
-                resolved += 1
-            continue
-
-        if existing is not None:
-            existing.occurrence_count = count
-            existing.severity = severity
-            existing.fingerprint = fingerprint
-            existing.save(update_fields=["occurrence_count", "severity", "fingerprint"])
+        outcome = _sync_one_glitchtip_issue(issue, api_url, suggest, ErrorLog, runtime_snapshot)
+        if outcome == "created":
+            created += 1
+        elif outcome == "updated":
             updated += 1
-            continue
-
-        ErrorLog.objects.create(
-            source=ErrorLog.SOURCE_GLITCHTIP,
-            job_type=(culprit.split(".")[0][:50] if culprit else "unknown"),
-            step=(culprit[:100] if culprit else "unknown"),
-            error_message=title[:4000],
-            why=(
-                f"GlitchTip captured a '{level}' event. Culprit: "
-                f"{culprit or 'unknown'}. Seen {count} time(s)."
-            ),
-            how_to_fix=suggest(title, fingerprint, culprit),
-            glitchtip_issue_id=gt_id,
-            glitchtip_url=url,
-            fingerprint=fingerprint,
-            occurrence_count=count,
-            severity=severity,
-            node_id=tags.get("node_id", "primary"),
-            node_role=tags.get("node_role", "primary"),
-            node_hostname=tags.get("server_name", ""),
-            runtime_context=runtime_snapshot(),
-        )
-        created += 1
+        elif outcome == "resolved":
+            resolved += 1
 
     logger.info(
-        "[glitchtip-sync] created=%d updated=%d resolved=%d",
-        created,
-        updated,
-        resolved,
+        "[glitchtip-sync] created=%d updated=%d resolved=%d", created, updated, resolved
     )
-    return {
-        "status": "ok",
-        "created": created,
-        "updated": updated,
-        "resolved": resolved,
-    }
+    return {"status": "ok", "created": created, "updated": updated, "resolved": resolved}
