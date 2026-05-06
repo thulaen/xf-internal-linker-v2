@@ -176,31 +176,38 @@ class PassageRelevanceScoreTests(TestCase):
     # ── Defensive contract ───────────────────────────────────────────
 
     def test_score_never_raises_on_corrupted_embedding(self):
-        """A row with a NaN-laced embedding shouldn't crash the ranker —
-        the function returns neutral with state ``neutral_processing_error``
-        or ``computed`` (NaN propagates through dot product to NaN sim,
-        which clamps via min/max). Either way: never raise."""
+        """A NaN-laced query embedding shouldn't crash the ranker.
+
+        Originally this test inserted a NaN-laced row into PassageEmbedding,
+        but pgvector now rejects NaN at the DB layer (DataError: NaN not
+        allowed in vector) — the corrupt-on-disk scenario is impossible.
+        We instead pass a NaN-laced *query* vector through the public
+        ``score(...)`` entry point, which is the path that still has to
+        survive corrupted upstream embeddings. NaN propagates through dot
+        product to NaN sim and clamps via min/max — the contract is just
+        "never raise into the caller".
+        """
+        from unittest.mock import patch
+
         from apps.pipeline.services import passage_relevance
 
-        bad_vec = [float("nan")] * 1024
+        good_vec = _unit_vec(seed=42)
         PassageEmbedding.objects.create(
             content_item=self.content,
             passage_index=0,
-            text="corrupted",
+            text="ok",
             word_count=5,
-            embedding=bad_vec,
+            embedding=good_vec,
             embedding_model_version="test-model",
-            embedding_text_hash="bad",
+            embedding_text_hash="good",
             passage_words_setting=200,
         )
 
-        host_q = _unit_vec(seed=200)
-        # Just call it — assertion is "doesn't throw" + score is finite.
-        score, diag = passage_relevance.score(host_q, self.content)
+        nan_query = [float("nan")] * 1024
+        with patch.object(passage_relevance, "logger"):
+            # Just call it — assertion is "doesn't throw" + score is finite.
+            score, _diag = passage_relevance.score(nan_query, self.content)
         self.assertIsNotNone(score)
-        # Either path is acceptable (graceful neutral OR a NaN-laced
-        # `computed` that the clamp then rounds to 0.5 / 1.0). Both
-        # are safe — never a raise.
 
     # ── Component math ───────────────────────────────────────────────
 
