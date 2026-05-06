@@ -102,6 +102,35 @@ def _stage1_candidates(
     return run_retrievers(active_retrievers, context=context)
 
 
+def _run_faiss_block_search(
+    dest_embeddings: np.ndarray,
+    destination_keys: tuple[ContentKey, ...],
+    host_pk_set: set[int],
+    block_size: int,
+    top_k: int,
+    content_to_sentence_ids: dict[ContentKey, list[int]],
+    faiss_search,
+) -> dict[ContentKey, list[int]]:
+    """Run block-wise FAISS nearest-neighbour search and expand hits to sentence IDs."""
+    result: dict[ContentKey, list[int]] = {}
+    n_dest = len(destination_keys)
+    for block_start in range(0, n_dest, block_size):
+        block_end = min(block_start + block_size, n_dest)
+        dest_block = dest_embeddings[block_start:block_end]
+        dest_keys_block = destination_keys[block_start:block_end]
+        hits_per_query = faiss_search(dest_block, k=top_k, host_pk_set=host_pk_set)
+        for dest_key, hits in zip(dest_keys_block, hits_per_query):
+            sentence_ids: list[int] = []
+            for pk, ct in hits:
+                host_key = (pk, ct)
+                if host_key == dest_key:
+                    continue
+                sentence_ids.extend(content_to_sentence_ids.get(host_key, []))
+            if sentence_ids:
+                result[dest_key] = sentence_ids
+    return result
+
+
 def _stage1_semantic_candidates(
     *,
     destination_keys: tuple[ContentKey, ...],
@@ -111,15 +140,7 @@ def _stage1_semantic_candidates(
     top_k: int,
     block_size: int,
 ) -> dict[ContentKey, list[int]]:
-    """Semantic retriever body — FAISS-or-NumPy cosine over BGE-M3 embeddings.
-
-    This is the original ``_stage1_candidates`` logic, renamed and
-    invoked from :class:`SemanticRetriever`. Kept as a free function
-    so the FAISS bootstrap path (which has its own logging +
-    just-in-time index build) doesn't need to live inside the
-    retriever class.
-    """
-    # Build a host embedding matrix from content items that have sentence embeddings
+    """FAISS-or-NumPy cosine over BGE-M3 embeddings; called from SemanticRetriever."""
     host_keys = [
         key
         for key in content_records
@@ -127,53 +148,28 @@ def _stage1_semantic_candidates(
     ]
     if not host_keys:
         return {}
-
     from .faiss_index import (
         is_faiss_gpu_active,
         faiss_search,
         build_faiss_index,
         HAS_FAISS,
     )
-
     host_pk_set = {pk for pk, _ in host_keys}
     use_faiss = is_faiss_gpu_active()
     if not use_faiss and HAS_FAISS:
         logger.info("FAISS index not active — building just-in-time for Stage 1")
         build_faiss_index()
         use_faiss = is_faiss_gpu_active()
-
     if use_faiss:
-        # FAISS path — persistent GPU (or CPU-FAISS) index, no per-run DB fetch
-        result: dict[ContentKey, list[int]] = {}
-        n_dest = len(destination_keys)
-
-        for block_start in range(0, n_dest, block_size):
-            block_end = min(block_start + block_size, n_dest)
-            dest_block = dest_embeddings[block_start:block_end]
-            dest_keys_block = destination_keys[block_start:block_end]
-
-            hits_per_query = faiss_search(dest_block, k=top_k, host_pk_set=host_pk_set)
-
-            for dest_key, hits in zip(dest_keys_block, hits_per_query):
-                sentence_ids: list[int] = []
-                for pk, ct in hits:
-                    host_key = (pk, ct)
-                    if host_key == dest_key:
-                        continue
-                    sentence_ids.extend(content_to_sentence_ids.get(host_key, []))
-                if sentence_ids:
-                    result[dest_key] = sentence_ids
-
-        return result
-
+        return _run_faiss_block_search(
+            dest_embeddings, destination_keys, host_pk_set,
+            block_size, top_k, content_to_sentence_ids, faiss_search,
+        )
     if HAS_FAISS:
-        # FAISS installed but no embeddings in DB — return empty (NumPy would too).
         logger.warning(
             "FAISS installed but no embeddings in DB — returning empty Stage 1 results"
         )
         return {}
-
-    # NumPy fallback path — faiss package not installed -------------------------
     return _stage1_numpy_fallback(
         destination_keys=destination_keys,
         dest_embeddings=dest_embeddings,
@@ -182,6 +178,36 @@ def _stage1_semantic_candidates(
         top_k=top_k,
         block_size=block_size,
     )
+
+
+def _fetch_host_embedding_matrix(
+    host_keys: list[ContentKey],
+) -> tuple[list[ContentKey], np.ndarray | None]:
+    """Fetch embeddings for host content items and return (valid_host_keys, matrix).
+
+    Returns ([], None) when no valid embeddings are found.
+    """
+    from apps.content.models import ContentItem
+    from apps.pipeline.services.embeddings import get_current_embedding_filter
+
+    host_pks_list = [pk for pk, _ in host_keys]
+    host_emb_qs = ContentItem.objects.filter(
+        pk__in=host_pks_list,
+        embedding__isnull=False,
+        **get_current_embedding_filter(),
+    ).values_list("pk", "content_type", "embedding")
+    host_emb_map: dict[ContentKey, np.ndarray] = {
+        (pk, ct): _coerce_embedding_vector(emb)
+        for pk, ct, emb in host_emb_qs
+        if emb is not None
+    }
+    valid_host_keys = [k for k in host_keys if k in host_emb_map]
+    if not valid_host_keys:
+        return [], None
+    host_matrix = np.vstack([host_emb_map[k] for k in valid_host_keys]).astype(
+        np.float32, copy=False
+    )
+    return valid_host_keys, host_matrix
 
 
 def _stage1_numpy_fallback(
@@ -194,28 +220,9 @@ def _stage1_numpy_fallback(
     block_size: int,
 ) -> dict[ContentKey, list[int]]:
     """NumPy cosine-similarity fallback when FAISS is not installed."""
-    from apps.content.models import ContentItem
-    from apps.pipeline.services.embeddings import get_current_embedding_filter
-
-    host_pks_list = [pk for pk, _ in host_keys]
-    host_emb_qs = ContentItem.objects.filter(
-        pk__in=host_pks_list,
-        embedding__isnull=False,
-        **get_current_embedding_filter(),
-    ).values_list("pk", "content_type", "embedding")
-
-    host_emb_map: dict[ContentKey, np.ndarray] = {
-        (pk, ct): _coerce_embedding_vector(emb)
-        for pk, ct, emb in host_emb_qs
-        if emb is not None
-    }
-    valid_host_keys = [k for k in host_keys if k in host_emb_map]
+    valid_host_keys, host_matrix = _fetch_host_embedding_matrix(host_keys)
     if not valid_host_keys:
         return {}
-
-    host_matrix = np.vstack([host_emb_map[k] for k in valid_host_keys]).astype(
-        np.float32, copy=False
-    )
 
     result: dict[ContentKey, list[int]] = {}
     n_dest = len(destination_keys)
@@ -252,6 +259,36 @@ def _stage1_numpy_fallback(
 # ---------------------------------------------------------------------------
 
 
+def _build_candidate_row_ids(
+    sentence_ids: list[int],
+    sentence_id_to_row: dict[int, int],
+) -> tuple[list[int], list[int]]:
+    """Map candidate sentence IDs to their row indices in the embedding matrix."""
+    candidate_rows: list[int] = []
+    candidate_ids: list[int] = []
+    for sid in sentence_ids:
+        row = sentence_id_to_row.get(sid)
+        if row is not None:
+            candidate_rows.append(row)
+            candidate_ids.append(sid)
+    return candidate_rows, candidate_ids
+
+
+def _topk_numpy_scores(
+    destination_embedding: np.ndarray,
+    sentence_embeddings: np.ndarray,
+    candidate_rows: list[int],
+    top_k: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Compute cosine scores via NumPy and return (top_idx, top_scores)."""
+    candidate_matrix = sentence_embeddings[candidate_rows]
+    scores = candidate_matrix @ destination_embedding
+    k = min(top_k, len(scores))
+    top_idx = np.argpartition(scores, -k)[-k:]
+    top_idx = top_idx[np.argsort(-scores[top_idx])]
+    return top_idx, scores[top_idx]
+
+
 def _score_sentences_stage2(
     *,
     destination_embedding: np.ndarray,
@@ -265,42 +302,21 @@ def _score_sentences_stage2(
     """Stage 2: score candidate sentences by cosine similarity to destination."""
     if not sentence_ids:
         return []
-
     if sentence_id_to_row is None:
         sentence_id_to_row = {
             sentence_id: index for index, sentence_id in enumerate(sentence_ids_ordered)
         }
-
-    candidate_rows: list[int] = []
-    candidate_ids: list[int] = []
-    for sid in sentence_ids:
-        row = sentence_id_to_row.get(sid)
-        if row is not None:
-            candidate_rows.append(row)
-            candidate_ids.append(sid)
-
+    candidate_rows, candidate_ids = _build_candidate_row_ids(sentence_ids, sentence_id_to_row)
     if not candidate_rows:
         return []
-
     if HAS_CPP_SIMSEARCH:
         top_idx, top_scores = simsearch.score_and_topk(
-            destination_embedding,
-            sentence_embeddings,
-            candidate_rows,
-            top_k,
+            destination_embedding, sentence_embeddings, candidate_rows, top_k,
         )
     else:
-        candidate_matrix = sentence_embeddings[candidate_rows]
-        scores = (
-            candidate_matrix @ destination_embedding
-        )  # cosine similarity (normalized)
-
-        # Keep top-K
-        k = min(top_k, len(scores))
-        top_idx = np.argpartition(scores, -k)[-k:]
-        top_idx = top_idx[np.argsort(-scores[top_idx])]
-        top_scores = scores[top_idx]
-
+        top_idx, top_scores = _topk_numpy_scores(
+            destination_embedding, sentence_embeddings, candidate_rows, top_k,
+        )
     matches: list[SentenceSemanticMatch] = []
     for i, score in zip(top_idx, top_scores, strict=True):
         sid = candidate_ids[i]
@@ -315,13 +331,41 @@ def _score_sentences_stage2(
                 score_semantic=float(score),
             )
         )
-
     return matches
 
 
 # ---------------------------------------------------------------------------
 # Stage 2+3 scoring loop
 # ---------------------------------------------------------------------------
+
+
+def _score_kwargs_from_settings(settings: dict[str, Any]) -> dict[str, Any]:
+    """Extract the 23 score_destination_matches kwargs that come from the settings dict."""
+    return {
+        "max_existing_links_per_host": settings["max_existing_links_per_host"],
+        "max_anchor_words": settings["max_anchor_words"],
+        "learned_anchor_rows_by_destination": settings["learned_anchor_rows"],
+        "anchor_history_by_destination": settings["anchor_history_by_destination"],
+        "rare_term_profiles": settings["rare_term_profiles"],
+        "keyword_stuffing_by_destination": settings["keyword_stuffing_by_destination"],
+        "link_farm_by_destination": settings["link_farm_by_destination"],
+        "weights": settings["weights"],
+        "march_2026_pagerank_bounds": settings["pagerank_bounds"],
+        "weighted_authority_ranking_weight": settings["weighted_authority"]["ranking_weight"],
+        "link_freshness_ranking_weight": settings["link_freshness"]["ranking_weight"],
+        "phrase_matching_settings": settings["phrase_matching"],
+        "learned_anchor_settings": settings["learned_anchor"],
+        "rare_term_settings": settings["rare_term"],
+        "field_aware_settings": settings["field_aware"],
+        "ga4_gsc_ranking_weight": settings["ga4_gsc"]["ranking_weight"],
+        "click_distance_ranking_weight": settings["click_distance"]["ranking_weight"],
+        "anchor_diversity_settings": settings["anchor_diversity"],
+        "keyword_stuffing_settings": settings["keyword_stuffing"],
+        "link_farm_settings": settings["link_farm"],
+        "silo_settings": settings["silo"],
+        "clustering_settings": settings["clustering"],
+        "min_semantic_score": MIN_SEMANTIC_SCORE,
+    }
 
 
 def _score_all_destinations(
@@ -348,38 +392,26 @@ def _score_all_destinations(
     """Score every destination through Stage 2 + Stage 3, with reranking."""
     candidates_by_destination: dict[ContentKey, list[ScoredCandidate]] = {}
     diagnostics: list[tuple[int, str, str, dict[str, Any] | None]] = []
-
+    shared = dict(
+        dest_embeddings=dest_embeddings, stage1_candidates=stage1_candidates,
+        content_records=content_records, sentence_ids_ordered=sentence_ids_ordered,
+        sentence_embeddings=sentence_embeddings, sentence_records=sentence_records,
+        sentence_id_to_row=sentence_id_to_row, existing_links=existing_links,
+        existing_outgoing_counts=existing_outgoing_counts, settings=settings,
+        feedback_rerank_service=feedback_rerank_service,
+        candidates_by_destination=candidates_by_destination, diagnostics=diagnostics,
+        fr099_fr105_caches=fr099_fr105_caches, graph_signal_ranker=graph_signal_ranker,
+        phase6_contribution=phase6_contribution, anchor_garbage_dispatcher=anchor_garbage_dispatcher,
+    )
     for dest_idx, dest_key in enumerate(destination_keys):
-        _score_single_destination(
-            dest_idx=dest_idx,
-            dest_key=dest_key,
-            dest_embeddings=dest_embeddings,
-            stage1_candidates=stage1_candidates,
-            content_records=content_records,
-            sentence_ids_ordered=sentence_ids_ordered,
-            sentence_embeddings=sentence_embeddings,
-            sentence_records=sentence_records,
-            sentence_id_to_row=sentence_id_to_row,
-            existing_links=existing_links,
-            existing_outgoing_counts=existing_outgoing_counts,
-            settings=settings,
-            feedback_rerank_service=feedback_rerank_service,
-            candidates_by_destination=candidates_by_destination,
-            diagnostics=diagnostics,
-            fr099_fr105_caches=fr099_fr105_caches,
-            graph_signal_ranker=graph_signal_ranker,
-            phase6_contribution=phase6_contribution,
-            anchor_garbage_dispatcher=anchor_garbage_dispatcher,
-        )
-
+        _score_single_destination(dest_idx=dest_idx, dest_key=dest_key, **shared)
         if dest_idx % _SCORING_PROGRESS_INTERVAL == 0 and dest_idx > 0:
             pct = 0.50 + 0.35 * (dest_idx / items_in_scope)
             progress_fn(pct, f"Scored {dest_idx}/{items_in_scope} destinations...")
-
     return candidates_by_destination, diagnostics
 
 
-def _score_single_destination(
+def _score_single_destination(  # noqa: forbidden-pattern — 19-arg orchestrator; grouping into _ScoreCtx is a separate refactor
     *,
     dest_idx: int,
     dest_key: ContentKey,
@@ -404,72 +436,29 @@ def _score_single_destination(
     """Score a single destination through Stage 2 + Stage 3."""
     destination = content_records[dest_key]
     host_sentence_ids = stage1_candidates.get(dest_key, [])
-
     matches = _score_sentences_stage2(
-        destination_embedding=dest_embeddings[dest_idx],
-        sentence_ids=host_sentence_ids,
-        sentence_ids_ordered=sentence_ids_ordered,
-        sentence_embeddings=sentence_embeddings,
-        sentence_records=sentence_records,
-        sentence_id_to_row=sentence_id_to_row,
-        top_k=STAGE2_TOP_K,
+        destination_embedding=dest_embeddings[dest_idx], sentence_ids=host_sentence_ids,
+        sentence_ids_ordered=sentence_ids_ordered, sentence_embeddings=sentence_embeddings,
+        sentence_records=sentence_records, sentence_id_to_row=sentence_id_to_row, top_k=STAGE2_TOP_K,
     )
-
     if not matches:
         diagnostics.append((dest_key[0], dest_key[1], "no_semantic_matches", None))
         return
-
     blocked_reasons: set[str] = set()
     scored = score_destination_matches(
-        destination,
-        matches,
-        content_records=content_records,
-        sentence_records=sentence_records,
-        existing_links=existing_links,
-        existing_outgoing_counts=existing_outgoing_counts,
-        max_existing_links_per_host=settings["max_existing_links_per_host"],
-        max_anchor_words=settings["max_anchor_words"],
-        learned_anchor_rows_by_destination=settings["learned_anchor_rows"],
-        anchor_history_by_destination=settings["anchor_history_by_destination"],
-        rare_term_profiles=settings["rare_term_profiles"],
-        keyword_stuffing_by_destination=settings["keyword_stuffing_by_destination"],
-        link_farm_by_destination=settings["link_farm_by_destination"],
-        weights=settings["weights"],
-        march_2026_pagerank_bounds=settings["pagerank_bounds"],
-        weighted_authority_ranking_weight=settings["weighted_authority"][
-            "ranking_weight"
-        ],
-        link_freshness_ranking_weight=settings["link_freshness"]["ranking_weight"],
-        phrase_matching_settings=settings["phrase_matching"],
-        learned_anchor_settings=settings["learned_anchor"],
-        rare_term_settings=settings["rare_term"],
-        field_aware_settings=settings["field_aware"],
-        ga4_gsc_ranking_weight=settings["ga4_gsc"]["ranking_weight"],
-        click_distance_ranking_weight=settings["click_distance"]["ranking_weight"],
-        anchor_diversity_settings=settings["anchor_diversity"],
-        keyword_stuffing_settings=settings["keyword_stuffing"],
-        link_farm_settings=settings["link_farm"],
-        silo_settings=settings["silo"],
-        clustering_settings=settings["clustering"],
-        blocked_reasons=blocked_reasons,
-        min_semantic_score=MIN_SEMANTIC_SCORE,
-        fr099_fr105_caches=fr099_fr105_caches,
-        fr099_fr105_settings=settings.get("fr099_fr105"),
-        graph_signal_ranker=graph_signal_ranker,
-        phase6_contribution=phase6_contribution,
-        anchor_garbage_dispatcher=anchor_garbage_dispatcher,
+        destination, matches,
+        content_records=content_records, sentence_records=sentence_records,
+        existing_links=existing_links, existing_outgoing_counts=existing_outgoing_counts,
+        **_score_kwargs_from_settings(settings),
+        blocked_reasons=blocked_reasons, fr099_fr105_caches=fr099_fr105_caches,
+        fr099_fr105_settings=settings.get("fr099_fr105"), graph_signal_ranker=graph_signal_ranker,
+        phase6_contribution=phase6_contribution, anchor_garbage_dispatcher=anchor_garbage_dispatcher,
     )
-
     _collect_destination_result(
-        dest_key=dest_key,
-        destination=destination,
-        scored=scored,
-        blocked_reasons=blocked_reasons,
-        settings=settings,
-        content_records=content_records,
+        dest_key=dest_key, destination=destination, scored=scored,
+        blocked_reasons=blocked_reasons, settings=settings, content_records=content_records,
         feedback_rerank_service=feedback_rerank_service,
-        candidates_by_destination=candidates_by_destination,
-        diagnostics=diagnostics,
+        candidates_by_destination=candidates_by_destination, diagnostics=diagnostics,
     )
 
 
