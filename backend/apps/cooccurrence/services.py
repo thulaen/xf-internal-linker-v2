@@ -127,6 +127,32 @@ def _build_ga4_service():
 # ---------------------------------------------------------------------------
 
 
+def _compute_pair_scores(
+    co_count: int,
+    a_total: int,
+    b_total: int,
+    total_sessions: int,
+) -> dict:
+    """Compute Jaccard, lift, G², PMI, NPMI for a single co-occurrence pair.
+
+    Pick #24 — PMI (Church & Hanks 1990) and NPMI computed from the same
+    counts as G² (Dunning 1993) so all five scores cost one pass.
+    """
+    from apps.sources.collocations import normalised_pmi as _npmi
+    from apps.sources.collocations import pmi as _pmi
+
+    union = a_total + b_total - co_count
+    jaccard = co_count / union if union > 0 else 0.0
+    p_a = a_total / total_sessions if total_sessions else 0.0
+    p_b = b_total / total_sessions if total_sessions else 0.0
+    p_ab = co_count / total_sessions if total_sessions else 0.0
+    lift = p_ab / (p_a * p_b) if (p_a * p_b) > 0 else 1.0
+    g2 = _compute_log_likelihood(co_count, a_total, b_total, total_sessions)
+    pmi_v = _pmi(joint_count=co_count, count_a=a_total, count_b=b_total, total=total_sessions)
+    npmi_v = _npmi(joint_count=co_count, count_a=a_total, count_b=b_total, total=total_sessions)
+    return {"jaccard": jaccard, "lift": lift, "g2": g2, "pmi": pmi_v, "npmi": npmi_v}
+
+
 def _upsert_cooccurrence_pairs(
     co_counts: dict[tuple[int, int], int],
     marginal_counts: dict[int, int],
@@ -136,53 +162,18 @@ def _upsert_cooccurrence_pairs(
     window_start: date,
     window_end: date,
 ) -> int:
-    """Compute Jaccard, lift, G², PMI/NPMI and upsert co-occurrence pairs.
-
-    Pick #24 — PMI and NPMI are computed from the **same** counts the
-    G² path already iterates, so the loop pays for the score
-    computation exactly once per pair. The two statistics are
-    complementary: G² (Dunning 1993) handles small counts well; PMI
-    (Church & Hanks 1990) surfaces genuinely-associated pairs
-    regardless of frequency. Storing both lets ranking-time consumers
-    pick whichever has better empirical performance for their use case.
-    """
-    from apps.sources.collocations import normalised_pmi as _npmi
-    from apps.sources.collocations import pmi as _pmi
-
+    """Filter pairs, compute all five co-occurrence scores, and upsert to DB."""
     from .models import SessionCoOccurrencePair
 
     pairs_written = 0
     for (a_id, b_id), co_count in co_counts.items():
         if co_count < min_co_session_count:
             continue
-
         a_total = marginal_counts.get(a_id, co_count)
         b_total = marginal_counts.get(b_id, co_count)
-
-        union = a_total + b_total - co_count
-        jaccard = co_count / union if union > 0 else 0.0
-        if jaccard < min_jaccard:
+        scores = _compute_pair_scores(co_count, a_total, b_total, total_sessions)
+        if scores["jaccard"] < min_jaccard:
             continue
-
-        p_a = a_total / total_sessions if total_sessions else 0.0
-        p_b = b_total / total_sessions if total_sessions else 0.0
-        p_ab = co_count / total_sessions if total_sessions else 0.0
-        lift = p_ab / (p_a * p_b) if (p_a * p_b) > 0 else 1.0
-        g2 = _compute_log_likelihood(co_count, a_total, b_total, total_sessions)
-        # Pick #24 — same counts, two more scores.
-        pmi_score = _pmi(
-            joint_count=co_count,
-            count_a=a_total,
-            count_b=b_total,
-            total=total_sessions,
-        )
-        npmi_score = _npmi(
-            joint_count=co_count,
-            count_a=a_total,
-            count_b=b_total,
-            total=total_sessions,
-        )
-
         SessionCoOccurrencePair.objects.update_or_create(
             source_content_item_id=a_id,
             dest_content_item_id=b_id,
@@ -190,17 +181,118 @@ def _upsert_cooccurrence_pairs(
                 "co_session_count": co_count,
                 "source_session_count": a_total,
                 "dest_session_count": b_total,
-                "jaccard_similarity": round(jaccard, 6),
-                "lift": round(lift, 4),
-                "log_likelihood_score": round(g2, 4),
-                "pmi_score": round(pmi_score, 4),
-                "npmi_score": round(npmi_score, 4),
+                "jaccard_similarity": round(scores["jaccard"], 6),
+                "lift": round(scores["lift"], 4),
+                "log_likelihood_score": round(scores["g2"], 4),
+                "pmi_score": round(scores["pmi"], 4),
+                "npmi_score": round(scores["npmi"], 4),
                 "data_window_start": window_start,
                 "data_window_end": window_end,
             },
         )
         pairs_written += 1
     return pairs_written
+
+
+def _make_ga4_report_body(
+    window_start: date,
+    window_end: date,
+    limit: int,
+    offset: int,
+) -> dict:
+    """Build the GA4 runReport request body for session co-occurrence fetching."""
+    return {
+        "dateRanges": [{"startDate": window_start.isoformat(), "endDate": window_end.isoformat()}],
+        "dimensions": [{"name": "sessionId"}, {"name": "pagePath"}],
+        "metrics": [{"name": "sessions"}],
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+def _process_ga4_rows(rows: list, session_paths: dict[str, set[str]]) -> None:
+    """Parse GA4 dimension rows into session → page-path mappings."""
+    for row in rows:
+        dims = row.get("dimensionValues", [])
+        if len(dims) < 2:
+            continue
+        session_id = dims[0].get("value", "")
+        page_path = dims[1].get("value", "").split("?")[0].rstrip("/") or "/"
+        if session_id:
+            session_paths[session_id].add(page_path)
+
+
+def _fetch_ga4_session_paths(
+    service,
+    property_id: str,
+    window_start: date,
+    window_end: date,
+) -> tuple[dict[str, set[str]], int]:
+    """Paginate through GA4 to build a sessionId → page-paths mapping."""
+    ga4_rows_fetched = 0
+    session_paths: dict[str, set[str]] = defaultdict(set)
+    offset = 0
+    limit = 10_000
+
+    while True:
+        try:
+            response = (
+                service.properties()
+                .runReport(
+                    property=f"properties/{property_id}",
+                    body=_make_ga4_report_body(window_start, window_end, limit, offset),
+                )
+                .execute()
+            )
+        except Exception as exc:
+            logger.error("GA4 session fetch failed at offset %d: %s", offset, exc)
+            raise
+
+        rows = response.get("rows", [])
+        ga4_rows_fetched += len(rows)
+        _process_ga4_rows(rows, session_paths)
+
+        if len(rows) < limit:
+            break
+        offset += limit
+
+    logger.info(
+        "GA4 session fetch: %d rows, %d sessions, window %s–%s",
+        ga4_rows_fetched,
+        len(session_paths),
+        window_start,
+        window_end,
+    )
+    return session_paths, ga4_rows_fetched
+
+
+def _build_cooccurrence_counts(
+    session_paths: dict[str, set[str]],
+    path_to_id: dict[str, int],
+) -> tuple[dict, dict, int]:
+    """Build co-occurrence and marginal counts from session → path mappings.
+
+    Returns (co_counts, marginal_counts, sessions_processed).
+    Sessions with only one known page are counted in marginals but not pairs.
+    """
+    co_counts: dict[tuple[int, int], int] = defaultdict(int)
+    marginal_counts: dict[int, int] = defaultdict(int)
+    sessions_processed = 0
+
+    for paths in session_paths.values():
+        item_ids = sorted({path_to_id[p] for p in paths if p in path_to_id})
+        if len(item_ids) < 2:
+            if len(item_ids) == 1:
+                marginal_counts[item_ids[0]] += 1
+            continue
+        sessions_processed += 1
+        for item_id in item_ids:
+            marginal_counts[item_id] += 1
+        for a_id, b_id in combinations(item_ids, 2):
+            co_counts[(a_id, b_id)] += 1
+            co_counts[(b_id, a_id)] += 1
+
+    return co_counts, marginal_counts, sessions_processed
 
 
 def _resolve_paths_to_content_ids(all_paths: set[str]) -> dict[str, int]:
@@ -237,68 +329,11 @@ def fetch_ga4_session_cooccurrence(
     Session IDs are used only for grouping and discarded after aggregation.
     """
     service, property_id = _build_ga4_service()
-
     window_end = date.today()
     window_start = window_end - timedelta(days=data_window_days)
 
-    # Fetch (sessionId, pagePath) pairs from GA4
-    ga4_rows_fetched = 0
-    # Map sessionId → set of page paths
-    session_paths: dict[str, set[str]] = defaultdict(set)
-
-    offset = 0
-    limit = 10_000
-
-    while True:
-        try:
-            response = (
-                service.properties()
-                .runReport(
-                    property=f"properties/{property_id}",
-                    body={
-                        "dateRanges": [
-                            {
-                                "startDate": window_start.isoformat(),
-                                "endDate": window_end.isoformat(),
-                            }
-                        ],
-                        "dimensions": [
-                            {"name": "sessionId"},
-                            {"name": "pagePath"},
-                        ],
-                        "metrics": [{"name": "sessions"}],
-                        "limit": limit,
-                        "offset": offset,
-                    },
-                )
-                .execute()
-            )
-        except Exception as exc:
-            logger.error("GA4 session fetch failed at offset %d: %s", offset, exc)
-            raise
-
-        rows = response.get("rows", [])
-        ga4_rows_fetched += len(rows)
-
-        for row in rows:
-            dims = row.get("dimensionValues", [])
-            if len(dims) < 2:
-                continue
-            session_id = dims[0].get("value", "")
-            page_path = dims[1].get("value", "").split("?")[0].rstrip("/") or "/"
-            if session_id:
-                session_paths[session_id].add(page_path)
-
-        if len(rows) < limit:
-            break
-        offset += limit
-
-    logger.info(
-        "GA4 session fetch: %d rows, %d sessions, window %s–%s",
-        ga4_rows_fetched,
-        len(session_paths),
-        window_start,
-        window_end,
+    session_paths, ga4_rows_fetched = _fetch_ga4_session_paths(
+        service, property_id, window_start, window_end
     )
 
     all_paths: set[str] = set()
@@ -306,26 +341,9 @@ def fetch_ga4_session_cooccurrence(
         all_paths.update(paths)
     path_to_id = _resolve_paths_to_content_ids(all_paths)
 
-    # Build co-occurrence counts
-    # co_counts[(a_id, b_id)] = co_session_count
-    # marginal_counts[id] = session count
-    co_counts: dict[tuple[int, int], int] = defaultdict(int)
-    marginal_counts: dict[int, int] = defaultdict(int)
-    sessions_processed = 0
-
-    for session_id, paths in session_paths.items():
-        item_ids = sorted({path_to_id[p] for p in paths if p in path_to_id})
-        if len(item_ids) < 2:
-            if len(item_ids) == 1:
-                marginal_counts[item_ids[0]] += 1
-            continue
-        sessions_processed += 1
-        for item_id in item_ids:
-            marginal_counts[item_id] += 1
-        for a_id, b_id in combinations(item_ids, 2):
-            co_counts[(a_id, b_id)] += 1
-            co_counts[(b_id, a_id)] += 1
-
+    co_counts, marginal_counts, sessions_processed = _build_cooccurrence_counts(
+        session_paths, path_to_id
+    )
     logger.info(
         "Co-occurrence matrix: %d sessions processed, %d raw pairs",
         sessions_processed,
@@ -342,7 +360,6 @@ def fetch_ga4_session_cooccurrence(
         window_start,
         window_end,
     )
-
     logger.info("Co-occurrence upsert complete: %d pairs written", pairs_written)
     return sessions_processed, pairs_written, ga4_rows_fetched
 
@@ -358,6 +375,25 @@ def get_site_max_jaccard() -> float:
 
     result = SessionCoOccurrencePair.objects.aggregate(Max("jaccard_similarity"))
     return float(result["jaccard_similarity__max"] or 1.0)
+
+
+def _fallback_signal_diagnostics(fallback: float) -> dict:
+    """Build the diagnostics dict returned when the co-occurrence signal falls back."""
+    return {
+        "co_occurrence_signal": fallback,
+        "co_session_count": 0,
+        "jaccard_similarity": 0.0,
+        "log_likelihood_score": 0.0,
+        "lift": 1.0,
+        "co_occurrence_method": "llr_sigmoid_v1",
+        "co_occurrence_fallback_used": True,
+    }
+
+
+def _llr_sigmoid(g2: float, alpha: float, beta: float) -> float:
+    """Map G² (Dunning 1993) to [0, 1]: 1 / (1 + exp(-alpha*(g2 - beta)))."""
+    exponent = max(-50.0, min(50.0, -alpha * (g2 - beta)))  # clamp prevents exp() overflow
+    return 1.0 / (1.0 + math.exp(exponent))
 
 
 def compute_co_occurrence_signal(
@@ -380,15 +416,7 @@ def compute_co_occurrence_signal(
     """
     from .models import SessionCoOccurrencePair
 
-    diagnostics: dict = {
-        "co_occurrence_signal": fallback,
-        "co_session_count": 0,
-        "jaccard_similarity": 0.0,
-        "log_likelihood_score": 0.0,
-        "lift": 1.0,
-        "co_occurrence_method": "llr_sigmoid_v1",
-        "co_occurrence_fallback_used": True,
-    }
+    diagnostics = _fallback_signal_diagnostics(fallback)
 
     try:
         pair = SessionCoOccurrencePair.objects.get(
@@ -405,23 +433,15 @@ def compute_co_occurrence_signal(
         diagnostics["lift"] = pair.lift
         return fallback, diagnostics
 
-    # Sigmoid normalization of G-squared (Dunning 1993)
-    g2 = pair.log_likelihood_score
-    exponent = -llr_sigmoid_alpha * (g2 - llr_sigmoid_beta)
-    # Clamp to avoid overflow in exp()
-    exponent = max(-50.0, min(50.0, exponent))
-    signal = 1.0 / (1.0 + math.exp(exponent))
-
-    diagnostics.update(
-        {
-            "co_occurrence_signal": round(signal, 6),
-            "co_session_count": pair.co_session_count,
-            "jaccard_similarity": round(pair.jaccard_similarity, 6),
-            "log_likelihood_score": round(g2, 4),
-            "lift": round(pair.lift, 4),
-            "co_occurrence_fallback_used": False,
-        }
-    )
+    signal = _llr_sigmoid(pair.log_likelihood_score, llr_sigmoid_alpha, llr_sigmoid_beta)
+    diagnostics.update({
+        "co_occurrence_signal": round(signal, 6),
+        "co_session_count": pair.co_session_count,
+        "jaccard_similarity": round(pair.jaccard_similarity, 6),
+        "log_likelihood_score": round(pair.log_likelihood_score, 4),
+        "lift": round(pair.lift, 4),
+        "co_occurrence_fallback_used": False,
+    })
     return signal, diagnostics
 
 
@@ -430,31 +450,20 @@ def compute_co_occurrence_signal(
 # ---------------------------------------------------------------------------
 
 
-def detect_behavioral_hubs(
-    hub_min_jaccard: float = 0.15,
-    hub_min_members: int = 3,
-) -> tuple[int, int]:
-    """Detect behavioral hubs via threshold-based connected components.
-
-    Returns (hubs_created_or_updated, total_members_assigned).
-    Preserves manual_remove_override memberships.
-    """
-    from .models import SessionCoOccurrencePair, BehavioralHub, BehavioralHubMembership
-
-    # Build undirected adjacency list
-    pairs = SessionCoOccurrencePair.objects.filter(
-        jaccard_similarity__gte=hub_min_jaccard
-    ).values_list("source_content_item_id", "dest_content_item_id")
-
+def _build_adjacency_graph(pairs) -> dict[int, set[int]]:
+    """Build an undirected adjacency dict from (node_a, node_b) pairs."""
     graph: dict[int, set[int]] = defaultdict(set)
     for a_id, b_id in pairs:
         graph[a_id].add(b_id)
         graph[b_id].add(a_id)
+    return graph
 
-    if not graph:
-        return 0, 0
 
-    # BFS to find connected components
+def _find_connected_components(
+    graph: dict[int, set[int]],
+    min_members: int,
+) -> list[set[int]]:
+    """BFS over an adjacency dict; return only components with ≥ min_members nodes."""
     visited: set[int] = set()
     components: list[set[int]] = []
 
@@ -470,97 +479,234 @@ def detect_behavioral_hubs(
             visited.add(current)
             component.add(current)
             queue.extend(graph[current] - visited)
-        if len(component) >= hub_min_members:
+        if len(component) >= min_members:
             components.append(component)
 
-    logger.info(
-        "Hub detection: %d qualifying components (min_jaccard=%.3f, min_members=%d)",
-        len(components),
-        hub_min_jaccard,
-        hub_min_members,
+    return components
+
+
+def _compute_member_strengths(
+    component_list: list[int],
+    all_pairs: dict[tuple[int, int], float],
+) -> dict[int, float]:
+    """For each node, average its Jaccard to all other members in the component."""
+    strengths: dict[int, float] = {}
+    for node in component_list:
+        neighbor_jaccards = [
+            all_pairs.get((node, other), all_pairs.get((other, node), 0.0))
+            for other in component_list
+            if other != node
+        ]
+        strengths[node] = (
+            sum(neighbor_jaccards) / len(neighbor_jaccards) if neighbor_jaccards else 0.0
+        )
+    return strengths
+
+
+def _create_hub_with_memberships(
+    i: int,
+    component_list: list[int],
+    strengths: dict[int, float],
+    removed_memberships: set[tuple[int, int]],
+    hub_min_jaccard: float,
+) -> tuple[int, int]:
+    """Create one BehavioralHub and its BehavioralHubMembership rows; return (1, members_added)."""
+    from .models import BehavioralHub, BehavioralHubMembership
+
+    top_member_id = max(component_list, key=lambda n: strengths.get(n, 0.0))
+    hub = BehavioralHub.objects.create(
+        name=f"Hub {i} (anchor: content {top_member_id})",
+        detection_method=BehavioralHub.METHOD_THRESHOLD,
+        min_jaccard_used=hub_min_jaccard,
+        member_count=0,
     )
 
-    # Load all pairs for strength computation
+    memberships = []
+    members_added = 0
+    for node in component_list:
+        if (hub.hub_id, node) in removed_memberships:
+            continue
+        memberships.append(
+            BehavioralHubMembership(
+                hub=hub,
+                content_item_id=node,
+                membership_source=BehavioralHubMembership.SOURCE_AUTO,
+                co_occurrence_strength=round(strengths.get(node, 0.0), 6),
+            )
+        )
+        members_added += 1
+
+    BehavioralHubMembership.objects.bulk_create(memberships, ignore_conflicts=True)
+    hub.member_count = members_added
+    hub.save(update_fields=["member_count", "updated_at"])
+    return 1, members_added
+
+
+def detect_behavioral_hubs(
+    hub_min_jaccard: float = 0.15,
+    hub_min_members: int = 3,
+) -> tuple[int, int]:
+    """Detect behavioral hubs via threshold-based connected components.
+
+    Returns (hubs_created_or_updated, total_members_assigned).
+    Preserves manual_remove_override memberships.
+    """
+    from .models import SessionCoOccurrencePair, BehavioralHubMembership
+
+    pairs = SessionCoOccurrencePair.objects.filter(
+        jaccard_similarity__gte=hub_min_jaccard
+    ).values_list("source_content_item_id", "dest_content_item_id")
+
+    graph = _build_adjacency_graph(pairs)
+    if not graph:
+        return 0, 0
+
+    components = _find_connected_components(graph, hub_min_members)
+    logger.info(
+        "Hub detection: %d qualifying components (min_jaccard=%.3f, min_members=%d)",
+        len(components), hub_min_jaccard, hub_min_members,
+    )
+
     all_pairs: dict[tuple[int, int], float] = {
         (a, b): j
         for a, b, j in SessionCoOccurrencePair.objects.filter(
             jaccard_similarity__gte=hub_min_jaccard
-        ).values_list(
-            "source_content_item_id", "dest_content_item_id", "jaccard_similarity"
-        )
+        ).values_list("source_content_item_id", "dest_content_item_id", "jaccard_similarity")
     }
-
-    # Load existing manual_remove_override memberships so we can skip them
     removed_memberships: set[tuple[int, int]] = set(
         BehavioralHubMembership.objects.filter(
             membership_source=BehavioralHubMembership.SOURCE_MANUAL_REMOVE
         ).values_list("hub_id", "content_item_id")
     )
 
-    # Mark existing auto-detected hubs for potential cleanup
-    # (we identify hubs by their frozenset of auto members to avoid drift)
     total_hubs = 0
     total_members = 0
-
     for i, component in enumerate(components, start=1):
         component_list = sorted(component)
-
-        # Compute average Jaccard for each member to the rest of the component
-        strengths: dict[int, float] = {}
-        for node in component_list:
-            neighbor_jaccards = [
-                all_pairs.get((node, other), all_pairs.get((other, node), 0.0))
-                for other in component_list
-                if other != node
-            ]
-            strengths[node] = (
-                sum(neighbor_jaccards) / len(neighbor_jaccards)
-                if neighbor_jaccards
-                else 0.0
-            )
-
-        # Find or create a hub for this component
-        # Use a stable name based on top-strength member's content item ID
-        top_member_id = max(component_list, key=lambda n: strengths.get(n, 0.0))
-        auto_name = f"Hub {i} (anchor: content {top_member_id})"
-
-        hub = BehavioralHub.objects.create(
-            name=auto_name,
-            detection_method=BehavioralHub.METHOD_THRESHOLD,
-            min_jaccard_used=hub_min_jaccard,
-            member_count=0,
+        strengths = _compute_member_strengths(component_list, all_pairs)
+        hub_count, member_count = _create_hub_with_memberships(
+            i, component_list, strengths, removed_memberships, hub_min_jaccard
         )
-
-        memberships_to_create = []
-        members_added = 0
-        for node in component_list:
-            if (hub.hub_id, node) in removed_memberships:
-                continue
-            memberships_to_create.append(
-                BehavioralHubMembership(
-                    hub=hub,
-                    content_item_id=node,
-                    membership_source=BehavioralHubMembership.SOURCE_AUTO,
-                    co_occurrence_strength=round(strengths.get(node, 0.0), 6),
-                )
-            )
-            members_added += 1
-
-        BehavioralHubMembership.objects.bulk_create(
-            memberships_to_create, ignore_conflicts=True
-        )
-        hub.member_count = members_added
-        hub.save(update_fields=["member_count", "updated_at"])
-
-        total_hubs += 1
-        total_members += members_added
-
+        total_hubs += hub_count
+        total_members += member_count
     return total_hubs, total_members
 
 
 # ---------------------------------------------------------------------------
 # Value model scoring (post-pipeline pass)
 # ---------------------------------------------------------------------------
+
+
+def _extract_content_signals(suggestion: "Suggestion") -> dict[str, float]:
+    """Read the five content signals from a Suggestion and its destination page."""
+    dest = suggestion.destination
+    return {
+        "relevance": float(suggestion.score_semantic or 0.5),
+        "traffic": float(getattr(dest, "content_value_score", 0.5) or 0.5),
+        "freshness": float(getattr(dest, "link_freshness_score", 0.5) or 0.5),
+        "authority": float(getattr(dest, "march_2026_pagerank_score", 0.5) or 0.5),
+        "engagement": float(getattr(dest, "engagement_quality_score", 0.5) or 0.5),
+    }
+
+
+def _resolve_penalty_signal(suggestion: "Suggestion") -> float:
+    """Compute the graduated penalty signal; returns 0.0 on any error."""
+    from apps.pipeline.services.penalty import compute_penalty_signal
+
+    host = suggestion.host
+    host_content_id = host.pk if host is not None else None
+    anchor_text = getattr(suggestion, "anchor_phrase", None) or None
+    sentence_position = None
+    host_sentence = getattr(suggestion, "host_sentence", None)
+    if host_sentence is not None:
+        sentence_position = getattr(host_sentence, "position", None)
+    try:
+        if host_content_id is not None:
+            return compute_penalty_signal(
+                host_content_id=host_content_id,
+                anchor_text=anchor_text,
+                sentence_position=sentence_position,
+            )
+        return 0.0
+    except Exception:
+        logger.debug("Penalty signal computation failed; defaulting to 0.0", exc_info=True)
+        return 0.0
+
+
+def _extract_co_settings(settings: dict) -> tuple[int, float, bool, float, float]:
+    """Extract co-occurrence algorithm settings from the scoring settings dict."""
+    return (
+        int(settings.get("co_occurrence_min_co_sessions", 5)),
+        float(settings.get("co_occurrence_fallback_value", 0.5)),
+        bool(settings.get("co_occurrence_signal_enabled", True)),
+        float(settings.get("co_occurrence.llr_sigmoid_alpha", 0.1)),
+        float(settings.get("co_occurrence.llr_sigmoid_beta", 10.0)),
+    )
+
+
+def _extract_signal_weights(settings: dict) -> dict[str, float]:
+    """Extract the seven signal weights from the scoring settings dict."""
+    return {
+        "w_relevance": float(settings.get("w_relevance", 0.35)),
+        "w_traffic": float(settings.get("w_traffic", 0.25)),
+        "w_freshness": float(settings.get("w_freshness", 0.1)),
+        "w_authority": float(settings.get("w_authority", 0.1)),
+        "w_engagement": float(settings.get("w_engagement", 0.08)),
+        "w_cooccurrence": float(settings.get("w_cooccurrence", 0.12)),
+        "w_penalty": float(settings.get("w_penalty", 0.5)),
+    }
+
+
+def _disabled_co_signal(fallback: float) -> tuple[float, dict]:
+    """Return the fallback co-signal and diagnostics used when co-occurrence is disabled."""
+    return fallback, {
+        "co_occurrence_signal": fallback,
+        "co_session_count": 0,
+        "jaccard_similarity": 0.0,
+        "lift": 1.0,
+        "co_occurrence_fallback_used": True,
+    }
+
+
+def _compute_weighted_score(signals: dict[str, float], weights: dict[str, float]) -> float:
+    """Apply signal weights and clamp result to [0, 1].
+
+    signals must contain: relevance, traffic, freshness, authority, engagement, co, penalty.
+    """
+    raw = (
+        weights["w_relevance"] * signals["relevance"]
+        + weights["w_traffic"] * signals["traffic"]
+        + weights["w_freshness"] * signals["freshness"]
+        + weights["w_authority"] * signals["authority"]
+        + weights["w_engagement"] * signals["engagement"]
+        + weights["w_cooccurrence"] * signals["co"]
+        - weights["w_penalty"] * signals["penalty"]
+    )
+    return max(0.0, min(1.0, raw))
+
+
+def _build_value_model_diagnostics(
+    signals: dict[str, float],
+    weights: dict[str, float],
+    co_diagnostics: dict,
+) -> dict:
+    """Assemble the per-suggestion diagnostics dict for compute_value_model_score."""
+    return {
+        "relevance_signal": round(signals["relevance"], 6),
+        "traffic_signal": round(signals["traffic"], 6),
+        "freshness_signal": round(signals["freshness"], 6),
+        "authority_signal": round(signals["authority"], 6),
+        "engagement_signal": round(signals["engagement"], 6),
+        "penalty_signal": round(signals["penalty"], 6),
+        "w_relevance": weights["w_relevance"],
+        "w_traffic": weights["w_traffic"],
+        "w_freshness": weights["w_freshness"],
+        "w_authority": weights["w_authority"],
+        "w_engagement": weights["w_engagement"],
+        "w_cooccurrence": weights["w_cooccurrence"],
+        "w_penalty": weights["w_penalty"],
+        **co_diagnostics,
+    }
 
 
 def compute_value_model_score(
@@ -571,6 +717,8 @@ def compute_value_model_score(
     """Compute the 7-signal value model score for a suggestion.
 
     Returns (score_value_model, value_model_diagnostics).
+    Signals: relevance (semantic), traffic, freshness, authority, engagement,
+    co-occurrence (LLR sigmoid), penalty (density/anchor/cluster).
 
     Signal mapping:
       relevance    → suggestion.score_semantic (embedding cosine similarity)
@@ -578,52 +726,17 @@ def compute_value_model_score(
       freshness    → dest.link_freshness_score
       authority    → dest.march_2026_pagerank_score
       engagement   → dest.engagement_quality_score (GA4 behavioural quality)
-      cooccurrence → SessionCoOccurrencePair Jaccard (pairwise)
+      cooccurrence → SessionCoOccurrencePair LLR sigmoid (pairwise)
       penalty      → composite of density / anchor-overshoot / cluster proximity
     """
-    from apps.pipeline.services.penalty import compute_penalty_signal
+    signals = _extract_content_signals(suggestion)
+    signals["penalty"] = _resolve_penalty_signal(suggestion)
 
-    dest = suggestion.destination
-    host = suggestion.host
-
-    relevance_signal = float(suggestion.score_semantic or 0.5)
-    traffic_signal = float(getattr(dest, "content_value_score", 0.5) or 0.5)
-    freshness_signal = float(getattr(dest, "link_freshness_score", 0.5) or 0.5)
-    authority_signal = float(getattr(dest, "march_2026_pagerank_score", 0.5) or 0.5)
-    engagement_signal = float(getattr(dest, "engagement_quality_score", 0.5) or 0.5)
-
-    # Graduated penalty signal — falls back to 0.0 on any error.
-    try:
-        host_content_id = host.pk if host is not None else None
-        anchor_text = getattr(suggestion, "anchor_phrase", None) or None
-        sentence_position = None
-        host_sentence = getattr(suggestion, "host_sentence", None)
-        if host_sentence is not None:
-            sentence_position = getattr(host_sentence, "position", None)
-        if host_content_id is not None:
-            penalty_signal = compute_penalty_signal(
-                host_content_id=host_content_id,
-                anchor_text=anchor_text,
-                sentence_position=sentence_position,
-            )
-        else:
-            penalty_signal = 0.0
-    except Exception:
-        logger.debug(
-            "Penalty signal computation failed; defaulting to 0.0", exc_info=True
-        )
-        penalty_signal = 0.0
-
-    min_co_sessions = int(settings.get("co_occurrence_min_co_sessions", 5))
-    fallback = float(settings.get("co_occurrence_fallback_value", 0.5))
-    co_enabled = bool(settings.get("co_occurrence_signal_enabled", True))
-    llr_alpha = float(settings.get("co_occurrence.llr_sigmoid_alpha", 0.1))
-    llr_beta = float(settings.get("co_occurrence.llr_sigmoid_beta", 10.0))
-
-    if co_enabled and host is not None and dest is not None:
+    min_co_sessions, fallback, co_enabled, llr_alpha, llr_beta = _extract_co_settings(settings)
+    if co_enabled and suggestion.host is not None and suggestion.destination is not None:
         co_signal, co_diagnostics = compute_co_occurrence_signal(
-            source_id=host.pk,
-            dest_id=dest.pk,
+            source_id=suggestion.host.pk,
+            dest_id=suggestion.destination.pk,
             min_co_sessions=min_co_sessions,
             fallback=fallback,
             site_max_jaccard=site_max_jaccard,
@@ -631,48 +744,10 @@ def compute_value_model_score(
             llr_sigmoid_beta=llr_beta,
         )
     else:
-        co_signal = fallback
-        co_diagnostics = {
-            "co_occurrence_signal": fallback,
-            "co_session_count": 0,
-            "jaccard_similarity": 0.0,
-            "lift": 1.0,
-            "co_occurrence_fallback_used": True,
-        }
+        co_signal, co_diagnostics = _disabled_co_signal(fallback)
 
-    w_relevance = float(settings.get("w_relevance", 0.35))
-    w_traffic = float(settings.get("w_traffic", 0.25))
-    w_freshness = float(settings.get("w_freshness", 0.1))
-    w_authority = float(settings.get("w_authority", 0.1))
-    w_engagement = float(settings.get("w_engagement", 0.08))
-    w_cooccurrence = float(settings.get("w_cooccurrence", 0.12))
-    w_penalty = float(settings.get("w_penalty", 0.5))
-
-    score = (
-        w_relevance * relevance_signal
-        + w_traffic * traffic_signal
-        + w_freshness * freshness_signal
-        + w_authority * authority_signal
-        + w_engagement * engagement_signal
-        + w_cooccurrence * co_signal
-        - w_penalty * penalty_signal
-    )
-    score = max(0.0, min(1.0, score))
-
-    diagnostics = {
-        "relevance_signal": round(relevance_signal, 6),
-        "traffic_signal": round(traffic_signal, 6),
-        "freshness_signal": round(freshness_signal, 6),
-        "authority_signal": round(authority_signal, 6),
-        "engagement_signal": round(engagement_signal, 6),
-        "penalty_signal": round(penalty_signal, 6),
-        "w_relevance": w_relevance,
-        "w_traffic": w_traffic,
-        "w_freshness": w_freshness,
-        "w_authority": w_authority,
-        "w_engagement": w_engagement,
-        "w_cooccurrence": w_cooccurrence,
-        "w_penalty": w_penalty,
-        **co_diagnostics,
-    }
+    signals["co"] = co_signal
+    weights = _extract_signal_weights(settings)
+    score = _compute_weighted_score(signals, weights)
+    diagnostics = _build_value_model_diagnostics(signals, weights, co_diagnostics)
     return round(score, 6), diagnostics
