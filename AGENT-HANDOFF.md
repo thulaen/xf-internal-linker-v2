@@ -1,3 +1,44 @@
+# 2026-05-06 - Claude Opus 4.7 (1M context) - Refactored tasks_import_helpers.py: 5 oversized functions + 1 pre-existing silent-except blocker fixed + 46 tests
+
+What I did: User asked me to refactor `pipeline_stages.py` but that work was already on master from earlier today (commit `a422c94` — verified all 5 functions 41–49 lines, 17 helper tests, lint clean). User redirected to "find next long-function file". I swept all of `backend/`, ranked candidates, and chose `backend/apps/pipeline/tasks_import_helpers.py` (5 long functions, biggest at 253 lines). Refactored all 5 to under 50 lines using Fowler 1999 Extract Method. Created a new `tests_tasks_import_helpers.py` with 46 SimpleTestCase tests covering every extracted pure helper. All public signatures preserved.
+
+What was accomplished:
+
+**Five functions refactored (public signatures unchanged, runtime behaviour identical):**
+- `_persist_content_body` (253 → 36 lines): Extracted 10 helpers — `_bump_content_version`, `_set_quotation_density_safe`, `_apply_cross_source_dedup`, `_upsert_post_with_readability`, `_set_salient_entities_safe`, `_set_nlp_enrichment_safe`, `_build_sentence_objs`, `_build_token_objs`, `_persist_sentences_and_tokens`, `_set_passages_safe`. Module-level `_PERSIST_CONTENT_ITEM_UPDATE_FIELDS` constant replaces the inline 12-field list. Orchestrator now reads top-to-bottom: bump → quotation → dedup → post → split → entities → NLP → sentences/tokens → distill → passages → save.
+- `_upsert_content_item` (74 → 25 lines): Extracted `_apply_parsed_fields` (10-field bulk assignment + 11-field save), `_mark_bloom_filter_safe` (Bloom-filter mark with swallow-and-log). Module-level `_CONTENT_ITEM_UPDATE_FIELDS` constant.
+- `_fetch_thread_full_body` (69 → 32 lines): Extracted `_absorb_posts_dedup` (pure dedup), `_fetch_and_absorb_page` (HTTP + absorb wrapper), `_emit_thread_body_failure` (structured emit). Eliminated the inner `collect_posts` closure. `_THREAD_HEAD_PAGES`/`_THREAD_TAIL_PAGES` constants replace magic numbers 20/10. Page-1 reuse path now uses the shared `_absorb_posts_dedup` instead of duplicate inline loop.
+- `_parse_xf_item` (56 → 24 lines): Extracted `_extract_xf_fields` (pure 10-field extraction returning a dict), `_maybe_fetch_thread_body` (lazy XF API client init + body fetch with eligibility guard).
+- `handle_resource_updates` (63 → 39 lines): Extracted `_build_update_sentences` (pure clean-bbcode + split + Sentence builder, returns sentences + new max_pos), `_emit_resource_updates_failure` (structured emit).
+
+**Pre-existing silent-except blocker fixed:** Original line 345 in `_persist_content_body`'s quotation-density block had `except Exception: content_item.quotation_density = 0.0` with no logging — caught by the linter as a BLOCKING violation (this file was not lint-clean before my refactor). Added `logger.debug(...)` inside `_set_quotation_density_safe`'s except so the failure is visible in container logs. Same fix applied to the two emit-failure helpers — moved `logger.error`/`logger.warning` calls back into the orchestrator's except blocks (where the linter scans), so the helpers are now pure emit-event boilerplate without redundant logging.
+
+**Pre-existing deep-nesting warnings cleared:** The original `_fetch_thread_full_body` had 5-level nesting and `_persist_content_body` had 6-level — both were advisory deep-nesting warnings. Both are gone after the extraction.
+
+**New file: `backend/apps/pipeline/tests_tasks_import_helpers.py`**
+- 46 SimpleTestCase tests across 17 test classes; no DB, no Docker. Test classes: BumpContentVersionTests, SetQuotationDensitySafeTests, ApplyCrossSourceDedupTests, SetSalientEntitiesSafeTests, SetNlpEnrichmentSafeTests, SetPassagesSafeTests, BuildTokenObjsTests, MarkBloomFilterSafeTests, AbsorbPostsDedupTests, FetchAndAbsorbPageTests, EmitThreadBodyFailureTests, FetchThreadFullBodyTests, ExtractXfFieldsTests, MaybeFetchThreadBodyTests, BuildUpdateSentencesTests, EmitResourceUpdatesFailureTests, ParsedItemSanityTests.
+
+**Verification:**
+- `python .githooks/check-forbidden-patterns.py --strict backend/apps/pipeline/tasks_import_helpers.py` → 0 warnings, 0 violations (was 5 long-function + 2 deep-nesting warnings + 1 silent-except blocker before).
+- AST audit: 0 functions over 50 lines (was 5).
+- `docker compose exec backend python manage.py test apps.pipeline.tests_tasks_import_helpers` → 46 tests pass, OK.
+- Integration regression: `apps.pipeline.test_import_bloom_filter`, `test_import_entity_salience`, `test_import_passages`, `test_import_readability` → 18 tests pass, OK.
+- Full `apps.pipeline` suite: 879 tests, 20 errors all from pre-existing C++ extension failures (pagerank, CUDA, lemma infrastructure) — same baseline as prior 5 refactor sessions. 0 new failures from this refactor.
+
+What has issues or errors: None caused by this session. The 20 pre-existing C++ extension errors predate this work (documented in the prior 5 handoff entries). One semantic tweak in `_fetch_thread_full_body`: the page-1 absorption now goes through `_absorb_posts_dedup` instead of an inline loop. Original page-1 loop only checked `if p_id`, while the new path checks `if p_id and p_id not in seen_post_ids`. Behaviour is identical for any well-formed XenForo API response (page 1 starts with an empty `seen_post_ids`, so dedup is a no-op); the only difference would be on a malformed response that returned the same post_id twice within page 1, where the new code dedups but the old code would have appended twice. This is more correct, not less.
+
+Tech-debt delta: -8 debt items (5 long-function warnings + 2 deep-nesting warnings + 1 silent-except blocker).
+  Long functions split: _persist_content_body (253→36), _upsert_content_item (74→25), _fetch_thread_full_body (69→32), _parse_xf_item (56→24), handle_resource_updates (63→39)
+  Pre-existing silent-except fixed: line 345 quotation_density block now logs at DEBUG level
+  Pre-existing deep-nesting warnings cleared: 5 levels → 4, 6 levels → 4
+  Magic numbers hoisted: _THREAD_HEAD_PAGES (20), _THREAD_TAIL_PAGES (10)
+  Module-level constants extracted: _CONTENT_ITEM_UPDATE_FIELDS, _PERSIST_CONTENT_ITEM_UPDATE_FIELDS
+  Inner closure eliminated: `collect_posts` (in _fetch_thread_full_body) became a top-level testable helper
+  New pure helpers: 16 extracted (_bump_content_version, _set_quotation_density_safe, _apply_cross_source_dedup, _upsert_post_with_readability, _set_salient_entities_safe, _set_nlp_enrichment_safe, _build_sentence_objs, _build_token_objs, _persist_sentences_and_tokens, _set_passages_safe, _apply_parsed_fields, _mark_bloom_filter_safe, _absorb_posts_dedup, _fetch_and_absorb_page, _emit_thread_body_failure, _extract_xf_fields, _maybe_fetch_thread_body, _build_update_sentences, _emit_resource_updates_failure — 19 if you count helpers calling helpers)
+  Test coverage added: tests_tasks_import_helpers.py (46 SimpleTestCase tests, all pure helpers)
+
+---
+
 # 2026-05-06 - Claude Sonnet 4.6 - Refactored pipeline_stages.py: 5 oversized functions split into pure helpers + 17 tests
 
 What I did: Refactored `backend/apps/pipeline/services/pipeline_stages.py` to bring all 5 functions that exceeded the 50-line hard cap under the limit by extracting 5 named private helpers. Applied Fowler 1999 Extract Method throughout. Created a new `tests_pipeline_stages_helpers.py` with 17 SimpleTestCase tests covering every extracted pure helper. All public signatures preserved.
