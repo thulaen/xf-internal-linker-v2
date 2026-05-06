@@ -1,3 +1,5 @@
+"""Diagnostics health checks: runtime probes, native-kernel benchmarks, and conflict detection."""
+
 import logging
 import os
 import importlib
@@ -179,6 +181,22 @@ def _result(
     return state, explanation, next_step, metadata or {}
 
 
+def _classify_module_state(
+    *,
+    importable: bool,
+    callable_present: bool,
+    critical: bool,
+    error: str,
+    expected_attr: str,
+) -> tuple[str, str, bool, str]:
+    """Map import/callable probe results to a (state, runtime_path, fallback_active, fallback_reason) tuple."""
+    if importable and callable_present:
+        return "healthy", "cpp", False, ""
+    fallback_reason = error or f"Missing expected callable '{expected_attr}'."
+    state = "failed" if critical else "degraded"
+    return state, "python", True, fallback_reason
+
+
 def _native_module_runtime_status() -> list[dict[str, object]]:
     statuses: list[dict[str, object]] = []
     for module_name, expected_attr, label, critical in _NATIVE_RUNTIME_MODULES:
@@ -197,24 +215,21 @@ def _native_module_runtime_status() -> list[dict[str, object]]:
                 callable_present = hasattr(module, expected_attr)
             except Exception as exc:
                 error = str(exc)
+                logger.debug(
+                    "Failed to import native extension %s; falling back to Python.",
+                    dotted_name,
+                    exc_info=True,
+                )
         else:
             error = "Module spec not found."
 
-        if importable and callable_present:
-            state = "healthy"
-            runtime_path = "cpp"
-            fallback_active = False
-            fallback_reason = ""
-        elif critical:
-            state = "failed"
-            runtime_path = "python"
-            fallback_active = True
-            fallback_reason = error or f"Missing expected callable '{expected_attr}'."
-        else:
-            state = "degraded"
-            runtime_path = "python"
-            fallback_active = True
-            fallback_reason = error or f"Missing expected callable '{expected_attr}'."
+        state, runtime_path, fallback_active, fallback_reason = _classify_module_state(
+            importable=importable,
+            callable_present=callable_present,
+            critical=critical,
+            error=error,
+            expected_attr=expected_attr,
+        )
 
         statuses.append(
             {
@@ -256,12 +271,11 @@ def _measure_ms(fn, *, repeats: int = 3) -> float:
     return round(best_ms or 0.0, 3)
 
 
-def _benchmark_native_modules() -> dict[str, dict[str, object]]:
-    import numpy as np
-
-    benchmark_results: dict[str, dict[str, object]] = {}
-
+def _benchmark_scoring() -> dict[str, object]:
+    """Benchmark composite scoring kernel (Python ranker vs scoring C++ extension)."""
     try:
+        import numpy as np
+
         from extensions import scoring as scoring_ext
         from apps.pipeline.services import ranker as ranker_service
 
@@ -282,10 +296,14 @@ def _benchmark_native_modules() -> dict[str, dict[str, object]]:
                 component_scores, weights, silo
             )
         )
-        benchmark_results["scoring"] = _benchmark_result(py_ms, cpp_ms)
+        return _benchmark_result(py_ms, cpp_ms)
     except Exception as exc:
-        benchmark_results["scoring"] = _benchmark_error_result(exc)
+        logger.exception("Benchmark for scoring kernel failed")
+        return _benchmark_error_result(exc)
 
+
+def _benchmark_texttok() -> dict[str, object]:
+    """Benchmark batched tokeniser (Python text_tokens vs texttok C++ extension)."""
     try:
         from extensions import texttok as texttok_ext
         from apps.pipeline.services import text_tokens as text_tokens_service
@@ -300,11 +318,17 @@ def _benchmark_native_modules() -> dict[str, dict[str, object]]:
             lambda: text_tokens_service.tokenize_text_batch(texts, stopwords)
         )
         cpp_ms = _measure_ms(lambda: texttok_ext.tokenize_text_batch(texts, stopwords))
-        benchmark_results["texttok"] = _benchmark_result(py_ms, cpp_ms)
+        return _benchmark_result(py_ms, cpp_ms)
     except Exception as exc:
-        benchmark_results["texttok"] = _benchmark_error_result(exc)
+        logger.exception("Benchmark for texttok kernel failed")
+        return _benchmark_error_result(exc)
 
+
+def _benchmark_simsearch() -> dict[str, object]:
+    """Benchmark sentence top-K search (NumPy argpartition vs simsearch C++ extension)."""
     try:
+        import numpy as np
+
         from extensions import simsearch as simsearch_ext
 
         np.random.seed(11)
@@ -337,11 +361,17 @@ def _benchmark_native_modules() -> dict[str, dict[str, object]]:
                 destination_embedding, sentence_embeddings, candidate_rows, top_k
             )
         )
-        benchmark_results["simsearch"] = _benchmark_result(py_ms, cpp_ms)
+        return _benchmark_result(py_ms, cpp_ms)
     except Exception as exc:
-        benchmark_results["simsearch"] = _benchmark_error_result(exc)
+        logger.exception("Benchmark for simsearch kernel failed")
+        return _benchmark_error_result(exc)
 
+
+def _benchmark_pagerank() -> dict[str, object]:
+    """Benchmark single PageRank step (Python weighted_pagerank vs pagerank C++ extension)."""
     try:
+        import numpy as np
+
         from extensions import pagerank as pagerank_ext
         from apps.pipeline.services import weighted_pagerank as pagerank_service
 
@@ -375,11 +405,17 @@ def _benchmark_native_modules() -> dict[str, dict[str, object]]:
                 node_count,
             )
         )
-        benchmark_results["pagerank"] = _benchmark_result(py_ms, cpp_ms)
+        return _benchmark_result(py_ms, cpp_ms)
     except Exception as exc:
-        benchmark_results["pagerank"] = _benchmark_error_result(exc)
+        logger.exception("Benchmark for pagerank kernel failed")
+        return _benchmark_error_result(exc)
 
+
+def _benchmark_feedrerank() -> dict[str, object]:
+    """Benchmark MMR slate diversity (Python max-sim vs feedrerank C++ extension)."""
     try:
+        import numpy as np
+
         from extensions import feedrerank as feedrerank_ext
 
         np.random.seed(17)
@@ -414,11 +450,21 @@ def _benchmark_native_modules() -> dict[str, dict[str, object]]:
             ),
             repeats=2,
         )
-        benchmark_results["feedrerank"] = _benchmark_result(py_ms, cpp_ms)
+        return _benchmark_result(py_ms, cpp_ms)
     except Exception as exc:
-        benchmark_results["feedrerank"] = _benchmark_error_result(exc)
+        logger.exception("Benchmark for feedrerank kernel failed")
+        return _benchmark_error_result(exc)
 
-    return benchmark_results
+
+def _benchmark_native_modules() -> dict[str, dict[str, object]]:
+    """Run benchmarks for the 5 critical+core C++ kernels; one entry per module."""
+    return {
+        "scoring": _benchmark_scoring(),
+        "texttok": _benchmark_texttok(),
+        "simsearch": _benchmark_simsearch(),
+        "pagerank": _benchmark_pagerank(),
+        "feedrerank": _benchmark_feedrerank(),
+    }
 
 
 def _benchmark_result(py_ms: float, cpp_ms: float) -> dict[str, object]:
@@ -485,6 +531,7 @@ def check_postgresql():
             },
         )
     except Exception as exc:
+        logger.exception("PostgreSQL health check failed")
         return _result(
             "failed",
             f"PostgreSQL connection failed: {exc}",
@@ -505,6 +552,7 @@ def check_redis():
             },
         )
     except Exception as exc:
+        logger.exception("Redis health check failed")
         return _result(
             "failed",
             f"Redis connection failed: {exc}",
@@ -532,6 +580,7 @@ def check_celery():
             "Start the Celery worker process or check the broker connection.",
         )
     except Exception as exc:
+        logger.exception("Celery health check failed")
         return _result(
             "failed",
             f"Celery check failed: {exc}",
@@ -580,6 +629,7 @@ def check_celery_beat():
             "Install django-celery-beat if scheduled tasks are required.",
         )
     except Exception as exc:
+        logger.exception("Celery Beat health check failed")
         return _result(
             "failed",
             f"Celery Beat check failed: {exc}",
@@ -617,6 +667,7 @@ def check_channels():
             },
         )
     except Exception as exc:
+        logger.exception("Channels health check failed")
         return _result(
             "failed",
             f"Channels check failed: {exc}",
@@ -651,9 +702,11 @@ def check_scheduler_lane():
     )
 
 
-def check_native_scoring():
-    module_statuses = _native_module_runtime_status()
-    benchmark_results = _benchmark_native_modules()
+def _merge_benchmark_into_statuses(
+    module_statuses: list[dict[str, object]],
+    benchmark_results: dict[str, dict[str, object]],
+) -> None:
+    """Copy benchmark fields onto each module-status dict (in place)."""
     for status in module_statuses:
         benchmark = benchmark_results.get(str(status["module"]), {})
         status["benchmark_status"] = benchmark.get(
@@ -665,6 +718,11 @@ def check_native_scoring():
         status["proof_available"] = benchmark.get("proof_available", False)
         status["benchmark_error"] = benchmark.get("error", "")
 
+
+def _classify_native_modules(
+    module_statuses: list[dict[str, object]],
+) -> dict[str, object]:
+    """Partition module statuses into critical_failures/degraded/healthy and count compiled/importable."""
     critical_failures = [
         status
         for status in module_statuses
@@ -676,33 +734,36 @@ def check_native_scoring():
     healthy_modules = [
         status for status in module_statuses if status["state"] == "healthy"
     ]
-    compiled_count = sum(1 for status in module_statuses if status["compiled"])
-    importable_count = sum(1 for status in module_statuses if status["importable"])
-    fallback_active = bool(critical_failures or degraded_modules)
-    proof_ready_benchmarks = [
-        benchmark
-        for benchmark in benchmark_results.values()
-        if benchmark.get("proof_available")
-        and isinstance(benchmark.get("cpp_ms"), (int, float))
+    return {
+        "critical_failures": critical_failures,
+        "degraded_modules": degraded_modules,
+        "healthy_modules": healthy_modules,
+        "compiled_count": sum(1 for s in module_statuses if s["compiled"]),
+        "importable_count": sum(1 for s in module_statuses if s["importable"]),
+        "fallback_active": bool(critical_failures or degraded_modules),
+    }
+
+
+def _aggregate_benchmark_results(
+    benchmark_results: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    """Sum py/cpp ms across modules and derive the overall benchmark_status verdict."""
+    proof_ready = [
+        b
+        for b in benchmark_results.values()
+        if b.get("proof_available") and isinstance(b.get("cpp_ms"), (int, float))
     ]
-    benchmark_failures = [
-        module_name
-        for module_name, benchmark in benchmark_results.items()
-        if benchmark.get("benchmark_status") == "benchmark_failed"
+    failures = [
+        name
+        for name, b in benchmark_results.items()
+        if b.get("benchmark_status") == "benchmark_failed"
     ]
     overall_cpp_ms = (
-        round(
-            sum(float(benchmark["cpp_ms"]) for benchmark in proof_ready_benchmarks), 3
-        )
-        if proof_ready_benchmarks
-        else None
+        round(sum(float(b["cpp_ms"]) for b in proof_ready), 3) if proof_ready else None
     )
     overall_python_ms = (
-        round(
-            sum(float(benchmark["python_ms"]) for benchmark in proof_ready_benchmarks),
-            3,
-        )
-        if proof_ready_benchmarks
+        round(sum(float(b["python_ms"]) for b in proof_ready), 3)
+        if proof_ready
         else None
     )
     overall_speedup = (
@@ -710,7 +771,6 @@ def check_native_scoring():
         if overall_cpp_ms and overall_python_ms
         else None
     )
-
     if overall_speedup is None:
         benchmark_status = "benchmark_failed"
     elif overall_speedup >= 1.1:
@@ -719,28 +779,50 @@ def check_native_scoring():
         benchmark_status = "no_material_speedup"
     else:
         benchmark_status = "slower_than_python"
+    return {
+        "proof_ready": proof_ready,
+        "failures": failures,
+        "overall_cpp_ms": overall_cpp_ms,
+        "overall_python_ms": overall_python_ms,
+        "overall_speedup": overall_speedup,
+        "benchmark_status": benchmark_status,
+    }
 
-    metadata = {
-        "runtime_path": "cpp"
+
+def _native_scoring_metadata(
+    module_statuses: list[dict[str, object]],
+    classification: dict[str, object],
+    aggregate: dict[str, object],
+    benchmark_results: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    """Build the comprehensive metadata payload returned by check_native_scoring."""
+    critical_failures = classification["critical_failures"]
+    healthy_modules = classification["healthy_modules"]
+    fallback_active = bool(classification["fallback_active"])
+    runtime_path = (
+        "cpp"
         if not fallback_active
-        else ("mixed" if healthy_modules else "python"),
+        else ("mixed" if healthy_modules else "python")
+    )
+    return {
+        "runtime_path": runtime_path,
         "native_scoring_active": not bool(critical_failures),
-        "compiled": compiled_count == len(module_statuses),
-        "importable": importable_count == len(module_statuses),
+        "compiled": classification["compiled_count"] == len(module_statuses),
+        "importable": classification["importable_count"] == len(module_statuses),
         "safe_to_use": not bool(critical_failures),
         "fallback_active": fallback_active,
         "fallback_reason": "",
-        "compiled_module_count": compiled_count,
-        "importable_module_count": importable_count,
+        "compiled_module_count": classification["compiled_count"],
+        "importable_module_count": classification["importable_count"],
         "healthy_module_count": len(healthy_modules),
-        "degraded_module_count": len(degraded_modules),
+        "degraded_module_count": len(classification["degraded_modules"]),
         "critical_failure_count": len(critical_failures),
-        "last_benchmark_ms": overall_cpp_ms,
-        "python_benchmark_ms": overall_python_ms,
-        "speedup_vs_python": overall_speedup,
-        "benchmark_status": benchmark_status,
-        "benchmarked_module_count": len(proof_ready_benchmarks),
-        "benchmark_failure_count": len(benchmark_failures),
+        "last_benchmark_ms": aggregate["overall_cpp_ms"],
+        "python_benchmark_ms": aggregate["overall_python_ms"],
+        "speedup_vs_python": aggregate["overall_speedup"],
+        "benchmark_status": aggregate["benchmark_status"],
+        "benchmarked_module_count": len(aggregate["proof_ready"]),
+        "benchmark_failure_count": len(aggregate["failures"]),
         "module_statuses": module_statuses,
         "benchmark_results": benchmark_results,
         "last_error_summary": "; ".join(
@@ -750,28 +832,42 @@ def check_native_scoring():
         )[:500],
     }
 
+
+def _native_scoring_module_failure_result(
+    classification: dict[str, object],
+    metadata: dict[str, object],
+) -> tuple[str, str, str, dict] | None:
+    """Return failure/degraded tuple when modules are missing; None when modules are healthy."""
+    critical_failures = classification["critical_failures"]
     if critical_failures:
         metadata["fallback_reason"] = (
             "One or more critical C++ kernels are unavailable, so Python fallback is protecting ranking."
         )
         return _result(
             "failed",
-            f"The native C++ fast path is not fully safe right now. Critical kernels missing: {', '.join(status['module'] for status in critical_failures)}.",
+            f"The native C++ fast path is not fully safe right now. Critical kernels missing: {', '.join(s['module'] for s in critical_failures)}.",
             "Rebuild the native extensions and restore the missing critical kernels before trusting the fast path.",
             metadata,
         )
-
+    degraded_modules = classification["degraded_modules"]
     if degraded_modules:
         metadata["fallback_reason"] = (
             "Some optional C++ kernels are unavailable, so mixed C++/Python execution is active."
         )
         return _result(
             "degraded",
-            f"Core C++ scoring is active, but some optional kernels are falling back to Python: {', '.join(status['module'] for status in degraded_modules)}.",
+            f"Core C++ scoring is active, but some optional kernels are falling back to Python: {', '.join(s['module'] for s in degraded_modules)}.",
             "Rebuild the optional native extensions if you want every fast path back.",
             metadata,
         )
+    return None
 
+
+def _native_scoring_benchmark_result(
+    benchmark_status: str,
+    metadata: dict[str, object],
+) -> tuple[str, str, str, dict] | None:
+    """Return degraded tuple when benchmark verdict is unfavourable; None when speed advantage is proven."""
     if benchmark_status == "benchmark_failed":
         metadata["fallback_reason"] = (
             "Benchmarks could not prove the fast path, even though the critical kernels imported."
@@ -782,7 +878,6 @@ def check_native_scoring():
             "Check benchmark failures and fix the benchmark harness before trusting speed claims.",
             metadata,
         )
-
     if benchmark_status in {"no_material_speedup", "slower_than_python"}:
         metadata["fallback_reason"] = (
             "The native path is available, but the benchmark did not show a meaningful speed win over Python."
@@ -793,13 +888,41 @@ def check_native_scoring():
             "Inspect the benchmark details before assuming the native complexity is paying off.",
             metadata,
         )
+    return None
 
+
+def _native_scoring_result(
+    classification: dict[str, object],
+    aggregate: dict[str, object],
+    metadata: dict[str, object],
+) -> tuple[str, str, str, dict]:
+    """Choose the (state, explanation, next_step, metadata) tuple based on classification + benchmark verdict."""
+    module_result = _native_scoring_module_failure_result(classification, metadata)
+    if module_result is not None:
+        return module_result
+    benchmark_result = _native_scoring_benchmark_result(
+        str(aggregate["benchmark_status"]), metadata
+    )
+    if benchmark_result is not None:
+        return benchmark_result
     return _result(
         "healthy",
         "All tracked native C++ kernels are importable, and diagnostics measured a real speed advantage over Python.",
         "No action needed.",
         metadata,
     )
+
+
+def check_native_scoring():
+    module_statuses = _native_module_runtime_status()
+    benchmark_results = _benchmark_native_modules()
+    _merge_benchmark_into_statuses(module_statuses, benchmark_results)
+    classification = _classify_native_modules(module_statuses)
+    aggregate = _aggregate_benchmark_results(benchmark_results)
+    metadata = _native_scoring_metadata(
+        module_statuses, classification, aggregate, benchmark_results
+    )
+    return _native_scoring_result(classification, aggregate, metadata)
 
 
 def check_slate_diversity_runtime():
@@ -1005,73 +1128,87 @@ def run_health_checks():
     return results
 
 
-def detect_conflicts():
-    conflicts = []
-
+def _conflict_analytics_missing() -> list[dict]:
+    """Flag missing analytics data when no SearchMetric rows exist yet."""
     from apps.analytics.models import SearchMetric
 
-    if SearchMetric.objects.count() == 0:
-        conflicts.append(
-            {
-                "type": "placeholder",
-                "title": "Analytics Data Missing",
-                "description": "Analytics models exist, but there are no SearchMetric rows yet.",
-                "severity": "medium",
-                "location": "apps/analytics",
-                "why": "The code can read analytics data, but no sync has populated it yet.",
-                "next_step": "Run the analytics sync before trusting traffic-based ranking signals.",
-            }
-        )
+    if SearchMetric.objects.count() > 0:
+        return []
+    return [
+        {
+            "type": "placeholder",
+            "title": "Analytics Data Missing",
+            "description": "Analytics models exist, but there are no SearchMetric rows yet.",
+            "severity": "medium",
+            "location": "apps/analytics",
+            "why": "The code can read analytics data, but no sync has populated it yet.",
+            "next_step": "Run the analytics sync before trusting traffic-based ranking signals.",
+        }
+    ]
 
-    orphaned_suggestions = Suggestion.objects.filter(destination__isnull=True).count()
-    if orphaned_suggestions > 0:
-        conflicts.append(
-            {
-                "type": "drift",
-                "title": "Orphaned Suggestions",
-                "description": f"Found {orphaned_suggestions} suggestion row(s) without a destination content item.",
-                "severity": "high",
-                "location": "apps.suggestions.models.Suggestion",
-                "why": "Content was deleted while suggestions were still hanging around.",
-                "next_step": "Clean up orphaned suggestions and check the delete flow.",
-            }
-        )
 
-    native_scoring_state, _, _, native_scoring_metadata = check_native_scoring()
+def _conflict_orphaned_suggestions() -> list[dict]:
+    """Flag suggestion rows whose destination ContentItem has been deleted."""
+    orphaned = Suggestion.objects.filter(destination__isnull=True).count()
+    if orphaned == 0:
+        return []
+    return [
+        {
+            "type": "drift",
+            "title": "Orphaned Suggestions",
+            "description": f"Found {orphaned} suggestion row(s) without a destination content item.",
+            "severity": "high",
+            "location": "apps.suggestions.models.Suggestion",
+            "why": "Content was deleted while suggestions were still hanging around.",
+            "next_step": "Clean up orphaned suggestions and check the delete flow.",
+        }
+    ]
 
-    if native_scoring_state != "healthy":
-        conflicts.append(
-            {
-                "type": "drift",
-                "title": "C++ Fast Path Not Fully Healthy",
-                "description": "The repo expects C++ to be the default hot-path, but native runtime diagnostics report fallback or failure.",
-                "severity": "high" if native_scoring_state == "failed" else "medium",
-                "location": "backend/apps/diagnostics/health.py",
-                "why": "Hot-loop work is falling back to Python in at least part of the runtime, which can reduce speed and hide native regressions.",
-                "next_step": native_scoring_metadata.get("fallback_reason")
-                or "Rebuild native extensions and re-run parity checks.",
-            }
-        )
 
+def _conflict_native_unhealthy() -> list[dict]:
+    """Flag drift when the C++ fast path is not fully healthy (failed or degraded)."""
+    state, _, _, metadata = check_native_scoring()
+    if state == "healthy":
+        return []
+    return [
+        {
+            "type": "drift",
+            "title": "C++ Fast Path Not Fully Healthy",
+            "description": "The repo expects C++ to be the default hot-path, but native runtime diagnostics report fallback or failure.",
+            "severity": "high" if state == "failed" else "medium",
+            "location": "backend/apps/diagnostics/health.py",
+            "why": "Hot-loop work is falling back to Python in at least part of the runtime, which can reduce speed and hide native regressions.",
+            "next_step": metadata.get("fallback_reason")
+            or "Rebuild native extensions and re-run parity checks.",
+        }
+    ]
+
+
+def _conflict_dev_runtime() -> list[dict]:
+    """Flag drift when the main Django process is running with development settings."""
     settings_module = os.environ.get("DJANGO_SETTINGS_MODULE", "")
-    if settings_module.endswith(".development"):
-        conflicts.append(
-            {
-                "type": "drift",
-                "title": "Development Runtime Active",
-                "description": "The main Django process is running with development settings.",
-                "severity": "medium",
-                "location": settings_module,
-                "why": "Development mode is fine for local work, but it is not a trustworthy runtime shape for a 16 GB production box.",
-                "next_step": "Move the main compose runtime onto production settings before calling the stack production-ready.",
-            }
-        )
+    if not settings_module.endswith(".development"):
+        return []
+    return [
+        {
+            "type": "drift",
+            "title": "Development Runtime Active",
+            "description": "The main Django process is running with development settings.",
+            "severity": "medium",
+            "location": settings_module,
+            "why": "Development mode is fine for local work, but it is not a trustworthy runtime shape for a 16 GB production box.",
+            "next_step": "Move the main compose runtime onto production settings before calling the stack production-ready.",
+        }
+    ]
 
-    planned_services = ["ga4", "gsc"]
-    for service in planned_services:
+
+def _conflict_planned_services() -> list[dict]:
+    """Flag any planned-only ServiceStatusSnapshot rows for ga4/gsc as roadmap-tracked, not live."""
+    out: list[dict] = []
+    for service in ("ga4", "gsc"):
         snapshot, _ = ServiceStatusSnapshot.objects.get_or_create(service_name=service)
         if snapshot.state == "planned_only":
-            conflicts.append(
+            out.append(
                 {
                     "type": "mismatch",
                     "title": f"Planned Service: {service}",
@@ -1082,7 +1219,11 @@ def detect_conflicts():
                     "next_step": "Do not treat this row as a live dependency until a real runtime is wired in.",
                 }
             )
+    return out
 
+
+def _persist_conflicts(conflicts: list[dict]) -> None:
+    """Upsert each conflict into SystemConflict, keyed by title."""
     for conflict in conflicts:
         SystemConflict.objects.get_or_create(
             title=conflict["title"],
@@ -1096,6 +1237,16 @@ def detect_conflicts():
             },
         )
 
+
+def detect_conflicts():
+    conflicts = (
+        _conflict_analytics_missing()
+        + _conflict_orphaned_suggestions()
+        + _conflict_native_unhealthy()
+        + _conflict_dev_runtime()
+        + _conflict_planned_services()
+    )
+    _persist_conflicts(conflicts)
     return conflicts
 
 

@@ -1,3 +1,53 @@
+# 2026-05-06 - Claude Opus 4.7 (1M context) - Refactored apps/diagnostics/health.py: 4 oversized functions split into 21 pure helpers + 11 pre-existing silent-excepts fixed + 53 tests
+
+What I did: User asked to refactor `tasks_import_helpers.py` long functions, but that work was already on master from earlier today (commit `55c8941` — verified: lint clean, AST audit shows 0 functions over 50 lines, 46 tests in `tests_tasks_import_helpers.py` already in place). User redirected me to "find next long-function file". I ran an AST sweep across `backend/` (excluding migrations, vendor, the 4 already-refactored files: `tasks_import_helpers.py` / `pipeline_stages.py` / `pipeline_data.py` / `impact_engine.py`) and ranked candidates. Top match was `backend/apps/diagnostics/health.py` (4 functions over 50 lines, longest 163, 457 lines tied up in long functions). Refactored all 4 to under 50 lines using Fowler 1999 Extract Method, fixed 11 pre-existing silent-excepts caught by the linter (5 of which I had moved into the new per-kernel benchmark helpers, 6 truly pre-existing), added a module docstring, and created 53 SimpleTestCase tests for every extracted pure helper. All 7 outside-diagnostics callers verified to still pass.
+
+What was accomplished:
+
+**Four functions refactored (public signatures unchanged, runtime behaviour identical):**
+- `_benchmark_native_modules` (163 → 9 lines): Extracted 5 per-kernel benchmark helpers (`_benchmark_scoring`, `_benchmark_texttok`, `_benchmark_simsearch`, `_benchmark_pagerank`, `_benchmark_feedrerank`). Each owns its numpy seeding + Python-baseline + C++-extension call + try/except. Orchestrator becomes a 5-key dict literal.
+- `check_native_scoring` (149 → 10 lines): Decomposed into 5 phases: `_merge_benchmark_into_statuses` (in-place mutator), `_classify_native_modules` (partition critical/degraded/healthy + counts), `_aggregate_benchmark_results` (sum py/cpp ms + speedup verdict), `_native_scoring_metadata` (build the 19-key payload), `_native_scoring_result` (orchestrate the result tuple — split AGAIN into `_native_scoring_module_failure_result` + `_native_scoring_benchmark_result` because the first split left it at 56 lines).
+- `detect_conflicts` (92 → 11 lines): Extracted 5 per-detector helpers (`_conflict_analytics_missing`, `_conflict_orphaned_suggestions`, `_conflict_native_unhealthy`, `_conflict_dev_runtime`, `_conflict_planned_services`) each returning `list[dict]` of 0–1 conflicts, plus `_persist_conflicts` for the `SystemConflict.objects.get_or_create` upsert loop. Orchestrator is a 5-helper concat + 1 persist call.
+- `_native_module_runtime_status` (53 → 50 lines): Extracted `_classify_module_state(importable, callable_present, critical, error, expected_attr) -> tuple` — pulls out the 13-line if/elif/else for state classification.
+
+**Pre-existing tech debt fixed in the same PR (per TECH-DEBT-MANDATE.md):**
+- Module docstring added (was missing — caught by linter no-docstring warning).
+- 11 silent-except blockers cleared (5 in the 5 new benchmark helpers + 5 in pre-existing `check_postgresql` / `check_redis` / `check_celery` / `check_celery_beat` / `check_channels` + 1 in the per-module import probe inside `_native_module_runtime_status`). All now log via `logger.exception(...)` (one-off failures) or `logger.debug(..., exc_info=True)` (high-volume per-module probe — 139 modules per call, debug level avoids prod log spam).
+- The 5 silent-excepts I "introduced" by extracting the benchmark helpers are NOT new debt — they were 5 separate `except Exception` clauses in the original 163-line function; the linter was counting them all along but the file had never been scanned with `--strict` before.
+
+**New file: `backend/apps/diagnostics/tests_health_helpers.py`**
+- 53 SimpleTestCase tests across 17 test classes; no DB, no Docker. Test classes: ClassifyModuleStateTests, MergeBenchmarkIntoStatusesTests, ClassifyNativeModulesTests, AggregateBenchmarkResultsTests, NativeScoringMetadataTests, NativeScoringResultTests, BenchmarkScoringTests, BenchmarkTexttokTests, BenchmarkSimsearchTests, BenchmarkPagerankTests, BenchmarkFeedrerankTests, ConflictAnalyticsMissingTests, ConflictOrphanedSuggestionsTests, ConflictNativeUnhealthyTests, ConflictDevRuntimeTests, ConflictPlannedServicesTests, PersistConflictsTests, BenchmarkResultDispatchTests.
+
+**Verification (all in container):**
+- `python .githooks/check-forbidden-patterns.py --strict backend/apps/diagnostics/health.py backend/apps/diagnostics/tests_health_helpers.py` → 0 warnings, 0 violations (was 2 warnings + 11 blockers before).
+- AST audit: 0 functions over 50 lines (was 4). Longest is `_native_module_runtime_status` at exactly 50.
+- `docker compose exec backend python manage.py test apps.diagnostics.tests_health_helpers` → 53 tests pass, OK.
+- `docker compose exec backend python manage.py test apps.diagnostics` → 119 tests pass (66 pre-existing + 53 new), OK.
+- Caller regression — all 7 outside-diagnostics callers verified:
+  - `apps.health` → 43 tests pass, OK.
+  - `apps.suggestions` → 71 tests pass, OK.
+  - `apps.core` → 377 tests pass, OK.
+
+**One semantic detail worth flagging in the test file:** the 5 benchmark error-path tests originally tried to force the import to fail by patching `sys.modules`. That works for `extensions.scoring` / `extensions.pagerank` / `extensions.feedrerank` (whose imports go through the submodule machinery) but fails for `extensions.texttok` and `extensions.simsearch` because those names are also exposed as attributes on the `extensions` package, so the `from extensions import X` lookup succeeds via attribute access despite the `sys.modules` patch. Switched all 5 tests to a uniform "patch the kernel call to raise" strategy that exercises the same except branch reliably regardless of test order.
+
+What has issues or errors: None caused by this session.
+
+The 4 functions were not on any hot path (diagnostics module, run on `/api/diagnostics/` page loads), so no benchmark coverage was added. The 53 helper tests are pure-function tests; the existing diagnostics integration tests (66 of them in `tests.py` / `test_realtime_signals.py` / `test_ndcg_eval_view.py` / `tests_views_helpers.py`) provide the end-to-end coverage and were verified to still pass unchanged.
+
+Out of scope (noted, not fixed):
+- `get_feature_readinessMatrix` is camelCase + camelCase — PEP 8 violation. Renaming touches every caller. File RPT in next sweep.
+- 14 `check_*` functions lack docstrings. Pattern is consistent so callers don't suffer; cosmetic-only fix.
+- The 139-entry `_NATIVE_RUNTIME_MODULES` tuple-of-tuples could be a dataclass list, but the tuple form is fine for spec-table iteration.
+
+Tech-debt delta: -16 debt items.
+  Long functions split: _benchmark_native_modules (163→9), check_native_scoring (149→10), detect_conflicts (92→11), _native_module_runtime_status (53→50)
+  Module docstring added (was missing)
+  Silent-excepts fixed: 11 sites — 5 in new benchmark helpers (_benchmark_scoring/_texttok/_simsearch/_pagerank/_feedrerank) + 5 in pre-existing check_* (check_postgresql/check_redis/check_celery/check_celery_beat/check_channels) + 1 in _native_module_runtime_status import probe
+  New pure helpers: 21 extracted (_classify_module_state, _benchmark_scoring, _benchmark_texttok, _benchmark_simsearch, _benchmark_pagerank, _benchmark_feedrerank, _merge_benchmark_into_statuses, _classify_native_modules, _aggregate_benchmark_results, _native_scoring_metadata, _native_scoring_module_failure_result, _native_scoring_benchmark_result, _native_scoring_result, _conflict_analytics_missing, _conflict_orphaned_suggestions, _conflict_native_unhealthy, _conflict_dev_runtime, _conflict_planned_services, _persist_conflicts — 19 unique + 2 reused: _benchmark_result, _benchmark_error_result kept their original 2-helper API)
+  Test coverage added: tests_health_helpers.py (53 SimpleTestCase tests, all pure helpers + 5 regression guards on existing _benchmark_result/_benchmark_error_result)
+
+---
+
 # 2026-05-06 - Claude Opus 4.7 (1M context) - Restored 9 deleted C++ extensions (1,437 lines) + fixed 6 broken tests → apps.pipeline went from 20 errors → 0
 
 What I did: User asked me to "fix all c++ failures" — the 20 pre-existing test errors documented in the prior 5 handoff entries as "pagerank, CUDA, lemma infrastructure" failures. Investigation revealed they were not a build glitch but the consequence of commit `cba3766` ("Passage-Level Relevance (FR-053) finalization", 2026-04-29) which accidentally **deleted ~2,500 lines of C++ source from 14 modules** unrelated to FR-053 — leaving the `.cpp` files at 0 bytes and forcing the build system to produce 14 KB stub `.so` files that don't expose any `PyInit_*` symbol. The "C++ first" policy in CLAUDE.md and two no-fallback Python callers (`personalized_pagerank.py:172`, `hits.py:114`) made this a real production crash risk, not just a test issue. Took Path C of three options I offered the user — "full restoration of all 14 files" — and got `apps.pipeline` from 20 errors → 0.
