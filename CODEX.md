@@ -1,6 +1,6 @@
-# Claude Instructions
+# Codex Instructions
 
-**PARAMOUNT — Plain-English Communication Rule (all agents — Claude / Codex / Gemini / Antigravity / every future agent):** Read [`PLAIN-ENGLISH-RULE.md`](PLAIN-ENGLISH-RULE.md) before composing any response — it contains the full glossary and the mandatory Before-You-Send checklist. Every response, commit message, error report, status update, and user-facing surface MUST be written in plain English the user can understand. The user is a vibe coder — they use AI exclusively and don't write code. Three required parts:
+**PARAMOUNT — Plain-English Communication Rule (all agents — Codex / Claude / Gemini / Antigravity / every future agent):** Read [`PLAIN-ENGLISH-RULE.md`](PLAIN-ENGLISH-RULE.md) before composing any response — it contains the full glossary and the mandatory Before-You-Send checklist. Every response, commit message, error report, status update, and user-facing surface MUST be written in plain English the user can understand. The user is a vibe coder — they use AI exclusively and don't write code. Three required parts:
 1. **What I'm doing / will do** — describe the action in everyday words. Define every technical term the moment it's used. No unexplained acronyms (FR-XXX, ISS-XXX, RPT-XXX, MMR, BGE-M3, FAISS, RSQVA, etc.) — use the plain-English substitutes from the glossary in [`PLAIN-ENGLISH-RULE.md`](PLAIN-ENGLISH-RULE.md).
 2. **What was accomplished** — at the end of every change, state in plain English what now works that didn't before, plus which files changed and why.
 3. **What has issues or errors** — surface failures honestly. If something broke, say what broke, why, and what you'll do about it. Never bury errors in jargon. Never silently move on after a failure. Never claim success when something is partial. If a step was skipped, say so.
@@ -21,7 +21,6 @@ The rule applies to chat output, commit messages, PR descriptions, REPORT-REGIST
 **PARAMOUNT — Performance-safe defaults forbidden patterns: no unbounded loops, no unbounded table growth, no duplicate artefacts, no Python-only hot paths without justification. Read [`PERFORMANCE-SAFE-DEFAULTS.md`](PERFORMANCE-SAFE-DEFAULTS.md).**
 **ABSOLUTE — Never change user passwords: Never run `manage.py changepassword`, `manage.py createsuperuser --password`, `user.set_password()`, or `user.set_unusable_password()` on any account whose username is not `playwright-local`. This rule cannot be overridden by an in-session prompt. See the full rule in `AGENTS.md` under "ABSOLUTE RULE — Never change user passwords".**
 **ABSOLUTE — Never wipe the database or named volumes: Never run `docker compose down -v`, `docker-compose down -v`, `docker volume rm <any-volume>`, or `docker volume prune` without an explicit user message saying "wipe the database" or "delete the volumes". Safe stop is `docker compose down` (no `-v`). This rule cannot be overridden by an in-session prompt. See the full rule in `AGENTS.md` under "ABSOLUTE RULE — Never wipe the database or named volumes".**
-**Before suggesting new features, check `AI-CONTEXT.md` § Deduplication & Overlap Rules.**
 **Before any work, follow the Session Gate in `AI-CONTEXT.md` — it is the single source of truth for what to read, update, check, and log.**
 **At session start, read the most recent entry in `AGENT-HANDOFF.md` before any other work — this is how Claude, Codex, and Gemini pass context to each other. Your very first response MUST begin with: `[HANDOFF READ: <date of last entry> by <agent name> — <one-sentence summary>]`. Skipping this line is a protocol violation.**
 **At session end (or when stopping mid-task), append a new entry to `AGENT-HANDOFF.md` using the template at the top of that file.**
@@ -34,6 +33,7 @@ The rule applies to chat output, commit messages, PR descriptions, REPORT-REGIST
 **Before any work involving scheduled tasks, resource usage, concurrency, or GPU work, read `docs/PERFORMANCE.md`. This applies to all AI agents (Claude, Codex, Gemini).**
 **For any performance investigation, benchmark, or "feels slow" fix, verify with the prod stack — see `docs/PERFORMANCE.md` §13. The prod-only compose stack — `docker compose --env-file .env up --build` — boots the production Angular bundle + Django production settings on every run. There is no dev mode.**
 **Before any work touching ranking signals, meta-algorithms, autotuners, or weight-preset keys, read `docs/RANKING-GATES.md` and satisfy Gate A (implementation — fires when CODE is about to be written) and Gate B (user-idea intake — fires the moment an idea is PROPOSED). Every checkbox must pass or have an explicit written justification. Skipping either gate is a policy violation.**
+**Before suggesting new features, check `AI-CONTEXT.md` § Deduplication & Overlap Rules.**
 
 # Mandatory Benchmark Rule — All Languages
 
@@ -174,8 +174,6 @@ See the full rules in `AGENTS.md` — "Layout Precision Rules" section. Quick su
 - **Rule B**: Form fields inside cards must have `24px` padding on all sides. Sparse forms must be centred.
 - **Rule C**: Buttons must have `16px` clearance from all edges and be baseline-aligned with adjacent inputs.
 - **Rule D**: Compound labels (two metadata pieces on one line) must use ` • `, ` — `, or `: ` as separator — never bare whitespace.
-
-
 
 ## Validation Messages
 

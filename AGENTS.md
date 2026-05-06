@@ -75,6 +75,25 @@ Goal: keep the codebase fast, organised, and stable as it grows — without intr
 - **Hot-path benchmarks are non-negotiable.** Every new or modified C++ kernel MUST have a `benchmarks/bench_<name>.cpp` using Google Benchmark.
 - **Verification**: Before marking a C++ task complete, run `scripts/test-cpp.ps1` and `scripts/bench-cpp.ps1`. Failure to provide coverage or verify performance is a protocol violation.
 
+### Ongoing Code Quality Rules — Claude · Codex · Antigravity · Every Agent
+
+These rules apply continuously — not just when asked. Every session, every file touched, every task.
+
+- **Fix minor bugs and refactor for performance as you go.** While working on a task, if you spot a nearby bug or a slow code path, fix it in the same commit. Note what you fixed.
+- **Surface silent errors — never let them pass.** If code catches an exception and does nothing (or just logs it and carries on), that is a silent error. Replace it with a specific exception type, a real log entry, and — where appropriate — a re-raise. Silent failures are bugs.
+- **Prevent crashes.** Guard against None/null, out-of-bounds access, missing keys, and unvalidated external data at every system boundary. Internal code may trust itself; external data never can.
+- **Eliminate code duplication.** If you see the same block of logic in two or more places, extract it into one shared function before adding a third copy. Six or more duplicated lines is the hard limit — extract immediately.
+- **Don't defer.** Address all issues you find in the area you are working in. Do not leave a comment saying "TODO: fix later" and move on. If the fix is out of scope, file it in the Report Registry with a severity rating, then do the task — but do not silently ignore it.
+- **Write unit tests.** Every new service, utility function, or view must have at least one `SimpleTestCase` (or `TestCase`) covering the happy path and the primary failure mode before the task is closed. No feature is done without tests.
+- **Enhance performance.** Identify and improve the slowest code paths in the area you are working in. File anything >2× slower than expected in the Report Registry as MEDIUM; >5× as HIGH.
+- **Fix security issues.** Before writing any code that handles user input, authentication, file paths, or external data: use parameterised queries, never `eval()`, never `pickle` on untrusted data, never `MD5`/`SHA-1` for security hashing. See `backend/PYTHON-RULES.md` §10–11.
+- **Design for scaling and future extension.** Before adding a new service or feature, declare in writing: (a) what happens at 10× and 100× input volume, and (b) where the next related feature would slot in. Then design so both answers are "no problem."
+- **Follow PEP-8.** Every Python file you touch must have no new `flake8` violations. Type hints are required on all public functions. Line length: 100 characters max.
+- **Apply DRY and KISS.** Don't Repeat Yourself — reuse existing logic. Keep It Simple — write the simplest thing that works; add abstraction only when a second real use case appears.
+- **Fix long-function warnings.** Any function over 50 lines that you touch must be shortened. Extract sub-steps into well-named helpers. If you cannot fix it in the current task, file it in the Report Registry and note it in the AGENT-HANDOFF entry.
+- **Don't duplicate things that already exist.** Search the codebase before writing any new function, class, view, or service. If a near-duplicate exists, extend it rather than copy it.
+- **Move with the plan.** These rules improve quality incrementally; they are not a licence to rewrite unrelated code. Stay on the planned task — apply quality rules to what you touch, not to everything you can see.
+
 ### Never do
 - Do not refactor code outside the scope of the current task without explicit approval.
 - Do not silently change behaviour while "cleaning up" — correctness always comes first.
