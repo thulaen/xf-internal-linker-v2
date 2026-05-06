@@ -1,3 +1,38 @@
+# 2026-05-06 - Claude Sonnet 4.6 - Refactored analytics/impact_engine.py: 4 oversized functions split into pure helpers + 17 new tests
+
+What I did: Refactored `backend/apps/analytics/impact_engine.py` to bring all 4 functions that exceeded the 50-line hard cap under the limit by extracting named helpers. Applied the spec-table 3-phase decomposition pattern to `compute_search_impact` (the largest single function in the codebase at 244 lines). Added a new test file with 17 SimpleTestCase tests for all extracted pure helpers.
+
+What was accomplished:
+
+**Four functions refactored (public signatures unchanged, runtime behaviour identical):**
+- `BayesianTrendAttributor.compute_uplift`: 53 → 38 lines. Extracted `_compute_control_trend` (Laplace-smoothed CTR ratio, pure math) and `_run_monte_carlo` (Poisson-Gamma Monte Carlo sampler, pure math).
+- `_select_matched_controls`: 63 → 42 lines. Extracted `_aggregate_control_candidates` (grouped SQL query); replaced 8-line inline aggregate block with `_gsc_aggregate` using shared `_SEARCH_METRIC_AGGREGATE` constant.
+- `compute_search_impact`: 244 → 14 lines. Decomposed into 3 named phases: `_csi_phase_a_match_candidates` (window validation + control selection + metric fetching), `_csi_phase_c_persist_snapshot` (Bayesian snapshot persist), `_csi_phase_b_aggregate_impacts` (per-metric ImpactReport creation + keyword impacts). Sub-helpers `_csi_compute_windows` and `_impact_report_defaults` keep each phase under 50 lines.
+- `_compute_keyword_impacts`: 76 → 42 lines. Extracted `_fetch_keyword_stats` (DB query) and `_compute_query_lift` (pure lift math, now testable).
+
+**New shared helpers added to module:**
+- `_gsc_aggregate(qs)` — eliminates 4× repeated 8-line aggregate block.
+- `_SEARCH_METRIC_AGGREGATE` constant — eliminates 4× repeated dict literal.
+- `_TRACKED_METRICS` constant — eliminates inline list literal.
+
+**New file: `backend/apps/analytics/tests_impact_engine_helpers.py`**
+- 17 SimpleTestCase tests covering all extracted pure helpers; no DB or Docker required.
+
+**Verification:**
+- `python .githooks/check-forbidden-patterns.py --strict backend/apps/analytics/impact_engine.py` → 0 long-function warnings; 1 advisory notice on `compute_uplift` (8 args, pre-existing, public signature unchanged per task requirement, commit allowed).
+- `docker compose exec backend python manage.py test apps.analytics` → 143 tests pass, OK.
+- Commit: 77e3442
+
+What has issues or errors: None caused by this session. The pre-existing FAISS single-worker warning and `audit_errorlog.source` SQLite startup error continue to appear during test startup — both predate this work.
+
+Tech-debt delta: -11 debt items.
+  Long functions split: compute_uplift (53→38), _select_matched_controls (63→42), compute_search_impact (244→14), _compute_keyword_impacts (76→42)
+  Magic numbers / inline literals hoisted: _SEARCH_METRIC_AGGREGATE (4× repeated dict), _TRACKED_METRICS (inline list), _gsc_aggregate (4× repeated 8-line block)
+  Boilerplate extracted: _compute_control_trend, _run_monte_carlo, _aggregate_control_candidates, _csi_compute_windows, _impact_report_defaults, _fetch_keyword_stats, _compute_query_lift
+  Test coverage added: tests_impact_engine_helpers.py (17 SimpleTestCase tests, pure helpers)
+
+---
+
 # 2026-05-06 - Claude Sonnet 4.6 - Refactored audit/tasks.py: 2 oversized tasks split into pure helpers + 22 new tests
 
 What I did: Refactored `backend/apps/audit/tasks.py` to bring both Celery tasks under the 50-line hard cap by extracting named pure-function helpers and two DB-access helpers. Applied the spec-table pattern (mirrors `_RULES` in `fix_suggestions.py`) to the GlitchTip severity mapping. Added a new test file with 22 SimpleTestCase tests covering all pure helpers.
