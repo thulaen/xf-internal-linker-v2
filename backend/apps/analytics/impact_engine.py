@@ -28,6 +28,20 @@ _MIN_CONTROLS = 3
 _POOL_MAX = 100
 # Default number of matched controls to select
 _CONTROL_K = 5
+# Standard 4-field GSC aggregate reused across all window queries
+_SEARCH_METRIC_AGGREGATE = {
+    "impressions": Sum("impressions"),
+    "clicks": Sum("clicks"),
+    "ctr": Avg("ctr"),
+    "average_position": Avg("average_position"),
+}
+# Metrics tracked in ImpactReport — one row per metric per suggestion
+_TRACKED_METRICS = ["impressions", "clicks", "ctr", "average_position"]
+
+
+def _gsc_aggregate(qs) -> dict:
+    """Run the standard 4-field GSC aggregate on a pre-filtered queryset."""
+    return qs.filter(source="gsc").aggregate(**_SEARCH_METRIC_AGGREGATE)
 
 
 class BayesianTrendAttributor:
@@ -36,6 +50,38 @@ class BayesianTrendAttributor:
     Models the click-through rate (CTR) of a target page against the matched control
     trend to compute the probability of uplift.
     """
+
+    def _compute_control_trend(
+        self,
+        c_clks_base: int,
+        c_imps_base: int,
+        c_clks_post: int,
+        c_imps_post: int,
+    ) -> float:
+        """Return the site-wide CTR trend factor using Laplace-smoothed rates."""
+        ctr_base = (1 + c_clks_base) / (1 + c_imps_base)
+        ctr_post = (1 + c_clks_post) / (1 + c_imps_post)
+        return ctr_post / ctr_base if ctr_base > 0 else 1.0
+
+    def _run_monte_carlo(
+        self,
+        t_clks_base: int,
+        t_imps_base: int,
+        t_clks_post: int,
+        t_imps_post: int,
+        trend: float,
+        samples: int = 10_000,
+    ) -> float:
+        """Return P(post_CTR > base_CTR * trend) via Poisson-Gamma Monte Carlo.
+
+        scipy.stats.gamma uses (a, scale=1/b) for the (alpha, beta) parameterization.
+        Prior: Gamma(1, 1). Posterior: Gamma(1+k, 1+I).
+        """
+        dist_base = gamma(1 + t_clks_base, scale=1 / (1 + t_imps_base))
+        dist_post = gamma(1 + t_clks_post, scale=1 / (1 + t_imps_post))
+        return float(
+            np.mean(dist_post.rvs(size=samples) > dist_base.rvs(size=samples) * trend)
+        )
 
     def compute_uplift(
         self,
@@ -48,31 +94,18 @@ class BayesianTrendAttributor:
         control_clicks_post: int,
         control_imps_post: int,
     ) -> dict:
-        """Calculate uplift probability and rewards vs matched control trend."""
-        # 1. Compute Control Trend (Control Factor)
-        # Using laplace smoothing to avoid division by zero
-        control_ctr_base = (1 + control_clicks_base) / (1 + control_imps_base)
-        control_ctr_post = (1 + control_clicks_post) / (1 + control_imps_post)
-        trend = control_ctr_post / control_ctr_base if control_ctr_base > 0 else 1.0
+        """Calculate uplift probability and reward label vs matched control trend."""
+        trend = self._compute_control_trend(
+            control_clicks_base, control_imps_base,
+            control_clicks_post, control_imps_post,
+        )
+        prob_uplift = self._run_monte_carlo(
+            target_clicks_base, target_imps_base,
+            target_clicks_post, target_imps_post, trend,
+        )
 
-        # 2. Bayesian Posterior Simulation (Monte Carlo)
-        # Target Prior: Gamma(1, 1). Posterior: Gamma(1+k, 1+I)
-        samples = 10000
-        # scipy.stats.gamma uses (a, scale=1/b) for the (alpha, beta) parameterization
-        dist_base = gamma(1 + target_clicks_base, scale=1 / (1 + target_imps_base))
-        dist_post = gamma(1 + target_clicks_post, scale=1 / (1 + target_imps_post))
-
-        # Vectorized sampling
-        base_samples = dist_base.rvs(size=samples)
-        post_samples = dist_post.rvs(size=samples)
-
-        # Probability that post-CTR > (base-CTR * site-trend)
-        prob_uplift = float(np.mean(post_samples > (base_samples * trend)))
-
-        # 4. Labeling Logic
         lift_pct = 0.0
         if target_clicks_base > 0:
-            # Expected lift normalized by trend
             expected_base = target_clicks_base * trend
             lift_pct = ((target_clicks_post - expected_base) / expected_base) * 100
 
@@ -156,6 +189,24 @@ def _score_candidate_distance(
     return math.sqrt(dist_sq)
 
 
+def _aggregate_control_candidates(
+    pool_ids: list[int],
+    baseline_start: date,
+    baseline_end: date,
+) -> dict[int, dict]:
+    """Return per-item GSC aggregates keyed by content_item_id for all pool candidates."""
+    rows = (
+        SearchMetric.objects.filter(
+            content_item_id__in=pool_ids,
+            source="gsc",
+            date__range=[baseline_start, baseline_end],
+        )
+        .values("content_item_id")
+        .annotate(**_SEARCH_METRIC_AGGREGATE)
+    )
+    return {int(r["content_item_id"]): r for r in rows}
+
+
 def _select_matched_controls(
     suggestion: Suggestion,
     baseline_start: date,
@@ -173,37 +224,18 @@ def _select_matched_controls(
     if pool_size < _MIN_CONTROLS:
         return [], None, pool_size
 
-    target_agg = SearchMetric.objects.filter(
-        content_item=dest,
-        source="gsc",
-        date__range=[baseline_start, baseline_end],
-    ).aggregate(
-        clicks=Sum("clicks"),
-        impressions=Sum("impressions"),
-        ctr=Avg("ctr"),
-        average_position=Avg("average_position"),
+    target_agg = _gsc_aggregate(
+        SearchMetric.objects.filter(
+            content_item=dest,
+            date__range=[baseline_start, baseline_end],
+        )
     )
     t_clicks = float(target_agg["clicks"] or 0)
     t_imps = float(target_agg["impressions"] or 0)
     t_ctr = float(target_agg["ctr"] or 0)
     t_pos = float(target_agg["average_position"] or 0)
 
-    candidate_aggs = (
-        SearchMetric.objects.filter(
-            content_item_id__in=pool_ids,
-            source="gsc",
-            date__range=[baseline_start, baseline_end],
-        )
-        .values("content_item_id")
-        .annotate(
-            clicks=Sum("clicks"),
-            impressions=Sum("impressions"),
-            ctr=Avg("ctr"),
-            average_position=Avg("average_position"),
-        )
-    )
-    cand_map = {int(r["content_item_id"]): r for r in candidate_aggs}
-
+    cand_map = _aggregate_control_candidates(pool_ids, baseline_start, baseline_end)
     scored = [
         (cid, _score_candidate_distance(cand_map[cid], t_clicks, t_imps, t_ctr, t_pos))
         for cid in pool_ids
@@ -221,250 +253,234 @@ def _select_matched_controls(
     return control_ids, round(match_quality, 4), pool_size
 
 
-def compute_search_impact(
-    suggestion: Suggestion, window_days: int = 28
-) -> list[ImpactReport]:
-    """
-    Compute before/after impact for an applied suggestion.
-    Uses a baseline window before applied_at and a post window after applied_at.
+def _csi_compute_windows(suggestion: Suggestion, window_days: int) -> dict | None:
+    """Validate data availability and compute the baseline/post date windows.
 
-    Includes Keyword-level attribution (anchor text match) and
-    Control-group normalization (market trend correction).
+    Returns a 4-key date dict, or None when data is absent or too fresh to measure.
     """
     if not suggestion.applied_at:
-        logger.info(
-            f"Suggestion {suggestion.suggestion_id} is not applied; skipping impact."
-        )
-        return []
-
-    # 1. Define Windows
-    # Search Console has ~48-72 hour lag.
-    latest_metric = SearchMetric.objects.filter(source="gsc").order_by("-date").first()
-    if not latest_metric:
+        logger.info("Suggestion %s not applied; skipping.", suggestion.suggestion_id)
+        return None
+    latest = SearchMetric.objects.filter(source="gsc").order_by("-date").first()
+    if not latest:
         logger.info("No GSC data found in DB; cannot compute impact.")
-        return []
-
-    max_data_date = latest_metric.date
+        return None
     post_start = suggestion.applied_at.date()
-
-    # We need at least a few days of data to show anything
-    if max_data_date < post_start + timedelta(days=3):
-        logger.info(
-            "Not enough post-apply data yet for %s.",
-            suggestion.suggestion_id,
-        )
-        return []
-
-    # Actual post window we can measure
-    actual_post_end = min(post_start + timedelta(days=window_days - 1), max_data_date)
+    if latest.date < post_start + timedelta(days=3):
+        logger.info("Not enough post-apply data yet for %s.", suggestion.suggestion_id)
+        return None
+    actual_post_end = min(post_start + timedelta(days=window_days - 1), latest.date)
     actual_days = (actual_post_end - post_start).days + 1
-
-    # Baseline window must be same size as post window
     baseline_end = post_start - timedelta(days=1)
     baseline_start = baseline_end - timedelta(days=actual_days - 1)
+    return {
+        "post_start": post_start,
+        "actual_post_end": actual_post_end,
+        "baseline_start": baseline_start,
+        "baseline_end": baseline_end,
+    }
 
-    # 2. Matched Control Group Normalization
-    # Select similar items matched on pre-period metrics (Abadie et al. 2010)
-    control_item_ids, match_quality, pool_size = _select_matched_controls(
-        suggestion, baseline_start, baseline_end
-    )
-    is_conclusive = len(control_item_ids) >= _MIN_CONTROLS
 
-    # Batch-fetch target item metrics in 2 queries
-    target_baseline_qs = SearchMetric.objects.filter(
-        content_item=suggestion.destination,
-        source="gsc",
-        date__range=[baseline_start, baseline_end],
-    )
-    target_post_qs = SearchMetric.objects.filter(
-        content_item=suggestion.destination,
-        source="gsc",
-        date__range=[post_start, actual_post_end],
-    )
-    target_baseline_agg = target_baseline_qs.aggregate(
-        impressions=Sum("impressions"),
-        clicks=Sum("clicks"),
-        ctr=Avg("ctr"),
-        average_position=Avg("average_position"),
-    )
-    target_post_agg = target_post_qs.aggregate(
-        impressions=Sum("impressions"),
-        clicks=Sum("clicks"),
-        ctr=Avg("ctr"),
-        average_position=Avg("average_position"),
-    )
+def _csi_phase_a_match_candidates(
+    suggestion: Suggestion, window_days: int
+) -> dict | None:
+    """Phase A: compute windows, select controls, batch-fetch all period metrics.
 
-    # Batch-fetch control group metrics
-    control_baseline_agg: dict = {}
-    control_post_agg: dict = {}
-    if control_item_ids:
-        control_baseline_agg = SearchMetric.objects.filter(
-            content_item_id__in=control_item_ids,
-            source="gsc",
-            date__range=[baseline_start, baseline_end],
-        ).aggregate(
-            impressions=Sum("impressions"),
-            clicks=Sum("clicks"),
-            ctr=Avg("ctr"),
-            average_position=Avg("average_position"),
+    Returns a context dict consumed by phases B and C, or None for early exit.
+    """
+    wins = _csi_compute_windows(suggestion, window_days)
+    if wins is None:
+        return None
+    b_start, b_end = wins["baseline_start"], wins["baseline_end"]
+    p_start, p_end = wins["post_start"], wins["actual_post_end"]
+
+    control_ids, match_quality, pool_size = _select_matched_controls(
+        suggestion, b_start, b_end
+    )
+    is_conclusive = len(control_ids) >= _MIN_CONTROLS
+    dest = suggestion.destination
+
+    t_base = _gsc_aggregate(
+        SearchMetric.objects.filter(content_item=dest, date__range=[b_start, b_end])
+    )
+    t_post = _gsc_aggregate(
+        SearchMetric.objects.filter(content_item=dest, date__range=[p_start, p_end])
+    )
+    c_base, c_post = {}, {}
+    if control_ids:
+        c_base = _gsc_aggregate(
+            SearchMetric.objects.filter(
+                content_item_id__in=control_ids, date__range=[b_start, b_end]
+            )
         )
-        control_post_agg = SearchMetric.objects.filter(
-            content_item_id__in=control_item_ids,
-            source="gsc",
-            date__range=[post_start, actual_post_end],
-        ).aggregate(
-            impressions=Sum("impressions"),
-            clicks=Sum("clicks"),
-            ctr=Avg("ctr"),
-            average_position=Avg("average_position"),
+        c_post = _gsc_aggregate(
+            SearchMetric.objects.filter(
+                content_item_id__in=control_ids, date__range=[p_start, p_end]
+            )
         )
+    return {
+        **wins,
+        "control_ids": control_ids,
+        "is_conclusive": is_conclusive,
+        "match_quality": match_quality,
+        "pool_size": pool_size,
+        "t_base": t_base,
+        "t_post": t_post,
+        "c_base": c_base,
+        "c_post": c_post,
+        "window_days": window_days,
+    }
 
-    if not is_conclusive:
-        GSCImpactSnapshot.objects.filter(
-            suggestion=suggestion,
-            window_type=f"{window_days}d",
-        ).delete()
 
-    if is_conclusive:
-        try:
-            # Native Python implementation of the Poisson-Gamma model
-            attributor = BayesianTrendAttributor()
+def _impact_report_defaults(
+    target_base: float,
+    target_post: float,
+    delta: float,
+    ctx: dict,
+) -> dict:
+    """Build the defaults dict for ImpactReport.update_or_create from context."""
+    return {
+        "before_value": target_base,
+        "after_value": target_post,
+        "delta_percent": delta,
+        "before_date_range": {
+            "start": ctx["baseline_start"].isoformat(),
+            "end": ctx["baseline_end"].isoformat(),
+        },
+        "after_date_range": {
+            "start": ctx["post_start"].isoformat(),
+            "end": ctx["actual_post_end"].isoformat(),
+        },
+        "control_pool_size": ctx["pool_size"],
+        "control_match_count": len(ctx["control_ids"]),
+        "control_match_quality": ctx["match_quality"],
+        "is_conclusive": ctx["is_conclusive"],
+    }
 
-            # Get target aggregates for the attributor
-            t_c_base = int(target_baseline_agg.get("clicks") or 0)
-            t_i_base = int(target_baseline_agg.get("impressions") or 0)
-            t_c_post = int(target_post_agg.get("clicks") or 0)
-            t_i_post = int(target_post_agg.get("impressions") or 0)
 
-            # Get control aggregates
-            c_c_base = (
-                int(control_baseline_agg.get("clicks") or 0)
-                if control_baseline_agg
-                else 0
-            )
-            c_i_base = (
-                int(control_baseline_agg.get("impressions") or 0)
-                if control_baseline_agg
-                else 0
-            )
-            c_c_post = (
-                int(control_post_agg.get("clicks") or 0) if control_post_agg else 0
-            )
-            c_i_post = (
-                int(control_post_agg.get("impressions") or 0) if control_post_agg else 0
-            )
+def _csi_phase_b_aggregate_impacts(
+    suggestion: Suggestion, ctx: dict
+) -> list[ImpactReport]:
+    """Phase B: compute normalized lift for 4 GSC metrics; upsert ImpactReport rows."""
+    is_conclusive = ctx["is_conclusive"]
+    t_base, t_post = ctx["t_base"], ctx["t_post"]
+    c_base, c_post = ctx["c_base"], ctx["c_post"]
+    b_start, b_end = ctx["baseline_start"], ctx["baseline_end"]
+    p_start, p_end = ctx["post_start"], ctx["actual_post_end"]
 
-            result = attributor.compute_uplift(
-                target_clicks_base=t_c_base,
-                target_imps_base=t_i_base,
-                target_clicks_post=t_c_post,
-                target_imps_post=t_i_post,
-                control_clicks_base=c_c_base,
-                control_imps_base=c_i_base,
-                control_clicks_post=c_c_post,
-                control_imps_post=c_i_post,
-            )
-
-            if result and result.get("reward_label") != "inconclusive":
-                GSCImpactSnapshot.objects.update_or_create(
-                    suggestion=suggestion,
-                    window_type=f"{window_days}d",
-                    defaults={
-                        "apply_date": suggestion.applied_at,
-                        "baseline_clicks": t_c_base,
-                        "post_clicks": t_c_post,
-                        "baseline_impressions": t_i_base,
-                        "post_impressions": t_i_post,
-                        "lift_clicks_pct": result.get("lift_clicks_pct", 0.0),
-                        "lift_clicks_absolute": t_c_post - t_c_base,
-                        "probability_of_uplift": result.get(
-                            "probability_of_uplift", 0.0
-                        ),
-                        "reward_label": result.get("reward_label", "inconclusive"),
-                    },
-                )
-                logger.info(
-                    "Bayesian attribution complete for %s: %s",
-                    suggestion.suggestion_id,
-                    result.get("reward_label"),
-                )
-        except Exception as exc:
-            logger.error(
-                "Failed to run native Bayesian attribution for %s: %s",
-                suggestion.suggestion_id,
-                exc,
-            )
-
-    # 3. Matched Control Group Normalization (already computed above)
-    metrics_to_calc = ["impressions", "clicks", "ctr", "average_position"]
-    click_control_multiplier = 1.0
+    click_ctrl_mult = 1.0
     reports = []
-
-    for metric in metrics_to_calc:
-        # A. Target Item Performance
-        target_base = float(target_baseline_agg.get(metric) or 0)
-        target_post_val = float(target_post_agg.get(metric) or 0)
-
-        # B. Control Group Trend
-        control_base = (
-            float(control_baseline_agg.get(metric) or 0)
-            if control_baseline_agg
-            else 0.0
-        )
-        control_post = (
-            float(control_post_agg.get(metric) or 0) if control_post_agg else 0.0
-        )
-
-        control_lift_multiplier = 1.0
-        if control_base > 0:
-            control_lift_multiplier = control_post / control_base
+    for metric in _TRACKED_METRICS:
+        tgt_base = float(t_base.get(metric) or 0)
+        tgt_post = float(t_post.get(metric) or 0)
+        ctrl_base = float(c_base.get(metric) or 0) if c_base else 0.0
+        ctrl_post_v = float(c_post.get(metric) or 0) if c_post else 0.0
+        ctrl_mult = (ctrl_post_v / ctrl_base) if ctrl_base > 0 else 1.0
         if metric == "clicks":
-            click_control_multiplier = control_lift_multiplier
-
-        # C. Normalized Lift
-        normalized_before = target_base * control_lift_multiplier
-
-        delta = 0.0
-        if is_conclusive and normalized_before > 0:
-            delta = ((target_post_val - normalized_before) / normalized_before) * 100
-        elif is_conclusive and target_post_val > 0:
+            click_ctrl_mult = ctrl_mult
+        norm_before = tgt_base * ctrl_mult
+        if is_conclusive and norm_before > 0:
+            delta = ((tgt_post - norm_before) / norm_before) * 100
+        elif is_conclusive and tgt_post > 0:
             delta = 100.0
-        # When inconclusive, delta stays 0.0 — we don't trust the result
-
+        else:
+            delta = 0.0
         report, _ = ImpactReport.objects.update_or_create(
             suggestion=suggestion,
             metric_type=metric,
-            defaults={
-                "before_value": target_base,
-                "after_value": target_post_val,
-                "delta_percent": delta,
-                "before_date_range": {
-                    "start": baseline_start.isoformat(),
-                    "end": baseline_end.isoformat(),
-                },
-                "after_date_range": {
-                    "start": post_start.isoformat(),
-                    "end": actual_post_end.isoformat(),
-                },
-                "control_pool_size": pool_size,
-                "control_match_count": len(control_item_ids),
-                "control_match_quality": match_quality,
-                "is_conclusive": is_conclusive,
-            },
+            defaults=_impact_report_defaults(tgt_base, tgt_post, delta, ctx),
         )
         reports.append(report)
+    _compute_keyword_impacts(suggestion, b_start, b_end, p_start, p_end, click_ctrl_mult)
+    return reports
 
-    # 3. Keyword-Level Impact Attribution
-    _compute_keyword_impacts(
-        suggestion,
-        baseline_start,
-        baseline_end,
-        post_start,
-        actual_post_end,
-        click_control_multiplier,
+
+def _csi_phase_c_persist_snapshot(suggestion: Suggestion, ctx: dict) -> None:
+    """Phase C: delete stale snapshot or persist Bayesian result to GSCImpactSnapshot."""
+    window_type = f"{ctx['window_days']}d"
+    if not ctx["is_conclusive"]:
+        GSCImpactSnapshot.objects.filter(
+            suggestion=suggestion, window_type=window_type
+        ).delete()
+        return
+    t_base, t_post = ctx["t_base"], ctx["t_post"]
+    c_base, c_post = ctx["c_base"], ctx["c_post"]
+    t_c_base, t_i_base = int(t_base.get("clicks") or 0), int(t_base.get("impressions") or 0)
+    t_c_post, t_i_post = int(t_post.get("clicks") or 0), int(t_post.get("impressions") or 0)
+    c_c_base = int(c_base.get("clicks") or 0) if c_base else 0
+    c_i_base = int(c_base.get("impressions") or 0) if c_base else 0
+    c_c_post = int(c_post.get("clicks") or 0) if c_post else 0
+    c_i_post = int(c_post.get("impressions") or 0) if c_post else 0
+    try:
+        result = BayesianTrendAttributor().compute_uplift(
+            target_clicks_base=t_c_base,
+            target_imps_base=t_i_base,
+            target_clicks_post=t_c_post,
+            target_imps_post=t_i_post,
+            control_clicks_base=c_c_base,
+            control_imps_base=c_i_base,
+            control_clicks_post=c_c_post,
+            control_imps_post=c_i_post,
+        )
+        if result and result.get("reward_label") != "inconclusive":
+            GSCImpactSnapshot.objects.update_or_create(
+                suggestion=suggestion,
+                window_type=window_type,
+                defaults={
+                    "apply_date": suggestion.applied_at,
+                    "baseline_clicks": t_c_base, "post_clicks": t_c_post,
+                    "baseline_impressions": t_i_base, "post_impressions": t_i_post,
+                    "lift_clicks_pct": result.get("lift_clicks_pct", 0.0),
+                    "lift_clicks_absolute": t_c_post - t_c_base,
+                    "probability_of_uplift": result.get("probability_of_uplift", 0.0),
+                    "reward_label": result.get("reward_label", "inconclusive"),
+                },
+            )
+            logger.info("Bayesian attribution complete for %s: %s", suggestion.suggestion_id, result.get("reward_label"))
+    except Exception as exc:
+        logger.error("Bayesian attribution failed for %s: %s", suggestion.suggestion_id, exc)
+
+
+def compute_search_impact(
+    suggestion: Suggestion, window_days: int = 28
+) -> list[ImpactReport]:
+    """Compute before/after GSC impact for an applied suggestion.
+
+    Uses causal-inference control matching (Abadie et al. 2010). Returns one
+    ImpactReport per tracked metric; side-effects: upserts GSCImpactSnapshot
+    and GSCKeywordImpact rows.
+    """
+    ctx = _csi_phase_a_match_candidates(suggestion, window_days)
+    if ctx is None:
+        return []
+    _csi_phase_c_persist_snapshot(suggestion, ctx)
+    return _csi_phase_b_aggregate_impacts(suggestion, ctx)
+
+
+def _fetch_keyword_stats(
+    destination: ContentItem, q_text: str, start: date, end: date
+) -> dict:
+    """Aggregate GSC clicks/impressions/position for one query in one time window."""
+    return SearchMetric.objects.filter(
+        content_item=destination,
+        source="gsc",
+        query=q_text,
+        date__range=[start, end],
+    ).aggregate(
+        clks=Sum("clicks"),
+        imps=Sum("impressions"),
+        pos=Avg("average_position"),
     )
 
-    return reports
+
+def _compute_query_lift(c_base: int, c_post: int, control_multiplier: float) -> float:
+    """Return the normalized click lift for a single query vs the control trend."""
+    normalized = float(c_base) * control_multiplier
+    if normalized > 0:
+        return ((float(c_post) - normalized) / normalized) * 100
+    if c_post > 0:
+        return 100.0
+    return 0.0
 
 
 def _compute_keyword_impacts(
@@ -478,69 +494,37 @@ def _compute_keyword_impacts(
     """Calculate and store per-query lift for the suggestion's destination."""
     from .models import GSCKeywordImpact
 
-    # Get all queries for this item in the total window
+    dest = suggestion.destination
     queries = (
         SearchMetric.objects.filter(
-            content_item=suggestion.destination,
-            source="gsc",
-            date__range=[b_start, p_end],
+            content_item=dest, source="gsc", date__range=[b_start, p_end],
         )
         .exclude(query="")
         .values_list("query", flat=True)
         .distinct()
     )
-
-    anchor = (
-        (suggestion.anchor_edited or suggestion.anchor_phrase or "").lower().strip()
-    )
+    anchor = (suggestion.anchor_edited or suggestion.anchor_phrase or "").lower().strip()
 
     for q_text in queries:
         if not q_text:
             continue
-
-        b_stats = SearchMetric.objects.filter(
-            content_item=suggestion.destination,
-            source="gsc",
-            query=q_text,
-            date__range=[b_start, b_end],
-        ).aggregate(
-            clks=Sum("clicks"), imps=Sum("impressions"), pos=Avg("average_position")
+        b_stats = _fetch_keyword_stats(dest, q_text, b_start, b_end)
+        p_stats = _fetch_keyword_stats(dest, q_text, p_start, p_end)
+        lift = _compute_query_lift(
+            b_stats["clks"] or 0, p_stats["clks"] or 0, control_multiplier
         )
-
-        p_stats = SearchMetric.objects.filter(
-            content_item=suggestion.destination,
-            source="gsc",
-            query=q_text,
-            date__range=[p_start, p_end],
-        ).aggregate(
-            clks=Sum("clicks"), imps=Sum("impressions"), pos=Avg("average_position")
-        )
-
-        c_base = b_stats["clks"] or 0
-        c_post = p_stats["clks"] or 0
-
-        # Normalize baseline against control trend
-        normalized_c_base = float(c_base) * control_multiplier
-        lift = 0.0
-        if normalized_c_base > 0:
-            lift = ((float(c_post) - normalized_c_base) / normalized_c_base) * 100
-        elif c_post > 0:
-            lift = 100.0
-
-        is_match = anchor in q_text.lower()
-
         GSCKeywordImpact.objects.update_or_create(
             suggestion=suggestion,
             query=q_text,
             defaults={
-                "clicks_baseline": c_base,
-                "clicks_post": c_post,
+                "clicks_baseline": b_stats["clks"] or 0,
+                "clicks_post": p_stats["clks"] or 0,
                 "impressions_baseline": b_stats["imps"] or 0,
                 "impressions_post": p_stats["imps"] or 0,
                 "position_baseline": b_stats["pos"],
                 "position_post": p_stats["pos"],
                 "lift_percent": lift,
-                "is_anchor_match": is_match,
+                "is_anchor_match": anchor in q_text.lower(),
             },
         )
 
