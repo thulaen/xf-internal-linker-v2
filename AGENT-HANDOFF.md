@@ -1,3 +1,40 @@
+# 2026-05-06 - Claude Sonnet 4.6 - Refactored pipeline_data.py: 6 oversized functions split into pure helpers + 26 tests
+
+What I did: Refactored `backend/apps/pipeline/services/pipeline_data.py` to bring all 6 functions that exceeded the 50-line hard cap under the limit by extracting 14 named private helpers. Applied Fowler 1999 Extract Method throughout. Created a new `tests_pipeline_data_helpers.py` with 26 SimpleTestCase tests covering every extracted pure helper. All public signatures preserved (re-exported via pipeline.py unchanged).
+
+What was accomplished:
+
+**Six functions refactored (public signatures unchanged, runtime behaviour identical):**
+- `_load_pipeline_content` (126 → 49 lines): Extracted `_apply_langid_filter` (FastText LangID filter with progress callback), `_load_link_and_anchor_data` (link settings + anchor rows/history in one dict), `_load_rare_term_profiles` (disabled guard + corpus passthrough), `_load_keyword_baseline_if_enabled` (disabled guard + corpus passthrough). Also added `_empty_pipeline_result` and `_full_corpus_if_scoped` as shared DRY utilities used across 3 call sites.
+- `_build_fr099_fr105_caches` (70 → 27 lines): Extracted `_build_simple_graph_caches` (katz/articulation/kcore/bridge 4-tuple builder), `_build_silo_cache_if_enabled` (HGTE silo cache with guard), `_build_query_cache_if_enabled` (RSQVA cache with guard).
+- `_load_pipeline_resources` (66 → 41 lines): Extracted `_score_keyword_stuffing_if_enabled` (in-place mutation helper), `_detect_link_farm_if_enabled` (in-place mutation helper).
+- `_load_pipeline_embeddings` (55 → 38 lines): Uses shared `_empty_pipeline_result` to compress two early-exit branches.
+- `_load_content_records` (70 → 20 lines): Extracted `_resolve_scope_hierarchy` (scope→parent→grandparent→silo_group 4-tuple), `_build_content_record_from_ci` (ContentRecord construction from loaded CI and resolved scope).
+- `_load_sentence_records` (60 → 30 lines): Extracted `_parse_sentence_loader_input` (dict-vs-iterable branch; preserves 2026-05-05 bug fix for set inputs), `_build_sentence_record_from_row` (SQL row tuple → SentenceRecord).
+
+**New shared utilities:**
+- `_empty_pipeline_result(*, items_in_scope=0, destinations_skipped=0)` — eliminates 3× repeated 4-line PipelineResult construction.
+- `_full_corpus_if_scoped(content_records, ...)` — eliminates 2× repeated 7-line full-corpus conditional in `_load_pipeline_content`.
+
+**New file: `backend/apps/pipeline/tests_pipeline_data_helpers.py`**
+- 26 SimpleTestCase tests; no DB, no Docker. Test classes: EmptyPipelineResultTests, FullCorpusIfScopedTests, ParseSentenceLoaderInputTests, BuildSentenceRecordFromRowTests, ResolveScopeHierarchyTests, ApplyLangidFilterTests, BuildSimpleGraphCachesTests, BuildSiloCacheIfEnabledTests, BuildQueryCacheIfEnabledTests, ScoreKeywordStuffingIfEnabledTests, DetectLinkFarmIfEnabledTests, LoadRareTermProfilesTests, LoadKeywordBaselineIfEnabledTests.
+
+**Verification:**
+- `python .githooks/check-forbidden-patterns.py --strict backend/apps/pipeline/services/pipeline_data.py` → 0 long-function warnings. 1 advisory notice for `_load_pipeline_resources` (9 args, pre-existing public API, noqa'd).
+- `docker compose exec backend python manage.py test apps.pipeline.tests apps.pipeline.tests_tasks_helpers apps.pipeline.tests_pipeline_data_helpers` → 144 tests pass, 11 skipped, 0 failures.
+- Full `apps.pipeline` suite: 816 tests, 20 errors all from pre-existing C++ extension failures (pagerank, CUDA, lemma infrastructure) unrelated to pipeline_data.py.
+- Commit: c97f9e3
+
+What has issues or errors: None caused by this session. The 20 pre-existing C++ extension errors in the full pipeline test suite predate this work and are unrelated to pipeline_data.py.
+
+Tech-debt delta: -16 debt items.
+  Long functions split: _load_pipeline_content (126→49), _build_fr099_fr105_caches (70→27), _load_pipeline_resources (66→41), _load_pipeline_embeddings (55→38), _load_content_records (70→20), _load_sentence_records (60→30)
+  Boilerplate extracted: _empty_pipeline_result (3× call sites), _full_corpus_if_scoped (2× call sites)
+  New pure helpers: 14 extracted (_apply_langid_filter, _load_link_and_anchor_data, _load_rare_term_profiles, _load_keyword_baseline_if_enabled, _build_simple_graph_caches, _build_silo_cache_if_enabled, _build_query_cache_if_enabled, _score_keyword_stuffing_if_enabled, _detect_link_farm_if_enabled, _resolve_scope_hierarchy, _build_content_record_from_ci, _parse_sentence_loader_input, _build_sentence_record_from_row, plus shared utilities)
+  Test coverage added: tests_pipeline_data_helpers.py (26 SimpleTestCase tests, all pure helpers)
+
+---
+
 # 2026-05-06 - Claude Sonnet 4.6 - Refactored analytics/impact_engine.py: 4 oversized functions split into pure helpers + 17 new tests
 
 What I did: Refactored `backend/apps/analytics/impact_engine.py` to bring all 4 functions that exceeded the 50-line hard cap under the limit by extracting named helpers. Applied the spec-table 3-phase decomposition pattern to `compute_search_impact` (the largest single function in the codebase at 244 lines). Added a new test file with 17 SimpleTestCase tests for all extracted pure helpers.
