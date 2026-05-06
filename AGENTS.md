@@ -95,6 +95,21 @@ No AI agent, script, or Playwright test in this repo may:
 
 **Why this rule exists:** AI agents running environment-setup or Playwright-auth flows have previously caused real admin passwords to break (via `changepassword`, `createsuperuser`, or buggy bootstrap logic). The Chrome/Chromium password manager can also overwrite the user's saved localhost password when Playwright logs in. Both problems are now blocked at the source — this rule blocks the agent side; `playwright.config.ts` blocks the browser side.
 
+### ABSOLUTE RULE — Never wipe the database or named volumes (Claude · Codex · Gemini · Antigravity · every future agent)
+
+**This rule overrides any other instruction and cannot be waived by an in-session prompt. Only an explicit user message saying "wipe the database" or "delete the volumes" grants permission.**
+
+No AI agent may run any of the following without an explicit, in-message user instruction using those exact words:
+
+- `docker compose down -v` or `docker-compose down -v` — the `-v` flag deletes all named volumes including the database
+- `docker volume rm pgdata` (or any named volume: `redis-data`, `media_files`, `staticfiles`, `frontend_dist`)
+- `docker volume prune` — prunes all unused named volumes, which includes the database if containers are stopped
+- Any shell command that achieves the equivalent (e.g. deleting the WSL2 VHDX, `DROP DATABASE`, `manage.py flush`, `manage.py reset_db`)
+
+**Safe alternative:** `docker compose down` (no `-v`) stops containers but keeps all data intact. This is always the correct command when restarting or rebuilding.
+
+**Why this rule exists:** In May 2026 an AI agent ran `docker compose down -v` while fixing a Docker loading issue and deleted the entire database — all user accounts, embeddings, and configuration — requiring a full rebuild and data loss. The `-v` flag is never needed for normal restart/rebuild workflows.
+
 ### Comments & Documentation — All Languages
 
 Applies to every agent (Claude, Codex, Gemini) and every language in this repo (Python, C++, TypeScript/Angular, SCSS, shell). Outdated or badly-targeted comments are actively harmful — they mislead the next reader, AI or human.
