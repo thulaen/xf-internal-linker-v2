@@ -90,6 +90,128 @@ def _destination_text(title: str, distilled_text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Shared utilities
+# ---------------------------------------------------------------------------
+
+
+def _empty_pipeline_result(
+    *, items_in_scope: int = 0, destinations_skipped: int = 0
+):
+    """Return a zero-result PipelineResult for early-exit paths."""
+    from .pipeline import PipelineResult
+
+    return PipelineResult(
+        run_id="",
+        items_in_scope=items_in_scope,
+        suggestions_created=0,
+        destinations_skipped=destinations_skipped,
+    )
+
+
+def _full_corpus_if_scoped(
+    content_records,
+    destination_scope_ids,
+    host_scope_ids,
+    destination_content_item_ids,
+):
+    """Return content_records unchanged when no scope filter is active.
+
+    When any scope filter is active, content_records are a subset; return the
+    full site corpus so baselines are computed against the complete dataset.
+    """
+    if (
+        destination_scope_ids is None
+        and host_scope_ids is None
+        and destination_content_item_ids is None
+    ):
+        return content_records
+    return _load_content_records()
+
+
+# ---------------------------------------------------------------------------
+# Helpers for _load_pipeline_content
+# ---------------------------------------------------------------------------
+
+
+def _apply_langid_filter(
+    content_records: dict[ContentKey, ContentRecord],
+    progress_fn: Callable,
+) -> dict[ContentKey, ContentRecord]:
+    """Apply FastText LangID candidate filter; returns input unchanged on cold-start.
+
+    Pick #14 — Joulin 2016 EACL. Toggle: fasttext_langid.candidate_filter.enabled.
+    """
+    from apps.sources.language_filter import filter_english_content_records
+
+    pre_filter_count = len(content_records)
+    filtered = filter_english_content_records(content_records)
+    if len(filtered) != pre_filter_count:
+        progress_fn(
+            0.06,
+            f"FastText LangID filter dropped "
+            f"{pre_filter_count - len(filtered)} non-English records "
+            f"({len(filtered)} kept)",
+        )
+    return filtered
+
+
+def _load_link_and_anchor_data(
+    existing_links: set[ExistingLinkKey],
+) -> dict:
+    """Load link-count settings, learned anchors, and active anchor history."""
+    from .pipeline_loaders import (
+        _get_max_anchor_words,
+        _get_max_existing_links_per_host,
+        _get_paragraph_window,
+    )
+
+    return dict(
+        existing_outgoing_counts=Counter(
+            from_key for from_key, _to_key in existing_links
+        ),
+        max_existing_links_per_host=_get_max_existing_links_per_host(),
+        max_anchor_words=_get_max_anchor_words(),
+        paragraph_window=_get_paragraph_window(),
+        learned_anchor_rows_by_destination=_load_learned_anchor_rows_by_destination(),
+        anchor_history_by_destination=_load_active_anchor_history(),
+    )
+
+
+def _load_rare_term_profiles(
+    rare_term_settings: Any,
+    content_records: dict[ContentKey, ContentRecord],
+    destination_scope_ids,
+    host_scope_ids,
+    destination_content_item_ids,
+    progress_fn: Callable,
+) -> dict:
+    """Build rare-term propagation profiles; returns {} when disabled."""
+    if not rare_term_settings.enabled:
+        return {}
+    progress_fn(0.14, "Building rare-term propagation profiles...")
+    source_records = _full_corpus_if_scoped(
+        content_records, destination_scope_ids, host_scope_ids, destination_content_item_ids
+    )
+    return build_rare_term_profiles(source_records, settings=rare_term_settings)
+
+
+def _load_keyword_baseline_if_enabled(
+    keyword_stuffing_settings: Any,
+    content_records: dict[ContentKey, ContentRecord],
+    destination_scope_ids,
+    host_scope_ids,
+    destination_content_item_ids,
+):
+    """Build keyword-stuffing corpus baseline; returns None when disabled."""
+    if not keyword_stuffing_settings.enabled:
+        return None
+    source_records = _full_corpus_if_scoped(
+        content_records, destination_scope_ids, host_scope_ids, destination_content_item_ids
+    )
+    return build_keyword_baseline(source_records)
+
+
+# ---------------------------------------------------------------------------
 # Pipeline resource orchestrators
 # ---------------------------------------------------------------------------
 
@@ -104,143 +226,58 @@ def _load_pipeline_content(
     progress_fn: Callable,
     fr099_fr105_settings: FR099FR105Settings | None = None,
 ) -> Any:
-    """Load content records, sentences, existing links, and rare-term profiles.
-
-    Returns PipelineResult on early exit (no content), or a tuple of loaded
-    content-level resources on success.
-    """
-    from .pipeline import PipelineResult
-
+    """Load content records, sentences, existing links, and rare-term profiles."""
     if fr099_fr105_settings is None:
         fr099_fr105_settings = FR099FR105Settings()
-    from .pipeline_loaders import (
-        _get_max_anchor_words,
-        _get_max_existing_links_per_host,
-        _get_paragraph_window,
-    )
-
     progress_fn(0.05, "Loading content records...")
-    content_records = _load_content_records(
-        destination_scope_ids=destination_scope_ids,
-        host_scope_ids=host_scope_ids,
-    )
+    content_records = _load_content_records(destination_scope_ids=destination_scope_ids, host_scope_ids=host_scope_ids)
     if not content_records:
         progress_fn(1.0, "No content records found — pipeline complete.")
-        return PipelineResult(
-            run_id="", items_in_scope=0, suggestions_created=0, destinations_skipped=0
-        )
-
-    # Pick #14 — FastText LangID candidate filter (Joulin 2016 EACL).
-    # When the operator has fasttext + the lid.176 model installed, this
-    # drops non-English content records before they reach the retrievers.
-    # Cold-start safe: returns the input dict verbatim when the dep / model
-    # / toggle is missing. Toggle: ``fasttext_langid.candidate_filter.enabled``.
-    from apps.sources.language_filter import filter_english_content_records
-
-    pre_filter_count = len(content_records)
-    content_records = filter_english_content_records(content_records)
-    if len(content_records) != pre_filter_count:
-        progress_fn(
-            0.06,
-            f"FastText LangID filter dropped "
-            f"{pre_filter_count - len(content_records)} non-English records "
-            f"({len(content_records)} kept)",
-        )
-
+        return _empty_pipeline_result()
     progress_fn(0.08, "Loading sentence records...")
-    sentence_records, content_to_sentence_ids = _load_sentence_records(
-        content_records
-    )
-
+    content_records = _apply_langid_filter(content_records, progress_fn)
+    sentence_records, content_to_sentence_ids = _load_sentence_records(content_records)
     progress_fn(0.12, "Loading existing links...")
     existing_links = _load_existing_links()
-    existing_outgoing_counts: dict[ContentKey, int] = Counter(
-        from_key for from_key, _to_key in existing_links
+    link_anchor_data = _load_link_and_anchor_data(existing_links)
+    scope_args = (destination_scope_ids, host_scope_ids, destination_content_item_ids)
+    rare_term_profiles = _load_rare_term_profiles(
+        rare_term_settings, content_records, *scope_args, progress_fn
     )
-    max_existing_links_per_host = _get_max_existing_links_per_host()
-    max_anchor_words = _get_max_anchor_words()
-    paragraph_window = _get_paragraph_window()
-    learned_anchor_rows_by_destination = _load_learned_anchor_rows_by_destination()
-    anchor_history_by_destination = _load_active_anchor_history()
-    rare_term_profiles: dict = {}
-    if rare_term_settings.enabled:
-        progress_fn(0.14, "Building rare-term propagation profiles...")
-        rare_term_source_records = (
-            content_records
-            if destination_scope_ids is None
-            and host_scope_ids is None
-            and destination_content_item_ids is None
-            else _load_content_records()
-        )
-        rare_term_profiles = build_rare_term_profiles(
-            rare_term_source_records,
-            settings=rare_term_settings,
-        )
-
-    keyword_baseline = None
-    keyword_stuffing_by_destination: dict[ContentKey, dict[str, object]] = {}
-    if keyword_stuffing_settings.enabled:
-        keyword_source_records = (
-            content_records
-            if destination_scope_ids is None
-            and host_scope_ids is None
-            and destination_content_item_ids is None
-            else _load_content_records()
-        )
-        keyword_baseline = build_keyword_baseline(keyword_source_records)
-
-    link_farm_by_destination = {}
-
-    # FR-099 through FR-105 — graph-topology signal precomputes.
-    # Only built when at least one signal is enabled (any_enabled flag).
-    # Each cache is still returned (possibly empty) so the dispatcher's
-    # neutral-fallback path is exercised if the underlying graph data is
-    # too small (BLC §6.4 minimum-data floors).
+    keyword_baseline = _load_keyword_baseline_if_enabled(
+        keyword_stuffing_settings, content_records, *scope_args
+    )
     fr099_fr105_caches = _build_fr099_fr105_caches(
         content_records=content_records,
         existing_links=existing_links,
         fr099_fr105_settings=fr099_fr105_settings,
         progress_fn=progress_fn,
     )
-
     return dict(
         content_records=content_records,
         sentence_records=sentence_records,
         content_to_sentence_ids=content_to_sentence_ids,
         existing_links=existing_links,
-        existing_outgoing_counts=existing_outgoing_counts,
-        max_existing_links_per_host=max_existing_links_per_host,
-        max_anchor_words=max_anchor_words,
-        paragraph_window=paragraph_window,
-        learned_anchor_rows_by_destination=learned_anchor_rows_by_destination,
-        anchor_history_by_destination=anchor_history_by_destination,
         rare_term_profiles=rare_term_profiles,
         keyword_baseline=keyword_baseline,
-        keyword_stuffing_by_destination=keyword_stuffing_by_destination,
-        link_farm_by_destination=link_farm_by_destination,
+        keyword_stuffing_by_destination={},
+        link_farm_by_destination={},
         fr099_fr105_caches=fr099_fr105_caches,
+        **link_anchor_data,
     )
 
 
-def _build_fr099_fr105_caches(
-    *,
-    content_records: dict[ContentKey, ContentRecord],
-    existing_links: set[ExistingLinkKey],
+# ---------------------------------------------------------------------------
+# Helpers for _build_fr099_fr105_caches
+# ---------------------------------------------------------------------------
+
+
+def _build_simple_graph_caches(
     fr099_fr105_settings: FR099FR105Settings,
-    progress_fn: Callable,
-) -> FR099FR105Caches:
-    """Build the 6 graph-topology precompute caches for FR-099 through FR-105.
-
-    Returns a FR099FR105Caches whose individual fields may be None if the
-    corresponding signal is disabled. Signal modules' neutral-fallback
-    path handles missing caches gracefully.
-    """
-    if not fr099_fr105_settings.any_enabled:
-        return FR099FR105Caches()
-
-    progress_fn(0.15, "Building FR-099..FR-105 graph-topology caches...")
-    content_keys = list(content_records.keys())
-
+    content_keys: list[ContentKey],
+    existing_links: set[ExistingLinkKey],
+) -> tuple:
+    """Build katz, articulation-point, k-core, and bridge-edge caches (FR-099..102)."""
     katz_cache = (
         build_katz_cache(content_keys, existing_links)
         if fr099_fr105_settings.kmig.enabled
@@ -261,29 +298,58 @@ def _build_fr099_fr105_caches(
         if fr099_fr105_settings.berp.enabled
         else None
     )
+    return katz_cache, articulation_cache, kcore_cache, bridge_cache
 
-    # FR-104 HGTE — host-silo distribution from existing link graph.
-    silo_cache = None
-    if fr099_fr105_settings.hgte.enabled:
-        dest_silo_by_key: dict[ContentKey, int | None] = {
-            key: getattr(record, "silo_group_id", None)
-            for key, record in content_records.items()
-        }
-        silo_ids = {s for s in dest_silo_by_key.values() if s is not None}
-        silo_cache = build_host_silo_distribution_cache(
-            existing_links=existing_links,
-            dest_silo_by_key=dest_silo_by_key,
-            num_silos=max(1, len(silo_ids)),
-        )
 
-    # FR-105 RSQVA — GSC-query TF-IDF vectors loaded from ContentItem.
-    # The daily refresh task (deferred) populates gsc_query_tfidf_vector.
-    # Cold start returns an empty cache; evaluate_rsqva handles the
-    # vector_not_computed fallback.
-    query_cache = None
-    if fr099_fr105_settings.rsqva.enabled:
-        query_cache = _load_query_tfidf_cache(content_records)
+def _build_silo_cache_if_enabled(
+    fr099_fr105_settings: FR099FR105Settings,
+    content_records: dict[ContentKey, ContentRecord],
+    existing_links: set[ExistingLinkKey],
+):
+    """Build FR-104 HGTE host-silo distribution cache; returns None when disabled."""
+    if not fr099_fr105_settings.hgte.enabled:
+        return None
+    dest_silo_by_key: dict[ContentKey, int | None] = {
+        key: getattr(record, "silo_group_id", None)
+        for key, record in content_records.items()
+    }
+    silo_ids = {s for s in dest_silo_by_key.values() if s is not None}
+    return build_host_silo_distribution_cache(
+        existing_links=existing_links,
+        dest_silo_by_key=dest_silo_by_key,
+        num_silos=max(1, len(silo_ids)),
+    )
 
+
+def _build_query_cache_if_enabled(
+    fr099_fr105_settings: FR099FR105Settings,
+    content_records: dict[ContentKey, ContentRecord],
+):
+    """Build FR-105 RSQVA query-TFIDF cache; returns None when disabled."""
+    if not fr099_fr105_settings.rsqva.enabled:
+        return None
+    return _load_query_tfidf_cache(content_records)
+
+
+def _build_fr099_fr105_caches(
+    *,
+    content_records: dict[ContentKey, ContentRecord],
+    existing_links: set[ExistingLinkKey],
+    fr099_fr105_settings: FR099FR105Settings,
+    progress_fn: Callable,
+) -> FR099FR105Caches:
+    """Build the 6 graph-topology precompute caches for FR-099 through FR-105."""
+    if not fr099_fr105_settings.any_enabled:
+        return FR099FR105Caches()
+    progress_fn(0.15, "Building FR-099..FR-105 graph-topology caches...")
+    content_keys = list(content_records.keys())
+    katz_cache, articulation_cache, kcore_cache, bridge_cache = (
+        _build_simple_graph_caches(fr099_fr105_settings, content_keys, existing_links)
+    )
+    silo_cache = _build_silo_cache_if_enabled(
+        fr099_fr105_settings, content_records, existing_links
+    )
+    query_cache = _build_query_cache_if_enabled(fr099_fr105_settings, content_records)
     return FR099FR105Caches(
         katz_cache=katz_cache,
         articulation_cache=articulation_cache,
@@ -341,7 +407,47 @@ def _load_query_tfidf_cache(
         )
 
 
-def _load_pipeline_resources(
+# ---------------------------------------------------------------------------
+# Helpers for _load_pipeline_resources
+# ---------------------------------------------------------------------------
+
+
+def _score_keyword_stuffing_if_enabled(
+    content_data: dict,
+    keyword_stuffing_settings: Any,
+    progress_fn: Callable,
+) -> None:
+    """Score keyword stuffing per destination; mutates content_data in place."""
+    if content_data.get("keyword_baseline") is None:
+        return
+    progress_fn(0.145, "Scoring keyword stuffing baselines...")
+    content_records = content_data["content_records"]
+    content_data["keyword_stuffing_by_destination"] = {
+        key: evaluate_keyword_stuffing(
+            destination=record,
+            baseline=content_data["keyword_baseline"],
+            settings=keyword_stuffing_settings,
+        )
+        for key, record in content_records.items()
+    }
+
+
+def _detect_link_farm_if_enabled(
+    content_data: dict,
+    link_farm_settings: Any,
+    progress_fn: Callable,
+) -> None:
+    """Detect reciprocal link rings; mutates content_data in place."""
+    if not link_farm_settings.enabled:
+        return
+    progress_fn(0.148, "Detecting reciprocal link rings...")
+    content_data["link_farm_by_destination"] = detect_link_farm_rings(
+        existing_links=content_data["existing_links"],
+        settings=link_farm_settings,
+    )
+
+
+def _load_pipeline_resources(  # noqa: forbidden-pattern — 9-arg public API; grouping into a settings dataclass is a separate refactor
     *,
     destination_scope_ids: set[int] | None,
     destination_content_item_ids: set[int] | None,
@@ -353,11 +459,7 @@ def _load_pipeline_resources(
     progress_fn: Callable,
     fr099_fr105_settings: FR099FR105Settings | None = None,
 ) -> Any:
-    """Load all pipeline resources including embeddings.
-
-    Returns PipelineResult on early exit (no data), or a tuple of all loaded
-    resources on success.
-    """
+    """Load all pipeline resources including embeddings."""
     from .pipeline import PipelineResult
 
     content_data = _load_pipeline_content(
@@ -372,32 +474,16 @@ def _load_pipeline_resources(
     if isinstance(content_data, PipelineResult):
         return content_data
 
-    content_records = content_data["content_records"]
-    if content_data.get("keyword_baseline") is not None:
-        progress_fn(0.145, "Scoring keyword stuffing baselines...")
-        content_data["keyword_stuffing_by_destination"] = {
-            key: evaluate_keyword_stuffing(
-                destination=record,
-                baseline=content_data["keyword_baseline"],
-                settings=keyword_stuffing_settings,
-            )
-            for key, record in content_records.items()
-        }
-
-    if link_farm_settings.enabled:
-        progress_fn(0.148, "Detecting reciprocal link rings...")
-        content_data["link_farm_by_destination"] = detect_link_farm_rings(
-            existing_links=content_data["existing_links"],
-            settings=link_farm_settings,
-        )
+    _score_keyword_stuffing_if_enabled(content_data, keyword_stuffing_settings, progress_fn)
+    _detect_link_farm_if_enabled(content_data, link_farm_settings, progress_fn)
 
     progress_fn(0.15, "Applying rerun mode filter...")
     pending_destinations = _get_pending_destinations(rerun_mode)
     if rerun_mode == "supersede_pending":
-        _supersede_pending_suggestions(list(content_records.keys()))
+        _supersede_pending_suggestions(list(content_data["content_records"].keys()))
 
     embedding_data = _load_pipeline_embeddings(
-        content_records=content_records,
+        content_records=content_data["content_records"],
         pending_destinations=pending_destinations,
         destination_content_item_ids=destination_content_item_ids,
         progress_fn=progress_fn,
@@ -416,12 +502,7 @@ def _load_pipeline_embeddings(
     destination_content_item_ids: set[int] | None,
     progress_fn: Callable,
 ) -> Any:
-    """Load destination and sentence embeddings from pgvector.
-
-    Returns PipelineResult on early exit, or a tuple of embedding resources.
-    """
-    from .pipeline import PipelineResult
-
+    """Load destination and sentence embeddings from pgvector."""
     progress_fn(0.18, "Loading destination embeddings from pgvector...")
     destination_keys, dest_embeddings = _load_destination_embeddings(
         content_records,
@@ -429,32 +510,22 @@ def _load_pipeline_embeddings(
         destination_content_item_ids=destination_content_item_ids,
     )
     items_in_scope = len(destination_keys)
-
     if items_in_scope == 0:
         progress_fn(1.0, "No destinations to process — pipeline complete.")
-        return PipelineResult(
-            run_id="", items_in_scope=0, suggestions_created=0, destinations_skipped=0
-        )
-
+        return _empty_pipeline_result()
     progress_fn(0.22, "Loading sentence embeddings from pgvector...")
     sentence_ids_ordered, sentence_embeddings = _load_sentence_embeddings(
         set(content_records.keys())
     )
-
     if sentence_embeddings.shape[0] == 0:
         progress_fn(1.0, "No sentence embeddings available — pipeline complete.")
-        return PipelineResult(
-            run_id="",
-            items_in_scope=items_in_scope,
-            suggestions_created=0,
-            destinations_skipped=items_in_scope,
+        return _empty_pipeline_result(
+            items_in_scope=items_in_scope, destinations_skipped=items_in_scope
         )
-
     sentence_id_to_row = {
         sentence_id: index for index, sentence_id in enumerate(sentence_ids_ordered)
     }
     march_2026_pagerank_bounds = derive_march_2026_pagerank_bounds(content_records)
-
     return dict(
         destination_keys=destination_keys,
         dest_embeddings=dest_embeddings,
@@ -471,6 +542,53 @@ def _load_pipeline_embeddings(
 # ---------------------------------------------------------------------------
 
 
+def _resolve_scope_hierarchy(ci) -> tuple:
+    """Return (scope, parent, grandparent, silo_group) from a ContentItem."""
+    scope = ci.scope
+    parent = scope.parent if scope else None
+    grandparent = parent.parent if parent else None
+    silo_group = scope.silo_group if scope else None
+    return scope, parent, grandparent, silo_group
+
+
+def _build_content_record_from_ci(
+    ci, scope, parent, grandparent, silo_group, text: str,
+) -> ContentRecord:
+    """Construct a ContentRecord from a loaded ContentItem and its resolved scope."""
+    primary_post_char_count = 0
+    if hasattr(ci, "post") and ci.post:
+        primary_post_char_count = ci.post.char_count or 0
+    surface_tokens = tokenize_text(text)
+    return ContentRecord(
+        content_id=ci.pk,
+        content_type=ci.content_type,
+        title=ci.title or "",
+        distilled_text=ci.distilled_text or "",
+        scope_id=scope.pk if scope else 0,
+        scope_type=scope.scope_type if scope else "",
+        parent_id=parent.pk if parent else None,
+        parent_type=parent.scope_type if parent else "",
+        grandparent_id=grandparent.pk if grandparent else None,
+        grandparent_type=grandparent.scope_type if grandparent else "",
+        silo_group_id=silo_group.pk if silo_group else None,
+        silo_group_name=silo_group.name if silo_group else "",
+        reply_count=ci.reply_count or 0,
+        march_2026_pagerank_score=float(ci.march_2026_pagerank_score or 0.0),
+        link_freshness_score=float(ci.link_freshness_score or 0.5),
+        content_value_score=float(ci.content_value_score or 0.5),
+        click_distance_score=float(ci.click_distance_score or 0.5),
+        primary_post_char_count=primary_post_char_count,
+        tokens=surface_tokens,
+        stemmed_tokens=tokenize_text_stemmed(text),  # Pick #21 — dual token sets
+        scope_title=scope.title if scope else "",
+        parent_scope_title=parent.title if parent else "",
+        grandparent_scope_title=grandparent.title if grandparent else "",
+        cluster_id=ci.cluster_id,
+        is_canonical=ci.is_canonical,
+        nlp_metadata=ci.nlp_metadata or {},
+    )
+
+
 def _load_content_records(
     *,
     destination_scope_ids: set[int] | None = None,
@@ -480,67 +598,54 @@ def _load_content_records(
     from apps.content.models import ContentItem
 
     qs = ContentItem.objects.filter(is_deleted=False).select_related(
-        "scope",
-        "scope__parent",
-        "scope__parent__parent",
-        "scope__silo_group",
-        "post",
+        "scope", "scope__parent", "scope__parent__parent", "scope__silo_group", "post",
     )
-
     if destination_scope_ids is not None or host_scope_ids is not None:
         scope_ids = set(destination_scope_ids or set()) | set(host_scope_ids or set())
         qs = qs.filter(scope_id__in=scope_ids)
 
     records: dict[ContentKey, ContentRecord] = {}
     for ci in qs.iterator(chunk_size=_CONTENT_ITERATOR_CHUNK):
-        scope = ci.scope
-        parent = scope.parent if scope else None
-        grandparent = parent.parent if parent else None
-        silo_group = scope.silo_group if scope else None
-
-        primary_post_char_count = 0
-        if hasattr(ci, "post") and ci.post:
-            primary_post_char_count = ci.post.char_count or 0
-
+        scope, parent, grandparent, silo_group = _resolve_scope_hierarchy(ci)
         text = _destination_text(ci.title, ci.distilled_text or "")
         key: ContentKey = (ci.pk, ci.content_type)
-        # Pick #21 — compute stems alongside the surface tokens.
-        # ``tokenize_text_stemmed`` reuses the same tokeniser path as
-        # ``tokenize_text`` (single source of truth) and only adds the
-        # per-token stemming pass on top, so there's no duplicate
-        # work. Consumers opt in via the ``parse.stemmer.enabled``
-        # setting; non-opted-in code keeps reading ``tokens`` and is
-        # behaviour-stable.
-        surface_tokens = tokenize_text(text)
-        records[key] = ContentRecord(
-            content_id=ci.pk,
-            content_type=ci.content_type,
-            title=ci.title or "",
-            distilled_text=ci.distilled_text or "",
-            scope_id=scope.pk if scope else 0,
-            scope_type=scope.scope_type if scope else "",
-            parent_id=parent.pk if parent else None,
-            parent_type=parent.scope_type if parent else "",
-            grandparent_id=grandparent.pk if grandparent else None,
-            grandparent_type=grandparent.scope_type if grandparent else "",
-            silo_group_id=silo_group.pk if silo_group else None,
-            silo_group_name=silo_group.name if silo_group else "",
-            reply_count=ci.reply_count or 0,
-            march_2026_pagerank_score=float(ci.march_2026_pagerank_score or 0.0),
-            link_freshness_score=float(ci.link_freshness_score or 0.5),
-            content_value_score=float(ci.content_value_score or 0.5),
-            click_distance_score=float(ci.click_distance_score or 0.5),
-            primary_post_char_count=primary_post_char_count,
-            tokens=surface_tokens,
-            stemmed_tokens=tokenize_text_stemmed(text),
-            scope_title=scope.title if scope else "",
-            parent_scope_title=parent.title if parent else "",
-            grandparent_scope_title=grandparent.title if grandparent else "",
-            cluster_id=ci.cluster_id,
-            is_canonical=ci.is_canonical,
-            nlp_metadata=ci.nlp_metadata or {},
-        )
+        records[key] = _build_content_record_from_ci(ci, scope, parent, grandparent, silo_group, text)
     return records
+
+
+def _parse_sentence_loader_input(
+    content_records_or_keys,
+) -> tuple[dict, list[int]]:
+    """Parse dict-or-iterable input; returns (content_records, sorted_content_pks)."""
+    if hasattr(content_records_or_keys, "keys"):
+        content_records = content_records_or_keys
+        keys_iter = content_records.keys()
+    else:
+        content_records = {}  # No nlp_metadata; SentenceRecord falls back to {}.
+        keys_iter = content_records_or_keys
+    content_pks = sorted({pk for pk, _ in keys_iter})
+    return content_records, content_pks
+
+
+def _build_sentence_record_from_row(
+    row_tuple: tuple,
+    content_records: dict,
+) -> tuple[ContentKey, SentenceRecord]:
+    """Build a SentenceRecord from a raw SQL cursor row."""
+    sid, cid, ctype, text, char_count, position = row_tuple
+    text = text or ""
+    ckey: ContentKey = (cid, ctype)
+    return ckey, SentenceRecord(
+        sentence_id=sid,
+        content_id=cid,
+        content_type=ctype,
+        text=text,
+        char_count=char_count or len(text),
+        tokens=tokenize_text(text),
+        stemmed_tokens=tokenize_text_stemmed(text),  # Pick #21
+        position=position or 0,
+        nlp_metadata=content_records[ckey].nlp_metadata if ckey in content_records else {},
+    )
 
 
 def _load_sentence_records(
@@ -555,13 +660,7 @@ def _load_sentence_records(
     """
     from django.db import connection
 
-    if hasattr(content_records_or_keys, "keys"):
-        content_records = content_records_or_keys
-        keys_iter = content_records.keys()
-    else:
-        content_records = {}  # No nlp_metadata available; use empty fallback per key.
-        keys_iter = content_records_or_keys
-    content_pks = sorted({pk for pk, _ in keys_iter})
+    content_records, content_pks = _parse_sentence_loader_input(content_records_or_keys)
     if not content_pks:
         return {}, {}
 
@@ -574,34 +673,18 @@ def _load_sentence_records(
           AND ci.is_deleted = FALSE
           AND s.word_position <= %s
     """
-
     sentence_records: dict[int, SentenceRecord] = {}
     content_to_sentence_ids: dict[ContentKey, pr.BitMap] = defaultdict(pr.BitMap)
-
     with connection.cursor() as cursor:
         cursor.execute(query, [*params, settings.HOST_SCAN_WORD_LIMIT])
         while True:
             rows = cursor.fetchmany(_SENTENCE_FETCH_BATCH)
             if not rows:
                 break
-
-            for sid, cid, ctype, text, char_count, position in rows:
-                text = text or ""
-                ckey: ContentKey = (cid, ctype)
-                # Pick #21 — same dual-tokens pattern as ContentRecord.
-                sentence_records[sid] = SentenceRecord(
-                    sentence_id=sid,
-                    content_id=cid,
-                    content_type=ctype,
-                    text=text,
-                    char_count=char_count or len(text),
-                    tokens=tokenize_text(text),
-                    stemmed_tokens=tokenize_text_stemmed(text),
-                    position=position or 0,
-                    nlp_metadata=content_records[ckey].nlp_metadata if ckey in content_records else {},
-                )
-                content_to_sentence_ids[ckey].add(sid)
-
+            for row in rows:
+                ckey, record = _build_sentence_record_from_row(row, content_records)
+                sentence_records[record.sentence_id] = record
+                content_to_sentence_ids[ckey].add(record.sentence_id)
     return sentence_records, dict(content_to_sentence_ids)
 
 
