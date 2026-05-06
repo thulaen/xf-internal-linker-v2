@@ -1,3 +1,65 @@
+# 2026-05-06 - Claude Sonnet 4.6 - Refactored audit/tasks.py: 2 oversized tasks split into pure helpers + 22 new tests
+
+What I did: Refactored `backend/apps/audit/tasks.py` to bring both Celery tasks under the 50-line hard cap by extracting named pure-function helpers and two DB-access helpers. Applied the spec-table pattern (mirrors `_RULES` in `fix_suggestions.py`) to the GlitchTip severity mapping. Added a new test file with 22 SimpleTestCase tests covering all pure helpers.
+
+What was accomplished:
+
+**Two tasks refactored (signatures and runtime behaviour unchanged):**
+- `compute_weekly_reviewer_scorecard`: 103 → 42 lines. Extracted pure helpers `_scorecard_week_period`, `_compute_rate`, `_compute_avg_review_time`, `_extract_top_rejection_reasons`; DB helpers `_fetch_period_metrics`, `_collect_review_pairs`.
+- `sync_glitchtip_issues`: 131 → 50 lines. Extracted pure helpers `_parse_glitchtip_tags`, `_glitchtip_why_message`, `_build_glitchtip_issue_kwargs`; DB helper `_sync_one_glitchtip_issue`.
+
+**Spec-table applied:** `severity_map` dict moved out of the function body into module-level `_GLITCHTIP_SEVERITY_MAP` — same data-driven lookup pattern as `_RULES` in `fix_suggestions.py`.
+
+**Six magic numbers hoisted to named constants:** `_MAX_REVIEW_TIME_SECONDS`, `_REVIEW_ACTIONS_SAMPLE`, `_REJECTION_SAMPLE`, `_TOP_REASONS_LIMIT`, `_GLITCHTIP_FETCH_LIMIT`, `_GLITCHTIP_REQUEST_TIMEOUT`.
+
+**New file: `backend/apps/audit/tests_tasks_helpers.py`**
+- 22 SimpleTestCase tests; all pass. No database required.
+
+**Verification:**
+- `docker compose exec backend python manage.py test apps.audit` → 65 tests pass, 1 pre-existing error (`test_audit_infra` imports `pytest` which is absent from the Django test-runner container — confirmed pre-existing on original code).
+- `python .githooks/check-forbidden-patterns.py --strict backend/apps/audit/tasks.py` → 0 long-function warnings, 2 advisory `@HelperConstraint` notices (commit allowed, pre-existing pattern on all tasks in the repo).
+- Commit: 861f8b1
+
+What has issues or errors: None caused by this session. The `test_audit_infra` pytest-import failure predates this work.
+
+Tech-debt delta: -6 debt items.
+  Long functions split: compute_weekly_reviewer_scorecard (103→42), sync_glitchtip_issues (131→50)
+  Magic numbers hoisted: _MAX_REVIEW_TIME_SECONDS, _REVIEW_ACTIONS_SAMPLE, _REJECTION_SAMPLE, _TOP_REASONS_LIMIT, _GLITCHTIP_FETCH_LIMIT, _GLITCHTIP_REQUEST_TIMEOUT
+  Spec-table applied: _GLITCHTIP_SEVERITY_MAP (replaced inline dict inside function)
+  Inline template extracted: _glitchtip_why_message() (was a bare f-string)
+  Test coverage added: tests_tasks_helpers.py (22 SimpleTestCase tests, pure helpers)
+
+---
+
+# 2026-05-06 - Claude Sonnet 4.6 - Refactored cooccurrence/services.py: 5 long functions split into focused helpers + 55 new tests
+
+What I did: Refactored `backend/apps/cooccurrence/services.py` to bring all five functions that exceeded the 50-line cap under the limit by extracting named pure-function helpers. Added a new test file with 55 SimpleTestCase tests for all pure helpers.
+
+What was accomplished:
+
+**Five public functions refactored (no signature changes):**
+- `_upsert_cooccurrence_pairs`: 74 → 39 lines (extracted `_compute_pair_scores`)
+- `fetch_ga4_session_cooccurrence`: 119 → 44 lines (extracted `_fetch_ga4_session_paths`, `_build_cooccurrence_counts`, `_make_ga4_report_body`, `_process_ga4_rows`)
+- `compute_co_occurrence_signal`: 63 → 47 lines (extracted `_llr_sigmoid`, `_fallback_signal_diagnostics`)
+- `detect_behavioral_hubs`: 126 → 50 lines (extracted `_build_adjacency_graph`, `_find_connected_components`, `_compute_member_strengths`, `_create_hub_with_memberships`)
+- `compute_value_model_score`: 113 → 44 lines (extracted `_extract_content_signals`, `_resolve_penalty_signal`, `_extract_co_settings`, `_extract_signal_weights`, `_disabled_co_signal`, `_compute_weighted_score`, `_build_value_model_diagnostics`)
+
+**New file: `backend/apps/cooccurrence/tests_services_helpers.py`**
+- 55 SimpleTestCase tests; all pass. No database required.
+
+**Verification:**
+- `docker compose exec backend python manage.py test apps.cooccurrence` → 55 tests, OK
+- `python .githooks/check-forbidden-patterns.py --strict backend/apps/cooccurrence/services.py` → 0 warnings
+- Commit: 466f5f3
+
+What has issues or errors: None. All tests pass, linter is clean.
+
+Tech-debt delta: -6 debt items.
+  Long functions split: _upsert_cooccurrence_pairs, fetch_ga4_session_cooccurrence, compute_co_occurrence_signal, detect_behavioral_hubs, compute_value_model_score
+  Test file added: tests_services_helpers.py (pure-helper coverage was missing)
+
+---
+
 # 2026-05-05 - Antigravity (Gemini) - Fixed SQLite Migration Blockers
 
 What I did: Investigated the pre-existing SQLite test blocker documented in the previous handoff. The issue was caused by PostgreSQL-specific `MATERIALIZED VIEW` syntax and `information_schema.columns` queries in migrations `0018_dashboard_suggestion_counts_mv` and `0060_drop_orphan_feedback_bucket_key`.
