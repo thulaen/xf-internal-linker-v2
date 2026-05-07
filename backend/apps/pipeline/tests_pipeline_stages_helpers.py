@@ -19,6 +19,7 @@ from apps.pipeline.services.pipeline_stages import (
     _run_faiss_block_search,
     _score_kwargs_from_settings,
     _topk_numpy_scores,
+    _unpack_faiss_hit,
 )
 
 
@@ -144,6 +145,123 @@ class RunFaissBlockSearchTests(SimpleTestCase):
             faiss_search=faiss_search,
         )
         self.assertNotIn(dest_key, result)
+
+
+class FaissHitUnpackingTests(SimpleTestCase):
+    """FR-238 — ``_unpack_faiss_hit`` accepts both legacy 2-tuples and the
+    new score-bearing 3-tuples without losing information.
+
+    Source of truth: Wang, Lin & Metzler 2011 §3 (cascade ranker score
+    propagation).
+    """
+
+    def test_3tuple_returns_score_unchanged(self):
+        pk, ct, score = _unpack_faiss_hit((42, "post", 0.87))
+        self.assertEqual(pk, 42)
+        self.assertEqual(ct, "post")
+        self.assertAlmostEqual(score, 0.87, places=6)
+
+    def test_2tuple_yields_sentinel_zero_score(self):
+        # Legacy mock shape (pre-FR-238). The sentinel 0.0 is recognisably
+        # "unscored" because real FAISS top-K hits have positive cosines.
+        pk, ct, score = _unpack_faiss_hit((7, "thread"))
+        self.assertEqual(pk, 7)
+        self.assertEqual(ct, "thread")
+        self.assertEqual(score, 0.0)
+
+    def test_score_coerced_to_float(self):
+        # FAISS returns numpy.float32; downstream code expects Python float.
+        pk, ct, score = _unpack_faiss_hit((1, "post", np.float32(0.5)))
+        self.assertIsInstance(score, float)
+
+
+class RunFaissBlockSearchScorePreservationTests(SimpleTestCase):
+    """FR-238 — when ``host_scores_out`` is supplied, scores propagate."""
+
+    def _dest_embeddings(self, n=1):
+        return np.zeros((n, 4), dtype=np.float32)
+
+    def test_scores_captured_for_each_kept_host(self):
+        dest_key = (1, "post")
+        faiss_search = MagicMock(return_value=[[(2, "post", 0.91), (3, "post", 0.42)]])
+        content_to_sentence_ids = {(2, "post"): [200], (3, "post"): [300]}
+        host_scores: dict = {}
+        result = _run_faiss_block_search(
+            self._dest_embeddings(1),
+            (dest_key,),
+            host_pk_set={2, 3},
+            block_size=256,
+            top_k=5,
+            content_to_sentence_ids=content_to_sentence_ids,
+            faiss_search=faiss_search,
+            host_scores_out=host_scores,
+        )
+        self.assertEqual(result[dest_key], [200, 300])
+        self.assertEqual(
+            host_scores[dest_key],
+            [((2, "post"), 0.91), ((3, "post"), 0.42)],
+        )
+
+    def test_self_link_score_is_dropped_alongside_sentence(self):
+        # Self-link host appears in FAISS hits but must not contribute
+        # to either the sentence list OR the score list.
+        dest_key = (1, "post")
+        faiss_search = MagicMock(
+            return_value=[[(1, "post", 1.0), (2, "post", 0.7)]]
+        )
+        content_to_sentence_ids = {(1, "post"): [100], (2, "post"): [200]}
+        host_scores: dict = {}
+        _run_faiss_block_search(
+            self._dest_embeddings(1),
+            (dest_key,),
+            host_pk_set={1, 2},
+            block_size=256,
+            top_k=5,
+            content_to_sentence_ids=content_to_sentence_ids,
+            faiss_search=faiss_search,
+            host_scores_out=host_scores,
+        )
+        self.assertEqual(host_scores[dest_key], [((2, "post"), 0.7)])
+
+    def test_default_no_score_capture_keeps_legacy_shape(self):
+        # When host_scores_out is None (default), the function still
+        # returns the existing dict shape — backward-compat.
+        dest_key = (1, "post")
+        faiss_search = MagicMock(return_value=[[(2, "post", 0.5)]])
+        content_to_sentence_ids = {(2, "post"): [200]}
+        result = _run_faiss_block_search(
+            self._dest_embeddings(1),
+            (dest_key,),
+            host_pk_set={2},
+            block_size=256,
+            top_k=5,
+            content_to_sentence_ids=content_to_sentence_ids,
+            faiss_search=faiss_search,
+        )
+        self.assertEqual(result, {dest_key: [200]})
+
+    def test_host_with_no_sentences_is_skipped_in_scores(self):
+        # FR-238 spec adversarial: a host that FAISS returned but which
+        # has no sentence IDs must not appear in host_scores either —
+        # otherwise the score list would imply contribution that didn't
+        # happen.
+        dest_key = (1, "post")
+        faiss_search = MagicMock(
+            return_value=[[(2, "post", 0.9), (3, "post", 0.8)]]
+        )
+        content_to_sentence_ids = {(2, "post"): [200]}  # 3 has nothing
+        host_scores: dict = {}
+        _run_faiss_block_search(
+            self._dest_embeddings(1),
+            (dest_key,),
+            host_pk_set={2, 3},
+            block_size=256,
+            top_k=5,
+            content_to_sentence_ids=content_to_sentence_ids,
+            faiss_search=faiss_search,
+            host_scores_out=host_scores,
+        )
+        self.assertEqual(host_scores[dest_key], [((2, "post"), 0.9)])
 
 
 # ---------------------------------------------------------------------------

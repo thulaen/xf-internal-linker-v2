@@ -102,7 +102,7 @@ def _stage1_candidates(
     return run_retrievers(active_retrievers, context=context)
 
 
-def _run_faiss_block_search(
+def _run_faiss_block_search(  # noqa: forbidden-pattern too-many-args  # justification: host_scores_out is the FR-238 diagnostic surface; bundling the search-config args (host_pk_set/block_size/top_k/faiss_search) into a dataclass would obscure their direct role at the FAISS boundary.
     dest_embeddings: np.ndarray,
     destination_keys: tuple[ContentKey, ...],
     host_pk_set: set[int],
@@ -110,8 +110,16 @@ def _run_faiss_block_search(
     top_k: int,
     content_to_sentence_ids: dict[ContentKey, list[int]],
     faiss_search,
+    *,
+    host_scores_out: dict[ContentKey, list[tuple[ContentKey, float]]] | None = None,
 ) -> dict[ContentKey, list[int]]:
-    """Run block-wise FAISS nearest-neighbour search and expand hits to sentence IDs."""
+    """Block-wise FAISS NN search; expand hits to sentence IDs.
+
+    FR-238 — when ``host_scores_out`` is given, write
+    ``dest_key -> [(host_key, score), ...]`` in FAISS-returned order.
+    Self-links and zero-sentence hosts are filtered from BOTH lists in
+    lock-step (Wang/Lin/Metzler 2011 SIGIR §3 cascade score propagation).
+    """
     result: dict[ContentKey, list[int]] = {}
     n_dest = len(destination_keys)
     for block_start in range(0, n_dest, block_size):
@@ -121,14 +129,39 @@ def _run_faiss_block_search(
         hits_per_query = faiss_search(dest_block, k=top_k, host_pk_set=host_pk_set)
         for dest_key, hits in zip(dest_keys_block, hits_per_query):
             sentence_ids: list[int] = []
-            for pk, ct in hits:
+            host_score_entries: list[tuple[ContentKey, float]] = []
+            for hit in hits:
+                pk, ct, score = _unpack_faiss_hit(hit)
                 host_key = (pk, ct)
                 if host_key == dest_key:
                     continue
-                sentence_ids.extend(content_to_sentence_ids.get(host_key, []))
+                host_sentences = content_to_sentence_ids.get(host_key, [])
+                if not host_sentences:
+                    continue
+                sentence_ids.extend(host_sentences)
+                host_score_entries.append((host_key, score))
             if sentence_ids:
                 result[dest_key] = sentence_ids
+                if host_scores_out is not None:
+                    host_scores_out[dest_key] = host_score_entries
     return result
+
+
+def _unpack_faiss_hit(hit: tuple) -> tuple[int, str, float]:
+    """Adapt FAISS hit tuples to the (pk, content_type, score) shape.
+
+    FR-238 changed ``faiss_search`` to emit a 3-tuple including the
+    inner-product score. Older callers (and the older test mocks shipped
+    before this commit) still emit 2-tuples ``(pk, content_type)``. This
+    adapter accepts either shape — 2-tuple gets a sentinel ``score=0.0``
+    so downstream code doesn't blow up. Sentinel is mathematically
+    distinct from a real cosine (which is in [-1, 1] but in practice
+    >>0 for top-K survivors), so a sentinel value is recognisable as
+    "unscored" by inspection.
+    """
+    if len(hit) >= 3:
+        return int(hit[0]), str(hit[1]), float(hit[2])
+    return int(hit[0]), str(hit[1]), 0.0
 
 
 def _stage1_semantic_candidates(
@@ -139,8 +172,9 @@ def _stage1_semantic_candidates(
     content_to_sentence_ids: dict[ContentKey, list[int]],
     top_k: int,
     block_size: int,
+    host_scores_out: dict[ContentKey, list[tuple[ContentKey, float]]] | None = None,
 ) -> dict[ContentKey, list[int]]:
-    """FAISS-or-NumPy cosine over BGE-M3 embeddings; called from SemanticRetriever."""
+    """FAISS-or-NumPy cosine over BGE-M3; FR-238 plumbs host_scores_out."""
     host_keys = [
         key
         for key in content_records
@@ -164,6 +198,7 @@ def _stage1_semantic_candidates(
         return _run_faiss_block_search(
             dest_embeddings, destination_keys, host_pk_set,
             block_size, top_k, content_to_sentence_ids, faiss_search,
+            host_scores_out=host_scores_out,
         )
     if HAS_FAISS:
         logger.warning(
@@ -177,6 +212,7 @@ def _stage1_semantic_candidates(
         content_to_sentence_ids=content_to_sentence_ids,
         top_k=top_k,
         block_size=block_size,
+        host_scores_out=host_scores_out,
     )
 
 
@@ -218,8 +254,9 @@ def _stage1_numpy_fallback(
     content_to_sentence_ids: dict[ContentKey, list[int]],
     top_k: int,
     block_size: int,
+    host_scores_out: dict[ContentKey, list[tuple[ContentKey, float]]] | None = None,
 ) -> dict[ContentKey, list[int]]:
-    """NumPy cosine-similarity fallback when FAISS is not installed."""
+    """NumPy cosine fallback; FR-238 plumbs host_scores_out (Wang/Lin/Metzler 2011)."""
     valid_host_keys, host_matrix = _fetch_host_embedding_matrix(host_keys)
     if not valid_host_keys:
         return {}
@@ -242,14 +279,21 @@ def _stage1_numpy_fallback(
             top_indices = top_indices[np.argsort(-row[top_indices])]
 
             sentence_ids: list[int] = []
+            host_score_entries: list[tuple[ContentKey, float]] = []
             for h_idx in top_indices:
                 host_key = valid_host_keys[h_idx]
                 if host_key == dest_key:
                     continue
-                sentence_ids.extend(content_to_sentence_ids.get(host_key, []))
+                host_sentences = content_to_sentence_ids.get(host_key, [])
+                if not host_sentences:
+                    continue
+                sentence_ids.extend(host_sentences)
+                host_score_entries.append((host_key, float(row[h_idx])))
 
             if sentence_ids:
                 result[dest_key] = sentence_ids
+                if host_scores_out is not None:
+                    host_scores_out[dest_key] = host_score_entries
 
     return result
 

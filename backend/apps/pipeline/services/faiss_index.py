@@ -207,21 +207,41 @@ def build_faiss_index() -> None:
     )
 
 
+def _filter_faiss_row(
+    row_scores: np.ndarray,
+    row_indices: np.ndarray,
+    *,
+    id_map: list[int],
+    ct_map: list[str],
+    host_pk_set: set[int] | None,
+    k: int,
+) -> list[tuple[int, str, float]]:
+    """Map a single FAISS row to (pk, ct, score) hits, capped at k. FR-238."""
+    hits: list[tuple[int, str, float]] = []
+    for idx, score in zip(row_indices, row_scores):
+        if idx < 0:
+            continue
+        pk = id_map[idx]
+        ct = ct_map[idx]
+        if host_pk_set is not None and pk not in host_pk_set:
+            continue
+        hits.append((pk, ct, float(score)))
+        if len(hits) >= k:
+            break
+    return hits
+
+
 def faiss_search(
     query_vectors: np.ndarray,
     k: int,
     host_pk_set: set[int] | None = None,
-) -> list[list[tuple[int, str]]]:
-    """Search the FAISS index for the top-K nearest host content items.
+) -> list[list[tuple[int, str, float]]]:
+    """Search the FAISS index. Returns (pk, content_type, score) per hit.
 
-    Args:
-        query_vectors: (B, D) float32 array of destination embeddings.
-        k: number of neighbours to return per query.
-        host_pk_set: if given, only return results whose PK is in this set.
-
-    Returns:
-        List of B lists. Each inner list contains (pk, content_type) tuples,
-        ordered by descending similarity.
+    FR-238 — score is now preserved (was discarded until 2026-05-07).
+    Source: Wang, Lin & Metzler 2011 SIGIR §3 cascade-stage score
+    propagation. ``score`` is FAISS ``IndexFlatIP`` inner product, ==
+    cosine for L2-unit vectors (FR-237 enforces).
     """
     with _index_lock:
         index = _faiss_index
@@ -233,24 +253,16 @@ def faiss_search(
 
     query = np.ascontiguousarray(query_vectors, dtype=np.float32)
     search_k = min(k * 2, len(id_map))  # over-fetch to allow filtering
-    _scores, indices = index.search(query, search_k)
+    scores, indices = index.search(query, search_k)
 
-    results: list[list[tuple[int, str]]] = []
-    for row in indices:
-        hits: list[tuple[int, str]] = []
-        for idx in row:
-            if idx < 0:
-                continue
-            pk = id_map[idx]
-            ct = ct_map[idx]
-            if host_pk_set is not None and pk not in host_pk_set:
-                continue
-            hits.append((pk, ct))
-            if len(hits) >= k:
-                break
-        results.append(hits)
-
-    return results
+    return [
+        _filter_faiss_row(
+            row_scores, row_indices,
+            id_map=id_map, ct_map=ct_map,
+            host_pk_set=host_pk_set, k=k,
+        )
+        for row_scores, row_indices in zip(scores, indices)
+    ]
 
 
 def is_faiss_gpu_active() -> bool:
