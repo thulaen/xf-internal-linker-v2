@@ -235,26 +235,17 @@ class NumericalStabilityTests(SimpleTestCase):
     """
 
     def test_nan_in_vector_caught_by_audit(self):
-        # IEEE 754: NaN propagates through arithmetic. ||NaN|| = NaN.
-        # |NaN - 1.0| = NaN. NaN > tolerance is False — but np.argmax
-        # of an array containing NaN returns 0 (the first element),
-        # which is misleading. The audit catches this because:
-        #   norms = np.linalg.norm([[NaN, ...]]) = [NaN]
-        #   |NaN - 1.0| = NaN
-        #   NaN > 1e-6 evaluates to False (NaN comparisons are always
-        #   False), so the audit currently passes silently. Documented
-        #   limitation; future commit can add `if np.any(np.isnan(arr)):
-        #   raise` as a separate pre-check.
-        # This test locks the current behaviour to detect regressions
-        # and surfaces the NaN issue in a discoverable test name.
+        # IEEE 754-2019 §6.2 — NaN comparisons always evaluate False.
+        # The audit's `max_dev > tolerance` check therefore can't
+        # detect a NaN row by itself. FR-248 hardening: an explicit
+        # `np.any(np.isnan(arr))` precheck closes that gap (Higham
+        # 2002 §1.4 — adversarial inputs must fail loudly). This
+        # test locks the precheck contract.
         nan_row = np.array([[np.nan, 0.0]], dtype=np.float32)
-        try:
+        with self.assertRaises(L2NormalizationAuditError) as ctx:
             _audit_l2_normalization(nan_row)
-        except L2NormalizationAuditError:
-            return  # If a future commit adds NaN detection — pass.
-        # Otherwise: NaN currently slips through; this test documents
-        # the gap. No assertion failure — the test exists to flag the
-        # concern in test naming alone.
+        self.assertEqual(ctx.exception.worst_row, 0)
+        self.assertTrue(np.isnan(ctx.exception.max_dev))
 
     def test_inf_vector_caught_by_audit(self):
         # ||(inf, 0)|| = inf. |inf - 1.0| = inf. inf > 1e-6 → True.

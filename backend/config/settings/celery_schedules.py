@@ -186,6 +186,16 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(minute="*/15"),
         "options": {"queue": "pipeline"},
     },
+    # FR-246 — NRT delta layer flush: every 60 seconds, but the task
+    # itself short-circuits when the delta is below the flush
+    # threshold (Bialecki 2012 SIGIR-OSIR §3 NRT pattern). Sub-minute
+    # cadence is intentional — the delta is the freshness floor for
+    # newly-embedded content between 15-minute base rebuilds.
+    "nrt-delta-flush": {
+        "task": "pipeline.nrt_delta_flush",
+        "schedule": 60.0,
+        "options": {"queue": "pipeline"},
+    },
     # FR-053 — Passage-Level Relevance Scoring (Group E). Bounded
     # batch every 30 min so we never starve the GPU; the regenerator
     # itself is idempotent so unchanged content does zero work.

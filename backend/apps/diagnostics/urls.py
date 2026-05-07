@@ -19,6 +19,13 @@ urlpatterns = [
     path("features/", views.FeatureReadinessView.as_view(), name="feature-readiness"),
     path("resources/", views.ResourceUsageView.as_view(), name="resource-usage"),
     path("weights/", views.WeightDiagnosticsView.as_view(), name="weight-diagnostics"),
+    # FR-247 — Stage-2 cpp/python pathway counter for the /performance card.
+    # See docs/specs/fr247-fast-path-observability.md.
+    path(
+        "stage2-path-status/",
+        views.Stage2PathStatusView.as_view(),
+        name="stage2-path-status",
+    ),
     # Polish.B — daily NDCG@10 readout over the reviewed-Suggestion
     # stream. Paper-backed (Järvelin-Kekäläinen 2002, Buckley-Voorhees
     # 2004, Sanderson 2010) automated retriever-quality eval.

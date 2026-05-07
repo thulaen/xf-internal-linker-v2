@@ -529,10 +529,33 @@ def _flush_embeddings_slice(
     if not _l2_audit_passed(normalised):
         raw_vectors_list.clear()
         return
+    _register_in_nrt_delta(  # FR-246 — see docs/specs/fr246-nrt-delta-faiss.md
+        model_class=model_class, pks_slice=pks_slice, normalised=normalised,
+    )
     use_text_hashes = (
         supports_text_hash and text_hashes is not None
         and len(text_hashes) == len(pks_slice)
     )
+    _persist_flush_slice(
+        model_class=model_class, pks_slice=pks_slice, normalised=normalised,
+        supports_model_version=supports_model_version,
+        embedding_signature=embedding_signature,
+        use_text_hashes=use_text_hashes, text_hashes=text_hashes,
+    )
+    raw_vectors_list.clear()
+
+
+def _persist_flush_slice(  # noqa: forbidden-pattern too-many-args  # justification: kwargs are the deliberate API; collapsing into a state object obscures the persistence boundary.
+    *,
+    model_class: type,
+    pks_slice: list[int],
+    normalised: np.ndarray,
+    supports_model_version: bool,
+    embedding_signature: str | None,
+    use_text_hashes: bool,
+    text_hashes: list[str] | None,
+) -> None:
+    """Archive prior ContentItem embeddings + bulk-update the new slice."""
     _archive_existing_content_item_embeddings(
         model_class=model_class, pks_slice=pks_slice,
         supports_model_version=supports_model_version,
@@ -544,7 +567,6 @@ def _flush_embeddings_slice(
         embedding_signature=embedding_signature,
         use_text_hashes=use_text_hashes, text_hashes=text_hashes,
     )
-    raw_vectors_list.clear()
 
 
 def _bulk_update_embeddings(  # noqa: forbidden-pattern too-many-args  # justification: kwargs are the deliberate API; collapsing into a state object obscures which fields are being persisted at the bulk_update boundary.
@@ -651,6 +673,12 @@ def _instantiate_sentence_transformer(model_name: str, device: str):
             runtime_context={"model_name": model_name, "error": str(exc)},
         )
         raise
+    # FR-242 — wrap with the LoRA domain adapter when one exists on disk.
+    # Returns ``model`` unchanged when no adapter is present (the vanilla
+    # safe default per Wang et al. 2022 GPL §4). See
+    # docs/specs/fr242-domain-adapter-gpl.md.
+    from .domain_adapter import load_adapted_model
+    model = load_adapted_model(model)
     return model, profile
 
 
@@ -1173,9 +1201,29 @@ def _audit_l2_normalization(
     Cost: one ``np.linalg.norm`` over the batch (~2 µs for a 64-row × 1024-
     dim float32 matrix on a modern CPU). Trivial overhead vs. the embed
     forward pass that produced *arr*.
+
+    FR-248 hardening: NaN/Inf precheck. IEEE 754-2019 §6.2 states that
+    every comparison involving NaN evaluates False, so a `max_dev >
+    tolerance` check would silently slip a NaN row through. The
+    explicit ``np.isnan`` precheck closes that gap (Higham 2002 §1.4
+    — adversarial inputs must fail loudly).
     """
     if arr.shape[0] == 0:
         return
+    if np.any(np.isnan(arr)):
+        first_bad = int(np.argmax(np.any(np.isnan(arr), axis=1)))
+        raise L2NormalizationAuditError(
+            max_dev=float("nan"),
+            worst_row=first_bad,
+            n_rows=int(arr.shape[0]),
+        )
+    if np.any(np.isinf(arr)):
+        first_bad = int(np.argmax(np.any(np.isinf(arr), axis=1)))
+        raise L2NormalizationAuditError(
+            max_dev=float("inf"),
+            worst_row=first_bad,
+            n_rows=int(arr.shape[0]),
+        )
     norms = np.linalg.norm(arr, axis=1)
     deviations = np.abs(norms - 1.0)
     max_dev = float(deviations.max())
@@ -1186,6 +1234,42 @@ def _audit_l2_normalization(
             worst_row=worst_row,
             n_rows=int(arr.shape[0]),
         )
+
+
+def _register_in_nrt_delta(
+    *,
+    model_class: type,
+    pks_slice: list[int],
+    normalised: np.ndarray,
+) -> None:
+    """FR-246 — push freshly-embedded ContentItem rows into the NRT delta.
+
+    Cold-start safe: any failure (DB lookup, delta-add) is logged and
+    swallowed so the flush continues. The base 15-minute FAISS rebuild
+    is the eventual-consistency floor; the delta is purely an
+    optimisation (Bialecki 2012 SIGIR-OSIR §3 NRT pattern).
+    """
+    if pks_slice is None or len(pks_slice) == 0 or normalised.shape[0] == 0:
+        return
+    try:
+        from apps.content.models import ContentItem
+        if model_class is not ContentItem:
+            return
+        rows = list(
+            ContentItem.objects.filter(pk__in=pks_slice).values_list(
+                "pk", "content_type",
+            )
+        )
+        ct_by_pk = {pk: ct for pk, ct in rows}
+        from .nrt_delta_index import get_live_delta
+        delta = get_live_delta()
+        for idx, pk in enumerate(pks_slice):
+            ct = ct_by_pk.get(pk)
+            if ct is None:
+                continue
+            delta.add(int(pk), str(ct), normalised[idx])
+    except Exception:  # noqa: BLE001 — defensive; never crash the flush.
+        logger.exception("FR-246 — failed to register flush slice in NRT delta")
 
 
 def _l2_audit_passed(normalised: np.ndarray) -> bool:

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections import Counter
 import dataclasses
+import datetime
 from dataclasses import dataclass, field
 import heapq
 import logging
@@ -15,7 +16,7 @@ import math
 import warnings
 import numpy as np
 from rapidfuzz import fuzz
-from typing import Any, Mapping, TypeAlias
+from typing import Any, Mapping, Optional, TypeAlias
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +162,13 @@ class ContentRecord:
     # Group G (Harmonious-12) — NLP enrichment metadata.
     # Stores acronyms, lemmas, and noun-chunks from ContentItem.nlp_metadata.
     nlp_metadata: dict[str, Any] = field(default_factory=dict)
+    # FR-249 — Embedding age decay proxy. ``updated_at`` is the closest
+    # signal we have for "when was this content's embedding last
+    # refreshed" — the embed pipeline regenerates the vector when
+    # content text changes, and content text changes update this
+    # column. Documented approximation; see
+    # docs/specs/fr249-embedding-age-decay.md §3.
+    updated_at: Optional["datetime.datetime"] = None
 
     @property
     def key(self) -> ContentKey:
@@ -494,6 +502,35 @@ def _calculate_composite_scores_full_batch_py(
     return results
 
 
+def _build_min_semantic_predicate(min_semantic_score: float):
+    """Return a ``score -> bool`` predicate for the Stage-2 cutoff.
+
+    FR-245 — when ``pipeline.calibration_enabled`` is true (default),
+    the predicate is ``passes_calibrated_threshold`` reading
+    ``pipeline.min_calibrated_probability`` (default 0.5). When false
+    (or any read fails), falls back to the legacy raw cosine cutoff
+    so behaviour is identical to pre-FR-245 code. Sources of truth:
+    Platt 1999 §2 (sigmoid decision boundary); cold-start params in
+    ``score_calibration.COLD_START_PARAMS`` target σ(0)=0.5 at
+    cosine=0.25 so the legacy behaviour is roughly preserved.
+    """
+    try:
+        from apps.suggestions.recommended_weights import (
+            recommended_bool,
+            recommended_float as _recommended_float,
+        )
+        if not recommended_bool("pipeline.calibration_enabled"):
+            return lambda score: score >= min_semantic_score
+        threshold = float(_recommended_float("pipeline.min_calibrated_probability"))
+    except Exception:  # noqa: BLE001 — cold-start safe.
+        return lambda score: score >= min_semantic_score
+    try:
+        from .score_calibration import passes_calibrated_threshold
+    except Exception:  # noqa: BLE001
+        return lambda score: score >= min_semantic_score
+    return lambda score: passes_calibrated_threshold(score, threshold=threshold)
+
+
 def score_destination_matches(
     destination: ContentRecord,
     sentence_matches: list[SentenceSemanticMatch],
@@ -642,8 +679,14 @@ def score_destination_matches(
         sentence_embedding_by_id = {}
         destination_content_item = None
 
+    # FR-245 — when calibration is enabled (default true), use the
+    # Platt-calibrated probability instead of the raw cosine cutoff.
+    # Cold-start params target σ(0)=0.5 at cosine=0.25 so behaviour is
+    # roughly equivalent to the legacy 0.25 cutoff during the no-fit
+    # interim. See docs/specs/fr245-platt-calibrated-thresholds.md.
+    fr245_predicate = _build_min_semantic_predicate(min_semantic_score)
     for match in sentence_matches:
-        if match.score_semantic < min_semantic_score:
+        if not fr245_predicate(match.score_semantic):
             continue
 
         host_key = match.host_key
@@ -973,6 +1016,25 @@ def score_destination_matches(
             fr099_diags = fr099_eval.per_signal_diagnostics
         score_final += fr099_contribution
         score_final += graph_signal_contribution
+
+        # FR-249 — Embedding age decay component. Source: Liu 2009 *Learning
+        # to Rank for IR* §1.5.4 (DOI 10.1561/1500000016) — freshness as a
+        # ranking feature. Newton's law of cooling with default 365-day
+        # half-life. The decay is in [0, 1]; we multiply by the configured
+        # weight (default 0.05) so a fresh embedding gains up to +0.05 and
+        # a 1-year-old embedding gains +0.025. Cold-start safe: when
+        # ``destination.updated_at`` is None, decay returns 1.0 (no
+        # penalty for unknown age). See docs/specs/fr249-embedding-age-decay.md.
+        from .embedding_age import (
+            compute_embedding_age_decay as _fr249_decay,
+            get_age_decay_settings as _fr249_settings,
+        )
+        _fr249_half_life, _fr249_weight = _fr249_settings()
+        score_embedding_age = _fr249_decay(
+            getattr(destination, "updated_at", None),
+            half_life_days=_fr249_half_life,
+        )
+        score_final += float(_fr249_weight) * score_embedding_age
 
         # FR-053 — Passage-Level Relevance Scoring (masterplan Group E).
         # Read the destination's best-passage similarity to the host

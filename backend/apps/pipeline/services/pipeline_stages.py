@@ -228,18 +228,32 @@ def _run_faiss_block_search(  # noqa: forbidden-pattern too-many-args  # justifi
     ``dest_key -> [(host_key, score), ...]`` in FAISS-returned order.
     Self-links and zero-sentence hosts are filtered from BOTH lists in
     lock-step (Wang/Lin/Metzler 2011 SIGIR §3 cascade score propagation).
+
+    FR-246 — when the NRT delta layer is enabled
+    (``pipeline.nrt_delta_enabled = true``, default), each block's
+    base FAISS hits are unioned with the delta layer's hits for the
+    same query vectors. Bialecki 2012 SIGIR-OSIR §3 NRT pattern.
     """
+    delta_search = _build_delta_search()
     result: dict[ContentKey, list[int]] = {}
     n_dest = len(destination_keys)
     for block_start in range(0, n_dest, block_size):
         block_end = min(block_start + block_size, n_dest)
         dest_block = dest_embeddings[block_start:block_end]
         dest_keys_block = destination_keys[block_start:block_end]
-        hits_per_query = faiss_search(dest_block, k=top_k, host_pk_set=host_pk_set)
-        for dest_key, hits in zip(dest_keys_block, hits_per_query):
+        base_hits_per_query = faiss_search(dest_block, k=top_k, host_pk_set=host_pk_set)
+        delta_hits_per_query = (
+            [delta_search(vec, top_k, host_pk_set) for vec in dest_block]
+            if delta_search is not None
+            else [[] for _ in dest_block]
+        )
+        for dest_key, base_hits, delta_hits in zip(
+            dest_keys_block, base_hits_per_query, delta_hits_per_query,
+        ):
+            merged_hits = _merge_base_and_delta_hits(base_hits, delta_hits, k=top_k)
             sentence_ids: list[int] = []
             host_score_entries: list[tuple[ContentKey, float]] = []
-            for hit in hits:
+            for hit in merged_hits:
                 pk, ct, score = _unpack_faiss_hit(hit)
                 host_key = (pk, ct)
                 if host_key == dest_key:
@@ -254,6 +268,55 @@ def _run_faiss_block_search(  # noqa: forbidden-pattern too-many-args  # justifi
                 if host_scores_out is not None:
                     host_scores_out[dest_key] = host_score_entries
     return result
+
+
+def _build_delta_search():
+    """Return a callable ``(query, k, host_pk_set) -> list[(pk, ct, score)]``.
+
+    Returns None when the NRT delta is disabled or unavailable —
+    callers fall back to base-only search. FR-246. Cold-start safe.
+    """
+    try:
+        from apps.suggestions.recommended_weights import recommended_bool
+        if not recommended_bool("pipeline.nrt_delta_enabled"):
+            return None
+    except Exception:  # noqa: BLE001
+        return None
+    try:
+        from .nrt_delta_index import get_live_delta
+        delta = get_live_delta()
+        return lambda vec, k, host_pk_set: delta.search(
+            vec, k=k, host_pk_set=host_pk_set,
+        )
+    except Exception:  # noqa: BLE001
+        logger.debug("FR-246 — delta search unavailable", exc_info=True)
+        return None
+
+
+def _merge_base_and_delta_hits(
+    base_hits: list,
+    delta_hits: list[tuple[int, str, float]],
+    *,
+    k: int,
+) -> list:
+    """Union base-FAISS and delta hits per destination, dedup, top-K.
+
+    Bialecki 2012 SIGIR-OSIR §3 — when the same key is present in both
+    layers, the delta version wins (it's the most-recently-flushed
+    embedding). Sort by descending score, take top-K.
+    """
+    if not delta_hits:
+        return list(base_hits)
+    by_key: dict[tuple[int, str], tuple[int, str, float]] = {}
+    for hit in base_hits:
+        pk, ct, score = _unpack_faiss_hit(hit)
+        by_key[(pk, ct)] = (pk, ct, score)
+    # Delta entries take precedence.
+    for hit in delta_hits:
+        pk, ct, score = _unpack_faiss_hit(hit)
+        by_key[(pk, ct)] = (pk, ct, score)
+    merged = sorted(by_key.values(), key=lambda h: -h[2])
+    return merged[:k]
 
 
 def _unpack_faiss_hit(hit: tuple) -> tuple[int, str, float]:
@@ -588,6 +651,45 @@ def _score_sentences_stage2(
 # ---------------------------------------------------------------------------
 
 
+def _emit_polysemy_diagnostics(
+    *,
+    matches: list[SentenceSemanticMatch],
+    dest_key: ContentKey,
+    sentence_records: dict[int, SentenceRecord],
+    diagnostics: list[tuple],
+) -> None:
+    """FR-243 — append per-sentence polysemy diagnostics. Cold-start safe.
+
+    Bevilacqua 2021 §2.1 — surface forms with ≥2 WordNet senses are
+    polysemous. The gate is loaded lazily (one cached `gate_polysemy`
+    call shape per Stage-2 cycle). When NLTK is absent, the gate
+    returns a "no_wordnet" runtime_path and we silently skip emitting
+    rows — operators see the gap via `get_polysemy_status()`.
+    """
+    try:
+        from .polysemy_gate import gate_polysemy
+    except Exception:  # noqa: BLE001 — defensive cold-start.
+        return
+    for match in matches:
+        record = sentence_records.get(match.sentence_id)
+        if record is None or not record.text:
+            continue
+        try:
+            diag = gate_polysemy(record.text)
+        except Exception:  # noqa: BLE001 — defensive: never crash Stage-2.
+            continue
+        if diag.runtime_path == "no_wordnet" or not diag.polysemous_terms:
+            continue
+        diagnostics.append((
+            dest_key[0], dest_key[1], "polysemy_terms_detected",
+            {
+                "sentence_id": match.sentence_id,
+                "polysemous_terms": list(diag.polysemous_terms),
+                "runtime_path": diag.runtime_path,
+            },
+        ))
+
+
 def _score_kwargs_from_settings(settings: dict[str, Any]) -> dict[str, Any]:
     """Extract the 23 score_destination_matches kwargs that come from the settings dict."""
     return {
@@ -689,6 +791,16 @@ def _score_single_destination(  # noqa: forbidden-pattern — 19-arg orchestrato
         destination_embedding=dest_embeddings[dest_idx], sentence_ids=host_sentence_ids,
         sentence_ids_ordered=sentence_ids_ordered, sentence_embeddings=sentence_embeddings,
         sentence_records=sentence_records, sentence_id_to_row=sentence_id_to_row, top_k=STAGE2_TOP_K,
+    )
+    # FR-243 — emit a polysemy diagnostic for any kept host sentence whose
+    # text contains polysemous words. Cold-start safe: when WordNet is not
+    # installed (typical Docker container), the gate emits
+    # ``runtime_path = "no_wordnet"`` and the diagnostic still lands so
+    # operators see why the gate is silent. See
+    # docs/specs/fr243-polysemy-gate-lmms.md.
+    _emit_polysemy_diagnostics(
+        matches=matches, dest_key=dest_key,
+        sentence_records=sentence_records, diagnostics=diagnostics,
     )
     if not matches:
         diagnostics.append((dest_key[0], dest_key[1], "no_semantic_matches", None))

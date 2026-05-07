@@ -133,10 +133,15 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "pipeline.stage1_mmr_enabled": "true",
     "pipeline.stage1_overfetch_multiplier": "2",
     "pipeline.stage1_mmr_lambda": "0.7",
-    # FR-240 — Hybrid retrieval (BM25 + RRF dense fusion).
+    # FR-240 — Hybrid retrieval (BM25 + RRF dense fusion). v1 ships
+    # default-on via stage1.lexical_retriever_enabled (existing token-
+    # overlap LexicalRetriever); RRF fusion is automatic when ≥2
+    # retrievers fire (see `_fuse_via_rrf` in candidate_retrievers.py).
+    # v2 BM25 swap-in uses these keys when implemented.
     # Sources: Robertson & Zaragoza 2009 §3.4 (DOI 10.1561/1500000019) for BM25
     # k1/b defaults. Cormack et al. 2009 SIGIR §3 (DOI 10.1145/1571941.1572114)
     # for RRF k=60. Bruch et al. 2023 TOIS confirms RRF is the safe default.
+    "stage1.lexical_retriever_enabled": "true",
     "pipeline.hybrid_retrieval_enabled": "true",
     "pipeline.bm25_k1": "1.2",
     "pipeline.bm25_b": "0.75",

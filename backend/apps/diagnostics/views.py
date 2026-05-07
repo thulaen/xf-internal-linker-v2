@@ -300,6 +300,24 @@ class ResourceUsageView(views.APIView):
         return response.Response(metrics)
 
 
+class Stage2PathStatusView(views.APIView):
+    """FR-247 — operator-visible read of the Stage-2 cpp/python pathway counter.
+
+    Returns the same dict that ``get_stage2_path_runtime_status`` produces
+    in-process. The ``alert`` field flips to True when the Python share
+    crosses ``pipeline.cpp_path_alert_threshold`` (default 5%) per
+    Beyer et al. 2016 *Site Reliability Engineering* Ch. 4.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.pipeline.services.pipeline_stages import (
+            get_stage2_path_runtime_status,
+        )
+        return response.Response(get_stage2_path_runtime_status())
+
+
 class SystemErrorViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ErrorLog.objects.all().order_by("-created_at")
     serializer_class = ErrorLogSerializer

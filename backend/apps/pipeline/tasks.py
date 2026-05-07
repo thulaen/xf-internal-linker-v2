@@ -2272,6 +2272,70 @@ def refresh_faiss_index():
 
 
 # ---------------------------------------------------------------------------
+# FR-246 — NRT delta layer flush task.
+# ---------------------------------------------------------------------------
+
+
+@shared_task(name="pipeline.nrt_delta_flush", time_limit=120, soft_time_limit=90)
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="memory_only",
+    ram_peak_mb=128,
+    expected_seconds_p50=2,
+)
+def nrt_delta_flush():
+    """FR-246 — when the NRT delta has reached the flush threshold, merge
+    it into the base FAISS index and clear the delta.
+
+    Bialecki 2012 SIGIR-OSIR §3 — Lucene NRT pattern: delta accumulates
+    inserts at low cost, periodic merge promotes them to the base
+    structure. Yang 2018 §4 — capping the delta at half-full bounds
+    per-query merge latency to <10ms.
+
+    The merge here is conservative: we trigger the same
+    ``build_faiss_index`` rebuild used by the 15-minute beat, then
+    clear the delta atomically. A future commit can replace this with
+    an incremental ``faiss_index.add_to_index()`` once that helper
+    exists; the contract (clear after promotion) is the same either
+    way.
+
+    Cold-start safe: a missing delta or unimportable FAISS layer logs
+    + returns silently. The base 15-minute rebuild is the consistency
+    floor — this task is purely an optimisation.
+    """
+    try:
+        from apps.pipeline.services.nrt_delta_index import get_live_delta
+    except Exception:  # noqa: BLE001 — defensive cold-start.
+        return False
+    delta = get_live_delta()
+    if not delta.needs_flush():
+        return False
+
+    try:
+        from apps.pipeline.services.faiss_index import build_faiss_index
+        build_faiss_index()
+        delta.clear()
+        return True
+    except Exception as exc:
+        from apps.audit.error_ingest import ingest_error
+        from apps.audit.models import ErrorLog
+        ingest_error(
+            job_type="faiss_init",
+            step="nrt_delta_flush",
+            error_message=str(exc) or exc.__class__.__name__,
+            raw_exception=traceback.format_exc(),
+            why=(
+                "FR-246 NRT delta flush failed. The delta layer keeps "
+                "accumulating; new content stays searchable in the delta "
+                "until the 15-minute base rebuild promotes it. No data loss."
+            ),
+            severity=ErrorLog.SEVERITY_MEDIUM,
+        )
+        return False
+
+
+# ---------------------------------------------------------------------------
 # Group D.8 — Long-tail full-body re-embed backfill.
 #
 # After D.1 + D.2 ship, the embed source flips from the 5-sentence

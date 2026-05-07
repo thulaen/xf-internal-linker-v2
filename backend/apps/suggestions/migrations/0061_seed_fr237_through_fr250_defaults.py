@@ -24,7 +24,15 @@ NEW_VALUES = {
     "pipeline.stage1_mmr_enabled": "true",
     "pipeline.stage1_overfetch_multiplier": "2",
     "pipeline.stage1_mmr_lambda": "0.7",
-    # FR-240 — Hybrid retrieval (BM25 + RRF)
+    # FR-240 — Hybrid retrieval (BM25 + RRF). The existing
+    # `LexicalRetriever` (token-overlap, Jaccard-style) + `_fuse_via_rrf`
+    # in `candidate_retrievers.py` is the v1 hybrid path; flipping
+    # `stage1.lexical_retriever_enabled` to true turns on RRF fusion of
+    # SemanticRetriever + LexicalRetriever automatically. The
+    # `pipeline.bm25_*` keys below are for the v2 BM25 swap-in (no
+    # current consumer; they exist so the upgrade is a one-line model
+    # swap, not a settings-schema change).
+    "stage1.lexical_retriever_enabled": "true",
     "pipeline.hybrid_retrieval_enabled": "true",
     "pipeline.bm25_k1": "1.2",
     "pipeline.bm25_b": "0.75",

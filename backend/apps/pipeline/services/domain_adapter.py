@@ -130,21 +130,55 @@ def load_adapted_model(vanilla_model: Any) -> Any:
 
 
 def _attach_lora_weights(model: Any) -> Any:
-    """Attach LoRA adapter weights to *model*. Stub for the v1 scaffold.
+    """Attach LoRA adapter weights to *model* via peft.PeftModel.
 
-    Real implementation will use peft.PeftModel.from_pretrained when
-    the offline training pipeline ships. The stub raises
-    NotImplementedError so any caller that *does* find a trained
-    adapter on disk gets a loud failure (rather than silently
-    pretending the adapter loaded), which is the right behaviour
-    until the loader is wired into the broader peft-based stack.
+    Hu et al. 2021 LoRA arXiv:2106.09685 — adapter is a low-rank delta
+    on top of the frozen encoder. peft.PeftModel.from_pretrained
+    handles the actual weight-merge.
+
+    Falls back to ``model`` unchanged when peft is not importable
+    (typical container today). The fallback is logged so operators
+    can see the gap; ``has_trained_adapter`` will still be True
+    (the file exists) but the runtime path will be ``vanilla_no_peft``.
     """
-    raise NotImplementedError(
-        "FR-242 v1: LoRA adapter loading not yet wired. "
-        "Trained-adapter file present at "
-        f"{get_adapter_weights_path()} but loader is not implemented. "
-        "Schedule the v2 commit to wire `peft.PeftModel.from_pretrained`."
-    )
+    try:
+        from peft import PeftModel  # type: ignore[import-not-found]
+    except ImportError:
+        logger.warning(
+            "FR-242 — peft not installed; cannot attach LoRA weights. "
+            "Run `pip install peft` to enable the domain adapter. "
+            "Falling back to vanilla BGE-M3 for this run."
+        )
+        return model
+
+    path = get_adapter_weights_path()
+    inner = getattr(model, "_first_module", None)
+    if inner is None or not callable(inner):
+        # SentenceTransformer wraps the encoder — peft expects the
+        # underlying transformer module. If the wrapper shape is
+        # unfamiliar, fall back to vanilla rather than guess.
+        logger.warning(
+            "FR-242 — SentenceTransformer wrapper shape unrecognised; "
+            "skipping LoRA attach for safety."
+        )
+        return model
+    base_module = inner()
+    try:
+        peft_module = PeftModel.from_pretrained(base_module, path)
+        # Replace the inner module so subsequent .encode() calls go
+        # through the LoRA-adapted path. Sentence-transformers stores
+        # modules in OrderedDict ``model._modules['0']``; assigning
+        # there is the documented swap path.
+        model._modules["0"] = peft_module
+        logger.info("FR-242 — LoRA adapter attached from %s", path)
+        return model
+    except Exception:
+        logger.exception(
+            "FR-242 — peft.PeftModel.from_pretrained failed for %s; "
+            "falling back to vanilla.",
+            path,
+        )
+        return model
 
 
 def get_adapter_status() -> dict[str, Any]:

@@ -586,6 +586,8 @@ def _build_content_record_from_ci(
         cluster_id=ci.cluster_id,
         is_canonical=ci.is_canonical,
         nlp_metadata=ci.nlp_metadata or {},
+        # FR-249 — passed to compute_embedding_age_decay in ranker.py.
+        updated_at=getattr(ci, "updated_at", None),
     )
 
 
