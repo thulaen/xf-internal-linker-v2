@@ -315,3 +315,124 @@ def get_slate_diversity_runtime_status() -> dict[str, object]:
         "path": "python_fallback",
         "reason": "Python fallback is active because the native C++ MMR kernel is not compiled or could not be loaded.",
     }
+
+
+# ---------------------------------------------------------------------------
+# FR-239 — Stage-1 MMR rerank helper (standalone, key-shape-agnostic)
+# ---------------------------------------------------------------------------
+#
+# Distinct from `apply_slate_diversity` (FR-015) which operates on
+# ``ScoredCandidate`` objects at the FINAL ranking stage. This helper
+# operates on raw ``(key, score)`` tuples + an embedding lookup so it
+# can be used at Stage 1 retrieval (where ``ScoredCandidate`` doesn't
+# exist yet) without taking on the full ranker dependency.
+#
+# Sources of truth:
+#   - Carbonell & Goldstein (1998), SIGIR §3 — defines MMR as
+#     λ · Sim(q, d) − (1−λ) · max_{d'∈S} Sim(d, d').
+#   - Drosou & Pitoura (2010) SIGMOD Record 39(1) DOI 10.1145/1860702.1860709
+#     — confirms MMR remains the best practical default for diversification.
+#
+# Why a separate helper rather than reusing `_mmr_select_for_host`:
+#   - `_mmr_select_for_host` is glued to ScoredCandidate (`replace(...)` on
+#     dataclass fields, `score_final` / `score_semantic` math, slot-
+#     diagnostics writes). It needs the full ranker pipeline to run.
+#   - Stage-1 retrieval has only `(host_key, faiss_score)` pairs and host
+#     embeddings — no ScoredCandidate yet (those don't exist until after
+#     Stage 2 scoring). Forcing the existing helper to handle both shapes
+#     would break its single-responsibility cleanliness.
+#   - Both helpers compute the same MMR formula with the same library
+#     citation; this is intentional algorithmic DRY at the math layer
+#     not at the API layer.
+
+#: Default MMR lambda for Stage-1 reranking. Carbonell & Goldstein 1998
+#: Table 2 reports λ ∈ [0.3, 0.7] across their experiments; 0.7 is the
+#: balanced precision/diversity setting most often cited as the safe
+#: default in follow-up surveys (e.g. Drosou & Pitoura 2010 §3.1).
+STAGE1_MMR_LAMBDA_DEFAULT: float = 0.7
+
+#: Default Stage-1 overfetch multiplier. Carbonell & Goldstein 1998 §3
+#: ("retrieve at least 2× to give MMR room") motivates the 2× factor.
+STAGE1_OVERFETCH_MULTIPLIER_DEFAULT: int = 2
+
+
+def mmr_rerank_keys(
+    scored_keys: list[tuple[object, float]],
+    embedding_lookup: dict[object, np.ndarray],
+    *,
+    k: int,
+    lambda_: float = STAGE1_MMR_LAMBDA_DEFAULT,
+) -> list[tuple[object, float]]:
+    """MMR-rerank ``scored_keys`` to k diverse picks (Carbonell & Goldstein 1998).
+
+    Input ``scored_keys`` are ``(key, relevance)`` ordered desc by score;
+    ``embedding_lookup`` maps key → L2-unit np.ndarray (missing or zero-
+    size embedding falls back to relevance-only — treated as fully
+    diverse). Returns ``[(key, original_relevance), ...]`` in MMR-pick
+    order. No-op short-circuit when ``len(scored_keys) <= k``.
+    """
+    if not scored_keys:
+        return []
+    if len(scored_keys) <= k:
+        return list(scored_keys)
+
+    candidates = list(scored_keys)
+    selected: list[tuple[object, float]] = []
+    selected_embeddings: list[np.ndarray] = []
+    _append_pick(
+        candidates.pop(0), selected, selected_embeddings, embedding_lookup
+    )
+
+    while len(selected) < k and candidates:
+        best_idx = _pick_next_mmr_index(
+            candidates=candidates,
+            selected_embeddings=selected_embeddings,
+            embedding_lookup=embedding_lookup,
+            lambda_=lambda_,
+        )
+        _append_pick(
+            candidates.pop(best_idx),
+            selected, selected_embeddings, embedding_lookup,
+        )
+    return selected
+
+
+def _append_pick(
+    pick: tuple[object, float],
+    selected: list[tuple[object, float]],
+    selected_embeddings: list[np.ndarray],
+    embedding_lookup: dict[object, np.ndarray],
+) -> None:
+    """Add a pick to the selection lists; skips zero-size embeddings."""
+    selected.append(pick)
+    emb = embedding_lookup.get(pick[0])
+    if emb is not None and emb.size > 0:
+        selected_embeddings.append(emb)
+
+
+def _pick_next_mmr_index(
+    *,
+    candidates: list[tuple[object, float]],
+    selected_embeddings: list[np.ndarray],
+    embedding_lookup: dict[object, np.ndarray],
+    lambda_: float,
+) -> int:
+    """Return the index in ``candidates`` of the next MMR pick.
+
+    Computes ``λ·relevance − (1−λ)·max_sim_to_selected`` for each
+    candidate and returns the argmax index. Carbonell & Goldstein 1998
+    SIGIR §3 — exact formula. Linear in len(candidates) × len(selected).
+    """
+    best_idx = 0
+    best_score = float("-inf")
+    for idx, (key, relevance) in enumerate(candidates):
+        emb = embedding_lookup.get(key)
+        if emb is None or emb.size == 0 or not selected_embeddings:
+            max_sim = 0.0
+        else:
+            max_sim = max(float(np.dot(emb, s)) for s in selected_embeddings)
+        mmr_value = lambda_ * relevance - (1.0 - lambda_) * max_sim
+        if mmr_value > best_score:
+            best_score = mmr_value
+            best_idx = idx
+    return best_idx
