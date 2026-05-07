@@ -239,7 +239,7 @@ def _load_weights() -> dict[str, float]:
     """
     try:
         from apps.core.models import AppSetting
-    except Exception:  # pragma: no cover — Django not initialised
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.  # pragma: no cover — Django not initialised
         return {}
 
     keys = [w_key for _, w_key, _ in EXPLAINED_COMPONENTS]

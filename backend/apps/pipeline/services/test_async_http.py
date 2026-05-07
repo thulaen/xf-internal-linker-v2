@@ -1,3 +1,5 @@
+"""Test async http module for the pipeline app."""
+
 import asyncio
 import time
 import unittest

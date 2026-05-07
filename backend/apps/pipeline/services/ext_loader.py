@@ -103,6 +103,6 @@ def _log_to_errorlog(
                 f"To fix: rebuild extensions with 'cd backend/extensions && pip install -e .'"
             ),
         )
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         # ErrorLog itself may not be available during early startup or tests.
         pass

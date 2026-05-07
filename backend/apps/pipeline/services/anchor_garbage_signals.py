@@ -204,10 +204,7 @@ def _load_lexicon(*, lexicon_path: str | None = None) -> tuple[str, ...]:
                 line = raw.strip().lower()
                 if line and not line.startswith("#"):
                     phrases.append(line)
-    except Exception:
-        # AppSetting unreachable (test env / migrations not run) →
-        # operator-extras path is just skipped, lexicon-from-disk
-        # still works.
+    except Exception:  # noqa: BLE001  # AppSetting unreachable (test env / migrations not run) — operator-extras path is just skipped, lexicon-from-disk still works.
         pass
     return tuple(phrases)
 
@@ -255,7 +252,7 @@ def generic_score(
 
         if not is_enabled(KEY_GENERIC_ENABLED, default=True):
             return GenericMatchResult(False, (), 0.0)
-    except Exception:
+    except Exception:  # noqa: BLE001  # runtime_flags unavailable (mid-migration / test env); fall through with feature enabled — flag is hot-path, must not raise.
         pass  # runtime_flags unavailable; fall through with feature enabled
     needle = anchor.lower().strip()
     phrases, automaton = _compiled_lexicon(lexicon_path)
@@ -348,7 +345,7 @@ def descriptiveness_score(
 
         if not is_enabled(KEY_DESCR_ENABLED, default=True):
             return DescriptivenessResult(1.0, 0.0, 0.0)
-    except Exception:
+    except Exception:  # noqa: BLE001  # runtime_flags unavailable (mid-migration / test env); fall through with feature enabled — flag is hot-path, must not raise.
         pass  # runtime_flags unavailable; fall through with feature enabled
 
     a = anchor.lower().strip()
@@ -484,7 +481,7 @@ def self_information_score(
 
         if not is_enabled(KEY_SELF_INFO_ENABLED, default=True):
             return SelfInformationResult(0.0, 0.0, False, 0.0)
-    except Exception:
+    except Exception:  # noqa: BLE001  # runtime_flags unavailable (mid-migration / test env); fall through with feature enabled — flag is hot-path, must not raise.
         pass  # runtime_flags unavailable; fall through with feature enabled
 
     entropy = _bigram_entropy(anchor.lower())
@@ -564,7 +561,7 @@ def _resolve_corpus_stats(
                 ]
             ).values_list("key", "value")
         )
-    except Exception:
+    except Exception:  # noqa: BLE001  # AppSetting unreachable; fall back to baseline corpus stats so the algo still produces a usable score on cold-start installs.
         rows = {}
 
     def _f(value: object, fallback: float) -> float:
@@ -673,7 +670,7 @@ def build_anchor_garbage_signals() -> AnchorGarbageDispatcher | None:
         if not is_enabled(KEY_DISPATCHER_ENABLED, default=True):
             return None
         row = AppSetting.objects.filter(key=KEY_DISPATCHER_WEIGHT).first()
-    except Exception:
+    except Exception:  # noqa: BLE001  # AppSetting / runtime_flags unavailable — return None so the dispatcher short-circuits and the ranker doesn't add an anchor-garbage contribution this pass.
         return None
     if row is None or not row.value:
         return None

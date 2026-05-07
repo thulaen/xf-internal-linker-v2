@@ -1,3 +1,5 @@
+"""DRF serializers for the benchmarks app."""
+
 from rest_framework import serializers
 
 from .models import BenchmarkResult, BenchmarkRun

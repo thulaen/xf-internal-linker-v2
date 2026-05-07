@@ -95,7 +95,7 @@ def evaluate_learned_anchor_corroboration(
             inbound_anchor_rows=inbound_anchor_rows,
             settings=settings,
         )
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         diagnostics = _base_diagnostics(
             candidate_anchor_text=candidate_anchor_text,
             candidate_anchor_tokens=(),

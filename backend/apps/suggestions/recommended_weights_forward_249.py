@@ -1,3 +1,5 @@
+"""Recommended weights forward 249 module for the suggestions app."""
+
 # META-algorithm expansion — forward-declared slots META-40..META-249.
 # This file is parsed by meta_registry.py to populate the Settings tab.
 # Every entry here is forward-declared (status='forward-declared').

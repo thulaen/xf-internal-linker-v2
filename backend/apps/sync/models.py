@@ -1,3 +1,5 @@
+"""Database models for the sync app."""
+
 from django.db import models
 import uuid
 

@@ -90,7 +90,7 @@ def load_snapshot() -> ConformalSnapshot | None:
     """Return the persisted conformal calibration, or ``None`` on cold start."""
     try:
         from apps.core.models import AppSetting
-    except Exception:  # pragma: no cover — Django not initialised
+    except Exception:  # noqa: BLE001  # pragma: no cover — Django not initialised; cold-start path returns None so the caller falls back to its uncalibrated default.
         return None
 
     rows = dict(

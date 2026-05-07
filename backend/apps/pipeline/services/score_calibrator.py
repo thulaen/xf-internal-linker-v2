@@ -79,7 +79,7 @@ def load_snapshot() -> CalibrationSnapshot | None:
     """Return the persisted calibration, or ``None`` on cold start."""
     try:
         from apps.core.models import AppSetting
-    except Exception:  # pragma: no cover — Django not initialised
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.  # pragma: no cover — Django not initialised
         return None
 
     rows = dict(
@@ -183,7 +183,7 @@ def _collect_training_pairs(*, lookback_days: int) -> Iterable[tuple[float, int]
 
     try:
         from apps.suggestions.models import Suggestion
-    except Exception:  # pragma: no cover — only when Django not loaded
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.  # pragma: no cover — only when Django not loaded
         return
 
     cutoff = timezone.now() - timedelta(days=lookback_days)

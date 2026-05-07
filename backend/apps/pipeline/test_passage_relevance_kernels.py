@@ -1,3 +1,5 @@
+"""Test passage relevance kernels module for the pipeline app."""
+
 import numpy as np
 from django.test import TestCase
 

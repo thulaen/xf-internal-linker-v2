@@ -84,7 +84,7 @@ def _read_paths_from_settings() -> tuple[str, str]:
                 key__in=[KEY_MODEL_PATH, KEY_DICT_PATH]
             ).values_list("key", "value")
         )
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         return "", ""
     return rows.get(KEY_MODEL_PATH, "") or "", rows.get(KEY_DICT_PATH, "") or ""
 

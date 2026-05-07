@@ -1,3 +1,5 @@
+"""DRF/Django views for the health app."""
+
 import logging
 
 from django.db import connection
@@ -62,7 +64,7 @@ class HealthStatusViewSet(viewsets.ReadOnlyModelViewSet):
             return Response(serializer.data)
         except ValueError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # Catch-all for the API endpoint: surface ANY unexpected failure as a 500 with the message so the operator can act on it (downstream service issues, transient probe failures).
             return Response(
                 {"error": f"Failed to check health: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

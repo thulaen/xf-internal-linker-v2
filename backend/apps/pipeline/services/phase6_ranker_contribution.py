@@ -551,7 +551,7 @@ class Phase6RankerContribution:
                 continue
             try:
                 value = float(adapter(ctx))
-            except Exception:
+            except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
                 value = 0.0
             out[pick_name] = value
             if cache_key is not None:
@@ -584,7 +584,7 @@ def _is_enabled(pick_name: str) -> bool:
         from apps.core.runtime_flags import is_enabled
 
         return is_enabled(f"{pick_name}.enabled", default=True)
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         return False
 
 
@@ -603,7 +603,7 @@ def _load_all_weights() -> dict[str, float]:
 
         rows = AppSetting.objects.filter(key__in=keys).values_list("key", "value")
         raw = dict(rows)
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         return {pick: 0.0 for pick in _ADAPTERS}
 
     out: dict[str, float] = {}

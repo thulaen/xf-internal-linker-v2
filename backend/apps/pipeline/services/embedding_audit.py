@@ -81,7 +81,7 @@ def scan_embedding_health(
             continue
         try:
             vec = np.asarray(emb, dtype=np.float32)
-        except Exception:
+        except Exception:  # noqa: BLE001  # Embedding stored as a non-coercible type — flag the row as wrong-dim and continue auditing the rest of the batch.
             report.wrong_dim += 1
             report.flagged_pks.append(pk)
             continue
@@ -168,7 +168,7 @@ def _resample_check(
             continue
         try:
             stored_vec = np.asarray(stored, dtype=np.float32)
-        except Exception:
+        except Exception:  # noqa: BLE001  # Per-row resample-audit pass; skip the row if its stored embedding is uncoercible — handled in the wrong-dim branch above for first-pass detection.
             continue
         if stored_vec.shape[0] != current_dimension:
             continue
@@ -201,7 +201,7 @@ def is_audit_enabled() -> bool:
         row = AppSetting.objects.filter(key="embedding.accuracy_check_enabled").first()
         if row and str(row.value).lower() in ("false", "0", "no", "off"):
             return False
-    except Exception:
+    except Exception:  # noqa: BLE001  # AppSetting unavailable (cold-start, mid-migration); default to enabled so the audit task runs out of the box.
         pass  # AppSetting unavailable; default to enabled
     return True
 
@@ -214,7 +214,7 @@ def get_last_run_at():
         row = AppSetting.objects.filter(key="embedding.accuracy_last_run_at").first()
         if row and row.value:
             return parse_datetime(str(row.value))
-    except Exception:
+    except Exception:  # noqa: BLE001  # AppSetting unavailable (cold-start, mid-migration); treat as never-run so the next scheduled tick does the first audit.
         pass  # AppSetting unavailable; treat as never-run
     return None
 
@@ -241,7 +241,7 @@ def get_thresholds() -> tuple[float, float, int]:
             row = AppSetting.objects.filter(key=key).first()
             if row and row.value not in (None, ""):
                 return float(row.value)
-        except Exception:
+        except Exception:  # noqa: BLE001  # AppSetting unavailable / unparseable — fall back to the hard-coded baseline threshold so the audit still runs.
             pass  # AppSetting unavailable / unparseable; use fallback
         return fallback
 
@@ -252,7 +252,7 @@ def get_thresholds() -> tuple[float, float, int]:
             row = AppSetting.objects.filter(key=key).first()
             if row and row.value not in (None, ""):
                 return int(row.value)
-        except Exception:
+        except Exception:  # noqa: BLE001  # AppSetting unavailable / unparseable — fall back to the hard-coded baseline threshold so the audit still runs.
             pass  # AppSetting unavailable / unparseable; use fallback
         return fallback
 

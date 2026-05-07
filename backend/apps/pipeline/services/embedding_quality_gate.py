@@ -174,7 +174,7 @@ def load_gate_thresholds() -> tuple[float, float, float]:
             row = AppSetting.objects.filter(key=key).first()
             if row and row.value not in ("", None):
                 return float(row.value)
-        except Exception:
+        except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
             pass  # AppSetting unavailable / unparseable; use fallback
         return fallback
 
@@ -192,7 +192,7 @@ def is_gate_enabled() -> bool:
         row = AppSetting.objects.filter(key="embedding.gate_enabled").first()
         if row and str(row.value).lower() in ("false", "0", "no", "off"):
             return False
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         pass  # AppSetting unavailable; default to enabled
     return True
 

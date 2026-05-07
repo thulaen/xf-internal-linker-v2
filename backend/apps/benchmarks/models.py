@@ -1,3 +1,5 @@
+"""Database models for the benchmarks app."""
+
 from django.db import models
 
 

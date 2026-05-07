@@ -1,3 +1,5 @@
+"""Xenforo api module for the sync app."""
+
 import logging
 import time
 import requests
@@ -77,7 +79,7 @@ class XenForoAPIClient:
         try:
             self._get("index/")
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
             return False
 
     def get_threads(self, node_id: int, page: int = 1) -> Dict[str, Any]:

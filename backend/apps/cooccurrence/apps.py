@@ -1,3 +1,5 @@
+"""Django AppConfig for the cooccurrence app."""
+
 from django.apps import AppConfig
 
 

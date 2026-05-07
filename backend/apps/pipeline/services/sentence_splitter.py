@@ -59,7 +59,7 @@ def _pysbd_active() -> bool:
         if not pysbd_segmenter.is_available():
             return False
         return is_enabled("pysbd_segmenter.enabled", default=True)
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         return False
 
 

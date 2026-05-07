@@ -55,7 +55,7 @@ class ClickDistanceService:
             # Split by / and filter out empty strings
             segments = [s for s in path.split("/") if s]
             return len(segments)
-        except Exception:
+        except Exception:  # noqa: BLE001  # Pure URL parsing on operator-supplied data; treat any malformed URL as depth=0 rather than crash the click-distance computation.
             return 0
 
     def build_scope_depth_map(self) -> Dict[int, int]:

@@ -223,7 +223,7 @@ def cuda_random_walk_available() -> bool:
         return True
     except CudaUnavailableError:
         return False
-    except Exception:  # pragma: no cover — defensive
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.  # pragma: no cover — defensive
         return False
 
 
@@ -306,7 +306,7 @@ def pagerank_step_safe(
         except CudaUnavailableError:
             # System state, not an error.
             pass
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
             _record_cuda_failure_once(step="pagerank_step", exc=exc)
     return fallback_cpu_fn(
         indptr, indices, data, ranks, dangling_mask, damping, node_count
@@ -340,7 +340,7 @@ def personalized_pagerank_step_safe(
             )
         except CudaUnavailableError:
             pass
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
             _record_cuda_failure_once(step="personalized_pagerank_step", exc=exc)
     return fallback_cpu_fn(
         indptr,
@@ -372,7 +372,7 @@ def hits_step_safe(
             )
         except CudaUnavailableError:
             pass
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
             _record_cuda_failure_once(step="hits_step", exc=exc)
     return fallback_cpu_fn(
         indptr, indices, data, authority, hub, node_count

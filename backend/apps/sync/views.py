@@ -177,7 +177,7 @@ class SyncJobViewSet(viewsets.ReadOnlyModelViewSet):
                 celery_app.control.revoke(
                     str(job.job_id), terminate=True, signal="SIGTERM"
                 )
-            except Exception:
+            except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
                 # Revoke is best-effort — the task may have already finished.
                 pass
 

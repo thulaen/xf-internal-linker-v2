@@ -88,7 +88,7 @@ def _yake_keywords_lower(document_text: str) -> list[str]:
         from apps.sources import yake_keywords
 
         hits = yake_keywords.extract(document_text, top_k=10)
-    except Exception:
+    except Exception:  # noqa: BLE001  # YAKE keyword extractor is optional; absence (or any extraction failure) downgrades to "no keywords" rather than crash the distiller.
         return []
     return [hit.keyword.lower() for hit in hits if hit.keyword]
 

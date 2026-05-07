@@ -1,8 +1,10 @@
+"""Async http module for the pipeline app."""
+
 from __future__ import annotations
 
 import asyncio
 import xml.etree.ElementTree as ET  # nosec B405
-from typing import Any
+from typing import Any, NamedTuple
 
 try:
     import httpx
@@ -13,6 +15,164 @@ except ImportError:
 def run_async(coro):
     """Thin asyncio.run wrapper for Celery contexts."""
     return asyncio.run(coro)
+
+
+def _make_fetch_record(
+    url: str,
+    *,
+    status_code: int = 0,
+    content: str = "",
+    error: str | None = None,
+    etag: str = "",
+    last_modified: str = "",
+    encoding: str = "",
+) -> dict[str, Any]:
+    """Single factory for the per-URL result dict returned from :func:`fetch_urls`.
+
+    Centralising the seven-key record shape eliminates the 6× inline
+    dict-literal boilerplate the function used to carry and ensures
+    every code path returns the same field set (downstream code
+    indexes by name, so a missing key would silently break callers).
+    """
+    return {
+        "url": url,
+        "status_code": status_code,
+        "content": content,
+        "error": error,
+        "etag": etag,
+        "last_modified": last_modified,
+        "encoding": encoding,
+    }
+
+
+def _extract_response_validators(res: "httpx.Response") -> tuple[str, str]:
+    """Read ETag + Last-Modified from a response, accepting either capitalisation.
+
+    Some origins respond with ``ETag`` / ``Last-Modified`` and others
+    with the lower-case form; the conditional-GET write path expects
+    both to be normalised to a single value per validator.
+    """
+    etag = res.headers.get("ETag", "") or res.headers.get("etag", "")
+    last_modified = res.headers.get("Last-Modified", "") or res.headers.get(
+        "last-modified", ""
+    )
+    return etag, last_modified
+
+
+class _FetchConfig(NamedTuple):
+    """Bundle of per-call knobs threaded into :func:`_fetch_one`.
+
+    Bundled so :func:`_fetch_one` stays under the linter's 7-arg cap and
+    so :func:`fetch_urls` can hand every URL the same config object
+    without repeating the long argument list.
+    """
+
+    sem: asyncio.Semaphore
+    max_body_bytes: int
+    max_attempts: int
+    backoff_base: float
+    backoff_cap: float
+    rate_limiter: object | None
+    rate_limiter_key: str | None
+    rate_limiter_timeout: float
+    circuit_breaker: object | None
+    full_jitter_delay: object | None
+    headers_by_url: dict[str, dict[str, str]]
+
+
+async def _wait_for_rate_limit_token(config: _FetchConfig) -> bool:
+    """Return True iff a token was acquired (or no limiter is configured)."""
+    if config.rate_limiter is None or config.rate_limiter_key is None:
+        return True
+    return await asyncio.to_thread(
+        config.rate_limiter.wait_and_acquire,
+        config.rate_limiter_key,
+        cost=1.0,
+        timeout=config.rate_limiter_timeout,
+    )
+
+
+async def _attempt_one_request(
+    url: str,
+    client: "httpx.AsyncClient",
+    config: _FetchConfig,
+) -> dict[str, Any]:
+    """Make one GET attempt. Returns a populated record on success, raises on failure."""
+    extra_headers = config.headers_by_url.get(url) or {}
+    res = await _bounded_request(
+        config.sem, client, "GET", url, headers=extra_headers
+    )
+    etag_value, lm_value = _extract_response_validators(res)
+    # 304 responses have empty bodies — the caller treats `status_code=304`
+    # as "unchanged" and skips body decoding.
+    if res.status_code == 304:
+        body, encoding_used = "", ""
+    else:
+        # Pick #11 — explicit encoding detection beats httpx's heuristic
+        # on origins that don't declare charset.
+        body, encoding_used = _decode_response_body(
+            res, max_body_bytes=config.max_body_bytes
+        )
+    return _make_fetch_record(
+        url,
+        status_code=res.status_code,
+        content=body,
+        etag=etag_value,
+        last_modified=lm_value,
+        encoding=encoding_used,
+    )
+
+
+async def _fetch_one(
+    url: str,
+    client: "httpx.AsyncClient",
+    results: list[dict[str, Any]],
+    config: _FetchConfig,
+) -> None:
+    """Fetch one URL, applying rate-limit, circuit-breaker, and retry policies.
+
+    Appends exactly one record dict to ``results`` (success or failure).
+    Never raises — every failure path is recorded as a row.
+    """
+    # Pick #1 — wait for a rate-limit token before issuing the HTTP request.
+    if not await _wait_for_rate_limit_token(config):
+        results.append(_make_fetch_record(url, error="rate_limited"))
+        return
+
+    # Pick #3 — Nygard circuit breaker. Fast-fail when OPEN so a downed
+    # origin doesn't drain the concurrency pool with timeouts.
+    breaker = config.circuit_breaker
+    if breaker is not None and breaker.is_open():
+        results.append(_make_fetch_record(url, error="circuit_open"))
+        return
+
+    # Pick #2 — AWS full-jitter retry loop. ``max_attempts == 1`` makes the
+    # loop a single iteration with no sleep (the pre-pick-2 behaviour).
+    last_error: dict[str, Any] | None = None
+    for attempt in range(config.max_attempts):
+        try:
+            record = await _attempt_one_request(url, client, config)
+            results.append(record)
+            if breaker is not None:
+                breaker.record_success()
+            return
+        except httpx.TimeoutException:
+            last_error = _make_fetch_record(url, error="timeout")
+            if breaker is not None:
+                breaker.record_failure()
+        except httpx.RequestError as exc:
+            last_error = _make_fetch_record(url, error=str(exc))
+            if breaker is not None:
+                breaker.record_failure()
+        # Sleep before next attempt; skip on the final iteration since the
+        # next move is to record last_error and return.
+        if config.full_jitter_delay is not None and attempt < config.max_attempts - 1:
+            delay = config.full_jitter_delay(
+                attempt, base=config.backoff_base, cap=config.backoff_cap
+            )
+            await asyncio.sleep(delay)
+    if last_error is not None:
+        results.append(last_error)
 
 
 async def _bounded_request(
@@ -39,7 +199,7 @@ def _decode_response_body(
         return "", ""
     try:
         from apps.sources.encoding import decode_with_guess, detect_encoding
-    except Exception:
+    except Exception:  # noqa: BLE001  # Source layer isn't importable in minimal test contexts — fall back to httpx's built-in encoding heuristic.
         # Source layer isn't importable — fall back to httpx heuristic.
         return res.text[:max_body_bytes], ""
     guess = detect_encoding(
@@ -91,7 +251,7 @@ async def probe_urls(
         except httpx.RequestError:
             status_code = 0
             redirect_url = ""
-        except Exception:
+        except Exception:  # noqa: BLE001  # Per-URL probe in a bulk fetch — record the URL as "unreachable" (status_code=0) rather than abort the whole batch on a single weird failure.
             status_code = 0
             redirect_url = ""
 
@@ -131,189 +291,62 @@ async def fetch_urls(
 ) -> list[dict[str, Any]]:
     """Fetch URL body chunks for crawling.
 
-    ``headers_by_url`` carries per-URL request headers so callers can
-    pipe in conditional-GET validators (``If-None-Match`` /
-    ``If-Modified-Since`` from :mod:`apps.sources.conditional_get`).
-    The result dict gains ``etag`` and ``last_modified`` keys when the
-    server echoes those headers, so callers can persist them onto
-    :class:`CrawledPageMeta`.
+    Returns a list of records (one per URL) with the seven keys defined
+    by :func:`_make_fetch_record`. Per-URL fetch logic — rate-limit,
+    circuit-breaker, retry — lives in :func:`_fetch_one`; this
+    orchestrator just builds the :class:`_FetchConfig` and dispatches.
 
-    ``rate_limiter_key`` (pick #1 — Turner 1986 token bucket) gates each
-    outbound request on a token from the named bucket in
-    :data:`apps.sources.token_bucket.DEFAULT_REGISTRY`. Callers register
-    the bucket up-front (typically per origin host) with the desired
-    ``tokens_per_second`` / ``burst_capacity``; if no key is passed the
-    limiter is skipped and only the concurrency semaphore applies.
+    Pick references (see :mod:`apps.sources.token_bucket`,
+    :mod:`apps.sources.backoff`, and
+    :mod:`apps.pipeline.services.circuit_breaker` for full citations):
 
-    ``rate_limiter_timeout`` caps how long a single request waits for a
-    token before recording a ``rate_limited`` error and moving on.
-
-    ``max_attempts`` (pick #2 — Metcalfe & Boggs 1976 / AWS full-jitter
-    backoff) sets the total request attempts per URL. ``1`` (default)
-    disables retry, preserving prior single-shot behaviour. Values > 1
-    enable AWS full-jitter retry on transient HTTP errors only
-    (``httpx.TimeoutException``, ``httpx.RequestError`` — i.e. network
-    + timeout). Application-level 4xx/5xx are NOT retried by this
-    layer — that's the caller's policy decision (a 404 doesn't become
-    a 200 by retrying).
-
-    ``backoff_base`` and ``backoff_cap`` define the jitter window per
-    :func:`apps.sources.backoff.full_jitter_delay`: each retry sleeps a
-    random duration in ``[0, min(cap, base * 2 ** attempt)]``.
-
-    ``circuit_breaker`` (pick #3 — Nygard 2007 *Release It!*) is an
-    optional :class:`apps.pipeline.services.circuit_breaker.CircuitBreaker`
-    instance. When supplied, every request first checks
-    ``breaker.is_open()``; if OPEN, the request is fast-failed with
-    ``error="circuit_open"`` and no HTTP call is made. Successful
-    fetches call ``breaker.record_success()``; transient failures (the
-    same ``httpx.TimeoutException`` / ``RequestError`` that the
-    backoff loop retries) call ``breaker.record_failure()``. The
-    breaker's state machine then drives CLOSED → OPEN → HALF_OPEN →
-    CLOSED transitions per its configured thresholds.
+    - ``headers_by_url`` — per-URL conditional-GET validators
+      (``If-None-Match`` / ``If-Modified-Since``).
+    - ``rate_limiter_key`` (pick #1 — Turner 1986 token bucket) names
+      a bucket in ``DEFAULT_REGISTRY``; ``rate_limiter_timeout`` caps
+      the per-request token wait.
+    - ``max_attempts`` / ``backoff_base`` / ``backoff_cap`` (pick #2 —
+      AWS full-jitter retry) — only retries network/timeout errors,
+      not 4xx/5xx.
+    - ``circuit_breaker`` (pick #3 — Nygard 2007 *Release It!*) —
+      optional per-host breaker; OPEN state fast-fails with
+      ``error="circuit_open"``.
     """
-    sem = asyncio.Semaphore(max_concurrency)
     results: list[dict[str, Any]] = []
-    headers_by_url = headers_by_url or {}
-
     if rate_limiter_key is not None:
         # Local import keeps async_http importable in minimal test
         # contexts that don't load the source layer.
-        from apps.sources.token_bucket import DEFAULT_REGISTRY as _RATE_LIMITER
+        from apps.sources.token_bucket import DEFAULT_REGISTRY as _rate_limiter
     else:
-        _RATE_LIMITER = None
-
+        _rate_limiter = None
     if max_attempts > 1:
         from apps.sources.backoff import full_jitter_delay as _full_jitter_delay
     else:
         _full_jitter_delay = None
 
-    async def fetch(url: str, client: httpx.AsyncClient):
-        # Pick #1 — wait for a token before issuing the HTTP request.
-        # The bucket's wait is sync (uses time.sleep) and thread-safe;
-        # offload to a worker thread so the asyncio event loop stays
-        # responsive for the other in-flight requests.
-        if _RATE_LIMITER is not None and rate_limiter_key is not None:
-            acquired = await asyncio.to_thread(
-                _RATE_LIMITER.wait_and_acquire,
-                rate_limiter_key,
-                cost=1.0,
-                timeout=rate_limiter_timeout,
-            )
-            if not acquired:
-                results.append(
-                    {
-                        "url": url,
-                        "status_code": 0,
-                        "content": "",
-                        "error": "rate_limited",
-                        "etag": "",
-                        "last_modified": "",
-                        "encoding": "",
-                    }
-                )
-                return
-
-        # Pick #3 — Nygard circuit breaker. Fast-fail when the per-host
-        # breaker is OPEN so a downed origin doesn't drain the
-        # concurrency pool with timeouts. ``is_open`` advances
-        # HALF_OPEN transitions for us, so a long-quiet OPEN flips
-        # automatically when the recovery window expires.
-        if circuit_breaker is not None and circuit_breaker.is_open():
-            results.append(
-                {
-                    "url": url,
-                    "status_code": 0,
-                    "content": "",
-                    "error": "circuit_open",
-                    "etag": "",
-                    "last_modified": "",
-                    "encoding": "",
-                }
-            )
-            return
-
-        # Pick #2 — AWS full-jitter retry loop. ``max_attempts == 1``
-        # makes the loop a single iteration with no sleep, which is
-        # the pre-pick-2 behaviour. ``last_error`` carries the row we
-        # would record if every attempt fails.
-        last_error: dict[str, Any] | None = None
-        for attempt in range(max_attempts):
-            try:
-                extra_headers = headers_by_url.get(url) or {}
-                res = await _bounded_request(
-                    sem, client, "GET", url, headers=extra_headers
-                )
-                etag_value = res.headers.get("ETag", "") or res.headers.get("etag", "")
-                lm_value = res.headers.get("Last-Modified", "") or res.headers.get(
-                    "last-modified", ""
-                )
-                # 304 responses have empty bodies — that's correct,
-                # the caller treats `status_code=304` as "unchanged".
-                if res.status_code == 304:
-                    body = ""
-                    encoding_used = ""
-                else:
-                    # Pick #11 — explicit encoding detection beats httpx's
-                    # heuristic on origins that don't declare charset.
-                    body, encoding_used = _decode_response_body(
-                        res, max_body_bytes=max_body_bytes
-                    )
-                results.append(
-                    {
-                        "url": url,
-                        "status_code": res.status_code,
-                        "content": body,
-                        "error": None,
-                        "etag": etag_value,
-                        "last_modified": lm_value,
-                        "encoding": encoding_used,
-                    }
-                )
-                # Successful response — tell the breaker (if any) that
-                # the origin is healthy. Drives HALF_OPEN → CLOSED.
-                if circuit_breaker is not None:
-                    circuit_breaker.record_success()
-                return
-            except httpx.TimeoutException:
-                last_error = {
-                    "url": url,
-                    "status_code": 0,
-                    "content": "",
-                    "error": "timeout",
-                    "etag": "",
-                    "last_modified": "",
-                    "encoding": "",
-                }
-                if circuit_breaker is not None:
-                    circuit_breaker.record_failure()
-            except httpx.RequestError as exc:
-                last_error = {
-                    "url": url,
-                    "status_code": 0,
-                    "content": "",
-                    "error": str(exc),
-                    "etag": "",
-                    "last_modified": "",
-                    "encoding": "",
-                }
-                if circuit_breaker is not None:
-                    circuit_breaker.record_failure()
-            # Sleep before next attempt (skipped on the final iteration
-            # because ``return`` after results.append below ends the
-            # coroutine — no point sleeping for nothing).
-            if _full_jitter_delay is not None and attempt < max_attempts - 1:
-                delay = _full_jitter_delay(attempt, base=backoff_base, cap=backoff_cap)
-                await asyncio.sleep(delay)
-        # Loop exhausted — record the last failure.
-        if last_error is not None:
-            results.append(last_error)
+    config = _FetchConfig(
+        sem=asyncio.Semaphore(max_concurrency),
+        max_body_bytes=max_body_bytes,
+        max_attempts=max_attempts,
+        backoff_base=backoff_base,
+        backoff_cap=backoff_cap,
+        rate_limiter=_rate_limiter,
+        rate_limiter_key=rate_limiter_key,
+        rate_limiter_timeout=rate_limiter_timeout,
+        circuit_breaker=circuit_breaker,
+        full_jitter_delay=_full_jitter_delay,
+        headers_by_url=headers_by_url or {},
+    )
 
     async with httpx.AsyncClient(
         http2=True, follow_redirects=True, timeout=timeout
     ) as client:
-        tasks = [asyncio.create_task(fetch(url, client)) for url in urls]
+        tasks = [
+            asyncio.create_task(_fetch_one(url, client, results, config))
+            for url in urls
+        ]
         await asyncio.gather(*tasks)
+    return results
 
     return results
 
@@ -328,7 +361,7 @@ async def crawl_sitemap(
         try:
             res = await client.get(sitemap_url)
             res.raise_for_status()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # Sitemap fetch can fail many ways (DNS, 4xx/5xx, connect timeout); return the failure message so the caller's UI surfaces it to the operator.
             return [], str(exc)
 
     urls = []
@@ -345,7 +378,7 @@ async def crawl_sitemap(
         for el in urls_elements[:max_urls]:
             if el.text:
                 urls.append(el.text.strip())
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # XML parse failure on operator-supplied sitemap URL — return the parse error so the operator can fix the sitemap or pick a different one.
         return [], f"Parse error: {exc}"
 
     return urls, None

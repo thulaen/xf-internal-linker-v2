@@ -51,7 +51,7 @@ def _density_penalty(host_content_id: int, max_links: int) -> float:
         count = ExistingLink.objects.filter(
             from_content_item_id=host_content_id,
         ).count()
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         return 0.0
 
     ratio = count / max_links
@@ -92,7 +92,7 @@ def _cluster_penalty(
             host_sentence__position__gte=sentence_position - paragraph_window,
             host_sentence__position__lte=sentence_position + paragraph_window,
         ).count()
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         return 0.0
 
     return _sigmoid(nearby, k=2.0, threshold=1.0)

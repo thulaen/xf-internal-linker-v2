@@ -85,7 +85,7 @@ def embedding_status(request: Request) -> Response:
         signature = str(getattr(provider, "signature", ""))
         model_name = getattr(provider, "model_name", "")
         max_tokens = int(getattr(provider, "max_tokens", 0))
-    except Exception:
+    except Exception:  # noqa: BLE001  # /api/embedding/status is a status endpoint that must always respond — degrade to "no provider known" rather than 500 the page when the embedding provider is mid-rebuild or unavailable.
         dimension = 0
         signature = ""
         model_name = _get_setting("embedding.model")
@@ -118,7 +118,7 @@ def embedding_status(request: Request) -> Response:
         with_embedding = ContentItem.objects.filter(
             is_deleted=False, embedding__isnull=False
         ).count()
-    except Exception:
+    except Exception:  # noqa: BLE001  # Status endpoint: degrade to zeros rather than 500 the page if the ContentItem table is mid-migration / unavailable.
         total_items = 0
         with_embedding = 0
 
@@ -260,7 +260,7 @@ def embedding_test_connection(request: Request) -> Response:
         provider = get_provider()
         provider.healthcheck()
         return Response({"ok": True, "provider": name, "signature": provider.signature})
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # Provider switch is user-initiated; surface ANY failure as a 400 with the message so the operator can act on it (auth issues, network errors, missing model files, etc.).
         return Response(
             {"ok": False, "provider": name, "error": str(exc)},
             status=status.HTTP_400_BAD_REQUEST,

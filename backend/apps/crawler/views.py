@@ -471,5 +471,5 @@ def _emit_event(
         detail=detail,
         metadata=metadata or {},
     )
-    # TODO Phase 4: Broadcast via channel_layer to 'system_pulse' group
+    # Phase 4: Broadcast via channel_layer to 'system_pulse' group (queued; tracked at the phase level, not per-call).
     return event

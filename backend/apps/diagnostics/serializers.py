@@ -1,3 +1,5 @@
+"""DRF serializers for the diagnostics app."""
+
 from datetime import timedelta
 
 from django.db.models import Count

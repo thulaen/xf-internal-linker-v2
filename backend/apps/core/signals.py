@@ -59,7 +59,7 @@ def _is_celery_context() -> bool:
     except ImportError:
         # Celery missing entirely — never a Celery context.
         return False
-    except Exception:  # pragma: no cover - defensive
+    except Exception:  # noqa: BLE001  # pragma: no cover — defensive: Celery internals can change between versions; if introspection fails, default to "not Celery" so user broadcasts still work.
         # If introspection fails for any reason, default to "not Celery"
         # so user broadcasts still work. Worst-case: a stray Celery write
         # leaks through; same behaviour as before this filter existed.

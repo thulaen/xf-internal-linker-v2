@@ -84,7 +84,7 @@ def _read_path() -> str:
         from apps.core.models import AppSetting
 
         row = AppSetting.objects.filter(key=KEY_EMBEDDINGS_PATH).first()
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         return ""
     return (row.value if row else "") or ""
 

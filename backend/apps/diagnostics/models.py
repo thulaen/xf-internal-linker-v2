@@ -1,3 +1,5 @@
+"""Database models for the diagnostics app."""
+
 from django.db import models
 from apps.core.models import TimestampedModel
 

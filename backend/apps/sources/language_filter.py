@@ -61,7 +61,7 @@ def is_english(text: str) -> bool:
 
         if not is_enabled("fasttext_langid.candidate_filter.enabled", default=True):
             return True
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         return True
 
     try:
@@ -108,7 +108,7 @@ def filter_english_content_records(
             return dict(records)
         if not fasttext_langid.is_available():
             return dict(records)
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         return dict(records)
 
     # One pass to gather titles; one pass to resolve.

@@ -1,3 +1,5 @@
+"""Django admin registrations for the diagnostics app."""
+
 from django.contrib import admin
 from .models import ServiceStatusSnapshot, SystemConflict
 

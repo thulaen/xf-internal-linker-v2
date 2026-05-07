@@ -67,7 +67,7 @@ def get_current_embedding_device() -> str:
         import torch
 
         return "cuda" if torch.cuda.is_available() else "cpu"
-    except Exception:
+    except Exception:  # noqa: BLE001  # torch is optional at runtime; on CPU-only installs the import itself can raise. Fall back to "cpu" — matches the actual hardware.
         return "cpu"
 
 
@@ -215,7 +215,7 @@ def _recent_runtime_audit_events() -> list[dict[str, Any]]:
         entries = AuditEvent.objects.filter(subject_type="runtime_model").order_by(
             "-created_at"
         )[:10]
-    except Exception:
+    except Exception:  # noqa: BLE001  # AuditEvent is the modern table; fall back to the legacy RuntimeAuditLog if its app isn't installed yet (mid-migration installs).
         entries = RuntimeAuditLog.objects.order_by("-created_at")[:10]
     return [
         {
@@ -241,7 +241,7 @@ def _last_runtime_audit_at() -> str | None:
             .aggregate(m=Max("created_at"))
             .get("m")
         )
-    except Exception:
+    except Exception:  # noqa: BLE001  # Same fallback path as _recent_runtime_audit_events: legacy RuntimeAuditLog when AuditEvent isn't installed.
         latest = RuntimeAuditLog.objects.aggregate(m=Max("created_at")).get("m")
     return latest.isoformat() if latest else None
 
@@ -281,7 +281,11 @@ def summarize_helpers() -> dict[str, Any]:
     aggregate_ram_pressure = 0.0
     busiest_name = ""
     busiest_load = 0.0
-    nodes = list(HelperNode.objects.all().order_by("name"))
+    # HelperNode is a per-machine registry — typically <50 rows, hard-bounded
+    # by the number of physical machines an operator has registered.
+    # Materialised as a list because the loop below traverses it twice
+    # (count states + identify the busiest); .iterator() would force a re-query.
+    nodes = list(HelperNode.objects.all().order_by("name")[:1000])
 
     for node in nodes:
         state = helper_state(node, now=now)
@@ -413,7 +417,7 @@ def capture_primary_hardware_snapshot(
             status["state"] == "healthy" or not status["critical"]
             for status in _native_module_runtime_status()
         )
-    except Exception:
+    except Exception:  # noqa: BLE001  # Diagnostics may not be importable on every install (optional app); treat the runtime as not-yet-healthy rather than crash the registry sweep.
         native_kernels_healthy = False
 
     detected_upgrade = False

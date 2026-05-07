@@ -1,3 +1,5 @@
+"""Site crawler module for the crawler app."""
+
 import asyncio
 import json
 import logging
@@ -163,7 +165,7 @@ async def _execute_crawl_session(session_id) -> None:
                     allowed.append(u)
                 else:
                     blocked += 1
-            except Exception:
+            except Exception:  # noqa: BLE001  # Robots.txt fetch hiccup (DNS, 5xx, timeout). Fail-open per crawler convention — better to crawl one URL we shouldn't have than to abandon the session because robots.txt is briefly unreachable.
                 # Robots fetch hiccup — fail open, queue the URL.
                 allowed.append(u)
         if blocked:

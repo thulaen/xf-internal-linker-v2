@@ -1,3 +1,5 @@
+"""Test suite for the core app."""
+
 import importlib
 from unittest.mock import patch
 

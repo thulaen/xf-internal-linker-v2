@@ -91,7 +91,7 @@ def load_relevance_table() -> dict[int, float]:
     """
     try:
         from apps.core.models import AppSetting
-    except Exception:  # pragma: no cover — Django not initialised
+    except Exception:  # noqa: BLE001  # pragma: no cover — Django not initialised; cold-start path returns empty so the EM step starts from neutral relevance.
         return {}
     row = AppSetting.objects.filter(key=KEY_RELEVANCE).first()
     if row is None or not row.value:
@@ -108,7 +108,7 @@ def load_snapshot() -> CascadeSnapshot | None:
     """Return the full persisted snapshot or ``None`` on cold start."""
     try:
         from apps.core.models import AppSetting
-    except Exception:  # pragma: no cover
+    except Exception:  # noqa: BLE001  # pragma: no cover — Django not initialised; cold-start path returns None so the loader treats the snapshot as "not yet fitted".
         return None
     rows = dict(
         AppSetting.objects.filter(

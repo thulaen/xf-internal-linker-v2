@@ -271,7 +271,7 @@ def get_faiss_status() -> dict:
     try:
         on_gpu = hasattr(index, "getDevice")
         device = f"GPU:{index.getDevice()}" if on_gpu else "CPU"
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         device = "unknown"
         on_gpu = False
 

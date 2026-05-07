@@ -129,6 +129,6 @@ def _discover_providers() -> list[str]:
             # OpenAI and Gemini; each provider's healthcheck will skip if the
             # key is not for that service.
             providers.extend(["openai", "gemini"])
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         pass  # AppSetting unavailable; fall back to local-only providers
     return providers

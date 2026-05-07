@@ -81,7 +81,7 @@ def _read_path() -> str:
         from apps.core.models import AppSetting
 
         row = AppSetting.objects.filter(key=KEY_MODEL_PATH).first()
-    except Exception:
+    except Exception:  # noqa: BLE001  # AppSetting unavailable (cold-start); empty path makes the loader treat the model as "not yet trained" and return _EMPTY.
         return ""
     return (row.value if row else "") or ""
 
@@ -151,7 +151,7 @@ def score_for_user(user_id: str, item_ids: list[str]) -> dict[str, float] | None
             continue
         try:
             score = float(model.user_factors[user_idx] @ model.item_factors[idx])
-        except Exception:
+        except Exception:  # noqa: BLE001  # Per-item dot product can fail on shape mismatch (model retrained but caller cached old item_index); skip the item rather than poison the whole user's score map.
             continue
         out[item] = score
     return out

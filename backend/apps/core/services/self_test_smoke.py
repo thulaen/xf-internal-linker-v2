@@ -121,7 +121,7 @@ def _has_unique_invariant(model: type[models.Model], fields: tuple[str, ...]) ->
     if len(expected) == 1:
         try:
             return bool(model._meta.get_field(expected[0]).unique)
-        except Exception:
+        except Exception:  # noqa: BLE001  # Field-meta lookup can FieldDoesNotExist on alias names; treating "no such field" as "no unique invariant" is the right semantic — the rule will fire and the operator will see the warning.
             return False
     return False
 

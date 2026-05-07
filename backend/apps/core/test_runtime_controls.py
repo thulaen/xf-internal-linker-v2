@@ -1,3 +1,5 @@
+"""Test runtime controls module for the core app."""
+
 from io import StringIO
 from unittest import mock
 

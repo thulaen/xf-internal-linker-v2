@@ -64,7 +64,7 @@ def sample_ground_truth(
     """
     try:
         from apps.suggestions.models import Suggestion
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         return [], []
 
     positives_qs = list(
@@ -95,7 +95,7 @@ def load_stored_vectors(pks: set[int]) -> dict[int, np.ndarray]:
     """Load stored embeddings for the given set of ContentItem PKs."""
     try:
         from apps.content.models import ContentItem
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         return {}
     out: dict[int, np.ndarray] = {}
     qs = ContentItem.objects.filter(pk__in=pks).values_list("pk", "embedding")
@@ -104,7 +104,7 @@ def load_stored_vectors(pks: set[int]) -> dict[int, np.ndarray]:
             continue
         try:
             out[pk] = np.asarray(emb, dtype=np.float32)
-        except Exception:
+        except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
             continue
     return out
 
@@ -113,7 +113,7 @@ def load_texts(pks: set[int]) -> dict[int, str]:
     """Load display text for each ContentItem (title + distilled)."""
     try:
         from apps.content.models import ContentItem
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         return {}
     qs = ContentItem.objects.filter(pk__in=pks).values_list(
         "pk", "title", "distilled_text"

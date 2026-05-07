@@ -75,7 +75,7 @@ def load_alpha(*, default: float = DEFAULT_TARGET_ALPHA) -> float:
     # module before AppSetting is migrated).
     try:
         from apps.core.models import AppSetting
-    except Exception:  # pragma: no cover — Django not initialised
+    except Exception:  # noqa: BLE001  # pragma: no cover — Django not initialised; cold-start path returns the default alpha so the conformal predictor falls back to its safe baseline.
         return default
     return AppSetting.get_float(KEY_CURRENT_ALPHA, default)
 

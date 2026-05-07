@@ -1,3 +1,5 @@
+"""Test suite for the diagnostics app."""
+
 from datetime import timedelta
 from unittest.mock import patch
 

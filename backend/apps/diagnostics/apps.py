@@ -1,3 +1,5 @@
+"""Django AppConfig for the diagnostics app."""
+
 from django.apps import AppConfig
 
 

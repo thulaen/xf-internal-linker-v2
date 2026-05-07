@@ -151,7 +151,7 @@ def load_background_features(
     """
     try:
         from apps.suggestions.models import Suggestion
-    except Exception:  # pragma: no cover — Django not initialised
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.  # pragma: no cover — Django not initialised
         return None
 
     qs = Suggestion.objects.all()

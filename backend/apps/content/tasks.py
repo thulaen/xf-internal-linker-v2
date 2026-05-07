@@ -1,3 +1,5 @@
+"""Celery task definitions for the content app."""
+
 from celery import shared_task
 import logging
 from apps.content.services.clustering import ClusteringService

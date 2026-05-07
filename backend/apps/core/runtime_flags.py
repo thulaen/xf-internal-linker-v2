@@ -86,16 +86,14 @@ def is_enabled(
             cached = cache.get(cache_key)
             if cached is not None:
                 return bool(cached)
-        except Exception:
-            # Cache backend unconfigured / unavailable — fall through
-            # to a direct read.
+        except Exception:  # noqa: BLE001  # Cache backend unconfigured / unavailable — fall through to a direct read; the function is hot-path, must not raise.
             pass
 
     try:
         from apps.core.models import AppSetting
 
         row = AppSetting.objects.filter(key=key).first()
-    except Exception:
+    except Exception:  # noqa: BLE001  # Cold-start safety: AppSetting model unreachable (no DB, mid-migration). Caller's `default` is the safe answer; the function is hot-path, must not raise.
         return default
 
     if row is None or not row.value:

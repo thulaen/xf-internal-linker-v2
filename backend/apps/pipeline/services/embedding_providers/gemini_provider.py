@@ -76,7 +76,7 @@ class GeminiProvider:
 
             row = AppSetting.objects.filter(key=key).first()
             return str(row.value) if row and row.value is not None else default
-        except Exception:
+        except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
             return default
 
     @property
@@ -160,7 +160,7 @@ class GeminiProvider:
                 )
         except BudgetExceededError:
             raise
-        except Exception:
+        except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
             return
 
     # --- Embed -----------------------------------------------------------

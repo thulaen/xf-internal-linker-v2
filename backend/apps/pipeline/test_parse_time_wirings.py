@@ -193,7 +193,7 @@ class CrawlerTrafilaturaWiringTests(SimpleTestCase):
             meta = self._make_meta()
             try:
                 site_crawler._parse_html(self._html(), meta, "https://x/y")
-            except Exception:
+            except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
                 # _parse_html may touch other fields the minimal meta
                 # doesn't carry; we only care about extracted_text +
                 # word_count for this test.
@@ -211,7 +211,7 @@ class CrawlerTrafilaturaWiringTests(SimpleTestCase):
             meta = self._make_meta()
             try:
                 site_crawler._parse_html(self._html(), meta, "https://x/y")
-            except Exception:
+            except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
                 pass  # test stub may not have full DI; assertions follow
 
         # BeautifulSoup path strips nav/footer/header. The "actual

@@ -266,7 +266,7 @@ def _lookup_credential(body: dict):
         )
     try:
         credential_id = _b64u_decode(raw_id)
-    except Exception:
+    except Exception:  # noqa: BLE001  # User-supplied credential ID can fail base64url-decoding for many reasons (truncation, wrong padding); answer with a clean 400 rather than 500 the WebAuthn flow.
         return None, Response(
             {"detail": "Bad credential id encoding."},
             status=status.HTTP_400_BAD_REQUEST,

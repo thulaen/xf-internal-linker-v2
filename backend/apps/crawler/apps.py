@@ -1,3 +1,5 @@
+"""Django AppConfig for the crawler app."""
+
 from django.apps import AppConfig
 
 

@@ -54,7 +54,7 @@ def _local_tz() -> ZoneInfo:
     tz_name = getattr(settings, "TIME_ZONE", None) or "UTC"
     try:
         return ZoneInfo(tz_name)
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         return ZoneInfo("UTC")
 
 

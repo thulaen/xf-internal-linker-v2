@@ -98,7 +98,7 @@ def _load_model_path_from_settings() -> tuple[str, float]:
 
         path_row = AppSetting.objects.filter(key=KEY_MODEL_PATH).first()
         thresh_row = AppSetting.objects.filter(key=KEY_MIN_CONFIDENCE).first()
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         return "", DEFAULT_MIN_CONFIDENCE
     path = (path_row.value if path_row else "") or ""
     try:

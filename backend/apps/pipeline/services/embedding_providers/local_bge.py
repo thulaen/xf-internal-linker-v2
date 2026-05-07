@@ -187,7 +187,7 @@ class LocalBGEProvider:
             if tokenizer is None:
                 raise AttributeError
             token_ids = tokenizer.encode(text, add_special_tokens=False)
-        except Exception:
+        except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
             # Fallback: char-based. 4 chars ~= 1 token (SBERT corpus rule-of-thumb).
             max_chars = self.max_tokens * 4
             if len(text) <= max_chars:
@@ -213,7 +213,7 @@ class LocalBGEProvider:
                 break
             try:
                 chunk_texts.append(tokenizer.decode(piece, skip_special_tokens=True))
-            except Exception:
+            except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
                 # Decode failure is non-fatal; skip the chunk.
                 continue
         return chunk_texts or [text]

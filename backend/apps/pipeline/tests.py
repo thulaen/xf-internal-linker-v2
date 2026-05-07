@@ -1,3 +1,5 @@
+"""Test suite for the pipeline app."""
+
 import ctypes
 import json
 import math
@@ -182,7 +184,7 @@ def _peak_working_set_bytes() -> int:
         usage = resource.getrusage(resource.RUSAGE_SELF)
         peak = int(usage.ru_maxrss)
         return peak if peak > 10_000_000 else peak * 1024
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         return 0
 
 

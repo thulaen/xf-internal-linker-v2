@@ -69,7 +69,7 @@ def load_eta(*, default: float = DEFAULT_POWER_LAW_ETA) -> float:
     """Return the persisted IPS exponent or *default* on cold start."""
     try:
         from apps.core.models import AppSetting
-    except Exception:  # pragma: no cover — Django not initialised
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.  # pragma: no cover — Django not initialised
         return default
     row = AppSetting.objects.filter(key=KEY_ETA).first()
     if row is None:
@@ -85,7 +85,7 @@ def load_snapshot() -> IpsSnapshot | None:
     """Return the full persisted IPS snapshot, or ``None`` on cold start."""
     try:
         from apps.core.models import AppSetting
-    except Exception:  # pragma: no cover
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.  # pragma: no cover
         return None
     rows = dict(
         AppSetting.objects.filter(

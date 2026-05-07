@@ -1,3 +1,5 @@
+"""Django AppConfig for the knowledge_graph app."""
+
 from django.apps import AppConfig
 
 

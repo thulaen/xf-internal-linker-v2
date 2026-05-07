@@ -170,7 +170,7 @@ def evaluate_phrase_match(
             host_nlp_metadata=host_nlp_metadata,
             destination_nlp_metadata=destination_nlp_metadata,
         )
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         fallback = _run_current_fallback(host_sentence_text, destination_title)
         if fallback.anchor_phrase:
             candidate = _build_fallback_candidate(fallback)

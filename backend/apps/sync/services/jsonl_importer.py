@@ -1,3 +1,5 @@
+"""Jsonl importer module for the sync app."""
+
 import json
 import logging
 import os

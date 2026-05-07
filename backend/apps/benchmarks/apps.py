@@ -1,3 +1,5 @@
+"""Django AppConfig for the benchmarks app."""
+
 from django.apps import AppConfig
 
 

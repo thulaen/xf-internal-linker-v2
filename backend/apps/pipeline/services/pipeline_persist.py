@@ -242,7 +242,7 @@ def _build_suggestion_records(
     calibration_snapshot = None
     try:
         calibration_snapshot = load_calibration_snapshot()
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         # Calibration is advisory; never block suggestion writes on it.
         pass
 
@@ -252,7 +252,7 @@ def _build_suggestion_records(
     conformal_snapshot = None
     try:
         conformal_snapshot = load_conformal_snapshot()
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         pass  # cold start: no snapshot yet, leave as None
 
     # Pick #28 — build CollectionStatistics ONCE from the existing
@@ -266,7 +266,7 @@ def _build_suggestion_records(
                 collection_term_counts=keyword_baseline.term_counts,
                 collection_length=int(keyword_baseline.total_terms),
             )
-        except Exception:
+        except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
             ql_stats = None
 
     records: list[Suggestion] = []
@@ -293,7 +293,7 @@ def _build_suggestion_records(
                         statistics=ql_stats,
                     )
                     ql_log_score = float(ql_result.log_score)
-            except Exception:
+            except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
                 # QL is advisory — never block suggestion writes.
                 ql_log_score = 0.0
 

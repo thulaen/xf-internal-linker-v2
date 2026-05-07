@@ -99,7 +99,7 @@ class MLEmbedView(APIView):
             vectors = _l2_normalize(raw_vectors)
 
             return Response({"embeddings": vectors.tolist()})
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # API endpoint: surface ANY model/inference failure as a 500 with the exception message so the client can recover or report it.
             return Response(
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

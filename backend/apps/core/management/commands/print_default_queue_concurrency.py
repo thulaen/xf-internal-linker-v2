@@ -1,3 +1,5 @@
+"""Print default queue concurrency module for the core app."""
+
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
@@ -30,5 +32,5 @@ class Command(BaseCommand):
                     .first()
                 )
             return int(raw_value) if raw_value is not None else default
-        except Exception:
+        except Exception:  # noqa: BLE001  # CLI helper: AppSetting may not exist (cold-start, migration mid-run). Print the safe default rather than crashing the management command.
             return default

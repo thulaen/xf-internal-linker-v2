@@ -465,7 +465,7 @@ def check_glitchtip() -> ServiceHealthResult:
             suggested_fix="Check that the GlitchTip Docker container is running and healthy: docker-compose ps glitchtip.",
             last_error_at=timezone.now(),
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # Health probe: any failure (timeout, conn refused, DNS) IS the result we report — surface as STATUS_DOWN with a plain-English fix hint.
         return ServiceHealthResult(
             service_key="dev_tools.glitchtip",
             status=ServiceHealthRecord.STATUS_DOWN,

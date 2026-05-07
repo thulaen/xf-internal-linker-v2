@@ -118,7 +118,7 @@ def is_fr099_fr105_tpe_eligible() -> bool:
             return False
         # Also require ≥ 100 rows per BLC §6.4 minimum-data floor.
         return SuggestionPresentation.objects.count() >= 100
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         # Any schema / availability issue → stay ineligible (safe).
         return False
 

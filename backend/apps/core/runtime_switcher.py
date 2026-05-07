@@ -166,7 +166,7 @@ def _wait_for_drain() -> int:
     """Block until active leases drain or MAX_DRAIN_SECONDS elapses."""
     try:
         from apps.pipeline.models import JobLease
-    except Exception:
+    except Exception:  # noqa: BLE001  # JobLease model is optional (only present when the pipeline app is installed). If absent we have nothing to drain — the runtime switch can proceed immediately.
         # JobLease module unavailable — don't block.
         return 0
 

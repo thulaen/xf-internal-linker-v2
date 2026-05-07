@@ -1,3 +1,5 @@
+"""Test suite for the graph app."""
+
 import ctypes
 import json
 import os
@@ -117,7 +119,7 @@ def _peak_working_set_bytes() -> int:
         usage = resource.getrusage(resource.RUSAGE_SELF)
         peak = int(usage.ru_maxrss)
         return peak if peak > 10_000_000 else peak * 1024
-    except Exception:
+    except Exception:  # noqa: BLE001  # `resource` is POSIX-only; on Windows the test helper degrades to 0 (memory accounting becomes a no-op rather than failing the test).
         return 0
 
 

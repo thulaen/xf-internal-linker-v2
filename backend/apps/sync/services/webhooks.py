@@ -1,3 +1,5 @@
+"""Webhooks module for the sync app."""
+
 import hashlib
 import hmac
 import json

@@ -93,7 +93,7 @@ class OpenAIProvider:
 
             row = AppSetting.objects.filter(key=key).first()
             return str(row.value) if row and row.value is not None else default
-        except Exception:
+        except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
             return default
 
     @property
@@ -160,7 +160,7 @@ class OpenAIProvider:
             import tiktoken
 
             self._tokenizer = tiktoken.get_encoding(self.tokenizer_name)
-        except Exception:
+        except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
             self._tokenizer = None
         return self._tokenizer
 
@@ -195,7 +195,7 @@ class OpenAIProvider:
                 )
         except BudgetExceededError:
             raise
-        except Exception:
+        except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
             # If the ledger table is unavailable, skip the pre-check; the call
             # proceeds. Post-call accounting still runs.
             return
@@ -348,7 +348,7 @@ class OpenAIProvider:
                 break
             try:
                 pieces.append(tokenizer.decode(sub))
-            except Exception:
+            except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
                 continue
         return pieces or [text]
 

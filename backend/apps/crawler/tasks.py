@@ -46,7 +46,7 @@ def pulse_heartbeat():
         with connection.cursor() as cur:
             cur.execute("SELECT 1")
         checks["postgres"] = {"ok": True, "ms": _elapsed_ms(t0)}
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # Heartbeat probe: any failure is itself the result we want to report — recorded into the checks dict + overall_ok=False, surfaces on the dashboard.
         checks["postgres"] = {"ok": False, "error": str(exc)[:_MAX_ERROR_LEN]}
         overall_ok = False
 
@@ -58,7 +58,7 @@ def pulse_heartbeat():
         r = get_redis_connection("default")
         r.ping()
         checks["redis"] = {"ok": True, "ms": _elapsed_ms(t0)}
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # Same heartbeat-probe pattern: failure recorded as the report payload, surfaces via SystemEvent.
         checks["redis"] = {"ok": False, "error": str(exc)[:_MAX_ERROR_LEN]}
         overall_ok = False
 
@@ -79,7 +79,7 @@ def pulse_heartbeat():
         }
         if worker_count == 0:
             overall_ok = False
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # Same heartbeat-probe pattern: Celery inspect can fail many ways (broker down, transport timeout); record and report.
         checks["celery"] = {"ok": False, "error": str(exc)[:_MAX_ERROR_LEN]}
         overall_ok = False
 
@@ -93,7 +93,7 @@ def pulse_heartbeat():
             "ok": scoring is not None,
             "ms": _elapsed_ms(t0),
         }
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # Same heartbeat-probe pattern: native-extension load can fail (missing .so, ABI mismatch); record and report — does NOT flip overall_ok because Python fallbacks exist.
         checks["cpp_extensions"] = {"ok": False, "error": str(exc)[:_MAX_ERROR_LEN]}
 
     avg_ms = _avg_latency(checks)

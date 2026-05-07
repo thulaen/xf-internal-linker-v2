@@ -1,3 +1,5 @@
+"""Clustering module for the content app."""
+
 import logging
 from django.db import transaction, connection
 from apps.content.models import ContentItem, ContentCluster

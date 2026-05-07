@@ -87,7 +87,7 @@ def evaluate_field_aware_relevance(
             inbound_anchor_rows=inbound_anchor_rows,
             settings=settings,
         )
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         return _neutral_result(
             field_aware_state="neutral_processing_error",
             settings=settings,

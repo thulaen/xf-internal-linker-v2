@@ -1,3 +1,5 @@
+"""Test suite for the analytics app."""
+
 from datetime import date, timedelta
 from unittest.mock import Mock, patch
 

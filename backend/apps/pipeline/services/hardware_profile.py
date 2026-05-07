@@ -155,7 +155,7 @@ def _detect_ram_gb() -> float:
     except ImportError:
         # psutil is a hard dep in this project, but guard anyway.
         return 8.0
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         return 8.0
 
 
@@ -175,7 +175,7 @@ def _detect_gpu() -> tuple[bool, float]:
         # Use the primary device; multi-GPU hosts pick card 0.
         free, total = torch.cuda.mem_get_info()
         return True, float(total) / 1e9
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         return False, 0.0
 
 

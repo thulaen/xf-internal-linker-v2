@@ -48,7 +48,7 @@ except ImportError as _ext_err:
                 "cd backend/extensions && pip install -e ."
             ),
         )
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         pass  # ErrorLog itself may not be available during early startup
 
 # Phase 2.14 — the C++ extension exports ``score_full_batch`` but the

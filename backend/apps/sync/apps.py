@@ -1,3 +1,5 @@
+"""Django AppConfig for the sync app."""
+
 from django.apps import AppConfig
 
 

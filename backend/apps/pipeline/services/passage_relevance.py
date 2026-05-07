@@ -380,7 +380,7 @@ def _try_score_path_opq_adc(target, query) -> tuple[float, dict[str, Any]] | Non
 
     try:
         from apps.content.models import OPQCodebook, PassageEmbedding
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         return None
 
     if not _setting_bool("passage_relevance.opq_index_enabled", True):
@@ -388,7 +388,7 @@ def _try_score_path_opq_adc(target, query) -> tuple[float, dict[str, Any]] | Non
 
     try:
         active_codebook = OPQCodebook.objects.filter(is_active=True).first()
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         return None
     if active_codebook is None:
         return None
@@ -403,7 +403,7 @@ def _try_score_path_opq_adc(target, query) -> tuple[float, dict[str, Any]] | Non
             .only("passage_index", "opq_code", "text")
             .order_by("passage_index")
         )
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         return None
     if not code_rows:
         return None

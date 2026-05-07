@@ -1,3 +1,5 @@
+"""Graph builder module for the knowledge_graph app."""
+
 import logging
 from collections import Counter
 from django.db import transaction

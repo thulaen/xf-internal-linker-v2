@@ -1,3 +1,5 @@
+"""DRF serializers for the health app."""
+
 from rest_framework import serializers
 from .models import ServiceHealthRecord
 

@@ -1,3 +1,5 @@
+"""DRF serializers for the analytics app."""
+
 from rest_framework import serializers
 from .models import GSCImpactSnapshot, GSCKeywordImpact, ImpactReport
 

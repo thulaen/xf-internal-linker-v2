@@ -1,3 +1,5 @@
+"""Test runtime model pause summary module for the core app."""
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 

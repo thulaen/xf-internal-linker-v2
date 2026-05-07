@@ -117,7 +117,7 @@ class AppSetting(TimestampedModel):
         """Return the AppSetting's text value, or ``default`` on miss."""
         try:
             row = cls.objects.filter(key=key).only("value").first()
-        except Exception:
+        except Exception:  # noqa: BLE001  # Settings reader is called from cold-start paths where the table may not yet exist (post_migrate, mid-migration). Return the default rather than crash boot.
             return default
         if row is None or row.value is None:
             return default

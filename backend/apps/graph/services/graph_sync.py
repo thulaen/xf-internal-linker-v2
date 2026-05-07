@@ -1,3 +1,5 @@
+"""Graph sync module for the graph app."""
+
 import logging
 from collections import defaultdict
 from urllib.parse import urlparse

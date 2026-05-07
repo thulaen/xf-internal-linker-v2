@@ -1,3 +1,5 @@
+"""Weight tuner module for the suggestions app."""
+
 import logging
 import numpy as np
 from datetime import timedelta

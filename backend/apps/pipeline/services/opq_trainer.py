@@ -1,3 +1,5 @@
+"""Opq trainer module for the pipeline app."""
+
 import logging
 from datetime import timedelta
 from django.utils import timezone

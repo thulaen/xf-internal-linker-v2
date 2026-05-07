@@ -1,3 +1,5 @@
+"""Database models for the knowledge_graph app."""
+
 import uuid
 from django.db import models
 from apps.content.models import ContentItem

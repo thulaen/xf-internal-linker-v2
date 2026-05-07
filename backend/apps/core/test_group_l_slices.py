@@ -1,3 +1,5 @@
+"""Test group l slices module for the core app."""
+
 from unittest import mock
 
 from django.contrib.auth import get_user_model

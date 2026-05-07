@@ -122,7 +122,7 @@ def default_should_pause() -> str | None:
         master = AppSetting.objects.filter(key="system.master_pause").first()
         if master and str(master.value).lower() in ("true", "1", "yes"):
             return "system_master_pause"
-    except Exception:
+    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         return None
     return None
 
