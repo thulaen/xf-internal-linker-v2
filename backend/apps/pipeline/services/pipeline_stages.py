@@ -49,6 +49,26 @@ BLOCK_SIZE = 256  # maxsize for embedding block processing
 _SCORING_PROGRESS_INTERVAL = 100  # maxsize for scoring loop progress reporting
 
 
+def _stage1_mmr_settings() -> tuple[bool, int, float]:
+    """Return ``(enabled, overfetch_multiplier, lambda)`` for FR-239 wire-in.
+
+    Looked up at call time (not at module import) so AppSetting overrides
+    take effect without a restart. Defaults match Carbonell & Goldstein
+    1998 SIGIR §3 (overfetch=2, lambda=0.7) — see
+    docs/specs/fr239-stage1-mmr-overfetch.md.
+    """
+    from apps.suggestions.recommended_weights import (
+        recommended_bool,
+        recommended_float as _recommended_float,
+        recommended_int as _recommended_int,
+    )
+    return (
+        recommended_bool("pipeline.stage1_mmr_enabled"),
+        max(1, _recommended_int("pipeline.stage1_overfetch_multiplier")),
+        _recommended_float("pipeline.stage1_mmr_lambda"),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Stage 1 — coarse content-level candidate retrieval
 # ---------------------------------------------------------------------------
@@ -174,7 +194,7 @@ def _stage1_semantic_candidates(
     block_size: int,
     host_scores_out: dict[ContentKey, list[tuple[ContentKey, float]]] | None = None,
 ) -> dict[ContentKey, list[int]]:
-    """FAISS-or-NumPy cosine over BGE-M3; FR-238 plumbs host_scores_out."""
+    """FAISS-or-NumPy cosine; FR-238 host_scores_out + FR-239 MMR overfetch."""
     host_keys = [
         key
         for key in content_records
@@ -182,6 +202,48 @@ def _stage1_semantic_candidates(
     ]
     if not host_keys:
         return {}
+
+    mmr_enabled, overfetch_mult, mmr_lambda = _stage1_mmr_settings()
+    effective_top_k = top_k * overfetch_mult if mmr_enabled else top_k
+    # When MMR will run, we always need host_scores to drive the rerank.
+    internal_host_scores: dict[ContentKey, list[tuple[ContentKey, float]]] = (
+        host_scores_out if host_scores_out is not None else {}
+    )
+
+    raw = _retrieve_stage1_candidates(
+        destination_keys=destination_keys,
+        dest_embeddings=dest_embeddings,
+        host_keys=host_keys,
+        content_to_sentence_ids=content_to_sentence_ids,
+        top_k=effective_top_k,
+        block_size=block_size,
+        internal_host_scores=internal_host_scores,
+    )
+    if not mmr_enabled or not raw:
+        return raw
+    return _apply_stage1_mmr(
+        raw=raw,
+        host_scores=internal_host_scores,
+        content_to_sentence_ids=content_to_sentence_ids,
+        target_top_k=top_k,
+        mmr_lambda=mmr_lambda,
+    )
+
+
+def _retrieve_stage1_candidates(
+    *,
+    destination_keys: tuple[ContentKey, ...],
+    dest_embeddings: np.ndarray,
+    host_keys: list[ContentKey],
+    content_to_sentence_ids: dict[ContentKey, list[int]],
+    top_k: int,
+    block_size: int,
+    internal_host_scores: dict[ContentKey, list[tuple[ContentKey, float]]],
+) -> dict[ContentKey, list[int]]:
+    """FAISS-first retrieval with NumPy fallback. Extracted from
+    ``_stage1_semantic_candidates`` so the FR-239 MMR wrapper stays
+    legible. ``internal_host_scores`` is always populated.
+    """
     from .faiss_index import (
         is_faiss_gpu_active,
         faiss_search,
@@ -198,7 +260,7 @@ def _stage1_semantic_candidates(
         return _run_faiss_block_search(
             dest_embeddings, destination_keys, host_pk_set,
             block_size, top_k, content_to_sentence_ids, faiss_search,
-            host_scores_out=host_scores_out,
+            host_scores_out=internal_host_scores,
         )
     if HAS_FAISS:
         logger.warning(
@@ -212,8 +274,60 @@ def _stage1_semantic_candidates(
         content_to_sentence_ids=content_to_sentence_ids,
         top_k=top_k,
         block_size=block_size,
-        host_scores_out=host_scores_out,
+        host_scores_out=internal_host_scores,
     )
+
+
+def _apply_stage1_mmr(
+    *,
+    raw: dict[ContentKey, list[int]],
+    host_scores: dict[ContentKey, list[tuple[ContentKey, float]]],
+    content_to_sentence_ids: dict[ContentKey, list[int]],
+    target_top_k: int,
+    mmr_lambda: float,
+) -> dict[ContentKey, list[int]]:
+    """FR-239 — MMR-rerank the per-destination host pool to ``target_top_k``.
+
+    Carbonell & Goldstein 1998 SIGIR §3 — diversity-aware reduction. Loads
+    host embeddings via the existing ``_fetch_host_embedding_matrix``
+    helper (one DB hit batch-keyed on the union of all FAISS-returned
+    host PKs). Falls back gracefully when an embedding is missing — that
+    candidate is treated as fully-diverse per the documented contract in
+    ``mmr_rerank_keys``.
+    """
+    from .slate_diversity import mmr_rerank_keys
+
+    all_host_keys = sorted(
+        {hk for entries in host_scores.values() for hk, _ in entries}
+    )
+    if not all_host_keys:
+        return raw
+    valid_host_keys, host_matrix = _fetch_host_embedding_matrix(all_host_keys)
+    embedding_lookup: dict[ContentKey, np.ndarray] = (
+        {key: host_matrix[i] for i, key in enumerate(valid_host_keys)}
+        if host_matrix is not None
+        else {}
+    )
+
+    out: dict[ContentKey, list[int]] = {}
+    for dest_key, host_score_entries in list(host_scores.items()):
+        if not host_score_entries:
+            continue
+        diverse_picks = mmr_rerank_keys(
+            host_score_entries,
+            embedding_lookup,
+            k=target_top_k,
+            lambda_=mmr_lambda,
+        )
+        # Caller's diagnostic view reflects the post-MMR diverse set,
+        # not the pre-MMR overfetched set.
+        host_scores[dest_key] = list(diverse_picks)
+        sentence_ids: list[int] = []
+        for host_key, _score in diverse_picks:
+            sentence_ids.extend(content_to_sentence_ids.get(host_key, []))
+        if sentence_ids:
+            out[dest_key] = sentence_ids
+    return out
 
 
 def _fetch_host_embedding_matrix(

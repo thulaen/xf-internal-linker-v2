@@ -14,6 +14,7 @@ import numpy as np
 from django.test import SimpleTestCase
 
 from apps.pipeline.services.pipeline_stages import (
+    _apply_stage1_mmr,
     _build_candidate_row_ids,
     _fetch_host_embedding_matrix,
     _run_faiss_block_search,
@@ -173,6 +174,94 @@ class FaissHitUnpackingTests(SimpleTestCase):
         # FAISS returns numpy.float32; downstream code expects Python float.
         pk, ct, score = _unpack_faiss_hit((1, "post", np.float32(0.5)))
         self.assertIsInstance(score, float)
+
+
+class ApplyStage1MmrTests(SimpleTestCase):
+    """FR-239 wire-in — _apply_stage1_mmr reduces an overfetched pool to k.
+
+    Carbonell & Goldstein 1998 SIGIR §3 — diversity-aware reduction.
+    These tests use a stubbed embedding-matrix fetch so they run as
+    SimpleTestCase (no DB).
+    """
+
+    def _unit(self, *vals: float) -> np.ndarray:
+        v = np.asarray(vals, dtype=np.float32)
+        return (v / np.linalg.norm(v)).astype(np.float32)
+
+    def test_passes_through_when_pool_size_at_or_below_target(self):
+        # Edge case: only 2 candidates, target k=5. MMR no-op.
+        host_a, host_b = (10, "post"), (11, "post")
+        host_scores = {(1, "post"): [(host_a, 0.9), (host_b, 0.8)]}
+        with patch(
+            "apps.pipeline.services.pipeline_stages._fetch_host_embedding_matrix",
+            return_value=([host_a, host_b], np.vstack([self._unit(1.0, 0.0), self._unit(0.0, 1.0)])),
+        ):
+            out = _apply_stage1_mmr(
+                raw={(1, "post"): [100, 110]},
+                host_scores=host_scores,
+                content_to_sentence_ids={host_a: [100], host_b: [110]},
+                target_top_k=5,
+                mmr_lambda=0.7,
+            )
+        self.assertEqual(set(out[(1, "post")]), {100, 110})
+
+    def test_picks_diverse_subset_when_overfetched(self):
+        # Two near-duplicate hosts (a, a-prime) + one orthogonal (b).
+        # Target k=2 + lambda=0.7 → should pick a (top score) + b
+        # (orthogonal) and drop a-prime (near-duplicate of a).
+        a, ap, b = (10, "post"), (11, "post"), (12, "post")
+        with patch(
+            "apps.pipeline.services.pipeline_stages._fetch_host_embedding_matrix",
+            return_value=(
+                [a, ap, b],
+                np.vstack([self._unit(1.0, 0.0), self._unit(1.0, 0.01), self._unit(0.0, 1.0)]),
+            ),
+        ):
+            host_scores = {(1, "post"): [(a, 0.95), (ap, 0.90), (b, 0.50)]}
+            out = _apply_stage1_mmr(
+                raw={(1, "post"): [100, 110, 120]},
+                host_scores=host_scores,
+                content_to_sentence_ids={a: [100], ap: [110], b: [120]},
+                target_top_k=2,
+                mmr_lambda=0.7,
+            )
+            self.assertEqual(out[(1, "post")], [100, 120])
+            self.assertEqual(
+                {hk for hk, _ in host_scores[(1, "post")]},
+                {a, b},
+                msg="host_scores must be truncated to the post-MMR diverse set",
+            )
+
+    def test_destination_with_empty_score_list_returns_raw_verbatim(self):
+        # Edge case: every destination has an empty host_scores entry
+        # (no FAISS hits at all). MMR has nothing to rerank → fall back
+        # to the raw dict. In production raw never has empty values
+        # (both FAISS and NumPy fallback gate on `if sentence_ids`),
+        # so the raw dict is also empty and the early-return is a no-op.
+        with patch(
+            "apps.pipeline.services.pipeline_stages._fetch_host_embedding_matrix",
+            return_value=([], None),
+        ):
+            out = _apply_stage1_mmr(
+                raw={},
+                host_scores={(1, "post"): []},
+                content_to_sentence_ids={},
+                target_top_k=5,
+                mmr_lambda=0.7,
+            )
+        self.assertEqual(out, {})
+
+    def test_no_host_keys_returns_input_unchanged(self):
+        # Edge case: no FAISS hits at all → fetch is short-circuited and
+        # the raw dict is returned verbatim (no DB hit).
+        out = _apply_stage1_mmr(
+            raw={(1, "post"): [100]},
+            host_scores={},
+            content_to_sentence_ids={(10, "post"): [100]},
+            target_top_k=5,
+            mmr_lambda=0.7,
+        )
+        self.assertEqual(out, {(1, "post"): [100]})
 
 
 class RunFaissBlockSearchScorePreservationTests(SimpleTestCase):

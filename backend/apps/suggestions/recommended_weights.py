@@ -125,6 +125,48 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "pipeline.stage1_top_k": "50",
     "pipeline.stage2_top_k": "10",
     "pipeline.min_semantic_score": "0.25",
+    # FR-239 — Stage-1 MMR rerank (overfetch + diversity reduction).
+    # Sources: Carbonell & Goldstein 1998 SIGIR §3 (DOI 10.1145/290941.291025);
+    # Drosou & Pitoura 2010 SIGMOD Record §3.1 confirms MMR remains best default.
+    # lambda=0.7 = balanced precision/diversity (Carbonell Table 2).
+    # overfetch=2 = "retrieve at least 2x to give MMR room" (Carbonell §3).
+    "pipeline.stage1_mmr_enabled": "true",
+    "pipeline.stage1_overfetch_multiplier": "2",
+    "pipeline.stage1_mmr_lambda": "0.7",
+    # FR-240 — Hybrid retrieval (BM25 + RRF dense fusion).
+    # Sources: Robertson & Zaragoza 2009 §3.4 (DOI 10.1561/1500000019) for BM25
+    # k1/b defaults. Cormack et al. 2009 SIGIR §3 (DOI 10.1145/1571941.1572114)
+    # for RRF k=60. Bruch et al. 2023 TOIS confirms RRF is the safe default.
+    "pipeline.hybrid_retrieval_enabled": "true",
+    "pipeline.bm25_k1": "1.2",
+    "pipeline.bm25_b": "0.75",
+    "pipeline.rrf_k": "60",
+    "pipeline.lexical_top_k": "50",
+    # FR-247 — Fast-path observability (C++ vs Python pathway tracking).
+    # Source: Beyer et al. 2016 *Site Reliability Engineering* Ch. 4 (SLO).
+    "pipeline.cpp_path_alert_threshold": "0.05",
+    # FR-249 — Embedding age decay signal in the ranker.
+    # Sources: Liu 2009 *Learning to Rank for IR* Foundations and Trends in IR
+    # 3(3) §1.5.4 (DOI 10.1561/1500000016) for freshness as a ranking feature;
+    # Newton's law of cooling for exponential decay with half-life.
+    "pipeline.embedding_age_half_life_days": "365",
+    "pipeline.embedding_age_weight_in_composite": "0.05",
+    # FR-245 — Calibrated similarity threshold via Platt scaling.
+    # Sources: Platt 1999 (sigmoid fit); Guo et al. 2017 ICML §5
+    # (arXiv:1706.04599) for cadence; Niculescu-Mizil & Caruana 2005 ICML §4
+    # (DOI 10.1145/1102351.1102430) for validation set size.
+    "pipeline.calibration_enabled": "true",
+    "pipeline.min_calibrated_probability": "0.5",
+    "pipeline.calibration_recalibration_cadence_days": "30",
+    "pipeline.calibration_validation_set_min_size": "1000",
+    # FR-246 — NRT delta FAISS index (60s refresh layer).
+    # Sources: Bialecki, Muir & Ingersoll 2012 SIGIR-OSIR §3 (Lucene NRT);
+    # US Patent 10,719,511 (Microsoft 2020); Yang et al. 2018 JDIQ
+    # (arXiv:1805.01764).
+    "pipeline.nrt_delta_enabled": "true",
+    "pipeline.nrt_delta_refresh_seconds": "60",
+    "pipeline.nrt_delta_max_size": "10000",
+    "pipeline.nrt_delta_flush_threshold_size": "5000",
     # ── FR-099 through FR-105: 7 complementary graph-topology ranking signals ──
     # Addresses the Reddit-post topology errors: dangling nodes, duplicate lines,
     # misaligned boundaries, gaps between polygons, overlapping polygons.

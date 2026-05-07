@@ -136,8 +136,16 @@ None in this commit. The wire-in commit will add a `/settings` card under "Pipel
 
 ## 14 · Status
 
-Algorithm shipped 2026-05-07. **Stage-1 wire-in is pending** and called out in §6.
+**Stage-1 wire-in shipped 2026-05-07** in the same day as the algorithm helper. Default-on.
+
+Wire-in details (commit superseding §6's deferral):
+- `_stage1_semantic_candidates` now reads `_stage1_mmr_settings()` at call time and overfetches by `pipeline.stage1_overfetch_multiplier` (default 2) when `pipeline.stage1_mmr_enabled` is true (default true).
+- New `_retrieve_stage1_candidates` (extracted helper) does the FAISS-first / NumPy-fallback retrieval with the larger top_k.
+- New `_apply_stage1_mmr` calls `mmr_rerank_keys` per-destination using host embeddings fetched via the existing `_fetch_host_embedding_matrix` helper. Missing-embedding hosts fall through with the documented "fully diverse" semantics.
+- The post-MMR diverse host set replaces the diagnostic `host_scores` entries in-place so operators see the post-MMR pool, not the pre-MMR overfetched pool.
+- Settings keys seeded by migration `suggestions/0061_seed_fr237_through_fr250_defaults.py`.
 
 Verification:
-- `python .githooks/check-forbidden-patterns.py --strict backend/apps/pipeline/services/slate_diversity.py backend/apps/pipeline/tests_slate_diversity_helpers.py` → 0 NEW warnings (3 pre-existing FR-015 warnings on `apply_slate_diversity` and `_mmr_select_for_host` are unrelated to FR-239).
-- `docker compose exec backend python manage.py test apps.pipeline.tests_slate_diversity_helpers` → 14 tests pass, OK.
+- `python .githooks/check-forbidden-patterns.py --strict` on all touched files → 0 NEW warnings.
+- `docker compose exec backend python manage.py test apps.pipeline.tests_pipeline_stages_helpers apps.pipeline.tests_slate_diversity_helpers apps.pipeline.tests_embeddings_helpers apps.pipeline.test_candidate_retrievers` → 88 tests pass (14 from algorithm-helper tests + 4 new ApplyStage1MmrTests + the 70 prior pass). OK.
+- New `ApplyStage1MmrTests` (4): pass-through when pool ≤ k, picks diverse subset over near-duplicates, empty score list returns raw verbatim, no host keys returns input unchanged.
