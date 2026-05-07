@@ -106,13 +106,17 @@ class SearchMetricScorecardTests(SimpleTestCase):
         row = {"source": "gsc", "latest": date(2026, 5, 6), "sample": 30}
         result = _search_metric_scorecard("gsc", row)
         self.assertEqual(result["sample_size"], 30)
-        # NOTE: production formula is `sample / target` (raw ratio, not ×100).
-        # 30 / 30 → 1.0. The displayed "1.0% completeness" for a fully-loaded
-        # connector is a pre-existing units mismatch (see content-item path
-        # which correctly does (embedded/total) * 100). Captured here as a
-        # characterisation test; fix is out of scope for this refactor.
-        self.assertEqual(result["completeness_pct"], 1.0)
+        # 30 / 30 (target) * 100 → 100.0%. A fully-loaded connector reports
+        # 100 % completeness (matches the content-item path).
+        self.assertEqual(result["completeness_pct"], 100.0)
         self.assertEqual(result["freshness_hours"], 36.0)
+
+    @patch("apps.audit.data_quality._hours_since", return_value=12.0)
+    def test_half_full_yields_50_percent(self, _mock_hours):
+        # 15 / 30 (target) * 100 → 50.0 %.
+        row = {"source": "ga4", "latest": date(2026, 5, 6), "sample": 15}
+        result = _search_metric_scorecard("ga4", row)
+        self.assertEqual(result["completeness_pct"], 50.0)
 
     def test_no_latest_returns_none_freshness(self):
         result = _search_metric_scorecard("ga4", {"sample": 5})
@@ -126,11 +130,8 @@ class SearchMetricScorecardTests(SimpleTestCase):
 
     @patch("apps.audit.data_quality._hours_since", return_value=200.0)
     def test_completeness_clamps_at_100(self, _mock_hours):
-        # `_clamp_pct` caps at 100 only once the raw value reaches 100.
-        # With the current `sample / target` formula and target=30 this
-        # requires sample ≥ 3000 (3000/30 = 100). See `test_full_summary_row`
-        # for the units-mismatch context.
-        result = _search_metric_scorecard("gsc", {"latest": date(2026, 5, 1), "sample": 3000})
+        # 50 samples vs target=30 → 166.7 % raw; `_clamp_pct` caps at 100.
+        result = _search_metric_scorecard("gsc", {"latest": date(2026, 5, 1), "sample": 50})
         self.assertEqual(result["completeness_pct"], 100.0)
 
     @patch("apps.audit.data_quality._hours_since", return_value=0.0)

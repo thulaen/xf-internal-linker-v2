@@ -14,6 +14,7 @@ from statistics import mean, stdev
 from typing import TypedDict
 
 from django.db.models import Count, Max
+from django.db.models.functions import TruncDate
 from django.utils import timezone
 
 _SEARCH_METRIC_SOURCES = ("gsc", "ga4", "matomo")
@@ -106,11 +107,11 @@ def volume_trend(
     # ContentItem imports — approximate via created_at by day.
     content_rows = (
         ContentItem.objects.filter(created_at__date__gte=cutoff)
-        .extra(select={"day": "DATE(created_at)"})
+        .annotate(day=TruncDate("created_at"))
         .values("day")
         .annotate(n=Count("id"))
     )
-    content_map = {str(r["day"]): r["n"] for r in content_rows}
+    content_map = {r["day"].isoformat(): r["n"] for r in content_rows if r["day"]}
     out["content"] = _densify(cutoff, days, content_map)
     return out
 
@@ -264,7 +265,9 @@ def _search_metric_scorecard(source: str, summary_row: dict) -> SourceScorecard:
     return {
         "source": source,
         "completeness_pct": (
-            _clamp_pct(sample / _SOURCE_COMPLETENESS_TARGET) if sample else 0.0
+            _clamp_pct(sample / _SOURCE_COMPLETENESS_TARGET * _PERCENT_SCALE)
+            if sample
+            else 0.0
         ),
         "freshness_hours": round(freshness, 1) if freshness is not None else None,
         "accuracy_pct": _FULL_ACCURACY_PCT,
