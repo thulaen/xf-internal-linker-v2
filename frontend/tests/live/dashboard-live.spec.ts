@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 test('live dashboard loads with the real backend', async ({ page }, testInfo) => {
-  test.skip(process.env.PLAYWRIGHT_LIVE !== '1', 'Live backend mode only');
+  test.skip(process.env['PLAYWRIGHT_LIVE'] !== '1', 'Live backend mode only');
 
   await page.goto('/dashboard');
 

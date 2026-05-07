@@ -116,12 +116,17 @@ class WordPressSettingsApiTests(APITestCase):
 
     @patch("apps.pipeline.tasks.dispatch_import_content")
     def test_manual_wordpress_sync_starts_sync_job(self, dispatch_import_mock):
-        AppSetting.objects.create(
+        # Migration 0019_seed_goldmidi_domains seeds wordpress.base_url, so
+        # use update_or_create rather than create() to avoid the unique-key
+        # conflict in test runs.
+        AppSetting.objects.update_or_create(
             key="wordpress.base_url",
-            value="https://blog.example.com",
-            value_type="str",
-            category="sync",
-            description="WordPress base URL",
+            defaults={
+                "value": "https://blog.example.com",
+                "value_type": "str",
+                "category": "sync",
+                "description": "WordPress base URL",
+            },
         )
 
         response = self.client.post("/api/sync/wordpress/run/", {}, format="json")
@@ -143,6 +148,10 @@ class WordPressSettingsDefaultsTests(APITestCase):
             username="defaults-user", password="pass"
         )
         self.client.force_authenticate(user=user)
+        # Migration 0019_seed_goldmidi_domains seeds wordpress.base_url. The
+        # API returns AppSetting values in preference to Django settings, so
+        # to truly test "no configuration" we must clear any stored rows.
+        AppSetting.objects.filter(key__startswith="wordpress.").delete()
 
     def test_defaults_expose_blank_public_configuration(self):
         response = self.client.get("/api/settings/wordpress/")

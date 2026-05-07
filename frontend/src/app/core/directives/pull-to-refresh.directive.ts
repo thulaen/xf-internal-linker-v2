@@ -1,8 +1,10 @@
 import {
+  DestroyRef,
   Directive,
   ElementRef,
   EventEmitter,
   Input,
+  NgZone,
   OnInit,
   Output,
   Renderer2,
@@ -35,8 +37,8 @@ export class PullToRefreshDirective implements OnInit {
   private currentY = 0;
   private arming = false;
   private indicator: HTMLElement | null = null;
-  private destroyRef = inject(import('@angular/core').DestroyRef);
-  private ngZone = inject(import('@angular/core').NgZone);
+  private destroyRef = inject(DestroyRef);
+  private ngZone = inject(NgZone);
 
   ngOnInit(): void {
     const el = this.host.nativeElement;

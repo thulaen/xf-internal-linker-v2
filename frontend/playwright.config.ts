@@ -1,13 +1,13 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4200';
-const useExistingApp = process.env.PLAYWRIGHT_NO_WEBSERVER === '1';
+const baseURL = process.env['PLAYWRIGHT_BASE_URL'] ?? 'http://127.0.0.1:4200';
+const useExistingApp = process.env['PLAYWRIGHT_NO_WEBSERVER'] === '1';
 // When PLAYWRIGHT_CI=1 the runner skips:
 //   - `tests/live/**` (need a real backend stack with seeded data — CI has no backend)
 //   - `tests/capture/**` (manual screenshot tool, not a behavioural test)
 // Local runs still include everything. New live specs and capture specs
 // are auto-excluded from CI; new top-level smoke specs are auto-included.
-const isCIRun = process.env.PLAYWRIGHT_CI === '1';
+const isCIRun = process.env['PLAYWRIGHT_CI'] === '1';
 
 export default defineConfig({
   testDir: './tests',

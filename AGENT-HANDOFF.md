@@ -1,3 +1,49 @@
+# 2026-05-07 - Claude Opus 4.7 (1M context) - Cleanup pass: 4 pre-existing issues from prior session
+
+What I did: User asked me to "fix stuff that has issues or errors" — the four pre-existing failures I had flagged at the end of the safe-rebuild + passkey session. Ran each one to ground and shipped a single follow-up commit.
+
+What was accomplished:
+
+**1. Two WordPress backend test failures cleared (now 57/57 tests pass for apps.core).**
+- `WordPressSettingsApiTests.test_manual_wordpress_sync_starts_sync_job` was hitting `IntegrityError: duplicate key value violates unique constraint "core_appsetting_key_key"` because migration `0019_seed_goldmidi_domains` already seeds `wordpress.base_url` in the test DB. Switched to `update_or_create`.
+- `WordPressSettingsDefaultsTests.test_defaults_expose_blank_public_configuration` was failing because the API reads AppSetting in preference to Django settings, and migration 0019 had seeded `https://misc.goldmidi.com`. Added `AppSetting.objects.filter(key__startswith="wordpress.").delete()` to setUp so the test really tests the no-config defaults.
+- Bonus: `backend/apps/core/checks_users.py` had `core.W001` firing during every test run (test DB starts empty + host has snapshot files). Added `_is_test_run()` guard so the check stays silent during `manage.py test` and against `test_*` databases.
+
+**2. TS4111 strict env-var indexing cleared in 7 files.**
+TypeScript strict mode requires bracket-notation for index-signature properties: `process.env['PLAYWRIGHT_CI']` not `process.env.PLAYWRIGHT_CI`. Fixed in `playwright.config.ts`, `tests/a11y.spec.ts`, `tests/capture/page-snapshot.spec.ts`, and the 5 `tests/live/*-live.spec.ts` files.
+
+**3. Dynamic-import bug in `frontend/src/app/core/directives/pull-to-refresh.directive.ts`.**
+`inject(import('@angular/core').DestroyRef)` and `inject(import('@angular/core').NgZone)` — the dynamic `import()` returns a Promise, not a module reference, so `inject()` was being handed the wrong type. Replaced with normal named imports of `DestroyRef` and `NgZone` at the top.
+
+**4. NG8107 `wordpress.health?.` warning in `settings.component.html`.**
+Root cause: `WordPressSettings.health` and `XenForoSettings.health` were typed as non-null `ConnectionHealth`, but the runtime contract documented at `settings.component.ts:2585` says PUT responses strip `health`. The compiler was correctly flagging the `?.` as unnecessary against a type that lied. Made `health?: ConnectionHealth` optional in both interfaces (matches reality), kept all the existing `?.` and `*ngIf` runtime guards intact. NG8107 stops firing because the `?.` is now genuinely necessary against the optional type.
+
+Files changed:
+- `backend/apps/core/tests.py` — `update_or_create` + setUp purge of seeded WP rows
+- `backend/apps/core/checks_users.py` — `_is_test_run()` guard
+- `frontend/playwright.config.ts` — bracket-notation env access
+- `frontend/tests/a11y.spec.ts`, `frontend/tests/capture/page-snapshot.spec.ts`, `frontend/tests/live/{dashboard,jobs,link-health,review,settings}-live.spec.ts` — same
+- `frontend/src/app/core/directives/pull-to-refresh.directive.ts` — static imports for `DestroyRef`, `NgZone`
+- `frontend/src/app/settings/silo-settings.service.ts` — `health?: ConnectionHealth` on both interfaces with explanatory comments
+- (No template changes net-net — I touched `settings.component.html` round-trip while exploring but ended back at the original `?.` form, since the type fix was the right answer.)
+
+Verification:
+- `docker compose exec backend python manage.py test apps.core.tests apps.core.tests_passkey` — 57/57 OK.
+- `npx tsc --noEmit -p tsconfig.json` — exit 0 (no type errors).
+- `npx ng build --configuration=development` — succeeded; `grep settings.component.html | wordpress.health | xenforo.health | playwright.config | pull-to-refresh` against the build output returns empty (zero remaining warnings in any file we touched).
+- `manage.py check` — clean.
+
+What has issues or errors:
+- Other pre-existing template warnings remain (NG8113 unused `DecimalPipe` in admin-models, NG8011 mat-suffix slot in some `@if`, NG8112 `@let` not read in graph, NG8102 `?? 0` on numeric fields in review components) — all unrelated to the 4 issues the user asked about. Out of scope for this pass; safe to defer.
+
+Tech-debt delta: -4 items addressed.
+- 2 backend WordPress tests fixed (the test suite is now genuinely green).
+- 8 TS4111 strict-mode env-var issues across Playwright config + 6 test files.
+- 1 dynamic-import-as-Promise bug in a touch directive.
+- 1 type-vs-runtime mismatch on the silo-settings interfaces (health is now correctly optional).
+
+---
+
 # 2026-05-07 - Claude Opus 4.7 (1M context) - Safe Docker rebuild + admin recovery + passkey enrollment
 
 What I did: User reported "after rebuilding docker i can't login with my credentials, i keep spinning in circles". Diagnosed: pgdata volume was intact but `auth_user` table had zero rows, and the codebase had no automatic admin-creation step anywhere in the build. User also asked that the same `admin` / `xyxy1022_XF_django` credentials work for both Django admin AND the main app, and that passkey login be set up properly. Three-phase fix shipped in one session.

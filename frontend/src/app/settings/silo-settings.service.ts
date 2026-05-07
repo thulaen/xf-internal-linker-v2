@@ -52,7 +52,10 @@ export interface ConnectionHealth {
 export interface XenForoSettings {
   base_url: string;
   api_key_configured: boolean;
-  health: ConnectionHealth;
+  // Optional because PUT /api/settings/xenforo/ does not echo the
+  // health subobject; only GET /api/settings/xenforo/ includes it.
+  // Templates use `?.` and `*ngIf` to guard the gap.
+  health?: ConnectionHealth;
 }
 
 export interface XenForoSettingsUpdate {
@@ -67,7 +70,10 @@ export interface WordPressSettings {
   sync_enabled: boolean;
   sync_hour: number;
   sync_minute: number;
-  health: ConnectionHealth;
+  // Optional because PUT /api/settings/wordpress/ does not echo the
+  // health subobject; only GET /api/settings/wordpress/ includes it.
+  // Templates use `?.` and `*ngIf` to guard the gap.
+  health?: ConnectionHealth;
 }
 
 export interface WordPressSettingsUpdate {

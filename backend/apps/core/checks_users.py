@@ -49,9 +49,37 @@ def _has_snapshots() -> bool:
     return False
 
 
+def _is_test_run() -> bool:
+    """Return True when Django is running its test runner.
+
+    Tests start with an empty user table by design; firing W001 every
+    test run would just be noise.
+    """
+    import sys
+
+    if any(arg == "test" for arg in sys.argv[1:3]):
+        return True
+    try:
+        from django.db import connections
+
+        db_name = connections["default"].settings_dict.get("NAME") or ""
+        if isinstance(db_name, str) and db_name.startswith("test_"):
+            return True
+    except Exception:  # noqa: forbidden-pattern silent-except  # justification: pre-app-ready safety; a missing DB connection just means we treat this as "not a test run" and let the main path decide.
+        pass
+    return False
+
+
 @register(Tags.database)
 def warn_if_users_lost(app_configs, **kwargs):
     """Fire core.W001 when auth_user is empty but backups/ has snapshots."""
+    # Skip during test runs: every test DB starts empty, the host's
+    # backups/ directory is full of snapshots, so this would fire on
+    # every test run. The condition we care about (real DB, real
+    # snapshots, zero users) only applies to live boots.
+    if _is_test_run():
+        return []
+
     # Skip during fresh checkouts where the system has never been used.
     if not _has_snapshots():
         return []

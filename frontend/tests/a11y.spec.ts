@@ -56,7 +56,7 @@ const acceptedRules: { id: string; reason: string }[] = [
 // and remove this skip. Reverting: change `route.auth ? test.skip : test` back to
 // just `test` and address the violations the runner reports.
 const a11yTest = (route: typeof ROUTES[number]) =>
-  route.auth && process.env.PLAYWRIGHT_CI === '1' ? test.skip : test;
+  route.auth && process.env['PLAYWRIGHT_CI'] === '1' ? test.skip : test;
 
 for (const route of ROUTES) {
   a11yTest(route)(`a11y: ${route.label}`, async ({ page }) => {
