@@ -1,3 +1,62 @@
+# 2026-05-07 - Claude Opus 4.7 (1M context) - Refactored apps/audit/error_ingest.py: ingest_error 86→37 lines + 5 new helpers + _ErrorPayload NamedTuple + 32 helper tests + deleted wrapper-magic indirection
+
+What I did: User asked me to reduce `ingest_error` (the lone remaining long-function warning) to under 50 lines by extracting the three phases the function naturally splits into — (a) fingerprint computation + node identity, (b) the dedup-or-create branch under `transaction.atomic`, (c) emit + return. Public signature MUST stay identical because 15 caller files import it. I planned the split as 3 helpers in plan mode; the linter then forced 2 more sub-helpers when it caught a hidden 7-arg / 50-line ceiling I had under-counted, so the final shape is 5 new helpers (still anchored on the user's 3-phase model). Also deleted an awkward bottom-of-file wrapper indirection (`_ingest_error_raw` rebind trick) that was blocking `inspect.signature(ingest_error)` and `ingest_error.__doc__`. Single commit on master.
+
+What was accomplished:
+
+**`ingest_error` refactored (86 → 37 lines, public kw-only signature unchanged):**
+- Extracted `_gather_context(job_type, step, error_message) -> tuple[fp, node_id, node_role, ctx]` (15 lines) — bundles fingerprint computation + NODE_ID/NODE_ROLE env reads + `runtime_snapshot()`. Replaces 4 lines of inline boilerplate.
+- Extracted `_dedup_or_create(*, fp, node_id, node_role, ctx, payload) -> Optional[ErrorLog]` (32 lines) — owns the entire `with transaction.atomic()` SELECT-FOR-UPDATE branch and the `IntegrityError` race fall-back to `_recover_race`. Faithful extraction of lines 87–144 of the original.
+- Extracted `_recover_race(fp, node_id) -> Optional[ErrorLog]` (17 lines) — named exit point for the race case. Eliminates the duplicate `_compute_fingerprint`+env-read that the old IntegrityError branch was doing.
+- Forced by the linter (after the first attempt tripped both the 7-arg ceiling and the 50-line ceiling on `_dedup_or_create`):
+  - Extracted `_bump_existing(existing, raw_exception, severity, ctx) -> ErrorLog` (25 lines) — mutate-in-place: bump count, regression-reopen, refresh raw/sev/ctx fields. Now reused by both `_dedup_or_create` (happy path) and would-be future callers needing the same in-place update.
+  - Extracted `_create_new(fp, node_id, node_role, ctx, payload) -> ErrorLog` (23 lines) — `ErrorLog.objects.create` with size-bounded fields and `suggest()` lookup.
+  - Added `_ErrorPayload(NamedTuple)` — bundles the 6 user-supplied kw-only args of `ingest_error` so internal helpers can pass them as a single value. Without this the 7-arg cap was unreachable for `_dedup_or_create` (would have needed 10 args).
+
+**Wrapper-magic indirection deleted (lines 175–182 of the old file):**
+- The previous file rebound `ingest_error` at module bottom: `_ingest_error_raw = ingest_error` followed by `def ingest_error(*args, **kwargs): row = _ingest_error_raw(*args, **kwargs); _emit_ops_feed(row); return row`. This blocked `inspect.signature(ingest_error)` and `help(ingest_error)` for IDE/test consumers because the closure had no `functools.wraps` and a generic `*args, **kwargs` signature.
+- Replaced with a direct `_emit_ops_feed(row); return row` at the end of the orchestrator function body. Functionally identical (both paths always call `_emit_ops_feed`, which has its own `if row is None: return` no-op guard); strictly better for introspection. Verified by Grep that `_ingest_error_raw` was never referenced anywhere outside `error_ingest.py` itself.
+
+**New file: `backend/apps/audit/tests_error_ingest_helpers.py` (32 tests across 7 classes):**
+- `ComputeFingerprintTests` (8) — SimpleTestCase. Bonus coverage for the previously-only-integration-tested `_compute_fingerprint`: 2+digit normalisation, single-digit preserved, UNIX path normalisation, hex-blob normalisation, 0x pointer normalisation, canonical dedup example, different-job-type differs, empty-message safety.
+- `GatherContextTests` (3) — SimpleTestCase with `@patch.dict(os.environ, ..., clear=True)` to exercise the env fall-back path: env-var overrides honoured, fall-back to `socket.gethostname()` + `NODE_ROLE_PRIMARY`, returns 4-tuple with fingerprint first.
+- `EmitOpsFeedTests` (5) — SimpleTestCase with `@patch("apps.ops_feed.services.emit", ...)`: no-op on `None` row, critical-severity → "error", high-severity → "error", medium-severity → "warning", swallows downstream `Exception` from `ops_emit`. **First-ever direct coverage of `_emit_ops_feed`** — previously untested.
+- `BumpExistingTests` (3) — TestCase: bumps count and returns same row, resets `acknowledged` for regression-reopen, overwrites severity+ctx but keeps old `raw_exception` when blank input (preserves debug data).
+- `CreateNewTests` (3) — TestCase: inserts row with all fields populated, truncates oversized field inputs (job_type ≤50, step ≤100, error_message ≤4000), persists CUDA→VRAM fix suggestion from `suggest()`.
+- `DedupOrCreateTests` (3) — TestCase: creates new row when no existing, bumps existing row with same (fp, node_id), `IntegrityError` from SELECT-FOR-UPDATE falls back to `_recover_race` and returns the bumped row.
+- `RecoverRaceTests` (4) — TestCase: returns existing row after race + bumps count, resets acknowledged when recovering, returns None when no row matches, logs and returns None on DB failure (uses `unittest.mock.patch` to force the inner filter to raise).
+- `IngestErrorOrchestratorTests` (3) — TestCase: emits ops-feed on successful create, swallows unexpected `RuntimeError` from `_gather_context` and emits with None, emits even when `_dedup_or_create` returns None.
+
+**Verification:**
+- `python .githooks/check-forbidden-patterns.py --strict backend/apps/audit/error_ingest.py backend/apps/audit/tests_error_ingest_helpers.py` → **0 warnings, 0 violations** (was 1 long-function warning).
+- AST audit on `error_ingest.py`: 0 functions over 50 lines. Sizes — `_compute_fingerprint` 9, `_gather_context` 15, `_bump_existing` 25, `_create_new` 23, `_dedup_or_create` 32, `_recover_race` 17, `ingest_error` 37, `_emit_ops_feed` 23.
+- `docker compose exec backend python manage.py test apps.audit.tests_error_ingest_helpers` → **32 tests pass, OK**.
+- `docker compose exec backend python manage.py test apps.audit` → **124 tests pass, OK** (was 92; +32 from the new helper test file).
+- Caller-suite regression — verified all 15 caller files via four heavy suites:
+  - `apps.diagnostics`: 119 tests pass, OK.
+  - `apps.benchmarks`: 5 tests pass, OK.
+  - `apps.core`: 377 tests pass, OK.
+  - `apps.pipeline`: 902/903 pass + 4 skipped + 1 pre-existing failure (`test_anchor_garbage_signals.test_recommended_default_yields_active_dispatcher` — about migration-0047 dispatcher seeding, unrelated to error_ingest; reproduced on master HEAD `01a545c` with my changes stashed).
+
+What has issues or errors:
+
+The `apps.pipeline.test_anchor_garbage_signals.BuildDispatcherTests.test_recommended_default_yields_active_dispatcher` failure is pre-existing on master (commit `01a545c`) — verified by `git stash` + re-run. The test asserts that `ags.build_anchor_garbage_signals()` returns a non-None dispatcher because migration 0047 seeded the `KEY_DISPATCHER_ENABLED` AppSetting with weight 0.05; the actual returned value is `None`, suggesting either the migration didn't run on the test database or a flag-invalidation race. Out of scope for this refactor; flagging for the next session.
+
+Out of scope (noted, not fixed):
+- The `_emit_ops_feed` severity mapping treats only `("critical", "high")` as `"error"` and collapses everything else (including `"low"`) to `"warning"` in the ambient feed. Pre-existing behaviour, not a regression — but worth flagging for a `severity` mapping audit.
+- The lazy import of `apps.ops_feed.services.emit` inside `_emit_ops_feed` swallows `ImportError` along with runtime errors via the broad `except Exception`. Could narrow the except, but separate session.
+
+Tech-debt delta: -7 debt items.
+  Long function fixed: `ingest_error` 86 → 37 lines (also `_dedup_or_create` is now 32, well under the 50 cap)
+  New pure helpers: 5 (`_gather_context`, `_bump_existing`, `_create_new`, `_dedup_or_create`, `_recover_race`)
+  Wrapper-magic indirection deleted: `_ingest_error_raw` rebind trick at the bottom of the file is gone; `inspect.signature(ingest_error)` and `ingest_error.__doc__` now work for callers/IDEs
+  New typed value: `_ErrorPayload(NamedTuple)` bundles the 6 user-supplied kw-only args (was needed to pull `_dedup_or_create` under the linter's 7-arg cap)
+  Duplicated computation eliminated: the old IntegrityError branch was re-running `_compute_fingerprint` + `os.environ.get("NODE_ID", ...)` to compute keys it had already computed in the happy path; the new flow passes them through
+  Test coverage added: `tests_error_ingest_helpers.py` (32 SimpleTestCase + TestCase tests across 7 classes — including first-ever direct coverage of `_emit_ops_feed`)
+  Pre-existing apps.pipeline test failure surfaced and flagged (not fixed): `test_recommended_default_yields_active_dispatcher` migration-0047 seeding gap
+
+---
+
 # 2026-05-07 - Claude Opus 4.7 (1M context) - Follow-up: fixed both bugs flagged out-of-scope in the prior entry (completeness % units mismatch + deprecated `.extra(select=…)`)
 
 What I did: User read the previous handoff entry, saw the two flagged out-of-scope bugs ("units mismatch in `_search_metric_scorecard` completeness" + "`.extra(select=...)` deprecation in `volume_trend`"), and asked me to fix both. Single commit: `cf05b93`.

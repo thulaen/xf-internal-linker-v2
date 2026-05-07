@@ -31,7 +31,7 @@ import logging
 import os
 import re
 import socket
-from typing import Optional
+from typing import NamedTuple, Optional
 
 from django.db import IntegrityError, transaction
 
@@ -48,6 +48,23 @@ logger = logging.getLogger(__name__)
 _NORMALIZE = re.compile(r"(\d{2,}|[0-9a-f]{8,}|/[/\w.\-]+|0x[0-9a-f]+)", re.IGNORECASE)
 
 
+class _ErrorPayload(NamedTuple):
+    """The user-supplied half of an ErrorLog row.
+
+    Bundles the six kw-only args of :func:`ingest_error` so the internal
+    helpers can pass them around as a single value instead of a 6-arg
+    tail (the linter caps function arg count at 7; combined with the
+    fingerprint+node tuple, an unbundled signature would tip over).
+    """
+
+    job_type: str
+    step: str
+    error_message: str
+    raw_exception: str
+    why: str
+    severity: str
+
+
 def _compute_fingerprint(job_type: str, step: str, msg: str) -> str:
     # SHA1 is fine here — we use it as a cheap dedup fingerprint, not a
     # cryptographic hash. `usedforsecurity=False` signals that to both
@@ -57,6 +74,128 @@ def _compute_fingerprint(job_type: str, step: str, msg: str) -> str:
         f"{job_type}|{step}|{normalized}".encode(),
         usedforsecurity=False,
     ).hexdigest()
+
+
+def _gather_context(
+    job_type: str, step: str, error_message: str
+) -> tuple[str, str, str, dict]:
+    """Compute the dedup key and runtime context for a new error row.
+
+    Returns ``(fingerprint, node_id, node_role, runtime_snapshot)``. Node
+    identity comes from the ``NODE_ID`` / ``NODE_ROLE`` env vars stamped
+    by the slave-worker bootstrap; both fall back to safe primary
+    defaults so the function is usable from any environment.
+    """
+    fp = _compute_fingerprint(job_type, step, error_message)
+    node_id = os.environ.get("NODE_ID", socket.gethostname())
+    node_role = os.environ.get("NODE_ROLE", ErrorLog.NODE_ROLE_PRIMARY)
+    ctx = runtime_snapshot()
+    return fp, node_id, node_role, ctx
+
+
+def _bump_existing(
+    existing: ErrorLog, raw_exception: str, severity: str, ctx: dict
+) -> ErrorLog:
+    """Mutate-in-place: bump count, regression-reopen, refresh raw/sev/ctx.
+
+    Always flips ``acknowledged`` back to False so an operator who had
+    dismissed the row sees the regression spike instead of a silent
+    repeat.
+    """
+    existing.occurrence_count += 1
+    existing.acknowledged = False
+    if raw_exception:
+        existing.raw_exception = raw_exception
+    existing.severity = severity
+    existing.runtime_context = ctx
+    existing.save(
+        update_fields=[
+            "occurrence_count",
+            "acknowledged",
+            "raw_exception",
+            "severity",
+            "runtime_context",
+        ]
+    )
+    return existing
+
+
+def _create_new(
+    fp: str,
+    node_id: str,
+    node_role: str,
+    ctx: dict,
+    payload: _ErrorPayload,
+) -> ErrorLog:
+    """Insert a new ErrorLog row with size-bounded fields and how_to_fix lookup."""
+    return ErrorLog.objects.create(
+        source=ErrorLog.SOURCE_INTERNAL,
+        job_type=payload.job_type[:50],
+        step=payload.step[:100],
+        error_message=(payload.error_message or "")[:4000],
+        raw_exception=payload.raw_exception or "",
+        why=payload.why or "",
+        how_to_fix=suggest(payload.error_message, fp, payload.step),
+        fingerprint=fp,
+        severity=payload.severity,
+        node_id=node_id,
+        node_role=node_role,
+        node_hostname=socket.gethostname()[:255],
+        runtime_context=ctx,
+    )
+
+
+def _dedup_or_create(
+    *,
+    fp: str,
+    node_id: str,
+    node_role: str,
+    ctx: dict,
+    payload: _ErrorPayload,
+) -> Optional[ErrorLog]:
+    """Inside ``transaction.atomic``: bump the matching row by
+    ``(fingerprint, node_id)`` if one exists, otherwise insert a new one.
+
+    On ``IntegrityError`` (a parallel worker raced us to the insert),
+    fall back to :func:`_recover_race`.
+    """
+    try:
+        with transaction.atomic():
+            existing = (
+                ErrorLog.objects.select_for_update()
+                .filter(
+                    fingerprint=fp,
+                    node_id=node_id,
+                    source=ErrorLog.SOURCE_INTERNAL,
+                )
+                .first()
+            )
+            if existing is not None:
+                return _bump_existing(
+                    existing, payload.raw_exception, payload.severity, ctx
+                )
+            return _create_new(fp, node_id, node_role, ctx, payload)
+    except IntegrityError:
+        return _recover_race(fp, node_id)
+
+
+def _recover_race(fp: str, node_id: str) -> Optional[ErrorLog]:
+    """A parallel worker beat us to the insert — fetch their row and bump it.
+
+    Best-effort: if the recovery query itself fails, log and return None
+    rather than raise (the public ``ingest_error`` contract is
+    never-raises).
+    """
+    try:
+        row = ErrorLog.objects.filter(fingerprint=fp, node_id=node_id).first()
+        if row is not None:
+            row.occurrence_count += 1
+            row.acknowledged = False
+            row.save(update_fields=["occurrence_count", "acknowledged"])
+            return row
+    except Exception:  # noqa: BLE001
+        logger.exception("ingest_error race-recovery failed")
+    return None
 
 
 def ingest_error(
@@ -78,73 +217,24 @@ def ingest_error(
     `NODE_ID` / `NODE_ROLE` env vars get stamped into the new row, so
     attribution is automatic. No HTTP forwarder needed.
     """
+    payload = _ErrorPayload(
+        job_type=job_type,
+        step=step,
+        error_message=error_message,
+        raw_exception=raw_exception,
+        why=why,
+        severity=severity,
+    )
     try:
-        fp = _compute_fingerprint(job_type, step, error_message)
-        node_id = os.environ.get("NODE_ID", socket.gethostname())
-        node_role = os.environ.get("NODE_ROLE", ErrorLog.NODE_ROLE_PRIMARY)
-        ctx = runtime_snapshot()
-
-        with transaction.atomic():
-            existing = (
-                ErrorLog.objects.select_for_update()
-                .filter(
-                    fingerprint=fp,
-                    node_id=node_id,
-                    source=ErrorLog.SOURCE_INTERNAL,
-                )
-                .first()
-            )
-            if existing is not None:
-                existing.occurrence_count += 1
-                existing.acknowledged = False  # regression re-open
-                if raw_exception:
-                    existing.raw_exception = raw_exception
-                existing.severity = severity
-                existing.runtime_context = ctx
-                existing.save(
-                    update_fields=[
-                        "occurrence_count",
-                        "acknowledged",
-                        "raw_exception",
-                        "severity",
-                        "runtime_context",
-                    ]
-                )
-                return existing
-
-            return ErrorLog.objects.create(
-                source=ErrorLog.SOURCE_INTERNAL,
-                job_type=job_type[:50],
-                step=step[:100],
-                error_message=(error_message or "")[:4000],
-                raw_exception=raw_exception or "",
-                why=why or "",
-                how_to_fix=suggest(error_message, fp, step),
-                fingerprint=fp,
-                severity=severity,
-                node_id=node_id,
-                node_role=node_role,
-                node_hostname=socket.gethostname()[:255],
-                runtime_context=ctx,
-            )
-    except IntegrityError:
-        # A parallel worker raced us to the insert. Fetch the row and
-        # bump its counter instead of creating a duplicate.
-        try:
-            fp = _compute_fingerprint(job_type, step, error_message)
-            node_id = os.environ.get("NODE_ID", socket.gethostname())
-            row = ErrorLog.objects.filter(fingerprint=fp, node_id=node_id).first()
-            if row is not None:
-                row.occurrence_count += 1
-                row.acknowledged = False
-                row.save(update_fields=["occurrence_count", "acknowledged"])
-                return row
-        except Exception:  # noqa: BLE001
-            logger.exception("ingest_error race-recovery failed")
-        return None
+        fp, node_id, node_role, ctx = _gather_context(job_type, step, error_message)
+        row = _dedup_or_create(
+            fp=fp, node_id=node_id, node_role=node_role, ctx=ctx, payload=payload
+        )
     except Exception:  # noqa: BLE001
         logger.exception("ingest_error failed for job_type=%s step=%s", job_type, step)
-        return None
+        row = None
+    _emit_ops_feed(row)
+    return row
 
 
 def _emit_ops_feed(row: Optional[ErrorLog]) -> None:
@@ -170,16 +260,6 @@ def _emit_ops_feed(row: Optional[ErrorLog]) -> None:
     except Exception:  # noqa: BLE001
         # Never let ops-feed emission break error ingestion.
         logger.debug("[error_ingest] ops-feed emission failed", exc_info=True)
-
-
-# Wrap ingest_error so every caller automatically narrates the event.
-_ingest_error_raw = ingest_error
-
-
-def ingest_error(*args, **kwargs):  # type: ignore[no-redef]
-    row = _ingest_error_raw(*args, **kwargs)
-    _emit_ops_feed(row)
-    return row
 
 
 __all__ = ["ingest_error"]
