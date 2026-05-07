@@ -19,6 +19,95 @@ try:
 except ImportError:
     HAS_CPP_SIMSEARCH = False
 
+
+# FR-247 — Fast-path observability. SLO-tracked counter per pathway so a
+# silent C++ → Python regression (50-100x slowdown) is visible to
+# operators within one pipeline pass instead of hiding behind aggregated
+# latency. Source: Beyer et al. 2016 *Site Reliability Engineering*
+# Chapter 4 ("Service Level Objectives") — pathway latency must be
+# SLO-tracked with a counter per pathway. Sridharan 2018 *Distributed
+# Systems Observability* Chapter 4 — counter cardinality budget.
+#
+# Counters live in process memory (no Prometheus client required); the
+# operator-facing surface is the `/performance` dashboard that already
+# reads runtime status from helpers like ``get_slate_diversity_runtime_status``.
+_PATH_COUNTERS: dict[str, int] = {"cpp": 0, "python": 0}
+
+
+def _record_stage2_path(path: str) -> None:
+    """FR-247 — increment the in-memory pathway counter."""
+    _PATH_COUNTERS[path] = _PATH_COUNTERS.get(path, 0) + 1
+
+
+def get_stage2_path_counters() -> dict[str, int]:
+    """Read-only view for `/performance` dashboard + diagnostics.
+
+    Returns a fresh copy so callers can't mutate the live counters.
+    Reset by calling :func:`reset_stage2_path_counters` (used in tests).
+    """
+    return dict(_PATH_COUNTERS)
+
+
+def reset_stage2_path_counters() -> None:
+    """Reset both counters to 0. Test-only; do not call from production."""
+    _PATH_COUNTERS["cpp"] = 0
+    _PATH_COUNTERS["python"] = 0
+
+
+def get_stage2_path_runtime_status() -> dict[str, object]:
+    """Plain-English status of the FR-247 fast path. Mirrors the shape
+    of `slate_diversity.get_slate_diversity_runtime_status()`.
+
+    Includes an `alert` flag set when the Python share exceeds the
+    configured threshold (`pipeline.cpp_path_alert_threshold`, default
+    5%). The dashboard turns the card red when this flag is true.
+    """
+    counters = get_stage2_path_counters()
+    total = counters["cpp"] + counters["python"]
+    if total == 0:
+        return {
+            "available": HAS_CPP_SIMSEARCH,
+            "path": "cpp_extension" if HAS_CPP_SIMSEARCH else "python_fallback",
+            "reason": (
+                "C++ simsearch extension is loaded; no Stage-2 calls have "
+                "fired yet this run."
+                if HAS_CPP_SIMSEARCH
+                else "Python fallback is active — the C++ simsearch "
+                "extension failed to load."
+            ),
+            "cpp_calls": 0,
+            "python_calls": 0,
+            "python_share": 0.0,
+            "alert": False,
+        }
+    python_share = counters["python"] / total
+    threshold = _read_cpp_alert_threshold()
+    return {
+        "available": HAS_CPP_SIMSEARCH,
+        "path": "cpp_extension" if counters["cpp"] >= counters["python"] else "python_fallback",
+        "reason": (
+            f"{counters['cpp']:,} C++ / {counters['python']:,} Python calls "
+            f"(Python share {python_share:.1%}, alert at {threshold:.1%})"
+        ),
+        "cpp_calls": counters["cpp"],
+        "python_calls": counters["python"],
+        "python_share": python_share,
+        "alert": python_share > threshold,
+    }
+
+
+def _read_cpp_alert_threshold() -> float:
+    """Read `pipeline.cpp_path_alert_threshold`; default 0.05.
+
+    Beyer 2016 Chapter 4 — SLO violations triggered at 5% pathway
+    divergence. Operators can override per-site via /settings.
+    """
+    try:
+        from apps.suggestions.recommended_weights import recommended_float as _rf
+        return _rf("pipeline.cpp_path_alert_threshold")
+    except Exception:  # noqa: BLE001 — cold-start safe.
+        return 0.05
+
 from .graph_signal_ranker import GraphSignalRanker
 from .ranker import (
     ContentKey,
@@ -471,10 +560,12 @@ def _score_sentences_stage2(
         top_idx, top_scores = simsearch.score_and_topk(
             destination_embedding, sentence_embeddings, candidate_rows, top_k,
         )
+        _record_stage2_path("cpp")
     else:
         top_idx, top_scores = _topk_numpy_scores(
             destination_embedding, sentence_embeddings, candidate_rows, top_k,
         )
+        _record_stage2_path("python")
     matches: list[SentenceSemanticMatch] = []
     for i, score in zip(top_idx, top_scores, strict=True):
         sid = candidate_ids[i]
