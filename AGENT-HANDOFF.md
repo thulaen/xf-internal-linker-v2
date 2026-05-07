@@ -1,3 +1,39 @@
+# 2026-05-07 - Claude Opus 4.7 (1M context) - Follow-up: fixed both bugs flagged out-of-scope in the prior entry (completeness % units mismatch + deprecated `.extra(select=…)`)
+
+What I did: User read the previous handoff entry, saw the two flagged out-of-scope bugs ("units mismatch in `_search_metric_scorecard` completeness" + "`.extra(select=...)` deprecation in `volume_trend`"), and asked me to fix both. Single commit: `cf05b93`.
+
+What was accomplished:
+
+**Bug 1 — completeness % units fixed in `_search_metric_scorecard`:**
+- Original: `_clamp_pct(sample / _SOURCE_COMPLETENESS_TARGET)` — raw 0-to-1 ratio.
+- Fixed: `_clamp_pct(sample / _SOURCE_COMPLETENESS_TARGET * _PERCENT_SCALE)` — now consistent with the content-item path on the same model.
+- Visible on the Data Quality card: GSC/GA4/Matomo completeness numbers will jump from sub-30% to their real percentage (e.g. a connector with 30 of 30 expected daily rows now reports 100 % instead of 1 %). This is the correct behaviour.
+
+**Bug 2 — `.extra(select={"day": "DATE(created_at)"})` modernised:**
+- Replaced with `.annotate(day=TruncDate("created_at"))` (imported from `django.db.models.functions`).
+- `r["day"]` now returns a `date` object instead of an SQL string. Updated the dict comprehension `content_map = {str(r["day"]): r["n"] ...}` → `{r["day"].isoformat(): r["n"] for r in content_rows if r["day"]}` to keep the same YYYY-MM-DD string keys and drop any null-day rows defensively.
+- `.extra` has been documented as deprecated for years; this removes one of the few remaining uses in the audit app.
+
+**Tests updated to match the fixed behaviour:**
+- `test_full_summary_row`: now asserts `completeness_pct == 100.0` (was `1.0`, characterising the bug).
+- `test_completeness_clamps_at_100`: changed sample from 3000 to 50 (50/30*100 = 166.7, exercises the clamp). The 3000-sample value was only meaningful under the buggy formula.
+- New `test_half_full_yields_50_percent`: sample=15, target=30 → 50 % completeness. Locks in the proportional-math contract.
+
+**Verification:**
+- `python .githooks/check-forbidden-patterns.py --strict backend/apps/audit/data_quality.py backend/apps/audit/tests_data_quality_helpers.py` → 0 warnings, 0 violations.
+- `docker compose exec backend python manage.py test apps.audit` → 92 tests pass (was 91; +1 new proportional-math test).
+- `docker compose exec backend python manage.py test apps.diagnostics` → 119 tests pass. `apps.diagnostics.integration_health.volume_series_for` is the only outside caller of `volume_trend` and reads from the new `TruncDate` query path correctly.
+
+What has issues or errors: None. Both flagged bugs are now closed. The diagnostic-layer "RuntimeError: simulated" log line in the diagnostics suite is still a deliberate negative-path fixture, not a regression.
+
+Operator-visible note for the rollout: when the new build deploys, anyone watching `/data-quality/` will see GSC/GA4/Matomo completeness numbers shift upward to reflect the correct percentage. There's no data change — only the displayed percentage was wrong.
+
+Tech-debt delta: -2 items.
+  Pre-existing units-mismatch bug fixed: `_search_metric_scorecard` completeness now multiplies by `_PERCENT_SCALE`, matching `_content_item_scorecard`. All four sources (GSC / GA4 / Matomo / content) now report on the same 0-100 scale.
+  Deprecated `.extra(select=...)` modernised: `volume_trend` ContentItem grouping uses `TruncDate("created_at")` annotation. One less call site for Django's deprecated escape-hatch QuerySet method.
+
+---
+
 # 2026-05-07 - Claude Opus 4.7 (1M context) - Refactored apps/audit/data_quality.py: scorecard split (64→9 lines) + latent freshness=0.0 bug fixed + 22 helper tests + repaired apps/audit/test_audit_infra.py (pytest→Django TestCase, model-drift bug fix)
 
 What I did: User pointed me at `backend/apps/audit/data_quality.py` (the lone remaining long-function warning after the 5 prior refactor sessions). Refactored `scorecard()` from 64 → 9 lines using Fowler 1999 Extract Method. Created `tests_data_quality_helpers.py` with 22 SimpleTestCase tests covering every new pure helper plus the previously-untested `_clamp_pct` / `_densify`. While running the audit-app regression I discovered a pre-existing pytest-import error in `test_audit_infra.py` (same pattern I had fixed in 4 other files in commit `01521f6`) — converted that file to Django TestCase form in the same PR, which incidentally surfaced a model-drift bug (`target_type` / `target_id` / `detail` no longer exist on `AuditEvent` — the live names are `subject_type` / `subject_id` / `metadata`) that the never-running test had hidden. Single commit: `c553429`.
