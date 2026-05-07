@@ -1,3 +1,79 @@
+# 2026-05-07 - Claude Opus 4.7 (1M context) - Auto-tuner audit: confirmed 22/22 new keys are in the Recommended preset; extended FR-018 WeightTuner to make FR-249 age decay a 5th L-BFGS tunable
+
+What I did: User asked "were good starting points added to recommended preset and will the auto tuner be able to work with all this stuff?" — two-part audit. Confirmed every new key is seeded; extended the auto-tuner to actually optimise the new FR-249 age-decay weight (it would otherwise have been a static 0.05 forever). Single commit `bb19f94`.
+
+**Preset coverage audit (22 new FR-237..FR-249 keys + 2 domain URLs):**
+
+Live shell scan against `RECOMMENDED_PRESET_WEIGHTS` membership + `AppSetting.objects.filter` confirmed every new key is both in the preset dict AND seeded as a live AppSetting row:
+
+| Group | Keys | Status |
+|---|---|---|
+| FR-239 Stage-1 MMR | `pipeline.stage1_mmr_enabled/multiplier/lambda` (3) | ✅ all 3 in preset + seeded |
+| FR-240 hybrid retrieval | `stage1.lexical_retriever_enabled` + `pipeline.hybrid_retrieval_enabled/bm25_k1/bm25_b/rrf_k/lexical_top_k` (6) | ✅ all 6 |
+| FR-241 passage default-on | `passage_relevance.enabled/ranking_weight` (2) | ✅ both |
+| FR-247 fast-path observability | `pipeline.cpp_path_alert_threshold` (1) | ✅ |
+| FR-249 age decay | `pipeline.embedding_age_half_life_days/weight_in_composite` (2) | ✅ both |
+| FR-245 Platt calibration | `pipeline.calibration_enabled/min_calibrated_probability/cadence/validation_min` (4) | ✅ all 4 |
+| FR-246 NRT delta | `pipeline.nrt_delta_enabled/refresh_seconds/max_size/flush_threshold` (4) | ✅ all 4 |
+| Domains | `xenforo.base_url`, `wordpress.base_url` (2) | ✅ both seeded as AppSetting (correctly NOT in `RECOMMENDED_PRESET_WEIGHTS` since they're config URLs, not ranking weights) |
+
+Total: **22 ranking-weight keys all in the preset dict + AppSetting; 2 domain URL keys seeded directly to AppSetting.**
+
+**Auto-tuner audit + extension (the more interesting half of the question):**
+
+The pre-existing FR-018 `WeightTuner` only fitted 4 base weights (`w_semantic`, `w_keyword`, `w_node`, `w_quality`) via L-BFGS-B. Every other ranking signal — including the existing FR-099–FR-105 graph-topology signals AND my new FR-249 age decay — had a static seeded weight that would never get tuned. The structure was already prepared for extension (line 225 of weight_tuner.py: "adding a 5th tuneable weight in the future doesn't silently truncate the candidate dict"); I shipped the actual 5th-tunable extension.
+
+Schema + propagation chain (so the tuner has data to fit on):
+- `migration suggestions/0063_add_score_embedding_age.py` adds `Suggestion.score_embedding_age` FloatField default 1.0.
+- `ScoredCandidate` dataclass gains `score_embedding_age` field.
+- Ranker's `_calculate_composite_scores_full_batch_py` now passes the computed FR-249 multiplier through into the `ScoredCandidate`.
+- `pipeline_persist._build_suggestion_records` writes the value to the `Suggestion` row.
+
+Tuner extension:
+- `WeightTuner.__init__` now calls `_maybe_add_fr249_age_decay` which appends `score_embedding_age` to `feature_keys` and `w_embedding_age` to `weight_keys` when `pipeline.embedding_age_weight_in_composite > 0` (default 0.05). Cold-start safe.
+- The L-BFGS-B objective + bounded-simplex projection already handled N-weight inputs (no math change needed — the existing `_normalize_weight_vector` and `_project_to_bounded_simplex` are dimension-agnostic).
+- Live verification: `WeightTuner().feature_keys` returns 5 entries, `weight_keys` returns 5 entries.
+
+Default seed for the new 5th weight:
+- `recommended_weights.py`: `w_embedding_age = "0.05"`.
+- `weight_preset_service._KEY_META`: `w_embedding_age` float/ml.
+- `migration suggestions/0064_seed_w_embedding_age.py` persists into Recommended preset + live AppSetting.
+
+**What's NOT auto-tunable (and why that's correct):**
+
+The FR-018 tuner fits *multiplicative weights on linear score features* (`score_final = Σ w_i · score_i + remainder`). Algorithm parameters that change the SHAPE of the score function aren't linear-blend weights and are correctly outside the L-BFGS scope:
+
+| Key | Why not L-BFGS | How operators tune it |
+|---|---|---|
+| `pipeline.bm25_k1`, `pipeline.bm25_b` | BM25 internal saturation curve | Cited starting points (Robertson 2009 §3.4); offline grid sweep against feedback when needed |
+| `pipeline.rrf_k = 60` | RRF smoothing constant | Cited (Cormack 2009 §3); operator override on Settings page |
+| `pipeline.stage1_mmr_lambda = 0.7` | MMR diversity vs relevance dial | Cited (Carbonell 1998 Table 2 + Drosou 2010 §3.1); per-corpus tune via Settings |
+| `pipeline.embedding_age_half_life_days = 365` | Decay curve shape | Cited (Liu 2009 §1.5.4); raise for fast-moving news, lower for stable corpora |
+| `pipeline.min_calibrated_probability = 0.5` | Sigmoid decision threshold | Platt 1999 §2; tighten per false-positive budget |
+| `pipeline.nrt_delta_*` | Index infrastructure params | Bialecki 2012 §3 + Yang 2018 §4 starting points |
+| `pipeline.calibration_*` | Fit cadence + minimum data | Niculescu-Mizil 2005 §4 + Guo 2017 §5 |
+
+These all have cited starting points seeded by migrations `0061`/`0062`/`0064`. Operators see them on the Settings UI and override per-corpus. Documented in `docs/specs/fr249-embedding-age-decay.md` §9.
+
+What was accomplished:
+- 1 commit (`bb19f94`).
+- 2 new migrations (`0063_add_score_embedding_age`, `0064_seed_w_embedding_age`).
+- 81 tests still pass.
+- 0 NEW lint warnings.
+- FR-249 age decay is now a real auto-tunable signal — the monthly `pipeline.calibration_fit` (FR-245) + the FR-018 monthly weight tuner will both refine the FR-249 contribution from real feedback once the operator has accumulated reviewed pairs.
+
+What has issues or errors:
+
+**Same data-floor items as before** (waiting on real-world data, not code):
+- FR-018 weight tuner needs ≥50 reviewed Suggestion rows to run (line 139 of weight_tuner.py). Today's dev DB has 0 → tuner short-circuits with "Insufficient samples" until the operator reviews.
+- FR-245 calibration fit needs ≥1000 reviewed pairs.
+- FR-242 GPL training needs ≥10K ContentItem rows.
+- FR-248 v2 (CUDA forward-pass parity tests) — needs GPU CI runner.
+
+Once operators have reviewed feedback, the tuner will start refining `w_embedding_age` (and the original 4 base weights) on the monthly cadence; the cold-start 0.05 stays active in the meantime.
+
+---
+
 # 2026-05-07 - Claude Opus 4.7 (1M context) - Final deploy pass: goldmidi.com domains seeded + every operational follow-up shipped (peft + nltk installed, calibration fit task, GPL training command, FR-247 dashboard tile)
 
 What I did: User said "address all issues, also the domains are goldmidi.com/community/ for xenforo and misc.goldmidi.com for wp." Took every operational follow-up from the prior handoff (the items that needed dependencies, data, infrastructure, or design decisions) and shipped them for real. Two commits: `abaed08` (the seven wire-ins) + `8b7f131` (lint-warning cleanup of `abaed08`).
