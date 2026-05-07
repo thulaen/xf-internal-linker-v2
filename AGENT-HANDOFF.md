@@ -1,3 +1,66 @@
+# 2026-05-07 - Claude Opus 4.7 (1M context) - Refactored apps/audit/data_quality.py: scorecard split (64→9 lines) + latent freshness=0.0 bug fixed + 22 helper tests + repaired apps/audit/test_audit_infra.py (pytest→Django TestCase, model-drift bug fix)
+
+What I did: User pointed me at `backend/apps/audit/data_quality.py` (the lone remaining long-function warning after the 5 prior refactor sessions). Refactored `scorecard()` from 64 → 9 lines using Fowler 1999 Extract Method. Created `tests_data_quality_helpers.py` with 22 SimpleTestCase tests covering every new pure helper plus the previously-untested `_clamp_pct` / `_densify`. While running the audit-app regression I discovered a pre-existing pytest-import error in `test_audit_infra.py` (same pattern I had fixed in 4 other files in commit `01521f6`) — converted that file to Django TestCase form in the same PR, which incidentally surfaced a model-drift bug (`target_type` / `target_id` / `detail` no longer exist on `AuditEvent` — the live names are `subject_type` / `subject_id` / `metadata`) that the never-running test had hidden. Single commit: `c553429`.
+
+What was accomplished:
+
+**`scorecard()` refactored (64 → 9 lines, public signature unchanged):**
+- Extracted `_hours_since(dt) -> float | None` (pure) — replaces 2 inline copies of `(timezone.now() - dt).total_seconds() / 3600`. Returns None passthrough when dt is None.
+- Extracted `_search_metric_summary() -> dict[str, dict]` (DB) — isolates the single `SearchMetric.objects.values(...).annotate(latest, sample)` ORM round-trip into a tiny helper. Lifts the `from apps.analytics.models import SearchMetric` import inside.
+- Extracted `_search_metric_scorecard(source, summary_row) -> SourceScorecard` (pure) — converts one summary dict into one SourceScorecard. Uses the new `_hours_since` and existing `_clamp_pct`. Pure → fully unit-testable in SimpleTestCase.
+- Extracted `_content_item_scorecard() -> SourceScorecard` (DB) — wraps the ContentItem total/embedded/latest queries into a single helper. Lifts the two ContentItem imports inside.
+- Orchestrator now reads top-to-bottom: `summary → list comp over _SEARCH_METRIC_SOURCES → append content row → return`.
+
+**Latent correctness bug fixed in same edit:** Both halves of the original code wrote `round(freshness, 1) if freshness else None`. A freshness value of *exactly* `0.0` (data ingested in the same second the call ran) is falsy, so the API returned `None` for "0 hours fresh" — wrong. Replaced with `if freshness is not None` so the boundary case renders as `0.0`. This matters for fast-loop ingestion paths where `last_dt == now()` is realistic. Regression test added (`SearchMetricScorecardTests.test_freshness_zero_renders_as_zero_not_none`).
+
+**New file: `backend/apps/audit/tests_data_quality_helpers.py`**
+- 22 SimpleTestCase tests across 5 classes; no DB, no Docker, no migrations.
+- `ClampPctTests` (5) — covers the previously-untested `_clamp_pct`: negative, zero, decimal-rounded, ≥max-clamps, just-under-max-rounds-up.
+- `DensifyTests` (4) — covers the previously-untested `_densify`: empty map, partial fill, zero days, day ordering preserved.
+- `HoursSinceTests` (4) — None passthrough, 1h/24h/0s. Uses `@patch("apps.audit.data_quality.timezone.now", return_value=_FROZEN_NOW)`.
+- `SearchMetricScorecardTests` (6) — empty row, full row, no `latest`, no `sample`, completeness clamp at 100, **regression test for the 0.0-as-None bug fix**.
+- `ContentItemScorecardShapeTests` (3) — `total=0`, full-embed (100%), partial-embed (50%). Uses `unittest.mock.patch` on `apps.content.models.ContentItem` and `apps.pipeline.services.embeddings.get_current_embedding_filter`.
+
+**`test_audit_infra.py` repaired (88 → 91 tests in apps.audit; 1 ImportError → 0 errors):**
+- File was previously written for pytest (`@pytest.mark.django_db` + `assert` style) and `import pytest` at module top made `manage.py test` fail to load all 4 of its tests — same cba3766-era pattern as `test_pick_55_bench.py` / `test_lemma_infrastructure.py` / `test_nlp_group_g.py` / `test_pagerank_cuda_parity.py` in commit `01521f6`.
+- Converted to `class AuditInfraTests(TestCase)` with `self.assertEqual` / `self.assertTrue` / `self.assertIn`.
+- Discovered + fixed a pre-existing model-drift bug: the original test asserted `entry.target_type` / `entry.target_id` / `entry.detail`, but `record_audit` returns an `AuditEvent` whose actual fields are `subject_type` / `subject_id` / `metadata`. The drift had been hidden because the test never ran. Updated to the current attribute names.
+
+**Verification:**
+- `python .githooks/check-forbidden-patterns.py --strict backend/apps/audit/data_quality.py backend/apps/audit/tests_data_quality_helpers.py` → 0 warnings, 0 violations (was 1 long-function warning).
+- AST audit: 0 functions over 50 lines (was 1, scorecard at 64).
+- `docker compose exec backend python manage.py test apps.audit.tests_data_quality_helpers` → 22 tests pass.
+- `docker compose exec backend python manage.py test apps.audit` → 91 tests pass (was 88 with 1 ImportError; +3 newly-running pytest-converted tests, -1 error).
+- Caller regression — only outside-module caller is `apps.diagnostics.integration_health.volume_series_for` which imports `volume_trend` (untouched in this refactor): `apps.diagnostics` → 119 tests pass.
+
+What has issues or errors:
+
+The original `_search_metric_scorecard` math (pre-existing — NOT introduced by this session) has a units mismatch:
+
+```python
+"completeness_pct": _clamp_pct(sample / _SOURCE_COMPLETENESS_TARGET) if sample else 0.0
+```
+
+`sample / target` is a raw 0-to-1 ratio; `_clamp_pct` then rounds to 1 decimal but its 100-cap never fires until `sample / target >= 100` (i.e. `sample >= 3000`). The result: a fully-loaded GSC connector with 30 samples reports `completeness_pct = 1.0` (meant to read "1.0%") instead of `100.0`. The content-item path on line 110 correctly does `_clamp_pct((embedded / total) * _PERCENT_SCALE)` with the `* 100` multiplier. I captured this as a characterisation test (`SearchMetricScorecardTests.test_full_summary_row` with an explanatory comment) rather than fix it — the fix is one line (add `* _PERCENT_SCALE`) but **changes user-visible numbers on the Data Quality card** (1% → 100%), which I judged out-of-scope for a refactor commit and want explicit user approval for. Operators may notice their connector completeness suddenly jumping from 1% to 100% overnight.
+
+The diagnostics suite still has one pre-existing simulated-error noise line ("RuntimeError: simulated") inside `health.py:_measure_ms` — that's a deliberate negative-path test from the prior session, not a regression.
+
+Out of scope (noted, not fixed):
+- The units-mismatch bug above. Suggested follow-up: 1-line fix `sample / _SOURCE_COMPLETENESS_TARGET * _PERCENT_SCALE`, plus update the regression test to assert 100.0, plus a frontend release note.
+- `volume_trend` uses `.extra(select={"day": "DATE(created_at)"})` (line 164) — Django's `.extra` is deprecated; modern equivalent is `Trunc("created_at", "day")`. Out of scope; would need a separate QuerySet-modernisation session.
+- The `_freshness` 3-line closure inside `freshness_snapshot` does DB I/O so it can't be a SimpleTestCase target. Could hoist to module level for organisation, but KISS says leave alone (one call site, three lines).
+
+Tech-debt delta: -7 debt items.
+  Long functions split: scorecard (64→9)
+  Latent correctness bug fixed: freshness=0.0 was rendered as None in both the SearchMetric and ContentItem paths; both now correctly render as 0.0
+  Duplicated boilerplate extracted: 2× `(timezone.now() - X).total_seconds() / 3600` → single `_hours_since(dt)` helper
+  New pure helpers: 4 (`_hours_since`, `_search_metric_summary`, `_search_metric_scorecard`, `_content_item_scorecard`)
+  Test file converted from pytest → Django TestCase: `test_audit_infra.py` (4 tests now run; previously all 4 were hidden behind one ImportError)
+  Pre-existing model-drift bug fixed in `test_audit_infra.py`: `target_type` / `target_id` / `detail` → `subject_type` / `subject_id` / `metadata` (matches the current `AuditEvent` model)
+  Test coverage added: `tests_data_quality_helpers.py` (22 SimpleTestCase tests across 5 test classes — also covers the previously-untested `_clamp_pct` and `_densify` helpers as bonus coverage)
+
+---
+
 # 2026-05-06 - Claude Opus 4.7 (1M context) - Refactored apps/diagnostics/health.py: 4 oversized functions split into 21 pure helpers + 11 pre-existing silent-excepts fixed + 53 tests
 
 What I did: User asked to refactor `tasks_import_helpers.py` long functions, but that work was already on master from earlier today (commit `55c8941` — verified: lint clean, AST audit shows 0 functions over 50 lines, 46 tests in `tests_tasks_import_helpers.py` already in place). User redirected me to "find next long-function file". I ran an AST sweep across `backend/` (excluding migrations, vendor, the 4 already-refactored files: `tasks_import_helpers.py` / `pipeline_stages.py` / `pipeline_data.py` / `impact_engine.py`) and ranked candidates. Top match was `backend/apps/diagnostics/health.py` (4 functions over 50 lines, longest 163, 457 lines tied up in long functions). Refactored all 4 to under 50 lines using Fowler 1999 Extract Method, fixed 11 pre-existing silent-excepts caught by the linter (5 of which I had moved into the new per-kernel benchmark helpers, 6 truly pre-existing), added a module docstring, and created 53 SimpleTestCase tests for every extracted pure helper. All 7 outside-diagnostics callers verified to still pass.
