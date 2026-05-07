@@ -442,6 +442,15 @@ class Suggestion(TimestampedModel):
         default=0.0,
         help_text="Velocity/recency bonus for trending destinations.",
     )
+    score_embedding_age = models.FloatField(
+        default=1.0,
+        help_text=(
+            "FR-249 — Embedding age decay multiplier in [0, 1]. 1.0 means a "
+            "fresh embedding (no penalty); 0.5 means one half-life old "
+            "(default 365 days); 0.25 means two half-lives old. Newton's "
+            "law of cooling per Liu 2009 §1.5.4 (DOI 10.1561/1500000016)."
+        ),
+    )
     score_link_freshness = models.FloatField(
         default=0.5,
         help_text="Link Freshness score of the destination. 0.5 means neutral or not enough history.",

@@ -356,6 +356,10 @@ def _build_suggestion_records(
                 score_quality=candidate.score_quality,
                 score_march_2026_pagerank=dest_ci.march_2026_pagerank_score,
                 score_velocity=dest_ci.velocity_score,
+                # FR-249 — embedding age decay multiplier (1.0 fresh, 0.5 at
+                # one half-life). Persisted so the FR-018 WeightTuner
+                # can read it as a 5th tunable feature.
+                score_embedding_age=candidate.score_embedding_age,
                 score_link_freshness=dest_ci.link_freshness_score,
                 score_phrase_relevance=candidate.score_phrase_relevance,
                 score_learned_anchor_corroboration=candidate.score_learned_anchor_corroboration,

@@ -90,6 +90,44 @@ of those kwargs.
 - The `0.5 ^ (days / half_life)` formula — Newton's law of cooling.
 - `None`-timestamp returns 1.0 — pragmatic engineering choice; penalising "unknown age" would silently downrank legitimate fresh embeddings whose timestamp couldn't be determined.
 
-## 9 · Status
+## 9 · Auto-tuner integration (FR-018 + FR-249)
 
-Algorithm + tests + spec shipped 2026-05-07. Wire-in deferred per §7.
+`apps.suggestions.services.weight_tuner.WeightTuner` was extended to
+accept `score_embedding_age` as a 5th tunable signal alongside the
+original four (`score_semantic`, `score_keyword`, `score_node_affinity`,
+`score_quality`). Activation is gated on the AppSetting
+`pipeline.embedding_age_weight_in_composite` being positive (default
+0.05). The default seeded weight is `w_embedding_age = 0.05` per
+`migration suggestions/0064_seed_w_embedding_age.py`.
+
+The L-BFGS-B objective and the bounded-simplex projection both already
+handled N-weight inputs (the comment at `weight_tuner.py:225`
+explicitly anticipated this); the only changes were:
+- `Suggestion.score_embedding_age` FloatField (default 1.0) added via
+  `migration suggestions/0063_add_score_embedding_age.py`.
+- `ScoredCandidate.score_embedding_age` field on the ranker dataclass.
+- Ranker's composite loop now passes the computed multiplier into
+  the candidate.
+- `pipeline_persist._build_suggestion_records` now writes the value
+  through to each `Suggestion` row.
+- `WeightTuner._maybe_add_fr249_age_decay` extends `feature_keys` and
+  `weight_keys` at construction time when the gate is on.
+
+**What's NOT in the L-BFGS scope and why:** the FR-018 tuner fits
+*multiplicative weights on linear score features* (`score_final =
+Σ w_i · score_i + remainder`). Parameters that change the shape of
+the score function itself (`pipeline.embedding_age_half_life_days`,
+`pipeline.bm25_k1`, `pipeline.bm25_b`, `pipeline.rrf_k`,
+`pipeline.stage1_mmr_lambda`, `pipeline.min_calibrated_probability`,
+`pipeline.nrt_delta_*`) are *algorithm parameters* — they don't fit
+the linear blend. Operators tune them via the Settings UI (with the
+cited starting points seeded by migrations `0061` / `0062` / `0064`)
+or via offline sweep harnesses; the L-BFGS tuner correctly leaves
+them alone.
+
+## 10 · Status
+
+Algorithm + ranker wire-in + ScoredCandidate field + Suggestion
+column + persist write + WeightTuner extension + 5th-tunable seed
+all shipped 2026-05-07. **Default-on AND auto-tuned** by the FR-018
+monthly run.

@@ -22,6 +22,9 @@ _KEY_META: dict[str, dict[str, str]] = {
     "w_keyword": {"value_type": "float", "category": "ml"},
     "w_node": {"value_type": "float", "category": "ml"},
     "w_quality": {"value_type": "float", "category": "ml"},
+    # FR-249 — embedding age decay 5th tunable. Default seeded by
+    # migration 0064_seed_w_embedding_age. Liu 2009 §1.5.4.
+    "w_embedding_age": {"value_type": "float", "category": "ml"},
     "silo.mode": {"value_type": "str", "category": "ml"},
     "silo.same_silo_boost": {"value_type": "float", "category": "ml"},
     "silo.cross_silo_penalty": {"value_type": "float", "category": "ml"},

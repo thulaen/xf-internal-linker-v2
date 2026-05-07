@@ -107,8 +107,23 @@ class WeightTuner:
     """FR-018: Python L-BFGS-B weight optimizer for the ranking blend.
 
     Pure-Python implementation per FR-018 spec. Finds optimal weights for
-    (semantic, keyword, node, quality) by maximizing the likelihood of human
+    the active feature blend by maximizing the likelihood of human
     approvals via ``scipy.optimize.minimize`` with bounded drift.
+
+    FR-249 extension (2026-05-07) — when the
+    ``pipeline.embedding_age_weight_in_composite`` AppSetting is enabled
+    (default true), ``score_embedding_age`` joins the feature set as a
+    5th tunable signal. The corresponding weight key is
+    ``w_embedding_age`` and is auto-seeded into the Recommended preset
+    at 0.05 (Liu 2009 §1.5.4 — small enough not to dominate, large
+    enough to break ties between equally-scored candidates).
+
+    Adding a new tunable signal in the future is a 4-line change:
+    extend ``feature_keys`` + ``weight_keys`` + add a default into
+    ``recommended_weights.py`` + ensure the matching ``score_*``
+    column exists on ``Suggestion``. The L-BFGS-B objective and
+    drift-bounded simplex projection both scale to N weights without
+    further changes.
     """
 
     def __init__(self, lookback_days: int = 90):
@@ -120,6 +135,25 @@ class WeightTuner:
             "score_quality",
         ]
         self.weight_keys = ["w_semantic", "w_keyword", "w_node", "w_quality"]
+        self._maybe_add_fr249_age_decay()
+
+    def _maybe_add_fr249_age_decay(self) -> None:
+        """Add ``score_embedding_age`` as a 5th tunable when enabled.
+
+        Cold-start safe: any read failure leaves the tuner at the
+        4-weight baseline. Honoured weight floor is the recommended
+        default (0.05) — operators can override via
+        ``pipeline.embedding_age_weight_in_composite``.
+        """
+        try:
+            from apps.suggestions.recommended_weights import recommended_float
+            weight = recommended_float("pipeline.embedding_age_weight_in_composite")
+        except Exception:  # noqa: BLE001 — cold-start safe.
+            return
+        if weight is None or float(weight) <= 0.0:
+            return
+        self.feature_keys.append("score_embedding_age")
+        self.weight_keys.append("w_embedding_age")
 
     def run(self, run_id: str) -> RankingChallenger | None:
         """Execute the tuning loop and return a new RankingChallenger if improved."""

@@ -274,6 +274,12 @@ class ScoredCandidate:
     # See docs/specs/fr053-passage-level-relevance.md.
     score_passage_relevance: float = _NEUTRAL_SCORE
     passage_relevance_diagnostics: dict[str, object] = field(default_factory=dict)
+    # FR-249 — Embedding age decay multiplier in [0, 1]. Default 1.0 =
+    # fresh / unknown-age (no penalty). Persisted to Suggestion.score_
+    # embedding_age and read by the FR-018 WeightTuner as a 5th
+    # tunable feature when there's enough labelled feedback.
+    # See docs/specs/fr249-embedding-age-decay.md.
+    score_embedding_age: float = 1.0
 
     @property
     def destination_key(self) -> ContentKey:
@@ -1329,6 +1335,11 @@ def score_destination_matches(
                 # FR-053 Passage-Level Relevance (masterplan Group E).
                 score_passage_relevance=float(passage_relevance_score),
                 passage_relevance_diagnostics=dict(passage_relevance_diags),
+                # FR-249 — embedding age decay; persisted to Suggestion
+                # so the FR-018 WeightTuner can read it as a 5th
+                # tunable feature alongside score_semantic / score_
+                # keyword / score_node_affinity / score_quality.
+                score_embedding_age=float(score_embedding_age),
             )
         )
 

@@ -156,6 +156,11 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     # Newton's law of cooling for exponential decay with half-life.
     "pipeline.embedding_age_half_life_days": "365",
     "pipeline.embedding_age_weight_in_composite": "0.05",
+    # FR-249 + FR-018 — 5th tunable weight for the L-BFGS auto-tuner.
+    # Conservative starting point: same magnitude as
+    # weighted_authority.ranking_weight. Tuner will drift it within
+    # ±0.05 per run per WeightTuner._DRIFT_LIMIT_PER_RUN.
+    "w_embedding_age": "0.05",
     # FR-245 — Calibrated similarity threshold via Platt scaling.
     # Sources: Platt 1999 (sigmoid fit); Guo et al. 2017 ICML §5
     # (arXiv:1706.04599) for cadence; Niculescu-Mizil & Caruana 2005 ICML §4
