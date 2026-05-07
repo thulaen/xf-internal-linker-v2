@@ -203,16 +203,97 @@ def passes_calibrated_threshold(
     return calibrated_probability(cosine_score, params=params) >= threshold
 
 
+#: AppSetting keys that store the persisted Platt fit. Written by the
+#: ``pipeline.calibration_fit`` Celery task; read by ``load_active_params``.
+APPSETTING_KEY_A: str = "pipeline.calibration_platt_a"
+APPSETTING_KEY_B: str = "pipeline.calibration_platt_b"
+APPSETTING_KEY_FITTED_AT: str = "pipeline.calibration_fitted_at"
+APPSETTING_KEY_PAIRS: str = "pipeline.calibration_validation_pairs"
+
+
+def load_active_params() -> Optional[PlattParams]:
+    """Read the persisted Platt fit. Returns None when no fit has run yet.
+
+    Cold-start safe: any DB / model-import failure returns None and the
+    caller falls back to ``COLD_START_PARAMS``. Reads two AppSetting
+    rows (no caching here — the call site reads once per pipeline run
+    via ``calibrated_probability(...)``).
+    """
+    try:
+        from apps.core.models import AppSetting
+        a_row = AppSetting.objects.filter(key=APPSETTING_KEY_A).values_list(
+            "value", flat=True,
+        ).first()
+        b_row = AppSetting.objects.filter(key=APPSETTING_KEY_B).values_list(
+            "value", flat=True,
+        ).first()
+        if a_row is None or b_row is None:
+            return None
+        return PlattParams(a=float(a_row), b=float(b_row))
+    except Exception:  # noqa: BLE001 — cold-start safe.
+        return None
+
+
+def persist_active_params(
+    params: PlattParams,
+    *,
+    validation_pairs: int,
+) -> None:
+    """Persist a fresh Platt fit into AppSetting, overwriting any prior fit.
+
+    Called by the ``pipeline.calibration_fit`` Celery task after a
+    successful ``fit_platt_sigmoid`` run. Atomic per-row update_or_create;
+    Django ORM handles the row-level consistency.
+    """
+    from apps.core.models import AppSetting
+    from datetime import datetime, timezone
+    now_iso = datetime.now(tz=timezone.utc).isoformat()
+    for key, value in (
+        (APPSETTING_KEY_A, str(params.a)),
+        (APPSETTING_KEY_B, str(params.b)),
+        (APPSETTING_KEY_FITTED_AT, now_iso),
+        (APPSETTING_KEY_PAIRS, str(validation_pairs)),
+    ):
+        AppSetting.objects.update_or_create(
+            key=key, defaults={"value": value},
+        )
+
+
 def get_calibration_status() -> dict[str, object]:
     """Plain-English runtime status for `/performance` dashboard."""
+    params = load_active_params()
+    if params is None:
+        return {
+            "available": False,
+            "path": "cold_start_logistic",
+            "reason": (
+                "No fitted Platt sigmoid yet. Using cold-start logistic "
+                f"params (A={COLD_START_PARAMS.a}, B={COLD_START_PARAMS.b}) "
+                "tuned to roughly match the historical 0.25-cosine cutoff. "
+                "Run ``pipeline.calibration_fit`` once the feedback store "
+                "has ≥1000 approved/rejected pairs (Niculescu-Mizil & "
+                "Caruana 2005 §4)."
+            ),
+        }
+    try:
+        from apps.core.models import AppSetting
+        fitted_at = AppSetting.objects.filter(key=APPSETTING_KEY_FITTED_AT).values_list(
+            "value", flat=True,
+        ).first()
+        pairs = AppSetting.objects.filter(key=APPSETTING_KEY_PAIRS).values_list(
+            "value", flat=True,
+        ).first()
+    except Exception:  # noqa: BLE001
+        fitted_at, pairs = None, None
     return {
-        "available": False,  # No fitted model yet shipped
-        "path": "cold_start_logistic",
+        "available": True,
+        "path": "fitted_platt_sigmoid",
         "reason": (
-            "No fitted Platt sigmoid yet. Using cold-start logistic "
-            "params (A=-6.0, B=1.5) tuned to roughly match the "
-            "historical 0.25-cosine cutoff. Will switch to a fitted "
-            "sigmoid once the feedback_store has ≥1000 labeled pairs "
-            "per Niculescu-Mizil & Caruana 2005 §4."
+            f"Active Platt fit (A={params.a:.4f}, B={params.b:.4f}) "
+            f"trained on {pairs} pairs at {fitted_at}."
         ),
+        "params_a": params.a,
+        "params_b": params.b,
+        "fitted_at": fitted_at,
+        "validation_pairs": int(pairs) if pairs else None,
     }

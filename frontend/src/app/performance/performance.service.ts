@@ -89,4 +89,35 @@ export class PerformanceService {
       catchError(() => of([]))
     );
   }
+
+  // FR-247 — Stage-2 cpp/python pathway tracking. Backend endpoint
+  // returns counters + alert flag (>5% python share => alert).
+  // See docs/specs/fr247-fast-path-observability.md.
+  getStage2PathStatus(): Observable<Stage2PathStatus> {
+    return this.http
+      .get<Stage2PathStatus>('/api/system/status/stage2-path-status/')
+      .pipe(
+        catchError(() =>
+          of<Stage2PathStatus>({
+            available: false,
+            path: 'python_fallback',
+            reason: 'Backend endpoint unreachable.',
+            cpp_calls: 0,
+            python_calls: 0,
+            python_share: 0,
+            alert: true,
+          }),
+        ),
+      );
+  }
+}
+
+export interface Stage2PathStatus {
+  available: boolean;
+  path: 'cpp_extension' | 'python_fallback';
+  reason: string;
+  cpp_calls: number;
+  python_calls: number;
+  python_share: number;
+  alert: boolean;
 }

@@ -78,6 +78,17 @@ RUN pip install --upgrade pip && \
 RUN python -m spacy download en_core_web_sm && \
     pip cache purge
 
+# FR-243 — NLTK WordNet corpus for polysemy detection. Downloaded once
+# at image build time to /usr/share/nltk_data so every container
+# (backend, celery-worker, celery-beat) reads from the shared baked
+# location and not from a per-user cache. The polysemy gate falls
+# back gracefully if nltk_data is missing, so a future image rebuild
+# without this RUN will simply log "no_wordnet" runtime path.
+# Source: https://wordnet.princeton.edu/ (Princeton, free for any use).
+ENV NLTK_DATA=/usr/share/nltk_data
+RUN mkdir -p /usr/share/nltk_data && \
+    python -m nltk.downloader -d /usr/share/nltk_data wordnet omw-1.4
+
 # ── Pick #14 FastText LangID model (Joulin et al. 2016 EACL) ─────
 # Downloads the official lid.176.bin (126 MB, 176 languages) once at
 # build time to /opt/models/lid.176.bin. We use /opt/models — NOT

@@ -196,6 +196,16 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": 60.0,
         "options": {"queue": "pipeline"},
     },
+    # FR-245 — monthly Platt sigmoid recalibration. Guo et al. 2017 ICML
+    # §5 — 30-day cadence is the recommended default for calibration on
+    # deep models. The task short-circuits silently when the feedback
+    # store has fewer than 1000 approved/rejected pairs (Niculescu-
+    # Mizil & Caruana 2005 §4).
+    "calibration-fit": {
+        "task": "pipeline.calibration_fit",
+        "schedule": crontab(minute=0, hour=3, day_of_month=1),
+        "options": {"queue": "pipeline"},
+    },
     # FR-053 — Passage-Level Relevance Scoring (Group E). Bounded
     # batch every 30 min so we never starve the GPU; the regenerator
     # itself is idempotent so unchanged content does zero work.

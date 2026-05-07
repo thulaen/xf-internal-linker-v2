@@ -525,10 +525,16 @@ def _build_min_semantic_predicate(min_semantic_score: float):
     except Exception:  # noqa: BLE001 — cold-start safe.
         return lambda score: score >= min_semantic_score
     try:
-        from .score_calibration import passes_calibrated_threshold
+        from .score_calibration import (
+            load_active_params,
+            passes_calibrated_threshold,
+        )
     except Exception:  # noqa: BLE001
         return lambda score: score >= min_semantic_score
-    return lambda score: passes_calibrated_threshold(score, threshold=threshold)
+    active_params = load_active_params()  # None → cold-start fallback used
+    return lambda score: passes_calibrated_threshold(
+        score, threshold=threshold, params=active_params,
+    )
 
 
 def score_destination_matches(

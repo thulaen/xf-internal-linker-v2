@@ -44,6 +44,13 @@ sentence-transformers==5.4.0         # Semantic embeddings
 spacy==3.8.3                         # NLP / sentence splitting
 scikit-learn==1.5.2                  # PageRank, scoring utilities
 transformers==5.0.0                  # HuggingFace (sentence-transformers dep)
+peft==0.13.2                         # FR-242 LoRA adapter on top of frozen BGE-M3
+                                     # Hu et al. 2021 LoRA arXiv:2106.09685; loaded
+                                     # by apps.pipeline.services.domain_adapter.
+                                     # Vanilla pass-through if the file isn't on disk.
+nltk==3.9.1                          # FR-243 WordNet sense-count lookup. WordNet
+                                     # corpus downloaded at image-build time —
+                                     # see backend/Dockerfile RUN nltk.download.
 networkx==3.4.2                      # Graph algorithms (FR-012)
 
 # ── Analytics & Google APIs ──────────────────────────────────────

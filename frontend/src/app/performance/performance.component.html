@@ -77,6 +77,48 @@
       </mat-chip-set>
     </div>
 
+    <!-- FR-247 — Stage-2 fast-path observability tile. Shows the live
+         cpp/python pathway split with an alert badge when Python share
+         exceeds 5% (Beyer 2016 SRE Ch. 4 SLO threshold). -->
+    @if (stage2PathStatus(); as fr247) {
+      <mat-card class="trend-card fr247-card"
+                [class.fr247-alert]="fr247.alert"
+                matTooltip="Tracks how often Stage-2 scoring uses the fast C++ path vs the slow Python fallback. An alert here means a 50–100× slowdown is silently in play.">
+        <mat-card-header>
+          <mat-card-title>
+            <mat-icon class="fr247-status-icon"
+                      [class.fr247-icon-alert]="fr247.alert">
+              {{ fr247.alert ? 'error' : 'speed' }}
+            </mat-icon>
+            Stage-2 fast path
+          </mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="fr247-counters">
+            <div class="fr247-counter">
+              <div class="fr247-counter-value">{{ fr247.cpp_calls }}</div>
+              <div class="fr247-counter-label">C++ calls</div>
+            </div>
+            <div class="fr247-counter">
+              <div class="fr247-counter-value"
+                   [class.fr247-counter-alert]="fr247.alert">
+                {{ fr247.python_calls }}
+              </div>
+              <div class="fr247-counter-label">Python fallback calls</div>
+            </div>
+            <div class="fr247-counter">
+              <div class="fr247-counter-value"
+                   [class.fr247-counter-alert]="fr247.alert">
+                {{ (fr247.python_share * 100).toFixed(1) }}%
+              </div>
+              <div class="fr247-counter-label">Python share</div>
+            </div>
+          </div>
+          <p class="fr247-reason">{{ fr247.reason }}</p>
+        </mat-card-content>
+      </mat-card>
+    }
+
     <!-- Trend chart -->
     @if (trendChartData(); as chart) {
       <mat-card class="trend-card">

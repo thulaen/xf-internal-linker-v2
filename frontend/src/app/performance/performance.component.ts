@@ -15,6 +15,7 @@ import {
   BenchmarkRun,
   BenchmarkResult,
   BenchmarkTrendPoint,
+  Stage2PathStatus,
 } from './performance.service';
 
 /** Three input sizes the benchmark suite emits per function. */
@@ -61,6 +62,12 @@ export class PerformanceComponent implements OnInit {
   // Filter state — drives the `filteredResults` computed below.
   readonly selectedLanguage = signal<'all' | 'cpp' | 'python'>('all');
   readonly selectedStatus = signal<'all' | 'fast' | 'ok' | 'slow'>('all');
+
+  // FR-247 — Stage-2 cpp/python pathway status. Polled once on init;
+  // a future commit can promote to a 30-second refresh signal if
+  // operators want live drift visibility. See
+  // docs/specs/fr247-fast-path-observability.md.
+  readonly stage2PathStatus = signal<Stage2PathStatus | null>(null);
 
   // Trend chart data — set once after the trends fetch resolves.
   readonly trendChartData = signal<ChartData<'line'> | null>(null);
@@ -159,6 +166,17 @@ export class PerformanceComponent implements OnInit {
   ngOnInit(): void {
     this.loadLatest();
     this.loadTrends();
+    this.loadStage2PathStatus();
+  }
+
+  /** FR-247 — fetch the cpp/python pathway counter snapshot. */
+  loadStage2PathStatus(): void {
+    this.svc.getStage2PathStatus()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (status) => this.stage2PathStatus.set(status),
+        error: (err) => console.warn('FR-247 status fetch failed', err),
+      });
   }
 
   loadLatest(): void {

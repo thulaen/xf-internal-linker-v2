@@ -2272,6 +2272,99 @@ def refresh_faiss_index():
 
 
 # ---------------------------------------------------------------------------
+# FR-245 — Platt calibration fit task.
+# ---------------------------------------------------------------------------
+
+
+@shared_task(name="pipeline.calibration_fit", time_limit=600, soft_time_limit=540)
+@HelperConstraint(
+    cpu_intensive=True,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+    expected_seconds_p50=30,
+)
+def calibration_fit():
+    """FR-245 — fit a Platt sigmoid against approved/rejected feedback.
+
+    Reads up to ``calibration_max_pairs`` recent approved/rejected
+    Suggestion rows, builds (score_semantic, label) pairs (label=1
+    for approved, 0 for rejected), and fits a Platt sigmoid via
+    Newton-Raphson per Platt 1999 §2. When the fit succeeds, the
+    new (A, B) is persisted into AppSetting via
+    ``score_calibration.persist_active_params`` and the live ranker
+    picks it up on the next pipeline pass via ``load_active_params``.
+
+    Niculescu-Mizil & Caruana 2005 §4 — minimum 1000 pairs for stable
+    fit. Below that, ``fit_platt_sigmoid`` returns None and this task
+    short-circuits silently — the cold-start logistic stays active.
+
+    Failures route through ``ingest_error`` so operators see a
+    plain-English reason on /error-log.
+    """
+    import traceback
+
+    from apps.audit.error_ingest import ingest_error
+    from apps.audit.models import ErrorLog
+    from apps.pipeline.services.score_calibration import (
+        VALIDATION_SET_MIN_SIZE_DEFAULT,
+        fit_platt_sigmoid,
+        persist_active_params,
+    )
+    from apps.suggestions.models import Suggestion
+
+    # Pull the most recent approved/rejected reviews. Order by
+    # decided_at desc so the fit reflects current operator behaviour
+    # if reviewing standards have drifted.
+    rows = list(
+        Suggestion.objects.filter(
+            status__in=("approved", "rejected"),
+            score_semantic__isnull=False,
+        ).order_by("-reviewed_at").values_list(
+            "score_semantic", "status",
+        )[:50_000]
+    )
+    scores = [float(s) for s, _ in rows]
+    labels = [1 if status == "approved" else 0 for _, status in rows]
+    if len(scores) < VALIDATION_SET_MIN_SIZE_DEFAULT:
+        logger.info(
+            "FR-245 calibration_fit — only %d pairs available; need %d. Skipping.",
+            len(scores), VALIDATION_SET_MIN_SIZE_DEFAULT,
+        )
+        return False
+
+    try:
+        params = fit_platt_sigmoid(scores, labels)
+    except Exception as exc:
+        ingest_error(
+            job_type="ranker_signal",
+            step="calibration_fit",
+            error_message=str(exc) or exc.__class__.__name__,
+            raw_exception=traceback.format_exc(),
+            why=(
+                "FR-245 Platt sigmoid fit raised. The cold-start "
+                "logistic stays active until the next successful run."
+            ),
+            severity=ErrorLog.SEVERITY_MEDIUM,
+        )
+        return False
+
+    if params is None:
+        logger.info(
+            "FR-245 calibration_fit — fit returned None (degenerate labels?). "
+            "Cold-start logistic stays active."
+        )
+        return False
+
+    persist_active_params(params, validation_pairs=len(scores))
+    logger.info(
+        "FR-245 calibration_fit — persisted A=%.6f B=%.6f from %d pairs",
+        params.a, params.b, len(scores),
+    )
+    return True
+
+
+# ---------------------------------------------------------------------------
 # FR-246 — NRT delta layer flush task.
 # ---------------------------------------------------------------------------
 
