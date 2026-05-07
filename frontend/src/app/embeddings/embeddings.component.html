@@ -223,6 +223,15 @@
                       placeholder="Paste API key to replace"
                       autocomplete="off"
                       [attr.aria-label]="'API key. Currently ' + (showApiKey() ? 'visible' : 'hidden')" />
+                  } @else {
+                    <input
+                      matInput
+                      [type]="numericKeys.has(key) ? 'number' : 'text'"
+                      [ngModel]="settings()[key] || ''"
+                      (ngModelChange)="setSettingValue(key, $event)"
+                      [attr.inputmode]="numericKeys.has(key) ? 'decimal' : null" />
+                  }
+                  @if (key === 'embedding.api_key') {
                     <button
                       mat-icon-button
                       matSuffix
@@ -232,13 +241,6 @@
                       [attr.aria-pressed]="showApiKey()">
                       <mat-icon aria-hidden="true">{{ showApiKey() ? 'visibility_off' : 'visibility' }}</mat-icon>
                     </button>
-                  } @else {
-                    <input
-                      matInput
-                      [type]="numericKeys.has(key) ? 'number' : 'text'"
-                      [ngModel]="settings()[key] || ''"
-                      (ngModelChange)="setSettingValue(key, $event)"
-                      [attr.inputmode]="numericKeys.has(key) ? 'decimal' : null" />
                   }
                 </mat-form-field>
               }

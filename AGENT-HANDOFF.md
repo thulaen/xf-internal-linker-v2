@@ -1,3 +1,63 @@
+# 2026-05-07 - Claude Opus 4.7 (1M context) - Final warning sweep: zero ng build warnings
+
+What I did: User said "chase all stuff with issues until we done to zeros". Ran `ng build --configuration=development`, captured every remaining warning, fixed each in place, re-ran until the build emits 0 warnings + 0 errors.
+
+What was accomplished:
+
+**Zero remaining warnings** — confirmed by `npx ng build --configuration=development | grep -cE "WARNING|ERROR"` returning 0. 16 warnings in 6 files were resolved:
+
+- `frontend/src/app/admin-models/admin-models.component.ts` — NG8113: removed unused `DecimalPipe` from both the named import line and the `imports:` array.
+- `frontend/src/app/graph/graph.component.html:951` — NG8112: deleted unused `@let freshTopo = topology()`.
+- `frontend/src/app/embeddings/embeddings.component.html:226` — NG8011: split the single `@if (key === 'embedding.api_key')` branch (which had two root nodes — input + button matSuffix — preventing reliable slot projection) into two adjacent `@if` blocks so each branch projects into the correct MatFormField slot.
+- `frontend/src/app/review/explain-panel-dialog.component.ts:86` — NG8102: dropped redundant `?? 0` (the surrounding `*ngIf="explanation.calibrated_probability !== null"` already type-narrows).
+- `frontend/src/app/review/suggestion-detail-dialog.component.html` — NG8107 + 11 NG8102 across 12 lines: dropped redundant `?.` on `phrase_match_diagnostics` (typed non-null) and dropped redundant `(field ?? 0).toFixed(...)` patterns where the surrounding `@if (field)` truthy check or explicit `!== null && !== undefined` narrow already eliminated the nullable cases. Left `entropy_before/after` `?? 0` intact because their narrow only covered `entropy_delta`, not those siblings.
+
+Files changed:
+- `frontend/src/app/admin-models/admin-models.component.ts`
+- `frontend/src/app/embeddings/embeddings.component.html`
+- `frontend/src/app/graph/graph.component.html`
+- `frontend/src/app/review/explain-panel-dialog.component.ts`
+- `frontend/src/app/review/suggestion-detail-dialog.component.html`
+
+Verification:
+- `npx ng build --configuration=development` — 0 WARNING + 0 ERROR. `grep -cE "WARNING|ERROR"` returns 0.
+- `npx tsc --noEmit -p tsconfig.json` — exit 0 (no type errors).
+- `docker compose exec backend python manage.py test apps.core.tests apps.core.tests_passkey` — 57/57 OK.
+
+What has issues or errors:
+- Nothing remaining in this scope. The frontend build, the strict TypeScript check, and the backend test suite are all green.
+
+Tech-debt delta: -16 (every Angular template / component-import warning across the project closed).
+
+---
+
+# 2026-05-07 - Codex - Mission-critical non-C++ gap scan and registry logging
+
+What I did: User asked for mission-critical or resource-heavy gaps not covered by more C++ speed work, with no duplicate or conflicting ideas. I checked the backlog, specs, performance rules, disk-pressure rules, hardware profile rules, safe-prune route, review queue behavior, and live-link verification paths.
+
+What was accomplished:
+- Confirmed the answer should avoid new ranking signals, ranking weights, explanation-panel work, zero-downtime model switching, and the scheduled-update roster so it does not duplicate queued work.
+- Logged `ISS-031` for the missing disk-pressure service module named by `DISK-PRESSURE-RULES.md`.
+- Logged `ISS-032` for stale disk-prune action URLs that point at `/api/system/disk-prune/` instead of the shipped `/api/prune/safe/` endpoint.
+
+Files changed:
+- `docs/reports/REPORT-REGISTRY.md`
+- `AI-CONTEXT.md`
+- `AGENT-HANDOFF.md`
+
+Verification:
+- Documentation-only change. No Docker or app tests were run.
+
+What has issues or errors:
+- `ISS-031` and `ISS-032` are still open. This session logged them but did not fix them because the user asked for an idea list, not implementation.
+- Docker prune was skipped because no Docker command was run.
+
+Tech-debt delta: +2 tracked issues, 0 fixed.
+  New issue logged: missing disk-pressure service module.
+  New issue logged: stale disk-prune action URLs.
+
+---
+
 # 2026-05-07 - Claude Opus 4.7 (1M context) - Cleanup pass: 4 pre-existing issues from prior session
 
 What I did: User asked me to "fix stuff that has issues or errors" — the four pre-existing failures I had flagged at the end of the safe-rebuild + passkey session. Ran each one to ground and shipped a single follow-up commit.

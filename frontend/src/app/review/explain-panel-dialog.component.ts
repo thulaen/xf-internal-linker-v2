@@ -83,7 +83,7 @@ export interface ExplainPanelData {
           <div class="summary-row" *ngIf="explanation.calibrated_probability !== null">
             <span class="label">Calibrated probability</span>
             <span class="value">
-              {{ (explanation.calibrated_probability ?? 0) * 100 | number: '1.0-1' }}%
+              {{ explanation.calibrated_probability * 100 | number: '1.0-1' }}%
             </span>
           </div>
           <div class="summary-row" *ngIf="explanation.calibrated_probability === null">
