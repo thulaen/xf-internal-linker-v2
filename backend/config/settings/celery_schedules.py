@@ -225,6 +225,16 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(minute=30, hour=2),
         "options": {"queue": "default"},
     },
+    # Passkey hygiene — sweep expired WebAuthn challenges every 6 h.
+    # Each PasskeyChallenge has a 5-min TTL; the finish handlers
+    # opportunistically prune on each call, but a user who starts
+    # registration and never finishes leaves a row behind. Bounded
+    # task so it never holds a worker for long.
+    "passkey-cleanup-expired-challenges": {
+        "task": "core.passkey_cleanup_expired_challenges",
+        "schedule": crontab(minute=15, hour="*/6"),
+        "options": {"queue": "default", "expires": 3600},
+    },
     # System heartbeat pulse: every 60 seconds.
     "pulse-heartbeat": {
         "task": "crawler.pulse_heartbeat",

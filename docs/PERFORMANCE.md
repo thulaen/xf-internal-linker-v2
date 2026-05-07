@@ -327,6 +327,7 @@ Any performance claim posted to the user or written into the Report Registry mus
 - `AI-CONTEXT.md` Session Gate — prod-stack verification is a MUST-READ for any performance session.
 - `docker-compose.yml` — the single canonical compose stack (no overrides).
 - `backend/config/settings/production.py` — Django prod settings (HTTPS-hardening flags are env-driven so a local run over plain HTTP still works).
+- `docs/SAFE-DOCKER-REBUILD.md` — the one-button safe rebuild script (`scripts/safe-rebuild.ps1`). Use it for every rebuild so the admin user and pgdata volume are never lost.
 
 ---
 

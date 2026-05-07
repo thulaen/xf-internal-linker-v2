@@ -5,7 +5,7 @@ Core admin — AppSetting configuration management.
 from django.contrib import admin
 from unfold.admin import ModelAdmin
 
-from .models import AppSetting
+from .models import AppSetting, PasskeyChallenge, PasskeyCredential
 
 
 @admin.register(AppSetting)
@@ -56,3 +56,30 @@ class AppSettingAdmin(ModelAdmin):
         if obj.is_secret:
             return "••••••••"
         return obj.value[:80] if len(obj.value) > 80 else obj.value
+
+
+@admin.register(PasskeyCredential)
+class PasskeyCredentialAdmin(ModelAdmin):
+    """Browse / debug enrolled passkeys. Binary fields are read-only."""
+
+    list_display = ("user", "label", "sign_count", "last_used_at", "created_at")
+    list_filter = ("created_at", "last_used_at")
+    search_fields = ("user__username", "label")
+    readonly_fields = (
+        "credential_id",
+        "public_key",
+        "sign_count",
+        "created_at",
+        "updated_at",
+    )
+    ordering = ("-last_used_at", "-created_at")
+
+
+@admin.register(PasskeyChallenge)
+class PasskeyChallengeAdmin(ModelAdmin):
+    """Short-lived (5-min TTL) WebAuthn challenges, mostly auto-pruned."""
+
+    list_display = ("user", "operation_type", "expires_at", "created_at")
+    list_filter = ("operation_type", "expires_at")
+    readonly_fields = ("challenge", "created_at", "updated_at")
+    ordering = ("-created_at",)

@@ -104,6 +104,40 @@ export class LoginComponent implements OnInit {
       .subscribe({
       next: () => this.router.navigateByUrl(this.returnUrl),
       error: (err: HttpErrorResponse) => {
+        // If a regular login fails with 400/401 AND we are not in
+        // first-operator-setup mode, re-query the setup endpoint. The
+        // initial probe at page-load may have errored silently (network
+        // hiccup, backend mid-restart), leaving the form stuck on
+        // "Sign in" even when the user table is actually empty. If the
+        // re-query now reports `available: true`, flip the signal so
+        // the UI re-renders as "Create admin sign-in". We do NOT
+        // auto-resubmit — the user must see the title flip first; an
+        // auto-submit on a real account with a typo would silently
+        // (re)create the admin password.
+        if ((err.status === 400 || err.status === 401)
+            && !this.firstOperatorSetupAvailable()) {
+          this.auth.firstOperatorSetupStatus()
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+              next: (status) => {
+                if (status.available) {
+                  this.firstOperatorSetupAvailable.set(true);
+                  this.form.controls.username.setValue(status.username || 'admin');
+                  this.errorMessage.set(
+                    'No admin account exists yet — click "Create admin account" to make one with the password you typed.',
+                  );
+                } else {
+                  this.errorMessage.set(this.getErrorMessage(err));
+                }
+                this.loading.set(false);
+              },
+              error: () => {
+                this.errorMessage.set(this.getErrorMessage(err));
+                this.loading.set(false);
+              },
+            });
+          return;
+        }
         this.errorMessage.set(this.getErrorMessage(err));
         this.loading.set(false);
       },

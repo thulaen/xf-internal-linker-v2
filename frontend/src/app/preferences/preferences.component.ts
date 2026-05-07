@@ -4,6 +4,7 @@ import {
   DestroyRef,
   inject,
   OnInit,
+  signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -14,7 +15,9 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatListModule } from '@angular/material/list';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
@@ -33,6 +36,10 @@ import {
   OnboardingStateService,
 } from '../core/services/onboarding-state.service';
 import { FeatureRequestDialogComponent } from '../shared/ui/feature-request-dialog/feature-request-dialog.component';
+import {
+  PasskeyCredentialSummary,
+  PasskeyService,
+} from '../core/services/passkey.service';
 
 /**
  * Phase GB / Gap 149 — User Preference Center.
@@ -70,7 +77,9 @@ import { FeatureRequestDialogComponent } from '../shared/ui/feature-request-dial
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
+    MatListModule,
     MatProgressBarModule,
+    MatProgressSpinnerModule,
     MatSelectModule,
     MatSlideToggleModule,
     MatSnackBarModule,
@@ -370,6 +379,95 @@ import { FeatureRequestDialogComponent } from '../shared/ui/feature-request-dial
           </button>
         </mat-card-actions>
       </mat-card>
+
+      <!-- 9. Passkeys ─────────────────────────────────────── -->
+      <mat-card class="pc-card" id="passkeys">
+        <mat-card-header>
+          <mat-card-title>Passkeys</mat-card-title>
+          <mat-card-subtitle>
+            Sign in with your fingerprint, face, or hardware key — no password
+            needed. A passkey is a small key your browser stores in your
+            laptop's secure chip; we never see it. The site asks "is the same
+            person here?" and your laptop answers yes.
+          </mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          @if (passkeysLoading()) {
+            <div class="pk-loading">
+              <mat-spinner diameter="24"></mat-spinner>
+              <span>Loading your passkeys…</span>
+            </div>
+          } @else if (passkeyError()) {
+            <p class="pk-error">{{ passkeyError() }}</p>
+          } @else if (passkeys().length === 0) {
+            <p class="pk-empty">
+              You haven't added any passkeys yet. Click "Add a passkey" below
+              to enrol the device you're on now.
+            </p>
+          } @else {
+            <mat-list class="pk-list">
+              @for (k of passkeys(); track k.id) {
+                <mat-list-item class="pk-row">
+                  <mat-icon matListItemIcon>vpn_key</mat-icon>
+                  <div matListItemTitle>{{ k.label || 'Unnamed passkey' }}</div>
+                  <div matListItemLine class="pk-meta">
+                    @if (k.transports.length > 0) {
+                      <span>{{ k.transports.join(' · ') }}</span>
+                      <span>·</span>
+                    }
+                    <span>
+                      @if (k.last_used_at) {
+                        Last used {{ formatRelative(k.last_used_at) }}
+                      } @else {
+                        Never used yet
+                      }
+                    </span>
+                  </div>
+                  <button
+                    mat-icon-button
+                    matListItemMeta
+                    type="button"
+                    matTooltip="Rename this passkey"
+                    (click)="renamePasskey(k)"
+                  >
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                  <button
+                    mat-icon-button
+                    matListItemMeta
+                    type="button"
+                    matTooltip="Delete this passkey"
+                    (click)="deletePasskey(k)"
+                  >
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </mat-list-item>
+              }
+            </mat-list>
+          }
+        </mat-card-content>
+        <mat-card-actions>
+          <button
+            mat-raised-button
+            color="primary"
+            type="button"
+            [disabled]="passkeyBusy() || !passkeySupported"
+            (click)="addPasskey()"
+          >
+            @if (passkeyBusy()) {
+              <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
+            } @else {
+              <mat-icon>fingerprint</mat-icon>
+            }
+            Add a passkey
+          </button>
+          @if (!passkeySupported) {
+            <span class="pk-unsupported">
+              Your browser doesn't support passkeys.
+            </span>
+          }
+        </mat-card-actions>
+      </mat-card>
     </div>
   `,
   styles: [`
@@ -468,6 +566,42 @@ import { FeatureRequestDialogComponent } from '../shared/ui/feature-request-dial
     }
     .pc-done { color: var(--color-success, #1e8e3e); }
     .pc-pending { color: var(--color-text-secondary, #5f6368); }
+    .pk-loading {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 0;
+      color: var(--color-text-secondary);
+      font-size: 13px;
+    }
+    .pk-error {
+      color: var(--color-error, #d93025);
+      margin: 0;
+      font-size: 13px;
+    }
+    .pk-empty {
+      color: var(--color-text-secondary);
+      margin: 0;
+      font-size: 13px;
+    }
+    .pk-list {
+      padding: 0;
+    }
+    .pk-meta {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      color: var(--color-text-secondary);
+      font-size: 12px;
+    }
+    .pk-unsupported {
+      color: var(--color-text-secondary);
+      font-size: 12px;
+      margin-left: 8px;
+    }
+    .btn-spinner {
+      margin-right: 8px;
+    }
   `],
 })
 export class PreferencesComponent implements OnInit {
@@ -482,12 +616,167 @@ export class PreferencesComponent implements OnInit {
   private dialog = inject(MatDialog);
   private snack = inject(MatSnackBar);
   private destroyRef = inject(DestroyRef);
+  private passkeyService = inject(PasskeyService);
 
   protected readonly catalogue = ONBOARDING_CATALOGUE;
+
+  // Passkey card state.
+  protected readonly passkeys = signal<PasskeyCredentialSummary[]>([]);
+  protected readonly passkeysLoading = signal(false);
+  protected readonly passkeyBusy = signal(false);
+  protected readonly passkeyError = signal<string>('');
+  protected readonly passkeySupported = this.passkeyService.isBrowserSupported();
 
   ngOnInit(): void {
     this.onboarding.registerCatalogue(ONBOARDING_CATALOGUE);
     this.onboarding.markDone('first-preference-visit');
+    this.loadPasskeys();
+  }
+
+  // ── Passkey card handlers ────────────────────────────────────────
+
+  private loadPasskeys(): void {
+    this.passkeysLoading.set(true);
+    this.passkeyError.set('');
+    this.passkeyService
+      .listCredentials()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (rows) => {
+          this.passkeys.set(rows ?? []);
+          this.passkeysLoading.set(false);
+        },
+        error: (err) => {
+          this.passkeysLoading.set(false);
+          this.passkeyError.set(
+            err?.error?.detail ||
+              'Could not load your passkeys. The backend may be restarting.',
+          );
+        },
+      });
+  }
+
+  async addPasskey(): Promise<void> {
+    if (this.passkeyBusy()) return;
+    if (!this.passkeySupported) {
+      this.snack.open('Your browser does not support passkeys.', 'OK', { duration: 3000 });
+      return;
+    }
+    const label = (window.prompt(
+      'Give this passkey a name (for example "MacBook Touch ID" or "YubiKey"):',
+      this.suggestPasskeyLabel(),
+    ) || '').trim();
+    if (label === '') {
+      // User pressed Cancel — abort silently.
+      return;
+    }
+
+    this.passkeyBusy.set(true);
+    const result = await this.passkeyService.register(label);
+    this.passkeyBusy.set(false);
+
+    if (result.ok) {
+      this.snack.open('Passkey added. You can now sign in with it.', 'OK', { duration: 3500 });
+      this.loadPasskeys();
+      return;
+    }
+    if (result.reason === 'cancelled') {
+      // User pressed Cancel in the WebAuthn prompt. No need to nag.
+      return;
+    }
+    if (result.reason === 'unsupported') {
+      this.snack.open('Your browser does not support passkeys.', 'OK', { duration: 3000 });
+      return;
+    }
+    if (result.reason === 'not-configured') {
+      this.snack.open(
+        'Passkey enrolment is not configured on this server. See docs/PASSKEY-SETUP.md.',
+        'OK',
+        { duration: 5000 },
+      );
+      return;
+    }
+    this.snack.open(
+      result.detail || 'Passkey enrolment failed. Try again or check the console.',
+      'OK',
+      { duration: 4500 },
+    );
+  }
+
+  renamePasskey(cred: PasskeyCredentialSummary): void {
+    const next = (window.prompt(
+      'New name for this passkey:',
+      cred.label || '',
+    ) || '').trim();
+    if (next === '' || next === cred.label) return;
+    this.passkeyService
+      .relabelCredential(cred.id, next)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.snack.open('Passkey renamed.', 'OK', { duration: 2000 });
+          this.loadPasskeys();
+        },
+        error: (err) =>
+          this.snack.open(
+            err?.error?.detail || 'Could not rename this passkey.',
+            'OK',
+            { duration: 3500 },
+          ),
+      });
+  }
+
+  deletePasskey(cred: PasskeyCredentialSummary): void {
+    if (
+      !window.confirm(
+        `Delete the passkey "${cred.label || 'Unnamed passkey'}"? You will not be able to use it to sign in afterward.`,
+      )
+    ) {
+      return;
+    }
+    this.passkeyService
+      .deleteCredential(cred.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.snack.open('Passkey deleted.', 'OK', { duration: 2500 });
+          this.loadPasskeys();
+        },
+        error: (err) =>
+          this.snack.open(
+            err?.error?.detail || 'Could not delete this passkey.',
+            'OK',
+            { duration: 4500 },
+          ),
+      });
+  }
+
+  formatRelative(iso: string): string {
+    const t = Date.parse(iso);
+    if (Number.isNaN(t)) return iso;
+    const diffMs = Date.now() - t;
+    const sec = Math.round(diffMs / 1000);
+    if (sec < 60) return 'just now';
+    const min = Math.round(sec / 60);
+    if (min < 60) return `${min} min ago`;
+    const hr = Math.round(min / 60);
+    if (hr < 24) return `${hr} h ago`;
+    const day = Math.round(hr / 24);
+    if (day < 30) return `${day} day${day === 1 ? '' : 's'} ago`;
+    const mo = Math.round(day / 30);
+    if (mo < 12) return `${mo} mo ago`;
+    const yr = Math.round(mo / 12);
+    return `${yr} yr ago`;
+  }
+
+  private suggestPasskeyLabel(): string {
+    if (typeof navigator === 'undefined') return '';
+    const ua = navigator.userAgent || '';
+    if (/Mac/.test(ua)) return 'Mac';
+    if (/Windows/.test(ua)) return 'Windows PC';
+    if (/Android/.test(ua)) return 'Android phone';
+    if (/iPhone|iPad|iOS/.test(ua)) return 'iPhone / iPad';
+    return 'This device';
   }
 
   onLocaleChange(ev: Event): void {

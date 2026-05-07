@@ -84,3 +84,8 @@ class CoreConfig(AppConfig):
         # Phase R1.3 — realtime broadcast signals for AppSetting changes.
         # Idempotent via dispatch_uid on each receiver.
         from . import signals  # noqa: F401
+
+        # Startup safety check — warn loudly if auth_user is empty AND
+        # backups/ already has snapshots (a Docker-rebuild data-loss
+        # signature). Read-only, no writes.
+        from . import checks_users  # noqa: F401

@@ -58,6 +58,10 @@ from apps.core.views_passkey import (
     PasskeyLoginBeginView,
     PasskeyLoginFinishView,
 )
+from apps.core.views_passkey_management import (
+    PasskeyCredentialDetailView,
+    PasskeyCredentialListView,
+)
 from apps.graph.views import (
     BrokenLinkViewSet,
     GapAnalysisView,
@@ -216,6 +220,17 @@ urlpatterns = [
         "auth/passkey/login/finish/",
         PasskeyLoginFinishView.as_view(),
         name="passkey-login-finish",
+    ),
+    # Passkey management — list / rename / delete the user's own credentials.
+    path(
+        "auth/passkey/credentials/",
+        PasskeyCredentialListView.as_view(),
+        name="passkey-credentials-list",
+    ),
+    path(
+        "auth/passkey/credentials/<int:pk>/",
+        PasskeyCredentialDetailView.as_view(),
+        name="passkey-credentials-detail",
     ),
     path("", include("apps.core.urls")),
     path("analytics/", include("apps.analytics.urls")),

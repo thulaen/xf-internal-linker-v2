@@ -1,6 +1,19 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { Observable, firstValueFrom } from 'rxjs';
+
+/**
+ * One row in the user's enrolled-passkey list. Mirrors the JSON shape
+ * returned by GET /api/auth/passkey/credentials/.
+ */
+export interface PasskeyCredentialSummary {
+  id: number;
+  label: string;
+  transports: string[];
+  sign_count: number;
+  last_used_at: string | null;
+  created_at: string | null;
+}
 
 /**
  * Phase F1 / Gap 95 — WebAuthn passkey login.
@@ -68,8 +81,9 @@ export class PasskeyService {
 
   /** Registration ceremony — adds a new passkey to the current user.
    *  Caller must already be authenticated (the begin endpoint reads
-   *  the session). */
-  async register(): Promise<PasskeyOutcome> {
+   *  the session). Optional ``label`` is persisted server-side so
+   *  the user's "Passkeys" list shows a friendly name. */
+  async register(label?: string): Promise<PasskeyOutcome> {
     if (!this.isBrowserSupported()) {
       return { ok: false, reason: 'unsupported' };
     }
@@ -82,7 +96,7 @@ export class PasskeyService {
       if (!credential) {
         return { ok: false, reason: 'cancelled' };
       }
-      await this.finishRegistration(credential);
+      await this.finishRegistration(credential, label);
       return { ok: true };
     } catch (e) {
       const detail = e instanceof Error ? e.message : String(e);
@@ -121,6 +135,28 @@ export class PasskeyService {
     }
   }
 
+  // ── management endpoints (Preferences page) ───────────────────────
+
+  /** GET /api/auth/passkey/credentials/ — the user's own enrolled passkeys. */
+  listCredentials(): Observable<PasskeyCredentialSummary[]> {
+    return this.http.get<PasskeyCredentialSummary[]>('/api/auth/passkey/credentials/');
+  }
+
+  /** PATCH /api/auth/passkey/credentials/<id>/ — rename one. */
+  relabelCredential(id: number, label: string): Observable<PasskeyCredentialSummary> {
+    return this.http.patch<PasskeyCredentialSummary>(
+      `/api/auth/passkey/credentials/${id}/`,
+      { label },
+    );
+  }
+
+  /** DELETE /api/auth/passkey/credentials/<id>/ — revoke one.
+   *  Backend refuses to delete the last credential when the user has
+   *  no usable password (lockout safety). */
+  deleteCredential(id: number): Observable<void> {
+    return this.http.delete<void>(`/api/auth/passkey/credentials/${id}/`);
+  }
+
   // ── server round trips ─────────────────────────────────────────────
 
   private async beginRegistration(): Promise<PublicKeyCredentialCreationOptions | null> {
@@ -134,9 +170,13 @@ export class PasskeyService {
     }
   }
 
-  private async finishRegistration(cred: PublicKeyCredential): Promise<void> {
+  private async finishRegistration(cred: PublicKeyCredential, label?: string): Promise<void> {
+    const payload = this.encodeCredential(cred) as Record<string, unknown>;
+    if (label && label.trim()) {
+      payload['label'] = label.trim();
+    }
     await firstValueFrom(
-      this.http.post('/api/auth/passkey/register/finish/', this.encodeCredential(cred)),
+      this.http.post('/api/auth/passkey/register/finish/', payload),
     );
   }
 

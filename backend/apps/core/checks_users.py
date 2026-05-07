@@ -1,0 +1,82 @@
+"""Startup safety check — warn loudly if the auth_user table is empty.
+
+Plain-English: if the database has zero users AND the project's
+``backups/`` directory already contains snapshots, that combination
+is suspicious — it almost always means a Docker rebuild lost the
+``pgdata`` volume. The check fires a Django ``Warning`` (code
+``core.W001``) which surfaces in ``manage.py check`` output and in
+backend startup logs, pointing the operator at the recovery doc.
+
+Read-only by design: never writes to the database, never touches
+passwords, never auto-creates users. The recovery path lives in
+``docs/SAFE-DOCKER-REBUILD.md``.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from django.core.checks import Tags, Warning, register
+
+
+def _has_snapshots() -> bool:
+    """Return True if the project ``backups/`` directory contains any
+    pg_dump snapshots. False otherwise.
+
+    We import the live default location from ``apps.core.backups`` so
+    the check stays in lock-step with the snapshot writer if the path
+    ever moves.
+    """
+    try:
+        from apps.core.backups import (
+            DEFAULT_BACKUP_DIR,
+            SNAPSHOT_FILENAME_PREFIX,
+            SNAPSHOT_FILENAME_SUFFIX,
+        )
+    except Exception:  # noqa: forbidden-pattern silent-except  # justification: startup-time check that must NEVER crash boot. The backups module imports Django settings; if settings aren't ready yet we silently treat snapshots as absent and let the next normal invocation re-check. Routing this to ingest_error would create a cyclic-import loop because audit imports from core.
+        return False
+
+    backup_dir: Path = DEFAULT_BACKUP_DIR
+    if not backup_dir.exists():
+        return False
+    for entry in backup_dir.iterdir():
+        if (
+            entry.is_file()
+            and entry.name.startswith(SNAPSHOT_FILENAME_PREFIX)
+            and entry.name.endswith(SNAPSHOT_FILENAME_SUFFIX)
+        ):
+            return True
+    return False
+
+
+@register(Tags.database)
+def warn_if_users_lost(app_configs, **kwargs):
+    """Fire core.W001 when auth_user is empty but backups/ has snapshots."""
+    # Skip during fresh checkouts where the system has never been used.
+    if not _has_snapshots():
+        return []
+
+    # Reading the user model requires the apps to be ready. If something
+    # imports this check before then, return silently — the next normal
+    # invocation will catch the condition.
+    try:
+        from django.contrib.auth import get_user_model
+
+        if get_user_model().objects.exists():
+            return []
+    except Exception:  # noqa: forbidden-pattern silent-except  # justification: startup-time check that must NEVER crash boot. If apps aren't ready or DB is mid-migration we let the next normal `manage.py check` invocation re-evaluate. ingest_error() would import audit -> models -> core, creating a cyclic-import loop.
+        return []
+
+    return [
+        Warning(
+            "auth_user is empty, but backups/ already contains snapshots — "
+            "this almost always means a Docker rebuild lost the pgdata volume.",
+            hint=(
+                "Recovery: see docs/SAFE-DOCKER-REBUILD.md. "
+                "Quick path: docker compose exec backend python manage.py "
+                "restore_db_snapshot --latest --confirm. "
+                "Future rebuilds: use scripts/safe-rebuild.ps1."
+            ),
+            id="core.W001",
+        )
+    ]
