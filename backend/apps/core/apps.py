@@ -18,7 +18,7 @@ def _consume_safe_mode_boot_flag(sender, **kwargs):
     """
     try:
         from apps.core.models import AppSetting
-    except Exception:  # pragma: no cover — app not ready yet
+    except Exception:  # noqa: BLE001  # pragma: no cover — defensive: app registry may not be ready yet at startup; safest action is just to skip the panic-recovery flag for this boot.
         return
 
     try:
@@ -45,6 +45,24 @@ def _consume_safe_mode_boot_flag(sender, **kwargs):
 
 
 def _run_startup_smoke_tests(sender, **kwargs):
+    # Skip during test runs: each test-DB boot would otherwise emit
+    # ErrorLog rows for every artefact-table policy gap and chain into
+    # OperatorAlert via post_save, polluting test isolation. Tests that
+    # exercise the smoke logic call `run_startup_smoke_tests()` directly.
+    import sys
+
+    if any(arg == "test" for arg in sys.argv[1:3]):
+        return
+    using = kwargs.get("using", "default")
+    try:
+        from django.db import connections
+
+        db_name = connections[using].settings_dict.get("NAME") or ""
+        if isinstance(db_name, str) and db_name.startswith("test_"):
+            return
+    except Exception:
+        logger.debug("Smoke-test test-DB detection failed", exc_info=True)
+
     try:
         from apps.core.services.self_test_smoke import run_startup_smoke_tests
 

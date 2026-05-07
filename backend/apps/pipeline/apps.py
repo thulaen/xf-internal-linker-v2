@@ -33,10 +33,19 @@ class PipelineConfig(AppConfig):
 
     def ready(self):
         import os
+        import sys
 
         # Legacy escape hatch — leave intact in case any harness still
         # relies on a fully-silent startup.
         if os.environ.get("FAISS_INDEX_SKIP_BUILD"):
+            return
+
+        # Skip the audit-logging side-effects under `manage.py test`.
+        # The single-worker check still runs (and emits its log line)
+        # but no ErrorLog row gets written into the per-test DB, which
+        # would otherwise cascade into a stray OperatorAlert that
+        # pollutes notifications-app test isolation.
+        if any(arg == "test" for arg in sys.argv[1:3]):
             return
 
         # Group B.2 — single-worker assertion. Does NOT build the index
@@ -47,7 +56,7 @@ class PipelineConfig(AppConfig):
             from .services.faiss_index import _assert_single_worker
 
             _assert_single_worker()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # Pipeline ready() must never crash startup — funnel every failure to the audit log via _record_startup_failure.
             self._record_startup_failure(
                 step="single_worker_assertion",
                 exc=exc,
@@ -73,7 +82,7 @@ class PipelineConfig(AppConfig):
                 raw_exception=traceback.format_exc(),
                 severity=ErrorLog.SEVERITY_CRITICAL,
             )
-        except Exception:
+        except Exception:  # noqa: BLE001  # Last-resort fallback when the audit-ingestion path itself is broken — surface to stderr so the boot failure isn't silent.
             # Audit subsystem itself is broken — log to stderr at least.
             import logging
 

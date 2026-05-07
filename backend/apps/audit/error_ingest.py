@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import os
 import re
 import socket
 from typing import NamedTuple, Optional
@@ -37,7 +36,7 @@ from django.db import IntegrityError, transaction
 
 from .fix_suggestions import suggest
 from .models import ErrorLog
-from .runtime_context import snapshot as runtime_snapshot
+from .runtime_context import local_node_identity, snapshot as runtime_snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -81,14 +80,10 @@ def _gather_context(
 ) -> tuple[str, str, str, dict]:
     """Compute the dedup key and runtime context for a new error row.
 
-    Returns ``(fingerprint, node_id, node_role, runtime_snapshot)``. Node
-    identity comes from the ``NODE_ID`` / ``NODE_ROLE`` env vars stamped
-    by the slave-worker bootstrap; both fall back to safe primary
-    defaults so the function is usable from any environment.
+    Returns ``(fingerprint, node_id, node_role, runtime_snapshot)``.
     """
     fp = _compute_fingerprint(job_type, step, error_message)
-    node_id = os.environ.get("NODE_ID", socket.gethostname())
-    node_role = os.environ.get("NODE_ROLE", ErrorLog.NODE_ROLE_PRIMARY)
+    node_id, node_role = local_node_identity()
     ctx = runtime_snapshot()
     return fp, node_id, node_role, ctx
 

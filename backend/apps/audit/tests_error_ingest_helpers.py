@@ -28,6 +28,7 @@ from apps.audit.error_ingest import (
     ingest_error,
 )
 from apps.audit.models import ErrorLog
+from apps.audit.runtime_context import local_node_identity
 
 
 def _make_payload(**overrides) -> _ErrorPayload:
@@ -96,6 +97,28 @@ class ComputeFingerprintTests(SimpleTestCase):
         self.assertEqual(len(fp), 40)
 
 
+class LocalNodeIdentityTests(SimpleTestCase):
+    """Single-source-of-truth helper for ``(node_id, node_role)``.
+
+    Replaces the previously duplicated 2-line env-read+fallback pattern
+    that lived in three sites: error_ingest, runtime_context.snapshot,
+    and diagnostics views NodesView.
+    """
+
+    def test_uses_env_overrides(self):
+        with patch.dict(
+            os.environ,
+            {"NODE_ID": "node-A", "NODE_ROLE": "worker"},
+            clear=False,
+        ):
+            self.assertEqual(local_node_identity(), ("node-A", "worker"))
+
+    @patch("apps.audit.runtime_context.socket.gethostname", return_value="host-X")
+    def test_falls_back_to_hostname_and_primary(self, _mock_hostname):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(local_node_identity(), ("host-X", "primary"))
+
+
 class GatherContextTests(SimpleTestCase):
     """Bundles fingerprint + node identity + runtime snapshot for callers."""
 
@@ -113,11 +136,13 @@ class GatherContextTests(SimpleTestCase):
         self.assertEqual(len(fp), 40)
 
     @patch("apps.audit.error_ingest.runtime_snapshot", return_value={})
-    @patch("apps.audit.error_ingest.socket.gethostname", return_value="host-fallback")
+    @patch("apps.audit.runtime_context.socket.gethostname", return_value="host-fallback")
     def test_falls_back_to_hostname_and_primary_role(
         self, _mock_hostname, _mock_snapshot
     ):
-        # Strip both env vars so the defaults fire.
+        # Strip both env vars so the defaults fire (the helper reads
+        # ``socket.gethostname`` for node_id and the literal "primary"
+        # for node_role).
         with patch.dict(os.environ, {}, clear=True):
             _fp, node_id, node_role, _ctx = _gather_context("job", "step", "msg")
         self.assertEqual(node_id, "host-fallback")

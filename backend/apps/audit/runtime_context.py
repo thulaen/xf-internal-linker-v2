@@ -23,6 +23,22 @@ from typing import Any
 from django.conf import settings
 
 
+def local_node_identity() -> tuple[str, str]:
+    """Return ``(node_id, node_role)`` for this runtime.
+
+    Reads from the ``NODE_ID`` / ``NODE_ROLE`` env vars stamped by the
+    slave-worker bootstrap; falls back to ``socket.gethostname()`` and
+    ``"primary"`` so the result is always a usable pair of strings on
+    any machine. Single source of truth for the slave-worker identity
+    tuple used by runtime-context snapshots, error ingestion, and
+    diagnostics node rosters.
+    """
+    return (
+        os.environ.get("NODE_ID", socket.gethostname()),
+        os.environ.get("NODE_ROLE", "primary"),
+    )
+
+
 def snapshot() -> dict[str, Any]:
     """
     Return a small JSON-serialisable dict describing this runtime right now.
@@ -31,9 +47,10 @@ def snapshot() -> dict[str, Any]:
     function never raises. Keys match the frontend `RuntimeContext`
     TypeScript interface in frontend/src/app/diagnostics/diagnostics.service.ts.
     """
+    node_id, node_role = local_node_identity()
     ctx: dict[str, Any] = {
-        "node_id": os.environ.get("NODE_ID", socket.gethostname()),
-        "node_role": os.environ.get("NODE_ROLE", "primary"),
+        "node_id": node_id,
+        "node_role": node_role,
         "node_hostname": socket.gethostname(),
         "python_version": sys.version.split()[0],
         "embedding_model": getattr(settings, "EMBEDDING_MODEL", "unknown"),
@@ -67,4 +84,4 @@ def snapshot() -> dict[str, Any]:
     return ctx
 
 
-__all__ = ["snapshot"]
+__all__ = ["local_node_identity", "snapshot"]

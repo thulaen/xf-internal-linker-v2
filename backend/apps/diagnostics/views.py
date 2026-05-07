@@ -409,10 +409,11 @@ class NodesView(views.APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        import os
         import socket
 
         from django.db.models import Count, Max, Q
+
+        from apps.audit.runtime_context import local_node_identity
 
         since = timezone.now() - timedelta(hours=24)
         nodes = (
@@ -426,14 +427,14 @@ class NodesView(views.APIView):
             )
             .order_by("-last_seen")
         )
-        primary_id = os.environ.get("NODE_ID", socket.gethostname())
+        primary_id, primary_role = local_node_identity()
         payload = list(nodes)
         if primary_id not in {n["node_id"] for n in payload}:
             payload.insert(
                 0,
                 {
                     "node_id": primary_id,
-                    "node_role": "primary",
+                    "node_role": primary_role,
                     "node_hostname": socket.gethostname(),
                     "last_seen": None,
                     "unacknowledged": 0,
