@@ -526,6 +526,9 @@ def _flush_embeddings_slice(
         raw_vectors_list.clear()
         return
     pks_slice, normalised, text_hashes = gate_result
+    if not _l2_audit_passed(normalised):
+        raw_vectors_list.clear()
+        return
     use_text_hashes = (
         supports_text_hash and text_hashes is not None
         and len(text_hashes) == len(pks_slice)
@@ -1119,6 +1122,100 @@ def _l2_normalize(arr: np.ndarray) -> np.ndarray:
         norms = np.linalg.norm(arr, axis=1, keepdims=True)
         norms = np.maximum(norms, 1e-12)
         return (arr / norms).astype(np.float32)
+
+
+# FR-237 — L2-normalization audit. Two scoring code paths exist downstream:
+# FAISS GPU uses inner-product (IndexFlatIP) and the NumPy CPU fallback uses
+# dot product. They are mathematically identical only for L2-normalized
+# vectors. Without a runtime check, a regression in `_l2_normalize` (or any
+# step between normalize and FAISS write) would silently bias every cosine
+# score by the row magnitude. Sources:
+#   - Wang et al. 2017, "Normalized Word Embedding and Orthogonal Transform
+#     for Bilingual Word Translation," NAACL §2 — establishes that cosine
+#     similarity on un-normalized vectors is biased by magnitude.
+#   - IEEE 754-2019 §5.4 — single-precision rounding tolerance for
+#     unit-magnitude floats is below 1e-6.
+_L2_AUDIT_TOLERANCE: float = 1e-6
+
+
+class L2NormalizationAuditError(ValueError):
+    """Raised when post-quality-gate vectors fail the L2-norm invariant.
+
+    Carries the row index of the worst offender and the observed deviation
+    so the caller (and the operator log) can pinpoint which source row drove
+    the failure. Inherits ValueError so existing broad-except handlers in
+    the embedding pipeline log it without crashing the run.
+    """
+
+    def __init__(self, *, max_dev: float, worst_row: int, n_rows: int) -> None:
+        self.max_dev = float(max_dev)
+        self.worst_row = int(worst_row)
+        self.n_rows = int(n_rows)
+        super().__init__(
+            f"L2-norm audit failed: max deviation {self.max_dev:.3e} > "
+            f"tolerance {_L2_AUDIT_TOLERANCE:.3e} at row {self.worst_row} "
+            f"of {self.n_rows}"
+        )
+
+
+def _audit_l2_normalization(
+    arr: np.ndarray,
+    *,
+    tolerance: float = _L2_AUDIT_TOLERANCE,
+) -> None:
+    """Verify every row of *arr* is L2-unit. No-op on zero-row input.
+
+    Called from ``_flush_embeddings_slice`` after the quality gate has
+    pruned rows but before bulk_update writes to the DB. Catches drift
+    introduced between ``_l2_normalize`` and persistence — which could
+    otherwise propagate silently into FAISS and bias cosine scores.
+
+    Cost: one ``np.linalg.norm`` over the batch (~2 µs for a 64-row × 1024-
+    dim float32 matrix on a modern CPU). Trivial overhead vs. the embed
+    forward pass that produced *arr*.
+    """
+    if arr.shape[0] == 0:
+        return
+    norms = np.linalg.norm(arr, axis=1)
+    deviations = np.abs(norms - 1.0)
+    max_dev = float(deviations.max())
+    if max_dev > tolerance:
+        worst_row = int(deviations.argmax())
+        raise L2NormalizationAuditError(
+            max_dev=max_dev,
+            worst_row=worst_row,
+            n_rows=int(arr.shape[0]),
+        )
+
+
+def _l2_audit_passed(normalised: np.ndarray) -> bool:
+    """Run the FR-237 audit; emit ops-feed alert + return False on failure.
+
+    Wrapper around ``_audit_l2_normalization`` that adapts the raise-on-fail
+    invariant into a "drop the bad slice" policy at the flush boundary.
+    Re-raising mid-flush would crash the entire embed run; dropping one
+    slice loses 64-256 rows worth of fresh embeddings (the next pass
+    re-encodes them via the embedding-text-hash supersede path). This is
+    the smallest blast radius per Nygard 2018 *Release It!* §5
+    circuit-breaker pattern.
+    """
+    try:
+        _audit_l2_normalization(normalised)
+        return True
+    except L2NormalizationAuditError as audit_exc:
+        logger.error("FR-237 L2 audit failed: %s", audit_exc)
+        emit(
+            "embeddings.l2_audit_failed",
+            str(audit_exc),
+            source="embeddings",
+            severity="high",
+            runtime_context={
+                "max_dev": audit_exc.max_dev,
+                "worst_row": audit_exc.worst_row,
+                "n_rows": audit_exc.n_rows,
+            },
+        )
+        return False
 
 
 # ---------------------------------------------------------------------------

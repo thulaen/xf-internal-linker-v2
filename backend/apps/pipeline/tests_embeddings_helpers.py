@@ -10,9 +10,12 @@ from __future__ import annotations
 
 from unittest import mock
 
+import numpy as np
 from django.test import SimpleTestCase
 
 from apps.pipeline.services.embeddings import (
+    L2NormalizationAuditError,
+    _audit_l2_normalization,
     _build_content_item_text_inputs,
     _build_sentence_text_inputs,
     _extract_existing_quality_gate_inputs,
@@ -176,3 +179,74 @@ class ExtractExistingQualityGateInputsTests(SimpleTestCase):
         }
         old_vec, _, _ = _extract_existing_quality_gate_inputs(row, False)
         self.assertIsNone(old_vec)
+
+
+class AuditL2NormalizationTests(SimpleTestCase):
+    """FR-237 — audit catches drift from the L2-unit invariant.
+
+    Sources of truth: Wang et al. 2017 NAACL §2 (cosine on un-normalized
+    vectors is biased by magnitude); IEEE 754-2019 §5.4 (single-precision
+    rounding tolerance for unit-magnitude floats is below 1e-6).
+    """
+
+    def _unit_batch(self, n: int = 3, dim: int = 8) -> np.ndarray:
+        rng = np.random.default_rng(seed=42)
+        raw = rng.standard_normal((n, dim)).astype(np.float32)
+        norms = np.linalg.norm(raw, axis=1, keepdims=True)
+        return (raw / norms).astype(np.float32)
+
+    def test_passes_unit_normalized_batch(self):
+        # Happy path: a fresh L2-unit batch passes silently.
+        _audit_l2_normalization(self._unit_batch())
+
+    def test_no_op_on_empty_array(self):
+        # Edge case: zero-row arrays are valid (the flush path produces
+        # them when the quality gate filters everything).
+        _audit_l2_normalization(np.zeros((0, 1024), dtype=np.float32))
+
+    def test_raises_on_zero_vector_row(self):
+        # Adversarial: a row of all-zeros has norm 0; deviation = 1.0.
+        batch = self._unit_batch()
+        batch[1] = 0.0
+        with self.assertRaises(L2NormalizationAuditError) as ctx:
+            _audit_l2_normalization(batch)
+        self.assertEqual(ctx.exception.worst_row, 1)
+        self.assertAlmostEqual(ctx.exception.max_dev, 1.0, places=5)
+
+    def test_raises_on_inflated_vector(self):
+        # Adversarial: a row pre-multiplied by 1.5 fails the audit.
+        batch = self._unit_batch()
+        batch[2] = batch[2] * 1.5
+        with self.assertRaises(L2NormalizationAuditError) as ctx:
+            _audit_l2_normalization(batch)
+        self.assertEqual(ctx.exception.worst_row, 2)
+        self.assertAlmostEqual(ctx.exception.max_dev, 0.5, places=5)
+
+    def test_carries_n_rows_in_error(self):
+        # Diagnostic: the error message must show batch size so operators
+        # can tell whether the failure is a one-off row or a corrupt batch.
+        batch = self._unit_batch(n=5)
+        batch[4] = 0.0
+        with self.assertRaises(L2NormalizationAuditError) as ctx:
+            _audit_l2_normalization(batch)
+        self.assertEqual(ctx.exception.n_rows, 5)
+        self.assertEqual(ctx.exception.worst_row, 4)
+
+    def test_tolerance_override_accepts_loose_match(self):
+        # A 1e-3-tolerance allows a row that's 0.999 instead of 1.0 — useful
+        # for fp16 GPU pipelines where rounding is coarser than fp32.
+        batch = self._unit_batch()
+        batch[0] = batch[0] * 0.999
+        # default tolerance (1e-6) would fail
+        with self.assertRaises(L2NormalizationAuditError):
+            _audit_l2_normalization(batch)
+        # loosened tolerance accepts it
+        _audit_l2_normalization(batch, tolerance=1e-2)
+
+    def test_within_ieee754_single_precision_tolerance(self):
+        # The IEEE 754-2019 §5.4 single-precision unit-magnitude epsilon is
+        # ~6e-8. A row that drifts by 5e-7 (still very tight) must pass at
+        # the default 1e-6 tolerance.
+        batch = self._unit_batch()
+        batch[0] = batch[0] * (1.0 + 5e-7)
+        _audit_l2_normalization(batch)
