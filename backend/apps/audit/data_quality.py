@@ -54,68 +54,13 @@ class StaleSource(TypedDict):
 
 def scorecard() -> list[SourceScorecard]:
     """One row per connector: completeness, freshness, accuracy."""
-    from apps.analytics.models import SearchMetric
-    from apps.content.models import ContentItem
-
-    out: list[SourceScorecard] = []
-    source_rows = {
-        row["source"]: row
-        for row in SearchMetric.objects.values("source").annotate(
-            latest=Max("date"),
-            sample=Count("id"),
-        )
-    }
-    # GSC / GA4 / Matomo — reuse SearchMetric rows.
-    for source in _SEARCH_METRIC_SOURCES:
-        source_row = source_rows.get(source, {})
-        latest = source_row.get("latest")
-        last_dt = (
-            timezone.make_aware(
-                timezone.datetime.combine(latest, timezone.datetime.min.time())
-            )
-            if latest
-            else None
-        )
-        sample = int(source_row.get("sample") or 0)
-        freshness = None
-        if last_dt:
-            freshness = (timezone.now() - last_dt).total_seconds() / 3600
-        out.append(
-            {
-                "source": source,
-                "completeness_pct": (
-                    _clamp_pct(sample / _SOURCE_COMPLETENESS_TARGET) if sample else 0.0
-                ),
-                "freshness_hours": round(freshness, 1) if freshness else None,
-                "accuracy_pct": _FULL_ACCURACY_PCT,
-                "sample_size": sample,
-            }
-        )
-
-    # ContentItem — completeness = embedded-of-total, freshness = most-recent created.
-    total = ContentItem.objects.count()
-    from apps.pipeline.services.embeddings import get_current_embedding_filter
-
-    embedded = ContentItem.objects.filter(
-        embedding__isnull=False,
-        **get_current_embedding_filter(),
-    ).count()
-    latest_ci = ContentItem.objects.aggregate(m=Max("created_at")).get("m")
-    freshness = None
-    if latest_ci:
-        freshness = (timezone.now() - latest_ci).total_seconds() / 3600
-    out.append(
-        {
-            "source": "content",
-            "completeness_pct": (
-                _clamp_pct((embedded / total) * _PERCENT_SCALE) if total else 0.0
-            ),
-            "freshness_hours": round(freshness, 1) if freshness else None,
-            "accuracy_pct": _FULL_ACCURACY_PCT,
-            "sample_size": total,
-        }
-    )
-    return out
+    summary = _search_metric_summary()
+    rows: list[SourceScorecard] = [
+        _search_metric_scorecard(src, summary.get(src, {}))
+        for src in _SEARCH_METRIC_SOURCES
+    ]
+    rows.append(_content_item_scorecard())
+    return rows
 
 
 def freshness_snapshot() -> list[dict]:
@@ -282,6 +227,72 @@ def _densify(start: date, days: int, day_map: dict[str, int]) -> list[VolumePoin
         day = (start + timedelta(days=i)).isoformat()
         out.append({"day": day, "count": day_map.get(day, 0)})
     return out
+
+
+def _hours_since(dt) -> float | None:
+    """Hours between `dt` and now, or None when `dt` is None."""
+    if dt is None:
+        return None
+    return (timezone.now() - dt).total_seconds() / 3600
+
+
+def _search_metric_summary() -> dict[str, dict]:
+    """Per-source `{latest, sample}` summary built from one ORM round-trip."""
+    from apps.analytics.models import SearchMetric
+
+    return {
+        row["source"]: row
+        for row in SearchMetric.objects.values("source").annotate(
+            latest=Max("date"),
+            sample=Count("id"),
+        )
+    }
+
+
+def _search_metric_scorecard(source: str, summary_row: dict) -> SourceScorecard:
+    """Build one SourceScorecard from a `_search_metric_summary` row (pure)."""
+    latest = summary_row.get("latest")
+    sample = int(summary_row.get("sample") or 0)
+    last_dt = (
+        timezone.make_aware(
+            timezone.datetime.combine(latest, timezone.datetime.min.time())
+        )
+        if latest
+        else None
+    )
+    freshness = _hours_since(last_dt)
+    return {
+        "source": source,
+        "completeness_pct": (
+            _clamp_pct(sample / _SOURCE_COMPLETENESS_TARGET) if sample else 0.0
+        ),
+        "freshness_hours": round(freshness, 1) if freshness is not None else None,
+        "accuracy_pct": _FULL_ACCURACY_PCT,
+        "sample_size": sample,
+    }
+
+
+def _content_item_scorecard() -> SourceScorecard:
+    """Build the `content` SourceScorecard: embedded-of-total + last-created freshness."""
+    from apps.content.models import ContentItem
+    from apps.pipeline.services.embeddings import get_current_embedding_filter
+
+    total = ContentItem.objects.count()
+    embedded = ContentItem.objects.filter(
+        embedding__isnull=False,
+        **get_current_embedding_filter(),
+    ).count()
+    latest_ci = ContentItem.objects.aggregate(m=Max("created_at")).get("m")
+    freshness = _hours_since(latest_ci)
+    return {
+        "source": "content",
+        "completeness_pct": (
+            _clamp_pct((embedded / total) * _PERCENT_SCALE) if total else 0.0
+        ),
+        "freshness_hours": round(freshness, 1) if freshness is not None else None,
+        "accuracy_pct": _FULL_ACCURACY_PCT,
+        "sample_size": total,
+    }
 
 
 __all__ = [
