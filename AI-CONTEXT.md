@@ -540,6 +540,26 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-05-07 - Audit integrity helper extraction (Codex)
+
+- **AI/tool:** Codex.
+- **Why:** User asked to remove the remaining long-function warning in `backend/apps/audit/integrity.py`, move the checked artefact-table rules into one module-level table, and add missing tests.
+- **Branch:** Stayed on `master`; no branch was created or switched.
+- **Relevant open findings disclosed in chat:** None in this audit-integrity area. The only open issue found was for the large diagnostics views file, which this task did not touch.
+- **Forward-clash check:** No clash with the next three queued phases. This change only cleans a startup audit helper and does not change ranking, scoring, imports, model switching, or operator-facing pipeline features.
+- **Intentional files changed:** `backend/apps/audit/integrity.py`, `backend/apps/audit/test_audit_infra.py`, `backend/apps/audit/tests_integrity_helpers.py`, `AI-CONTEXT.md`, and `AGENT-HANDOFF.md`.
+- **What now works:** `verify_artefact_integrity` is no longer one long function. It now runs a visible `ARTEFACT_TABLE_SPECS` tuple, and each table has a small verifier helper. The crawl duplicate check now follows the no-duplicates rule by using `(normalized_url, content_hash)` together, so a page changing content does not get falsely reported as a duplicate URL.
+- **Verification:** `python -m py_compile backend\apps\audit\integrity.py backend\apps\audit\tests_integrity_helpers.py backend\apps\audit\test_audit_infra.py` passed. `python .githooks/check-forbidden-patterns.py --strict backend/apps/audit/integrity.py` passed. Docker `showmigrations` showed all migrations applied before and after tests. Docker `makemigrations --check --dry-run` reported no changes before and after tests. Docker `python manage.py test apps.audit` passed 130 tests. `git diff --check` passed. `docker compose build backend` passed on the second longer run.
+- **Known issues noticed:** The first Docker audit-test command failed because the sandbox could not access Docker. Rerunning with Docker permission passed. The first backend image build hit the 15-minute command timeout; rerunning with a longer timeout passed. Docker startup still prints the pre-existing local search-index warning and app-initialization database warning; they did not fail this slice.
+- **Docker prune:** Ran `powershell -ExecutionPolicy Bypass -File scripts\prune-verification-artifacts.ps1`; it reported `.git/config` already clean and reclaimed 16.7 GB.
+- **Commit/push state:** Preparing a local commit on `master`; push was not requested.
+- **Tech-debt delta:** -5 debt items, -0 net files split.
+  - Long function removed: `verify_artefact_integrity` split into per-table helpers.
+  - Magic number hoisted: verified superseded-embedding retention age moved to `VERIFIED_SUPERSEDED_RETENTION_DAYS`.
+  - Duplicate-rule drift fixed: `CrawledPageMeta` duplicate detection now uses URL plus content hash.
+  - Test gap closed: added `tests_integrity_helpers.py`.
+  - Comment debt reduced: deleted numbered block comments that repeated the code and replaced them with named helpers.
+
 ### 2026-05-01 - Quick Controls pause/resume truth fix (Codex)
 
 - **AI/tool:** Codex.

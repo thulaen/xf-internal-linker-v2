@@ -75,12 +75,14 @@ class AuditInfraTests(TestCase):
         CrawledPageMeta.objects.create(
             url="http://example.com/1",
             normalized_url="http://example.com/1",
+            content_hash="same-content",
             session=session,
         )
         session2 = CrawlSession.objects.create(site_domain="example.com")
         CrawledPageMeta.objects.create(
             url="http://example.com/1",
             normalized_url="http://example.com/1",
+            content_hash="same-content",
             session=session2,
         )
         verify_artefact_integrity()
