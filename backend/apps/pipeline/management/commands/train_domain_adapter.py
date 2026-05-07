@@ -129,76 +129,24 @@ class Command(BaseCommand):
         adapter_path: str,
     ) -> bool:
         """Execute the training loop. Returns True on success."""
-        try:
-            import torch
-            from sentence_transformers import (
-                SentenceTransformer,
-                InputExample,
-                losses,
-            )
-            from torch.utils.data import DataLoader
-        except Exception as exc:
-            raise CommandError(
-                f"Required ML libraries unavailable: {exc}. "
-                "Ensure sentence-transformers + torch are installed."
-            )
-
-        try:
-            from peft import LoraConfig, get_peft_model, TaskType
-        except ImportError:
-            raise CommandError(
-                "peft is not installed. Add `peft>=0.13` to "
-                "backend/requirements.txt and rebuild the image."
-            )
-
+        SentenceTransformer, InputExample, losses, DataLoader, torch = (
+            _import_training_stack()
+        )
         examples = self._build_training_examples(max_pairs=max_pairs)
         if len(examples) < 100:
             raise CommandError(
                 f"Only {len(examples)} positive pairs assembled — too few "
                 "to train. Need broader corpus coverage."
             )
-
-        from apps.pipeline.services.domain_adapter import (
-            DEFAULT_MODEL_NAME,
-            LORA_ALPHA_DEFAULT,
-            LORA_RANK_DEFAULT,
-        )
-        from apps.pipeline.services.embeddings import (
-            DEFAULT_MODEL_NAME as EMBED_DEFAULT,
-        )
-        model_name = os.environ.get(
-            "EMBEDDING_DOMAIN_ADAPTER_BASE_MODEL", EMBED_DEFAULT,
-        )
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-
+        model_name, device = _resolve_model_and_device(torch)
         self.stdout.write(
             f"Loading {model_name} on {device}; assembled {len(examples)} pairs."
         )
         model = SentenceTransformer(model_name, device=device)
-        base = model._modules["0"]
-        # Wrap the underlying transformer with a LoRA adapter. Hu 2021
-        # §4.1 — query and value projection layers are the standard
-        # injection points for transformer LoRA adaptation.
-        config = LoraConfig(
-            task_type=TaskType.FEATURE_EXTRACTION,
-            r=LORA_RANK_DEFAULT,
-            lora_alpha=LORA_ALPHA_DEFAULT,
-            target_modules=["query", "value"],
-        )
-        try:
-            adapted = get_peft_model(base.auto_model, config)
-            base.auto_model = adapted
-        except Exception as exc:
-            raise CommandError(
-                f"peft.get_peft_model failed for this base model: {exc}. "
-                "BGE-M3 normally exposes `query`/`value` projections; "
-                "if you swapped to a different model, adjust target_modules."
-            )
-
+        _attach_lora_adapter(model)
         loader = DataLoader(examples, shuffle=True, batch_size=batch_size)
         loss_fn = losses.MultipleNegativesRankingLoss(model)
         warmup = max(1, int(0.1 * len(loader)))
-
         self.stdout.write(
             f"Training {epochs} epoch(s), batch_size={batch_size}, "
             f"warmup_steps={warmup}…"
@@ -209,9 +157,8 @@ class Command(BaseCommand):
             warmup_steps=warmup,
             show_progress_bar=False,
         )
-
         os.makedirs(adapter_path, exist_ok=True)
-        adapted.save_pretrained(adapter_path)
+        model._modules["0"].auto_model.save_pretrained(adapter_path)
         return os.path.isfile(os.path.join(adapter_path, "adapter_config.json"))
 
     def _build_training_examples(self, *, max_pairs: int) -> list:
@@ -249,3 +196,66 @@ class Command(BaseCommand):
                 if len(examples) >= max_pairs:
                     return examples
         return examples
+
+
+def _import_training_stack():
+    """Import the training-time ML stack; convert ImportError to CommandError."""
+    try:
+        import torch
+        from sentence_transformers import SentenceTransformer, InputExample, losses
+        from torch.utils.data import DataLoader
+    except Exception as exc:
+        raise CommandError(
+            f"Required ML libraries unavailable: {exc}. "
+            "Ensure sentence-transformers + torch are installed."
+        )
+    return SentenceTransformer, InputExample, losses, DataLoader, torch
+
+
+def _resolve_model_and_device(torch) -> tuple[str, str]:
+    """Pick the base model name + cuda/cpu device for training."""
+    from apps.pipeline.services.embeddings import (
+        DEFAULT_MODEL_NAME as EMBED_DEFAULT,
+    )
+    model_name = os.environ.get(
+        "EMBEDDING_DOMAIN_ADAPTER_BASE_MODEL", EMBED_DEFAULT,
+    )
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    return model_name, device
+
+
+def _attach_lora_adapter(model) -> None:
+    """Inject a LoRA adapter into the SentenceTransformer's inner module.
+
+    Hu 2021 §4.1 — query/value projection layers are the standard
+    injection points for transformer LoRA adaptation. peft import
+    failure raises CommandError; misshapen base model raises with a
+    clear redirect for operators on a non-BGE-M3 base.
+    """
+    try:
+        from peft import LoraConfig, get_peft_model, TaskType
+    except ImportError:
+        raise CommandError(
+            "peft is not installed. Add `peft>=0.13` to "
+            "backend/requirements.txt and rebuild the image."
+        )
+    from apps.pipeline.services.domain_adapter import (
+        LORA_ALPHA_DEFAULT,
+        LORA_RANK_DEFAULT,
+    )
+    base = model._modules["0"]
+    config = LoraConfig(
+        task_type=TaskType.FEATURE_EXTRACTION,
+        r=LORA_RANK_DEFAULT,
+        lora_alpha=LORA_ALPHA_DEFAULT,
+        target_modules=["query", "value"],
+    )
+    try:
+        adapted = get_peft_model(base.auto_model, config)
+        base.auto_model = adapted
+    except Exception as exc:
+        raise CommandError(
+            f"peft.get_peft_model failed for this base model: {exc}. "
+            "BGE-M3 normally exposes `query`/`value` projections; "
+            "if you swapped to a different model, adjust target_modules."
+        )

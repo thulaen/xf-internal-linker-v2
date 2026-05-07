@@ -2287,35 +2287,40 @@ def refresh_faiss_index():
 def calibration_fit():
     """FR-245 — fit a Platt sigmoid against approved/rejected feedback.
 
-    Reads up to ``calibration_max_pairs`` recent approved/rejected
-    Suggestion rows, builds (score_semantic, label) pairs (label=1
-    for approved, 0 for rejected), and fits a Platt sigmoid via
-    Newton-Raphson per Platt 1999 §2. When the fit succeeds, the
-    new (A, B) is persisted into AppSetting via
-    ``score_calibration.persist_active_params`` and the live ranker
-    picks it up on the next pipeline pass via ``load_active_params``.
-
-    Niculescu-Mizil & Caruana 2005 §4 — minimum 1000 pairs for stable
-    fit. Below that, ``fit_platt_sigmoid`` returns None and this task
-    short-circuits silently — the cold-start logistic stays active.
-
-    Failures route through ``ingest_error`` so operators see a
-    plain-English reason on /error-log.
+    Niculescu-Mizil & Caruana 2005 §4 — min 1000 pairs. Failures
+    route through ``ingest_error`` so operators see a plain-English
+    reason on /error-log. The cold-start logistic stays active until
+    the first successful fit lands.
     """
-    import traceback
-
-    from apps.audit.error_ingest import ingest_error
-    from apps.audit.models import ErrorLog
     from apps.pipeline.services.score_calibration import (
         VALIDATION_SET_MIN_SIZE_DEFAULT,
-        fit_platt_sigmoid,
         persist_active_params,
     )
+
+    scores, labels = _load_calibration_pairs()
+    if len(scores) < VALIDATION_SET_MIN_SIZE_DEFAULT:
+        logger.info(
+            "FR-245 calibration_fit — only %d pairs available; need %d. Skipping.",
+            len(scores), VALIDATION_SET_MIN_SIZE_DEFAULT,
+        )
+        return False
+
+    params = _fit_calibration_safely(scores, labels)
+    if params is None:
+        return False
+
+    persist_active_params(params, validation_pairs=len(scores))
+    logger.info(
+        "FR-245 calibration_fit — persisted A=%.6f B=%.6f from %d pairs",
+        params.a, params.b, len(scores),
+    )
+    return True
+
+
+def _load_calibration_pairs() -> tuple[list[float], list[int]]:
+    """Pull recent approved/rejected Suggestion pairs for the FR-245 fit."""
     from apps.suggestions.models import Suggestion
 
-    # Pull the most recent approved/rejected reviews. Order by
-    # decided_at desc so the fit reflects current operator behaviour
-    # if reviewing standards have drifted.
     rows = list(
         Suggestion.objects.filter(
             status__in=("approved", "rejected"),
@@ -2326,12 +2331,16 @@ def calibration_fit():
     )
     scores = [float(s) for s, _ in rows]
     labels = [1 if status == "approved" else 0 for _, status in rows]
-    if len(scores) < VALIDATION_SET_MIN_SIZE_DEFAULT:
-        logger.info(
-            "FR-245 calibration_fit — only %d pairs available; need %d. Skipping.",
-            len(scores), VALIDATION_SET_MIN_SIZE_DEFAULT,
-        )
-        return False
+    return scores, labels
+
+
+def _fit_calibration_safely(scores: list[float], labels: list[int]):
+    """Run ``fit_platt_sigmoid``; route any failure through ingest_error."""
+    import traceback
+
+    from apps.audit.error_ingest import ingest_error
+    from apps.audit.models import ErrorLog
+    from apps.pipeline.services.score_calibration import fit_platt_sigmoid
 
     try:
         params = fit_platt_sigmoid(scores, labels)
@@ -2347,21 +2356,13 @@ def calibration_fit():
             ),
             severity=ErrorLog.SEVERITY_MEDIUM,
         )
-        return False
-
+        return None
     if params is None:
         logger.info(
             "FR-245 calibration_fit — fit returned None (degenerate labels?). "
             "Cold-start logistic stays active."
         )
-        return False
-
-    persist_active_params(params, validation_pairs=len(scores))
-    logger.info(
-        "FR-245 calibration_fit — persisted A=%.6f B=%.6f from %d pairs",
-        params.a, params.b, len(scores),
-    )
-    return True
+    return params
 
 
 # ---------------------------------------------------------------------------
