@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { MatButtonModule } from '@angular/material/button';
 import { SystemConflict } from '../diagnostics.service';
 
 @Component({
   selector: 'app-conflict-list',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, MatButtonModule],
   templateUrl: './conflict-list.component.html',
   styleUrls: ['./conflict-list.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,

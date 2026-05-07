@@ -66,6 +66,7 @@
           *ngFor="let alert of activeAlerts; trackBy: trackByAlertId"
           class="alert-card"
           [attr.data-alert-type]="alert.alert_type"
+          [id]="'scheduled-alert-card-' + alert.id"
         >
           <mat-card-header>
             <mat-card-title>
@@ -108,7 +109,7 @@
           remaining window.
         </p>
 
-        <mat-card *ngIf="runningJob" class="running-card" data-state="running">
+        <mat-card *ngIf="runningJob" class="running-card" data-state="running" id="scheduled-running-job-card">
           <mat-card-header>
             <mat-card-title>{{ runningJob.display_name }}</mat-card-title>
             <mat-card-subtitle>
@@ -142,7 +143,7 @@
           </mat-card-actions>
         </mat-card>
 
-        <mat-card *ngIf="pausedJob" class="running-card" data-state="paused">
+        <mat-card *ngIf="pausedJob" class="running-card" data-state="paused" id="scheduled-paused-job-card">
           <mat-card-header>
             <mat-card-title>{{ pausedJob.display_name }}</mat-card-title>
             <mat-card-subtitle>
@@ -172,6 +173,7 @@
             *ngFor="let job of missedJobs; trackBy: trackByJobId"
             class="schedule-card"
             data-state="missed"
+            [id]="'scheduled-missed-job-card-' + job.id"
           >
             <mat-card-header>
               <mat-card-title>{{ job.display_name }}</mat-card-title>
@@ -213,6 +215,7 @@
             *ngFor="let job of pendingJobs; trackBy: trackByJobId"
             class="schedule-card"
             data-state="pending"
+            [id]="'scheduled-pending-job-card-' + job.id"
           >
             <mat-card-header>
               <mat-card-title>{{ job.display_name }}</mat-card-title>
@@ -250,6 +253,7 @@
         <mat-card
           *ngFor="let job of jobs; trackBy: trackByJobId"
           class="history-card"
+          [id]="'scheduled-history-job-card-' + job.id"
         >
           <mat-card-header>
             <mat-card-title>{{ job.display_name }}</mat-card-title>

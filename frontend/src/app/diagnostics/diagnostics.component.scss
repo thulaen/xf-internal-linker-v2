@@ -18,26 +18,9 @@
     .subtitle { margin: var(--space-xs) 0 0; color: var(--color-text-muted); font-size: 13px; font-weight: 400; }
   }
 
-  .btn-refresh {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    background: var(--color-primary);
-    color: var(--color-bg-white);
-    border: none;
-    padding: var(--space-sm) var(--space-md);
-    border-radius: var(--radius-sm);
-    font-weight: 600;
-    font-size: 13px;
-    cursor: pointer;
-    transition: all 0.2s;
-
-    &:hover:not(:disabled) { background: var(--color-primary-dark); transform: translateY(-1px); }
-    &:disabled { opacity: 0.7; cursor: not-allowed; }
-
-    .material-icons { font-size: 18px; }
-    .spinning { animation: spin 1s linear infinite; }
-  }
+  // Refresh button uses mat-flat-button now; only the spinning-icon animation
+  // is still local. mat-icon picks up `.spinning` when refreshing() is true.
+  .spinning { animation: spin 1s linear infinite; }
 }
 
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -48,17 +31,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: var(--space-md);
   color: var(--color-text-muted);
-
-  .spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid var(--color-bg-faint);
-    border-top-color: var(--color-primary);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin-bottom: 16px;
-  }
 }
 
 .metrics-bar {

@@ -52,7 +52,7 @@
 
   <div class="summary-row" id="link-health-summary">
     @let s = summary();
-    <mat-card class="summary-card">
+    <mat-card class="summary-card" id="link-health-summary-open">
       <mat-card-content>
         <div class="summary-header">
           <span class="summary-label">Open</span>
@@ -61,7 +61,7 @@
         <strong>{{ s.open | number }}</strong>
       </mat-card-content>
     </mat-card>
-    <mat-card class="summary-card">
+    <mat-card class="summary-card" id="link-health-summary-ignored">
       <mat-card-content>
         <div class="summary-header">
           <span class="summary-label">Ignored</span>
@@ -70,7 +70,7 @@
         <strong>{{ s.ignored | number }}</strong>
       </mat-card-content>
     </mat-card>
-    <mat-card class="summary-card">
+    <mat-card class="summary-card" id="link-health-summary-fixed">
       <mat-card-content>
         <div class="summary-header">
           <span class="summary-label">Fixed</span>

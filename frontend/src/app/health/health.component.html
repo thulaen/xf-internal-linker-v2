@@ -20,7 +20,7 @@
 
   <!-- ── Summary bar ────────────────────────────────────────────── -->
   @if (summary(); as sum) {
-    <mat-card class="summary-card">
+    <mat-card class="summary-card" id="health-summary-card">
       <div class="summary-content">
         <div class="summary-stat">
           <span class="label">Overall Status</span>
@@ -84,7 +84,7 @@
           <mat-tab [label]="tierLabels[tier]">
             <div class="page-cards-grid">
               @for (s of tierGroups()[tier]; track s.service_key) {
-                <mat-card class="tier-card" [ngClass]="'tier-status-' + s.status">
+                <mat-card class="tier-card" [ngClass]="'tier-status-' + s.status" [id]="'health-tier-card-' + s.service_key">
                   <div class="tier-card-header">
                     <mat-icon [ngClass]="getStatusClass(s.status)">{{ getStatusIcon(s.status) }}</mat-icon>
                     <span class="tier-card-name">{{ getServiceName(s) }}</span>
@@ -106,7 +106,7 @@
     <section class="disk-gpu-section">
       <div class="page-cards-grid">
         @if (diskHealth(); as disk) {
-          <mat-card class="info-card">
+          <mat-card class="info-card" id="health-disk-usage-card">
             <mat-card-header>
               <mat-icon mat-card-avatar>storage</mat-icon>
               <mat-card-title>Disk Usage</mat-card-title>
@@ -153,7 +153,7 @@
 
       <div class="checklist-grid">
         @for (group of checklistGroups(); track group.label) {
-          <mat-card class="checklist-card">
+          <mat-card class="checklist-card" [id]="'health-checklist-card-' + group.label">
             <h3 class="group-label">{{ group.label }}</h3>
             <div class="checklist-rows">
               @for (s of group.services; track s.service_key) {
@@ -185,7 +185,7 @@
     <p class="section-subtitle">Jobs currently running in the background. Progress updates every 5 seconds.</p>
 
     @if (activeJobs().length > 0) {
-      <mat-card class="jobs-card">
+      <mat-card class="jobs-card" id="health-active-jobs-card">
         @for (job of activeJobs(); track job.job_id) {
           <div class="job-row">
             <div class="job-header">
@@ -230,7 +230,7 @@
         }
       </mat-card>
     } @else {
-      <mat-card class="jobs-card jobs-empty">
+      <mat-card class="jobs-card jobs-empty" id="health-jobs-empty-card">
         <mat-icon class="icon-md">check_circle</mat-icon>
         <span>No jobs currently running. Everything is idle.</span>
       </mat-card>
@@ -494,7 +494,7 @@
     @if (loading() && services().length === 0) {
       <div class="loading-shimmer">
         @for (i of [1,2,3,4,5,6]; track i) {
-          <mat-card class="service-card shimmer"></mat-card>
+          <mat-card class="service-card shimmer" [id]="'health-shimmer-card-' + i"></mat-card>
         }
       </div>
     }

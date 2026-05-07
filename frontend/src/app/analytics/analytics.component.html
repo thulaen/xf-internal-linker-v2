@@ -12,7 +12,7 @@
       <p>Loading telemetry overview...</p>
     </div>
   } @else if (error) {
-    <mat-card class="error-card">
+    <mat-card class="error-card" id="analytics-error-card">
       <mat-card-content>
         <mat-icon>error_outline</mat-icon>
         <span>{{ error }}</span>
@@ -28,7 +28,7 @@
     </div>
 
     <div class="page-cards-grid" id="analytics-stats">
-      <mat-card class="stat-card">
+      <mat-card class="stat-card" id="analytics-stat-telemetry-records">
         <mat-icon class="stat-card__icon icon-lg">database</mat-icon>
         <mat-card-content class="stat-card__content">
           <span class="stat-card__label">Telemetry Records</span>
@@ -37,7 +37,7 @@
         </mat-card-content>
       </mat-card>
 
-      <mat-card class="stat-card">
+      <mat-card class="stat-card" id="analytics-stat-coverage-snapshots">
         <mat-icon class="stat-card__icon icon-lg">health_and_safety</mat-icon>
         <mat-card-content class="stat-card__content">
           <span class="stat-card__label">Coverage Snapshots</span>
@@ -46,7 +46,7 @@
         </mat-card-content>
       </mat-card>
 
-      <mat-card class="stat-card">
+      <mat-card class="stat-card" id="analytics-stat-total-clicks">
         <mat-icon class="stat-card__icon icon-lg">ads_click</mat-icon>
         <mat-card-content class="stat-card__content">
           <span class="stat-card__label">Total Clicks</span>
@@ -55,7 +55,7 @@
         </mat-card-content>
       </mat-card>
 
-      <mat-card class="stat-card">
+      <mat-card class="stat-card" id="analytics-stat-engaged-sessions">
         <mat-icon class="stat-card__icon icon-lg">person_celebrating</mat-icon>
         <mat-card-content class="stat-card__content">
           <span class="stat-card__label">Engaged Sessions</span>
@@ -270,7 +270,7 @@
 
       @if (breakdowns; as breakdownData) {
         <div class="breakdown-grid" id="analytics-breakdowns">
-          <mat-card class="report-card">
+          <mat-card class="report-card" id="analytics-device-mix-card">
             <mat-card-header><mat-card-title>Device Mix</mat-card-title></mat-card-header>
             <mat-card-content>
               @if (deviceChartData && breakdownData.device_categories.length) {
@@ -283,7 +283,7 @@
             </mat-card-content>
           </mat-card>
 
-          <mat-card class="report-card">
+          <mat-card class="report-card" id="analytics-channel-mix-card">
             <mat-card-header><mat-card-title>Channel Mix</mat-card-title></mat-card-header>
             <mat-card-content>
               @if (channelChartData && breakdownData.channel_groups.length) {
@@ -296,7 +296,7 @@
             </mat-card-content>
           </mat-card>
 
-          <mat-card class="report-card">
+          <mat-card class="report-card" id="analytics-geographic-mix-card">
             <mat-card-header><mat-card-title>Geographic Mix</mat-card-title></mat-card-header>
             <mat-card-content>
               @if (geoChartData && breakdownData.countries.length) {
@@ -426,7 +426,7 @@
     </div>
 
     <div class="impact-charts-row" *ngIf="searchImpacts.length > 0">
-      <mat-card class="report-card">
+      <mat-card class="report-card" id="analytics-traffic-lift-scatter-card">
         <mat-card-header>
           <mat-card-title>Traffic vs. Lift Scatter</mat-card-title>
           <mat-card-subtitle>Each dot is one applied suggestion. Position shows baseline traffic vs. measured lift.</mat-card-subtitle>
@@ -446,7 +446,7 @@
       </mat-card>
 
       <div class="cohort-grid">
-        <mat-card class="report-card cohort-card">
+        <mat-card class="report-card cohort-card" id="analytics-cohort-by-platform-card">
           <mat-card-header>
             <mat-card-title>By Platform</mat-card-title>
             <mat-card-subtitle>Results split by XenForo vs WordPress content</mat-card-subtitle>
@@ -477,7 +477,7 @@
           </mat-card-content>
         </mat-card>
 
-        <mat-card class="report-card cohort-card">
+        <mat-card class="report-card cohort-card" id="analytics-cohort-by-anchor-family-card">
           <mat-card-header>
             <mat-card-title>By Anchor Family</mat-card-title>
             <mat-card-subtitle>Top 10 keyword groups (first word of anchor phrase)</mat-card-subtitle>
@@ -513,7 +513,7 @@
     </div>
 
     <div class="impact-grid" *ngIf="searchImpacts.length > 0; else noImpactData">
-      <mat-card class="report-card impact-card--main">
+      <mat-card class="report-card impact-card--main" id="analytics-applied-suggestions-card">
         <mat-card-header>
           <mat-card-title>Applied Suggestions Performance</mat-card-title>
           <mat-card-subtitle>{{ selectedImpactWindow }} window — {{ searchImpacts.length }} tracked links</mat-card-subtitle>
@@ -667,7 +667,7 @@
         </mat-card-content>
       </mat-card>
 
-      <mat-card class="report-card impact-card--side">
+      <mat-card class="report-card impact-card--side" id="analytics-statistical-method-card">
         <mat-card-header>
           <mat-card-title>Statistical Method</mat-card-title>
           <mat-card-subtitle>How we measure SEO impact</mat-card-subtitle>
@@ -701,7 +701,7 @@
     </div>
 
     <ng-template #noImpactData>
-      <mat-card class="empty-state-card">
+      <mat-card class="empty-state-card" id="analytics-no-impact-data-card">
         <mat-card-content>
           <mat-icon class="icon-3xl">query_stats</mat-icon>
           <h3>Search Impact Data Pending</h3>
@@ -716,7 +716,7 @@
     </ng-template>
 
     <div class="footer-grid" id="analytics-integrations">
-        <mat-card class="connection-card">
+        <mat-card class="connection-card" id="analytics-integration-ga4-card">
           <mat-card-header>
             <mat-card-title>GA4 Integration</mat-card-title>
             <span class="status-chip" [ngClass]="ga4StatusLabel().toLowerCase()">{{ ga4StatusLabel() }}</span>
@@ -727,7 +727,7 @@
           </mat-card-content>
         </mat-card>
 
-        <mat-card class="connection-card">
+        <mat-card class="connection-card" id="analytics-integration-matomo-card">
           <mat-card-header>
             <mat-card-title>Matomo Integration</mat-card-title>
             <span class="status-chip" [ngClass]="statusLabel(data.matomo.connection_status).toLowerCase()">{{ statusLabel(data.matomo.connection_status) }}</span>
@@ -738,7 +738,7 @@
           </mat-card-content>
         </mat-card>
 
-        <mat-card class="action-card">
+        <mat-card class="action-card" id="analytics-manual-sync-card">
           <mat-card-header><mat-card-title>Manual Synchronization</mat-card-title></mat-card-header>
           <mat-card-content>
             <p>Force a real-time data pull from external analytics providers.</p>

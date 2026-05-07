@@ -5,6 +5,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDialog } from '@angular/material/dialog';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -51,7 +52,7 @@ const WAVE2_SIGNAL_IDS = [
   standalone: true,
   imports: [
     CommonModule, MatTooltipModule, MatButtonModule, MatIconModule, MatTabsModule,
-    MatCardModule, MatChipsModule,
+    MatCardModule, MatChipsModule, MatProgressSpinnerModule,
     PersistTabDirective, ServiceCardComponent, ConflictListComponent,
     ReadinessMatrixComponent, SuppressedPairsCardComponent,
   ],

@@ -368,7 +368,7 @@
   }
 
   <!-- ── Activity Feed (Live System Events) ────────────────────── -->
-  <mat-card class="activity-feed-card">
+  <mat-card class="activity-feed-card" id="dashboard-activity-feed">
     <mat-card-header>
       <mat-card-title>
         <mat-icon class="icon-sm">timeline</mat-icon>
@@ -397,7 +397,7 @@
 
   <div class="stat-grid" id="suggestion-stats">
     @if (data.open_broken_links > 0) {
-      <mat-card class="stat-card stat-card-warning" [routerLink]="['/link-health']" fragment="link-health-table" tabindex="0">
+      <mat-card class="stat-card stat-card-warning" [routerLink]="['/link-health']" fragment="link-health-table" tabindex="0" id="dashboard-stat-broken-links">
         <div class="stat-icon warn">
           <mat-icon class="icon-base">link_off</mat-icon>
         </div>
@@ -409,7 +409,7 @@
       </mat-card>
     }
 
-    <mat-card class="stat-card">
+    <mat-card class="stat-card" id="dashboard-stat-pending-review">
       <div class="stat-icon item">
         <mat-icon class="icon-base">pending_actions</mat-icon>
       </div>
@@ -420,7 +420,7 @@
       </div>
     </mat-card>
 
-    <mat-card class="stat-card">
+    <mat-card class="stat-card" id="dashboard-stat-approved">
       <div class="stat-icon success">
         <mat-icon class="icon-base">check_circle</mat-icon>
       </div>
@@ -431,7 +431,7 @@
       </div>
     </mat-card>
 
-    <mat-card class="stat-card">
+    <mat-card class="stat-card" id="dashboard-stat-applied">
       <div class="stat-icon link">
         <mat-icon class="icon-base">link</mat-icon>
       </div>
@@ -442,7 +442,7 @@
       </div>
     </mat-card>
 
-    <mat-card class="stat-card">
+    <mat-card class="stat-card" id="dashboard-stat-content-items">
       <div class="stat-icon info">
         <mat-icon class="icon-base">article</mat-icon>
       </div>

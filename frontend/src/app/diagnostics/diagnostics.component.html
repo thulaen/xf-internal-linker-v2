@@ -6,8 +6,8 @@
     </div>
 
     <div class="actions">
-      <button class="btn-refresh" [disabled]="refreshing()" (click)="refreshAll()">
-        <span class="material-icons" [class.spinning]="refreshing()">refresh</span>
+      <button mat-flat-button color="primary" [disabled]="refreshing()" (click)="refreshAll()">
+        <mat-icon [class.spinning]="refreshing()">refresh</mat-icon>
         {{ refreshing() ? 'Checking...' : 'Run New Check' }}
       </button>
     </div>
@@ -15,7 +15,7 @@
 
   @if (loading()) {
     <div class="loading-overlay">
-      <div class="spinner"></div>
+      <mat-spinner diameter="40"></mat-spinner>
       <p>Performing deep-stack analysis...</p>
     </div>
   } @else {
@@ -524,7 +524,7 @@
             Sanderson 2010 FnTIR §5.2 sample-size gate.
           </p>
         </div>
-        <mat-card class="ndcg-eval-card">
+        <mat-card class="ndcg-eval-card" id="ndcg-eval-card">
           <mat-card-content>
             @if (!nd.available || nd.sufficient_data === false) {
               <p class="ndcg-status-pending">

@@ -36,7 +36,7 @@
       </div>
 
       <div class="conflict-footer" *ngIf="!c.resolved">
-        <button class="btn-resolve" (click)="resolve.emit(c.id)">
+        <button mat-stroked-button color="primary" (click)="resolve.emit(c.id)">
           Mark as Resolved
         </button>
       </div>

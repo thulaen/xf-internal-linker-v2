@@ -2667,10 +2667,10 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     if (typeof currentValue === 'number') {
       const severity = this.fieldSeverity(currentValue, key);
       if (severity === 'warn') {
-        lines.push('⚠️ AMBER ALERT: This value is unusually strong. Monitor closely for over-optimized links.');
+        lines.push('AMBER ALERT: This value is unusually strong. Monitor closely for over-optimized links.');
       }
       if (severity === 'danger') {
-        lines.push('🚨 RED ALERT: This value is in the risky range! It may cause unnatural link patterns.');
+        lines.push('RED ALERT: This value is in the risky range! It may cause unnatural link patterns.');
       }
     }
 

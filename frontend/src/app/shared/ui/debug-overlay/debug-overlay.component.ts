@@ -48,13 +48,17 @@ import { PerfMonitorService } from '../../../core/services/perf-monitor.service'
     @if (open()) {
       <aside class="do" role="dialog" aria-label="Debug overlay">
         <header class="do-head">
-          <span>🔧 Debug overlay</span>
+          <span class="do-head-title">
+            <mat-icon class="do-head-icon" aria-hidden="true">build</mat-icon>
+            Debug overlay
+          </span>
           <button
+            mat-icon-button
             type="button"
             class="do-close"
             aria-label="Close"
             (click)="toggle()"
-          >×</button>
+          ><mat-icon>close</mat-icon></button>
         </header>
         <mat-tab-group>
           <mat-tab label="Long tasks ({{ perf.longTasks().length }})">
@@ -110,7 +114,8 @@ import { PerfMonitorService } from '../../../core/services/perf-monitor.service'
               </table>
               @if (perf.memoryAlarm()) {
                 <p class="do-alarm">
-                  ⚠ Heap pressure exceeded 85% of the limit — likely a leak.
+                  <mat-icon class="do-alarm-icon" aria-hidden="true">warning</mat-icon>
+                  Heap pressure exceeded 85% of the limit — likely a leak.
                 </p>
               }
             }
@@ -176,19 +181,39 @@ import { PerfMonitorService } from '../../../core/services/perf-monitor.service'
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 6px 10px;
+      padding: 4px 8px;
       background: #111;
       color: #fff;
       font-size: 12px;
       font-weight: 500;
     }
-    .do-close {
-      background: transparent;
-      border: 0;
+    .do-head-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .do-head-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      line-height: 16px;
+      color: #9aa0a6;
+    }
+    /* mat-icon-button defaults to a 40px tap target on a light surface; override
+       to fit the dark debug overlay header (12px font, 24px square hit-target). */
+    .do-close.mat-mdc-icon-button {
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      line-height: 24px;
       color: inherit;
+    }
+    .do-close.mat-mdc-icon-button mat-icon {
       font-size: 18px;
-      line-height: 1;
-      cursor: pointer;
+      width: 18px;
+      height: 18px;
+      line-height: 18px;
     }
     mat-tab-group {
       flex: 1;
@@ -223,10 +248,21 @@ import { PerfMonitorService } from '../../../core/services/perf-monitor.service'
     .do-row-alarm { background: rgba(217, 48, 37, 0.2); }
     .do-row-cached { opacity: 0.7; }
     .do-alarm {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       margin: 8px 12px 0;
-      padding: 6px 10px;
+      padding: 4px 8px;
       background: rgba(217, 48, 37, 0.2);
-      border-left: 3px solid #d93025;
+      border-left: 4px solid #d93025;
+    }
+    .do-alarm-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      line-height: 16px;
+      color: #d93025;
+      flex-shrink: 0;
     }
     .do-footer {
       display: flex;

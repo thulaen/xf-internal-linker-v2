@@ -19,7 +19,7 @@
 </div>
 
 @if (loading) {
-  <mat-card class="settings-card settings-card--wide">
+  <mat-card class="settings-card settings-card--wide" id="settings-loading-card">
     <mat-card-content>Loading settings...</mat-card-content>
   </mat-card>
 } @else {
@@ -72,7 +72,7 @@
       <div class="tab-content" id="ranking-weights">
         <div class="settings-grid">
           <!-- PageRank -->
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="settings-pagerank">
             <mat-card-header>
               <mat-card-title>March 2026 PageRank</mat-card-title>
             </mat-card-header>
@@ -118,7 +118,7 @@
           </mat-card>
 
           <!-- Link Freshness -->
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="settings-link-freshness">
             <mat-card-header>
               <mat-card-title>Link Freshness</mat-card-title>
             </mat-card-header>
@@ -157,7 +157,7 @@
           </mat-card>
 
           <!-- Phrase Matching -->
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="settings-phrase-matching">
             <mat-card-header>
               <mat-card-title>Phrase Matching</mat-card-title>
             </mat-card-header>
@@ -194,7 +194,7 @@
           </mat-card>
 
           <!-- Learned Anchors -->
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="settings-learned-anchors">
             <mat-card-header>
               <mat-card-title>Learned Anchors</mat-card-title>
             </mat-card-header>
@@ -230,7 +230,7 @@
           </mat-card>
 
           <!-- Rare-Term Propagation -->
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="settings-rare-term">
             <mat-card-header>
               <mat-card-title>Rare-Term Propagation</mat-card-title>
             </mat-card-header>
@@ -269,7 +269,7 @@
           <app-passage-relevance-card></app-passage-relevance-card>
 
           <!-- Field-Aware Relevance -->
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="settings-field-aware-relevance">
             <mat-card-header>
               <mat-card-title>Field-Aware Relevance</mat-card-title>
             </mat-card-header>
@@ -310,7 +310,7 @@
           </mat-card>
 
           <!-- Traffic & Search Signals (Teaser) -->
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="settings-traffic-search-signals">
             <mat-card-header>
               <mat-card-title>Traffic & Search Signals</mat-card-title>
             </mat-card-header>
@@ -334,7 +334,7 @@
           </mat-card>
 
           <!-- Click Distance -->
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="settings-click-distance">
             <mat-card-header>
               <mat-card-title>Click Distance</mat-card-title>
             </mat-card-header>
@@ -372,7 +372,7 @@
           </mat-card>
 
           <!-- Spam Guards -->
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="settings-spam-guards">
             <mat-card-header>
               <mat-card-title>Spam Guards</mat-card-title>
             </mat-card-header>
@@ -1168,7 +1168,7 @@
           </mat-card>
 
           <!-- Feedback Reranking -->
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="settings-feedback-reranking">
             <mat-card-header>
               <mat-card-title>Feedback Reranking</mat-card-title>
             </mat-card-header>
@@ -1197,7 +1197,7 @@
           </mat-card>
 
           <!-- Near-Duplicate Clustering -->
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="settings-near-duplicate-clustering">
             <mat-card-header>
               <mat-card-title>Near-Duplicate Clustering</mat-card-title>
             </mat-card-header>
@@ -1231,7 +1231,7 @@
           </mat-card>
 
           <!-- Slate Diversity -->
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="settings-slate-diversity">
             <mat-card-header>
               <mat-card-title>Slate Diversity</mat-card-title>
             </mat-card-header>
@@ -1274,7 +1274,7 @@
           </mat-card>
 
           <!-- FR-021 — Graph Candidate Generation -->
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="settings-graph-candidates">
             <mat-card-header>
               <mat-card-title>Graph Candidate Generation</mat-card-title>
             </mat-card-header>
@@ -1322,7 +1322,7 @@
           </mat-card>
 
           <!-- FR-021 — Value Model -->
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="settings-value-model-scoring">
             <mat-card-header>
               <mat-card-title>Value Model Scoring</mat-card-title>
             </mat-card-header>
@@ -1534,7 +1534,7 @@
           </mat-card>
 
           <!-- Create Group -->
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="settings-create-silo-group">
             <mat-card-header>
               <mat-card-title>Create Silo Group</mat-card-title>
             </mat-card-header>
@@ -2764,7 +2764,7 @@
           </mat-card>
 
           <!-- Event subscriptions -->
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="settings-event-subscriptions">
             <mat-card-header>
               <mat-card-title>Event subscriptions</mat-card-title>
             </mat-card-header>
@@ -2785,7 +2785,7 @@
           </mat-card>
 
           <!-- Test alert -->
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="settings-send-test-alert">
             <mat-card-header>
               <mat-card-title>Send a test alert</mat-card-title>
             </mat-card-header>

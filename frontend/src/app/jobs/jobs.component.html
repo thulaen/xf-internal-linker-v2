@@ -402,7 +402,7 @@
       } @else {
         <div class="queue-list">
           @for (item of queueItems(); track $any(item).run_id || $any(item).job_id) {
-            <mat-card class="queue-card" data-ga4-panel>
+            <mat-card class="queue-card" data-ga4-panel [id]="'jobs-queue-card-' + ($any(item).run_id || $any(item).job_id)">
               <div class="queue-card-header">
                 <mat-icon>{{ $any(item).type === 'pipeline' ? 'auto_fix_high' : 'sync' }}</mat-icon>
                 <span class="queue-card-name">{{ $any(item).type === 'pipeline' ? 'Pipeline Run' : 'Content Sync' }}</span>
@@ -480,7 +480,7 @@
       } @else {
         <div class="quarantine-list">
           @for (item of quarantineItems(); track $any(item).run_id) {
-            <mat-card class="quarantine-card" data-ga4-panel>
+            <mat-card class="quarantine-card" data-ga4-panel [id]="'jobs-quarantine-card-' + $any(item).run_id">
               <div class="quarantine-header">
                 <mat-icon class="quarantine-icon">warning</mat-icon>
                 <span class="quarantine-run-id">

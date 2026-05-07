@@ -114,12 +114,36 @@
     padding: 16px 24px;
     background: var(--color-bg-faint);
     border-bottom: 1px solid var(--s-border);
+
+    // Header is a flex row: [optional avatar] [title fills + can shrink] [.card-title-actions fixed].
+    // min-width: 0 on the title region prevents per-character word breaking when an
+    // action (slide-toggle / icon-button) sits next to the title.
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm, 8px);
+
+    /* stylelint-disable-next-line selector-pseudo-element-no-unknown -- Angular ::ng-deep is required to reach Material's internal `.mat-mdc-card-header-text` wrapper from a component-scoped style. */
+    ::ng-deep .mat-mdc-card-header-text {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
   }
 
   mat-card-title {
     margin: 0;
     font-size: 15px;
     font-weight: 600;
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .card-title-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm, 8px);
+    flex-shrink: 0;
   }
 
   @media (max-width: 1200px) {

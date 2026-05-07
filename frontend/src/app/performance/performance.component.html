@@ -46,22 +46,22 @@
   @if (!isLoading() && latestRun(); as run) {
     <!-- Summary cards -->
     <div class="summary-cards">
-      <mat-card class="summary-card status-fast" (click)="filterByStatus('fast')">
+      <mat-card class="summary-card status-fast" (click)="filterByStatus('fast')" id="performance-summary-fast">
         <mat-icon>check_circle</mat-icon>
         <div class="summary-value">{{ fastCount() }}</div>
         <div class="summary-label">Fast</div>
       </mat-card>
-      <mat-card class="summary-card status-ok" (click)="filterByStatus('ok')">
+      <mat-card class="summary-card status-ok" (click)="filterByStatus('ok')" id="performance-summary-ok">
         <mat-icon>warning</mat-icon>
         <div class="summary-value">{{ okCount() }}</div>
         <div class="summary-label">OK</div>
       </mat-card>
-      <mat-card class="summary-card status-slow" (click)="filterByStatus('slow')">
+      <mat-card class="summary-card status-slow" (click)="filterByStatus('slow')" id="performance-summary-slow">
         <mat-icon>error</mat-icon>
         <div class="summary-value">{{ slowCount() }}</div>
         <div class="summary-label">Slow</div>
       </mat-card>
-      <mat-card class="summary-card status-info">
+      <mat-card class="summary-card status-info" id="performance-summary-last-run">
         <mat-icon>schedule</mat-icon>
         <div class="summary-value">{{ lastRunAgo() || 'N/A' }}</div>
         <div class="summary-label">Last Run</div>
@@ -83,7 +83,8 @@
     @if (stage2PathStatus(); as fr247) {
       <mat-card class="trend-card fr247-card"
                 [class.fr247-alert]="fr247.alert"
-                matTooltip="Tracks how often Stage-2 scoring uses the fast C++ path vs the slow Python fallback. An alert here means a 50–100× slowdown is silently in play.">
+                matTooltip="Tracks how often Stage-2 scoring uses the fast C++ path vs the slow Python fallback. An alert here means a 50–100× slowdown is silently in play."
+                id="performance-stage2-fast-path-card">
         <mat-card-header>
           <mat-card-title>
             <mat-icon class="fr247-status-icon"
@@ -121,7 +122,7 @@
 
     <!-- Trend chart -->
     @if (trendChartData(); as chart) {
-      <mat-card class="trend-card">
+      <mat-card class="trend-card" id="performance-trend-chart-card">
         <mat-card-header>
           <mat-card-title>Performance Trends (last 30 days)</mat-card-title>
         </mat-card-header>
@@ -138,7 +139,7 @@
     }
 
     <!-- Results table -->
-    <mat-card class="results-card">
+    <mat-card class="results-card" id="performance-results-card">
       <mat-card-header>
         <mat-card-title>Benchmark Results</mat-card-title>
       </mat-card-header>

@@ -17,7 +17,7 @@
     </button>
   </header>
 
-  <mat-card class="filter-card">
+  <mat-card class="filter-card" id="undo-timeline-filter-card">
     <div class="filter-row">
       <mat-form-field appearance="outline" class="filter-field">
         <mat-label>Look back (days)</mat-label>
@@ -67,12 +67,12 @@
       <span>Loading audit timeline…</span>
     </div>
   } @else if (error()) {
-    <mat-card class="error-card">
+    <mat-card class="error-card" id="undo-timeline-error-card">
       <mat-icon class="error-icon" aria-hidden="true">error</mat-icon>
       <span>{{ error() }}</span>
     </mat-card>
   } @else if (entries().length === 0) {
-    <mat-card class="empty-card">
+    <mat-card class="empty-card" id="undo-timeline-empty-card">
       <mat-icon class="empty-icon" aria-hidden="true">history</mat-icon>
       <h2>No restorable events in this window</h2>
       <p>

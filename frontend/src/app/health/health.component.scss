@@ -47,14 +47,22 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: var(--space-md, 16px);
     margin-bottom: var(--space-lg);
 
     .header-content {
+      // Defensive: same min-width: 0 fix pattern as the settings card header.
+      // Without this, a long unbroken page title would per-character-wrap when
+      // the right-hand action region is wide. See DESIGN-PATTERNS.md § 2.
+      flex: 1 1 auto;
+      min-width: 0;
+
       h1 {
         font-size: 22px;
         font-weight: 500;
         margin: 0;
         color: var(--color-text-primary);
+        overflow-wrap: anywhere;
       }
       .page-description {
         font-size: 13px;
@@ -415,12 +423,12 @@
 
         .text-content {
           .label {
-            font-size: 10px;
+            font-size: 11px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             display: block;
-            margin-bottom: 2px;
+            margin-bottom: 4px;
           }
           p {
             font-size: 13px;
@@ -455,7 +463,7 @@
         flex-direction: column;
 
         .m-label {
-          font-size: 10px;
+          font-size: 11px;
           text-transform: uppercase;
           color: var(--color-text-secondary);
         }

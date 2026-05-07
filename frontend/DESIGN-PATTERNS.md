@@ -93,6 +93,29 @@ mat-card
 - `mat-accordion`: only for "What do these mean?" / help text that the user can expand. Never for primary content.
 - `mat-card-actions`: only for footer buttons that operate on the whole card (e.g. "View all", "Reset"). Always add `.dashboard-action-row`.
 
+### Optional header action slot — `.card-title-actions`
+
+A settings card may put **one** small control (slide-toggle, icon-button, or chip) next to the title using a fixed wrapper class:
+
+```html
+<mat-card class="settings-card">
+  <mat-card-header>
+    <mat-card-title>Card Title (FR-XXX)</mat-card-title>
+    <div class="card-title-actions">
+      <mat-slide-toggle ...>{{ enabled ? 'Enabled' : 'Disabled' }}</mat-slide-toggle>
+    </div>
+  </mat-card-header>
+  ...
+</mat-card>
+```
+
+The flex layout, gap, `min-width: 0` on the title, and `flex-shrink: 0` on the action slot are defined globally on `.settings-card mat-card-header` and `.settings-card .card-title-actions` in `frontend/src/app/settings/settings.component.scss`.
+
+Rules:
+- Use the class name **`card-title-actions`** exactly. Do not invent variants like `card-header-actions` or `card-actions-title`. The bug that prompted this rule was a one-character class-name typo that left the wrapper unstyled and squashed the title to a vertical strip of single letters.
+- Do **not** add per-component CSS for this slot; the global rule already covers it.
+- Header still must not contain primary content (forms, paragraphs, save buttons) — those go in `mat-card-content`. The action slot is for one quick toggle / icon-button only.
+
 ---
 
 ## 3. The Cardinal Rule: Co-location
@@ -345,3 +368,65 @@ These are the exact mistakes that created the layout bugs this document was writ
 | `gap: var(--space-xs)` between sibling buttons | 4px is for icon-to-label spacing, not button-to-button | Use `gap: var(--space-sm)` (8px) minimum between buttons |
 | Hardcoded `#e8f0fe` or `#1a73e8` in component SCSS | Drifts from the token system | Use `var(--color-blue-50)` and `var(--color-primary)` |
 | `--color-blue-50: #c2e7ff` | Wrong — was measured as `#c2e7ff` but GA4 uses `#e8f0fe` | Corrected in `_theme-vars.scss` on 2026-04-20 |
+| HTML uses `class="card-title-actions"` but SCSS defines `.card-header-actions` (or any other one-character class-name typo) | The wrapper falls through to `display: block`; if it sits inside a flex row, the title region collapses to per-character word-wrap | Use the canonical class names exactly as documented. The global rule on `.settings-card mat-card-header` (Section 2.1) protects against this for settings cards. For other surfaces, search for `.X` in SCSS before using `class="X"` in HTML |
+| `<button class="btn-refresh">` / `<button class="btn-resolve">` (custom-styled raw buttons) | Diverges from Material's button family — wrong size, wrong focus ring, wrong ripple, wrong disabled state | Use `<button mat-flat-button>`, `<button mat-stroked-button>`, or `<button mat-icon-button>`. Material handles all states correctly |
+| `<div class="spinner">` with a custom `@keyframes spin` | Custom spinners drift from Material's animation curve and accessibility behaviour | Use `<mat-spinner diameter="N">` from `MatProgressSpinnerModule` |
+| `padding: 4px 10px;` / `gap: 10px;` / `padding: 21px 0 13px;` (off-grid spacing) | Breaks the 4px grid; design loses visual rhythm | Use the documented scale: `4 / 8 / 12 / 16 / 24 / 32 / 48 / 64`. `10px` rounds to `8px`, `21px` rounds to `24px`, `13px` rounds to `12px` |
+| Emoji used as UI icons in templates (🔧, ⚠, ×, etc.) | Inconsistent rendering across OS / fonts / accessibility tools; not part of Material Icons | Use `<mat-icon>build</mat-icon>`, `<mat-icon>warning</mat-icon>`, `<mat-icon>close</mat-icon>` |
+| `<header class="page-header">` (flex row) with no `min-width: 0` on the text region | Same trap as the settings card — long titles per-character-wrap when the action region grows | See Section 12 below — apply `flex: 1 1 auto; min-width: 0` to the title region and `flex-shrink: 0` to the action region |
+
+---
+
+## 12. Page Header Pattern
+
+A page header is a flex row with a title region on the left and one or more action buttons on the right. The same defenses that protect settings card headers (Section 2.1) apply here.
+
+### Canonical structure
+
+```html
+<header class="page-header">
+  <div class="page-title">
+    <h1>Page Title</h1>
+    <p class="page-subtitle">Optional one-line subtitle</p>
+  </div>
+
+  <div class="page-actions">
+    <button mat-stroked-button>Refresh</button>
+    <button mat-flat-button color="primary">Run Job</button>
+  </div>
+</header>
+```
+
+### Required SCSS defenses
+
+```scss
+.page-header {
+  display: flex;
+  align-items: flex-start;        // or center
+  justify-content: space-between;
+  gap: var(--space-md, 16px);
+  margin-bottom: var(--space-md);
+
+  > .page-title {
+    flex: 1 1 auto;
+    min-width: 0;                 // critical: lets title shrink without per-char wrap
+
+    h1 { overflow-wrap: anywhere; }
+  }
+
+  > .page-actions {
+    flex-shrink: 0;
+    display: flex;
+    gap: var(--space-sm, 8px);
+    align-items: center;
+  }
+}
+```
+
+### Why this matters
+
+Without `min-width: 0` on `.page-title`, a long page title (or a small viewport with a wide action region) makes the browser break the title at every character — the same bug that hit the "Passage-Level Relevance" settings card in 2026-05-07. Reference implementations: `frontend/src/app/performance/performance.component.scss` and `frontend/src/app/health/health.component.scss`.
+
+### When NOT to add a global `.page-header` rule
+
+There are 11 components currently using `class="page-header"`, each with its own per-component CSS. A global rule would risk regressing them all. Apply the defenses **inside** each component's SCSS, copying the snippet above. If a future migration consolidates the layout, that's when to consider lifting the rule.

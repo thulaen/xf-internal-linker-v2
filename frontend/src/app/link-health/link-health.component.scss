@@ -52,7 +52,7 @@
 }
 
 .page-description {
-  margin: -4px 0 20px 34px; // Align under text (icon is 24px + 10px gap)
+  margin: -4px 0 16px 32px; // Align under text (icon is 24px + 8px gap, matches .title-group gap)
   font-size: 13px;
   color: var(--color-text-muted);
   line-height: 1.5;
@@ -65,7 +65,7 @@
   color: var(--color-text-muted);
   font-size: 11px;
   font-weight: 600;
-  padding: 4px 10px;
+  padding: 4px 8px;
 }
 
 .scan-error {

@@ -38,7 +38,7 @@
         </p>
         <div class="stats-grid">
 
-          <mat-card class="stat-card">
+          <mat-card class="stat-card" id="graph-stat-total-articles">
             <mat-card-content>
               <mat-icon class="stat-icon icon-lg">article</mat-icon>
               <div class="stat-number">{{ s.total_nodes | number }}</div>
@@ -46,7 +46,7 @@
             </mat-card-content>
           </mat-card>
 
-          <mat-card class="stat-card">
+          <mat-card class="stat-card" id="graph-stat-internal-links">
             <mat-card-content>
               <mat-icon class="stat-icon icon-lg">link</mat-icon>
               <div class="stat-number">{{ s.total_edges | number }}</div>
@@ -54,7 +54,7 @@
             </mat-card-content>
           </mat-card>
 
-          <mat-card class="stat-card">
+          <mat-card class="stat-card" id="graph-stat-entities">
             <mat-card-content>
               <mat-icon class="stat-icon icon-lg">label</mat-icon>
               <div class="stat-number">{{ s.entity_count | number }}</div>
@@ -62,7 +62,7 @@
             </mat-card-content>
           </mat-card>
 
-          <mat-card class="stat-card stat-card--warning">
+          <mat-card class="stat-card stat-card--warning" id="graph-stat-orphan-articles">
             <mat-card-content>
               <mat-icon class="stat-icon icon-lg">link_off</mat-icon>
               <div class="stat-number">{{ s.orphan_count | number }}</div>
@@ -70,7 +70,7 @@
             </mat-card-content>
           </mat-card>
 
-          <mat-card class="stat-card stat-card--success">
+          <mat-card class="stat-card stat-card--success" id="graph-stat-articles-connected">
             <mat-card-content>
               <mat-icon class="stat-icon icon-lg">hub</mat-icon>
               <div class="stat-number">{{ s.connected_pct }}%</div>
@@ -78,7 +78,7 @@
             </mat-card-content>
           </mat-card>
 
-          <mat-card class="stat-card">
+          <mat-card class="stat-card" id="graph-stat-topics-silos">
             <mat-card-content>
               <mat-icon class="stat-icon icon-lg">topic</mat-icon>
               <div class="stat-number">{{ s.topic_count | number }}</div>
@@ -119,7 +119,7 @@
           </p>
           <div class="topics-grid">
             @for (topic of topicList; track trackByTopicId($index, topic)) {
-              <mat-card class="topic-card">
+              <mat-card class="topic-card" [id]="'graph-topic-card-' + topic.id">
                 <mat-card-header>
                   <mat-icon mat-card-avatar class="topic-icon">label_important</mat-icon>
                   <mat-card-title>{{ topic.name }}</mat-card-title>
@@ -520,7 +520,7 @@
 
           @if (selectedNode(); as node) {
             @let nodeLinks = selectedNodeLinks();
-            <mat-card class="node-sidebar">
+            <mat-card class="node-sidebar" id="graph-node-sidebar">
               <mat-card-header>
                 <mat-icon mat-card-avatar>article</mat-icon>
                 <mat-card-title>{{ node.title }}</mat-card-title>
@@ -663,7 +663,7 @@
         <!-- Context distribution + filter ──────────────────────────────── -->
         <div class="qualities-top-row">
 
-          <mat-card class="qualities-chart-card">
+          <mat-card class="qualities-chart-card" id="graph-context-distribution-card">
             <mat-card-header>
               <mat-icon mat-card-avatar>donut_large</mat-icon>
               <mat-card-title>Context Distribution</mat-card-title>
@@ -685,7 +685,7 @@
             </mat-card-content>
           </mat-card>
 
-          <mat-card class="qualities-filter-card">
+          <mat-card class="qualities-filter-card" id="graph-network-filter-card">
             <mat-card-header>
               <mat-icon mat-card-avatar>filter_alt</mat-icon>
               <mat-card-title>Network Graph Filter</mat-card-title>
@@ -708,7 +708,7 @@
         </div>
 
         <!-- Anchor text analysis ──────────────────────────────────────── -->
-        <mat-card class="qualities-section-card">
+        <mat-card class="qualities-section-card" id="graph-anchor-text-frequency-card">
           <mat-card-header>
             <mat-icon mat-card-avatar>text_fields</mat-icon>
             <mat-card-title>Anchor Text Frequency</mat-card-title>
@@ -739,7 +739,7 @@
         </mat-card>
 
         <!-- Per-page quality scores ───────────────────────────────────── -->
-        <mat-card class="qualities-section-card">
+        <mat-card class="qualities-section-card" id="graph-page-link-quality-card">
           <mat-card-header>
             <mat-icon mat-card-avatar>grade</mat-icon>
             <mat-card-title>Page Link Quality</mat-card-title>
@@ -780,7 +780,7 @@
 
         <!-- Isolated links audit list ─────────────────────────────────── -->
         @if (isolated.length > 0) {
-          <mat-card class="qualities-section-card">
+          <mat-card class="qualities-section-card" id="graph-isolated-links-card">
             <mat-card-header>
               <mat-icon mat-card-avatar>link_off</mat-icon>
               <mat-card-title>Isolated Links</mat-card-title>
@@ -950,7 +950,7 @@
         @let churn = churnTable();
 
         <!-- Velocity chart card -->
-        <mat-card class="freshness-card">
+        <mat-card class="freshness-card" id="graph-velocity-card">
           <mat-card-header>
             <mat-icon mat-card-avatar>show_chart</mat-icon>
             <mat-card-title>Link Network Velocity (Last 30 Days)</mat-card-title>
@@ -980,7 +980,7 @@
         </mat-card>
 
         <!-- Churn alert card -->
-        <mat-card class="freshness-card">
+        <mat-card class="freshness-card" id="graph-high-churn-card">
           <mat-card-header>
             <mat-icon mat-card-avatar>bolt</mat-icon>
             <mat-card-title>High-Churn Pages</mat-card-title>
@@ -1073,7 +1073,7 @@
             <p>Lower the score threshold or run the pipeline to generate new suggestions.</p>
           </div>
         } @else {
-          <mat-card class="gap-table-card">
+          <mat-card class="gap-table-card" id="graph-most-neglected-card">
             <mat-card-header>
               <mat-icon mat-card-avatar>find_replace</mat-icon>
               <mat-card-title>Most Neglected Pages</mat-card-title>

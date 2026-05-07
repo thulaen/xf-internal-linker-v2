@@ -17,7 +17,7 @@
         <div class="tab-body">
           @if (status(); as s) {
             <div class="overview-grid">
-              <mat-card appearance="outlined" class="overview-card">
+              <mat-card appearance="outlined" class="overview-card" id="embeddings-overview-active-provider">
                 <mat-card-header>
                   <mat-card-title>Active provider</mat-card-title>
                 </mat-card-header>
@@ -46,7 +46,7 @@
                 </mat-card-content>
               </mat-card>
 
-              <mat-card appearance="outlined" class="overview-card">
+              <mat-card appearance="outlined" class="overview-card" id="embeddings-overview-hardware">
                 <mat-card-header>
                   <mat-card-title>Hardware</mat-card-title>
                 </mat-card-header>
@@ -70,7 +70,7 @@
                 </mat-card-content>
               </mat-card>
 
-              <mat-card appearance="outlined" class="overview-card">
+              <mat-card appearance="outlined" class="overview-card" id="embeddings-overview-coverage">
                 <mat-card-header>
                   <mat-card-title>Coverage</mat-card-title>
                 </mat-card-header>
@@ -87,7 +87,7 @@
                 </mat-card-content>
               </mat-card>
 
-              <mat-card appearance="outlined" class="overview-card">
+              <mat-card appearance="outlined" class="overview-card" id="embeddings-overview-spend">
                 <mat-card-header>
                   <mat-card-title>Spend this month</mat-card-title>
                 </mat-card-header>
@@ -112,7 +112,7 @@
       <!-- PROVIDERS -->
       <mat-tab label="Providers">
         <div class="tab-body">
-          <mat-card appearance="outlined">
+          <mat-card appearance="outlined" id="embeddings-providers-active-card">
             <mat-card-header>
               <mat-card-title>Active provider</mat-card-title>
               <mat-card-subtitle>
@@ -203,7 +203,7 @@
             </mat-card-content>
           </mat-card>
 
-          <mat-card appearance="outlined" class="settings-card">
+          <mat-card appearance="outlined" class="settings-card" id="embeddings-provider-settings-card">
             <mat-card-header>
               <mat-card-title>Provider settings</mat-card-title>
               <mat-card-subtitle>
@@ -267,7 +267,7 @@
       <!-- RUN CONTROL -->
       <mat-tab label="Run Control">
         <div class="tab-body">
-          <mat-card appearance="outlined">
+          <mat-card appearance="outlined" id="embeddings-embed-pipeline-card">
             <mat-card-header>
               <mat-card-title>Embed pipeline</mat-card-title>
               <mat-card-subtitle>
@@ -322,7 +322,7 @@
       <!-- BAKE-OFF -->
       <mat-tab label="Bake-off">
         <div class="tab-body">
-          <mat-card appearance="outlined">
+          <mat-card appearance="outlined" id="embeddings-bakeoff-card">
             <mat-card-header>
               <mat-card-title>Provider comparison (MTEB-style)</mat-card-title>
               <mat-card-subtitle>
@@ -379,7 +379,7 @@
       <!-- AUDIT -->
       <mat-tab label="Audit">
         <div class="tab-body">
-          <mat-card appearance="outlined">
+          <mat-card appearance="outlined" id="embeddings-gate-decisions-card">
             <mat-card-header>
               <mat-card-title>Quality-gate decisions</mat-card-title>
               <mat-card-subtitle>
@@ -427,7 +427,7 @@
             </mat-card-content>
           </mat-card>
 
-          <mat-card appearance="outlined" class="settings-card">
+          <mat-card appearance="outlined" class="settings-card" id="embeddings-audit-settings-card">
             <mat-card-header>
               <mat-card-title>Audit &amp; gate settings</mat-card-title>
             </mat-card-header>

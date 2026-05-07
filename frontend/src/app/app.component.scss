@@ -12,7 +12,7 @@
   z-index: 10000;           // above the nav-progress-bar and everything else
   padding: var(--space-sm) var(--space-md);
   background: var(--color-primary);
-  color: var(--color-on-primary, #ffffff);
+  color: var(--color-on-primary);
   border-radius: var(--card-border-radius, 8px);
   font-family: var(--font-family);
   font-size: 13px;
@@ -116,7 +116,7 @@
         font-weight: 600;
         letter-spacing: 0.1px;
         white-space: normal;
-        word-break: break-word;
+        overflow-wrap: anywhere;
         line-height: 1.25;
       }
 
@@ -336,7 +336,7 @@
     transition: background-color 0.2s ease, border-color 0.2s ease;
 
     &:hover {
-      background: var(--color-blue-50, #e8f0fe);
+      background: var(--color-blue-50);
       border-color: var(--color-primary);
       color: var(--color-primary);
     }
@@ -353,9 +353,9 @@
     }
 
     &.perf-safe {
-      border-color: var(--color-success, #1e8e3e);
-      color: var(--color-success-dark, #137333);
-      .perf-mode-icon { color: var(--color-success-dark, #137333); }
+      border-color: var(--color-success);
+      color: var(--color-success-dark);
+      .perf-mode-icon { color: var(--color-success-dark); }
     }
     &.perf-balanced {
       border-color: var(--color-primary);
@@ -363,9 +363,9 @@
       .perf-mode-icon { color: var(--color-primary); }
     }
     &.perf-high {
-      border-color: var(--color-warning, #a77a00);
-      color: var(--color-warning, #a77a00);
-      .perf-mode-icon { color: var(--color-warning, #a77a00); }
+      border-color: var(--color-warning);
+      color: var(--color-warning);
+      .perf-mode-icon { color: var(--color-warning); }
     }
   }
 
@@ -465,11 +465,11 @@
     transition: background-color 0.3s ease, box-shadow 0.3s ease;
 
     &.ws-connected {
-      background: var(--color-success, #34a853);
-      box-shadow: 0 0 4px var(--color-success-light, #d4edda);
+      background: var(--color-success);
+      box-shadow: 0 0 4px var(--color-success-light);
     }
     &.ws-reconnecting {
-      background: var(--color-warning, #f59e0b);
+      background: var(--color-warning);
       animation: ws-blink 1s steps(1, end) infinite;
     }
     &.ws-offline {
@@ -586,7 +586,7 @@
   gap: 4px;
   flex-wrap: wrap;
 }
-.a11y-menu-segments button { min-width: 44px; padding: 0 10px; }
+.a11y-menu-segments button { min-width: 44px; padding: 0 8px; }
 .a11y-menu-actions {
   border-top: var(--card-border);
   padding-top: 8px;
@@ -595,7 +595,7 @@
 }
 .a11y-on {
   background: var(--color-primary) !important;
-  color: var(--color-on-primary, #ffffff) !important;
+  color: var(--color-on-primary) !important;
   border-color: var(--color-primary) !important;
 }
 

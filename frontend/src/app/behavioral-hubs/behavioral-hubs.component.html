@@ -60,7 +60,7 @@
   <div class="content-layout">
 
     <!-- Hub list -->
-    <mat-card class="hubs-card">
+    <mat-card class="hubs-card" id="behavioral-hubs-list-card">
       <mat-card-content>
 
         @if (loadingHubs() && hubs().length === 0) {
@@ -137,7 +137,7 @@
 
     <!-- Hub detail panel -->
     @if (loadingDetail()) {
-      <mat-card class="detail-card">
+      <mat-card class="detail-card" id="behavioral-hubs-detail-loading-card">
         <mat-card-content>
           <div class="loading-center">
             <mat-spinner diameter="48"></mat-spinner>
@@ -145,7 +145,7 @@
         </mat-card-content>
       </mat-card>
     } @else if (selectedHub(); as sel) {
-      <mat-card class="detail-card">
+      <mat-card class="detail-card" id="behavioral-hubs-detail-card">
         <mat-card-header>
           <mat-card-title>{{ sel.name }}</mat-card-title>
           <button mat-icon-button (click)="closeDetail()" matTooltip="Close" class="close-btn">

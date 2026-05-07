@@ -2,11 +2,8 @@
   margin-bottom: var(--spacing-md, 24px);
 }
 
-.card-header-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm, 12px);
-}
+// Header action slot styling lives globally on `.settings-card .card-title-actions`
+// in settings.component.scss. Do not redefine it here — see DESIGN-PATTERNS.md § 2.
 
 .description {
   margin-bottom: var(--spacing-md, 24px);
