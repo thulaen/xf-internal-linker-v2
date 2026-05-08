@@ -134,6 +134,7 @@ backend/extensions/build_tests/*.vcxproj*
 backend/extensions/build_tests/*.sln
 backend/extensions/build_tests/CMakeCache.txt
 backend/extensions/build_tests/x64/
+backend/extensions/build_tests/*.dir/
 
 # mkcert localhost TLS certificates � never commit private keys
 nginx/certs/*.pem
