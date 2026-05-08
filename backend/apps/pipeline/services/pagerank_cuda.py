@@ -339,7 +339,7 @@ def personalized_pagerank_step_safe(
                 node_count,
             )
         except CudaUnavailableError:
-            pass
+            pass  # intentional fallthrough — drop to the CPU branch below
         except Exception as exc:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
             _record_cuda_failure_once(step="personalized_pagerank_step", exc=exc)
     return fallback_cpu_fn(
@@ -369,7 +369,7 @@ def hits_step_safe(
         try:
             return hits_step_cuda(indptr, indices, data, authority, hub, node_count)
         except CudaUnavailableError:
-            pass
+            pass  # intentional fallthrough — drop to the CPU branch below
         except Exception as exc:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
             _record_cuda_failure_once(step="hits_step", exc=exc)
     return fallback_cpu_fn(indptr, indices, data, authority, hub, node_count)
