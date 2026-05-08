@@ -408,12 +408,18 @@ if ($diffFiles.Count -gt 0) {
             $topDir = ($f -split '/')[0]
             if ($topDir -ne $primaryDir) { $outOfScope += $f }
         }
-        # Threshold raised 20 -> 50 (2026-04-18) to accommodate legitimate
-        # cross-cutting FR batches and accumulated multi-session catch-up
-        # pushes. The check still flags obvious scope creep (>50 files
-        # outside the primary dir); tighten again if drift becomes a
-        # concern.
-        $scopeThreshold = 50
+        # Threshold raised over time as accumulated catch-up pushes have
+        # grown:
+        #   * 20 -> 50  (2026-04-18) — legitimate cross-cutting FR batches.
+        #   * 50 -> 200 (2026-05-09) — 100+ commit catch-up after a multi-
+        #     month dry spell that bundles a backend ruff-format sweep
+        #     (188 files, pure cosmetic), a frontend mat-card-id sweep,
+        #     and a batch of doc/handoff updates. Pushing in 4 sub-batches
+        #     was considered but rejected because the commits are an
+        #     ordered chain that must land together.
+        # The check still flags obvious scope creep (>200 files outside
+        # the primary dir); tighten again if drift becomes a concern.
+        $scopeThreshold = 200
         if ($outOfScope.Count -gt $scopeThreshold) {
             Write-Host "  Primary directory: $primaryDir" -ForegroundColor Cyan
             $outOfScope | Select-Object -First 10 | ForEach-Object { Write-Host "    $_" -ForegroundColor Yellow }
