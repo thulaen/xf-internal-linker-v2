@@ -441,6 +441,55 @@ class GSCDailyPerformance(models.Model):
         return f"{self.page_url} on {self.date}"
 
 
+class MatomoDailyTraffic(models.Model):
+    """Per-URL daily traffic totals pulled from Matomo's Actions.getPageUrls.
+
+    Parallel to :class:`GSCDailyPerformance` but for self-hosted Matomo.
+    Stores per-page visits/hits/unique-visitors/bounces so the Linker can
+    correlate Matomo behaviour with GSC search performance once the
+    corresponding ContentItem exists in the corpus.
+
+    No ContentItem foreign key on purpose — the table is populated by the
+    sync directly from Matomo URLs and a later join (URL match) decides
+    which rows have a corpus partner.
+    """
+
+    site_id = models.CharField(
+        max_length=8,
+        db_index=True,
+        help_text="Matomo site id (e.g. '2' for misc.goldmidi.com WP, '3' for goldmidi.com/community/ XF).",
+    )
+    date = models.DateField(db_index=True)
+    page_url = models.URLField(max_length=2000, db_index=True)
+    label = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Matomo's leaf-row label (path or title); kept verbatim for debugging.",
+    )
+    nb_visits = models.PositiveIntegerField(default=0)
+    nb_hits = models.PositiveIntegerField(
+        default=0,
+        help_text="Total page views — proxy for impressions.",
+    )
+    nb_uniq_visitors = models.PositiveIntegerField(default=0)
+    bounce_count = models.PositiveIntegerField(default=0)
+    sum_time_spent = models.PositiveIntegerField(
+        default=0,
+        help_text="Sum of time-on-page across all visits, in seconds.",
+    )
+
+    class Meta:
+        verbose_name = "Matomo Daily Traffic"
+        verbose_name_plural = "Matomo Daily Traffic Rows"
+        unique_together = [["site_id", "date", "page_url"]]
+        indexes = [
+            models.Index(fields=["date", "site_id"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.page_url} on {self.date} (site {self.site_id})"
+
+
 class GSCImpactSnapshot(models.Model):
     """
     Stores the formalized FR-017 attribution impact for an applied suggestion.

@@ -527,6 +527,204 @@ def _process_matomo_day(
     return source_rows, rows_written, rows_updated
 
 
+def _matomo_traffic_settings_or_raise() -> tuple[str, str, str, str]:
+    """Resolve Matomo URL + token + WP/XF site IDs for the general-traffic sync.
+
+    Returns (base_url, token, site_id_wp, site_id_xf). Raises RuntimeError
+    if Matomo collection is disabled or required settings are missing.
+    """
+    from .views import _matomo_token, get_matomo_settings
+
+    settings = get_matomo_settings()
+    if not settings.get("enabled"):
+        raise RuntimeError("Matomo collection is disabled in settings.")
+    base_url = str(settings.get("url") or "").strip()
+    site_wp = str(settings.get("site_id_wordpress") or "").strip()
+    site_xf = str(settings.get("site_id_xenforo") or "").strip()
+    if not base_url:
+        raise RuntimeError("Matomo traffic sync needs the Matomo URL.")
+    if not site_wp and not site_xf:
+        raise RuntimeError(
+            "Matomo traffic sync needs at least one of site_id_wordpress / "
+            "site_id_xenforo configured."
+        )
+    token = _matomo_token()
+    if not token:
+        raise RuntimeError("Matomo traffic sync needs the saved token_auth secret.")
+    return base_url, token, site_wp, site_xf
+
+
+def _flatten_matomo_url_rows(
+    rows: list[dict[str, Any]], parent_path: str = ""
+) -> list[tuple[str, dict[str, Any]]]:
+    """Walk Matomo's nested ``Actions.getPageUrls`` tree and emit (url, row).
+
+    Matomo returns a forest where each node has ``label`` and may have a
+    ``subtable`` of children. Internal nodes typically don't carry stats;
+    only leaves do. We follow the path-segment convention by joining
+    parent labels with ``/`` so the final URL is reconstructable.
+    """
+    out: list[tuple[str, dict[str, Any]]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        label = str(row.get("label") or "").strip("/ ").strip()
+        path = (
+            parent_path.rstrip("/") + "/" + label
+            if parent_path
+            else "/" + label
+        )
+        children = row.get("subtable") or row.get("subtables") or row.get("subRows") or []
+        if isinstance(children, list) and children:
+            out.extend(_flatten_matomo_url_rows(children, parent_path=path))
+        else:
+            out.append((path, row))
+    return out
+
+
+def _persist_matomo_traffic_day(
+    *, site_id: str, target_date: date, site_main_url: str,
+    rows: list[dict[str, Any]],
+) -> tuple[int, int]:
+    """Upsert one day's worth of per-URL Matomo traffic. Returns (new, updated).
+
+    ``site_main_url`` is the canonical web address of the tracked site
+    (e.g. ``https://misc.goldmidi.com`` or ``https://goldmidi.com/community``)
+    pulled from Matomo's ``SitesManager.getSiteFromId`` — NOT the Matomo
+    instance host. Path segments returned by ``Actions.getPageUrls`` get
+    appended to this so the stored URL points at the real page.
+    """
+    from .models import MatomoDailyTraffic
+
+    # We need the bare scheme+host (e.g. ``https://goldmidi.com``), NOT the
+    # main_url which can include a sub-path like ``/community``. Matomo's
+    # Actions.getPageUrls already returns paths anchored at the host root
+    # (e.g. ``/community/threads/...``), so prepending main_url verbatim
+    # would double the sub-path. Strip everything after the host.
+    from urllib.parse import urlparse
+    parsed = urlparse(site_main_url or "")
+    site_origin = (
+        f"{parsed.scheme}://{parsed.netloc}"
+        if parsed.scheme and parsed.netloc
+        else ""
+    )
+    new_rows = 0
+    updated_rows = 0
+    for path, row in _flatten_matomo_url_rows(rows):
+        nb_visits = int(row.get("nb_visits") or 0)
+        nb_hits = int(row.get("nb_hits") or 0)
+        if nb_visits == 0 and nb_hits == 0:
+            # Skip noise rows (Matomo sometimes returns zero-count entries).
+            continue
+        # Matomo returns site-relative paths anchored at the host root;
+        # prepend the bare scheme+host so the final URL points at the real
+        # page. The UNIQUE is on (site_id, date, page_url).
+        page_url = path if path.startswith("http") else (site_origin + path)[:2000]
+        defaults = {
+            "label": str(row.get("label") or "")[:500],
+            "nb_visits": nb_visits,
+            "nb_hits": nb_hits,
+            "nb_uniq_visitors": int(row.get("nb_uniq_visitors") or 0),
+            "bounce_count": int(row.get("bounce_count") or 0),
+            "sum_time_spent": int(row.get("sum_time_spent") or 0),
+        }
+        _, created = MatomoDailyTraffic.objects.update_or_create(
+            site_id=site_id, date=target_date, page_url=page_url,
+            defaults=defaults,
+        )
+        if created:
+            new_rows += 1
+        else:
+            updated_rows += 1
+    return new_rows, updated_rows
+
+
+def _fetch_matomo_pageurls_day(
+    *, base_url: str, token: str, site_id: str, target_date: date,
+) -> list[dict[str, Any]]:
+    """Pull a flattened ``Actions.getPageUrls`` list for one site/day.
+
+    ``flat=1`` tells Matomo to flatten the tree so we don't have to walk
+    subtables ourselves; ``filter_limit=-1`` removes the default 100-row cap.
+    """
+    payload = _matomo_api_get(
+        base_url=base_url, token_auth=token, method="Actions.getPageUrls",
+        params={
+            "idSite": site_id, "period": "day",
+            "date": target_date.isoformat(),
+            "flat": 1, "filter_limit": -1,
+            "segment": MATOMO_EXCLUDED_SEGMENT,
+        },
+    )
+    return payload if isinstance(payload, list) else []
+
+
+def _resolve_matomo_site_main_url(
+    *, base_url: str, token: str, site_id: str,
+) -> str:
+    """Look up the tracked-site URL from Matomo's SitesManager API.
+
+    Returns the ``main_url`` field (e.g. ``https://misc.goldmidi.com``).
+    On any failure we return an empty string and let the caller fall back
+    to a path-only URL — the row still upserts, just without a host prefix.
+    """
+    try:
+        payload = _matomo_api_get(
+            base_url=base_url, token_auth=token,
+            method="SitesManager.getSiteFromId",
+            params={"idSite": site_id},
+        )
+    except Exception as exc:  # noqa: BLE001  # noqa: forbidden-pattern silent-except  # justification: optional metadata lookup; if SitesManager isn't accessible to this token we still want the per-URL traffic to import (with a path-only URL), so we trade a noisy failure for a degraded but functional path.
+        logger = __import__("logging").getLogger(__name__)
+        logger.warning("matomo: getSiteFromId(%s) failed: %s", site_id, exc)
+        return ""
+    if isinstance(payload, dict):
+        return str(payload.get("main_url") or "").strip()
+    return ""
+
+
+def run_matomo_traffic_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
+    """Pull per-URL daily traffic from Matomo into ``MatomoDailyTraffic``.
+
+    Distinct from ``run_matomo_sync`` which is FR-016 attribution-only:
+    this one mirrors GSC's daily-page totals and is what makes "Matomo
+    data is flowing into the Linker DB" actually true for general site
+    traffic — independent of whether any Linker suggestions exist yet.
+    """
+    base_url, token, site_wp, site_xf = _matomo_traffic_settings_or_raise()
+    site_ids = [s for s in (site_wp, site_xf) if s]
+    # Look up each site's canonical URL once up-front so the loop below
+    # doesn't make N redundant SitesManager calls.
+    site_main_url_by_id: dict[str, str] = {
+        sid: _resolve_matomo_site_main_url(
+            base_url=base_url, token=token, site_id=sid,
+        )
+        for sid in site_ids
+    }
+    rows_read = 0
+    rows_written = 0
+    rows_updated = 0
+    for offset in range(max(sync_run.lookback_days, 1)):
+        target_date = timezone.now().date() - timedelta(days=offset)
+        for site_id in site_ids:
+            rows = _fetch_matomo_pageurls_day(
+                base_url=base_url, token=token,
+                site_id=site_id, target_date=target_date,
+            )
+            rows_read += len(rows)
+            new_rows, updated = _persist_matomo_traffic_day(
+                site_id=site_id, target_date=target_date,
+                site_main_url=site_main_url_by_id.get(site_id, ""),
+                rows=rows,
+            )
+            rows_written += new_rows
+            rows_updated += updated
+    return {
+        "rows_read": rows_read, "rows_written": rows_written,
+        "rows_updated": rows_updated,
+    }
+
+
 def run_matomo_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
     base_url, site_id, token_auth, event_schema = (
         _validate_matomo_sync_settings_or_raise()
@@ -828,21 +1026,68 @@ def _build_gsc_service_or_raise(settings: dict):
     return build_gsc_service(client_email=client_email, private_key=private_key)
 
 
+# Subdomains under sc-domain:goldmidi.com that we deliberately ignore.
+# The user only wants analytics for goldmidi.com (root + /community/) and
+# misc.goldmidi.com — every other subdomain captured by the umbrella
+# domain-property is dropped here so it never reaches the database.
+_GSC_DEFAULT_EXCLUDED_HOSTS: tuple[str, ...] = (
+    "business.goldmidi.com",
+    "nyuuz.goldmidi.com",
+    "tgmnyuuz.blogspot.com",
+)
+
+
+def _gsc_excluded_hosts() -> tuple[str, ...]:
+    """Return the comma-separated AppSetting list, or the hard-coded default.
+
+    Operators can override the defaults via the
+    ``analytics.gsc_excluded_hosts`` setting (comma-separated hostnames). An
+    empty value disables exclusion entirely.
+    """
+    from apps.core.models import AppSetting
+
+    raw = AppSetting.get_str("analytics.gsc_excluded_hosts", "").strip()
+    if not raw:
+        return _GSC_DEFAULT_EXCLUDED_HOSTS
+    return tuple(h.strip().lower() for h in raw.split(",") if h.strip())
+
+
+def _gsc_row_is_excluded(row: dict[str, Any], excluded_hosts: tuple[str, ...]) -> bool:
+    """True when the row's page URL is on an excluded subdomain.
+
+    GSC rows look like ``{"keys": [date, page_url, ...], ...}``. We pull the
+    URL out of position 1 and compare its hostname (case-insensitive) against
+    the exclusion list.
+    """
+    keys = row.get("keys") or []
+    if len(keys) < 2:
+        return False
+    page_url = str(keys[1] or "").lower()
+    # Match anywhere in the URL (handles both http/https + path noise).
+    return any(host in page_url for host in excluded_hosts)
+
+
 def _fetch_gsc_dimensions_pair(
     *, service, property_url: str, start_date, end_date,
 ) -> tuple[list, list]:
-    """Fetch the (page-totals, query-detail) row pairs from GSC."""
-    excluded = list(BLOCKED_COUNTRY_CODES_ALPHA3)
+    """Fetch the (page-totals, query-detail) row pairs from GSC, with the
+    subdomain exclusion list applied so we never persist data we don't want.
+    """
+    excluded_countries = list(BLOCKED_COUNTRY_CODES_ALPHA3)
+    excluded_hosts = _gsc_excluded_hosts()
     page_rows = fetch_gsc_performance_data(
         service=service, property_url=property_url,
         start_date=start_date, end_date=end_date,
-        dimensions=["date", "page"], excluded_country_codes=excluded,
+        dimensions=["date", "page"], excluded_country_codes=excluded_countries,
     )
     query_rows = fetch_gsc_performance_data(
         service=service, property_url=property_url,
         start_date=start_date, end_date=end_date,
-        dimensions=["date", "page", "query"], excluded_country_codes=excluded,
+        dimensions=["date", "page", "query"], excluded_country_codes=excluded_countries,
     )
+    if excluded_hosts:
+        page_rows = [r for r in page_rows if not _gsc_row_is_excluded(r, excluded_hosts)]
+        query_rows = [r for r in query_rows if not _gsc_row_is_excluded(r, excluded_hosts)]
     return page_rows, query_rows
 
 
