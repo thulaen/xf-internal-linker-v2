@@ -7,9 +7,9 @@ the dashboard) and to the health system, rather than silently falling back.
 Usage:
     from apps.pipeline.services.ext_loader import load_extension
 
-    scoring_ext = load_extension("scoring", "calculate_composite_scores_full_batch")
+    scoring_ext = load_extension("scoring", "score_full_batch")
     if scoring_ext is not None:
-        scoring_ext.calculate_composite_scores_full_batch(...)
+        scoring_ext.score_full_batch(...)
 """
 
 from __future__ import annotations

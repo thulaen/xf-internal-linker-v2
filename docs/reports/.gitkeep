@@ -1,0 +1,3 @@
+# Monthly link-suggestion reports land here.
+# Each run of `python manage.py run_monthly_top_50 --month=YYYY-MM` writes
+# `monthly-suggestions-YYYY-MM.md` next to this file.

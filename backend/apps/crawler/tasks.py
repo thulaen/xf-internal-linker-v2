@@ -88,7 +88,13 @@ def pulse_heartbeat():
         from apps.pipeline.services.ext_loader import load_extension
 
         t0 = time.perf_counter()
-        scoring = load_extension("scoring", "calculate_composite_scores_full_batch")
+        # The C++ binding actually exposes ``score_full_batch`` (see
+        # backend/extensions/scoring.cpp:50 PYBIND11_MODULE). Probing for
+        # the legacy name created a "missing expected callable" warning
+        # every heartbeat, which then triggered an ErrorLog → signal →
+        # OperatorAlert chain that, through a separate psycopg fork bug,
+        # poisoned this worker's pooled DB connection every 2 seconds.
+        scoring = load_extension("scoring", "score_full_batch")
         checks["cpp_extensions"] = {
             "ok": scoring is not None,
             "ms": _elapsed_ms(t0),

@@ -13,6 +13,7 @@ from django.db.models import Avg, Sum
 from django.utils import timezone
 
 from apps.content.models import ContentItem
+from apps.sources.api_rate_limiter import rate_limited
 from apps.suggestions.models import Suggestion
 
 from .country_filters import (
@@ -189,33 +190,36 @@ def _fetch_ga4_rows(
     metrics: list[str],
 ) -> list[dict[str, Any]]:
     dimension_names = _ga4_dimension_names(geo_granularity=geo_granularity)
-    response = (
-        service.properties()
-        .runReport(
-            property=f"properties/{property_id}",
-            body={
-                "dateRanges": [
-                    {
-                        "startDate": target_date.isoformat(),
-                        "endDate": target_date.isoformat(),
-                    }
-                ],
-                "dimensions": [{"name": name} for name in dimension_names],
-                "metrics": [{"name": name} for name in metrics],
-                "dimensionFilter": {
-                    "filter": {
-                        "fieldName": "eventName",
-                        "stringFilter": {
-                            "matchType": "EXACT",
-                            "value": event_name,
-                        },
-                    }
+    # FR-250: GA4 Data API has a 50,000-token daily quota; honour it via the
+    # shared registry so a long lookback window can't blow the budget.
+    with rate_limited("ga4_data_api"):
+        response = (
+            service.properties()
+            .runReport(
+                property=f"properties/{property_id}",
+                body={
+                    "dateRanges": [
+                        {
+                            "startDate": target_date.isoformat(),
+                            "endDate": target_date.isoformat(),
+                        }
+                    ],
+                    "dimensions": [{"name": name} for name in dimension_names],
+                    "metrics": [{"name": name} for name in metrics],
+                    "dimensionFilter": {
+                        "filter": {
+                            "fieldName": "eventName",
+                            "stringFilter": {
+                                "matchType": "EXACT",
+                                "value": event_name,
+                            },
+                        }
+                    },
+                    "limit": 10000,
                 },
-                "limit": 10000,
-            },
+            )
+            .execute()
         )
-        .execute()
-    )
     return response.get("rows", [])
 
 
@@ -223,15 +227,19 @@ def _matomo_api_get(
     *, base_url: str, token_auth: str, method: str, params: dict[str, Any]
 ) -> Any:
     api_url = urljoin(base_url.rstrip("/") + "/", "?module=API&format=JSON")
-    response = requests.get(
-        api_url,
-        params={
-            "method": method,
-            "token_auth": token_auth,
-            **params,
-        },
-        timeout=30,
-    )
+    # FR-250: every outbound Matomo Reporting-API call passes through the
+    # token bucket so a sync loop can never DoS the operator's Matomo
+    # instance. Citation in docs/specs/fr250-api-rate-limiter.md.
+    with rate_limited("matomo_reporting_api"):
+        response = requests.get(
+            api_url,
+            params={
+                "method": method,
+                "token_auth": token_auth,
+                **params,
+            },
+            timeout=30,
+        )
     response.raise_for_status()
     payload = response.json()
     if isinstance(payload, dict) and payload.get("result") == "error":

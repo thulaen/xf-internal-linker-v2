@@ -1,0 +1,219 @@
+<div class="mcp-page">
+  <header class="page-header">
+    <div class="page-title">
+      <h1>AI Agents (MCP)</h1>
+      <p class="page-subtitle">
+        Connect Claude Code, Codex, and Antigravity to this app. MCP — short for
+        <strong>Model Context Protocol</strong> — is the standard way modern AI agents
+        call external tools. Once connected, your AI agent can list orphaned content,
+        pull top link suggestions, and trigger the monthly Top-50 job directly.
+      </p>
+    </div>
+  </header>
+
+  <!-- 1. Live MCP server status ─────────────────────────────────── -->
+  <mat-card class="settings-card" id="mcp-status-card">
+    <mat-card-header>
+      <mat-card-title>MCP server status</mat-card-title>
+      <div class="card-title-actions">
+        @if (health(); as h) {
+          @if (h.alive) {
+            <mat-chip class="status-chip status-chip-live" disableRipple>
+              <mat-icon matChipAvatar>check_circle</mat-icon>
+              Live
+            </mat-chip>
+          } @else {
+            <mat-chip class="status-chip status-chip-down" disableRipple>
+              <mat-icon matChipAvatar>error</mat-icon>
+              Not ready
+            </mat-chip>
+          }
+        } @else {
+          <mat-chip class="status-chip status-chip-loading" disableRipple>
+            <mat-spinner diameter="14"></mat-spinner>
+            Checking…
+          </mat-chip>
+        }
+      </div>
+    </mat-card-header>
+    <mat-card-content class="card-content">
+      @if (healthError(); as msg) {
+        <p class="error-line">
+          <mat-icon class="icon-md">warning</mat-icon>
+          Could not reach the health endpoint: {{ msg }}
+        </p>
+      }
+      @if (health(); as h) {
+        <dl class="health-grid">
+          <div>
+            <dt>Project-scope config</dt>
+            <dd>{{ h.mcp_json_present ? '.mcp.json present at repo root' : 'missing' }}</dd>
+          </div>
+          <div>
+            <dt>Server script</dt>
+            <dd>{{ h.server_script_present ? 'backend/mcp_server.py present' : 'missing' }}</dd>
+          </div>
+          <div>
+            <dt>Python mcp package</dt>
+            <dd>{{ h.mcp_python_pkg_installed ? 'installed' : 'not installed — rebuild backend' }}</dd>
+          </div>
+          <div>
+            <dt>Transport</dt>
+            <dd>{{ h.transport }}</dd>
+          </div>
+          <div>
+            <dt>Last checked</dt>
+            <dd>{{ h.as_of | date:'mediumTime' }}</dd>
+          </div>
+        </dl>
+      }
+    </mat-card-content>
+  </mat-card>
+
+  <!-- 2. Per-agent connection rows ───────────────────────────────── -->
+  <mat-card class="settings-card" id="mcp-agents-card">
+    <mat-card-header>
+      <mat-card-title>AI agents detected on this machine</mat-card-title>
+    </mat-card-header>
+    <mat-card-content class="card-content">
+      @if (!agents()) {
+        <div class="loading-row">
+          <mat-spinner diameter="24"></mat-spinner>
+          <span>Detecting installed agents…</span>
+        </div>
+      } @else {
+        <table class="agents-table">
+          <thead>
+            <tr>
+              <th>Agent</th>
+              <th>Installed</th>
+              <th>Project-scope MCP</th>
+              <th>Support level</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (entry of agentRows(); track entry.key) {
+              <tr>
+                <td><strong>{{ entry.key }}</strong></td>
+                <td>{{ entry.row.installed ? 'Yes' : 'No' }}</td>
+                <td>
+                  @if (entry.key === 'Claude Code') {
+                    {{ entry.row.configured_project ? 'Auto-discovered via .mcp.json' : 'Not yet (commit .mcp.json)' }}
+                  } @else if (entry.key === 'Codex') {
+                    Best-effort (Codex MCP support is still evolving)
+                  } @else {
+                    Not yet supported by Antigravity
+                  }
+                </td>
+                <td>
+                  <mat-chip class="support-chip support-{{ entry.row.supported }}" disableRipple>
+                    {{ entry.row.supported }}
+                  </mat-chip>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </mat-card-content>
+  </mat-card>
+
+  <!-- 3. Tools exposed ───────────────────────────────────────────── -->
+  <mat-card class="settings-card" id="mcp-tools-card">
+    <mat-card-header>
+      <mat-card-title>Tools your AI agent can call</mat-card-title>
+    </mat-card-header>
+    <mat-card-content class="card-content">
+      <ul class="tools-list">
+        @for (tool of tools; track tool.name) {
+          <li>
+            <code>{{ tool.name }}</code>
+            <span class="tool-desc">{{ tool.description }}</span>
+          </li>
+        }
+      </ul>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- 4. Sentient schedules ──────────────────────────────────────── -->
+  <mat-card class="settings-card" id="mcp-schedules-card">
+    <mat-card-header>
+      <mat-card-title>Schedules (sentient)</mat-card-title>
+      <div class="card-title-actions">
+        <button mat-stroked-button color="primary"
+                [disabled]="runMonthlyBusy()"
+                (click)="runMonthlyNow()">
+          <mat-icon>play_arrow</mat-icon>
+          @if (runMonthlyBusy()) { Queueing… } @else { Run monthly Top-50 now }
+        </button>
+      </div>
+    </mat-card-header>
+    <mat-card-content class="card-content">
+      <p class="hint">
+        Every registered schedule is tracked here. If your laptop was off when a schedule
+        was supposed to fire, the app notices on next boot and runs the missed job
+        automatically. No clicks needed.
+      </p>
+      @if (!schedules()) {
+        <div class="loading-row">
+          <mat-spinner diameter="24"></mat-spinner>
+          <span>Loading schedule history…</span>
+        </div>
+      } @else if (schedules()!.schedules.length === 0) {
+        <p class="empty-state">No schedules registered yet.</p>
+      } @else {
+        <table class="schedules-table">
+          <thead>
+            <tr>
+              <th>Task</th>
+              <th>Cron</th>
+              <th>Next run</th>
+              <th>Last run</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (s of schedules()!.schedules; track s.task_name) {
+              <tr>
+                <td>
+                  <strong>{{ s.task_name }}</strong>
+                  @if (s.description) {
+                    <div class="task-desc">{{ s.description }}</div>
+                  }
+                </td>
+                <td><code>{{ s.cron_expr }}</code></td>
+                <td>{{ s.next_run_at ? (s.next_run_at | date:'medium') : '—' }}</td>
+                <td>
+                  @if (s.recent_runs.length > 0) {
+                    {{ s.recent_runs[0].finished_at ? (s.recent_runs[0].finished_at | date:'short') : 'pending' }}
+                  } @else {
+                    Never
+                  }
+                </td>
+                <td>
+                  @if (s.recent_runs.length > 0) {
+                    <mat-chip class="run-chip run-chip-{{ s.recent_runs[0].status }}" disableRipple>
+                      {{ s.recent_runs[0].status }}
+                      @if (s.recent_runs[0].recovered_run) {
+                        <span class="recovered-flag" matTooltip="This run was fired by the missed-schedule recovery sweep, not the normal cron.">
+                          (recovered)
+                        </span>
+                      }
+                    </mat-chip>
+                  }
+                </td>
+                <td>
+                  <button mat-icon-button matTooltip="Run now"
+                          (click)="runScheduleNow(s.task_name)">
+                    <mat-icon>play_arrow</mat-icon>
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </mat-card-content>
+  </mat-card>
+</div>

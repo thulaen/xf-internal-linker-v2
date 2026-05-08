@@ -47,5 +47,14 @@
       }
     }
   ],
-  "dataGroups": []
+  "dataGroups": [],
+  "navigationUrls": [
+    "/**",
+    "!/api/**",
+    "!/admin/**",
+    "!/static/**",
+    "!/media/**",
+    "!/ws/**",
+    "!/**/*.*"
+  ]
 }

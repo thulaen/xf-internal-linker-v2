@@ -19,6 +19,16 @@ SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
 
+# Tell Django to trust the X-Forwarded-Proto header set by nginx (see
+# nginx/nginx.prod.conf "proxy_set_header X-Forwarded-Proto https"). Without
+# this, request.is_secure() returns False inside the container and
+# request.build_absolute_uri() emits http:// URLs — which Google's OAuth
+# rejects as "redirect_uri_mismatch" because we registered the https://
+# variant. Pair this with USE_X_FORWARDED_HOST so build_absolute_uri()
+# also picks up the public host instead of the internal Docker hostname.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
+
 # HSTS + cookie-secure + SSL redirect default to True (HTTPS-only),
 # but each can be disabled via env for a local prod-mode test over HTTP
 # (e.g. `docker compose --env-file .env up`).

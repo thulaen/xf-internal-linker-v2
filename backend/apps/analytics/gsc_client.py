@@ -6,6 +6,8 @@ import logging
 from datetime import date
 from typing import Any
 
+from apps.sources.api_rate_limiter import rate_limited
+
 logger = logging.getLogger(__name__)
 
 
@@ -45,8 +47,11 @@ def build_gsc_service(
 def test_gsc_access(service: Any, property_url: str) -> bool:
     """Test if we have access to the specified GSC property."""
     try:
-        # Just try to get the site details. If this fails, we don't have access.
-        service.sites().get(siteUrl=property_url).execute()
+        # FR-250: GSC has a 1,200 QPM / 30,000 QPD project budget; even a
+        # one-shot test ping takes a token from the same bucket the sync
+        # loop spends from. Citation in docs/specs/fr250-api-rate-limiter.md.
+        with rate_limited("gsc_search_analytics"):
+            service.sites().get(siteUrl=property_url).execute()
         return True
     except Exception as exc:
         logger.error(f"GSC access test failed for {property_url}: {exc}")
@@ -91,11 +96,14 @@ def fetch_gsc_performance_data(
         ]
 
     try:
-        response = (
-            service.searchanalytics()
-            .query(siteUrl=property_url, body=request)
-            .execute()
-        )
+        # FR-250: bulk GSC sync calls go through the same project-wide
+        # bucket so a long lookback window can't trip Google's quota.
+        with rate_limited("gsc_search_analytics"):
+            response = (
+                service.searchanalytics()
+                .query(siteUrl=property_url, body=request)
+                .execute()
+            )
         rows = response.get("rows", [])
         logger.info(f"Retrieved {len(rows)} rows from GSC API.")
         return rows

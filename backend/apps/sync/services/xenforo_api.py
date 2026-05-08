@@ -6,6 +6,8 @@ import requests
 from django.conf import settings
 from typing import Dict, Any, Optional
 
+from apps.sources.api_rate_limiter import rate_limited
+
 logger = logging.getLogger(__name__)
 
 
@@ -50,7 +52,12 @@ class XenForoAPIClient:
         last_exc: Optional[Exception] = None
         for attempt in range(max_retries):
             try:
-                response = requests.get(url, headers=headers, params=params, timeout=30)
+                # FR-250: every XenForo HTTP attempt — retry or not — burns
+                # a token. Default cap is ~5/s/key on the XF side; we hold
+                # ourselves below that with the shared bucket. Citation in
+                # docs/specs/fr250-api-rate-limiter.md.
+                with rate_limited("xenforo_api"):
+                    response = requests.get(url, headers=headers, params=params, timeout=30)
                 response.raise_for_status()
                 return response.json()
             except requests.exceptions.RequestException as e:

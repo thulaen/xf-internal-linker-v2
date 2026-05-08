@@ -51,7 +51,7 @@ const SEEN_KEY = 'xfil_changelog_seen_iso';
                 </header>
                 <p class="wn-body">{{ e.body }}</p>
                 @if (e.route) {
-                  <a mat-button color="primary" [routerLink]="e.route">
+                  <a mat-button color="primary" [routerLink]="e.route" [fragment]="e.fragment">
                     Take me there
                     <mat-icon iconPositionEnd>arrow_forward</mat-icon>
                   </a>

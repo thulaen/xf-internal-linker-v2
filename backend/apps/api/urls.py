@@ -58,6 +58,15 @@ from apps.core.views_passkey import (
     PasskeyLoginBeginView,
     PasskeyLoginFinishView,
 )
+from apps.core.views_mcp import (
+    mcp_health,
+    mcp_agents,
+    mcp_run_monthly,
+    schedules_status,
+    schedule_run_now,
+    monthly_reports_list,
+    monthly_report_read,
+)
 from apps.core.views_passkey_management import (
     PasskeyCredentialDetailView,
     PasskeyCredentialListView,
@@ -186,6 +195,16 @@ router.register(r"webhook-receipts", WebhookReceiptViewSet, basename="webhook-re
 router.register(r"health", HealthStatusViewSet, basename="health")
 
 urlpatterns = [
+    # MCP / AI Agents page — sidenav entry under SYSTEM. Five small endpoints
+    # power the live status badge, agent install detection, monthly Run Now
+    # button, and the sentient-schedules table. Backed by views_mcp.py.
+    path("mcp/health/", mcp_health, name="mcp-health"),
+    path("mcp/agents/", mcp_agents, name="mcp-agents"),
+    path("mcp/run-monthly/", mcp_run_monthly, name="mcp-run-monthly"),
+    path("schedules/", schedules_status, name="schedules-status"),
+    path("schedules/<str:task_name>/run-now/", schedule_run_now, name="schedule-run-now"),
+    path("reports/monthly/", monthly_reports_list, name="monthly-reports-list"),
+    path("reports/monthly/<str:month>/", monthly_report_read, name="monthly-report-read"),
     path("auth/token/", obtain_auth_token, name="auth-token"),
     path("auth/me/", UserMeView.as_view(), name="user-me"),
     path("auth/logout/", UserLogoutView.as_view(), name="user-logout"),

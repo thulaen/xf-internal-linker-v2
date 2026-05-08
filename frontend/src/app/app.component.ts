@@ -319,6 +319,18 @@ export class AppComponent implements OnInit {
           tooltip: 'Real-time status of data sources and services',
         },
         {
+          label: 'AI Agents',
+          icon: 'extension',
+          route: '/mcp',
+          tooltip: 'Connect Claude Code, Codex, and Antigravity to this app via MCP (the standard way modern AI agents call external tools). See live status and recent errors.',
+        },
+        {
+          label: 'Monthly Reports',
+          icon: 'event_note',
+          route: '/reports/monthly',
+          tooltip: 'Top-50 link suggestions auto-generated on the 1st of every month.',
+        },
+        {
           label: 'Settings',
           icon: 'settings',
           route: '/settings',

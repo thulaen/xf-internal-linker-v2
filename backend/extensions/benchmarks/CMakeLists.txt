@@ -87,6 +87,8 @@ add_bench(quantemb       "${EXT_ROOT}/quantemb.cpp")
 add_bench(ivf_index      "${EXT_ROOT}/ivf_index.cpp")
 add_bench(anchor_garbage)
 add_bench(streaming_sketches)
+# FR-250 API rate limiter — spec at docs/specs/fr250-api-rate-limiter.md
+add_bench(api_rate_limiter)
 
 # Category B: pure STL signatures
 # add_bench(phrasematch "${EXT_ROOT}/phrasematch.cpp")

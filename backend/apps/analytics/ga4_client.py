@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from apps.sources.api_rate_limiter import rate_limited
+
 GA4_READONLY_SCOPE = "https://www.googleapis.com/auth/analytics.readonly"
 
 
@@ -53,32 +55,37 @@ def build_ga4_data_service(
 
 def get_ga4_quota(*, service, property_id: str) -> dict:
     """Run a minimal report with returnPropertyQuota=True to read daily token consumption."""
-    return (
-        service.properties()
-        .runReport(
-            property=f"properties/{property_id}",
-            body={
-                "dateRanges": [{"startDate": "today", "endDate": "today"}],
-                "metrics": [{"name": "eventCount"}],
-                "limit": 1,
-                "returnPropertyQuota": True,
-            },
+    # FR-250: even quota-probe calls count against the GA4 daily token bucket.
+    with rate_limited("ga4_data_api"):
+        return (
+            service.properties()
+            .runReport(
+                property=f"properties/{property_id}",
+                body={
+                    "dateRanges": [{"startDate": "today", "endDate": "today"}],
+                    "metrics": [{"name": "eventCount"}],
+                    "limit": 1,
+                    "returnPropertyQuota": True,
+                },
+            )
+            .execute()
         )
-        .execute()
-    )
 
 
 def test_ga4_data_api_access(*, service, property_id: str) -> dict:
-    return (
-        service.properties()
-        .runReport(
-            property=f"properties/{property_id}",
-            body={
-                "dateRanges": [{"startDate": "7daysAgo", "endDate": "today"}],
-                "dimensions": [{"name": "date"}],
-                "metrics": [{"name": "eventCount"}],
-                "limit": 1,
-            },
+    # FR-250: UI "Test connection" button still pulls from the same bucket
+    # so an over-eager click doesn't blow the daily quota.
+    with rate_limited("ga4_data_api"):
+        return (
+            service.properties()
+            .runReport(
+                property=f"properties/{property_id}",
+                body={
+                    "dateRanges": [{"startDate": "7daysAgo", "endDate": "today"}],
+                    "dimensions": [{"name": "date"}],
+                    "metrics": [{"name": "eventCount"}],
+                    "limit": 1,
+                },
+            )
+            .execute()
         )
-        .execute()
-    )

@@ -1,0 +1,87 @@
+<div class="reports-page">
+  <header class="page-header">
+    <div class="page-title">
+      <h1>Monthly Reports</h1>
+      <p class="page-subtitle">
+        Top-50 internal link suggestions, generated automatically on the 1st of every month.
+        If your laptop is off when the schedule fires, the missed run catches up the moment
+        you're back online — no manual intervention.
+      </p>
+    </div>
+    <div class="page-actions">
+      <button mat-stroked-button (click)="refresh()">
+        <mat-icon>refresh</mat-icon>
+        Refresh list
+      </button>
+      <button mat-flat-button color="primary"
+              [disabled]="runBusy()"
+              (click)="runNow()">
+        <mat-icon>play_arrow</mat-icon>
+        @if (runBusy()) { Queueing… } @else { Run now for this month }
+      </button>
+    </div>
+  </header>
+
+  <div class="reports-layout">
+    <aside class="reports-list">
+      <mat-card class="settings-card" id="reports-list-card">
+        <mat-card-header>
+          <mat-card-title>Available reports</mat-card-title>
+        </mat-card-header>
+        <mat-card-content class="card-content">
+          @if (!reports()) {
+            <div class="loading-row">
+              <mat-spinner diameter="20"></mat-spinner>
+              <span>Loading…</span>
+            </div>
+          } @else if (reports()!.length === 0) {
+            <p class="empty-state">
+              No reports yet. The first run lands on the 1st of next month at 09:00 UTC,
+              or click "Run now" to generate one immediately.
+            </p>
+          } @else {
+            <mat-nav-list>
+              @for (r of reports(); track r.month) {
+                <a mat-list-item
+                   [class.active]="selectedMonth() === r.month"
+                   (click)="select(r.month)">
+                  <mat-icon matListItemIcon>article</mat-icon>
+                  <div matListItemTitle>{{ r.month }}</div>
+                  <div matListItemLine class="report-meta">
+                    {{ r.size_bytes }} bytes · {{ r.modified_at | date:'short' }}
+                  </div>
+                </a>
+              }
+            </mat-nav-list>
+          }
+        </mat-card-content>
+      </mat-card>
+    </aside>
+
+    <section class="report-body">
+      <mat-card class="settings-card" id="report-body-card">
+        <mat-card-header>
+          <mat-card-title>
+            @if (selectedMonth()) {
+              {{ selectedMonth() }} report
+            } @else {
+              Pick a report
+            }
+          </mat-card-title>
+        </mat-card-header>
+        <mat-card-content class="card-content">
+          @if (loadingBody()) {
+            <div class="loading-row">
+              <mat-spinner diameter="20"></mat-spinner>
+              <span>Loading report…</span>
+            </div>
+          } @else if (selectedBody(); as b) {
+            <pre class="report-body-pre">{{ b.body }}</pre>
+          } @else {
+            <p class="empty-state">Select a month from the list on the left.</p>
+          }
+        </mat-card-content>
+      </mat-card>
+    </section>
+  </div>
+</div>

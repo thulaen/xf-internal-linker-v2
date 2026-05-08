@@ -212,3 +212,16 @@ implicit==0.7.2
 # concerns since the markdown comes from this repo's own static files
 # (allow-listed in apps.core.views_docs).
 markdown==3.7
+
+# ── Sentient schedules + MCP server ──────────────────────────────
+# croniter parses cron strings like "0 9 1 * *" so the schedule_tracker
+# service can compute expected slots inside a lookback window and figure
+# out which runs were missed while the laptop was off.
+# See apps.core.services.schedule_tracker.
+croniter==2.0.7
+
+# mcp is the official Python SDK for the Model Context Protocol. Used by
+# backend/mcp_server.py to expose linker tools (get_top_candidates,
+# mark_proposed, list_orphans, ...) to Claude Code, Codex, etc.
+# See backend/mcp_server.py and the project-scope .mcp.json at repo root.
+mcp==1.1.2

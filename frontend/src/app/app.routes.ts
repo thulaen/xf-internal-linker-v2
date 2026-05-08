@@ -89,6 +89,27 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    // AI Agents (MCP) — sidenav entry under SYSTEM. Live MCP server status,
+    // per-agent connection rows (Claude Code / Codex / Antigravity), the
+    // sentient-schedule table, and a Run Now button for the monthly Top-50.
+    path: 'mcp',
+    loadComponent: () =>
+      import('./mcp/mcp.component').then((m) => m.McpComponent),
+    title: 'AI Agents (MCP) — XF Internal Linker',
+    canActivate: [authGuard],
+  },
+  {
+    // Monthly Reports — list of auto-generated monthly Top-50 link
+    // suggestion reports. Renders the markdown files under docs/reports/.
+    path: 'reports/monthly',
+    loadComponent: () =>
+      import('./monthly-reports/monthly-reports.component').then(
+        (m) => m.MonthlyReportsComponent,
+      ),
+    title: 'Monthly Reports — XF Internal Linker',
+    canActivate: [authGuard],
+  },
+  {
     path: 'diagnostics',
     loadComponent: () =>
       import('./diagnostics/diagnostics.component').then((m) => m.DiagnosticsComponent),

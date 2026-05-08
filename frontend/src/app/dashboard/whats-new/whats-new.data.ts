@@ -20,6 +20,8 @@ export interface ChangelogEntry {
   body: string;
   /** Optional link target (deep-link to the affected feature). */
   route?: string;
+  /** Optional URL fragment so the link scrolls to a specific card / section. */
+  fragment?: string;
 }
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
@@ -29,6 +31,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     body:
       '36 dashboard improvements: clock + greeting bar, "you are here" strip, big-icon launcher grid, instant-health weather card, sync-activity widget, daily-goal tracker, FAQ drawer, motivational quote, and more. See the dashboard for everything new.',
     route: '/dashboard',
+    fragment: 'dashboard-activity-feed',
   },
   {
     date: '2026-04-16T00:00:00Z',
@@ -36,6 +39,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     body:
       'Operator pre-flight checklist, one-button reset, glossary drawer (Alt+G), guided tour, noob/pro toggle, daily tips, behavioural nudge, escape hatch, read-aloud, weekly digest opt-in, explain-this-number modal, and a help chatbot.',
     route: '/dashboard',
+    fragment: 'dashboard-pipeline-runs',
   },
   {
     date: '2026-04-15T00:00:00Z',
@@ -43,6 +47,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     body:
       'Mission Brief, Status Story, Priority Action Queue, Health Score Dial, Trend Deltas, Color Legend, Tutorial Mode, Explain Mode, daily quiz, and the priority summary bell all landed.',
     route: '/dashboard',
+    fragment: 'dashboard-stat-pending-review',
   },
   {
     date: '2026-04-14T00:00:00Z',

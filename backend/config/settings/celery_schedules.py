@@ -350,4 +350,24 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=4, minute=0),
         "options": {"queue": "default"},
     },
+    # Sentient-schedules — every 10 minutes, the schedule_tracker scans for
+    # registered schedules whose expected slot has no row in the table (or
+    # has a stale `pending` row) and fires the registered callable to catch
+    # up. Idempotent via the (task_name, scheduled_for) unique constraint.
+    # Also runs once on Django startup (see apps.core.apps.CoreConfig.ready)
+    # so a laptop that's been off for hours catches up the moment it boots.
+    "schedule-tracker-recovery-tick": {
+        "task": "core.schedule_tracker_recovery_tick",
+        "schedule": 600.0,
+        "options": {"queue": "default", "expires": 540},
+    },
+    # Sentient-schedules — monthly Top-50 link suggestions on the 1st at 09:00 UTC.
+    # The actual work runs via the management command `run_monthly_top_50`
+    # which auto-detects Claude Code (Strategy A) and falls back to a pure
+    # Python picker (Strategy B) when the AI isn't available.
+    "monthly-top-50-suggestions": {
+        "task": "pipeline.run_monthly_top_50_celery",
+        "schedule": crontab(minute=0, hour=9, day_of_month=1),
+        "options": {"queue": "pipeline"},
+    },
 }

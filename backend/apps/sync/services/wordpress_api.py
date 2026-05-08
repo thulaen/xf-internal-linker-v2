@@ -10,6 +10,8 @@ import requests
 from django.conf import settings
 from requests.auth import HTTPBasicAuth
 
+from apps.sources.api_rate_limiter import rate_limited
+
 logger = logging.getLogger(__name__)
 
 _PER_PAGE = 100
@@ -66,7 +68,13 @@ class WordPressAPIClient:
         Returns {'ok': False, 'display_name': ''} on HTTP 401.
         Raises for any other network or HTTP error.
         """
-        resp = self.session.get(f"{self.base_url}/wp-json/wp/v2/users/me", timeout=10)
+        # FR-250: even the credentials probe counts against the WordPress
+        # bucket — Wordfence's default firewall caps at 240 req/IP/hour and
+        # we share our headroom across probe + sync + iteration loops.
+        with rate_limited("wordpress_api"):
+            resp = self.session.get(
+                f"{self.base_url}/wp-json/wp/v2/users/me", timeout=10
+            )
         if resp.status_code == 401:
             return {"ok": False, "display_name": ""}
         resp.raise_for_status()
@@ -154,7 +162,10 @@ class WordPressAPIClient:
     ) -> requests.Response:
         url = f"{self.base_url}/wp-json/wp/v2/{endpoint.lstrip('/')}"
         try:
-            response = self.session.get(url, params=params, timeout=30)
+            # FR-250: every paginated WP fetch passes through the bucket so
+            # a deep iter_posts/iter_pages walk can't trip Wordfence.
+            with rate_limited("wordpress_api"):
+                response = self.session.get(url, params=params, timeout=30)
             response.raise_for_status()
             return response
         except requests.RequestException as exc:

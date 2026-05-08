@@ -64,3 +64,12 @@ if [ -n "$STAGED_PY" ] && command -v python > /dev/null; then
   echo "→ Forbidden patterns (PERFORMANCE-SAFE-DEFAULTS.md)"
   python "$HOOK_DIR/check-forbidden-patterns.py" $STAGED_PY
 fi
+
+# 7. Glossary update rule from GLOSSARY-RULE.md. Blocks commits that
+#    introduce new acronyms / project shorthand without a matching row in
+#    PLAIN-ENGLISH-RULE.md's table. Skipped if Python isn't on PATH.
+STAGED_ALL=$(git diff --cached --name-only --diff-filter=ACM || true)
+if [ -n "$STAGED_ALL" ] && command -v python > /dev/null; then
+  echo "→ Glossary update rule (GLOSSARY-RULE.md)"
+  python "$HOOK_DIR/check-glossary.py" $STAGED_ALL
+fi

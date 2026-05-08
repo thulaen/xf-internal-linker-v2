@@ -80,6 +80,7 @@ class CoreConfig(AppConfig):
         # Run after migrations to avoid touching the table before it exists.
         post_migrate.connect(_consume_safe_mode_boot_flag, sender=self)
         post_migrate.connect(_run_startup_smoke_tests, sender=self)
+        post_migrate.connect(_run_schedule_recovery, sender=self)
 
         # Phase R1.3 — realtime broadcast signals for AppSetting changes.
         # Idempotent via dispatch_uid on each receiver.
@@ -89,3 +90,41 @@ class CoreConfig(AppConfig):
         # backups/ already has snapshots (a Docker-rebuild data-loss
         # signature). Read-only, no writes.
         from . import checks_users  # noqa: F401
+
+        # Sentient-schedules — explicit import so the @shared_task decorator
+        # registers the recovery tick with Celery. Mirrors the existing
+        # pattern for tasks_passkey_cleanup etc.
+        from . import tasks_schedule_recovery  # noqa: F401
+
+
+def _run_schedule_recovery(sender, **kwargs):
+    """Fire any missed scheduled runs once the DB is ready.
+
+    Sentient-schedules recovery hook — runs after migrations, every time
+    Django boots. If the laptop was off when a registered schedule was
+    supposed to fire, the tracker notices the missing row and dispatches
+    the registered callable now (with a 5-30s jitter so 10 missed schedules
+    don't all fire at the exact same second).
+    """
+    import sys
+
+    if any(arg == "test" for arg in sys.argv[1:3]):
+        return
+    using = kwargs.get("using", "default")
+    try:
+        from django.db import connections
+
+        db_name = connections[using].settings_dict.get("NAME") or ""
+        if isinstance(db_name, str) and db_name.startswith("test_"):
+            return
+    except Exception:
+        logger.debug("Schedule-recovery test-DB detection failed", exc_info=True)
+
+    try:
+        from apps.core.services.schedule_tracker import recover_missed_runs
+
+        fired = recover_missed_runs()
+        if fired:
+            logger.info("schedule_tracker: dispatched %d missed run(s) on startup", fired)
+    except Exception:
+        logger.exception("schedule_tracker: startup recovery sweep failed")

@@ -62,6 +62,54 @@ class PipelineConfig(AppConfig):
                 exc=exc,
             )
 
+        # Sentient-schedules — register the monthly top-50 job so the tracker
+        # detects missed runs (e.g. laptop off on the 1st at 09:00) and fires
+        # the catch-up automatically on next boot. Best-effort: a registration
+        # failure must not crash startup.
+        try:
+            self._register_monthly_top_50_schedule()
+        except Exception:  # noqa: BLE001  # noqa: forbidden-pattern silent-except  # justification: best-effort schedule-registration at Django app ready; logger.exception below records the failure and the boot continues so the rest of the app stays available — the schedule tracker re-attempts on the next Celery beat tick.
+            import logging
+
+            logging.getLogger(__name__).exception(
+                "pipeline.ready: failed to register monthly_top_50 schedule (continuing)"
+            )
+
+        # Explicit import so the @shared_task decorator registers
+        # `pipeline.run_monthly_top_50_celery` with Celery on boot.
+        try:
+            from . import tasks_monthly  # noqa: F401
+        except Exception:  # noqa: BLE001  # noqa: forbidden-pattern silent-except  # justification: optional sub-module import at app ready; logger.exception below leaves a paper trail and the rest of the pipeline app keeps booting — the missing task only matters when the monthly cron fires.
+            import logging
+
+            logging.getLogger(__name__).exception(
+                "pipeline.ready: failed to import tasks_monthly (continuing)"
+            )
+
+    def _register_monthly_top_50_schedule(self) -> None:
+        """Hook the monthly Top-50 job into apps.core.services.schedule_tracker."""
+        from datetime import datetime
+
+        from apps.core.services.schedule_tracker import register_schedule
+
+        def _fire(slot: datetime) -> None:
+            # Recovered runs invoke the management command in-process via
+            # call_command — keeps the work on the worker that noticed the
+            # missed slot rather than spawning Claude Code from a backend
+            # container that can't reach the user's PATH.
+            from django.core.management import call_command
+
+            month_str = slot.strftime("%Y-%m")
+            call_command("run_monthly_top_50", month=month_str, strategy="python")
+
+        register_schedule(
+            task_name="pipeline.run_monthly_top_50",
+            cron_expr="0 9 1 * *",  # 1st of every month, 09:00 UTC
+            fire_callable=_fire,
+            max_lookback_hours=24 * 35,  # up to ~5 weeks back so a 1st-of-month never falls outside the window
+            description="Top 50 internal-link suggestions for the month, picked deterministically and written to docs/reports/.",
+        )
+
     def _record_startup_failure(self, *, step: str, exc: BaseException) -> None:
         """Group B.3 — deduped audit-log entry for FAISS startup failures.
 

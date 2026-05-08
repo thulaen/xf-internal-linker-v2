@@ -157,6 +157,15 @@ ext_modules = [
         if sys.platform != "win32"
         else ["/O2", "/std:c++17"],
     ),
+    # FR-250: outbound rate limiter for GSC, GA4, Matomo, XenForo, WordPress.
+    # Spec: docs/specs/fr250-api-rate-limiter.md
+    Pybind11Extension(
+        "api_rate_limiter",
+        ["api_rate_limiter.cpp"],
+        extra_compile_args=["-O3", "-std=c++17"]
+        if sys.platform != "win32"
+        else ["/O2", "/std:c++17"],
+    ),
 ]
 
 

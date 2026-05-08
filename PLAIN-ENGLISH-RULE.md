@@ -67,6 +67,28 @@ When you must mention a technical concept, use the plain-English version from th
 | the website's navigation menu | sidenav |
 | a test that runs without needing the full app running | unit test |
 | a test that boots the full app | integration test |
+| the standard way modern AI agents call external tools | MCP / Model Context Protocol |
+| Anthropic's local AI coding agent that runs in your terminal | Claude Code |
+| OpenAI's local AI coding agent that runs in your terminal | Codex / Codex CLI |
+| Google's local AI coding agent that runs in your terminal | Antigravity |
+| Anthropic's monthly subscription that includes Claude Code | Max 5x |
+| a long string the app uses to prove it's allowed to call its own backend | Django Token |
+| running an AI agent without a chat window — give it one prompt, take its answer | headless mode |
+| a single number that combines several scoring factors into one final ranking number | composite score |
+| a tag we put on a link suggestion to mark it as picked but not yet applied | proposed |
+| Windows' built-in tool that runs a script at a specific time and date | Windows Task Scheduler |
+| a way an AI agent talks to a tool by exchanging text on standard input/output | stdio |
+| a way for a server to push updates to a browser as soon as they happen | HTTP-SSE / Server-Sent Events |
+| a small program that lets you run AI language models on your own laptop | Ollama |
+| a short text string that says when something should run, e.g. "every Monday at 9am" | cron expression / cron string |
+| a Python library that knows how to read cron expressions | croniter |
+| a missed scheduled run that the app fired late after noticing it had been skipped | recovered run |
+| safe to run twice — running it again doesn't cause harm or duplicates | idempotent |
+| a small random delay added so many things don't all run at the exact same second | jitter |
+| a separate Docker container that runs alongside the main app | service / sidecar service |
+| a config file at the project's root that AI agents auto-discover | .mcp.json / project-scope MCP config |
+| numbered "feature request" specs in `docs/specs/fr*.md` — each one a contract for a feature | FR-014 / FR-016 / FR-XXX (any 3-digit feature number) |
+| FR-250 — a small C++ helper that holds back outbound API calls so we never go faster than each provider's documented limit (Google Search Console, Google Analytics 4, Matomo, XenForo, WordPress) | FR-250 / API rate limiter |
 
 If a term you need is not in this table, define it yourself in parentheses the first time you use it.
 

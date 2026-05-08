@@ -525,3 +525,63 @@ class PasskeyChallenge(TimestampedModel):
 
     def __str__(self) -> str:
         return f"PasskeyChallenge<{self.operation_type} expires={self.expires_at.isoformat()}>"
+
+
+class ScheduledTaskRun(models.Model):
+    """One row per scheduled task firing — both planned and recovered.
+
+    Used by `apps.core.services.schedule_tracker` to remember when each
+    registered schedule was supposed to run, when it actually did, and
+    whether it succeeded. The unique-together on (task_name, scheduled_for)
+    makes recovery sweeps idempotent: a missed slot can be re-fired without
+    creating duplicate rows.
+
+    The "sentient schedules" recovery loop reads this table on Django
+    startup and every 10 min thereafter. If a slot in the recovery
+    window has no row (or has `status='pending'` with `started_at IS NULL`),
+    the loop fires the registered callable and marks the row recovered.
+
+    Storage stays bounded because each schedule's `max_lookback_hours`
+    caps how many missed slots can ever be replayed (default 72h).
+    """
+
+    STATUS_CHOICES = [
+        ("pending", "pending"),
+        ("running", "running"),
+        ("succeeded", "succeeded"),
+        ("failed", "failed"),
+        ("skipped", "skipped"),
+    ]
+
+    task_name = models.CharField(max_length=200, db_index=True)
+    scheduled_for = models.DateTimeField(db_index=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    last_error = models.TextField(blank=True, default="")
+    recovered_run = models.BooleanField(
+        default=False,
+        help_text="True if this run was fired by the missed-schedule recovery sweep.",
+    )
+    payload = models.JSONField(blank=True, default=dict)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Scheduled task run"
+        verbose_name_plural = "Scheduled task runs"
+        indexes = [
+            models.Index(fields=["task_name", "-scheduled_for"], name="strun_task_recent_idx"),
+            models.Index(fields=["status"], name="strun_status_idx"),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["task_name", "scheduled_for"],
+                name="strun_unique_task_per_slot",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        recovered = " [recovered]" if self.recovered_run else ""
+        return f"ScheduledTaskRun<{self.task_name} @ {self.scheduled_for.isoformat()} {self.status}{recovered}>"

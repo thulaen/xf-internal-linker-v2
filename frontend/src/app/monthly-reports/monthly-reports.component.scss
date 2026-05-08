@@ -1,0 +1,106 @@
+.reports-page {
+  padding: var(--space-xl) var(--spacing-page-side, 48px);
+  max-width: var(--layout-max-width, 1440px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md, 16px);
+  margin-bottom: var(--spacing-md);
+
+  > .page-title {
+    flex: 1 1 auto;
+    min-width: 0;
+
+    h1 {
+      margin: 0 0 4px;
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--color-text-primary);
+      overflow-wrap: anywhere;
+    }
+    .page-subtitle {
+      margin: 0;
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      max-width: 70ch;
+      line-height: 1.5;
+    }
+  }
+
+  > .page-actions {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm, 8px);
+  }
+}
+
+.reports-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: var(--space-lg, 24px);
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.settings-card {
+  border: var(--card-border);
+  box-shadow: none;
+  height: 100%;
+}
+
+.card-content {
+  padding: 16px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 200px;
+}
+
+.loading-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md, 16px);
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.empty-state {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.report-meta {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.report-body-pre {
+  margin: 0;
+  padding: 16px;
+  background: var(--color-bg-faint);
+  border-radius: 4px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+mat-nav-list a.active {
+  background: var(--color-blue-50);
+  color: var(--color-primary);
+}

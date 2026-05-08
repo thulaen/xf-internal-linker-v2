@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "xf-internal-linker": {
+      "command": "docker",
+      "args": [
+        "compose",
+        "exec",
+        "-T",
+        "backend",
+        "python",
+        "/app/backend/mcp_server.py"
+      ]
+    }
+  }
+}

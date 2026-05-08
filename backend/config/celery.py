@@ -44,7 +44,7 @@ def debug_task(self):
 # On worker boot, dispatch any overdue scheduled tasks that were missed
 # while the laptop was off.  See docs/PERFORMANCE.md §5.
 
-from celery.signals import worker_ready  # noqa: E402
+from celery.signals import worker_process_init, worker_ready  # noqa: E402
 
 
 @worker_ready.connect
@@ -56,3 +56,31 @@ def _on_worker_ready(sender=None, **kwargs):
     from config.catchup import run_startup_catchup
 
     run_startup_catchup()
+
+
+@worker_process_init.connect
+def _close_db_connections_on_fork(**_kwargs):
+    """Reset every Django DB connection in each forked worker process.
+
+    Celery's prefork pool spawns workers via ``os.fork()``. Without this
+    hook, every forked child inherits the parent process's psycopg 3
+    connection pool — sharing TCP sockets to Postgres. When two
+    children execute at the same time on the inherited connection, the
+    Postgres wire protocol gets interleaved and the first symptom is
+    ``OperationalError: sending query failed: another command is
+    already in progress`` followed by a cascade of
+    ``InternalError: current transaction is aborted`` errors that
+    bork every task on the affected pool slot.
+
+    Closing connections here forces psycopg to open fresh per-process
+    connections on first use, isolating each fork. This is the
+    Django/Celery canonical fix — see Django ticket #14241 and the
+    psycopg 3 docs §4.5 "Connection pools and forking".
+    """
+    from django.db import connections
+
+    for conn in connections.all():
+        try:
+            conn.close()
+        except Exception:  # noqa: BLE001 — best-effort; a failed close should not stop fork.
+            pass
