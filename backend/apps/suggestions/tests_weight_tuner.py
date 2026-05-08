@@ -28,6 +28,11 @@ def _synthetic_samples(n: int = 120) -> list[dict[str, float | str]]:
     Half the rows are approved, half rejected, with a strong correlation
     between ``score_semantic`` and approval so the optimiser is forced
     to move ``w_semantic`` away from the equal-weight baseline.
+
+    Includes ``score_embedding_age`` (FR-249 5th tunable) so the
+    optional-feature path in ``WeightTuner._maybe_add_fr249_age_decay``
+    finds the field on every sample dict and doesn't KeyError. A neutral
+    0.5 keeps the optimiser uninfluenced by this feature.
     """
     samples: list[dict[str, float | str]] = []
     for i in range(n):
@@ -38,6 +43,7 @@ def _synthetic_samples(n: int = 120) -> list[dict[str, float | str]]:
                 "score_keyword": 0.5,
                 "score_node_affinity": 0.5,
                 "score_quality": 0.5,
+                "score_embedding_age": 0.5,
                 "score_final": 0.8 if is_approved else 0.2,
                 "status": "approved" if is_approved else "rejected",
             }
@@ -50,11 +56,15 @@ class WeightTunerRunTests(TestCase):
 
     def setUp(self) -> None:
         # Equal-weight baseline so the optimiser has room to move.
+        # Includes w_embedding_age (FR-249 5th tunable, seeded by migration
+        # 0064_seed_w_embedding_age) so the baseline matches what the live
+        # WeightTuner reads at runtime.
         self._current_weights = {
-            "w_semantic": "0.25",
-            "w_keyword": "0.25",
-            "w_node": "0.25",
-            "w_quality": "0.25",
+            "w_semantic": "0.20",
+            "w_keyword": "0.20",
+            "w_node": "0.20",
+            "w_quality": "0.20",
+            "w_embedding_age": "0.20",
         }
 
     def _run_with_mocks(self) -> RankingChallenger | None:
@@ -83,14 +93,12 @@ class WeightTunerRunTests(TestCase):
         # the legacy proposed_weights / previous_weights kwargs.
         self.assertTrue(challenger.candidate_weights)
         self.assertTrue(challenger.baseline_weights)
-        self.assertSetEqual(
-            set(challenger.candidate_weights),
-            {"w_semantic", "w_keyword", "w_node", "w_quality"},
-        )
-        self.assertSetEqual(
-            set(challenger.baseline_weights),
-            {"w_semantic", "w_keyword", "w_node", "w_quality"},
-        )
+        # FR-249 promoted w_embedding_age to a 5th tunable (migration 0064);
+        # the live tuner now reads 5 weights when the AppSetting
+        # `pipeline.embedding_age_weight_in_composite` is positive.
+        expected = {"w_semantic", "w_keyword", "w_node", "w_quality", "w_embedding_age"}
+        self.assertSetEqual(set(challenger.candidate_weights), expected)
+        self.assertSetEqual(set(challenger.baseline_weights), expected)
 
     def test_populates_both_quality_scores(self) -> None:
         """Both predicted and champion quality scores must be populated."""

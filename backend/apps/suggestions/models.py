@@ -345,6 +345,7 @@ class Suggestion(TimestampedModel):
 
     STATUS_CHOICES = [
         ("pending", "Pending Review"),
+        ("proposed", "Proposed (AI-picked, awaiting human review)"),
         ("approved", "Approved"),
         ("rejected", "Rejected"),
         ("applied", "Applied"),
@@ -805,6 +806,16 @@ class Suggestion(TimestampedModel):
         default="pending",
         db_index=True,
         help_text="Current review/lifecycle status of this suggestion.",
+    )
+    batch_label = models.CharField(
+        max_length=32,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text=(
+            "Optional batch tag stamped by the monthly Top-50 picker (format YYYY-MM). "
+            "Used for per-month dedup and to filter the Monthly Reports page."
+        ),
     )
     rejection_reason = models.CharField(
         max_length=100,

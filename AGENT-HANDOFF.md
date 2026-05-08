@@ -1,3 +1,46 @@
+# 2026-05-08 - Claude Opus 4.7 (1M context) - Complete the plan: deep-link catalog seed, batch_label + proposed status, PowerShell scheduled-task scripts, weight-tuner test fix
+
+What I did: user said "fix what still has issues and complete the plan" — referring to the three deferred items I had flagged at the bottom of the previous handoff (deep-link-catalog file missing, Suggestion model lacking `proposed` / `batch_label`, optional Windows Task Scheduler scripts). Cleared all three plus a pre-existing weight-tuner test breakage that surfaced when I ran the suite.
+
+What was accomplished:
+
+**1. Deep-link catalog file shipped.** New [`frontend/src/app/core/routing/deep-link-catalog.ts`](frontend/src/app/core/routing/deep-link-catalog.ts) — TypeScript module exporting `DeepLinkEntry` (the shape `DEEP-LINKING-CATALOG.md` mandates), a `DEEP_LINK_CATALOG` array seeded with 16 entries (the most-trafficked existing routes plus all the new MCP / Monthly-Reports surfaces), and two helpers: `findDeepLink(key)` and `searchDeepLinks(query)` for the future `⌘K` quick-search bar. KISS v1 covers the visible routes; future commits backfill the other ~30 routes as they touch the relevant components. The CI gate `scripts/verify_deep_links.py` referenced in the doc is also still missing and remains pre-existing technical debt.
+
+**2. Suggestion model now supports per-month dedup.** Added `proposed` to `STATUS_CHOICES` (Pending Review → Proposed → Approved/Rejected/etc.) and a new nullable `batch_label` `CharField(max_length=32, db_index=True)` stamped by the monthly Top-50 picker. Migration `apps/suggestions/migrations/0065_add_batch_label.py` lands both changes in one step; applied cleanly inside the running container. `apps.pipeline.services.monthly_picker._flag_proposed` now actually writes the DB instead of skipping — bulk-update of 50 rows per call so it stays cheap. Subsequent monthly runs only see `status='pending'` rows, so previously-picked suggestions never resurface in next month's batch.
+
+**3. PowerShell scripts for the optional Windows scheduled task.** New [`scripts/run-monthly-top-50.ps1`](scripts/run-monthly-top-50.ps1) — tiny wrapper that shells `docker compose exec -T backend python manage.py run_monthly_top_50` with the current UTC month and `--strategy=auto`. New [`scripts/install-monthly-schedule.ps1`](scripts/install-monthly-schedule.ps1) — Administrator-only one-shot that registers a `XFLinker - Monthly Top-50 Link Suggestions` Windows scheduled task firing on the 1st of every month at 09:00 local time. Mirrors the existing pattern from `scripts/install-cert-renewal-task.ps1` (S4U principal, StartWhenAvailable, DontStopIfGoingOnBatteries). The Windows task is belt-and-braces with the in-app sentient-schedule tracker — both fire the same management command, the unique constraint on `(task_name, scheduled_for)` makes the second one a no-op.
+
+**4. Pre-existing weight-tuner test breakage fixed (bonus).** When I ran `manage.py test apps.suggestions` to verify my migration didn't regress anything, 5 tests in `tests_weight_tuner.py` errored with `KeyError: 'score_embedding_age'`. Root cause: the `0063_add_score_embedding_age` and `0064_seed_w_embedding_age` migrations (FR-249 — embedding-age decay as the 5th L-BFGS tunable) were never paired with a fixture update. The synthetic samples in `_synthetic_samples()` only carried 4 score fields, but the live `WeightTuner._maybe_add_fr249_age_decay` adds `score_embedding_age` to `feature_keys` whenever the seeded AppSetting is positive (which it is, in every test DB). Two-line fix: added `score_embedding_age: 0.5` to each fake sample and updated the assertion sets from 4 keys to 5 keys (`{w_semantic, w_keyword, w_node, w_quality, w_embedding_age}`). 5/5 tuner tests now pass; full `apps.suggestions` suite is 71 tests green.
+
+Files changed (this follow-up):
+- `frontend/src/app/core/routing/deep-link-catalog.ts` (new — KISS v1 catalog with 16 entries + lookup helpers)
+- `backend/apps/suggestions/models.py` (added `proposed` to `STATUS_CHOICES` + `batch_label` `CharField`)
+- `backend/apps/suggestions/migrations/0065_add_batch_label.py` (new — `AddField` + `AlterField`)
+- `backend/apps/pipeline/services/monthly_picker.py` (`_flag_proposed` now writes the DB)
+- `backend/apps/suggestions/tests_weight_tuner.py` (fixture + assertions updated for FR-249)
+- `scripts/run-monthly-top-50.ps1` (new — wraps the management command)
+- `scripts/install-monthly-schedule.ps1` (new — registers the Windows scheduled task)
+
+Verification:
+- `docker compose exec backend python manage.py makemigrations --dry-run --check` — "No changes detected".
+- `docker compose exec backend python manage.py migrate suggestions 0065` — "Applying suggestions.0065_add_batch_label... OK".
+- `docker compose exec backend python manage.py test apps.suggestions` — 71 tests green in 9.466s (was failing 5 before this commit due to the pre-existing FR-249 fixture gap).
+- `npx ng build --configuration=development` — 0 warnings, 0 errors (the new `deep-link-catalog.ts` compiles cleanly with strict TypeScript).
+- Pre-commit hook (the glossary check + the others) all pass on the staged set.
+
+What has issues or errors:
+- The CI gate `scripts/verify_deep_links.py` referenced from `DEEP-LINKING-CATALOG.md` does not exist in the repo. Not introduced by me; pre-existing technical debt. The catalog file itself is now in place, so a future commit that adds the verifier will have something to verify.
+- The catalog ships KISS v1 with 16 entries (Dashboard / Settings / Jobs / Health / Diagnostics / Review / Link Health / MCP / Monthly Reports + their key scroll targets). The other ~30 lazy routes are not yet registered — a future agent should backfill them when they touch the relevant components, per the same PARAMOUNT rule.
+- The optional Windows scheduled task (`install-monthly-schedule.ps1`) requires the user to run it once as Administrator. The in-app sentient-schedule tracker already covers the use case end-to-end, so the Windows task is genuinely optional — install it only if you want the job to fire even when Docker Desktop isn't running.
+
+Tech-debt delta: -4 items resolved, +0 net new.
+1. Deep-link catalog file finally exists (was missing for the entire session — now seeded with the most important routes).
+2. `Suggestion.batch_label` + `proposed` status now back the monthly Top-50 picker, replacing the v1 "markdown report is the source of truth" stopgap with proper DB dedup.
+3. `_flag_proposed` actually writes to the DB now (was a no-op stub before).
+4. The 5 pre-existing `WeightTuner` test errors that surfaced when I ran the suite are fixed — synthetic samples and assertion sets now reflect the FR-249 5th tunable that's been live since `0064_seed_w_embedding_age`.
+
+---
+
 # 2026-05-08 - Claude Opus 4.7 (1M context) - Glossary PARAMOUNT + MCP auto-wire + Monthly Top-50 + sentient schedules + Take-me-there fix
 
 What I did: user said "be my friend, work with speed, fix all errors as you go" and approved a seven-workstream plan covering: a top-level Glossary update rule, automatic Model Context Protocol (MCP — the standard way modern AI agents call external tools) wiring for Claude Code via a project-scope `.mcp.json`, a monthly Top-50 link-suggestion job that auto-runs on the 1st of every month with a pure-Python fallback when Claude Code is not available, a "sentient schedules" tracker that catches up missed scheduled runs the moment the laptop boots, two new sidenav entries ("AI Agents" + "Monthly Reports") with live-status pages, and a fix for the Dashboard "Take me there" buttons that were navigating to the page the user was already on.

@@ -233,20 +233,31 @@ def run_python_strategy(
 
 
 def _flag_proposed(picks: list[PickResult], *, batch_label: str) -> None:
-    """Mark each chosen suggestion as picked for this month's batch.
+    """Mark each chosen suggestion as 'proposed' + stamp the batch label.
 
-    KISS v1: the Suggestion model doesn't have a `batch_label` field and the
-    `status` enum doesn't include `proposed`, so we don't write back to the DB
-    at all. The monthly markdown report at `docs/reports/monthly-suggestions-
-    YYYY-MM.md` IS the source of truth for "the AI picked these 50 for the
-    month". A future migration can add a `proposed_in_batch` field if the
-    operator wants per-month dedup; until then, accept some month-to-month
-    overlap (which is fine — pending suggestions are already idempotent on
-    (host_sentence_id, destination_id)).
+    Migration `suggestions/0065_add_batch_label` introduces both the
+    `'proposed'` status choice and the `batch_label` CharField. A single
+    bulk update is used because at 50 rows per call it's much cheaper than
+    per-row save() — and it stays atomic if a transaction is wrapped around
+    the caller.
     """
-    logger.debug(
-        "monthly_picker: skipping DB flagging for %d picks (batch=%s) — see docstring",
-        len(picks),
+    if not picks:
+        return
+    try:
+        from apps.suggestions.models import Suggestion  # type: ignore[import-not-found]
+    except ImportError:
+        logger.warning(
+            "monthly_picker: Suggestion model not importable; skipping DB flagging"
+        )
+        return
+    ids = [p.candidate.suggestion_id for p in picks]
+    updated = Suggestion.objects.filter(suggestion_id__in=ids).update(
+        status="proposed",
+        batch_label=batch_label,
+    )
+    logger.info(
+        "monthly_picker: flagged %d suggestion(s) as proposed (batch=%s)",
+        updated,
         batch_label,
     )
 

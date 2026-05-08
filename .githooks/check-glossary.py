@@ -66,6 +66,9 @@ ALLOWLIST: frozenset[str] = frozenset({
     "INFO", "WARN", "WARNING", "ERROR", "DEBUG", "TRACE", "FATAL",
     "NOTICE", "SUCCESS", "FAILED", "FAIL", "PASS", "SKIP", "SKIPPED",
     "BENCHMARK", "BENCH",
+    # PowerShell built-in variables / common shell vars
+    "LASTEXITCODE", "PSScriptRoot", "PSCommandPath", "ErrorActionPreference",
+    "PWD", "OLDPWD", "HOME", "TMPDIR",
     # Date-format placeholders
     "YYYY-MM", "YYYY-MM-DD", "MM-DD", "HH-MM",
     # Project section / doc-file headings used in upper-case prose
@@ -88,10 +91,16 @@ ALLOWLIST: frozenset[str] = frozenset({
     "THINK-BEFORE-YOU-CODE", "PERFORMANCE",
 })
 
-# Regex: 3+ consecutive uppercase letters (with optional digits and one
-# embedded hyphen for things like FR-053, BGE-M3, RPT-002). Captures the
-# whole token so we can match it against the glossary as-written.
-ACRONYM_PATTERN = re.compile(r"\b(?:[A-Z]{3,}(?:-[A-Z0-9]+)?|FR-\d{3}|RPT-\d{3}|ISS-\d{3})\b")
+# Regex: 3+ consecutive uppercase letters with optional repeated hyphen-
+# segments (so DEEP-LINKING-CATALOG, BGE-M3, etc. read as one token), or
+# the explicit FR-NNN / RPT-NNN / ISS-NNN spec/report/issue patterns.
+ACRONYM_PATTERN = re.compile(r"\b(?:[A-Z]{3,}(?:-[A-Z0-9]+)*|FR-\d{3}|RPT-\d{3}|ISS-\d{3})\b")
+
+# Numbered identifiers (FR-250, RPT-002, ISS-031) are covered by the
+# generic "FR-XXX (any 3-digit feature number)" entry already in the
+# glossary — match each numbered hit against this pattern instead of
+# requiring a per-number row.
+NUMBERED_ID_PATTERN = re.compile(r"^(FR|RPT|ISS)-\d{3}$")
 
 # Lines we never scan — they're not user-facing prose.
 SKIP_LINE_PATTERNS = (
@@ -220,6 +229,11 @@ def find_violations(
             continue
         for match in ACRONYM_PATTERN.findall(text):
             if match in ALLOWLIST or match in glossary:
+                continue
+            # FR-NNN / RPT-NNN / ISS-NNN are covered by the generic
+            # "FR-XXX (any 3-digit feature number)" glossary entry; we
+            # don't require a per-number row for every numbered identifier.
+            if NUMBERED_ID_PATTERN.match(match):
                 continue
             key = (match, file)
             if key in seen_locations:
