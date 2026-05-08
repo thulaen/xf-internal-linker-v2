@@ -484,7 +484,10 @@ if ($diffFiles.Count -gt 0) {
     }
     foreach ($f in $diffFiles) {
         $fullPath = Join-Path $repoRoot ($f -replace '/', '\')
-        if (Test-Path $fullPath) {
+        # Test-Path returns true for directories too; restrict the size
+        # check to files only or Get-Item.Length throws "property
+        # 'Length' cannot be found on this object" on a DirectoryInfo.
+        if ((Test-Path $fullPath -PathType Leaf)) {
             $size = (Get-Item $fullPath).Length
             if ($size -gt 2MB) {
                 $sizeMB = [math]::Round($size / 1MB, 1)
