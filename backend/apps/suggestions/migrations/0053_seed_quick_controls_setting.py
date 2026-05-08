@@ -2,32 +2,38 @@
 
 from django.db import migrations
 
+
 def seed_quick_controls_setting(apps, schema_editor):
-    WeightPreset = apps.get_model('suggestions', 'WeightPreset')
-    AppSetting = apps.get_model('core', 'AppSetting')
-    
+    WeightPreset = apps.get_model("suggestions", "WeightPreset")
+    AppSetting = apps.get_model("core", "AppSetting")
+
     # 1. Update the 'Recommended' Preset (Blueprint)
-    recommended = WeightPreset.objects.filter(name="Recommended", is_system=True).first()
+    recommended = WeightPreset.objects.filter(
+        name="Recommended", is_system=True
+    ).first()
     if recommended:
         weights = dict(recommended.weights or {})
-        weights.update({
-            "dashboard.show_quick_controls": "true",
-        })
+        weights.update(
+            {
+                "dashboard.show_quick_controls": "true",
+            }
+        )
         recommended.weights = weights
         recommended.save(update_fields=["weights", "updated_at"])
 
     # 2. Update the active AppSettings (Live Production State)
     AppSetting.objects.update_or_create(
-        key="dashboard.show_quick_controls", 
-        defaults={"value": "true"}
+        key="dashboard.show_quick_controls", defaults={"value": "true"}
     )
 
-class Migration(migrations.Migration):
 
+class Migration(migrations.Migration):
     dependencies = [
-        ('suggestions', '0052_activate_graph_topology_weights'),
+        ("suggestions", "0052_activate_graph_topology_weights"),
     ]
 
     operations = [
-        migrations.RunPython(seed_quick_controls_setting, reverse_code=migrations.RunPython.noop),
+        migrations.RunPython(
+            seed_quick_controls_setting, reverse_code=migrations.RunPython.noop
+        ),
     ]

@@ -28,7 +28,6 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any
 
 from django.core.cache import cache
 
@@ -98,11 +97,7 @@ def publish_stage_update(
     now = time.time()
     cache_key = _STAGE_CACHE_PREFIX + job_key
     existing = cache.get(cache_key)
-    started_at = (
-        existing.started_at_epoch
-        if isinstance(existing, StageUpdate)
-        else now
-    )
+    started_at = existing.started_at_epoch if isinstance(existing, StageUpdate) else now
     update = StageUpdate(
         job_key=job_key,
         stage_name=stage_name,

@@ -386,24 +386,24 @@ def _compute_jsd(p_tokens: list[str], q_tokens: list[str]) -> float:
 
     p_counts = Counter(p_tokens)
     q_counts = Counter(q_tokens)
-    
+
     total_p = sum(p_counts.values())
     total_q = sum(q_counts.values())
-    
+
     vocab = set(p_counts.keys()) | set(q_counts.keys())
     p = {w: p_counts.get(w, 0) / total_p for w in vocab}
     q = {w: q_counts.get(w, 0) / total_q for w in vocab}
-    
+
     # Mixture distribution
     m = {w: 0.5 * (p[w] + q[w]) for w in vocab}
-    
+
     def kl_div(dist, ref):
         res = 0.0
         for w in vocab:
             if dist[w] > 0:
                 res += dist[w] * math.log2(dist[w] / ref[w])
         return res
-        
+
     jsd = 0.5 * kl_div(p, m) + 0.5 * kl_div(q, m)
     return jsd
 
@@ -525,6 +525,7 @@ def _build_min_semantic_predicate(min_semantic_score: float):
             recommended_bool,
             recommended_float as _recommended_float,
         )
+
         if not recommended_bool("pipeline.calibration_enabled"):
             return lambda score: score >= min_semantic_score
         threshold = float(_recommended_float("pipeline.min_calibrated_probability"))
@@ -539,7 +540,9 @@ def _build_min_semantic_predicate(min_semantic_score: float):
         return lambda score: score >= min_semantic_score
     active_params = load_active_params()  # None → cold-start fallback used
     return lambda score: passes_calibrated_threshold(
-        score, threshold=threshold, params=active_params,
+        score,
+        threshold=threshold,
+        params=active_params,
     )
 
 
@@ -680,6 +683,7 @@ def score_destination_matches(
         # logs. ingest_error() is dedup-by-fingerprint and never raises.
         from apps.audit.error_ingest import ingest_error
         from apps.audit.models import ErrorLog
+
         ingest_error(
             job_type="ranker_signal",
             step="prefetch_passage_relevance",
@@ -767,22 +771,29 @@ def score_destination_matches(
                 for chunk in sentence_record.nlp_metadata.get("noun_chunks", [])
             )
         ):
-            relevance = min(1.0, relevance + phrase_matching_settings.noun_chunk_boost_weight)
+            relevance = min(
+                1.0, relevance + phrase_matching_settings.noun_chunk_boost_weight
+            )
 
         # Pick #57 — Lexical Richness boost.
         if sentence_record.nlp_metadata:
             richness = sentence_record.nlp_metadata.get("lexical_richness", {})
             ttr = richness.get("ttr", 0.0)
             if ttr > 0.4:  # Only boost substantive sentences
-                relevance = min(1.0, relevance + phrase_matching_settings.lexical_richness_weight)
+                relevance = min(
+                    1.0, relevance + phrase_matching_settings.lexical_richness_weight
+                )
 
         # Pick #62 — Fuzzy Match (RapidFuzz).
         if phrase_match.anchor_phrase:
-            fuzzy_score = _score_fuzzy_match(phrase_match.anchor_phrase, destination.title)
+            fuzzy_score = _score_fuzzy_match(
+                phrase_match.anchor_phrase, destination.title
+            )
             if fuzzy_score > 0:
                 relevance = min(
                     1.0,
-                    relevance + fuzzy_score * phrase_matching_settings.fuzzy_match_weight,
+                    relevance
+                    + fuzzy_score * phrase_matching_settings.fuzzy_match_weight,
                 )
 
         # Pick #61 — Phonetic Boost (Double Metaphone).
@@ -790,7 +801,9 @@ def score_destination_matches(
             host_keys = set(sentence_record.nlp_metadata.get("phonetic_keys", []))
             dest_keys = set(destination.nlp_metadata.get("phonetic_keys", []))
             if host_keys & dest_keys:
-                relevance = min(1.0, relevance + phrase_matching_settings.phonetic_boost_weight)
+                relevance = min(
+                    1.0, relevance + phrase_matching_settings.phonetic_boost_weight
+                )
 
         # Pick #64 — JSD alignment boost.
         jsd = _compute_jsd(destination.tokens, sentence_record.tokens)
@@ -1041,6 +1054,7 @@ def score_destination_matches(
             compute_embedding_age_decay as _fr249_decay,
             get_age_decay_settings as _fr249_settings,
         )
+
         _fr249_half_life, _fr249_weight = _fr249_settings()
         score_embedding_age = _fr249_decay(
             getattr(destination, "updated_at", None),
@@ -1092,6 +1106,7 @@ def score_destination_matches(
             # rolls into one /error-log row with occurrence_count++.
             from apps.audit.error_ingest import ingest_error
             from apps.audit.models import ErrorLog
+
             ingest_error(
                 job_type="ranker_signal",
                 step="passage_relevance_contribution",
@@ -1166,6 +1181,7 @@ def score_destination_matches(
                 # Phase 0.2 — surface to deduped error log.
                 from apps.audit.error_ingest import ingest_error
                 from apps.audit.models import ErrorLog
+
                 ingest_error(
                     job_type="ranker_signal",
                     step="phase6_contribution",
@@ -1216,6 +1232,7 @@ def score_destination_matches(
                 # anchor-classifier regression isn't silently lost.
                 from apps.audit.error_ingest import ingest_error
                 from apps.audit.models import ErrorLog
+
                 ingest_error(
                     job_type="ranker_signal",
                     step="anchor_garbage_dispatcher",

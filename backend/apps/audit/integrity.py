@@ -128,7 +128,9 @@ def _emit_orphaned_superseded_embedding_error() -> None:
 
 
 def _emit_retention_drift_error() -> None:
-    cutoff = timezone.now() - timezone.timedelta(days=VERIFIED_SUPERSEDED_RETENTION_DAYS)
+    cutoff = timezone.now() - timezone.timedelta(
+        days=VERIFIED_SUPERSEDED_RETENTION_DAYS
+    )
     old_superseded = SupersededEmbedding.objects.filter(
         superseded_at__lt=cutoff,
         replacement_verified_at__isnull=False,

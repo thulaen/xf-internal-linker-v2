@@ -131,7 +131,9 @@ class SearchMetricScorecardTests(SimpleTestCase):
     @patch("apps.audit.data_quality._hours_since", return_value=200.0)
     def test_completeness_clamps_at_100(self, _mock_hours):
         # 50 samples vs target=30 → 166.7 % raw; `_clamp_pct` caps at 100.
-        result = _search_metric_scorecard("gsc", {"latest": date(2026, 5, 1), "sample": 50})
+        result = _search_metric_scorecard(
+            "gsc", {"latest": date(2026, 5, 1), "sample": 50}
+        )
         self.assertEqual(result["completeness_pct"], 100.0)
 
     @patch("apps.audit.data_quality._hours_since", return_value=0.0)

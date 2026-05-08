@@ -4,15 +4,14 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('content', '0035_passageembedding'),
+        ("content", "0035_passageembedding"),
     ]
 
     operations = [
         migrations.RenameIndex(
-            model_name='passageembedding',
-            new_name='content_pas_content_d025c0_idx',
-            old_name='content_pas_content_2c5cb1_idx',
+            model_name="passageembedding",
+            new_name="content_pas_content_d025c0_idx",
+            old_name="content_pas_content_2c5cb1_idx",
         ),
     ]

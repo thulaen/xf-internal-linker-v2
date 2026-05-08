@@ -105,10 +105,8 @@ def _assert_single_worker() -> None:
         # Audit subsystem broken — leave the logger.warning above as the
         # signal of last resort. Do not crash worker startup over an
         # audit-log issue.
-        logger.exception(
-            "single-worker assertion fired but audit-log ingestion failed"
-        )
-    
+        logger.exception("single-worker assertion fired but audit-log ingestion failed")
+
     emit(
         "faiss.concurrency_warning",
         message,
@@ -257,9 +255,12 @@ def faiss_search(
 
     return [
         _filter_faiss_row(
-            row_scores, row_indices,
-            id_map=id_map, ct_map=ct_map,
-            host_pk_set=host_pk_set, k=k,
+            row_scores,
+            row_indices,
+            id_map=id_map,
+            ct_map=ct_map,
+            host_pk_set=host_pk_set,
+            k=k,
         )
         for row_scores, row_indices in zip(scores, indices)
     ]

@@ -202,7 +202,8 @@ def run_compression_audit(
 
     # Filter to material savings + sort by absolute savings descending.
     significant = [
-        c for c in candidates
+        c
+        for c in candidates
         if c.estimated_savings_bytes >= _MIN_REPORTED_SAVINGS_BYTES
     ]
     significant.sort(key=lambda c: c.estimated_savings_bytes, reverse=True)
@@ -397,9 +398,9 @@ def _value_to_bytes(value: Any) -> bytes:
         return value.encode("utf-8", errors="replace")
     if isinstance(value, (list, dict, tuple)):
         try:
-            return json.dumps(
-                value, ensure_ascii=False, separators=(",", ":")
-            ).encode("utf-8", errors="replace")
+            return json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode(
+                "utf-8", errors="replace"
+            )
         except (TypeError, ValueError):
             return repr(value).encode("utf-8", errors="replace")
     # Numbers / dates / unknown: stringify

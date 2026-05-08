@@ -332,7 +332,9 @@ def _score_field(
         if not top_terms:
             field_raw = 0.0
         else:
-            field_raw = sum(float(row["token_score"]) for row in top_terms) / len(top_terms)
+            field_raw = sum(float(row["token_score"]) for row in top_terms) / len(
+                top_terms
+            )
         field_score = field_raw / (1.0 + field_raw)
     return field_score, top_terms
 

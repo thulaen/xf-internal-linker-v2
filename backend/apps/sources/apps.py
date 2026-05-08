@@ -32,7 +32,6 @@ class SourcesConfig(AppConfig):
             # which is loud enough to debug. Logging here gives the operator
             # something to grep for in container logs.
             logger.warning(
-                "FR-250 rate-limiter defaults could not be seeded at app "
-                "ready: %s",
+                "FR-250 rate-limiter defaults could not be seeded at app " "ready: %s",
                 exc,
             )

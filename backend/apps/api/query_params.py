@@ -232,9 +232,7 @@ def coerce_pagination(
     ranges. The returned ``offset`` is ready to slice a queryset:
     ``qs[offset : offset + page_size]``.
     """
-    page = coerce_int(
-        query_params.get("page"), default=1, min_value=1
-    )
+    page = coerce_int(query_params.get("page"), default=1, min_value=1)
     page_size = coerce_int(
         query_params.get("page_size"),
         default=default_page_size,

@@ -14,10 +14,7 @@ from django.test import SimpleTestCase, TestCase
 from apps.scheduled_updates.jobs import (
     _ANCHOR_STATS_MIN_ANCHORS,
     _build_fm_features,
-    _build_kenlm_corpus_lines,
-    _build_lda_documents,
     _build_node2vec_edge_triples,
-    _check_kenlm_dependencies,
     _coerce_setting_float,
     _coerce_setting_int,
     _compute_anchor_entropy_stats,
@@ -29,8 +26,6 @@ from apps.scheduled_updates.jobs import (
     _KENLM_MIN_SENTENCE_CHARS,
     _LDA_MIN_DOCUMENT_COUNT,
     _LDA_MIN_TOKEN_LENGTH,
-    _load_bpr_interactions,
-    _load_fm_feedback_rows,
     _median,
     _read_meta_hpo_applied_at,
     _summarize_cascade_snapshots,
@@ -46,17 +41,20 @@ class CoerceSettingIntTests(SimpleTestCase):
 
     def test_valid_int_string(self):
         self.assertEqual(
-            _coerce_setting_int({"k": "100"}, "k", 0), 100,
+            _coerce_setting_int({"k": "100"}, "k", 0),
+            100,
         )
 
     def test_invalid_string_returns_default(self):
         self.assertEqual(
-            _coerce_setting_int({"k": "abc"}, "k", 7), 7,
+            _coerce_setting_int({"k": "abc"}, "k", 7),
+            7,
         )
 
     def test_none_value_returns_default(self):
         self.assertEqual(
-            _coerce_setting_int({"k": None}, "k", 5), 5,
+            _coerce_setting_int({"k": None}, "k", 5),
+            5,
         )
 
 
@@ -68,18 +66,21 @@ class CoerceSettingFloatTests(SimpleTestCase):
 
     def test_valid_float(self):
         self.assertEqual(
-            _coerce_setting_float({"k": "0.85"}, "k", 0.0), 0.85,
+            _coerce_setting_float({"k": "0.85"}, "k", 0.0),
+            0.85,
         )
 
     def test_int_string_works(self):
         # int strings should coerce to float without issue.
         self.assertEqual(
-            _coerce_setting_float({"k": "5"}, "k", 0.0), 5.0,
+            _coerce_setting_float({"k": "5"}, "k", 0.0),
+            5.0,
         )
 
     def test_invalid_string_returns_default(self):
         self.assertEqual(
-            _coerce_setting_float({"k": "not-a-number"}, "k", 0.5), 0.5,
+            _coerce_setting_float({"k": "not-a-number"}, "k", 0.5),
+            0.5,
         )
 
 
@@ -126,24 +127,34 @@ class FmFeatureBuildTests(SimpleTestCase):
     """Verify FM feature/target construction from rows."""
 
     def test_approved_target_one(self):
-        features, targets = _build_fm_features([
-            {"score_semantic": 0.5, "anchor_confidence": "high", "status": "approved"},
-        ])
+        features, targets = _build_fm_features(
+            [
+                {
+                    "score_semantic": 0.5,
+                    "anchor_confidence": "high",
+                    "status": "approved",
+                },
+            ]
+        )
         self.assertEqual(targets, [1.0])
         self.assertIn("anchor_confidence=high", features[0])
 
     def test_rejected_target_zero(self):
-        features, targets = _build_fm_features([
-            {"score_keyword": 0.3, "anchor_confidence": None, "status": "rejected"},
-        ])
+        features, targets = _build_fm_features(
+            [
+                {"score_keyword": 0.3, "anchor_confidence": None, "status": "rejected"},
+            ]
+        )
         self.assertEqual(targets, [0.0])
         # None anchor_confidence becomes "none".
         self.assertIn("anchor_confidence=none", features[0])
 
     def test_missing_score_columns_default_zero(self):
-        features, _ = _build_fm_features([
-            {"status": "approved"},
-        ])
+        features, _ = _build_fm_features(
+            [
+                {"status": "approved"},
+            ]
+        )
         for col in _FM_SCORE_COLUMNS:
             self.assertEqual(features[0][col], 0.0)
 
@@ -169,7 +180,11 @@ class SummarizeCascadeSnapshotsTests(SimpleTestCase):
     """Verify the cascade summary string."""
 
     def test_both_snapshots_present(self):
-        review = mock.Mock(cascade_relevance={"a": 1, "b": 2}, ips_weighted_ctr=[1, 2, 3], training_runs=5)
+        review = mock.Mock(
+            cascade_relevance={"a": 1, "b": 2},
+            ips_weighted_ctr=[1, 2, 3],
+            training_runs=5,
+        )
         impression = mock.Mock(relevance={"x": 1}, sessions=10, observations=42)
         msg = _summarize_cascade_snapshots(review, impression)
         self.assertIn("review-queue Cascade: 2 dests", msg)
@@ -203,6 +218,7 @@ class ReadMetaHpoAppliedAtTests(TestCase):
 
     def setUp(self):
         from apps.core.models import AppSetting
+
         AppSetting.objects.filter(key="meta_hpo.applied_at").delete()
 
     def test_no_value_returns_none(self):
@@ -216,8 +232,10 @@ class ReadMetaHpoAppliedAtTests(TestCase):
 
     def test_valid_iso_timestamp(self):
         from apps.core.models import AppSetting
+
         AppSetting.objects.create(
-            key="meta_hpo.applied_at", value="2026-05-01T12:00:00",
+            key="meta_hpo.applied_at",
+            value="2026-05-01T12:00:00",
             value_type="str",
         )
         checkpoint = mock.Mock()
@@ -227,8 +245,10 @@ class ReadMetaHpoAppliedAtTests(TestCase):
 
     def test_malformed_timestamp_returns_none(self):
         from apps.core.models import AppSetting
+
         AppSetting.objects.create(
-            key="meta_hpo.applied_at", value="not-a-date",
+            key="meta_hpo.applied_at",
+            value="not-a-date",
             value_type="str",
         )
         checkpoint = mock.Mock()

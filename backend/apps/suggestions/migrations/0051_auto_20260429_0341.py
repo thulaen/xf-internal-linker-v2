@@ -2,25 +2,32 @@
 
 from django.db import migrations
 
+
 def update_recommended_presets(apps, schema_editor):
-    WeightPreset = apps.get_model('suggestions', 'WeightPreset')
-    recommended = WeightPreset.objects.filter(name="Recommended", is_system=True).first()
+    WeightPreset = apps.get_model("suggestions", "WeightPreset")
+    recommended = WeightPreset.objects.filter(
+        name="Recommended", is_system=True
+    ).first()
     if recommended:
         weights = dict(recommended.weights or {})
-        weights.update({
-            "spam_guards.max_anchor_words": "5",
-            "spam_guards.max_existing_links_per_host": "3",
-            "rsqva.max_vocab_size": "25000",
-        })
+        weights.update(
+            {
+                "spam_guards.max_anchor_words": "5",
+                "spam_guards.max_existing_links_per_host": "3",
+                "rsqva.max_vocab_size": "25000",
+            }
+        )
         recommended.weights = weights
         recommended.save(update_fields=["weights", "updated_at"])
 
-class Migration(migrations.Migration):
 
+class Migration(migrations.Migration):
     dependencies = [
-        ('suggestions', '0050_suggestion_passage_relevance'),
+        ("suggestions", "0050_suggestion_passage_relevance"),
     ]
 
     operations = [
-        migrations.RunPython(update_recommended_presets, reverse_code=migrations.RunPython.noop),
+        migrations.RunPython(
+            update_recommended_presets, reverse_code=migrations.RunPython.noop
+        ),
     ]

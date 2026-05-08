@@ -17,10 +17,7 @@ class AcronymDetectorTests(SimpleTestCase):
 
     def test_basic(self):
         detector = SchwartzHearstDetector()
-        text = (
-            "Artificial Intelligence (AI) is a subfield of Computer "
-            "Science (CS)."
-        )
+        text = "Artificial Intelligence (AI) is a subfield of Computer " "Science (CS)."
         pairs = detector.extract_pairs(text)
         self.assertEqual(
             pairs,
@@ -29,9 +26,7 @@ class AcronymDetectorTests(SimpleTestCase):
 
     def test_no_match(self):
         detector = SchwartzHearstDetector()
-        pairs = detector.extract_pairs(
-            "This is a sentence with (no definition)."
-        )
+        pairs = detector.extract_pairs("This is a sentence with (no definition).")
         self.assertEqual(pairs, {})
 
     def test_nested_parens_does_not_crash(self):
@@ -49,9 +44,7 @@ class AhoCorasickMatcherTests(SimpleTestCase):
         for pattern in ("apple", "banana", "cherry"):
             matcher.add_pattern(pattern)
         matcher.build()
-        matches = matcher.find_all(
-            "I like apple and banana, but not cherry pie."
-        )
+        matches = matcher.find_all("I like apple and banana, but not cherry pie.")
         self.assertEqual(len(matches), 3)
         self.assertEqual(
             {m.pattern for m in matches},
@@ -71,9 +64,7 @@ class AhoCorasickMatcherTests(SimpleTestCase):
         matcher.add_pattern("Artificial Intelligence")
         matcher.add_pattern("Intelligence")
         matcher.build()
-        matches = matcher.find_non_overlapping(
-            "Artificial Intelligence is cool."
-        )
+        matches = matcher.find_non_overlapping("Artificial Intelligence is cool.")
         self.assertEqual(len(matches), 1)
         self.assertEqual(matches[0].pattern, "Artificial Intelligence")
 
@@ -90,8 +81,7 @@ class NLPEnricherNounChunksTests(SimpleTestCase):
 
         enricher = NLPEnricher()
         metadata, _, _ = enricher.enrich(
-            "Internal linking is a great strategy for search engine "
-            "optimization."
+            "Internal linking is a great strategy for search engine " "optimization."
         )
         self.assertGreater(len(metadata.noun_chunks), 0)
         texts = [c["text"] for c in metadata.noun_chunks]

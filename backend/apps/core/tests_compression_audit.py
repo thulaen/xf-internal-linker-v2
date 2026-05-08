@@ -71,9 +71,7 @@ class ValueToBytesTests(SimpleTestCase):
         self.assertEqual(ca._value_to_bytes(memoryview(b"abc")), b"abc")
 
     def test_string_utf8(self) -> None:
-        self.assertEqual(
-            ca._value_to_bytes("héllo"), "héllo".encode("utf-8")
-        )
+        self.assertEqual(ca._value_to_bytes("héllo"), "héllo".encode("utf-8"))
 
     def test_dict_via_json(self) -> None:
         result = ca._value_to_bytes({"a": 1, "b": "two"})
@@ -114,9 +112,7 @@ class MeasureRowTests(SimpleTestCase):
     def test_compression_actually_compresses_repeating_data(self) -> None:
         # 1 KB of repeated bytes — should compress to ~10-30 bytes.
         long_string = "x" * 1024
-        raw, compressed = ca._measure_row(
-            {"col": long_string}, ("col",)
-        )
+        raw, compressed = ca._measure_row({"col": long_string}, ("col",))
         self.assertEqual(raw, 1024)
         # zlib should reduce 1 KB of "x" to under 50 bytes
         self.assertLess(compressed, 50)
@@ -126,17 +122,13 @@ class MeasureRowTests(SimpleTestCase):
         import os
 
         random_bytes = os.urandom(1024)
-        raw, compressed = ca._measure_row(
-            {"col": random_bytes}, ("col",)
-        )
+        raw, compressed = ca._measure_row({"col": random_bytes}, ("col",))
         self.assertEqual(raw, 1024)
         # Random data should compress to AT LEAST 95% of original
         self.assertGreater(compressed, 0.9 * raw)
 
     def test_multiple_columns_concatenated(self) -> None:
-        raw, _compressed = ca._measure_row(
-            {"a": "hello", "b": "world"}, ("a", "b")
-        )
+        raw, _compressed = ca._measure_row({"a": "hello", "b": "world"}, ("a", "b"))
         self.assertEqual(raw, len(b"helloworld"))
 
     def test_compression_ratio_matches_zlib_ground_truth(self) -> None:
@@ -217,9 +209,7 @@ class RunCompressionAuditTests(TestCase):
         with patch.object(
             ca, "_CANDIDATES", (("a.M", ("c",), "tiny", ""), ("b.M", ("c",), "big", ""))
         ):
-            with patch.object(
-                ca, "_audit_one_table", side_effect=[marginal, big]
-            ):
+            with patch.object(ca, "_audit_one_table", side_effect=[marginal, big]):
                 report = ca.run_compression_audit(sample_size=10)
         labels = [c.table_label for c in report.candidates]
         self.assertEqual(labels, ["big table"])  # marginal filtered out
@@ -300,9 +290,7 @@ class CompressionAuditEndpointSecurityTests(TestCase):
         from rest_framework.test import APIClient
 
         User = get_user_model()
-        self.regular_user = User.objects.create_user(
-            username="regular", password="pw"
-        )
+        self.regular_user = User.objects.create_user(username="regular", password="pw")
         self.staff_user = User.objects.create_user(
             username="staff", password="pw", is_staff=True
         )
@@ -396,9 +384,7 @@ class CompressionAuditViewContractTests(TestCase):
             estimated_total_rows=10_000,
             estimated_savings_bytes=16_000_000,
         )
-        with patch.object(
-            ca, "_CANDIDATES", (("a.M", ("c",), "label", ""),)
-        ):
+        with patch.object(ca, "_CANDIDATES", (("a.M", ("c",), "label", ""),)):
             with patch.object(ca, "_audit_one_table", return_value=synthetic):
                 ca.run_compression_audit(sample_size=10)
         response = self.client.get("/api/system/compression-audit/")

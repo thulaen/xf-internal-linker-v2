@@ -4,16 +4,15 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0014_auto_20260429_0348'),
+        ("core", "0014_auto_20260429_0348"),
     ]
 
     operations = [
         migrations.DeleteModel(
-            name='FeatureFlag',
+            name="FeatureFlag",
         ),
         migrations.DeleteModel(
-            name='FeatureFlagExposure',
+            name="FeatureFlagExposure",
         ),
     ]

@@ -73,7 +73,7 @@ def run_crawl_session_sync(session_id) -> None:
             session.save(update_fields=["status", "error_message", "updated_at"])
         except CrawlSession.DoesNotExist:
             logger.debug("CrawlSession %s not found during error update", session_id)
-        
+
         emit(
             "crawler.session_failed",
             f"Crawl session {session_id} failed: {exc}",
@@ -106,7 +106,7 @@ async def _execute_crawl_session(session_id) -> None:
         session.started_at = timezone.now()
     session.message = "Initializing frontier..."
     await session.asave(update_fields=["status", "started_at", "message"])
-    
+
     emit(
         "crawler.session_started",
         f"Crawl session started for {session.site_domain}",
@@ -378,7 +378,7 @@ async def _execute_crawl_session(session_id) -> None:
     session.message = "Crawl completed successfully."
     session.progress = 1.0
     await session.asave(update_fields=["status", "completed_at", "message", "progress"])
-    
+
     emit(
         "crawler.session_completed",
         f"Crawl session {session_id} completed successfully. Pages: {session.pages_crawled}",
@@ -586,12 +586,9 @@ def _save_page_meta(meta: CrawledPageMeta):
             meta.save()
             target = meta
         else:
-            target = (
-                CrawledPageMeta.objects.filter(
-                    session=meta.session, normalized_url=meta.normalized_url
-                )
-                .first()
-            )
+            target = CrawledPageMeta.objects.filter(
+                session=meta.session, normalized_url=meta.normalized_url
+            ).first()
 
     if target is None:
         # Nothing to log against — defensive return.

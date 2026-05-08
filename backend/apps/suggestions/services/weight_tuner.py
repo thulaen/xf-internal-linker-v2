@@ -147,6 +147,7 @@ class WeightTuner:
         """
         try:
             from apps.suggestions.recommended_weights import recommended_float
+
             weight = recommended_float("pipeline.embedding_age_weight_in_composite")
         except Exception:  # noqa: BLE001 — cold-start safe.
             return

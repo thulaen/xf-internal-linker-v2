@@ -17,8 +17,12 @@ from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
-from apps.pipeline.services import monthly_picker, strategy_router
-from apps.pipeline.services.monthly_picker import Candidate, pick_top, render_markdown_report
+from apps.pipeline.services import strategy_router
+from apps.pipeline.services.monthly_picker import (
+    Candidate,
+    pick_top,
+    render_markdown_report,
+)
 
 
 def _candidate(
@@ -58,7 +62,9 @@ class EditorialRulesTests(SimpleTestCase):
 
     def test_per_source_cap_max_three(self) -> None:
         cands = [
-            _candidate(suggestion_id=str(i), score=0.9, source="thread-X", anchor=f"a{i}")
+            _candidate(
+                suggestion_id=str(i), score=0.9, source="thread-X", anchor=f"a{i}"
+            )
             for i in range(5)
         ]
         picks = pick_top(cands, limit=10, per_source_cap=3)
@@ -126,9 +132,15 @@ class MarkdownReportTests(SimpleTestCase):
 
     def test_picks_grouped_by_cluster(self) -> None:
         cands = [
-            _candidate(suggestion_id="a", score=0.9, source="t1", anchor="a1", cluster="alpha"),
-            _candidate(suggestion_id="b", score=0.85, source="t2", anchor="a2", cluster="alpha"),
-            _candidate(suggestion_id="c", score=0.80, source="t3", anchor="a3", cluster="beta"),
+            _candidate(
+                suggestion_id="a", score=0.9, source="t1", anchor="a1", cluster="alpha"
+            ),
+            _candidate(
+                suggestion_id="b", score=0.85, source="t2", anchor="a2", cluster="alpha"
+            ),
+            _candidate(
+                suggestion_id="c", score=0.80, source="t3", anchor="a3", cluster="beta"
+            ),
         ]
         picks = pick_top(cands, limit=10)
         body = render_markdown_report("2026-05", picks)
@@ -169,7 +181,10 @@ class StrategyRouterTests(SimpleTestCase):
             stdout = "pong"
             stderr = ""
 
-        with patch("apps.pipeline.services.strategy_router.subprocess.run", return_value=_Result()):
+        with patch(
+            "apps.pipeline.services.strategy_router.subprocess.run",
+            return_value=_Result(),
+        ):
             self.assertEqual(strategy_router.pick_strategy(), "claude_code")
 
     def test_subprocess_nonzero_returns_python(self) -> None:
@@ -178,7 +193,10 @@ class StrategyRouterTests(SimpleTestCase):
             stdout = ""
             stderr = "error"
 
-        with patch("apps.pipeline.services.strategy_router.subprocess.run", return_value=_Result()):
+        with patch(
+            "apps.pipeline.services.strategy_router.subprocess.run",
+            return_value=_Result(),
+        ):
             self.assertEqual(strategy_router.pick_strategy(), "python")
 
     def test_subprocess_filenotfound_returns_python(self) -> None:

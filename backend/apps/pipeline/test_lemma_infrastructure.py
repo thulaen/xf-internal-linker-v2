@@ -50,29 +50,21 @@ class LemmaInfrastructureTests(TestCase):
             new_hash="fake-hash-123",
             first_post_id=456,
         )
-        sentences = Sentence.objects.filter(
-            content_item=content_item
-        ).order_by("position")
+        sentences = Sentence.objects.filter(content_item=content_item).order_by(
+            "position"
+        )
         self.assertEqual(sentences.count(), 2)
 
         sent1 = sentences[0]
         tokens1 = Token.objects.filter(sentence=sent1).order_by("start_char")
         self.assertGreater(tokens1.count(), 0)
-        self.assertEqual(
-            tokens1.filter(text__iexact="cats").first().lemma, "cat"
-        )
-        self.assertEqual(
-            tokens1.filter(text__iexact="running").first().lemma, "run"
-        )
+        self.assertEqual(tokens1.filter(text__iexact="cats").first().lemma, "cat")
+        self.assertEqual(tokens1.filter(text__iexact="running").first().lemma, "run")
 
         sent2 = sentences[1]
         tokens2 = Token.objects.filter(sentence=sent2).order_by("start_char")
-        self.assertEqual(
-            tokens2.filter(text__iexact="dogs").first().lemma, "dog"
-        )
-        self.assertEqual(
-            tokens2.filter(text__iexact="sleeping").first().lemma, "sleep"
-        )
+        self.assertEqual(tokens2.filter(text__iexact="dogs").first().lemma, "dog")
+        self.assertEqual(tokens2.filter(text__iexact="sleeping").first().lemma, "sleep")
 
     def test_token_offsets_relative_to_sentence(self):
         content_item = ContentItem.objects.create(
@@ -81,8 +73,7 @@ class LemmaInfrastructureTests(TestCase):
             title="Offset Test",
         )
         clean_text = (
-            "The cats sit on the mat for a while. "
-            "The dogs bark at the moon loudly."
+            "The cats sit on the mat for a while. " "The dogs bark at the moon loudly."
         )
         _persist_content_body(
             content_item=content_item,

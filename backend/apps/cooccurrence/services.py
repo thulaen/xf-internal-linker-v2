@@ -148,8 +148,12 @@ def _compute_pair_scores(
     p_ab = co_count / total_sessions if total_sessions else 0.0
     lift = p_ab / (p_a * p_b) if (p_a * p_b) > 0 else 1.0
     g2 = _compute_log_likelihood(co_count, a_total, b_total, total_sessions)
-    pmi_v = _pmi(joint_count=co_count, count_a=a_total, count_b=b_total, total=total_sessions)
-    npmi_v = _npmi(joint_count=co_count, count_a=a_total, count_b=b_total, total=total_sessions)
+    pmi_v = _pmi(
+        joint_count=co_count, count_a=a_total, count_b=b_total, total=total_sessions
+    )
+    npmi_v = _npmi(
+        joint_count=co_count, count_a=a_total, count_b=b_total, total=total_sessions
+    )
     return {"jaccard": jaccard, "lift": lift, "g2": g2, "pmi": pmi_v, "npmi": npmi_v}
 
 
@@ -202,7 +206,9 @@ def _make_ga4_report_body(
 ) -> dict:
     """Build the GA4 runReport request body for session co-occurrence fetching."""
     return {
-        "dateRanges": [{"startDate": window_start.isoformat(), "endDate": window_end.isoformat()}],
+        "dateRanges": [
+            {"startDate": window_start.isoformat(), "endDate": window_end.isoformat()}
+        ],
         "dimensions": [{"name": "sessionId"}, {"name": "pagePath"}],
         "metrics": [{"name": "sessions"}],
         "limit": limit,
@@ -392,7 +398,9 @@ def _fallback_signal_diagnostics(fallback: float) -> dict:
 
 def _llr_sigmoid(g2: float, alpha: float, beta: float) -> float:
     """Map G² (Dunning 1993) to [0, 1]: 1 / (1 + exp(-alpha*(g2 - beta)))."""
-    exponent = max(-50.0, min(50.0, -alpha * (g2 - beta)))  # clamp prevents exp() overflow
+    exponent = max(
+        -50.0, min(50.0, -alpha * (g2 - beta))
+    )  # clamp prevents exp() overflow
     return 1.0 / (1.0 + math.exp(exponent))
 
 
@@ -433,15 +441,19 @@ def compute_co_occurrence_signal(
         diagnostics["lift"] = pair.lift
         return fallback, diagnostics
 
-    signal = _llr_sigmoid(pair.log_likelihood_score, llr_sigmoid_alpha, llr_sigmoid_beta)
-    diagnostics.update({
-        "co_occurrence_signal": round(signal, 6),
-        "co_session_count": pair.co_session_count,
-        "jaccard_similarity": round(pair.jaccard_similarity, 6),
-        "log_likelihood_score": round(pair.log_likelihood_score, 4),
-        "lift": round(pair.lift, 4),
-        "co_occurrence_fallback_used": False,
-    })
+    signal = _llr_sigmoid(
+        pair.log_likelihood_score, llr_sigmoid_alpha, llr_sigmoid_beta
+    )
+    diagnostics.update(
+        {
+            "co_occurrence_signal": round(signal, 6),
+            "co_session_count": pair.co_session_count,
+            "jaccard_similarity": round(pair.jaccard_similarity, 6),
+            "log_likelihood_score": round(pair.log_likelihood_score, 4),
+            "lift": round(pair.lift, 4),
+            "co_occurrence_fallback_used": False,
+        }
+    )
     return signal, diagnostics
 
 
@@ -498,7 +510,9 @@ def _compute_member_strengths(
             if other != node
         ]
         strengths[node] = (
-            sum(neighbor_jaccards) / len(neighbor_jaccards) if neighbor_jaccards else 0.0
+            sum(neighbor_jaccards) / len(neighbor_jaccards)
+            if neighbor_jaccards
+            else 0.0
         )
     return strengths
 
@@ -564,14 +578,18 @@ def detect_behavioral_hubs(
     components = _find_connected_components(graph, hub_min_members)
     logger.info(
         "Hub detection: %d qualifying components (min_jaccard=%.3f, min_members=%d)",
-        len(components), hub_min_jaccard, hub_min_members,
+        len(components),
+        hub_min_jaccard,
+        hub_min_members,
     )
 
     all_pairs: dict[tuple[int, int], float] = {
         (a, b): j
         for a, b, j in SessionCoOccurrencePair.objects.filter(
             jaccard_similarity__gte=hub_min_jaccard
-        ).values_list("source_content_item_id", "dest_content_item_id", "jaccard_similarity")
+        ).values_list(
+            "source_content_item_id", "dest_content_item_id", "jaccard_similarity"
+        )
     }
     removed_memberships: set[tuple[int, int]] = set(
         BehavioralHubMembership.objects.filter(
@@ -629,7 +647,9 @@ def _resolve_penalty_signal(suggestion: "Suggestion") -> float:
             )
         return 0.0
     except Exception:
-        logger.debug("Penalty signal computation failed; defaulting to 0.0", exc_info=True)
+        logger.debug(
+            "Penalty signal computation failed; defaulting to 0.0", exc_info=True
+        )
         return 0.0
 
 
@@ -668,7 +688,9 @@ def _disabled_co_signal(fallback: float) -> tuple[float, dict]:
     }
 
 
-def _compute_weighted_score(signals: dict[str, float], weights: dict[str, float]) -> float:
+def _compute_weighted_score(
+    signals: dict[str, float], weights: dict[str, float]
+) -> float:
     """Apply signal weights and clamp result to [0, 1].
 
     signals must contain: relevance, traffic, freshness, authority, engagement, co, penalty.
@@ -732,8 +754,14 @@ def compute_value_model_score(
     signals = _extract_content_signals(suggestion)
     signals["penalty"] = _resolve_penalty_signal(suggestion)
 
-    min_co_sessions, fallback, co_enabled, llr_alpha, llr_beta = _extract_co_settings(settings)
-    if co_enabled and suggestion.host is not None and suggestion.destination is not None:
+    min_co_sessions, fallback, co_enabled, llr_alpha, llr_beta = _extract_co_settings(
+        settings
+    )
+    if (
+        co_enabled
+        and suggestion.host is not None
+        and suggestion.destination is not None
+    ):
         co_signal, co_diagnostics = compute_co_occurrence_signal(
             source_id=suggestion.host.pk,
             dest_id=suggestion.destination.pk,

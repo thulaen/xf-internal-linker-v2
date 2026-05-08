@@ -111,28 +111,40 @@ class QualityGateShouldSkipTests(SimpleTestCase):
         return m
 
     def test_non_content_item_skipped(self):
-        self.assertTrue(_quality_gate_should_skip(
-            model_class=self._model("Sentence"),
-            pks_slice=[1, 2], embedding_signature="bge-m3-v1",
-        ))
+        self.assertTrue(
+            _quality_gate_should_skip(
+                model_class=self._model("Sentence"),
+                pks_slice=[1, 2],
+                embedding_signature="bge-m3-v1",
+            )
+        )
 
     def test_empty_pks_skipped(self):
-        self.assertTrue(_quality_gate_should_skip(
-            model_class=self._model("ContentItem"),
-            pks_slice=[], embedding_signature="bge-m3-v1",
-        ))
+        self.assertTrue(
+            _quality_gate_should_skip(
+                model_class=self._model("ContentItem"),
+                pks_slice=[],
+                embedding_signature="bge-m3-v1",
+            )
+        )
 
     def test_no_signature_skipped(self):
-        self.assertTrue(_quality_gate_should_skip(
-            model_class=self._model("ContentItem"),
-            pks_slice=[1], embedding_signature=None,
-        ))
+        self.assertTrue(
+            _quality_gate_should_skip(
+                model_class=self._model("ContentItem"),
+                pks_slice=[1],
+                embedding_signature=None,
+            )
+        )
 
     def test_all_satisfied_does_not_skip(self):
-        self.assertFalse(_quality_gate_should_skip(
-            model_class=self._model("ContentItem"),
-            pks_slice=[1], embedding_signature="bge-m3-v1",
-        ))
+        self.assertFalse(
+            _quality_gate_should_skip(
+                model_class=self._model("ContentItem"),
+                pks_slice=[1],
+                embedding_signature="bge-m3-v1",
+            )
+        )
 
 
 class ExtractExistingQualityGateInputsTests(SimpleTestCase):
@@ -146,8 +158,10 @@ class ExtractExistingQualityGateInputsTests(SimpleTestCase):
 
     def test_row_without_embedding_returns_none_vec(self):
         row = {
-            "embedding": None, "embedding_model_version": "bge-v1",
-            "title": "T", "distilled_text": "D",
+            "embedding": None,
+            "embedding_model_version": "bge-v1",
+            "title": "T",
+            "distilled_text": "D",
         }
         old_vec, old_sig, text = _extract_existing_quality_gate_inputs(row, True)
         self.assertIsNone(old_vec)
@@ -156,8 +170,10 @@ class ExtractExistingQualityGateInputsTests(SimpleTestCase):
 
     def test_row_with_valid_embedding(self):
         row = {
-            "embedding": [0.1, 0.2, 0.3], "embedding_model_version": "v1",
-            "title": "Title", "distilled_text": "Body",
+            "embedding": [0.1, 0.2, 0.3],
+            "embedding_model_version": "v1",
+            "title": "Title",
+            "distilled_text": "Body",
         }
         old_vec, old_sig, text = _extract_existing_quality_gate_inputs(row, True)
         self.assertIsNotNone(old_vec)
@@ -175,7 +191,9 @@ class ExtractExistingQualityGateInputsTests(SimpleTestCase):
         # asarray fails on a non-numeric value → fall back to None so the
         # gate accepts the new vector.
         row = {
-            "embedding": ["not-a-number", "really"], "title": "T", "distilled_text": "D",
+            "embedding": ["not-a-number", "really"],
+            "title": "T",
+            "distilled_text": "D",
         }
         old_vec, _, _ = _extract_existing_quality_gate_inputs(row, False)
         self.assertIsNone(old_vec)

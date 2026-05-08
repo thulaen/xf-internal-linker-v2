@@ -19,7 +19,6 @@ User = get_user_model()
 
 
 class AuditInfraTests(TestCase):
-
     def test_record_audit_creates_row_with_target(self):
         user = User.objects.create_user(username="testuser")
         entry = record_audit(

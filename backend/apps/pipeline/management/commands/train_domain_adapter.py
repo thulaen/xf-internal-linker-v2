@@ -35,8 +35,6 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
-from typing import Optional
 
 from django.core.management.base import BaseCommand, CommandError
 
@@ -56,15 +54,21 @@ class Command(BaseCommand):
             ),
         )
         parser.add_argument(
-            "--epochs", type=int, default=1,
+            "--epochs",
+            type=int,
+            default=1,
             help="Number of training epochs (default 1).",
         )
         parser.add_argument(
-            "--batch-size", type=int, default=32,
+            "--batch-size",
+            type=int,
+            default=32,
             help="Training batch size (default 32).",
         )
         parser.add_argument(
-            "--max-pairs", type=int, default=20_000,
+            "--max-pairs",
+            type=int,
+            default=20_000,
             help=(
                 "Cap on positive sentence-pair count (default 20000). "
                 "Larger corpora are sampled."
@@ -180,7 +184,9 @@ class Command(BaseCommand):
             Sentence.objects.filter(
                 content_item__is_deleted=False,
                 text__isnull=False,
-            ).values("content_item_id", "text").order_by("-id")[:max_pairs * 4]
+            )
+            .values("content_item_id", "text")
+            .order_by("-id")[: max_pairs * 4]
         )
         by_content: dict[int, list[str]] = defaultdict(list)
         for row in rows:
@@ -190,9 +196,7 @@ class Command(BaseCommand):
         examples: list = []
         for sentences in by_content.values():
             for i in range(len(sentences) - 1):
-                examples.append(
-                    InputExample(texts=[sentences[i], sentences[i + 1]])
-                )
+                examples.append(InputExample(texts=[sentences[i], sentences[i + 1]]))
                 if len(examples) >= max_pairs:
                     return examples
         return examples
@@ -217,8 +221,10 @@ def _resolve_model_and_device(torch) -> tuple[str, str]:
     from apps.pipeline.services.embeddings import (
         DEFAULT_MODEL_NAME as EMBED_DEFAULT,
     )
+
     model_name = os.environ.get(
-        "EMBEDDING_DOMAIN_ADAPTER_BASE_MODEL", EMBED_DEFAULT,
+        "EMBEDDING_DOMAIN_ADAPTER_BASE_MODEL",
+        EMBED_DEFAULT,
     )
     device = "cuda" if torch.cuda.is_available() else "cpu"
     return model_name, device
@@ -243,6 +249,7 @@ def _attach_lora_adapter(model) -> None:
         LORA_ALPHA_DEFAULT,
         LORA_RANK_DEFAULT,
     )
+
     base = model._modules["0"]
     config = LoraConfig(
         task_type=TaskType.FEATURE_EXTRACTION,

@@ -64,6 +64,7 @@ def _try_import_wordnet():
     """Return the NLTK WordNet corpus if importable; else ``None``."""
     try:
         from nltk.corpus import wordnet  # type: ignore[import-not-found]
+
         # Access a synset to force the corpus download check at import time.
         _ = wordnet.synsets("apple")
         return wordnet

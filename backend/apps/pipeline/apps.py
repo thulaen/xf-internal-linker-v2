@@ -106,7 +106,8 @@ class PipelineConfig(AppConfig):
             task_name="pipeline.run_monthly_top_50",
             cron_expr="0 9 1 * *",  # 1st of every month, 09:00 UTC
             fire_callable=_fire,
-            max_lookback_hours=24 * 35,  # up to ~5 weeks back so a 1st-of-month never falls outside the window
+            max_lookback_hours=24
+            * 35,  # up to ~5 weeks back so a 1st-of-month never falls outside the window
             description="Top 50 internal-link suggestions for the month, picked deterministically and written to docs/reports/.",
         )
 

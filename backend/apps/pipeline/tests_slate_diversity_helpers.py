@@ -74,7 +74,7 @@ class MmrRerankKeysTests(SimpleTestCase):
         emb = {
             "a": _unit(1.0, 0.0),
             "a-prime": _unit(1.0, 0.01),  # near-duplicate of a
-            "b": _unit(0.0, 1.0),         # orthogonal
+            "b": _unit(0.0, 1.0),  # orthogonal
         }
         out = mmr_rerank_keys(scored, emb, k=2, lambda_=0.0)
         self.assertEqual(out[0][0], "a")

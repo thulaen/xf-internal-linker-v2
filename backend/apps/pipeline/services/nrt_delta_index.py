@@ -146,10 +146,7 @@ class NRTDeltaIndex:
         # argpartition for top-K then sort the survivors.
         top_idx = np.argpartition(scores, -actual_k)[-actual_k:]
         top_idx = top_idx[np.argsort(-scores[top_idx])]
-        return [
-            (keys[i][0], keys[i][1], float(scores[i]))
-            for i in top_idx
-        ]
+        return [(keys[i][0], keys[i][1], float(scores[i])) for i in top_idx]
 
     def size(self) -> int:
         """Current number of entries."""

@@ -465,7 +465,9 @@ def _set_nlp_enrichment_safe(content_item: Any, clean_text: str, doc: Any) -> No
         content_item.char_ngram_vector = None
 
 
-def _build_sentence_objs(content_item: Any, post: Any, spans: Any, clean_text: str) -> list[Any]:
+def _build_sentence_objs(
+    content_item: Any, post: Any, spans: Any, clean_text: str
+) -> list[Any]:
     """Build (unsaved) Sentence objects from sentence spans, preserving char/word positions."""
     from apps.content.models import Sentence
 
@@ -681,7 +683,9 @@ def handle_resource_updates(
             )
             Sentence.objects.bulk_create(sentence_objs)
     except (TimeoutError, RequestException, URLError) as exc:
-        msg = f"Failed to fetch updates for resource {resource.get('resource_id')}: {exc}"
+        msg = (
+            f"Failed to fetch updates for resource {resource.get('resource_id')}: {exc}"
+        )
         logger.warning(msg)
         _emit_resource_updates_failure(resource, exc, msg)
 

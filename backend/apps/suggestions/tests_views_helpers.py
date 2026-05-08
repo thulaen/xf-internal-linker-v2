@@ -15,7 +15,6 @@ from django.test import SimpleTestCase
 from apps.suggestions.views import (
     _apply_meta_query_filters,
     _detect_reviewer_anchor_edit,
-    _filter_to_existing_suggestion_ids,
     _meta_row_payload,
     _parse_impression_rows,
     _resolve_meta_status,
@@ -47,13 +46,15 @@ class DetectReviewerAnchorEditTests(SimpleTestCase):
 
     def test_same_as_original_not_an_edit(self):
         was, _ = _detect_reviewer_anchor_edit(
-            self._request(anchor_edited="same phrase"), "same phrase",
+            self._request(anchor_edited="same phrase"),
+            "same phrase",
         )
         self.assertFalse(was)
 
     def test_real_edit_returns_true(self):
         was, val = _detect_reviewer_anchor_edit(
-            self._request(anchor_edited="new phrase"), "old phrase",
+            self._request(anchor_edited="new phrase"),
+            "old phrase",
         )
         self.assertTrue(was)
         self.assertEqual(val, "new phrase")
@@ -92,13 +93,17 @@ class ResolveMetaStatusTests(SimpleTestCase):
 
     def test_forward_declared_overrides(self):
         self.assertEqual(
-            _resolve_meta_status(self._meta("forward-declared"), enabled_raw="true", enabled=True),
+            _resolve_meta_status(
+                self._meta("forward-declared"), enabled_raw="true", enabled=True
+            ),
             "disabled-pending-implementation",
         )
 
     def test_explicit_disable_wins_over_active(self):
         self.assertEqual(
-            _resolve_meta_status(self._meta("active"), enabled_raw="false", enabled=False),
+            _resolve_meta_status(
+                self._meta("active"), enabled_raw="false", enabled=False
+            ),
             "disabled",
         )
 
@@ -114,10 +119,16 @@ class MetaRowPayloadTests(SimpleTestCase):
 
     def _meta(self, **kwargs):
         defaults = {
-            "id": "m1", "meta_code": "P1", "family": "P", "title": "Title",
-            "status": "active", "enabled_key": "m1.enabled",
-            "weight_key": "m1.weight", "spec_path": "docs/m1.md",
-            "cpp_kernel": None, "param_keys": [],
+            "id": "m1",
+            "meta_code": "P1",
+            "family": "P",
+            "title": "Title",
+            "status": "active",
+            "enabled_key": "m1.enabled",
+            "weight_key": "m1.weight",
+            "spec_path": "docs/m1.md",
+            "cpp_kernel": None,
+            "param_keys": [],
         }
         defaults.update(kwargs)
         m = mock.Mock(**defaults)
@@ -144,9 +155,27 @@ class ApplyMetaQueryFiltersTests(SimpleTestCase):
 
     def _rows(self):
         return [
-            {"id": "p1.x", "family": "P1", "status": "active", "meta_code": "P1A", "title": "Alpha"},
-            {"id": "p2.y", "family": "P2", "status": "active", "meta_code": "P2B", "title": "Beta"},
-            {"id": "p3.z", "family": "P3", "status": "disabled", "meta_code": "P3C", "title": "Charlie"},
+            {
+                "id": "p1.x",
+                "family": "P1",
+                "status": "active",
+                "meta_code": "P1A",
+                "title": "Alpha",
+            },
+            {
+                "id": "p2.y",
+                "family": "P2",
+                "status": "active",
+                "meta_code": "P2B",
+                "title": "Beta",
+            },
+            {
+                "id": "p3.z",
+                "family": "P3",
+                "status": "disabled",
+                "meta_code": "P3C",
+                "title": "Charlie",
+            },
         ]
 
     def test_family_filter(self):
@@ -188,13 +217,17 @@ class ValidateMetaToggleInputsTests(SimpleTestCase):
 
     def test_forward_declared_returns_400(self):
         result = _validate_meta_toggle_inputs(
-            self._meta(status="forward-declared"), "x.y", {"enabled": True},
+            self._meta(status="forward-declared"),
+            "x.y",
+            {"enabled": True},
         )
         self.assertEqual(result.status_code, 400)
 
     def test_missing_enabled_returns_400(self):
         result = _validate_meta_toggle_inputs(
-            self._meta(), "x.y", {},
+            self._meta(),
+            "x.y",
+            {},
         )
         self.assertEqual(result.status_code, 400)
 
@@ -208,9 +241,16 @@ class ParseImpressionRowsTests(SimpleTestCase):
     """``_parse_impression_rows`` validates + normalises impression payloads."""
 
     def test_valid_rows_pass_through(self):
-        prepared, ids = _parse_impression_rows([
-            {"suggestion_id": "abc", "position": 1, "clicked": True, "dwell_ms": 5000},
-        ])
+        prepared, ids = _parse_impression_rows(
+            [
+                {
+                    "suggestion_id": "abc",
+                    "position": 1,
+                    "clicked": True,
+                    "dwell_ms": 5000,
+                },
+            ]
+        )
         self.assertEqual(len(prepared), 1)
         self.assertEqual(prepared[0]["dwell_ms"], 5000)
         self.assertIn("abc", ids)
@@ -224,25 +264,33 @@ class ParseImpressionRowsTests(SimpleTestCase):
         self.assertEqual(prepared, [])
 
     def test_drops_invalid_position(self):
-        prepared, _ = _parse_impression_rows([
-            {"suggestion_id": "abc", "position": "not-a-number"},
-        ])
+        prepared, _ = _parse_impression_rows(
+            [
+                {"suggestion_id": "abc", "position": "not-a-number"},
+            ]
+        )
         self.assertEqual(prepared, [])
 
     def test_dwell_ms_optional(self):
-        prepared, _ = _parse_impression_rows([
-            {"suggestion_id": "abc", "position": 1},
-        ])
+        prepared, _ = _parse_impression_rows(
+            [
+                {"suggestion_id": "abc", "position": 1},
+            ]
+        )
         self.assertEqual(prepared[0]["dwell_ms"], None)
 
     def test_clicked_default_false(self):
-        prepared, _ = _parse_impression_rows([
-            {"suggestion_id": "abc", "position": 1},
-        ])
+        prepared, _ = _parse_impression_rows(
+            [
+                {"suggestion_id": "abc", "position": 1},
+            ]
+        )
         self.assertFalse(prepared[0]["clicked"])
 
     def test_invalid_dwell_ms_becomes_none(self):
-        prepared, _ = _parse_impression_rows([
-            {"suggestion_id": "abc", "position": 1, "dwell_ms": "not-a-number"},
-        ])
+        prepared, _ = _parse_impression_rows(
+            [
+                {"suggestion_id": "abc", "position": 1, "dwell_ms": "not-a-number"},
+            ]
+        )
         self.assertEqual(prepared[0]["dwell_ms"], None)

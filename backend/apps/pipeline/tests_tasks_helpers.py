@@ -13,7 +13,6 @@ from unittest import mock
 from django.test import SimpleTestCase, TestCase
 
 from apps.pipeline.tasks import (
-    _aggregate_gsc_click_windows,
     _build_standard_purge_specs,
     _decide_challenger_promotion,
     _evaluate_gsc_spike,
@@ -44,6 +43,7 @@ class RetentionProgressReporterTests(SimpleTestCase):
     def test_callback_failure_does_not_propagate(self):
         def _boom(pct, msg):
             raise RuntimeError("callback exploded")
+
         report = _retention_progress_reporter(_boom)
         # Caller must not crash even if callback raises.
         report(0.5, "halfway")
@@ -58,24 +58,37 @@ class BuildStandardPurgeSpecsTests(TestCase):
 
     def test_spec_count_and_required_keys(self):
         from django.utils import timezone
+
         specs = _build_standard_purge_specs(timezone.now())
-        self.assertEqual(len(specs), 7)  # SearchMetric, PipelineRun, Suggestion-superseded, AuditEntry, ErrorLog, WebhookReceipt, CrawlerVisit
+        self.assertEqual(
+            len(specs), 7
+        )  # SearchMetric, PipelineRun, Suggestion-superseded, AuditEntry, ErrorLog, WebhookReceipt, CrawlerVisit
         required_keys = {
-            "model_cls", "cutoff_field", "cutoff",
-            "result_key", "label", "step", "fix_hint",
+            "model_cls",
+            "cutoff_field",
+            "cutoff",
+            "result_key",
+            "label",
+            "step",
+            "fix_hint",
         }
         for spec in specs:
             missing = required_keys - set(spec.keys())
             self.assertFalse(
-                missing, msg=f"spec {spec.get('label')} missing keys: {missing}",
+                missing,
+                msg=f"spec {spec.get('label')} missing keys: {missing}",
             )
 
     def test_each_spec_has_unique_result_key(self):
         from django.utils import timezone
+
         specs = _build_standard_purge_specs(timezone.now())
         keys = [s["result_key"] for s in specs]
-        self.assertEqual(len(keys), len(set(keys)),
-                         msg="duplicate result_keys would clobber the results dict")
+        self.assertEqual(
+            len(keys),
+            len(set(keys)),
+            msg="duplicate result_keys would clobber the results dict",
+        )
 
 
 class GscSpikeSetupTests(TestCase):
@@ -83,6 +96,7 @@ class GscSpikeSetupTests(TestCase):
 
     def test_windows_are_3day_recent_and_7day_baseline(self):
         from datetime import timedelta
+
         thresholds, today, recent, baseline = _gsc_spike_setup()
         # Recent: yesterday back 2 days = 3-day window
         self.assertEqual((recent[1] - recent[0]).days, 2)
@@ -147,7 +161,8 @@ class ChallengerPromotionTests(SimpleTestCase):
 
     def test_null_scores_auto_promote(self):
         challenger = mock.Mock(
-            predicted_quality_score=None, champion_quality_score=None,
+            predicted_quality_score=None,
+            champion_quality_score=None,
         )
         decision = _decide_challenger_promotion(challenger, "run-x")
         self.assertTrue(decision["should_promote"])
@@ -158,7 +173,8 @@ class ChallengerPromotionTests(SimpleTestCase):
         # more samples to converge); only auto-promote bypasses SPRT entirely.
         # Test that the decision shape is correct, not the specific outcome.
         challenger = mock.Mock(
-            predicted_quality_score=0.85, champion_quality_score=0.70,
+            predicted_quality_score=0.85,
+            champion_quality_score=0.70,
         )
         decision = _decide_challenger_promotion(challenger, "run-x")
         self.assertIn(decision["decision"], {"promote", "reject", "continue"})
@@ -167,7 +183,8 @@ class ChallengerPromotionTests(SimpleTestCase):
     def test_score_pair_does_not_auto_promote(self):
         # When both scores are present, the decision MUST come from SPRT (not auto).
         challenger = mock.Mock(
-            predicted_quality_score=0.55, champion_quality_score=0.70,
+            predicted_quality_score=0.55,
+            champion_quality_score=0.70,
         )
         decision = _decide_challenger_promotion(challenger, "run-x")
         self.assertNotEqual(decision["decision"], "auto")
@@ -178,12 +195,16 @@ class ChallengerRejectionTests(SimpleTestCase):
 
     def test_rejection_payload_includes_coverage_note(self):
         challenger = mock.Mock(
-            run_id="run-x", status="pending", updated_at=None,
+            run_id="run-x",
+            status="pending",
+            updated_at=None,
         )
         challenger.save = mock.Mock()
         decision = {
-            "should_promote": False, "decision": "reject",
-            "cand_score": 0.55, "champ_score": 0.70,
+            "should_promote": False,
+            "decision": "reject",
+            "cand_score": 0.55,
+            "champ_score": 0.70,
         }
         result = _record_challenger_rejection(challenger, "run-x", decision)
         self.assertEqual(result["status"], "rejected")
@@ -197,6 +218,7 @@ class CheckpointReadTests(TestCase):
 
     def setUp(self):
         from apps.core.models import AppSetting
+
         AppSetting.objects.filter(key__startswith="test.checkpoint.").delete()
 
     def test_missing_key_returns_zero(self):
@@ -204,15 +226,21 @@ class CheckpointReadTests(TestCase):
 
     def test_integer_value_parsed(self):
         from apps.core.models import AppSetting
+
         AppSetting.objects.create(
-            key="test.checkpoint.x", value="42", value_type="int",
+            key="test.checkpoint.x",
+            value="42",
+            value_type="int",
         )
         self.assertEqual(_read_checkpoint_pk("test.checkpoint.x"), 42)
 
     def test_non_integer_falls_back_to_zero(self):
         from apps.core.models import AppSetting
+
         AppSetting.objects.create(
-            key="test.checkpoint.bad", value="not-a-number", value_type="str",
+            key="test.checkpoint.bad",
+            value="not-a-number",
+            value_type="str",
         )
         self.assertEqual(_read_checkpoint_pk("test.checkpoint.bad"), 0)
 

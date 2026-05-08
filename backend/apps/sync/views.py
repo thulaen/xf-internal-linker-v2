@@ -86,6 +86,7 @@ class ImportUploadView(APIView):
             # Debug-log so an operator can find the cause via /error-log
             # if the subsequent import also fails for the same reason.
             import logging
+
             logging.getLogger(__name__).debug(
                 "sync_views: pre-validation pass raised; deferring to import",
                 exc_info=True,

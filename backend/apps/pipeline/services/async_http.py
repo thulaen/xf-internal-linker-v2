@@ -99,9 +99,7 @@ async def _attempt_one_request(
 ) -> dict[str, Any]:
     """Make one GET attempt. Returns a populated record on success, raises on failure."""
     extra_headers = config.headers_by_url.get(url) or {}
-    res = await _bounded_request(
-        config.sem, client, "GET", url, headers=extra_headers
-    )
+    res = await _bounded_request(config.sem, client, "GET", url, headers=extra_headers)
     etag_value, lm_value = _extract_response_validators(res)
     # 304 responses have empty bodies — the caller treats `status_code=304`
     # as "unchanged" and skips body decoding.

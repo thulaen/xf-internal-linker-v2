@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
     ignore_result=True,
 )
 @HelperConstraint(
-    cpu_intensive=False,            # imports + state checks; no heavy compute
+    cpu_intensive=False,  # imports + state checks; no heavy compute
     gpu_required=False,
     storage_writes_to="postgres_main",
     ram_peak_mb=64,

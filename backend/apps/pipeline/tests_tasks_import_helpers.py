@@ -199,8 +199,12 @@ class SetNlpEnrichmentSafeTests(SimpleTestCase):
     def test_stores_enrichment_on_success(self):
         ci = SimpleNamespace(nlp_metadata=None, char_ngram_vector=None, pk=1)
         enriched = SimpleNamespace(
-            lemmas=["a"], noun_chunks=["b"], acronyms=["c"],
-            lexical_richness=0.5, minhash_sketch=[1, 2], phonetic_keys=["X"],
+            lemmas=["a"],
+            noun_chunks=["b"],
+            acronyms=["c"],
+            lexical_richness=0.5,
+            minhash_sketch=[1, 2],
+            phonetic_keys=["X"],
             summary="short",
         )
         fake_enricher = MagicMock()
@@ -215,9 +219,7 @@ class SetNlpEnrichmentSafeTests(SimpleTestCase):
         self.assertEqual(ci.char_ngram_vector, [0.1, 0.2])
 
     def test_failure_clears_metadata_and_vector(self):
-        ci = SimpleNamespace(
-            nlp_metadata={"old": "data"}, char_ngram_vector=[1], pk=1
-        )
+        ci = SimpleNamespace(nlp_metadata={"old": "data"}, char_ngram_vector=[1], pk=1)
         fake_enricher = MagicMock()
         fake_enricher.enrich.side_effect = RuntimeError("boom")
         with patch(
@@ -240,8 +242,12 @@ class SetPassagesSafeTests(SimpleTestCase):
     def test_stores_passages_on_success(self):
         ci = SimpleNamespace(passages=None, pk=1)
         records = [
-            SimpleNamespace(index=0, text="p1", token_count=10, token_start=0, token_end=10),
-            SimpleNamespace(index=1, text="p2", token_count=8, token_start=10, token_end=18),
+            SimpleNamespace(
+                index=0, text="p1", token_count=10, token_start=0, token_end=10
+            ),
+            SimpleNamespace(
+                index=1, text="p2", token_count=8, token_start=10, token_end=18
+            ),
         ]
         sentence_objs = [SimpleNamespace(text="s1"), SimpleNamespace(text="s2")]
         with patch(
@@ -285,10 +291,18 @@ class BuildTokenObjsTests(SimpleTestCase):
         sent = SimpleNamespace(start_char=5, end_char=15, pk=1)
         # Fake spaCy tokens — ints/strings spaCy normally exposes.
         token_a = SimpleNamespace(
-            text="hi", lemma_="hi", pos_="INTJ", is_stop=False, idx=5,
+            text="hi",
+            lemma_="hi",
+            pos_="INTJ",
+            is_stop=False,
+            idx=5,
         )
         token_b = SimpleNamespace(
-            text="there", lemma_="there", pos_="ADV", is_stop=True, idx=8,
+            text="there",
+            lemma_="there",
+            pos_="ADV",
+            is_stop=True,
+            idx=8,
         )
         fake_span = [token_a, token_b]
         doc = MagicMock()
@@ -313,16 +327,12 @@ class MarkBloomFilterSafeTests(SimpleTestCase):
     """Calls REGISTRY.mark; swallows + logs on any failure."""
 
     def test_calls_registry_mark_on_happy_path(self):
-        with patch(
-            "apps.sources.bloom_filter_registry.REGISTRY"
-        ) as mock_registry:
+        with patch("apps.sources.bloom_filter_registry.REGISTRY") as mock_registry:
             _mark_bloom_filter_safe(123)
         mock_registry.mark.assert_called_once_with(123)
 
     def test_swallows_registry_failure(self):
-        with patch(
-            "apps.sources.bloom_filter_registry.REGISTRY"
-        ) as mock_registry:
+        with patch("apps.sources.bloom_filter_registry.REGISTRY") as mock_registry:
             mock_registry.mark.side_effect = RuntimeError("snapshot missing")
             _mark_bloom_filter_safe(123)
 
@@ -340,7 +350,8 @@ class AbsorbPostsDedupTests(SimpleTestCase):
         messages: list[str] = []
         _absorb_posts_dedup(
             [{"post_id": 1, "message": "a"}, {"post_id": 2, "message": "b"}],
-            seen, messages,
+            seen,
+            messages,
         )
         self.assertEqual(messages, ["a", "b"])
         self.assertEqual(seen, {1, 2})
@@ -350,7 +361,8 @@ class AbsorbPostsDedupTests(SimpleTestCase):
         messages: list[str] = []
         _absorb_posts_dedup(
             [{"post_id": 1, "message": "dup"}, {"post_id": 2, "message": "new"}],
-            seen, messages,
+            seen,
+            messages,
         )
         self.assertEqual(messages, ["new"])
         self.assertEqual(seen, {1, 2})
@@ -360,7 +372,8 @@ class AbsorbPostsDedupTests(SimpleTestCase):
         messages: list[str] = []
         _absorb_posts_dedup(
             [{"message": "no id"}, {"post_id": None, "message": "null id"}],
-            seen, messages,
+            seen,
+            messages,
         )
         self.assertEqual(messages, [])
         self.assertEqual(seen, set())
@@ -373,11 +386,10 @@ class FetchAndAbsorbPageTests(SimpleTestCase):
         seen: set[int] = set()
         messages: list[str] = []
         client = MagicMock()
-        client.get_posts.return_value = {
-            "posts": [{"post_id": 7, "message": "m7"}]
-        }
-        _fetch_and_absorb_page(client, thread_id=99, page_num=2,
-                               seen_post_ids=seen, messages=messages)
+        client.get_posts.return_value = {"posts": [{"post_id": 7, "message": "m7"}]}
+        _fetch_and_absorb_page(
+            client, thread_id=99, page_num=2, seen_post_ids=seen, messages=messages
+        )
         client.get_posts.assert_called_once_with(99, page=2)
         self.assertEqual(messages, ["m7"])
         self.assertEqual(seen, {7})
@@ -477,7 +489,12 @@ class ExtractXfFieldsTests(SimpleTestCase):
 
     def test_coerces_counts_to_int_when_strings(self):
         fields = _extract_xf_fields(
-            {"view_count": "5", "reply_count": "3", "download_count": "7", "title": "T"},
+            {
+                "view_count": "5",
+                "reply_count": "3",
+                "download_count": "7",
+                "title": "T",
+            },
             "thread",
         )
         self.assertEqual(fields["view_count"], 5)
@@ -533,12 +550,13 @@ class MaybeFetchThreadBodyTests(SimpleTestCase):
         fake_client_class = MagicMock()
         fake_client_instance = MagicMock()
         fake_client_class.return_value = fake_client_instance
-        with patch(
-            "apps.sync.services.xenforo_api.XenForoAPIClient", fake_client_class
-        ), patch(
-            "apps.pipeline.tasks_import_helpers._fetch_thread_full_body",
-            return_value="FETCHED",
-        ) as mock_fetch:
+        with (
+            patch("apps.sync.services.xenforo_api.XenForoAPIClient", fake_client_class),
+            patch(
+                "apps.pipeline.tasks_import_helpers._fetch_thread_full_body",
+                return_value="FETCHED",
+            ) as mock_fetch,
+        ):
             body, client = _maybe_fetch_thread_body(state, "thread", "", 99, None)
         fake_client_class.assert_called_once_with()
         mock_fetch.assert_called_once_with(fake_client_instance, 99)
@@ -568,12 +586,17 @@ class BuildUpdateSentencesTests(SimpleTestCase):
 
     def test_returns_empty_for_empty_clean_text(self):
         # Patch the heavy imports the helper does at call time.
-        with patch(
-            "apps.pipeline.services.text_cleaner.clean_bbcode", return_value=""
-        ), patch(
-            "apps.pipeline.services.sentence_splitter.split_sentence_spans",
-            return_value=[],
-        ), patch("apps.content.models.Sentence", side_effect=lambda **kw: SimpleNamespace(**kw)):
+        with (
+            patch("apps.pipeline.services.text_cleaner.clean_bbcode", return_value=""),
+            patch(
+                "apps.pipeline.services.sentence_splitter.split_sentence_spans",
+                return_value=[],
+            ),
+            patch(
+                "apps.content.models.Sentence",
+                side_effect=lambda **kw: SimpleNamespace(**kw),
+            ),
+        ):
             from apps.pipeline.tasks_import_helpers import _build_update_sentences
 
             sentences, max_pos = _build_update_sentences(
@@ -590,12 +613,20 @@ class BuildUpdateSentencesTests(SimpleTestCase):
             SimpleNamespace(text="s1", start_char=0, end_char=2, position=None),
             SimpleNamespace(text="s2", start_char=3, end_char=5, position=None),
         ]
-        with patch(
-            "apps.pipeline.services.text_cleaner.clean_bbcode", return_value="cleaned"
-        ), patch(
-            "apps.pipeline.services.sentence_splitter.split_sentence_spans",
-            return_value=spans,
-        ), patch("apps.content.models.Sentence", side_effect=lambda **kw: SimpleNamespace(**kw)):
+        with (
+            patch(
+                "apps.pipeline.services.text_cleaner.clean_bbcode",
+                return_value="cleaned",
+            ),
+            patch(
+                "apps.pipeline.services.sentence_splitter.split_sentence_spans",
+                return_value=spans,
+            ),
+            patch(
+                "apps.content.models.Sentence",
+                side_effect=lambda **kw: SimpleNamespace(**kw),
+            ),
+        ):
             from apps.pipeline.tasks_import_helpers import _build_update_sentences
 
             sentences, max_pos = _build_update_sentences(
@@ -645,9 +676,16 @@ class ParsedItemSanityTests(SimpleTestCase):
 
     def test_constructs_with_all_fields(self):
         p = _ParsedItem(
-            c_id=1, first_post_id=2, title="t", view_url="u", raw_body="b",
-            view_count=0, reply_count=0, download_count=0,
-            post_date=None, last_post_date=None,
+            c_id=1,
+            first_post_id=2,
+            title="t",
+            view_url="u",
+            raw_body="b",
+            view_count=0,
+            reply_count=0,
+            download_count=0,
+            post_date=None,
+            last_post_date=None,
         )
         self.assertEqual(p.c_id, 1)
         self.assertEqual(p.title, "t")

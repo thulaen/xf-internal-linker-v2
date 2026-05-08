@@ -94,9 +94,7 @@ def _destination_text(title: str, distilled_text: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _empty_pipeline_result(
-    *, items_in_scope: int = 0, destinations_skipped: int = 0
-):
+def _empty_pipeline_result(*, items_in_scope: int = 0, destinations_skipped: int = 0):
     """Return a zero-result PipelineResult for early-exit paths."""
     from .pipeline import PipelineResult
 
@@ -190,7 +188,10 @@ def _load_rare_term_profiles(
         return {}
     progress_fn(0.14, "Building rare-term propagation profiles...")
     source_records = _full_corpus_if_scoped(
-        content_records, destination_scope_ids, host_scope_ids, destination_content_item_ids
+        content_records,
+        destination_scope_ids,
+        host_scope_ids,
+        destination_content_item_ids,
     )
     return build_rare_term_profiles(source_records, settings=rare_term_settings)
 
@@ -206,7 +207,10 @@ def _load_keyword_baseline_if_enabled(
     if not keyword_stuffing_settings.enabled:
         return None
     source_records = _full_corpus_if_scoped(
-        content_records, destination_scope_ids, host_scope_ids, destination_content_item_ids
+        content_records,
+        destination_scope_ids,
+        host_scope_ids,
+        destination_content_item_ids,
     )
     return build_keyword_baseline(source_records)
 
@@ -230,7 +234,9 @@ def _load_pipeline_content(
     if fr099_fr105_settings is None:
         fr099_fr105_settings = FR099FR105Settings()
     progress_fn(0.05, "Loading content records...")
-    content_records = _load_content_records(destination_scope_ids=destination_scope_ids, host_scope_ids=host_scope_ids)
+    content_records = _load_content_records(
+        destination_scope_ids=destination_scope_ids, host_scope_ids=host_scope_ids
+    )
     if not content_records:
         progress_fn(1.0, "No content records found — pipeline complete.")
         return _empty_pipeline_result()
@@ -474,7 +480,9 @@ def _load_pipeline_resources(  # noqa: forbidden-pattern — 9-arg public API; g
     if isinstance(content_data, PipelineResult):
         return content_data
 
-    _score_keyword_stuffing_if_enabled(content_data, keyword_stuffing_settings, progress_fn)
+    _score_keyword_stuffing_if_enabled(
+        content_data, keyword_stuffing_settings, progress_fn
+    )
     _detect_link_farm_if_enabled(content_data, link_farm_settings, progress_fn)
 
     progress_fn(0.15, "Applying rerun mode filter...")
@@ -552,7 +560,12 @@ def _resolve_scope_hierarchy(ci) -> tuple:
 
 
 def _build_content_record_from_ci(
-    ci, scope, parent, grandparent, silo_group, text: str,
+    ci,
+    scope,
+    parent,
+    grandparent,
+    silo_group,
+    text: str,
 ) -> ContentRecord:
     """Construct a ContentRecord from a loaded ContentItem and its resolved scope."""
     primary_post_char_count = 0
@@ -600,7 +613,11 @@ def _load_content_records(
     from apps.content.models import ContentItem
 
     qs = ContentItem.objects.filter(is_deleted=False).select_related(
-        "scope", "scope__parent", "scope__parent__parent", "scope__silo_group", "post",
+        "scope",
+        "scope__parent",
+        "scope__parent__parent",
+        "scope__silo_group",
+        "post",
     )
     if destination_scope_ids is not None or host_scope_ids is not None:
         scope_ids = set(destination_scope_ids or set()) | set(host_scope_ids or set())
@@ -611,7 +628,9 @@ def _load_content_records(
         scope, parent, grandparent, silo_group = _resolve_scope_hierarchy(ci)
         text = _destination_text(ci.title, ci.distilled_text or "")
         key: ContentKey = (ci.pk, ci.content_type)
-        records[key] = _build_content_record_from_ci(ci, scope, parent, grandparent, silo_group, text)
+        records[key] = _build_content_record_from_ci(
+            ci, scope, parent, grandparent, silo_group, text
+        )
     return records
 
 
@@ -646,7 +665,9 @@ def _build_sentence_record_from_row(
         tokens=tokenize_text(text),
         stemmed_tokens=tokenize_text_stemmed(text),  # Pick #21
         position=position or 0,
-        nlp_metadata=content_records[ckey].nlp_metadata if ckey in content_records else {},
+        nlp_metadata=content_records[ckey].nlp_metadata
+        if ckey in content_records
+        else {},
     )
 
 

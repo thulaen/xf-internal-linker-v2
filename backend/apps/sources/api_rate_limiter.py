@@ -137,9 +137,7 @@ class _PyRegistryAdapter:
     ) -> None:
         self._inner.register(
             name,
-            self._BucketConfig(
-                tokens_per_second=rate_per_sec, burst_capacity=capacity
-            ),
+            self._BucketConfig(tokens_per_second=rate_per_sec, burst_capacity=capacity),
         )
         self._daily_quota[name] = daily_quota
         self._daily_remaining[name] = daily_quota

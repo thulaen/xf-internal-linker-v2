@@ -81,7 +81,12 @@ def gpu_memory_cleanup() -> dict[str, float | str]:
                 source="gpu_cleanup",
                 severity="info",
             )
-            return {"reclaimed_mb": 0.0, "before_mb": 0.0, "after_mb": 0.0, "status": "no_cuda"}
+            return {
+                "reclaimed_mb": 0.0,
+                "before_mb": 0.0,
+                "after_mb": 0.0,
+                "status": "no_cuda",
+            }
 
         # Bug fix 2026-05-04: previously `empty_cache()` + `synchronize()`
         # ran twice on modern PyTorch (once for memory_allocated, again
@@ -137,7 +142,12 @@ def gpu_memory_cleanup() -> dict[str, float | str]:
 
     except ImportError:
         _persist(0.0, 0.0, 0.0, "no_cuda")
-        return {"reclaimed_mb": 0.0, "before_mb": 0.0, "after_mb": 0.0, "status": "no_cuda"}
+        return {
+            "reclaimed_mb": 0.0,
+            "before_mb": 0.0,
+            "after_mb": 0.0,
+            "status": "no_cuda",
+        }
     except Exception as exc:  # noqa: BLE001 — outer catch routes to ingest_error; we never want a GPU cleanup hook to crash a Celery worker.
         logger.warning("[gpu_memory_cleanup] failed: %s", exc, exc_info=True)
         # Phase 4.0 / TECH-DEBT-MANDATE — surface to /error-log dedup.
@@ -159,4 +169,9 @@ def gpu_memory_cleanup() -> dict[str, float | str]:
                 exc_info=True,
             )
         _persist(0.0, 0.0, 0.0, "error")
-        return {"reclaimed_mb": 0.0, "before_mb": 0.0, "after_mb": 0.0, "status": "error"}
+        return {
+            "reclaimed_mb": 0.0,
+            "before_mb": 0.0,
+            "after_mb": 0.0,
+            "status": "error",
+        }

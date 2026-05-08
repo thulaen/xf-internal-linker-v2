@@ -21,7 +21,9 @@ from apps.core.models import PasskeyChallenge, PasskeyCredential
 from apps.core.tasks_passkey_cleanup import passkey_cleanup_expired_challenges
 
 
-def _stub_credential(user, *, label="Stub", credential_id=b"\x00" * 16) -> PasskeyCredential:
+def _stub_credential(
+    user, *, label="Stub", credential_id=b"\x00" * 16
+) -> PasskeyCredential:
     """Create a minimal PasskeyCredential row for permission tests.
 
     Real registration goes through the WebAuthn library; for management-
@@ -81,7 +83,9 @@ class PasskeyCredentialListViewTests(APITestCase):
 class PasskeyCredentialDetailViewTests(APITestCase):
     def setUp(self):
         User = get_user_model()
-        self.user = User.objects.create_user(username="claire", password="clairexx12345!")
+        self.user = User.objects.create_user(
+            username="claire", password="clairexx12345!"
+        )
         self.other = User.objects.create_user(username="dan", password="daneyy99988!")
         self.cred = _stub_credential(
             self.user, label="Old name", credential_id=b"\x10" * 16
@@ -145,7 +149,9 @@ class PasskeyCredentialDetailViewTests(APITestCase):
             f"/api/auth/passkey/credentials/{self.other_cred.pk}/"
         )
         self.assertEqual(response.status_code, 404)
-        self.assertTrue(PasskeyCredential.objects.filter(pk=self.other_cred.pk).exists())
+        self.assertTrue(
+            PasskeyCredential.objects.filter(pk=self.other_cred.pk).exists()
+        )
 
 
 class PasskeyCleanupTaskTests(TestCase):

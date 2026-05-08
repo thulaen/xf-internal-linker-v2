@@ -67,7 +67,10 @@ class CoerceSettingFloatTests(SimpleTestCase):
     def test_allows_inf_when_finite_check_disabled(self):
         # Silo settings historically allow inf — opt-out via require_finite=False.
         result = coerce_setting_float(
-            {"x": float("inf")}, {"x": 0.0}, "x", require_finite=False,
+            {"x": float("inf")},
+            {"x": 0.0},
+            "x",
+            require_finite=False,
         )
         self.assertEqual(result, float("inf"))
 
@@ -164,7 +167,8 @@ class EnforceBoundsTests(SimpleTestCase):
     def test_passes_when_all_values_in_range(self):
         # Should not raise.
         enforce_bounds(
-            {"a": 0.5, "b": 5}, {"a": (0.0, 1.0), "b": (1, 10)},
+            {"a": 0.5, "b": 5},
+            {"a": (0.0, 1.0), "b": (1, 10)},
         )
 
     def test_passes_at_inclusive_minimum(self):
@@ -188,7 +192,8 @@ class EnforceBoundsTests(SimpleTestCase):
         # order is the one reported — matches the prior loop's behaviour.
         with self.assertRaises(ValueError) as ctx:
             enforce_bounds(
-                {"a": -0.1, "b": -1}, {"a": (0.0, 1.0), "b": (1, 10)},
+                {"a": -0.1, "b": -1},
+                {"a": (0.0, 1.0), "b": (1, 10)},
             )
         self.assertIn("a must be between", str(ctx.exception))
 
@@ -239,32 +244,38 @@ class CoerceClampFloatTests(SimpleTestCase):
 
     def test_in_range_passes_through(self):
         from apps.core.services.settings_helpers import coerce_clamp_float
+
         result = coerce_clamp_float({"x": 0.5}, {"x": 0.0}, "x", 0.0, 1.0)
         self.assertEqual(result, 0.5)
 
     def test_below_min_clamps_to_min(self):
         from apps.core.services.settings_helpers import coerce_clamp_float
+
         result = coerce_clamp_float({"x": -1.0}, {"x": 0.0}, "x", 0.0, 1.0)
         self.assertEqual(result, 0.0)
 
     def test_above_max_clamps_to_max(self):
         from apps.core.services.settings_helpers import coerce_clamp_float
+
         result = coerce_clamp_float({"x": 5.0}, {"x": 0.0}, "x", 0.0, 1.0)
         self.assertEqual(result, 1.0)
 
     def test_bad_string_falls_back_to_current(self):
         from apps.core.services.settings_helpers import coerce_clamp_float
+
         result = coerce_clamp_float({"x": "abc"}, {"x": 0.7}, "x", 0.0, 1.0)
         self.assertEqual(result, 0.7)
 
     def test_bad_string_with_no_current_falls_back_to_zero(self):
         from apps.core.services.settings_helpers import coerce_clamp_float
+
         # Spec: missing-from-current AND non-numeric → 0.0 (then clamped).
         result = coerce_clamp_float({"x": "abc"}, {}, "x", 0.5, 1.0)
         self.assertEqual(result, 0.5)  # clamps 0.0 up to 0.5 (the lo bound)
 
     def test_uses_current_when_payload_missing(self):
         from apps.core.services.settings_helpers import coerce_clamp_float
+
         result = coerce_clamp_float({}, {"x": 0.42}, "x", 0.0, 1.0)
         self.assertEqual(result, 0.42)
 
@@ -274,18 +285,22 @@ class CoerceClampIntTests(SimpleTestCase):
 
     def test_in_range_passes_through(self):
         from apps.core.services.settings_helpers import coerce_clamp_int
+
         self.assertEqual(coerce_clamp_int({"n": 5}, {"n": 0}, "n", 1, 10), 5)
 
     def test_below_min_clamps_to_min(self):
         from apps.core.services.settings_helpers import coerce_clamp_int
+
         self.assertEqual(coerce_clamp_int({"n": -5}, {"n": 0}, "n", 1, 10), 1)
 
     def test_above_max_clamps_to_max(self):
         from apps.core.services.settings_helpers import coerce_clamp_int
+
         self.assertEqual(coerce_clamp_int({"n": 99}, {"n": 0}, "n", 1, 10), 10)
 
     def test_bad_string_falls_back_to_current_then_clamps(self):
         from apps.core.services.settings_helpers import coerce_clamp_int
+
         # "abc" -> int() raises -> falls back to current["n"]=7 -> in range -> 7
         self.assertEqual(coerce_clamp_int({"n": "abc"}, {"n": 7}, "n", 1, 10), 7)
 
@@ -295,16 +310,19 @@ class CoerceLenientBoolTests(SimpleTestCase):
 
     def test_uses_current_get_not_indexer(self):
         from apps.core.services.settings_helpers import coerce_lenient_bool
+
         # Key missing from BOTH payload and current -> would KeyError on
         # the strict variant; lenient must return False (default).
         self.assertFalse(coerce_lenient_bool({}, {}, "missing"))
 
     def test_payload_truthy_string_wins(self):
         from apps.core.services.settings_helpers import coerce_lenient_bool
+
         self.assertTrue(coerce_lenient_bool({"b": "yes"}, {"b": False}, "b"))
 
     def test_falls_back_to_current_when_payload_missing(self):
         from apps.core.services.settings_helpers import coerce_lenient_bool
+
         self.assertTrue(coerce_lenient_bool({}, {"b": True}, "b"))
 
 
@@ -332,22 +350,32 @@ class ReadAppSettingFloatTests(TestCase):
         self.assertEqual(read_app_setting_float("test.read_float.missing", 0.42), 0.42)
 
     def test_reads_from_app_setting(self):
-        AppSetting.objects.create(key="test.read_float.x", value="1.5", value_type="float")
+        AppSetting.objects.create(
+            key="test.read_float.x", value="1.5", value_type="float"
+        )
         self.assertEqual(read_app_setting_float("test.read_float.x", 0.0), 1.5)
 
     def test_falls_back_on_bad_string(self):
-        AppSetting.objects.create(key="test.read_float.bad", value="abc", value_type="float")
+        AppSetting.objects.create(
+            key="test.read_float.bad", value="abc", value_type="float"
+        )
         # Bad operator value falls back silently to default — no exception.
         self.assertEqual(read_app_setting_float("test.read_float.bad", 0.5), 0.5)
 
     def test_falls_back_on_inf_when_finite_required(self):
-        AppSetting.objects.create(key="test.read_float.inf", value="inf", value_type="float")
+        AppSetting.objects.create(
+            key="test.read_float.inf", value="inf", value_type="float"
+        )
         self.assertEqual(read_app_setting_float("test.read_float.inf", 0.5), 0.5)
 
     def test_allows_inf_when_finite_check_disabled(self):
-        AppSetting.objects.create(key="test.read_float.inf2", value="inf", value_type="float")
+        AppSetting.objects.create(
+            key="test.read_float.inf2", value="inf", value_type="float"
+        )
         result = read_app_setting_float(
-            "test.read_float.inf2", 0.5, require_finite=False,
+            "test.read_float.inf2",
+            0.5,
+            require_finite=False,
         )
         self.assertEqual(result, float("inf"))
 
@@ -366,7 +394,9 @@ class ReadAppSettingIntTests(TestCase):
         self.assertEqual(read_app_setting_int("test.read_int.x", 0), 7)
 
     def test_falls_back_on_bad_string(self):
-        AppSetting.objects.create(key="test.read_int.bad", value="abc", value_type="int")
+        AppSetting.objects.create(
+            key="test.read_int.bad", value="abc", value_type="int"
+        )
         self.assertEqual(read_app_setting_int("test.read_int.bad", 99), 99)
 
 
@@ -395,5 +425,7 @@ class ReadAppSettingBoolTests(TestCase):
             )
 
     def test_reads_falsy_string_from_app_setting(self):
-        AppSetting.objects.create(key="test.read_bool.f", value="false", value_type="bool")
+        AppSetting.objects.create(
+            key="test.read_bool.f", value="false", value_type="bool"
+        )
         self.assertFalse(read_app_setting_bool("test.read_bool.f", True))

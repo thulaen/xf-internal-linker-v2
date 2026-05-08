@@ -40,8 +40,12 @@ def _serialize(credential: PasskeyCredential) -> dict:
         "label": credential.label or "",
         "transports": transports,
         "sign_count": credential.sign_count,
-        "last_used_at": credential.last_used_at.isoformat() if credential.last_used_at else None,
-        "created_at": credential.created_at.isoformat() if credential.created_at else None,
+        "last_used_at": credential.last_used_at.isoformat()
+        if credential.last_used_at
+        else None,
+        "created_at": credential.created_at.isoformat()
+        if credential.created_at
+        else None,
     }
 
 
@@ -88,9 +92,7 @@ class PasskeyCredentialDetailView(APIView):
 
         # Lockout safety: refuse to delete the last credential when
         # the user has no usable password (passkey is the only way in).
-        is_last = (
-            PasskeyCredential.objects.filter(user=request.user).count() == 1
-        )
+        is_last = PasskeyCredential.objects.filter(user=request.user).count() == 1
         if is_last and not request.user.has_usable_password():
             return Response(
                 {

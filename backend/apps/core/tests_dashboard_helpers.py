@@ -326,9 +326,7 @@ class BuildValueModelRowsTests(SimpleTestCase):
     def test_int_serialised_as_str(self) -> None:
         rows = _build_value_model_rows(self._validated(traffic_lookback_days=42))
         self.assertEqual(rows["value_model.traffic_lookback_days"]["value"], "42")
-        self.assertEqual(
-            rows["value_model.traffic_lookback_days"]["value_type"], "int"
-        )
+        self.assertEqual(rows["value_model.traffic_lookback_days"]["value_type"], "int")
 
     def test_every_validated_key_produces_a_row(self) -> None:
         """A future-proofing check: each input key must have a matching
@@ -406,21 +404,15 @@ class TodayViewSentenceYesterdayTests(SimpleTestCase):
 
 class TodayViewSentenceTodayTests(SimpleTestCase):
     def test_empty_queue(self) -> None:
-        msg = _today_view_sentence_today(
-            {"pending_reviews": 0, "running_syncs": 0}
-        )
+        msg = _today_view_sentence_today({"pending_reviews": 0, "running_syncs": 0})
         self.assertIn("queue is clear", msg)
 
     def test_pending_only(self) -> None:
-        msg = _today_view_sentence_today(
-            {"pending_reviews": 3, "running_syncs": 0}
-        )
+        msg = _today_view_sentence_today({"pending_reviews": 3, "running_syncs": 0})
         self.assertIn("3 suggestions waiting for review", msg)
 
     def test_both_categories_use_and(self) -> None:
-        msg = _today_view_sentence_today(
-            {"pending_reviews": 2, "running_syncs": 1}
-        )
+        msg = _today_view_sentence_today({"pending_reviews": 2, "running_syncs": 1})
         self.assertIn("2 suggestions waiting for review", msg)
         self.assertIn("and", msg)
         self.assertIn("1 sync in flight", msg)
@@ -627,9 +619,7 @@ class CoerceFloatStrictTests(SimpleTestCase):
 
 class CoerceIntStrictTests(SimpleTestCase):
     def test_in_range_returned(self) -> None:
-        self.assertEqual(
-            _coerce_int_strict("5", key="x", minimum=1, maximum=10), 5
-        )
+        self.assertEqual(_coerce_int_strict("5", key="x", minimum=1, maximum=10), 5)
 
     def test_below_min_raises(self) -> None:
         with self.assertRaises(ValueError) as ctx:
@@ -1118,9 +1108,7 @@ class BuildLinkFreshnessRowsTests(SimpleTestCase):
 
         rows = _build_link_freshness_rows(self._validated())
         self.assertEqual(rows["link_freshness.recent_window_days"]["value"], "30")
-        self.assertEqual(
-            rows["link_freshness.recent_window_days"]["value_type"], "int"
-        )
+        self.assertEqual(rows["link_freshness.recent_window_days"]["value_type"], "int")
 
 
 class WpResolveCredentialsTests(TestCase):
@@ -1135,7 +1123,11 @@ class WpResolveCredentialsTests(TestCase):
         from apps.core.views import _wp_resolve_credentials
 
         creds = _wp_resolve_credentials(
-            {"base_url": "https://body.example.com", "username": "u", "app_password": "p"}
+            {
+                "base_url": "https://body.example.com",
+                "username": "u",
+                "app_password": "p",
+            }
         )
         self.assertEqual(creds["base_url"], "https://body.example.com")
         self.assertEqual(creds["username"], "u")
@@ -1161,7 +1153,11 @@ class WpResolveCredentialsTests(TestCase):
         from apps.core.views import _wp_resolve_credentials
 
         creds = _wp_resolve_credentials(
-            {"base_url": "  https://x.com  ", "username": "  user  ", "app_password": "  p  "}
+            {
+                "base_url": "  https://x.com  ",
+                "username": "  user  ",
+                "app_password": "  p  ",
+            }
         )
         self.assertEqual(creds["base_url"], "https://x.com")
         self.assertEqual(creds["username"], "user")
@@ -1173,6 +1169,7 @@ class SampleCpuRamMetricsTests(SimpleTestCase):
 
     def test_keys_always_present(self):
         from apps.core.views import _sample_cpu_ram_metrics
+
         result = _sample_cpu_ram_metrics()
         self.assertEqual(
             set(result.keys()),
@@ -1181,6 +1178,7 @@ class SampleCpuRamMetricsTests(SimpleTestCase):
 
     def test_values_are_numeric_when_psutil_available(self):
         from apps.core.views import _sample_cpu_ram_metrics
+
         result = _sample_cpu_ram_metrics()
         # psutil IS available in the test container — values must not be None.
         # If psutil ever becomes unavailable the contract is null fields.
@@ -1196,17 +1194,23 @@ class SampleGpuMetricsTests(SimpleTestCase):
 
     def test_keys_always_present(self):
         from apps.core.views import _sample_gpu_metrics
+
         result = _sample_gpu_metrics()
         self.assertEqual(
             set(result.keys()),
             {
-                "available", "temp_c", "vram_used_mb", "vram_total_mb",
-                "vram_percent", "utilization_pct",
+                "available",
+                "temp_c",
+                "vram_used_mb",
+                "vram_total_mb",
+                "vram_percent",
+                "utilization_pct",
             },
         )
 
     def test_returns_unavailable_when_pynvml_missing(self):
         from apps.core.views import _sample_gpu_metrics
+
         # Test container has no GPU — must return available=False, not raise.
         result = _sample_gpu_metrics()
         self.assertIn("available", result)
@@ -1218,10 +1222,12 @@ class XfResolveCredentialsTests(TestCase):
 
     def setUp(self):
         from apps.core.models import AppSetting
+
         AppSetting.objects.filter(key__startswith="xenforo.").delete()
 
     def test_body_wins_when_provided(self):
         from apps.core.views import _xf_resolve_credentials
+
         base_url, api_key = _xf_resolve_credentials(
             {"base_url": "https://body.example.com/", "api_key": "body-key"},
         )
@@ -1230,6 +1236,7 @@ class XfResolveCredentialsTests(TestCase):
 
     def test_strips_trailing_slash_and_whitespace(self):
         from apps.core.views import _xf_resolve_credentials
+
         base_url, api_key = _xf_resolve_credentials(
             {"base_url": "  https://x.com/  ", "api_key": "  k  "},
         )
@@ -1244,6 +1251,7 @@ class TodaySummaryHelperTests(TestCase):
         from datetime import timedelta
         from django.utils import timezone
         from apps.core.views import _today_summary_counts
+
         result = _today_summary_counts(timezone.now() - timedelta(hours=24))
         self.assertEqual(result["new_suggestions"], 0)
         self.assertEqual(result["reviewed"], 0)
@@ -1254,6 +1262,7 @@ class TodaySummaryHelperTests(TestCase):
         from datetime import timedelta
         from django.utils import timezone
         from apps.core.views import _today_autotuner_outcome
+
         result = _today_autotuner_outcome(timezone.now() - timedelta(hours=24))
         self.assertIsNone(result)
 
@@ -1263,24 +1272,34 @@ class GraphCandidateRowsTests(SimpleTestCase):
 
     def test_all_six_rows_present(self):
         from apps.core.views import _build_graph_candidate_rows
-        rows = _build_graph_candidate_rows({
-            "enabled": True,
-            "walk_steps_per_entity": 100,
-            "min_stable_candidates": 10,
-            "min_visit_threshold": 2,
-            "top_k_candidates": 50,
-            "top_n_entities_per_article": 5,
-        })
+
+        rows = _build_graph_candidate_rows(
+            {
+                "enabled": True,
+                "walk_steps_per_entity": 100,
+                "min_stable_candidates": 10,
+                "min_visit_threshold": 2,
+                "top_k_candidates": 50,
+                "top_n_entities_per_article": 5,
+            }
+        )
         self.assertEqual(len(rows), 6)
         self.assertEqual(rows["graph_candidate.enabled"]["value"], "true")
         self.assertEqual(rows["graph_candidate.walk_steps_per_entity"]["value"], "100")
 
     def test_bool_serialised_correctly(self):
         from apps.core.views import _build_graph_candidate_rows
-        rows_off = _build_graph_candidate_rows({
-            "enabled": False, "walk_steps_per_entity": 1, "min_stable_candidates": 1,
-            "min_visit_threshold": 1, "top_k_candidates": 1, "top_n_entities_per_article": 1,
-        })
+
+        rows_off = _build_graph_candidate_rows(
+            {
+                "enabled": False,
+                "walk_steps_per_entity": 1,
+                "min_stable_candidates": 1,
+                "min_visit_threshold": 1,
+                "top_k_candidates": 1,
+                "top_n_entities_per_article": 1,
+            }
+        )
         self.assertEqual(rows_off["graph_candidate.enabled"]["value"], "false")
 
 
@@ -1289,21 +1308,27 @@ class SpamGuardRowsTests(SimpleTestCase):
 
     def test_all_three_rows_present(self):
         from apps.core.views import _build_spam_guard_rows
-        rows = _build_spam_guard_rows({
-            "max_existing_links_per_host": 3,
-            "max_anchor_words": 4,
-            "paragraph_window": 3,
-        })
+
+        rows = _build_spam_guard_rows(
+            {
+                "max_existing_links_per_host": 3,
+                "max_anchor_words": 4,
+                "paragraph_window": 3,
+            }
+        )
         self.assertEqual(len(rows), 3)
         self.assertEqual(rows["spam_guards.max_anchor_words"]["value"], "4")
 
     def test_descriptions_carry_patent_citations(self):
         from apps.core.views import _build_spam_guard_rows
-        rows = _build_spam_guard_rows({
-            "max_existing_links_per_host": 3,
-            "max_anchor_words": 4,
-            "paragraph_window": 3,
-        })
+
+        rows = _build_spam_guard_rows(
+            {
+                "max_existing_links_per_host": 3,
+                "max_anchor_words": 4,
+                "paragraph_window": 3,
+            }
+        )
         # Per AGENTS.md citation rule: each spam-guard description must
         # carry a specific patent reference.
         for row in rows.values():
@@ -1315,25 +1340,33 @@ class GscResolveCredentialsTests(TestCase):
 
     def setUp(self):
         from apps.core.models import AppSetting
+
         AppSetting.objects.filter(key__startswith="ga4_gsc.").delete()
 
     def test_body_wins_when_provided(self):
         from apps.core.views import _gsc_resolve_credentials
-        creds = _gsc_resolve_credentials({
-            "property_url": "https://body.example.com/",
-            "service_account_email": "body@svc.iam",
-            "private_key": "BODYKEY",
-        })
+
+        creds = _gsc_resolve_credentials(
+            {
+                "property_url": "https://body.example.com/",
+                "service_account_email": "body@svc.iam",
+                "private_key": "BODYKEY",
+            }
+        )
         self.assertEqual(creds["property_url"], "https://body.example.com")
         self.assertEqual(creds["service_account_email"], "body@svc.iam")
         self.assertEqual(creds["private_key"], "BODYKEY")
 
     def test_strips_trailing_slash_from_property_url(self):
         from apps.core.views import _gsc_resolve_credentials
-        creds = _gsc_resolve_credentials({
-            "property_url": "https://example.com/",
-            "service_account_email": "x@y", "private_key": "k",
-        })
+
+        creds = _gsc_resolve_credentials(
+            {
+                "property_url": "https://example.com/",
+                "service_account_email": "x@y",
+                "private_key": "k",
+            }
+        )
         self.assertEqual(creds["property_url"], "https://example.com")
 
 
@@ -1342,30 +1375,40 @@ class MasterPauseStateTests(TestCase):
 
     def setUp(self):
         from apps.core.models import AppSetting
+
         AppSetting.objects.filter(key="system.master_pause").delete()
 
     def test_returns_false_when_no_setting(self):
         from apps.core.views import _read_master_pause_state
+
         self.assertFalse(_read_master_pause_state())
 
     def test_returns_true_when_setting_is_true(self):
         from apps.core.models import AppSetting
         from apps.core.views import _read_master_pause_state
+
         AppSetting.objects.create(
-            key="system.master_pause", value="true", value_type="bool",
+            key="system.master_pause",
+            value="true",
+            value_type="bool",
         )
         self.assertTrue(_read_master_pause_state())
 
     def test_persist_creates_or_updates(self):
         from apps.core.models import AppSetting
-        from apps.core.views import _persist_master_pause_state, _read_master_pause_state
+        from apps.core.views import (
+            _persist_master_pause_state,
+            _read_master_pause_state,
+        )
+
         _persist_master_pause_state(True)
         self.assertTrue(_read_master_pause_state())
         _persist_master_pause_state(False)
         self.assertFalse(_read_master_pause_state())
         # Confirm the row was upserted not duplicated.
         self.assertEqual(
-            AppSetting.objects.filter(key="system.master_pause").count(), 1,
+            AppSetting.objects.filter(key="system.master_pause").count(),
+            1,
         )
 
 
@@ -1375,13 +1418,15 @@ class RuntimeSettingsSnapshotTests(TestCase):
     def setUp(self) -> None:
         from apps.core.models import AppSetting
 
-        AppSetting.objects.filter(key__in=[
-            "system.runtime_mode",
-            "system.performance_mode",
-            "system.performance_mode_expiry",
-            "system.performance_mode_expires_at",
-            "system.master_pause",
-        ]).delete()
+        AppSetting.objects.filter(
+            key__in=[
+                "system.runtime_mode",
+                "system.performance_mode",
+                "system.performance_mode_expiry",
+                "system.performance_mode_expires_at",
+                "system.master_pause",
+            ]
+        ).delete()
 
     def test_defaults_when_no_appsettings_exist(self) -> None:
         from apps.core.views import _runtime_settings_snapshot

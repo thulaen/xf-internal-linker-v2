@@ -120,9 +120,9 @@ def regenerate_passage_embeddings_for(content_item) -> int:
     # what the rest of the pipeline already considers "a sentence". We split
     # on punctuation rather than running spaCy again — cheap, deterministic.
     sentences = _split_into_sentences(post.clean_text)
-    
+
     # 25% overlap (rough estimate: if 1 sentence ~ 15 tokens, overlap_sentences=3 or 4)
-    # We will pass overlap_tokens to the segment_from_sentences if possible, 
+    # We will pass overlap_tokens to the segment_from_sentences if possible,
     # but currently it uses overlap_sentences=1. Let's make it 3 for ~25% overlap of ~200 tokens.
     passages_full = segment_from_sentences(
         sentences,
@@ -170,6 +170,7 @@ def regenerate_passage_embeddings_for(content_item) -> int:
 
     # Fetch active OPQ Codebook
     from apps.content.models import OPQCodebook
+
     active_codebook = OPQCodebook.objects.filter(is_active=True).first()
     active_opq_version = active_codebook.corpus_signature if active_codebook else ""
 
@@ -179,10 +180,10 @@ def regenerate_passage_embeddings_for(content_item) -> int:
 
     for i, p in enumerate(passages):
         existing_row = existing.get(i)
-        
+
         embed_current = False
         opq_current = False
-        
+
         if (
             existing_row is not None
             and existing_row.embedding is not None
@@ -190,9 +191,13 @@ def regenerate_passage_embeddings_for(content_item) -> int:
             and existing_row.embedding_model_version == embedding_signature
         ):
             embed_current = True
-            
+
             # Check OPQ
-            if active_codebook and existing_row.opq_codebook_version == active_opq_version and existing_row.opq_code is not None:
+            if (
+                active_codebook
+                and existing_row.opq_codebook_version == active_opq_version
+                and existing_row.opq_code is not None
+            ):
                 opq_current = True
             elif not active_codebook:
                 # If no active codebook, we consider OPQ current (it will be NULL)
@@ -200,7 +205,7 @@ def regenerate_passage_embeddings_for(content_item) -> int:
 
         if embed_current and opq_current:
             continue  # fully current
-            
+
         if not embed_current:
             needs_embed_indices.append(i)
             needs_embed_texts.append(p.text)
@@ -228,7 +233,7 @@ def regenerate_passage_embeddings_for(content_item) -> int:
 
     # Dictionary to collect vectors for OPQ encoding
     vectors_for_opq = {}
-    
+
     # Upsert each passage row.
     for slot, i in enumerate(needs_embed_indices):
         p = passages[i]
@@ -251,7 +256,7 @@ def regenerate_passage_embeddings_for(content_item) -> int:
     if active_codebook and needs_opq_indices:
         try:
             from extensions import quantemb
-            
+
             # Gather vectors to encode
             to_encode_matrix = []
             for i in needs_opq_indices:
@@ -259,26 +264,33 @@ def regenerate_passage_embeddings_for(content_item) -> int:
                     to_encode_matrix.append(vectors_for_opq[i])
                 else:
                     # It was already embedded, fetch from DB
-                    to_encode_matrix.append(np.array(existing[i].embedding, dtype=np.float32))
-            
+                    to_encode_matrix.append(
+                        np.array(existing[i].embedding, dtype=np.float32)
+                    )
+
             encode_data = np.vstack(to_encode_matrix).astype(np.float32)
-            rot = np.frombuffer(active_codebook.rotation, dtype=np.float32).reshape((1024, 1024))
-            cb = np.frombuffer(active_codebook.codebooks, dtype=np.float32).reshape((active_codebook.n_subquantisers, active_codebook.k_centroids, -1))
-            
+            rot = np.frombuffer(active_codebook.rotation, dtype=np.float32).reshape(
+                (1024, 1024)
+            )
+            cb = np.frombuffer(active_codebook.codebooks, dtype=np.float32).reshape(
+                (active_codebook.n_subquantisers, active_codebook.k_centroids, -1)
+            )
+
             codes = quantemb.opq_encode(encode_data, rot, cb)
-            
+
             # Save codes
             for slot, i in enumerate(needs_opq_indices):
                 PassageEmbedding.objects.filter(
-                    content_item=content_item,
-                    passage_index=i
+                    content_item=content_item, passage_index=i
                 ).update(
                     opq_code=codes[slot].tobytes(),
-                    opq_codebook_version=active_opq_version
+                    opq_codebook_version=active_opq_version,
                 )
-                
+
         except ImportError:
-            logger.warning("quantemb extension not available; skipping OPQ encoding for passages.")
+            logger.warning(
+                "quantemb extension not available; skipping OPQ encoding for passages."
+            )
             pass
 
     # Delete any stale rows that the new chunk count no longer needs.
@@ -348,9 +360,7 @@ def _empty_diagnostics(state: str) -> dict[str, Any]:
         "passages_per_page_setting": _setting_int(
             "passage_relevance.passages_per_page_max", 0
         ),
-        "passage_words_setting": _setting_int(
-            "passage_relevance.passage_words", 200
-        ),
+        "passage_words_setting": _setting_int("passage_relevance.passage_words", 200),
     }
 
 
@@ -415,7 +425,7 @@ def _try_score_path_opq_adc(target, query) -> tuple[float, dict[str, Any]] | Non
         codebook_bytes = bytes(active_codebook.codebooks)
 
         rotation_flat = np.frombuffer(rotation_bytes, dtype=np.float32)
-        rotation_dim = int(round(rotation_flat.size ** 0.5))
+        rotation_dim = int(round(rotation_flat.size**0.5))
         if rotation_dim * rotation_dim != rotation_flat.size:
             return None
         rotation = rotation_flat.reshape(rotation_dim, rotation_dim)
@@ -460,9 +470,7 @@ def _try_score_path_opq_adc(target, query) -> tuple[float, dict[str, Any]] | Non
         "passages_per_page_setting": _setting_int(
             "passage_relevance.passages_per_page_max", 0
         ),
-        "passage_words_setting": _setting_int(
-            "passage_relevance.passage_words", 200
-        ),
+        "passage_words_setting": _setting_int("passage_relevance.passage_words", 200),
     }
     return score_value, diagnostics
 
@@ -501,8 +509,7 @@ def score(host_sentence_embedding, content_item) -> tuple[float, dict[str, Any]]
             from apps.content.models import ContentItem
 
             target = (
-                ContentItem.objects.filter(pk=duplicate_of_id).first()
-                or content_item
+                ContentItem.objects.filter(pk=duplicate_of_id).first() or content_item
             )
 
         from apps.content.models import PassageEmbedding
@@ -540,6 +547,7 @@ def score(host_sentence_embedding, content_item) -> tuple[float, dict[str, Any]]
         # similarity reduces to a dot product.
         try:
             from extensions import passagesim
+
             best_sim, best_idx = passagesim.maxsim(q, passage_matrix)
             sims = [0.0] * len(rows)
             sims[best_idx] = best_sim

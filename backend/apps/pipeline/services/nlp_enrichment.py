@@ -17,7 +17,7 @@ class NLPMetadata:
     """Bag of NLP features for a piece of text."""
 
     lemmas: list[str]
-    noun_chunks: list[dict[str, Any]] # text, start, end
+    noun_chunks: list[dict[str, Any]]  # text, start, end
     acronyms: dict[str, str]
     # Pick #57 — Lexical Richness
     lexical_richness: dict[str, float]
@@ -35,9 +35,11 @@ class NLPEnricher:
     def __init__(self):
         self.acronym_detector = SchwartzHearstDetector()
 
-    def enrich(self, text: str, doc: Any | None = None) -> tuple[NLPMetadata, list[float] | None, list[dict[str, Any]]]:
+    def enrich(
+        self, text: str, doc: Any | None = None
+    ) -> tuple[NLPMetadata, list[float] | None, list[dict[str, Any]]]:
         """Extract NLP metadata from text using spaCy and supplementary libraries.
-        
+
         Returns a tuple of (NLPMetadata, char_ngram_vector, token_data).
         """
         from datasketch import MinHash
@@ -45,31 +47,37 @@ class NLPEnricher:
         from sklearn.feature_extraction.text import HashingVectorizer
 
         nlp = get_spacy_nlp()
-        
+
         lemmas = []
         noun_chunks = []
         tokens = []
-        
+
         if doc is None and nlp is not None:
             doc = nlp(text)
 
         if doc is not None:
             # Pick #54 — Lemmatization
-            lemmas = [token.lemma_ for token in doc if not token.is_stop and not token.is_punct]
-            
+            lemmas = [
+                token.lemma_
+                for token in doc
+                if not token.is_stop and not token.is_punct
+            ]
+
             # Pick #55 — Noun-chunks
             for chunk in doc.noun_chunks:
-                noun_chunks.append({
-                    "text": chunk.text,
-                    "start_char": chunk.start_char,
-                    "end_char": chunk.end_char,
-                })
-            
+                noun_chunks.append(
+                    {
+                        "text": chunk.text,
+                        "start_char": chunk.start_char,
+                        "end_char": chunk.end_char,
+                    }
+                )
+
             tokens = [token.text.lower() for token in doc if not token.is_punct]
 
         # Pick #53 — Acronym Detection
         acronyms = self.acronym_detector.extract_pairs(text)
-        
+
         # Pick #57 — Lexical Richness
         ttr = 0.0
         hapax_ratio = 0.0
@@ -79,7 +87,7 @@ class NLPEnricher:
             counts = {t: tokens.count(t) for t in unique_tokens}
             hapax_count = sum(1 for t, c in counts.items() if c == 1)
             hapax_ratio = hapax_count / len(tokens)
-        
+
         lexical_richness = {"ttr": ttr, "hapax_ratio": hapax_ratio}
 
         # Pick #60 — MinHash (128 hashes)
@@ -93,7 +101,7 @@ class NLPEnricher:
         # Encode title/noun-chunks
         # Only use chunk texts for encoding
         chunk_texts = [c["text"] for c in noun_chunks]
-        words_to_encode = set(chunk_texts[:5]) # limit to top 5 chunks
+        words_to_encode = set(chunk_texts[:5])  # limit to top 5 chunks
         for word in words_to_encode:
             p1, p2 = doublemetaphone(word)
             if p1:
@@ -103,7 +111,9 @@ class NLPEnricher:
         phonetic_keys = list(set(phonetic_keys))
 
         # Pick #58 — Char n-gram Hashed TF-IDF (256-dim)
-        vectorizer = HashingVectorizer(n_features=256, analyzer="char", ngram_range=(3, 5))
+        vectorizer = HashingVectorizer(
+            n_features=256, analyzer="char", ngram_range=(3, 5)
+        )
         char_ngram_vector = vectorizer.transform([text]).toarray()[0].tolist()
 
         # Pick #63 — TextRank summary (simplified extractive)

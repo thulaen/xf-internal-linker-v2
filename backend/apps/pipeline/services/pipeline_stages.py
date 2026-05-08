@@ -84,7 +84,9 @@ def get_stage2_path_runtime_status() -> dict[str, object]:
     threshold = _read_cpp_alert_threshold()
     return {
         "available": HAS_CPP_SIMSEARCH,
-        "path": "cpp_extension" if counters["cpp"] >= counters["python"] else "python_fallback",
+        "path": "cpp_extension"
+        if counters["cpp"] >= counters["python"]
+        else "python_fallback",
         "reason": (
             f"{counters['cpp']:,} C++ / {counters['python']:,} Python calls "
             f"(Python share {python_share:.1%}, alert at {threshold:.1%})"
@@ -104,9 +106,11 @@ def _read_cpp_alert_threshold() -> float:
     """
     try:
         from apps.suggestions.recommended_weights import recommended_float as _rf
+
         return _rf("pipeline.cpp_path_alert_threshold")
     except Exception:  # noqa: BLE001 — cold-start safe.
         return 0.05
+
 
 from .graph_signal_ranker import GraphSignalRanker
 from .ranker import (
@@ -151,6 +155,7 @@ def _stage1_mmr_settings() -> tuple[bool, int, float]:
         recommended_float as _recommended_float,
         recommended_int as _recommended_int,
     )
+
     return (
         recommended_bool("pipeline.stage1_mmr_enabled"),
         max(1, _recommended_int("pipeline.stage1_overfetch_multiplier")),
@@ -248,7 +253,9 @@ def _run_faiss_block_search(  # noqa: forbidden-pattern too-many-args  # justifi
             else [[] for _ in dest_block]
         )
         for dest_key, base_hits, delta_hits in zip(
-            dest_keys_block, base_hits_per_query, delta_hits_per_query,
+            dest_keys_block,
+            base_hits_per_query,
+            delta_hits_per_query,
         ):
             merged_hits = _merge_base_and_delta_hits(base_hits, delta_hits, k=top_k)
             sentence_ids: list[int] = []
@@ -278,15 +285,19 @@ def _build_delta_search():
     """
     try:
         from apps.suggestions.recommended_weights import recommended_bool
+
         if not recommended_bool("pipeline.nrt_delta_enabled"):
             return None
     except Exception:  # noqa: BLE001
         return None
     try:
         from .nrt_delta_index import get_live_delta
+
         delta = get_live_delta()
         return lambda vec, k, host_pk_set: delta.search(
-            vec, k=k, host_pk_set=host_pk_set,
+            vec,
+            k=k,
+            host_pk_set=host_pk_set,
         )
     except Exception:  # noqa: BLE001
         logger.debug("FR-246 — delta search unavailable", exc_info=True)
@@ -402,6 +413,7 @@ def _retrieve_stage1_candidates(
         build_faiss_index,
         HAS_FAISS,
     )
+
     host_pk_set = {pk for pk, _ in host_keys}
     use_faiss = is_faiss_gpu_active()
     if not use_faiss and HAS_FAISS:
@@ -410,8 +422,13 @@ def _retrieve_stage1_candidates(
         use_faiss = is_faiss_gpu_active()
     if use_faiss:
         return _run_faiss_block_search(
-            dest_embeddings, destination_keys, host_pk_set,
-            block_size, top_k, content_to_sentence_ids, faiss_search,
+            dest_embeddings,
+            destination_keys,
+            host_pk_set,
+            block_size,
+            top_k,
+            content_to_sentence_ids,
+            faiss_search,
             host_scores_out=internal_host_scores,
         )
     if HAS_FAISS:
@@ -616,17 +633,25 @@ def _score_sentences_stage2(
         sentence_id_to_row = {
             sentence_id: index for index, sentence_id in enumerate(sentence_ids_ordered)
         }
-    candidate_rows, candidate_ids = _build_candidate_row_ids(sentence_ids, sentence_id_to_row)
+    candidate_rows, candidate_ids = _build_candidate_row_ids(
+        sentence_ids, sentence_id_to_row
+    )
     if not candidate_rows:
         return []
     if HAS_CPP_SIMSEARCH:
         top_idx, top_scores = simsearch.score_and_topk(
-            destination_embedding, sentence_embeddings, candidate_rows, top_k,
+            destination_embedding,
+            sentence_embeddings,
+            candidate_rows,
+            top_k,
         )
         _record_stage2_path("cpp")
     else:
         top_idx, top_scores = _topk_numpy_scores(
-            destination_embedding, sentence_embeddings, candidate_rows, top_k,
+            destination_embedding,
+            sentence_embeddings,
+            candidate_rows,
+            top_k,
         )
         _record_stage2_path("python")
     matches: list[SentenceSemanticMatch] = []
@@ -680,14 +705,18 @@ def _emit_polysemy_diagnostics(
             continue
         if diag.runtime_path == "no_wordnet" or not diag.polysemous_terms:
             continue
-        diagnostics.append((
-            dest_key[0], dest_key[1], "polysemy_terms_detected",
-            {
-                "sentence_id": match.sentence_id,
-                "polysemous_terms": list(diag.polysemous_terms),
-                "runtime_path": diag.runtime_path,
-            },
-        ))
+        diagnostics.append(
+            (
+                dest_key[0],
+                dest_key[1],
+                "polysemy_terms_detected",
+                {
+                    "sentence_id": match.sentence_id,
+                    "polysemous_terms": list(diag.polysemous_terms),
+                    "runtime_path": diag.runtime_path,
+                },
+            )
+        )
 
 
 def _score_kwargs_from_settings(settings: dict[str, Any]) -> dict[str, Any]:
@@ -702,7 +731,9 @@ def _score_kwargs_from_settings(settings: dict[str, Any]) -> dict[str, Any]:
         "link_farm_by_destination": settings["link_farm_by_destination"],
         "weights": settings["weights"],
         "march_2026_pagerank_bounds": settings["pagerank_bounds"],
-        "weighted_authority_ranking_weight": settings["weighted_authority"]["ranking_weight"],
+        "weighted_authority_ranking_weight": settings["weighted_authority"][
+            "ranking_weight"
+        ],
         "link_freshness_ranking_weight": settings["link_freshness"]["ranking_weight"],
         "phrase_matching_settings": settings["phrase_matching"],
         "learned_anchor_settings": settings["learned_anchor"],
@@ -744,15 +775,23 @@ def _score_all_destinations(
     candidates_by_destination: dict[ContentKey, list[ScoredCandidate]] = {}
     diagnostics: list[tuple[int, str, str, dict[str, Any] | None]] = []
     shared = dict(
-        dest_embeddings=dest_embeddings, stage1_candidates=stage1_candidates,
-        content_records=content_records, sentence_ids_ordered=sentence_ids_ordered,
-        sentence_embeddings=sentence_embeddings, sentence_records=sentence_records,
-        sentence_id_to_row=sentence_id_to_row, existing_links=existing_links,
-        existing_outgoing_counts=existing_outgoing_counts, settings=settings,
+        dest_embeddings=dest_embeddings,
+        stage1_candidates=stage1_candidates,
+        content_records=content_records,
+        sentence_ids_ordered=sentence_ids_ordered,
+        sentence_embeddings=sentence_embeddings,
+        sentence_records=sentence_records,
+        sentence_id_to_row=sentence_id_to_row,
+        existing_links=existing_links,
+        existing_outgoing_counts=existing_outgoing_counts,
+        settings=settings,
         feedback_rerank_service=feedback_rerank_service,
-        candidates_by_destination=candidates_by_destination, diagnostics=diagnostics,
-        fr099_fr105_caches=fr099_fr105_caches, graph_signal_ranker=graph_signal_ranker,
-        phase6_contribution=phase6_contribution, anchor_garbage_dispatcher=anchor_garbage_dispatcher,
+        candidates_by_destination=candidates_by_destination,
+        diagnostics=diagnostics,
+        fr099_fr105_caches=fr099_fr105_caches,
+        graph_signal_ranker=graph_signal_ranker,
+        phase6_contribution=phase6_contribution,
+        anchor_garbage_dispatcher=anchor_garbage_dispatcher,
     )
     for dest_idx, dest_key in enumerate(destination_keys):
         _score_single_destination(dest_idx=dest_idx, dest_key=dest_key, **shared)
@@ -788,9 +827,13 @@ def _score_single_destination(  # noqa: forbidden-pattern — 19-arg orchestrato
     destination = content_records[dest_key]
     host_sentence_ids = stage1_candidates.get(dest_key, [])
     matches = _score_sentences_stage2(
-        destination_embedding=dest_embeddings[dest_idx], sentence_ids=host_sentence_ids,
-        sentence_ids_ordered=sentence_ids_ordered, sentence_embeddings=sentence_embeddings,
-        sentence_records=sentence_records, sentence_id_to_row=sentence_id_to_row, top_k=STAGE2_TOP_K,
+        destination_embedding=dest_embeddings[dest_idx],
+        sentence_ids=host_sentence_ids,
+        sentence_ids_ordered=sentence_ids_ordered,
+        sentence_embeddings=sentence_embeddings,
+        sentence_records=sentence_records,
+        sentence_id_to_row=sentence_id_to_row,
+        top_k=STAGE2_TOP_K,
     )
     # FR-243 — emit a polysemy diagnostic for any kept host sentence whose
     # text contains polysemous words. Cold-start safe: when WordNet is not
@@ -799,27 +842,40 @@ def _score_single_destination(  # noqa: forbidden-pattern — 19-arg orchestrato
     # operators see why the gate is silent. See
     # docs/specs/fr243-polysemy-gate-lmms.md.
     _emit_polysemy_diagnostics(
-        matches=matches, dest_key=dest_key,
-        sentence_records=sentence_records, diagnostics=diagnostics,
+        matches=matches,
+        dest_key=dest_key,
+        sentence_records=sentence_records,
+        diagnostics=diagnostics,
     )
     if not matches:
         diagnostics.append((dest_key[0], dest_key[1], "no_semantic_matches", None))
         return
     blocked_reasons: set[str] = set()
     scored = score_destination_matches(
-        destination, matches,
-        content_records=content_records, sentence_records=sentence_records,
-        existing_links=existing_links, existing_outgoing_counts=existing_outgoing_counts,
+        destination,
+        matches,
+        content_records=content_records,
+        sentence_records=sentence_records,
+        existing_links=existing_links,
+        existing_outgoing_counts=existing_outgoing_counts,
         **_score_kwargs_from_settings(settings),
-        blocked_reasons=blocked_reasons, fr099_fr105_caches=fr099_fr105_caches,
-        fr099_fr105_settings=settings.get("fr099_fr105"), graph_signal_ranker=graph_signal_ranker,
-        phase6_contribution=phase6_contribution, anchor_garbage_dispatcher=anchor_garbage_dispatcher,
+        blocked_reasons=blocked_reasons,
+        fr099_fr105_caches=fr099_fr105_caches,
+        fr099_fr105_settings=settings.get("fr099_fr105"),
+        graph_signal_ranker=graph_signal_ranker,
+        phase6_contribution=phase6_contribution,
+        anchor_garbage_dispatcher=anchor_garbage_dispatcher,
     )
     _collect_destination_result(
-        dest_key=dest_key, destination=destination, scored=scored,
-        blocked_reasons=blocked_reasons, settings=settings, content_records=content_records,
+        dest_key=dest_key,
+        destination=destination,
+        scored=scored,
+        blocked_reasons=blocked_reasons,
+        settings=settings,
+        content_records=content_records,
         feedback_rerank_service=feedback_rerank_service,
-        candidates_by_destination=candidates_by_destination, diagnostics=diagnostics,
+        candidates_by_destination=candidates_by_destination,
+        diagnostics=diagnostics,
     )
 
 

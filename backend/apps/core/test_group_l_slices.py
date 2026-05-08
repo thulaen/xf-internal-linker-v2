@@ -19,8 +19,12 @@ class GroupLInfrastructureSmokeTests(TestCase):
         rule = self_test_smoke.ArtifactRule("auth.User", ("email",), None)
         with (
             mock.patch.object(self_test_smoke, "ARTIFACT_RULES", (rule,)),
-            mock.patch.object(self_test_smoke, "_discover_content_artifact_models", return_value=[]),
-            mock.patch.object(self_test_smoke, "startup_smoke_test_enabled", return_value=True),
+            mock.patch.object(
+                self_test_smoke, "_discover_content_artifact_models", return_value=[]
+            ),
+            mock.patch.object(
+                self_test_smoke, "startup_smoke_test_enabled", return_value=True
+            ),
             mock.patch.object(self_test_smoke, "_log_warning"),
         ):
             warnings = self_test_smoke.run_startup_smoke_tests()

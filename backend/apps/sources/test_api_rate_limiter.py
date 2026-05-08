@@ -36,8 +36,13 @@ class RateLimiterRegistryTests(SimpleTestCase):
             )
 
     def test_register_defaults_seeds_all_five_apis(self) -> None:
-        for name in ("gsc_search_analytics", "ga4_data_api", "matomo_reporting_api",
-                     "xenforo_api", "wordpress_api"):
+        for name in (
+            "gsc_search_analytics",
+            "ga4_data_api",
+            "matomo_reporting_api",
+            "xenforo_api",
+            "wordpress_api",
+        ):
             self.assertGreater(REGISTRY.available(name), 0.0)
 
     def test_try_acquire_decrements_tokens(self) -> None:
@@ -58,8 +63,7 @@ class RateLimiterRegistryTests(SimpleTestCase):
         self.assertAlmostEqual(REGISTRY.available("c"), 3.0, delta=0.01)
 
     def test_daily_quota_blocks_after_exhaustion(self) -> None:
-        REGISTRY.register_bucket("d", capacity=10.0, rate_per_sec=10.0,
-                                 daily_quota=2)
+        REGISTRY.register_bucket("d", capacity=10.0, rate_per_sec=10.0, daily_quota=2)
         self.assertTrue(REGISTRY.try_acquire("d", 1.0))
         self.assertTrue(REGISTRY.try_acquire("d", 1.0))
         self.assertFalse(REGISTRY.try_acquire("d", 1.0))  # daily quota hit
@@ -86,8 +90,7 @@ class RateLimiterRegistryTests(SimpleTestCase):
         self.assertLess(REGISTRY.available("ctx"), 2.0)
 
     def test_rate_limited_times_out_when_quota_exhausted(self) -> None:
-        REGISTRY.register_bucket("dt", capacity=1.0, rate_per_sec=1.0,
-                                 daily_quota=1)
+        REGISTRY.register_bucket("dt", capacity=1.0, rate_per_sec=1.0, daily_quota=1)
         with rate_limited("dt"):
             pass
         # Daily quota is now 0 → wait_seconds is hours away → timeout fast.

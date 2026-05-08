@@ -77,6 +77,7 @@ class AuditEntry(models.Model):
             f"[{self.action}] {self.target_type}:{self.target_id} at {self.created_at}"
         )
 
+
 class AuditEvent(models.Model):
     """Unified append-only event trail for operator-visible state changes."""
 
@@ -94,7 +95,9 @@ class AuditEvent(models.Model):
         verbose_name_plural = "Audit Events"
         ordering = ["-created_at"]
         indexes = [
-            models.Index(fields=["subject_type", "subject_id"], name="audit_evt_subject_idx"),
+            models.Index(
+                fields=["subject_type", "subject_id"], name="audit_evt_subject_idx"
+            ),
             models.Index(fields=["action", "-created_at"], name="audit_evt_action_idx"),
         ]
 

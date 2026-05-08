@@ -48,9 +48,7 @@ def _fake_status(
 
 def _read_state(module: str) -> dict | None:
     """Helper: read the persisted JSON for *module* directly from AppSetting."""
-    row = AppSetting.objects.filter(
-        key=f"cpp_fallback.{module}.last_state"
-    ).first()
+    row = AppSetting.objects.filter(key=f"cpp_fallback.{module}.last_state").first()
     return json.loads(row.value) if row and row.value else None
 
 
@@ -179,9 +177,7 @@ class CheckAndEmitFallbackEventsTests(TestCase):
         recent = (datetime.now(_tz.utc) - timedelta(seconds=30)).isoformat()
         AppSetting.objects.create(
             key="cpp_fallback.scoring.last_state",
-            value=json.dumps(
-                {"runtime_path": "python", "since_iso": recent}
-            ),
+            value=json.dumps({"runtime_path": "python", "since_iso": recent}),
         )
         statuses = [_fake_status("scoring", "python")]
         with patch.object(cfw, "_read_native_runtime_status", return_value=statuses):
@@ -199,9 +195,7 @@ class CheckAndEmitFallbackEventsTests(TestCase):
         ).isoformat()
         AppSetting.objects.create(
             key="cpp_fallback.scoring.last_state",
-            value=json.dumps(
-                {"runtime_path": "python", "since_iso": long_ago}
-            ),
+            value=json.dumps({"runtime_path": "python", "since_iso": long_ago}),
         )
         statuses = [_fake_status("scoring", "python", critical=True)]
         with patch.object(cfw, "_read_native_runtime_status", return_value=statuses):
@@ -219,9 +213,7 @@ class CheckAndEmitFallbackEventsTests(TestCase):
         ).isoformat()
         AppSetting.objects.create(
             key="cpp_fallback.scoring.last_state",
-            value=json.dumps(
-                {"runtime_path": "python", "since_iso": long_ago}
-            ),
+            value=json.dumps({"runtime_path": "python", "since_iso": long_ago}),
         )
         statuses = [_fake_status("scoring", "python")]
         with patch.object(cfw, "_read_native_runtime_status", return_value=statuses):

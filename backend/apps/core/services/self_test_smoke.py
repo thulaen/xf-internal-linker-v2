@@ -26,17 +26,31 @@ class ArtifactRule:
 
 
 ARTIFACT_RULES: tuple[ArtifactRule, ...] = (
-    ArtifactRule("crawler.CrawledPageMeta", ("session", "normalized_url"), "created_at"),
-    ArtifactRule("crawler.CrawlerVisit", ("session", "page_meta", "content_hash"), "visited_at"),
-    ArtifactRule("content.ContentMetricSnapshot", ("import_job_id", "content_item"), "captured_at"),
+    ArtifactRule(
+        "crawler.CrawledPageMeta", ("session", "normalized_url"), "created_at"
+    ),
+    ArtifactRule(
+        "crawler.CrawlerVisit", ("session", "page_meta", "content_hash"), "visited_at"
+    ),
+    ArtifactRule(
+        "content.ContentMetricSnapshot",
+        ("import_job_id", "content_item"),
+        "captured_at",
+    ),
     ArtifactRule(
         "content.SupersededEmbedding",
         ("content_item", "embedding_model_version", "content_hash", "content_version"),
         "superseded_at",
         "replacement_verified_at",
     ),
-    ArtifactRule("content.PassageEmbedding", ("content_item", "passage_index"), "created_at"),
-    ArtifactRule("knowledge_graph.PixieWalkVisit", ("source_content", "visited_content", "signal_version"), "updated_at"),
+    ArtifactRule(
+        "content.PassageEmbedding", ("content_item", "passage_index"), "created_at"
+    ),
+    ArtifactRule(
+        "knowledge_graph.PixieWalkVisit",
+        ("source_content", "visited_content", "signal_version"),
+        "updated_at",
+    ),
     ArtifactRule("ops_feed.OperationEvent", ("dedup_key",), "timestamp"),
     ArtifactRule(
         "suggestions.Suggestion",
@@ -116,7 +130,10 @@ def _has_unique_invariant(model: type[models.Model], fields: tuple[str, ...]) ->
         if tuple(item) == expected:
             return True
     for constraint in model._meta.constraints:
-        if isinstance(constraint, models.UniqueConstraint) and tuple(constraint.fields) == expected:
+        if (
+            isinstance(constraint, models.UniqueConstraint)
+            and tuple(constraint.fields) == expected
+        ):
             return True
     if len(expected) == 1:
         try:
@@ -127,7 +144,12 @@ def _has_unique_invariant(model: type[models.Model], fields: tuple[str, ...]) ->
 
 
 def _discover_content_artifact_models() -> Iterable[type[models.Model]]:
-    marker_fields = {"content_hash", "signal_version", "embedding_text_hash", "superseded_at"}
+    marker_fields = {
+        "content_hash",
+        "signal_version",
+        "embedding_text_hash",
+        "superseded_at",
+    }
     for model in apps.get_models():
         if model._meta.app_label not in {
             "analytics",

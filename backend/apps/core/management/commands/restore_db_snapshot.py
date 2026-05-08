@@ -36,7 +36,9 @@ from apps.core.backups import (
 
 
 class Command(BaseCommand):
-    help = "Restore a Postgres snapshot from backups/ (DESTRUCTIVE — wipes the live DB)."
+    help = (
+        "Restore a Postgres snapshot from backups/ (DESTRUCTIVE — wipes the live DB)."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(

@@ -5,16 +5,20 @@ from django.db import migrations
 
 
 def update_spam_guard_settings(apps, schema_editor):
-    AppSetting = apps.get_model('core', 'AppSetting')
+    AppSetting = apps.get_model("core", "AppSetting")
     AppSetting.objects.filter(key="spam_guards.max_anchor_words").update(value="5")
-    AppSetting.objects.filter(key="spam_guards.max_existing_links_per_host").update(value="3")
+    AppSetting.objects.filter(key="spam_guards.max_existing_links_per_host").update(
+        value="3"
+    )
+
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0013_seed_embedding_provider_defaults'),
+        ("core", "0013_seed_embedding_provider_defaults"),
     ]
 
     operations = [
-        migrations.RunPython(update_spam_guard_settings, reverse_code=migrations.RunPython.noop),
+        migrations.RunPython(
+            update_spam_guard_settings, reverse_code=migrations.RunPython.noop
+        ),
     ]

@@ -800,9 +800,7 @@ def _native_scoring_metadata(
     healthy_modules = classification["healthy_modules"]
     fallback_active = bool(classification["fallback_active"])
     runtime_path = (
-        "cpp"
-        if not fallback_active
-        else ("mixed" if healthy_modules else "python")
+        "cpp" if not fallback_active else ("mixed" if healthy_modules else "python")
     )
     return {
         "runtime_path": runtime_path,

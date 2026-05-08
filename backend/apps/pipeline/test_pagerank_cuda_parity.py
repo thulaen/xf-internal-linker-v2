@@ -268,12 +268,24 @@ class PagerankCudaParityTests(SimpleTestCase):
                 seed_count = max(1, n // 20)
                 personalization[:seed_count] = 1.0 / seed_count
                 cpu_ranks, cpu_delta = kernel.personalized_pagerank_step(
-                    indptr, indices, data, ranks, dangling,
-                    personalization, 0.15, n,
+                    indptr,
+                    indices,
+                    data,
+                    ranks,
+                    dangling,
+                    personalization,
+                    0.15,
+                    n,
                 )
                 gpu_ranks, gpu_delta = pagerank_cuda.personalized_pagerank_step_cuda(
-                    indptr, indices, data, ranks, dangling,
-                    personalization, 0.15, n,
+                    indptr,
+                    indices,
+                    data,
+                    ranks,
+                    dangling,
+                    personalization,
+                    0.15,
+                    n,
                 )
                 self._assert_close(cpu_ranks, gpu_ranks, label=f"ppr n={n}")
                 self.assertLess(abs(cpu_delta - gpu_delta), 1e-6)

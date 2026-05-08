@@ -11,6 +11,9 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 from asgiref.sync import async_to_sync
+import traceback
+from datetime import date
+
 from celery import shared_task
 from channels.layers import get_channel_layer
 
@@ -232,8 +235,8 @@ def dispatch_pipeline_run(
     acks_late=True,
 )
 @HelperConstraint(
-    cpu_intensive=True,             # Stage 1-3 ranker walks
-    gpu_required=False,             # GPU embed work happens inside generate_embeddings
+    cpu_intensive=True,  # Stage 1-3 ranker walks
+    gpu_required=False,  # GPU embed work happens inside generate_embeddings
     storage_writes_to="postgres_main",
     ram_peak_mb=2048,
     expected_seconds_p50=1800,
@@ -252,7 +255,10 @@ def run_pipeline(
     started_at = time.monotonic()
     try:
         result = _execute_pipeline_run(
-            run_id, host_scope, destination_scope, rerun_mode,
+            run_id,
+            host_scope,
+            destination_scope,
+            rerun_mode,
         )
         return _finalize_pipeline_success(run, run_id, result, started_at)
     except (DatabaseError, TimeoutError, MemoryError, ValueError) as exc:
@@ -276,7 +282,10 @@ def _claim_pipeline_run(task_self, run_id: str):
 
 
 def _execute_pipeline_run(
-    run_id: str, host_scope: dict, destination_scope: dict, rerun_mode: str,
+    run_id: str,
+    host_scope: dict,
+    destination_scope: dict,
+    rerun_mode: str,
 ):
     """Coerce scope dicts into id-sets and call the inner pipeline orchestrator."""
     from apps.pipeline.services.pipeline import run_pipeline as _run
@@ -307,53 +316,82 @@ def _finalize_pipeline_success(run, run_id: str, result, started_at: float) -> d
     run.destinations_processed = result.items_in_scope
     run.destinations_skipped = result.destinations_skipped
     run.duration_seconds = duration
-    run.save(update_fields=[
-        "run_state", "suggestions_created", "destinations_processed",
-        "destinations_skipped", "duration_seconds", "updated_at",
-    ])
+    run.save(
+        update_fields=[
+            "run_state",
+            "suggestions_created",
+            "destinations_processed",
+            "destinations_skipped",
+            "duration_seconds",
+            "updated_at",
+        ]
+    )
     _publish_progress(
-        run_id, "completed", 1.0, "Pipeline complete.",
+        run_id,
+        "completed",
+        1.0,
+        "Pipeline complete.",
         suggestions_created=result.suggestions_created,
         destinations_processed=result.items_in_scope,
     )
     # FR-025: compute value model scores (including co-occurrence) post-pipeline.
     try:
         from apps.cooccurrence.tasks import apply_value_model_scores
+
         apply_value_model_scores.delay(run_id)
     except (ImportError, AttributeError):
         logger.warning(
-            "apply_value_model_scores could not be queued for run %s", run_id,
+            "apply_value_model_scores could not be queued for run %s",
+            run_id,
         )
     _emit_job_alert(
-        "job.completed", "success", "Pipeline job completed",
+        "job.completed",
+        "success",
+        "Pipeline job completed",
         f"Pipeline finished. {result.suggestions_created} suggestions created "
         f"from {result.items_in_scope} destinations.",
-        job_id=run_id, job_type="pipeline",
+        job_id=run_id,
+        job_type="pipeline",
     )
     return {
-        "run_id": run_id, "state": "completed",
+        "run_id": run_id,
+        "state": "completed",
         "suggestions_created": result.suggestions_created,
         "items_in_scope": result.items_in_scope,
         "duration_seconds": round(duration, 2),
     }
 
 
-def _finalize_pipeline_failure(run, run_id: str, exc: Exception, started_at: float) -> None:
+def _finalize_pipeline_failure(
+    run, run_id: str, exc: Exception, started_at: float
+) -> None:
     """Mark PipelineRun failed, publish failure event, emit error alert."""
     logger.exception("Pipeline run %s failed", run_id)
     run.run_state = "failed"
     run.error_message = str(exc)
     run.duration_seconds = time.monotonic() - started_at
-    run.save(update_fields=[
-        "run_state", "error_message", "duration_seconds", "updated_at",
-    ])
+    run.save(
+        update_fields=[
+            "run_state",
+            "error_message",
+            "duration_seconds",
+            "updated_at",
+        ]
+    )
     _publish_progress(
-        run_id, "failed", 0.0, f"Pipeline failed: {exc}", error=str(exc),
+        run_id,
+        "failed",
+        0.0,
+        f"Pipeline failed: {exc}",
+        error=str(exc),
     )
     _emit_job_alert(
-        "job.failed", "error", "Pipeline job failed",
+        "job.failed",
+        "error",
+        "Pipeline job failed",
         f"The pipeline run stopped with an error: {exc}",
-        job_id=run_id, job_type="pipeline",
+        job_id=run_id,
+        job_type="pipeline",
     )
 
 
@@ -365,7 +403,7 @@ def _finalize_pipeline_failure(run, run_id: str, exc: Exception, started_at: flo
     acks_late=True,
 )
 @HelperConstraint(
-    gpu_required=True,              # BGE-M3 encode runs on GPU
+    gpu_required=True,  # BGE-M3 encode runs on GPU
     storage_writes_to="postgres_main",
     ram_peak_mb=4000,
     expected_seconds_p50=1200,
@@ -384,13 +422,19 @@ def generate_embeddings(
     count_label = len(content_item_ids) if content_item_ids is not None else "all"
     job = SyncJob.objects.filter(job_id=job_id).first()
     _publish_progress(
-        job_id, "running", 0.8,
+        job_id,
+        "running",
+        0.8,
         f"Generating embeddings for {count_label} items...",
-        ingest_progress=1.0, ml_progress=0.7, embedding_progress=0.0,
+        ingest_progress=1.0,
+        ml_progress=0.7,
+        embedding_progress=0.0,
     )
     try:
         stats = generate_all_embeddings(
-            content_item_ids, job_id=job_id, force_reembed=force_reembed,
+            content_item_ids,
+            job_id=job_id,
+            force_reembed=force_reembed,
         )
         _refresh_faiss_after_embed_safe()
         return _finalize_embed_success(job, job_id, stats)
@@ -405,6 +449,7 @@ def _refresh_faiss_after_embed_safe() -> None:
     """Rebuild FAISS so new embeddings are visible without waiting for the 15-min periodic refresh."""
     try:
         from apps.pipeline.services.faiss_index import build_faiss_index
+
         build_faiss_index()
     except (ImportError, MemoryError, FileNotFoundError):
         logger.warning("FAISS index rebuild after embeddings failed", exc_info=True)
@@ -420,16 +465,23 @@ def _finalize_embed_success(job, job_id: str, stats: dict) -> dict:
         job.progress = 1.0
         job.save(update_fields=["status", "completed_at", "progress", "updated_at"])
     _publish_progress(
-        job_id, "completed", 1.0,
+        job_id,
+        "completed",
+        1.0,
         f"ML Enrichment complete. {stats['content_items_embedded']} items embedded.",
-        ingest_progress=1.0, ml_progress=1.0, embedding_progress=1.0,
+        ingest_progress=1.0,
+        ml_progress=1.0,
+        embedding_progress=1.0,
         **stats,
     )
     _emit_job_alert(
-        "job.completed", "success", "Embedding job completed",
+        "job.completed",
+        "success",
+        "Embedding job completed",
         f"ML Enrichment complete. {stats['content_items_embedded']} items, "
         f"{stats['sentences_embedded']} sentences embedded.",
-        job_id=job_id, job_type="embed",
+        job_id=job_id,
+        job_type="embed",
     )
     return {"job_id": job_id, **stats}
 
@@ -443,9 +495,12 @@ def _handle_embed_paused(job, job_id: str, exc: Exception) -> dict:
         job.message = f"Paused at embedding checkpoint: {exc}"
         job.save(update_fields=["status", "is_resumable", "message", "updated_at"])
     _publish_progress(
-        job_id, "paused", job.progress if job else 0.0,
+        job_id,
+        "paused",
+        job.progress if job else 0.0,
         "Embeddings paused. Resume will continue from the saved checkpoint.",
-        ingest_progress=1.0, ml_progress=0.7,
+        ingest_progress=1.0,
+        ml_progress=0.7,
     )
     return {"job_id": job_id, "status": "paused", "reason": str(exc)}
 
@@ -458,13 +513,21 @@ def _handle_embed_failed(job, job_id: str, exc: Exception) -> None:
         job.error_message = str(exc)
         job.save(update_fields=["status", "error_message", "updated_at"])
     _publish_progress(
-        job_id, "failed", 0.0, f"Embeddings failed: {exc}",
-        error=str(exc), ingest_progress=1.0, ml_progress=0.0,
+        job_id,
+        "failed",
+        0.0,
+        f"Embeddings failed: {exc}",
+        error=str(exc),
+        ingest_progress=1.0,
+        ml_progress=0.0,
     )
     _emit_job_alert(
-        "job.failed", "error", "Embedding job failed",
+        "job.failed",
+        "error",
+        "Embedding job failed",
         f"The embedding run stopped with an error: {exc}",
-        job_id=job_id, job_type="embed",
+        job_id=job_id,
+        job_type="embed",
     )
 
 
@@ -619,7 +682,7 @@ def build_knowledge_graph(self, job_id: str | None = None) -> dict:
     acks_late=True,
 )
 @HelperConstraint(
-    cpu_intensive=True,             # text_cleaner + NLP enrichment + spaCy
+    cpu_intensive=True,  # text_cleaner + NLP enrichment + spaCy
     gpu_required=False,
     storage_writes_to="postgres_main",
     ram_peak_mb=2048,
@@ -652,7 +715,9 @@ def import_content(
         raise
 
 
-def _init_import_job_and_state(job_id: str, source: str, mode: str, force_reembed: bool):
+def _init_import_job_and_state(
+    job_id: str, source: str, mode: str, force_reembed: bool
+):
     """Get-or-create the SyncJob row and build a fresh ImportState."""
     from django.utils import timezone
     from apps.pipeline.tasks_import import ImportState
@@ -661,7 +726,9 @@ def _init_import_job_and_state(job_id: str, source: str, mode: str, force_reembe
     job, created = SyncJob.objects.get_or_create(
         job_id=job_id,
         defaults={
-            "source": source, "mode": mode, "status": "running",
+            "source": source,
+            "mode": mode,
+            "status": "running",
             "started_at": timezone.now(),
         },
     )
@@ -672,12 +739,17 @@ def _init_import_job_and_state(job_id: str, source: str, mode: str, force_reembe
         job.mode = mode
         job.save(update_fields=["status", "started_at", "source", "mode", "updated_at"])
     state = ImportState(
-        job_id=job_id, source=source, mode=mode, force_reembed=force_reembed,
+        job_id=job_id,
+        source=source,
+        mode=mode,
+        force_reembed=force_reembed,
     )
     return job, state
 
 
-def _publish_import_start_or_resume(job, state, job_id: str, source: str, mode: str) -> None:
+def _publish_import_start_or_resume(
+    job, state, job_id: str, source: str, mode: str
+) -> None:
     """FR-97: resume from checkpoint if the job was interrupted; otherwise publish start."""
     from apps.sync.models import SyncJob
 
@@ -686,28 +758,42 @@ def _publish_import_start_or_resume(job, state, job_id: str, source: str, mode: 
         state.resume_stage = job.checkpoint_stage
         logger.info(
             "Resuming import job %s from checkpoint: stage=%s, last_item_id=%d, items_processed=%d",
-            job_id, state.resume_stage, state.resume_last_item_id,
+            job_id,
+            state.resume_stage,
+            state.resume_last_item_id,
             job.checkpoint_items_processed,
         )
         _publish_progress(
-            job_id, "running", 0.0,
+            job_id,
+            "running",
+            0.0,
             f"Resuming {mode} import from checkpoint (stage={state.resume_stage}, "
             f"after item {state.resume_last_item_id})...",
         )
         SyncJob.objects.filter(job_id=job_id).update(is_resumable=False)
     else:
         _publish_progress(
-            job_id, "running", 0.0, f"Starting {mode} content import from {source}...",
+            job_id,
+            "running",
+            0.0,
+            f"Starting {mode} content import from {source}...",
         )
 
 
 def _dispatch_import_source(
-    state, job, source: str, scope_ids: list[int] | None, file_path: str | None,
+    state,
+    job,
+    source: str,
+    scope_ids: list[int] | None,
+    file_path: str | None,
 ) -> None:
     """Route to the source-specific importer."""
     from apps.pipeline.tasks_import import (
-        import_jsonl_content, import_wordpress_content, import_xenforo_scopes,
+        import_jsonl_content,
+        import_wordpress_content,
+        import_xenforo_scopes,
     )
+
     if source == "api":
         import_xenforo_scopes(state, job, scope_ids, _publish_progress)
     elif source == "wp":
@@ -730,8 +816,10 @@ def _finalize_import_success(job, state, job_id: str, source: str, mode: str) ->
     run_post_import_steps(state, job, job_id, _publish_progress)
     # FR-97: Clear checkpoint on successful completion.
     SyncJob.objects.filter(job_id=job_id).update(
-        checkpoint_stage="", checkpoint_last_item_id=None,
-        checkpoint_items_processed=0, is_resumable=False,
+        checkpoint_stage="",
+        checkpoint_last_item_id=None,
+        checkpoint_items_processed=0,
+        is_resumable=False,
     )
     job.status = "completed"
     job.progress = 1.0
@@ -741,24 +829,37 @@ def _finalize_import_success(job, state, job_id: str, source: str, mode: str) ->
     job.message = (
         f"Import complete. {state.items_synced} synced, {state.items_updated} updated."
     )
-    job.save(update_fields=[
-        "status", "progress", "completed_at",
-        "items_synced", "items_updated", "message",
-    ])
+    job.save(
+        update_fields=[
+            "status",
+            "progress",
+            "completed_at",
+            "items_synced",
+            "items_updated",
+            "message",
+        ]
+    )
     _publish_progress(
-        job_id, "completed", 1.0,
+        job_id,
+        "completed",
+        1.0,
         f"Content import complete ({source}). {state.items_synced} items synced, "
         f"{state.items_updated} updated.",
     )
     _emit_job_alert(
-        "job.completed", "success", "Import job completed",
+        "job.completed",
+        "success",
+        "Import job completed",
         f"Content import finished. {state.items_synced} items synced, "
         f"{state.items_updated} updated.",
-        job_id=job_id, job_type="import",
+        job_id=job_id,
+        job_type="import",
     )
     return {
-        "mode": mode, "job_id": job_id,
-        "items_synced": state.items_synced, "items_updated": state.items_updated,
+        "mode": mode,
+        "job_id": job_id,
+        "items_synced": state.items_synced,
+        "items_updated": state.items_updated,
     }
 
 
@@ -770,7 +871,9 @@ def _handle_import_paused(job, job_id: str, mode: str, exc: Exception) -> dict:
     try:
         checkpoint_stage = (
             SyncJob.objects.filter(job_id=job_id)
-            .values_list("checkpoint_stage", flat=True).first() or ""
+            .values_list("checkpoint_stage", flat=True)
+            .first()
+            or ""
         )
         SyncJob.objects.filter(job_id=job_id).update(
             status="paused",
@@ -780,13 +883,17 @@ def _handle_import_paused(job, job_id: str, mode: str, exc: Exception) -> dict:
     except Exception:
         logger.debug("Failed to mark job %s as paused", job_id, exc_info=True)
     _publish_progress(
-        job_id, "paused", job.progress,
+        job_id,
+        "paused",
+        job.progress,
         "Import paused. Resume will continue from the saved checkpoint.",
         checkpoint_stage=getattr(job, "checkpoint_stage", ""),
     )
     return {
-        "mode": mode, "job_id": job_id,
-        "status": "paused", "reason": str(exc),
+        "mode": mode,
+        "job_id": job_id,
+        "status": "paused",
+        "reason": str(exc),
     }
 
 
@@ -797,13 +904,17 @@ def _handle_import_soft_time_limit(job_id: str) -> None:
     logger.warning("Import job %s hit soft time limit; marking as resumable.", job_id)
     try:
         SyncJob.objects.filter(job_id=job_id).update(
-            is_resumable=True, status="failed",
+            is_resumable=True,
+            status="failed",
             error_message="Soft time limit exceeded -- job is resumable from checkpoint.",
         )
     except Exception:
         logger.debug("Failed to mark job %s as resumable", job_id, exc_info=True)
     _publish_progress(
-        job_id, "failed", 0.0, "Import interrupted (time limit). Job is resumable.",
+        job_id,
+        "failed",
+        0.0,
+        "Import interrupted (time limit). Job is resumable.",
         error="SoftTimeLimitExceeded",
     )
 
@@ -818,16 +929,28 @@ def _handle_import_failed(job, state, job_id: str, exc: Exception) -> None:
     job.completed_at = timezone.now()
     if bool(state.updated_pks):
         job.is_resumable = True
-    job.save(update_fields=[
-        "status", "error_message", "completed_at", "is_resumable",
-    ])
+    job.save(
+        update_fields=[
+            "status",
+            "error_message",
+            "completed_at",
+            "is_resumable",
+        ]
+    )
     _publish_progress(
-        job_id, "failed", 0.0, f"Import failed: {exc}", error=str(exc),
+        job_id,
+        "failed",
+        0.0,
+        f"Import failed: {exc}",
+        error=str(exc),
     )
     _emit_job_alert(
-        "job.failed", "error", "Import job failed",
+        "job.failed",
+        "error",
+        "Import job failed",
         f"The content import stopped with an error: {exc}",
-        job_id=job_id, job_type="import",
+        job_id=job_id,
+        job_type="import",
     )
 
 
@@ -840,7 +963,7 @@ def _handle_import_failed(job, state, job_id: str, exc: Exception) -> None:
     acks_late=True,
 )
 @HelperConstraint(
-    cpu_intensive=False,            # network IO bound; CPU mostly idle
+    cpu_intensive=False,  # network IO bound; CPU mostly idle
     gpu_required=False,
     storage_writes_to="postgres_main",
     ram_peak_mb=256,
@@ -858,30 +981,49 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
         _publish_progress(job_id, "completed", 1.0, "No URLs found to scan.")
         return {"job_id": job_id, "scanned_urls": 0, "flagged_urls": 0, "fixed_urls": 0}
     _publish_progress(
-        job_id, "running", 0.02,
+        job_id,
+        "running",
+        0.02,
         f"Scanning {total_urls} URL(s) for link health...",
-        total_urls=total_urls, hit_scan_cap=hit_scan_cap,
+        total_urls=total_urls,
+        hit_scan_cap=hit_scan_cap,
     )
     flagged_urls, fixed_urls, probe_backend = _execute_broken_link_scan(
-        job_id, urls_to_scan, total_urls, hit_scan_cap,
+        job_id,
+        urls_to_scan,
+        total_urls,
+        hit_scan_cap,
     )
     _publish_broken_link_scan_completion(
-        job_id, total_urls, flagged_urls, fixed_urls, hit_scan_cap, probe_backend,
+        job_id,
+        total_urls,
+        flagged_urls,
+        fixed_urls,
+        hit_scan_cap,
+        probe_backend,
     )
     return {
-        "job_id": job_id, "scanned_urls": total_urls,
-        "flagged_urls": flagged_urls, "fixed_urls": fixed_urls,
-        "hit_scan_cap": hit_scan_cap, "probe_backend": probe_backend,
+        "job_id": job_id,
+        "scanned_urls": total_urls,
+        "flagged_urls": flagged_urls,
+        "fixed_urls": fixed_urls,
+        "hit_scan_cap": hit_scan_cap,
+        "probe_backend": probe_backend,
     }
 
 
 def _execute_broken_link_scan(
-    job_id: str, urls_to_scan: dict, total_urls: int, hit_scan_cap: bool,
+    job_id: str,
+    urls_to_scan: dict,
+    total_urls: int,
+    hit_scan_cap: bool,
 ) -> tuple[int, int, str]:
     """Run the async-HTTP probes + persist results; return scan counters."""
     from django.utils import timezone
     from apps.pipeline.tasks_broken_links import (
-        build_existing_records_map, persist_scan_results, scan_via_async_http,
+        build_existing_records_map,
+        persist_scan_results,
+        scan_via_async_http,
     )
 
     checked_at = timezone.now()
@@ -891,18 +1033,25 @@ def _execute_broken_link_scan(
     to_update: list = []
     flagged_urls, fixed_urls, probe_backend = scan_via_async_http(
         scan_items,
-        job_id=job_id, total_urls=total_urls,
+        job_id=job_id,
+        total_urls=total_urls,
         existing_records=existing_records,
-        to_create=to_create, to_update=to_update,
-        checked_at=checked_at, hit_scan_cap=hit_scan_cap,
+        to_create=to_create,
+        to_update=to_update,
+        checked_at=checked_at,
+        hit_scan_cap=hit_scan_cap,
     )
     persist_scan_results(to_create, to_update)
     return flagged_urls, fixed_urls, probe_backend
 
 
 def _publish_broken_link_scan_completion(
-    job_id: str, total_urls: int, flagged_urls: int, fixed_urls: int,
-    hit_scan_cap: bool, probe_backend: str,
+    job_id: str,
+    total_urls: int,
+    flagged_urls: int,
+    fixed_urls: int,
+    hit_scan_cap: bool,
+    probe_backend: str,
 ) -> None:
     """Publish the completion progress + cap-warning suffix when applicable."""
     completion_message = (
@@ -914,10 +1063,16 @@ def _publish_broken_link_scan_completion(
             f" Scan stopped at the {_MAX_BROKEN_LINK_SCAN_URLS:,} URL safety cap."
         )
     _publish_progress(
-        job_id, "completed", 1.0, completion_message,
-        scanned_urls=total_urls, total_urls=total_urls,
-        flagged_urls=flagged_urls, fixed_urls=fixed_urls,
-        hit_scan_cap=hit_scan_cap, probe_backend=probe_backend,
+        job_id,
+        "completed",
+        1.0,
+        completion_message,
+        scanned_urls=total_urls,
+        total_urls=total_urls,
+        flagged_urls=flagged_urls,
+        fixed_urls=fixed_urls,
+        hit_scan_cap=hit_scan_cap,
+        probe_backend=probe_backend,
     )
 
 
@@ -925,7 +1080,7 @@ def _publish_broken_link_scan_completion(
     bind=True, name="pipeline.verify_suggestions", time_limit=3600, soft_time_limit=3540
 )
 @HelperConstraint(
-    cpu_intensive=False,            # network IO bound (HEAD probes)
+    cpu_intensive=False,  # network IO bound (HEAD probes)
     gpu_required=False,
     storage_writes_to="postgres_main",
     ram_peak_mb=256,
@@ -947,28 +1102,41 @@ def verify_suggestions(self, suggestion_ids: list[str] | None = None) -> dict:
         return {"verified": 0, "stale": 0, "job_id": job_id}
     try:
         verified, stale = _run_suggestion_verifications(
-            XenForoAPIClient(), suggestions, total, job_id,
+            XenForoAPIClient(),
+            suggestions,
+            total,
+            job_id,
         )
         _publish_progress(
-            job_id, "completed", 1.0,
+            job_id,
+            "completed",
+            1.0,
             f"Verification complete. {verified} verified, {stale} stale.",
         )
         return {"verified": verified, "stale": stale, "job_id": job_id}
     except (DatabaseError, TimeoutError, MemoryError, ValueError) as exc:
         logger.exception("Verification %s failed", job_id)
         _publish_progress(
-            job_id, "failed", 0.0, f"Verification failed: {exc}", error=str(exc),
+            job_id,
+            "failed",
+            0.0,
+            f"Verification failed: {exc}",
+            error=str(exc),
         )
         raise
 
 
-def _run_suggestion_verifications(client, suggestions, total: int, job_id: str) -> tuple[int, int]:
+def _run_suggestion_verifications(
+    client, suggestions, total: int, job_id: str
+) -> tuple[int, int]:
     """Iterate suggestions, classify each as verified/stale, return counts."""
     verified = 0
     stale = 0
     for index, suggestion in enumerate(suggestions):
         _publish_progress(
-            job_id, "running", index / total,
+            job_id,
+            "running",
+            index / total,
             f"Checking suggestion {str(suggestion.suggestion_id)[:8]}...",
         )
         result = _verify_one_suggestion(client, suggestion)
@@ -986,24 +1154,26 @@ def _verify_one_suggestion(client, suggestion) -> str:
     host_content = suggestion.host
     if not host_content or not host_content.xf_post_id:
         logger.warning(
-            "Suggestion %s host has no xf_post_id", suggestion.suggestion_id,
+            "Suggestion %s host has no xf_post_id",
+            suggestion.suggestion_id,
         )
         return "skip"
     try:
         raw_bbcode = (
-            client.get_post(host_content.xf_post_id)
-            .get("post", {}).get("message", "")
+            client.get_post(host_content.xf_post_id).get("post", {}).get("message", "")
         )
     except (TimeoutError, RequestException, URLError) as exc:
         logger.error(
             "Failed to fetch host post for suggestion %s: %s",
-            suggestion.suggestion_id, exc,
+            suggestion.suggestion_id,
+            exc,
         )
         return "skip"
     destination_url = suggestion.destination.url
     if not destination_url:
         logger.warning(
-            "Suggestion %s destination has no URL", suggestion.suggestion_id,
+            "Suggestion %s destination has no URL",
+            suggestion.suggestion_id,
         )
         return "skip"
     if destination_url in raw_bbcode:
@@ -1094,7 +1264,7 @@ def _status_label(http_status: int) -> str:
 
 @shared_task(name="pipeline.run_clustering_pass", time_limit=1800, soft_time_limit=1740)
 @HelperConstraint(
-    cpu_intensive=True,             # k-means + pgvector queries
+    cpu_intensive=True,  # k-means + pgvector queries
     gpu_required=False,
     storage_writes_to="postgres_main",
     ram_peak_mb=1024,
@@ -1167,7 +1337,7 @@ def _purge_aged_rows(  # noqa: forbidden-pattern too-many-args  # justification:
     try/except blocks in ``nightly_data_retention``.
     """
     import traceback
-    from django.db import DatabaseError, IntegrityError
+    from django.db import DatabaseError
     from apps.audit.models import ErrorLog
 
     try:
@@ -1178,7 +1348,9 @@ def _purge_aged_rows(  # noqa: forbidden-pattern too-many-args  # justification:
         deleted, _ = model_cls.objects.filter(**qs_filter).delete()
         logger.info(
             "[nightly_data_retention] %s: deleted %d rows older than %s.",
-            label, deleted, cutoff_value,
+            label,
+            deleted,
+            cutoff_value,
         )
         return deleted
     except (DatabaseError, IntegrityError):
@@ -1211,7 +1383,7 @@ def _purge_with_bitmap_preview(  # noqa: forbidden-pattern too-many-args  # just
     ``queryset.count()``.
     """
     import traceback
-    from django.db import DatabaseError, IntegrityError
+    from django.db import DatabaseError
     from apps.audit.models import ErrorLog
     from apps.pipeline.services import waste_bitmaps
 
@@ -1226,7 +1398,9 @@ def _purge_with_bitmap_preview(  # noqa: forbidden-pattern too-many-args  # just
             deleted, _ = queryset.delete()
         logger.info(
             "[nightly_data_retention] %s: deleted %d rows (preview was %d).",
-            label, deleted, pending,
+            label,
+            deleted,
+            pending,
         )
         if preview_key is not None:
             _persist_retention_preview(preview_key, value=0, last_count=pending)
@@ -1246,6 +1420,7 @@ def _purge_with_bitmap_preview(  # noqa: forbidden-pattern too-many-args  # just
 
 def _retention_progress_reporter(progress_callback):
     """Wrap ``progress_callback`` in a no-op-on-error closure for nightly_data_retention."""
+
     def _report(pct: float, message: str) -> None:
         if progress_callback is None:
             return
@@ -1254,8 +1429,11 @@ def _retention_progress_reporter(progress_callback):
         except Exception:  # pragma: no cover — defensive
             logger.warning(
                 "[nightly_data_retention] progress_callback raised "
-                "for pct=%s message=%s; continuing", pct, message,
+                "for pct=%s message=%s; continuing",
+                pct,
+                message,
             )
+
     return _report
 
 
@@ -1263,7 +1441,7 @@ def _retention_progress_reporter(progress_callback):
     name="pipeline.nightly_data_retention", time_limit=1800, soft_time_limit=1740
 )
 @HelperConstraint(
-    cpu_intensive=False,            # bulk Postgres deletes; mostly DB-bound
+    cpu_intensive=False,  # bulk Postgres deletes; mostly DB-bound
     gpu_required=False,
     storage_writes_to="postgres_main",
     ram_peak_mb=256,
@@ -1317,7 +1495,6 @@ def nightly_data_retention(progress_callback=None):
 
 def _run_standard_purges(now, results: dict[str, int]) -> None:
     """Execute the 8 plain age-based purge blocks via the spec table."""
-    from datetime import timedelta
     from apps.audit.models import ErrorLog
     from apps.pipeline.services.velocity import prune_old_snapshots
 
@@ -1336,7 +1513,8 @@ def _run_standard_purges(now, results: dict[str, int]) -> None:
     # ContentMetricSnapshot uses a "keep last N per item" rule, not an age
     # filter, so it doesn't fit the spec table.
     import traceback
-    from django.db import DatabaseError, IntegrityError
+    from django.db import DatabaseError
+
     try:
         results["metric_snapshots_deleted"] = prune_old_snapshots(keep=2)
         logger.info(
@@ -1346,7 +1524,8 @@ def _run_standard_purges(now, results: dict[str, int]) -> None:
     except (DatabaseError, IntegrityError):
         logger.exception("[nightly_data_retention] ContentMetricSnapshot purge failed.")
         ErrorLog.objects.create(
-            job_type="data_retention", step="metric_snapshot_purge",
+            job_type="data_retention",
+            step="metric_snapshot_purge",
             error_message="ContentMetricSnapshot retention purge failed.",
             raw_exception=traceback.format_exc(),
             why="Check database connectivity and the content.ContentMetricSnapshot table.",
@@ -1370,21 +1549,27 @@ def _build_standard_purge_specs(now) -> list[dict]:  # noqa: forbidden-pattern l
 
     return [
         {
-            "model_cls": SearchMetric, "cutoff_field": "date", "use_date": True,
+            "model_cls": SearchMetric,
+            "cutoff_field": "date",
+            "use_date": True,
             "cutoff": now - timedelta(days=_RETENTION_12_MONTHS),
             "result_key": "search_metrics_deleted",
-            "label": "SearchMetric (12 months)", "step": "search_metric_purge",
+            "label": "SearchMetric (12 months)",
+            "step": "search_metric_purge",
             "fix_hint": "Check database connectivity and the analytics.SearchMetric table.",
         },
         {
-            "model_cls": PipelineRun, "cutoff_field": "created_at",
+            "model_cls": PipelineRun,
+            "cutoff_field": "created_at",
             "cutoff": now - timedelta(days=90),
             "result_key": "pipeline_runs_deleted",
-            "label": "PipelineRun (90 days)", "step": "pipeline_run_purge",
+            "label": "PipelineRun (90 days)",
+            "step": "pipeline_run_purge",
             "fix_hint": "Check database connectivity and the suggestions.PipelineRun table.",
         },
         {
-            "model_cls": Suggestion, "cutoff_field": "updated_at",
+            "model_cls": Suggestion,
+            "cutoff_field": "updated_at",
             "cutoff": now - timedelta(days=30),
             "extra_filter": {"status": "superseded"},
             "result_key": "superseded_suggestions_deleted",
@@ -1393,34 +1578,42 @@ def _build_standard_purge_specs(now) -> list[dict]:  # noqa: forbidden-pattern l
             "fix_hint": "Check database connectivity and the suggestions.Suggestion table.",
         },
         {
-            "model_cls": AuditEntry, "cutoff_field": "created_at",
+            "model_cls": AuditEntry,
+            "cutoff_field": "created_at",
             "cutoff": now - timedelta(days=_RETENTION_6_MONTHS),
             "result_key": "audit_entries_deleted",
-            "label": "AuditEntry (180 days)", "step": "audit_entry_purge",
+            "label": "AuditEntry (180 days)",
+            "step": "audit_entry_purge",
             "fix_hint": "Check database connectivity and the audit.AuditEntry table.",
         },
         {
-            "model_cls": ErrorLog, "cutoff_field": "created_at",
+            "model_cls": ErrorLog,
+            "cutoff_field": "created_at",
             "cutoff": now - timedelta(days=30),
             "result_key": "error_logs_deleted",
-            "label": "ErrorLog (30 days)", "step": "error_log_purge",
+            "label": "ErrorLog (30 days)",
+            "step": "error_log_purge",
             # Cannot log ErrorLog purge failures to ErrorLog itself; logger.exception covers.
             "fix_hint": "Cannot self-log; check Postgres logs for the ErrorLog table.",
         },
         {
-            "model_cls": WebhookReceipt, "cutoff_field": "created_at",
+            "model_cls": WebhookReceipt,
+            "cutoff_field": "created_at",
             "cutoff": now - timedelta(days=30),
             "result_key": "webhook_receipts_deleted",
-            "label": "WebhookReceipt (30 days)", "step": "webhook_receipt_purge",
+            "label": "WebhookReceipt (30 days)",
+            "step": "webhook_receipt_purge",
             "fix_hint": "Check database connectivity and the sync.WebhookReceipt table.",
         },
         # Group D.7 — CrawlerVisit (D.5 dedup audit log; 90-day rolling window).
         # Heavy CrawledPageMeta rows are NOT pruned here — D.5/D.6 already dedupe them.
         {
-            "model_cls": CrawlerVisit, "cutoff_field": "visited_at",
+            "model_cls": CrawlerVisit,
+            "cutoff_field": "visited_at",
             "cutoff": now - timedelta(days=90),
             "result_key": "crawler_visits_deleted",
-            "label": "CrawlerVisit (D.7, 90 days)", "step": "crawler_visit_purge",
+            "label": "CrawlerVisit (D.7, 90 days)",
+            "step": "crawler_visit_purge",
             "fix_hint": (
                 "Check database connectivity and the crawler.CrawlerVisit table. "
                 "The dedup feature (D.5) requires this table; failure here means "
@@ -1433,7 +1626,11 @@ def _build_standard_purge_specs(now) -> list[dict]:  # noqa: forbidden-pattern l
 def _run_advanced_purges(now, results: dict[str, int], report) -> None:
     """Execute the 3 bitmap-preview purge blocks (B.5 / B.6 / B.7)."""
     from datetime import timedelta
-    from apps.suggestions.models import Suggestion, SuggestionImpression, SuggestionPresentation
+    from apps.suggestions.models import (
+        Suggestion,
+        SuggestionImpression,
+        SuggestionPresentation,
+    )
 
     report(60.0, "Pruning IPS / Cascade impressions (B.5)")
     # Pick #33 (IPS) and #34 (Cascade Click) read 90-day impressions to fit
@@ -1535,7 +1732,7 @@ def _persist_retention_run_timestamp(iso: str) -> None:
 
 @shared_task(name="pipeline.cleanup_stuck_sync_jobs")
 @HelperConstraint(
-    cpu_intensive=False,            # short DB-only sweep
+    cpu_intensive=False,  # short DB-only sweep
     gpu_required=False,
     storage_writes_to="postgres_main",
     ram_peak_mb=64,
@@ -1559,11 +1756,15 @@ def cleanup_stuck_sync_jobs():
     if not count:
         logger.info("[cleanup_stuck_sync_jobs] No stuck jobs found.")
         return {"jobs_cleaned": 0}
-    resumable_count, no_checkpoint_count = _mark_stuck_jobs_failed(stuck, timezone.now())
+    resumable_count, no_checkpoint_count = _mark_stuck_jobs_failed(
+        stuck, timezone.now()
+    )
     logger.info(
         "[cleanup_stuck_sync_jobs] Marked %d stuck job(s) as failed "
         "(%d resumable, %d need restart).",
-        count, resumable_count, no_checkpoint_count,
+        count,
+        resumable_count,
+        no_checkpoint_count,
     )
     return {"jobs_cleaned": count}
 
@@ -1576,7 +1777,8 @@ def _mark_stuck_jobs_failed(stuck_qs, now) -> tuple[int, int]:
     resume path. Jobs with no checkpoint must restart from scratch.
     """
     resumable_count = stuck_qs.exclude(checkpoint_stage="").update(
-        status="failed", is_resumable=True,
+        status="failed",
+        is_resumable=True,
         error_message=(
             "Job interrupted — server was likely restarted mid-sync. "
             "Resumable from last checkpoint."
@@ -1584,7 +1786,8 @@ def _mark_stuck_jobs_failed(stuck_qs, now) -> tuple[int, int]:
         completed_at=now,
     )
     no_checkpoint_count = stuck_qs.filter(checkpoint_stage="").update(
-        status="failed", is_resumable=False,
+        status="failed",
+        is_resumable=False,
         error_message=(
             "Job timed out before any checkpoint — server was likely "
             "restarted mid-sync."
@@ -1603,7 +1806,7 @@ def _mark_stuck_jobs_failed(stuck_qs, now) -> tuple[int, int]:
     retry_backoff=60,
 )
 @HelperConstraint(
-    cpu_intensive=False,            # network IO bound (XF API)
+    cpu_intensive=False,  # network IO bound (XF API)
     gpu_required=False,
     storage_writes_to="postgres_main",
     ram_peak_mb=128,
@@ -1617,20 +1820,26 @@ def sync_single_xf_item(
 
     logger.info(
         "Real-time sync triggered for %s %d (node/cat: %s)",
-        content_type, content_id, node_id,
+        content_type,
+        content_id,
+        node_id,
     )
     try:
         xf_node_id = _resolve_xf_node_id(content_id, content_type, node_id)
         if not xf_node_id:
             logger.error(
-                "Could not determine node_id for %s %d", content_type, content_id,
+                "Could not determine node_id for %s %d",
+                content_type,
+                content_id,
             )
             return {"error": "Missing node_id"}
         scope = _ensure_scope_for_xf_node(xf_node_id, content_type)
         if not scope.is_enabled:
             logger.info(
                 "Scope %s is disabled; skipping sync for %s %d",
-                scope.title, content_type, content_id,
+                scope.title,
+                content_type,
+                content_id,
             )
             return {"status": "skipped", "reason": "scope disabled"}
         return import_content(scope_ids=[scope.pk], mode="full", source="api")
@@ -1640,12 +1849,15 @@ def sync_single_xf_item(
 
 
 def _resolve_xf_node_id(
-    content_id: int, content_type: str, node_id: int | None,
+    content_id: int,
+    content_type: str,
+    node_id: int | None,
 ) -> int | None:
     """Return ``node_id`` if supplied; otherwise look it up via the XenForo API."""
     if node_id:
         return node_id
     from apps.sync.services.xenforo_api import XenForoAPIClient
+
     client = XenForoAPIClient()
     if content_type == "thread":
         return client.get_thread(content_id).get("thread", {}).get("node_id")
@@ -1664,7 +1876,8 @@ def _ensure_scope_for_xf_node(xf_node_id: int, content_type: str):
 
     scope_type = "node" if content_type == "thread" else "resource_category"
     scope, _ = ScopeItem.objects.get_or_create(
-        scope_id=xf_node_id, scope_type=scope_type,
+        scope_id=xf_node_id,
+        scope_type=scope_type,
         defaults={
             "title": f"Auto-discovered {scope_type} {xf_node_id}",
             "is_enabled": True,
@@ -1682,7 +1895,7 @@ def _ensure_scope_for_xf_node(xf_node_id: int, content_type: str):
     retry_backoff=60,
 )
 @HelperConstraint(
-    cpu_intensive=False,            # network IO bound (WP REST API)
+    cpu_intensive=False,  # network IO bound (WP REST API)
     gpu_required=False,
     storage_writes_to="postgres_main",
     ram_peak_mb=128,
@@ -1737,7 +1950,7 @@ def sync_single_wp_item(post_id: int, content_type: str = "post") -> dict:
     acks_late=True,
 )
 @HelperConstraint(
-    cpu_intensive=True,             # TPE optimisation walk
+    cpu_intensive=True,  # TPE optimisation walk
     gpu_required=False,
     storage_writes_to="postgres_main",
     ram_peak_mb=512,
@@ -1800,7 +2013,7 @@ _OPTIMISER_COVERAGE_NOTE = (
 
 @shared_task(bind=True, name="pipeline.evaluate_weight_challenger")
 @HelperConstraint(
-    cpu_intensive=True,             # NDCG@k bootstrap evaluation
+    cpu_intensive=True,  # NDCG@k bootstrap evaluation
     gpu_required=False,
     storage_writes_to="postgres_main",
     ram_peak_mb=1024,
@@ -1822,9 +2035,9 @@ def evaluate_weight_challenger(self, *, run_id: str):
     from apps.suggestions.models import RankingChallenger
 
     try:
-        challenger = (
-            RankingChallenger.objects.filter(run_id=run_id, status="pending").first()
-        )
+        challenger = RankingChallenger.objects.filter(
+            run_id=run_id, status="pending"
+        ).first()
         if challenger is None:
             logger.info(
                 "[evaluate_weight_challenger] No pending challenger found for run_id=%s",
@@ -1854,15 +2067,26 @@ def _decide_challenger_promotion(challenger, run_id: str) -> dict:
             "[evaluate_weight_challenger] No quality scores on challenger %s — auto-promoting.",
             run_id,
         )
-        return {"should_promote": True, "decision": "auto", "cand_score": None, "champ_score": None}
+        return {
+            "should_promote": True,
+            "decision": "auto",
+            "cand_score": None,
+            "champ_score": None,
+        }
     evaluator = ChallengerSPRTEvaluator(
-        alpha=0.05, beta=0.10, min_improvement_ratio=1.05, assumed_std_dev=0.08,
+        alpha=0.05,
+        beta=0.10,
+        min_improvement_ratio=1.05,
+        assumed_std_dev=0.08,
     )
     sprt_result = evaluator.evaluate(cand_score, champ_score)
     logger.info(
         "[evaluate_weight_challenger] SPRT for %s: %s (LR=%.4f, bounds=[%.4f, %.4f])",
-        run_id, sprt_result.decision, sprt_result.log_likelihood_ratio,
-        sprt_result.lower_boundary, sprt_result.upper_boundary,
+        run_id,
+        sprt_result.decision,
+        sprt_result.log_likelihood_ratio,
+        sprt_result.lower_boundary,
+        sprt_result.upper_boundary,
     )
     return {
         "should_promote": sprt_result.decision == "promote",
@@ -1880,10 +2104,15 @@ def _record_challenger_rejection(challenger, run_id: str, decision: dict) -> dic
         logger.info(
             "[evaluate_weight_challenger] Challenger %s rejected via SPRT (%s): "
             "score %.4f vs champion %.4f.",
-            run_id, decision["decision"], decision["cand_score"], decision["champ_score"],
+            run_id,
+            decision["decision"],
+            decision["cand_score"],
+            decision["champ_score"],
         )
     return {
-        "status": "rejected", "run_id": run_id, "decision": decision["decision"],
+        "status": "rejected",
+        "run_id": run_id,
+        "decision": decision["decision"],
         "coverage_note": _OPTIMISER_COVERAGE_NOTE,
     }
 
@@ -1892,7 +2121,9 @@ def _promote_challenger(challenger, run_id: str) -> dict:
     """Apply the challenger's weights, persist a history row, mark it promoted."""
     from django.db import transaction
     from apps.suggestions.weight_preset_service import (
-        apply_weights, get_current_weights, write_history,
+        apply_weights,
+        get_current_weights,
+        write_history,
     )
 
     previous_weights = get_current_weights()
@@ -1919,7 +2150,11 @@ def _promote_challenger(challenger, run_id: str) -> dict:
         run_id,
         {k: promoted_weights[k] for k in challenger.candidate_weights},
     )
-    return {"status": "promoted", "run_id": run_id, "coverage_note": _OPTIMISER_COVERAGE_NOTE}
+    return {
+        "status": "promoted",
+        "run_id": run_id,
+        "coverage_note": _OPTIMISER_COVERAGE_NOTE,
+    }
 
 
 def _log_challenger_evaluation_error() -> dict:
@@ -1941,7 +2176,7 @@ def _log_challenger_evaluation_error() -> dict:
 
 @shared_task(name="pipeline.check_weight_rollback")
 @HelperConstraint(
-    cpu_intensive=False,            # short DB read + comparison
+    cpu_intensive=False,  # short DB read + comparison
     gpu_required=False,
     storage_writes_to="postgres_main",
     ram_peak_mb=128,
@@ -2010,13 +2245,16 @@ def _check_single_rollback(challenger):
         logger.info(
             "[check_weight_rollback] Skipping challenger %s — insufficient pre-promotion "
             "GSC data (%d clicks).",
-            challenger.run_id, pre_clicks,
+            challenger.run_id,
+            pre_clicks,
         )
         return
     ratio = post_clicks / pre_clicks
     logger.info(
         "[check_weight_rollback] Challenger %s: post/pre click ratio = %.3f (threshold %.2f).",
-        challenger.run_id, ratio, _REGRESSION_THRESHOLD,
+        challenger.run_id,
+        ratio,
+        _REGRESSION_THRESHOLD,
     )
     if ratio >= _REGRESSION_THRESHOLD:
         return
@@ -2029,9 +2267,13 @@ def _aggregate_gsc_click_windows(pre: tuple, post: tuple) -> tuple[int, int]:
     from apps.analytics.models import GSCDailyPerformance
 
     def _sum(start, end) -> int:
-        return GSCDailyPerformance.objects.filter(
-            date__range=(start, end),
-        ).aggregate(total=Sum("clicks"))["total"] or 0
+        return (
+            GSCDailyPerformance.objects.filter(
+                date__range=(start, end),
+            ).aggregate(total=Sum("clicks"))["total"]
+            or 0
+        )
+
     return _sum(*pre), _sum(*post)
 
 
@@ -2039,7 +2281,9 @@ def _execute_rollback(challenger, ratio: float) -> None:
     """Apply baseline_weights, write history, mark challenger rolled_back."""
     from django.db import transaction
     from apps.suggestions.weight_preset_service import (
-        apply_weights, get_current_weights, write_history,
+        apply_weights,
+        get_current_weights,
+        write_history,
     )
 
     if not challenger.baseline_weights:
@@ -2069,7 +2313,8 @@ def _execute_rollback(challenger, ratio: float) -> None:
     challenger.save(update_fields=["status", "updated_at"])
     logger.info(
         "[check_weight_rollback] Rolled back challenger %s (ratio=%.3f).",
-        challenger.run_id, ratio,
+        challenger.run_id,
+        ratio,
     )
 
 
@@ -2078,7 +2323,7 @@ def _execute_rollback(challenger, ratio: float) -> None:
 
 @shared_task(bind=True, name="pipeline.check_gsc_spikes")
 @HelperConstraint(
-    cpu_intensive=False,            # GROUP BY queries against SearchMetric
+    cpu_intensive=False,  # GROUP BY queries against SearchMetric
     gpu_required=False,
     storage_writes_to="postgres_main",
     ram_peak_mb=256,
@@ -2099,13 +2344,17 @@ def check_gsc_spikes(self) -> dict:
     from apps.content.models import ContentItem
 
     thresholds, today, recent_window, baseline_window = _gsc_spike_setup()
-    recent_stats, baseline_stats = _gsc_spike_aggregate_stats(recent_window, baseline_window)
+    recent_stats, baseline_stats = _gsc_spike_aggregate_stats(
+        recent_window, baseline_window
+    )
     relevant_ids = recent_stats.keys() | baseline_stats.keys()
     items_by_pk = {it.pk: it for it in ContentItem.objects.filter(pk__in=relevant_ids)}
     alerts_emitted = 0
     for pk, item in items_by_pk.items():
         spike = _evaluate_gsc_spike(
-            recent_stats.get(pk, {}), baseline_stats.get(pk, {}), thresholds,
+            recent_stats.get(pk, {}),
+            baseline_stats.get(pk, {}),
+            thresholds,
         )
         if spike is None:
             continue
@@ -2136,7 +2385,9 @@ def _gsc_spike_setup() -> tuple[dict, "date", tuple, tuple]:
     return thresholds, today, (recent_start, recent_end), (baseline_start, baseline_end)
 
 
-def _gsc_spike_aggregate_stats(recent_window: tuple, baseline_window: tuple) -> tuple[dict, dict]:
+def _gsc_spike_aggregate_stats(
+    recent_window: tuple, baseline_window: tuple
+) -> tuple[dict, dict]:
     """Bulk-aggregate avg impressions+clicks for both windows in two queries (avoids N+1)."""
     from django.db.models import Avg
     from apps.analytics.models import SearchMetric
@@ -2145,15 +2396,23 @@ def _gsc_spike_aggregate_stats(recent_window: tuple, baseline_window: tuple) -> 
         return {
             row["content_item_id"]: row
             for row in SearchMetric.objects.filter(
-                source="gsc", date__gte=start, date__lte=end,
-            ).values("content_item_id").annotate(
-                avg_impressions=Avg("impressions"), avg_clicks=Avg("clicks"),
+                source="gsc",
+                date__gte=start,
+                date__lte=end,
+            )
+            .values("content_item_id")
+            .annotate(
+                avg_impressions=Avg("impressions"),
+                avg_clicks=Avg("clicks"),
             )
         }
+
     return _bulk_avg(*recent_window), _bulk_avg(*baseline_window)
 
 
-def _evaluate_gsc_spike(recent_row: dict, baseline_row: dict, thresholds: dict) -> dict | None:
+def _evaluate_gsc_spike(
+    recent_row: dict, baseline_row: dict, thresholds: dict
+) -> dict | None:
     """Return spike-diagnostic dict if either impressions or clicks crossed threshold; else None."""
     r_imp = recent_row.get("avg_impressions") or 0.0
     r_clk = recent_row.get("avg_clicks") or 0.0
@@ -2176,8 +2435,10 @@ def _evaluate_gsc_spike(recent_row: dict, baseline_row: dict, thresholds: dict) 
     if not (impressions_spike or clicks_spike):
         return None
     return {
-        "imp_delta": imp_delta, "clk_delta": clk_delta,
-        "imp_lift": imp_lift, "clk_lift": clk_lift,
+        "imp_delta": imp_delta,
+        "clk_delta": clk_delta,
+        "imp_lift": imp_lift,
+        "clk_lift": clk_lift,
     }
 
 
@@ -2200,15 +2461,18 @@ def _emit_gsc_spike_alert(item, spike: dict, today) -> bool:
     )
     try:
         emit_operator_alert(
-            event_type="analytics.gsc_spike", severity=severity,
-            title="Google search demand spiked", message=message,
+            event_type="analytics.gsc_spike",
+            severity=severity,
+            title="Google search demand spiked",
+            message=message,
             source_area=OperatorAlert.AREA_ANALYTICS,
             dedupe_key=f"analytics.gsc_spike:{item.pk}:{today.isoformat()}",
             related_object_type="ContentItem",
             related_object_id=str(item.pk),
             related_route="/analytics",
             payload={
-                "content_item_id": item.pk, "title": item.title,
+                "content_item_id": item.pk,
+                "title": item.title,
                 "impressions_delta": round(spike["imp_delta"], 1),
                 "clicks_delta": round(spike["clk_delta"], 1),
                 "impressions_lift_pct": round(spike["imp_lift"] * _PCT_MULTIPLIER, 1),
@@ -2220,7 +2484,8 @@ def _emit_gsc_spike_alert(item, spike: dict, today) -> bool:
     except (ImportError, AttributeError, DatabaseError):
         logger.warning(
             "check_gsc_spikes: failed to emit alert for item %s",
-            item.pk, exc_info=True,
+            item.pk,
+            exc_info=True,
         )
         return False
 
@@ -2232,7 +2497,7 @@ def _emit_gsc_spike_alert(item, spike: dict, today) -> bool:
 
 @shared_task(name="pipeline.refresh_faiss_index", time_limit=3600, soft_time_limit=3540)
 @HelperConstraint(
-    cpu_intensive=False,            # FAISS-GPU rebuild — GPU-bound
+    cpu_intensive=False,  # FAISS-GPU rebuild — GPU-bound
     gpu_required=True,
     storage_writes_to="postgres_main",
     ram_peak_mb=2048,
@@ -2301,7 +2566,8 @@ def calibration_fit():
     if len(scores) < VALIDATION_SET_MIN_SIZE_DEFAULT:
         logger.info(
             "FR-245 calibration_fit — only %d pairs available; need %d. Skipping.",
-            len(scores), VALIDATION_SET_MIN_SIZE_DEFAULT,
+            len(scores),
+            VALIDATION_SET_MIN_SIZE_DEFAULT,
         )
         return False
 
@@ -2312,7 +2578,9 @@ def calibration_fit():
     persist_active_params(params, validation_pairs=len(scores))
     logger.info(
         "FR-245 calibration_fit — persisted A=%.6f B=%.6f from %d pairs",
-        params.a, params.b, len(scores),
+        params.a,
+        params.b,
+        len(scores),
     )
     return True
 
@@ -2325,8 +2593,11 @@ def _load_calibration_pairs() -> tuple[list[float], list[int]]:
         Suggestion.objects.filter(
             status__in=("approved", "rejected"),
             score_semantic__isnull=False,
-        ).order_by("-reviewed_at").values_list(
-            "score_semantic", "status",
+        )
+        .order_by("-reviewed_at")
+        .values_list(
+            "score_semantic",
+            "status",
         )[:50_000]
     )
     scores = [float(s) for s, _ in rows]
@@ -2408,12 +2679,14 @@ def nrt_delta_flush():
 
     try:
         from apps.pipeline.services.faiss_index import build_faiss_index
+
         build_faiss_index()
         delta.clear()
         return True
     except Exception as exc:
         from apps.audit.error_ingest import ingest_error
         from apps.audit.models import ErrorLog
+
         ingest_error(
             job_type="faiss_init",
             step="nrt_delta_flush",
@@ -2455,9 +2728,9 @@ _BACKFILL_BATCH_SIZE = 100
     soft_time_limit=3540,
 )
 @HelperConstraint(
-    gpu_required=True,            # BGE-M3 encode runs on GPU
+    gpu_required=True,  # BGE-M3 encode runs on GPU
     storage_writes_to="postgres_main",
-    ram_peak_mb=4000,             # BGE-M3 fp16 + batch + working memory
+    ram_peak_mb=4000,  # BGE-M3 fp16 + batch + working memory
     expected_seconds_p50=600,
 )
 @resource_aware_retry(
@@ -2509,7 +2782,8 @@ def backfill_long_tail_embeddings(
     if batch:
         processed += _flush_backfill_batch(batch)
     logger.info(
-        "[backfill_long_tail_embeddings] Complete. processed=%d", processed,
+        "[backfill_long_tail_embeddings] Complete. processed=%d",
+        processed,
     )
     return {"processed": processed, "checkpointed": False}
 
@@ -2517,6 +2791,7 @@ def backfill_long_tail_embeddings(
 def _read_backfill_checkpoint() -> int:
     """Resume PK from the AppSetting checkpoint (0 on first run)."""
     from apps.core.models import AppSetting
+
     setting = AppSetting.objects.filter(key=_BACKFILL_CHECKPOINT_KEY).first()
     return int(setting.value) if (setting and setting.value.isdigit()) else 0
 
@@ -2534,7 +2809,9 @@ def _build_long_tail_eligible_qs(last_pk: int, body_to_distilled_ratio: float):
     int_ratio = max(1, int(body_to_distilled_ratio))
     return (
         ContentItem.objects.filter(
-            is_deleted=False, duplicate_of__isnull=True, pk__gt=last_pk,
+            is_deleted=False,
+            duplicate_of__isnull=True,
+            pk__gt=last_pk,
         )
         .annotate(
             body_len=Length("post__clean_text"),
@@ -2557,7 +2834,9 @@ def _flush_backfill_batch(batch: list[int]) -> int:
     from apps.content.models import ContentItem
     from apps.core.models import AppSetting
     from apps.pipeline.services.embeddings import generate_content_item_embeddings
-    from apps.pipeline.services.passage_relevance import regenerate_passage_embeddings_for
+    from apps.pipeline.services.passage_relevance import (
+        regenerate_passage_embeddings_for,
+    )
 
     # 1. Generate full-body document embeddings.
     generate_content_item_embeddings(content_item_ids=batch, force_reembed=True)
@@ -2605,7 +2884,7 @@ _NULL_REEMBED_BATCH_SIZE = 100
     soft_time_limit=3540,
 )
 @HelperConstraint(
-    gpu_required=True,            # BGE-M3 encode runs on GPU
+    gpu_required=True,  # BGE-M3 encode runs on GPU
     storage_writes_to="postgres_main",
     ram_peak_mb=4000,
     expected_seconds_p50=300,
@@ -2668,6 +2947,7 @@ def reembed_null_embeddings(
 def _read_checkpoint_pk(key: str) -> int:
     """Read an integer PK checkpoint from AppSetting (0 on first run)."""
     from apps.core.models import AppSetting
+
     setting = AppSetting.objects.filter(key=key).first()
     return int(setting.value) if (setting and setting.value.isdigit()) else 0
 
@@ -2675,10 +2955,13 @@ def _read_checkpoint_pk(key: str) -> int:
 def _build_null_embedding_orphan_qs(last_pk: int):
     """Queryset of ContentItem PKs whose embedding is NULL and PK > last_pk."""
     from apps.content.models import ContentItem
+
     return (
         ContentItem.objects.filter(
-            embedding__isnull=True, is_deleted=False,
-            duplicate_of__isnull=True, pk__gt=last_pk,
+            embedding__isnull=True,
+            is_deleted=False,
+            duplicate_of__isnull=True,
+            pk__gt=last_pk,
         )
         .order_by("pk")
         .values_list("pk", flat=True)
@@ -2718,7 +3001,7 @@ _PASSAGE_REFRESH_BATCH_SIZE = 100
     soft_time_limit=1740,
 )
 @HelperConstraint(
-    gpu_required=True,            # passage encode runs on GPU
+    gpu_required=True,  # passage encode runs on GPU
     storage_writes_to="postgres_main",
     ram_peak_mb=3500,
     expected_seconds_p50=180,
@@ -2751,7 +3034,8 @@ def refresh_passage_embeddings(self, *, max_items: int = _PASSAGE_REFRESH_BATCH_
     if not pks:
         # Wrap the cursor — next tick starts from PK 0 again.
         AppSetting.objects.update_or_create(
-            key=_PASSAGE_REFRESH_CHECKPOINT_KEY, defaults={"value": "0"},
+            key=_PASSAGE_REFRESH_CHECKPOINT_KEY,
+            defaults={"value": "0"},
         )
         return {"processed": 0, "wrapped": True}
     processed, embedded, last_seen = _embed_passages_for_pks(pks, last_pk)
@@ -2761,7 +3045,9 @@ def refresh_passage_embeddings(self, *, max_items: int = _PASSAGE_REFRESH_BATCH_
     )
     logger.info(
         "[refresh_passage_embeddings] processed=%d embedded=%d checkpoint=%d",
-        processed, embedded, last_seen,
+        processed,
+        embedded,
+        last_seen,
     )
     return {"processed": processed, "embedded": embedded, "wrapped": False}
 
@@ -2769,9 +3055,12 @@ def refresh_passage_embeddings(self, *, max_items: int = _PASSAGE_REFRESH_BATCH_
 def _next_passage_refresh_batch(last_pk: int, max_items: int) -> list[int]:
     """Pull the next ``max_items`` ContentItem PKs past ``last_pk``."""
     from apps.content.models import ContentItem
+
     return list(
         ContentItem.objects.filter(
-            is_deleted=False, duplicate_of__isnull=True, pk__gt=last_pk,
+            is_deleted=False,
+            duplicate_of__isnull=True,
+            pk__gt=last_pk,
         )
         .order_by("pk")
         .values_list("pk", flat=True)[:max_items]
@@ -2781,7 +3070,9 @@ def _next_passage_refresh_batch(last_pk: int, max_items: int) -> list[int]:
 def _embed_passages_for_pks(pks: list[int], last_pk: int) -> tuple[int, int, int]:
     """Regenerate passages for each PK; advance checkpoint past failures."""
     from apps.content.models import ContentItem
-    from apps.pipeline.services.passage_relevance import regenerate_passage_embeddings_for
+    from apps.pipeline.services.passage_relevance import (
+        regenerate_passage_embeddings_for,
+    )
 
     processed = 0
     embedded = 0
@@ -2802,6 +3093,7 @@ def _embed_passages_for_pks(pks: list[int], last_pk: int) -> tuple[int, int, int
         last_seen = pk
     return processed, embedded, last_seen
 
+
 @shared_task(
     bind=True,
     name="passage_relevance.train_opq_codebook",
@@ -2809,10 +3101,10 @@ def _embed_passages_for_pks(pks: list[int], last_pk: int) -> tuple[int, int, int
     soft_time_limit=3540,
 )
 @HelperConstraint(
-    gpu_required=False,           # OPQ training is CPU-bound (k-means + rotation)
+    gpu_required=False,  # OPQ training is CPU-bound (k-means + rotation)
     cpu_intensive=True,
     storage_writes_to="postgres_main",
-    ram_peak_mb=1500,             # ~400 MB sample @ 100k * 1024-d float32 + working memory
+    ram_peak_mb=1500,  # ~400 MB sample @ 100k * 1024-d float32 + working memory
     expected_seconds_p50=900,
 )
 @resource_aware_retry(

@@ -7,7 +7,7 @@ import re
 import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
@@ -318,7 +318,9 @@ class RestoreFromSnapshotTopLevelTests(SimpleTestCase):
 class CreateSnapshotTopLevelTests(SimpleTestCase):
     def test_returns_none_when_disk_check_fails(self) -> None:
         with TemporaryDirectory() as tmp:
-            with patch("apps.core.backups._check_disk_pressure_or_skip", return_value=False):
+            with patch(
+                "apps.core.backups._check_disk_pressure_or_skip", return_value=False
+            ):
                 result = backups.create_snapshot(backup_dir=Path(tmp))
 
         self.assertIsNone(result)
@@ -328,8 +330,12 @@ class CreateSnapshotTopLevelTests(SimpleTestCase):
             output_file = Path(tmp) / "snapshot-20260507-120000.dump"
             output_file.write_text("ok", encoding="utf-8")
             patches = (
-                patch("apps.core.backups._check_disk_pressure_or_skip", return_value=True),
-                patch("apps.core.backups._make_snapshot_path", return_value=output_file),
+                patch(
+                    "apps.core.backups._check_disk_pressure_or_skip", return_value=True
+                ),
+                patch(
+                    "apps.core.backups._make_snapshot_path", return_value=output_file
+                ),
                 patch("apps.core.backups._run_pg_dump", return_value=True),
                 patch("apps.core.backups._verify_dump_output", return_value=True),
             )

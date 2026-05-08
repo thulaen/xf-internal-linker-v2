@@ -87,7 +87,7 @@ class ComputeAvgReviewTimeTests(SimpleTestCase):
     def test_filters_outliers_above_7_days(self):
         # 8 days elapsed → should be dropped; only the 1-hour pair survives
         pairs = [
-            (_dt(0), _dt(1)),       # 3600 s — valid
+            (_dt(0), _dt(1)),  # 3600 s — valid
             (_dt(0), _dt(24 * 8)),  # 691200 s > 604800 — outlier
         ]
         result = _compute_avg_review_time(pairs)
@@ -205,13 +205,17 @@ class BuildGlitchtipIssueKwargsTests(SimpleTestCase):
 
     def test_severity_mapping_fatal_to_critical(self):
         kwargs = _build_glitchtip_issue_kwargs(
-            self._make_issue(level="fatal"), "https://gt.example.com", self._suggest_stub
+            self._make_issue(level="fatal"),
+            "https://gt.example.com",
+            self._suggest_stub,
         )
         self.assertEqual(kwargs["severity"], "critical")
 
     def test_fingerprint_fallback_when_empty(self):
         kwargs = _build_glitchtip_issue_kwargs(
-            self._make_issue(fingerprint=None), "https://gt.example.com", self._suggest_stub
+            self._make_issue(fingerprint=None),
+            "https://gt.example.com",
+            self._suggest_stub,
         )
         # fallback produces a 40-char SHA-1 hex string
         self.assertEqual(len(kwargs["fingerprint"]), 40)
@@ -219,7 +223,9 @@ class BuildGlitchtipIssueKwargsTests(SimpleTestCase):
     def test_fingerprint_truncated_to_255(self):
         long_fp = ["x" * 300]
         kwargs = _build_glitchtip_issue_kwargs(
-            self._make_issue(fingerprint=long_fp), "https://gt.example.com", self._suggest_stub
+            self._make_issue(fingerprint=long_fp),
+            "https://gt.example.com",
+            self._suggest_stub,
         )
         self.assertLessEqual(len(kwargs["fingerprint"]), 255)
 

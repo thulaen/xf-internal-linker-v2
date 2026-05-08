@@ -143,8 +143,12 @@ def sync_gsc_performance(self, sync_run_id: int) -> dict[str, int | str]:
     # coerce_int treats bad input as 0 so the sync run still saves
     # cleanly; the operator can investigate the bad backend later.
     sync_run.rows_read = coerce_int(stats.get("rows_read"), default=0, min_value=0)
-    sync_run.rows_written = coerce_int(stats.get("rows_written"), default=0, min_value=0)
-    sync_run.rows_updated = coerce_int(stats.get("rows_updated"), default=0, min_value=0)
+    sync_run.rows_written = coerce_int(
+        stats.get("rows_written"), default=0, min_value=0
+    )
+    sync_run.rows_updated = coerce_int(
+        stats.get("rows_updated"), default=0, min_value=0
+    )
     sync_run.save(
         update_fields=[
             "status",
@@ -296,18 +300,26 @@ def detect_traffic_spikes() -> dict[str, int]:
     # separate aggregates) plus one ContentItem.objects.get per spike
     # — N+1 × 3. Replaced with two GROUP BY queries (one per window)
     # and one bulk ContentItem fetch keyed on PK.
-    avg_rows = SearchMetric.objects.filter(
-        content_item_id__in=candidates,
-        source="gsc",
-        date__range=[seven_days_ago, one_day_ago],
-    ).values("content_item_id").annotate(avg_clicks=Avg("clicks"))
+    avg_rows = (
+        SearchMetric.objects.filter(
+            content_item_id__in=candidates,
+            source="gsc",
+            date__range=[seven_days_ago, one_day_ago],
+        )
+        .values("content_item_id")
+        .annotate(avg_clicks=Avg("clicks"))
+    )
     avg_by_item: dict[int, float] = {
         r["content_item_id"]: float(r["avg_clicks"] or 0) for r in avg_rows
     }
 
-    latest_rows = SearchMetric.objects.filter(
-        content_item_id__in=candidates, source="gsc", date=target_date
-    ).values("content_item_id").annotate(latest=Sum("clicks"))
+    latest_rows = (
+        SearchMetric.objects.filter(
+            content_item_id__in=candidates, source="gsc", date=target_date
+        )
+        .values("content_item_id")
+        .annotate(latest=Sum("clicks"))
+    )
     latest_by_item: dict[int, int] = {
         r["content_item_id"]: int(r["latest"] or 0) for r in latest_rows
     }

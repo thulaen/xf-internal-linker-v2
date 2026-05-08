@@ -4,15 +4,18 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('content', '0038_passage_overlap_rechunk'),
+        ("content", "0038_passage_overlap_rechunk"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='contentitem',
-            name='nlp_metadata',
-            field=models.JSONField(blank=True, default=dict, help_text='Group G (Harmonious-12) — NLP enrichment metadata including acronyms (Schwartz-Hearst 2003), lemmas, and noun-chunks. Populated at import time for downstream anchor matching.'),
+            model_name="contentitem",
+            name="nlp_metadata",
+            field=models.JSONField(
+                blank=True,
+                default=dict,
+                help_text="Group G (Harmonious-12) — NLP enrichment metadata including acronyms (Schwartz-Hearst 2003), lemmas, and noun-chunks. Populated at import time for downstream anchor matching.",
+            ),
         ),
     ]

@@ -29,7 +29,9 @@ from rest_framework.views import APIView
 
 from apps.audit.models import FeatureFlag, FeatureFlagExposure
 from apps.audit.services.audit_logger import record_audit
-from apps.audit.services.feature_flags import serialise_flags_for_user as serialise_for_user
+from apps.audit.services.feature_flags import (
+    serialise_flags_for_user as serialise_for_user,
+)
 from apps.core.feature_flags import seed_declared_feature_flags
 
 
@@ -155,6 +157,7 @@ class FeatureFlagExposureView(APIView):
         )
         if user:
             from apps.audit.services.feature_flags import _record_exposure
+
             _record_exposure(key, user.id, variant[:60])
         else:
             FeatureFlagExposure.objects.create(key=key, variant=variant[:60], user=None)
@@ -168,10 +171,7 @@ class FeatureFlagsAdminView(APIView):
 
     def get(self, request):
         seed_declared_feature_flags()
-        rows = [
-            _serialize_flag(flag)
-            for flag in FeatureFlag.objects.order_by("key")
-        ]
+        rows = [_serialize_flag(flag) for flag in FeatureFlag.objects.order_by("key")]
         return Response(rows)
 
 
@@ -185,7 +185,9 @@ class FeatureFlagAdminDetailView(APIView):
         try:
             flag = FeatureFlag.objects.get(key=key)
         except FeatureFlag.DoesNotExist:
-            return Response({"detail": "unknown flag"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"detail": "unknown flag"}, status=status.HTTP_404_NOT_FOUND
+            )
 
         if "enabled" in request.data:
             flag.enabled = _coerce_bool(request.data["enabled"])

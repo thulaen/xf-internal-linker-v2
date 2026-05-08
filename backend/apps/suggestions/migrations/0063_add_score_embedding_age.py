@@ -4,15 +4,17 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('suggestions', '0062_seed_fr240_fr241_default_on'),
+        ("suggestions", "0062_seed_fr240_fr241_default_on"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='suggestion',
-            name='score_embedding_age',
-            field=models.FloatField(default=1.0, help_text="FR-249 — Embedding age decay multiplier in [0, 1]. 1.0 means a fresh embedding (no penalty); 0.5 means one half-life old (default 365 days); 0.25 means two half-lives old. Newton's law of cooling per Liu 2009 §1.5.4 (DOI 10.1561/1500000016)."),
+            model_name="suggestion",
+            name="score_embedding_age",
+            field=models.FloatField(
+                default=1.0,
+                help_text="FR-249 — Embedding age decay multiplier in [0, 1]. 1.0 means a fresh embedding (no penalty); 0.5 means one half-life old (default 365 days); 0.25 means two half-lives old. Newton's law of cooling per Liu 2009 §1.5.4 (DOI 10.1561/1500000016).",
+            ),
         ),
     ]

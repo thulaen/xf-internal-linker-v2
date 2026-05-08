@@ -92,53 +92,70 @@ def analyze_slowness(*, task_name: str = "") -> SlownessVerdict:
     candidates: list[tuple[str, str, float]] = []
 
     if signals.get("thermal_c") and signals["thermal_c"] >= _THERMAL_THROTTLE_TEMP_C:
-        candidates.append((
-            "thermal_throttled",
-            f"GPU temperature is {signals['thermal_c']:.0f}°C — clocks may be throttled.",
-            0.9,
-        ))
+        candidates.append(
+            (
+                "thermal_throttled",
+                f"GPU temperature is {signals['thermal_c']:.0f}°C — clocks may be throttled.",
+                0.9,
+            )
+        )
 
-    if signals.get("gpu_util_pct") and signals["gpu_util_pct"] >= _GPU_UTIL_THRESHOLD_PCT:
-        candidates.append((
-            "gpu_bound",
-            f"GPU is at {signals['gpu_util_pct']:.0f}% utilisation — the kernel is saturating the device.",
-            0.85,
-        ))
+    if (
+        signals.get("gpu_util_pct")
+        and signals["gpu_util_pct"] >= _GPU_UTIL_THRESHOLD_PCT
+    ):
+        candidates.append(
+            (
+                "gpu_bound",
+                f"GPU is at {signals['gpu_util_pct']:.0f}% utilisation — the kernel is saturating the device.",
+                0.85,
+            )
+        )
 
     if signals.get("lock_wait_rows", 0) >= _LOCK_WAIT_THRESHOLD_ROWS:
-        candidates.append((
-            "lock_waiting",
-            f"{signals['lock_wait_rows']} backend(s) are waiting on Postgres locks — another query is holding a row or table lock.",
-            0.85,
-        ))
+        candidates.append(
+            (
+                "lock_waiting",
+                f"{signals['lock_wait_rows']} backend(s) are waiting on Postgres locks — another query is holding a row or table lock.",
+                0.85,
+            )
+        )
 
     if signals.get("disk_wait_pct", 0) >= _DISK_WAIT_THRESHOLD_PCT:
-        candidates.append((
-            "disk_bound",
-            f"Disk wait is at {signals['disk_wait_pct']:.0f}% — the system is queuing on storage.",
-            0.75,
-        ))
+        candidates.append(
+            (
+                "disk_bound",
+                f"Disk wait is at {signals['disk_wait_pct']:.0f}% — the system is queuing on storage.",
+                0.75,
+            )
+        )
 
     if signals.get("disk_free_fraction", 1.0) < _DISK_FREE_PRESSURE_FRACTION:
-        candidates.append((
-            "disk_bound",
-            f"Free disk is {signals['disk_free_fraction'] * 100:.1f}% — Postgres write throughput drops sharply below 10% free.",
-            0.7,
-        ))
+        candidates.append(
+            (
+                "disk_bound",
+                f"Free disk is {signals['disk_free_fraction'] * 100:.1f}% — Postgres write throughput drops sharply below 10% free.",
+                0.7,
+            )
+        )
 
     if signals.get("cpu_pct", 0) >= _CPU_BOUND_THRESHOLD_PCT:
-        candidates.append((
-            "cpu_bound",
-            f"CPU is at {signals['cpu_pct']:.0f}% — the system is compute-saturated.",
-            0.7,
-        ))
+        candidates.append(
+            (
+                "cpu_bound",
+                f"CPU is at {signals['cpu_pct']:.0f}% — the system is compute-saturated.",
+                0.7,
+            )
+        )
 
     if signals.get("mem_free_fraction", 1.0) < _MEMORY_PRESSURE_FREE_FRACTION:
-        candidates.append((
-            "cpu_bound",
-            f"Free RAM is {signals['mem_free_fraction'] * 100:.1f}% — memory pressure is forcing slow swap activity.",
-            0.6,
-        ))
+        candidates.append(
+            (
+                "cpu_bound",
+                f"Free RAM is {signals['mem_free_fraction'] * 100:.1f}% — memory pressure is forcing slow swap activity.",
+                0.6,
+            )
+        )
 
     if not candidates:
         return SlownessVerdict(
@@ -281,7 +298,11 @@ def _sample_gpu() -> dict[str, float]:
             import subprocess
 
             result = subprocess.run(
-                ["nvidia-smi", "--query-gpu=temperature.gpu", "--format=csv,noheader,nounits"],
+                [
+                    "nvidia-smi",
+                    "--query-gpu=temperature.gpu",
+                    "--format=csv,noheader,nounits",
+                ],
                 capture_output=True,
                 text=True,
                 timeout=2,
@@ -290,7 +311,9 @@ def _sample_gpu() -> dict[str, float]:
             if result.returncode == 0 and result.stdout.strip():
                 out["thermal_c"] = float(result.stdout.strip().splitlines()[0])
         except Exception:
-            logger.debug("slowness_analyzer: nvidia-smi temp probe failed", exc_info=True)
+            logger.debug(
+                "slowness_analyzer: nvidia-smi temp probe failed", exc_info=True
+            )
     except ImportError:
         return out
     except Exception:

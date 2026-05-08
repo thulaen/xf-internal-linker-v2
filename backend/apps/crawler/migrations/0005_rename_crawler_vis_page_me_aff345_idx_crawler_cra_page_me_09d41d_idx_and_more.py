@@ -4,25 +4,28 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('crawler', '0004_collapse_crawled_page_meta_duplicates'),
+        ("crawler", "0004_collapse_crawled_page_meta_duplicates"),
     ]
 
     operations = [
         migrations.RenameIndex(
-            model_name='crawlervisit',
-            new_name='crawler_cra_page_me_09d41d_idx',
-            old_name='crawler_vis_page_me_aff345_idx',
+            model_name="crawlervisit",
+            new_name="crawler_cra_page_me_09d41d_idx",
+            old_name="crawler_vis_page_me_aff345_idx",
         ),
         migrations.AlterField(
-            model_name='crawlervisit',
-            name='created_at',
-            field=models.DateTimeField(auto_now_add=True, help_text='Timestamp when this record was created.'),
+            model_name="crawlervisit",
+            name="created_at",
+            field=models.DateTimeField(
+                auto_now_add=True, help_text="Timestamp when this record was created."
+            ),
         ),
         migrations.AlterField(
-            model_name='crawlervisit',
-            name='updated_at',
-            field=models.DateTimeField(auto_now=True, help_text='Timestamp when this record was last modified.'),
+            model_name="crawlervisit",
+            name="updated_at",
+            field=models.DateTimeField(
+                auto_now=True, help_text="Timestamp when this record was last modified."
+            ),
         ),
     ]

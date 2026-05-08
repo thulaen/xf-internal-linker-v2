@@ -54,14 +54,20 @@ class EmbeddingsTileMessageTests(SimpleTestCase):
 
     def test_complete_uses_all_phrasing(self):
         msg = _embeddings_tile_message(
-            done=10, total=10, model_label="bge", helper_assisted=True,
+            done=10,
+            total=10,
+            model_label="bge",
+            helper_assisted=True,
         )
         self.assertIn("All 10 items", msg)
         self.assertIn("Helper-assisted: yes", msg)
 
     def test_partial_uses_n_of_m(self):
         msg = _embeddings_tile_message(
-            done=3, total=10, model_label="bge", helper_assisted=False,
+            done=3,
+            total=10,
+            model_label="bge",
+            helper_assisted=False,
         )
         self.assertIn("3 of 10 items", msg)
         self.assertIn("Helper-assisted: no", msg)
@@ -72,8 +78,11 @@ class ClassifyModelRuntimeTests(SimpleTestCase):
 
     def _call(self, **kwargs):
         defaults = {
-            "active_name": "bge-m3", "active_status": "ready", "device": "cuda",
-            "backfill": {}, "candidate_model": {},
+            "active_name": "bge-m3",
+            "active_status": "ready",
+            "device": "cuda",
+            "backfill": {},
+            "candidate_model": {},
         }
         defaults.update(kwargs)
         return _classify_model_runtime(**defaults)
@@ -102,8 +111,12 @@ class ClassifyHelperNodesTests(SimpleTestCase):
 
     def _call(self, **kwargs):
         defaults = {
-            "online": 0, "busy": 0, "stale": 0, "offline": 0,
-            "aggregate_ram_pressure": 0.0, "busiest": {},
+            "online": 0,
+            "busy": 0,
+            "stale": 0,
+            "offline": 0,
+            "aggregate_ram_pressure": 0.0,
+            "busiest": {},
         }
         defaults.update(kwargs)
         return _classify_helper_nodes(**defaults)
@@ -133,28 +146,34 @@ class ClassifyAntiSpamTests(SimpleTestCase):
     """``_classify_anti_spam`` flags disabled / zero-weight signals."""
 
     def test_all_enabled_with_weight_returns_working(self):
-        tile = _classify_anti_spam({
-            "Anchor diversity": {"enabled": True, "ranking_weight": 0.05},
-            "Keyword stuffing": {"enabled": True, "ranking_weight": 0.05},
-            "Link farm": {"enabled": True, "ranking_weight": 0.05},
-        })
+        tile = _classify_anti_spam(
+            {
+                "Anchor diversity": {"enabled": True, "ranking_weight": 0.05},
+                "Keyword stuffing": {"enabled": True, "ranking_weight": 0.05},
+                "Link farm": {"enabled": True, "ranking_weight": 0.05},
+            }
+        )
         self.assertEqual(tile["state"], "WORKING")
 
     def test_one_disabled_returns_degraded(self):
-        tile = _classify_anti_spam({
-            "Anchor diversity": {"enabled": False, "ranking_weight": 0.05},
-            "Keyword stuffing": {"enabled": True, "ranking_weight": 0.05},
-            "Link farm": {"enabled": True, "ranking_weight": 0.05},
-        })
+        tile = _classify_anti_spam(
+            {
+                "Anchor diversity": {"enabled": False, "ranking_weight": 0.05},
+                "Keyword stuffing": {"enabled": True, "ranking_weight": 0.05},
+                "Link farm": {"enabled": True, "ranking_weight": 0.05},
+            }
+        )
         self.assertEqual(tile["state"], "DEGRADED")
         self.assertIn("Disabled signals", tile["plain_english"])
 
     def test_zero_weight_returns_degraded(self):
-        tile = _classify_anti_spam({
-            "Anchor diversity": {"enabled": True, "ranking_weight": 0.0},
-            "Keyword stuffing": {"enabled": True, "ranking_weight": 0.05},
-            "Link farm": {"enabled": True, "ranking_weight": 0.05},
-        })
+        tile = _classify_anti_spam(
+            {
+                "Anchor diversity": {"enabled": True, "ranking_weight": 0.0},
+                "Keyword stuffing": {"enabled": True, "ranking_weight": 0.05},
+                "Link farm": {"enabled": True, "ranking_weight": 0.05},
+            }
+        )
         self.assertEqual(tile["state"], "DEGRADED")
         self.assertIn("Zero-weight signals", tile["plain_english"])
 
@@ -193,21 +212,27 @@ class SuggestionReadinessTileTests(SimpleTestCase):
     """``_suggestion_readiness_tile`` flags blocking prereqs."""
 
     def test_all_ready_returns_working(self):
-        tile = _suggestion_readiness_tile([
-            {"id": "x", "status": "ready", "name": "X", "plain_english": "x"},
-        ])
+        tile = _suggestion_readiness_tile(
+            [
+                {"id": "x", "status": "ready", "name": "X", "plain_english": "x"},
+            ]
+        )
         self.assertEqual(tile["state"], "WORKING")
 
     def test_blocked_status_returns_failed(self):
-        tile = _suggestion_readiness_tile([
-            {"id": "x", "status": "blocked", "name": "X", "plain_english": "x"},
-        ])
+        tile = _suggestion_readiness_tile(
+            [
+                {"id": "x", "status": "blocked", "name": "X", "plain_english": "x"},
+            ]
+        )
         self.assertEqual(tile["state"], "FAILED")
 
     def test_other_non_ready_status_returns_degraded(self):
-        tile = _suggestion_readiness_tile([
-            {"id": "x", "status": "warming", "name": "X", "plain_english": "x"},
-        ])
+        tile = _suggestion_readiness_tile(
+            [
+                {"id": "x", "status": "warming", "name": "X", "plain_english": "x"},
+            ]
+        )
         self.assertEqual(tile["state"], "DEGRADED")
 
 
@@ -244,7 +269,9 @@ class ResolveSignalWeightTests(SimpleTestCase):
         return sig
 
     def test_returns_float_when_key_present(self):
-        self.assertEqual(_resolve_signal_weight(self._sig(), {"ranking.foo.weight": "0.05"}), 0.05)
+        self.assertEqual(
+            _resolve_signal_weight(self._sig(), {"ranking.foo.weight": "0.05"}), 0.05
+        )
 
     def test_default_zero_when_missing(self):
         self.assertEqual(_resolve_signal_weight(self._sig(), {}), 0.0)
@@ -280,7 +307,8 @@ class ResolveSignalCppStatusTests(SimpleTestCase):
 
     def test_kernel_not_loaded(self):
         active, label = _resolve_signal_cpp_status(
-            self._sig(cpp_kernel="scoring.matmul"), {},
+            self._sig(cpp_kernel="scoring.matmul"),
+            {},
         )
         self.assertFalse(active)
         self.assertEqual(label, "Available (Not Loaded)")

@@ -167,7 +167,9 @@ def _resolve_node_id(env: dict[str, str | int]) -> int | None:
         return None
     if resp.status_code != 200:
         logger.warning(
-            "heartbeat_reporter: lookup returned %s %s", resp.status_code, resp.text[:200]
+            "heartbeat_reporter: lookup returned %s %s",
+            resp.status_code,
+            resp.text[:200],
         )
         return None
     try:
@@ -199,7 +201,9 @@ def _resolve_node_id(env: dict[str, str | int]) -> int | None:
     return None
 
 
-def _post_heartbeat(node_id: int, state: dict[str, Any], env: dict[str, str | int]) -> bool:
+def _post_heartbeat(
+    node_id: int, state: dict[str, Any], env: dict[str, str | int]
+) -> bool:
     """POST one heartbeat. Returns True on 2xx, False on transport / status error."""
     import requests
 

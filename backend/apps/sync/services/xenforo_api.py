@@ -57,7 +57,9 @@ class XenForoAPIClient:
                 # ourselves below that with the shared bucket. Citation in
                 # docs/specs/fr250-api-rate-limiter.md.
                 with rate_limited("xenforo_api"):
-                    response = requests.get(url, headers=headers, params=params, timeout=30)
+                    response = requests.get(
+                        url, headers=headers, params=params, timeout=30
+                    )
                 response.raise_for_status()
                 return response.json()
             except requests.exceptions.RequestException as e:

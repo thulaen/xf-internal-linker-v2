@@ -13,7 +13,6 @@ can't regress silently.
 
 from __future__ import annotations
 
-from unittest.mock import patch
 
 from django.test import TestCase
 
@@ -136,14 +135,10 @@ class PersistAndReadBackTests(TestCase):
         _seed_run(("cpp", "ok", 1), ("python", "ok", 1))
         cert.run_performance_certification()
         self.assertTrue(
-            AppSetting.objects.filter(
-                key="performance_cert.last_verdict"
-            ).exists()
+            AppSetting.objects.filter(key="performance_cert.last_verdict").exists()
         )
         self.assertTrue(
-            AppSetting.objects.filter(
-                key="performance_cert.last_run_at"
-            ).exists()
+            AppSetting.objects.filter(key="performance_cert.last_run_at").exists()
         )
 
     def test_get_last_returns_none_before_first_run(self) -> None:
@@ -223,9 +218,7 @@ class PerformanceCertEndpointSecurityTests(TestCase):
         from rest_framework.test import APIClient
 
         User = get_user_model()
-        self.regular_user = User.objects.create_user(
-            username="regular", password="pw"
-        )
+        self.regular_user = User.objects.create_user(username="regular", password="pw")
         self.staff_user = User.objects.create_user(
             username="staff", password="pw", is_staff=True
         )
@@ -273,7 +266,9 @@ class PerformanceCertViewContractTests(TestCase):
         response = self.client.get("/api/system/performance-cert/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["verdict"], "unknown")
-        self.assertIn("No performance certification has run yet", response.data["label"])
+        self.assertIn(
+            "No performance certification has run yet", response.data["label"]
+        )
         self.assertIsNone(response.data["benchmark_run_id"])
         self.assertEqual(response.data["areas"], [])
 
@@ -314,7 +309,6 @@ class RunnerBugFixTests(TestCase):
         """Linux files without the executable bit should NOT be picked
         up — guards against build artefacts (e.g. CMake .o files) being
         mistaken for binaries."""
-        import stat
         import tempfile
         from pathlib import Path
 
@@ -334,7 +328,6 @@ class RunnerBugFixTests(TestCase):
         """Linux executables (no extension, exec bit set) should be
         picked up. This is the bug fix — the old code only matched
         ``.exe``."""
-        import stat
         import tempfile
         from pathlib import Path
 

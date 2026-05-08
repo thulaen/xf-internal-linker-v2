@@ -126,7 +126,9 @@ def _run_one_cpp_benchmark(
         _emit_benchmark_error(exe.name, "Timeout (>300 s)", "")
         return []
     except (json.JSONDecodeError, OSError) as exc:
-        _emit_benchmark_error(exe.name, f"Parse failure: {type(exc).__name__}", str(exc))
+        _emit_benchmark_error(
+            exe.name, f"Parse failure: {type(exc).__name__}", str(exc)
+        )
         return []
     except Exception as exc:  # noqa: BLE001 — defensive last-resort: surface to /error-log
         _emit_benchmark_error(exe.name, "Unexpected error", repr(exc))
@@ -139,9 +141,7 @@ def _parse_cpp_bench_row(bench: dict, run, ext_name: str, result_class):
     """Build one BenchmarkResult from a Google-Benchmark JSON entry."""
     name_parts = bench.get("name", "").split("/")
     func_name = name_parts[0].replace("BM_", "")
-    input_size = _classify_size(
-        name_parts[1] if len(name_parts) > 1 else "0"
-    )
+    input_size = _classify_size(name_parts[1] if len(name_parts) > 1 else "0")
     mean_ns = int(bench.get("real_time", 0))
     return result_class(
         run=run,

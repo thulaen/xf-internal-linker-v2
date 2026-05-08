@@ -163,18 +163,18 @@ class EmbeddingStalenessTests(SimpleTestCase):
 
         now = datetime(2026, 5, 7, tzinfo=timezone.utc)
         # 0 days → 1.0
-        self.assertAlmostEqual(
-            compute_embedding_age_decay(now, now=now), 1.0, places=6
-        )
+        self.assertAlmostEqual(compute_embedding_age_decay(now, now=now), 1.0, places=6)
         # 365 days → 0.5
         self.assertAlmostEqual(
             compute_embedding_age_decay(now - timedelta(days=365), now=now),
-            0.5, places=6,
+            0.5,
+            places=6,
         )
         # 730 days → 0.25
         self.assertAlmostEqual(
             compute_embedding_age_decay(now - timedelta(days=730), now=now),
-            0.25, places=6,
+            0.25,
+            places=6,
         )
 
     def test_unknown_age_does_not_penalise(self):

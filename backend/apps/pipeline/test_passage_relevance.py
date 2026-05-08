@@ -73,9 +73,7 @@ class PassageRelevanceScoreTests(TestCase):
 
         score, diag = passage_relevance.score(None, self.content)
         self.assertEqual(score, 0.5)
-        self.assertEqual(
-            diag["passage_relevance_state"], "neutral_no_query_embedding"
-        )
+        self.assertEqual(diag["passage_relevance_state"], "neutral_no_query_embedding")
 
     # ── Happy path ───────────────────────────────────────────────────
 
@@ -87,9 +85,7 @@ class PassageRelevanceScoreTests(TestCase):
         # Three passages: passage 1 is the EXACT host vector; the
         # other two are different.
         match_vec = _unit_vec(seed=42)
-        for i, vec in enumerate(
-            [_unit_vec(seed=1), match_vec, _unit_vec(seed=3)]
-        ):
+        for i, vec in enumerate([_unit_vec(seed=1), match_vec, _unit_vec(seed=3)]):
             PassageEmbedding.objects.create(
                 content_item=self.content,
                 passage_index=i,
@@ -218,13 +214,9 @@ class PassageRelevanceScoreTests(TestCase):
         # Neutral score → zero contribution
         self.assertEqual(passage_relevance.score_component(0.5), 0.0)
         # Halfway between neutral and perfect → 0.5 contribution
-        self.assertAlmostEqual(
-            passage_relevance.score_component(0.75), 0.5, places=5
-        )
+        self.assertAlmostEqual(passage_relevance.score_component(0.75), 0.5, places=5)
         # Perfect match → full contribution
-        self.assertAlmostEqual(
-            passage_relevance.score_component(1.0), 1.0, places=5
-        )
+        self.assertAlmostEqual(passage_relevance.score_component(1.0), 1.0, places=5)
         # Below neutral → clamped to zero (defensive — score should
         # never be < 0.5 from score(), but the clamp guards anyway)
         self.assertEqual(passage_relevance.score_component(0.25), 0.0)

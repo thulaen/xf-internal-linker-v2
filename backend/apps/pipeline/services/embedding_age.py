@@ -79,6 +79,7 @@ def get_age_decay_settings() -> tuple[int, float]:
             recommended_float as _rf,
             recommended_int as _ri,
         )
+
         return (
             max(1, _ri("pipeline.embedding_age_half_life_days")),
             _rf("pipeline.embedding_age_weight_in_composite"),

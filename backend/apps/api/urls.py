@@ -202,9 +202,13 @@ urlpatterns = [
     path("mcp/agents/", mcp_agents, name="mcp-agents"),
     path("mcp/run-monthly/", mcp_run_monthly, name="mcp-run-monthly"),
     path("schedules/", schedules_status, name="schedules-status"),
-    path("schedules/<str:task_name>/run-now/", schedule_run_now, name="schedule-run-now"),
+    path(
+        "schedules/<str:task_name>/run-now/", schedule_run_now, name="schedule-run-now"
+    ),
     path("reports/monthly/", monthly_reports_list, name="monthly-reports-list"),
-    path("reports/monthly/<str:month>/", monthly_report_read, name="monthly-report-read"),
+    path(
+        "reports/monthly/<str:month>/", monthly_report_read, name="monthly-report-read"
+    ),
     path("auth/token/", obtain_auth_token, name="auth-token"),
     path("auth/me/", UserMeView.as_view(), name="user-me"),
     path("auth/logout/", UserLogoutView.as_view(), name="user-logout"),
@@ -449,7 +453,10 @@ urlpatterns = [
     path("settings/graph/rebuild/", GraphRebuildView.as_view(), name="graph-rebuild"),
     path(
         "settings/passage-relevance/",
-        __import__("apps.api.passage_relevance_views", fromlist=["PassageRelevanceSettingsView"]).PassageRelevanceSettingsView.as_view(),
+        __import__(
+            "apps.api.passage_relevance_views",
+            fromlist=["PassageRelevanceSettingsView"],
+        ).PassageRelevanceSettingsView.as_view(),
         name="passage-relevance-settings",
     ),
     path(

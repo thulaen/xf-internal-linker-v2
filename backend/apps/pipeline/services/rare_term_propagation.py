@@ -320,7 +320,9 @@ def _evaluate_rare_term_propagation(
     if not top_matches:
         rare_term_lift = 0.0
     else:
-        rare_term_lift = sum(term.term_evidence for term in top_matches) / len(top_matches)
+        rare_term_lift = sum(term.term_evidence for term in top_matches) / len(
+            top_matches
+        )
     score = 0.5 + (0.5 * rare_term_lift)
     diagnostics = _build_diagnostics(
         rare_term_state="computed_match",

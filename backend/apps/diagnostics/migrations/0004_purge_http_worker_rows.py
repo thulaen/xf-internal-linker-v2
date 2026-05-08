@@ -21,7 +21,9 @@ from django.db import migrations
 
 def purge_http_worker_rows(apps, schema_editor):
     ServiceStatusSnapshot = apps.get_model("diagnostics", "ServiceStatusSnapshot")
-    deleted, _ = ServiceStatusSnapshot.objects.filter(service_name="http_worker").delete()
+    deleted, _ = ServiceStatusSnapshot.objects.filter(
+        service_name="http_worker"
+    ).delete()
     if deleted:
         print(
             f"\n-- Migration 0004: purged {deleted} stale http_worker "

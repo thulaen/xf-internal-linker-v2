@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
 
 from django.core.cache import cache
 
@@ -132,7 +131,9 @@ def get_confidence_snapshot(force_refresh: bool = False) -> ConfidenceSnapshot:
 
     total = sum(c.points for c in contributors)
     label = _label_for(total)
-    snapshot = ConfidenceSnapshot(total=round(total, 1), label=label, contributors=contributors)
+    snapshot = ConfidenceSnapshot(
+        total=round(total, 1), label=label, contributors=contributors
+    )
     cache.set(CACHE_KEY, snapshot, CACHE_TTL_SECONDS)
     record_event(
         "dashboard",
@@ -167,7 +168,9 @@ def _check_content_imported() -> ContributorResult:
             label="Content imported",
             score=1.0 if exists else 0.0,
             max_pts=10,
-            fix_hint="" if exists else "Run an import from /admin/sync to bring in your first content.",
+            fix_hint=""
+            if exists
+            else "Run an import from /admin/sync to bring in your first content.",
         )
     except Exception:
         logger.debug("confidence_meter: content_imported check failed", exc_info=True)
@@ -271,7 +274,11 @@ def _check_cpp_loaded() -> ContributorResult:
         ratio = on_cpp / total
         hint = ""
         if ratio < 1.0:
-            fallback = [s.get("label") or s.get("module") for s in statuses if s.get("fallback_active")]
+            fallback = [
+                s.get("label") or s.get("module")
+                for s in statuses
+                if s.get("fallback_active")
+            ]
             hint = f"On Python fallback: {', '.join(fallback)}. Rebuild via 'docker compose build backend'."
         return ContributorResult(
             name="cpp_loaded",
@@ -303,7 +310,9 @@ def _check_dedup_clean() -> ContributorResult:
             label="No duplicate pile-up",
             score=1.0 if clean else 0.0,
             max_pts=15,
-            fix_hint="" if clean else f"{len(warnings)} table(s) violate NO-DUPLICATES.md — see /diagnostics.",
+            fix_hint=""
+            if clean
+            else f"{len(warnings)} table(s) violate NO-DUPLICATES.md — see /diagnostics.",
         )
     except Exception:
         logger.debug("confidence_meter: dedup_clean check failed", exc_info=True)
@@ -418,7 +427,9 @@ def _check_errors_acknowledged() -> ContributorResult:
             fix_hint=hint,
         )
     except Exception:
-        logger.debug("confidence_meter: errors_acknowledged check failed", exc_info=True)
+        logger.debug(
+            "confidence_meter: errors_acknowledged check failed", exc_info=True
+        )
         return ContributorResult(
             name="errors_acknowledged",
             label="Errors acknowledged",

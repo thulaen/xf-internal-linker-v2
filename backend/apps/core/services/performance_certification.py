@@ -133,9 +133,7 @@ def get_last_certification() -> CertVerdict | None:
         if row is None or not row.value:
             return None
         payload = json.loads(row.value)
-        areas = [
-            AreaSummary(**a) for a in payload.get("areas", [])
-        ]
+        areas = [AreaSummary(**a) for a in payload.get("areas", [])]
         return CertVerdict(
             run_at_iso=payload.get("run_at_iso", ""),
             verdict=payload.get("verdict", "unknown"),
@@ -166,9 +164,7 @@ def _read_latest_completed_run():
             .first()
         )
     except Exception:  # noqa: BLE001 — model unavailable on cold start; cert returns "unknown".
-        logger.debug(
-            "performance_cert: BenchmarkRun read failed", exc_info=True
-        )
+        logger.debug("performance_cert: BenchmarkRun read failed", exc_info=True)
         return None
 
 
@@ -183,9 +179,7 @@ def _summarise_per_area(run) -> list[AreaSummary]:
             .order_by("language", "status")
         )
     except Exception:  # noqa: BLE001 — defensive: empty list still yields a typed verdict.
-        logger.debug(
-            "performance_cert: results aggregate failed", exc_info=True
-        )
+        logger.debug("performance_cert: results aggregate failed", exc_info=True)
         return []
 
     # Build {language: {status: count}}

@@ -270,7 +270,7 @@ def prune_old_snapshots(
     snapshots = list_existing_snapshots(backup_dir)
     if len(snapshots) <= keep_count:
         return []
-    to_delete = snapshots[: -keep_count] if keep_count > 0 else list(snapshots)
+    to_delete = snapshots[:-keep_count] if keep_count > 0 else list(snapshots)
     deleted: list[Path] = []
     for path in to_delete:
         try:

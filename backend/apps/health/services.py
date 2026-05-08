@@ -300,8 +300,12 @@ def check_ml_models_health() -> ServiceHealthResult:
         spacy_ok = spacy.util.is_package(model_name)
         model_runtime = summarize_model_registry()
         active_model = model_runtime.get("active_model") or {}
-        embedding_model = active_model.get("model_name") or get_current_embedding_model_name()
-        device_target = active_model.get("device_target") or get_current_embedding_device()
+        embedding_model = (
+            active_model.get("model_name") or get_current_embedding_model_name()
+        )
+        device_target = (
+            active_model.get("device_target") or get_current_embedding_device()
+        )
 
         if not spacy_ok:
             return _make_health_result(
@@ -325,14 +329,17 @@ def check_ml_models_health() -> ServiceHealthResult:
                 "spacy_model": model_name,
                 "embedding_model": embedding_model,
                 "embedding_device": device_target,
-                "candidate_model": (model_runtime.get("candidate_model") or {}).get("model_name"),
+                "candidate_model": (model_runtime.get("candidate_model") or {}).get(
+                    "model_name"
+                ),
                 "hot_swap_safe": model_runtime.get("hot_swap_safe", False),
             },
         )
     except Exception as e:
         logger.exception("health check raised; surfacing via _make_check_failed_result")
         return _make_check_failed_result(
-            "ml_models", e,
+            "ml_models",
+            e,
             label="ML environment check failed.",
             fix="Ensure 'sentence-transformers' and 'spacy' are installed in the Python environment.",
         )
@@ -361,12 +368,23 @@ def _build_model_runtime_metadata(
 
 
 def _model_runtime_result(
-    metadata: dict, *, status: str, label: str, issue: str, fix: str, success: bool = True,
+    metadata: dict,
+    *,
+    status: str,
+    label: str,
+    issue: str,
+    fix: str,
+    success: bool = True,
 ) -> ServiceHealthResult:
     """Builder — one ServiceHealthResult per model-runtime branch."""
     return _make_health_result(
-        "model_runtime", metadata=metadata,
-        status=status, label=label, issue=issue, fix=fix, success=success,
+        "model_runtime",
+        metadata=metadata,
+        status=status,
+        label=label,
+        issue=issue,
+        fix=fix,
+        success=success,
     )
 
 
@@ -403,7 +421,11 @@ def _make_health_result(  # noqa: forbidden-pattern too-many-args  # justificati
 
 
 def _make_check_failed_result(
-    service_key: str, error: Exception, *, label: str, fix: str,
+    service_key: str,
+    error: Exception,
+    *,
+    label: str,
+    fix: str,
 ) -> ServiceHealthResult:
     """Standard "the health check itself crashed" result.
 
@@ -427,7 +449,8 @@ def _make_check_failed_result(
 # candidate_status=, backfill_status=, active_status=).
 _MODEL_RUNTIME_STATES: tuple[tuple[str, str, str, str, str, bool], ...] = (
     (
-        "no_active", ServiceHealthRecord.STATUS_WARNING,
+        "no_active",
+        ServiceHealthRecord.STATUS_WARNING,
         "Runtime registry inferred the active model.",
         "The runtime registry has not been explicitly seeded yet, so the app "
         "inferred the active embedding model from current settings.",
@@ -436,7 +459,8 @@ _MODEL_RUNTIME_STATES: tuple[tuple[str, str, str, str, str, bool], ...] = (
         True,
     ),
     (
-        "failed_or_deleted", ServiceHealthRecord.STATUS_ERROR,
+        "failed_or_deleted",
+        ServiceHealthRecord.STATUS_ERROR,
         "Active model runtime is {active_status}.",
         "The active embedding model '{name}' is not ready to serve.",
         "Open Settings > Runtime, warm or roll back the champion model, and "
@@ -444,7 +468,8 @@ _MODEL_RUNTIME_STATES: tuple[tuple[str, str, str, str, str, bool], ...] = (
         False,
     ),
     (
-        "swap_in_progress", ServiceHealthRecord.STATUS_WARNING,
+        "swap_in_progress",
+        ServiceHealthRecord.STATUS_WARNING,
         "Model swap in progress.",
         "The active model is '{name}' on {device}, and a backfill is {backfill_status}.",
         "Let the backfill finish, or pause it from Settings > Runtime if you "
@@ -452,7 +477,8 @@ _MODEL_RUNTIME_STATES: tuple[tuple[str, str, str, str, str, bool], ...] = (
         True,
     ),
     (
-        "candidate_waiting", ServiceHealthRecord.STATUS_WARNING,
+        "candidate_waiting",
+        ServiceHealthRecord.STATUS_WARNING,
         "Candidate model waiting for promotion.",
         "The active model is '{name}' on {device}, and candidate "
         "'{candidate_name}' is {candidate_status}.",
@@ -461,7 +487,8 @@ _MODEL_RUNTIME_STATES: tuple[tuple[str, str, str, str, str, bool], ...] = (
         True,
     ),
     (
-        "healthy", ServiceHealthRecord.STATUS_HEALTHY,
+        "healthy",
+        ServiceHealthRecord.STATUS_HEALTHY,
         "Runtime healthy: {name} on {device}.",
         "The active embedding model is '{name}' on {device}, and no swap or "
         "backfill is blocking work.",
@@ -472,7 +499,10 @@ _MODEL_RUNTIME_STATES: tuple[tuple[str, str, str, str, str, bool], ...] = (
 
 
 def _pick_model_runtime_state_key(
-    active_model: dict, candidate_model: dict, backfill: dict, active_status: str,
+    active_model: dict,
+    candidate_model: dict,
+    backfill: dict,
+    active_status: str,
 ) -> str:
     """Pick which row of ``_MODEL_RUNTIME_STATES`` matches the current state."""
     if not active_model:
@@ -487,8 +517,12 @@ def _pick_model_runtime_state_key(
 
 
 def _classify_model_runtime_state(
-    active_model: dict, candidate_model: dict, backfill: dict,
-    active_name: str, device_target: str, active_status: str,
+    active_model: dict,
+    candidate_model: dict,
+    backfill: dict,
+    active_name: str,
+    device_target: str,
+    active_status: str,
 ) -> dict:
     """Return the kwargs dict for ``_model_runtime_result`` matching current state."""
     fmt = {
@@ -500,7 +534,10 @@ def _classify_model_runtime_state(
         "active_status": active_status,
     }
     state_key = _pick_model_runtime_state_key(
-        active_model, candidate_model, backfill, active_status,
+        active_model,
+        candidate_model,
+        backfill,
+        active_status,
     )
     for key, status, label, issue, fix, success in _MODEL_RUNTIME_STATES:
         if key == state_key:
@@ -511,7 +548,9 @@ def _classify_model_runtime_state(
                 "fix": fix.format(**fmt),
                 "success": success,
             }
-    raise ValueError(f"Unknown model-runtime state key: {state_key}")  # pragma: no cover
+    raise ValueError(
+        f"Unknown model-runtime state key: {state_key}"
+    )  # pragma: no cover
 
 
 @HealthCheckRegistry.register(
@@ -525,14 +564,28 @@ def check_model_runtime_health() -> ServiceHealthResult:
         active_model = summary.get("active_model") or {}
         candidate_model = summary.get("candidate_model") or {}
         backfill = summary.get("backfill") or {}
-        active_name = active_model.get("model_name") or get_current_embedding_model_name()
-        device_target = active_model.get("device_target") or get_current_embedding_device()
+        active_name = (
+            active_model.get("model_name") or get_current_embedding_model_name()
+        )
+        device_target = (
+            active_model.get("device_target") or get_current_embedding_device()
+        )
         active_status = active_model.get("status") or "unknown"
         metadata = _build_model_runtime_metadata(
-            summary, active_model, candidate_model, backfill, active_name, device_target,
+            summary,
+            active_model,
+            candidate_model,
+            backfill,
+            active_name,
+            device_target,
         )
         decision = _classify_model_runtime_state(
-            active_model, candidate_model, backfill, active_name, device_target, active_status,
+            active_model,
+            candidate_model,
+            backfill,
+            active_name,
+            device_target,
+            active_status,
         )
         return _model_runtime_result(metadata, **decision)
     except Exception as e:
@@ -605,8 +658,11 @@ _HELPER_STATES: dict[str, dict[str, object]] = {
 
 
 def _classify_helper_nodes_state(
-    online_count: int, busy_count: int, stale_count: int,
-    offline_count: int, aggregate_ram_pressure: float,
+    online_count: int,
+    busy_count: int,
+    stale_count: int,
+    offline_count: int,
+    aggregate_ram_pressure: float,
 ) -> dict:
     """Pure function — pick the matching state from ``_HELPER_STATES`` (or build healthy)."""
     if online_count + busy_count + stale_count + offline_count == 0:
@@ -642,7 +698,9 @@ def check_helper_nodes_health() -> ServiceHealthResult:
         # Refactor 2026-05-04: shared helper_status_counts (also used by
         # diagnostics/views._helper_nodes_tile) — single source of truth
         # for the (online, busy, stale, offline) 4-tuple parsing.
-        online_count, busy_count, stale_count, offline_count = helper_status_counts(summary)
+        online_count, busy_count, stale_count, offline_count = helper_status_counts(
+            summary
+        )
         aggregate_ram_pressure = float(summary.get("aggregate_ram_pressure") or 0.0)
         busiest = summary.get("busiest") or {}
         metadata = {
@@ -655,13 +713,18 @@ def check_helper_nodes_health() -> ServiceHealthResult:
             "busiest_effective_load": busiest.get("effective_load"),
         }
         decision = _classify_helper_nodes_state(
-            online_count, busy_count, stale_count, offline_count, aggregate_ram_pressure,
+            online_count,
+            busy_count,
+            stale_count,
+            offline_count,
+            aggregate_ram_pressure,
         )
         return _make_health_result("helper_nodes", metadata=metadata, **decision)
     except Exception as e:
         logger.exception("health check raised; surfacing via _make_check_failed_result")
         return _make_check_failed_result(
-            "helper_nodes", e,
+            "helper_nodes",
+            e,
             label="Helper health check failed.",
             fix="Check the helper registry data and retry the health check.",
         )
@@ -675,6 +738,7 @@ def check_helper_nodes_health() -> ServiceHealthResult:
 def _enrich_gpu_faiss_metadata_with_cuda(meta: dict, faiss_vram_mb: int) -> None:
     """Mutate ``meta`` with CUDA GPU properties + VRAM usage."""
     import torch
+
     bytes_per_mb = 1024 * 1024
     props = torch.cuda.get_device_properties(0)
     total_vram_mb = props.total_memory // bytes_per_mb
@@ -686,11 +750,16 @@ def _enrich_gpu_faiss_metadata_with_cuda(meta: dict, faiss_vram_mb: int) -> None
 
 
 def _classify_faiss_cpu_fallback(
-    requested_mode: str, runtime_resolution: dict, faiss_vectors: int,
+    requested_mode: str,
+    runtime_resolution: dict,
+    faiss_vectors: int,
 ) -> dict:
     """Pick wording for the FAISS-on-CPU branch (with vs without High-mode mismatch)."""
     fallback_reason = runtime_resolution.get("reason") or "GPU path not active"
-    if requested_mode == "high" and runtime_resolution.get("effective_runtime_mode") == "cpu":
+    if (
+        requested_mode == "high"
+        and runtime_resolution.get("effective_runtime_mode") == "cpu"
+    ):
         issue = (
             "FAISS index is loaded but still running on CPU. High mode is "
             f"requested, but the live embedding runtime is still on CPU because {fallback_reason}."
@@ -718,7 +787,10 @@ def _classify_faiss_cpu_fallback(
 
 
 def _build_gpu_faiss_metadata(
-    cuda_available: bool, faiss_status: dict, requested_mode: str, runtime_resolution: dict,
+    cuda_available: bool,
+    faiss_status: dict,
+    requested_mode: str,
+    runtime_resolution: dict,
 ) -> dict:
     """Pure function — flatten the GPU + FAISS state into a metadata dict."""
     meta = {
@@ -736,7 +808,9 @@ def _build_gpu_faiss_metadata(
 
 
 def _classify_gpu_faiss_state(
-    meta: dict, requested_mode: str, runtime_resolution: dict,
+    meta: dict,
+    requested_mode: str,
+    runtime_resolution: dict,
 ) -> dict:
     """Pure function — pick wording for FAISS not-loaded / on-CPU / GPU-active."""
     faiss_vectors = meta["faiss_vectors"]
@@ -757,7 +831,9 @@ def _classify_gpu_faiss_state(
             "success": False,
         }
     if "GPU" not in faiss_device:
-        return _classify_faiss_cpu_fallback(requested_mode, runtime_resolution, faiss_vectors)
+        return _classify_faiss_cpu_fallback(
+            requested_mode, runtime_resolution, faiss_vectors
+        )
     return {
         "status": ServiceHealthRecord.STATUS_HEALTHY,
         "label": f"FAISS-GPU active ({faiss_vectors:,} vectors, {faiss_vram_mb} MB VRAM).",
@@ -780,15 +856,18 @@ def check_gpu_faiss_health() -> ServiceHealthResult:
         requested_mode = get_requested_performance_mode()
         runtime_resolution = get_effective_runtime_resolution()
         meta = _build_gpu_faiss_metadata(
-            torch.cuda.is_available(), get_faiss_status(),
-            requested_mode, runtime_resolution,
+            torch.cuda.is_available(),
+            get_faiss_status(),
+            requested_mode,
+            runtime_resolution,
         )
         decision = _classify_gpu_faiss_state(meta, requested_mode, runtime_resolution)
         return _make_health_result("gpu_faiss", metadata=meta, **decision)
     except Exception as e:
         logger.exception("health check raised; surfacing via _make_check_failed_result")
         return _make_check_failed_result(
-            "gpu_faiss", e,
+            "gpu_faiss",
+            e,
             label="GPU/FAISS check failed.",
             fix="Ensure PyTorch and faiss-gpu-cu12 are installed in the backend container.",
         )
@@ -848,7 +927,8 @@ def _compute_metric_lag_hours(latest_metric) -> float:
         timezone.now()
         - timezone.make_aware(
             timezone.datetime.combine(
-                latest_metric.date, timezone.datetime.min.time(),
+                latest_metric.date,
+                timezone.datetime.min.time(),
             )
         )
     ).total_seconds() / 3600
@@ -862,6 +942,7 @@ class _SearchMetricCheckConfig:
     AND lets the GA4 / GSC callers configure the check inline as a literal
     rather than via positional or keyword soup.
     """
+
     service_key: str
     setting_key: str
     source: str
@@ -884,7 +965,9 @@ class _SearchMetricCheckConfig:
 
 
 def _check_metric_freshness(
-    cfg: _SearchMetricCheckConfig, latest_metric, metadata: dict,
+    cfg: _SearchMetricCheckConfig,
+    latest_metric,
+    metadata: dict,
 ) -> ServiceHealthResult | None:
     """Return STALE result if the latest metric is too old; mutates metadata."""
     if not latest_metric:
@@ -895,18 +978,22 @@ def _check_metric_freshness(
     if lag_hours <= stale_hours:
         return None
     return _make_health_result(
-        cfg.service_key, metadata=metadata,
+        cfg.service_key,
+        metadata=metadata,
         status=ServiceHealthRecord.STATUS_STALE,
         label=cfg.stale_label,
         issue=cfg.stale_issue_template.format(
-            date=latest_metric.date, lag_hours=round(lag_hours),
+            date=latest_metric.date,
+            lag_hours=round(lag_hours),
         ),
         fix=cfg.stale_fix,
     )
 
 
 def _check_metric_recent_volume(
-    cfg: _SearchMetricCheckConfig, latest_metric, metadata: dict,
+    cfg: _SearchMetricCheckConfig,
+    latest_metric,
+    metadata: dict,
 ) -> ServiceHealthResult:
     """Return WARNING (no recent data) or HEALTHY result based on 7-day row count."""
     recent_rows = SearchMetric.objects.filter(
@@ -916,19 +1003,26 @@ def _check_metric_recent_volume(
     metadata["recent_7d_rows"] = recent_rows
     if latest_metric and recent_rows == 0:
         return _make_health_result(
-            cfg.service_key, metadata=metadata,
+            cfg.service_key,
+            metadata=metadata,
             status=ServiceHealthRecord.STATUS_WARNING,
-            label=cfg.empty_label, issue=cfg.empty_issue, fix=cfg.empty_fix,
+            label=cfg.empty_label,
+            issue=cfg.empty_issue,
+            fix=cfg.empty_fix,
         )
     return _make_health_result(
-        cfg.service_key, metadata=metadata,
+        cfg.service_key,
+        metadata=metadata,
         status=ServiceHealthRecord.STATUS_HEALTHY,
-        label=cfg.healthy_label, issue=cfg.healthy_issue,
+        label=cfg.healthy_label,
+        issue=cfg.healthy_issue,
         fix="No action needed.",
     )
 
 
-def _check_google_analytics_source_health(cfg: _SearchMetricCheckConfig) -> ServiceHealthResult:
+def _check_google_analytics_source_health(
+    cfg: _SearchMetricCheckConfig,
+) -> ServiceHealthResult:
     """Shared body of GA4 + GSC health checks. Both follow the same shape:
     setting present? → fresh? → credentials valid? → recent data? → healthy."""
     setting_row = AppSetting.objects.filter(key=cfg.setting_key).first()
@@ -941,8 +1035,14 @@ def _check_google_analytics_source_health(cfg: _SearchMetricCheckConfig) -> Serv
             fix=cfg.not_configured_fix,
         )
     try:
-        latest_metric = SearchMetric.objects.filter(source=cfg.source).order_by("-date").first()
-        metadata = cfg.extra_metadata_provider(setting_row.value) if cfg.extra_metadata_provider else {}
+        latest_metric = (
+            SearchMetric.objects.filter(source=cfg.source).order_by("-date").first()
+        )
+        metadata = (
+            cfg.extra_metadata_provider(setting_row.value)
+            if cfg.extra_metadata_provider
+            else {}
+        )
         stale = _check_metric_freshness(cfg, latest_metric, metadata)
         if stale:
             return stale
@@ -952,7 +1052,10 @@ def _check_google_analytics_source_health(cfg: _SearchMetricCheckConfig) -> Serv
     except Exception as e:
         logger.exception("health check raised; surfacing via _make_check_failed_result")
         return _make_check_failed_result(
-            cfg.service_key, e, label=cfg.error_label, fix=cfg.error_fix,
+            cfg.service_key,
+            e,
+            label=cfg.error_label,
+            fix=cfg.error_fix,
         )
 
 
@@ -962,36 +1065,38 @@ def _check_google_analytics_source_health(cfg: _SearchMetricCheckConfig) -> Serv
     description="Integration with Google Analytics Data API for telemetry metrics.",
 )
 def check_ga4_health() -> ServiceHealthResult:
-    return _check_google_analytics_source_health(_SearchMetricCheckConfig(
-        service_key="ga4",
-        setting_key="analytics.ga4_property_id",
-        source="ga4",
-        not_configured_label="GA4 not configured.",
-        not_configured_issue="Google Analytics 4 property ID is missing from settings.",
-        not_configured_fix="Go to Settings > Analytics and provide your GA4 Property ID.",
-        stale_threshold_setting="ga4_stale_threshold_hours",
-        stale_label="GA4 data is stale.",
-        stale_issue_template="Last GA4 data is from {date} ({lag_hours}h lag).",
-        stale_fix="Check if the GA4 sync task is running or if the Google service account has been disabled.",
-        empty_label="GA4 connected but no recent data.",
-        empty_issue=(
-            "GA4 API responds and credentials are valid, but zero rows were "
-            "imported in the last 7 days. The integration may be misconfigured "
-            "(wrong property ID, missing permissions, or no traffic)."
-        ),
-        empty_fix=(
-            "Verify the GA4 property ID matches the correct site. Check that the "
-            "service account has 'Viewer' access. Confirm the site is receiving traffic."
-        ),
-        healthy_label="GA4 connected.",
-        healthy_issue="GA4 connectivity established and telemetry data is fresh.",
-        error_label="GA4 connection failed.",
-        error_fix="Verify your Google Service Account credentials and API permissions.",
-        enrich_metadata=_ga4_enrich_credentials_and_quota,
-        extra_metadata_provider=lambda value: {
-            "property_id": value[-4:].rjust(len(value), "*"),
-        },
-    ))
+    return _check_google_analytics_source_health(
+        _SearchMetricCheckConfig(
+            service_key="ga4",
+            setting_key="analytics.ga4_property_id",
+            source="ga4",
+            not_configured_label="GA4 not configured.",
+            not_configured_issue="Google Analytics 4 property ID is missing from settings.",
+            not_configured_fix="Go to Settings > Analytics and provide your GA4 Property ID.",
+            stale_threshold_setting="ga4_stale_threshold_hours",
+            stale_label="GA4 data is stale.",
+            stale_issue_template="Last GA4 data is from {date} ({lag_hours}h lag).",
+            stale_fix="Check if the GA4 sync task is running or if the Google service account has been disabled.",
+            empty_label="GA4 connected but no recent data.",
+            empty_issue=(
+                "GA4 API responds and credentials are valid, but zero rows were "
+                "imported in the last 7 days. The integration may be misconfigured "
+                "(wrong property ID, missing permissions, or no traffic)."
+            ),
+            empty_fix=(
+                "Verify the GA4 property ID matches the correct site. Check that the "
+                "service account has 'Viewer' access. Confirm the site is receiving traffic."
+            ),
+            healthy_label="GA4 connected.",
+            healthy_issue="GA4 connectivity established and telemetry data is fresh.",
+            error_label="GA4 connection failed.",
+            error_fix="Verify your Google Service Account credentials and API permissions.",
+            enrich_metadata=_ga4_enrich_credentials_and_quota,
+            extra_metadata_provider=lambda value: {
+                "property_id": value[-4:].rjust(len(value), "*"),
+            },
+        )
+    )
 
 
 def _gsc_validate_credentials(property_url: str) -> None:
@@ -1035,34 +1140,36 @@ def check_gsc_health() -> ServiceHealthResult:
     def _enrich(site_url_value: str, _metadata: dict) -> None:
         _gsc_validate_credentials(site_url_value)
 
-    return _check_google_analytics_source_health(_SearchMetricCheckConfig(
-        service_key="gsc",
-        setting_key="analytics.gsc_site_url",
-        source="gsc",
-        not_configured_label="GSC site URL missing.",
-        not_configured_issue="Google Search Console site URL has not been defined.",
-        not_configured_fix="Go to Settings > Analytics and provide your GSC Site URL.",
-        stale_threshold_setting="gsc_stale_threshold_hours",
-        stale_label="GSC data is stale.",
-        stale_issue_template="Last GSC data is from {date} ({lag_hours}h lag).",
-        stale_fix="Check the Search Console sync task logs and Google Cloud Project status.",
-        empty_label="GSC connected but no recent data.",
-        empty_issue=(
-            "GSC API responds and credentials are valid, but zero rows were "
-            "imported in the last 7 days. The site URL may be wrong, the service "
-            "account may lack permissions, or the site has no search traffic."
-        ),
-        empty_fix=(
-            "Verify the GSC site URL matches the correct property. Check that "
-            "the service account is listed as a user in Search Console."
-        ),
-        healthy_label="GSC connected.",
-        healthy_issue="Search Console data is being imported correctly.",
-        error_label="GSC connection failed.",
-        error_fix="Verify service account access to the property in GSC dashboard.",
-        enrich_metadata=_enrich,
-        extra_metadata_provider=lambda value: {"site_url": value},
-    ))
+    return _check_google_analytics_source_health(
+        _SearchMetricCheckConfig(
+            service_key="gsc",
+            setting_key="analytics.gsc_site_url",
+            source="gsc",
+            not_configured_label="GSC site URL missing.",
+            not_configured_issue="Google Search Console site URL has not been defined.",
+            not_configured_fix="Go to Settings > Analytics and provide your GSC Site URL.",
+            stale_threshold_setting="gsc_stale_threshold_hours",
+            stale_label="GSC data is stale.",
+            stale_issue_template="Last GSC data is from {date} ({lag_hours}h lag).",
+            stale_fix="Check the Search Console sync task logs and Google Cloud Project status.",
+            empty_label="GSC connected but no recent data.",
+            empty_issue=(
+                "GSC API responds and credentials are valid, but zero rows were "
+                "imported in the last 7 days. The site URL may be wrong, the service "
+                "account may lack permissions, or the site has no search traffic."
+            ),
+            empty_fix=(
+                "Verify the GSC site URL matches the correct property. Check that "
+                "the service account is listed as a user in Search Console."
+            ),
+            healthy_label="GSC connected.",
+            healthy_issue="Search Console data is being imported correctly.",
+            error_label="GSC connection failed.",
+            error_fix="Verify service account access to the property in GSC dashboard.",
+            enrich_metadata=_enrich,
+            extra_metadata_provider=lambda value: {"site_url": value},
+        )
+    )
 
 
 def _check_matomo_preflight() -> ServiceHealthResult | None:
@@ -1103,7 +1210,8 @@ def check_matomo_health() -> ServiceHealthResult:
         metadata = {"url": matomo_url.value, "total_rows": matomo_rows}
         if matomo_rows == 0:
             return _make_health_result(
-                "matomo", metadata=metadata,
+                "matomo",
+                metadata=metadata,
                 status=ServiceHealthRecord.STATUS_WARNING,
                 label="Matomo connected but no data imported.",
                 issue=(
@@ -1116,7 +1224,8 @@ def check_matomo_health() -> ServiceHealthResult:
                 ),
             )
         return _make_health_result(
-            "matomo", metadata=metadata,
+            "matomo",
+            metadata=metadata,
             status=ServiceHealthRecord.STATUS_HEALTHY,
             label="Matomo connected.",
             issue=f"Matomo API is reachable and {matomo_rows:,} rows imported.",
@@ -1125,7 +1234,8 @@ def check_matomo_health() -> ServiceHealthResult:
     except Exception as e:
         logger.exception("health check raised; surfacing via _make_check_failed_result")
         return _make_check_failed_result(
-            "matomo", e,
+            "matomo",
+            e,
             label="Matomo connection failed.",
             fix="Check if your Matomo instance is online and the API token is valid.",
         )
@@ -1158,7 +1268,8 @@ def _check_sync_lag_or_none(
     if lag_hours <= _SYNC_LAG_STALE_HOURS:
         return None
     return _make_health_result(
-        service_key, metadata=metadata,
+        service_key,
+        metadata=metadata,
         status=ServiceHealthRecord.STATUS_STALE,
         label=stale_label,
         issue=stale_issue_template.format(lag_hours=round(lag_hours)),
@@ -1183,15 +1294,21 @@ def _check_content_count_or_none(  # noqa: forbidden-pattern too-many-args  # ju
     metadata["content_items"] = item_count
     if item_count == 0:
         return _make_health_result(
-            service_key, metadata=metadata,
+            service_key,
+            metadata=metadata,
             status=ServiceHealthRecord.STATUS_WARNING,
-            label=empty_label, issue=empty_issue, fix=empty_fix,
+            label=empty_label,
+            issue=empty_issue,
+            fix=empty_fix,
         )
     return _make_health_result(
-        service_key, metadata=metadata,
+        service_key,
+        metadata=metadata,
         status=ServiceHealthRecord.STATUS_HEALTHY,
         label=healthy_label,
-        issue=healthy_issue_template.format(item_count=item_count, item_label=item_label),
+        issue=healthy_issue_template.format(
+            item_count=item_count, item_label=item_label
+        ),
         fix="No action needed.",
     )
 
@@ -1250,7 +1367,9 @@ def check_xenforo_health() -> ServiceHealthResult:
     try:
         metadata = {"base_url": getattr(settings, "XENFORO_BASE_URL", "")}
         stale = _check_sync_lag_or_none(
-            "xenforo", metadata, {"content_type__in": ["thread", "post"]},
+            "xenforo",
+            metadata,
+            {"content_type__in": ["thread", "post"]},
             stale_label="XenForo sync is stale.",
             stale_issue_template="No new content synced from XenForo in {lag_hours} hours.",
             stale_fix="Manually trigger a sync from the Jobs page or check the XenForo API logs.",
@@ -1258,7 +1377,9 @@ def check_xenforo_health() -> ServiceHealthResult:
         if stale:
             return stale
         return _check_content_count_or_none(
-            "xenforo", metadata, {"content_type__in": ["thread", "resource"]},
+            "xenforo",
+            metadata,
+            {"content_type__in": ["thread", "resource"]},
             item_label="content items",
             empty_label="XenForo connected but no content imported.",
             empty_issue=(
@@ -1275,7 +1396,8 @@ def check_xenforo_health() -> ServiceHealthResult:
     except Exception as e:
         logger.exception("health check raised; surfacing via _make_check_failed_result")
         return _make_check_failed_result(
-            "xenforo", e,
+            "xenforo",
+            e,
             label="XenForo check failed.",
             fix="Check if your XenForo instance is up and the API key has 'read' permissions.",
         )
@@ -1339,7 +1461,9 @@ def check_wordpress_health() -> ServiceHealthResult:
     try:
         metadata = {"base_url": getattr(settings, "WORDPRESS_BASE_URL", "")}
         stale = _check_sync_lag_or_none(
-            "wordpress", metadata, {"content_type__in": ["wp_post", "wp_page"]},
+            "wordpress",
+            metadata,
+            {"content_type__in": ["wp_post", "wp_page"]},
             stale_label="WordPress sync is stale.",
             stale_issue_template="No new content synced from WordPress in {lag_hours} hours.",
             stale_fix="Check the WordPress Application Password or manually trigger a sync.",
@@ -1347,7 +1471,9 @@ def check_wordpress_health() -> ServiceHealthResult:
         if stale:
             return stale
         return _check_content_count_or_none(
-            "wordpress", metadata, {"content_type": "wp_post"},
+            "wordpress",
+            metadata,
+            {"content_type": "wp_post"},
             item_label="posts",
             empty_label="WordPress connected but no content imported.",
             empty_issue=(
@@ -1364,7 +1490,8 @@ def check_wordpress_health() -> ServiceHealthResult:
     except Exception as e:
         logger.exception("health check raised; surfacing via _make_check_failed_result")
         return _make_check_failed_result(
-            "wordpress", e,
+            "wordpress",
+            e,
             label="WordPress check failed.",
             fix="Ensure the WordPress instance is online and the REST API is not blocked.",
         )
@@ -1424,7 +1551,9 @@ def check_weights_plugins_health() -> ServiceHealthResult:
 
         # Single bulk query (DRY + perf) replaces the per-key .exists() loop.
         existing_keys = set(
-            AppSetting.objects.filter(key__in=PRESET_DEFAULTS).values_list("key", flat=True)
+            AppSetting.objects.filter(key__in=PRESET_DEFAULTS).values_list(
+                "key", flat=True
+            )
         )
         missing_weights = [k for k in PRESET_DEFAULTS if k not in existing_keys]
         total_plugins = Plugin.objects.count()
@@ -1433,7 +1562,8 @@ def check_weights_plugins_health() -> ServiceHealthResult:
 
         if missing_weights:
             return _make_health_result(
-                "weights_plugins", metadata=meta,
+                "weights_plugins",
+                metadata=meta,
                 status=ServiceHealthRecord.STATUS_WARNING,
                 label="Optimization weights incomplete.",
                 issue=f"Missing core ranking weights: {', '.join(missing_weights)}.",
@@ -1441,7 +1571,8 @@ def check_weights_plugins_health() -> ServiceHealthResult:
                 success=False,
             )
         return _make_health_result(
-            "weights_plugins", metadata=meta,
+            "weights_plugins",
+            metadata=meta,
             status=ServiceHealthRecord.STATUS_HEALTHY,
             label="Weights and Plugins healthy.",
             issue=(
@@ -1452,7 +1583,8 @@ def check_weights_plugins_health() -> ServiceHealthResult:
     except Exception as e:
         logger.exception("health check raised; surfacing via _make_check_failed_result")
         return _make_check_failed_result(
-            "weights_plugins", e,
+            "weights_plugins",
+            e,
             label="Configuration check failed.",
             fix="Check database integrity for core settings and plugin tables.",
         )
@@ -1510,13 +1642,21 @@ _PIPELINE_FAILURE_BURST_HOURS = 24
 
 
 def _classify_pipeline_state(  # noqa: forbidden-pattern too-many-args  # justification: pipeline state has 8 orthogonal axes; a dataclass adds friction without simplifying the decision tree.
-    failed: int, completed: int, terminal: int, success_rate: int,
-    hours_since: float, no_run_threshold: float, failure_threshold: float,
+    failed: int,
+    completed: int,
+    terminal: int,
+    success_rate: int,
+    hours_since: float,
+    no_run_threshold: float,
+    failure_threshold: float,
     last_run,
 ) -> dict | None:
     """Pure function — pick the matching kwargs dict for the pipeline check, or
     None to signal HEALTHY (caller builds the healthy result)."""
-    if failed >= _PIPELINE_FAILURE_BURST_COUNT and hours_since < _PIPELINE_FAILURE_BURST_HOURS:
+    if (
+        failed >= _PIPELINE_FAILURE_BURST_COUNT
+        and hours_since < _PIPELINE_FAILURE_BURST_HOURS
+    ):
         return {
             "status": ServiceHealthRecord.STATUS_ERROR,
             "label": f"Pipeline failing — {failed} failures in 7 days.",
@@ -1569,7 +1709,9 @@ def check_pipeline_health() -> ServiceHealthResult:
         completed = recent.filter(run_state="completed").count()
         failed = recent.filter(run_state="failed").count()
         terminal = completed + failed
-        success_rate = round((completed / terminal) * _PERCENT_BASE) if terminal else _PERCENT_BASE
+        success_rate = (
+            round((completed / terminal) * _PERCENT_BASE) if terminal else _PERCENT_BASE
+        )
         last_run = PipelineRun.objects.order_by("-created_at").first()
         hours_since = (timezone.now() - last_run.created_at).total_seconds() / 3600
         meta = {
@@ -1580,7 +1722,11 @@ def check_pipeline_health() -> ServiceHealthResult:
             "last_run_state": last_run.run_state,
         }
         decision = _classify_pipeline_state(
-            failed, completed, terminal, success_rate, hours_since,
+            failed,
+            completed,
+            terminal,
+            success_rate,
+            hours_since,
             get_health_setting("pipeline_warning_hours_no_run", 24),
             get_health_setting("pipeline_failure_rate_warning_pct", 20),
             last_run,
@@ -1588,7 +1734,8 @@ def check_pipeline_health() -> ServiceHealthResult:
         if decision is not None:
             return _make_health_result("pipeline_health", metadata=meta, **decision)
         return _make_health_result(
-            "pipeline_health", metadata=meta,
+            "pipeline_health",
+            metadata=meta,
             status=ServiceHealthRecord.STATUS_HEALTHY,
             label=f"Pipeline healthy ({success_rate}% success, 7d).",
             issue=f"{completed} successful runs in the last 7 days.",
@@ -1597,7 +1744,8 @@ def check_pipeline_health() -> ServiceHealthResult:
     except Exception as e:
         logger.exception("health check raised; surfacing via _make_check_failed_result")
         return _make_check_failed_result(
-            "pipeline_health", e,
+            "pipeline_health",
+            e,
             label="Pipeline check failed.",
             fix="Check database connectivity.",
         )
@@ -1607,8 +1755,11 @@ _CELERY_QUEUE_NAMES = ("default", "pipeline", "embeddings")
 
 
 def _classify_celery_queue_depth(
-    worst_queue: str, worst_depth: int, total: int,
-    warn_threshold: int, error_threshold: int,
+    worst_queue: str,
+    worst_depth: int,
+    total: int,
+    warn_threshold: int,
+    error_threshold: int,
 ) -> dict:
     """Pick the matching kwargs for celery-queue-depth check."""
     if worst_depth >= error_threshold:
@@ -1656,7 +1807,9 @@ def check_celery_queue_depth() -> ServiceHealthResult:
         meta["total_depth"] = total
         worst_queue = max(depths, key=lambda q: depths[q])
         decision = _classify_celery_queue_depth(
-            worst_queue, depths[worst_queue], total,
+            worst_queue,
+            depths[worst_queue],
+            total,
             get_health_setting("celery_queue_warning_depth", 50),
             get_health_setting("celery_queue_error_depth", _DEFAULT_CELERY_ERROR_DEPTH),
         )
@@ -1664,7 +1817,8 @@ def check_celery_queue_depth() -> ServiceHealthResult:
     except Exception as e:
         logger.exception("health check raised; surfacing via _make_check_failed_result")
         return _make_check_failed_result(
-            "celery_queues", e,
+            "celery_queues",
+            e,
             label="Queue depth check failed.",
             fix="Ensure Redis is running and CELERY_BROKER_URL is correct.",
         )
@@ -1676,7 +1830,8 @@ _BEAT_STALE_MULTIPLIER = 1.5
 
 
 def _classify_celery_beat_state(
-    minutes_ago: float, stale_minutes: float,
+    minutes_ago: float,
+    stale_minutes: float,
 ) -> dict:
     """Pick the matching kwargs for celery-beat freshness check."""
     if minutes_ago > stale_minutes * _BEAT_STALE_MULTIPLIER:
@@ -1732,7 +1887,8 @@ def check_celery_beat_health() -> ServiceHealthResult:
         meta = {"expected_interval_minutes": _BEAT_EXPECTED_INTERVAL_MIN}
         if task.last_run_at is None:
             return _make_health_result(
-                "celery_beat", metadata=meta,
+                "celery_beat",
+                metadata=meta,
                 status=ServiceHealthRecord.STATUS_WARNING,
                 label="Beat has not run yet.",
                 issue="Celery Beat has never executed the health check task. It may not be running.",
@@ -1741,13 +1897,15 @@ def check_celery_beat_health() -> ServiceHealthResult:
         minutes_ago = (timezone.now() - task.last_run_at).total_seconds() / 60
         meta["last_run_minutes_ago"] = round(minutes_ago, 1)
         decision = _classify_celery_beat_state(
-            minutes_ago, get_health_setting("beat_stale_threshold_minutes", 60),
+            minutes_ago,
+            get_health_setting("beat_stale_threshold_minutes", 60),
         )
         return _make_health_result("celery_beat", metadata=meta, **decision)
     except Exception as e:
         logger.exception("health check raised; surfacing via _make_check_failed_result")
         return _make_check_failed_result(
-            "celery_beat", e,
+            "celery_beat",
+            e,
             label="Beat check failed.",
             fix="Check database connectivity and django-celery-beat migrations.",
         )
@@ -1849,12 +2007,15 @@ def check_crawler_status() -> ServiceHealthResult:
             "domain": latest.site_domain,
         }
         return _make_health_result(
-            "crawler_status", metadata=meta, **_classify_crawler_session_state(latest),
+            "crawler_status",
+            metadata=meta,
+            **_classify_crawler_session_state(latest),
         )
     except Exception as e:
         logger.exception("health check raised; surfacing via _make_check_failed_result")
         return _make_check_failed_result(
-            "crawler_status", e,
+            "crawler_status",
+            e,
             label="Crawler status check failed.",
             fix="Check the crawler models and database connectivity.",
         )
@@ -1908,8 +2069,11 @@ _BYTES_PER_GIGABYTE = 1024**3
 
 
 def _classify_disk_space(
-    free_gb: float, total_gb: float, usage_pct: float,
-    warn_pct: float, error_pct: float,
+    free_gb: float,
+    total_gb: float,
+    usage_pct: float,
+    warn_pct: float,
+    error_pct: float,
 ) -> dict:
     """Pick wording for a disk-usage percentage."""
     if usage_pct >= error_pct:
@@ -1952,11 +2116,15 @@ def check_disk_space() -> ServiceHealthResult:
         free_gb = round(usage.free / _BYTES_PER_GIGABYTE, 1)
         usage_pct = round((usage.used / usage.total) * _PERCENT_BASE, 1)
         meta = {
-            "total_gb": total_gb, "used_gb": used_gb,
-            "free_gb": free_gb, "usage_pct": usage_pct,
+            "total_gb": total_gb,
+            "used_gb": used_gb,
+            "free_gb": free_gb,
+            "usage_pct": usage_pct,
         }
         decision = _classify_disk_space(
-            free_gb, total_gb, usage_pct,
+            free_gb,
+            total_gb,
+            usage_pct,
             get_health_setting("disk_warning_pct", 80),
             get_health_setting("disk_error_pct", 90),
         )
@@ -1964,7 +2132,8 @@ def check_disk_space() -> ServiceHealthResult:
     except Exception as e:
         logger.exception("health check raised; surfacing via _make_check_failed_result")
         return _make_check_failed_result(
-            "disk_space", e,
+            "disk_space",
+            e,
             label="Disk space check failed.",
             fix="Check filesystem permissions.",
         )
@@ -2004,7 +2173,9 @@ _DEGRADED_STATUSES = (
 )
 
 
-def _persist_health_record(service_key: str, result: ServiceHealthResult) -> ServiceHealthRecord:
+def _persist_health_record(
+    service_key: str, result: ServiceHealthResult
+) -> ServiceHealthRecord:
     """Create-or-update the ``ServiceHealthRecord`` row for ``service_key``."""
     record, _ = ServiceHealthRecord.objects.get_or_create(
         service_key=service_key,
@@ -2030,7 +2201,9 @@ def _persist_health_record(service_key: str, result: ServiceHealthResult) -> Ser
     return record
 
 
-def _emit_or_resolve_health_alert(service_key: str, result: ServiceHealthResult) -> None:
+def _emit_or_resolve_health_alert(
+    service_key: str, result: ServiceHealthResult
+) -> None:
     """Emit an OperatorAlert on degraded statuses, resolve it on healthy."""
     dedupe_key = f"health.{service_key}"
     if result.status in _DEGRADED_STATUSES:

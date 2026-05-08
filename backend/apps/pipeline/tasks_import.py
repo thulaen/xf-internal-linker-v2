@@ -428,7 +428,9 @@ def run_post_import_steps(
 def _refresh_passages_for_updated_content(content_item_ids: list[int]) -> int:
     """Regenerate passage vectors only for content changed in this import run."""
     from apps.content.models import ContentItem
-    from apps.pipeline.services.passage_relevance import regenerate_passage_embeddings_for
+    from apps.pipeline.services.passage_relevance import (
+        regenerate_passage_embeddings_for,
+    )
 
     refreshed = 0
     queryset = ContentItem.objects.select_related("post").filter(

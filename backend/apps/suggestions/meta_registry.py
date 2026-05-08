@@ -144,8 +144,27 @@ _ACTIVE_METAS: tuple[dict, ...] = (
 # PR-A slice 5 — the 52-pick roster gets fresh specs/weights in later PRs.
 _FILE_TO_FAMILY_RANGE: dict[str, tuple[str, ...]] = {
     "recommended_weights_forward_249.py": (
-        "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "P11", "P12",
-        "Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7", "Q8", "Q9"
+        "P1",
+        "P2",
+        "P3",
+        "P4",
+        "P5",
+        "P6",
+        "P7",
+        "P8",
+        "P9",
+        "P10",
+        "P11",
+        "P12",
+        "Q1",
+        "Q2",
+        "Q3",
+        "Q4",
+        "Q5",
+        "Q6",
+        "Q7",
+        "Q8",
+        "Q9",
     ),
 }
 

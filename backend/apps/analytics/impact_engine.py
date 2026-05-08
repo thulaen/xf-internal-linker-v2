@@ -96,12 +96,17 @@ class BayesianTrendAttributor:
     ) -> dict:
         """Calculate uplift probability and reward label vs matched control trend."""
         trend = self._compute_control_trend(
-            control_clicks_base, control_imps_base,
-            control_clicks_post, control_imps_post,
+            control_clicks_base,
+            control_imps_base,
+            control_clicks_post,
+            control_imps_post,
         )
         prob_uplift = self._run_monte_carlo(
-            target_clicks_base, target_imps_base,
-            target_clicks_post, target_imps_post, trend,
+            target_clicks_base,
+            target_imps_base,
+            target_clicks_post,
+            target_imps_post,
+            trend,
         )
 
         lift_pct = 0.0
@@ -391,7 +396,9 @@ def _csi_phase_b_aggregate_impacts(
             defaults=_impact_report_defaults(tgt_base, tgt_post, delta, ctx),
         )
         reports.append(report)
-    _compute_keyword_impacts(suggestion, b_start, b_end, p_start, p_end, click_ctrl_mult)
+    _compute_keyword_impacts(
+        suggestion, b_start, b_end, p_start, p_end, click_ctrl_mult
+    )
     return reports
 
 
@@ -405,8 +412,14 @@ def _csi_phase_c_persist_snapshot(suggestion: Suggestion, ctx: dict) -> None:
         return
     t_base, t_post = ctx["t_base"], ctx["t_post"]
     c_base, c_post = ctx["c_base"], ctx["c_post"]
-    t_c_base, t_i_base = int(t_base.get("clicks") or 0), int(t_base.get("impressions") or 0)
-    t_c_post, t_i_post = int(t_post.get("clicks") or 0), int(t_post.get("impressions") or 0)
+    t_c_base, t_i_base = (
+        int(t_base.get("clicks") or 0),
+        int(t_base.get("impressions") or 0),
+    )
+    t_c_post, t_i_post = (
+        int(t_post.get("clicks") or 0),
+        int(t_post.get("impressions") or 0),
+    )
     c_c_base = int(c_base.get("clicks") or 0) if c_base else 0
     c_i_base = int(c_base.get("impressions") or 0) if c_base else 0
     c_c_post = int(c_post.get("clicks") or 0) if c_post else 0
@@ -428,17 +441,25 @@ def _csi_phase_c_persist_snapshot(suggestion: Suggestion, ctx: dict) -> None:
                 window_type=window_type,
                 defaults={
                     "apply_date": suggestion.applied_at,
-                    "baseline_clicks": t_c_base, "post_clicks": t_c_post,
-                    "baseline_impressions": t_i_base, "post_impressions": t_i_post,
+                    "baseline_clicks": t_c_base,
+                    "post_clicks": t_c_post,
+                    "baseline_impressions": t_i_base,
+                    "post_impressions": t_i_post,
                     "lift_clicks_pct": result.get("lift_clicks_pct", 0.0),
                     "lift_clicks_absolute": t_c_post - t_c_base,
                     "probability_of_uplift": result.get("probability_of_uplift", 0.0),
                     "reward_label": result.get("reward_label", "inconclusive"),
                 },
             )
-            logger.info("Bayesian attribution complete for %s: %s", suggestion.suggestion_id, result.get("reward_label"))
+            logger.info(
+                "Bayesian attribution complete for %s: %s",
+                suggestion.suggestion_id,
+                result.get("reward_label"),
+            )
     except Exception as exc:
-        logger.error("Bayesian attribution failed for %s: %s", suggestion.suggestion_id, exc)
+        logger.error(
+            "Bayesian attribution failed for %s: %s", suggestion.suggestion_id, exc
+        )
 
 
 def compute_search_impact(
@@ -497,13 +518,17 @@ def _compute_keyword_impacts(
     dest = suggestion.destination
     queries = (
         SearchMetric.objects.filter(
-            content_item=dest, source="gsc", date__range=[b_start, p_end],
+            content_item=dest,
+            source="gsc",
+            date__range=[b_start, p_end],
         )
         .exclude(query="")
         .values_list("query", flat=True)
         .distinct()
     )
-    anchor = (suggestion.anchor_edited or suggestion.anchor_phrase or "").lower().strip()
+    anchor = (
+        (suggestion.anchor_edited or suggestion.anchor_phrase or "").lower().strip()
+    )
 
     for q_text in queries:
         if not q_text:

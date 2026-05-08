@@ -109,10 +109,7 @@ def _node_to_summary(node, now) -> HelperSummary:
         heartbeat_age = int((now - node.last_heartbeat).total_seconds())
 
     caps = node.capabilities or {}
-    has_gpu = bool(
-        caps.get("gpu_vram_gb", 0)
-        and float(caps.get("gpu_vram_gb", 0)) > 0
-    )
+    has_gpu = bool(caps.get("gpu_vram_gb", 0) and float(caps.get("gpu_vram_gb", 0)) > 0)
     return HelperSummary(
         name=node.name,
         role=node.role,

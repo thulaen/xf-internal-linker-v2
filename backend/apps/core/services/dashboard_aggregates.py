@@ -117,7 +117,9 @@ def refresh_suggestion_counts_matview(*, concurrently: bool = True) -> bool:
     (created by migration ``core/0018``); falls back to a non-concurrent
     refresh if the index is missing.
     """
-    sql_concurrent = "REFRESH MATERIALIZED VIEW CONCURRENTLY dashboard_suggestion_counts_mv"
+    sql_concurrent = (
+        "REFRESH MATERIALIZED VIEW CONCURRENTLY dashboard_suggestion_counts_mv"
+    )
     sql_blocking = "REFRESH MATERIALIZED VIEW dashboard_suggestion_counts_mv"
 
     statement = sql_concurrent if concurrently else sql_blocking

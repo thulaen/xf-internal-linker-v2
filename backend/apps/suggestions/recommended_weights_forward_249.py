@@ -9,330 +9,250 @@ FORWARD_DECLARED_WEIGHTS_EXPANSION = {
     # META-40 — Newton-Raphson second-order optimization
     "newton.enabled": "false",
     "newton.ranking_weight": "0.00",
-    
     # META-41 — L-BFGS (Limited-memory optimization)
     "lbfgs.enabled": "false",
     "lbfgs.ranking_weight": "0.00",
-    
     # META-42 — Conjugate Gradient
     "conjugate_gradient.enabled": "false",
     "conjugate_gradient.ranking_weight": "0.00",
-    
     # META-43 — L-BFGS-B (Bounded)
     "lbfgs_b.enabled": "false",
     "lbfgs_b.ranking_weight": "0.00",
-    
     # META-44 — Simulated Annealing
     "simulated_annealing.enabled": "false",
     "simulated_annealing.ranking_weight": "0.00",
-    
     # META-45 — Genetic Algorithm optimizer
     "genetic_opt.enabled": "false",
     "genetic_opt.ranking_weight": "0.00",
-    
     # META-46 — Differential Evolution
     "differential_evolution.enabled": "false",
     "differential_evolution.ranking_weight": "0.00",
-    
     # META-47 — Particle Swarm Optimization
     "pso.enabled": "false",
     "pso.ranking_weight": "0.00",
-    
     # META-48 — Nelder-Mead simplex
     "nelder_mead.enabled": "false",
     "nelder_mead.ranking_weight": "0.00",
-    
     # META-49 — CMA-ES (Covariance Matrix Adaptation)
     "cma_es.enabled": "false",
     "cma_es.ranking_weight": "0.00",
-
     # Block P2 — Learning to Rank (LTR)
     # META-50 — RankNet (Pairwise LTR)
     "ranknet.enabled": "false",
     "ranknet.ranking_weight": "0.00",
-    
     # META-51 — LambdaRank
     "lambdarank.enabled": "false",
     "lambdarank.ranking_weight": "0.00",
-    
     # META-52 — LambdaMART (XGBoost/LightGBM)
     "lambdamart.enabled": "false",
     "lambdamart.ranking_weight": "0.00",
-    
     # META-53 — ListNet (Listwise LTR)
     "listnet.enabled": "false",
     "listnet.ranking_weight": "0.00",
-    
     # META-54 — RankBoost
     "rankboost.enabled": "false",
     "rankboost.ranking_weight": "0.00",
-    
     # META-55 — TPE (Tree-structured Parzen Estimator)
     "tpe.enabled": "false",
     "tpe.ranking_weight": "0.00",
-    
     # META-56 — Coordinate Ascent
     "coordinate_ascent.enabled": "false",
     "coordinate_ascent.ranking_weight": "0.00",
-    
     # META-57 — Boltzman Machine ranker
     "boltzmann_ranker.enabled": "false",
     "boltzmann_ranker.ranking_weight": "0.00",
-    
     # META-58 — SoftRank
     "softrank.enabled": "false",
     "softrank.ranking_weight": "0.00",
-    
     # META-59 — SVM-Rank
     "svm_rank.enabled": "false",
     "svm_rank.ranking_weight": "0.00",
-
     # Block P3 — Embedding & Representation
     # META-60 — GloVe (Global Vectors)
     "glove.enabled": "false",
     "glove.ranking_weight": "0.00",
-    
     # META-61 — FastText embeddings
     "fasttext_embeddings.enabled": "false",
     "fasttext_embeddings.ranking_weight": "0.00",
-    
     # META-62 — ELMo (Contextual embeddings)
     "elmo.enabled": "false",
     "elmo.ranking_weight": "0.00",
-    
     # META-63 — BERT (Transformers)
     "bert.enabled": "false",
     "bert.ranking_weight": "0.00",
-    
     # META-64 — RoBERTa
     "roberta.enabled": "false",
     "roberta.ranking_weight": "0.00",
-    
     # META-65 — ALBERT
     "albert.enabled": "false",
     "albert.ranking_weight": "0.00",
-    
     # META-66 — DistilBERT
     "distilbert.enabled": "false",
     "distilbert.ranking_weight": "0.00",
-    
     # META-67 — T5 (Text-to-Text)
     "t5.enabled": "false",
     "t5.ranking_weight": "0.00",
-    
     # META-68 — GPT-2 representation
     "gpt2.enabled": "false",
     "gpt2.ranking_weight": "0.00",
-    
     # META-69 — CLIP (Image-Text)
     "clip.enabled": "false",
     "clip.ranking_weight": "0.00",
-
     # Block P4 — Graph & Network Analysis
     # META-70 — HITS Hubs
     "hits_hubs.enabled": "false",
     "hits_hubs.ranking_weight": "0.00",
-    
     # META-71 — SALSA (Link-Structure Analysis)
     "salsa.enabled": "false",
     "salsa.ranking_weight": "0.00",
-    
     # META-72 — EigenTrust
     "eigentrust.enabled": "false",
     "eigentrust.ranking_weight": "0.00",
-    
     # META-73 — SimRank
     "simrank.enabled": "false",
     "simrank.ranking_weight": "0.00",
-    
     # META-74 — PathSim
     "pathsim.enabled": "false",
     "pathsim.ranking_weight": "0.00",
-    
     # META-75 — DeepWalk
     "deepwalk.enabled": "false",
     "deepwalk.ranking_weight": "0.00",
-    
     # META-76 — GraphSAGE
     "graphsage.enabled": "false",
     "graphsage.ranking_weight": "0.00",
-    
     # META-77 — LambdaLoss
     "lambdaloss.enabled": "false",
     "lambdaloss.ranking_weight": "0.00",
-    
     # META-78 — GCN (Graph Convolution)
     "gcn.enabled": "false",
     "gcn.ranking_weight": "0.00",
-    
     # META-79 — GAT (Graph Attention)
     "gat.enabled": "false",
     "gat.ranking_weight": "0.00",
-
     # Block P5 — Calibration & Uncertainty
     # META-80 — Isotonic Regression calibration
     "isotonic_calibration.enabled": "false",
     "isotonic_calibration.ranking_weight": "0.00",
-    
     # META-81 — Temperature Scaling
     "temperature_scaling.enabled": "false",
     "temperature_scaling.ranking_weight": "0.00",
-    
     # META-82 — Dirichlet Calibration
     "dirichlet_calibration.enabled": "false",
     "dirichlet_calibration.ranking_weight": "0.00",
-    
     # META-83 — Beta Calibration
     "beta_calibration.enabled": "false",
     "beta_calibration.ranking_weight": "0.00",
-    
     # META-84 — Venn-Abers Predictors
     "venn_abers.enabled": "false",
     "venn_abers.ranking_weight": "0.00",
-    
     # META-85 — Monte Carlo Dropout
     "mc_dropout.enabled": "false",
     "mc_dropout.ranking_weight": "0.00",
-    
     # META-86 — Deep Ensembles uncertainty
     "deep_ensembles.enabled": "false",
     "deep_ensembles.ranking_weight": "0.00",
-    
     # META-87 — Platt Sigmoid Scaling
     "platt_scaling.enabled": "false",
     "platt_scaling.ranking_weight": "0.00",
-    
     # META-88 — Conformal Prediction (inductive)
     "conformal_inductive.enabled": "false",
     "conformal_inductive.ranking_weight": "0.00",
-    
     # META-89 — Conformal Prediction (transductive)
     "conformal_transductive.enabled": "false",
     "conformal_transductive.ranking_weight": "0.00",
-
     # Block P6 — Regularization & Stabilization
     # META-90 — Weight Decay (L2)
     "weight_decay.enabled": "false",
     "weight_decay.ranking_weight": "0.00",
-    
     # META-91 — Cosine Annealing (Warm Restart)
     "cosine_annealing.enabled": "false",
     "cosine_annealing.ranking_weight": "0.00",
-    
     # META-92 — Lasso Regularization (L1)
     "lasso.enabled": "false",
     "lasso.ranking_weight": "0.00",
-    
     # META-93 — Elastic Net
     "elastic_net.enabled": "false",
     "elastic_net.ranking_weight": "0.00",
-    
     # META-94 — Batch Normalization
     "batch_norm.enabled": "false",
     "batch_norm.ranking_weight": "0.00",
-    
     # META-95 — Layer Normalization
     "layer_norm.enabled": "false",
     "layer_norm.ranking_weight": "0.00",
-    
     # META-96 — Stochastic Weight Averaging (SWA)
     "swa.enabled": "false",
     "swa.ranking_weight": "0.00",
-    
     # META-97 — Label Smoothing
     "label_smoothing.enabled": "false",
     "label_smoothing.ranking_weight": "0.00",
-    
     # META-98 — DropConnect
     "dropconnect.enabled": "false",
     "dropconnect.ranking_weight": "0.00",
-    
     # META-99 — Early Stopping
     "early_stopping.enabled": "false",
     "early_stopping.ranking_weight": "0.00",
-
     # Block P7 — Sampling & Data
     # META-100 — SMOTE over-sampling
     "smote.enabled": "false",
     "smote.ranking_weight": "0.00",
-    
     # META-101 — ADASYN
     "adasyn.enabled": "false",
     "adasyn.ranking_weight": "0.00",
-    
     # META-102 — Hard Negative Mining (OHEM)
     "ohem.enabled": "false",
     "ohem.ranking_weight": "0.00",
-    
     # META-103 — Reservoir Sampling
     "reservoir_sampling.enabled": "false",
     "reservoir_sampling.ranking_weight": "0.00",
-    
     # META-104 — Importance Sampling
     "importance_sampling.enabled": "false",
     "importance_sampling.ranking_weight": "0.00",
-    
     # META-105 — Stratified Sampling
     "stratified_sampling.enabled": "false",
     "stratified_sampling.ranking_weight": "0.00",
-    
     # META-106 — Downsampling
     "downsampling.enabled": "false",
     "downsampling.ranking_weight": "0.00",
-    
     # META-107 — Bootstrap Aggregating
     "bagging.enabled": "false",
     "bagging.ranking_weight": "0.00",
-    
     # META-108 — Boosting
     "boosting.enabled": "false",
     "boosting.ranking_weight": "0.00",
-    
     # META-109 — Cross-Validation
     "cross_validation.enabled": "false",
     "cross_validation.ranking_weight": "0.00",
-
     # Block P8 — Fairness & Bias
     # META-110 — Demographic Parity
     "demographic_parity.enabled": "false",
     "demographic_parity.ranking_weight": "0.00",
-    
     # META-111 — Equalized Odds
     "equalized_odds.enabled": "false",
     "equalized_odds.ranking_weight": "0.00",
-    
     # META-112 — Disparate Impact remover
     "disparate_impact.enabled": "false",
     "disparate_impact.ranking_weight": "0.00",
-    
     # META-113 — Counterfactual Fairness
     "counterfactual_fairness.enabled": "false",
     "counterfactual_fairness.ranking_weight": "0.00",
-    
     # META-114 — Individual Fairness
     "individual_fairness.enabled": "false",
     "individual_fairness.ranking_weight": "0.00",
-    
     # META-115 — Group Fairness
     "group_fairness.enabled": "false",
     "group_fairness.ranking_weight": "0.00",
-    
     # META-116 — Calibration by Group
     "group_calibration.enabled": "false",
     "group_calibration.ranking_weight": "0.00",
-    
     # META-117 — Rejection Option classification
     "rejection_option.enabled": "false",
     "rejection_option.ranking_weight": "0.00",
-    
     # META-118 — Optimized Pre-processing (Fairness)
     "fair_preproc.enabled": "false",
     "fair_preproc.ranking_weight": "0.00",
-    
     # META-119 — Adversarial Debiasing
     "adversarial_debiasing.enabled": "false",
     "adversarial_debiasing.ranking_weight": "0.00",
-
     # Block P9 — Generic Slot A
     # META-120 — Forward-declared slot 120
     "meta_slot_120.enabled": "false",
@@ -354,7 +274,6 @@ FORWARD_DECLARED_WEIGHTS_EXPANSION = {
     "meta_slot_128.enabled": "false",
     # META-129 — Forward-declared slot 129
     "meta_slot_129.enabled": "false",
-
     # Block P10 — Generic Slot B
     # META-130 — Forward-declared slot 130
     "meta_slot_130.enabled": "false",
@@ -376,7 +295,6 @@ FORWARD_DECLARED_WEIGHTS_EXPANSION = {
     "meta_slot_138.enabled": "false",
     # META-139 — Forward-declared slot 139
     "meta_slot_139.enabled": "false",
-
     # Block P11 — Generic Slot C
     # META-140 — Forward-declared slot 140
     "meta_slot_140.enabled": "false",
@@ -398,7 +316,6 @@ FORWARD_DECLARED_WEIGHTS_EXPANSION = {
     "meta_slot_148.enabled": "false",
     # META-149 — Forward-declared slot 149
     "meta_slot_149.enabled": "false",
-
     # Block P12 — Generic Slot D
     # META-150 — Forward-declared slot 150
     "meta_slot_150.enabled": "false",
@@ -420,7 +337,6 @@ FORWARD_DECLARED_WEIGHTS_EXPANSION = {
     "meta_slot_158.enabled": "false",
     # META-159 — Forward-declared slot 159
     "meta_slot_159.enabled": "false",
-
     # Block Q1 — Expansion Block A
     # META-160 — Forward-declared slot 160
     "meta_slot_160.enabled": "false",
@@ -442,7 +358,6 @@ FORWARD_DECLARED_WEIGHTS_EXPANSION = {
     "meta_slot_168.enabled": "false",
     # META-169 — Forward-declared slot 169
     "meta_slot_169.enabled": "false",
-
     # Block Q2 — Expansion Block B
     # META-170 — Forward-declared slot 170
     "meta_slot_170.enabled": "false",
@@ -464,7 +379,6 @@ FORWARD_DECLARED_WEIGHTS_EXPANSION = {
     "meta_slot_178.enabled": "false",
     # META-179 — Forward-declared slot 179
     "meta_slot_179.enabled": "false",
-
     # Block Q3 — Expansion Block C
     # META-180 — Forward-declared slot 180
     "meta_slot_180.enabled": "false",
@@ -486,7 +400,6 @@ FORWARD_DECLARED_WEIGHTS_EXPANSION = {
     "meta_slot_188.enabled": "false",
     # META-189 — Forward-declared slot 189
     "meta_slot_189.enabled": "false",
-
     # Block Q4 — Expansion Block D
     # META-190 — Forward-declared slot 190
     "meta_slot_190.enabled": "false",
@@ -508,7 +421,6 @@ FORWARD_DECLARED_WEIGHTS_EXPANSION = {
     "meta_slot_198.enabled": "false",
     # META-199 — Forward-declared slot 199
     "meta_slot_199.enabled": "false",
-
     # Block Q5 — Expansion Block E
     # META-200 — Forward-declared slot 200
     "meta_slot_200.enabled": "false",
@@ -530,7 +442,6 @@ FORWARD_DECLARED_WEIGHTS_EXPANSION = {
     "meta_slot_208.enabled": "false",
     # META-209 — Forward-declared slot 209
     "meta_slot_209.enabled": "false",
-
     # Block Q6 — Expansion Block F
     # META-210 — Forward-declared slot 210
     "meta_slot_210.enabled": "false",
@@ -552,7 +463,6 @@ FORWARD_DECLARED_WEIGHTS_EXPANSION = {
     "meta_slot_218.enabled": "false",
     # META-219 — Forward-declared slot 219
     "meta_slot_219.enabled": "false",
-
     # Block Q7 — Expansion Block G
     # META-220 — Forward-declared slot 220
     "meta_slot_220.enabled": "false",
@@ -574,7 +484,6 @@ FORWARD_DECLARED_WEIGHTS_EXPANSION = {
     "meta_slot_228.enabled": "false",
     # META-229 — Forward-declared slot 229
     "meta_slot_229.enabled": "false",
-
     # Block Q8 — Expansion Block H
     # META-230 — Forward-declared slot 230
     "meta_slot_230.enabled": "false",
@@ -596,7 +505,6 @@ FORWARD_DECLARED_WEIGHTS_EXPANSION = {
     "meta_slot_238.enabled": "false",
     # META-239 — Forward-declared slot 239
     "meta_slot_239.enabled": "false",
-
     # Block Q9 — Expansion Block I
     # META-240 — Forward-declared slot 240
     "meta_slot_240.enabled": "false",

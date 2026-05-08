@@ -317,10 +317,16 @@ def _validate_silo_settings(payload: dict) -> dict[str, float | str]:
         )
     # Silo accepts inf/NaN historically (no isfinite check), so use require_finite=False.
     same_silo_boost = coerce_setting_float(
-        payload, DEFAULT_SILO_SETTINGS, "same_silo_boost", require_finite=False,
+        payload,
+        DEFAULT_SILO_SETTINGS,
+        "same_silo_boost",
+        require_finite=False,
     )
     cross_silo_penalty = coerce_setting_float(
-        payload, DEFAULT_SILO_SETTINGS, "cross_silo_penalty", require_finite=False,
+        payload,
+        DEFAULT_SILO_SETTINGS,
+        "cross_silo_penalty",
+        require_finite=False,
     )
     if same_silo_boost < 0:
         raise ValueError("same_silo_boost must be >= 0.")
@@ -333,7 +339,9 @@ def _validate_silo_settings(payload: dict) -> dict[str, float | str]:
     }
 
 
-def _read_wp_string(key: str, django_default: str, *, rstrip_slash: bool = False) -> str:
+def _read_wp_string(
+    key: str, django_default: str, *, rstrip_slash: bool = False
+) -> str:
     """Read + strip a WordPress AppSetting, falling back to a Django default.
 
     All four WP string columns share the same shape — operator's AppSetting
@@ -348,7 +356,9 @@ def _read_wp_string(key: str, django_default: str, *, rstrip_slash: bool = False
 def get_wordpress_settings() -> dict[str, object]:
     """Load persisted WordPress sync settings with environment fallbacks."""
     base_url = _read_wp_string(
-        "wordpress.base_url", django_settings.WORDPRESS_BASE_URL, rstrip_slash=True,
+        "wordpress.base_url",
+        django_settings.WORDPRESS_BASE_URL,
+        rstrip_slash=True,
     )
     username = _read_wp_string("wordpress.username", django_settings.WORDPRESS_USERNAME)
     app_password = (
@@ -368,10 +378,12 @@ def get_wordpress_settings() -> dict[str, object]:
         "app_password_configured": bool(app_password.strip()),
         "sync_enabled": sync_enabled,
         "sync_hour": read_app_setting_int(
-            "wordpress.sync_hour", DEFAULT_WORDPRESS_SETTINGS["sync_hour"],
+            "wordpress.sync_hour",
+            DEFAULT_WORDPRESS_SETTINGS["sync_hour"],
         ),
         "sync_minute": read_app_setting_int(
-            "wordpress.sync_minute", DEFAULT_WORDPRESS_SETTINGS["sync_minute"],
+            "wordpress.sync_minute",
+            DEFAULT_WORDPRESS_SETTINGS["sync_minute"],
         ),
         "health": get_service_health_status("wordpress"),
     }
@@ -565,7 +577,8 @@ def _read_clustering_settings() -> dict[str, float | bool]:
     """Read near-duplicate clustering settings from AppSetting without applying bounds."""
     return {
         "enabled": read_app_setting_bool(
-            "clustering.enabled", DEFAULT_CLUSTERING_SETTINGS["enabled"],
+            "clustering.enabled",
+            DEFAULT_CLUSTERING_SETTINGS["enabled"],
         ),
         "similarity_threshold": read_app_setting_float(
             "clustering.similarity_threshold",
@@ -579,8 +592,12 @@ def _read_clustering_settings() -> dict[str, float | bool]:
 
 
 _WEIGHTED_AUTHORITY_KEYS = (
-    "ranking_weight", "position_bias", "empty_anchor_factor",
-    "bare_url_factor", "weak_context_factor", "isolated_context_factor",
+    "ranking_weight",
+    "position_bias",
+    "empty_anchor_factor",
+    "bare_url_factor",
+    "weak_context_factor",
+    "isolated_context_factor",
 )
 
 
@@ -588,15 +605,20 @@ def _read_weighted_authority_settings() -> dict[str, float]:
     """Read weighted-authority settings from AppSetting without applying bounds."""
     return {
         key: read_app_setting_float(
-            f"weighted_authority.{key}", DEFAULT_WEIGHTED_AUTHORITY_SETTINGS[key],
+            f"weighted_authority.{key}",
+            DEFAULT_WEIGHTED_AUTHORITY_SETTINGS[key],
         )
         for key in _WEIGHTED_AUTHORITY_KEYS
     }
 
 
 _LINK_FRESHNESS_FLOAT_DEFAULT_KEYS = (
-    "ranking_weight", "newest_peer_percent",
-    "w_recent", "w_growth", "w_cohort", "w_loss",
+    "ranking_weight",
+    "newest_peer_percent",
+    "w_recent",
+    "w_growth",
+    "w_cohort",
+    "w_loss",
 )
 _LINK_FRESHNESS_INT_DEFAULT_KEYS = ("recent_window_days", "min_peer_count")
 
@@ -605,13 +627,15 @@ def _read_link_freshness_settings() -> dict[str, float | int]:
     """Read link-freshness settings from AppSetting without applying bounds."""
     out: dict[str, float | int] = {
         key: read_app_setting_float(
-            f"link_freshness.{key}", DEFAULT_LINK_FRESHNESS_SETTINGS[key],
+            f"link_freshness.{key}",
+            DEFAULT_LINK_FRESHNESS_SETTINGS[key],
         )
         for key in _LINK_FRESHNESS_FLOAT_DEFAULT_KEYS
     }
     for key in _LINK_FRESHNESS_INT_DEFAULT_KEYS:
         out[key] = read_app_setting_int(
-            f"link_freshness.{key}", DEFAULT_LINK_FRESHNESS_SETTINGS[key],
+            f"link_freshness.{key}",
+            DEFAULT_LINK_FRESHNESS_SETTINGS[key],
         )
     return out
 
@@ -645,7 +669,8 @@ def _read_click_distance_settings() -> dict[str, float]:
     """Read click-distance settings from AppSetting without applying bounds."""
     return {
         key: read_app_setting_float(
-            f"click_distance.{key}", DEFAULT_CLICK_DISTANCE_SETTINGS[key],
+            f"click_distance.{key}",
+            DEFAULT_CLICK_DISTANCE_SETTINGS[key],
         )
         for key in _CLICK_DISTANCE_KEYS
     }
@@ -661,7 +686,8 @@ def _read_feedback_rerank_settings() -> dict[str, float | bool]:
     """
     return {
         "enabled": read_app_setting_bool(
-            "explore_exploit.enabled", DEFAULT_FEEDBACK_RERANK_SETTINGS["enabled"],
+            "explore_exploit.enabled",
+            DEFAULT_FEEDBACK_RERANK_SETTINGS["enabled"],
         ),
         "ranking_weight": read_app_setting_float(
             "explore_exploit.ranking_weight",
@@ -678,7 +704,8 @@ def _read_slate_diversity_settings() -> dict:
     """Read FR-015 slate diversity settings from AppSetting without applying bounds."""
     return {
         "enabled": read_app_setting_bool(
-            "slate_diversity.enabled", DEFAULT_SLATE_DIVERSITY_SETTINGS["enabled"],
+            "slate_diversity.enabled",
+            DEFAULT_SLATE_DIVERSITY_SETTINGS["enabled"],
         ),
         "diversity_lambda": read_app_setting_float(
             "slate_diversity.diversity_lambda",
@@ -803,8 +830,11 @@ def _read_rare_term_propagation_settings() -> dict[str, float | int | bool]:
 
 
 _FIELD_AWARE_RELEVANCE_KEY_NAMES = (
-    "ranking_weight", "title_field_weight", "body_field_weight",
-    "scope_field_weight", "learned_anchor_field_weight",
+    "ranking_weight",
+    "title_field_weight",
+    "body_field_weight",
+    "scope_field_weight",
+    "learned_anchor_field_weight",
 )
 
 
@@ -869,20 +899,25 @@ def _read_ga4_gsc_settings() -> dict[str, object]:
     ).strip()
     private_key = (_get_app_setting_value("ga4_gsc.private_key", "") or "").strip()
     connection_status, connection_message = _ga4_gsc_connection_status(
-        property_url, service_account_email, private_key,
+        property_url,
+        service_account_email,
+        private_key,
     )
     return {
         "ranking_weight": read_app_setting_float(
-            "ga4_gsc.ranking_weight", DEFAULT_GA4_GSC_SETTINGS["ranking_weight"],
+            "ga4_gsc.ranking_weight",
+            DEFAULT_GA4_GSC_SETTINGS["ranking_weight"],
         ),
         "property_url": property_url,
         "service_account_email": service_account_email,
         "private_key_configured": bool(private_key),
         "sync_enabled": read_app_setting_bool(
-            "ga4_gsc.sync_enabled", DEFAULT_GA4_GSC_SETTINGS["sync_enabled"],
+            "ga4_gsc.sync_enabled",
+            DEFAULT_GA4_GSC_SETTINGS["sync_enabled"],
         ),
         "sync_lookback_days": read_app_setting_int(
-            "ga4_gsc.sync_lookback_days", DEFAULT_GA4_GSC_SETTINGS["sync_lookback_days"],
+            "ga4_gsc.sync_lookback_days",
+            DEFAULT_GA4_GSC_SETTINGS["sync_lookback_days"],
         ),
         "connection_status": connection_status,
         "connection_message": connection_message,
@@ -1017,8 +1052,12 @@ _LINK_FRESHNESS_BOUNDS: dict[str, tuple[float, float]] = {
     "w_loss": (0.0, 1.0),
 }
 _LINK_FRESHNESS_FLOAT_KEYS = (
-    "ranking_weight", "newest_peer_percent",
-    "w_recent", "w_growth", "w_cohort", "w_loss",
+    "ranking_weight",
+    "newest_peer_percent",
+    "w_recent",
+    "w_growth",
+    "w_cohort",
+    "w_loss",
 )
 _LINK_FRESHNESS_INT_KEYS = ("recent_window_days", "min_peer_count")
 
@@ -1062,9 +1101,15 @@ def _validate_phrase_matching_settings(
     current = current or _read_phrase_matching_settings()
     validated: dict[str, float | int | bool] = {
         "ranking_weight": coerce_setting_float(payload, current, "ranking_weight"),
-        "enable_anchor_expansion": coerce_setting_bool(payload, current, "enable_anchor_expansion"),
-        "enable_partial_matching": coerce_setting_bool(payload, current, "enable_partial_matching"),
-        "context_window_tokens": coerce_setting_int(payload, current, "context_window_tokens"),
+        "enable_anchor_expansion": coerce_setting_bool(
+            payload, current, "enable_anchor_expansion"
+        ),
+        "enable_partial_matching": coerce_setting_bool(
+            payload, current, "enable_partial_matching"
+        ),
+        "context_window_tokens": coerce_setting_int(
+            payload, current, "context_window_tokens"
+        ),
     }
     enforce_bounds(validated, _PHRASE_MATCHING_BOUNDS)
     return validated
@@ -1085,11 +1130,15 @@ def _validate_learned_anchor_settings(
     current = current or _read_learned_anchor_settings()
     validated: dict[str, float | int | bool] = {
         "ranking_weight": coerce_setting_float(payload, current, "ranking_weight"),
-        "minimum_anchor_sources": coerce_setting_int(payload, current, "minimum_anchor_sources"),
+        "minimum_anchor_sources": coerce_setting_int(
+            payload, current, "minimum_anchor_sources"
+        ),
         "minimum_family_support_share": coerce_setting_float(
             payload, current, "minimum_family_support_share"
         ),
-        "enable_noise_filter": coerce_setting_bool(payload, current, "enable_noise_filter"),
+        "enable_noise_filter": coerce_setting_bool(
+            payload, current, "enable_noise_filter"
+        ),
     }
     enforce_bounds(validated, _LEARNED_ANCHOR_BOUNDS)
     return validated
@@ -1111,7 +1160,9 @@ def _validate_rare_term_propagation_settings(
     validated: dict[str, float | int | bool] = {
         "enabled": coerce_setting_bool(payload, current, "enabled"),
         "ranking_weight": coerce_setting_float(payload, current, "ranking_weight"),
-        "max_document_frequency": coerce_setting_int(payload, current, "max_document_frequency"),
+        "max_document_frequency": coerce_setting_int(
+            payload, current, "max_document_frequency"
+        ),
         "minimum_supporting_related_pages": coerce_setting_int(
             payload, current, "minimum_supporting_related_pages"
         ),
@@ -1121,12 +1172,17 @@ def _validate_rare_term_propagation_settings(
 
 
 _FIELD_AWARE_RELEVANCE_KEYS = (
-    "ranking_weight", "title_field_weight", "body_field_weight",
-    "scope_field_weight", "learned_anchor_field_weight",
+    "ranking_weight",
+    "title_field_weight",
+    "body_field_weight",
+    "scope_field_weight",
+    "learned_anchor_field_weight",
 )
 _FIELD_AWARE_RELEVANCE_FIELD_KEYS = (
-    "title_field_weight", "body_field_weight",
-    "scope_field_weight", "learned_anchor_field_weight",
+    "title_field_weight",
+    "body_field_weight",
+    "scope_field_weight",
+    "learned_anchor_field_weight",
 )
 _FIELD_AWARE_RELEVANCE_BOUNDS: dict[str, tuple[float, float]] = {
     "ranking_weight": (0.0, 0.15),
@@ -1228,9 +1284,9 @@ def _validate_ga4_gsc_settings(
             payload.get("ranking_weight", current["ranking_weight"]),
             key="ranking_weight",
         ),
-        "property_url": str(
-            payload.get("property_url", current["property_url"])
-        ).strip().rstrip("/"),
+        "property_url": str(payload.get("property_url", current["property_url"]))
+        .strip()
+        .rstrip("/"),
         "service_account_email": str(
             payload.get("service_account_email", current["service_account_email"])
         ).strip(),
@@ -1852,16 +1908,41 @@ class FieldAwareRelevanceSettingsView(APIView):
 # Pulling the row-shape config out of the helper keeps the helper pure-function
 # and under the 50-line cap. New rows only require a tuple addition here.
 _GA4_GSC_ROW_SPEC: tuple[tuple[str, str, str, str, str], ...] = (
-    ("ranking_weight", "ga4_gsc.ranking_weight", "float", "ml",
-     "Ranking weight for the GA4/GSC content-value signal."),
-    ("property_url", "ga4_gsc.property_url", "str", "analytics",
-     "Google Search Console property URL for read access."),
-    ("service_account_email", "ga4_gsc.service_account_email", "str", "analytics",
-     "Service-account email used for Search Console read access."),
-    ("sync_enabled", "ga4_gsc.sync_enabled", "bool", "analytics",
-     "Whether Search Console sync is enabled when the importer is added."),
-    ("sync_lookback_days", "ga4_gsc.sync_lookback_days", "int", "analytics",
-     "How many days the future Search Console sync should reread."),
+    (
+        "ranking_weight",
+        "ga4_gsc.ranking_weight",
+        "float",
+        "ml",
+        "Ranking weight for the GA4/GSC content-value signal.",
+    ),
+    (
+        "property_url",
+        "ga4_gsc.property_url",
+        "str",
+        "analytics",
+        "Google Search Console property URL for read access.",
+    ),
+    (
+        "service_account_email",
+        "ga4_gsc.service_account_email",
+        "str",
+        "analytics",
+        "Service-account email used for Search Console read access.",
+    ),
+    (
+        "sync_enabled",
+        "ga4_gsc.sync_enabled",
+        "bool",
+        "analytics",
+        "Whether Search Console sync is enabled when the importer is added.",
+    ),
+    (
+        "sync_lookback_days",
+        "ga4_gsc.sync_lookback_days",
+        "int",
+        "analytics",
+        "How many days the future Search Console sync should reread.",
+    ),
 )
 
 
@@ -1960,7 +2041,11 @@ class GSCConnectionTestView(APIView):
 
     def post(self, request):
         creds = _gsc_resolve_credentials(request.data)
-        if not creds["property_url"] or not creds["service_account_email"] or not creds["private_key"]:
+        if (
+            not creds["property_url"]
+            or not creds["service_account_email"]
+            or not creds["private_key"]
+        ):
             return Response(
                 {
                     "status": "not_configured",
@@ -1998,7 +2083,9 @@ def _gsc_probe_credentials(creds: dict[str, str]) -> Response:
     except Exception as exc:  # noqa: BLE001 — surfaces in response body; logger keeps a paper trail.
         logger.warning(
             "GSC connection test failed for %s: %s",
-            creds["service_account_email"][:60], exc, exc_info=True,
+            creds["service_account_email"][:60],
+            exc,
+            exc_info=True,
         )
         return Response(
             {"status": "error", "message": f"Search Console connection failed: {exc}"},
@@ -2009,14 +2096,16 @@ def _gsc_probe_credentials(creds: dict[str, str]) -> Response:
         str(entry.get("siteUrl") or "").rstrip("/") == creds["property_url"]
         for entry in site_entries
     )
-    return Response({
-        "status": "connected" if property_match else "saved",
-        "message": (
-            "Search Console credentials worked and the property is visible."
-            if property_match
-            else "Search Console credentials worked, but this property URL was not listed for the service account."
-        ),
-    })
+    return Response(
+        {
+            "status": "connected" if property_match else "saved",
+            "message": (
+                "Search Console credentials worked and the property is visible."
+                if property_match
+                else "Search Console credentials worked, but this property URL was not listed for the service account."
+            ),
+        }
+    )
 
 
 def _build_wordpress_rows(validated: dict) -> dict[str, dict]:
@@ -2233,7 +2322,8 @@ def _xf_resolve_credentials(data: dict) -> tuple[str, str]:
         (
             data.get("base_url")
             or _get_app_setting_value(
-                "xenforo.base_url", getattr(django_settings, "XENFORO_BASE_URL", ""),
+                "xenforo.base_url",
+                getattr(django_settings, "XENFORO_BASE_URL", ""),
             )
             or ""
         )
@@ -2243,7 +2333,8 @@ def _xf_resolve_credentials(data: dict) -> tuple[str, str]:
     api_key = (
         data.get("api_key")
         or _get_app_setting_value(
-            "xenforo.api_key", getattr(django_settings, "XENFORO_API_KEY", ""),
+            "xenforo.api_key",
+            getattr(django_settings, "XENFORO_API_KEY", ""),
         )
         or ""
     ).strip()
@@ -2253,6 +2344,7 @@ def _xf_resolve_credentials(data: dict) -> tuple[str, str]:
 def _xf_probe_credentials(base_url: str, api_key: str) -> Response:
     """Probe XenForo /api/me; return a Response that the view returns directly."""
     import requests as http_requests
+
     try:
         resp = http_requests.get(
             f"{base_url}/api/me",
@@ -2270,7 +2362,8 @@ def _xf_probe_credentials(base_url: str, api_key: str) -> Response:
         errors = payload.get("errors", [])
         detail = (
             errors[0].get("message", "Authentication failed.")
-            if errors else f"HTTP {resp.status_code}"
+            if errors
+            else f"HTTP {resp.status_code}"
         )
         return Response({"status": "error", "message": detail}, status=400)
     username = payload.get("me", {}).get("username", "unknown")
@@ -2397,13 +2490,16 @@ class WordPressTestConnectionView(APIView):
         return _wp_probe_credentials(creds)
 
 
-def _probe_webhook_endpoint(view_class, url: str, slug: str, secret_env_name: str) -> dict:
+def _probe_webhook_endpoint(
+    view_class, url: str, slug: str, secret_env_name: str
+) -> dict:
     """Probe a single webhook receiver via Django's RequestFactory.
 
     Returns a result dict with status / http_status / message. The factory
     bypass means we don't need a live HTTP server to self-test.
     """
     from django.test import RequestFactory
+
     factory = RequestFactory()
     try:
         req = factory.post(
@@ -2413,7 +2509,9 @@ def _probe_webhook_endpoint(view_class, url: str, slug: str, secret_env_name: st
         )
         resp = view_class.as_view()(req)
     except Exception as exc:  # noqa: BLE001 — webhook self-test surfaces the error in the response body; logger keeps a paper trail.
-        logger.warning("%s webhook self-test failed: %s", slug.upper(), exc, exc_info=True)
+        logger.warning(
+            "%s webhook self-test failed: %s", slug.upper(), exc, exc_info=True
+        )
         return {"status": "error", "message": str(exc)}
 
     code = resp.status_code
@@ -2442,12 +2540,16 @@ class WebhookTestView(APIView):
 
         results = {
             "xenforo": _probe_webhook_endpoint(
-                XenForoWebhookView, "/api/sync/webhooks/xenforo/",
-                "xf", "XENFORO_WEBHOOK_SECRET",
+                XenForoWebhookView,
+                "/api/sync/webhooks/xenforo/",
+                "xf",
+                "XENFORO_WEBHOOK_SECRET",
             ),
             "wordpress": _probe_webhook_endpoint(
-                WordPressWebhookView, "/api/sync/webhooks/wordpress/",
-                "wp", "WORDPRESS_WEBHOOK_SECRET",
+                WordPressWebhookView,
+                "/api/sync/webhooks/wordpress/",
+                "wp",
+                "WORDPRESS_WEBHOOK_SECRET",
             ),
         }
         all_ok = all(r.get("status") == "ok" for r in results.values())
@@ -2455,7 +2557,8 @@ class WebhookTestView(APIView):
             {
                 "status": "connected" if all_ok else "partial",
                 "message": (
-                    "All webhook endpoints are reachable." if all_ok
+                    "All webhook endpoints are reachable."
+                    if all_ok
                     else "Some webhook endpoints have issues."
                 ),
                 "details": results,
@@ -2878,9 +2981,7 @@ def _dashboard_last_analytics_completed_at():
             .first()
         )
     except Exception:  # noqa: BLE001 — analytics module is optional; missing-import is documented behaviour.
-        logger.debug(
-            "GSCSyncRun model not available, skipping analytics freshness"
-        )
+        logger.debug("GSCSyncRun model not available, skipping analytics freshness")
         return None
 
 
@@ -2893,9 +2994,7 @@ def _dashboard_runtime_mode_display() -> str:
 
         return get_effective_runtime_resolution()["effective_runtime_mode"].upper()
     except Exception:  # noqa: BLE001 — embeddings module unavailable on cold start; CPU is the safe default.
-        logger.debug(
-            "Embedding runtime unavailable, using default runtime_mode"
-        )
+        logger.debug("Embedding runtime unavailable, using default runtime_mode")
         return "CPU"
 
 
@@ -3025,9 +3124,7 @@ def _today_actions_pipeline_freshness(now) -> list[dict]:
         actions.append(
             {
                 "title": "Last pipeline produced no suggestions",
-                "reason": (
-                    "Check your settings — the pipeline may need tuning."
-                ),
+                "reason": ("Check your settings — the pipeline may need tuning."),
                 "route": "/settings",
                 "deepLinkTarget": "ranking-weights",
                 "severity": "warning",
@@ -3078,19 +3175,23 @@ class WhatChangedView(APIView):
         from datetime import timedelta
 
         since = timezone.now() - timedelta(hours=24)
-        return Response({
-            "period_hours": 24,
-            **_today_summary_counts(since),
-            "autotuner_outcome": _today_autotuner_outcome(since),
-        })
+        return Response(
+            {
+                "period_hours": 24,
+                **_today_summary_counts(since),
+                "autotuner_outcome": _today_autotuner_outcome(since),
+            }
+        )
 
 
 def _today_summary_counts(since) -> dict[str, int]:
     """Counts of suggestions / reviews / sync items / pipeline runs since ``since``."""
     from apps.suggestions.models import PipelineRun, Suggestion
     from apps.sync.models import SyncJob
+
     synced_items = SyncJob.objects.filter(
-        status="completed", completed_at__gte=since,
+        status="completed",
+        completed_at__gte=since,
     ).values_list("items_synced", flat=True)
     return {
         "new_suggestions": Suggestion.objects.filter(created_at__gte=since).count(),
@@ -3105,7 +3206,9 @@ def _today_autotuner_outcome(since) -> dict | None:
     try:
         from apps.suggestions.models import RankingChallenger
     except Exception:
-        logger.debug("RankingChallenger model not available, skipping autotuner outcome")
+        logger.debug(
+            "RankingChallenger model not available, skipping autotuner outcome"
+        )
         return None
     recent_challenger = (
         RankingChallenger.objects.filter(updated_at__gte=since)
@@ -3206,9 +3309,7 @@ def _resume_view_missed_tasks() -> list[dict]:
                 {
                     "task_name": task_name,
                     "weight_class": entry.weight_class,
-                    "hours_overdue": round(
-                        hours_since - entry.threshold_hours, 1
-                    ),
+                    "hours_overdue": round(hours_since - entry.threshold_hours, 1),
                     "reason": (
                         f"Last ran {int(hours_since)}h ago "
                         f"(threshold: {int(entry.threshold_hours)}h)"
@@ -3506,9 +3607,7 @@ def _today_view_top_alert():
     from apps.notifications.models import OperatorAlert
 
     return (
-        OperatorAlert.objects.filter(
-            status="unread", severity__in=["urgent", "error"]
-        )
+        OperatorAlert.objects.filter(status="unread", severity__in=["urgent", "error"])
         .order_by("-first_seen_at")
         .first()
     )
@@ -3604,9 +3703,7 @@ def _runtime_settings_snapshot() -> dict[str, object]:
             )
         )
     except Exception:  # noqa: BLE001 — AppSetting table unavailable on cold start; defaults render the page.
-        logger.debug(
-            "AppSetting table not available, using default runtime modes"
-        )
+        logger.debug("AppSetting table not available, using default runtime modes")
         return defaults
 
     expiry_raw = rows.get("system.performance_mode_expiry")
@@ -3616,9 +3713,8 @@ def _runtime_settings_snapshot() -> dict[str, object]:
         "performance_mode": get_requested_performance_mode(),
         "effective_runtime_mode": _read_effective_runtime_mode(),
         "performance_mode_expiry": expiry,
-        "performance_mode_expires_at": rows.get(
-            "system.performance_mode_expires_at"
-        ) or "",
+        "performance_mode_expires_at": rows.get("system.performance_mode_expires_at")
+        or "",
         "master_pause": (rows.get("system.master_pause") or "false").lower() == "true",
     }
 
@@ -3873,11 +3969,13 @@ def _record_master_pause_audit_safe(request, previous: bool, current: bool) -> N
         record_audit(
             "master_pause.toggle",
             ("app_setting", "system.master_pause"),
-            request=request, message=message,
+            request=request,
+            message=message,
             metadata={"previous": previous, "current": current},
         )
         emit(
-            "master_pause.toggled", message,
+            "master_pause.toggled",
+            message,
             source="core",
             severity="warning" if current else "success",
             related_entity_type="app_setting",
@@ -4072,7 +4170,8 @@ def _sample_gpu_metrics() -> dict[str, object]:
         "vram_total_mb": vram_total_mb,
         "vram_percent": (
             round(_FRACTION_TO_PERCENT * vram_used_mb / vram_total_mb, 1)
-            if vram_total_mb else None
+            if vram_total_mb
+            else None
         ),
         "utilization_pct": util.gpu,
     }
@@ -4231,20 +4330,40 @@ class RuntimeConfigView(APIView):
         default_gpu_budget = self._default_gpu_memory_budget_pct(django_conf)
         default_gpu_pause = int(getattr(django_conf, "GPU_TEMP_CEILING_C", 90) or 90)
         queue_concurrency = self._read_int(
-            "system.default_queue_concurrency", default_queue_concurrency,
+            "system.default_queue_concurrency",
+            default_queue_concurrency,
         )
-        qc_range = [self.DEFAULT_QUEUE_CONCURRENCY_MIN, self.DEFAULT_QUEUE_CONCURRENCY_MAX]
+        qc_range = [
+            self.DEFAULT_QUEUE_CONCURRENCY_MIN,
+            self.DEFAULT_QUEUE_CONCURRENCY_MAX,
+        ]
         return {
-            "embedding_batch_size": self._read_int("system.embedding_batch_size", default_batch),
-            "gpu_memory_budget_pct": self._read_int("system.gpu_memory_budget_pct", default_gpu_budget),
-            "gpu_temp_pause_c": self._read_int("system.gpu_temp_pause_c", default_gpu_pause),
-            "cpu_encode_threads": self._read_int("system.cpu_encode_threads", default_cpu_threads),
+            "embedding_batch_size": self._read_int(
+                "system.embedding_batch_size", default_batch
+            ),
+            "gpu_memory_budget_pct": self._read_int(
+                "system.gpu_memory_budget_pct", default_gpu_budget
+            ),
+            "gpu_temp_pause_c": self._read_int(
+                "system.gpu_temp_pause_c", default_gpu_pause
+            ),
+            "cpu_encode_threads": self._read_int(
+                "system.cpu_encode_threads", default_cpu_threads
+            ),
             "default_queue_concurrency": queue_concurrency,
             "celery_concurrency": queue_concurrency,
-            "aggressive_oom_backoff": self._read_bool("system.aggressive_oom_backoff", True),
+            "aggressive_oom_backoff": self._read_bool(
+                "system.aggressive_oom_backoff", True
+            ),
             "embedding_batch_size_range": [self.BATCH_SIZE_MIN, self.BATCH_SIZE_MAX],
-            "gpu_memory_budget_pct_range": [self.GPU_MEMORY_BUDGET_MIN, self.GPU_MEMORY_BUDGET_MAX],
-            "gpu_temp_pause_c_range": [self.GPU_TEMP_PAUSE_MIN, self.GPU_TEMP_PAUSE_MAX],
+            "gpu_memory_budget_pct_range": [
+                self.GPU_MEMORY_BUDGET_MIN,
+                self.GPU_MEMORY_BUDGET_MAX,
+            ],
+            "gpu_temp_pause_c_range": [
+                self.GPU_TEMP_PAUSE_MIN,
+                self.GPU_TEMP_PAUSE_MAX,
+            ],
             "cpu_encode_threads_range": [1, cpu_thread_cap],
             "default_queue_concurrency_range": qc_range,
             "celery_concurrency_range": qc_range,
@@ -4265,7 +4384,9 @@ class RuntimeConfigView(APIView):
         errors: dict[str, str] = {}
         data = request.data or {}
         for spec in self._int_field_specs():
-            self._apply_int_range_setting(data=data, spec=spec, updated=updated, errors=errors)
+            self._apply_int_range_setting(
+                data=data, spec=spec, updated=updated, errors=errors
+            )
         self._apply_queue_concurrency_alias(data, updated, errors)
         self._apply_oom_backoff(data, updated, errors)
         if errors:
@@ -4273,14 +4394,18 @@ class RuntimeConfigView(APIView):
         return Response({"updated": updated})
 
     def _apply_queue_concurrency_alias(
-        self, data: dict, updated: dict, errors: dict,
+        self,
+        data: dict,
+        updated: dict,
+        errors: dict,
     ) -> None:
         """``default_queue_concurrency`` accepts the legacy ``celery_concurrency`` alias
         and broadcasts back under both names."""
         if "default_queue_concurrency" not in data and "celery_concurrency" not in data:
             return
         raw_value = data.get(
-            "default_queue_concurrency", data.get("celery_concurrency"),
+            "default_queue_concurrency",
+            data.get("celery_concurrency"),
         )
         self._apply_int_range_setting(
             data={"default_queue_concurrency": raw_value},
@@ -4290,7 +4415,8 @@ class RuntimeConfigView(APIView):
                 "lo": self.DEFAULT_QUEUE_CONCURRENCY_MIN,
                 "hi": self.DEFAULT_QUEUE_CONCURRENCY_MAX,
             },
-            updated=updated, errors=errors,
+            updated=updated,
+            errors=errors,
         )
         if "default_queue_concurrency" in updated:
             updated["celery_concurrency"] = updated["default_queue_concurrency"]
@@ -4500,9 +4626,7 @@ class JobQueueView(APIView):
 
         return Response(
             {
-                "items": (
-                    _job_queue_active_runs() + _job_queue_active_syncs()
-                ),
+                "items": (_job_queue_active_runs() + _job_queue_active_syncs()),
                 "locks": get_active_locks(),
             }
         )
@@ -4519,9 +4643,9 @@ def _quarantine_records_and_run_ids() -> tuple[list[dict], set[str]]:
     """
     from apps.core.models import QuarantineRecord
 
-    open_records = QuarantineRecord.objects.filter(
-        resolved_at__isnull=True
-    ).order_by("-updated_at")[:50]
+    open_records = QuarantineRecord.objects.filter(resolved_at__isnull=True).order_by(
+        "-updated_at"
+    )[:50]
     records: list[dict] = []
     quarantined_run_ids: set[str] = set()
     for rec in open_records:
@@ -5199,18 +5323,42 @@ class GraphCandidateSettingsView(APIView):
 
 # (validated_key, setting_key, value_type, description) for graph-candidate rows.
 _GRAPH_CANDIDATE_ROW_SPEC: tuple[tuple[str, str, str, str], ...] = (
-    ("enabled", "graph_candidate.enabled", "bool",
-     "Whether FR-021 Pixie walk candidate generation is active."),
-    ("walk_steps_per_entity", "graph_candidate.walk_steps_per_entity", "int",
-     "Number of Pixie random walk steps to perform per query entity."),
-    ("min_stable_candidates", "graph_candidate.min_stable_candidates", "int",
-     "Minimum number of stable candidates to find before early stopping."),
-    ("min_visit_threshold", "graph_candidate.min_visit_threshold", "int",
-     "Minimum walk visits required for a node to be considered stable."),
-    ("top_k_candidates", "graph_candidate.top_k_candidates", "int",
-     "Max number of top-visited candidates to return to the pipeline."),
-    ("top_n_entities_per_article", "graph_candidate.top_n_entities_per_article", "int",
-     "Max number of top entities to extract per article for graph linking."),
+    (
+        "enabled",
+        "graph_candidate.enabled",
+        "bool",
+        "Whether FR-021 Pixie walk candidate generation is active.",
+    ),
+    (
+        "walk_steps_per_entity",
+        "graph_candidate.walk_steps_per_entity",
+        "int",
+        "Number of Pixie random walk steps to perform per query entity.",
+    ),
+    (
+        "min_stable_candidates",
+        "graph_candidate.min_stable_candidates",
+        "int",
+        "Minimum number of stable candidates to find before early stopping.",
+    ),
+    (
+        "min_visit_threshold",
+        "graph_candidate.min_visit_threshold",
+        "int",
+        "Minimum walk visits required for a node to be considered stable.",
+    ),
+    (
+        "top_k_candidates",
+        "graph_candidate.top_k_candidates",
+        "int",
+        "Max number of top-visited candidates to return to the pipeline.",
+    ),
+    (
+        "top_n_entities_per_article",
+        "graph_candidate.top_n_entities_per_article",
+        "int",
+        "Max number of top entities to extract per article for graph linking.",
+    ),
 )
 
 
@@ -5436,7 +5584,9 @@ DEFAULT_SPAM_GUARD_SETTINGS: dict[str, int] = {
 
 
 _SPAM_GUARD_KEYS = (
-    "max_existing_links_per_host", "max_anchor_words", "paragraph_window",
+    "max_existing_links_per_host",
+    "max_anchor_words",
+    "paragraph_window",
 )
 
 
@@ -5444,7 +5594,8 @@ def get_spam_guard_settings() -> dict[str, int]:
     """Return current spam-guard limits, falling back to patent-backed defaults."""
     return {
         key: read_app_setting_int(
-            f"spam_guards.{key}", DEFAULT_SPAM_GUARD_SETTINGS[key],
+            f"spam_guards.{key}",
+            DEFAULT_SPAM_GUARD_SETTINGS[key],
         )
         for key in _SPAM_GUARD_KEYS
     }
@@ -5516,21 +5667,24 @@ class SpamGuardSettingsView(APIView):
 _SPAM_GUARD_ROW_SPEC: tuple[tuple[str, str, str, str], ...] = (
     (
         "max_existing_links_per_host",
-        "spam_guards.max_existing_links_per_host", "int",
+        "spam_guards.max_existing_links_per_host",
+        "int",
         "Maximum number of existing outgoing body links a host page may "
         "already carry before the pipeline skips it. "
         "Default 3 — Ntoulas et al. anchor-word fraction research (US20060184500A1).",
     ),
     (
         "max_anchor_words",
-        "spam_guards.max_anchor_words", "int",
+        "spam_guards.max_anchor_words",
+        "int",
         "Maximum number of words allowed in a suggested anchor phrase. "
         "Default 4 — Google recommends 2–5 words; US8380722B2 confirms "
         "anchors are 'usually short and descriptive'.",
     ),
     (
         "paragraph_window",
-        "spam_guards.paragraph_window", "int",
+        "spam_guards.paragraph_window",
+        "int",
         "Sentence-position window for paragraph-cluster detection. "
         "Two suggestions within this many sentences of each other on "
         "the same host are treated as the same paragraph — only the "
@@ -5566,20 +5720,25 @@ class GraphRebuildView(APIView):
 
 
 _GRAPH_CANDIDATE_INT_KEYS = (
-    "walk_steps_per_entity", "min_stable_candidates", "min_visit_threshold",
-    "top_k_candidates", "top_n_entities_per_article",
+    "walk_steps_per_entity",
+    "min_stable_candidates",
+    "min_visit_threshold",
+    "top_k_candidates",
+    "top_n_entities_per_article",
 )
 
 
 def _read_graph_candidate_settings() -> dict[str, float | int | bool]:
     out: dict[str, float | int | bool] = {
         "enabled": read_app_setting_bool(
-            "graph_candidate.enabled", DEFAULT_GRAPH_CANDIDATE_SETTINGS["enabled"],
+            "graph_candidate.enabled",
+            DEFAULT_GRAPH_CANDIDATE_SETTINGS["enabled"],
         ),
     }
     for key in _GRAPH_CANDIDATE_INT_KEYS:
         out[key] = read_app_setting_int(
-            f"graph_candidate.{key}", DEFAULT_GRAPH_CANDIDATE_SETTINGS[key],
+            f"graph_candidate.{key}",
+            DEFAULT_GRAPH_CANDIDATE_SETTINGS[key],
         )
     return out
 
@@ -5665,9 +5824,7 @@ def _vm_settings_engagement() -> dict[str, float | int | bool]:
             "value_model.engagement_signal_enabled",
             d["engagement_signal_enabled"],
         ),
-        "w_engagement": _vm_read_float(
-            "value_model.w_engagement", d["w_engagement"]
-        ),
+        "w_engagement": _vm_read_float("value_model.w_engagement", d["w_engagement"]),
         "engagement_lookback_days": _vm_read_int(
             "value_model.engagement_lookback_days", d["engagement_lookback_days"]
         ),
@@ -5692,9 +5849,7 @@ def _vm_settings_hot_decay() -> dict[str, float | int | bool]:
         "hot_decay_enabled": _vm_read_bool(
             "value_model.hot_decay_enabled", d["hot_decay_enabled"]
         ),
-        "hot_gravity": _vm_read_float(
-            "value_model.hot_gravity", d["hot_gravity"]
-        ),
+        "hot_gravity": _vm_read_float("value_model.hot_gravity", d["hot_gravity"]),
         "hot_clicks_weight": _vm_read_float(
             "value_model.hot_clicks_weight", d["hot_clicks_weight"]
         ),
@@ -5770,7 +5925,10 @@ def _validate_value_model_settings(payload: dict, current: dict) -> dict:
     Bad operator input is silently clamped to the nearest valid value instead
     of raising — matches spec FR-013 / FR-023 / FR-025 expectations.
     """
-    validated: dict = {key: coerce_lenient_bool(payload, current, key) for key in _VALUE_MODEL_BOOL_KEYS}
+    validated: dict = {
+        key: coerce_lenient_bool(payload, current, key)
+        for key in _VALUE_MODEL_BOOL_KEYS
+    }
     for key, (lo, hi) in _VALUE_MODEL_FLOAT_BOUNDS.items():
         validated[key] = coerce_clamp_float(payload, current, key, lo, hi)
     for key, (lo_i, hi_i) in _VALUE_MODEL_INT_BOUNDS.items():
@@ -5862,6 +6020,7 @@ class LocalVerificationBootstrapView(APIView):
         account — protected by ABSOLUTE rule "Never change user passwords".
         """
         from django.contrib.auth import get_user_model
+
         user_model = get_user_model()
         user, _ = user_model.objects.get_or_create(
             username=self._PLAYWRIGHT_USERNAME,
@@ -5894,8 +6053,8 @@ def _client_is_local_setup_request(request) -> bool:
     """Return True only for localhost or the local Docker proxy path."""
     peer_ip = request.META.get("REMOTE_ADDR", "")
     forwarded_for = (
-        request.META.get("HTTP_X_FORWARDED_FOR") or ""
-    ).split(",")[0].strip()
+        (request.META.get("HTTP_X_FORWARDED_FOR") or "").split(",")[0].strip()
+    )
     if peer_ip in {"127.0.0.1", "::1"}:
         return True
     return peer_ip.startswith("172.") and forwarded_for in {"127.0.0.1", "::1"}

@@ -5,25 +5,51 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('content', '0036_rename_content_pas_content_2c5cb1_idx_content_pas_content_d025c0_idx'),
-        ('knowledge_graph', '0002_alter_entitynode_unique_together'),
+        (
+            "content",
+            "0036_rename_content_pas_content_2c5cb1_idx_content_pas_content_d025c0_idx",
+        ),
+        ("knowledge_graph", "0002_alter_entitynode_unique_together"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='PixieWalkVisit',
+            name="PixieWalkVisit",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('visit_count', models.IntegerField(default=0)),
-                ('signal_version', models.CharField(max_length=50)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('source_content', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='pixie_walks_initiated', to='content.contentitem')),
-                ('visited_content', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='pixie_walks_received', to='content.contentitem')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("visit_count", models.IntegerField(default=0)),
+                ("signal_version", models.CharField(max_length=50)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "source_content",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="pixie_walks_initiated",
+                        to="content.contentitem",
+                    ),
+                ),
+                (
+                    "visited_content",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="pixie_walks_received",
+                        to="content.contentitem",
+                    ),
+                ),
             ],
             options={
-                'unique_together': {('source_content', 'visited_content', 'signal_version')},
+                "unique_together": {
+                    ("source_content", "visited_content", "signal_version")
+                },
             },
         ),
     ]

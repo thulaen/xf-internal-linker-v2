@@ -415,9 +415,8 @@ class UndoRestoreView(APIView):
         from apps.audit.services.undo_timeline import restore_event
 
         try:
-            actor = (
-                getattr(request.user, "username", "")
-                or str(getattr(request.user, "pk", ""))
+            actor = getattr(request.user, "username", "") or str(
+                getattr(request.user, "pk", "")
             )
         except Exception:  # noqa: forbidden-pattern silent-except — anonymous-user / weird auth payload; empty actor string is the right default.
             actor = ""

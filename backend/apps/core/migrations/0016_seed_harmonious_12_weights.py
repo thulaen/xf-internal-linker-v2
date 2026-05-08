@@ -4,9 +4,8 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0015_delete_featureflag_delete_featureflagexposure'),
+        ("core", "0015_delete_featureflag_delete_featureflagexposure"),
     ]
 
     def seed_weights(apps, schema_editor):
@@ -19,8 +18,7 @@ class Migration(migrations.Migration):
         }
         for key, (value, category) in weights.items():
             AppSetting.objects.get_or_create(
-                key=key,
-                defaults={"value": value, "category": category}
+                key=key, defaults={"value": value, "category": category}
             )
 
     operations = [

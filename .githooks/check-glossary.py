@@ -85,6 +85,33 @@ ALLOWLIST: frozenset[str] = frozenset({
     "RECOMMENDED", "OPTIONAL",
     # Project-specific compound nouns that read more naturally hyphenated
     "BEAT-ENTRY", "TASK-NAME", "TASK-ID", "RUN-ID", "BATCH-LABEL",
+    # POSIX errno codes and OS / process identifiers
+    "EADDRINUSE", "EAGAIN", "EBADF", "EBUSY", "ECONNRESET", "EEXIST",
+    "EINTR", "EINVAL", "EIO", "ENOENT", "ENOMEM", "ENOSPC", "EPERM",
+    "EPIPE", "ETIMEDOUT", "EXDEV", "EOL", "EOF", "PID", "PPID", "TTY",
+    # Web servers and well-known system services people mention by acronym
+    "IIS", "NGINX", "APACHE",
+    # Vendor / product proper nouns that show up in all-caps string lookups
+    "OPENAI", "GEMINI", "ANTHROPIC", "GOOGLE", "AWS", "GCP", "AZURE",
+    # PostgreSQL / SQL DDL keywords commonly typed in upper-case in code
+    "REFRESH", "MATERIALIZED", "VIEW", "CONCURRENTLY", "TABLE", "INDEX",
+    "CONSTRAINT", "UNIQUE", "PRIMARY", "FOREIGN", "REFERENCES", "CASCADE",
+    "RESTRICT", "DEFAULT", "CHECK", "TRIGGER", "FUNCTION", "PROCEDURE",
+    "GRANT", "REVOKE", "COMMIT", "ROLLBACK", "SAVEPOINT", "VACUUM",
+    "ANALYZE", "EXPLAIN", "TRUNCATE", "ALTER", "DROP", "RENAME", "RETURNS",
+    # Status / state enum values (uppercase in code AND docstrings)
+    "PAUSED", "WORKING", "IDLE", "DEGRADED", "RUNNING", "STOPPED",
+    "STARTING", "STOPPING", "PENDING", "PROPOSED", "APPROVED", "REJECTED",
+    "APPLIED", "VERIFIED", "STALE", "SUPERSEDED", "ACTIVE", "INACTIVE",
+    "DESTRUCTIVE", "DUPLICATES", "BODYKEY", "META", "SIGNALS",
+    "GROUP", "FETCHED", "FAISS-GPU",
+    # spaCy part-of-speech tags (Universal Dependencies set)
+    "ADJ", "ADP", "ADV", "AUX", "CCONJ", "DET", "INTJ", "NOUN", "NUM",
+    "PART", "PRON", "PROPN", "PUNCT", "SCONJ", "SYM", "VERB",
+    # Project shorthand / algorithm acronyms already used widely
+    "ACI", "BPR", "ELO", "EMA", "HPO", "HITS", "IPS", "KCIB", "KMIG",
+    "MMR", "PPR", "PMI", "RRF", "SHAP", "SPRT", "TAPB", "DARB", "BERP",
+    "HGTE", "RSQVA",
     # Common dev-environment + design-pattern terms
     "KISS", "DRY", "YAGNI", "LOC", "TDD", "BDD", "MVC", "MVP", "MVVM",
     # Short shorthand (already cited in glossary one-liners)

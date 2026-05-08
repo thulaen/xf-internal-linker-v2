@@ -40,7 +40,8 @@ class Pick55BenchTests(TestCase):
         self.assertIsNotNone(metadata.noun_chunks)
         self.assertGreater(len(metadata.noun_chunks), 0)
         self.assertLess(
-            elapsed_ms, 5000.0,
+            elapsed_ms,
+            5000.0,
             f"NLP enrichment too slow: {elapsed_ms:.2f}ms",
         )
 
@@ -57,9 +58,7 @@ class Pick55BenchTests(TestCase):
             host_nlp_metadata=asdict(metadata),
         )
         self.assertIsInstance(result, PhraseMatchResult)
-        self.assertIn(
-            "alternative_anchors", result.phrase_match_diagnostics
-        )
+        self.assertIn("alternative_anchors", result.phrase_match_diagnostics)
         alts = result.phrase_match_diagnostics["alternative_anchors"]
         self.assertGreater(len(alts), 0)
 
@@ -77,6 +76,7 @@ class Pick55BenchTests(TestCase):
             )
         avg_ms = ((time.perf_counter() - start) / 100) * 1000
         self.assertLess(
-            avg_ms, 50.0,
+            avg_ms,
+            50.0,
             f"phrase match avg too slow: {avg_ms:.2f}ms",
         )

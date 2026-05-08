@@ -10,6 +10,7 @@ from apps.content.models import PassageEmbedding, OPQCodebook
 
 logger = logging.getLogger(__name__)
 
+
 def generate_corpus_signature() -> str:
     """
     Generate a simple signature of the current corpus.
@@ -19,8 +20,9 @@ def generate_corpus_signature() -> str:
     count = PassageEmbedding.objects.count()
     if count == 0:
         return "empty"
-    latest = PassageEmbedding.objects.order_by('-updated_at').first()
+    latest = PassageEmbedding.objects.order_by("-updated_at").first()
     return f"c{count}_t{int(latest.updated_at.timestamp())}"
+
 
 def should_retrain() -> bool:
     """
@@ -31,12 +33,13 @@ def should_retrain() -> bool:
     active = OPQCodebook.objects.filter(is_active=True).first()
     if not active:
         return True
-    
+
     if timezone.now() - active.trained_at > timedelta(days=7):
         # Weekly training
         return True
-        
+
     return False
+
 
 def train_codebook(sample_size=100000, m=64, k=256, n_iter=25):
     """
@@ -51,40 +54,44 @@ def train_codebook(sample_size=100000, m=64, k=256, n_iter=25):
     # 1. Fetch random sample of passage embeddings
     # Using order_by('?') is slow on large tables, but we assume sample_size is reasonable
     # or we can use a more efficient sampling method if needed.
-    passages = PassageEmbedding.objects.filter(embedding__isnull=False).order_by('?')[:sample_size]
-    
+    passages = PassageEmbedding.objects.filter(embedding__isnull=False).order_by("?")[
+        :sample_size
+    ]
+
     vectors = []
     for p in passages:
         vectors.append(p.embedding)
-        
+
     if not vectors:
         logger.warning("No passage embeddings found for training.")
         return
-        
+
     data = np.vstack(vectors).astype(np.float32)
     N, D = data.shape
-    
+
     if D % m != 0:
         raise ValueError(f"Embedding dimension {D} must be divisible by M={m}")
-        
+
     # 2. Call C++ extension to train OPQ
     try:
         from extensions import quantemb
     except ImportError:
-        logger.error("quantemb C++ extension not found. Falling back to Python OPQ trainer.")
+        logger.error(
+            "quantemb C++ extension not found. Falling back to Python OPQ trainer."
+        )
         # Fallback would go here. For now, we raise if C++ is not available.
         raise RuntimeError("quantemb extension required for OPQ training")
-        
+
     logger.info(f"Calling quantemb.opq_train with {N}x{D} matrix...")
     rot, codebooks = quantemb.opq_train(data, m, k, n_iter)
-    
+
     sig = generate_corpus_signature()
-    
+
     # 3. Save to database
     with transaction.atomic():
         # Deactivate current
         OPQCodebook.objects.filter(is_active=True).update(is_active=False)
-        
+
         # Create new
         new_cb = OPQCodebook.objects.create(
             version=1,
@@ -93,7 +100,7 @@ def train_codebook(sample_size=100000, m=64, k=256, n_iter=25):
             n_subquantisers=m,
             k_centroids=k,
             corpus_signature=sig,
-            is_active=True
+            is_active=True,
         )
         logger.info(f"Activated new OPQ codebook: {new_cb}")
 

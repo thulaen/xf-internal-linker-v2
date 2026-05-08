@@ -6,7 +6,6 @@ extracted helper so failures point directly at the broken function.
 
 from __future__ import annotations
 
-import math
 import types
 from collections import defaultdict
 from datetime import date
@@ -77,7 +76,9 @@ class ComputePairScoresTests(SimpleTestCase):
 
     def test_all_keys_present(self) -> None:
         scores = _compute_pair_scores(3, 5, 5, 50)
-        self.assertSetEqual(set(scores.keys()), {"jaccard", "lift", "g2", "pmi", "npmi"})
+        self.assertSetEqual(
+            set(scores.keys()), {"jaccard", "lift", "g2", "pmi", "npmi"}
+        )
 
 
 class BuildCooccurrenceCountsTests(SimpleTestCase):
@@ -195,7 +196,12 @@ class FallbackSignalDiagnosticsTests(SimpleTestCase):
 
     def test_expected_keys_present(self) -> None:
         diag = _fallback_signal_diagnostics(0.5)
-        for key in ("co_session_count", "jaccard_similarity", "log_likelihood_score", "lift"):
+        for key in (
+            "co_session_count",
+            "jaccard_similarity",
+            "log_likelihood_score",
+            "lift",
+        ):
             self.assertIn(key, diag)
 
 
@@ -290,8 +296,15 @@ class ExtractSignalWeightsTests(SimpleTestCase):
 
     def test_all_seven_keys_present(self) -> None:
         weights = _extract_signal_weights({})
-        expected = {"w_relevance", "w_traffic", "w_freshness", "w_authority",
-                    "w_engagement", "w_cooccurrence", "w_penalty"}
+        expected = {
+            "w_relevance",
+            "w_traffic",
+            "w_freshness",
+            "w_authority",
+            "w_engagement",
+            "w_cooccurrence",
+            "w_penalty",
+        }
         self.assertSetEqual(set(weights.keys()), expected)
 
     def test_partial_override(self) -> None:
@@ -316,15 +329,24 @@ class DisabledCoSignalTests(SimpleTestCase):
 
 class ComputeWeightedScoreTests(SimpleTestCase):
     _WEIGHTS = {
-        "w_relevance": 0.35, "w_traffic": 0.25, "w_freshness": 0.1,
-        "w_authority": 0.1, "w_engagement": 0.08, "w_cooccurrence": 0.12,
+        "w_relevance": 0.35,
+        "w_traffic": 0.25,
+        "w_freshness": 0.1,
+        "w_authority": 0.1,
+        "w_engagement": 0.08,
+        "w_cooccurrence": 0.12,
         "w_penalty": 0.0,
     }
 
     def _signals(self, **overrides) -> dict:
         base = {
-            "relevance": 0.5, "traffic": 0.5, "freshness": 0.5,
-            "authority": 0.5, "engagement": 0.5, "co": 0.5, "penalty": 0.0,
+            "relevance": 0.5,
+            "traffic": 0.5,
+            "freshness": 0.5,
+            "authority": 0.5,
+            "engagement": 0.5,
+            "co": 0.5,
+            "penalty": 0.0,
         }
         base.update(overrides)
         return base
@@ -332,8 +354,13 @@ class ComputeWeightedScoreTests(SimpleTestCase):
     def test_basic_weighted_sum(self) -> None:
         # All signals=1, penalty_weight=0 → score = sum of positive weights
         signals = self._signals(
-            relevance=1.0, traffic=1.0, freshness=1.0, authority=1.0,
-            engagement=1.0, co=1.0, penalty=0.0,
+            relevance=1.0,
+            traffic=1.0,
+            freshness=1.0,
+            authority=1.0,
+            engagement=1.0,
+            co=1.0,
+            penalty=0.0,
         )
         score = _compute_weighted_score(signals, self._WEIGHTS)
         expected = 0.35 + 0.25 + 0.1 + 0.1 + 0.08 + 0.12
@@ -386,6 +413,8 @@ class ExtractContentSignalsTests(SimpleTestCase):
 
     def test_none_score_semantic_falls_back(self) -> None:
         dest = types.SimpleNamespace()
-        suggestion = types.SimpleNamespace(score_semantic=None, destination=dest, host=None)
+        suggestion = types.SimpleNamespace(
+            score_semantic=None, destination=dest, host=None
+        )
         signals = _extract_content_signals(suggestion)
         self.assertAlmostEqual(signals["relevance"], 0.5)

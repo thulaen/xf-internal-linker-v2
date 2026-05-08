@@ -13,7 +13,6 @@ from unittest import mock
 from django.test import SimpleTestCase
 
 from apps.analytics.views import (
-    _aggregate_breakdown,
     _format_breakdown_rows,
     _format_setting_value,
     _format_top_suggestion_row,
@@ -74,16 +73,20 @@ class GA4ReadStatusTests(SimpleTestCase):
 
     def test_completed_sync_wins(self):
         status, _ = _ga4_read_status(
-            oauth_connected=True, property_id="123",
-            read_client_email="x@y.iam", read_private_key="key",
+            oauth_connected=True,
+            property_id="123",
+            read_client_email="x@y.iam",
+            read_private_key="key",
             sync={"status": "completed"},
         )
         self.assertEqual(status, "connected")
 
     def test_failed_sync_returns_error(self):
         status, message = _ga4_read_status(
-            oauth_connected=True, property_id="123",
-            read_client_email="x@y.iam", read_private_key="key",
+            oauth_connected=True,
+            property_id="123",
+            read_client_email="x@y.iam",
+            read_private_key="key",
             sync={"status": "failed", "error_message": "boom"},
         )
         self.assertEqual(status, "error")
@@ -91,22 +94,31 @@ class GA4ReadStatusTests(SimpleTestCase):
 
     def test_oauth_connected_no_sync(self):
         status, _ = _ga4_read_status(
-            oauth_connected=True, property_id="123",
-            read_client_email="", read_private_key="", sync=None,
+            oauth_connected=True,
+            property_id="123",
+            read_client_email="",
+            read_private_key="",
+            sync=None,
         )
         self.assertEqual(status, "connected")
 
     def test_service_account_creds_saved(self):
         status, _ = _ga4_read_status(
-            oauth_connected=False, property_id="123",
-            read_client_email="x@y.iam", read_private_key="key", sync=None,
+            oauth_connected=False,
+            property_id="123",
+            read_client_email="x@y.iam",
+            read_private_key="key",
+            sync=None,
         )
         self.assertEqual(status, "saved")
 
     def test_nothing_configured(self):
         status, message = _ga4_read_status(
-            oauth_connected=False, property_id="",
-            read_client_email="", read_private_key="", sync=None,
+            oauth_connected=False,
+            property_id="",
+            read_client_email="",
+            read_private_key="",
+            sync=None,
         )
         self.assertEqual(status, "not_configured")
         self.assertIn("Connect Google", message)
@@ -117,31 +129,43 @@ class GSCConnectionStatusTests(SimpleTestCase):
 
     def test_completed_sync_wins(self):
         status, _ = _gsc_connection_status(
-            oauth_connected=True, property_url="https://example.com/",
-            client_email="", private_key="", sync={"status": "completed"},
+            oauth_connected=True,
+            property_url="https://example.com/",
+            client_email="",
+            private_key="",
+            sync={"status": "completed"},
         )
         self.assertEqual(status, "connected")
 
     def test_oauth_connected_with_property(self):
         status, message = _gsc_connection_status(
-            oauth_connected=True, property_url="https://example.com/",
-            client_email="", private_key="", sync=None,
+            oauth_connected=True,
+            property_url="https://example.com/",
+            client_email="",
+            private_key="",
+            sync=None,
         )
         self.assertEqual(status, "connected")
         self.assertEqual(message, "Connected to Google.")
 
     def test_oauth_connected_no_property_yet(self):
         status, message = _gsc_connection_status(
-            oauth_connected=True, property_url="",
-            client_email="", private_key="", sync=None,
+            oauth_connected=True,
+            property_url="",
+            client_email="",
+            private_key="",
+            sync=None,
         )
         self.assertEqual(status, "saved")
         self.assertIn("Add the Search Console property URL", message)
 
     def test_service_account_creds(self):
         status, _ = _gsc_connection_status(
-            oauth_connected=False, property_url="https://example.com/",
-            client_email="x@y.iam", private_key="key", sync=None,
+            oauth_connected=False,
+            property_url="https://example.com/",
+            client_email="x@y.iam",
+            private_key="key",
+            sync=None,
         )
         self.assertEqual(status, "saved")
 
@@ -150,38 +174,68 @@ class PeriodicEnabledTruthTablesTests(SimpleTestCase):
     """Each ``_*_periodic_enabled`` helper requires every checked field truthy."""
 
     def test_ga4_all_truthy_passes(self):
-        self.assertTrue(_ga4_periodic_enabled({
-            "sync_enabled": True, "property_id": "123",
-            "read_project_id": "p", "read_client_email": "x@y.iam",
-            "read_private_key_configured": True,
-        }))
+        self.assertTrue(
+            _ga4_periodic_enabled(
+                {
+                    "sync_enabled": True,
+                    "property_id": "123",
+                    "read_project_id": "p",
+                    "read_client_email": "x@y.iam",
+                    "read_private_key_configured": True,
+                }
+            )
+        )
 
     def test_ga4_one_falsy_fails(self):
-        self.assertFalse(_ga4_periodic_enabled({
-            "sync_enabled": True, "property_id": "123",
-            "read_project_id": "p", "read_client_email": "x@y.iam",
-            "read_private_key_configured": False,  # missing
-        }))
+        self.assertFalse(
+            _ga4_periodic_enabled(
+                {
+                    "sync_enabled": True,
+                    "property_id": "123",
+                    "read_project_id": "p",
+                    "read_client_email": "x@y.iam",
+                    "read_private_key_configured": False,  # missing
+                }
+            )
+        )
 
     def test_matomo_all_truthy_passes(self):
-        self.assertTrue(_matomo_periodic_enabled({
-            "enabled": True, "sync_enabled": True,
-            "url": "https://m", "site_id_xenforo": "1",
-            "token_auth_configured": True,
-        }))
+        self.assertTrue(
+            _matomo_periodic_enabled(
+                {
+                    "enabled": True,
+                    "sync_enabled": True,
+                    "url": "https://m",
+                    "site_id_xenforo": "1",
+                    "token_auth_configured": True,
+                }
+            )
+        )
 
     def test_matomo_disabled_fails(self):
-        self.assertFalse(_matomo_periodic_enabled({
-            "enabled": False, "sync_enabled": True,
-            "url": "https://m", "site_id_xenforo": "1",
-            "token_auth_configured": True,
-        }))
+        self.assertFalse(
+            _matomo_periodic_enabled(
+                {
+                    "enabled": False,
+                    "sync_enabled": True,
+                    "url": "https://m",
+                    "site_id_xenforo": "1",
+                    "token_auth_configured": True,
+                }
+            )
+        )
 
     def test_gsc_all_truthy_passes(self):
-        self.assertTrue(_gsc_periodic_enabled({
-            "sync_enabled": True, "property_url": "https://x",
-            "client_email": "x@y.iam", "private_key_configured": True,
-        }))
+        self.assertTrue(
+            _gsc_periodic_enabled(
+                {
+                    "sync_enabled": True,
+                    "property_url": "https://x",
+                    "client_email": "x@y.iam",
+                    "private_key_configured": True,
+                }
+            )
+        )
 
 
 class FormatBreakdownRowsTests(SimpleTestCase):
@@ -189,21 +243,42 @@ class FormatBreakdownRowsTests(SimpleTestCase):
 
     def test_label_or_unknown_used(self):
         rows = _format_breakdown_rows(
-            [{"device_category": None, "impressions": 10, "clicks": 1, "engaged_sessions": 5}],
+            [
+                {
+                    "device_category": None,
+                    "impressions": 10,
+                    "clicks": 1,
+                    "engaged_sessions": 5,
+                }
+            ],
             "device_category",
         )
         self.assertEqual(rows[0]["label"], "Unknown")
 
     def test_zero_impressions_safe_ctr(self):
         rows = _format_breakdown_rows(
-            [{"device_category": "mobile", "impressions": 0, "clicks": 0, "engaged_sessions": 0}],
+            [
+                {
+                    "device_category": "mobile",
+                    "impressions": 0,
+                    "clicks": 0,
+                    "engaged_sessions": 0,
+                }
+            ],
             "device_category",
         )
         self.assertEqual(rows[0]["ctr"], 0.0)
 
     def test_int_coercion_handles_none(self):
         rows = _format_breakdown_rows(
-            [{"device_category": "mobile", "impressions": None, "clicks": None, "engaged_sessions": None}],
+            [
+                {
+                    "device_category": "mobile",
+                    "impressions": None,
+                    "clicks": None,
+                    "engaged_sessions": None,
+                }
+            ],
             "device_category",
         )
         self.assertEqual(rows[0]["impressions"], 0)
@@ -214,34 +289,44 @@ class FormatTopSuggestionRowTests(SimpleTestCase):
     """Verify the top-suggestion row formatter."""
 
     def test_full_row_shape(self):
-        result = _format_top_suggestion_row({
-            "suggestion_id": "abc-123",
-            "suggestion__destination_title": "Page",
-            "suggestion__anchor_phrase": "phrase",
-            "suggestion__status": "applied",
-            "telemetry_source": "ga4",
-            "impressions": 100, "clicks": 10,
-            "destination_views": 50, "engaged_sessions": 20,
-            "conversions": 2, "quick_exit_sessions": 5,
-            "dwell_60s_sessions": 15,
-        })
+        result = _format_top_suggestion_row(
+            {
+                "suggestion_id": "abc-123",
+                "suggestion__destination_title": "Page",
+                "suggestion__anchor_phrase": "phrase",
+                "suggestion__status": "applied",
+                "telemetry_source": "ga4",
+                "impressions": 100,
+                "clicks": 10,
+                "destination_views": 50,
+                "engaged_sessions": 20,
+                "conversions": 2,
+                "quick_exit_sessions": 5,
+                "dwell_60s_sessions": 15,
+            }
+        )
         self.assertEqual(result["suggestion_id"], "abc-123")
         self.assertEqual(result["destination_title"], "Page")
         self.assertEqual(result["ctr"], 0.1)  # 10/100
         self.assertEqual(result["engagement_rate"], 0.4)  # 20/50
 
     def test_missing_destination_title_fallback(self):
-        result = _format_top_suggestion_row({
-            "suggestion_id": "abc",
-            "suggestion__destination_title": None,
-            "suggestion__anchor_phrase": None,
-            "suggestion__status": None,
-            "telemetry_source": "matomo",
-            "impressions": 0, "clicks": 0,
-            "destination_views": 0, "engaged_sessions": 0,
-            "conversions": 0, "quick_exit_sessions": 0,
-            "dwell_60s_sessions": 0,
-        })
+        result = _format_top_suggestion_row(
+            {
+                "suggestion_id": "abc",
+                "suggestion__destination_title": None,
+                "suggestion__anchor_phrase": None,
+                "suggestion__status": None,
+                "telemetry_source": "matomo",
+                "impressions": 0,
+                "clicks": 0,
+                "destination_views": 0,
+                "engaged_sessions": 0,
+                "conversions": 0,
+                "quick_exit_sessions": 0,
+                "dwell_60s_sessions": 0,
+            }
+        )
         self.assertEqual(result["destination_title"], "Unknown destination")
         self.assertEqual(result["status"], "unknown")
 
@@ -252,11 +337,13 @@ class ResolveMatomoTestCredentialsTests(SimpleTestCase):
     @mock.patch("apps.analytics.views._matomo_token", return_value="")
     @mock.patch("apps.analytics.views._read_setting", return_value="")
     def test_body_wins(self, _read, _token):
-        creds = _resolve_matomo_test_credentials({
-            "url": "https://x.com/",
-            "site_id_xenforo": "1",
-            "token_auth": "tok",
-        })
+        creds = _resolve_matomo_test_credentials(
+            {
+                "url": "https://x.com/",
+                "site_id_xenforo": "1",
+                "token_auth": "tok",
+            }
+        )
         self.assertEqual(creds["base_url"], "https://x.com")
         self.assertEqual(creds["site_id"], "1")
         self.assertEqual(creds["token_auth"], "tok")

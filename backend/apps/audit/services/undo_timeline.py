@@ -24,10 +24,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
-from django.db.models import Q
 from django.utils import timezone
 
 from apps.audit.models import AuditEvent
@@ -122,8 +121,12 @@ def restore_event(
     try:
         ev = AuditEvent.objects.filter(pk=event_id).first()
     except Exception:
-        logger.warning("undo_timeline: lookup failed for event %s", event_id, exc_info=True)
-        return RestoreResult(ok=False, message="Could not look up that event in the audit table.")
+        logger.warning(
+            "undo_timeline: lookup failed for event %s", event_id, exc_info=True
+        )
+        return RestoreResult(
+            ok=False, message="Could not look up that event in the audit table."
+        )
     if ev is None:
         return RestoreResult(ok=False, message=f"No audit event with id {event_id}.")
 

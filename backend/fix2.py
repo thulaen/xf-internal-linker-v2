@@ -1,5 +1,4 @@
-
-txt = open('apps/pipeline/services/passage_relevance.py').read()
+txt = open("apps/pipeline/services/passage_relevance.py").read()
 
 old_code = """        q = np.asarray(host_sentence_embedding, dtype=np.float64)
         passage_matrix = np.vstack(
@@ -34,5 +33,5 @@ new_code = """        q = np.asarray(host_sentence_embedding, dtype=np.float32)
 
 txt = txt.replace(old_code, new_code)
 
-with open('apps/pipeline/services/passage_relevance.py', 'w') as f:
+with open("apps/pipeline/services/passage_relevance.py", "w") as f:
     f.write(txt)

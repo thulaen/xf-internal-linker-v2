@@ -1119,7 +1119,9 @@ class FirstOperatorSetupTests(APITestCase):
         self.assertEqual(response.json()["username"], "admin")
 
     def test_status_closed_after_user_exists(self):
-        get_user_model().objects.create_user(username="existing", password="secret12345")
+        get_user_model().objects.create_user(
+            username="existing", password="secret12345"
+        )
 
         response = self.client.get(
             "/api/auth/first-operator/",
@@ -1170,7 +1172,9 @@ class FirstOperatorSetupTests(APITestCase):
         self.assertFalse(get_user_model().objects.exists())
 
     def test_rejects_after_any_user_exists(self):
-        get_user_model().objects.create_user(username="existing", password="secret12345")
+        get_user_model().objects.create_user(
+            username="existing", password="secret12345"
+        )
 
         response = self.client.post(
             "/api/auth/first-operator/",

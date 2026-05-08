@@ -56,6 +56,7 @@ class ArticleEntityEdge(models.Model):
 
 class PixieWalkVisit(models.Model):
     """Stores deduplicated visit counts from the Pixie candidate generation walk (Group A.3)."""
+
     source_content = models.ForeignKey(
         ContentItem, on_delete=models.CASCADE, related_name="pixie_walks_initiated"
     )

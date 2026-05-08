@@ -77,6 +77,7 @@ def _build_pipeline_run_config_snapshot() -> dict:
         RARE_TERM_PROPAGATION_VERSION,
         WEIGHTED_AUTHORITY_VERSION,
     )
+
     return {
         "weighted_authority": get_weighted_authority_settings(),
         "phrase_matching": get_phrase_matching_settings(),
@@ -124,6 +125,7 @@ class PipelineRunViewSet(viewsets.ReadOnlyModelViewSet):
             config_snapshot=_build_pipeline_run_config_snapshot(),
         )
         from apps.pipeline.tasks import dispatch_pipeline_run
+
         dispatch_pipeline_run(
             run_id=str(run.run_id),
             host_scope=run.host_scope,
@@ -137,7 +139,8 @@ def _validate_batch_action_inputs(action_name, ids) -> Response | None:
     """Validate POST /suggestions/batch_action body. Returns Response on error or None on success."""
     if action_name not in ("approve", "reject", "skip"):
         return Response(
-            {"detail": "action must be 'approve', 'reject', or 'skip'."}, status=400,
+            {"detail": "action must be 'approve', 'reject', or 'skip'."},
+            status=400,
         )
     if not isinstance(ids, list):
         return Response({"detail": "ids must be a list."}, status=400)
@@ -159,21 +162,28 @@ def _apply_batch_reject(*, suggestions, now, rejection_reason: str) -> int:
         suggestions.values_list("host_id", "destination_id"),
     )
     updated = suggestions.update(
-        status="rejected", reviewed_at=now,
-        rejection_reason=rejection_reason, updated_at=now,
+        status="rejected",
+        reviewed_at=now,
+        rejection_reason=rejection_reason,
+        updated_at=now,
     )
     for host_id, destination_id in pairs_to_record:
         try:
-            RejectedPair.record_rejection(host_id=host_id, destination_id=destination_id)
+            RejectedPair.record_rejection(
+                host_id=host_id, destination_id=destination_id
+            )
         except Exception:
             logger.exception(
                 "Failed to record RejectedPair for host=%s dest=%s",
-                host_id, destination_id,
+                host_id,
+                destination_id,
             )
     return updated
 
 
-def _detect_reviewer_anchor_edit(request, original_anchor_phrase: str) -> tuple[bool, str | None]:
+def _detect_reviewer_anchor_edit(
+    request, original_anchor_phrase: str
+) -> tuple[bool, str | None]:
     """Return ``(was_edited, new_value)`` for the optional ``anchor_edited`` field.
 
     A real edit needs a non-empty string that differs from the system-generated
@@ -197,9 +207,15 @@ def _apply_approval_to_suggestion(suggestion, request_data: dict) -> None:
         suggestion.anchor_edited = request_data["anchor_edited"]
     if "reviewer_notes" in request_data:
         suggestion.reviewer_notes = request_data["reviewer_notes"]
-    suggestion.save(update_fields=[
-        "status", "reviewed_at", "anchor_edited", "reviewer_notes", "updated_at",
-    ])
+    suggestion.save(
+        update_fields=[
+            "status",
+            "reviewed_at",
+            "anchor_edited",
+            "reviewer_notes",
+            "updated_at",
+        ]
+    )
 
 
 class SuggestionViewSet(viewsets.ModelViewSet):
@@ -300,19 +316,24 @@ class SuggestionViewSet(viewsets.ModelViewSet):
         suggestion = self.get_object()
         if suggestion.status not in ("pending", "rejected"):
             return Response(
-                {"detail": f"Cannot approve a suggestion with status '{suggestion.status}'."},
+                {
+                    "detail": f"Cannot approve a suggestion with status '{suggestion.status}'."
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         original_anchor_phrase = suggestion.anchor_phrase
         anchor_was_edited, new_anchor_edited = _detect_reviewer_anchor_edit(
-            request, original_anchor_phrase,
+            request,
+            original_anchor_phrase,
         )
         _apply_approval_to_suggestion(suggestion, request.data)
         self._log_audit("approve", suggestion, request)
         if anchor_was_edited:
             self._log_anchor_edit_audit(
-                suggestion=suggestion, request=request,
-                original=original_anchor_phrase, final=new_anchor_edited,
+                suggestion=suggestion,
+                request=request,
+                original=original_anchor_phrase,
+                final=new_anchor_edited,
             )
         return Response(SuggestionDetailSerializer(suggestion).data)
 
@@ -383,10 +404,13 @@ class SuggestionViewSet(viewsets.ModelViewSet):
         suggestions = Suggestion.objects.filter(suggestion_id__in=ids, status="pending")
         now = datetime.now(tz=timezone.utc)
         if action_name == "approve":
-            updated = suggestions.update(status="approved", reviewed_at=now, updated_at=now)
+            updated = suggestions.update(
+                status="approved", reviewed_at=now, updated_at=now
+            )
         elif action_name == "reject":
             updated = _apply_batch_reject(
-                suggestions=suggestions, now=now,
+                suggestions=suggestions,
+                now=now,
                 rejection_reason=request.data.get("rejection_reason", "other"),
             )
         else:  # skip
@@ -424,7 +448,9 @@ class SuggestionViewSet(viewsets.ModelViewSet):
                 suggestion.suggestion_id,
             )
 
-    def _log_batch_audit(self, action_name: str, ids: list, updated: int, request) -> None:
+    def _log_batch_audit(
+        self, action_name: str, ids: list, updated: int, request
+    ) -> None:
         try:
             record_audit(
                 f"suggestion.batch_{action_name}",
@@ -680,6 +706,7 @@ _MAX_DRIFT_FROM_BASELINE = 0.20
 def _bulk_load_meta_app_settings(metas) -> dict[str, str]:
     """Single-query AppSetting lookup for every meta's enabled+weight key."""
     from apps.core.models import AppSetting
+
     wanted_keys: set[str] = set()
     for m in metas:
         wanted_keys.add(m.enabled_key)
@@ -706,12 +733,17 @@ def _meta_row_payload(meta, setting_map: dict[str, str]) -> dict:
     enabled = _coerce_bool(enabled_raw)
     weight_val = setting_map.get(meta.weight_key) if meta.weight_key else None
     return {
-        "id": meta.id, "meta_code": meta.meta_code, "family": meta.family,
+        "id": meta.id,
+        "meta_code": meta.meta_code,
+        "family": meta.family,
         "title": meta.title,
         "status": _resolve_meta_status(meta, enabled_raw=enabled_raw, enabled=enabled),
-        "enabled": enabled, "enabled_key": meta.enabled_key,
-        "weight_key": meta.weight_key, "weight_value": weight_val,
-        "spec_path": meta.spec_path, "cpp_kernel": meta.cpp_kernel,
+        "enabled": enabled,
+        "enabled_key": meta.enabled_key,
+        "weight_key": meta.weight_key,
+        "weight_value": weight_val,
+        "spec_path": meta.spec_path,
+        "cpp_kernel": meta.cpp_kernel,
         "param_keys": list(meta.param_keys),
     }
 
@@ -727,7 +759,8 @@ def _apply_meta_query_filters(rows: list[dict], query_params) -> list[dict]:
         rows = [r for r in rows if r["status"] == status_filter]
     if query:
         rows = [
-            r for r in rows
+            r
+            for r in rows
             if query in r["id"].lower()
             or query in (r["meta_code"] or "").lower()
             or query in r["title"].lower()
@@ -754,17 +787,24 @@ class MetaAlgorithmSettingsView(views.APIView):
 
     def get(self, request):
         from .meta_registry import enumerate_metas, families_summary
+
         metas = enumerate_metas()
         setting_map = _bulk_load_meta_app_settings(metas)
         rows = [_meta_row_payload(m, setting_map) for m in metas]
         rows = _apply_meta_query_filters(rows, request.query_params)
-        return Response({
-            "rows": rows,
-            "families": families_summary(
-                type("ListWrap", (), {"__iter__": lambda self: iter(_MetasAdapter(rows))})(),
-            ),
-            "total": len(rows),
-        })
+        return Response(
+            {
+                "rows": rows,
+                "families": families_summary(
+                    type(
+                        "ListWrap",
+                        (),
+                        {"__iter__": lambda self: iter(_MetasAdapter(rows))},
+                    )(),
+                ),
+                "total": len(rows),
+            }
+        )
 
 
 class _MetasAdapter:
@@ -792,10 +832,12 @@ def _validate_meta_toggle_inputs(meta, algo_id: str, data: dict) -> Response | N
         )
     if meta.status == "forward-declared":
         return Response(
-            {"detail": (
-                "This meta-algorithm is spec-only for now. "
-                "It cannot be enabled until its implementation lands."
-            )},
+            {
+                "detail": (
+                    "This meta-algorithm is spec-only for now. "
+                    "It cannot be enabled until its implementation lands."
+                )
+            },
             status=status.HTTP_400_BAD_REQUEST,
         )
     if data.get("enabled") is None:
@@ -809,11 +851,13 @@ def _validate_meta_toggle_inputs(meta, algo_id: str, data: dict) -> Response | N
 def _persist_meta_enabled_flag(meta, enabled: bool) -> None:
     """Upsert the AppSetting row for this meta's enabled flag."""
     from apps.core.models import AppSetting
+
     AppSetting.objects.update_or_create(
         key=meta.enabled_key,
         defaults={
             "value": "true" if enabled else "false",
-            "value_type": "bool", "category": "ml",
+            "value_type": "bool",
+            "category": "ml",
             "description": (
                 f"Auto-set by MetaAlgorithmToggleView for {meta.meta_code or meta.id}."
             ),
@@ -826,8 +870,10 @@ def _emit_meta_toggle_realtime(meta, enabled: bool) -> None:
     try:
         from apps.realtime.services import broadcast
         from apps.ops_feed.services import emit
+
         broadcast(
-            "meta_algorithms.state", "toggled",
+            "meta_algorithms.state",
+            "toggled",
             {"id": meta.id, "meta_code": meta.meta_code, "enabled": enabled},
         )
         emit(
@@ -836,8 +882,10 @@ def _emit_meta_toggle_realtime(meta, enabled: bool) -> None:
                 f"Meta-algorithm setting changed: {meta.meta_code or meta.id} "
                 f"was {'enabled' if enabled else 'disabled'}."
             ),
-            source="settings", severity="info",
-            related_entity_type="meta_algorithm", related_entity_id=meta.id,
+            source="settings",
+            severity="info",
+            related_entity_type="meta_algorithm",
+            related_entity_id=meta.id,
             runtime_context={"id": meta.id, "enabled": enabled},
         )
     except Exception:  # noqa: BLE001 — realtime nudge is best-effort; failure must not block the AppSetting write.
@@ -858,6 +906,7 @@ class MetaAlgorithmToggleView(views.APIView):
 
     def post(self, request, algo_id: str):
         from .meta_registry import enumerate_metas
+
         meta = {m.id: m for m in enumerate_metas()}.get(algo_id)
         validation = _validate_meta_toggle_inputs(meta, algo_id, request.data)
         if validation is not None:
@@ -865,13 +914,16 @@ class MetaAlgorithmToggleView(views.APIView):
         enabled = _coerce_bool(request.data.get("enabled"))
         _persist_meta_enabled_flag(meta, enabled)
         record_audit(
-            "meta_algorithm.toggle", ("meta_algorithm", meta.id),
+            "meta_algorithm.toggle",
+            ("meta_algorithm", meta.id),
             request=request,
             message=f"Meta-algorithm {meta.meta_code or meta.id} {'enabled' if enabled else 'disabled'}.",
             metadata={"enabled": enabled, "enabled_key": meta.enabled_key},
         )
         _emit_meta_toggle_realtime(meta, enabled)
-        return Response({"id": meta.id, "meta_code": meta.meta_code, "enabled": enabled})
+        return Response(
+            {"id": meta.id, "meta_code": meta.meta_code, "enabled": enabled}
+        )
 
 
 def _coerce_bool(raw) -> bool:
@@ -927,10 +979,14 @@ def _parse_impression_rows(rows: list) -> tuple[list[dict], set]:
         except (TypeError, ValueError):
             dwell = None
         candidate_ids.add(sid)
-        prepared.append({
-            "suggestion_id": sid, "position": position,
-            "clicked": bool(row.get("clicked", False)), "dwell_ms": dwell,
-        })
+        prepared.append(
+            {
+                "suggestion_id": sid,
+                "position": position,
+                "clicked": bool(row.get("clicked", False)),
+                "dwell_ms": dwell,
+            }
+        )
     return prepared, candidate_ids
 
 
@@ -943,8 +999,9 @@ def _filter_to_existing_suggestion_ids(candidate_ids: set) -> set[str]:
     """
     return {
         str(pk)
-        for pk in Suggestion.objects.filter(pk__in=list(candidate_ids))
-        .values_list("pk", flat=True)
+        for pk in Suggestion.objects.filter(pk__in=list(candidate_ids)).values_list(
+            "pk", flat=True
+        )
     }
 
 
@@ -985,8 +1042,10 @@ class SuggestionImpressionLogView(views.APIView):
         valid_ids = _filter_to_existing_suggestion_ids(candidate_ids)
         impressions = [
             SuggestionImpression(
-                suggestion_id=row["suggestion_id"], position=row["position"],
-                clicked=row["clicked"], dwell_ms=row["dwell_ms"],
+                suggestion_id=row["suggestion_id"],
+                position=row["position"],
+                clicked=row["clicked"],
+                dwell_ms=row["dwell_ms"],
             )
             for row in prepared
             if str(row["suggestion_id"]) in valid_ids

@@ -5,28 +5,78 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('content', '0040_add_char_ngram_vector_to_contentitem'),
+        ("content", "0040_add_char_ngram_vector_to_contentitem"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Token',
+            name="Token",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('text', models.CharField(help_text='The literal token text.', max_length=255)),
-                ('lemma', models.CharField(db_index=True, help_text='The base form of the word (token.lemma_).', max_length=255)),
-                ('pos', models.CharField(db_index=True, help_text='The Part-of-Speech tag (token.pos_).', max_length=16)),
-                ('is_stop', models.BooleanField(default=False, help_text='True if this token is a standard English stopword.')),
-                ('start_char', models.IntegerField(help_text='Start offset within the sentence.')),
-                ('end_char', models.IntegerField(help_text='End offset within the sentence.')),
-                ('sentence', models.ForeignKey(help_text='The sentence this token belongs to.', on_delete=django.db.models.deletion.CASCADE, related_name='tokens', to='content.sentence')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "text",
+                    models.CharField(
+                        help_text="The literal token text.", max_length=255
+                    ),
+                ),
+                (
+                    "lemma",
+                    models.CharField(
+                        db_index=True,
+                        help_text="The base form of the word (token.lemma_).",
+                        max_length=255,
+                    ),
+                ),
+                (
+                    "pos",
+                    models.CharField(
+                        db_index=True,
+                        help_text="The Part-of-Speech tag (token.pos_).",
+                        max_length=16,
+                    ),
+                ),
+                (
+                    "is_stop",
+                    models.BooleanField(
+                        default=False,
+                        help_text="True if this token is a standard English stopword.",
+                    ),
+                ),
+                (
+                    "start_char",
+                    models.IntegerField(help_text="Start offset within the sentence."),
+                ),
+                (
+                    "end_char",
+                    models.IntegerField(help_text="End offset within the sentence."),
+                ),
+                (
+                    "sentence",
+                    models.ForeignKey(
+                        help_text="The sentence this token belongs to.",
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="tokens",
+                        to="content.sentence",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Token',
-                'verbose_name_plural': 'Tokens',
-                'indexes': [models.Index(fields=['lemma', 'pos'], name='content_tok_lemma_11adbb_idx')],
+                "verbose_name": "Token",
+                "verbose_name_plural": "Tokens",
+                "indexes": [
+                    models.Index(
+                        fields=["lemma", "pos"], name="content_tok_lemma_11adbb_idx"
+                    )
+                ],
             },
         ),
     ]

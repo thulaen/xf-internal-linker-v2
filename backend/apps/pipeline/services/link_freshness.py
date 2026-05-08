@@ -351,14 +351,18 @@ def load_all_link_freshness_scores(
     # row LinkFreshnessEdge table doesn't materialise into RAM at once.
     # The dict still grows linearly with destinations but each row is
     # released once `setdefault().append()` returns.
-    edge_rows = LinkFreshnessEdge.objects.order_by("to_content_item_id").values(
-        "to_content_item_id",
-        "to_content_item__content_type",
-        "first_seen_at",
-        "last_seen_at",
-        "last_disappeared_at",
-        "is_active",
-    ).iterator(chunk_size=2000)
+    edge_rows = (
+        LinkFreshnessEdge.objects.order_by("to_content_item_id")
+        .values(
+            "to_content_item_id",
+            "to_content_item__content_type",
+            "first_seen_at",
+            "last_seen_at",
+            "last_disappeared_at",
+            "is_active",
+        )
+        .iterator(chunk_size=2000)
+    )
     for row in edge_rows:
         history_by_destination.setdefault(row["to_content_item_id"], []).append(
             LinkFreshnessPeerRow(

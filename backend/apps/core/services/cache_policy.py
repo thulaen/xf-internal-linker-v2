@@ -43,11 +43,11 @@ _STAT_RING_SIZE = 1024
 # Operator-tunable max-size defaults per cache layer (bytes). Reading
 # the live override from AppSetting; falling back to these on cold start.
 _DEFAULT_MAX_SIZES_BYTES: dict[str, int] = {
-    "dashboard": 32 * 1024 * 1024,        # 32 MB — small payloads, hot reads
+    "dashboard": 32 * 1024 * 1024,  # 32 MB — small payloads, hot reads
     "model_weights": 4 * 1024 * 1024 * 1024,  # 4 GB — BGE-M3 fits with room
-    "faiss_index": 1 * 1024 * 1024 * 1024,    # 1 GB — IVF-OPQ index
-    "settings": 8 * 1024 * 1024,          # 8 MB — operator settings + presets
-    "default": 64 * 1024 * 1024,          # generic catch-all
+    "faiss_index": 1 * 1024 * 1024 * 1024,  # 1 GB — IVF-OPQ index
+    "settings": 8 * 1024 * 1024,  # 8 MB — operator settings + presets
+    "default": 64 * 1024 * 1024,  # generic catch-all
 }
 
 
@@ -83,7 +83,9 @@ class CacheLayerSummary:
 _STATS_BY_LAYER: dict[str, deque[CacheStat]] = {}
 
 
-def record_event(cache_layer: str, event: str, *, key: str = "", bytes_size: int = 0) -> None:
+def record_event(
+    cache_layer: str, event: str, *, key: str = "", bytes_size: int = 0
+) -> None:
     """Push one observation into the per-layer ring buffer.
 
     Plain-English: every cache hit / miss / evict / pin / unpin
@@ -193,9 +195,7 @@ def unpin_key(cache_layer: str, key: str) -> None:
     try:
         from apps.core.models import AppSetting
 
-        AppSetting.objects.filter(
-            key=f"cache_policy.{cache_layer}.pin.{key}"
-        ).delete()
+        AppSetting.objects.filter(key=f"cache_policy.{cache_layer}.pin.{key}").delete()
         record_event(cache_layer, "unpin", key=key)
     except Exception:  # noqa: BLE001 — unpinning is operator-convenience.
         logger.debug(
@@ -215,7 +215,7 @@ def list_pinned_keys(cache_layer: str) -> list[str]:
         rows = AppSetting.objects.filter(key__startswith=prefix).values_list(
             "key", flat=True
         )
-        return sorted(row[len(prefix):] for row in rows)
+        return sorted(row[len(prefix) :] for row in rows)
     except Exception:  # noqa: BLE001 — pin-list read is best-effort.
         return []
 

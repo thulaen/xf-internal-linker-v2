@@ -25,9 +25,11 @@ _GLITCHTIP_FINGERPRINT_NOISE_RE = re.compile(
 )
 
 # ── Scorecard constants ────────────────────────────────────────────────────
-_MAX_REVIEW_TIME_SECONDS: int = 604_800  # 7 days — cap to filter re-opened-suggestion outliers
-_REVIEW_ACTIONS_SAMPLE: int = 200        # max audit rows to scan when averaging review time
-_REJECTION_SAMPLE: int = 200             # max rejection rows to scan for reason bucketing
+_MAX_REVIEW_TIME_SECONDS: int = (
+    604_800  # 7 days — cap to filter re-opened-suggestion outliers
+)
+_REVIEW_ACTIONS_SAMPLE: int = 200  # max audit rows to scan when averaging review time
+_REJECTION_SAMPLE: int = 200  # max rejection rows to scan for reason bucketing
 _TOP_REASONS_LIMIT: int = 5
 
 # ── GlitchTip sync constants ───────────────────────────────────────────────
@@ -39,15 +41,16 @@ _GLITCHTIP_REQUEST_TIMEOUT: int = 15  # seconds
 # replaces inline conditional logic.  ErrorLog.SEVERITY_* are plain
 # strings so no model import is needed at module level.
 _GLITCHTIP_SEVERITY_MAP: dict[str, str] = {
-    "fatal":   "critical",
-    "error":   "high",
+    "fatal": "critical",
+    "error": "high",
     "warning": "medium",
-    "info":    "low",
-    "debug":   "low",
+    "info": "low",
+    "debug": "low",
 }
 
 
 # ── Pure helpers: fingerprints ─────────────────────────────────────────────
+
 
 def _canonicalize_glitchtip_fingerprint(raw_fingerprint: object) -> str:
     if isinstance(raw_fingerprint, (list, tuple)):
@@ -68,9 +71,10 @@ def _fallback_glitchtip_fingerprint(title: str, culprit: str) -> str:
 
 # ── Pure helpers: scorecard ────────────────────────────────────────────────
 
+
 def _scorecard_week_period(today: date) -> tuple[date, date]:
     """Return (period_start, period_end) for the Monday–Sunday week ending yesterday."""
-    period_end = today - timedelta(days=1)    # Sunday
+    period_end = today - timedelta(days=1)  # Sunday
     period_start = period_end - timedelta(days=6)  # Monday
     return period_start, period_end
 
@@ -100,10 +104,14 @@ def _extract_top_rejection_reasons(details: list) -> list[dict[str, Any]]:
     for detail in details:
         reason = (detail or {}).get("rejection_reason", "unknown")
         reason_counts[reason] += 1
-    return [{"reason": r, "count": c} for r, c in reason_counts.most_common(_TOP_REASONS_LIMIT)]
+    return [
+        {"reason": r, "count": c}
+        for r, c in reason_counts.most_common(_TOP_REASONS_LIMIT)
+    ]
 
 
 # ── DB helpers: scorecard (non-pure — query DB) ────────────────────────────
+
 
 def _fetch_period_metrics(
     review_actions: Any,
@@ -124,14 +132,21 @@ def _fetch_period_metrics(
         updated_at__date__gte=period_start,
         updated_at__date__lte=period_end,
     ).count()
-    return {"total": total, "approved": approved, "rejected": total - approved,
-            "verified": verified, "stale": stale}
+    return {
+        "total": total,
+        "approved": approved,
+        "rejected": total - approved,
+        "verified": verified,
+        "stale": stale,
+    }
 
 
 def _collect_review_pairs(review_actions: Any, suggestion_model: Any) -> list[tuple]:
     """Return (audit_dt, suggestion_dt) datetime pairs for review-time averaging."""
     pairs: list[tuple] = []
-    for audit in review_actions.only("target_id", "created_at")[:_REVIEW_ACTIONS_SAMPLE]:
+    for audit in review_actions.only("target_id", "created_at")[
+        :_REVIEW_ACTIONS_SAMPLE
+    ]:
         try:
             sug = suggestion_model.objects.only("created_at").get(
                 suggestion_id=audit.target_id
@@ -143,6 +158,7 @@ def _collect_review_pairs(review_actions: Any, suggestion_model: Any) -> list[tu
 
 
 # ── Pure helpers: GlitchTip sync ──────────────────────────────────────────
+
 
 def _parse_glitchtip_tags(tags_raw: object) -> dict[str, str]:
     """Convert GlitchTip [[key, val], ...] tag list to a plain dict."""
@@ -204,6 +220,7 @@ def _build_glitchtip_issue_kwargs(
 
 # ── DB helper: GlitchTip sync (non-pure — queries ErrorLog) ───────────────
 
+
 def _sync_one_glitchtip_issue(
     issue: dict,
     api_url: str,
@@ -257,22 +274,33 @@ def compute_weekly_reviewer_scorecard():
         period_start=period_start, period_end=period_end
     ).exists():
         logger.info(
-            "[reviewer_scorecard] Scorecard already exists for %s–%s", period_start, period_end
+            "[reviewer_scorecard] Scorecard already exists for %s–%s",
+            period_start,
+            period_end,
         )
         return {"status": "already_exists"}
 
     review_actions = AuditEntry.objects.filter(
-        action__in=("approve", "reject"), target_type="suggestion",
-        created_at__date__gte=period_start, created_at__date__lte=period_end,
+        action__in=("approve", "reject"),
+        target_type="suggestion",
+        created_at__date__gte=period_start,
+        created_at__date__lte=period_end,
     )
     counts = _fetch_period_metrics(review_actions, Suggestion, period_start, period_end)
     avg = _compute_avg_review_time(_collect_review_pairs(review_actions, Suggestion))
     top_reasons = _extract_top_rejection_reasons(
-        [a.detail for a in review_actions.filter(action="reject").only("detail")[:_REJECTION_SAMPLE]]
+        [
+            a.detail
+            for a in review_actions.filter(action="reject").only("detail")[
+                :_REJECTION_SAMPLE
+            ]
+        ]
     )
     scorecard = ReviewerScorecard.objects.create(
-        period_start=period_start, period_end=period_end,
-        total_reviewed=counts["total"], approved_count=counts["approved"],
+        period_start=period_start,
+        period_end=period_end,
+        total_reviewed=counts["total"],
+        approved_count=counts["approved"],
         rejected_count=counts["rejected"],
         approval_rate=round(_compute_rate(counts["approved"], counts["total"]), 2),
         verified_rate=round(_compute_rate(counts["verified"], counts["approved"]), 2),
@@ -282,7 +310,9 @@ def compute_weekly_reviewer_scorecard():
     )
     logger.info(
         "[reviewer_scorecard] Created for %s–%s: %d reviewed, %.1f%% approved",
-        period_start, period_end, counts["total"],
+        period_start,
+        period_end,
+        counts["total"],
         _compute_rate(counts["approved"], counts["total"]),
     )
     return {"status": "created", "scorecard_id": scorecard.id}
@@ -332,7 +362,9 @@ def sync_glitchtip_issues():
 
     created = updated = resolved = 0
     for issue in issues:
-        outcome = _sync_one_glitchtip_issue(issue, api_url, suggest, ErrorLog, runtime_snapshot)
+        outcome = _sync_one_glitchtip_issue(
+            issue, api_url, suggest, ErrorLog, runtime_snapshot
+        )
         if outcome == "created":
             created += 1
         elif outcome == "updated":
@@ -343,4 +375,9 @@ def sync_glitchtip_issues():
     logger.info(
         "[glitchtip-sync] created=%d updated=%d resolved=%d", created, updated, resolved
     )
-    return {"status": "ok", "created": created, "updated": updated, "resolved": resolved}
+    return {
+        "status": "ok",
+        "created": created,
+        "updated": updated,
+        "resolved": resolved,
+    }

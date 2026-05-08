@@ -379,9 +379,7 @@ def mmr_rerank_keys(
     candidates = list(scored_keys)
     selected: list[tuple[object, float]] = []
     selected_embeddings: list[np.ndarray] = []
-    _append_pick(
-        candidates.pop(0), selected, selected_embeddings, embedding_lookup
-    )
+    _append_pick(candidates.pop(0), selected, selected_embeddings, embedding_lookup)
 
     while len(selected) < k and candidates:
         best_idx = _pick_next_mmr_index(
@@ -392,7 +390,9 @@ def mmr_rerank_keys(
         )
         _append_pick(
             candidates.pop(best_idx),
-            selected, selected_embeddings, embedding_lookup,
+            selected,
+            selected_embeddings,
+            embedding_lookup,
         )
     return selected
 

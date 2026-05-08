@@ -333,7 +333,9 @@ def route_task(
     if constraint.ram_peak_mb > 0:
         required["ram_gb"] = constraint.ram_peak_mb / 1024.0
     for key in constraint.requires_warmed_models:
-        required["warmed_model_key"] = key  # router's existing handler matches a single key per call
+        required["warmed_model_key"] = (
+            key  # router's existing handler matches a single key per call
+        )
     if constraint.cpu_intensive:
         required["demand_cpu"] = True
     if extra_capabilities:

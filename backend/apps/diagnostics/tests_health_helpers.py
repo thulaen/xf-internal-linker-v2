@@ -330,9 +330,7 @@ class NativeScoringMetadataTests(SimpleTestCase):
 class NativeScoringResultTests(SimpleTestCase):
     """Five branches: failed / degraded-failures / degraded-bench-fail / degraded-no-speedup / healthy."""
 
-    def _classification(
-        self, *, critical: int = 0, degraded: int = 0
-    ) -> dict:
+    def _classification(self, *, critical: int = 0, degraded: int = 0) -> dict:
         return {
             "critical_failures": [{"module": f"c{i}"} for i in range(critical)],
             "degraded_modules": [{"module": f"d{i}"} for i in range(degraded)],

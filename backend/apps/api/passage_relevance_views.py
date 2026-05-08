@@ -5,11 +5,16 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from apps.core.models import AppSetting
-from apps.suggestions.recommended_weights import recommended_bool, recommended_float, recommended_int
+from apps.suggestions.recommended_weights import (
+    recommended_bool,
+    recommended_float,
+    recommended_int,
+)
+
 
 class PassageRelevanceSettingsView(APIView):
     """Settings view for Passage Relevance (Group E)."""
-    
+
     permission_classes = [IsAuthenticated]
 
     KEYS = {
@@ -71,7 +76,6 @@ class PassageRelevanceSettingsView(APIView):
                     AppSetting.objects.filter(key=key).delete()
                 else:
                     AppSetting.objects.update_or_create(
-                        key=key,
-                        defaults={"value": str(val)}
+                        key=key, defaults={"value": str(val)}
                     )
         return self.get(request)

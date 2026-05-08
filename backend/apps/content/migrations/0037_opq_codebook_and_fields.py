@@ -4,40 +4,109 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('content', '0036_rename_content_pas_content_2c5cb1_idx_content_pas_content_d025c0_idx'),
+        (
+            "content",
+            "0036_rename_content_pas_content_2c5cb1_idx_content_pas_content_d025c0_idx",
+        ),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='passageembedding',
-            name='opq_code',
-            field=models.BinaryField(blank=True, help_text='M-dimensional byte array representing the quantised embedding. For M=64 subquantisers, this is exactly 64 bytes.', null=True),
+            model_name="passageembedding",
+            name="opq_code",
+            field=models.BinaryField(
+                blank=True,
+                help_text="M-dimensional byte array representing the quantised embedding. For M=64 subquantisers, this is exactly 64 bytes.",
+                null=True,
+            ),
         ),
         migrations.AddField(
-            model_name='passageembedding',
-            name='opq_codebook_version',
-            field=models.CharField(blank=True, db_index=True, help_text='The `corpus_signature` of the OPQCodebook used to encode this passage. If the active codebook changes, the passage must be re-encoded.', max_length=40),
+            model_name="passageembedding",
+            name="opq_codebook_version",
+            field=models.CharField(
+                blank=True,
+                db_index=True,
+                help_text="The `corpus_signature` of the OPQCodebook used to encode this passage. If the active codebook changes, the passage must be re-encoded.",
+                max_length=40,
+            ),
         ),
         migrations.CreateModel(
-            name='OPQCodebook',
+            name="OPQCodebook",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('version', models.IntegerField(default=1, help_text='Format version for the codebook binaries.')),
-                ('rotation', models.BinaryField(help_text='DxD float32 orthogonal rotation matrix applied before quantisation.')),
-                ('codebooks', models.BinaryField(help_text='MxKxD_per_M float32 centroids for all subquantisers.')),
-                ('n_subquantisers', models.IntegerField(help_text='M (number of subquantisers, e.g., 64). Each subquantiser produces 1 byte.')),
-                ('k_centroids', models.IntegerField(help_text='K (centroids per subquantiser, almost always 256).')),
-                ('corpus_signature', models.CharField(help_text='Hash representing the passage corpus size/shape at training time.', max_length=40, unique=True)),
-                ('trained_at', models.DateTimeField(auto_now_add=True, help_text='When this codebook was trained.')),
-                ('is_active', models.BooleanField(db_index=True, default=False, help_text='True for the single currently active codebook used for encoding.')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "version",
+                    models.IntegerField(
+                        default=1, help_text="Format version for the codebook binaries."
+                    ),
+                ),
+                (
+                    "rotation",
+                    models.BinaryField(
+                        help_text="DxD float32 orthogonal rotation matrix applied before quantisation."
+                    ),
+                ),
+                (
+                    "codebooks",
+                    models.BinaryField(
+                        help_text="MxKxD_per_M float32 centroids for all subquantisers."
+                    ),
+                ),
+                (
+                    "n_subquantisers",
+                    models.IntegerField(
+                        help_text="M (number of subquantisers, e.g., 64). Each subquantiser produces 1 byte."
+                    ),
+                ),
+                (
+                    "k_centroids",
+                    models.IntegerField(
+                        help_text="K (centroids per subquantiser, almost always 256)."
+                    ),
+                ),
+                (
+                    "corpus_signature",
+                    models.CharField(
+                        help_text="Hash representing the passage corpus size/shape at training time.",
+                        max_length=40,
+                        unique=True,
+                    ),
+                ),
+                (
+                    "trained_at",
+                    models.DateTimeField(
+                        auto_now_add=True, help_text="When this codebook was trained."
+                    ),
+                ),
+                (
+                    "is_active",
+                    models.BooleanField(
+                        db_index=True,
+                        default=False,
+                        help_text="True for the single currently active codebook used for encoding.",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'OPQ Codebook',
-                'verbose_name_plural': 'OPQ Codebooks',
-                'ordering': ['-trained_at'],
-                'constraints': [models.UniqueConstraint(condition=models.Q(('is_active', True)), fields=('is_active',), name='single_active_opq_codebook')],
+                "verbose_name": "OPQ Codebook",
+                "verbose_name_plural": "OPQ Codebooks",
+                "ordering": ["-trained_at"],
+                "constraints": [
+                    models.UniqueConstraint(
+                        condition=models.Q(("is_active", True)),
+                        fields=("is_active",),
+                        name="single_active_opq_codebook",
+                    )
+                ],
             },
         ),
     ]

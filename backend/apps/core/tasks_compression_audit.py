@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
     ignore_result=True,
 )
 @HelperConstraint(
-    cpu_intensive=True,             # zlib.compress on ~10k rows
+    cpu_intensive=True,  # zlib.compress on ~10k rows
     gpu_required=False,
     storage_writes_to="postgres_main",
     ram_peak_mb=256,

@@ -26,5 +26,7 @@ def schedule_tracker_recovery_tick() -> dict:
 
     fired = recover_missed_runs()
     if fired:
-        logger.info("schedule_tracker_recovery_tick: dispatched %d missed run(s)", fired)
+        logger.info(
+            "schedule_tracker_recovery_tick: dispatched %d missed run(s)", fired
+        )
     return {"recovered": fired}

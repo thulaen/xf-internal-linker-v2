@@ -45,7 +45,7 @@ def extract_anchor(
 
     matcher = AhoCorasickMatcher(case_sensitive=False)
     _SEP = "\u0000"
-    
+
     # Build patterns for all possible title n-grams
     max_title_window = len(title_norms)
     for window_size in range(max_title_window, 0, -1):
@@ -54,16 +54,16 @@ def extract_anchor(
             if window_size == 1 and len(ngram[0]) < 5:
                 continue
             matcher.add_pattern(_SEP.join(ngram), window_size)
-    
+
     matcher.build()
-    
+
     # Scan host sentence for matches, preferring longest match first
     for window_size in range(len(host_norms), 0, -1):
         for host_start_idx in range(len(host_norms) - window_size + 1):
             host_ngram = host_norms[host_start_idx : host_start_idx + window_size]
             match_pattern = _SEP.join(host_ngram)
             matches = matcher.find_all(match_pattern)
-            
+
             # We only care if the entire window matches a title n-gram
             if any(m.pattern == match_pattern for m in matches):
                 first_token = host_tokens[host_start_idx]

@@ -49,18 +49,26 @@ class SourceLabelForTests(SimpleTestCase):
         return s
 
     def test_wp_post_label_wordpress(self):
-        self.assertEqual(_source_label_for(self._suggestion_with("wp_post")), "wordpress")
+        self.assertEqual(
+            _source_label_for(self._suggestion_with("wp_post")), "wordpress"
+        )
 
     def test_wp_page_label_wordpress(self):
-        self.assertEqual(_source_label_for(self._suggestion_with("wp_page")), "wordpress")
+        self.assertEqual(
+            _source_label_for(self._suggestion_with("wp_page")), "wordpress"
+        )
 
     def test_xf_thread_label_xenforo(self):
-        self.assertEqual(_source_label_for(self._suggestion_with("xf_thread")), "xenforo")
+        self.assertEqual(
+            _source_label_for(self._suggestion_with("xf_thread")), "xenforo"
+        )
 
     def test_unknown_label_xenforo_fallback(self):
         # Anything not starting with "wp_" defaults to xenforo (the historical
         # contract — XenForo predated the WordPress importer).
-        self.assertEqual(_source_label_for(self._suggestion_with("misc_content")), "xenforo")
+        self.assertEqual(
+            _source_label_for(self._suggestion_with("misc_content")), "xenforo"
+        )
 
 
 class EngagementTermContributionTests(SimpleTestCase):
@@ -82,9 +90,11 @@ class TermContributionTests(SimpleTestCase):
     def test_log1p_kind(self):
         # log1p(0)=0; log1p(e-1)=1
         import math
+
         self.assertEqual(_term_contribution(0.0, 0.40, "+", 0.0, "log1p"), 0.0)
         self.assertAlmostEqual(
-            _term_contribution(math.e - 1, 0.40, "+", 0.0, "log1p"), 0.40,
+            _term_contribution(math.e - 1, 0.40, "+", 0.0, "log1p"),
+            0.40,
         )
 
     def test_raw_pct_kind(self):
@@ -107,9 +117,15 @@ class BuildContentValueTermInputsTests(SimpleTestCase):
     def test_zero_views_uses_safe_divisor(self):
         # All rates should be 0.0 when destination_views=0 and engaged=0/...
         inputs = _build_content_value_term_inputs(
-            gsc_clicks=10, gsc_ctr=0.05, destination_views=0,
-            engaged_sessions=0, conversions=0, telemetry_clicks=0,
-            quick_exit_sessions=0, dwell_30s_sessions=0, dwell_60s_sessions=0,
+            gsc_clicks=10,
+            gsc_ctr=0.05,
+            destination_views=0,
+            engaged_sessions=0,
+            conversions=0,
+            telemetry_clicks=0,
+            quick_exit_sessions=0,
+            dwell_30s_sessions=0,
+            dwell_60s_sessions=0,
         )
         self.assertEqual(inputs["engagement_rate"], 0.0)
         self.assertEqual(inputs["click_rate"], 0.0)
@@ -119,9 +135,15 @@ class BuildContentValueTermInputsTests(SimpleTestCase):
 
     def test_full_inputs_compute_rates(self):
         inputs = _build_content_value_term_inputs(
-            gsc_clicks=100, gsc_ctr=0.10, destination_views=200,
-            engaged_sessions=50, conversions=10, telemetry_clicks=20,
-            quick_exit_sessions=10, dwell_30s_sessions=40, dwell_60s_sessions=30,
+            gsc_clicks=100,
+            gsc_ctr=0.10,
+            destination_views=200,
+            engaged_sessions=50,
+            conversions=10,
+            telemetry_clicks=20,
+            quick_exit_sessions=10,
+            dwell_30s_sessions=40,
+            dwell_60s_sessions=30,
         )
         self.assertEqual(inputs["engagement_rate"], 0.25)
         self.assertEqual(inputs["conversion_rate"], 0.05)
@@ -133,9 +155,15 @@ class BuildContentValueTermInputsTests(SimpleTestCase):
     def test_keys_match_term_spec(self):
         # Every spec name has an input key; otherwise the breakdown loop raises KeyError.
         inputs = _build_content_value_term_inputs(
-            gsc_clicks=1, gsc_ctr=0.0, destination_views=1,
-            engaged_sessions=0, conversions=0, telemetry_clicks=0,
-            quick_exit_sessions=0, dwell_30s_sessions=0, dwell_60s_sessions=0,
+            gsc_clicks=1,
+            gsc_ctr=0.0,
+            destination_views=1,
+            engaged_sessions=0,
+            conversions=0,
+            telemetry_clicks=0,
+            quick_exit_sessions=0,
+            dwell_30s_sessions=0,
+            dwell_60s_sessions=0,
         )
         for name, _w, _s, _m, _k in _CONTENT_VALUE_TERM_SPEC:
             self.assertIn(name, inputs, f"Missing input key: {name}")
@@ -154,12 +182,18 @@ class BuildEngagementTermInputsTests(SimpleTestCase):
         self.assertEqual(inputs["engagement_rate"], 0.0)
 
     def test_full_inputs_compute_rates(self):
-        inputs = _build_engagement_term_inputs({
-            "destination_views": 100, "engaged_sessions": 60,
-            "bounce_sessions": 40, "total_engagement_time": 18000.0,
-            "sessions": 100, "quick_exit_sessions": 10,
-            "dwell_30s_sessions": 50, "dwell_60s_sessions": 30,
-        })
+        inputs = _build_engagement_term_inputs(
+            {
+                "destination_views": 100,
+                "engaged_sessions": 60,
+                "bounce_sessions": 40,
+                "total_engagement_time": 18000.0,
+                "sessions": 100,
+                "quick_exit_sessions": 10,
+                "dwell_30s_sessions": 50,
+                "dwell_60s_sessions": 30,
+            }
+        )
         self.assertIsNotNone(inputs)
         self.assertEqual(inputs["engagement_rate"], 0.60)
         self.assertEqual(inputs["normalized_engagement_time"], 1.0)  # 180s avg → cap
@@ -170,9 +204,12 @@ class BuildEngagementTermInputsTests(SimpleTestCase):
 
     def test_rates_clamped_to_one(self):
         # Pathological case: dwell_30s_sessions > destination_views → still 1.0
-        inputs = _build_engagement_term_inputs({
-            "destination_views": 10, "dwell_30s_sessions": 100,
-        })
+        inputs = _build_engagement_term_inputs(
+            {
+                "destination_views": 10,
+                "dwell_30s_sessions": 100,
+            }
+        )
         self.assertIsNotNone(inputs)
         self.assertEqual(inputs["dwell_30s_rate"], 1.0)
 
@@ -237,25 +274,36 @@ class GA4RowKeyTests(SimpleTestCase):
     """``_ga4_row_key`` returns the 6-tuple used by ``merged_rows``."""
 
     def test_returns_six_tuple(self):
-        key = _ga4_row_key({
-            "suggestion_id": "abc-123",
-            "device_category": "mobile",
-            "default_channel_group": "Organic Search",
-            "source_medium": "google / organic",
-            "country": "United States",
-            "region": "California",
-        })
+        key = _ga4_row_key(
+            {
+                "suggestion_id": "abc-123",
+                "device_category": "mobile",
+                "default_channel_group": "Organic Search",
+                "source_medium": "google / organic",
+                "country": "United States",
+                "region": "California",
+            }
+        )
         self.assertEqual(
             key,
-            ("abc-123", "mobile", "Organic Search", "google / organic",
-             "United States", "California"),
+            (
+                "abc-123",
+                "mobile",
+                "Organic Search",
+                "google / organic",
+                "United States",
+                "California",
+            ),
         )
 
     def test_two_rows_with_different_country_have_different_keys(self):
         base = {
-            "suggestion_id": "x", "device_category": "desktop",
-            "default_channel_group": "", "source_medium": "",
-            "country": "US", "region": "",
+            "suggestion_id": "x",
+            "device_category": "desktop",
+            "default_channel_group": "",
+            "source_medium": "",
+            "country": "US",
+            "region": "",
         }
         other = dict(base, country="UK")
         self.assertNotEqual(_ga4_row_key(base), _ga4_row_key(other))
@@ -300,18 +348,28 @@ class BuildContentValueKwargsTests(SimpleTestCase):
     def test_missing_keys_default_to_zero(self):
         kwargs = _build_content_value_kwargs({}, {})
         for key in (
-            "gsc_clicks", "gsc_impressions", "destination_views",
-            "engaged_sessions", "conversions", "telemetry_clicks",
-            "quick_exit_sessions", "dwell_30s_sessions", "dwell_60s_sessions",
+            "gsc_clicks",
+            "gsc_impressions",
+            "destination_views",
+            "engaged_sessions",
+            "conversions",
+            "telemetry_clicks",
+            "quick_exit_sessions",
+            "dwell_30s_sessions",
+            "dwell_60s_sessions",
         ):
             self.assertEqual(kwargs[key], 0, f"Expected zero default for {key}")
         self.assertEqual(kwargs["gsc_ctr"], 0.0)
 
     def test_full_passthrough(self):
         telemetry = {
-            "destination_views": 100, "engaged_sessions": 60,
-            "conversions": 5, "clicks": 30, "quick_exit_sessions": 10,
-            "dwell_30s_sessions": 40, "dwell_60s_sessions": 25,
+            "destination_views": 100,
+            "engaged_sessions": 60,
+            "conversions": 5,
+            "clicks": 30,
+            "quick_exit_sessions": 10,
+            "dwell_30s_sessions": 40,
+            "dwell_60s_sessions": 25,
         }
         gsc = {"clicks": 200, "ctr": 0.05, "impressions": 4000}
         kwargs = _build_content_value_kwargs(telemetry, gsc)
@@ -338,10 +396,15 @@ class ComputeContentValueRawAndBreakdownParityTests(SimpleTestCase):
 
     def test_raw_matches_breakdown_sum(self):
         kwargs = {
-            "gsc_clicks": 100, "gsc_ctr": 0.05, "gsc_impressions": 4000,
-            "destination_views": 200, "engaged_sessions": 80,
-            "conversions": 10, "telemetry_clicks": 30,
-            "quick_exit_sessions": 5, "dwell_30s_sessions": 60,
+            "gsc_clicks": 100,
+            "gsc_ctr": 0.05,
+            "gsc_impressions": 4000,
+            "destination_views": 200,
+            "engaged_sessions": 80,
+            "conversions": 10,
+            "telemetry_clicks": 30,
+            "quick_exit_sessions": 5,
+            "dwell_30s_sessions": 60,
             "dwell_60s_sessions": 35,
         }
         raw = compute_content_value_raw(**kwargs)
@@ -352,10 +415,15 @@ class ComputeContentValueRawAndBreakdownParityTests(SimpleTestCase):
 
     def test_raw_returns_none_when_breakdown_no_data(self):
         kwargs = {
-            "gsc_clicks": 0, "gsc_ctr": 0.0, "gsc_impressions": 0,
-            "destination_views": 0, "engaged_sessions": 0,
-            "conversions": 0, "telemetry_clicks": 0,
-            "quick_exit_sessions": 0, "dwell_30s_sessions": 0,
+            "gsc_clicks": 0,
+            "gsc_ctr": 0.0,
+            "gsc_impressions": 0,
+            "destination_views": 0,
+            "engaged_sessions": 0,
+            "conversions": 0,
+            "telemetry_clicks": 0,
+            "quick_exit_sessions": 0,
+            "dwell_30s_sessions": 0,
             "dwell_60s_sessions": 0,
         }
         self.assertIsNone(compute_content_value_raw(**kwargs))
@@ -367,11 +435,16 @@ class ComputeEngagementBreakdownParityTests(SimpleTestCase):
 
     def test_raw_matches_breakdown_sum_within_clamp_window(self):
         from apps.analytics.sync import _compute_engagement_raw_score
+
         telemetry = {
-            "destination_views": 100, "engaged_sessions": 60,
-            "bounce_sessions": 40, "total_engagement_time": 9000.0,
-            "sessions": 100, "quick_exit_sessions": 5,
-            "dwell_30s_sessions": 30, "dwell_60s_sessions": 20,
+            "destination_views": 100,
+            "engaged_sessions": 60,
+            "bounce_sessions": 40,
+            "total_engagement_time": 9000.0,
+            "sessions": 100,
+            "quick_exit_sessions": 5,
+            "dwell_30s_sessions": 30,
+            "dwell_60s_sessions": 20,
         }
         raw = _compute_engagement_raw_score(telemetry)
         breakdown = compute_engagement_quality_breakdown(telemetry)
@@ -397,17 +470,27 @@ class BuildGA4DefaultsTests(SimpleTestCase):
     def test_defaults_contain_all_required_keys(self):
         defaults = _build_ga4_defaults(
             suggestion=self._suggestion("wp_post"),
-            algorithm_key="reco_v3", algorithm_version_date="2026-04-15",
+            algorithm_key="reco_v3",
+            algorithm_version_date="2026-04-15",
             event_schema="v2",
             key_fields={
-                "device_category": "desktop", "default_channel_group": "Organic",
-                "source_medium": "google/organic", "country": "US", "region": "CA",
+                "device_category": "desktop",
+                "default_channel_group": "Organic",
+                "source_medium": "google/organic",
+                "country": "US",
+                "region": "CA",
             },
             field_totals={
-                "impressions": 10, "clicks": 2, "destination_views": 5,
-                "engaged_sessions": 3, "conversions": 1, "sessions": 4,
-                "total_engagement_time_seconds": 600.0, "event_count": 22,
-                "quick_exit_sessions": 1, "dwell_30s_sessions": 2,
+                "impressions": 10,
+                "clicks": 2,
+                "destination_views": 5,
+                "engaged_sessions": 3,
+                "conversions": 1,
+                "sessions": 4,
+                "total_engagement_time_seconds": 600.0,
+                "event_count": 22,
+                "quick_exit_sessions": 1,
+                "dwell_30s_sessions": 2,
                 "dwell_60s_sessions": 1,
             },
         )
@@ -426,13 +509,19 @@ class BuildGA4DefaultsTests(SimpleTestCase):
         # Avoid the ZeroDivisionError when sessions=0.
         defaults = _build_ga4_defaults(
             suggestion=self._suggestion("wp_post"),
-            algorithm_key="k", algorithm_version_date="d", event_schema="v2",
+            algorithm_key="k",
+            algorithm_version_date="d",
+            event_schema="v2",
             key_fields={
-                "device_category": "", "default_channel_group": "",
-                "source_medium": "", "country": "", "region": "",
+                "device_category": "",
+                "default_channel_group": "",
+                "source_medium": "",
+                "country": "",
+                "region": "",
             },
             field_totals={
-                "sessions": 0, "engaged_sessions": 0,
+                "sessions": 0,
+                "engaged_sessions": 0,
                 "total_engagement_time_seconds": 0.0,
             },
         )
@@ -441,10 +530,15 @@ class BuildGA4DefaultsTests(SimpleTestCase):
     def test_xenforo_source_label(self):
         defaults = _build_ga4_defaults(
             suggestion=self._suggestion("xf_thread"),
-            algorithm_key="k", algorithm_version_date="d", event_schema="v2",
+            algorithm_key="k",
+            algorithm_version_date="d",
+            event_schema="v2",
             key_fields={
-                "device_category": "", "default_channel_group": "",
-                "source_medium": "", "country": "", "region": "",
+                "device_category": "",
+                "default_channel_group": "",
+                "source_medium": "",
+                "country": "",
+                "region": "",
             },
             field_totals={},
         )
@@ -454,10 +548,15 @@ class BuildGA4DefaultsTests(SimpleTestCase):
         # If engaged > sessions (data anomaly) bounce stays at 0, never negative.
         defaults = _build_ga4_defaults(
             suggestion=self._suggestion("wp_post"),
-            algorithm_key="k", algorithm_version_date="d", event_schema="v2",
+            algorithm_key="k",
+            algorithm_version_date="d",
+            event_schema="v2",
             key_fields={
-                "device_category": "", "default_channel_group": "",
-                "source_medium": "", "country": "", "region": "",
+                "device_category": "",
+                "default_channel_group": "",
+                "source_medium": "",
+                "country": "",
+                "region": "",
             },
             field_totals={"sessions": 5, "engaged_sessions": 10},
         )

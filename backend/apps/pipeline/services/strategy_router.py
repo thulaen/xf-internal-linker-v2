@@ -64,7 +64,9 @@ def pick_strategy(*, override: str | None = None) -> Strategy:
     except subprocess.TimeoutExpired:
         logger.debug("strategy_router: chose python (claude ping timed out)")
     except Exception:  # noqa: BLE001  # justification: any exception → fallback to deterministic Python; surface in debug log
-        logger.exception("strategy_router: unexpected error during detect; falling back to python")
+        logger.exception(
+            "strategy_router: unexpected error during detect; falling back to python"
+        )
     _CACHE["active"] = (time.time(), chosen)
     return chosen
 

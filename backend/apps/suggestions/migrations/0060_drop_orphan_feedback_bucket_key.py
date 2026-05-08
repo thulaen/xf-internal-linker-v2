@@ -45,27 +45,32 @@ def _drop_orphan_columns(apps, schema_editor):
     with schema_editor.connection.cursor() as cursor:
         try:
             columns = [
-                col.name for col in schema_editor.connection.introspection.get_table_description(cursor, "suggestions_suggestion")
+                col.name
+                for col in schema_editor.connection.introspection.get_table_description(
+                    cursor, "suggestions_suggestion"
+                )
             ]
         except Exception:
             return  # Table might not exist yet or other introspection error
-            
+
         for column in _ORPHAN_COLUMNS:
             if column not in columns:
                 continue  # Already absent on fresh DBs — no-op.
-            
+
             if schema_editor.connection.vendor == "sqlite":
                 # SQLite doesn't support DROP COLUMN CASCADE or DROP COLUMN in older versions easily
                 # but since tests start fresh, these columns shouldn't even exist.
                 # If they do, we can try a basic drop.
                 try:
-                    cursor.execute(f'ALTER TABLE suggestions_suggestion DROP COLUMN "{column}"')
+                    cursor.execute(
+                        f'ALTER TABLE suggestions_suggestion DROP COLUMN "{column}"'
+                    )
                 except Exception:
                     pass
             else:
                 # CASCADE drops dependent indexes. Safe — orphans have no FK targets.
                 cursor.execute(
-                    f'ALTER TABLE suggestions_suggestion '
+                    f"ALTER TABLE suggestions_suggestion "
                     f'DROP COLUMN "{column}" CASCADE'
                 )
 
@@ -80,7 +85,6 @@ def _noop_reverse(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("suggestions", "0059_suggestion_partial_indexes"),
     ]

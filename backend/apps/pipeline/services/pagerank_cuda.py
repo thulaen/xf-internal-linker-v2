@@ -367,13 +367,9 @@ def hits_step_safe(
     """CUDA-first dispatcher for the HITS step (Group C.5)."""
     if not _CUDA_DISABLED_THIS_PROCESS:
         try:
-            return hits_step_cuda(
-                indptr, indices, data, authority, hub, node_count
-            )
+            return hits_step_cuda(indptr, indices, data, authority, hub, node_count)
         except CudaUnavailableError:
             pass
         except Exception as exc:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
             _record_cuda_failure_once(step="hits_step", exc=exc)
-    return fallback_cpu_fn(
-        indptr, indices, data, authority, hub, node_count
-    )
+    return fallback_cpu_fn(indptr, indices, data, authority, hub, node_count)

@@ -375,7 +375,9 @@ def run_hits_refresh(job, checkpoint) -> None:
         checkpoint(progress_pct=30.0, message="Computing HITS scores")
         scores = compute(g)
         checkpoint(progress_pct=70.0, message="Persisting authority + hub top-N")
-        auth_count = persist_top_n(signal=SIGNAL_HITS_AUTHORITY, scores=scores.authority)
+        auth_count = persist_top_n(
+            signal=SIGNAL_HITS_AUTHORITY, scores=scores.authority
+        )
         hub_count = persist_top_n(signal=SIGNAL_HITS_HUB, scores=scores.hub)
         checkpoint(
             progress_pct=100.0,
@@ -418,6 +420,7 @@ def _bulk_load_settings(keys: tuple[str, ...]) -> dict[str, str]:
     daily / hourly schedules it's worth more than the function call cost.
     """
     from apps.core.models import AppSetting
+
     return dict(
         AppSetting.objects.filter(key__in=keys).values_list("key", "value"),
     )
@@ -440,25 +443,35 @@ def _read_trustrank_seeder_settings() -> dict:
         DEFAULT_READABILITY_GRADE_MAX,
         DEFAULT_SEED_COUNT_K,
     )
+
     raw = _bulk_load_settings(_TRUSTRANK_SETTING_KEYS)
     return {
         "candidate_pool_size": _coerce_setting_int(
-            raw, "trustrank_auto_seeder.candidate_pool_size", DEFAULT_CANDIDATE_POOL_SIZE,
+            raw,
+            "trustrank_auto_seeder.candidate_pool_size",
+            DEFAULT_CANDIDATE_POOL_SIZE,
         ),
         "seed_count_k": _coerce_setting_int(
-            raw, "trustrank_auto_seeder.seed_count_k", DEFAULT_SEED_COUNT_K,
+            raw,
+            "trustrank_auto_seeder.seed_count_k",
+            DEFAULT_SEED_COUNT_K,
         ),
         "post_quality_min": _coerce_setting_float(
-            raw, "trustrank_auto_seeder.post_quality_min", DEFAULT_POST_QUALITY_MIN,
+            raw,
+            "trustrank_auto_seeder.post_quality_min",
+            DEFAULT_POST_QUALITY_MIN,
         ),
         "readability_grade_max": _coerce_setting_float(
-            raw, "trustrank_auto_seeder.readability_grade_max",
+            raw,
+            "trustrank_auto_seeder.readability_grade_max",
             DEFAULT_READABILITY_GRADE_MAX,
         ),
         # Spam flagging — no dedicated column, so very low content_value_score is
         # the proxy. Tunable via AppSetting; 0.0 disables the spam filter entirely.
         "spam_quality_floor": _coerce_setting_float(
-            raw, "trustrank_auto_seeder.spam_content_value_floor", 0.15,
+            raw,
+            "trustrank_auto_seeder.spam_content_value_floor",
+            0.15,
         ),
     }
 
@@ -466,8 +479,11 @@ def _read_trustrank_seeder_settings() -> dict:
 def _build_trustrank_quality_maps(spam_quality_floor: float) -> tuple[dict, set]:
     """Build per-node ``post_quality`` map + ``spam_flagged`` set from ContentItem."""
     from apps.content.models import ContentItem
+
     quality_rows = ContentItem.objects.filter(is_deleted=False).values_list(
-        "pk", "content_type", "content_value_score",
+        "pk",
+        "content_type",
+        "content_value_score",
     )
     post_quality: dict = {}
     spam_flagged: set = set()
@@ -484,6 +500,7 @@ def _build_trustrank_quality_maps(spam_quality_floor: float) -> tuple[dict, set]
 def _build_trustrank_readability_map() -> dict:
     """Build per-node ``readability_grade`` map from Post.flesch_kincaid_grade."""
     from apps.content.models import Post
+
     readability_grade: dict = {}
     rows = (
         Post.objects.select_related("content_item")
@@ -500,9 +517,12 @@ def _build_trustrank_readability_map() -> dict:
     return readability_grade
 
 
-def _persist_trustrank_seeds(seeds: list, reason: str, fallback_used: bool, rejected_count: int, checkpoint) -> None:
+def _persist_trustrank_seeds(
+    seeds: list, reason: str, fallback_used: bool, rejected_count: int, checkpoint
+) -> None:
     """Write the daily TrustRank seed list to AppSetting + report final progress."""
     from apps.core.models import AppSetting
+
     seed_ids = ",".join(str(s) for s in seeds)
     AppSetting.objects.update_or_create(
         key="trustrank.seed_ids",
@@ -558,8 +578,11 @@ def _run_trustrank_seeder_pipeline(checkpoint) -> None:
         readability_grade_max=settings["readability_grade_max"],
     )
     _persist_trustrank_seeds(
-        result.seeds, result.reason, result.fallback_used,
-        result.rejected_count, checkpoint,
+        result.seeds,
+        result.reason,
+        result.fallback_used,
+        result.rejected_count,
+        checkpoint,
     )
 
 
@@ -688,8 +711,10 @@ def _log_aci_alpha_update(aci) -> None:
     if aci.observations_processed > 0:
         logger.info(
             "ACI: α %.4f → %.4f after %d observations (coverage %.2f)",
-            aci.previous_alpha, aci.current_alpha,
-            aci.observations_processed, aci.observed_coverage,
+            aci.previous_alpha,
+            aci.current_alpha,
+            aci.observations_processed,
+            aci.observed_coverage,
         )
 
 
@@ -717,7 +742,8 @@ def run_conformal_prediction_refresh(job, checkpoint) -> None:
     )
 
     checkpoint(
-        progress_pct=10.0, message="ACI: updating α from recent outcomes (pick #52)",
+        progress_pct=10.0,
+        message="ACI: updating α from recent outcomes (pick #52)",
     )
     aci = update_alpha_from_recent_outcomes()
     _log_aci_alpha_update(aci)
@@ -877,12 +903,14 @@ def run_meta_hpo_rollback_watchdog(job, checkpoint) -> None:
         checkpoint(progress_pct=100.0, message=f"No regression ({decision.reason})")
         return
     checkpoint(
-        progress_pct=70.0, message=f"ROLLBACK triggered: {decision.reason}",
+        progress_pct=70.0,
+        message=f"ROLLBACK triggered: {decision.reason}",
     )
     restored = restore_previous_snapshot()
     logger.warning(
         "meta_hpo_rollback_watchdog: rolled back (%s); %d params restored",
-        decision.reason, len(restored),
+        decision.reason,
+        len(restored),
     )
     checkpoint(
         progress_pct=100.0,
@@ -921,12 +949,14 @@ def _build_lda_documents() -> list[list[str]]:
     """
     from apps.content.models import ContentItem
     from apps.pipeline.services.text_tokens import (
-        STANDARD_ENGLISH_STOPWORDS, TOKEN_RE,
+        STANDARD_ENGLISH_STOPWORDS,
+        TOKEN_RE,
     )
 
     documents: list[list[str]] = []
     title_iter = ContentItem.objects.exclude(embedding__isnull=True).values_list(
-        "title", flat=True,
+        "title",
+        flat=True,
     )
     for clean_text in title_iter:
         if not clean_text:
@@ -934,7 +964,8 @@ def _build_lda_documents() -> list[list[str]]:
         toks = [
             t.lower()
             for t in TOKEN_RE.findall(clean_text)
-            if len(t) >= _LDA_MIN_TOKEN_LENGTH and t.lower() not in STANDARD_ENGLISH_STOPWORDS
+            if len(t) >= _LDA_MIN_TOKEN_LENGTH
+            and t.lower() not in STANDARD_ENGLISH_STOPWORDS
         ]
         if toks:
             documents.append(toks)
@@ -952,7 +983,8 @@ def _persist_lda_model_paths(model_path: str, dict_path: str) -> None:
         (lda_topics.KEY_DICT_PATH, dict_path),
     ):
         AppSetting.objects.update_or_create(
-            key=key, defaults={"value": value, "description": description},
+            key=key,
+            defaults={"value": value, "description": description},
         )
 
 
@@ -1001,7 +1033,9 @@ def run_lda_topic_refresh(job, checkpoint) -> None:
     dict_path = os.path.join(out_dir, "lda.dict")
     checkpoint(progress_pct=40.0, message=f"Training LDA over {len(documents)} docs")
     if not lda_topics.fit_and_save(
-        documents, model_path=model_path, dict_path=dict_path,
+        documents,
+        model_path=model_path,
+        dict_path=dict_path,
     ):
         checkpoint(progress_pct=100.0, message="LDA training reported failure")
         return
@@ -1103,7 +1137,9 @@ def run_kenlm_retrain(job, checkpoint) -> None:
         message=f"Running lmplz over {len(corpus_lines)} sentences (trigram)",
     )
     if not kenlm_fluency.fit_arpa_with_lmplz(
-        corpus_lines=corpus_lines, output_arpa_path=output_path, order=3,
+        corpus_lines=corpus_lines,
+        output_arpa_path=output_path,
+        order=3,
     ):
         checkpoint(
             progress_pct=100.0,
@@ -1559,8 +1595,10 @@ def run_factorization_machines_refit(job, checkpoint) -> None:
         message=f"Training FM over {len(features)} reviewed Suggestions",
     )
     if not factorization_machines.fit_and_save(
-        features=features, targets=targets,
-        output_path=output_path, task="classification",
+        features=features,
+        targets=targets,
+        output_path=output_path,
+        task="classification",
     ):
         checkpoint(
             progress_pct=100.0,
@@ -1589,7 +1627,8 @@ def _load_bpr_interactions(lookback_days: int) -> list[tuple[str, str, float]]:
 
     cutoff = timezone.now() - timedelta(days=lookback_days)
     rows = Suggestion.objects.filter(
-        updated_at__gte=cutoff, status__in=["approved", "rejected"],
+        updated_at__gte=cutoff,
+        status__in=["approved", "rejected"],
     ).values_list("host_id", "destination_id", "status")
     interactions: list[tuple[str, str, float]] = []
     for host_id, dest_id, status in rows:
@@ -1656,7 +1695,8 @@ def run_bpr_refit(job, checkpoint) -> None:
         message=f"Training BPR over {len(interactions)} interactions",
     )
     if not bpr_ranking.fit_and_save(
-        interactions=interactions, output_path=output_path,
+        interactions=interactions,
+        output_path=output_path,
     ):
         checkpoint(
             progress_pct=100.0,
@@ -1881,8 +1921,10 @@ def _persist_anchor_entropy_stats(median: float, mad: float) -> None:
     """Write the median + MAD to AppSetting so the dispatcher reads fresh corpus norms."""
     from apps.core.models import AppSetting
     from apps.pipeline.services.anchor_garbage_signals import (
-        KEY_CORPUS_ENTROPY_MAD, KEY_CORPUS_ENTROPY_MEDIAN,
+        KEY_CORPUS_ENTROPY_MAD,
+        KEY_CORPUS_ENTROPY_MEDIAN,
     )
+
     AppSetting.objects.update_or_create(
         key=KEY_CORPUS_ENTROPY_MEDIAN,
         defaults={

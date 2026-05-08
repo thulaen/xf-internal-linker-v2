@@ -4,10 +4,8 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('suggestions', '0055_add_char_ngram_vector_to_contentitem'),
+        ("suggestions", "0055_add_char_ngram_vector_to_contentitem"),
     ]
 
-    operations = [
-    ]
+    operations = []

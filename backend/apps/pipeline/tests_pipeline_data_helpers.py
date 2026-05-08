@@ -7,7 +7,6 @@ in-memory data structures.
 
 from __future__ import annotations
 
-from unittest import mock
 from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
@@ -121,8 +120,9 @@ class ParseSentenceLoaderInputTests(SimpleTestCase):
 class BuildSentenceRecordFromRowTests(SimpleTestCase):
     """Raw SQL row tuples are mapped to correct SentenceRecord fields."""
 
-    def _make_row(self, sid=1, cid=10, ctype="post", text="hello world",
-                  char_count=11, position=0):
+    def _make_row(
+        self, sid=1, cid=10, ctype="post", text="hello world", char_count=11, position=0
+    ):
         return (sid, cid, ctype, text, char_count, position)
 
     def test_basic_row_fields(self):
@@ -142,7 +142,9 @@ class BuildSentenceRecordFromRowTests(SimpleTestCase):
 
     def test_zero_char_count_falls_back_to_len_text(self):
         row = self._make_row(text="abc", char_count=0)
-        ckey, record = _build_sentence_record_from_row(row, {(10, "post"): MagicMock(nlp_metadata={})})
+        ckey, record = _build_sentence_record_from_row(
+            row, {(10, "post"): MagicMock(nlp_metadata={})}
+        )
         self.assertEqual(record.char_count, 3)
 
 
@@ -218,7 +220,9 @@ class ApplyLangidFilterTests(SimpleTestCase):
         ):
             result = _apply_langid_filter(d, lambda pct, msg: calls.append(pct))
         self.assertIs(result, d)
-        self.assertEqual(calls, [], msg="progress_fn must not fire when nothing dropped")
+        self.assertEqual(
+            calls, [], msg="progress_fn must not fire when nothing dropped"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -356,7 +360,9 @@ class LoadRareTermProfilesTests(SimpleTestCase):
     def test_disabled_returns_empty_dict(self):
         settings = MagicMock()
         settings.enabled = False
-        result = _load_rare_term_profiles(settings, {}, None, None, None, lambda *a: None)
+        result = _load_rare_term_profiles(
+            settings, {}, None, None, None, lambda *a: None
+        )
         self.assertEqual(result, {})
 
 

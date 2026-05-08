@@ -169,7 +169,9 @@ def _expected_slots(spec: _ScheduleSpec, *, now: datetime) -> list[datetime]:
     return slots
 
 
-def find_missed_runs(*, now: Optional[datetime] = None) -> list[tuple[_ScheduleSpec, datetime]]:
+def find_missed_runs(
+    *, now: Optional[datetime] = None
+) -> list[tuple[_ScheduleSpec, datetime]]:
     """Return [(spec, scheduled_for), ...] for slots that need to be fired."""
     from apps.core.models import ScheduledTaskRun
 
@@ -252,7 +254,9 @@ def get_status_for_ui(*, recent_n: int = 20) -> list[dict]:
         next_at = None
         if HAS_CRONITER:
             try:
-                next_at = croniter(spec.cron_expr, datetime.now(timezone.utc)).get_next(datetime)
+                next_at = croniter(spec.cron_expr, datetime.now(timezone.utc)).get_next(
+                    datetime
+                )
                 if next_at.tzinfo is None:
                     next_at = next_at.replace(tzinfo=timezone.utc)
             except Exception:  # noqa: BLE001  # justification: a bad cron string in the registry is rare but should not crash the UI; surface as null
@@ -265,9 +269,15 @@ def get_status_for_ui(*, recent_n: int = 20) -> list[dict]:
                 "next_run_at": next_at.isoformat() if next_at else None,
                 "recent_runs": [
                     {
-                        "scheduled_for": r["scheduled_for"].isoformat() if r["scheduled_for"] else None,
-                        "started_at": r["started_at"].isoformat() if r["started_at"] else None,
-                        "finished_at": r["finished_at"].isoformat() if r["finished_at"] else None,
+                        "scheduled_for": r["scheduled_for"].isoformat()
+                        if r["scheduled_for"]
+                        else None,
+                        "started_at": r["started_at"].isoformat()
+                        if r["started_at"]
+                        else None,
+                        "finished_at": r["finished_at"].isoformat()
+                        if r["finished_at"]
+                        else None,
                         "status": r["status"],
                         "last_error": r["last_error"],
                         "recovered_run": r["recovered_run"],

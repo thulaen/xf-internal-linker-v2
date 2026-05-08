@@ -111,7 +111,9 @@ def get_dashboard_metrics() -> dict:
     rows = (
         Suggestion.objects.values("status")
         .order_by()
-        .annotate(n=__import__("django.db.models", fromlist=["Count"]).Count("suggestion_id"))
+        .annotate(
+            n=__import__("django.db.models", fromlist=["Count"]).Count("suggestion_id")
+        )
     )
     for row in rows:
         counts[row["status"]] = row["n"]
@@ -139,7 +141,11 @@ def list_orphans(limit: int = 25) -> list[dict]:
             inbound=__import__("django.db.models", fromlist=["Count"]).Count(
                 "destination_suggestions",
                 filter=__import__("django.db.models", fromlist=["Q"]).Q(
-                    destination_suggestions__status__in=["approved", "applied", "verified"]
+                    destination_suggestions__status__in=[
+                        "approved",
+                        "applied",
+                        "verified",
+                    ]
                 ),
             )
         )
@@ -151,8 +157,12 @@ def list_orphans(limit: int = 25) -> list[dict]:
         out.append(
             {
                 "id": getattr(item, "id", None),
-                "title": getattr(item, "title", None) or getattr(item, "name", None) or "(untitled)",
-                "url": getattr(item, "url", None) or getattr(item, "canonical_url", None) or "",
+                "title": getattr(item, "title", None)
+                or getattr(item, "name", None)
+                or "(untitled)",
+                "url": getattr(item, "url", None)
+                or getattr(item, "canonical_url", None)
+                or "",
             }
         )
     return out
@@ -197,13 +207,19 @@ def get_review_queue(state: str = "pending", limit: int = 25) -> list[dict]:
         from apps.suggestions.models import Suggestion  # type: ignore[import-not-found]
     except ImportError:
         return []
-    valid = {"pending", "proposed", "approved", "rejected", "applied", "verified", "stale", "superseded"}
+    valid = {
+        "pending",
+        "proposed",
+        "approved",
+        "rejected",
+        "applied",
+        "verified",
+        "stale",
+        "superseded",
+    }
     if state not in valid:
         return []
-    qs = (
-        Suggestion.objects.filter(status=state)
-        .order_by("-score_final")[: int(limit)]
-    )
+    qs = Suggestion.objects.filter(status=state).order_by("-score_final")[: int(limit)]
     return [_suggestion_summary(s) for s in qs]
 
 
@@ -218,17 +234,16 @@ def search_content(query: str, limit: int = 25) -> list[dict]:
     q = (query or "").strip()
     if not q:
         return []
-    qs = (
-        ContentItem.objects.filter(
-            Q(title__icontains=q) | Q(url__icontains=q)
-        )
-        .order_by("-created_at")[: int(limit)]
-    )
+    qs = ContentItem.objects.filter(
+        Q(title__icontains=q) | Q(url__icontains=q)
+    ).order_by("-created_at")[: int(limit)]
     return [
         {
             "id": getattr(item, "id", None),
             "title": getattr(item, "title", None) or "(untitled)",
-            "url": getattr(item, "url", None) or getattr(item, "canonical_url", None) or "",
+            "url": getattr(item, "url", None)
+            or getattr(item, "canonical_url", None)
+            or "",
         }
         for item in qs
     ]
@@ -257,7 +272,13 @@ def get_link_health() -> dict:
         ContentItem.objects.annotate(
             inbound=Count(
                 "destination_suggestions",
-                filter=Q(destination_suggestions__status__in=["approved", "applied", "verified"]),
+                filter=Q(
+                    destination_suggestions__status__in=[
+                        "approved",
+                        "applied",
+                        "verified",
+                    ]
+                ),
             )
         )
         .filter(inbound=0)
@@ -297,9 +318,14 @@ def find_semantic_pairs(topic: str = "", limit: int = 25) -> list[dict]:
     qs = qs.order_by("-co_session_count")[: int(limit)]
     return [
         {
-            "source_id": getattr(pair.source_content_item, "id", None) if pair.source_content_item_id else None,
-            "source_title": getattr(pair.source_content_item, "title", "") or "(untitled)",
-            "dest_id": getattr(pair.dest_content_item, "id", None) if pair.dest_content_item_id else None,
+            "source_id": getattr(pair.source_content_item, "id", None)
+            if pair.source_content_item_id
+            else None,
+            "source_title": getattr(pair.source_content_item, "title", "")
+            or "(untitled)",
+            "dest_id": getattr(pair.dest_content_item, "id", None)
+            if pair.dest_content_item_id
+            else None,
             "dest_title": getattr(pair.dest_content_item, "title", "") or "(untitled)",
             "co_session_count": getattr(pair, "co_session_count", 0),
             "lift": float(getattr(pair, "lift", 0.0) or 0.0),

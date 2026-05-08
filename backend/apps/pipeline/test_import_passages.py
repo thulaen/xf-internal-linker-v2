@@ -127,7 +127,9 @@ class PassageSegmentationImportWiringTests(TestCase):
         self.content_item.refresh_from_db()
         self.assertEqual(self.content_item.content_hash, "hash_passages_failure")
 
-    def test_changed_body_marks_current_embedding_stale_without_duplicate_row(self) -> None:
+    def test_changed_body_marks_current_embedding_stale_without_duplicate_row(
+        self,
+    ) -> None:
         self.content_item.content_hash = "old_hash"
         self.content_item.content_version = 3
         self.content_item.embedding_model_version = "bge-m3::1024"

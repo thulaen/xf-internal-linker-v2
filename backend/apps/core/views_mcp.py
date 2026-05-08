@@ -15,7 +15,6 @@ Routes (registered in apps/api/urls.py):
 from __future__ import annotations
 
 import logging
-import os
 import shutil
 import threading
 from datetime import datetime, timezone
@@ -59,7 +58,11 @@ def mcp_health(request):
             "server_script_present": server_path.exists(),
             "mcp_python_pkg_installed": has_mcp_pkg,
             "transport": "stdio (docker compose exec)",
-            "tools_exposed": ["get_top_candidates", "get_dashboard_metrics", "list_orphans"],
+            "tools_exposed": [
+                "get_top_candidates",
+                "get_dashboard_metrics",
+                "list_orphans",
+            ],
         }
     )
 
@@ -98,7 +101,9 @@ def _agent_status(binary: str, *, supported: str) -> dict:
         "installed": on_path,
         "binary_on_path": on_path,
         "supported": supported,
-        "configured_project": _repo_root().joinpath(".mcp.json").exists() if binary == "claude" else False,
+        "configured_project": _repo_root().joinpath(".mcp.json").exists()
+        if binary == "claude"
+        else False,
     }
 
 
@@ -117,10 +122,15 @@ def mcp_run_monthly(request):
     schedule_tracker captures the start/end state, so the UI's polling on
     /api/schedules/ shows the run move from `running` → `succeeded`/`failed`.
     """
-    month = (request.data.get("month") or "").strip() or datetime.now(timezone.utc).strftime("%Y-%m")
+    month = (request.data.get("month") or "").strip() or datetime.now(
+        timezone.utc
+    ).strftime("%Y-%m")
     strategy = (request.data.get("strategy") or "auto").strip()
     if strategy not in ("auto", "claude_code", "python"):
-        return Response({"error": f"invalid strategy {strategy!r}"}, status=drf_status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"error": f"invalid strategy {strategy!r}"},
+            status=drf_status.HTTP_400_BAD_REQUEST,
+        )
 
     def _run() -> None:
         try:
@@ -171,7 +181,9 @@ def schedule_run_now(request, task_name: str):
             logger.exception("schedule_run_now: %s failed", task_name)
 
     threading.Thread(target=_run, daemon=True).start()
-    return Response({"queued": True, "task_name": task_name}, status=drf_status.HTTP_202_ACCEPTED)
+    return Response(
+        {"queued": True, "task_name": task_name}, status=drf_status.HTTP_202_ACCEPTED
+    )
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -202,7 +214,9 @@ def monthly_reports_list(request):
                 "month": slug,
                 "filename": path.name,
                 "size_bytes": stat.st_size,
-                "modified_at": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(timespec="seconds"),
+                "modified_at": datetime.fromtimestamp(
+                    stat.st_mtime, tz=timezone.utc
+                ).isoformat(timespec="seconds"),
             }
         )
     return Response({"reports": items})
@@ -217,14 +231,18 @@ def monthly_report_read(request, month: str):
     `docs/reports/monthly-suggestions-<month>.md`.
     """
     if not _is_safe_month_slug(month):
-        return Response({"error": "invalid month slug"}, status=drf_status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"error": "invalid month slug"}, status=drf_status.HTTP_400_BAD_REQUEST
+        )
     path = _repo_root() / "docs" / "reports" / f"monthly-suggestions-{month}.md"
     if not path.exists() or not path.is_file():
         raise NotFound(f"no monthly report for {month}")
     try:
         body = path.read_text(encoding="utf-8")
     except OSError as exc:
-        return Response({"error": str(exc)}, status=drf_status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(
+            {"error": str(exc)}, status=drf_status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
     return Response({"month": month, "filename": path.name, "body": body})
 
 

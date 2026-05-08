@@ -1052,12 +1052,13 @@ class PassageEmbedding(models.Model):
 
 class OPQCodebook(models.Model):
     """Singleton model storing the trained Optimised Product Quantisation codebooks.
-    
+
     Trained periodically by Celery (opq_trainer) and used by the C++ quantemb
     extension to encode embeddings into 64-byte codes and decode them back.
     Only one row is active at a time (is_active=True). Older rows are kept
     for fast rollback.
     """
+
     version = models.IntegerField(
         default=1,
         help_text="Format version for the codebook binaries.",
@@ -1097,7 +1098,7 @@ class OPQCodebook(models.Model):
             models.UniqueConstraint(
                 condition=models.Q(is_active=True),
                 fields=["is_active"],
-                name="single_active_opq_codebook"
+                name="single_active_opq_codebook",
             )
         ]
 

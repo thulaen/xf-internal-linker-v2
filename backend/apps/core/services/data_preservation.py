@@ -23,16 +23,32 @@ PROTECTED_DATA_RULES: tuple[ProtectedDataRule, ...] = (
     ProtectedDataRule("content_contentitem", "current_state", "live content rows"),
     ProtectedDataRule("content_post", "current_state", "live post bodies"),
     ProtectedDataRule("content_sentence", "current_state", "current sentence rows"),
-    ProtectedDataRule("content_passageembedding", "current_state", "current passage vectors"),
-    ProtectedDataRule("analytics_searchmetric", "current_state", "GSC/GA4/Matomo metrics"),
-    ProtectedDataRule("analytics_gscdailyperformance", "current_state", "GSC daily data"),
-    ProtectedDataRule("crawler_crawledpagemeta", "current_state", "crawl page metadata"),
+    ProtectedDataRule(
+        "content_passageembedding", "current_state", "current passage vectors"
+    ),
+    ProtectedDataRule(
+        "analytics_searchmetric", "current_state", "GSC/GA4/Matomo metrics"
+    ),
+    ProtectedDataRule(
+        "analytics_gscdailyperformance", "current_state", "GSC daily data"
+    ),
+    ProtectedDataRule(
+        "crawler_crawledpagemeta", "current_state", "crawl page metadata"
+    ),
     ProtectedDataRule("graph_existinglink", "current_state", "current graph links"),
-    ProtectedDataRule("knowledge_graph_pixiewalkvisit", "current_state", "Pixie walk state"),
+    ProtectedDataRule(
+        "knowledge_graph_pixiewalkvisit", "current_state", "Pixie walk state"
+    ),
     ProtectedDataRule("suggestions_weightpreset", "current_state", "ranking settings"),
-    ProtectedDataRule("suggestions_suggestion", "event_history", "operator review history"),
-    ProtectedDataRule("suggestions_suggestionimpression", "event_history", "behavior history"),
-    ProtectedDataRule("suggestions_weightadjustmenthistory", "event_history", "auto-tuning history"),
+    ProtectedDataRule(
+        "suggestions_suggestion", "event_history", "operator review history"
+    ),
+    ProtectedDataRule(
+        "suggestions_suggestionimpression", "event_history", "behavior history"
+    ),
+    ProtectedDataRule(
+        "suggestions_weightadjustmenthistory", "event_history", "auto-tuning history"
+    ),
     ProtectedDataRule("sync_syncjob", "event_history", "import/sync summaries"),
     ProtectedDataRule("crawler_crawlervisit", "event_history", "bounded crawl visits"),
     ProtectedDataRule("audit_auditentry", "event_history", "operator audit trail"),
@@ -74,7 +90,13 @@ _CREATE_ARTIFACT_PATTERN = re.compile(
     r"migrations\.CreateModel\(\s*name=['\"][\w]*(Embedding|Vector|Snapshot|Fingerprint)",
     re.IGNORECASE | re.DOTALL,
 )
-_INVARIANT_FIELDS = ("content_hash", "text_hash", "embedding_text_hash", "signal_version", "model_version")
+_INVARIANT_FIELDS = (
+    "content_hash",
+    "text_hash",
+    "embedding_text_hash",
+    "signal_version",
+    "model_version",
+)
 
 
 @dataclass(frozen=True)
@@ -93,8 +115,12 @@ def scan_migration_text(path: str, text: str) -> list[MigrationSafetyFinding]:
     for line_no, line in enumerate(text.splitlines(), start=1):
         for kind, pattern in _DESTRUCTIVE_PATTERNS:
             if pattern.search(line):
-                findings.append(MigrationSafetyFinding(path, line_no, kind, line.strip()))
-    if _CREATE_ARTIFACT_PATTERN.search(text) and not any(key in text for key in _INVARIANT_FIELDS):
+                findings.append(
+                    MigrationSafetyFinding(path, line_no, kind, line.strip())
+                )
+    if _CREATE_ARTIFACT_PATTERN.search(text) and not any(
+        key in text for key in _INVARIANT_FIELDS
+    ):
         findings.append(
             MigrationSafetyFinding(
                 path,

@@ -454,14 +454,18 @@ class PixieRetriever:
         try:
             from extensions import pixie_walk
         except ImportError:
-            logger.warning("pixie_walk C++ extension not found. Skipping PixieRetriever.")
+            logger.warning(
+                "pixie_walk C++ extension not found. Skipping PixieRetriever."
+            )
             return {}
 
         from apps.knowledge_graph.models import ArticleEntityEdge, PixieWalkVisit
         import numpy as np
 
         # Fetch the entire graph edges to build CSR
-        edges = ArticleEntityEdge.objects.values_list('content_item_id', 'entity_id', 'weight')
+        edges = ArticleEntityEdge.objects.values_list(
+            "content_item_id", "entity_id", "weight"
+        )
         if not edges:
             return {}
 
@@ -525,15 +529,21 @@ class PixieRetriever:
             q_weight = np.array([1.0], dtype=np.float32)
 
             o_nodes, o_scores, o_visits = pixie_walk.walk(
-                indptr, indices, weights, num_nodes,
-                q_node, q_weight,
-                self.walk_steps_per_entity, self.top_k, self.walk_length
+                indptr,
+                indices,
+                weights,
+                num_nodes,
+                q_node,
+                q_weight,
+                self.walk_steps_per_entity,
+                self.top_k,
+                self.walk_length,
             )
 
             sentence_ids = []
             for n_idx, score, visit_count in zip(o_nodes, o_scores, o_visits):
                 if n_idx >= len(content_ids):
-                    continue 
+                    continue
                 host_pk = idx_to_c[n_idx]
                 if host_pk == dest_pk:
                     continue
@@ -543,7 +553,7 @@ class PixieRetriever:
                         source_content_id=dest_pk,
                         visited_content_id=host_pk,
                         visit_count=visit_count,
-                        signal_version="v1"
+                        signal_version="v1",
                     )
                 )
 
@@ -552,9 +562,11 @@ class PixieRetriever:
                     if hk[0] == host_pk:
                         host_key = hk
                         break
-                
+
                 if host_key:
-                    sentence_ids.extend(context.content_to_sentence_ids.get(host_key, []))
+                    sentence_ids.extend(
+                        context.content_to_sentence_ids.get(host_key, [])
+                    )
 
             if sentence_ids:
                 result[dest_key] = sentence_ids
@@ -572,7 +584,6 @@ class PixieRetriever:
 
 
 # ── Unifier ──────────────────────────────────────────────────────
-
 
 
 def run_retrievers(
@@ -720,21 +731,23 @@ def default_retrievers() -> list[CandidateRetriever]:
         retrievers.append(LexicalRetriever(enabled=True))
     if _setting_enabled("stage1.query_expansion_retriever_enabled"):
         retrievers.append(QueryExpansionRetriever(enabled=True))
-    
+
     # FR-021: Graph-based Pixie Retriever
     if _setting_enabled("graph_candidate.enabled"):
         from apps.core.models import AppSetting
-        
+
         walk_steps = AppSetting.get_int("graph_candidate.walk_steps_per_entity", 5000)
         top_k = AppSetting.get_int("graph_candidate.top_k_candidates", 100)
-        
-        retrievers.append(PixieRetriever(
-            enabled=True,
-            walk_steps_per_entity=walk_steps,
-            top_k=top_k,
-            walk_length=2
-        ))
-        
+
+        retrievers.append(
+            PixieRetriever(
+                enabled=True,
+                walk_steps_per_entity=walk_steps,
+                top_k=top_k,
+                walk_length=2,
+            )
+        )
+
     return retrievers
 
 

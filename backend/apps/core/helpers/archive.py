@@ -91,9 +91,7 @@ class HelperArchive:
 
     def __init__(self, archive_name: str) -> None:
         if not archive_name or "/" in archive_name or "\\" in archive_name:
-            raise ValueError(
-                "archive_name must be a simple identifier (no slashes)"
-            )
+            raise ValueError("archive_name must be a simple identifier (no slashes)")
         self.archive_name = archive_name
 
     def _resolve_root(self) -> tuple[Path, bool]:
@@ -110,9 +108,7 @@ class HelperArchive:
         try:
             from apps.core.models import AppSetting
 
-            row = AppSetting.objects.filter(
-                key=self._APP_SETTING_MOUNT_POINT
-            ).first()
+            row = AppSetting.objects.filter(key=self._APP_SETTING_MOUNT_POINT).first()
             if row and row.value:
                 candidates.append(Path(row.value))
         except Exception:

@@ -5,15 +5,19 @@ import pgvector.django
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('content', '0039_contentitem_nlp_metadata'),
+        ("content", "0039_contentitem_nlp_metadata"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='contentitem',
-            name='char_ngram_vector',
-            field=pgvector.django.VectorField(blank=True, dimensions=256, help_text='Pick #58: 256-dim hashed character n-gram (3-5) vector. Null until first NLP enrichment pass.', null=True),
+            model_name="contentitem",
+            name="char_ngram_vector",
+            field=pgvector.django.VectorField(
+                blank=True,
+                dimensions=256,
+                help_text="Pick #58: 256-dim hashed character n-gram (3-5) vector. Null until first NLP enrichment pass.",
+                null=True,
+            ),
         ),
     ]

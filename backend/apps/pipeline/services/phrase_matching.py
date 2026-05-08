@@ -156,7 +156,7 @@ def evaluate_phrase_match(
     destination_nlp_metadata: dict[str, Any] | None = None,
 ) -> PhraseMatchResult:
     """Entry point for the ranker (Stage 2).
-    
+
     Checks if a host sentence contains any phrases that strongly match
     the destination content (title or body extracts).
     """
@@ -249,14 +249,18 @@ def _evaluate_phrase_match(
     # We build an automaton for all destination phrases joined by a separator.
     # This replaces the O(HostSpans * DestinationPhrases) nested loop.
     matcher = AhoCorasickMatcher(case_sensitive=False)
-    lemma_matcher = AhoCorasickMatcher(case_sensitive=False) if settings.enable_lemma_matching else None
-    
+    lemma_matcher = (
+        AhoCorasickMatcher(case_sensitive=False)
+        if settings.enable_lemma_matching
+        else None
+    )
+
     _TOKEN_SEP = "\u0000"
-    
+
     for phrase in destination_phrases:
         pattern = _TOKEN_SEP.join(phrase.tokens)
         matcher.add_pattern(pattern, phrase)
-        
+
         if lemma_matcher and phrase.lemmas:
             lemma_pattern = _TOKEN_SEP.join(phrase.lemmas)
             lemma_matcher.add_pattern(lemma_pattern, phrase)
@@ -274,7 +278,7 @@ def _evaluate_phrase_match(
     # Scan host spans using the matcher
     for span in host_spans:
         span_pattern = _TOKEN_SEP.join(span.tokens)
-        
+
         matches = matcher.find_all(span_pattern)
         for match in matches:
             if match.pattern == span_pattern:
@@ -293,7 +297,9 @@ def _evaluate_phrase_match(
                     ),
                     alternative_anchors=alternative_anchors,
                 )
-                if best_exact is None or _match_sort_key(candidate) < _match_sort_key(best_exact):
+                if best_exact is None or _match_sort_key(candidate) < _match_sort_key(
+                    best_exact
+                ):
                     best_exact = candidate
 
         # Pick #55 — Lemma match via Aho-Corasick.
@@ -325,7 +331,9 @@ def _evaluate_phrase_match(
                             ),
                             alternative_anchors=alternative_anchors,
                         )
-                        if best_exact is None or _match_sort_key(candidate) < _match_sort_key(best_exact):
+                        if best_exact is None or _match_sort_key(
+                            candidate
+                        ) < _match_sort_key(best_exact):
                             best_exact = candidate
 
         if not best_exact and settings.enable_partial_matching:
@@ -354,7 +362,9 @@ def _evaluate_phrase_match(
                     context_hits=context_hits,
                     alternative_anchors=alternative_anchors,
                 )
-                if best_partial is None or _match_sort_key(candidate) < _match_sort_key(best_partial):
+                if best_partial is None or _match_sort_key(candidate) < _match_sort_key(
+                    best_partial
+                ):
                     best_partial = candidate
 
     winner = best_exact or best_partial
@@ -530,7 +540,7 @@ def _build_destination_phrase_inventory(
         lemmas = ()
         if occurrence.source_field == "title" and title_lemmas:
             # Simple slice for title
-            lemmas = tuple(title_lemmas[:len(occurrence.tokens)])
+            lemmas = tuple(title_lemmas[: len(occurrence.tokens)])
 
         inventory.append(
             _DestinationPhrase(

@@ -136,7 +136,9 @@ class GatherContextTests(SimpleTestCase):
         self.assertEqual(len(fp), 40)
 
     @patch("apps.audit.error_ingest.runtime_snapshot", return_value={})
-    @patch("apps.audit.runtime_context.socket.gethostname", return_value="host-fallback")
+    @patch(
+        "apps.audit.runtime_context.socket.gethostname", return_value="host-fallback"
+    )
     def test_falls_back_to_hostname_and_primary_role(
         self, _mock_hostname, _mock_snapshot
     ):
@@ -230,7 +232,9 @@ class BumpExistingTests(TestCase):
 
     def test_bumps_count_and_returns_same_row(self):
         target = self._create_target()
-        result = _bump_existing(target, "new traceback", ErrorLog.SEVERITY_HIGH, {"new": "ctx"})
+        result = _bump_existing(
+            target, "new traceback", ErrorLog.SEVERITY_HIGH, {"new": "ctx"}
+        )
         self.assertEqual(result.pk, target.pk)
         target.refresh_from_db()
         self.assertEqual(target.occurrence_count, 2)
@@ -409,17 +413,13 @@ class IngestErrorOrchestratorTests(TestCase):
     def test_swallows_unexpected_failure_and_emits_with_none(
         self, _mock_gather, mock_emit
     ):
-        row = ingest_error(
-            job_type="pipeline", step="score", error_message="anything"
-        )
+        row = ingest_error(job_type="pipeline", step="score", error_message="anything")
         self.assertIsNone(row)
         mock_emit.assert_called_once_with(None)
 
     @patch("apps.audit.error_ingest._emit_ops_feed")
     @patch("apps.audit.error_ingest._dedup_or_create", return_value=None)
     def test_emits_even_when_dedup_returns_none(self, _mock_dedup, mock_emit):
-        row = ingest_error(
-            job_type="pipeline", step="score", error_message="anything"
-        )
+        row = ingest_error(job_type="pipeline", step="score", error_message="anything")
         self.assertIsNone(row)
         mock_emit.assert_called_once_with(None)

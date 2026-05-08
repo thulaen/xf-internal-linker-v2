@@ -15,7 +15,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("suggestions", "0064_seed_w_embedding_age"),
     ]

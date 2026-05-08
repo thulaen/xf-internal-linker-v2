@@ -572,7 +572,9 @@ class ScheduledTaskRun(models.Model):
         verbose_name = "Scheduled task run"
         verbose_name_plural = "Scheduled task runs"
         indexes = [
-            models.Index(fields=["task_name", "-scheduled_for"], name="strun_task_recent_idx"),
+            models.Index(
+                fields=["task_name", "-scheduled_for"], name="strun_task_recent_idx"
+            ),
             models.Index(fields=["status"], name="strun_status_idx"),
         ]
         constraints = [

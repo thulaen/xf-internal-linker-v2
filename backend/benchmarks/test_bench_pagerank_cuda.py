@@ -104,9 +104,7 @@ def test_bench_hits_step_cuda(benchmark, n):
     hub = np.full(n, 1.0 / n, dtype=np.float64)
 
     def run_one_step():
-        return pagerank_cuda.hits_step_cuda(
-            indptr, indices, data, authority, hub, n
-        )
+        return pagerank_cuda.hits_step_cuda(indptr, indices, data, authority, hub, n)
 
     result_authority, result_hub = benchmark(run_one_step)
     assert result_authority.shape == (n,)

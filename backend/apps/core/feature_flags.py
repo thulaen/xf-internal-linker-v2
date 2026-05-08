@@ -50,4 +50,8 @@ def seed_declared_feature_flags() -> int:
     return created
 
 
-__all__ = ["DECLARED_FEATURE_FLAGS", "DeclaredFeatureFlag", "seed_declared_feature_flags"]
+__all__ = [
+    "DECLARED_FEATURE_FLAGS",
+    "DeclaredFeatureFlag",
+    "seed_declared_feature_flags",
+]

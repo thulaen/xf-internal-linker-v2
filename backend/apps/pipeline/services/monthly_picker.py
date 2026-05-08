@@ -79,7 +79,7 @@ def _explain(c: Candidate) -> str:
         parts.append(f"fresh source ({c.source_post_age_days} days old)")
     else:
         parts.append(f"older source ({c.source_post_age_days} days)")
-    parts.append(f"anchor \"{c.anchor_phrase}\"")
+    parts.append(f'anchor "{c.anchor_phrase}"')
     return " · ".join(parts) + "."
 
 
@@ -146,11 +146,15 @@ def render_markdown_report(month: str, picks: list[PickResult]) -> str:
             lines.append(f"  - {p.why}")
         lines.append("")
     lines.append("---")
-    lines.append(f"_Generated {datetime.now(timezone.utc).isoformat(timespec='seconds')}_")
+    lines.append(
+        f"_Generated {datetime.now(timezone.utc).isoformat(timespec='seconds')}_"
+    )
     return "\n".join(lines) + "\n"
 
 
-def candidates_from_orm(month: str, top_n: int = DEFAULT_TOP_N_CANDIDATES) -> list[Candidate]:
+def candidates_from_orm(
+    month: str, top_n: int = DEFAULT_TOP_N_CANDIDATES
+) -> list[Candidate]:
     """Pull top-N pending Suggestion rows mapped to Candidate.
 
     Reads only fields that exist on the Suggestion model in this codebase
@@ -194,7 +198,9 @@ def candidates_from_orm(month: str, top_n: int = DEFAULT_TOP_N_CANDIDATES) -> li
         cluster_label = "uncategorised"
         diag = getattr(s, "cluster_diagnostics", None)
         if isinstance(diag, dict):
-            cluster_label = str(diag.get("cluster_label") or diag.get("cluster") or cluster_label)
+            cluster_label = str(
+                diag.get("cluster_label") or diag.get("cluster") or cluster_label
+            )
         out.append(
             Candidate(
                 suggestion_id=str(s.suggestion_id),
@@ -223,7 +229,7 @@ def run_python_strategy(
     """
     candidates = candidates_from_orm(month)
     picks = pick_top(candidates, limit=pick_limit)
-    report_dir = (output_root or _default_report_dir())
+    report_dir = output_root or _default_report_dir()
     report_dir.mkdir(parents=True, exist_ok=True)
     report_path = report_dir / f"monthly-suggestions-{month}.md"
     report_path.write_text(render_markdown_report(month, picks), encoding="utf-8")

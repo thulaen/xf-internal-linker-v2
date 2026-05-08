@@ -88,6 +88,7 @@ _KEYS = [
     ),
 ]
 
+
 def seed_group_g_defaults(apps, schema_editor):
     AppSetting = apps.get_model("core", "AppSetting")
     for key, value, description, category, value_type in _KEYS:
@@ -101,10 +102,12 @@ def seed_group_g_defaults(apps, schema_editor):
             },
         )
 
+
 def reverse_seed(apps, schema_editor):
     AppSetting = apps.get_model("core", "AppSetting")
     keys_to_remove = [k for k, *_ in _KEYS]
     AppSetting.objects.filter(key__in=keys_to_remove).delete()
+
 
 class Migration(migrations.Migration):
     dependencies = [

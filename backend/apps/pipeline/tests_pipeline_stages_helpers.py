@@ -70,11 +70,13 @@ class TopkNumpyScoresTests(SimpleTestCase):
 
     def test_highest_cosine_ranked_first(self):
         dest = self._make_unit(1.0, 0.0)
-        embeddings = np.vstack([
-            self._make_unit(1.0, 0.0),   # row 0: perfect match
-            self._make_unit(0.0, 1.0),   # row 1: orthogonal
-            self._make_unit(-1.0, 0.0),  # row 2: opposite
-        ])
+        embeddings = np.vstack(
+            [
+                self._make_unit(1.0, 0.0),  # row 0: perfect match
+                self._make_unit(0.0, 1.0),  # row 1: orthogonal
+                self._make_unit(-1.0, 0.0),  # row 2: opposite
+            ]
+        )
         top_idx, top_scores = _topk_numpy_scores(dest, embeddings, [0, 1, 2], top_k=3)
         self.assertEqual(int(top_idx[0]), 0)
         self.assertAlmostEqual(float(top_scores[0]), 1.0, places=5)
@@ -130,7 +132,9 @@ class RunFaissBlockSearchTests(SimpleTestCase):
             faiss_search=faiss_search,
         )
         self.assertIn(dest_key, result)
-        self.assertNotIn(100, result[dest_key], msg="self-link sentence must be excluded")
+        self.assertNotIn(
+            100, result[dest_key], msg="self-link sentence must be excluded"
+        )
         self.assertIn(200, result[dest_key])
 
     def test_no_sentence_ids_destination_excluded_from_result(self):
@@ -194,7 +198,10 @@ class ApplyStage1MmrTests(SimpleTestCase):
         host_scores = {(1, "post"): [(host_a, 0.9), (host_b, 0.8)]}
         with patch(
             "apps.pipeline.services.pipeline_stages._fetch_host_embedding_matrix",
-            return_value=([host_a, host_b], np.vstack([self._unit(1.0, 0.0), self._unit(0.0, 1.0)])),
+            return_value=(
+                [host_a, host_b],
+                np.vstack([self._unit(1.0, 0.0), self._unit(0.0, 1.0)]),
+            ),
         ):
             out = _apply_stage1_mmr(
                 raw={(1, "post"): [100, 110]},
@@ -214,7 +221,9 @@ class ApplyStage1MmrTests(SimpleTestCase):
             "apps.pipeline.services.pipeline_stages._fetch_host_embedding_matrix",
             return_value=(
                 [a, ap, b],
-                np.vstack([self._unit(1.0, 0.0), self._unit(1.0, 0.01), self._unit(0.0, 1.0)]),
+                np.vstack(
+                    [self._unit(1.0, 0.0), self._unit(1.0, 0.01), self._unit(0.0, 1.0)]
+                ),
             ),
         ):
             host_scores = {(1, "post"): [(a, 0.95), (ap, 0.90), (b, 0.50)]}
@@ -295,9 +304,7 @@ class RunFaissBlockSearchScorePreservationTests(SimpleTestCase):
         # Self-link host appears in FAISS hits but must not contribute
         # to either the sentence list OR the score list.
         dest_key = (1, "post")
-        faiss_search = MagicMock(
-            return_value=[[(1, "post", 1.0), (2, "post", 0.7)]]
-        )
+        faiss_search = MagicMock(return_value=[[(1, "post", 1.0), (2, "post", 0.7)]])
         content_to_sentence_ids = {(1, "post"): [100], (2, "post"): [200]}
         host_scores: dict = {}
         _run_faiss_block_search(
@@ -335,9 +342,7 @@ class RunFaissBlockSearchScorePreservationTests(SimpleTestCase):
         # otherwise the score list would imply contribution that didn't
         # happen.
         dest_key = (1, "post")
-        faiss_search = MagicMock(
-            return_value=[[(2, "post", 0.9), (3, "post", 0.8)]]
-        )
+        faiss_search = MagicMock(return_value=[[(2, "post", 0.9), (3, "post", 0.8)]])
         content_to_sentence_ids = {(2, "post"): [200]}  # 3 has nothing
         host_scores: dict = {}
         _run_faiss_block_search(

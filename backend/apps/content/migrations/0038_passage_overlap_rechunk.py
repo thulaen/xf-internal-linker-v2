@@ -4,15 +4,15 @@ from django.db import migrations
 
 
 def mark_for_rechunk(apps, schema_editor):
-    PassageEmbedding = apps.get_model('content', 'PassageEmbedding')
+    PassageEmbedding = apps.get_model("content", "PassageEmbedding")
     # Deleting PassageEmbedding rows forces the pipeline to re-segment the text
     # with the new 25% overlap window on its next pass.
     PassageEmbedding.objects.all().delete()
 
-class Migration(migrations.Migration):
 
+class Migration(migrations.Migration):
     dependencies = [
-        ('content', '0037_opq_codebook_and_fields'),
+        ("content", "0037_opq_codebook_and_fields"),
     ]
 
     operations = [

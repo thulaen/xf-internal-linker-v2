@@ -19,7 +19,6 @@ from apps.pipeline.services.domain_adapter import (
     LORA_RANK_DEFAULT,
     get_adapter_status,
     get_adapter_weights_path,
-    has_trained_adapter,
     load_adapted_model,
     should_train_adapter,
 )
@@ -38,7 +37,6 @@ from apps.pipeline.services.polysemy_gate import (
     get_polysemy_status,
 )
 from apps.pipeline.services.score_calibration import (
-    COLD_START_PARAMS,
     MIN_CALIBRATED_PROBABILITY_DEFAULT,
     PlattParams,
     VALIDATION_SET_MIN_SIZE_DEFAULT,
@@ -102,7 +100,9 @@ class DomainAdapterTests(SimpleTestCase):
 
     def test_weights_path_respects_env_override(self):
         with mock.patch.dict(
-            os.environ, {"EMBEDDING_DOMAIN_ADAPTER_PATH": "/custom/path"}, clear=False,
+            os.environ,
+            {"EMBEDDING_DOMAIN_ADAPTER_PATH": "/custom/path"},
+            clear=False,
         ):
             self.assertEqual(get_adapter_weights_path(), "/custom/path")
 
@@ -279,9 +279,9 @@ class NRTDeltaIndexTests(SimpleTestCase):
     def test_top_k_ordering(self):
         # Higher cosine should rank first.
         idx = NRTDeltaIndex()
-        idx.add(1, "post", _unit(0.0, 1.0))   # orthogonal to query
-        idx.add(2, "post", _unit(1.0, 0.0))   # query itself
-        idx.add(3, "post", _unit(0.7, 0.7))   # ~45° to query
+        idx.add(1, "post", _unit(0.0, 1.0))  # orthogonal to query
+        idx.add(2, "post", _unit(1.0, 0.0))  # query itself
+        idx.add(3, "post", _unit(0.7, 0.7))  # ~45° to query
         results = idx.search(_unit(1.0, 0.0), k=3)
         self.assertEqual([r[0] for r in results], [2, 3, 1])
 

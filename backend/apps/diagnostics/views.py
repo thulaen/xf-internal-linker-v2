@@ -183,6 +183,7 @@ class NegativeMemoryListView(views.APIView):
             REJECTED_PAIR_SUPPRESSION_DAYS,
             RejectedPair,
         )
+
         # Refactor 2026-05-04: pagination via shared
         # apps.api.query_params.coerce_pagination — same safe-fallback +
         # range-clamp behaviour as cooccurrence + behavioural-hubs.
@@ -197,18 +198,20 @@ class NegativeMemoryListView(views.APIView):
             "-last_rejected_at",
         )
         total = qs.count()
-        rows = qs[offset:offset + page_size]
+        rows = qs[offset : offset + page_size]
         items = [
             _serialize_rejected_pair(row, now=now, window_start=window_start)
             for row in rows
         ]
-        return response.Response({
-            "total": total,
-            "page": page,
-            "page_size": page_size,
-            "active_suppression_window_days": REJECTED_PAIR_SUPPRESSION_DAYS,
-            "items": items,
-        })
+        return response.Response(
+            {
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "active_suppression_window_days": REJECTED_PAIR_SUPPRESSION_DAYS,
+                "items": items,
+            }
+        )
 
 
 class NegativeMemoryClearView(views.APIView):
@@ -315,6 +318,7 @@ class Stage2PathStatusView(views.APIView):
         from apps.pipeline.services.pipeline_stages import (
             get_stage2_path_runtime_status,
         )
+
         return response.Response(get_stage2_path_runtime_status())
 
 
@@ -471,6 +475,7 @@ def _inspect_celery_signal_queue() -> list[dict]:
     """
     try:
         from config.celery import app as celery_app
+
         inspector = celery_app.control.inspect(timeout=0.3)
         scheduled = inspector.scheduled() or {}
         reserved = inspector.reserved() or {}
@@ -482,11 +487,13 @@ def _inspect_celery_signal_queue() -> list[dict]:
             task = entry.get("request", entry)
             task_name = (task.get("name") or "").split(".")[-1]
             if task_name.startswith("compute_signal_"):
-                queued.append({
-                    "task": task_name,
-                    "id": task.get("id"),
-                    "eta": task.get("eta"),
-                })
+                queued.append(
+                    {
+                        "task": task_name,
+                        "id": task.get("id"),
+                        "eta": task.get("eta"),
+                    }
+                )
     return queued
 
 
@@ -511,25 +518,29 @@ class SignalQueueView(views.APIView):
     def get(self, request):
         from apps.pipeline.services.task_lock import get_active_locks
         from django.core.cache import cache
+
         locks = get_active_locks()
         queued = _inspect_celery_signal_queue()
         avg_ms = cache.get("signal_exec:avg_ms", 30_000)
-        return response.Response({
-            "running": locks.get("signal"),
-            "queued": queued,
-            "queue_depth": len(queued),
-            "eta_total_ms": len(queued) * int(avg_ms),
-            "avg_signal_ms": avg_ms,
-            "last_run": cache.get("signal_exec:last_run", {}) or {},
-            "lock_class": "signal",
-            "pause_after_current": bool(
-                cache.get("signal_exec:pause_after_current", False),
-            ),
-            "other_lock_holders": {
-                wc: holder for wc, holder in locks.items()
-                if wc != "signal" and holder
-            },
-        })
+        return response.Response(
+            {
+                "running": locks.get("signal"),
+                "queued": queued,
+                "queue_depth": len(queued),
+                "eta_total_ms": len(queued) * int(avg_ms),
+                "avg_signal_ms": avg_ms,
+                "last_run": cache.get("signal_exec:last_run", {}) or {},
+                "lock_class": "signal",
+                "pause_after_current": bool(
+                    cache.get("signal_exec:pause_after_current", False),
+                ),
+                "other_lock_holders": {
+                    wc: holder
+                    for wc, holder in locks.items()
+                    if wc != "signal" and holder
+                },
+            }
+        )
 
     def post(self, request):
         """Phase MX1 — operator controls for the signal queue.
@@ -620,7 +631,9 @@ def _validate_scheduler_token(request):
     request_token = request.headers.get("X-Scheduler-Token", "")
     if not configured_token:
         return response.Response(
-            {"detail": "Scheduler control token is missing, so Django cannot trust scheduler-triggered dispatch."},
+            {
+                "detail": "Scheduler control token is missing, so Django cannot trust scheduler-triggered dispatch."
+            },
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
     if not hmac.compare_digest(configured_token, request_token):
@@ -633,6 +646,7 @@ def _validate_scheduler_token(request):
 
 def _dispatch_import_content_task(kwargs: dict, periodic_task_name: str):
     from apps.pipeline.tasks import dispatch_import_content
+
     result = dispatch_import_content(
         scope_ids=kwargs.get("scope_ids"),
         mode=str(kwargs.get("mode") or "full"),
@@ -672,10 +686,16 @@ def _dispatch_scheduler_task(task_name: str, kwargs: dict, periodic_task_name: s
         return _dispatch_import_content_task(kwargs, periodic_task_name)
     if task_name == "pipeline.nightly_data_retention":
         from apps.pipeline.tasks import nightly_data_retention
-        return _dispatch_run_now_task(task_name, periodic_task_name, nightly_data_retention.run)
+
+        return _dispatch_run_now_task(
+            task_name, periodic_task_name, nightly_data_retention.run
+        )
     if task_name == "pipeline.cleanup_stuck_sync_jobs":
         from apps.pipeline.tasks import cleanup_stuck_sync_jobs
-        return _dispatch_run_now_task(task_name, periodic_task_name, cleanup_stuck_sync_jobs.run)
+
+        return _dispatch_run_now_task(
+            task_name, periodic_task_name, cleanup_stuck_sync_jobs.run
+        )
     return response.Response(
         {
             "detail": (
@@ -794,8 +814,14 @@ def _count_signal_errors(sig, error_counts: dict) -> int:
 
 
 def _build_weight_diagnostics_signal_payload(
-    sig, *, settings_map: dict, cpp_module_map: dict,
-    error_counts: dict, table_stats: dict, signal_health: dict, human_size,
+    sig,
+    *,
+    settings_map: dict,
+    cpp_module_map: dict,
+    error_counts: dict,
+    table_stats: dict,
+    signal_health: dict,
+    human_size,
 ) -> dict:
     """Build one row of the WeightDiagnosticsView signals list."""
     weight_display = _resolve_signal_weight(sig, settings_map)
@@ -804,14 +830,19 @@ def _build_weight_diagnostics_signal_payload(
     stats = table_stats.get(raw_table, {"rows": 0, "size_bytes": 0})
     err_count = _count_signal_errors(sig, error_counts)
     return {
-        "id": sig.id, "name": sig.name, "type": sig.type,
-        "description": sig.description, "weight": weight_display,
+        "id": sig.id,
+        "name": sig.name,
+        "type": sig.type,
+        "description": sig.description,
+        "weight": weight_display,
         "cpp_acceleration": {
-            "active": cpp_active, "status_label": cpp_status,
+            "active": cpp_active,
+            "status_label": cpp_status,
             "kernel": sig.cpp_kernel,
         },
         "storage": {
-            "table": raw_table, "row_count": stats["rows"],
+            "table": raw_table,
+            "row_count": stats["rows"],
             "size_bytes": stats["size_bytes"],
             "size_human": human_size(stats["size_bytes"]),
         },
@@ -821,7 +852,8 @@ def _build_weight_diagnostics_signal_payload(
         },
         "system_health": signal_health.get(sig.id),
         "governance": {
-            "status": sig.status, "fr_id": sig.fr_id,
+            "status": sig.status,
+            "fr_id": sig.fr_id,
             "spec_path": sig.spec_path,
             "academic_source": sig.academic_source,
             "source_kind": sig.source_kind,
@@ -857,29 +889,35 @@ class WeightDiagnosticsView(views.APIView):
         signal_health = compute_wave2_signal_health()
         signal_data = [
             _build_weight_diagnostics_signal_payload(
-                sig, settings_map=settings_map, cpp_module_map=cpp_module_map,
-                error_counts=error_counts, table_stats=table_stats,
-                signal_health=signal_health, human_size=self._human_size,
+                sig,
+                settings_map=settings_map,
+                cpp_module_map=cpp_module_map,
+                error_counts=error_counts,
+                table_stats=table_stats,
+                signal_health=signal_health,
+                human_size=self._human_size,
             )
             for sig in SIGNALS
         ]
         contract_violations = validate_signal_contract()
-        return response.Response({
-            "signals": signal_data,
-            "summary": {
-                "total_signals": len(SIGNALS),
-                "active_signals": sum(1 for s in SIGNALS if s.status == "active"),
-                "cpp_accelerated_count": sum(
-                    1 for s in signal_data if s["cpp_acceleration"]["active"]
-                ),
-                "healthy_count": sum(
-                    1 for s in signal_data if s["health"]["status"] == "healthy"
-                ),
-                "contract_violations": contract_violations,
-                "contract_clean": len(contract_violations) == 0,
-                "last_refreshed": timezone.now(),
-            },
-        })
+        return response.Response(
+            {
+                "signals": signal_data,
+                "summary": {
+                    "total_signals": len(SIGNALS),
+                    "active_signals": sum(1 for s in SIGNALS if s.status == "active"),
+                    "cpp_accelerated_count": sum(
+                        1 for s in signal_data if s["cpp_acceleration"]["active"]
+                    ),
+                    "healthy_count": sum(
+                        1 for s in signal_data if s["health"]["status"] == "healthy"
+                    ),
+                    "contract_violations": contract_violations,
+                    "contract_clean": len(contract_violations) == 0,
+                    "last_refreshed": timezone.now(),
+                },
+            }
+        )
 
     def _get_table_stats(self):
         """Fetch row counts and disk usage for core algorithm tables."""
@@ -931,19 +969,25 @@ def _pipeline_tile(locks: dict, master_pause: bool) -> dict:
     """Build the Mission Critical Pipeline tile from current lock state."""
     if master_pause:
         return _tile(
-            "pipeline", "Pipeline", "PAUSED",
+            "pipeline",
+            "Pipeline",
+            "PAUSED",
             "Master pause active — workers at safe checkpoint.",
             actions=["Resume"],
         )
     heavy_holder = locks.get("heavy")
     if heavy_holder:
         return _tile(
-            "pipeline", "Pipeline", "WORKING",
+            "pipeline",
+            "Pipeline",
+            "WORKING",
             f"Running: {_owner_label(heavy_holder)}.",
             actions=["Pause"],
         )
     return _tile(
-        "pipeline", "Pipeline", "IDLE",
+        "pipeline",
+        "Pipeline",
+        "IDLE",
         "No heavy task currently running.",
         actions=["Pause"],
     )
@@ -954,12 +998,16 @@ def _signals_tile(locks: dict) -> dict:
     signal_holder = locks.get("signal")
     if signal_holder:
         return _tile(
-            "signals", "Ranking signals", "WORKING",
+            "signals",
+            "Ranking signals",
+            "WORKING",
             f"Computing {_owner_label(signal_holder)}.",
             actions=["Pause"],
         )
     return _tile(
-        "signals", "Ranking signals", "IDLE",
+        "signals",
+        "Ranking signals",
+        "IDLE",
         "Signal queue empty — no compute in flight.",
     )
 
@@ -969,13 +1017,17 @@ def _suggestion_readiness_tile(prereqs: list[dict]) -> dict:
     blocking = [p for p in prereqs if p["status"] != "ready"]
     if not blocking:
         return _tile(
-            "suggestion_readiness", "Suggestion readiness", "WORKING",
+            "suggestion_readiness",
+            "Suggestion readiness",
+            "WORKING",
             "All prerequisites ready.",
         )
     first = blocking[0]
     mc_state = "DEGRADED" if first["status"] != "blocked" else "FAILED"
     return _tile(
-        "suggestion_readiness", "Suggestion readiness", mc_state,
+        "suggestion_readiness",
+        "Suggestion readiness",
+        mc_state,
         f"Blocking: {first['name']} — {first['plain_english']}",
     )
 
@@ -1025,6 +1077,7 @@ class MissionCriticalView(views.APIView):
     def get(self, request):
         from apps.pipeline.services.task_lock import get_active_locks
         from apps.suggestions.readiness import assemble_prerequisites
+
         locks = get_active_locks()
         tiles: list[dict] = [
             _pipeline_tile(locks, _read_master_pause()),
@@ -1048,10 +1101,12 @@ class MissionCriticalView(views.APIView):
         prereqs = assemble_prerequisites()
         tiles.append(_suggestion_readiness_tile(prereqs))
         _apply_root_cause_dedup(tiles, prereqs)
-        return response.Response({
-            "tiles": tiles,
-            "updated_at": timezone.now().isoformat(),
-        })
+        return response.Response(
+            {
+                "tiles": tiles,
+                "updated_at": timezone.now().isoformat(),
+            }
+        )
 
 
 # ── MC helpers ───────────────────────────────────────────────────────
@@ -1110,13 +1165,16 @@ def _count_ready_embeddings(model_name: str) -> int:
     """Count ContentItems that already have an embedding for ``model_name``."""
     from apps.content.models import ContentItem
     from apps.pipeline.services.embeddings import get_current_embedding_filter
+
     return ContentItem.objects.filter(
         embedding__isnull=False,
         **get_current_embedding_filter(model_name=model_name),
     ).count()
 
 
-def _embeddings_tile_message(*, done: int, total: int, model_label: str, helper_assisted: bool) -> str:
+def _embeddings_tile_message(
+    *, done: int, total: int, model_label: str, helper_assisted: bool
+) -> str:
     """Format the embeddings progress sentence (extracted for testability)."""
     helper_word = "yes" if helper_assisted else "no"
     if done >= total:
@@ -1131,43 +1189,63 @@ def _embeddings_tile() -> dict:
             summarize_helpers,
             summarize_model_registry,
         )
+
         runtime = summarize_model_registry()
         helpers = summarize_helpers()
         active_model = runtime.get("active_model") or {}
         model_name, model_label = _build_embeddings_label(active_model, runtime)
         helper_counts = helpers.get("counts", {})
-        helper_assisted = bool(helper_counts.get("online", 0) or helper_counts.get("busy", 0))
+        helper_assisted = bool(
+            helper_counts.get("online", 0) or helper_counts.get("busy", 0)
+        )
         total = ContentItem.objects.count()
         if total == 0:
             return _tile(
-                "embeddings", "Embeddings", "IDLE",
+                "embeddings",
+                "Embeddings",
+                "IDLE",
                 f"No in-scope content yet. Active model: {model_label}.",
             )
         done = _count_ready_embeddings(model_name)
         message = _embeddings_tile_message(
-            done=done, total=total, model_label=model_label,
+            done=done,
+            total=total,
+            model_label=model_label,
             helper_assisted=helper_assisted,
         )
         if done >= total:
             return _tile("embeddings", "Embeddings", "WORKING", message, progress=1.0)
         return _tile(
-            "embeddings", "Embeddings", "WORKING", message,
-            actions=["Pause"], progress=done / total,
+            "embeddings",
+            "Embeddings",
+            "WORKING",
+            message,
+            actions=["Pause"],
+            progress=done / total,
         )
     except Exception:  # noqa: BLE001
         return _tile(
-            "embeddings", "Embeddings", "DEGRADED", "Could not read embedding state.",
+            "embeddings",
+            "Embeddings",
+            "DEGRADED",
+            "Could not read embedding state.",
         )
 
 
 def _classify_model_runtime(
-    *, active_name: str, active_status: str, device: str,
-    backfill: dict, candidate_model: dict,
+    *,
+    active_name: str,
+    active_status: str,
+    device: str,
+    backfill: dict,
+    candidate_model: dict,
 ) -> dict:
     """Pick the right Mission Critical tile for the model runtime state."""
     if active_status in {"failed", "deleted"}:
         return _tile(
-            "model_runtime", "Model runtime", "FAILED",
+            "model_runtime",
+            "Model runtime",
+            "FAILED",
             (
                 f"{active_name} is {active_status} on {device}. "
                 "Open Settings > Runtime to warm, roll back, or replace it."
@@ -1175,14 +1253,18 @@ def _classify_model_runtime(
         )
     if backfill and backfill.get("status") in {"queued", "running", "paused"}:
         return _tile(
-            "model_runtime", "Model runtime", "DEGRADED",
+            "model_runtime",
+            "Model runtime",
+            "DEGRADED",
             f"{active_name} is active on {device}, and a backfill is {backfill.get('status')}.",
             actions=["Pause", "Resume"],
             progress=(backfill.get("progress_pct") or 0.0) * _PCT_TO_FRACTION,
         )
     if candidate_model:
         return _tile(
-            "model_runtime", "Model runtime", "DEGRADED",
+            "model_runtime",
+            "Model runtime",
+            "DEGRADED",
             (
                 f"{active_name} is champion on {device}. Candidate "
                 f"{candidate_model.get('model_name')} is {candidate_model.get('status')}."
@@ -1190,7 +1272,9 @@ def _classify_model_runtime(
             actions=["Resume"],
         )
     return _tile(
-        "model_runtime", "Model runtime", "WORKING",
+        "model_runtime",
+        "Model runtime",
+        "WORKING",
         f"{active_name} is the active embedding model on {device}. Hot swap is ready.",
     )
 
@@ -1198,6 +1282,7 @@ def _classify_model_runtime(
 def _model_runtime_tile() -> dict:
     try:
         from apps.core.runtime_registry import summarize_model_registry
+
         summary = summarize_model_registry()
         active_model = summary.get("active_model") or {}
         return _classify_model_runtime(
@@ -1209,7 +1294,9 @@ def _model_runtime_tile() -> dict:
         )
     except Exception:  # noqa: BLE001
         return _tile(
-            "model_runtime", "Model runtime", "DEGRADED",
+            "model_runtime",
+            "Model runtime",
+            "DEGRADED",
             "Could not read model runtime state.",
         )
 
@@ -1218,19 +1305,28 @@ _HELPER_NODES_RAM_PRESSURE_DEGRADED = 0.9
 
 
 def _classify_helper_nodes(
-    *, online: int, busy: int, stale: int, offline: int,
-    aggregate_ram_pressure: float, busiest: dict,
+    *,
+    online: int,
+    busy: int,
+    stale: int,
+    offline: int,
+    aggregate_ram_pressure: float,
+    busiest: dict,
 ) -> dict:
     """Pick the right Mission Critical tile for the helper-nodes state."""
     if online == 0 and busy == 0 and stale == 0 and offline == 0:
         return _tile(
-            "helper_nodes", "Helper nodes", "IDLE",
+            "helper_nodes",
+            "Helper nodes",
+            "IDLE",
             "No helper nodes configured. The primary machine is handling all work.",
         )
     if online == 0 and busy == 0:
         state = "FAILED" if stale == 0 else "DEGRADED"
         return _tile(
-            "helper_nodes", "Helper nodes", state,
+            "helper_nodes",
+            "Helper nodes",
+            state,
             (
                 f"No helpers are available right now. Counts: online {online}, "
                 f"busy {busy}, stale {stale}, offline {offline}."
@@ -1238,7 +1334,9 @@ def _classify_helper_nodes(
         )
     if aggregate_ram_pressure >= _HELPER_NODES_RAM_PRESSURE_DEGRADED:
         return _tile(
-            "helper_nodes", "Helper nodes", "DEGRADED",
+            "helper_nodes",
+            "Helper nodes",
+            "DEGRADED",
             (
                 f"Helpers are online, but RAM pressure is high "
                 f"({aggregate_ram_pressure:.0%}). Busiest: {busiest.get('name') or 'n/a'}."
@@ -1246,7 +1344,9 @@ def _classify_helper_nodes(
             progress=aggregate_ram_pressure,
         )
     return _tile(
-        "helper_nodes", "Helper nodes", "WORKING",
+        "helper_nodes",
+        "Helper nodes",
+        "WORKING",
         (
             f"Online {online}, busy {busy}, stale {stale}, offline {offline}. "
             f"Busiest load: {(busiest.get('effective_load') or 0.0):.0%}."
@@ -1258,18 +1358,24 @@ def _classify_helper_nodes(
 def _helper_nodes_tile() -> dict:
     try:
         from apps.core.runtime_registry import helper_status_counts, summarize_helpers
+
         summary = summarize_helpers()
         # Refactor 2026-05-04: shared helper_status_counts (also used by
         # apps.health.services.check_helper_nodes_health).
         online, busy, stale, offline = helper_status_counts(summary)
         return _classify_helper_nodes(
-            online=online, busy=busy, stale=stale, offline=offline,
+            online=online,
+            busy=busy,
+            stale=stale,
+            offline=offline,
             aggregate_ram_pressure=float(summary.get("aggregate_ram_pressure") or 0.0),
             busiest=summary.get("busiest") or {},
         )
     except Exception:  # noqa: BLE001
         return _tile(
-            "helper_nodes", "Helper nodes", "DEGRADED",
+            "helper_nodes",
+            "Helper nodes",
+            "DEGRADED",
             "Could not read helper node state.",
         )
 
@@ -1278,12 +1384,15 @@ def _classify_anti_spam(signals: dict) -> dict:
     """Pick the right Mission Critical tile for the anti-spam state."""
     disabled = [name for name, cfg in signals.items() if not bool(cfg.get("enabled"))]
     zero_weight = [
-        name for name, cfg in signals.items()
+        name
+        for name, cfg in signals.items()
         if float(cfg.get("ranking_weight") or 0.0) <= 0.0
     ]
     if disabled:
         return _tile(
-            "anti_spam", "Anti-spam", "DEGRADED",
+            "anti_spam",
+            "Anti-spam",
+            "DEGRADED",
             (
                 f"Disabled signals: {', '.join(disabled)}. Open Settings to "
                 "restore the default anti-spam stack."
@@ -1291,14 +1400,18 @@ def _classify_anti_spam(signals: dict) -> dict:
         )
     if zero_weight:
         return _tile(
-            "anti_spam", "Anti-spam", "DEGRADED",
+            "anti_spam",
+            "Anti-spam",
+            "DEGRADED",
             (
                 f"Zero-weight signals: {', '.join(zero_weight)}. Recommended "
                 "preset expects all three penalties to stay active."
             ),
         )
     return _tile(
-        "anti_spam", "Anti-spam", "WORKING",
+        "anti_spam",
+        "Anti-spam",
+        "WORKING",
         (
             "Anchor diversity, keyword stuffing, and link-farm penalties are "
             "enabled with active weights."
@@ -1313,14 +1426,19 @@ def _anti_spam_tile() -> dict:
             get_keyword_stuffing_settings,
             get_link_farm_settings,
         )
-        return _classify_anti_spam({
-            "Anchor diversity": get_anchor_diversity_settings(),
-            "Keyword stuffing": get_keyword_stuffing_settings(),
-            "Link farm": get_link_farm_settings(),
-        })
+
+        return _classify_anti_spam(
+            {
+                "Anchor diversity": get_anchor_diversity_settings(),
+                "Keyword stuffing": get_keyword_stuffing_settings(),
+                "Link farm": get_link_farm_settings(),
+            }
+        )
     except Exception:  # noqa: BLE001
         return _tile(
-            "anti_spam", "Anti-spam", "DEGRADED",
+            "anti_spam",
+            "Anti-spam",
+            "DEGRADED",
             "Could not read anti-spam settings.",
         )
 
@@ -1666,7 +1784,9 @@ class WhySoLongPanelView(views.APIView):
 
         from apps.diagnostics.services.why_so_long import get_panel
 
-        job_key = request.query_params.get("job") or request.query_params.get("task") or ""
+        job_key = (
+            request.query_params.get("job") or request.query_params.get("task") or ""
+        )
         if not job_key:
             return response.Response(
                 {"detail": "?job=<key> is required"},

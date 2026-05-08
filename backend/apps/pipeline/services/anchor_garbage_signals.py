@@ -228,7 +228,7 @@ def _compiled_lexicon(lexicon_path: str | None) -> tuple[tuple[str, ...], object
             return phrases, automaton
         except Exception as exc:  # pragma: no cover — defensive
             logger.warning("anchor_garbage: C++ build failed: %s", exc)
-    
+
     # Python fallback: build a token-aware Aho-Corasick automaton
     matcher = AhoCorasickMatcher(case_sensitive=False)
     for phrase in phrases:
@@ -259,7 +259,11 @@ def generic_score(
     if not phrases:
         return GenericMatchResult(False, (), 0.0)
 
-    if _HAS_CPP_MATCHER and automaton is not None and not isinstance(automaton, AhoCorasickMatcher):
+    if (
+        _HAS_CPP_MATCHER
+        and automaton is not None
+        and not isinstance(automaton, AhoCorasickMatcher)
+    ):
         try:
             matches = _cpp_matcher.find_all(automaton, needle)  # type: ignore[union-attr]
         except Exception as exc:
@@ -287,12 +291,12 @@ def generic_score(
 
 def _python_find_all(needle: str, matcher: object) -> list[str]:
     """Pure-Python fallback using Aho-Corasick.
-    
+
     Replaces the O(n*m) loop with O(n) scanning.
     """
     if matcher is None or not isinstance(matcher, AhoCorasickMatcher):
         return []
-        
+
     # matcher.find_all returns PatternMatch objects.
     # We only want the values (original phrases).
     matches = matcher.find_all(needle)

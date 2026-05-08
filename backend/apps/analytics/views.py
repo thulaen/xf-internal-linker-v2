@@ -200,10 +200,14 @@ def _ga4_read_status(
 ) -> tuple[str, str]:
     """Read-access ``(status, plain-English message)``. Sync result wins over creds state."""
     if sync and sync["status"] == "completed":
-        return ("connected", "GA4 read sync completed successfully the last time it ran.")
+        return (
+            "connected",
+            "GA4 read sync completed successfully the last time it ran.",
+        )
     if sync and sync["status"] == "failed":
         return (
-            "error", sync["error_message"] or "The last GA4 sync failed.",
+            "error",
+            sync["error_message"] or "The last GA4 sync failed.",
         )
     if oauth_connected:
         return (
@@ -228,29 +232,36 @@ def _ga4_settings_telemetry_block() -> dict:
     """Return the 12 telemetry config keys (no creds, no statuses, no oauth)."""
     return {
         "behavior_enabled": _read_bool(
-            "analytics.ga4_behavior_enabled", GA4_DEFAULTS["behavior_enabled"],
+            "analytics.ga4_behavior_enabled",
+            GA4_DEFAULTS["behavior_enabled"],
         ),
         "sync_enabled": _read_bool(
-            "analytics.ga4_sync_enabled", GA4_DEFAULTS["sync_enabled"],
+            "analytics.ga4_sync_enabled",
+            GA4_DEFAULTS["sync_enabled"],
         ),
         "sync_lookback_days": _read_int(
-            "analytics.ga4_sync_lookback_days", GA4_DEFAULTS["sync_lookback_days"],
+            "analytics.ga4_sync_lookback_days",
+            GA4_DEFAULTS["sync_lookback_days"],
         ),
         "event_schema": _read_stripped_setting(
-            "analytics.telemetry_event_schema", GA4_DEFAULTS["event_schema"],
+            "analytics.telemetry_event_schema",
+            GA4_DEFAULTS["event_schema"],
         ),
         "geo_granularity": _read_stripped_setting(
-            "analytics.telemetry_geo_granularity", GA4_DEFAULTS["geo_granularity"],
+            "analytics.telemetry_geo_granularity",
+            GA4_DEFAULTS["geo_granularity"],
         ),
         "retention_days": _read_int(
-            "analytics.telemetry_retention_days", GA4_DEFAULTS["retention_days"],
+            "analytics.telemetry_retention_days",
+            GA4_DEFAULTS["retention_days"],
         ),
         "impression_visible_ratio": _read_float(
             "analytics.telemetry_impression_visible_ratio",
             GA4_DEFAULTS["impression_visible_ratio"],
         ),
         "impression_min_ms": _read_int(
-            "analytics.telemetry_impression_min_ms", GA4_DEFAULTS["impression_min_ms"],
+            "analytics.telemetry_impression_min_ms",
+            GA4_DEFAULTS["impression_min_ms"],
         ),
         "engaged_min_seconds": _read_int(
             "analytics.telemetry_engaged_min_seconds",
@@ -309,7 +320,10 @@ def _gsc_connection_status(
 ) -> tuple[str, str]:
     """Pick the ``(status, plain-English message)`` for the GSC settings card."""
     if sync and sync["status"] == "completed":
-        return ("connected", "GSC performance sync completed successfully the last time it ran.")
+        return (
+            "connected",
+            "GSC performance sync completed successfully the last time it ran.",
+        )
     if sync and sync["status"] == "failed":
         return ("error", sync["error_message"] or "The last GSC sync failed.")
     if oauth_connected:
@@ -353,10 +367,12 @@ def get_gsc_settings() -> dict:
         "client_email": client_email,
         "private_key_configured": bool(private_key),
         "sync_enabled": _read_bool(
-            "analytics.gsc_sync_enabled", GSC_DEFAULTS["sync_enabled"],
+            "analytics.gsc_sync_enabled",
+            GSC_DEFAULTS["sync_enabled"],
         ),
         "sync_lookback_days": _read_int(
-            "analytics.gsc_sync_lookback_days", GSC_DEFAULTS["sync_lookback_days"],
+            "analytics.gsc_sync_lookback_days",
+            GSC_DEFAULTS["sync_lookback_days"],
         ),
         "manual_backfill_max_days": GSC_MANUAL_BACKFILL_MAX_DAYS,
         "manual_backfill_suggested_days": GSC_MANUAL_BACKFILL_SUGGESTED_DAYS,
@@ -488,14 +504,16 @@ def _ga4_extract_optional_secrets(payload: dict) -> dict:
         "api_secret_provided": api_secret_provided,
         "read_private_key": (
             str(payload.get("read_private_key", "")).strip()
-            if read_private_key_provided else None
+            if read_private_key_provided
+            else None
         ),
         "read_private_key_provided": read_private_key_provided,
         "google_oauth_client_id": oauth_client_id,
         "oauth_client_id_provided": oauth_client_id_provided,
         "google_oauth_client_secret": (
             str(payload.get("google_oauth_client_secret", "")).strip()
-            if oauth_client_secret_provided else None
+            if oauth_client_secret_provided
+            else None
         ),
         "oauth_client_secret_provided": oauth_client_secret_provided,
     }
@@ -519,43 +537,58 @@ def _ga4_build_validated_dict(payload: dict, current: dict, identifiers: dict) -
             "behavior_enabled",
         ),
         "sync_enabled": _coerce_bool(
-            payload.get("sync_enabled", current["sync_enabled"]), "sync_enabled",
+            payload.get("sync_enabled", current["sync_enabled"]),
+            "sync_enabled",
         ),
         "sync_lookback_days": _coerce_int(
             payload.get("sync_lookback_days", current["sync_lookback_days"]),
-            "sync_lookback_days", 1, 30,
+            "sync_lookback_days",
+            1,
+            30,
         ),
         "event_schema": event_schema,
         "geo_granularity": geo_granularity,
         "retention_days": _coerce_int(
             payload.get("retention_days", current["retention_days"]),
-            "retention_days", 1, _RETENTION_DAYS_MAX,
+            "retention_days",
+            1,
+            _RETENTION_DAYS_MAX,
         ),
         "impression_visible_ratio": _coerce_float(
             payload.get(
-                "impression_visible_ratio", current["impression_visible_ratio"],
+                "impression_visible_ratio",
+                current["impression_visible_ratio"],
             ),
-            "impression_visible_ratio", 0.25, 1.0,
+            "impression_visible_ratio",
+            0.25,
+            1.0,
         ),
         "impression_min_ms": _coerce_int(
             payload.get("impression_min_ms", current["impression_min_ms"]),
-            "impression_min_ms", _IMPRESSION_MIN_MS_MIN, _IMPRESSION_MIN_MS_MAX,
+            "impression_min_ms",
+            _IMPRESSION_MIN_MS_MIN,
+            _IMPRESSION_MIN_MS_MAX,
         ),
         "engaged_min_seconds": _coerce_int(
             payload.get("engaged_min_seconds", current["engaged_min_seconds"]),
-            "engaged_min_seconds", 5, 60,
+            "engaged_min_seconds",
+            5,
+            60,
         ),
     }
 
 
 def _ga4_check_credential_consistency(
-    validated: dict, current: dict, secrets: dict,
+    validated: dict,
+    current: dict,
+    secrets: dict,
 ) -> None:
     """Cross-field rules: behavior-needs-measurement-id, sync-needs-creds."""
     if validated["behavior_enabled"] and (
         not validated["measurement_id"]
         or not (
-            secrets["api_secret_provided"] and secrets["api_secret"]
+            secrets["api_secret_provided"]
+            and secrets["api_secret"]
             or current["api_secret_configured"]
         )
     ):
@@ -564,9 +597,7 @@ def _ga4_check_credential_consistency(
         current["oauth_connected"]
         and _google_oauth_refresh_token()
         and secrets["google_oauth_client_id"]
-        and (
-            _google_oauth_client_secret() or secrets["google_oauth_client_secret"]
-        )
+        and (_google_oauth_client_secret() or secrets["google_oauth_client_secret"])
     )
     has_read_key = bool(
         secrets["read_private_key_provided"] and secrets["read_private_key"]
@@ -655,7 +686,10 @@ def _validate_matomo_payload(payload: dict) -> tuple[dict, bool]:
 
 
 def _check_gsc_sync_credentials_valid(
-    validated: dict, current: dict, private_key_provided: bool, private_key: str | None,
+    validated: dict,
+    current: dict,
+    private_key_provided: bool,
+    private_key: str | None,
 ) -> None:
     """Cross-field rule: sync needs property_url + (Google login OR service-account creds)."""
     has_google_login = bool(
@@ -666,9 +700,9 @@ def _check_gsc_sync_credentials_valid(
     )
     if not validated["sync_enabled"]:
         return
-    has_service_account_key = bool(
-        private_key_provided and private_key
-    ) or bool(current["private_key_configured"])
+    has_service_account_key = bool(private_key_provided and private_key) or bool(
+        current["private_key_configured"]
+    )
     if not validated["property_url"] or (
         not has_google_login
         and (not validated["client_email"] or not has_service_account_key)
@@ -702,18 +736,26 @@ def _validate_gsc_payload(payload: dict) -> tuple[dict, bool]:
         "client_email": client_email,
         "ranking_weight": _coerce_float(
             payload.get("ranking_weight", current["ranking_weight"]),
-            "ranking_weight", 0.0, 1.0,
+            "ranking_weight",
+            0.0,
+            1.0,
         ),
         "sync_enabled": _coerce_bool(
-            payload.get("sync_enabled", current["sync_enabled"]), "sync_enabled",
+            payload.get("sync_enabled", current["sync_enabled"]),
+            "sync_enabled",
         ),
         "sync_lookback_days": _coerce_int(
             payload.get("sync_lookback_days", current["sync_lookback_days"]),
-            "sync_lookback_days", 1, 90,
+            "sync_lookback_days",
+            1,
+            90,
         ),
     }
     _check_gsc_sync_credentials_valid(
-        validated, current, private_key_provided, private_key,
+        validated,
+        current,
+        private_key_provided,
+        private_key,
     )
     validated["private_key"] = private_key
     return validated, private_key_provided
@@ -769,9 +811,13 @@ def _gsc_private_key() -> str:
 def _ensure_daily_crontab(*, minute: str, hour: str):
     """Get-or-create a daily Celery Beat crontab at the given minute/hour (UTC)."""
     from django_celery_beat.models import CrontabSchedule
+
     schedule, _ = CrontabSchedule.objects.get_or_create(
-        minute=minute, hour=hour,
-        day_of_week="*", day_of_month="*", month_of_year="*",
+        minute=minute,
+        hour=hour,
+        day_of_week="*",
+        day_of_month="*",
+        month_of_year="*",
         timezone="UTC",
     )
     return schedule
@@ -782,14 +828,20 @@ def _ensure_hourly_crontab(*, minute: str):
     return _ensure_daily_crontab(minute=minute, hour="*")
 
 
-def _upsert_periodic_task(name: str, *, task: str, crontab, enabled: bool, description: str) -> None:
+def _upsert_periodic_task(
+    name: str, *, task: str, crontab, enabled: bool, description: str
+) -> None:
     """Upsert a Celery Beat PeriodicTask row routed through the pipeline queue."""
     from django_celery_beat.models import PeriodicTask
+
     PeriodicTask.objects.update_or_create(
         name=name,
         defaults={
-            "task": task, "crontab": crontab, "queue": "pipeline",
-            "enabled": enabled, "description": description,
+            "task": task,
+            "crontab": crontab,
+            "queue": "pipeline",
+            "enabled": enabled,
+            "description": description,
         },
     )
 
@@ -1067,20 +1119,24 @@ class AnalyticsTelemetryBreakdownView(APIView):
 
     def get(self, request):
         queryset, days, source = _telemetry_queryset(request)
-        return Response({
-            "days": days,
-            "selected_source": source or "all",
-            "device_categories": _format_breakdown_rows(
-                _aggregate_breakdown(queryset, "device_category"), "device_category",
-            ),
-            "channel_groups": _format_breakdown_rows(
-                _aggregate_breakdown(queryset, "default_channel_group"),
-                "default_channel_group",
-            ),
-            "countries": _format_breakdown_rows(
-                _aggregate_breakdown(queryset, "country"), "country",
-            ),
-        })
+        return Response(
+            {
+                "days": days,
+                "selected_source": source or "all",
+                "device_categories": _format_breakdown_rows(
+                    _aggregate_breakdown(queryset, "device_category"),
+                    "device_category",
+                ),
+                "channel_groups": _format_breakdown_rows(
+                    _aggregate_breakdown(queryset, "default_channel_group"),
+                    "default_channel_group",
+                ),
+                "countries": _format_breakdown_rows(
+                    _aggregate_breakdown(queryset, "country"),
+                    "country",
+                ),
+            }
+        )
 
 
 _BREAKDOWN_TOP_N = 6
@@ -1276,11 +1332,13 @@ class AnalyticsTelemetryTopSuggestionsView(APIView):
             order = "clicks"
         grouped = _aggregate_top_suggestions_grouped(queryset)
         rows = _order_top_suggestions_rows(grouped, order)
-        return Response({
-            "days": days,
-            "selected_source": source or "all",
-            "items": [_format_top_suggestion_row(row) for row in rows],
-        })
+        return Response(
+            {
+                "days": days,
+                "selected_source": source or "all",
+                "items": [_format_top_suggestion_row(row) for row in rows],
+            }
+        )
 
 
 _TOP_SUGGESTIONS_LIMIT = 8
@@ -1312,6 +1370,7 @@ def _order_top_suggestions_rows(grouped, order: str):
     """Apply the per-order sort + top-N slice. Quick-exit needs a derived ratio."""
     if order == "quick_exit":
         from django.db.models import ExpressionWrapper, F, FloatField
+
         # Sort by the derived quick-exit share of destination views. Filter
         # destination_views > 0 to avoid SQL division-by-zero and to keep
         # impressions-only rows out of the bad-match list.
@@ -1323,9 +1382,13 @@ def _order_top_suggestions_rows(grouped, order: str):
                     output_field=FloatField(),
                 ),
             )
-            .order_by("-_quick_exit_ratio", "-destination_views", "-clicks")[:_TOP_SUGGESTIONS_LIMIT]
+            .order_by("-_quick_exit_ratio", "-destination_views", "-clicks")[
+                :_TOP_SUGGESTIONS_LIMIT
+            ]
         )
-    return grouped.order_by("-clicks", "-engaged_sessions", "-impressions")[:_TOP_SUGGESTIONS_LIMIT]
+    return grouped.order_by("-clicks", "-engaged_sessions", "-impressions")[
+        :_TOP_SUGGESTIONS_LIMIT
+    ]
 
 
 def _format_top_suggestion_row(row: dict) -> dict:
@@ -1409,42 +1472,96 @@ def _format_setting_value(value, value_type: str) -> str:
 # Adding a new GA4 settings row = one entry here, not a new copy of the
 # 5-line _upsert_setting block.
 _GA4_TELEMETRY_ROW_SPEC: tuple[tuple[str, str, str, str], ...] = (
-    ("behavior_enabled", "analytics.ga4_behavior_enabled", "bool",
-     "Whether browser-side GA4 telemetry events are enabled."),
-    ("property_id", "analytics.ga4_property_id", "str",
-     "GA4 property ID used for telemetry reporting."),
-    ("measurement_id", "analytics.ga4_measurement_id", "str",
-     "GA4 Measurement ID used by the site event bridge."),
-    ("read_project_id", "analytics.ga4_read_project_id", "str",
-     "Google Cloud project ID for GA4 Data API read access."),
-    ("read_client_email", "analytics.ga4_read_client_email", "str",
-     "Service-account client email for GA4 Data API read access."),
-    ("sync_enabled", "analytics.ga4_sync_enabled", "bool",
-     "Whether scheduled GA4 telemetry sync is enabled."),
-    ("sync_lookback_days", "analytics.ga4_sync_lookback_days", "int",
-     "How many days each GA4 sync should reread."),
-    ("event_schema", "analytics.telemetry_event_schema", "str",
-     "Telemetry event schema name for FR-016."),
-    ("geo_granularity", "analytics.telemetry_geo_granularity", "str",
-     "Telemetry geography granularity."),
-    ("retention_days", "analytics.telemetry_retention_days", "int",
-     "How long telemetry rows should be kept."),
-    ("impression_visible_ratio", "analytics.telemetry_impression_visible_ratio",
-     "float", "Visible ratio needed before counting an impression."),
-    ("impression_min_ms", "analytics.telemetry_impression_min_ms", "int",
-     "How long a link must stay visible before it counts as an impression."),
-    ("engaged_min_seconds", "analytics.telemetry_engaged_min_seconds", "int",
-     "How many focused seconds count as engaged destination time."),
+    (
+        "behavior_enabled",
+        "analytics.ga4_behavior_enabled",
+        "bool",
+        "Whether browser-side GA4 telemetry events are enabled.",
+    ),
+    (
+        "property_id",
+        "analytics.ga4_property_id",
+        "str",
+        "GA4 property ID used for telemetry reporting.",
+    ),
+    (
+        "measurement_id",
+        "analytics.ga4_measurement_id",
+        "str",
+        "GA4 Measurement ID used by the site event bridge.",
+    ),
+    (
+        "read_project_id",
+        "analytics.ga4_read_project_id",
+        "str",
+        "Google Cloud project ID for GA4 Data API read access.",
+    ),
+    (
+        "read_client_email",
+        "analytics.ga4_read_client_email",
+        "str",
+        "Service-account client email for GA4 Data API read access.",
+    ),
+    (
+        "sync_enabled",
+        "analytics.ga4_sync_enabled",
+        "bool",
+        "Whether scheduled GA4 telemetry sync is enabled.",
+    ),
+    (
+        "sync_lookback_days",
+        "analytics.ga4_sync_lookback_days",
+        "int",
+        "How many days each GA4 sync should reread.",
+    ),
+    (
+        "event_schema",
+        "analytics.telemetry_event_schema",
+        "str",
+        "Telemetry event schema name for FR-016.",
+    ),
+    (
+        "geo_granularity",
+        "analytics.telemetry_geo_granularity",
+        "str",
+        "Telemetry geography granularity.",
+    ),
+    (
+        "retention_days",
+        "analytics.telemetry_retention_days",
+        "int",
+        "How long telemetry rows should be kept.",
+    ),
+    (
+        "impression_visible_ratio",
+        "analytics.telemetry_impression_visible_ratio",
+        "float",
+        "Visible ratio needed before counting an impression.",
+    ),
+    (
+        "impression_min_ms",
+        "analytics.telemetry_impression_min_ms",
+        "int",
+        "How long a link must stay visible before it counts as an impression.",
+    ),
+    (
+        "engaged_min_seconds",
+        "analytics.telemetry_engaged_min_seconds",
+        "int",
+        "How many focused seconds count as engaged destination time.",
+    ),
 )
 
 # (validated_key, setting_key, description) for OPTIONAL GA4 secrets.
 # Persist only when the operator sent a value, so partial PUTs don't clobber
 # existing secrets.
 _GA4_OPTIONAL_SECRET_SPEC: tuple[tuple[str, str, str], ...] = (
-    ("api_secret", "analytics.ga4_api_secret",
-     "GA4 Measurement Protocol API secret."),
-    ("read_private_key", "analytics.ga4_read_private_key",
-     "Service-account private key for GA4 Data API read access."),
+    ("api_secret", "analytics.ga4_api_secret", "GA4 Measurement Protocol API secret."),
+    (
+        "read_private_key",
+        "analytics.ga4_read_private_key",
+        "Service-account private key for GA4 Data API read access.",
+    ),
 )
 
 
@@ -1462,7 +1579,9 @@ def _persist_ga4_telemetry_settings(validated: dict, raw_payload: dict) -> None:
             _upsert_setting(
                 setting_key,
                 validated[payload_key] or "",
-                "str", description, is_secret=True,
+                "str",
+                description,
+                is_secret=True,
             )
 
 
@@ -1508,7 +1627,9 @@ class AnalyticsGA4TestConnectionView(APIView):
                 request.data.get("measurement_id")
                 or _read_setting("analytics.ga4_measurement_id", "")
                 or ""
-            ).strip().upper()
+            )
+            .strip()
+            .upper()
         )
         api_secret = str(request.data.get("api_secret") or _ga4_secret()).strip()
         if not measurement_id or not api_secret:
@@ -1550,7 +1671,8 @@ def _probe_ga4_browser_endpoint(measurement_id: str, api_secret: str) -> Respons
     except Exception as exc:
         logger.exception("GA4 browser endpoint probe failed")
         return Response(
-            {"status": "error", "message": f"GA4 test failed: {exc}"}, status=502,
+            {"status": "error", "message": f"GA4 test failed: {exc}"},
+            status=502,
         )
     messages = payload.get("validationMessages") or []
     if messages:
@@ -1579,7 +1701,8 @@ class AnalyticsGA4ReadConnectionView(APIView):
         ).strip()
         try:
             service_or_response = _build_ga4_read_service_or_error_response(
-                property_id, request.data,
+                property_id,
+                request.data,
             )
         except Exception as exc:
             logger.exception("GA4 Data API service build failed")
@@ -1591,7 +1714,8 @@ class AnalyticsGA4ReadConnectionView(APIView):
             return service_or_response
         try:
             test_ga4_data_api_access(
-                service=service_or_response, property_id=property_id,
+                service=service_or_response,
+                property_id=property_id,
             )
         except Exception as exc:
             logger.exception("GA4 Data API read probe failed")
@@ -1629,9 +1753,7 @@ def _build_ga4_read_service_or_error_response(property_id: str, data: dict):
         or _read_setting("analytics.ga4_read_client_email", "")
         or ""
     ).strip()
-    private_key = str(
-        data.get("read_private_key") or _ga4_read_private_key()
-    ).strip()
+    private_key = str(data.get("read_private_key") or _ga4_read_private_key()).strip()
     if not property_id or not project_id or not client_email or not private_key:
         return Response(
             {
@@ -1667,18 +1789,37 @@ class AnalyticsMatomoSettingsView(APIView):
 
 
 _MATOMO_ROW_SPEC: tuple[tuple[str, str, str, str], ...] = (
-    ("enabled", "analytics.matomo_enabled", "bool",
-     "Whether Matomo telemetry collection is enabled."),
-    ("url", "analytics.matomo_url", "str",
-     "Base URL for the Matomo instance."),
-    ("site_id_xenforo", "analytics.matomo_site_id_xenforo", "str",
-     "Matomo site ID for XenForo."),
-    ("site_id_wordpress", "analytics.matomo_site_id_wordpress", "str",
-     "Matomo site ID for WordPress."),
-    ("sync_enabled", "analytics.matomo_sync_enabled", "bool",
-     "Whether scheduled Matomo telemetry sync is enabled."),
-    ("sync_lookback_days", "analytics.matomo_sync_lookback_days", "int",
-     "How many days each Matomo sync should reread."),
+    (
+        "enabled",
+        "analytics.matomo_enabled",
+        "bool",
+        "Whether Matomo telemetry collection is enabled.",
+    ),
+    ("url", "analytics.matomo_url", "str", "Base URL for the Matomo instance."),
+    (
+        "site_id_xenforo",
+        "analytics.matomo_site_id_xenforo",
+        "str",
+        "Matomo site ID for XenForo.",
+    ),
+    (
+        "site_id_wordpress",
+        "analytics.matomo_site_id_wordpress",
+        "str",
+        "Matomo site ID for WordPress.",
+    ),
+    (
+        "sync_enabled",
+        "analytics.matomo_sync_enabled",
+        "bool",
+        "Whether scheduled Matomo telemetry sync is enabled.",
+    ),
+    (
+        "sync_lookback_days",
+        "analytics.matomo_sync_lookback_days",
+        "int",
+        "How many days each Matomo sync should reread.",
+    ),
 )
 
 
@@ -1688,13 +1829,16 @@ def _persist_matomo_settings(validated: dict, token_provided: bool) -> None:
         _upsert_setting(
             setting_key,
             _format_setting_value(validated[validated_key], value_type),
-            value_type, description,
+            value_type,
+            description,
         )
     if token_provided:
         _upsert_setting(
             "analytics.matomo_token_auth",
             validated["token_auth"] or "",
-            "str", "Matomo API token auth value.", is_secret=True,
+            "str",
+            "Matomo API token auth value.",
+            is_secret=True,
         )
 
 
@@ -1722,11 +1866,14 @@ def _resolve_matomo_test_credentials(data: dict) -> dict[str, str]:
         "base_url": (
             str(
                 data.get("url") or _read_setting("analytics.matomo_url", "") or "",
-            ).strip().rstrip("/")
+            )
+            .strip()
+            .rstrip("/")
         ),
         "site_id": str(
             data.get("site_id_xenforo")
-            or _read_setting("analytics.matomo_site_id_xenforo", "") or "",
+            or _read_setting("analytics.matomo_site_id_xenforo", "")
+            or "",
         ).strip(),
         "token_auth": str(data.get("token_auth") or _matomo_token()).strip(),
     }
@@ -1749,7 +1896,8 @@ def _probe_matomo_endpoint(creds: dict[str, str]) -> Response:
     except Exception as exc:
         logger.exception("Matomo endpoint probe failed")
         return Response(
-            {"status": "error", "message": f"Matomo test failed: {exc}"}, status=502,
+            {"status": "error", "message": f"Matomo test failed: {exc}"},
+            status=502,
         )
     if isinstance(payload, dict) and payload.get("result") == "error":
         return Response(
@@ -2139,7 +2287,8 @@ class AnalyticsGoogleOAuthStartView(APIView):
                 status=400,
             )
         flow = _build_google_oauth_flow(
-            client_id=client_id, client_secret=client_secret,
+            client_id=client_id,
+            client_secret=client_secret,
             redirect_uri=request.build_absolute_uri("/api/analytics/oauth/callback/"),
             scopes=_GOOGLE_OAUTH_SCOPES,
         )
@@ -2163,7 +2312,11 @@ _GOOGLE_OAUTH_SCOPES = (
 
 
 def _build_google_oauth_flow(
-    *, client_id: str, client_secret: str, redirect_uri: str, scopes: tuple | None,
+    *,
+    client_id: str,
+    client_secret: str,
+    redirect_uri: str,
+    scopes: tuple | None,
 ):
     """Construct a google_auth_oauthlib.Flow with the standard XF-internal-linker config."""
     import google_auth_oauthlib.flow
@@ -2203,13 +2356,15 @@ class AnalyticsGoogleOAuthCallbackView(APIView):
             return redirect(
                 f"{frontend_settings_url}?oauth_error=missing_client_settings",
             )
-        return redirect(_exchange_oauth_code_and_persist(
-            request=request,
-            code=request.GET.get("code"),
-            client_id=client_id,
-            client_secret=client_secret,
-            frontend_settings_url=frontend_settings_url,
-        ))
+        return redirect(
+            _exchange_oauth_code_and_persist(
+                request=request,
+                code=request.GET.get("code"),
+                client_id=client_id,
+                client_secret=client_secret,
+                frontend_settings_url=frontend_settings_url,
+            )
+        )
 
 
 def _validate_oauth_callback_inputs(request, frontend_settings_url: str) -> str | None:
@@ -2228,12 +2383,17 @@ def _validate_oauth_callback_inputs(request, frontend_settings_url: str) -> str 
 
 
 def _exchange_oauth_code_and_persist(
-    *, request, code: str, client_id: str, client_secret: str,
+    *,
+    request,
+    code: str,
+    client_id: str,
+    client_secret: str,
     frontend_settings_url: str,
 ) -> str:
     """Exchange the OAuth code for a refresh token, persist it, return redirect URL."""
     flow = _build_google_oauth_flow(
-        client_id=client_id, client_secret=client_secret,
+        client_id=client_id,
+        client_secret=client_secret,
         redirect_uri=request.build_absolute_uri("/api/analytics/oauth/callback/"),
         scopes=None,  # Scopes are already encoded in the auth code.
     )

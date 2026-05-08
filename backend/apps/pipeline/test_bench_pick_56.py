@@ -10,11 +10,14 @@ def test_bench_aho_corasick_vs_regex(benchmark):
     patterns = [f"pattern_{i}" for i in range(1000)]
     # Add some real patterns that might actually match
     patterns.extend(["apple", "banana", "cherry", "date", "elderberry"])
-    
-    text = "I like apple and banana, but not cherry pie or date fruit or elderberry jam. " * 100
+
+    text = (
+        "I like apple and banana, but not cherry pie or date fruit or elderberry jam. "
+        * 100
+    )
     # Add some noise
     text += " ".join([f"word_{i}" for i in range(1000)])
-    
+
     # --- Legacy Regex Loop ---
     def regex_scan(text, patterns):
         matches = []

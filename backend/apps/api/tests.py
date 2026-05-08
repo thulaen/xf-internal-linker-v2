@@ -333,20 +333,14 @@ class StringSetConstantTests(SimpleTestCase):
 
     def test_truthy_set_is_frozen(self) -> None:
         self.assertIsInstance(TRUTHY_STRING_VALUES, frozenset)
-        self.assertEqual(
-            set(TRUTHY_STRING_VALUES), {"true", "1", "yes", "on"}
-        )
+        self.assertEqual(set(TRUTHY_STRING_VALUES), {"true", "1", "yes", "on"})
 
     def test_falsy_set_is_frozen(self) -> None:
         self.assertIsInstance(FALSY_STRING_VALUES, frozenset)
-        self.assertEqual(
-            set(FALSY_STRING_VALUES), {"false", "0", "no", "off"}
-        )
+        self.assertEqual(set(FALSY_STRING_VALUES), {"false", "0", "no", "off"})
 
     def test_truthy_and_falsy_disjoint(self) -> None:
         # Sanity: no string can be both truthy and falsy. If this ever
         # fails, parse_bool_strict's branch order silently determines the
         # winner — better to fail loudly here.
-        self.assertEqual(
-            TRUTHY_STRING_VALUES & FALSY_STRING_VALUES, frozenset()
-        )
+        self.assertEqual(TRUTHY_STRING_VALUES & FALSY_STRING_VALUES, frozenset())

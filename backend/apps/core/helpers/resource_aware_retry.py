@@ -205,16 +205,14 @@ def resource_aware_retry(
             thermal_wait_seconds or _DEFAULTS["thermal_wait_seconds"]
         ),
         "disk_pressure_defer_seconds": (
-            disk_pressure_defer_seconds
-            or _DEFAULTS["disk_pressure_defer_seconds"]
+            disk_pressure_defer_seconds or _DEFAULTS["disk_pressure_defer_seconds"]
         ),
         "transient_backoff_base_seconds": (
             transient_backoff_base_seconds
             or _DEFAULTS["transient_backoff_base_seconds"]
         ),
         "transient_backoff_max_seconds": (
-            transient_backoff_max_seconds
-            or _DEFAULTS["transient_backoff_max_seconds"]
+            transient_backoff_max_seconds or _DEFAULTS["transient_backoff_max_seconds"]
         ),
         "batch_size_kwarg": batch_size_kwarg,
     }
@@ -224,7 +222,9 @@ def resource_aware_retry(
         def _wrapper(self, *args: Any, **kwargs: Any) -> Any:
             # Pull the persisted last-OOM batch on the FIRST attempt
             # so a fresh task starts at the smaller size.
-            attempt_no = getattr(self.request, "retries", 0) if hasattr(self, "request") else 0
+            attempt_no = (
+                getattr(self.request, "retries", 0) if hasattr(self, "request") else 0
+            )
             if attempt_no == 0:
                 last_oom = _read_last_oom_batch(getattr(self, "name", func.__name__))
                 if (
@@ -298,7 +298,11 @@ def _plan_recovery(
                 30,
                 new_kwargs,
             )
-        return ("retry after 60 s with same kwargs (batch already at minimum)", 60, new_kwargs)
+        return (
+            "retry after 60 s with same kwargs (batch already at minimum)",
+            60,
+            new_kwargs,
+        )
 
     if failure_class == "thermal":
         return (

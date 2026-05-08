@@ -2,23 +2,28 @@
 
 from django.db import migrations
 
+
 def activate_graph_topology_weights(apps, schema_editor):
-    WeightPreset = apps.get_model('suggestions', 'WeightPreset')
-    AppSetting = apps.get_model('core', 'AppSetting')
-    
+    WeightPreset = apps.get_model("suggestions", "WeightPreset")
+    AppSetting = apps.get_model("core", "AppSetting")
+
     # 1. Update the 'Recommended' Preset (Blueprint)
-    recommended = WeightPreset.objects.filter(name="Recommended", is_system=True).first()
+    recommended = WeightPreset.objects.filter(
+        name="Recommended", is_system=True
+    ).first()
     if recommended:
         weights = dict(recommended.weights or {})
-        weights.update({
-            "darb.ranking_weight": "0.04",
-            "kmig.ranking_weight": "0.05",
-            "tapb.ranking_weight": "0.03",
-            "kcib.ranking_weight": "0.03",
-            "berp.ranking_weight": "0.04",
-            "hgte.ranking_weight": "0.04",
-            "rsqva.ranking_weight": "0.05",
-        })
+        weights.update(
+            {
+                "darb.ranking_weight": "0.04",
+                "kmig.ranking_weight": "0.05",
+                "tapb.ranking_weight": "0.03",
+                "kcib.ranking_weight": "0.03",
+                "berp.ranking_weight": "0.04",
+                "hgte.ranking_weight": "0.04",
+                "rsqva.ranking_weight": "0.05",
+            }
+        )
         recommended.weights = weights
         recommended.save(update_fields=["weights", "updated_at"])
 
@@ -33,13 +38,15 @@ def activate_graph_topology_weights(apps, schema_editor):
     AppSetting.objects.filter(key="hgte.ranking_weight").update(value="0.04")
     AppSetting.objects.filter(key="rsqva.ranking_weight").update(value="0.05")
 
-class Migration(migrations.Migration):
 
+class Migration(migrations.Migration):
     dependencies = [
-        ('suggestions', '0051_auto_20260429_0341'),
-        ('core', '0014_auto_20260429_0348'),
+        ("suggestions", "0051_auto_20260429_0341"),
+        ("core", "0014_auto_20260429_0348"),
     ]
 
     operations = [
-        migrations.RunPython(activate_graph_topology_weights, reverse_code=migrations.RunPython.noop),
+        migrations.RunPython(
+            activate_graph_topology_weights, reverse_code=migrations.RunPython.noop
+        ),
     ]

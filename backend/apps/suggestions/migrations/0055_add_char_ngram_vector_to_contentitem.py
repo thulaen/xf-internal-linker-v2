@@ -4,10 +4,8 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('suggestions', '0054_upsert_meta_expansion_slots'),
+        ("suggestions", "0054_upsert_meta_expansion_slots"),
     ]
 
-    operations = [
-    ]
+    operations = []

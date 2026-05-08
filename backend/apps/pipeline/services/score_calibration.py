@@ -136,7 +136,8 @@ def _has_enough_pairs(scores: list[float], labels: list[int]) -> bool:
     if len(scores) < VALIDATION_SET_MIN_SIZE_DEFAULT:
         logger.info(
             "FR-245 — validation set size %d below minimum %d; skipping fit",
-            len(scores), VALIDATION_SET_MIN_SIZE_DEFAULT,
+            len(scores),
+            VALIDATION_SET_MIN_SIZE_DEFAULT,
         )
         return False
     pos = sum(1 for label in labels if label == 1)
@@ -156,7 +157,10 @@ def _platt_smoothed_targets(labels: list[int]) -> tuple[list[float], int, int]:
 
 
 def _newton_step(
-    scores: list[float], targets: list[float], a: float, b: float,
+    scores: list[float],
+    targets: list[float],
+    a: float,
+    b: float,
 ) -> tuple[Optional[float], float]:
     """One Newton-Raphson iteration on the BCE loss. Returns (step_a, step_b).
 
@@ -221,12 +225,23 @@ def load_active_params() -> Optional[PlattParams]:
     """
     try:
         from apps.core.models import AppSetting
-        a_row = AppSetting.objects.filter(key=APPSETTING_KEY_A).values_list(
-            "value", flat=True,
-        ).first()
-        b_row = AppSetting.objects.filter(key=APPSETTING_KEY_B).values_list(
-            "value", flat=True,
-        ).first()
+
+        a_row = (
+            AppSetting.objects.filter(key=APPSETTING_KEY_A)
+            .values_list(
+                "value",
+                flat=True,
+            )
+            .first()
+        )
+        b_row = (
+            AppSetting.objects.filter(key=APPSETTING_KEY_B)
+            .values_list(
+                "value",
+                flat=True,
+            )
+            .first()
+        )
         if a_row is None or b_row is None:
             return None
         return PlattParams(a=float(a_row), b=float(b_row))
@@ -247,6 +262,7 @@ def persist_active_params(
     """
     from apps.core.models import AppSetting
     from datetime import datetime, timezone
+
     now_iso = datetime.now(tz=timezone.utc).isoformat()
     for key, value in (
         (APPSETTING_KEY_A, str(params.a)),
@@ -255,7 +271,8 @@ def persist_active_params(
         (APPSETTING_KEY_PAIRS, str(validation_pairs)),
     ):
         AppSetting.objects.update_or_create(
-            key=key, defaults={"value": value},
+            key=key,
+            defaults={"value": value},
         )
 
 
@@ -277,12 +294,23 @@ def get_calibration_status() -> dict[str, object]:
         }
     try:
         from apps.core.models import AppSetting
-        fitted_at = AppSetting.objects.filter(key=APPSETTING_KEY_FITTED_AT).values_list(
-            "value", flat=True,
-        ).first()
-        pairs = AppSetting.objects.filter(key=APPSETTING_KEY_PAIRS).values_list(
-            "value", flat=True,
-        ).first()
+
+        fitted_at = (
+            AppSetting.objects.filter(key=APPSETTING_KEY_FITTED_AT)
+            .values_list(
+                "value",
+                flat=True,
+            )
+            .first()
+        )
+        pairs = (
+            AppSetting.objects.filter(key=APPSETTING_KEY_PAIRS)
+            .values_list(
+                "value",
+                flat=True,
+            )
+            .first()
+        )
     except Exception:  # noqa: BLE001
         fitted_at, pairs = None, None
     return {

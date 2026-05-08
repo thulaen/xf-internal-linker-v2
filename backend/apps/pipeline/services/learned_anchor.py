@@ -439,22 +439,22 @@ def _find_host_canonical_variant(
 ) -> _AnchorFamily | None:
     if not families:
         return None
-        
+
     sentence_tokens = _normalize_anchor_tokens(host_sentence_text)
     if not sentence_tokens:
         return None
-        
+
     # Pick #56 — Multi-pattern matching via Aho-Corasick.
     # Replaces the nested loop (O(Families * SentenceLength)) with O(SentenceLength).
     matcher = AhoCorasickMatcher(case_sensitive=False)
     _SEP = "\u0000"
-    
+
     for family in families:
         pattern = _SEP.join(family.canonical_tokens)
         matcher.add_pattern(pattern, family)
-        
+
     matcher.build()
-    
+
     # We scan all possible windows in the sentence tokens
     for window_size in {len(f.canonical_tokens) for f in families}:
         for i in range(len(sentence_tokens) - window_size + 1):
@@ -463,7 +463,7 @@ def _find_host_canonical_variant(
             for match in matches:
                 if match.pattern == window_pattern:
                     return match.value
-                    
+
     return None
 
 

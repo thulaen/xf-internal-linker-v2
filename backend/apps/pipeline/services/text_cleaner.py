@@ -216,7 +216,7 @@ def clean_import_text(raw_text: str) -> str:
 
 def strip_markup(value: str, replace_with: str = "") -> str:
     """Strip both HTML and BBCode tags from a string.
-    
+
     Used for context window cleaning where we don't need the full
     obliteration logic of clean_bbcode.
     """
