@@ -95,6 +95,7 @@ When you must mention a technical concept, use the plain-English version from th
 | the field of teaching computers to read and understand text | NLP / natural language processing |
 | a smart algorithm Optuna uses to pick the next set of settings to try when tuning | TPE / Tree-structured Parzen Estimator |
 | the FAISS index type that combines IVF coarse-grouping with OPQ compression | IVF-OPQ |
+| a math optimisation algorithm that finds the best settings to fit a curve to data, using only a small amount of memory — the project uses it to tune the ranker's signal weights | L-BFGS / BFGS / Limited-memory Broyden–Fletcher–Goldfarb–Shanno |
 
 If a term you need is not in this table, define it yourself in parentheses the first time you use it.
 
