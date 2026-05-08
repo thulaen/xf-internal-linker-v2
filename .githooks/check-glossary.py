@@ -69,8 +69,10 @@ ALLOWLIST: frozenset[str] = frozenset({
     # Date-format placeholders
     "YYYY-MM", "YYYY-MM-DD", "MM-DD", "HH-MM",
     # Project section / doc-file headings used in upper-case prose
-    "PARAMOUNT", "CLAUDE", "AGENTS", "RULE", "GUIDE", "BEFORE", "AFTER",
-    "CRITICAL", "MANDATORY", "PROHIBITED",
+    "PARAMOUNT", "CLAUDE", "AGENTS", "CODEX", "GEMINI", "RULE", "GUIDE",
+    "BEFORE", "AFTER", "CRITICAL", "MANDATORY", "PROHIBITED",
+    # Template placeholders that look like all-caps tokens
+    "MONTH", "YEAR", "DAY", "DATE", "TIME", "USER", "EMAIL",
     # Common dev-environment + design-pattern terms
     "KISS", "DRY", "YAGNI", "LOC", "TDD", "BDD", "MVC", "MVP", "MVVM",
     # Short shorthand (already cited in glossary one-liners)
