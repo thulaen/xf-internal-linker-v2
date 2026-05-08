@@ -1,6 +1,8 @@
 #include <benchmark/benchmark.h>
-#include <vector>
+
 #include <random>
+#include <vector>
+
 #include "include/quantemb_core.h"
 
 static void BM_QuantEmb_OPQ_Encode(benchmark::State& state) {
@@ -17,12 +19,16 @@ static void BM_QuantEmb_OPQ_Encode(benchmark::State& state) {
 
     std::mt19937 gen(42);
     std::uniform_real_distribution<float> dis(-1.0f, 1.0f);
-    for(auto& x : vectors) x = dis(gen);
-    for(auto& x : rotation) x = dis(gen);
-    for(auto& x : codebooks) x = dis(gen);
+    for (auto& x : vectors)
+        x = dis(gen);
+    for (auto& x : rotation)
+        x = dis(gen);
+    for (auto& x : codebooks)
+        x = dis(gen);
 
     for (auto _ : state) {
-        c_opq_encode(vectors.data(), num_vectors, dim, rotation.data(), codebooks.data(), m, k, out_codes.data());
+        c_opq_encode(vectors.data(), num_vectors, dim, rotation.data(), codebooks.data(), m, k,
+                     out_codes.data());
         benchmark::DoNotOptimize(out_codes);
     }
 

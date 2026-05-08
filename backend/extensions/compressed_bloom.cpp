@@ -5,7 +5,7 @@
 #include <vector>
 
 class CompressedBloomFilter {
-public:
+   public:
     CompressedBloomFilter(std::size_t bit_count, std::size_t hashes)
         : bits_((bit_count + 7) / 8, 0), bit_count_(bit_count), hashes_(hashes) {
         if (bit_count == 0 || hashes == 0) {
@@ -32,15 +32,13 @@ public:
     std::size_t byte_count() const { return bits_.size(); }
     std::size_t hash_count() const { return hashes_; }
 
-private:
+   private:
     std::size_t index(const std::string& item, std::size_t salt) const {
         const auto mixed = item + "#" + std::to_string(salt * 0x517cc1b727220a95ULL);
         return std::hash<std::string>{}(mixed) % bit_count_;
     }
 
-    void set_bit(std::size_t bit) {
-        bits_[bit / 8] |= static_cast<std::uint8_t>(1U << (bit % 8));
-    }
+    void set_bit(std::size_t bit) { bits_[bit / 8] |= static_cast<std::uint8_t>(1U << (bit % 8)); }
 
     bool get_bit(std::size_t bit) const {
         return (bits_[bit / 8] & static_cast<std::uint8_t>(1U << (bit % 8))) != 0;

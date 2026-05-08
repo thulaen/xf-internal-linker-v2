@@ -1,4 +1,5 @@
 #include <vector>
+
 #include "gtest/gtest.h"
 #include "passagesim_core.h"
 
@@ -29,11 +30,7 @@ TEST(PassageSimMaxSim, MultiplePassagesFindBest) {
     // Passage 0: 0.5, 0.5 (sim ~0.707)
     // Passage 1: 0.0, 1.0 (sim 0.0)
     // Passage 2: 0.9, 0.1 (sim 0.9)
-    std::vector<float> matrix = {
-        0.5f, 0.5f,
-        0.0f, 1.0f,
-        0.9f, 0.1f
-    };
+    std::vector<float> matrix = {0.5f, 0.5f, 0.0f, 1.0f, 0.9f, 0.1f};
     float sim = 0.0f;
     size_t index = 999;
     c_passagesim_maxsim(query.data(), matrix.data(), 3, 2, &sim, &index);

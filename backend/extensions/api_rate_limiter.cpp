@@ -34,25 +34,25 @@ std::uint64_t now_ns() {
 }
 
 struct Bucket {
-    double tokens;             // current available tokens
-    std::uint64_t last_refill; // monotonic ns
-    double capacity;           // max tokens (burst)
-    double rate_per_sec;       // refill rate
+    double tokens;                 // current available tokens
+    std::uint64_t last_refill;     // monotonic ns
+    double capacity;               // max tokens (burst)
+    double rate_per_sec;           // refill rate
     std::int64_t daily_remaining;  // -1 = disabled
     std::uint64_t daily_reset_ns;  // when the daily counter resets
     std::int64_t daily_quota;      // initial value, used at reset
-    std::mutex mu;             // per-bucket lock; protects all fields
+    std::mutex mu;                 // per-bucket lock; protects all fields
 };
 
 }  // namespace
 
 class RateLimiterRegistry {
-public:
+   public:
     // Register or replace a bucket. Replacing resets tokens to capacity —
     // the old token count would otherwise over- or under-count against the
     // new rate. PARITY: matches Python ``InMemoryBucketRegistry.register``.
-    void register_bucket(const std::string& name, double capacity,
-                         double rate_per_sec, std::int64_t daily_quota) {
+    void register_bucket(const std::string& name, double capacity, double rate_per_sec,
+                         std::int64_t daily_quota) {
         if (capacity <= 0.0 || rate_per_sec <= 0.0) {
             throw std::invalid_argument("capacity and rate must be positive");
         }
@@ -142,7 +142,7 @@ public:
         }
     }
 
-private:
+   private:
     // Look up an existing bucket; throw if not registered. Callers should
     // call register_bucket() during app startup. We deliberately do NOT
     // auto-create with a conservative default like the Python reference
@@ -186,13 +186,10 @@ private:
 #else
         gmtime_r(&wall_t, &utc);
 #endif
-        const long secs_today =
-            static_cast<long>(utc.tm_hour) * 3600
-            + static_cast<long>(utc.tm_min) * 60
-            + static_cast<long>(utc.tm_sec);
+        const long secs_today = static_cast<long>(utc.tm_hour) * 3600 +
+                                static_cast<long>(utc.tm_min) * 60 + static_cast<long>(utc.tm_sec);
         const long secs_until_midnight = 86400 - secs_today;
-        return now_mono_ns
-            + static_cast<std::uint64_t>(secs_until_midnight) * 1'000'000'000ULL;
+        return now_mono_ns + static_cast<std::uint64_t>(secs_until_midnight) * 1'000'000'000ULL;
     }
 
     std::unordered_map<std::string, std::unique_ptr<Bucket>> buckets_;
@@ -209,20 +206,17 @@ PYBIND11_MODULE(api_rate_limiter, m) {
     m.doc() = "FR-250 — token-bucket rate limiter for GSC/GA4/Matomo/XF/WP";
     py::class_<RateLimiterRegistry>(m, "RateLimiterRegistry")
         .def(py::init<>())
-        .def("register_bucket", &RateLimiterRegistry::register_bucket,
-             py::arg("name"), py::arg("capacity"),
-             py::arg("rate_per_sec"), py::arg("daily_quota") = -1,
+        .def("register_bucket", &RateLimiterRegistry::register_bucket, py::arg("name"),
+             py::arg("capacity"), py::arg("rate_per_sec"), py::arg("daily_quota") = -1,
              py::call_guard<py::gil_scoped_release>())
-        .def("try_acquire", &RateLimiterRegistry::try_acquire,
-             py::arg("name"), py::arg("cost") = 1.0,
+        .def("try_acquire", &RateLimiterRegistry::try_acquire, py::arg("name"),
+             py::arg("cost") = 1.0, py::call_guard<py::gil_scoped_release>())
+        .def("wait_seconds", &RateLimiterRegistry::wait_seconds, py::arg("name"),
+             py::arg("cost") = 1.0, py::call_guard<py::gil_scoped_release>())
+        .def("available", &RateLimiterRegistry::available, py::arg("name"),
              py::call_guard<py::gil_scoped_release>())
-        .def("wait_seconds", &RateLimiterRegistry::wait_seconds,
-             py::arg("name"), py::arg("cost") = 1.0,
+        .def("daily_remaining", &RateLimiterRegistry::daily_remaining, py::arg("name"),
              py::call_guard<py::gil_scoped_release>())
-        .def("available", &RateLimiterRegistry::available,
-             py::arg("name"), py::call_guard<py::gil_scoped_release>())
-        .def("daily_remaining", &RateLimiterRegistry::daily_remaining,
-             py::arg("name"), py::call_guard<py::gil_scoped_release>())
         .def("reset_all", &RateLimiterRegistry::reset_all,
              py::call_guard<py::gil_scoped_release>());
 }

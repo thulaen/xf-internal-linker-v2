@@ -1,8 +1,10 @@
-#include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
-#include <vector>
+#include <pybind11/pybind11.h>
+
 #include <algorithm>
 #include <queue>
+#include <vector>
+
 #include "include/simsearch_core.h"
 
 namespace py = pybind11;
@@ -11,7 +13,6 @@ void cscore_and_topk(const float* destination_ptr, size_t dest_dim, const float*
                      size_t num_sentences, size_t sentence_dim, const int32_t* candidate_rows,
                      size_t candidate_count, int top_k, int64_t* out_indices, float* out_scores,
                      size_t* out_count) {
-    
     if (candidate_count == 0) {
         *out_count = 0;
         return;
@@ -27,7 +28,8 @@ void cscore_and_topk(const float* destination_ptr, size_t dest_dim, const float*
 
     for (size_t i = 0; i < candidate_count; ++i) {
         int32_t row_idx = candidate_rows[i];
-        if (row_idx < 0 || (size_t)row_idx >= num_sentences) continue;
+        if (row_idx < 0 || (size_t)row_idx >= num_sentences)
+            continue;
 
         const float* sentence = sentence_ptr + ((size_t)row_idx * sentence_dim);
         float dot = 0.0f;
@@ -57,10 +59,8 @@ void cscore_and_topk(const float* destination_ptr, size_t dest_dim, const float*
     }
 }
 
-py::tuple score_and_topk(py::array_t<float> destination,
-                        py::array_t<float> sentences,
-                        py::array_t<int32_t> candidate_rows,
-                        int top_k) {
+py::tuple score_and_topk(py::array_t<float> destination, py::array_t<float> sentences,
+                         py::array_t<int32_t> candidate_rows, int top_k) {
     py::buffer_info d_info = destination.request();
     py::buffer_info s_info = sentences.request();
     py::buffer_info c_info = candidate_rows.request();
@@ -74,17 +74,16 @@ py::tuple score_and_topk(py::array_t<float> destination,
     std::vector<float> out_scores(top_k);
     size_t out_count = 0;
 
-    cscore_and_topk(
-        static_cast<const float*>(d_info.ptr), dest_dim,
-        static_cast<const float*>(s_info.ptr), num_sentences, sentence_dim,
-        static_cast<const int32_t*>(c_info.ptr), candidate_count,
-        top_k, out_indices.data(), out_scores.data(), &out_count
-    );
+    cscore_and_topk(static_cast<const float*>(d_info.ptr), dest_dim,
+                    static_cast<const float*>(s_info.ptr), num_sentences, sentence_dim,
+                    static_cast<const int32_t*>(c_info.ptr), candidate_count, top_k,
+                    out_indices.data(), out_scores.data(), &out_count);
 
     auto res_indices = py::array_t<int64_t>(out_count);
     auto res_scores = py::array_t<float>(out_count);
-    
-    std::copy(out_indices.begin(), out_indices.begin() + out_count, (int64_t*)res_indices.request().ptr);
+
+    std::copy(out_indices.begin(), out_indices.begin() + out_count,
+              (int64_t*)res_indices.request().ptr);
     std::copy(out_scores.begin(), out_scores.begin() + out_count, (float*)res_scores.request().ptr);
 
     return py::make_tuple(res_indices, res_scores);

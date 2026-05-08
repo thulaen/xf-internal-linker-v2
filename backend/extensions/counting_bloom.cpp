@@ -6,7 +6,7 @@
 #include <vector>
 
 class CountingBloomFilter {
-public:
+   public:
     CountingBloomFilter(std::size_t counters, std::size_t hashes)
         : counters_(counters, 0), hashes_(hashes) {
         if (counters == 0 || hashes == 0) {
@@ -44,7 +44,7 @@ public:
     std::size_t counter_count() const { return counters_.size(); }
     std::size_t hash_count() const { return hashes_; }
 
-private:
+   private:
     std::size_t index(const std::string& item, std::size_t salt) const {
         const auto mixed = item + "#" + std::to_string(salt * 0x9e3779b97f4a7c15ULL);
         return std::hash<std::string>{}(mixed) % counters_.size();

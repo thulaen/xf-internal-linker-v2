@@ -10,6 +10,7 @@
 // the source files.
 
 #include <benchmark/benchmark.h>
+
 #include <random>
 #include <string>
 #include <vector>
@@ -26,7 +27,8 @@ std::string random_alpha(std::size_t length, std::mt19937& gen) {
     out.reserve(length);
     for (std::size_t i = 0; i < length; ++i) {
         out.push_back(static_cast<char>(dis(gen)));
-        if (i % 6 == 5) out.push_back(' ');
+        if (i % 6 == 5)
+            out.push_back(' ');
     }
     return out;
 }

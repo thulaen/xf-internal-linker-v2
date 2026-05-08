@@ -6,7 +6,7 @@
 #include <vector>
 
 class CountMinSketch {
-public:
+   public:
     CountMinSketch(std::size_t width, std::size_t depth)
         : table_(width * depth, 0), width_(width), depth_(depth) {
         if (width == 0 || depth == 0) {
@@ -31,7 +31,7 @@ public:
     std::size_t width() const { return width_; }
     std::size_t depth() const { return depth_; }
 
-private:
+   private:
     std::size_t index(const std::string& item, std::size_t salt) const {
         const auto mixed = item + "#" + std::to_string(salt * 0x94d049bb133111ebULL);
         return std::hash<std::string>{}(mixed) % width_;

@@ -59,8 +59,7 @@ void BM_RegisterBucket(benchmark::State& state) {
     for (auto _ : state) {
         RateLimiterRegistry reg;
         for (int i = 0; i < n; ++i) {
-            reg.register_bucket("b-" + std::to_string(i),
-                                100.0, 50.0, -1);
+            reg.register_bucket("b-" + std::to_string(i), 100.0, 50.0, -1);
         }
         benchmark::DoNotOptimize(reg);
     }

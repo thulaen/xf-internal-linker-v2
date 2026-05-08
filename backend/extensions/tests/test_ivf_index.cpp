@@ -1,5 +1,6 @@
-#include <vector>
 #include <cstdint>
+#include <vector>
+
 #include "gtest/gtest.h"
 #include "ivf_index_core.h"
 
@@ -12,8 +13,7 @@ TEST(IvfFindTopCentroids, SingleNearestMatch) {
     int32_t out_ids[1] = {-1};
     float out_dists[1] = {-1.0f};
 
-    c_ivf_find_top_centroids(query, centroids.data(), 2, 2, 1,
-                             out_ids, out_dists);
+    c_ivf_find_top_centroids(query, centroids.data(), 2, 2, 1, out_ids, out_dists);
 
     EXPECT_EQ(out_ids[0], 0);
     EXPECT_NEAR(out_dists[0], 2.0f, 1e-5f);
@@ -27,8 +27,7 @@ TEST(IvfFindTopCentroids, ReturnsSortedAscending) {
     int32_t out_ids[3] = {-1, -1, -1};
     float out_dists[3] = {-1.0f, -1.0f, -1.0f};
 
-    c_ivf_find_top_centroids(query, centroids.data(), 3, 2, 3,
-                             out_ids, out_dists);
+    c_ivf_find_top_centroids(query, centroids.data(), 3, 2, 3, out_ids, out_dists);
 
     // Distances: 1.0, 1.0, 25.0. Top-3 returned in ascending dist order.
     EXPECT_NEAR(out_dists[0], 1.0f, 1e-5f);
@@ -42,24 +41,20 @@ TEST(IvfBuildAdcLut, IdentityRotationMatchesPlainPq) {
     // dim=4, m=2, k=2, sub_dim=2.
     // Identity rotation, simple codebooks.
     std::vector<float> rotation = {
-        1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, 0.0f,
-        0.0f, 0.0f, 0.0f, 1.0f,
+        1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
     };
     // codebooks shape (m=2, k=2, sub_dim=2)
     // m=0: centroid 0 = (0,0), centroid 1 = (1,0)
     // m=1: centroid 0 = (0,0), centroid 1 = (0,1)
     std::vector<float> codebooks = {
-        0.0f, 0.0f, 1.0f, 0.0f,
-        0.0f, 0.0f, 0.0f, 1.0f,
+        0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
     };
     // query = (1, 0, 0, 1) — sub_q[0] = (1, 0); sub_q[1] = (0, 1)
     std::vector<float> query = {1.0f, 0.0f, 0.0f, 1.0f};
     std::vector<float> lut(4, -1.0f);
 
-    c_ivf_build_adc_lut(query.data(), rotation.data(), codebooks.data(),
-                        4, 2, 2, lut.data());
+    c_ivf_build_adc_lut(query.data(), rotation.data(), codebooks.data(), 4, 2, 2, lut.data());
 
     // sub_q[0]=(1,0): dist to centroid0=(0,0) is 1, to centroid1=(1,0) is 0.
     EXPECT_NEAR(lut[0], 1.0f, 1e-5f);
@@ -79,7 +74,8 @@ TEST(IvfAdcDistance, SumsLutEntriesByCode) {
     EXPECT_NEAR(dist, 2.5f, 1e-5f);
 
     // code = [0, 1] → lut[0,0] + lut[1,1] = 1.5 + 0.25 = 1.75
-    code[0] = 0; code[1] = 1;
+    code[0] = 0;
+    code[1] = 1;
     dist = c_ivf_adc_distance(code, lut.data(), 2, 2);
     EXPECT_NEAR(dist, 1.75f, 1e-5f);
 }
@@ -91,8 +87,7 @@ TEST(IvfBuildAdcLut, ZeroSubquantisersDoesNotCrash) {
     std::vector<float> codebooks = {0.0f};
     // m=0 means LUT length 0 — function should early-return safely.
     std::vector<float> lut;
-    c_ivf_build_adc_lut(query.data(), rotation.data(), codebooks.data(),
-                        1, 0, 0, lut.data());
+    c_ivf_build_adc_lut(query.data(), rotation.data(), codebooks.data(), 1, 0, 0, lut.data());
     // No assertion on the (empty) LUT contents — survival is the contract.
     SUCCEED();
 }
