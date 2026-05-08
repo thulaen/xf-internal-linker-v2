@@ -14,10 +14,26 @@
  * RxJS.
  */
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { Observable, throwError } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 
 import { environment } from '../../../environments/environment';
+
+/**
+ * Standard error mapper for the MCP service. Every endpoint surfaces a plain-
+ * English error so the UI can show "MCP server unreachable" instead of a raw
+ * 0/500 stack trace. Components subscribe with `error: (msg) => ...`.
+ */
+function mapMcpError(label: string) {
+  return (err: HttpErrorResponse) => {
+    const detail =
+      typeof err?.error === 'object' && err?.error?.detail
+        ? String(err.error.detail)
+        : err?.message || `HTTP ${err?.status}`;
+    return throwError(() => new Error(`${label}: ${detail}`));
+  };
+}
 
 export interface McpHealth {
   alive: boolean;
@@ -84,40 +100,50 @@ export class McpService {
   private readonly base = environment.apiBaseUrl;
 
   health(): Observable<McpHealth> {
-    return this.http.get<McpHealth>(`${this.base}/mcp/health/`);
+    return this.http
+      .get<McpHealth>(`${this.base}/mcp/health/`)
+      .pipe(catchError(mapMcpError('MCP health check failed')));
   }
 
   agents(): Observable<AgentsResponse> {
-    return this.http.get<AgentsResponse>(`${this.base}/mcp/agents/`);
+    return this.http
+      .get<AgentsResponse>(`${this.base}/mcp/agents/`)
+      .pipe(catchError(mapMcpError('Failed to load AI-agent status')));
   }
 
   runMonthly(month?: string, strategy: 'auto' | 'python' | 'claude_code' = 'auto') {
-    return this.http.post<{ queued: boolean; month: string; strategy: string }>(
-      `${this.base}/mcp/run-monthly/`,
-      { month, strategy },
-    );
+    return this.http
+      .post<{ queued: boolean; month: string; strategy: string }>(
+        `${this.base}/mcp/run-monthly/`,
+        { month, strategy },
+      )
+      .pipe(catchError(mapMcpError('Failed to queue monthly Top-50 run')));
   }
 
   schedules(): Observable<SchedulesResponse> {
-    return this.http.get<SchedulesResponse>(`${this.base}/schedules/`);
+    return this.http
+      .get<SchedulesResponse>(`${this.base}/schedules/`)
+      .pipe(catchError(mapMcpError('Failed to load schedules')));
   }
 
   runScheduleNow(taskName: string) {
-    return this.http.post<{ queued: boolean; task_name: string }>(
-      `${this.base}/schedules/${encodeURIComponent(taskName)}/run-now/`,
-      {},
-    );
+    return this.http
+      .post<{ queued: boolean; task_name: string }>(
+        `${this.base}/schedules/${encodeURIComponent(taskName)}/run-now/`,
+        {},
+      )
+      .pipe(catchError(mapMcpError(`Failed to run ${taskName} now`)));
   }
 
   listMonthlyReports(): Observable<{ reports: MonthlyReportSummary[] }> {
-    return this.http.get<{ reports: MonthlyReportSummary[] }>(
-      `${this.base}/reports/monthly/`,
-    );
+    return this.http
+      .get<{ reports: MonthlyReportSummary[] }>(`${this.base}/reports/monthly/`)
+      .pipe(catchError(mapMcpError('Failed to list monthly reports')));
   }
 
   readMonthlyReport(month: string): Observable<MonthlyReportBody> {
-    return this.http.get<MonthlyReportBody>(
-      `${this.base}/reports/monthly/${encodeURIComponent(month)}/`,
-    );
+    return this.http
+      .get<MonthlyReportBody>(`${this.base}/reports/monthly/${encodeURIComponent(month)}/`)
+      .pipe(catchError(mapMcpError(`Failed to read report for ${month}`)));
   }
 }
