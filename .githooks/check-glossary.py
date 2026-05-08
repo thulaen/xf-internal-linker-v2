@@ -76,6 +76,10 @@ ALLOWLIST: frozenset[str] = frozenset({
     "BEFORE", "AFTER", "CRITICAL", "MANDATORY", "PROHIBITED",
     # Template placeholders that look like all-caps tokens
     "MONTH", "YEAR", "DAY", "DATE", "TIME", "USER", "EMAIL",
+    # Universal placeholder words used in tests / examples
+    "FOO", "BAR", "BAZ", "QUX", "SAMPLE", "EXAMPLE", "TEST",
+    # Marketing / SEO abbreviations that appear in user-facing copy
+    "SEO", "CRM", "CTR", "CTA", "ROI", "KPI", "B2B", "B2C",
     # Common dev-environment + design-pattern terms
     "KISS", "DRY", "YAGNI", "LOC", "TDD", "BDD", "MVC", "MVP", "MVVM",
     # Short shorthand (already cited in glossary one-liners)

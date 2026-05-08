@@ -158,6 +158,168 @@ def list_orphans(limit: int = 25) -> list[dict]:
     return out
 
 
+@mcp.tool()
+def suggest_links(query: str, limit: int = 25) -> list[dict]:
+    """Free-text query against pending Suggestions.
+
+    Looks for `query` (case-insensitive substring match) in the destination
+    title, host sentence text, and anchor phrase fields. Useful for prompts
+    like "find suggestions about embeddings".
+    """
+    try:
+        from django.db.models import Q
+        from apps.suggestions.models import Suggestion  # type: ignore[import-not-found]
+    except ImportError:
+        return []
+    q = (query or "").strip()
+    if not q:
+        return []
+    qs = (
+        Suggestion.objects.filter(status="pending")
+        .filter(
+            Q(destination_title__icontains=q)
+            | Q(host_sentence_text__icontains=q)
+            | Q(anchor_phrase__icontains=q)
+        )
+        .order_by("-score_final")[: int(limit)]
+    )
+    return [_suggestion_summary(s) for s in qs]
+
+
+@mcp.tool()
+def get_review_queue(state: str = "pending", limit: int = 25) -> list[dict]:
+    """Return suggestions in the given lifecycle state, newest first.
+
+    `state` defaults to `pending`. Pass `proposed` to see what the monthly
+    Top-50 picker has flagged but not yet been human-reviewed.
+    """
+    try:
+        from apps.suggestions.models import Suggestion  # type: ignore[import-not-found]
+    except ImportError:
+        return []
+    valid = {"pending", "proposed", "approved", "rejected", "applied", "verified", "stale", "superseded"}
+    if state not in valid:
+        return []
+    qs = (
+        Suggestion.objects.filter(status=state)
+        .order_by("-score_final")[: int(limit)]
+    )
+    return [_suggestion_summary(s) for s in qs]
+
+
+@mcp.tool()
+def search_content(query: str, limit: int = 25) -> list[dict]:
+    """Find ContentItems whose title or URL contains `query` (case-insensitive)."""
+    try:
+        from django.db.models import Q
+        from apps.content.models import ContentItem  # type: ignore[import-not-found]
+    except ImportError:
+        return []
+    q = (query or "").strip()
+    if not q:
+        return []
+    qs = (
+        ContentItem.objects.filter(
+            Q(title__icontains=q) | Q(url__icontains=q)
+        )
+        .order_by("-created_at")[: int(limit)]
+    )
+    return [
+        {
+            "id": getattr(item, "id", None),
+            "title": getattr(item, "title", None) or "(untitled)",
+            "url": getattr(item, "url", None) or getattr(item, "canonical_url", None) or "",
+        }
+        for item in qs
+    ]
+
+
+@mcp.tool()
+def get_link_health() -> dict:
+    """One-shot health snapshot for the link graph.
+
+    Returns counts of: approved live links, broken links, orphan content
+    items. KISS v1 — straight from the Suggestion + ContentItem tables; no
+    fancy graph stats. Useful for "is anything broken?" questions.
+    """
+    try:
+        from django.db.models import Count, Q
+        from apps.suggestions.models import Suggestion  # type: ignore[import-not-found]
+        from apps.content.models import ContentItem  # type: ignore[import-not-found]
+    except ImportError:
+        return {"error": "models unavailable"}
+
+    approved_live = Suggestion.objects.filter(
+        status__in=["approved", "applied", "verified"]
+    ).count()
+    broken = Suggestion.objects.filter(status="stale").count()
+    orphans = (
+        ContentItem.objects.annotate(
+            inbound=Count(
+                "destination_suggestions",
+                filter=Q(destination_suggestions__status__in=["approved", "applied", "verified"]),
+            )
+        )
+        .filter(inbound=0)
+        .count()
+    )
+    return {
+        "approved_live_links": approved_live,
+        "stale_or_broken_links": broken,
+        "orphan_content_items": orphans,
+    }
+
+
+@mcp.tool()
+def find_semantic_pairs(topic: str = "", limit: int = 25) -> list[dict]:
+    """Return session co-occurrence pairs (behavioural hubs).
+
+    Optional `topic` filters by a substring match on either side's title.
+    Useful for "which two topics co-navigate together?" prompts.
+
+    Backed by `SessionCoOccurrencePair` — pairs of content items that the
+    same GA4 session visited, ranked by `co_session_count`.
+    """
+    try:
+        from django.db.models import Q
+        from apps.cooccurrence.models import SessionCoOccurrencePair  # type: ignore[import-not-found]
+    except ImportError:
+        return []
+    qs = SessionCoOccurrencePair.objects.select_related(
+        "source_content_item", "dest_content_item"
+    )
+    topic_q = (topic or "").strip()
+    if topic_q:
+        qs = qs.filter(
+            Q(source_content_item__title__icontains=topic_q)
+            | Q(dest_content_item__title__icontains=topic_q)
+        )
+    qs = qs.order_by("-co_session_count")[: int(limit)]
+    return [
+        {
+            "source_id": getattr(pair.source_content_item, "id", None) if pair.source_content_item_id else None,
+            "source_title": getattr(pair.source_content_item, "title", "") or "(untitled)",
+            "dest_id": getattr(pair.dest_content_item, "id", None) if pair.dest_content_item_id else None,
+            "dest_title": getattr(pair.dest_content_item, "title", "") or "(untitled)",
+            "co_session_count": getattr(pair, "co_session_count", 0),
+            "lift": float(getattr(pair, "lift", 0.0) or 0.0),
+        }
+        for pair in qs
+    ]
+
+
+def _suggestion_summary(s) -> dict:
+    """Compact JSON-ready snapshot of one Suggestion."""
+    return {
+        "suggestion_id": str(s.suggestion_id),
+        "status": s.status,
+        "score_final": float(s.score_final or 0.0),
+        "anchor_phrase": (s.anchor_phrase or "").strip(),
+        "destination_title": s.destination_title or "(untitled)",
+        "host_sentence_text": (s.host_sentence_text or "")[:200],
+    }
+
+
 def main() -> None:
     """Entry point — runs the MCP server on stdio."""
     logging.basicConfig(
