@@ -44,7 +44,10 @@ def pick_strategy(*, override: str | None = None) -> Strategy:
         return cached[1]
     chosen: Strategy = "python"
     try:
-        result = subprocess.run(
+        # `claude` is the user's local AI CLI invoked by name. An absolute
+        # path would be machine-specific (varies across Windows / macOS / Linux
+        # installs). Args are static, no shell interpolation, no user input.
+        result = subprocess.run(  # nosec B603 B607
             ["claude", "-p", "ping"],
             timeout=5,
             capture_output=True,

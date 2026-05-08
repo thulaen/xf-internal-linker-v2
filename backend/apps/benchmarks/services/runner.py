@@ -227,7 +227,8 @@ def _invoke_pytest_benchmark(out_path: str) -> bool:
     pytest-benchmark plugin, dep import failure, or timeout).
     """
     try:
-        completed = subprocess.run(  # noqa: S603 S607 — pytest path is repo-internal, not user input
+        # pytest path is repo-internal, not user input — no shell interpolation.
+        completed = subprocess.run(  # noqa: S603 S607  # nosec B603 B607
             [
                 "python",
                 "-m",

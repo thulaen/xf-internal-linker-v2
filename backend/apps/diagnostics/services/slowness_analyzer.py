@@ -297,7 +297,10 @@ def _sample_gpu() -> dict[str, float]:
             # nvidia-smi parse via subprocess as the fallback.
             import subprocess
 
-            result = subprocess.run(
+            # nvidia-smi is a standard NVIDIA driver utility invoked by name
+            # on hosts that have it. Absolute path varies (Linux /usr/bin,
+            # Windows C:\Windows\System32). Args are static, no user input.
+            result = subprocess.run(  # nosec B603 B607
                 [
                     "nvidia-smi",
                     "--query-gpu=temperature.gpu",
