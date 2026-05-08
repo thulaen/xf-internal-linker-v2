@@ -475,14 +475,18 @@ if ($emptyCatchHits -gt 0) {
 # ── 13. Binary / large file blocker ──────────────────────────────────
 Write-Step "13/32 Repo: binary / large file blocker"
 $binaryViolations = @()
-if ($diffFiles.Count -gt 0) {
+# Only check ADDED files. Deletions of previously-tracked binaries are
+# the *desired* state — flagging them would block the very push that
+# cleans them up.
+$pushNewFiles = @(Get-PushNewFiles)
+if ($pushNewFiles.Count -gt 0) {
     $forbiddenExts = '\.(pyc|pyo|pyd|so|dll|exe|obj|o|lib|a|whl|egg|class|jar|war|npy)$'
     $forbiddenPaths = '(node_modules/|__pycache__/|\.env$|\.env\.local$|\.env\.production$)'
-    foreach ($f in $diffFiles) {
+    foreach ($f in $pushNewFiles) {
         if ($f -match $forbiddenExts) { $binaryViolations += "Binary: $f" }
         if ($f -match $forbiddenPaths) { $binaryViolations += "Forbidden: $f" }
     }
-    foreach ($f in $diffFiles) {
+    foreach ($f in $pushNewFiles) {
         $fullPath = Join-Path $repoRoot ($f -replace '/', '\')
         # Test-Path returns true for directories too; restrict the size
         # check to files only or Get-Item.Length throws "property

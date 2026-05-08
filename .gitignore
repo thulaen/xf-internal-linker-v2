@@ -122,5 +122,18 @@ tools/cloudflared.exe
 backend/extensions/benchmarks/build/
 backend/extensions/benchmarks/results/
 
+# C++ test build outputs (CMake / Visual Studio / googletest compile products)
+# The vendored googletest source under build_tests/_deps/googletest-src/
+# stays tracked; only the compiled output is ignored.
+backend/extensions/build_tests/CMakeFiles/
+backend/extensions/build_tests/Release/
+backend/extensions/build_tests/lib/
+backend/extensions/build_tests/_deps/googletest-build/
+backend/extensions/build_tests/*.cmake
+backend/extensions/build_tests/*.vcxproj*
+backend/extensions/build_tests/*.sln
+backend/extensions/build_tests/CMakeCache.txt
+backend/extensions/build_tests/x64/
+
 # mkcert localhost TLS certificates � never commit private keys
 nginx/certs/*.pem
