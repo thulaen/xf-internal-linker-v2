@@ -73,3 +73,14 @@ if [ -n "$STAGED_ALL" ] && command -v python > /dev/null; then
   echo "→ Glossary update rule (GLOSSARY-RULE.md)"
   python "$HOOK_DIR/check-glossary.py" $STAGED_ALL
 fi
+
+# 8. Deep-link catalog rule from DEEP-LINKING-CATALOG.md. Blocks commits
+#    that add a route without registering it in deep-link-catalog.ts.
+#    Tab + dialog gaps are reported as informational warnings only —
+#    those don't fail the commit. Only fires when files that could
+#    affect the catalog or routes are staged.
+STAGED_DEEP_LINK_FILES=$(echo "$STAGED_ALL" | grep -E "frontend/src/app/(app\.routes\.ts|core/routing/deep-link-catalog\.ts|.*\.(html|ts))$" || true)
+if [ -n "$STAGED_DEEP_LINK_FILES" ] && command -v python > /dev/null; then
+  echo "→ Deep-link catalog rule (DEEP-LINKING-CATALOG.md)"
+  python "$REPO_ROOT/scripts/verify_deep_links.py" --quiet
+fi
