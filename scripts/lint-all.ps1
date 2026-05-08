@@ -186,6 +186,7 @@ if ($cppExitCode -ne 0) {
 Write-Step "6b/32 C++: clang-format dry-run check"
 $cppFiles = Get-ChildItem -Path $extensionsDir -Recurse -Include *.cpp, *.h |
     Where-Object { $_.FullName -notmatch '\\build(_ci|_asan|_tsan)?\\' } |
+    Where-Object { $_.FullName -notmatch '\\build_tests\\' } |
     ForEach-Object { $_.FullName }
 if ($cppFiles.Count -eq 0) {
     Write-Host "No C++ files found — skipping clang-format check." -ForegroundColor Yellow
