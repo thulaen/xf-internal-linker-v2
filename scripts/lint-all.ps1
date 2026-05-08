@@ -159,12 +159,17 @@ try {
 Write-Step "6/32C++: cppcheck static analysis"
 $extensionsDir = Join-Path (Join-Path $repoRoot "backend") "extensions"
 $ErrorActionPreference = "Continue"
+# build/ trees and the vendored googletest source under build_tests/_deps/
+# are excluded — they are third-party / generated and not subject to our
+# project's static-analysis policy.
 & $cppcheckExe `
     --enable=warning,performance,portability `
     --std=c++17 `
     --error-exitcode=1 `
     --suppress=missingIncludeSystem `
+    --suppress=passedByValueCallback `
     -i "$extensionsDir\benchmarks\build" `
+    -i "$extensionsDir\build_tests" `
     --quiet `
     "$extensionsDir"
 $cppExitCode = $LASTEXITCODE

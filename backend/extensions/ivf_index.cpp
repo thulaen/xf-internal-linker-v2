@@ -167,6 +167,8 @@ float c_ivf_adc_distance(
 static py::array_t<int32_t> ivf_search(
     py::array_t<float, py::array::c_style | py::array::forcecast> query,
     py::array_t<float, py::array::c_style | py::array::forcecast> centroids,
+    // pybind11-bound entry point; the by-value vector signature is the
+    // contract Python sees. Switching to const& would change the binding.
     std::vector<std::vector<int32_t>> partition_member_lists,
     py::array_t<uint8_t, py::array::c_style | py::array::forcecast> opq_codes,
     py::array_t<float, py::array::c_style | py::array::forcecast> rotation,
