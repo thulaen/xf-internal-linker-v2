@@ -65,6 +65,7 @@ export class McpComponent implements OnInit {
   /**
    * Static catalogue of the MCP tools exposed by `backend/mcp_server.py`.
    * Plain-English descriptions so the user can see what the AI can do.
+   * Order mirrors the order tools are declared in mcp_server.py.
    */
   readonly tools: ReadonlyArray<{ name: string; description: string }> = [
     {
@@ -80,6 +81,31 @@ export class McpComponent implements OnInit {
       name: 'list_orphans',
       description:
         'Return content items with zero approved or applied incoming links — useful for "which articles need links?" questions.',
+    },
+    {
+      name: 'suggest_links',
+      description:
+        'Free-text query against pending suggestions — substring match on destination title, host sentence, and anchor phrase.',
+    },
+    {
+      name: 'get_review_queue',
+      description:
+        'Suggestions in any lifecycle state (defaults to "pending"; pass "proposed" to see the AI-picked monthly batch awaiting human review).',
+    },
+    {
+      name: 'search_content',
+      description:
+        'Find content items by title or URL (case-insensitive substring).',
+    },
+    {
+      name: 'get_link_health',
+      description:
+        'One-shot health snapshot — counts of approved-live, stale-or-broken, and orphan items.',
+    },
+    {
+      name: 'find_semantic_pairs',
+      description:
+        'Strongest co-navigation pairs from real GA4 session data, ranked by how often the same session visited both. Optional topic substring filter.',
     },
   ];
 

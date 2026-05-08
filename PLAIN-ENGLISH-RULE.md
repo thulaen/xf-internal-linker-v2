@@ -89,6 +89,7 @@ When you must mention a technical concept, use the plain-English version from th
 | a config file at the project's root that AI agents auto-discover | .mcp.json / project-scope MCP config |
 | numbered "feature request" specs in `docs/specs/fr*.md` — each one a contract for a feature | FR-014 / FR-016 / FR-XXX (any 3-digit feature number) |
 | FR-250 — a small C++ helper that holds back outbound API calls so we never go faster than each provider's documented limit (Google Search Console, Google Analytics 4, Matomo, XenForo, WordPress) | FR-250 / API rate limiter |
+| a way to compress number-fingerprints so the similarity search engine can fit a giant index in memory by storing each vector as a tiny code instead of a full float array | OPQ / Optimised Product Quantization |
 
 If a term you need is not in this table, define it yourself in parentheses the first time you use it.
 

@@ -80,6 +80,11 @@ ALLOWLIST: frozenset[str] = frozenset({
     "FOO", "BAR", "BAZ", "QUX", "SAMPLE", "EXAMPLE", "TEST",
     # Marketing / SEO abbreviations that appear in user-facing copy
     "SEO", "CRM", "CTR", "CTA", "ROI", "KPI", "B2B", "B2C",
+    # RFC 2119 keywords — common in spec / rule prose
+    "MUST", "SHOULD", "MAY", "MUST-NOT", "SHOULD-NOT", "REQUIRED",
+    "RECOMMENDED", "OPTIONAL",
+    # Project-specific compound nouns that read more naturally hyphenated
+    "BEAT-ENTRY", "TASK-NAME", "TASK-ID", "RUN-ID", "BATCH-LABEL",
     # Common dev-environment + design-pattern terms
     "KISS", "DRY", "YAGNI", "LOC", "TDD", "BDD", "MVC", "MVP", "MVVM",
     # Short shorthand (already cited in glossary one-liners)
