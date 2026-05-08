@@ -262,6 +262,30 @@ This file is the single index of all audit reports and individual issues found b
 
 ---
 
+### ISS-031 - disk-pressure rule names a module that is not shipped yet (2026-05-07)
+
+- **Found by:** Codex
+- **Severity:** high
+- **Affected files:** `DISK-PRESSURE-RULES.md`, `backend/apps/core/helpers/archive.py`
+- **Description:** The disk-pressure rule says large writers must call `apps.pipeline.services.disk_pressure.require_free_disk`, but `backend/apps/pipeline/services/disk_pressure.py` does not exist. Some helper code catches that missing module and continues, so a low-disk situation can become a warning instead of a hard stop.
+- **Status:** OPEN
+- **Recommended fix:** Add the disk-pressure service with free-space watermarks, `require_free_disk`, `current_state`, tests, and a diagnostics surface. Then remove any "module not shipped" fallbacks that allow large writes to continue silently.
+- **Regression watch:** Any future writer that can create large files or rows must use the shared disk-pressure service before writing.
+
+---
+
+### ISS-032 - disk-prune action chips point at an old route (2026-05-07)
+
+- **Found by:** Codex
+- **Severity:** medium
+- **Affected files:** `backend/apps/audit/fix_suggestions.py`, `backend/apps/diagnostics/services/why_so_long.py`, `backend/apps/api/urls.py`
+- **Description:** Two operator-facing fix buttons point to `/api/system/disk-prune/`, but the actual safe-prune endpoint is `/api/prune/safe/`. The Health page safe-prune card uses the correct route, so the mismatch is likely stale wiring. Operators who click the old action may get a missing-endpoint error instead of the safe prune flow.
+- **Status:** OPEN
+- **Recommended fix:** Update the stale action URLs to `/api/prune/safe/` or route them through a shared constant so the fix buttons and the Health page cannot drift apart again.
+- **Regression watch:** Any future "fix action" URL should resolve in the API schema before it is shown to operators.
+
+---
+
 ### ISS-029 - Quick Controls showed Pause while model work was already globally paused (2026-05-01)
 
 - **Found by:** Codex

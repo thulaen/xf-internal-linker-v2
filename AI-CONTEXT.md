@@ -540,6 +540,36 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-05-08 - Backup helper extraction and reliability tests (Codex)
+
+- **AI/tool:** Codex.
+- **Why:** User asked to reduce the two long backup functions in `backend/apps/core/backups.py` under the 50-line function limit, keep backup behavior reliable, add helper tests, verify, commit, and leave a handoff.
+- **Branch:** Stayed on the current branch; no branch was created or switched.
+- **Relevant open findings disclosed in chat:** `ISS-031` overlaps because backups write large files and the shared disk-pressure service is still missing. I disclosed it before editing. I did not build the whole shared service in this slice because this task was a narrow backup refactor; the existing backup free-space check remains in place.
+- **Forward-clash check:** No clash with the next three queued phases because this only touches backup/restore helpers and stale Stage-1 tests, not ranking math or queued product work.
+- **Intentional files changed:** `backend/apps/core/backups.py`, `backend/apps/core/tests_backups_helpers.py`, `backend/apps/core/test_stage1_retrievers_view.py`, `backend/apps/core/views_stage1_retrievers.py`, `AI-CONTEXT.md`, and `AGENT-HANDOFF.md`. I also preserved the pre-existing uncommitted `docs/reports/REPORT-REGISTRY.md` entries from the prior Codex gap-scan note so the repo could be committed cleanly.
+- **What now works:** `create_snapshot` and `restore_from_snapshot` are short coordinators with shared helpers for disk checks, snapshot naming, command building, command running, dump verification, restore-path validation, and restore result checking. Backup helper behavior now has 33 focused tests. The stale Stage-1 retriever tests now match the current seeded default where lexical retrieval is on by default.
+- **Verification:** `python .githooks/check-forbidden-patterns.py --strict backend/apps/core/backups.py` passed; the same strict check passed for the new backup tests and the Stage-1 files touched during cleanup. `docker compose exec backend python manage.py test apps.core.tests_backups_helpers` passed, 33 tests. `docker compose exec backend python manage.py test apps.core` passed, 422 tests. `docker compose --progress=plain build backend` passed. `powershell -ExecutionPolicy Bypass -File scripts\prune-verification-artifacts.ps1` passed and reclaimed 17.54 GB.
+- **Known issues noticed:** Docker briefly returned an internal engine error and one silent backend build attempt timed out, but Docker recovered and the plain-progress backend build later passed. One worker container was marked unhealthy during an intermediate status check; it did not block the test run or final backend build.
+- **Docker prune:** Completed with the safe project script; no named database or data volumes were deleted.
+- **Commit/push state:** Commit prepared in this session; push not requested.
+- **Tech-debt delta:** -8 debt items, backup long functions split and stale test/doc defaults fixed. Long-function fixes: `create_snapshot` and `restore_from_snapshot`. Boilerplate extracted: `_build_pg_argv_base`. Helper coverage added: 33 backup helper tests. Magic numbers hoisted: `DEFAULT_PG_TIMEOUT_SECONDS`, `_STDERR_LOG_TRUNCATE`, `_BYTES_PER_MIB`. Stale defaults fixed: Stage-1 retriever test expectations and view wording.
+
+### 2026-05-07 - Mission-critical non-C++ gap scan (Codex)
+
+- **AI/tool:** Codex.
+- **Why:** User asked for mission-critical or resource-heavy gaps not covered by more C++ speed work, with no duplicate or conflicting ideas.
+- **Branch:** Stayed on `master`; no branch was created or switched.
+- **Relevant open findings disclosed in chat:** Existing open diagnostics long-file issue does not overlap this no-code idea scan. During the scan I found and logged two new open issues: missing disk-pressure service module and stale disk-prune action URLs.
+- **Forward-clash check:** No clash with the next three queued phases because the answer avoids new ranking signals, ranking weights, explanation-panel work, zero-downtime model switching, and the queued scheduled-update roster.
+- **Intentional files changed:** `docs/reports/REPORT-REGISTRY.md`, `AI-CONTEXT.md`, and `AGENT-HANDOFF.md`.
+- **What now works:** The Report Registry now records two operator-safety gaps that would otherwise be easy to miss: large-write disk protection is documented but not shipped, and two fix buttons point at an old safe-prune route.
+- **Verification:** Documentation-only change. No Docker or app tests were run.
+- **Known issues noticed:** `ISS-031` and `ISS-032` remain open by design; this session logged them but did not fix them because the user asked for an idea list, not implementation.
+- **Docker prune:** Skipped because no Docker command was run.
+- **Commit/push state:** Not committed or pushed.
+- **Tech-debt delta:** +2 tracked issues, 0 fixed. This was a no-code gap scan; the two findings are now visible for a follow-up implementation session.
+
 ### 2026-05-07 - Audit integrity helper extraction (Codex)
 
 - **AI/tool:** Codex.

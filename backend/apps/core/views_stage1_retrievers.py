@@ -1,26 +1,16 @@
 """Stage-1 retriever settings endpoint (Group C.1-C.3 wiring).
 
-Exposes the two AppSetting flags that control whether the optional
-Stage-1 retrievers participate in the candidate pool:
+Exposes the two AppSetting flags that control whether optional Stage-1
+retrievers participate in the candidate pool:
 
-- ``stage1.lexical_retriever_enabled`` — Group C.2 (token-overlap
-  ``LexicalRetriever`` + Stage-1.5 RRF fusion via pick #31).
-- ``stage1.query_expansion_retriever_enabled`` — Group C.3 (Rocchio
-  PRF ``QueryExpansionRetriever``, pick #27).
+- ``stage1.lexical_retriever_enabled``: token-overlap ``LexicalRetriever``.
+- ``stage1.query_expansion_retriever_enabled``: Rocchio query expansion.
 
-Both default off. When operators flip either on, the next pipeline
-pass automatically uses the multi-retriever path with
-:mod:`apps.pipeline.services.reciprocal_rank_fusion` to fuse the
-ranked lists per destination — no other code change required.
+The lexical retriever is seeded on by the Recommended preset; query expansion
+stays opt-in. When operators flip either flag, the next pipeline pass uses the
+matching retriever path and fuses ranked lists per destination.
 
-The semantic retriever is always on (legacy default); it doesn't
-appear here because there's nothing to toggle.
-
-Mirrors the shape of ``views_fr099_fr105.py``: single REST view at
-``/api/settings/stage1-retrievers/`` returning + accepting a flat
-JSON object. Reuses the same ``_persist_settings`` /
-``_read_setting`` helpers from ``views_antispam`` so the on-disk
-shape matches every other settings group.
+The semantic retriever is always on and does not need a toggle here.
 """
 
 from __future__ import annotations
@@ -34,14 +24,11 @@ from apps.api.query_params import coerce_bool, parse_bool_strict
 from .views_antispam import _persist_settings, _read_setting
 
 
-# ── Defaults + descriptions ──────────────────────────────────────
-
-
+# Defaults + descriptions
 _SETTINGS_DEFAULTS: dict[str, bool] = {
     "lexical_retriever_enabled": False,
     "query_expansion_retriever_enabled": False,
 }
-
 
 _SETTINGS_DESCRIPTIONS: dict[str, str] = {
     "lexical_retriever_enabled": (
@@ -55,20 +42,15 @@ _SETTINGS_DESCRIPTIONS: dict[str, str] = {
         "Group C.3: Adds the QueryExpansionRetriever (Rocchio PRF, "
         "pick #27) on top of Stage-1. Surfaces hosts that share "
         "expansion terms (synonyms / related vocabulary) with the "
-        "destination — even when they don't share the literal title "
-        "tokens. Combine with the lexical retriever for the richest "
-        "fused ranking."
+        "destination, even when they do not share literal title tokens. "
+        "Combine with the lexical retriever for the richest fused ranking."
     ),
 }
 
 
-# ── Read / write helpers ─────────────────────────────────────────
-
-
+# Read / write helpers
 def _coerce_bool(value, fallback: bool) -> bool:
-    """Thin wrapper around parse_bool_strict — preserves the original
-    3-way semantics where an unknown string falls back to *fallback*.
-    """
+    """Return a strict boolean, falling back when input is unknown."""
     return parse_bool_strict(value, default=fallback)
 
 
@@ -84,24 +66,8 @@ def get_stage1_retriever_settings() -> dict[str, bool]:
     return out
 
 
-# ── DRF view ─────────────────────────────────────────────────────
-
-
 class Stage1RetrieverSettingsView(APIView):
-    """GET / PUT for the Stage-1 retriever flags.
-
-    Response shape::
-
-        {
-          "lexical_retriever_enabled": false,
-          "query_expansion_retriever_enabled": false
-        }
-
-    PUT accepts the same shape (or any subset). Missing keys keep
-    their current value. Each non-bool input is coerced via
-    :func:`_coerce_bool` (string "true"/"yes"/"on" or bool True →
-    True; everything else → False).
-    """
+    """GET / PUT for the Stage-1 retriever flags."""
 
     permission_classes = [IsAuthenticated]
 

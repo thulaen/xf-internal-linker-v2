@@ -19,11 +19,11 @@ class Stage1RetrieverSettingsViewTests(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
-    def test_get_returns_defaults_on_cold_start(self) -> None:
+    def test_get_returns_seeded_defaults(self) -> None:
         resp = self.client.get(self.URL)
         self.assertEqual(resp.status_code, 200)
         body = resp.json()
-        self.assertEqual(body["lexical_retriever_enabled"], False)
+        self.assertEqual(body["lexical_retriever_enabled"], True)
         self.assertEqual(body["query_expansion_retriever_enabled"], False)
 
     def test_put_persists_both_flags(self) -> None:
@@ -98,10 +98,11 @@ class Stage1RetrieverSettingsViewTests(TestCase):
             default_retrievers,
         )
 
-        # Cold start.
+        # Seeded default: semantic plus lexical, query expansion still opt-in.
         regs = default_retrievers()
-        self.assertEqual(len(regs), 1)
+        self.assertEqual(len(regs), 2)
         self.assertIsInstance(regs[0], SemanticRetriever)
+        self.assertIsInstance(regs[1], LexicalRetriever)
 
         # Flip both flags via the API.
         self.client.put(
