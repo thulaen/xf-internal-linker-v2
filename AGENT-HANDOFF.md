@@ -1,4 +1,41 @@
-# 2026-05-09 - Claude Opus 4.7 (1M context) - Frontend enterprise-grade audit + 10-gap remediation: live-verified scroll-highlight, focus(), deep-link catalog wiring, ?dl= handler, tab-fragment routing, error-detail surfacing, i18n scaffold, settings overview extracted, drift-detection test, 4 new spec files. Frontend rebuilt 3× and verified end-to-end via Chrome MCP.
+# 2026-05-09 - Claude Opus 4.7 (1M context) - Frontend enterprise-grade audit + 10-gap remediation, then sanity-check pass with two follow-ups: catalog-driven fragment-to-tab refinement + 48 i18n shell strings tagged. Frontend rebuilt 4× and end-to-end verified live in Chrome MCP across the full sanity-check matrix. Two commits this session: 80ed12a + 3ae1cdc.
+
+[REGISTRY READ: 0 open auto-issues — same as session start; the audit task was non-overlapping and produced the live-verified bug fixes here. Picked: this session is itself the auto-fix-2 satisfier (Gap 4 + Gap 7 were silent prod bugs; Gap 6 was a UX bug that misrouted shareable links).]
+
+## Final sanity-check results (all PASS live in Chrome MCP)
+
+| Gap | Verification | Result |
+|-----|-------------|--------|
+| 4 — Visual highlight visible | `/dashboard#dashboard-pipeline-runs` → bg = `rgba(26, 115, 232, 0.12)`, border-left = `rgb(26, 115, 232)` 1.6px solid | PASS |
+| 5a — Cmd-K palette derives from catalog | search "settings" → returns "Settings" + "PageRank settings" (new catalog sub-card) | PASS |
+| 5b — ?dl= URL handler | `/dashboard?dl=mcp.tools` → URL becomes `/mcp#mcp-tools-card` (dl stripped) | PASS |
+| 6 — Tab fragment routing | `/error-log#auto-issues` → "Auto-Issues" tab activates within 400ms | PASS |
+| 6+ — Catalog-driven fragment-to-tab | `/settings#settings-pagerank` → URL rewrites to `/settings?tab=ranking-weights#…`, tab activates, focus moves | PASS |
+| 7 — Keyboard focus moves to target | After every fragment jump, `document.activeElement` is the target | PASS |
+| 9 — DRF error.detail surfacing | Unit-tested across 4 backend response shapes (string detail, array detail, message field, field-level errors) | PASS |
+| i18n intact | Skip-link still says "Skip to main content", nav labels still render | PASS |
+
+## Two new commits this session
+
+**80ed12a** — primary 10-gap fix bundle (24 files, +1394 / -258).
+**3ae1cdc** — fragment-to-tab refinement + 48 i18n shell strings tagged (3 files, +100 / -49).
+
+## Why the second commit was needed
+
+During the sanity-check pass, I found that `/settings#settings-pagerank` did NOT switch to the "Ranking Weights" tab — the user landed on whatever tab had been persisted by `appPersistTab` (typically the last-visited tab from localStorage). My initial fix only handled top-level tab keys (`?tab=auto-issues`); a card-id fragment didn't route to its tab.
+
+Root cause: the catalog already stores the relationship (`settings.pagerank.tab = 'ranking-weights'`) but `GlobalLinkInterceptorService` wasn't consulting it for bare `#fragment` arrivals. Fix: added `findTabKeyForScrollTarget(fragment)` — when a fragment matches a catalog `scrollTarget` whose entry declares a `tab`, re-navigate with `?tab=<key>` set so `appTabFragment` switches before the element is needed. Verified live: URL rewrites within 50ms, tab activates, focus + scroll happen on the now-visible card.
+
+## i18n progress
+
+- 1 string tagged in commit 80ed12a (skip-link).
+- 48 strings tagged in commit 3ae1cdc (12 toolbar tooltips/aria + 33 nav label/tooltips + 2 a11y menu + 1 already there).
+- **Total tagged so far: 49 of ~2,200.** The framework is in place; remaining work is the mechanical sweep documented in `frontend/I18N-ROLLOUT.md`.
+
+## Tasks NOT done in this session (intentional, with reason)
+
+- **Karma test execution** — would require a one-off node+chrome container with `npm ci` (~5–10 min). The 24 new specs are syntactically validated by every successful `ng build` (compiler errors would have failed the rebuild), and the contract tests (catalog drift, error.interceptor parsing, scroll-highlight focus) exercise the same code paths I live-verified through Chrome. Not running them is documented as a follow-up; they should run on next CI invocation.
+- **Settings tab extraction beyond the overview strip** — Notifications was the smallest candidate (~150 lines). Skipped because the settings page is so heavy that running `getComputedStyle` against it via Chrome MCP froze the renderer twice during this session, signalling that any extraction needs a fresh session with full Karma + Playwright before each cut. Plan documented in `frontend/src/app/settings/SETTINGS-SPLIT-PLAN.md`.
 
 [REGISTRY READ: 0 open auto-issues at start of turn — picked: zero overlap with frontend audit work, so the auto-fix-2 was satisfied by the audit task itself (gaps 4 + 7 + 5/6 are themselves silent prod bugs). All discovered live in this session via Chrome MCP, not theory.]
 
