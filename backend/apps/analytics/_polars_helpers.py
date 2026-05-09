@@ -274,6 +274,23 @@ def safe_aggregate_columnar(
         return {}
 
 
+def _walk_sorted_outer_groups(agg_rows) -> dict[str, dict[str, int]]:
+    """Walk an outer-sorted (outer, inner, total) row stream into a nested dict."""
+    out: dict[str, dict[str, int]] = {}
+    current_outer = None
+    current_dict: dict[str, int] | None = None
+    for outer_v, inner_v, total in agg_rows:
+        if outer_v != current_outer:
+            if current_outer is not None and current_dict is not None:
+                out[str(current_outer)] = current_dict
+            current_outer = outer_v
+            current_dict = {}
+        current_dict[str(inner_v)] = int(total or 0)
+    if current_outer is not None and current_dict is not None:
+        out[str(current_outer)] = current_dict
+    return out
+
+
 def safe_aggregate_grouped_by_outer(
     columns: dict[str, list[Any]],
     *,
@@ -314,20 +331,7 @@ def safe_aggregate_grouped_by_outer(
             .agg(pl.col(agg_col).sum().alias("_total"))
             .sort(outer_col)
         )
-        out: dict[str, dict[str, int]] = {}
-        current_outer = None
-        current_dict: dict[str, int] | None = None
-        for row in agg.iter_rows(named=False):
-            outer_v, inner_v, total = row[0], row[1], row[2]
-            if outer_v != current_outer:
-                if current_outer is not None and current_dict is not None:
-                    out[str(current_outer)] = current_dict
-                current_outer = outer_v
-                current_dict = {}
-            current_dict[str(inner_v)] = int(total or 0)
-        if current_outer is not None and current_dict is not None:
-            out[str(current_outer)] = current_dict
-        return out
+        return _walk_sorted_outer_groups(agg.iter_rows(named=False))
     except Exception as exc:  # noqa: BLE001 — wrapped by ingest_error per CLAUDE.md silent-except rule.
         _ingest(
             job_type=job_type,
