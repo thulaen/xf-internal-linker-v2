@@ -1,13 +1,15 @@
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
-import { MatTabsModule } from '@angular/material/tabs';
-import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { Router, provideRouter } from '@angular/router';
+import { MatTabGroup, MatTabsModule } from '@angular/material/tabs';
+import { By } from '@angular/platform-browser';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
+import { Subject } from 'rxjs';
 import { TabFragmentRouterDirective } from './tab-fragment-router.directive';
 
 @Component({
   standalone: true,
-  imports: [MatTabsModule, TabFragmentRouterDirective, NoopAnimationsModule],
+  imports: [MatTabsModule, TabFragmentRouterDirective],
   template: `
     <mat-tab-group
       appTabFragment
@@ -27,37 +29,103 @@ class HostComponent {
 
 describe('TabFragmentRouterDirective', () => {
   let fixture: ComponentFixture<HostComponent>;
-  let router: Router;
+  let routerEvents$: Subject<unknown>;
+  let snapshot: {
+    fragment: string | null;
+    queryParamMap: { get: (k: string) => string | null };
+  };
 
-  beforeEach(async () => {
+  beforeEach(() => {
+    routerEvents$ = new Subject<unknown>();
+    snapshot = {
+      fragment: null,
+      queryParamMap: { get: () => null },
+    };
+
     TestBed.configureTestingModule({
       imports: [HostComponent],
-      providers: [provideRouter([{ path: '**', component: HostComponent }])],
+      providers: [
+        provideNoopAnimations(),
+        { provide: Router, useValue: { events: routerEvents$.asObservable() } },
+        { provide: ActivatedRoute, useValue: { snapshot } },
+      ],
     });
     fixture = TestBed.createComponent(HostComponent);
-    router = TestBed.inject(Router);
   });
 
-  it('switches to the tab matching the URL fragment', fakeAsync(() => {
+  function getMatTabGroup(): MatTabGroup {
+    return fixture.debugElement.query(By.directive(MatTabGroup))
+      .componentInstance as MatTabGroup;
+  }
+
+  it('switches to the tab matching the URL fragment after a NavigationEnd', fakeAsync(() => {
     fixture.detectChanges();
-    void router.navigate([], { fragment: 'tab-c' });
+    expect(getMatTabGroup().selectedIndex).toBe(0);
+
+    snapshot.fragment = 'tab-c';
+    routerEvents$.next(new NavigationEnd(1, '/#tab-c', '/#tab-c'));
     tick();
     fixture.detectChanges();
-    tick();
-    const tabGroup = fixture.nativeElement.querySelector('mat-tab-group');
-    expect(tabGroup).toBeTruthy();
-    // selectedIndex 2 corresponds to 'tab-c'
+
+    expect(getMatTabGroup().selectedIndex).toBe(2);
+  }));
+
+  it('switches to the tab matching the ?tab= query parameter', fakeAsync(() => {
     fixture.detectChanges();
-    expect(fixture.componentInstance.initial === 0).toBe(true); // initial untouched
+
+    snapshot.queryParamMap = {
+      get: (k: string) => (k === 'tab' ? 'tab-b' : null),
+    };
+    routerEvents$.next(new NavigationEnd(1, '/?tab=tab-b', '/?tab=tab-b'));
+    tick();
+    fixture.detectChanges();
+
+    expect(getMatTabGroup().selectedIndex).toBe(1);
   }));
 
   it('ignores fragments that are not in the map', fakeAsync(() => {
     fixture.detectChanges();
-    void router.navigate([], { fragment: 'unknown' });
+    expect(getMatTabGroup().selectedIndex).toBe(0);
+
+    snapshot.fragment = 'unknown-fragment';
+    routerEvents$.next(new NavigationEnd(1, '/#unknown-fragment', '/#unknown-fragment'));
     tick();
     fixture.detectChanges();
-    // selectedIndex stays on initial
+
+    expect(getMatTabGroup().selectedIndex).toBe(0);
+  }));
+
+  it('clamps an out-of-range tab index to the last valid tab', fakeAsync(() => {
+    fixture.componentInstance.map = { 'beyond-end': 5 };
     fixture.detectChanges();
-    expect(true).toBe(true);
+
+    snapshot.fragment = 'beyond-end';
+    routerEvents$.next(new NavigationEnd(1, '/#beyond-end', '/#beyond-end'));
+    tick();
+    fixture.detectChanges();
+
+    expect(getMatTabGroup().selectedIndex).toBe(2);
+  }));
+
+  it('survives a missing queryParamMap on the snapshot (defensive)', fakeAsync(() => {
+    snapshot = {
+      fragment: 'tab-a',
+      queryParamMap: undefined as unknown as { get: (k: string) => string | null },
+    };
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [HostComponent],
+      providers: [
+        provideNoopAnimations(),
+        { provide: Router, useValue: { events: routerEvents$.asObservable() } },
+        { provide: ActivatedRoute, useValue: { snapshot } },
+      ],
+    });
+    fixture = TestBed.createComponent(HostComponent);
+
+    expect(() => {
+      fixture.detectChanges();
+      tick();
+    }).not.toThrow();
   }));
 });

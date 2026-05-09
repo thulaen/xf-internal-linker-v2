@@ -1,5 +1,7 @@
+import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { provideRouter } from '@angular/router';
 import { EMPTY, of } from 'rxjs';
 
 import { ErrorLogComponent } from './error-log.component';
@@ -69,6 +71,8 @@ describe('ErrorLogComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ErrorLogComponent, NoopAnimationsModule],
       providers: [
+        provideHttpClient(),
+        provideRouter([]),
         { provide: DiagnosticsService, useValue: diagnosticsServiceStub },
         { provide: GlitchtipService, useValue: glitchtipServiceStub },
         { provide: VisibilityGateService, useValue: visibilityGateStub },
@@ -102,6 +106,8 @@ describe('ErrorLogComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ErrorLogComponent, NoopAnimationsModule],
       providers: [
+        provideHttpClient(),
+        provideRouter([]),
         { provide: DiagnosticsService, useValue: diagnosticsServiceStub },
         { provide: GlitchtipService, useValue: glitchtipServiceStub },
         { provide: VisibilityGateService, useValue: visibilityGateStub },
@@ -152,6 +158,8 @@ describe('ErrorLogComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ErrorLogComponent, NoopAnimationsModule],
       providers: [
+        provideHttpClient(),
+        provideRouter([]),
         { provide: DiagnosticsService, useValue: diagnosticsServiceStub },
         { provide: GlitchtipService, useValue: glitchtipServiceStub },
         { provide: VisibilityGateService, useValue: visibilityGateStub },

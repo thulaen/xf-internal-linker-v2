@@ -68,8 +68,9 @@ export class TabFragmentRouterDirective implements AfterViewInit, OnDestroy {
 
   private applyFromCurrentUrl(): void {
     if (!this.host) return;
-    const snapshot = this.route.snapshot;
-    const queryTab = snapshot.queryParamMap.get('tab');
+    const snapshot = this.route?.snapshot;
+    if (!snapshot) return;
+    const queryTab = snapshot.queryParamMap?.get('tab') ?? null;
     const fragment = snapshot.fragment ?? '';
 
     const key = queryTab || fragment;

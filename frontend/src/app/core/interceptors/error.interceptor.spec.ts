@@ -1,6 +1,6 @@
 import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { TestBed } from '@angular/core/testing';
+import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { errorInterceptor } from './error.interceptor';
@@ -72,7 +72,7 @@ describe('errorInterceptor', () => {
     expect(snackOpen.calls.mostRecent().args[0]).toBe('already taken');
   });
 
-  it('falls back to the default message when no server detail is present', () => {
+  it('falls back to the default message when no server detail is present', fakeAsync(() => {
     http.get('/api/foo').subscribe({
       next: () => fail('expected error'),
       error: () => undefined,
@@ -80,15 +80,16 @@ describe('errorInterceptor', () => {
     httpMock
       .expectOne('/api/foo')
       .flush('', { status: 503, statusText: 'Service Unavailable' });
-    // 503 is in the retry path — so a second request will be issued. Flush
-    // it the same way to push the catchError into the snackbar branch.
+    // 503 GET is retried via `timer(1000)` in the interceptor — advance the
+    // virtual clock past that delay so the retried request is actually issued.
+    tick(1000);
     httpMock
       .expectOne('/api/foo')
       .flush('', { status: 503, statusText: 'Service Unavailable' });
     expect(snackOpen.calls.mostRecent().args[0]).toBe(
       'Server error — please try again later'
     );
-  });
+  }));
 
   it('does not show a snackbar for telemetry endpoints', () => {
     http.post('/api/telemetry/web-vitals/', {}).subscribe({

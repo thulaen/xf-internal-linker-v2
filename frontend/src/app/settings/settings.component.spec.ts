@@ -339,6 +339,7 @@ describe('SettingsComponent', () => {
               },
             ]),
             listWeightHistory: () => of([]),
+            applyWeightPreset: () => of({ detail: 'applied' }),
             listChallengers: () => of([]),
             triggerCsTune: () => of({ detail: 'queued', task_id: 'test' }),
             evaluateChallenger: () => of({ detail: 'queued', task_id: 'test' }),
