@@ -156,8 +156,56 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
         message = 'Server error — please try again later';
       }
 
+      // Prefer the server-supplied error detail when DRF returned one.
+      // Django REST Framework error responses typically look like:
+      //   { "detail": "Quota exceeded for GA4 — wait 60 seconds" }
+      //   { "detail": ["Field is required."] }
+      //   { "field_name": ["This value is invalid."] }
+      // Surfacing the server's own copy gives operators an actionable
+      // hint instead of the generic "An unexpected error occurred".
+      const serverMessage = extractServerErrorMessage(error);
+      if (serverMessage) {
+        message = serverMessage;
+      }
+
       snack.open(message, 'Dismiss', { duration: 5000 });
       return throwError(() => error);
     })
   );
 };
+
+/**
+ * Pull a human-readable message out of a DRF error body. Returns null
+ * when nothing usable is present so the caller falls back to the
+ * status-derived default. Caps the result at 240 chars so an overly
+ * verbose backend traceback can't overflow the snackbar.
+ */
+function extractServerErrorMessage(error: HttpErrorResponse): string | null {
+  const body = error?.error;
+  if (!body) return null;
+  if (typeof body === 'string' && body.trim().length > 0) {
+    return clampMessage(body.trim());
+  }
+  if (typeof body !== 'object') return null;
+
+  const detail = (body as Record<string, unknown>)['detail'];
+  if (typeof detail === 'string' && detail.trim()) return clampMessage(detail.trim());
+  if (Array.isArray(detail) && typeof detail[0] === 'string') return clampMessage(detail[0]);
+
+  const messageField = (body as Record<string, unknown>)['message'];
+  if (typeof messageField === 'string' && messageField.trim()) return clampMessage(messageField.trim());
+
+  // Field-level errors: { username: ["already taken"] }. Pick the first
+  // string we find so the user sees the most-relevant validation hint.
+  for (const value of Object.values(body as Record<string, unknown>)) {
+    if (Array.isArray(value) && typeof value[0] === 'string' && value[0].trim()) {
+      return clampMessage(value[0]);
+    }
+    if (typeof value === 'string' && value.trim()) return clampMessage(value.trim());
+  }
+  return null;
+}
+
+function clampMessage(message: string): string {
+  return message.length > 240 ? message.slice(0, 237) + '…' : message;
+}

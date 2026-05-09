@@ -10,6 +10,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { TabFragmentRouterDirective } from '../core/directives/tab-fragment-router.directive';
 import { EMPTY, timer } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
 import { VisibilityGateService } from '../core/util/visibility-gate.service';
@@ -56,6 +57,7 @@ const GLITCHTIP_POLL_MS = 30_000;
     MatSelectModule,
     MatTabsModule,
     MatTooltipModule,
+    TabFragmentRouterDirective,
   ],
   templateUrl: './error-log.component.html',
   styleUrl: './error-log.component.scss',
@@ -67,6 +69,18 @@ export class ErrorLogComponent implements OnInit {
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
   private readonly visibilityGate = inject(VisibilityGateService);
+
+  // Maps the catalog tab keys (`error-log.glitchtip` / `error-log.auto-issues`
+  // etc.) to their numeric tab indexes inside this `<mat-tab-group>`.
+  // Consumed by `appTabFragment` so `/error-log#auto-issues` and
+  // `/error-log?tab=auto-issues` both activate the correct tab.
+  readonly tabFragmentMap = {
+    internal: 0,
+    glitchtip: GLITCHTIP_TAB_INDEX,
+    all: ALL_TAB_INDEX,
+    'auto-issues': AUTO_ISSUES_TAB_INDEX,
+    pyroscope: PYROSCOPE_TAB_INDEX,
+  } as const;
 
   errors: ErrorLogEntry[] = [];
   glitchtipEvents: ErrorLogEntry[] = [];

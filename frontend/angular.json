@@ -13,6 +13,9 @@
       "root": "",
       "sourceRoot": "src",
       "prefix": "app",
+      "i18n": {
+        "sourceLocale": "en-US"
+      },
       "architect": {
         "build": {
           "builder": "@angular-devkit/build-angular:application",
@@ -130,6 +133,14 @@
               "src/**/*.ts",
               "src/**/*.html"
             ]
+          }
+        },
+        "extract-i18n": {
+          "builder": "@angular-devkit/build-angular:extract-i18n",
+          "options": {
+            "buildTarget": "xf-internal-linker-frontend:build",
+            "format": "xlf",
+            "outputPath": "src/locale"
           }
         }
       }

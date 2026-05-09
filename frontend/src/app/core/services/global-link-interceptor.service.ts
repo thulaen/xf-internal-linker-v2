@@ -5,6 +5,7 @@ import { Subject } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
 import { ScrollHighlightService } from './scroll-highlight.service';
 import { waitForElement, revealHiddenParent, waitForElementVisible } from '../utils/scroll-highlight.utils';
+import { findDeepLink } from '../routing/deep-link-catalog';
 
 /**
  * Global link interceptor — registered once at app startup, works everywhere forever.
@@ -44,16 +45,60 @@ export class GlobalLinkInterceptorService implements OnDestroy {
     // explicit appScrollHighlight directive on the same element).
     this.doc.addEventListener('click', this.boundClickHandler, true);
 
-    // ── 2. React to every router navigation that has a fragment ──────
+    // ── 2. React to every router navigation ──────────────────────────
+    // We handle two URL idioms in priority order:
+    //   a) `?dl=<catalog-key>` — resolve to the matching DeepLinkEntry
+    //      and navigate to its route + fragment + tab. This is the
+    //      "share a link to a specific surface" pattern.
+    //   b) `#fragment` — scroll-and-highlight an element by id, plus
+    //      auto-reveal it if hidden inside a tab or expansion panel.
     this.router.events.pipe(
       filter(e => e instanceof NavigationEnd),
       takeUntil(this.destroy$),
     ).subscribe((e: NavigationEnd) => {
-      const fragment = this.router.parseUrl(e.urlAfterRedirects).fragment;
+      const tree = this.router.parseUrl(e.urlAfterRedirects);
+      const deepLinkKey = tree.queryParams['dl'];
+      if (typeof deepLinkKey === 'string' && deepLinkKey.length > 0) {
+        const handled = this.resolveDeepLinkParam(deepLinkKey);
+        if (handled) return;
+      }
+
+      const fragment = tree.fragment;
       if (!fragment) return;
 
       this.scrollToFragmentWhenReady(fragment);
     });
+  }
+
+  /**
+   * Resolve a `?dl=<key>` URL parameter to a real navigation.
+   *
+   * If the key matches an entry in the deep-link catalog, navigate to
+   * that entry's route + fragment + tab and strip the `dl` query param
+   * so the URL the user shares back is the canonical one. The
+   * follow-up NavigationEnd will trigger the fragment scroll naturally.
+   *
+   * Returns true when the key was consumed (caller should NOT also
+   * process a fragment from the original URL — the new navigation
+   * supersedes it).
+   */
+  private resolveDeepLinkParam(key: string): boolean {
+    const entry = findDeepLink(key);
+    if (!entry) {
+      console.warn(`[DeepLink] Unknown ?dl= key: "${key}"`);
+      return false;
+    }
+
+    const queryParams: Record<string, string | null> = { dl: null };
+    if (entry.tab) queryParams['tab'] = entry.tab;
+
+    void this.router.navigate([entry.route], {
+      fragment: entry.scrollTarget,
+      queryParams,
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+    return true;
   }
 
   /**

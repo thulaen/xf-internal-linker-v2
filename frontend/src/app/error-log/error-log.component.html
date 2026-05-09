@@ -11,6 +11,8 @@
 
   <mat-tab-group
     class="error-log-tabs"
+    appTabFragment
+    [tabFragmentMap]="tabFragmentMap"
     [selectedIndex]="selectedTabIndex"
     (selectedIndexChange)="onTabChange($event)"
     animationDuration="200ms">

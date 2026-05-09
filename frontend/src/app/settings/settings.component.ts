@@ -14,6 +14,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { TabFragmentRouterDirective } from '../core/directives/tab-fragment-router.directive';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ActivatedRoute } from '@angular/router';
@@ -72,6 +73,7 @@ import { HelpersSettingsComponent } from './helpers-settings/helpers-settings.co
 // Phase MS — Meta Algorithm Settings tab (new at the end of the tab group).
 import { MetaAlgorithmsTabComponent } from './meta-algorithms-tab/meta-algorithms-tab.component';
 import { PassageRelevanceCardComponent } from './passage-relevance/passage-relevance-card.component';
+import { SettingsOverviewComponent } from './settings-overview/settings-overview.component';
 import { MatDialog } from '@angular/material/dialog';
 // Group A.4 + A.5 — plain-English tooltips and "View spec" dialog wiring
 // for the FR-099–FR-105 meta-algo cards.
@@ -2070,6 +2072,8 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
     PerformanceSettingsComponent,
     HelpersSettingsComponent,
     MetaAlgorithmsTabComponent,
+    TabFragmentRouterDirective,
+    SettingsOverviewComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -2230,6 +2234,25 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   // Tab persistence
   selectedTabIndex = Number(localStorage.getItem('settings_active_tab') || '0');
+
+  // Maps the catalog tab keys (`ranking-weights`, `silo-architecture`, etc.)
+  // to their numeric tab indexes inside this `<mat-tab-group>`. Consumed by
+  // `appTabFragment` so `/settings#ranking-weights` and
+  // `/settings?tab=ranking-weights` both activate the correct tab.
+  readonly tabFragmentMap: Record<string, number> = {
+    'ranking-weights': 0,
+    'silo-architecture': 1,
+    'connect-sync': 2,
+    'history-presets': 3,
+    'library-history': 3,
+    notifications: 4,
+    'diagnostics-weights': 5,
+    diagnostics: 5,
+    'performance-tunables': 6,
+    performance: 6,
+    helpers: 7,
+    'meta-algorithms': 8,
+  };
 
   onTabChange(index: number): void {
     this.selectedTabIndex = index;

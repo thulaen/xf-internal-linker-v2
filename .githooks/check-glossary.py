@@ -186,6 +186,10 @@ ALLOWLIST: frozenset[str] = frozenset({
     # to suppress the autotuner-classification check on a per-migration
     # basis (e.g. `# AUTOTUNER: not-tunable - <reason>`).
     "AUTOTUNER",
+    # 2026-05-09 frontend audit session. ROLLOUT and SETTINGS-SPLIT-PLAN
+    # are doc-filename references; COMMANDS is a TypeScript variable name
+    # (DEEP_LINK_CATALOG → COMMANDS in command-palette.commands.ts).
+    "ROLLOUT", "SETTINGS-SPLIT-PLAN", "COMMANDS",
 })
 
 # Regex: 3+ consecutive uppercase letters with optional repeated hyphen-

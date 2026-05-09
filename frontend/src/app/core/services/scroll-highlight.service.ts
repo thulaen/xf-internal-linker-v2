@@ -85,6 +85,11 @@ export class ScrollHighlightService {
       // Apply highlight class
       targetElement.classList.add(highlightClass);
 
+      // Move keyboard focus to the target. WCAG 2.1 AA — when a fragment
+      // navigation jumps the user's eye to a new section, screen readers
+      // and keyboard users need the focus to follow.
+      this.moveFocusToTarget(targetElement);
+
       // Keep the class alive across Angular re-renders: poll every 200ms and
       // reapply to whichever DOM node currently matches the selector.
       this.startReapplyInterval(normalizedSelector, highlightClass);
@@ -135,6 +140,30 @@ export class ScrollHighlightService {
       behavior: behavior === 'smooth' ? 'smooth' : 'instant',
       block: 'center',
     });
+  }
+
+  /**
+   * Move keyboard focus to the highlighted element. If the element is
+   * not natively focusable, set a temporary `tabindex="-1"` so the
+   * `focus()` call works without trapping the user in tab order.
+   *
+   * Uses `preventScroll: true` so calling focus() does not undo the
+   * scrollIntoView we just performed — without this flag some browsers
+   * re-scroll the element to the top of the viewport.
+   */
+  private moveFocusToTarget(element: HTMLElement): void {
+    const isNativelyFocusable = element.matches(
+      'a[href], button, input, select, textarea, [tabindex]'
+    );
+    if (!isNativelyFocusable) {
+      element.setAttribute('tabindex', '-1');
+    }
+    try {
+      element.focus({ preventScroll: true });
+    } catch {
+      // Some test environments (jsdom) throw on focus() with options.
+      element.focus();
+    }
   }
 
   /**

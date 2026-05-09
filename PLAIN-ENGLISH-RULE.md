@@ -142,6 +142,9 @@ When you must mention a technical concept, use the plain-English version from th
 | the legacy responsiveness Web Vital — measured the delay between a click and the browser starting to handle it; replaced by INP | FID / First Input Delay |
 | Microsoft's Visual C++ compiler — the C++ toolchain used when building native extensions on Windows; produces `.exe`, `.lib`, `.exp`, and `.pdb` byproducts the benchmark runner has to filter out | MSVC / Microsoft Visual C++ |
 | the four scoring components inside the C++ daily picker — Severity (how bad), Recency (how new), Regression (was-fine-yesterday), and Akaike Information Criterion (penalty for touching many modules); blended into one priority score per issue | SEV / REC / REG / AIC |
+| the international rulebook for making websites usable by people with disabilities — covers things like keyboard navigation, screen-reader support, color contrast; "AA" is the middle compliance level most enterprises target | WCAG / Web Content Accessibility Guidelines |
+| the JavaScript view of CSS — every loaded stylesheet exposes a `cssRules` array the browser keeps in sync; we walk it to debug why a CSS rule isn't winning the cascade | CSSOM / CSS Object Model |
+| the standard file format for translation work — an XML file with one entry per source string and a `<target>` slot the translator fills in; produced by `ng extract-i18n` and consumed by `ng build --localize` | XLF / XLIFF / XML Localization Interchange File Format |
 
 If a term you need is not in this table, define it yourself in parentheses the first time you use it.
 

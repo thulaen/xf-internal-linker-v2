@@ -1,25 +1,82 @@
 /**
  * Scroll-and-highlight styling.
- * Defines the visual appearance and fade animation for highlighted elements.
+ *
+ * `!important` is required on the four longhand colour / shadow / border
+ * properties because Angular Material's `.mat-mdc-card { background-color:
+ * var(--color-bg-white) !important; }` (specificity 0,1,0) would otherwise
+ * win the cascade tie. Listing the longhands explicitly (instead of the
+ * `border-left` shorthand) is also required: when a shorthand contains a
+ * `var()` it cannot be expanded into longhands at parse time, and the
+ * resulting CSSOM has empty `border-left-*` values that never render.
+ *
+ * The active rule has NO `transition` declaration. Adding `transition`
+ * here causes a browser-level race where the scroll-into-view re-flow
+ * captures the start frame at "white" and the new value never visibly
+ * arrives. The fade rule below adds the transition lazily so the visual
+ * appears instantly and only the disappearance animates.
  */
 
-// Applied immediately when element is scrolled into view
-.scroll-highlight {
-  background-color: rgba(var(--color-primary-rgb), 0.12);
-  border-left: 2px solid var(--color-primary);
-  box-shadow: inset 0 0 8px rgba(var(--color-primary-rgb), 0.08);
+@mixin scroll-highlight-active {
+  background-color: rgba(var(--color-primary-rgb), 0.12) !important;
+  border-left-style: solid !important;
+  border-left-width: 2px !important;
+  // Use the resolved hex var (`--color-primary` = `#1a73e8`) rather than
+  // wrapping the rgb-channel-list var inside another rgb(). The outer
+  // rgb() form has spotty support for var-interpolation in some browsers.
+  border-left-color: var(--color-primary) !important;
+  box-shadow: inset 0 0 8px rgba(var(--color-primary-rgb), 0.08) !important;
+}
 
-  // Smooth transition for fade effect
+@mixin scroll-highlight-fade {
   transition:
     background-color 500ms ease-out,
     border-left-color 500ms ease-out,
     box-shadow 500ms ease-out;
+  background-color: transparent !important;
+  border-left-color: transparent !important;
+  box-shadow: inset 0 0 8px rgba(var(--color-primary-rgb), 0) !important;
 }
 
-// Applied after 5.5 seconds to trigger fade animation
-// CSS transition handles the smooth fade to transparent
-.scroll-highlight--fade {
-  background-color: transparent;
-  border-left-color: transparent;
-  box-shadow: inset 0 0 8px rgba(var(--color-primary-rgb), 0);
+// Applied immediately when element is scrolled into view.
+// `.mat-mdc-card.mdc-card.scroll-highlight` carries specificity (0,3,0)
+// because some component-scoped styles like
+// `.dashboard-panel[_ngcontent-…] { border: var(--card-border) !important; }`
+// also resolve to (0,2,0) and win on source order. Adding the always-present
+// `.mdc-card` class lifts our rule above them.
+.scroll-highlight,
+.mat-mdc-card.mdc-card.scroll-highlight,
+mat-card.mdc-card.scroll-highlight,
+section.scroll-highlight,
+div.scroll-highlight {
+  @include scroll-highlight-active;
+}
+
+// Applied after 5.5 seconds to trigger fade animation.
+.scroll-highlight--fade,
+.mat-mdc-card.mdc-card.scroll-highlight--fade,
+mat-card.mdc-card.scroll-highlight--fade,
+section.scroll-highlight--fade,
+div.scroll-highlight--fade {
+  @include scroll-highlight-fade;
+}
+
+// Outline so the focus() call from ScrollHighlightService is visible
+// to keyboard / screen-reader users without breaking the visual highlight.
+.scroll-highlight:focus,
+.scroll-highlight:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+// Honour the OS preference: drop the fade transition entirely so users
+// who set `prefers-reduced-motion: reduce` get an instant arrival + an
+// instant disappearance with no animation.
+@media (prefers-reduced-motion: reduce) {
+  .scroll-highlight--fade,
+  .mat-mdc-card.scroll-highlight--fade,
+  mat-card.scroll-highlight--fade,
+  section.scroll-highlight--fade,
+  div.scroll-highlight--fade {
+    transition: none !important;
+  }
 }
