@@ -222,6 +222,24 @@ def _build_glitchtip_issue_kwargs(
 # ── DB helper: GlitchTip sync (non-pure — queries ErrorLog) ───────────────
 
 
+def _handle_resolved_upstream(existing) -> str:
+    """Mark a known issue acknowledged when GT reports it resolved upstream."""
+    if existing is not None and not existing.acknowledged:
+        existing.acknowledged = True
+        existing.save(update_fields=["acknowledged"])
+        return "resolved"
+    return "skipped"
+
+
+def _refresh_existing_row(existing, kwargs: dict) -> str:
+    """Update mutable fields on an already-tracked GT issue."""
+    existing.occurrence_count = kwargs["occurrence_count"]
+    existing.severity = kwargs["severity"]
+    existing.fingerprint = kwargs["fingerprint"]
+    existing.save(update_fields=["occurrence_count", "severity", "fingerprint"])
+    return "updated"
+
+
 def _sync_one_glitchtip_issue(
     issue: dict,
     api_url: str,
@@ -231,7 +249,12 @@ def _sync_one_glitchtip_issue(
 ) -> str:
     """Upsert one GlitchTip issue into ErrorLog.
 
-    Returns 'created' | 'updated' | 'resolved' | 'skipped'.
+    Returns 'created' | 'updated' | 'resolved' | 'skipped' |
+    'merged_into_existing'.
+
+    Collision strategy: PRE-check the unique key (fingerprint, node_id)
+    BEFORE INSERT. Avoids the auto-instrumentation false-positive that
+    `try INSERT … except IntegrityError` produced (ISS-104).
     """
     gt_id = str(issue.get("id", ""))
     if not gt_id:
@@ -239,22 +262,40 @@ def _sync_one_glitchtip_issue(
     existing = error_log_cls.objects.filter(glitchtip_issue_id=gt_id).first()
 
     if issue.get("status") == "resolved":
-        if existing is not None and not existing.acknowledged:
-            existing.acknowledged = True
-            existing.save(update_fields=["acknowledged"])
-            return "resolved"
-        return "skipped"
+        return _handle_resolved_upstream(existing)
 
     kwargs = _build_glitchtip_issue_kwargs(issue, api_url, suggest_fn)
     if existing is not None:
-        existing.occurrence_count = kwargs["occurrence_count"]
-        existing.severity = kwargs["severity"]
-        existing.fingerprint = kwargs["fingerprint"]
-        existing.save(update_fields=["occurrence_count", "severity", "fingerprint"])
-        return "updated"
+        return _refresh_existing_row(existing, kwargs)
+
+    fp = kwargs["fingerprint"]
+    node_id = kwargs.get("node_id")
+    if error_log_cls.objects.filter(fingerprint=fp, node_id=node_id).exists():
+        return _merge_glitchtip_id_into_existing_row(
+            error_log_cls, gt_id, fp, node_id
+        )
 
     error_log_cls.objects.create(**kwargs, runtime_context=runtime_snapshot())
     return "created"
+
+
+def _merge_glitchtip_id_into_existing_row(
+    error_log_cls: Any,
+    gt_id: str,
+    fingerprint: str,
+    node_id: str | None,
+) -> str:
+    """Attach the new GlitchTip ID to the existing row sharing the fingerprint."""
+    qs = error_log_cls.objects.filter(fingerprint=fingerprint)
+    if node_id:
+        qs = qs.filter(node_id=node_id)
+    target = qs.first()
+    if target is None:
+        return "skipped_dup_fingerprint"
+    if not target.glitchtip_issue_id:
+        target.glitchtip_issue_id = gt_id
+        target.save(update_fields=["glitchtip_issue_id"])
+    return "merged_into_existing"
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -270,32 +311,28 @@ def _sync_one_glitchtip_issue(
     ram_peak_mb=512,
     expected_seconds_p50=300,
 )
-def compute_weekly_reviewer_scorecard():
-    """Compute ReviewerScorecard for the previous calendar week. Runs Monday 03:00 UTC."""
-    from apps.audit.models import AuditEntry, ReviewerScorecard
-    from apps.suggestions.models import Suggestion
+def _gather_review_actions(period_start, period_end):
+    """All AuditEntry rows for approve/reject actions in the given week."""
+    from apps.audit.models import AuditEntry
 
-    today = timezone.now().date()
-    period_start, period_end = _scorecard_week_period(today)
-
-    if ReviewerScorecard.objects.filter(
-        period_start=period_start, period_end=period_end
-    ).exists():
-        logger.info(
-            "[reviewer_scorecard] Scorecard already exists for %s–%s",
-            period_start,
-            period_end,
-        )
-        return {"status": "already_exists"}
-
-    review_actions = AuditEntry.objects.filter(
+    return AuditEntry.objects.filter(
         action__in=("approve", "reject"),
         target_type="suggestion",
         created_at__date__gte=period_start,
         created_at__date__lte=period_end,
     )
-    counts = _fetch_period_metrics(review_actions, Suggestion, period_start, period_end)
-    avg = _compute_avg_review_time(_collect_review_pairs(review_actions, Suggestion))
+
+
+def _build_scorecard_kwargs(review_actions, period_start, period_end):
+    """Compute every numeric field on a ReviewerScorecard from the action set."""
+    from apps.suggestions.models import Suggestion
+
+    counts = _fetch_period_metrics(
+        review_actions, Suggestion, period_start, period_end
+    )
+    avg = _compute_avg_review_time(
+        _collect_review_pairs(review_actions, Suggestion)
+    )
     top_reasons = _extract_top_rejection_reasons(
         [
             a.detail
@@ -304,7 +341,7 @@ def compute_weekly_reviewer_scorecard():
             ]
         ]
     )
-    scorecard = ReviewerScorecard.objects.create(
+    return counts, dict(
         period_start=period_start,
         period_end=period_end,
         total_reviewed=counts["total"],
@@ -316,11 +353,28 @@ def compute_weekly_reviewer_scorecard():
         avg_review_time_seconds=round(avg, 1) if avg is not None else None,
         top_rejection_reasons=top_reasons,
     )
+
+
+def compute_weekly_reviewer_scorecard():
+    """Compute ReviewerScorecard for the previous calendar week. Runs Monday 03:00 UTC."""
+    from apps.audit.models import ReviewerScorecard
+
+    today = timezone.now().date()
+    period_start, period_end = _scorecard_week_period(today)
+    if ReviewerScorecard.objects.filter(
+        period_start=period_start, period_end=period_end
+    ).exists():
+        logger.info(
+            "[reviewer_scorecard] Scorecard already exists for %s–%s",
+            period_start, period_end,
+        )
+        return {"status": "already_exists"}
+    review_actions = _gather_review_actions(period_start, period_end)
+    counts, kwargs = _build_scorecard_kwargs(review_actions, period_start, period_end)
+    scorecard = ReviewerScorecard.objects.create(**kwargs)
     logger.info(
         "[reviewer_scorecard] Created for %s–%s: %d reviewed, %.1f%% approved",
-        period_start,
-        period_end,
-        counts["total"],
+        period_start, period_end, counts["total"],
         _compute_rate(counts["approved"], counts["total"]),
     )
     return {"status": "created", "scorecard_id": scorecard.id}
@@ -338,25 +392,21 @@ def compute_weekly_reviewer_scorecard():
     storage_writes_to="postgres_main",
     ram_peak_mb=256,
 )
-def sync_glitchtip_issues():
-    """Pull open GlitchTip issues and mirror them into ErrorLog for operator triage.
-
-    Runs every 30 minutes via Celery Beat.  Graceful no-op when env vars are
-    missing so a project without GlitchTip doesn't see Beat errors every 30 min.
-    """
+def _glitchtip_env() -> tuple[str, str, str, str]:
+    """Return (api_url, token, org_slug, project_slug). All four blank when unset."""
     import os
+
+    return (
+        os.environ.get("GLITCHTIP_API_URL", "").rstrip("/"),
+        os.environ.get("GLITCHTIP_API_TOKEN", ""),
+        os.environ.get("GLITCHTIP_ORG_SLUG", ""),
+        os.environ.get("GLITCHTIP_PROJECT_SLUG", ""),
+    )
+
+
+def _fetch_glitchtip_issues(api_url: str, token: str, org: str, proj: str):
+    """Single HTTP fetch — returns (issues_list, error_dict). One of them is None."""
     import requests
-
-    from apps.audit.fix_suggestions import suggest
-    from apps.audit.models import ErrorLog
-    from apps.audit.runtime_context import snapshot as runtime_snapshot
-
-    api_url = os.environ.get("GLITCHTIP_API_URL", "").rstrip("/")
-    token = os.environ.get("GLITCHTIP_API_TOKEN", "")
-    org = os.environ.get("GLITCHTIP_ORG_SLUG", "")
-    proj = os.environ.get("GLITCHTIP_PROJECT_SLUG", "")
-    if not all([api_url, token, org, proj]):
-        return {"status": "skipped", "reason": "missing_env_vars"}
 
     try:
         response = requests.get(
@@ -366,32 +416,55 @@ def sync_glitchtip_issues():
             timeout=_GLITCHTIP_REQUEST_TIMEOUT,
         )
         response.raise_for_status()
-        issues = response.json()
+        return response.json(), None
     except requests.RequestException as exc:
         logger.warning("[glitchtip-sync] Fetch failed: %s", exc)
-        return {"status": "error", "detail": str(exc)}
+        return None, {"status": "error", "detail": str(exc)}
     except ValueError as exc:
         logger.warning("[glitchtip-sync] Response not JSON: %s", exc)
-        return {"status": "error", "detail": str(exc)}
+        return None, {"status": "error", "detail": str(exc)}
 
-    created = updated = resolved = 0
+
+def _tally_sync_outcomes(issues, api_url, suggest_fn, error_log_cls, runtime_snapshot):
+    """Apply `_sync_one_glitchtip_issue` to each issue; return outcome counts."""
+    counts = {"created": 0, "updated": 0, "resolved": 0, "merged": 0}
+    outcome_to_key = {
+        "created": "created",
+        "updated": "updated",
+        "resolved": "resolved",
+        "merged_into_existing": "merged",
+    }
     for issue in issues:
         outcome = _sync_one_glitchtip_issue(
-            issue, api_url, suggest, ErrorLog, runtime_snapshot
+            issue, api_url, suggest_fn, error_log_cls, runtime_snapshot
         )
-        if outcome == "created":
-            created += 1
-        elif outcome == "updated":
-            updated += 1
-        elif outcome == "resolved":
-            resolved += 1
+        key = outcome_to_key.get(outcome)
+        if key is not None:
+            counts[key] += 1
+    return counts
 
-    logger.info(
-        "[glitchtip-sync] created=%d updated=%d resolved=%d", created, updated, resolved
+
+def sync_glitchtip_issues():
+    """Pull open GlitchTip issues and mirror them into ErrorLog for operator triage.
+
+    Runs every 30 minutes via Celery Beat. Graceful no-op when env vars are
+    missing so a project without GlitchTip doesn't see Beat errors every 30 min.
+    """
+    from apps.audit.fix_suggestions import suggest
+    from apps.audit.models import ErrorLog
+    from apps.audit.runtime_context import snapshot as runtime_snapshot
+
+    api_url, token, org, proj = _glitchtip_env()
+    if not all([api_url, token, org, proj]):
+        return {"status": "skipped", "reason": "missing_env_vars"}
+    issues, err = _fetch_glitchtip_issues(api_url, token, org, proj)
+    if err is not None:
+        return err
+    counts = _tally_sync_outcomes(
+        issues, api_url, suggest, ErrorLog, runtime_snapshot
     )
-    return {
-        "status": "ok",
-        "created": created,
-        "updated": updated,
-        "resolved": resolved,
-    }
+    logger.info(
+        "[glitchtip-sync] created=%d updated=%d resolved=%d merged=%d",
+        counts["created"], counts["updated"], counts["resolved"], counts["merged"],
+    )
+    return {"status": "ok", **counts}

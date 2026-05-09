@@ -17,24 +17,192 @@
     <mat-tab label="Internal"></mat-tab>
     <mat-tab label="Glitchtip"></mat-tab>
     <mat-tab label="All"></mat-tab>
+    <mat-tab label="Auto-Issues"></mat-tab>
+    <mat-tab label="Pyroscope"></mat-tab>
   </mat-tab-group>
 
-  @if (selectedTabIndex === 1) {
+  @if (selectedTabIndex === glitchtipTabIndex || selectedTabIndex === autoIssuesTabIndex) {
     <div class="glitchtip-tab-toolbar">
       <p class="glitchtip-sync-status">
-        Last synced:
-        {{ glitchtipLastSyncedAt ? (glitchtipLastSyncedAt | date: 'short') : 'Awaiting first sync' }}
+        @if (selectedTabIndex === autoIssuesTabIndex) {
+          Last synced: {{ autoIssuesLastSyncedAt ? (autoIssuesLastSyncedAt | date: 'short') : 'Awaiting first sync' }}
+        } @else {
+          Last synced: {{ glitchtipLastSyncedAt ? (glitchtipLastSyncedAt | date: 'short') : 'Awaiting first sync' }}
+        }
+        @if (resyncStatus) {
+          <span class="resync-status">— {{ resyncStatus }}</span>
+        }
+      </p>
+      <div class="toolbar-buttons">
+        <button
+          type="button"
+          mat-stroked-button
+          (click)="resync()"
+          [disabled]="resyncBusy || flushBusy"
+          matTooltip="Re-pull GlitchTip + run all 3 pickers (admin only)">
+          @if (resyncBusy) {
+            <mat-spinner diameter="18"></mat-spinner>
+          } @else {
+            <mat-icon>sync</mat-icon>
+          }
+          <span>Resync</span>
+        </button>
+        <button
+          type="button"
+          mat-stroked-button
+          (click)="flushCache()"
+          [disabled]="resyncBusy || flushBusy"
+          matTooltip="Drop stale ErrorLog rows older than 24h, force re-pull (admin only)">
+          @if (flushBusy) {
+            <mat-spinner diameter="18"></mat-spinner>
+          } @else {
+            <mat-icon>cleaning_services</mat-icon>
+          }
+          <span>Flush</span>
+        </button>
+        @if (selectedTabIndex === glitchtipTabIndex) {
+          <button
+            type="button"
+            mat-flat-button
+            color="primary"
+            class="glitchtip-visit-button"
+            (click)="openGlitchtip()">
+            <mat-icon>open_in_new</mat-icon>
+            <span>Visit Glitchtip</span>
+          </button>
+        }
+      </div>
+    </div>
+  }
+
+  @if (selectedTabIndex === pyroscopeTabIndex) {
+    <div class="glitchtip-tab-toolbar">
+      <p class="glitchtip-sync-status">
+        Continuous profiling — flamegraphs of hot Python code across backend + Celery workers.
       </p>
       <button
         type="button"
         mat-flat-button
         color="primary"
         class="glitchtip-visit-button"
-        (click)="openGlitchtip()">
+        (click)="openPyroscope()">
         <mat-icon>open_in_new</mat-icon>
-        <span>Visit Glitchtip</span>
+        <span>Visit Pyroscope</span>
       </button>
     </div>
+    <div class="empty-state">
+      <mat-icon class="empty-icon">whatshot</mat-icon>
+      <h2>Pyroscope dashboard</h2>
+      <p>Click "Visit Pyroscope" above to open the flamegraph UI in a new tab.
+      Hot-function regressions also appear in the Auto-Issues tab once the
+      daily picker has 7 days of profile history.</p>
+    </div>
+  }
+
+  @if (selectedTabIndex === autoIssuesTabIndex) {
+    @if (autoIssuesOpen.length === 0 && autoIssuesResolved.length === 0) {
+      <div class="empty-state">
+        <mat-icon class="empty-icon">check_circle</mat-icon>
+        <h2>No issues to triage</h2>
+        <p>Auto-issues populate from GlitchTip + internal errors + Pyroscope regressions.
+        Same root cause from multiple sources lands as ONE row, deduped automatically.</p>
+      </div>
+    }
+
+    @if (autoIssuesOpen.length > 0) {
+      <h3 class="auto-issues-heading">Open ({{ autoIssuesOpen.length }})</h3>
+      <mat-accordion class="error-accordion">
+        @for (issue of autoIssuesOpen; track trackAutoIssue($index, issue)) {
+          <mat-expansion-panel class="error-panel">
+            <mat-expansion-panel-header>
+              <mat-panel-title>
+                <div class="panel-title-row">
+                  <span class="tone-badge"
+                    [class.tone-bad]="issue.severity === 'critical' || issue.severity === 'high'"
+                    [class.tone-warn]="issue.severity === 'medium'"
+                    [class.tone-good]="issue.severity === 'low'">
+                    {{ issue.severity }}
+                  </span>
+                  <span class="tone-badge tone-warn">{{ issue.source }}</span>
+                  <span class="panel-location">{{ issue.title }}</span>
+                  @if (issue.occurrence_count > 1) {
+                    <span class="occurrence-badge">×{{ issue.occurrence_count }}</span>
+                  }
+                </div>
+              </mat-panel-title>
+              <mat-panel-description>
+                <div class="panel-description-row">
+                  <span class="panel-preview">priority {{ issue.priority_score | number: '1.2-2' }}</span>
+                  <span class="panel-date">last seen {{ issue.last_seen | date:'short' }}</span>
+                </div>
+              </mat-panel-description>
+            </mat-expansion-panel-header>
+            <div class="panel-body">
+              @if (issue.description) {
+                <div class="detail-block">
+                  <strong>Description</strong>
+                  <p>{{ issue.description }}</p>
+                </div>
+              }
+              @if (issue.affected_files?.length) {
+                <div class="detail-block">
+                  <strong>Affected files</strong>
+                  <ul>
+                    @for (path of issue.affected_files; track path) {
+                      <li><code>{{ path }}</code></li>
+                    }
+                  </ul>
+                </div>
+              }
+              @if (issue.source_observations?.length) {
+                <div class="detail-block">
+                  <strong>Observed by ({{ issue.source_observations.length }} source(s))</strong>
+                  <ul>
+                    @for (obs of issue.source_observations; track obs.external_id) {
+                      <li>{{ obs.source }} #{{ obs.external_id }} — {{ obs.occurrence_count }} occurrences</li>
+                    }
+                  </ul>
+                </div>
+              }
+            </div>
+          </mat-expansion-panel>
+        }
+      </mat-accordion>
+    }
+
+    @if (autoIssuesResolved.length > 0) {
+      <h3 class="auto-issues-heading">Recently resolved ({{ autoIssuesResolved.length }}) — read these for prior fixes</h3>
+      <mat-accordion class="error-accordion">
+        @for (issue of autoIssuesResolved; track trackAutoIssue($index, issue)) {
+          <mat-expansion-panel class="error-panel reviewed-panel">
+            <mat-expansion-panel-header>
+              <mat-panel-title>
+                <div class="panel-title-row">
+                  <span class="tone-badge tone-good">{{ issue.severity }}</span>
+                  <span class="panel-location">{{ issue.title }}</span>
+                </div>
+              </mat-panel-title>
+              <mat-panel-description>
+                <div class="panel-description-row">
+                  <span class="panel-preview">resolved by {{ issue.resolved_by || '?' }}</span>
+                  <span class="panel-date">{{ issue.resolved_at | date:'short' }}</span>
+                </div>
+              </mat-panel-description>
+            </mat-expansion-panel-header>
+            <div class="panel-body">
+              @if (issue.lessons_learned) {
+                <div class="why-box">
+                  <div class="why-header"><mat-icon>lightbulb</mat-icon><strong>Lessons learned</strong></div>
+                  <pre class="exception-pre">{{ issue.lessons_learned }}</pre>
+                </div>
+              } @else {
+                <p><em>No lessons_learned recorded — protocol violation per CLAUDE.md.</em></p>
+              }
+            </div>
+          </mat-expansion-panel>
+        }
+      </mat-accordion>
+    }
   }
 
   @if (showJobTypeAndStatusFilters) {
@@ -64,13 +232,13 @@
     </div>
   }
 
-  @if (loading) {
+  @if (selectedTabIndex !== autoIssuesTabIndex && selectedTabIndex !== pyroscopeTabIndex && loading) {
     <div class="loading-container">
       <mat-spinner diameter="48"></mat-spinner>
     </div>
   }
 
-  @if (!loading && filteredErrors.length === 0) {
+  @if (selectedTabIndex !== autoIssuesTabIndex && selectedTabIndex !== pyroscopeTabIndex && !loading && filteredErrors.length === 0) {
     <div class="empty-state">
       <mat-icon class="empty-icon">check_circle</mat-icon>
       <h2>No errors found</h2>
@@ -78,7 +246,7 @@
     </div>
   }
 
-  @if (!loading && filteredErrors.length > 0) {
+  @if (selectedTabIndex !== autoIssuesTabIndex && selectedTabIndex !== pyroscopeTabIndex && !loading && filteredErrors.length > 0) {
     <mat-accordion class="error-accordion">
       @for (group of groupedErrors; track trackGroupFingerprint($index, group)) {
         @let error = group.representative;

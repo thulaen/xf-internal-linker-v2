@@ -77,6 +77,26 @@ for DIR in "${BUSINESS_LOGIC_DIRS[@]}"; do
   fi
 done
 
+# Coverage erosion gate (Gap #10 from OBSERVABILITY-GAPS-EXTENSION.md).
+# Skips silently when `coverage` isn't installed; fails the push when
+# total coverage drops > 2 pp below the baseline at .coverage-baseline.json.
+echo "=> Coverage erosion gate"
+python "$REPO_ROOT/.githooks/check-coverage-erosion.py"
+if [ $? -ne 0 ]; then
+  echo "[ERROR] Coverage erosion gate failed. Push aborted."
+  exit 1
+fi
+
+# Bundle-size regression gate (Gap #11). Skips silently when the prod
+# Angular bundle hasn't been built yet; fails the push when main + chunks
+# grew > 10 % above the baseline at .bundle-size-baseline.json.
+echo "=> Bundle-size regression gate"
+python "$REPO_ROOT/.githooks/check-bundle-size.py"
+if [ $? -ne 0 ]; then
+  echo "[ERROR] Bundle-size regression gate failed. Push aborted."
+  exit 1
+fi
+
 echo "========================================="
 echo "All checks passed! Push proceeding..."
 echo "========================================="

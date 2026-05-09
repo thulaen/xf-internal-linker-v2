@@ -90,10 +90,20 @@ services:
       DJANGO_SECURE_SSL_REDIRECT: "${DJANGO_SECURE_SSL_REDIRECT:-False}"
       DJANGO_SESSION_COOKIE_SECURE: "${DJANGO_SESSION_COOKIE_SECURE:-False}"
       DJANGO_CSRF_COOKIE_SECURE: "${DJANGO_CSRF_COOKIE_SECURE:-False}"
-      DJANGO_SECURE_HSTS_SECONDS: "${DJANGO_SECURE_HSTS_SECONDS:-0}"
+      # 2026-05-09: bumped default 0 → 31536000 (1 year) so Django's
+      # `check --deploy` no longer raises security.W004. The original `0`
+      # default was set when nginx terminated plain HTTP; the stack now
+      # serves via HTTPS so HSTS is appropriate. To override for a one-off
+      # local-HTTP test, set `DJANGO_SECURE_HSTS_SECONDS=0` in `.env`.
+      DJANGO_SECURE_HSTS_SECONDS: "${DJANGO_SECURE_HSTS_SECONDS:-31536000}"
       HOME: /tmp
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
       REPO_ROOT: /repo
+      PYROSCOPE_SERVER_ADDRESS: http://pyroscope:4040
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_TRACES_SAMPLER: parentbased_traceidratio
+      OTEL_TRACES_SAMPLER_ARG: "1.0"
+      PYROSCOPE_APPLICATION_NAME: xf-linker-backend
     volumes:
       - ./backend:/app
       - .:/repo:ro
@@ -156,11 +166,28 @@ services:
       HOME: /tmp
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
       REPO_ROOT: /repo
+      PYROSCOPE_SERVER_ADDRESS: http://pyroscope:4040
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_TRACES_SAMPLER: parentbased_traceidratio
+      OTEL_TRACES_SAMPLER_ARG: "1.0"
+      PYROSCOPE_APPLICATION_NAME: xf-linker-celery-default
     volumes:
       - ./backend:/app
       - .:/repo:ro
+      # 90-day Pyroscope retention cleanup (auto_issues.run_retention_cleanup)
+      # walks this volume and deletes blocks older than 90 days. Pyroscope OSS
+      # 1.9 doesn't expose a `retention_period` config knob, so the cleanup
+      # path mounts the volume here read-write and uses pathlib instead.
+      - pyroscope_data:/pyroscope-data
     healthcheck:
-      test: ["CMD-SHELL", "celery -A config.celery inspect ping -d celery@$$HOSTNAME -t 10 2>&1 | grep -q pong"]
+      # Healthcheck rewrite (ISS-101 durable fix 2026-05-09): the old
+      # `inspect ping -d celery@$HOSTNAME` depends on the worker's
+      # control channel (kombu pidbox subscription on Redis), which
+      # silently dies after ~9h of uptime even while the worker keeps
+      # processing tasks. Now check (1) the worker process is alive, AND
+      # (2) the broker is reachable. If those two hold, the worker can
+      # take work — control channel is decorative for liveness.
+      test: ["CMD-SHELL", "ps -ef | grep -q '[c]elery -A config.celery worker' && python -c 'from kombu import Connection; Connection(\"redis://redis:6379/0\").ensure_connection(timeout=3)' || exit 1"]
       interval: 30s
       timeout: 20s
       retries: 3
@@ -173,7 +200,7 @@ services:
     command: >
       sh -c "python -c 'import drf_spectacular' &&
              DEFAULT_QUEUE_CONCURRENCY=$$(python manage.py print_default_queue_concurrency) &&
-             celery -A config.celery worker --loglevel=warning --concurrency=$${DEFAULT_QUEUE_CONCURRENCY:-2} --prefetch-multiplier 1 -Q default"
+             celery -A config.celery worker --loglevel=warning --concurrency=$${DEFAULT_QUEUE_CONCURRENCY:-2} --prefetch-multiplier 1 --max-tasks-per-child=1000 -Q default"
 
   # Celery worker - pipeline + embeddings queues only
   # Handles: heavy serial work that must stay single-process for FAISS correctness
@@ -196,12 +223,29 @@ services:
       HOME: /tmp
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
       REPO_ROOT: /repo
+      PYROSCOPE_SERVER_ADDRESS: http://pyroscope:4040
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_TRACES_SAMPLER: parentbased_traceidratio
+      OTEL_TRACES_SAMPLER_ARG: "1.0"
+      PYROSCOPE_APPLICATION_NAME: xf-linker-celery-pipeline
       CELERY_WORKER_CONCURRENCY: 1
     volumes:
       - ./backend:/app
       - .:/repo:ro
+      # 90-day Pyroscope retention cleanup (auto_issues.run_retention_cleanup)
+      # walks this volume and deletes blocks older than 90 days. Pyroscope OSS
+      # 1.9 doesn't expose a `retention_period` config knob, so the cleanup
+      # path mounts the volume here read-write and uses pathlib instead.
+      - pyroscope_data:/pyroscope-data
     healthcheck:
-      test: ["CMD-SHELL", "celery -A config.celery inspect ping -d celery@$$HOSTNAME -t 10 2>&1 | grep -q pong"]
+      # Healthcheck rewrite (ISS-101 durable fix 2026-05-09): the old
+      # `inspect ping -d celery@$HOSTNAME` depends on the worker's
+      # control channel (kombu pidbox subscription on Redis), which
+      # silently dies after ~9h of uptime even while the worker keeps
+      # processing tasks. Now check (1) the worker process is alive, AND
+      # (2) the broker is reachable. If those two hold, the worker can
+      # take work — control channel is decorative for liveness.
+      test: ["CMD-SHELL", "ps -ef | grep -q '[c]elery -A config.celery worker' && python -c 'from kombu import Connection; Connection(\"redis://redis:6379/0\").ensure_connection(timeout=3)' || exit 1"]
       interval: 30s
       timeout: 20s
       retries: 3
@@ -213,7 +257,7 @@ services:
         condition: service_healthy
     command: >
       sh -c "python -c 'import drf_spectacular' &&
-             celery -A config.celery worker --loglevel=warning --concurrency=1 --prefetch-multiplier 1 -Q pipeline,embeddings"
+             celery -A config.celery worker --loglevel=warning --concurrency=1 --prefetch-multiplier 1 --max-tasks-per-child=500 -Q pipeline,embeddings"
 
   # ─────────────────────────────────────────────
   # Celery Beat — scheduled tasks (auto-resync, etc.)
@@ -230,6 +274,11 @@ services:
       HOME: /tmp
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
       REPO_ROOT: /repo
+      PYROSCOPE_SERVER_ADDRESS: http://pyroscope:4040
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_TRACES_SAMPLER: parentbased_traceidratio
+      OTEL_TRACES_SAMPLER_ARG: "1.0"
+      PYROSCOPE_APPLICATION_NAME: xf-linker-celery-beat
     volumes:
       - ./backend:/app
       - .:/repo:ro
@@ -298,6 +347,10 @@ services:
       # create a mountpoint inside a read-only parent. Nginx runs as an
       # unprivileged user with no write permission on the files anyway.
       - frontend_dist:/usr/share/nginx/html
+      # Shared volume for the OTel collector to tail the access log.
+      # Nginx writes here; collector reads. See `filelog/nginx` receiver
+      # in `otelcol-config.yaml`.
+      - nginx_logs:/var/log/nginx-shared
       - staticfiles:/usr/share/nginx/html/static:ro
       - media_files:/usr/share/nginx/html/media:ro
     healthcheck:
@@ -313,16 +366,60 @@ services:
         condition: service_completed_successfully
 
   # ─────────────────────────────────────────────
-  # GlitchTip — self-hosted error tracking (opt-in via --profile debug)
-  # Sentry-compatible. Reuses existing postgres + redis.
-  # Access the dashboard at http://localhost:1337
+  # GlitchTip — self-hosted error tracking (default-on, see CLAUDE.md
+  # ABSOLUTE rule "Never disable or remove GlitchTip services"). Sentry-
+  # compatible. Reuses existing postgres + redis. Dashboard at
+  # http://localhost:1337.
   # ─────────────────────────────────────────────
+  glitchtip-init:
+    # One-shot job that ensures the `glitchtip` Postgres database exists
+    # before the dashboard tries to migrate. Idempotent: skips if the DB
+    # already exists. Without this service, a manual DROP DATABASE or a
+    # postgres volume reset leaves the dashboard silently broken because
+    # nothing else creates the DB on boot.
+    image: pgvector/pgvector:pg17
+    container_name: xf_linker_glitchtip_init
+    restart: "no"
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-xf_linker_user}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      PGDATABASE: postgres
+    command: >
+      sh -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='glitchtip'\" | grep -q 1 ||
+             psql -c \"CREATE DATABASE glitchtip OWNER \\\"${POSTGRES_USER:-xf_linker_user}\\\";\""
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  glitchtip-migrate:
+    # Runs Django migrations on the glitchtip DB. Ships with the GlitchTip
+    # image as `./bin/run-migrate.sh`. One-shot, idempotent: re-running it
+    # over an up-to-date DB is a no-op. Without this step a freshly created
+    # DB has zero tables and the dashboard returns 500 on every endpoint
+    # because every social-auth and project query hits a missing relation.
+    image: glitchtip/glitchtip:latest
+    container_name: xf_linker_glitchtip_migrate
+    restart: "no"
+    command: ./bin/run-migrate.sh
+    environment:
+      DATABASE_URL: "postgres://${POSTGRES_USER:-xf_linker_user}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/glitchtip"
+      REDIS_URL: redis://redis:6379/4
+      SECRET_KEY: "${GLITCHTIP_SECRET_KEY:-change-me-in-production-glitchtip}"
+      EMAIL_URL: consolemail://
+      GLITCHTIP_DOMAIN: http://localhost:1337
+      DEFAULT_FROM_EMAIL: glitchtip@localhost
+    depends_on:
+      glitchtip-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
   glitchtip:
     image: glitchtip/glitchtip:latest
     container_name: xf_linker_glitchtip
     restart: always
     mem_limit: 256m
-    profiles: ["debug"]
     # NOTE: do NOT add `env_file: .env` here. The project .env sets
     # DJANGO_SETTINGS_MODULE for the backend, which would collide with
     # GlitchTip's own Django settings and crash it with
@@ -347,16 +444,15 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      glitchtip-migrate:
+        condition: service_completed_successfully
 
-  # ─────────────────────────────────────────────
-  # GlitchTip Worker — processes error events (opt-in with GlitchTip)
-  # ─────────────────────────────────────────────
   glitchtip-worker:
+    # Processes error events. Default-on (see CLAUDE.md rule).
     image: glitchtip/glitchtip:latest
     container_name: xf_linker_glitchtip_worker
     restart: always
     mem_limit: 256m
-    profiles: ["debug"]
     command: ./bin/run-celery-with-beat.sh
     # Same env_file caveat as glitchtip above — keep this isolated from
     # the linker .env. Uses the same `/glitchtip` DB.
@@ -374,9 +470,107 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      glitchtip-migrate:
+        condition: service_completed_successfully
+
+  # ─────────────────────────────────────────────
+  # Pyroscope — continuous profiling (flamegraphs of hot Python code).
+  # Default-on alongside GlitchTip. Localhost-bound on host port 4040; no
+  # auth (same security posture as GlitchTip's 1337 — host-only access).
+  # The backend + Celery workers ship profiles via the `pyroscope-io`
+  # Python agent (see backend/config/wsgi.py and the Celery startup).
+  # See docs/OBSERVABILITY-OPTIONS.md and docs/CPP-DAILY-ISSUE-PICKER-SPEC.md
+  # for how Pyroscope hot-functions feed the auto_issues registry.
+  # ─────────────────────────────────────────────
+  pyroscope:
+    # NOTE: ingest from `pyroscope-io==0.8.7` (the legacy Python agent)
+    # is currently a no-op against this 1.x server because the agent's
+    # `/ingest` push-protocol is accepted (200 OK) but not indexed.
+    # Tracked as ISS-103 in `docs/reports/REPORT-REGISTRY.md`. The Python
+    # picker (`apps.auto_issues.services.pyroscope_picker`) handles the
+    # empty-data case gracefully — returns `regressions_found=0`. Two
+    # paths to fix: (a) switch the Python agent to OTLP profiles export
+    # once pyroscope-io supports it, OR (b) route profiles through the
+    # OTel collector instead. Until then Pyroscope's UI is reachable
+    # (so manual `py-spy dump` or other ad-hoc profiling can land here)
+    # but auto-shipping from the SDK does not yet.
+    image: grafana/pyroscope:1.9.0
+    container_name: xf_linker_pyroscope
+    restart: always
+    mem_limit: 512m
+    volumes:
+      - pyroscope_data:/data
+    ports:
+      - "127.0.0.1:4040:4040"
+    command:
+      - "-config.file=/etc/pyroscope.yaml"
+      - "-target=all"
+    configs:
+      - source: pyroscope_config
+        target: /etc/pyroscope.yaml
+
+  # ─────────────────────────────────────────────
+  # postgres-exporter — exposes Postgres internals (connections, slow
+  # queries, locks, replication) as Prometheus metrics on :9187. The
+  # OTel Collector scrapes this endpoint via its `prometheus` receiver
+  # and re-exports under the same Prometheus pipeline as the SDK metrics
+  # — so /metrics on :8889 includes both app + DB metrics.
+  # ─────────────────────────────────────────────
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: xf_linker_postgres_exporter
+    restart: always
+    mem_limit: 64m
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-xf_linker_user}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/${POSTGRES_DB:-xf_linker}?sslmode=disable"
+      PG_EXPORTER_AUTO_DISCOVER_DATABASES: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Localhost-bound on the host side (not strictly needed since we
+    # scrape via the docker network, but exposes :9187 for ad-hoc checks).
+    ports:
+      - "127.0.0.1:9187:9187"
+
+  # ─────────────────────────────────────────────
+  # OpenTelemetry Collector — vendor-neutral tracing/metrics/logs hub.
+  # Receives OTLP (HTTP, port 4318) from the Python OTel SDK in the
+  # backend + Celery workers. Fans out:
+  #  - Traces → GlitchTip's OTLP endpoint (so they show up in the same
+  #    Performance UI as the Sentry-SDK transactions).
+  #  - Metrics → Prometheus scrape endpoint at 8889 (host-bound).
+  #  - Logs   → stdout (visible via `docker compose logs otel-collector`).
+  # Default-on alongside GlitchTip + Pyroscope. Localhost-only.
+  # ─────────────────────────────────────────────
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.106.1
+    container_name: xf_linker_otel_collector
+    restart: always
+    mem_limit: 256m
+    command: ["--config=/etc/otelcol/config.yaml"]
+    configs:
+      - source: otelcol_config
+        target: /etc/otelcol/config.yaml
+    volumes:
+      # Read-only mount of the nginx access log volume so the
+      # `filelog/nginx` receiver can tail it.
+      - nginx_logs:/var/log/nginx-shared:ro
+    ports:
+      # OTLP HTTP (4318) and gRPC (4317) for SDK ingest. Localhost-bound.
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+      # Prometheus scrape endpoint. Localhost-bound.
+      - "127.0.0.1:8889:8889"
+    depends_on:
+      glitchtip:
+        condition: service_started
+      postgres-exporter:
+        condition: service_started
 
 volumes:
   pgdata:
+    driver: local
+  pyroscope_data:
     driver: local
   redis-data:
     driver: local
@@ -386,3 +580,11 @@ volumes:
     driver: local
   staticfiles:
     driver: local
+  nginx_logs:
+    driver: local
+
+configs:
+  pyroscope_config:
+    file: ./pyroscope.yaml
+  otelcol_config:
+    file: ./otelcol-config.yaml

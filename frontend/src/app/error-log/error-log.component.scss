@@ -5,6 +5,26 @@
   max-width: 1120px;
 }
 
+// Auto-issues + Pyroscope tab additions (2026-05-09).
+.toolbar-buttons {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.resync-status {
+  margin-left: var(--space-sm);
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+.auto-issues-heading {
+  margin: var(--space-md) 0 var(--space-sm) 0;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
 .page-header {
   display: flex;
   align-items: flex-start;
@@ -285,7 +305,7 @@
     line-height: 1.5;
     color: var(--color-text-primary);
     white-space: pre-wrap;
-    word-break: break-word;
+    overflow-wrap: anywhere;
   }
 }
 
@@ -307,7 +327,7 @@
   font-size: 11px;
   line-height: 1.5;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .panel-actions {

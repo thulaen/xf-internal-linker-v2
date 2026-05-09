@@ -1,0 +1,29 @@
+# Pyroscope OSS — minimal single-host config.
+# See docker-compose.yml `pyroscope` service for how this is mounted.
+# Hot-functions surfaced from this server feed the `auto_issues` table
+# via the C++ daily-picker (spec: docs/CPP-DAILY-ISSUE-PICKER-SPEC.md).
+
+# Server listens on 4040; Docker forwards to host 127.0.0.1:4040.
+server:
+  http_listen_port: 4040
+  log_level: info
+
+# All-in-one mode: ingester + querier + compactor on a single node. Fine
+# for single-host dev/local deployments with low profile volume (<1 GB).
+target: all
+
+# Local filesystem storage. Pyroscope rotates profiles automatically;
+# 30-day retention keeps the volume bounded.
+storage:
+  backend: filesystem
+  filesystem:
+    dir: /data
+
+# Profile retention — Pyroscope OSS 1.9 doesn't expose a top-level
+# retention key in either `limits` or `compactor`. Defaults retain
+# forever. If volume usage grows past ~1 GB, add a `tracker.retention`
+# block via the deeper `block-storage` config (see Grafana docs).
+# Two safe per-query caps:
+limits:
+  max_query_lookback: 30d
+  max_query_length: 7d

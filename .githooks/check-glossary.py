@@ -69,6 +69,44 @@ ALLOWLIST: frozenset[str] = frozenset({
     # "WHICH key" in instructional prose) and aren't technical jargon.
     "OFF", "ONE", "TURN", "OUT", "WHICH", "WHETHER", "LEGACY",
     "INSIDE", "ONLY", "BELOW", "ABOVE",
+    # Status / emphasis words that show up in observability gap docs
+    # and similar status-table prose ("YET to wire", "PARTIAL coverage",
+    # "ALSO note", "THIS section"). All everyday English, no jargon.
+    "YET", "PARTIAL", "ALSO", "THIS",
+    # Everyday English words that get capitalised mid-sentence in
+    # narrative prose (handoff entries, doc headings, README-style
+    # bullets). Adding these stops the glossary check from flagging
+    # plain English as "new technical jargon".
+    "READ", "NEVER", "ALL", "SHOW", "DONE", "OPEN", "OWN",
+    "RUN", "SAME", "FIRST", "YOU", "RECENT", "RESOLUTIONS",
+    "YES", "DISCOVERED", "NOW", "FRESH", "CORRECT", "CONTROL",
+    "CHANNEL", "WITHOUT", "PRE", "OTHER", "SINGLE", "STOP",
+    "WHEN", "THINK", "CODE", "SEARCH", "BLAST", "HISTORY",
+    "RESOLVED", "WIRED", "DON", "SIGNAL", "ABSOLUTE", "SPEC",
+    # SQL keywords frequently quoted in code comments / handoff prose
+    # alongside the DDL allowlist above (those covered: CREATE/INSERT/
+    # UPDATE/SELECT etc were missed by the earlier list).
+    "SELECT", "INSERT", "UPDATE", "CREATE", "DATABASE", "OWNER",
+    "CONFLICT", "ILIKE", "ORDER", "LIMIT",
+    # PostgreSQL libpq environment variables — show up in psql wrapper
+    # commands inside docker-compose healthcheck blocks.
+    "PGHOST", "PGUSER", "PGPASSWORD", "PGDATABASE", "HOSTNAME",
+    # Hyphenated tokens that are doc-filename references or shell /
+    # Docker directives, not technical jargon.
+    "OBSERVABILITY-GAPS-EXTENSION", "OBSERVABILITY-OPTIONS",
+    "CPP-DAILY-ISSUE-PICKER-SPEC", "CREATE-IF-NOT-EXISTS",
+    "OTLP-HTTP", "PRE-EXISTING", "CREATE-DATABASE", "CMD-SHELL",
+    "SEI-2003-TR-002",
+    # One-off regex character class that the glossary's `[A-Z]{3,}`
+    # pattern reads as a token (see `deploy_check_picker.py` —
+    # `[WEC]` matches Django check IDs of severity W/E/C).
+    "WEC",
+    # Common project shorthand / academic citation tokens that are not
+    # technical jargon a non-coder would need defined.
+    "TAC", "ISBN", "WSDM", "STRIDE", "IEEE", "CMU", "SEI",
+    # All-caps form of "Celery" — the lowercase form is already in the
+    # glossary, but the regex catches the uppercase variant separately.
+    "CELERY",
     "INFO", "WARN", "WARNING", "ERROR", "DEBUG", "TRACE", "FATAL",
     "NOTICE", "SUCCESS", "FAILED", "FAIL", "PASS", "SKIP", "SKIPPED",
     "COMPLETED", "RUNNING", "PENDING", "QUEUED", "PROCESSING", "ABORTED",

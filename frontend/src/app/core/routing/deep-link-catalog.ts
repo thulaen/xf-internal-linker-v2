@@ -246,6 +246,20 @@ export const DEEP_LINK_CATALOG: readonly DeepLinkEntry[] = [
     searchTerms: ['errors', 'log', 'failures', 'tracebacks'],
   },
   {
+    key: 'error-log.auto-issues',
+    label: 'Auto-Issues',
+    subtitle: 'Cross-source-deduped issues from GlitchTip, internal errors, Pyroscope. Read lessons_learned from prior fixes.',
+    route: '/error-log',
+    searchTerms: ['auto-issues', 'registry', 'lessons learned', 'dedup'],
+  },
+  {
+    key: 'error-log.pyroscope',
+    label: 'Pyroscope',
+    subtitle: 'Continuous profiling — flamegraphs of hot Python code.',
+    route: '/error-log',
+    searchTerms: ['pyroscope', 'profiling', 'flamegraph', 'cpu hot'],
+  },
+  {
     key: 'performance.main',
     label: 'Performance',
     subtitle: 'Benchmark results for C++ and Python hot paths.',

@@ -20,6 +20,28 @@ This file is the single index of all audit reports and individual issues found b
 
 ## Open Reports
 
+### RPT-003 — GlitchTip Integration Lost + 5 Adjacent Bugs (2026-05-09)
+
+- **Found by:** Claude
+- **Status:** PARTIALLY RESOLVED (5 of 5 finds fixed in same session; 2 underlying root causes deferred — see ISS-101 and ISS-102 below)
+- **Scope:** GlitchTip integration was found offline (database missing, env vars empty); during the rebuild four adjacent bugs surfaced.
+- **Summary:** The error-tracking integration had been silently disabled — the `glitchtip` Postgres database had been dropped and the `.env` credentials were empty. Likely cause: an unidentified prior agent (the user suspects Antigravity). The blind spot existed for an unknown duration.
+
+| # | Finding | Severity | Affected files | Status |
+|---|---------|----------|----------------|--------|
+| 1 | GlitchTip integration silently offline (DB dropped + env vars empty) | critical | `docker-compose.yml`, `.env` | RESOLVED 2026-05-09 — services now default-on, DB auto-creates, ABSOLUTE rule + CI gate added |
+| 2 | Sync IntegrityError on fingerprint collision (~15 % of issues silently lost) | high | `backend/apps/audit/tasks.py` | RESOLVED 2026-05-09 — merge-into-existing path; recovered 36 lost rows |
+| 3 | `GLITCHTIP_SECRET_KEY` was the placeholder string | low | `.env` | RESOLVED 2026-05-09 — rotated via openssl rand -hex 32 |
+| 4 | Benchmark runner discovered Windows MSVC `.exp`/`.lib` artifacts as binaries (every run produced 0 results since 2026-05-04) | high | `backend/apps/benchmarks/services/runner.py` | RESOLVED 2026-05-09 — positive allow-list + explicit deny-list |
+| 5 | `celery-worker-default` healthcheck failing 758× (stale control channel) | medium | runtime symptom in `xf_linker_celery_worker_default` container | RESOLVED-BY-RESTART 2026-05-09 — see ISS-101 for durable fix |
+| 6 | Frontend Sentry SDK had empty DSN; browser-side errors not captured | high | `frontend/src/environments/environment.ts`, `frontend/src/main.ts` | RESOLVED 2026-05-09 — DSN populated, bundle rebuilt, Session Replay also enabled |
+
+**Resolution (2026-05-09):** All six finds were fixed in the same session that discovered the offline state. New protection layers added: `glitchtip-init` + `glitchtip-migrate` services (DB self-heal), CLAUDE.md ABSOLUTE rule against re-disabling, 7-assertion `apps.audit.tests_glitchtip_compose_integrity` CI gate, and the `auto_issues` Django app (this entry's permanent home). The C++ daily-picker spec at `docs/CPP-DAILY-ISSUE-PICKER-SPEC.md` will turn future Pyroscope + GlitchTip finds into auto-prioritised AutoIssue rows so this can't happen again.
+
+**Lesson logged for the registry's anti-regression tooling:** "Integration silently disabled" is a class of bug that markdown rules alone don't prevent. The fix needs a hard CI gate (the new `tests_glitchtip_compose_integrity.py`) plus an ABSOLUTE rule that cannot be overridden by an in-session prompt. Apply the same pattern to any other integration we don't want to lose silently.
+
+---
+
 ### RPT-002 — Phase 2 Forward-Declared Research Library (RESOLVED 2026-04-22)
 
 - **Status:** RESOLVED — the 337 forward-declared backlog items were retired as part of PR-A. The meta tournament scheduler (126 pending ranking signals, 238 pending meta-algo specs, 5 phase-2 weight files, 3 unwired C++ kernels, and 5 stale OPT specs) have all been deleted.
@@ -449,6 +471,49 @@ _(None yet. When all findings in a report are resolved, move the report entry he
 - **Resolved:** 2026-04-15
 - **Fixed in:** `GPU_TEMP_CEILING_C` 86 → 90 and `GPU_TEMP_RESUME_C` 78 → 80 in `settings/base.py`. `getattr` fallbacks in `embeddings.py` aligned to the new 90 / 80. Docstrings updated. `docs/PERFORMANCE.md` §6 callout, three-layer table, and "Why Software Limits" paragraph all updated. History chain preserved in the §6 callout (76/68 → 86/78 → 90/80).
 - **Regression watch:** The four locations (`settings/base.py`, two `getattr` calls in `embeddings.py`, `docs/PERFORMANCE.md` §6) must stay aligned. Any future ceiling change must touch all four or the code will silently disagree with the docs. Operator noted awareness that 90°C leaves only ~3°C of margin before NVIDIA's hardware throttle — this is by design, not a bug.
+
+### ISS-101 — Celery worker control channel goes stale on long uptime, restart fixes it (2026-05-09)
+
+- **Found by:** Claude
+- **Severity:** medium
+- **Affected files:** `docker-compose.yml` (healthcheck commands for `celery-worker-default` and `celery-worker-pipeline`).
+- **Description:** After ~9 hours of uptime, the local worker's celery control channel (the "pidbox" pub/sub subscription on Redis) goes silent. `celery inspect ping -d celery@$HOSTNAME` times out from inside the same container while pings sent without `-d` land on a SIBLING container's worker. The Docker healthcheck targeted the local worker by `-d`, so it correctly detected the dead control channel — and reported `unhealthy` in an unbroken streak (758× originally). Tasks continued to process normally; only the control plane was wedged.
+- **Status:** RESOLVED
+- **Resolved:** 2026-05-09
+- **Fixed in:** `docker-compose.yml` healthcheck rewrite. Replaced `celery inspect ping -d celery@$HOSTNAME` with a two-part check: `ps -ef | grep -q '[c]elery -A config.celery worker'` (data-plane process alive) AND `python -c 'from kombu import Connection; Connection("redis://redis:6379/0").ensure_connection(timeout=3)'` (broker reachable). Also added `--max-tasks-per-child=1000` (default queue) and `--max-tasks-per-child=500` (pipeline queue) so prefork children recycle, keeping the parent's pubsub state fresh. Persistence: `AutoIssue` row #1 now `status='resolved'` with full `lessons_learned`.
+- **Regression watch:** If the new healthcheck flips to `unhealthy` while the worker is processing tasks, either the worker process died (real bug, `pgrep` will tell you) OR Redis is down (`Connection.ensure_connection` will tell you) — both are honest signals now, not stale-control-channel false positives.
+
+### ISS-102 — Benchmark-task storm trigger source unknown (2026-05-09)
+
+- **Found by:** Claude
+- **Severity:** low
+- **Affected files:** `backend/apps/benchmarks/tasks.py`, `backend/apps/benchmarks/views.py`, possibly `backend/config/celery.py`
+- **Description:** On 2026-05-08 at 22:54-22:55 UTC, 5 `BenchmarkRun` rows were created in a 67-second window, all with `trigger='scheduled'`. The DB-stored beat schedule's `total_run_count=0` rules out beat as the trigger. The runner now correctly skips MSVC by-products (ISS-resolved by RPT-003 finding 4 in this same session) so the storm wouldn't be as visible if it recurred — but the trigger source is still unknown.
+- **Status:** OPEN
+- **Recommended fix:** Add a structured log line at the start of `run_all_benchmarks` capturing `(caller_pid, environ.get('HOSTNAME'), apply_async sender info)` so the next storm gets self-diagnostic context. Alternatively: add a Celery `before_task_publish` signal handler that warns if `run_all_benchmarks.delay()` is called more than once in a 60-second window.
+- **Regression watch:** If `BenchmarkRun.objects.filter(trigger='scheduled', started_at__gte=...).count()` shows >2 runs in any 60-second window, this regressed.
+
+### ISS-103 — Pyroscope-io 0.8.7 push-protocol incompatible with Pyroscope OSS 1.9 server (2026-05-09)
+
+- **Found by:** Claude
+- **Severity:** medium
+- **Affected files:** `backend/requirements.txt` (agent version), `backend/config/settings/base.py` (init guard).
+- **Description:** The `pyroscope-io==0.8.7` Python agent uses the pre-1.0 `/ingest` push-protocol. The Pyroscope OSS 1.9 server (Phlare-derived) accepts the requests with `200 OK` but does NOT index the profiles. Result: pyroscope-io shipped to a black hole — only `pyroscope` itself appeared in the service-name label list.
+- **Status:** RESOLVED (genuinely — agent now ingests successfully)
+- **Resolved:** 2026-05-09 (initial route-around with Sentry profiles); actual upstream fix 2026-05-09 follow-up: agent upgraded.
+- **Fixed in:** **Upgraded `pyroscope-io` from `0.8.7` to `1.0.6`** in `backend/requirements.txt`. The 1.x agent series sends pprof-format profiles, which Pyroscope OSS 1.x indexes correctly. Verified: after live `pip install` + restart of all four services (backend + 3 Celery workers), `curl POST http://localhost:4040/querier.v1.QuerierService/LabelValues -d '{"name":"service_name"}'` returns `["pyroscope", "xf-linker-backend", "xf-linker-celery-beat", "xf-linker-celery-default", "xf-linker-celery-pipeline"]` within 25 s. Sentry profiling kept on as a redundant path via GlitchTip's Profiles tab. PYROSCOPE_ENABLED default flipped from `0` (route-around) back to `1` (default-on) in `base.py`. `apps.auto_issues.services.pyroscope_picker` will now start populating AutoIssue rows once 7 days of profile history accumulates for week-over-week regression detection.
+- **Regression watch:** If `LabelValues` for `service_name` ever drops to just `["pyroscope"]` again, either the agent regressed (check `pip show pyroscope-io | grep Version`) or the server hit a compat break (check `docker logs xf_linker_pyroscope`). Sentry profiling is the redundant fallback in either case.
+
+### ISS-104 — Sync produced 38 false IntegrityError events per run via try/except pattern (2026-05-09)
+
+- **Found by:** Claude (during OTel verification of ISS-103 fix)
+- **Severity:** medium
+- **Affected files:** `backend/apps/audit/tasks.py` (`_sync_one_glitchtip_issue`).
+- **Description:** The earlier merge fix for fingerprint collisions used `try INSERT ... except IntegrityError: merge`. The DB-level `psycopg.errors.UniqueViolation` fires BEFORE the Python `except` clause runs. Auto-instrumented stacks (Sentry Django integration + OTel psycopg span recorder) capture the error and report it to GlitchTip as a fresh event each time. Result: every sync run produced ~38 false-positive error events, drowning real bugs in noise.
+- **Status:** RESOLVED
+- **Resolved:** 2026-05-09
+- **Fixed in:** Pre-check `exists()` on the unique key BEFORE the create. If a row with the same `(fingerprint, node_id)` already exists, jump to the merge path immediately. The DB never sees the conflict, the auto-instrumentation never sees an error. Pattern: "check-then-act" instead of "act-then-recover". Re-run sync confirmed `merged=38, created=1, updated=61` with **zero new IntegrityError events** in GlitchTip. All 3 collision tests still pass.
+- **Regression watch:** If GlitchTip starts capturing `psycopg.errors.UniqueViolation: ... uniq_errorlog_fingerprint_per_node` again, someone reverted the pre-check. The fix is one if-statement; do not let a refactor accidentally remove it.
 
 ---
 

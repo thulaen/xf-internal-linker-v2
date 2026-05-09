@@ -136,5 +136,11 @@ backend/extensions/build_tests/CMakeCache.txt
 backend/extensions/build_tests/x64/
 backend/extensions/build_tests/*.dir/
 
+# `nul` is the Windows null device. Redirecting `> nul` on Git Bash for
+# Windows creates a real file instead of discarding output. Pre-empts a
+# class of stray artifact that's bitten this repo before.
+nul
+**/nul
+
 # mkcert localhost TLS certificates � never commit private keys
 nginx/certs/*.pem

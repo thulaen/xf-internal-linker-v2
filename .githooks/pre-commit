@@ -93,3 +93,11 @@ if [ -n "$STAGED_MIGRATIONS" ] && command -v python > /dev/null; then
   echo "→ Default-on rule (DEFAULT-ON-RULE.md)"
   python "$HOOK_DIR/check-default-on-rule.py" $STAGED_MIGRATIONS
 fi
+
+# 10. Registry-read marker enforcement. When AGENT-HANDOFF.md is touched,
+#     the new entry MUST contain `[REGISTRY READ: <N> open auto-issues ...
+#     — picked: #..., #...]` per the ABSOLUTE rule in CLAUDE.md.
+if command -v python > /dev/null; then
+  echo "→ Registry-read marker (CLAUDE.md ABSOLUTE rule)"
+  python "$HOOK_DIR/check-registry-read.py"
+fi

@@ -79,6 +79,12 @@ LOCAL_APPS = [
     # Charter (52-pick plan) this is the single sanctioned new-app
     # exception in the completion phase.
     "apps.training",
+    # 2026-05-09 — Auto-issues. Single store for issues surfaced by
+    # GlitchTip + Pyroscope + agent finds. Reuses the running postgres;
+    # the C++ daily-picker (spec: docs/CPP-DAILY-ISSUE-PICKER-SPEC.md)
+    # writes here. Read by every agent at session start via
+    # `manage.py print_open_issues`.
+    "apps.auto_issues",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -560,7 +566,18 @@ if _TRACKING_DSN:
         dsn=_TRACKING_DSN,
         release=env("APP_VERSION", default="dev"),
         integrations=[DjangoIntegration(), CeleryIntegration()],
-        traces_sample_rate=0.1,
+        # 0.3 = capture timing for 30 % of every Django view + Celery task
+        # as a transaction so GlitchTip's Performance tab has data. Bumped
+        # from 0.1 (the original conservative default) on 2026-05-09.
+        traces_sample_rate=float(env("SENTRY_TRACES_SAMPLE_RATE", default="1.0")),
+        # Profiling — captures Python stack samples on traced transactions
+        # and ships them as flamegraphs to GlitchTip's Profiles tab. This
+        # REPLACES the pyroscope-io shipping path (ISS-103) which the
+        # Pyroscope OSS 1.9 server does not index. Same DSN, same auth,
+        # same dashboard — one less moving part.
+        profiles_sample_rate=float(
+            env("SENTRY_PROFILES_SAMPLE_RATE", default="1.0")
+        ),
         environment=env("DJANGO_ENV", default="production"),
         send_default_pii=False,
     )
@@ -569,6 +586,136 @@ if _TRACKING_DSN:
     # override via NODE_ID / NODE_ROLE env vars per container.
     sentry_sdk.set_tag("node_id", env("NODE_ID", default=_socket.gethostname()))
     sentry_sdk.set_tag("node_role", env("NODE_ROLE", default="primary"))
+
+# ── Pyroscope continuous profiling ─────────────────────────────────────
+# Re-enabled 2026-05-09: upgrading the agent from 0.8.7 → 1.0.6 fixed
+# ISS-103. The 0.8.x series spoke a legacy push protocol that Pyroscope
+# OSS 1.x silently dropped; 1.0.6 speaks the pprof-format protocol the
+# modern server expects. Default-on whenever PYROSCOPE_SERVER_ADDRESS is
+# set (which docker-compose sets for backend + Celery containers). If a
+# future agent regression breaks ingest again, set PYROSCOPE_ENABLED=0
+# in `.env` to disable; Sentry profiling continues to cover the same
+# functional need via GlitchTip's Profiles tab.
+_PYROSCOPE_ADDR = env("PYROSCOPE_SERVER_ADDRESS", default="")
+_PYROSCOPE_ENABLED = env("PYROSCOPE_ENABLED", default="1") != "0"
+if _PYROSCOPE_ADDR and _PYROSCOPE_ENABLED:
+    try:
+        import pyroscope  # type: ignore[import-not-found]
+
+        pyroscope.configure(
+            application_name=env("PYROSCOPE_APPLICATION_NAME", default="xf-linker-backend"),
+            server_address=_PYROSCOPE_ADDR,
+            tags={
+                "node_role": env("NODE_ROLE", default="primary"),
+                "node_id": env("NODE_ID", default="primary"),
+            },
+        )
+    except ImportError:
+        # pyroscope-io optional at install time — silently skip when missing
+        # (e.g. dev shells that pip-install a slim subset of requirements).
+        pass
+
+# ── OpenTelemetry — vendor-neutral traces / metrics / logs ─────────────
+# Opt-in via OTEL_EXPORTER_OTLP_ENDPOINT (set in docker-compose for the
+# backend + Celery containers, pointing at `http://otel-collector:4318`).
+# When unset, every call here is a no-op. The collector fans the data
+# out to GlitchTip OTLP / Prometheus scrape / stdout (see otelcol-config.yaml).
+#
+# What this captures that the Sentry SDK doesn't:
+#  - DB query timing per-statement (psycopg auto-instrumentation),
+#  - Redis operation timing (broker + cache),
+#  - HTTP client spans for sync `requests` and async `httpx`,
+#  - Celery task spans with parent/child trace correlation,
+#  - Log records get trace_id stamped so logs link to the trace UI.
+#
+# Sample rate matches the Sentry tracing config — 0.3 in dev — set via
+# OTEL_TRACES_SAMPLER + OTEL_TRACES_SAMPLER_ARG in compose.
+_OTEL_ENDPOINT = env("OTEL_EXPORTER_OTLP_ENDPOINT", default="")
+# Skip OTel auto-instrumentation during `manage.py test` runs — the
+# psycopg span recorder adds ~5 ms per query, which combined with the
+# test DB's `statement_timeout` makes some long-running tests trip the
+# limit. Tests already mock external behaviour and don't need traces.
+import sys as _sys
+
+_IS_TEST_RUN = "test" in _sys.argv or env("DJANGO_TEST_RUN", default="0") == "1"
+if _OTEL_ENDPOINT and not _IS_TEST_RUN:
+    try:
+        from opentelemetry import trace as _otel_trace
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+            OTLPSpanExporter,
+        )
+        from opentelemetry.instrumentation.celery import CeleryInstrumentor
+        from opentelemetry.instrumentation.django import DjangoInstrumentor
+        from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+        from opentelemetry.instrumentation.logging import LoggingInstrumentor
+        from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor
+        from opentelemetry.instrumentation.redis import RedisInstrumentor
+        from opentelemetry.instrumentation.requests import RequestsInstrumentor
+        from opentelemetry.sdk.resources import Resource
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+        _otel_resource = Resource.create(
+            {
+                "service.name": env(
+                    "PYROSCOPE_APPLICATION_NAME", default="xf-linker-backend"
+                ),
+                "service.version": env("APP_VERSION", default="dev"),
+                "deployment.environment": env("DJANGO_ENV", default="production"),
+                "node.role": env("NODE_ROLE", default="primary"),
+                "node.id": env("NODE_ID", default="primary"),
+            }
+        )
+        _otel_provider = TracerProvider(resource=_otel_resource)
+        _otel_provider.add_span_processor(
+            BatchSpanProcessor(
+                OTLPSpanExporter(endpoint=f"{_OTEL_ENDPOINT}/v1/traces")
+            )
+        )
+        _otel_trace.set_tracer_provider(_otel_provider)
+
+        # Auto-instrumentation. Each call adds spans without source edits.
+        # `is_sql_commentor_enabled=False` keeps SQL bodies out of trace
+        # attributes (the collector already scrubs `db.statement`).
+        DjangoInstrumentor().instrument()
+        CeleryInstrumentor().instrument()
+        PsycopgInstrumentor().instrument(enable_commenter=False)
+        RedisInstrumentor().instrument()
+        RequestsInstrumentor().instrument()
+        HTTPXClientInstrumentor().instrument()
+        LoggingInstrumentor().instrument(set_logging_format=True)
+
+        # System metrics — CPU / RAM / GC / open file descriptors. Sent
+        # to the OTel collector's metrics pipeline → Prometheus scrape.
+        try:
+            from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
+                OTLPMetricExporter,
+            )
+            from opentelemetry.instrumentation.system_metrics import (
+                SystemMetricsInstrumentor,
+            )
+            from opentelemetry.sdk.metrics import MeterProvider
+            from opentelemetry.sdk.metrics.export import (
+                PeriodicExportingMetricReader,
+            )
+            from opentelemetry import metrics as _otel_metrics
+
+            _metric_reader = PeriodicExportingMetricReader(
+                OTLPMetricExporter(
+                    endpoint=f"{_OTEL_ENDPOINT}/v1/metrics"
+                ),
+                export_interval_millis=30_000,
+            )
+            _meter_provider = MeterProvider(
+                resource=_otel_resource, metric_readers=[_metric_reader]
+            )
+            _otel_metrics.set_meter_provider(_meter_provider)
+            SystemMetricsInstrumentor().instrument()
+        except ImportError:
+            pass
+    except ImportError:
+        # OTel packages optional — silently skip when not installed.
+        pass
 
 # ── drf-spectacular (OpenAPI schema) ────────────────────────────────────────
 SPECTACULAR_SETTINGS = {

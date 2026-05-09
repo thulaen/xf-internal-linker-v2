@@ -271,3 +271,67 @@ class GlitchtipSyncFingerprintTests(TestCase):
             row.fingerprint,
             _fallback_glitchtip_fingerprint(title, culprit),
         )
+
+    @mock.patch.dict(
+        os.environ,
+        {
+            "GLITCHTIP_API_URL": "http://glitchtip.local",
+            "GLITCHTIP_API_TOKEN": "token",
+            "GLITCHTIP_ORG_SLUG": "org",
+            "GLITCHTIP_PROJECT_SLUG": "proj",
+            "NODE_ID": "primary",
+            "NODE_ROLE": "primary",
+        },
+        clear=False,
+    )
+    @mock.patch("requests.get")
+    def test_sync_recovers_when_fingerprint_collides_with_internal_row(self, mock_get):
+        """GT issue's fingerprint matches an existing internal-source row.
+
+        Before the fix: `INSERT` raised IntegrityError on
+        `uniq_errorlog_fingerprint_per_node`. The whole sync transaction
+        would abort and the row never landed.
+
+        After the fix: the merge path stamps the new GT id onto the existing
+        internal row, so future syncs find it via the gtid lookup and skip
+        the collision path entirely. One row, two souls — same operator-
+        visible bug.
+        """
+        # Pre-seed an internal row with a known fingerprint.
+        existing = ErrorLog.objects.create(
+            source=ErrorLog.SOURCE_INTERNAL,
+            error_message="Already-captured internal failure",
+            fingerprint="collision-fp",
+            node_id="primary",
+            severity="high",
+            occurrence_count=1,
+        )
+        self.assertFalse(existing.glitchtip_issue_id)
+
+        # GT issue hashes to the same fingerprint.
+        mock_get.return_value = self._mock_response(
+            [
+                {
+                    "id": "gt-300",
+                    "status": "unresolved",
+                    "title": "GT-side title for the same root cause",
+                    "culprit": "shared.culprit",
+                    "count": 7,
+                    "level": "error",
+                    "fingerprint": ["collision-fp"],
+                    "tags": [],
+                },
+            ]
+        )
+
+        result = sync_glitchtip_issues()
+
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["created"], 0, "INSERT raised IntegrityError")
+        self.assertEqual(result["merged"], 1, "merged into the internal row")
+
+        # Still exactly one row; gtid is now stamped on it.
+        rows = ErrorLog.objects.filter(fingerprint="collision-fp")
+        self.assertEqual(rows.count(), 1)
+        existing.refresh_from_db()
+        self.assertEqual(existing.glitchtip_issue_id, "gt-300")

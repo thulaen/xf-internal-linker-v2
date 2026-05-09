@@ -24,6 +24,19 @@ from apps.pipeline.routing import websocket_urlpatterns as pipeline_ws  # noqa: 
 from apps.realtime.routing import websocket_urlpatterns as realtime_ws  # noqa: E402
 from config.websocket_token_auth import QueryStringTokenAuthMiddleware  # noqa: E402
 
+# OpenTelemetry ASGI middleware — wraps the HTTP app so every uvicorn
+# request becomes a trace span with method, route, status, latency, and
+# DB / Redis / outbound HTTP children. The DjangoInstrumentor in
+# `config.settings.base` produces sparse spans on uvicorn (ASGI) — this
+# wrapper fills the gap. No-op import if the package isn't installed
+# (test runners that skip the OTel deps still work).
+try:
+    from opentelemetry.instrumentation.asgi import OpenTelemetryMiddleware
+
+    django_asgi_app = OpenTelemetryMiddleware(django_asgi_app)
+except ImportError:
+    pass
+
 application = ProtocolTypeRouter(
     {
         "http": django_asgi_app,

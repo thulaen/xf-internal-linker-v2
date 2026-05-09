@@ -62,28 +62,46 @@ def run_cpp_benchmarks(run: BenchmarkRun) -> list[dict]:
 def _discover_cpp_benchmark_executables(build_dir: Path) -> list[Path]:
     """Return every executable bench_* file in *build_dir*.
 
-    Cross-OS: ``.exe`` on Windows, no extension on Linux/macOS. We
-    treat anything starting with ``bench_`` AND marked executable
-    (Linux executable bit OR ``.exe`` suffix) as a benchmark binary.
+    Cross-OS: ``.exe`` on Windows, no extension on Linux/macOS. The naive
+    "executable bit" probe does NOT work on Docker-for-Windows bind mounts:
+    every file appears as +x because Windows NTFS doesn't preserve mode
+    bits — `.exp`, `.lib`, `.obj`, even `.cpp` files would be passed to the
+    runner and fail with `OSError: Exec format error`. Instead we use a
+    positive allow-list of valid extensions and a deny-list of MSVC build
+    by-products.
     """
     import stat
+
+    # Anything that compiles or links produces these files alongside the
+    # binary; none of them are runnable benchmarks.
+    _MSVC_BYPRODUCT_SUFFIXES = {
+        ".exp", ".lib", ".obj", ".pdb", ".ilk", ".idb",
+        ".cpp", ".h", ".hpp", ".c", ".cc", ".o", ".d",
+    }
 
     found: list[Path] = []
     for path in sorted(build_dir.glob("bench_*")):
         if not path.is_file():
             continue
-        if path.suffix.lower() == ".exe":
+        suffix = path.suffix.lower()
+        if suffix in _MSVC_BYPRODUCT_SUFFIXES:
+            continue
+        if suffix == ".exe":
             found.append(path)
             continue
-        # Linux/macOS: no extension, must have the executable bit.
+        if suffix:
+            # Some other unexpected extension (.dll, .so, .dylib, etc.) —
+            # skip; only Windows .exe and bare-name Linux binaries are valid.
+            continue
+        # Linux/macOS: no extension, must have the executable bit. (Skipped
+        # on Windows bind mounts because mode bits are unreliable there;
+        # the suffix-empty path is unreachable on Windows anyway because
+        # MSVC always emits .exe.)
         try:
             mode = path.stat().st_mode
             if mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH):
                 found.append(path)
         except OSError:
-            # Permission error reading stat — skip silently; the
-            # warning above already noted "no benchmarks found" if all
-            # files end up filtered out.
             continue
     return found
 

@@ -1,0 +1,112 @@
+# OpenTelemetry Collector — receives OTLP from the Python SDK + Celery
+# workers, fans out to GlitchTip OTLP / Prometheus / stdout. Default-on
+# alongside Pyroscope and GlitchTip. See docker-compose.yml service
+# `otel-collector` and `docs/OBSERVABILITY-OPTIONS.md`.
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+  # Scrape the postgres-exporter container every 15 s. Output is added
+  # to the `metrics` pipeline so the existing Prometheus exporter on
+  # :8889 surfaces both app + DB metrics through one endpoint.
+  prometheus/postgres:
+    config:
+      scrape_configs:
+        - job_name: 'postgres-exporter'
+          scrape_interval: 15s
+          static_configs:
+            - targets: ['postgres-exporter:9187']
+
+  # Tail the nginx access log inside the running nginx container —
+  # the collector mounts /var/log/nginx via a shared volume below. Each
+  # log line becomes an OTel log record, parsed for status / route /
+  # latency. Goes through the existing logs pipeline.
+  filelog/nginx:
+    include:
+      - /var/log/nginx-shared/access.log
+    start_at: end
+    operators:
+      - type: regex_parser
+        regex: '^(?P<remote>\S+) - (?P<user>\S+) \[(?P<time>[^\]]+)\] "(?P<method>\S+) (?P<path>\S+) (?P<proto>[^"]+)" (?P<status>\d+) (?P<size>\d+)'
+        timestamp:
+          parse_from: attributes.time
+          layout: '%d/%b/%Y:%H:%M:%S %z'
+        severity:
+          parse_from: attributes.status
+          mapping:
+            error: 5xx
+            warn: 4xx
+            info: 3xx
+            debug: 2xx
+
+processors:
+  # Batch traces / metrics / logs before export. Reduces network chatter
+  # to GlitchTip's OTLP endpoint and keeps Prometheus scrapes coherent.
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+    send_batch_max_size: 1024
+
+  # Cap memory usage so a runaway trace storm can't OOM the collector.
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 75
+    spike_limit_percentage: 15
+
+  # Drop high-cardinality / sensitive attributes before export. Avoids
+  # leaking PII (auth tokens, sessions) into the trace store.
+  attributes/scrub:
+    actions:
+      - key: http.request.header.authorization
+        action: delete
+      - key: http.request.header.cookie
+        action: delete
+      - key: db.statement
+        action: delete   # SQL bodies — keep span name (db.operation) only.
+
+exporters:
+  # Traces → GlitchTip via the Sentry-format envelope endpoint. GlitchTip
+  # 6.x is Sentry-compatible (NOT OTLP-native), so we use the contrib
+  # `sentry` exporter that converts OTel spans into Sentry transactions
+  # and pushes them as envelopes to the project's DSN.
+  sentry:
+    dsn: http://2887afdd98bb447ba734ab8d653fee27@glitchtip:8000/1
+    environment: production
+    insecure_skip_verify: true
+
+  # Metrics → Prometheus scrape endpoint (host port 8889). Pull-based:
+  # `curl http://localhost:8889/metrics` returns the current snapshot.
+  # When/if Grafana lands later, point its Prometheus data source here.
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    namespace: xf_linker
+    send_timestamps: true
+    metric_expiration: 5m
+
+  # Logs → stdout for now. `docker compose logs otel-collector` shows
+  # them. When/if Loki lands, swap to `loki` exporter.
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, attributes/scrub, batch]
+      exporters: [sentry, debug]
+    metrics:
+      receivers: [otlp, prometheus/postgres]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus]
+    logs:
+      receivers: [otlp, filelog/nginx]
+      processors: [memory_limiter, attributes/scrub, batch]
+      exporters: [debug]
+  telemetry:
+    logs:
+      level: info

@@ -258,6 +258,7 @@ urlpatterns = [
     path("", include("apps.core.urls")),
     path("analytics/", include("apps.analytics.urls")),
     path("", include("apps.audit.urls")),
+    path("", include("apps.auto_issues.urls")),
     path("", include("apps.plugins.urls")),
     path("suggestions/", include("apps.suggestions.urls")),
     # Keep these ahead of the health viewset routes so "disk" and "gpu"

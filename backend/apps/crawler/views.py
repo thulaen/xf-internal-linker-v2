@@ -326,6 +326,13 @@ class SystemEventViewSet(ReadOnlyModelViewSet):
 
     serializer_class = SystemEventSerializer
     pagination_class = None
+    # `SystemEvent.event_id` is the primary key (UUIDField), not the
+    # default `id`. Without this, drf-spectacular emits W001:
+    # `could not derive type of path parameter "id" because model contained no such field`.
+    # Setting `lookup_field` explicitly resolves the warning AND gives the
+    # OpenAPI schema a typed UUID parameter instead of a generic string.
+    lookup_field = "event_id"
+    lookup_url_kwarg = "event_id"
 
     def get_queryset(self):
         qs = SystemEvent.objects.all()

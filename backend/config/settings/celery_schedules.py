@@ -139,13 +139,14 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=14, minute=0, day_of_week=1),
         "options": {"queue": "default"},
     },
-    # Phase GT Step 7 — GlitchTip issue sync every 30 minutes.
-    # Off-minute scheduling so multiple projects don't stampede the
-    # GlitchTip API at :00/:30. Expires at 29 min so a stuck run can't
-    # overlap the next one.
+    # Phase GT Step 7 — GlitchTip issue sync every 30 minutes during the
+    # active-laptop window (11:00–23:00 UTC). Outside that window the
+    # laptop is likely off, so a 30-min interval would just queue tasks
+    # that fire as a storm at next boot. Cron-based scheduling avoids
+    # that. Expires at 29 min so a stuck run can't overlap the next one.
     "glitchtip-issue-sync": {
         "task": "audit.sync_glitchtip_issues",
-        "schedule": 1800.0,
+        "schedule": crontab(hour="11-23", minute="0,30"),
         "options": {"queue": "default", "expires": 1700},
     },
     # OPT-84 — daily performance benchmarks: 14:15 UTC.
@@ -154,6 +155,92 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=14, minute=15),
         "kwargs": {"trigger": "scheduled"},
         "options": {"queue": "default"},
+    },
+    # Auto-issues daily picker chain (11:00 / 11:15 / 11:20 / 11:30 UTC).
+    # All inside the active-laptop window (11:00–23:00 UTC) per the
+    # operator's directive — the laptop is likely OFF outside that
+    # window, so cron firing at 04:00 just queues tasks that storm-fire
+    # at next boot. See docs/CPP-DAILY-ISSUE-PICKER-SPEC.md for math.
+    "auto-issues-glitchtip-pick": {
+        "task": "auto_issues.pick_daily_glitchtip_issues",
+        "schedule": crontab(hour=11, minute=0),
+        "options": {"queue": "default", "expires": 600},
+    },
+    "auto-issues-pyroscope-pick": {
+        "task": "auto_issues.pick_daily_pyroscope_regressions",
+        "schedule": crontab(hour=11, minute=15),
+        "options": {"queue": "default", "expires": 600},
+    },
+    "auto-issues-internal-pick": {
+        "task": "auto_issues.pick_daily_internal_issues",
+        "schedule": crontab(hour=11, minute=20),
+        "options": {"queue": "default", "expires": 600},
+    },
+    "auto-issues-slow-query-pick": {
+        "task": "auto_issues.pick_daily_slow_queries",
+        "schedule": crontab(hour=11, minute=25),
+        "options": {"queue": "default", "expires": 600},
+    },
+    "auto-issues-close-stale": {
+        "task": "auto_issues.close_stale_issues",
+        "schedule": crontab(hour=11, minute=30),
+        "options": {"queue": "default", "expires": 600},
+    },
+    # Gap-fillers wired 2026-05-09 — see docs/OBSERVABILITY-GAPS-EXTENSION.md.
+    # All cron times inside the active-laptop window (11:00–23:00 UTC).
+    "auto-issues-disk-pressure": {
+        # Every hour on :40 within the active window — catches disk-fill
+        # 5-23 hours BEFORE the wall.
+        "task": "auto_issues.pick_disk_pressure",
+        "schedule": crontab(hour="11-23", minute=40),
+        "options": {"queue": "default", "expires": 600},
+    },
+    "auto-issues-slo-probes": {
+        # Every 15 min within the active window — quick probes of all
+        # in-stack endpoints. ~10 s per run × 4 runs/h × 13 h = 520 s/day.
+        "task": "auto_issues.pick_slo_probes",
+        "schedule": crontab(hour="11-23", minute="0,15,30,45"),
+        "options": {"queue": "default", "expires": 300},
+    },
+    "auto-issues-missed-runs": {
+        # Daily 11:45 — surfaces JobAlert rows that aren't yet
+        # acknowledged into the same auto_issues feed.
+        "task": "auto_issues.pick_missed_runs",
+        "schedule": crontab(hour=11, minute=45),
+        "options": {"queue": "default", "expires": 600},
+    },
+    "auto-issues-deploy-check": {
+        # Weekly Tuesday 11:50 — Django `check --deploy` runs through
+        # the security-warning catalog.
+        "task": "auto_issues.pick_deploy_check_findings",
+        "schedule": crontab(hour=11, minute=50, day_of_week=2),
+        "options": {"queue": "default", "expires": 1800},
+    },
+    "auto-issues-output-quality": {
+        # Daily 11:55 — domain-specific data-quality probes
+        # (suggestion non-zero rate, page embedding coverage, etc).
+        "task": "auto_issues.pick_output_quality",
+        "schedule": crontab(hour=11, minute=55),
+        "options": {"queue": "default", "expires": 1200},
+    },
+    # 90-day retention cleanup — runs weekly Sunday 12:00 UTC inside the
+    # active-laptop window. Walks Pyroscope's /data, deletes blocks older
+    # than 90 days; deletes audit_errorlog rows older than 90 days;
+    # deletes resolved auto_issues older than 180 days. Weekly cadence
+    # keeps the cleanup cost bounded (~1-2 min per run vs daily noise).
+    "auto-issues-retention-cleanup": {
+        "task": "auto_issues.run_retention_cleanup",
+        "schedule": crontab(hour=12, minute=0, day_of_week=0),
+        "options": {"queue": "default", "expires": 3600},
+    },
+    # pip-audit dependency-CVE scan: weekly Monday 11:35 UTC. Inside the
+    # active-laptop window. Each CVE landed by `pick_pip_audit_findings`
+    # becomes one AutoIssue row, deduped across weeks via stable
+    # `(package, cve_id)` canonical fingerprint.
+    "auto-issues-pip-audit-pick": {
+        "task": "auto_issues.pick_weekly_pip_audit_findings",
+        "schedule": crontab(hour=11, minute=35, day_of_week=1),
+        "options": {"queue": "default", "expires": 1800},
     },
     # Crawler auto-prune: first Sunday 14:20 UTC.
     "crawler-auto-prune": {
@@ -349,13 +436,13 @@ CELERY_BEAT_SCHEDULE = {
         "options": {"queue": "default"},
     },
     # Phase 4.11 — Performance Certification recompute.
-    # Daily at 04:00 UTC: aggregate the latest completed BenchmarkRun
-    # into a pass/fail verdict for the dashboard. Cheap (~1-2 s); does
-    # NOT trigger a fresh benchmark run (that's a separate manual
-    # operator action). Storage: 2 AppSetting rows total.
+    # Daily at 11:00 UTC (was 04:00 — moved 2026-05-09 to the active-laptop
+    # window). Aggregates the latest completed BenchmarkRun into a
+    # pass/fail verdict for the dashboard. Cheap (~1-2 s); does NOT
+    # trigger a fresh benchmark run (separate manual operator action).
     "daily-performance-cert": {
         "task": "core.performance_cert_recompute",
-        "schedule": crontab(hour=4, minute=0),
+        "schedule": crontab(hour=11, minute=0),
         "options": {"queue": "default"},
     },
     # Sentient-schedules — every 10 minutes, the schedule_tracker scans for

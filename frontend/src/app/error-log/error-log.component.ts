@@ -16,6 +16,11 @@ import { VisibilityGateService } from '../core/util/visibility-gate.service';
 import { environment } from '../../environments/environment';
 import { GlitchtipService } from '../core/services/glitchtip.service';
 import {
+  AutoIssue,
+  AutoIssuesService,
+  ResyncResponse,
+} from '../core/services/auto-issues.service';
+import {
   DiagnosticsService,
   ErrorLogEntry,
 } from '../diagnostics/diagnostics.service';
@@ -27,6 +32,12 @@ import {
 
 const GLITCHTIP_TAB_INDEX = 1;
 const ALL_TAB_INDEX = 2;
+// New tabs added 2026-05-09: deduped cross-source registry view + a
+// Pyroscope dashboard launcher. AUTO_ISSUES is the canonical source of
+// truth for "what should I fix today" — every row is one root cause
+// regardless of how many sources observed it.
+const AUTO_ISSUES_TAB_INDEX = 3;
+const PYROSCOPE_TAB_INDEX = 4;
 const GLITCHTIP_POLL_MS = 30_000;
 
 @Component({
@@ -52,6 +63,7 @@ const GLITCHTIP_POLL_MS = 30_000;
 export class ErrorLogComponent implements OnInit {
   private readonly diagnostics = inject(DiagnosticsService);
   private readonly glitchtip = inject(GlitchtipService);
+  private readonly autoIssues = inject(AutoIssuesService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
   private readonly visibilityGate = inject(VisibilityGateService);
@@ -59,6 +71,12 @@ export class ErrorLogComponent implements OnInit {
   errors: ErrorLogEntry[] = [];
   glitchtipEvents: ErrorLogEntry[] = [];
   glitchtipLastSyncedAt: string | null = null;
+  autoIssuesOpen: AutoIssue[] = [];
+  autoIssuesResolved: AutoIssue[] = [];
+  autoIssuesLastSyncedAt: string | null = null;
+  resyncBusy = false;
+  flushBusy = false;
+  resyncStatus: string | null = null;
   loading = true;
   selectedTabIndex = 0;
 
@@ -66,7 +84,14 @@ export class ErrorLogComponent implements OnInit {
   filterAcknowledged = '';
 
   readonly glitchtipBaseUrl = environment.glitchtipBaseUrl;
+  // Pyroscope dashboard URL — same host-port pattern as GlitchTip's
+  // (localhost:4040). The frontend never queries Pyroscope's API
+  // directly; it just opens the dashboard in a new tab.
+  readonly pyroscopeBaseUrl = 'http://localhost:4040';
   readonly trackGroupFingerprint = trackGroupFingerprint;
+  readonly autoIssuesTabIndex = AUTO_ISSUES_TAB_INDEX;
+  readonly pyroscopeTabIndex = PYROSCOPE_TAB_INDEX;
+  readonly glitchtipTabIndex = GLITCHTIP_TAB_INDEX;
 
   ngOnInit(): void {
     this.loadErrors();
@@ -77,12 +102,89 @@ export class ErrorLogComponent implements OnInit {
     this.selectedTabIndex = index;
     if (index === GLITCHTIP_TAB_INDEX) {
       this.loadGlitchtipEvents();
+    } else if (index === AUTO_ISSUES_TAB_INDEX) {
+      this.loadAutoIssues();
     }
   }
 
   openGlitchtip(): void {
     if (!this.glitchtipBaseUrl) return;
     window.open(this.glitchtipBaseUrl, '_blank', 'noopener,noreferrer');
+  }
+
+  openPyroscope(): void {
+    window.open(this.pyroscopeBaseUrl, '_blank', 'noopener,noreferrer');
+  }
+
+  loadAutoIssues(): void {
+    this.autoIssues.list({ status: 'open' })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (page) => {
+          this.autoIssuesOpen = page.results;
+          this.autoIssuesLastSyncedAt = new Date().toISOString();
+          this.cdr.markForCheck();
+        },
+        error: (err) => console.warn('autoIssues open list failed', err),
+      });
+    this.autoIssues.list({ status: 'resolved' })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (page) => {
+          this.autoIssuesResolved = page.results;
+          this.cdr.markForCheck();
+        },
+        error: (err) => console.warn('autoIssues resolved list failed', err),
+      });
+  }
+
+  /** Resync button — fires all 3 pickers + GT mirror sync server-side. */
+  resync(): void {
+    this.resyncBusy = true;
+    this.resyncStatus = null;
+    this.cdr.markForCheck();
+    this.autoIssues.resync()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (resp: ResyncResponse) => {
+          this.resyncBusy = false;
+          this.resyncStatus = `Synced — ${resp.open_count} open issues now`;
+          this.loadAutoIssues();
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          this.resyncBusy = false;
+          this.resyncStatus = `Resync failed: ${err?.statusText || 'unknown'}`;
+          this.cdr.markForCheck();
+        },
+      });
+  }
+
+  /** Flush button — drops stale audit_errorlog rows older than 24h. */
+  flushCache(): void {
+    this.flushBusy = true;
+    this.resyncStatus = null;
+    this.cdr.markForCheck();
+    this.autoIssues.flushCache()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (resp) => {
+          this.flushBusy = false;
+          this.resyncStatus = `Flushed ${resp.flushed_rows} stale rows`;
+          this.loadAutoIssues();
+          this.loadGlitchtipEvents();
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          this.flushBusy = false;
+          this.resyncStatus = `Flush failed: ${err?.statusText || 'unknown'}`;
+          this.cdr.markForCheck();
+        },
+      });
+  }
+
+  trackAutoIssue(_index: number, item: AutoIssue): number {
+    return item.id;
   }
 
   loadGlitchtipEvents(): void {
@@ -178,7 +280,14 @@ export class ErrorLogComponent implements OnInit {
   }
 
   get showJobTypeAndStatusFilters(): boolean {
-    return this.selectedTabIndex !== GLITCHTIP_TAB_INDEX;
+    // Hide the job-type / acknowledged filters on tabs that don't show
+    // the underlying ErrorLog accordion (Glitchtip live view, Auto-Issues
+    // dedup view, Pyroscope launcher).
+    return (
+      this.selectedTabIndex !== GLITCHTIP_TAB_INDEX
+      && this.selectedTabIndex !== AUTO_ISSUES_TAB_INDEX
+      && this.selectedTabIndex !== PYROSCOPE_TAB_INDEX
+    );
   }
 
   acknowledgeError(error: ErrorLogEntry): void {

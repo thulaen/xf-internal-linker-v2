@@ -10,10 +10,10 @@ export const environment = {
   wsBaseUrl: `wss://${window.location.host}/ws`,
   appVersion: '2.0.0',
   glitchtipBaseUrl: `${window.location.protocol}//${window.location.hostname}:1337`,
-  // Phase GT Step 2 — Sentry/GlitchTip DSN. Set via build-time substitution
-  // or runtime config so prod builds don't need source edits. An empty
-  // string disables the SDK entirely (no init, no global ErrorHandler
-  // hook). For nginx-proxied deploys, a common pattern is to leave this
-  // as a placeholder and replace it in Docker entrypoint.
-  glitchtipDsn: '',
+  // Phase GT Step 2 — Sentry/GlitchTip DSN. The DSN is a public client
+  // identifier (NOT a secret) — Sentry intentionally embeds it in client-
+  // side JS. For this dev/local stack the DSN points at the host port
+  // (`localhost:1337`) because the browser runs on the host. For prod
+  // deploys, replace this string at build time with the production DSN.
+  glitchtipDsn: 'http://2887afdd98bb447ba734ab8d653fee27@localhost:1337/1',
 };
