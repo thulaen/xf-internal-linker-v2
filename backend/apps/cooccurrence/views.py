@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
+from typing import Any
 
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -330,8 +332,101 @@ class TriggerHubDetectionView(APIView):
 
 
 # ---------------------------------------------------------------------------
-# Co-occurrence settings
+# Co-occurrence settings — schema-driven persistence (extracted 2026-05-09)
 # ---------------------------------------------------------------------------
+#
+# `put` used to be a 77-line method with three nested closures
+# (``_persist_bool`` / ``_persist_int`` / ``_persist_float``) that captured
+# ``data`` and ``validation_errors`` via lexical scoping. Lifting the per-
+# field decision into a module-level pure validator makes the put method
+# short, the validator unit-testable in ``SimpleTestCase`` (no DB), and
+# ``_COOCCURRENCE_SETTING_SPECS`` the single source of truth for "which
+# fields are persistable, with what bounds." Pattern: Fowler 1999 —
+# Extract Method.
+
+
+@dataclass(frozen=True)
+class _SettingSpec:
+    """One persistable setting — its AppSetting key, request field name, and bounds."""
+
+    key: str
+    field: str
+    kind: str  # "bool" | "int" | "float"
+    bounds: tuple[float, float] | None = None  # required for int/float, None for bool
+
+
+_COOCCURRENCE_SETTING_SPECS: tuple[_SettingSpec, ...] = (
+    _SettingSpec("cooccurrence.enabled", "cooccurrence_enabled", "bool"),
+    _SettingSpec("cooccurrence.data_window_days", "data_window_days", "int", (7, 365)),
+    _SettingSpec(
+        "cooccurrence.min_co_session_count", "min_co_session_count", "int", (1, 1000)
+    ),
+    _SettingSpec("cooccurrence.min_jaccard", "min_jaccard", "float", (0.0, 1.0)),
+    _SettingSpec(
+        "cooccurrence.hub_min_jaccard", "hub_min_jaccard", "float", (0.0, 1.0)
+    ),
+    _SettingSpec("cooccurrence.hub_min_members", "hub_min_members", "int", (2, 100)),
+    _SettingSpec(
+        "cooccurrence.hub_detection_enabled", "hub_detection_enabled", "bool"
+    ),
+    _SettingSpec("cooccurrence.schedule_weekly", "schedule_weekly", "bool"),
+)
+
+
+def _coerce_setting_value(
+    spec: _SettingSpec, raw: Any
+) -> tuple[str | None, str | None]:
+    """Validate one raw request value against its spec.
+
+    Returns ``(db_value_string, error_message)`` — exactly one is non-None.
+    On success: ``(serialised_value, None)`` ready for ``AppSetting.value``.
+    On failure: ``(None, error_message)`` — surfaced to the operator as 400.
+    """
+    if spec.kind == "bool":
+        return ("true" if raw else "false"), None
+    if spec.kind == "int":
+        assert spec.bounds is not None
+        lo, hi = spec.bounds
+        parsed, err = parse_int_strict(
+            raw, field_name=spec.field, min_value=int(lo), max_value=int(hi)
+        )
+        return (None, err) if err else (str(parsed), None)
+    if spec.kind == "float":
+        assert spec.bounds is not None
+        lo, hi = spec.bounds
+        parsed, err = parse_float_strict(
+            raw, field_name=spec.field, min_value=lo, max_value=hi
+        )
+        return (None, err) if err else (str(parsed), None)
+    raise ValueError(f"Unknown setting kind: {spec.kind!r}")
+
+
+def _validate_cooccurrence_settings(
+    data,
+) -> tuple[list[tuple[str, str, str]], dict[str, str]]:
+    """Pure validator for the cooccurrence settings PUT body.
+
+    Returns ``(writes, errors)``:
+      * ``writes`` — list of ``(AppSetting.key, db_value, value_type)``
+        tuples ready to feed ``AppSetting.objects.update_or_create``.
+      * ``errors`` — ``{request_field_name: error_message}`` for fields
+        that failed validation.
+
+    Fields not in ``data`` (or set to ``None``) are skipped — preserves
+    the partial-PUT semantics of the original closure-based code.
+    """
+    writes: list[tuple[str, str, str]] = []
+    errors: dict[str, str] = {}
+    for spec in _COOCCURRENCE_SETTING_SPECS:
+        raw = data.get(spec.field)
+        if raw is None:
+            continue
+        db_value, err = _coerce_setting_value(spec, raw)
+        if err is not None:
+            errors[spec.field] = err
+        elif db_value is not None:
+            writes.append((spec.key, db_value, spec.kind))
+    return writes, errors
 
 
 class CoOccurrenceSettingsView(APIView):
@@ -348,71 +443,20 @@ class CoOccurrenceSettingsView(APIView):
     def put(self, request):
         from apps.core.models import AppSetting
 
-        data = request.data
-
-        def _persist_bool(key: str, field: str, default: bool) -> None:
-            val = data.get(field)
-            if val is None:
-                return
+        # Bug fix 2026-05-04 preserved (now in the pure validator): bad
+        # numeric input used to silently NOT persist while returning 200
+        # OK. The validator returns a per-field error map; we still
+        # partially persist the valid fields and surface the rejected
+        # ones as a 400 so the operator sees exactly which inputs were
+        # dropped.
+        writes, validation_errors = _validate_cooccurrence_settings(request.data)
+        for key, db_value, value_type in writes:
             AppSetting.objects.update_or_create(
                 key=key,
-                defaults={"value": "true" if val else "false", "value_type": "bool"},
+                defaults={"value": db_value, "value_type": value_type},
             )
-
-        # Bug fix 2026-05-04: previously bad numeric input on settings
-        # PUT silently did NOT persist, but returned 200 OK so the
-        # operator thought the setting saved when it didn't. Collect
-        # validation errors and surface them as a 400 below.
-        validation_errors: dict[str, str] = {}
-
-        def _persist_int(key: str, field: str, lo: int, hi: int) -> None:
-            val = data.get(field)
-            if val is None:
-                return
-            parsed, err = parse_int_strict(
-                val, field_name=field, min_value=lo, max_value=hi
-            )
-            if err:
-                validation_errors[field] = err
-                return
-            AppSetting.objects.update_or_create(
-                key=key,
-                defaults={"value": str(parsed), "value_type": "int"},
-            )
-
-        def _persist_float(key: str, field: str, lo: float, hi: float) -> None:
-            val = data.get(field)
-            if val is None:
-                return
-            parsed, err = parse_float_strict(
-                val, field_name=field, min_value=lo, max_value=hi
-            )
-            if err:
-                validation_errors[field] = err
-                return
-            AppSetting.objects.update_or_create(
-                key=key,
-                defaults={"value": str(parsed), "value_type": "float"},
-            )
-
-        _persist_bool("cooccurrence.enabled", "cooccurrence_enabled", True)
-        _persist_int("cooccurrence.data_window_days", "data_window_days", 7, 365)
-        _persist_int(
-            "cooccurrence.min_co_session_count", "min_co_session_count", 1, 1000
-        )
-        _persist_float("cooccurrence.min_jaccard", "min_jaccard", 0.0, 1.0)
-        _persist_float("cooccurrence.hub_min_jaccard", "hub_min_jaccard", 0.0, 1.0)
-        _persist_int("cooccurrence.hub_min_members", "hub_min_members", 2, 100)
-        _persist_bool(
-            "cooccurrence.hub_detection_enabled", "hub_detection_enabled", True
-        )
-        _persist_bool("cooccurrence.schedule_weekly", "schedule_weekly", True)
 
         if validation_errors:
-            # Some fields persisted, some failed validation. Return 400
-            # so the operator sees which inputs were rejected; the saved
-            # ones are reflected in the response body so the UI can
-            # update partially-applied state.
             return Response(
                 {
                     "detail": "Some fields could not be saved.",

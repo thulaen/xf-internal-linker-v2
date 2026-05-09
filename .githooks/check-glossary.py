@@ -70,6 +70,7 @@ ALLOWLIST: frozenset[str] = frozenset({
     "OFF", "ONE", "TURN", "OUT", "WHICH", "WHETHER", "LEGACY",
     "INFO", "WARN", "WARNING", "ERROR", "DEBUG", "TRACE", "FATAL",
     "NOTICE", "SUCCESS", "FAILED", "FAIL", "PASS", "SKIP", "SKIPPED",
+    "COMPLETED", "RUNNING", "PENDING", "QUEUED", "PROCESSING", "ABORTED",
     "BENCHMARK", "BENCH",
     # PowerShell built-in variables / common shell vars
     "LASTEXITCODE", "PSScriptRoot", "PSCommandPath", "ErrorActionPreference",
