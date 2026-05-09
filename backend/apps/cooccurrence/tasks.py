@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from celery import shared_task
 
+from apps.core.helpers import HelperConstraint
 from apps.pipeline.decorators import with_weight_lock
 
 logger = logging.getLogger(__name__)
@@ -192,6 +193,13 @@ def _finalize_failed_run(run, exc: Exception) -> dict:
     time_limit=3600,
     soft_time_limit=3540,
 )
+@HelperConstraint(
+    cpu_intensive=True,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=1800,
+)
 @with_weight_lock("medium")
 def compute_session_cooccurrence(self) -> dict:
     """Fetch GA4 session data, build the co-occurrence matrix, chain hub
@@ -232,6 +240,13 @@ def compute_session_cooccurrence(self) -> dict:
 
 @shared_task(
     name="cooccurrence.detect_behavioral_hubs", time_limit=1800, soft_time_limit=1740
+)
+@HelperConstraint(
+    cpu_intensive=True,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=600,
 )
 def detect_behavioral_hubs() -> dict:
     """Run hub detection from existing co-occurrence data."""
@@ -276,6 +291,13 @@ def _score_suggestions_for_run(suggestions, settings, site_max_jaccard):
 
 @shared_task(
     name="cooccurrence.apply_value_model_scores", time_limit=1800, soft_time_limit=1740
+)
+@HelperConstraint(
+    cpu_intensive=True,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=600,
 )
 def apply_value_model_scores(run_id: str) -> dict:
     """Compute score_value_model and value_model_diagnostics for all suggestions in a run.

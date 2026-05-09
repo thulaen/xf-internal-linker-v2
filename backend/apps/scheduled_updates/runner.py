@@ -34,6 +34,8 @@ from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
 
+from apps.core.helpers import HelperConstraint
+
 from .alerts import (
     detect_missed_jobs,
     raise_alert,
@@ -268,6 +270,12 @@ def _execute_job(job: ScheduledJob, definition: JobDefinition) -> str:
 
 
 @shared_task(name="scheduled_updates.run_next_scheduled_job")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def run_next_scheduled_job() -> dict:
     """Beat-fired runner — starts at most one ScheduledJob per invocation.
 

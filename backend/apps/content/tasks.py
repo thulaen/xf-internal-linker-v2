@@ -3,6 +3,7 @@
 from celery import shared_task
 import logging
 from apps.content.services.clustering import ClusteringService
+from apps.core.helpers import HelperConstraint
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,12 @@ logger = logging.getLogger(__name__)
     autoretry_for=(Exception,),
     max_retries=3,
     retry_backoff=True,
+)
+@HelperConstraint(
+    cpu_intensive=True,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
 )
 def cluster_items(item_ids: list[int]) -> dict:
     """Trigger clustering logic for a batch of recently imported/updated items."""

@@ -22,10 +22,18 @@ import logging
 
 from celery import shared_task
 
+from apps.core.helpers import HelperConstraint
+
 logger = logging.getLogger(__name__)
 
 
 @shared_task(name="core.refresh_dashboard_matviews", time_limit=120, soft_time_limit=90)
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def refresh_dashboard_matviews() -> dict[str, bool]:
     """Refresh every dashboard materialised view.
 

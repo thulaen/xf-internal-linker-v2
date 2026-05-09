@@ -5,10 +5,19 @@ import logging
 from celery import shared_task
 from django.utils import timezone
 
+from apps.core.helpers import HelperConstraint
+
 logger = logging.getLogger(__name__)
 
 
 @shared_task(time_limit=1800, soft_time_limit=1700)
+@HelperConstraint(
+    cpu_intensive=True,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=600,
+)
 def run_all_benchmarks(run_id: int | None = None, trigger: str = "scheduled"):
     """Execute all benchmarks (C++ and Python) and store results."""
     from .models import BenchmarkResult, BenchmarkRun

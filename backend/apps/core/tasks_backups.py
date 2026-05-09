@@ -22,6 +22,8 @@ import traceback
 
 from celery import shared_task
 
+from apps.core.helpers import HelperConstraint
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,6 +31,13 @@ logger = logging.getLogger(__name__)
     name="core.create_database_snapshot",
     time_limit=2400,
     soft_time_limit=2300,
+)
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=300,
 )
 def create_database_snapshot() -> dict:
     """Run one daily backup pass. Returns a dict summary for telemetry.

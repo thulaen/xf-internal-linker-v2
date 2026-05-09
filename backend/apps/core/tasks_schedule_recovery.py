@@ -12,6 +12,8 @@ import logging
 
 from celery import shared_task
 
+from apps.core.helpers import HelperConstraint
+
 logger = logging.getLogger(__name__)
 
 
@@ -19,6 +21,12 @@ logger = logging.getLogger(__name__)
     name="core.schedule_tracker_recovery_tick",
     time_limit=180,
     soft_time_limit=120,
+)
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
 )
 def schedule_tracker_recovery_tick() -> dict:
     """Run the missed-schedule recovery sweep."""

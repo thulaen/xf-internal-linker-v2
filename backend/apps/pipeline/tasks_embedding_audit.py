@@ -14,6 +14,8 @@ from datetime import timedelta
 from celery import shared_task
 from django.utils import timezone
 
+from apps.core.helpers import HelperConstraint
+
 logger = logging.getLogger(__name__)
 
 
@@ -24,6 +26,12 @@ logger = logging.getLogger(__name__)
     soft_time_limit=60 * 60,  # 1h soft
     time_limit=60 * 60 + 300,  # hard + 5m grace
     max_retries=0,
+)
+@HelperConstraint(
+    gpu_required=True,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=4000,
+    expected_seconds_p50=1800,
 )
 def embedding_accuracy_audit(self, *, fortnightly: bool = True, force: bool = False):
     """Scan + flag + re-embed drifted ContentItem vectors.

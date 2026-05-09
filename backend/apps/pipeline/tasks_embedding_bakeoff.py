@@ -18,6 +18,8 @@ import logging
 
 from celery import shared_task
 
+from apps.core.helpers import HelperConstraint
+
 logger = logging.getLogger(__name__)
 
 
@@ -28,6 +30,12 @@ logger = logging.getLogger(__name__)
     soft_time_limit=60 * 60,
     time_limit=60 * 60 + 300,
     max_retries=0,
+)
+@HelperConstraint(
+    gpu_required=True,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=4000,
+    expected_seconds_p50=1800,
 )
 def embedding_provider_bakeoff(
     self, *, sample_size: int | None = None, providers: list[str] | None = None

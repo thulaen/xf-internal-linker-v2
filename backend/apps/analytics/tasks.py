@@ -8,6 +8,7 @@ from celery import shared_task
 from django.utils import timezone
 
 from apps.api.query_params import coerce_int
+from apps.core.helpers import HelperConstraint
 
 from .models import AnalyticsSyncRun
 from .sync import run_ga4_sync, run_matomo_sync, run_gsc_sync
@@ -39,6 +40,13 @@ def _queue_scheduled_sync(
     name="analytics.sync_matomo_telemetry",
     time_limit=600,
     soft_time_limit=540,
+)
+@HelperConstraint(
+    cpu_intensive=True,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=300,
 )
 def sync_matomo_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
     sync_run = _load_sync_run(sync_run_id)
@@ -77,6 +85,13 @@ def sync_matomo_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
 
 @shared_task(
     bind=True, name="analytics.sync_ga4_telemetry", time_limit=600, soft_time_limit=540
+)
+@HelperConstraint(
+    cpu_intensive=True,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=300,
 )
 def sync_ga4_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
     sync_run = _load_sync_run(sync_run_id)
@@ -118,6 +133,13 @@ def sync_ga4_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
     name="analytics.sync_gsc_performance",
     time_limit=600,
     soft_time_limit=540,
+)
+@HelperConstraint(
+    cpu_intensive=True,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=300,
 )
 def sync_gsc_performance(self, sync_run_id: int) -> dict[str, int | str]:
     sync_run = _load_sync_run(sync_run_id)
@@ -163,6 +185,12 @@ def sync_gsc_performance(self, sync_run_id: int) -> dict[str, int | str]:
 
 
 @shared_task(name="analytics.schedule_ga4_telemetry_hourly")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def schedule_ga4_telemetry_hourly() -> dict[str, int | str]:
     return _queue_scheduled_sync(
         source="ga4",
@@ -172,6 +200,12 @@ def schedule_ga4_telemetry_hourly() -> dict[str, int | str]:
 
 
 @shared_task(name="analytics.schedule_ga4_telemetry_daily")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def schedule_ga4_telemetry_daily() -> dict[str, int | str]:
     return _queue_scheduled_sync(
         source="ga4",
@@ -181,6 +215,12 @@ def schedule_ga4_telemetry_daily() -> dict[str, int | str]:
 
 
 @shared_task(name="analytics.schedule_matomo_telemetry_hourly")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def schedule_matomo_telemetry_hourly() -> dict[str, int | str]:
     return _queue_scheduled_sync(
         source="matomo",
@@ -190,6 +230,12 @@ def schedule_matomo_telemetry_hourly() -> dict[str, int | str]:
 
 
 @shared_task(name="analytics.schedule_matomo_telemetry_daily")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def schedule_matomo_telemetry_daily() -> dict[str, int | str]:
     return _queue_scheduled_sync(
         source="matomo",
@@ -199,6 +245,12 @@ def schedule_matomo_telemetry_daily() -> dict[str, int | str]:
 
 
 @shared_task(name="analytics.schedule_gsc_performance_daily")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def schedule_gsc_performance_daily() -> dict[str, int | str]:
     from .views import get_gsc_settings
 
@@ -226,6 +278,13 @@ def schedule_gsc_performance_daily() -> dict[str, int | str]:
     time_limit=1800,
     soft_time_limit=1740,
 )
+@HelperConstraint(
+    cpu_intensive=True,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=600,
+)
 def refresh_gsc_query_tfidf(self, lookback_days: int = 90) -> dict[str, int]:
     """FR-105 RSQVA — recompute per-page GSC query TF-IDF vectors.
 
@@ -248,6 +307,13 @@ def refresh_gsc_query_tfidf(self, lookback_days: int = 90) -> dict[str, int]:
 @shared_task(
     name="analytics.recompute_all_search_impact", time_limit=1800, soft_time_limit=1740
 )
+@HelperConstraint(
+    cpu_intensive=True,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=600,
+)
 def recompute_all_search_impact() -> dict[str, int]:
     """Recompute search impact for all applied suggestions."""
     from apps.suggestions.models import Suggestion
@@ -264,6 +330,12 @@ def recompute_all_search_impact() -> dict[str, int]:
 
 @shared_task(
     name="analytics.detect_traffic_spikes", time_limit=600, soft_time_limit=540
+)
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
 )
 def detect_traffic_spikes() -> dict[str, int]:
     """

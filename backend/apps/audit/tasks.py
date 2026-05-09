@@ -15,6 +15,7 @@ from celery import shared_task
 from django.utils import timezone
 
 from apps.api.query_params import coerce_int
+from apps.core.helpers import HelperConstraint
 
 logger = logging.getLogger(__name__)
 
@@ -262,6 +263,13 @@ def _sync_one_glitchtip_issue(
 
 
 @shared_task(name="audit.compute_weekly_reviewer_scorecard")
+@HelperConstraint(
+    cpu_intensive=True,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=300,
+)
 def compute_weekly_reviewer_scorecard():
     """Compute ReviewerScorecard for the previous calendar week. Runs Monday 03:00 UTC."""
     from apps.audit.models import AuditEntry, ReviewerScorecard
@@ -324,6 +332,12 @@ def compute_weekly_reviewer_scorecard():
 
 
 @shared_task(name="audit.sync_glitchtip_issues")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def sync_glitchtip_issues():
     """Pull open GlitchTip issues and mirror them into ErrorLog for operator triage.
 

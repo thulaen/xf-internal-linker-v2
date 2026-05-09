@@ -122,6 +122,9 @@ When you must mention a technical concept, use the plain-English version from th
 | the cross-platform Unix-family filesystem standard — `os.replace()` is atomic on POSIX systems and on Windows, which is why the Parquet writer uses it to swap a `.tmp` file onto the live snapshot path without ever leaving a half-written file | POSIX |
 | Django's automatic test mode — switched on when the project is run via `manage.py test` or pytest; the codebase reads it through `sys.argv` inspection because Django doesn't set a single `settings.TESTING` flag | TESTING / Django test runner |
 | the two-character end-of-line sequence `\r\n` (carriage return then newline) — the line terminator the standard CSV format requires; the project's CSV exports emit CRLF so Excel and other tools parse them without complaint | CRLF / carriage return + line feed |
+| NVIDIA's GPU compute platform — the toolkit and drivers that let Python (via PyTorch) push embedding work onto a graphics card. A task marked `gpu_required=True` only runs on a machine where CUDA is installed and a graphics card is detected | CUDA |
+| Server Message Block — the file-sharing protocol Windows uses for shared folders over the network. Phase 4.9's helper PCs can mount an SMB share so the main PC reads the helper's outputs back without copying files manually | SMB / Server Message Block |
+| Phase 4.9's task-resource decorator — a small piece of metadata attached to each Celery background job (CPU yes/no, GPU yes/no, RAM peak, where it writes its results) that the helper-PC router reads to decide whether to run the task on the main PC or hand it off to a secondary "helper" PC. See `docs/HELPER-CONSTRAINT-RUBRIC.md` for value-picking guidance | @HelperConstraint / HelperConstraint / HELPER-CONSTRAINT-RUBRIC |
 
 If a term you need is not in this table, define it yourself in parentheses the first time you use it.
 

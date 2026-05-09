@@ -11,6 +11,8 @@ from celery import shared_task
 from django.db import connection
 from django.utils import timezone
 
+from apps.core.helpers import HelperConstraint
+
 logger = logging.getLogger(__name__)
 
 _MAX_ERROR_LEN = 200  # max chars kept from exception messages
@@ -26,6 +28,12 @@ _MS_PER_SEC = 1000.0  # millisecond conversion factor
     time_limit=30,
     soft_time_limit=20,
     ignore_result=True,
+)
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
 )
 def pulse_heartbeat():
     """
@@ -139,6 +147,12 @@ def pulse_heartbeat():
     soft_time_limit=20,
     ignore_result=True,
 )
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def watchdog_check():
     """
     Check for stuck sync jobs and crawler sessions.
@@ -221,6 +235,13 @@ def watchdog_check():
     soft_time_limit=540,
     ignore_result=True,
 )
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=120,
+)
 def auto_prune():
     """
     Self-pruning to save disk.  Runs every 4 weeks.
@@ -296,6 +317,13 @@ def auto_prune():
     time_limit=14400,
     soft_time_limit=14000,
     ignore_result=True,
+)
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+    expected_seconds_p50=3600,
 )
 def orchestrate_full_run():
     """
@@ -405,6 +433,13 @@ def orchestrate_full_run():
     time_limit=14400,
     soft_time_limit=14000,
     ignore_result=True,
+)
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=1800,
 )
 def run_crawl_session(session_id: str):
     from apps.crawler.services.site_crawler import run_crawl_session_sync

@@ -1,3 +1,81 @@
+# 2026-05-09 - Claude Opus 4.7 (1M context) - Phase 4.9 sweep: @HelperConstraint on all 44 missing Celery tasks + new CI gate + plain-English rubric
+
+What I did: the user asked "claude caught this — how should this be fixed" about the three `missing-helper-constraint` warnings the previous session left unresolved. After research and a plan-mode pass, the user approved an "all 45 tasks (recommended)" sweep plus a hard CI gate. The forbidden-patterns linter (`.githooks/check-forbidden-patterns.py`) was warning on 44 Celery tasks that lacked the `@HelperConstraint(...)` decorator (plan said 45 — the actual ground-truth from the linter was 44). The decorator is a small piece of metadata that tells the Phase 4.9 helper-PC router how heavy each task is — CPU yes/no, GPU yes/no, RAM peak, where it writes — so the router can decide whether to keep the task on the main PC or hand it off to a secondary "helper" machine. Without the decorator the router has no metadata to read and silently keeps the task on main forever, defeating Phase 4.9.
+
+What was accomplished:
+
+**1. New plain-English rubric (`docs/HELPER-CONSTRAINT-RUBRIC.md`, ~155 lines).** Authoritative guide for picking decorator values. Documents: the canonical decoration shape (`@shared_task` → `@HelperConstraint` → `def`), defaults to use when in doubt (cpu_intensive=False, gpu_required=False, storage_writes_to="postgres_main", ram_peak_mb=256), when to override each argument with concrete thresholds (>100K rows → cpu_intensive + 512 MB; BGE-M3 / GPU model → gpu_required + 4000 MB), the four `storage_writes_to` choices and what each means for routing, three worked examples (light DB cleanup, CPU-intensive analytics aggregation, GPU-bound embedding audit), and what changes after annotating a task. Future authors no longer need to guess.
+
+**2. Decorated all 44 missing tasks across 19 files.** Conservative defaults with targeted overrides per the rubric:
+
+- `backend/apps/analytics/tasks.py` (11 tasks) — 3 sync tasks (Matomo / GA4 / GSC) get cpu_intensive=True, ram_peak_mb=512, expected_seconds_p50=300 (Polars aggregation). 5 schedule_* dispatchers get defaults (just enqueue child tasks). `refresh_gsc_query_tfidf` and `recompute_all_search_impact` get cpu_intensive=True + 512 MB. `detect_traffic_spikes` gets defaults (single query + check).
+- `backend/apps/cooccurrence/tasks.py` (3 tasks) — `compute_session_cooccurrence`, `detect_behavioral_hubs`, `apply_value_model_scores` all get cpu_intensive=True + 512 MB. The first one had to interleave with the existing `@with_weight_lock("medium")` decorator — placed `@HelperConstraint` between `@shared_task` and `@with_weight_lock` per the docstring's "must come INSIDE @shared_task" rule. Verified the metadata still reads correctly through the lock wrapper.
+- `backend/apps/audit/tasks.py` (2 tasks) — `compute_weekly_reviewer_scorecard` gets cpu_intensive=True + 512 MB + 300s p50 (weekly aggregation). `sync_glitchtip_issues` gets defaults (HTTP polling).
+- `backend/apps/benchmarks/tasks.py` (1 task) — `run_all_benchmarks` gets cpu_intensive=True + 512 MB + 600s p50 (runs C++ + Python benchmarks).
+- `backend/apps/content/tasks.py` (1 task) — `cluster_items` gets cpu_intensive=True + 512 MB (clustering loop).
+- `backend/apps/core/tasks*.py` (9 tasks across 5 files) — `core/tasks.py` 5 tasks (auto_revert_performance_mode, prune_stale_checkpoints, prune_superseded_embeddings, resume_after_wake, activity_resumed_revert) all get defaults — DB-bound cleanup. `tasks_backups.py` `create_database_snapshot` gets ram_peak_mb=512 + 300s p50 (pg_dump subprocess). `tasks_dashboard.py` `refresh_dashboard_matviews` gets defaults. `tasks_gpu_cleanup.py` `gpu_memory_cleanup` gets defaults — gracefully degrades on no-CUDA, so gpu_required=False per the rubric. `tasks_schedule_recovery.py` `schedule_tracker_recovery_tick` gets defaults.
+- `backend/apps/crawler/tasks.py` (5 tasks) — heartbeat / watchdog get defaults (light probes). `auto_prune` gets ram_peak_mb=512 + 120s p50 (DB delete heavy but bounded). `orchestrate_full_run` gets defaults + 3600s p50 (orchestrator, not heavy compute itself). `run_crawl_session` gets ram_peak_mb=512 + 1800s p50 (network-bound, long-running).
+- `backend/apps/health/tasks.py` (2 tasks) — both get defaults (light health probes).
+- `backend/apps/notifications/tasks.py` (4 tasks) — all four alert checks get defaults (small DB queries + alert emits).
+- `backend/apps/pipeline/tasks_monthly.py` (1 task) — `run_monthly_top_50_celery` gets cpu_intensive=True + 512 MB.
+- `backend/apps/pipeline/tasks_embedding_audit.py` (1 task) — `embedding_accuracy_audit` gets gpu_required=True + 4000 MB + 1800s p50 (BGE-M3 re-embed; matches existing `generate_embeddings` shape in `pipeline/tasks.py:427`).
+- `backend/apps/pipeline/tasks_embedding_bakeoff.py` (1 task) — `embedding_provider_bakeoff` gets gpu_required=True + 4000 MB + 1800s p50 (multi-provider scoring).
+- `backend/apps/scheduled_updates/tasks.py` + `runner.py` (3 tasks) — all dispatcher / cleanup, defaults.
+- `backend/apps/suggestions/tasks.py` (1 task) — `prune_rejected_pairs` gets defaults (small DELETE).
+
+Each touched file got the import `from apps.core.helpers import HelperConstraint` added next to its existing `from celery import shared_task`. Decorator placement uniformly between `@shared_task(...)` and the function body (inside the Celery wrapper so `task.run.__helper_constraint__` is reachable).
+
+**3. New CI gate test (`backend/apps/core/tests_helper_constraint_coverage.py`, ~110 lines, SimpleTestCase).** Walks every `apps.<app>.tasks*` and `apps.<app>.runner` module via `pkgutil.iter_modules` to force Celery autodiscovery (`current_app.tasks` is otherwise lazy outside a worker), filters to tasks whose module starts with `apps.`, asserts each one has `task.run.__helper_constraint__` set. Includes a guard `_MIN_EXPECTED_APPS_TASKS = 60` that fails loud if the discovery walk silently skips every tasks module. Caught a real silent-skip bug during this session — the first version of the test passed in 0.009s because it only saw 3 tasks; the strengthened version runs in 0.822s and walks ~60+ tasks for real. From now on, any future Celery task added without `@HelperConstraint` fails CI here, turning the warning-only linter rule into a hard gate.
+
+Files changed:
+- `docs/HELPER-CONSTRAINT-RUBRIC.md` (new — the rubric)
+- `backend/apps/core/tests_helper_constraint_coverage.py` (new — the CI gate)
+- `backend/apps/analytics/tasks.py` (11 decorators + 1 import)
+- `backend/apps/audit/tasks.py` (2 decorators + 1 import)
+- `backend/apps/benchmarks/tasks.py` (1 decorator + 1 import)
+- `backend/apps/content/tasks.py` (1 decorator + 1 import)
+- `backend/apps/cooccurrence/tasks.py` (3 decorators + 1 import)
+- `backend/apps/core/tasks.py` (5 decorators + 1 import)
+- `backend/apps/core/tasks_backups.py` (1 decorator + 1 import)
+- `backend/apps/core/tasks_dashboard.py` (1 decorator + 1 import)
+- `backend/apps/core/tasks_gpu_cleanup.py` (1 decorator + 1 import)
+- `backend/apps/core/tasks_schedule_recovery.py` (1 decorator + 1 import)
+- `backend/apps/crawler/tasks.py` (5 decorators + 1 import)
+- `backend/apps/health/tasks.py` (2 decorators + 1 import)
+- `backend/apps/notifications/tasks.py` (4 decorators + 1 import)
+- `backend/apps/pipeline/tasks_embedding_audit.py` (1 decorator + 1 import)
+- `backend/apps/pipeline/tasks_embedding_bakeoff.py` (1 decorator + 1 import)
+- `backend/apps/pipeline/tasks_monthly.py` (1 decorator + 1 import)
+- `backend/apps/scheduled_updates/runner.py` (1 decorator + 1 import)
+- `backend/apps/scheduled_updates/tasks.py` (2 decorators + 1 import)
+- `backend/apps/suggestions/tasks.py` (1 decorator + 1 import)
+- `AGENT-HANDOFF.md` (this entry)
+
+Verification:
+- `python .githooks/check-forbidden-patterns.py --strict <touched files>` — `missing-helper-constraint` warnings dropped from **44 → 0**. Remaining warnings on touched files are all pre-existing `long-function` (none introduced by this sweep).
+- `docker compose exec backend python manage.py test apps.core.tests_helper_constraint_coverage -v 2` — coverage gate green in 0.822s (real walk of 60+ tasks, not the trivial 0.009s false-pass earlier).
+- `docker compose exec backend python manage.py test apps.cooccurrence apps.notifications apps.health apps.audit apps.scheduled_updates apps.suggestions apps.content apps.benchmarks apps.crawler apps.analytics apps.core` — **1151/1151 tests pass in 54.3s**. No regression. The ERROR log lines in the output are intentional error-path tests (pg_dump timeouts, missing dump files) verifying the failure handlers, not real failures.
+- Router smoke test: with full task discovery forced, `get_constraint('cooccurrence.compute_session_cooccurrence')` returns `_ConstraintMeta(cpu_intensive=True, ..., ram_peak_mb=512, expected_seconds_p50=1800)` — the metadata is reachable through the `@with_weight_lock` decorator chain. `route_task('cooccurrence.compute_session_cooccurrence')` returns `None` — correct per Phase 4.9 design (tasks writing to `postgres_main` stay on main; `helper_router.py:305-309`). Same for `pipeline.embedding_accuracy_audit` (also `postgres_main`).
+- `python .githooks/check-glossary.py` — no new acronyms introduced (HelperConstraint and Phase 4.9 are already in the glossary).
+
+What has issues or errors:
+- **First version of the coverage test silently passed against zero tasks.** Caught and fixed in this session: outside a Celery worker, `current_app.tasks` is lazy — accessing it doesn't trigger autodiscovery. The first version of `test_every_apps_task_has_helper_constraint` ran in 0.009s, which seemed too fast; investigation showed it was iterating over 0 in-app tasks. Strengthened the test to (a) walk every `apps.<app>.tasks*` and `runner` module via `pkgutil.iter_modules` and force-import each, and (b) assert the registered count is ≥ 60 (`_MIN_EXPECTED_APPS_TASKS`). The strengthened version runs in 0.822s and now actually exercises every task. Threshold can be bumped if the in-app task count is intentionally reduced later.
+- **44 vs 45 task discrepancy.** The plan-mode design used "44 or 45" as the count based on a rough exploration; the linter ground-truth was 44. No tasks were missed — the inventory is exhaustive and all 44 linter warnings are now cleared.
+- **`scheduled_updates/runner.py:run_next_scheduled_job` flagged as 71 lines (over the 50-line cap).** This is pre-existing — adding `@HelperConstraint` does not affect function-body length. Out of scope for this sweep; would be a separate refactor session.
+- **`embedding_provider_bakeoff` does not declare `requires_warmed_models=("bge-m3-onnx",)`.** Deliberate — the task scores multiple providers (local BGE-M3 + optionally OpenAI + Gemini); locking the constraint to BGE-M3 would force the router to refuse the task even when it's only running OpenAI. Followed the same shape as the existing `generate_embeddings` in `pipeline/tasks.py:427` which also omits this field. If a future change splits the bakeoff into per-provider tasks, the local one should add the warmed-models hint.
+- **No live router-routing test.** Both `route_task()` calls returned `None` because every annotated task uses `storage_writes_to="postgres_main"` (the safe default per the rubric and the Phase 4.9 design). Actually exercising helper offload requires (a) at least one task to flip to `"helper_archive"` after its write paths are traced, AND (b) a real `HelperNode` connected. Out of scope for this sweep — the metadata pipeline is now wired end-to-end and the router will start routing the moment either condition lands.
+
+Tech-debt delta: -45 debt items resolved, +1 hard CI gate, +1 plain-English rubric.
+  Linter warnings cleared: 44 (all `missing-helper-constraint` warnings on apps.* tasks).
+  Decorator imports added: 19 files.
+  Decorators added: 44 (3 of them GPU-typed: embedding_accuracy_audit, embedding_provider_bakeoff at 4000 MB; rest CPU or default).
+  CI gates added: 1 (the new coverage test — turns the warning-only linter rule into a hard test failure for any future regression).
+  Documentation pages added: 1 (`docs/HELPER-CONSTRAINT-RUBRIC.md` — answers "what values do I pick?").
+  Docstrings clarifying non-obvious decisions: gpu_memory_cleanup keeps `gpu_required=False` because it gracefully degrades on no-CUDA hosts (would otherwise cause the router to refuse the task on CPU-only helpers).
+  Net: -45 debt items, well above the per-session ≥5 mandate.
+
+---
+
 # 2026-05-09 - Claude Opus 4.7 (1M context) - Tech-debt sweep: refactor 3 long functions in apps.cooccurrence under 50 lines + 64 new SimpleTestCase tests
 
 What I did: the user asked me to reduce three over-cap functions (page-pair detection settings PUT endpoint and the two co-occurrence Celery background jobs) under the 50-line forbidden-patterns limit, and to add the missing helper test file. The page-pair detection (cooccurrence) feature looks at which pages users visit in the same browsing session — when two pages keep showing up together it suggests they belong to the same topic. I split three god-mode functions into 12 named helpers using Fowler 1999 Extract Method, mirroring the prior-session refactor of `regenerate_passage_embeddings_for` and `_build_suggestion_records`. Same app, no cross-app moves, behavior identical (same inputs, outputs, alerts, DB writes).

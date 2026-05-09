@@ -12,6 +12,8 @@ import logging
 
 from celery import shared_task
 
+from apps.core.helpers import HelperConstraint
+
 from .alerts import detect_stalled_jobs, prune_resolved_alerts
 
 # Import the runner module so its @shared_task (run_next_scheduled_job)
@@ -24,6 +26,12 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task(name="scheduled_updates.prune_resolved_alerts")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def prune_resolved_alerts_task() -> dict:
     """Nightly-ish task: delete resolved JobAlert rows past the 30-day cutoff."""
     deleted = prune_resolved_alerts()
@@ -31,6 +39,12 @@ def prune_resolved_alerts_task() -> dict:
 
 
 @shared_task(name="scheduled_updates.detect_stalled_jobs")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def detect_stalled_jobs_task() -> dict:
     """Raise STALLED alerts for long-running ScheduledJobs (≥ 4 h).
 

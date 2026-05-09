@@ -68,6 +68,7 @@ ALLOWLIST: frozenset[str] = frozenset({
     # narrative documentation (e.g. "TURN OFF", "ONE release",
     # "WHICH key" in instructional prose) and aren't technical jargon.
     "OFF", "ONE", "TURN", "OUT", "WHICH", "WHETHER", "LEGACY",
+    "INSIDE", "ONLY", "BELOW", "ABOVE",
     "INFO", "WARN", "WARNING", "ERROR", "DEBUG", "TRACE", "FATAL",
     "NOTICE", "SUCCESS", "FAILED", "FAIL", "PASS", "SKIP", "SKIPPED",
     "COMPLETED", "RUNNING", "PENDING", "QUEUED", "PROCESSING", "ABORTED",

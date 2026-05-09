@@ -17,6 +17,7 @@ import logging
 
 from celery import shared_task
 
+from apps.core.helpers import HelperConstraint
 from apps.ops_feed.services import emit
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,12 @@ _MIN_RECLAIM_MB_THRESHOLD = 50
 
 
 @shared_task(name="core.gpu_memory_cleanup", time_limit=120, soft_time_limit=90)
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def gpu_memory_cleanup() -> dict[str, float | str]:
     """Clear unused CUDA memory and report MB reclaimed.
 

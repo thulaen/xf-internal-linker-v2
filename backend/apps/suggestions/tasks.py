@@ -13,10 +13,18 @@ from datetime import timedelta
 from celery import shared_task
 from django.utils import timezone
 
+from apps.core.helpers import HelperConstraint
+
 logger = logging.getLogger(__name__)
 
 
 @shared_task(name="suggestions.prune_rejected_pairs")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def prune_rejected_pairs() -> dict[str, int]:
     """Delete RejectedPair rows older than ``REJECTED_PAIR_PRUNE_AFTER_DAYS``.
 

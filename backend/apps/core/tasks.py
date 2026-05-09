@@ -22,6 +22,8 @@ from datetime import datetime, time, timedelta
 from celery import shared_task
 from django.utils import timezone
 
+from apps.core.helpers import HelperConstraint
+
 logger = logging.getLogger(__name__)
 
 # The canonical AppSetting keys that describe the active performance mode.
@@ -38,6 +40,12 @@ CHECKPOINT_PRUNE_ALERT_THRESHOLD = 100
 
 
 @shared_task(name="core.auto_revert_performance_mode")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def auto_revert_performance_mode() -> dict:
     """Evaluate expiry state and revert the performance mode to Balanced if due.
 
@@ -154,6 +162,12 @@ def _do_revert(AppSetting, *, from_mode: str, reason: str) -> None:
 
 
 @shared_task(name="core.prune_stale_checkpoints")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def prune_stale_checkpoints() -> dict:
     """Prune stale checkpoint metadata on SyncJob rows (plan item 19).
 
@@ -233,6 +247,12 @@ def prune_stale_checkpoints() -> dict:
 
 
 @shared_task(name="core.prune_superseded_embeddings")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def prune_superseded_embeddings() -> dict:
     """Prune SupersededEmbedding rows older than 7 days + verified (plan item 20).
 
@@ -249,6 +269,12 @@ def prune_superseded_embeddings() -> dict:
 
 
 @shared_task(name="core.resume_after_wake")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def resume_after_wake() -> dict:
     """Laptop-sleep-safe resume sweeper (plan item 30).
 
@@ -314,6 +340,12 @@ def resume_after_wake() -> dict:
 
 
 @shared_task(name="core.activity_resumed_revert")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def activity_resumed_revert() -> dict:
     """Invoked by the activity-resumed endpoint (plan item 13).
 

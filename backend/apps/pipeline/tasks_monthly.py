@@ -12,6 +12,8 @@ import logging
 
 from celery import shared_task
 
+from apps.core.helpers import HelperConstraint
+
 logger = logging.getLogger(__name__)
 
 
@@ -19,6 +21,13 @@ logger = logging.getLogger(__name__)
     name="pipeline.run_monthly_top_50_celery",
     time_limit=600,
     soft_time_limit=420,
+)
+@HelperConstraint(
+    cpu_intensive=True,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=300,
 )
 def run_monthly_top_50_celery() -> dict:
     """Invoke the management command with strategy='auto' for the current UTC month."""

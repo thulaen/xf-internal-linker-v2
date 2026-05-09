@@ -11,10 +11,18 @@ import logging
 from celery import shared_task
 from django.utils import timezone
 
+from apps.core.helpers import HelperConstraint
+
 logger = logging.getLogger(__name__)
 
 
 @shared_task(name="notifications.check_silent_failure")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def check_silent_failure() -> dict:
     """Alert if no sync has completed in 72+ hours."""
     from apps.sync.models import SyncJob
@@ -43,6 +51,12 @@ def check_silent_failure() -> dict:
 
 
 @shared_task(name="notifications.check_zero_suggestion_run")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def check_zero_suggestion_run() -> dict:
     """Alert if the latest pipeline run produced zero suggestions with decent content."""
     from apps.suggestions.models import PipelineRun
@@ -76,6 +90,12 @@ def check_zero_suggestion_run() -> dict:
 
 
 @shared_task(name="notifications.check_post_link_regression")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def check_post_link_regression() -> dict:
     """Alert if an applied link caused a significant traffic regression."""
     from apps.analytics.models import ImpactReport
@@ -107,6 +127,12 @@ def check_post_link_regression() -> dict:
 
 
 @shared_task(name="notifications.check_autotune_status")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def check_autotune_status() -> dict:
     """Alert when a ranking challenger is promoted or rolled back."""
     from apps.suggestions.models import RankingChallenger
