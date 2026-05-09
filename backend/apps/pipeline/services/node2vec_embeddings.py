@@ -30,6 +30,7 @@ import logging
 import os
 import pickle
 from dataclasses import dataclass
+from pathlib import Path
 
 try:
     import networkx as _nx
@@ -48,6 +49,12 @@ logger = logging.getLogger(__name__)
 KEY_EMBEDDINGS_PATH = "node2vec.embeddings_path"
 KEY_DIMENSION = "node2vec.dimension"
 DEFAULT_DIMENSION: int = 64
+
+# Storage: Parquet sidecar at the configured path. The pickle format remains
+# readable for back-compatibility, but every fresh fit_and_save() writes Parquet.
+# After the first weekly retrain post-deploy the legacy pickle file becomes
+# orphaned; a future session can delete the pickle code path entirely.
+_PARQUET_SUFFIX = ".parquet"
 
 #: Grover & Leskovec §4 default — walk length and p/q values from
 #: the paper's Table 1 setup.
@@ -89,27 +96,67 @@ def _read_path() -> str:
     return (row.value if row else "") or ""
 
 
+def _parquet_companion_path(path: str) -> str:
+    """Return the Parquet sidecar path for a configured embeddings location.
+
+    Maps ``embeddings.pkl`` → ``embeddings.parquet`` so the AppSetting can
+    keep pointing at the historical pickle path while we transparently
+    migrate the on-disk format.
+    """
+    p = Path(path)
+    if p.suffix.lower() == _PARQUET_SUFFIX:
+        return str(p)
+    return str(p.with_suffix(_PARQUET_SUFFIX))
+
+
+def _load_parquet(path: str) -> Node2VecEmbeddings | None:
+    """Read a Parquet snapshot if present; return None on absence/failure."""
+    if not os.path.exists(path):
+        return None
+    try:
+        import polars as pl
+
+        df = pl.read_parquet(path)
+        vectors = {str(node): [float(x) for x in vec] for node, vec in df.iter_rows()}
+        if not vectors:
+            return _EMPTY
+        dimension = len(next(iter(vectors.values())))
+        return Node2VecEmbeddings(vectors=vectors, dimension=int(dimension))
+    except Exception as exc:  # noqa: BLE001 — Parquet read failure falls back to legacy pickle below.
+        logger.warning("node2vec_embeddings: Parquet load failed at %s: %s", path, exc)
+        return None
+
+
 def load_embeddings() -> Node2VecEmbeddings:
     """Return cached or newly-loaded Node2Vec vectors.
 
-    Cold-start safe: missing pip deps / missing path / missing file
-    → :data:`_EMPTY`. Real-data ready: train via :func:`fit_and_save`
-    (called from the W1 ``node2vec_walks`` job), point the AppSetting
-    path at the result, and inference auto-activates.
+    Reads the Parquet sidecar first; falls back to the legacy pickle file
+    (still on disk for one weekly retrain after the upgrade) if Parquet is
+    missing. Cold-start safe: missing pip deps / missing path / missing file
+    → :data:`_EMPTY`.
     """
     global _CACHE
     if not HAS_NODE2VEC:
         return _EMPTY
     path = _read_path()
-    if not path or not os.path.exists(path):
+    if not path:
         return _EMPTY
     if _CACHE is not None and _CACHE[0] == path:
         return _CACHE[1]
+
+    parquet_path = _parquet_companion_path(path)
+    parquet_payload = _load_parquet(parquet_path)
+    if parquet_payload is not None:
+        _CACHE = (path, parquet_payload)
+        return parquet_payload
+
+    if not os.path.exists(path):
+        return _EMPTY
     try:
         with open(path, "rb") as fh:
             payload = pickle.load(fh)
     except Exception as exc:
-        logger.warning("node2vec_embeddings: load failed: %s", exc)
+        logger.warning("node2vec_embeddings: pickle load failed: %s", exc)
         return _EMPTY
     if not isinstance(payload, dict) or "vectors" not in payload:
         return _EMPTY
@@ -138,6 +185,35 @@ def vector_for(node_id) -> list[float] | None:
     return emb.vectors.get(str(node_id))
 
 
+def _build_graph_from_edges(edges: list[tuple]):
+    """Construct an undirected weighted graph from the (src, dst, [weight]) tuples."""
+    graph = _nx.Graph()
+    for edge in edges:
+        if len(edge) == 3:
+            graph.add_edge(edge[0], edge[1], weight=float(edge[2]))
+        elif len(edge) == 2:
+            graph.add_edge(edge[0], edge[1])
+    return graph
+
+
+def _train_node2vec(graph, *, dimension, walk_length, num_walks, p, q, window):
+    """Run Node2Vec training and extract per-node vectors."""
+    n2v = _Node2Vec(
+        graph,
+        dimensions=dimension,
+        walk_length=walk_length,
+        num_walks=num_walks,
+        p=p,
+        q=q,
+        workers=1,
+        quiet=True,
+    )
+    model = n2v.fit(window=window, min_count=1, batch_words=4)
+    return {
+        str(node): [float(x) for x in model.wv[str(node)]] for node in graph.nodes()
+    }
+
+
 def fit_and_save(
     edges: list[tuple],
     *,
@@ -151,14 +227,10 @@ def fit_and_save(
 ) -> bool:
     """Train Node2Vec on the supplied edge list and save to disk.
 
-    *edges* is a list of ``(src, dst)`` or ``(src, dst, weight)``
-    tuples. Returns True on success, False when:
-    - The pip dep is missing.
-    - The graph has fewer than 2 nodes (degenerate).
-    - Training raises.
-
-    The persisted format is a pickled dict ``{"vectors": {node: vec},
-    "dimension": int}``. :func:`load_embeddings` reads exactly that.
+    *edges* is a list of ``(src, dst)`` or ``(src, dst, weight)`` tuples.
+    Returns True on success, False on missing deps, degenerate graph, or
+    training failures. Persists Parquet at the sibling ``.parquet`` path;
+    falls back to pickle only if Polars is unavailable.
     """
     if not HAS_NODE2VEC:
         logger.info("node2vec_embeddings.fit_and_save: dep missing — skip")
@@ -166,37 +238,49 @@ def fit_and_save(
     if not edges:
         return False
     try:
-        graph = _nx.Graph()
-        for edge in edges:
-            if len(edge) == 3:
-                graph.add_edge(edge[0], edge[1], weight=float(edge[2]))
-            elif len(edge) == 2:
-                graph.add_edge(edge[0], edge[1])
-            else:
-                continue
+        graph = _build_graph_from_edges(edges)
         if graph.number_of_nodes() < 2:
             return False
-        n2v = _Node2Vec(
+        vectors = _train_node2vec(
             graph,
-            dimensions=dimension,
+            dimension=dimension,
             walk_length=walk_length,
             num_walks=num_walks,
             p=p,
             q=q,
-            workers=1,
-            quiet=True,
+            window=window,
         )
-        model = n2v.fit(window=window, min_count=1, batch_words=4)
-        vectors = {
-            str(node): [float(x) for x in model.wv[str(node)]] for node in graph.nodes()
-        }
     except Exception as exc:
         logger.warning("node2vec_embeddings.fit_and_save failed: %s", exc)
         return False
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
-    with open(output_path, "wb") as fh:
-        pickle.dump({"vectors": vectors, "dimension": dimension}, fh, protocol=4)
-    # Clear the cache so the next load picks up the fresh file.
+    parquet_path = _parquet_companion_path(output_path)
+    if not _save_parquet(parquet_path, vectors=vectors, dimension=dimension):
+        with open(output_path, "wb") as fh:
+            pickle.dump({"vectors": vectors, "dimension": dimension}, fh, protocol=4)
     global _CACHE
     _CACHE = None
     return True
+
+
+def _save_parquet(path: str, *, vectors: dict[str, list[float]], dimension: int) -> bool:
+    """Write Parquet atomically; return False if Polars or the helper is missing."""
+    try:
+        import polars as pl
+
+        from apps.pipeline.services._parquet_io import write_parquet_atomic
+    except ImportError:
+        logger.debug("Polars or _parquet_io missing — falling back to pickle")
+        return False
+    try:
+        node_ids = list(vectors.keys())
+        vec_lists = [list(vectors[k]) for k in node_ids]
+        df = pl.DataFrame(
+            {"node_id": node_ids, "vector": vec_lists},
+            schema={"node_id": pl.Utf8, "vector": pl.List(pl.Float32)},
+        )
+        write_parquet_atomic(df, path, estimated_bytes=max(1, len(node_ids)) * dimension * 5)
+        return True
+    except Exception as exc:  # noqa: BLE001 — Parquet write failed; caller falls back to pickle.
+        logger.warning("node2vec_embeddings: Parquet write failed at %s: %s", path, exc)
+        return False
