@@ -107,6 +107,14 @@ ALLOWLIST: frozenset[str] = frozenset({
     # All-caps form of "Celery" — the lowercase form is already in the
     # glossary, but the regex catches the uppercase variant separately.
     "CELERY",
+    # Everyday English caps used in the session-start-banner script
+    # ("OPEN REGISTRY FINDINGS", "TWO recent items"). Plain prose,
+    # not jargon.
+    "FINDINGS", "TWO",
+    # Project-specific section labels printed by the banner script.
+    # The lowercase forms (`AGENT-HANDOFF.md`, `auto_issues` app) are
+    # already documented; the all-caps headings are just visual labels.
+    "HANDOFF", "AGENT", "AUTO-ISSUES",
     "INFO", "WARN", "WARNING", "ERROR", "DEBUG", "TRACE", "FATAL",
     "NOTICE", "SUCCESS", "FAILED", "FAIL", "PASS", "SKIP", "SKIPPED",
     "COMPLETED", "RUNNING", "PENDING", "QUEUED", "PROCESSING", "ABORTED",
