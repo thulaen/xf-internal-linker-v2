@@ -1897,23 +1897,25 @@ def _load_recent_approved_anchors() -> list[str]:
     return [a for a in rows if a]
 
 
-def _median(sorted_values: list[float]) -> float:
-    """Median of a sorted list. ValueError on empty input."""
-    n = len(sorted_values)
-    if n == 0:
-        raise ValueError("median() on empty list")
-    if n % 2:
-        return sorted_values[n // 2]
-    return (sorted_values[n // 2 - 1] + sorted_values[n // 2]) / 2.0
-
-
 def _compute_anchor_entropy_stats(anchors: list[str]) -> tuple[float, float, int]:
-    """Return ``(median, mad, n)`` for character-bigram entropy across anchors."""
+    """Return ``(median, mad, n)`` for character-bigram entropy across anchors.
+
+    MAD is the median absolute deviation — a robust scale estimator that ignores
+    outliers (Hampel 1974, J. Amer. Statist. Assoc. 69). Both the median and the
+    MAD are computed via Polars's vectorised ``Series.median()`` instead of the
+    previous hand-rolled ``_median()`` helper, which kept exact parity with
+    Python's ``statistics.median`` (linear interpolation on even-length input).
+    """
+    import polars as pl
+
     from apps.pipeline.services.anchor_garbage_signals import _bigram_entropy
 
-    entropies = sorted(_bigram_entropy(a.lower()) for a in anchors)
-    median = _median(entropies)
-    mad = _median(sorted(abs(e - median) for e in entropies))
+    entropies = [float(_bigram_entropy(a.lower())) for a in anchors]
+    if not entropies:
+        return 0.0, 0.0, 0
+    series = pl.Series("entropy", entropies)
+    median = float(series.median())
+    mad = float((series - median).abs().median())
     return median, mad, len(entropies)
 
 

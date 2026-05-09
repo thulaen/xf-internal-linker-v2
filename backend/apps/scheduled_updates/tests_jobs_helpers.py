@@ -27,7 +27,6 @@ from apps.scheduled_updates.jobs import (
     _KENLM_MIN_SENTENCE_CHARS,
     _LDA_MIN_DOCUMENT_COUNT,
     _LDA_MIN_TOKEN_LENGTH,
-    _median,
     _read_meta_hpo_applied_at,
     _summarize_cascade_snapshots,
     _summarize_position_bias_snapshots,
@@ -98,22 +97,8 @@ class EnsureModelOutputPathTests(TestCase):
         self.assertTrue(path.endswith(os.path.join("test_subdir2", "weights.bin")))
 
 
-class MedianTests(SimpleTestCase):
-    """Verify the median helper for anchor entropy stats."""
-
-    def test_odd_count(self):
-        self.assertEqual(_median([1.0, 2.0, 3.0]), 2.0)
-
-    def test_even_count(self):
-        self.assertEqual(_median([1.0, 2.0, 3.0, 4.0]), 2.5)
-
-    def test_empty_raises(self):
-        with self.assertRaises(ValueError):
-            _median([])
-
-
 class ComputeAnchorEntropyStatsTests(SimpleTestCase):
-    """Verify median + MAD computation across anchor entropies."""
+    """Verify median + MAD computation across anchor entropies (Polars-backed)."""
 
     def test_returns_three_values(self):
         # Use varied anchor lengths so bigram entropy varies.
@@ -123,6 +108,42 @@ class ComputeAnchorEntropyStatsTests(SimpleTestCase):
         self.assertEqual(n, 3)
         self.assertGreater(median, 0.0)
         self.assertGreaterEqual(mad, 0.0)
+
+    def test_empty_input_returns_zeros(self):
+        median, mad, n = _compute_anchor_entropy_stats([])
+        self.assertEqual((median, mad, n), (0.0, 0.0, 0))
+
+    def test_parity_against_legacy_median_definition(self):
+        """The Polars Series.median() must match Python statistics.median() on
+        both odd-length and even-length input — i.e. linear interpolation, not
+        nearest-neighbour. This was the parity bug we caught during slice 4."""
+        import statistics
+
+        from apps.pipeline.services.anchor_garbage_signals import _bigram_entropy
+
+        anchors = ["hello world", "test phrase", "different text", "fourth one", "fifth string"]
+        entropies = [float(_bigram_entropy(a.lower())) for a in anchors]
+        expected_median = statistics.median(entropies)
+        expected_mad = statistics.median([abs(e - expected_median) for e in entropies])
+        median, mad, n = _compute_anchor_entropy_stats(anchors)
+        self.assertEqual(n, 5)
+        self.assertAlmostEqual(median, expected_median, places=9)
+        self.assertAlmostEqual(mad, expected_mad, places=9)
+
+    def test_parity_against_legacy_even_length(self):
+        """Even-length input is the parity edge — ensure linear-interpolation median."""
+        import statistics
+
+        from apps.pipeline.services.anchor_garbage_signals import _bigram_entropy
+
+        anchors = ["one a", "two b", "three c", "four d"]
+        entropies = [float(_bigram_entropy(a.lower())) for a in anchors]
+        expected_median = statistics.median(entropies)
+        expected_mad = statistics.median([abs(e - expected_median) for e in entropies])
+        median, mad, n = _compute_anchor_entropy_stats(anchors)
+        self.assertEqual(n, 4)
+        self.assertAlmostEqual(median, expected_median, places=9)
+        self.assertAlmostEqual(mad, expected_mad, places=9)
 
 
 class FmFeatureBuildTests(SimpleTestCase):
