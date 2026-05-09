@@ -95,9 +95,7 @@ class EnsureModelOutputPathTests(TestCase):
 
     def test_custom_filename(self):
         path = _ensure_model_output_path("test_subdir2", filename="weights.bin")
-        self.assertTrue(
-            path.endswith(os.path.join("test_subdir2", "weights.bin"))
-        )
+        self.assertTrue(path.endswith(os.path.join("test_subdir2", "weights.bin")))
 
 
 class MedianTests(SimpleTestCase):
