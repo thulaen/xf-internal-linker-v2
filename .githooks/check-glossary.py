@@ -63,6 +63,7 @@ ALLOWLIST: frozenset[str] = frozenset({
     "AND", "OR", "NOT", "NULL", "TRUE", "FALSE", "NONE", "DOES", "WHERE",
     "FROM", "INTO", "JOIN", "ASC", "DESC", "EXACT", "REGEX",
     "NAME", "PATH", "REGISTRY", "BACKEND", "FRONTEND",
+    "PRIOR", "STATE", "NEW", "OLD",  # everyday English, all-caps in prose / fixture suffixes
     "INFO", "WARN", "WARNING", "ERROR", "DEBUG", "TRACE", "FATAL",
     "NOTICE", "SUCCESS", "FAILED", "FAIL", "PASS", "SKIP", "SKIPPED",
     "BENCHMARK", "BENCH",

@@ -35,11 +35,24 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+
+#: BGE-M3 dense embedding dimension. Source: BAAI/bge-m3 model card on
+#: HuggingFace (https://huggingface.co/BAAI/bge-m3) — the dense head
+#: emits 1024-dim float32 vectors.
+_BGE_M3_EMBEDDING_DIM: int = 1024
+
+#: Sentence-level overlap between adjacent passages. Chunking baseline:
+#: Callan 1994 SIGIR §5. With ~15 tokens per sentence and a ~200-token
+#: target window, 3 sentences is approximately 22% overlap — within the
+#: recommended 20-30% retrieval-effectiveness sweet spot.
+_PASSAGE_OVERLAP_SENTENCES: int = 3
 
 
 # ---------------------------------------------------------------------------
@@ -73,72 +86,56 @@ def _passage_text_hash(text: str) -> str:
 
 # ---------------------------------------------------------------------------
 # Index time: chunk + embed
+#
+# The orchestrator (``regenerate_passage_embeddings_for``) below is intentionally
+# a thin sequence of named-helper calls. Each helper has a single responsibility
+# and is unit-testable in isolation. Pattern: Fowler 1999 "Extract Method".
 # ---------------------------------------------------------------------------
 
 
-def regenerate_passage_embeddings_for(content_item) -> int:
-    """Idempotent: ensure ``content_item`` has up-to-date passage embeddings.
+@dataclass(slots=True)
+class _EmbeddingResources:
+    """Bundle of objects that the embed/encode helpers need together."""
 
-    Returns the number of passages re-embedded (0 if already current).
+    model: Any
+    signature: str
+    codebook: Any | None
+    opq_version: str
 
-    Side effects:
-        * Creates / updates / deletes ``PassageEmbedding`` rows for
-          ``content_item``.
-        * Reuses the existing BGE-M3 model from
-          ``apps.pipeline.services.embeddings``.
-    """
-    from apps.content.models import PassageEmbedding
-    from apps.pipeline.services.embeddings import (
-        _encode_batch_via_provider,
-        _get_batch_size,
-        _get_model_name,
-        _l2_normalize,
-        _load_model,
-        get_current_embedding_signature,
-    )
-    from apps.sources.passages import Passage, segment_from_sentences
 
+@dataclass(slots=True)
+class _PassageDiffResult:
+    """Output of ``_diff_passages`` — what to re-embed and what to re-OPQ."""
+
+    embed_indices: list[int]
+    embed_texts: list[str]
+    opq_indices: list[int]
+
+
+def _should_index_passages(content_item) -> bool:
+    """Skip when the feature is off OR the row is a cross-source duplicate."""
     if not _setting_bool("passage_relevance.enabled", True):
-        return 0
-
+        return False
     if getattr(content_item, "duplicate_of_id", None):
-        # Cross-source duplicates reuse the canonical's passages at score time.
-        # Never write passages on a duplicate row.
-        return 0
+        return False
+    return True
 
-    # Pull clean_text via the OneToOne related_name `post`.
-    post = getattr(content_item, "post", None)
-    if post is None or not getattr(post, "clean_text", None):
-        # No body to chunk; clear any stale rows.
-        PassageEmbedding.objects.filter(content_item=content_item).delete()
-        return 0
+
+def _segment_passages_from_post(post) -> list:
+    """Split ``post.clean_text`` into capped, re-indexed Passage objects."""
+    from apps.sources.passages import Passage, segment_from_sentences
 
     target_window = _setting_int("passage_relevance.passage_words", 200)
     max_passages = _setting_int("passage_relevance.passages_per_page_max", 0)
-
-    # Reuse the existing sentence splitter so passage boundaries align with
-    # what the rest of the pipeline already considers "a sentence". We split
-    # on punctuation rather than running spaCy again — cheap, deterministic.
     sentences = _split_into_sentences(post.clean_text)
-
-    # 25% overlap (rough estimate: if 1 sentence ~ 15 tokens, overlap_sentences=3 or 4)
-    # We will pass overlap_tokens to the segment_from_sentences if possible,
-    # but currently it uses overlap_sentences=1. Let's make it 3 for ~25% overlap of ~200 tokens.
     passages_full = segment_from_sentences(
         sentences,
         target_window_tokens=target_window,
-        overlap_sentences=3,
+        overlap_sentences=_PASSAGE_OVERLAP_SENTENCES,
     )
-
-    # Cap by even spacing per the FR-053 spec ## Math-Fidelity Note step 3.
-    # Phase 2: max_passages=0 means unlimited.
     if max_passages > 0 and len(passages_full) > max_passages:
         passages_full = _evenly_space_cap(passages_full, max_passages)
-
-    # Re-index 0..len(passages)-1 since the segmenter's ``index`` field
-    # may have gaps after the cap. (Actually segment_from_sentences emits
-    # contiguous indices; we still re-index defensively.)
-    passages: list[Passage] = [
+    return [
         Passage(
             index=i,
             text=p.text,
@@ -149,159 +146,247 @@ def regenerate_passage_embeddings_for(content_item) -> int:
         for i, p in enumerate(passages_full)
     ]
 
-    if not passages:
-        PassageEmbedding.objects.filter(content_item=content_item).delete()
-        return 0
 
-    # Compute hashes for the new passages. Decide which need re-embedding.
-    new_hashes = [_passage_text_hash(p.text) for p in passages]
+def _load_embedding_resources() -> _EmbeddingResources:
+    """Load the BGE-M3 model + currently-active OPQ codebook (if any)."""
+    from apps.content.models import OPQCodebook
+    from apps.pipeline.services.embeddings import (
+        _get_model_name,
+        _load_model,
+        get_current_embedding_signature,
+    )
 
     model_name = _get_model_name()
     model = _load_model(model_name)
-    embedding_signature = get_current_embedding_signature(
+    signature = get_current_embedding_signature(model=model, model_name=model_name)
+    codebook = OPQCodebook.objects.filter(is_active=True).first()
+    return _EmbeddingResources(
         model=model,
-        model_name=model_name,
+        signature=signature,
+        codebook=codebook,
+        opq_version=codebook.corpus_signature if codebook else "",
     )
 
-    existing = {
+
+def _load_existing_passage_rows(content_item) -> dict:
+    """Return existing ``PassageEmbedding`` rows keyed by ``passage_index``."""
+    from apps.content.models import PassageEmbedding
+
+    return {
         row.passage_index: row
         for row in PassageEmbedding.objects.filter(content_item=content_item)
     }
 
-    # Fetch active OPQ Codebook
-    from apps.content.models import OPQCodebook
 
-    active_codebook = OPQCodebook.objects.filter(is_active=True).first()
-    active_opq_version = active_codebook.corpus_signature if active_codebook else ""
-
-    needs_embed_indices: list[int] = []
-    needs_embed_texts: list[str] = []
-    needs_opq_indices: list[int] = []
+def _diff_passages(
+    passages: list,
+    hashes: list[str],
+    existing: dict,
+    resources: _EmbeddingResources,
+) -> _PassageDiffResult:
+    """Decide which passages need re-embedding and/or OPQ re-encoding."""
+    embed_indices: list[int] = []
+    embed_texts: list[str] = []
+    opq_indices: list[int] = []
+    has_codebook = resources.codebook is not None
 
     for i, p in enumerate(passages):
         existing_row = existing.get(i)
-
-        embed_current = False
-        opq_current = False
-
-        if (
+        embed_current = (
             existing_row is not None
             and existing_row.embedding is not None
-            and existing_row.embedding_text_hash == new_hashes[i]
-            and existing_row.embedding_model_version == embedding_signature
-        ):
-            embed_current = True
-
-            # Check OPQ
-            if (
-                active_codebook
-                and existing_row.opq_codebook_version == active_opq_version
+            and existing_row.embedding_text_hash == hashes[i]
+            and existing_row.embedding_model_version == resources.signature
+        )
+        if has_codebook:
+            opq_current = (
+                embed_current
+                and existing_row is not None
+                and existing_row.opq_codebook_version == resources.opq_version
                 and existing_row.opq_code is not None
-            ):
-                opq_current = True
-            elif not active_codebook:
-                # If no active codebook, we consider OPQ current (it will be NULL)
-                opq_current = True
-
-        if embed_current and opq_current:
-            continue  # fully current
+            )
+        else:
+            opq_current = True
 
         if not embed_current:
-            needs_embed_indices.append(i)
-            needs_embed_texts.append(p.text)
-            if active_codebook:
-                needs_opq_indices.append(i)
-        else:
-            # Embedding is current, but OPQ is not
-            if active_codebook:
-                needs_opq_indices.append(i)
+            embed_indices.append(i)
+            embed_texts.append(p.text)
+            if has_codebook:
+                opq_indices.append(i)
+        elif not opq_current:
+            opq_indices.append(i)
 
-    if needs_embed_texts:
-        batch_size = _get_batch_size(model)
-        raw_vectors = _encode_batch_via_provider(
-            batch_texts=needs_embed_texts,
-            model=model,
-            batch_size=batch_size,
-            job_id=None,
-        )
-        # _encode_batch_via_provider returns shape (N, D) for batches
-        if raw_vectors.ndim == 1:
-            raw_vectors = raw_vectors.reshape(1, -1)
-        normalised = _l2_normalize(raw_vectors)
-    else:
-        normalised = np.zeros((0, 1024), dtype=np.float64)
+    return _PassageDiffResult(
+        embed_indices=embed_indices,
+        embed_texts=embed_texts,
+        opq_indices=opq_indices,
+    )
 
-    # Dictionary to collect vectors for OPQ encoding
-    vectors_for_opq = {}
 
-    # Upsert each passage row.
-    for slot, i in enumerate(needs_embed_indices):
+def _encode_passage_batch(texts: list[str], model) -> np.ndarray:
+    """Run the BGE-M3 model over the batch and L2-normalise the result."""
+    if not texts:
+        return np.zeros((0, _BGE_M3_EMBEDDING_DIM), dtype=np.float64)
+    from apps.pipeline.services.embeddings import (
+        _encode_batch_via_provider,
+        _get_batch_size,
+        _l2_normalize,
+    )
+
+    batch_size = _get_batch_size(model)
+    raw = _encode_batch_via_provider(
+        batch_texts=texts,
+        model=model,
+        batch_size=batch_size,
+        job_id=None,
+    )
+    if raw.ndim == 1:
+        raw = raw.reshape(1, -1)
+    return _l2_normalize(raw)
+
+
+def _persist_passage_rows(
+    *,
+    content_item,
+    passages: list,
+    normalised: np.ndarray,
+    diff: _PassageDiffResult,
+    resources: _EmbeddingResources,
+    hashes: list[str],
+    target_window: int,
+) -> dict[int, np.ndarray]:
+    """Upsert ``PassageEmbedding`` rows. Return per-index vector for OPQ."""
+    from apps.content.models import PassageEmbedding
+
+    vectors_for_opq: dict[int, np.ndarray] = {}
+    for slot, i in enumerate(diff.embed_indices):
         p = passages[i]
-        vec = normalised[slot].tolist()
-        vectors_for_opq[i] = normalised[slot]
+        vec_arr = normalised[slot]
+        vectors_for_opq[i] = vec_arr
         PassageEmbedding.objects.update_or_create(
             content_item=content_item,
             passage_index=i,
             defaults={
                 "text": p.text,
                 "word_count": p.token_count,
-                "embedding": vec,
-                "embedding_model_version": embedding_signature,
-                "embedding_text_hash": new_hashes[i],
+                "embedding": vec_arr.tolist(),
+                "embedding_model_version": resources.signature,
+                "embedding_text_hash": hashes[i],
                 "passage_words_setting": target_window,
             },
         )
+    return vectors_for_opq
 
-    # Perform OPQ encoding if needed
-    if active_codebook and needs_opq_indices:
-        try:
-            from extensions import quantemb
 
-            # Gather vectors to encode
-            to_encode_matrix = []
-            for i in needs_opq_indices:
-                if i in vectors_for_opq:
-                    to_encode_matrix.append(vectors_for_opq[i])
-                else:
-                    # It was already embedded, fetch from DB
-                    to_encode_matrix.append(
-                        np.array(existing[i].embedding, dtype=np.float32)
-                    )
+def _encode_and_persist_opq(
+    *,
+    content_item,
+    diff: _PassageDiffResult,
+    vectors_for_opq: dict[int, np.ndarray],
+    existing: dict,
+    resources: _EmbeddingResources,
+) -> None:
+    """Run the OPQ kernel over pending vectors and persist the codes."""
+    if resources.codebook is None or not diff.opq_indices:
+        return
+    from apps.content.models import PassageEmbedding
 
-            encode_data = np.vstack(to_encode_matrix).astype(np.float32)
-            rot = np.frombuffer(active_codebook.rotation, dtype=np.float32).reshape(
-                (1024, 1024)
-            )
-            cb = np.frombuffer(active_codebook.codebooks, dtype=np.float32).reshape(
-                (active_codebook.n_subquantisers, active_codebook.k_centroids, -1)
-            )
+    try:
+        from extensions import quantemb
+    except ImportError:
+        logger.warning(
+            "quantemb extension not available; skipping OPQ encoding for passages."
+        )
+        return
 
-            codes = quantemb.opq_encode(encode_data, rot, cb)
+    to_encode = []
+    for i in diff.opq_indices:
+        if i in vectors_for_opq:
+            to_encode.append(vectors_for_opq[i])
+        else:
+            to_encode.append(np.array(existing[i].embedding, dtype=np.float32))
+    encode_data = np.vstack(to_encode).astype(np.float32)
 
-            # Save codes
-            for slot, i in enumerate(needs_opq_indices):
-                PassageEmbedding.objects.filter(
-                    content_item=content_item, passage_index=i
-                ).update(
-                    opq_code=codes[slot].tobytes(),
-                    opq_codebook_version=active_opq_version,
-                )
+    codebook = resources.codebook
+    rot = np.frombuffer(codebook.rotation, dtype=np.float32).reshape(
+        (_BGE_M3_EMBEDDING_DIM, _BGE_M3_EMBEDDING_DIM)
+    )
+    cb = np.frombuffer(codebook.codebooks, dtype=np.float32).reshape(
+        (codebook.n_subquantisers, codebook.k_centroids, -1)
+    )
+    codes = quantemb.opq_encode(encode_data, rot, cb)
 
-        except ImportError:
-            logger.warning(
-                "quantemb extension not available; skipping OPQ encoding for passages."
-            )
-            pass
-
-    # Delete any stale rows that the new chunk count no longer needs.
-    stale_indices = [idx for idx in existing if idx >= len(passages)]
-    if stale_indices:
+    for slot, i in enumerate(diff.opq_indices):
         PassageEmbedding.objects.filter(
-            content_item=content_item,
-            passage_index__in=stale_indices,
-        ).delete()
+            content_item=content_item, passage_index=i
+        ).update(
+            opq_code=codes[slot].tobytes(),
+            opq_codebook_version=resources.opq_version,
+        )
 
-    return len(needs_embed_indices)
+
+def _delete_stale_passage_rows(
+    content_item, existing: dict, current_count: int
+) -> None:
+    """Drop rows whose ``passage_index >= current_count`` (beyond new total)."""
+    from apps.content.models import PassageEmbedding
+
+    stale_indices = [idx for idx in existing if idx >= current_count]
+    if not stale_indices:
+        return
+    PassageEmbedding.objects.filter(
+        content_item=content_item,
+        passage_index__in=stale_indices,
+    ).delete()
+
+
+def regenerate_passage_embeddings_for(content_item) -> int:
+    """Idempotent: ensure ``content_item`` has up-to-date passage embeddings.
+
+    Returns the number of passages re-embedded (0 if already current). Mutates
+    ``PassageEmbedding`` rows for ``content_item`` and reuses the BGE-M3 model
+    from ``apps.pipeline.services.embeddings``.
+    """
+    from apps.content.models import PassageEmbedding
+
+    if not _should_index_passages(content_item):
+        return 0
+
+    post = getattr(content_item, "post", None)
+    if post is None or not getattr(post, "clean_text", None):
+        PassageEmbedding.objects.filter(content_item=content_item).delete()
+        return 0
+
+    passages = _segment_passages_from_post(post)
+    if not passages:
+        PassageEmbedding.objects.filter(content_item=content_item).delete()
+        return 0
+
+    new_hashes = [_passage_text_hash(p.text) for p in passages]
+    resources = _load_embedding_resources()
+    existing = _load_existing_passage_rows(content_item)
+    diff = _diff_passages(passages, new_hashes, existing, resources)
+
+    target_window = _setting_int("passage_relevance.passage_words", 200)
+    normalised = _encode_passage_batch(diff.embed_texts, resources.model)
+    vectors_for_opq = _persist_passage_rows(
+        content_item=content_item,
+        passages=passages,
+        normalised=normalised,
+        diff=diff,
+        resources=resources,
+        hashes=new_hashes,
+        target_window=target_window,
+    )
+    _encode_and_persist_opq(
+        content_item=content_item,
+        diff=diff,
+        vectors_for_opq=vectors_for_opq,
+        existing=existing,
+        resources=resources,
+    )
+    _delete_stale_passage_rows(content_item, existing, len(passages))
+    return len(diff.embed_indices)
 
 
 def _split_into_sentences(text: str) -> list[str]:

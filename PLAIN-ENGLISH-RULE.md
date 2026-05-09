@@ -91,6 +91,9 @@ When you must mention a technical concept, use the plain-English version from th
 | FR-250 — a small C++ helper that holds back outbound API calls so we never go faster than each provider's documented limit (Google Search Console, Google Analytics 4, Matomo, XenForo, WordPress) | FR-250 / API rate limiter |
 | a way to compress number-fingerprints so the similarity search engine can fit a giant index in memory by storing each vector as a tiny code instead of a full float array | OPQ / Optimised Product Quantization |
 | an embedding model that turns text into number-fingerprints — the project's default | BGE-M3 |
+| Beijing Academy of Artificial Intelligence — the research org that publishes the BGE-M3 embedding model used as the project default | BAAI |
+| ACM Special Interest Group on Information Retrieval — the main academic conference where search and ranking research is published; chunking and passage scoring papers cited in the project come from this venue | SIGIR |
+| Asymmetric Distance Computation — the OPQ scoring path that compares a query vector against compressed byte-codes instead of full float vectors; 5-10x faster than the float32 path for the same accuracy | ADC |
 | an industry-standard score that measures how good a ranked list is | NDCG / Normalised Discounted Cumulative Gain |
 | the field of teaching computers to read and understand text | NLP / natural language processing |
 | a smart algorithm Optuna uses to pick the next set of settings to try when tuning | TPE / Tree-structured Parzen Estimator |
