@@ -232,7 +232,15 @@ class _CandidateScalars:
 
 
 def _safe_load_calibration_snapshot() -> Any | None:
-    """Best-effort load of the Platt calibration snapshot."""
+    """Best-effort load of the Platt calibration snapshot.
+
+    Storage: AppSetting rows in Postgres (``score_calibration.platt.*``).
+    NOT a Parquet sidecar — Platt scaling is just two scalar floats (slope
+    and bias) plus a fitted_at timestamp and a training_pairs count. Eight
+    rows total; the whole snapshot is under 1 KB. Querying AppSetting is
+    faster than reading a Parquet file off disk for that volume. The
+    2026-05-09 Polars migration explicitly left this loader on Postgres.
+    """
     from apps.audit.error_ingest import ingest_error
     from apps.pipeline.services.score_calibrator import (
         load_snapshot as load_calibration_snapshot,
@@ -252,7 +260,14 @@ def _safe_load_calibration_snapshot() -> Any | None:
 
 
 def _safe_load_conformal_snapshot() -> Any | None:
-    """Best-effort load of the split-conformal predictor snapshot."""
+    """Best-effort load of the split-conformal predictor snapshot.
+
+    Storage: AppSetting rows in Postgres (``conformal_prediction.*``).
+    NOT a Parquet sidecar — same reasoning as ``_safe_load_calibration_snapshot``.
+    The conformal snapshot is alpha + half_width + calibration_set_size +
+    fitted_at — four scalars under 1 KB. The 2026-05-09 Polars migration
+    explicitly left this loader on Postgres.
+    """
     from apps.audit.error_ingest import ingest_error
     from apps.pipeline.services.conformal_predictor import (
         load_snapshot as load_conformal_snapshot,

@@ -92,6 +92,13 @@ def _read_paths_from_settings() -> tuple[str, str]:
 def load_model() -> tuple[object, object] | None:
     """Return the cached ``(LdaModel, Dictionary)`` or load from disk.
 
+    Storage: gensim native (``.model`` + ``.dict``). Not Parquet — gensim's
+    ``LdaModel.load()`` reconstructs the full model state (alpha, eta,
+    num_topics, dictionary, topic-word matrix). Splitting that into Parquet
+    plus a JSON sidecar would mean more files, not fewer, and would
+    reimplement what gensim already does correctly. The 2026-05-09 Polars
+    migration explicitly left this loader alone for that reason.
+
     Returns ``None`` when:
     - Gensim isn't installed.
     - The path AppSettings are empty (no producer has trained yet).
