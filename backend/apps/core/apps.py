@@ -1,11 +1,49 @@
 """Core app — shared models, base classes, and utilities used across all apps."""
 
 import logging
+import os
+import sys
 
 from django.apps import AppConfig
 from django.db.models.signals import post_migrate
 
 logger = logging.getLogger(__name__)
+
+
+def _is_test_runner() -> bool:
+    """True when ``manage.py test`` (or pytest equivalent) is in charge.
+
+    Used to skip startup configuration that would contaminate the test
+    database setup. Detection is by ``sys.argv`` inspection — Django sets
+    no ``settings.TESTING`` flag and the test DB hasn't been created yet
+    when ``ready()`` runs.
+    """
+    argv = sys.argv
+    if len(argv) > 1 and argv[1] == "test":
+        return True
+    return any("pytest" in arg.lower() for arg in argv[:2])
+
+
+def _configure_polars_threads() -> None:
+    """Cap the Polars query-engine thread pool at half of detected CPU cores.
+
+    Polars reads POLARS_MAX_THREADS at first-import time, so we must set it
+    before any module under ``apps.*`` imports the ``polars`` package. Called
+    from CoreConfig.ready() — that runs during Django app-init, before any
+    view, task, or service first imports polars (all our polars imports are
+    inside function bodies, not at module load).
+
+    If the operator already set POLARS_MAX_THREADS in the environment we
+    respect that — never override an explicit operator choice.
+    """
+    if os.environ.get("POLARS_MAX_THREADS"):
+        return
+    try:
+        from apps.pipeline.services.hardware_profile import polars_thread_count
+
+        os.environ["POLARS_MAX_THREADS"] = str(polars_thread_count())
+    except Exception:  # noqa: BLE001 — best-effort startup config; on failure Polars defaults to all cores, which is suboptimal but not broken.
+        logger.debug("Could not size POLARS_MAX_THREADS at startup", exc_info=True)
 
 
 def _record_safe_mode_history(prior_value: str) -> None:
@@ -117,6 +155,15 @@ class CoreConfig(AppConfig):
     verbose_name = "Core"
 
     def ready(self):
+        # Size the Polars thread pool. Skipped under the Django test runner
+        # because detect_profile() runs before the test database is created;
+        # the read-from-AppSetting it performs forces the connection to wake
+        # up against the dev DB and contaminates later test setUps with
+        # cached state. Tests that need polars use safe_aggregate, which
+        # lazy-imports polars after the test DB is up.
+        if not _is_test_runner():
+            _configure_polars_threads()
+
         # Run after migrations to avoid touching the table before it exists.
         post_migrate.connect(_consume_safe_mode_boot_flag, sender=self)
         post_migrate.connect(_run_startup_smoke_tests, sender=self)

@@ -57,7 +57,6 @@ networkx==3.4.2                      # Graph algorithms (FR-012)
 google-api-python-client==2.155.0    # GSC/GA4 API (FR-016, FR-017)
 google-auth-oauthlib==1.2.1          # Google OAuth (FR-016, FR-017)
 google-auth-httplib2==0.2.0          # Google Auth transport
-pandas==2.2.3                        # Data aggregation (FR-016, FR-018)
 statsmodels==0.14.4                  # Statistical modeling (FR-018)
 
 # ── API Documentation ────────────────────────────────────────────
@@ -84,6 +83,17 @@ requests==2.33.0                     # HTTP client (XenForo/WP API calls)
  
 # ── Performance Layer ─────────────────────────────────────────────
 pyarrow==17.0.0
+polars==1.18.0                       # Fast Rust-based DataFrame library — replaces the
+                                     # row-by-row Python aggregation loops in analytics
+                                     # ingest (Matomo / GA4 / GSC) and the `csv.writer`
+                                     # streaming exports. Used for batch / ETL only —
+                                     # NEVER inside score_destination_matches() or any
+                                     # per-candidate hot loop (CPP-FIRST.md). Thread-pool
+                                     # size set at startup via apps.core.apps.CoreConfig
+                                     # to half of hardware_profile.cpu_cores so Celery
+                                     # workers keep their headroom. Replaces the previous
+                                     # pandas==2.2.3 line that was installed but never
+                                     # imported anywhere in backend/.
 pyroaring==1.0.4
 pybind11==2.13.6
 faiss-gpu-cu12>=1.8.0               # FR-030: GPU vector search (Linux/CUDA 12 only)

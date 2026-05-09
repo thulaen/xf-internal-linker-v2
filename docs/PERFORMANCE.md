@@ -191,6 +191,16 @@ The NVIDIA driver on this MSI laptop does not expose power management controls v
 - See `backend/extensions/CPP-RULES.md` §25 for the C++ side.
 - The `ext_loader.py` service handles fallback logic. It logs a warning when falling back to Python.
 
+### 7a. Polars Thread Pool — Coexistence with C++ and Celery
+
+Polars 1.x ships its own work-stealing thread pool, sized at first import via the `POLARS_MAX_THREADS` environment variable. We size it to **half of the detected CPU cores** so Celery workers, the C++ extensions, and the FAISS index pool keep their headroom. The size is set once at Django startup by `apps.core.apps.CoreConfig.ready()` calling `apps.pipeline.services.hardware_profile.polars_thread_count()`.
+
+Boundary policy:
+
+- Polars is for **batch / analytics / ETL** — Matomo and GA4 ingest aggregation, GSC TF-IDF rollups, anchor-entropy quantiles, CSV exports, weekly Parquet snapshots.
+- Polars is **never** called from inside `score_destination_matches()`, the per-candidate scoring loop, the BGE-M3 embedding loop, or the text-clean regex chain. Those paths stay C++ (CPP-FIRST.md). Polars is faster than a Python `for` loop but slower than a hand-tuned C++ kernel.
+- An operator can override the thread budget by setting `POLARS_MAX_THREADS` in the environment before Django starts; we never override an explicit operator choice.
+
 ---
 
 ## 8. Benchmark Mandate

@@ -6,7 +6,7 @@ Every AI agent (Claude, Codex, Gemini, etc.) writing Python in this repo must fo
 
 **For commenting rules, see `AGENTS.md § Code Quality Mandate > Comments & Documentation — All Languages`. Rules in this file extend that rule set; they do not replace it.**
 
-**Project context:** Django 5.2 + DRF, Celery 5.4, PostgreSQL 17 + pgvector, Redis, Django Channels, pybind11 C++ extensions, numpy 1.26, pandas 2.2, scikit-learn, requests, google-api-python-client. Python 3.12 runtime. Deployed in Docker.
+**Project context:** Django 5.2 + DRF, Celery 5.4, PostgreSQL 17 + pgvector, Redis, Django Channels, pybind11 C++ extensions, numpy 1.26, polars 1.18 (Rust-backed DataFrames — used for batch ETL only, never on a per-candidate hot path), scikit-learn, requests, google-api-python-client. Python 3.12 runtime. Deployed in Docker.
 
 ---
 
@@ -1059,19 +1059,25 @@ import math
 if math.isclose(score, 0.3, rel_tol=1e-9):
 ```
 
-### 13.2 Pandas DataFrame Copy Warnings
+### 13.2 Polars Lazy vs Eager — Pick One Per Pipeline
 
-Pandas warns when you modify a view instead of a copy. Use `.copy()` explicitly or `.loc[]` for assignment.
+Polars 1.x has two APIs: eager (`pl.DataFrame`) and lazy (`pl.LazyFrame`). Mixing them inside one ETL pipeline forces extra `.collect()` calls and erases the optimiser's plan. Pick lazy when you have multiple chained transforms over a large frame (Polars fuses operations); pick eager for one-step aggregations or small frames.
 
 ```python
-# WRONG — SettingWithCopyWarning
-df_filtered = df[df["score"] > 0.5]
-df_filtered["rank"] = range(len(df_filtered))
+# RIGHT — single aggregation, eager is fine
+df = pl.from_dicts(rows)
+totals = df.group_by("suggestion_id").agg(pl.col("count").sum())
 
-# RIGHT
-df_filtered = df[df["score"] > 0.5].copy()
-df_filtered["rank"] = range(len(df_filtered))
+# RIGHT — multi-step pipeline, stay lazy until the end
+result = (
+    pl.scan_parquet(path)
+    .filter(pl.col("date") >= start)
+    .group_by(["page_id", "term"]).agg(pl.col("clicks").sum())
+    .collect()
+)
 ```
+
+The `safe_aggregate()` helper in `apps.analytics._polars_helpers` handles the eager path. For lazy pipelines, write the chain inline and call `.collect()` once at the end.
 
 ### 13.3 NumPy Array Vectorization Misses
 

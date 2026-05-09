@@ -208,6 +208,19 @@ def _tier_cap(tier: Tier) -> int:
     }.get(tier, 64)
 
 
+def polars_thread_count(profile: HardwareProfile | None = None) -> int:
+    """Return the thread budget for the Polars query engine.
+
+    Polars spawns its own work-stealing thread pool. Left unbounded it grabs
+    every core, which fights Celery workers running at the same time. Half of
+    the detected cores keeps batch ETL fast while leaving headroom for the
+    rest of the stack — see ``docs/PERFORMANCE.md`` §3 for the budget envelope.
+    Floor at 1 so a single-core VM still functions.
+    """
+    prof = profile or detect_profile()
+    return max(1, prof.cpu_cores // 2)
+
+
 def _read_setting_override() -> str:
     try:
         from apps.core.models import AppSetting
@@ -223,6 +236,7 @@ def _read_setting_override() -> str:
 __all__ = [
     "HardwareProfile",
     "detect_profile",
+    "polars_thread_count",
     "recommended_batch_size",
     "refresh",
 ]
