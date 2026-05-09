@@ -13,6 +13,8 @@ can't regress silently.
 
 from __future__ import annotations
 
+import platform
+import unittest
 
 from django.test import TestCase
 
@@ -324,6 +326,13 @@ class RunnerBugFixTests(TestCase):
             executables = _discover_cpp_benchmark_executables(tmp_path)
             self.assertNotIn(non_exec, executables)
 
+    @unittest.skipIf(
+        platform.system() == "Windows",
+        "Linux exec-bit semantics are not enforceable on NTFS — Path.chmod(0o755) "
+        "is a no-op on Windows, so the discoverer cannot tell this file from any "
+        "other extension-less file. The matching production behaviour (treat any "
+        "exec-bit file as a benchmark) is exercised on Linux CI.",
+    )
     def test_discover_picks_up_linux_executables(self) -> None:
         """Linux executables (no extension, exec bit set) should be
         picked up. This is the bug fix — the old code only matched

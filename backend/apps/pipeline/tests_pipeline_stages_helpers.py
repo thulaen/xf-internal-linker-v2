@@ -101,7 +101,24 @@ class TopkNumpyScoresTests(SimpleTestCase):
 
 
 class RunFaissBlockSearchTests(SimpleTestCase):
-    """Block-wise FAISS search expands hits to sentence IDs, skipping self-links."""
+    """Block-wise FAISS search expands hits to sentence IDs, skipping self-links.
+
+    ``setUp`` patches ``_build_delta_search`` to keep these SimpleTestCases
+    DB-free: without it, ``_run_faiss_block_search`` calls
+    ``_build_delta_search`` which calls ``recommended_bool`` which hits the
+    ``AppSetting`` table. Tests pass when run in isolation but explode in the
+    full suite once the DB connection has been opened by an earlier
+    ``TestCase``.
+    """
+
+    def setUp(self):
+        super().setUp()
+        patcher = patch(
+            "apps.pipeline.services.pipeline_stages._build_delta_search",
+            return_value=None,
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def _dest_embeddings(self, n=2):
         return np.zeros((n, 4), dtype=np.float32)
@@ -274,7 +291,21 @@ class ApplyStage1MmrTests(SimpleTestCase):
 
 
 class RunFaissBlockSearchScorePreservationTests(SimpleTestCase):
-    """FR-238 — when ``host_scores_out`` is supplied, scores propagate."""
+    """FR-238 — when ``host_scores_out`` is supplied, scores propagate.
+
+    See ``RunFaissBlockSearchTests`` for why ``_build_delta_search`` is
+    patched at ``setUp``: keeps the SimpleTestCase DB-free in the full
+    test suite where an earlier TestCase has opened the connection.
+    """
+
+    def setUp(self):
+        super().setUp()
+        patcher = patch(
+            "apps.pipeline.services.pipeline_stages._build_delta_search",
+            return_value=None,
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def _dest_embeddings(self, n=1):
         return np.zeros((n, 4), dtype=np.float32)

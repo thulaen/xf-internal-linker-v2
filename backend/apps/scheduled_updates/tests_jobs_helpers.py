@@ -7,6 +7,7 @@ These helpers replaced ~700 lines of inlined boilerplate across 11 long
 
 from __future__ import annotations
 
+import os
 from unittest import mock
 
 from django.test import SimpleTestCase, TestCase
@@ -89,11 +90,14 @@ class EnsureModelOutputPathTests(TestCase):
 
     def test_default_filename(self):
         path = _ensure_model_output_path("test_subdir")
-        self.assertTrue(path.endswith("test_subdir/model.pkl"))
+        # Use os.sep so this passes on both POSIX (`/`) and Windows (`\`).
+        self.assertTrue(path.endswith(os.path.join("test_subdir", "model.pkl")))
 
     def test_custom_filename(self):
         path = _ensure_model_output_path("test_subdir2", filename="weights.bin")
-        self.assertTrue(path.endswith("test_subdir2/weights.bin"))
+        self.assertTrue(
+            path.endswith(os.path.join("test_subdir2", "weights.bin"))
+        )
 
 
 class MedianTests(SimpleTestCase):
