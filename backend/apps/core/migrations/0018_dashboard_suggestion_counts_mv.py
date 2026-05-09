@@ -56,23 +56,29 @@ DROP INDEX IF EXISTS dashboard_suggestion_counts_mv_status_idx;
 
 def create_dashboard_mv(apps, schema_editor):
     if schema_editor.connection.vendor == "sqlite":
-        schema_editor.execute(
-            "CREATE VIEW IF NOT EXISTS dashboard_suggestion_counts_mv AS "
-            "SELECT status, COUNT(*) AS count FROM suggestions_suggestion GROUP BY status;"
-        )
-    else:
-        schema_editor.execute(SQL_CREATE_MV)
-        schema_editor.execute(SQL_CREATE_INDEX)
+        # SQLite is only used in tests. The CREATE VIEW would fire fine here
+        # but every later migration that does AddField on suggestions_suggestion
+        # triggers SQLite's `_remake_table`, which renames the table mid-flight
+        # and breaks any view that references it ("error in view ...: no such
+        # table"). The view is also not useful in tests — REFRESH MATERIALIZED
+        # VIEW is Postgres-only and the tests don't exercise the dashboard's
+        # matview-fast-path. Skip view creation on SQLite entirely.
+        return
+    schema_editor.execute(SQL_CREATE_MV)
+    schema_editor.execute(SQL_CREATE_INDEX)
 
 
 def drop_dashboard_mv(apps, schema_editor):
     if schema_editor.connection.vendor == "sqlite":
-        schema_editor.execute("DROP VIEW IF EXISTS dashboard_suggestion_counts_mv;")
-    else:
-        # Cannot reliably DROP IF EXISTS for index in standard SQL without risking errors
-        # but since we used IF EXISTS in the raw SQL constants, we can just run them.
-        schema_editor.execute(SQL_DROP_INDEX)
-        schema_editor.execute(SQL_DROP_MV)
+        # Symmetric with create_dashboard_mv: nothing to drop on SQLite because
+        # nothing was created. DROP VIEW IF EXISTS is still safe to call but
+        # offers no value, so we just no-op for clarity.
+        return
+    # Cannot reliably DROP IF EXISTS for index in standard SQL without risking
+    # errors but since we used IF EXISTS in the raw SQL constants we can just
+    # run them.
+    schema_editor.execute(SQL_DROP_INDEX)
+    schema_editor.execute(SQL_DROP_MV)
 
 
 class Migration(migrations.Migration):

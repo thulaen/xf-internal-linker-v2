@@ -48,19 +48,20 @@ CREATE UNIQUE INDEX IF NOT EXISTS dashboard_suggestion_counts_mv_status_idx
 
 
 def drop_dashboard_view(apps, schema_editor):
+    # SQLite never has the view (see core/0018 — skipped on SQLite to avoid
+    # breaking subsequent AddField migrations that trigger _remake_table).
     if schema_editor.connection.vendor == "sqlite":
-        schema_editor.execute(SQL_DROP_SQLITE)
-    else:
-        schema_editor.execute(SQL_DROP_PG_INDEX)
-        schema_editor.execute(SQL_DROP_PG_VIEW)
+        return
+    schema_editor.execute(SQL_DROP_PG_INDEX)
+    schema_editor.execute(SQL_DROP_PG_VIEW)
 
 
 def recreate_dashboard_view(apps, schema_editor):
+    # Symmetric with drop_dashboard_view — never recreate on SQLite.
     if schema_editor.connection.vendor == "sqlite":
-        schema_editor.execute(SQL_CREATE_SQLITE)
-    else:
-        schema_editor.execute(SQL_CREATE_PG_VIEW)
-        schema_editor.execute(SQL_CREATE_PG_INDEX)
+        return
+    schema_editor.execute(SQL_CREATE_PG_VIEW)
+    schema_editor.execute(SQL_CREATE_PG_INDEX)
 
 
 class Migration(migrations.Migration):
