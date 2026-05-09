@@ -52,6 +52,17 @@ def collect_urls_to_scan() -> tuple[dict[tuple[int, str], dict[str, Any]], bool]
                 allowed_domains = []
             if host not in allowed_domains:
                 allowed_domains.append(host)
+    # 2026-05-09 (B8): fail loud rather than silently scan zero links.
+    # Previously, blank XENFORO_BASE_URL + WORDPRESS_BASE_URL would
+    # leave allowed_domains as None, and `extract_urls` would then yield
+    # nothing — the operator would see "scan succeeded, 0 broken links"
+    # forever even though the scan never actually inspected anything.
+    if allowed_domains is None:
+        raise RuntimeError(
+            "Cannot run broken-link scan: no source domains configured. "
+            "Set XENFORO_BASE_URL and/or WORDPRESS_BASE_URL in your "
+            "environment, or disable the broken-link Celery beat schedule."
+        )
 
     urls_to_scan: dict[tuple[int, str], dict[str, Any]] = {}
     hit_scan_cap = False
@@ -241,20 +252,30 @@ def persist_scan_results(
     to_create: list[Any],
     to_update: list[Any],
 ) -> None:
-    """Bulk-write new and updated BrokenLink rows."""
+    """Bulk-write new and updated BrokenLink rows in a single transaction.
+
+    Wrapping both bulk operations in ``transaction.atomic`` means a
+    failure in the second one rolls back the first — no half-written
+    state where new rows exist but their updates didn't land. Without
+    this guard the operator would see partial scan results and the
+    next scan would duplicate the create rows.
+    """
+    from django.db import transaction
+
     from apps.graph.models import BrokenLink
 
-    if to_create:
-        BrokenLink.objects.bulk_create(to_create)
-    if to_update:
-        BrokenLink.objects.bulk_update(
-            to_update,
-            [
-                "http_status",
-                "redirect_url",
-                "status",
-                "notes",
-                "last_checked_at",
-                "updated_at",
-            ],
-        )
+    with transaction.atomic():
+        if to_create:
+            BrokenLink.objects.bulk_create(to_create)
+        if to_update:
+            BrokenLink.objects.bulk_update(
+                to_update,
+                [
+                    "http_status",
+                    "redirect_url",
+                    "status",
+                    "notes",
+                    "last_checked_at",
+                    "updated_at",
+                ],
+            )

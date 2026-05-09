@@ -136,6 +136,16 @@ def _persist_suggestions(
     try:
         run = PipelineRun.objects.get(run_id=run_id)
     except PipelineRun.DoesNotExist:
+        # F4 (2026-05-09): make the failure mode explicit. Previously
+        # ``run = None`` propagated downstream and failed opaquely (e.g.
+        # ``run.pipeline_version`` → AttributeError) far from the cause.
+        # Logging here gives the operator a clear "this run_id was never
+        # created — the calling task is misconfigured" hint.
+        logger.warning(
+            "pipeline_persist: PipelineRun(run_id=%r) does not exist; "
+            "downstream telemetry will fall back to per-call defaults.",
+            run_id,
+        )
         run = None
 
     # Load the suppression set once per pipeline run. Empty set when the

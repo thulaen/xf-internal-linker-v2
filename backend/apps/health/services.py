@@ -1403,6 +1403,78 @@ def check_xenforo_health() -> ServiceHealthResult:
         )
 
 
+def _xf_search_short_circuit_creds() -> ServiceHealthResult | None:
+    """NOT_CONFIGURED short-circuit for the XF search probe.
+
+    Returns the failure result when ``XENFORO_BASE_URL`` /
+    ``XENFORO_API_KEY`` are missing, else ``None`` to continue.
+    Mirrors the ``_xf_check_credentials`` pattern but stamps the
+    result with ``service_key="xenforo_search"``.
+    """
+    if getattr(settings, "XENFORO_BASE_URL", "") and getattr(
+        settings, "XENFORO_API_KEY", ""
+    ):
+        return None
+    return _make_health_result(
+        "xenforo_search",
+        status=ServiceHealthRecord.STATUS_NOT_CONFIGURED,
+        label="XenForo not configured.",
+        issue="XenForo API URL or key is missing.",
+        fix="Configure XENFORO_BASE_URL and XENFORO_API_KEY env vars.",
+        success=False,
+    )
+
+
+@HealthCheckRegistry.register(
+    "xenforo_search",
+    name="XenForo Enhanced Search",
+    description=(
+        "XenForo's Elasticsearch-backed search endpoint — used for hybrid "
+        "retrieval (BM25 keyword candidates fused with the meaning-based "
+        "vector search)."
+    ),
+)
+def check_xenforo_search_health() -> ServiceHealthResult:
+    """Read-only probe of XenForo's ``/api/search/`` endpoint.
+
+    Sends one ``q="test"`` query with ``limit=1``. We're not checking
+    that hits exist — we're checking the endpoint accepts the existing
+    API key and returns a well-formed payload. The probe shares the
+    existing rate-limit bucket so it can never starve the importer.
+    """
+    short_circuit = _xf_search_short_circuit_creds()
+    if short_circuit:
+        return short_circuit
+    try:
+        from apps.sync.services.xenforo_search import XenForoSearchClient
+
+        XenForoSearchClient().search_threads("test", limit=1)
+    except Exception as exc:  # noqa: BLE001 — surface every failure on the diagnostics page
+        logger.exception("XenForo search health probe failed")
+        return _make_check_failed_result(
+            "xenforo_search",
+            exc,
+            label="XenForo search endpoint unreachable.",
+            fix=(
+                "Verify the API key has the search scope, /api/search/ "
+                "is exposed, and the Enhanced Search add-on is installed."
+            ),
+        )
+    return _make_health_result(
+        "xenforo_search",
+        status=ServiceHealthRecord.STATUS_HEALTHY,
+        label="XenForo search reachable.",
+        issue=(
+            "The /api/search/ endpoint accepted the existing API key. "
+            "Confirm Enhanced Search is the active backend in the XF "
+            "admin panel for true BM25 quality (MySQL fulltext fallback "
+            "still works but ranks worse)."
+        ),
+        fix="No action needed.",
+        metadata={"base_url": getattr(settings, "XENFORO_BASE_URL", "")},
+    )
+
+
 @HealthCheckRegistry.register(
     "wordpress",
     name="WordPress Site",

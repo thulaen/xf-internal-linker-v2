@@ -150,16 +150,31 @@ def compute_delta(previous: dict[str, str], new: dict[str, str]) -> dict[str, di
 
 @transaction.atomic
 def apply_weights(weights: dict[str, str]) -> None:
-    """Write every key from *weights* to AppSetting, falling back to defaults."""
+    """Write only the keys *weights* explicitly lists to AppSetting.
+
+    Behaviour change (2026-05-09 — DEFAULT-ON-RULE.md): previously this
+    iterated ``PRESET_DEFAULTS.items()`` and wrote every in-scope key,
+    falling back to the project default when the caller didn't supply a
+    value. That made every preset application destructive — applying a
+    4-key preset still trampled all ~50 in-scope keys and silently wiped
+    any manual or autotuner-set value on the other 46.
+
+    The fix: iterate ``weights.items()`` and only write what the caller
+    explicitly listed. Presets compose. Manual tweaks survive a preset
+    application as long as the preset doesn't list the same key.
+
+    Edge case: an empty ``weights`` dict is a no-op. Keys outside
+    ``_KEY_META`` fall back to the defensive
+    ``{"value_type": "str", "category": "ml"}`` shape — same as before.
+    """
     from apps.core.models import AppSetting
 
-    for key, default_value in PRESET_DEFAULTS.items():
-        value = str(weights.get(key, default_value))
+    for key, value in weights.items():
         meta = _KEY_META.get(key, {"value_type": "str", "category": "ml"})
         AppSetting.objects.update_or_create(
             key=key,
             defaults={
-                "value": value,
+                "value": str(value),
                 "value_type": meta["value_type"],
                 "category": meta["category"],
                 "is_secret": False,

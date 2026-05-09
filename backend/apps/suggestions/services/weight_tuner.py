@@ -14,6 +14,14 @@ logger = logging.getLogger(__name__)
 _DRIFT_LIMIT_PER_RUN = 0.05
 _WEIGHT_EPSILON = 1e-9
 
+# Hard floor that the autotuner is forbidden to drive any weight below.
+# Per DEFAULT-ON-RULE.md and the user's explicit safety request: the
+# autotuner must never silently disable a feature by zeroing its weight.
+# Empirical: smallest non-zero weight in the Recommended preset is 0.03,
+# so 0.01 leaves the tuner room to nudge below current values without
+# ever zeroing them. The simplex projection respects this floor too.
+_WEIGHT_FLOOR = 0.01
+
 
 def _emit_weight_tuner_event(
     event_type: str,
@@ -206,7 +214,10 @@ class WeightTuner:
         # Constraints: sum(w) = 1, each w in [0, 1]
         # Drift limit: abs(w_new - w_old) <= 0.05
 
-        lower_bounds = np.maximum(0.0, w_init - _DRIFT_LIMIT_PER_RUN)
+        # Per DEFAULT-ON-RULE.md: the autotuner must never zero a weight.
+        # Floor every lower bound at _WEIGHT_FLOOR (0.01) so even a feature
+        # that started at 0.04 cannot be driven to zero by ±0.05 drift.
+        lower_bounds = np.maximum(_WEIGHT_FLOOR, w_init - _DRIFT_LIMIT_PER_RUN)
         upper_bounds = np.minimum(1.0, w_init + _DRIFT_LIMIT_PER_RUN)
         bounds = list(zip(lower_bounds, upper_bounds, strict=True))
 

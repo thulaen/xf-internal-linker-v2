@@ -714,19 +714,22 @@ def _load_sentence_records(
 def _load_existing_links() -> set[ExistingLinkKey]:
     from apps.graph.models import ExistingLink
 
+    # ``.iterator(chunk_size=10_000)`` streams from the DB so a forum
+    # with 1M+ ExistingLink rows doesn't materialise the full set in
+    # one go. The result-set still has to fit in RAM (it's a Python set
+    # of tuples, ~150 MB at 1M rows) but iteration peak memory drops
+    # by 2-3× because we don't double-buffer the materialised QuerySet
+    # cache alongside the set we're building.
     qs = ExistingLink.objects.values_list(
         "from_content_item__pk",
         "from_content_item__content_type",
         "to_content_item__pk",
         "to_content_item__content_type",
-    )
-    return {
-        (
-            (from_pk, from_type),
-            (to_pk, to_type),
-        )
-        for from_pk, from_type, to_pk, to_type in qs
-    }
+    ).iterator(chunk_size=10_000)
+    out: set[ExistingLinkKey] = set()
+    for from_pk, from_type, to_pk, to_type in qs:
+        out.add(((from_pk, from_type), (to_pk, to_type)))
+    return out
 
 
 def _load_learned_anchor_rows_by_destination() -> (

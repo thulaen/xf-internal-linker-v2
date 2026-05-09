@@ -138,7 +138,11 @@ STAGE1_TOP_K = recommended_int("pipeline.stage1_top_k")
 STAGE2_TOP_K = recommended_int("pipeline.stage2_top_k")
 MIN_SEMANTIC_SCORE = recommended_float("pipeline.min_semantic_score")
 FALLBACK_CANDIDATES_PER_DESTINATION = 5
-BLOCK_SIZE = 256  # maxsize for embedding block processing
+# F2 (2026-05-09): BLOCK_SIZE was a bare ``= 256`` hardcoded constant.
+# Now it lives in RECOMMENDED_PRESET_WEIGHTS so it's discoverable, the
+# meta-algorithm autotuner can target it, and a future operator-facing
+# settings card can expose it. Value unchanged at 256.
+BLOCK_SIZE = recommended_int("pipeline.embedding_block_size")
 _SCORING_PROGRESS_INTERVAL = 100  # maxsize for scoring loop progress reporting
 
 

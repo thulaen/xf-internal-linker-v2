@@ -25,13 +25,16 @@ class Stage1RetrieverSettingsViewTests(TestCase):
         body = resp.json()
         self.assertEqual(body["lexical_retriever_enabled"], True)
         self.assertEqual(body["query_expansion_retriever_enabled"], False)
+        # Migration 0066 seeds the XF BM25 retriever default-on.
+        self.assertEqual(body["xenforo_bm25_retriever_enabled"], True)
 
-    def test_put_persists_both_flags(self) -> None:
+    def test_put_persists_all_flags(self) -> None:
         resp = self.client.put(
             self.URL,
             data={
                 "lexical_retriever_enabled": True,
                 "query_expansion_retriever_enabled": True,
+                "xenforo_bm25_retriever_enabled": False,
             },
             format="json",
         )
@@ -42,16 +45,18 @@ class Stage1RetrieverSettingsViewTests(TestCase):
             {
                 "lexical_retriever_enabled": True,
                 "query_expansion_retriever_enabled": True,
+                "xenforo_bm25_retriever_enabled": False,
             },
         )
 
     def test_put_partial_keeps_other_flag(self) -> None:
-        # Set both to True first.
+        # Set all three to True first.
         self.client.put(
             self.URL,
             data={
                 "lexical_retriever_enabled": True,
                 "query_expansion_retriever_enabled": True,
+                "xenforo_bm25_retriever_enabled": True,
             },
             format="json",
         )
@@ -64,9 +69,10 @@ class Stage1RetrieverSettingsViewTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         snap = get_stage1_retriever_settings()
         self.assertFalse(snap["lexical_retriever_enabled"])
-        # The other flag stays True (PUT keeps current values for
+        # The other flags stay True (PUT keeps current values for
         # missing keys).
         self.assertTrue(snap["query_expansion_retriever_enabled"])
+        self.assertTrue(snap["xenforo_bm25_retriever_enabled"])
 
     def test_string_inputs_coerce_correctly(self) -> None:
         """API consumers may send strings for booleans (e.g. legacy clients)."""
@@ -95,28 +101,57 @@ class Stage1RetrieverSettingsViewTests(TestCase):
             LexicalRetriever,
             QueryExpansionRetriever,
             SemanticRetriever,
+            XenForoBM25Retriever,
             default_retrievers,
         )
 
-        # Seeded default: semantic plus lexical, query expansion still opt-in.
+        # Seeded default: semantic + lexical + XF-BM25; query expansion
+        # still opt-in.
         regs = default_retrievers()
-        self.assertEqual(len(regs), 2)
+        self.assertEqual(len(regs), 3)
         self.assertIsInstance(regs[0], SemanticRetriever)
         self.assertIsInstance(regs[1], LexicalRetriever)
+        self.assertIsInstance(regs[2], XenForoBM25Retriever)
 
-        # Flip both flags via the API.
+        # Flip every opt-in on via the API.
         self.client.put(
             self.URL,
             data={
                 "lexical_retriever_enabled": True,
                 "query_expansion_retriever_enabled": True,
+                "xenforo_bm25_retriever_enabled": True,
             },
             format="json",
         )
 
         regs2 = default_retrievers()
-        self.assertEqual(len(regs2), 3)
+        self.assertEqual(len(regs2), 4)
         names = [r.name for r in regs2]
-        self.assertEqual(names, ["semantic", "lexical", "query_expansion"])
+        self.assertEqual(
+            names, ["semantic", "lexical", "query_expansion", "xenforo_bm25"]
+        )
         self.assertIsInstance(regs2[1], LexicalRetriever)
         self.assertIsInstance(regs2[2], QueryExpansionRetriever)
+        self.assertIsInstance(regs2[3], XenForoBM25Retriever)
+
+    def test_xf_bm25_can_be_disabled_via_api(self) -> None:
+        """Operator can opt out of the default-on XF BM25 retriever."""
+        from apps.pipeline.services.candidate_retrievers import (
+            XenForoBM25Retriever,
+            default_retrievers,
+        )
+
+        # Disable the XF BM25 retriever; lexical stays seeded-on.
+        self.client.put(
+            self.URL,
+            data={"xenforo_bm25_retriever_enabled": False},
+            format="json",
+        )
+        regs = default_retrievers()
+        self.assertNotIn(
+            "xenforo_bm25", [r.name for r in regs]
+        )
+        # And no XenForoBM25Retriever instance leaked through either.
+        self.assertFalse(
+            any(isinstance(r, XenForoBM25Retriever) for r in regs)
+        )

@@ -145,10 +145,28 @@ class RankingChallenger(TimestampedModel):
         ("rejected", "Rejected — did not beat champion"),
     ]
 
+    KIND_CHOICES = [
+        ("weights", "Ranking-blend weights (FR-018)"),
+        ("meta_algorithm", "Meta-algorithm parameter (FR-018b)"),
+    ]
+
     run_id = models.CharField(
         max_length=200,
         unique=True,
         help_text="Opaque identifier from the Python auto-tune run (UUID4).",
+    )
+    kind = models.CharField(
+        max_length=32,
+        choices=KIND_CHOICES,
+        default="weights",
+        db_index=True,
+        help_text=(
+            "Distinguishes ranking-blend-weight challengers (FR-018, the "
+            "original four w_* keys) from meta-algorithm-parameter "
+            "challengers (FR-018b, things like RRF k / BM25 k1 / MMR "
+            "lambda). Both use the same model and the same SPRT "
+            "evaluator, but distinct kinds keep audit queries clear."
+        ),
     )
     status = models.CharField(
         max_length=20,

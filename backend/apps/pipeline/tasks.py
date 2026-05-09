@@ -159,12 +159,34 @@ def _save_checkpoint(
             checkpoint_items_processed=items_processed,
         )
     except Exception:
-        logger.debug(
-            "Checkpoint write failed for job %s (stage=%s)",
+        # B9 (2026-05-09): escalate from logger.debug → logger.warning so
+        # checkpoint failures actually surface in the operator's logs.
+        # A silent debug-level swallow meant resumed jobs could
+        # re-process thousands of items from a stale checkpoint without
+        # anyone noticing. Also stamp a sidecar AppSetting key so the
+        # next resume can detect "I'm starting from a possibly-stale
+        # checkpoint" and treat it as suspect.
+        logger.warning(
+            "Checkpoint write failed for job %s (stage=%s) — "
+            "subsequent resume may start from a stale position.",
             job_id,
             stage,
             exc_info=True,
         )
+        try:
+            from apps.core.models import AppSetting
+
+            AppSetting.objects.update_or_create(
+                key=f"sync.checkpoint_failed_at.{job_id}",
+                defaults={
+                    "value": str(int(__import__("time").time())),
+                    "value_type": "int",
+                    "category": "sync",
+                    "is_secret": False,
+                },
+            )
+        except Exception:
+            logger.debug("Could not stamp checkpoint-failure sidecar", exc_info=True)
 
 
 def dispatch_broken_link_scan(job_id: str | None = None) -> dict[str, Any]:
@@ -1002,6 +1024,8 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
         hit_scan_cap,
         probe_backend,
     )
+    if hit_scan_cap:
+        _emit_broken_link_scan_capped_alert(job_id, total_urls)
     return {
         "job_id": job_id,
         "scanned_urls": total_urls,
@@ -1010,6 +1034,34 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
         "hit_scan_cap": hit_scan_cap,
         "probe_backend": probe_backend,
     }
+
+
+def _emit_broken_link_scan_capped_alert(job_id: str, total_urls: int) -> None:
+    """B7 (2026-05-09): surface an OperatorAlert when the 10k cap fires.
+
+    Without this the scan reports "success" and the tail of the link
+    graph silently goes unchecked indefinitely.
+    """
+    try:
+        from apps.notifications.models import OperatorAlert
+        from apps.notifications.services import emit_operator_alert
+
+        emit_operator_alert(
+            event_type="broken_link.scan_capped",
+            severity="warning",
+            title="Broken-link scan capped",
+            message=(
+                f"Scan capped at {total_urls:,} URLs. The remainder of the "
+                "link graph was not inspected. Consider raising "
+                "_MAX_BROKEN_LINK_SCAN_URLS or splitting the scan."
+            ),
+            source_area=OperatorAlert.AREA_PIPELINE,
+            dedupe_key="broken_link.scan_capped",
+            related_object_type="sync_job",
+            related_object_id=str(job_id),
+        )
+    except Exception:
+        logger.debug("broken_link.scan_capped alert emit failed", exc_info=True)
 
 
 def _execute_broken_link_scan(
@@ -1533,14 +1585,20 @@ def _run_standard_purges(now, results: dict[str, int]) -> None:
         results["metric_snapshots_deleted"] = 0
 
 
-def _build_standard_purge_specs(now) -> list[dict]:  # noqa: forbidden-pattern long-function  # justification: pure data table — adding a new retention rule = one entry; splitting would obscure the inventory.
-    """Return the per-table spec list for ``_run_standard_purges``.
+def _standard_purge_spec_rows() -> list[dict]:  # noqa: forbidden-pattern long-function  # justification: pure static data table — adding a new retention rule = one entry; splitting would obscure the inventory.
+    """Static spec rows used by :func:`_build_standard_purge_specs`.
 
-    Adding a new age-based retention rule = one entry here, not a new
-    try/except block. Each entry maps directly to ``_purge_aged_rows``
-    keyword args.
+    The 7 retention-purge entries below are pure data — each row maps
+    directly to ``_purge_aged_rows`` keyword args. Splitting them into
+    multiple functions would obscure the inventory; keeping the list
+    here lets the operator scan all retention rules in one place.
+
+    The age constants live in seconds-equivalent integer days, applied
+    by the caller via ``now - timedelta(days=row["age_days"])``. Pulling
+    the ``cutoff`` calculation OUT of the data rows lets this function
+    run without a ``now`` argument, which is what makes it a pure
+    static-data helper instead of a 90-line function.
     """
-    from datetime import timedelta
     from apps.analytics.models import SearchMetric
     from apps.audit.models import AuditEntry, ErrorLog
     from apps.crawler.models import CrawlerVisit
@@ -1552,7 +1610,7 @@ def _build_standard_purge_specs(now) -> list[dict]:  # noqa: forbidden-pattern l
             "model_cls": SearchMetric,
             "cutoff_field": "date",
             "use_date": True,
-            "cutoff": now - timedelta(days=_RETENTION_12_MONTHS),
+            "age_days": _RETENTION_12_MONTHS,
             "result_key": "search_metrics_deleted",
             "label": "SearchMetric (12 months)",
             "step": "search_metric_purge",
@@ -1561,7 +1619,7 @@ def _build_standard_purge_specs(now) -> list[dict]:  # noqa: forbidden-pattern l
         {
             "model_cls": PipelineRun,
             "cutoff_field": "created_at",
-            "cutoff": now - timedelta(days=90),
+            "age_days": 90,
             "result_key": "pipeline_runs_deleted",
             "label": "PipelineRun (90 days)",
             "step": "pipeline_run_purge",
@@ -1570,7 +1628,7 @@ def _build_standard_purge_specs(now) -> list[dict]:  # noqa: forbidden-pattern l
         {
             "model_cls": Suggestion,
             "cutoff_field": "updated_at",
-            "cutoff": now - timedelta(days=30),
+            "age_days": 30,
             "extra_filter": {"status": "superseded"},
             "result_key": "superseded_suggestions_deleted",
             "label": "Superseded Suggestion (30 days)",
@@ -1580,7 +1638,7 @@ def _build_standard_purge_specs(now) -> list[dict]:  # noqa: forbidden-pattern l
         {
             "model_cls": AuditEntry,
             "cutoff_field": "created_at",
-            "cutoff": now - timedelta(days=_RETENTION_6_MONTHS),
+            "age_days": _RETENTION_6_MONTHS,
             "result_key": "audit_entries_deleted",
             "label": "AuditEntry (180 days)",
             "step": "audit_entry_purge",
@@ -1589,7 +1647,7 @@ def _build_standard_purge_specs(now) -> list[dict]:  # noqa: forbidden-pattern l
         {
             "model_cls": ErrorLog,
             "cutoff_field": "created_at",
-            "cutoff": now - timedelta(days=30),
+            "age_days": 30,
             "result_key": "error_logs_deleted",
             "label": "ErrorLog (30 days)",
             "step": "error_log_purge",
@@ -1599,7 +1657,7 @@ def _build_standard_purge_specs(now) -> list[dict]:  # noqa: forbidden-pattern l
         {
             "model_cls": WebhookReceipt,
             "cutoff_field": "created_at",
-            "cutoff": now - timedelta(days=30),
+            "age_days": 30,
             "result_key": "webhook_receipts_deleted",
             "label": "WebhookReceipt (30 days)",
             "step": "webhook_receipt_purge",
@@ -1610,7 +1668,7 @@ def _build_standard_purge_specs(now) -> list[dict]:  # noqa: forbidden-pattern l
         {
             "model_cls": CrawlerVisit,
             "cutoff_field": "visited_at",
-            "cutoff": now - timedelta(days=90),
+            "age_days": 90,
             "result_key": "crawler_visits_deleted",
             "label": "CrawlerVisit (D.7, 90 days)",
             "step": "crawler_visit_purge",
@@ -1621,6 +1679,25 @@ def _build_standard_purge_specs(now) -> list[dict]:  # noqa: forbidden-pattern l
             ),
         },
     ]
+
+
+def _build_standard_purge_specs(now) -> list[dict]:
+    """Resolve cutoff timestamps for each spec row and return the list.
+
+    Pure orchestration — the data lives in ``_standard_purge_spec_rows``
+    so this function stays under the 50-line cap and adding a new
+    retention rule means appending one entry to that helper, not
+    editing this one.
+    """
+    from datetime import timedelta
+
+    rows = _standard_purge_spec_rows()
+    out: list[dict] = []
+    for row in rows:
+        spec = {k: v for k, v in row.items() if k != "age_days"}
+        spec["cutoff"] = now - timedelta(days=row["age_days"])
+        out.append(spec)
+    return out
 
 
 def _run_advanced_purges(now, results: dict[str, int], report) -> None:
@@ -2011,6 +2088,277 @@ _OPTIMISER_COVERAGE_NOTE = (
 )
 
 
+def _record_meta_tune_failure(raw: str) -> None:
+    """ErrorLog stamp for a failed meta-tune run."""
+    from apps.audit.models import ErrorLog
+
+    ErrorLog.objects.create(
+        job_type="auto_tune_meta_algorithms",
+        step="monthly_meta_tune",
+        error_message="Meta-algorithm tune task failed.",
+        raw_exception=raw,
+        why="The monthly meta-algorithm auto-tune task raised an unexpected exception.",
+    )
+
+
+def _create_meta_challenger(run_id: str, candidate: dict) -> object:
+    """Persist a meta-algorithm challenger row + chain evaluation."""
+    from apps.suggestions.models import RankingChallenger
+    from apps.suggestions.weight_preset_service import get_current_weights
+
+    baseline = {key: get_current_weights().get(key, "") for key in candidate}
+    challenger = RankingChallenger.objects.create(
+        run_id=run_id,
+        kind="meta_algorithm",
+        candidate_weights={k: f"{v:.6f}" for k, v in candidate.items()},
+        baseline_weights=baseline,
+    )
+    logger.info(
+        "[monthly_meta_tune] Created meta-algorithm challenger "
+        "run_id=%s with %d parameter(s).",
+        run_id,
+        len(candidate),
+    )
+    evaluate_meta_challenger.delay(run_id=run_id)
+    return challenger
+
+
+@shared_task(
+    bind=True,
+    name="pipeline.monthly_meta_tune",
+    time_limit=600,
+    soft_time_limit=540,
+    acks_late=True,
+)
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=128,
+    expected_seconds_p50=30,
+)
+@with_weight_lock("medium")
+def monthly_meta_tune(self):
+    """FR-018b — drift meta-algorithm parameters monthly.
+
+    Mirrors ``monthly_weight_tune`` but for meta-algorithm parameters
+    (RRF k, BM25 k1/b, MMR lambda, etc.) via the ``MetaAlgorithmTuner``.
+    Writes a ``RankingChallenger`` row with ``kind="meta_algorithm"``
+    and chains ``evaluate_meta_challenger`` for promotion.
+
+    Scheduled at 14:15 UTC on the first Sunday — 30 minutes after the
+    FR-018 weight tuner to avoid Postgres write-window contention.
+    """
+    import traceback
+    import uuid as _uuid
+
+    from apps.suggestions.services.meta_tuner import MetaAlgorithmTuner
+
+    run_id = f"meta-{_uuid.uuid4()}"
+    try:
+        candidate = MetaAlgorithmTuner().propose()
+        if not candidate:
+            logger.info("[monthly_meta_tune] Tuner produced empty proposal.")
+            return {"status": "skipped", "run_id": run_id}
+        challenger = _create_meta_challenger(run_id, candidate)
+        return {
+            "status": "submitted",
+            "run_id": run_id,
+            "challenger_id": str(challenger.pk),
+        }
+    except (DatabaseError, TimeoutError, MemoryError, ValueError):
+        raw = traceback.format_exc()
+        logger.exception("[monthly_meta_tune] Failed: %s", raw)
+        _record_meta_tune_failure(raw)
+        return {"status": "error"}
+
+
+def _meta_gate_recent_rollback(challenger) -> bool:
+    """Did any meta-challenger get rolled back in the last 30 days?
+
+    Excludes the challenger being evaluated. Used by ``_meta_safety_gate``.
+    """
+    from datetime import timedelta
+
+    from apps.suggestions.models import RankingChallenger
+    from django.utils import timezone
+
+    cutoff = timezone.now() - timedelta(days=30)
+    return (
+        RankingChallenger.objects.filter(
+            kind="meta_algorithm",
+            status="rolled_back",
+            updated_at__gte=cutoff,
+        )
+        .exclude(pk=challenger.pk)
+        .exists()
+    )
+
+
+def _meta_gate_consecutive_failures(challenger) -> bool:
+    """Did the last 3 meta-challengers all end in failure?"""
+    from apps.suggestions.models import RankingChallenger
+
+    recent = (
+        RankingChallenger.objects.filter(kind="meta_algorithm")
+        .exclude(pk=challenger.pk)
+        .order_by("-created_at")[:3]
+    )
+    failures = [c for c in recent if c.status in {"rolled_back", "rejected"}]
+    return len(failures) >= 3
+
+
+def _meta_safety_gate(challenger) -> tuple[str, str]:
+    """Decide whether to promote / reject / escalate a meta-challenger.
+
+    Returns ``(decision, reason)``. Decisions:
+    ``"promote"`` (clean), ``"reject"`` (recent regression),
+    ``"escalate"`` (3 failures in a row → also fires OperatorAlert).
+    See `docs/specs/fr018b-meta-algorithm-autotuner.md` §4 for the
+    motivation behind each check.
+    """
+    if _meta_gate_recent_rollback(challenger):
+        return (
+            "reject",
+            "Recent meta-algorithm rollback within the last 30 days — "
+            "skipping promotion until the regression watchdog clears.",
+        )
+    if _meta_gate_consecutive_failures(challenger):
+        return (
+            "escalate",
+            "Last 3 meta-algorithm challengers all ended in failure — the "
+            "tuner may be proposing consistently-bad drifts; review the "
+            "_META_PARAM_BOUNDS bounds or recent code changes.",
+        )
+    return ("promote", "")
+
+
+def _emit_meta_escalation_alert(challenger, reason: str) -> None:
+    """Emit an OperatorAlert when the meta-tuner gate triggers escalation."""
+    try:
+        from apps.notifications.models import OperatorAlert
+        from apps.notifications.services import emit_operator_alert
+
+        emit_operator_alert(
+            event_type="meta_tuner.consecutive_failures",
+            severity="warning",
+            title="Meta-algorithm autotuner: consecutive failures",
+            message=(
+                f"{reason}\n\n"
+                f"Latest run: {challenger.run_id}. Investigate "
+                f"`_META_PARAM_BOUNDS` in meta_tuner.py."
+            ),
+            source_area=OperatorAlert.AREA_PIPELINE,
+            dedupe_key="meta_tuner.consecutive_failures",
+            related_object_type="ranking_challenger",
+            related_object_id=str(challenger.pk),
+        )
+    except Exception:
+        logger.debug("meta_tuner escalation alert emit failed", exc_info=True)
+
+
+def _promote_meta_challenger(challenger, run_id: str, candidate: dict) -> object:
+    """Apply meta-parameter candidate weights + record history + flip status."""
+    from django.db import transaction
+
+    from apps.suggestions.weight_preset_service import (
+        apply_weights,
+        get_current_weights,
+        write_history,
+    )
+
+    previous_weights = {
+        key: get_current_weights().get(key, "") for key in candidate
+    }
+    with transaction.atomic():
+        apply_weights(candidate)
+    new_weights = {
+        key: get_current_weights().get(key, "") for key in candidate
+    }
+    history_row = write_history(
+        source="auto_tune_meta",
+        previous_weights=previous_weights,
+        new_weights=new_weights,
+        reason=(
+            f"FR-018b meta-algorithm auto-tune promoted run_id="
+            f"{run_id[:_RUN_ID_PREVIEW_LEN]} ({len(candidate)} parameter(s))."
+        ),
+        r_run_id=run_id,
+    )
+    challenger.status = "promoted"
+    challenger.history = history_row
+    challenger.save(update_fields=["status", "history", "updated_at"])
+    return history_row
+
+
+def _handle_meta_gate_failure(challenger, decision: str, reason: str) -> dict:
+    """Mark a meta-challenger rejected; emit alert on escalate."""
+    challenger.status = "rejected"
+    challenger.save(update_fields=["status", "updated_at"])
+    if decision == "escalate":
+        _emit_meta_escalation_alert(challenger, reason)
+    logger.info(
+        "[evaluate_meta_challenger] Gate %s for run_id=%s: %s",
+        decision,
+        challenger.run_id,
+        reason,
+    )
+    return {"status": f"gate_{decision}", "run_id": challenger.run_id, "reason": reason}
+
+
+@shared_task(bind=True, name="pipeline.evaluate_meta_challenger")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=128,
+    expected_seconds_p50=10,
+)
+@with_weight_lock("medium")
+def evaluate_meta_challenger(self, run_id: str):
+    """FR-018b — promote / reject a meta-algorithm challenger via the safety gate.
+
+    See ``_meta_safety_gate`` and `docs/specs/fr018b-meta-algorithm-autotuner.md`
+    for the gate's two safety checks (recent rollback + consecutive failures).
+    """
+    from apps.suggestions.models import RankingChallenger
+
+    challenger = RankingChallenger.objects.filter(
+        run_id=run_id,
+        kind="meta_algorithm",
+        status="pending",
+    ).first()
+    if challenger is None:
+        logger.info(
+            "[evaluate_meta_challenger] No pending meta-challenger for run_id=%s",
+            run_id,
+        )
+        return {"status": "no_op"}
+
+    candidate = dict(challenger.candidate_weights or {})
+    if not candidate:
+        challenger.status = "rejected"
+        challenger.save(update_fields=["status", "updated_at"])
+        return {"status": "rejected_empty", "run_id": run_id}
+
+    decision, reason = _meta_safety_gate(challenger)
+    if decision in {"reject", "escalate"}:
+        return _handle_meta_gate_failure(challenger, decision, reason)
+
+    _promote_meta_challenger(challenger, run_id, candidate)
+    logger.info(
+        "[evaluate_meta_challenger] Promoted meta-algorithm challenger %s "
+        "with %d parameter(s).",
+        run_id,
+        len(candidate),
+    )
+    return {
+        "status": "promoted",
+        "run_id": run_id,
+        "challenger_id": str(challenger.pk),
+    }
+
+
 @shared_task(bind=True, name="pipeline.evaluate_weight_challenger")
 @HelperConstraint(
     cpu_intensive=True,  # NDCG@k bootstrap evaluation
@@ -2316,6 +2664,25 @@ def _execute_rollback(challenger, ratio: float) -> None:
         challenger.run_id,
         ratio,
     )
+    # B12 (2026-05-09): broadcast a realtime topic so any operator
+    # currently on /settings/ sees a snackbar telling them their view
+    # is stale. Without this they could spend minutes editing weights
+    # the rollback already overwrote, then save and trample the
+    # rollback. Best-effort — failure here must not crash the task.
+    try:
+        from apps.realtime.services import broadcast
+
+        broadcast(
+            "weights.rolled_back",
+            "weights.rolled_back",
+            {
+                "run_id": challenger.run_id,
+                "ratio": float(ratio),
+                "rolled_back_at": timezone.now().isoformat(),
+            },
+        )
+    except Exception:
+        logger.debug("weights.rolled_back broadcast failed", exc_info=True)
 
 
 # ── FR-019: GSC spike detection ───────────────────────────────────────────────

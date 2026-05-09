@@ -3,6 +3,20 @@
 This ensures the registry-driven Settings UI and the auto-tuner have access
 to all forward-declared slots. Every slot is seeded as enabled=false and
 weight=0.00.
+
+# DEFAULT-ON-RULE: external-data-gated
+# Reason: forward-declared slots for META-40..META-249 algorithms that
+#   aren't yet implemented. Each slot is a placeholder that the
+#   eventual implementation will own. Until that algorithm ships there
+#   is literally nothing to enable, so off-by-default is the only
+#   defensible state. This is the canonical "external dependency =
+#   the future implementation itself" case.
+
+# AUTOTUNER: not-tunable - placeholder slots for unimplemented META-XX
+# algorithms; the autotuner can't drift a key whose backing logic
+# doesn't yet exist. When each slot's real algorithm ships, that
+# algorithm's spec adds the key to _META_PARAM_BOUNDS in meta_tuner.py
+# (or _AUTOTUNER_EXCLUDED with a rationale) at the same time.
 """
 
 from __future__ import annotations

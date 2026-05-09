@@ -1,14 +1,18 @@
-"""Stage-1 retriever settings endpoint (Group C.1-C.3 wiring).
+"""Stage-1 retriever settings endpoint (Group C.1-C.3 + XF-BM25 wiring).
 
-Exposes the two AppSetting flags that control whether optional Stage-1
+Exposes the AppSetting flags that control whether optional Stage-1
 retrievers participate in the candidate pool:
 
 - ``stage1.lexical_retriever_enabled``: token-overlap ``LexicalRetriever``.
 - ``stage1.query_expansion_retriever_enabled``: Rocchio query expansion.
+- ``stage1.xenforo_bm25_retriever_enabled``: XenForo Enhanced Search
+  BM25 over forum threads (Path A — REST API; see
+  ``docs/specs/xf-bm25-retrieval.md``).
 
-The lexical retriever is seeded on by the Recommended preset; query expansion
-stays opt-in. When operators flip either flag, the next pipeline pass uses the
-matching retriever path and fuses ranked lists per destination.
+The lexical and XenForo-BM25 retrievers are seeded on by the Recommended
+preset (migrations 0062 and 0066). Query expansion stays opt-in. When
+operators flip any flag, the next pipeline pass uses the matching
+retriever path and fuses ranked lists per destination via RRF.
 
 The semantic retriever is always on and does not need a toggle here.
 """
@@ -28,6 +32,7 @@ from .views_antispam import _persist_settings, _read_setting
 _SETTINGS_DEFAULTS: dict[str, bool] = {
     "lexical_retriever_enabled": False,
     "query_expansion_retriever_enabled": False,
+    "xenforo_bm25_retriever_enabled": False,
 }
 
 _SETTINGS_DESCRIPTIONS: dict[str, str] = {
@@ -44,6 +49,14 @@ _SETTINGS_DESCRIPTIONS: dict[str, str] = {
         "expansion terms (synonyms / related vocabulary) with the "
         "destination, even when they do not share literal title tokens. "
         "Combine with the lexical retriever for the richest fused ranking."
+    ),
+    "xenforo_bm25_retriever_enabled": (
+        "Adds the XenForoBM25Retriever (Path A — REST API). For each "
+        "destination, queries XenForo's Enhanced Search "
+        "(Elasticsearch-backed BM25, Robertson & Zaragoza 2009) via the "
+        "existing API key, fused with FAISS results via RRF. XF-source "
+        "candidates only — WordPress / blog / crawled hosts unaffected. "
+        "See docs/specs/xf-bm25-retrieval.md."
     ),
 }
 

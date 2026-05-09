@@ -537,10 +537,19 @@ class YakeExtractorCacheTests(SimpleTestCase):
     per parameter set, not constructed per call."""
 
     def test_extractor_cache_reuses_instance(self) -> None:
+        from apps.core.runtime_flags import invalidate
         from apps.sources import yake_keywords as yk
 
-        # Clear any prior cache state.
+        # Clear any prior cache state. ``_EXTRACTOR_CACHE.clear()`` zeroes
+        # the per-parameter extractor cache; ``invalidate(...)`` clears
+        # the runtime-flags cache so a prior test that flipped
+        # ``yake_keywords.enabled=false`` doesn't make ``yk.extract``
+        # return early without populating the cache. The latter caused
+        # this test to fail when run after certain ordering of the
+        # broader suite — fixed 2026-05-09 in the same round that added
+        # FR-018b's meta-tuner tests, which shift Django's discovery order.
         yk._EXTRACTOR_CACHE.clear()
+        invalidate("yake_keywords.enabled")
         if not yk.HAS_YAKE:
             self.skipTest("yake pip dep not installed")
         yk.extract("Some text to extract keywords from for testing.", top_k=5)

@@ -44,8 +44,11 @@ def seed_defaults(apps, schema_editor):
     WeightPreset = apps.get_model("suggestions", "WeightPreset")
     FeatureFlag = apps.get_model("audit", "FeatureFlag")
 
+    # 2026-05-09: switched from ``update_or_create`` to ``get_or_create`` so
+    # re-running this migration (fresh test DB, database restore, etc.) no
+    # longer trampling any operator override. Matches DEFAULT-ON-RULE.md.
     for key, meta in DEFAULTS.items():
-        AppSetting.objects.update_or_create(key=key, defaults=meta)
+        AppSetting.objects.get_or_create(key=key, defaults=meta)
 
     preset, _ = WeightPreset.objects.get_or_create(
         name="Recommended",

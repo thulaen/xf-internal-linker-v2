@@ -84,3 +84,12 @@ if [ -n "$STAGED_DEEP_LINK_FILES" ] && command -v python > /dev/null; then
   echo "→ Deep-link catalog rule (DEEP-LINKING-CATALOG.md)"
   python "$REPO_ROOT/scripts/verify_deep_links.py" --quiet
 fi
+
+# 9. Default-on rule from DEFAULT-ON-RULE.md. Blocks commits that seed
+#    an AppSetting row with an off value (false/0/0.0/off) unless the
+#    migration's docstring contains the external-data-gated exemption
+#    plus a Reason line. Skipped if Python isn't on PATH.
+if [ -n "$STAGED_MIGRATIONS" ] && command -v python > /dev/null; then
+  echo "→ Default-on rule (DEFAULT-ON-RULE.md)"
+  python "$HOOK_DIR/check-default-on-rule.py" $STAGED_MIGRATIONS
+fi

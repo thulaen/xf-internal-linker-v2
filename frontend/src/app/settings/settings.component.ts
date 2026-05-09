@@ -2426,12 +2426,16 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     score_window: 0.30,
     similarity_cap: 0.90,
   };
-  // Group C — Stage-1 candidate-retriever flags.
-  // Default off; flipping either on activates RRF fusion (pick #31).
-  // See backend/apps/pipeline/services/candidate_retrievers.py.
+  // Stage-1 candidate-retriever flags.
+  // Lexical (FR-240) and XenForo BM25 default ON via migrations 0062+0066;
+  // query expansion stays opt-in. RRF fusion (pick #31) automatically
+  // merges any active retrievers' ranked lists per destination.
+  // See backend/apps/pipeline/services/candidate_retrievers.py +
+  // docs/specs/xf-bm25-retrieval.md.
   stage1Retrievers: Stage1RetrieverSettings = {
     lexical_retriever_enabled: false,
     query_expansion_retriever_enabled: false,
+    xenforo_bm25_retriever_enabled: false,
   };
   savingStage1Retrievers = false;
 
@@ -3144,41 +3148,61 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   }
 
   reloadPresetsAndHistory(shouldCheckAutoApply = false): void {
+    // Two independent endpoints — but the auto-apply guard reads BOTH
+    // (`weightHistory` and `weightPresets`). Previously these fired in
+    // parallel via separate `.subscribe` calls and the auto-apply ran
+    // as soon as `presets` resolved, racing the still-in-flight
+    // `history` request. That made `weightHistory.length > 0` guard
+    // unreliable — it almost always fired with `[]` even when history
+    // rows existed in the DB. forkJoin waits for both before deciding.
     this.loadingPresets = true;
     this.loadingHistory = true;
-    this.siloSvc.listWeightPresets().pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: (presets) => { 
-        this.weightPresets = presets; 
+    forkJoin({
+      presets: this.siloSvc.listWeightPresets(),
+      history: this.siloSvc.listWeightHistory(),
+    }).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
+      next: ({ presets, history }) => {
+        this.weightPresets = presets;
+        this.weightHistory = history;
         this.loadingPresets = false;
+        this.loadingHistory = false;
         if (shouldCheckAutoApply) {
           this.checkAndAutoApplyRecommended();
         }
       },
-      error: () => { this.loadingPresets = false; },
-    });
-    this.siloSvc.listWeightHistory().pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: (history) => { this.weightHistory = history; this.loadingHistory = false; },
-      error: () => { this.loadingHistory = false; },
+      error: () => {
+        this.loadingPresets = false;
+        this.loadingHistory = false;
+      },
     });
     this.loadChallengers();
   }
 
   private checkAndAutoApplyRecommended(): void {
-    // If we have history or current weights don't look like "brand new", don't auto-apply.
+    // Only auto-apply on a TRULY fresh install:
+    //   1. No history rows (no prior preset apply / autotuner promote /
+    //      manual rollback).
+    //   2. Current weights still match the Recommended baseline — i.e.
+    //      no manual tweak via any settings card AND no autotuner
+    //      output has landed yet. The autotuner's own writes are
+    //      treated as "manual tweaks" per the user's protection rule
+    //      (DEFAULT-ON-RULE.md): once it has written, current weights
+    //      diverge from Recommended and we never auto-overwrite.
     if (this.weightHistory.length > 0) return;
-
     const recommended = this.recommendedPreset;
-    if (recommended && !this.matchedPreset) {
-      this.siloSvc.applyWeightPreset(recommended.id).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-        next: () => {
-          this.snack.open('System Recommended settings applied by default.', undefined, { duration: 3000 });
-          this.reload();
-        },
-        // Auto-apply is best-effort; if it fails, log and keep going.
-        // The user can still pick a preset manually.
-        error: (err) => console.warn('checkAndAutoApplyRecommended failed', err),
-      });
-    }
+    if (!recommended) return;
+    if (!this.presetMatchesCurrent(recommended)) return;
+    // currentWeights == Recommended AND no history → genuinely fresh.
+    // Apply once so a history row exists and we never fire again.
+    this.siloSvc.applyWeightPreset(recommended.id).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
+      next: () => {
+        this.snack.open('System Recommended settings applied by default.', undefined, { duration: 3000 });
+        this.reload();
+      },
+      // Auto-apply is best-effort; if it fails, log and keep going.
+      // The user can still pick a preset manually.
+      error: (err) => console.warn('checkAndAutoApplyRecommended failed', err),
+    });
   }
 
   applyPreset(preset: WeightPreset): void {

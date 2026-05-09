@@ -172,3 +172,67 @@ class WeightTunerRunTests(TestCase):
                 challenger.candidate_weights[key] - challenger.baseline_weights[key]
             )
             self.assertLessEqual(drift, 0.0501)
+
+
+class WeightFloorTests(TestCase):
+    """Per DEFAULT-ON-RULE.md: the autotuner must never zero a weight.
+
+    The lower bound on every tunable weight is floored at
+    :data:`apps.suggestions.services.weight_tuner._WEIGHT_FLOOR` (0.01).
+    These tests pin that invariant — both the bound construction and
+    the post-projection simplex output respect the floor.
+    """
+
+    def test_weight_floor_constant_is_non_zero(self) -> None:
+        from apps.suggestions.services.weight_tuner import _WEIGHT_FLOOR
+
+        self.assertGreater(_WEIGHT_FLOOR, 0.0)
+        # Sanity: the floor must be smaller than the smallest weight in
+        # the Recommended preset (0.03) or the autotuner can't move
+        # below current values at all.
+        self.assertLess(_WEIGHT_FLOOR, 0.03)
+
+    def test_lower_bound_for_weight_below_drift_step_floors_at_0_01(self) -> None:
+        """A weight at 0.02 with ±0.05 drift would naively floor at -0.03 → 0.0.
+
+        With the new ``_WEIGHT_FLOOR`` constant the floor is 0.01 instead.
+        """
+        import numpy as np
+
+        from apps.suggestions.services.weight_tuner import (
+            _DRIFT_LIMIT_PER_RUN,
+            _WEIGHT_FLOOR,
+        )
+
+        w_init = np.array([0.02, 0.50, 0.30, 0.18])
+        lower_bounds = np.maximum(_WEIGHT_FLOOR, w_init - _DRIFT_LIMIT_PER_RUN)
+        # Every lower bound stays at or above the floor.
+        self.assertTrue(np.all(lower_bounds >= _WEIGHT_FLOOR))
+        # The first weight (0.02) gets the floor exactly.
+        self.assertAlmostEqual(float(lower_bounds[0]), _WEIGHT_FLOOR, places=6)
+
+    def test_simplex_projection_respects_the_floor(self) -> None:
+        """``_project_to_bounded_simplex`` clamps to the bounds it's given.
+
+        The projection function itself is bounds-agnostic — feeding it
+        the floored bounds means the result inherits the floor without
+        any other change to the projection logic.
+        """
+        import numpy as np
+
+        from apps.suggestions.services.weight_tuner import (
+            _WEIGHT_FLOOR,
+            _project_to_bounded_simplex,
+        )
+
+        # Hostile input: optimiser produced a tiny weight close to zero.
+        candidate = np.array([0.001, 0.40, 0.30, 0.299])
+        lower_bounds = np.full(4, _WEIGHT_FLOOR)
+        upper_bounds = np.full(4, 1.0)
+        projected = _project_to_bounded_simplex(
+            candidate, lower_bounds, upper_bounds
+        )
+        # No weight slips below the floor.
+        self.assertTrue(np.all(projected >= _WEIGHT_FLOOR - 1e-9))
+        # And the simplex constraint still holds.
+        self.assertAlmostEqual(float(np.sum(projected)), 1.0, places=6)

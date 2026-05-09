@@ -64,6 +64,10 @@ ALLOWLIST: frozenset[str] = frozenset({
     "FROM", "INTO", "JOIN", "ASC", "DESC", "EXACT", "REGEX",
     "NAME", "PATH", "REGISTRY", "BACKEND", "FRONTEND",
     "PRIOR", "STATE", "NEW", "OLD",  # everyday English, all-caps in prose / fixture suffixes
+    # More everyday English words that get capitalised mid-sentence in
+    # narrative documentation (e.g. "TURN OFF", "ONE release",
+    # "WHICH key" in instructional prose) and aren't technical jargon.
+    "OFF", "ONE", "TURN", "OUT", "WHICH", "WHETHER", "LEGACY",
     "INFO", "WARN", "WARNING", "ERROR", "DEBUG", "TRACE", "FATAL",
     "NOTICE", "SUCCESS", "FAILED", "FAIL", "PASS", "SKIP", "SKIPPED",
     "BENCHMARK", "BENCH",
@@ -126,6 +130,14 @@ ALLOWLIST: frozenset[str] = frozenset({
     "AGENT-HANDOFF", "AI-CONTEXT", "REPORT-REGISTRY",
     "BUSINESS-LOGIC-CHECKLIST", "RANKING-GATES",
     "THINK-BEFORE-YOU-CODE", "PERFORMANCE",
+    # Newly-added rule files (2026-05-09 default-on session). Each has a
+    # full plain-English explanation in PLAIN-ENGLISH-RULE.md's glossary
+    # row; the all-caps form is just a doc-filename reference.
+    "DEFAULT-ON-RULE", "PLAIN-ENGLISH-RULE", "RECOMMENDED-PRESET",
+    # Magic comment marker used by .githooks/check-default-on-rule.py
+    # to suppress the autotuner-classification check on a per-migration
+    # basis (e.g. `# AUTOTUNER: not-tunable - <reason>`).
+    "AUTOTUNER",
 })
 
 # Regex: 3+ consecutive uppercase letters with optional repeated hyphen-

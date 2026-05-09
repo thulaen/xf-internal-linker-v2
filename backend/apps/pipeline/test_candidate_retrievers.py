@@ -416,3 +416,224 @@ class Stage1CandidatesIntegrationTests(SimpleTestCase):
             retrievers=[ret],
         )
         self.assertEqual(result, {("d1", "thread"): [7, 8, 9]})
+
+
+class XenForoBM25RetrieverTests(SimpleTestCase):
+    """XenForo Enhanced Search backed BM25 retriever (Path A).
+
+    Pure ``SimpleTestCase`` — the search client is mocked end-to-end so
+    no settings (``XENFORO_BASE_URL`` / ``XENFORO_API_KEY``) are needed
+    and no HTTP is performed.
+    """
+
+    @staticmethod
+    def _record(title: str, scope_title: str = ""):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(title=title, scope_title=scope_title)
+
+    @staticmethod
+    def _hit(
+        content_id: int,
+        content_type: str = "thread",
+        title: str = "",
+        score: float = 1.0,
+    ):
+        from apps.sync.services.xenforo_search import XFSearchHit
+
+        return XFSearchHit(
+            content_id=content_id,
+            content_type=content_type,
+            title=title,
+            snippet="",
+            score=score,
+            raw={},
+        )
+
+    def test_disabled_returns_empty(self) -> None:
+        from apps.pipeline.services.candidate_retrievers import XenForoBM25Retriever
+
+        ret = XenForoBM25Retriever(enabled=False)
+        result = ret.retrieve(_make_context())
+        self.assertEqual(result, {})
+
+    def test_short_query_skipped(self) -> None:
+        from apps.pipeline.services.candidate_retrievers import XenForoBM25Retriever
+
+        fake_client = _FakeXFSearchClient([])
+        ret = XenForoBM25Retriever(enabled=True, client=fake_client, min_query_length=5)
+        records = {(1, "thread"): self._record("hi")}  # below min_query_length
+        result = ret.retrieve(
+            _make_context(
+                destination_keys=((1, "thread"),),
+                content_records=records,
+                content_to_sentence_ids={(1, "thread"): [10]},
+            )
+        )
+        self.assertEqual(result, {})
+
+    def test_self_link_filtered(self) -> None:
+        from apps.pipeline.services.candidate_retrievers import XenForoBM25Retriever
+
+        # XF returns the destination itself in its own search results
+        # (a real failure mode) → retriever must filter it out.
+        fake_client = _FakeXFSearchClient(
+            [self._hit(content_id=1, content_type="thread")]
+        )
+        ret = XenForoBM25Retriever(enabled=True, client=fake_client)
+        result = ret.retrieve(
+            _make_context(
+                destination_keys=((1, "thread"),),
+                content_records={(1, "thread"): self._record("python tutorial")},
+                content_to_sentence_ids={(1, "thread"): [10]},
+            )
+        )
+        self.assertEqual(result, {})
+
+    def test_unknown_host_filtered(self) -> None:
+        from apps.pipeline.services.candidate_retrievers import XenForoBM25Retriever
+
+        # XF returns a thread we haven't imported → no entry in
+        # content_to_sentence_ids → retriever silently drops it.
+        fake_client = _FakeXFSearchClient(
+            [self._hit(content_id=999, content_type="thread")]
+        )
+        ret = XenForoBM25Retriever(enabled=True, client=fake_client)
+        result = ret.retrieve(
+            _make_context(
+                destination_keys=((1, "thread"),),
+                content_records={(1, "thread"): self._record("python tutorial")},
+                content_to_sentence_ids={(1, "thread"): [10]},
+            )
+        )
+        self.assertEqual(result, {})
+
+    def test_returns_sentence_ids_for_each_known_hit(self) -> None:
+        from apps.pipeline.services.candidate_retrievers import XenForoBM25Retriever
+
+        fake_client = _FakeXFSearchClient(
+            [
+                self._hit(content_id=2, content_type="thread"),
+                self._hit(content_id=3, content_type="thread"),
+            ]
+        )
+        ret = XenForoBM25Retriever(enabled=True, client=fake_client)
+        result = ret.retrieve(
+            _make_context(
+                destination_keys=((1, "thread"),),
+                content_records={
+                    (1, "thread"): self._record("python tutorial guide"),
+                    (2, "thread"): self._record("python beginner intro"),
+                    (3, "thread"): self._record("python advanced patterns"),
+                },
+                content_to_sentence_ids={
+                    (1, "thread"): [10],
+                    (2, "thread"): [20, 21],
+                    (3, "thread"): [30, 31, 32],
+                },
+            )
+        )
+        self.assertEqual(result, {(1, "thread"): [20, 21, 30, 31, 32]})
+
+    def test_dedups_same_host_appearing_twice(self) -> None:
+        from apps.pipeline.services.candidate_retrievers import XenForoBM25Retriever
+
+        # XF can return the same thread twice if it had duplicate posts
+        # ranked separately. We must dedup so the unifier doesn't see
+        # the same sentence_ids twice.
+        fake_client = _FakeXFSearchClient(
+            [
+                self._hit(content_id=2, content_type="thread"),
+                self._hit(content_id=2, content_type="thread"),
+            ]
+        )
+        ret = XenForoBM25Retriever(enabled=True, client=fake_client)
+        result = ret.retrieve(
+            _make_context(
+                destination_keys=((1, "thread"),),
+                content_records={
+                    (1, "thread"): self._record("python tutorial"),
+                    (2, "thread"): self._record("python beginner"),
+                },
+                content_to_sentence_ids={
+                    (1, "thread"): [10],
+                    (2, "thread"): [20, 21],
+                },
+            )
+        )
+        self.assertEqual(result, {(1, "thread"): [20, 21]})
+
+    def test_search_client_unavailable_logs_and_returns_empty(self) -> None:
+        from apps.pipeline.services.candidate_retrievers import XenForoBM25Retriever
+
+        ret = XenForoBM25Retriever(enabled=True)  # client=None → lazy-resolve
+        with patch(
+            "apps.sync.services.xenforo_search.XenForoSearchClient",
+            side_effect=ValueError("XENFORO_BASE_URL missing"),
+        ):
+            result = ret.retrieve(
+                _make_context(
+                    destination_keys=((1, "thread"),),
+                    content_records={(1, "thread"): self._record("python tutorial")},
+                    content_to_sentence_ids={(1, "thread"): [10]},
+                )
+            )
+        self.assertEqual(result, {})
+
+    def test_build_query_combines_title_and_distinct_scope(self) -> None:
+        from apps.pipeline.services.candidate_retrievers import XenForoBM25Retriever
+
+        record = self._record(title="Bug X workaround", scope_title="Support Forum")
+        self.assertEqual(
+            XenForoBM25Retriever._build_query(record),
+            "Bug X workaround Support Forum",
+        )
+
+    def test_build_query_uses_title_only_when_scope_already_in_title(self) -> None:
+        from apps.pipeline.services.candidate_retrievers import XenForoBM25Retriever
+
+        # Scope is a substring of the title (case-insensitive) → no
+        # value in repeating it.
+        record = self._record(
+            title="Bug X workaround in Support Forum",
+            scope_title="Support Forum",
+        )
+        self.assertEqual(
+            XenForoBM25Retriever._build_query(record),
+            "Bug X workaround in Support Forum",
+        )
+
+    def test_build_query_handles_blank_title(self) -> None:
+        from apps.pipeline.services.candidate_retrievers import XenForoBM25Retriever
+
+        record = self._record(title="", scope_title="Support Forum")
+        self.assertEqual(
+            XenForoBM25Retriever._build_query(record), "Support Forum"
+        )
+
+    def test_search_failure_returns_empty_for_that_dest(self) -> None:
+        from apps.pipeline.services.candidate_retrievers import XenForoBM25Retriever
+
+        # XF search returns [] on failure (handled inside the search
+        # client). Retriever must treat empty list as "no candidates"
+        # for this dest, not crash.
+        fake_client = _FakeXFSearchClient([])
+        ret = XenForoBM25Retriever(enabled=True, client=fake_client)
+        result = ret.retrieve(
+            _make_context(
+                destination_keys=((1, "thread"),),
+                content_records={(1, "thread"): self._record("python tutorial")},
+                content_to_sentence_ids={(1, "thread"): [10]},
+            )
+        )
+        self.assertEqual(result, {})
+
+
+class _FakeXFSearchClient:
+    """Minimal stub matching ``XenForoSearchClient.search_threads``."""
+
+    def __init__(self, hits):
+        self._hits = list(hits)
+
+    def search_threads(self, query, *, limit=200):
+        return list(self._hits)

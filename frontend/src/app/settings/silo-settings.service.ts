@@ -368,14 +368,21 @@ export interface LinkFarmSettings {
   lambda: number;
 }
 
-/** Group C Stage-1 retriever flags. Default off; flipping either
- *  on adds the matching retriever to the production registry, which
- *  triggers RRF fusion (#31) on the next pipeline pass. */
+/** Stage-1 retriever flags. Lexical (FR-240) and XenForo BM25 default
+ *  on via migrations 0062 + 0066; query expansion is opt-in. Flipping
+ *  any flag adds/removes the matching retriever in the production
+ *  registry, with RRF fusion (#31) merging the per-destination ranked
+ *  lists on the next pipeline pass. */
 export interface Stage1RetrieverSettings {
-  /** Group C.2 — adds LexicalRetriever (token overlap). */
+  /** Group C.2 — adds LexicalRetriever (token overlap). Default ON. */
   lexical_retriever_enabled: boolean;
   /** Group C.3 — adds QueryExpansionRetriever (Rocchio PRF, pick #27). */
   query_expansion_retriever_enabled: boolean;
+  /** Adds XenForoBM25Retriever — calls XenForo's Enhanced Search via
+   *  the existing API key and contributes BM25-ranked forum candidates
+   *  fused with FAISS via RRF. XF-source content only. Default ON.
+   *  See docs/specs/xf-bm25-retrieval.md. */
+  xenforo_bm25_retriever_enabled: boolean;
 }
 
 /** Phase 6 optional-pick master switches. Each pick has a single

@@ -147,6 +147,20 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "pipeline.bm25_b": "0.75",
     "pipeline.rrf_k": "60",
     "pipeline.lexical_top_k": "50",
+    # XF BM25 retrieval (Path A — REST API). Calls XenForo Enhanced
+    # Search via the existing API key, contributes BM25-ranked forum
+    # candidates fused with FAISS via RRF. Coexists with FR-240 v1
+    # (token-overlap) — see docs/specs/xf-bm25-retrieval.md §1a for
+    # the three-retriever rationale. Cold-start safe: missing creds
+    # log + return empty rather than raise. Source: Robertson & Zaragoza
+    # 2009 (BM25); Cormack et al. SIGIR'09 (RRF).
+    "stage1.xenforo_bm25_retriever_enabled": "true",
+    "stage1.xenforo_bm25_per_dest_limit": "200",
+    # F2 — embedding-block size was a bare hardcoded constant in
+    # pipeline_stages.py. Surfaced here so the meta-algorithm autotuner
+    # can target it and the operator can override it via AppSetting.
+    # 256 matches the pre-fix value (no behaviour change on upgrade).
+    "pipeline.embedding_block_size": "256",
     # FR-247 — Fast-path observability (C++ vs Python pathway tracking).
     # Source: Beyer et al. 2016 *Site Reliability Engineering* Ch. 4 (SLO).
     "pipeline.cpp_path_alert_threshold": "0.05",

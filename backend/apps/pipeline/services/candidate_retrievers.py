@@ -417,6 +417,149 @@ class QueryExpansionRetriever:
         return result
 
 
+# ── Concrete: XenForoBM25Retriever (XF Enhanced Search) ──────────
+
+
+class XenForoBM25Retriever:
+    """Hybrid-retrieval keyword companion backed by XenForo Elasticsearch.
+
+    The XenForo forum we already import from runs Elasticsearch via the
+    Enhanced Search add-on. This retriever queries it through the same
+    REST API key the importer uses (no new server, no new auth, no new
+    firewall hole) and returns BM25-ranked candidate hosts that the
+    semantic retriever might miss — typically exact-keyword matches:
+    product names, version strings, jargon, acronyms.
+
+    Algorithm
+    ---------
+    1. For each destination, build a query string from
+       ``ContentRecord.title`` (plus ``scope_title`` if it adds a
+       distinct token bag).
+    2. Send the query to XenForo's ``/api/search/`` endpoint via
+       :class:`apps.sync.services.xenforo_search.XenForoSearchClient`.
+       The XF Enhanced Search add-on routes that to Elasticsearch's
+       BM25 ranker; without the add-on it falls back to MySQL fulltext
+       (worse, but the retriever still works — operator-visible
+       degradation is surfaced by the health probe).
+    3. Map each hit's ``(content_id, content_type)`` to a ``ContentKey``
+       and look up its sentence IDs in
+       ``context.content_to_sentence_ids``. Hits whose ContentKey isn't
+       in the in-memory record set (i.e. not yet imported, or excluded
+       from this pipeline pass) are silently skipped.
+
+    The retriever is feature-flagged off by default via
+    ``stage1.xenforo_bm25_retriever_enabled``. When enabled alongside
+    :class:`SemanticRetriever`, :func:`run_retrievers` automatically
+    fuses the two ranked lists with RRF (Cormack et al. 2009).
+
+    Why XF-source-only:
+    - XF's ES index covers forum threads, posts, and resources only.
+    - WordPress / blog / crawled-page hosts aren't there. For lexical
+      coverage of those sources, see :class:`LexicalRetriever` and
+      :class:`QueryExpansionRetriever`.
+
+    References
+    ----------
+    - BM25: Robertson & Zaragoza (2009), "The Probabilistic Relevance
+      Framework: BM25 and Beyond", *Foundations and Trends in IR* 3(4).
+    - RRF fusion: Cormack, Clarke, Büttcher (2009), SIGIR'09 — applied
+      automatically by :func:`run_retrievers` when more than one
+      retriever is active.
+    - XF Enhanced Search: https://xenforo.com/docs/xf2/enhanced-search/
+    """
+
+    name: str = "xenforo_bm25"
+
+    def __init__(
+        self,
+        *,
+        enabled: bool = False,
+        client: object | None = None,
+        per_dest_limit: int = 200,
+        min_query_length: int = 3,
+    ):
+        self.enabled = enabled
+        self._client = client
+        self.per_dest_limit = per_dest_limit
+        self.min_query_length = min_query_length
+
+    def retrieve(self, context: RetrievalContext) -> dict[ContentKey, list[int]]:
+        if not self.enabled:
+            return {}
+        client = self._resolve_client()
+        if client is None:
+            return {}
+
+        result: dict[ContentKey, list[int]] = {}
+        for dest_key in context.destination_keys:
+            dest_record = context.content_records.get(dest_key)
+            if dest_record is None:
+                continue
+            query = self._build_query(dest_record)
+            if len(query) < self.min_query_length:
+                continue
+            hits = client.search_threads(query, limit=self.per_dest_limit)
+            if not hits:
+                continue
+
+            sentence_ids: list[int] = []
+            seen_hosts: set[ContentKey] = set()
+            for hit in hits:
+                host_key: ContentKey = (hit.content_id, hit.content_type)
+                if host_key == dest_key:
+                    continue
+                if host_key in seen_hosts:
+                    continue
+                host_sentences = context.content_to_sentence_ids.get(host_key)
+                if not host_sentences:
+                    continue
+                seen_hosts.add(host_key)
+                sentence_ids.extend(host_sentences)
+
+            if sentence_ids:
+                result[dest_key] = sentence_ids
+        return result
+
+    def _resolve_client(self):
+        """Lazy-construct the search client; tolerate boot/credential gaps.
+
+        The retriever may be enabled by AppSetting before
+        ``XENFORO_BASE_URL`` / ``XENFORO_API_KEY`` are configured.
+        Rather than raising mid-pipeline (which would poison the run),
+        we log and return ``None`` so :func:`run_retrievers` records an
+        empty contribution and the SemanticRetriever path still wins.
+        """
+        if self._client is not None:
+            return self._client
+        try:
+            from apps.sync.services.xenforo_search import XenForoSearchClient
+
+            self._client = XenForoSearchClient()
+        except Exception:  # noqa: BLE001 — boot/credential safety; logged for operator
+            logger.warning(
+                "XenForoBM25Retriever: search client unavailable "
+                "(check XENFORO_BASE_URL / XENFORO_API_KEY) — skipping"
+            )
+            self._client = None
+        return self._client
+
+    @staticmethod
+    def _build_query(record) -> str:
+        """Concatenate title + distinct scope title into one query string.
+
+        Title alone is the strongest signal; scope title (e.g. forum
+        node name) adds topical context when it isn't a substring of
+        the title. Empty/whitespace fields are tolerated.
+        """
+        title = (getattr(record, "title", "") or "").strip()
+        scope = (getattr(record, "scope_title", "") or "").strip()
+        if not title:
+            return scope
+        if not scope or scope.lower() in title.lower():
+            return title
+        return f"{title} {scope}"
+
+
 # ── Concrete: PixieRetriever (Group A.3 / FR-021) ─────────────────
 
 
@@ -721,16 +864,30 @@ def default_retrievers() -> list[CandidateRetriever]:
       ``stage1.lexical_retriever_enabled``.
     - :class:`QueryExpansionRetriever` — flipped on by
       ``stage1.query_expansion_retriever_enabled``.
+    - :class:`XenForoBM25Retriever` — flipped on by
+      ``stage1.xenforo_bm25_retriever_enabled``. Calls XF Enhanced
+      Search via the existing API key for true BM25 over forum
+      content. Per-destination hit limit comes from
+      ``stage1.xenforo_bm25_per_dest_limit`` (default 200).
 
     When more than one retriever is active, :func:`run_retrievers`
     automatically uses RRF (#31) to fuse the per-dest ranked lists.
-    Both opt-ins are independent — operators can enable any subset.
+    All opt-ins are independent — operators can enable any subset.
     """
     retrievers: list[CandidateRetriever] = [SemanticRetriever()]
     if _setting_enabled("stage1.lexical_retriever_enabled"):
         retrievers.append(LexicalRetriever(enabled=True))
     if _setting_enabled("stage1.query_expansion_retriever_enabled"):
         retrievers.append(QueryExpansionRetriever(enabled=True))
+    if _setting_enabled("stage1.xenforo_bm25_retriever_enabled"):
+        from apps.core.models import AppSetting
+
+        per_dest_limit = AppSetting.get_int(
+            "stage1.xenforo_bm25_per_dest_limit", 200
+        )
+        retrievers.append(
+            XenForoBM25Retriever(enabled=True, per_dest_limit=per_dest_limit)
+        )
 
     # FR-021: Graph-based Pixie Retriever
     if _setting_enabled("graph_candidate.enabled"):

@@ -141,10 +141,16 @@ class ClickDistanceService:
 
         self._ensure_settings()
         depth_map = self.build_scope_depth_map()
+        # ``.iterator(chunk_size=2000)`` streams rows from the DB instead
+        # of materialising every ContentItem in memory. On a 100k+ item
+        # corpus the previous ``.all()`` form would OOM a 16 GB-laptop
+        # Celery worker. The batched ``bulk_update(...)`` below already
+        # keeps the WRITE side bounded — this fix bounds the READ side.
         items = (
             ContentItem.objects.all()
             .select_related("scope")
             .only("id", "url", "scope_id")
+            .iterator(chunk_size=2000)
         )
 
         counts = {"computed": 0, "neutral": 0, "total": 0}

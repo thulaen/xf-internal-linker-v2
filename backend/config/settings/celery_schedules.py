@@ -92,6 +92,14 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=13, minute=45, day_of_week=0, day_of_month="1-7"),
         "options": {"queue": "pipeline"},
     },
+    # FR-018b — monthly meta-algorithm autotuner: 14:15 UTC on the first
+    # Sunday of every month (30 min after the FR-018 ranking-weight tuner
+    # so the two don't contend for the same Postgres write window).
+    "monthly-python-meta-tune": {
+        "task": "pipeline.monthly_meta_tune",
+        "schedule": crontab(hour=14, minute=15, day_of_week=0, day_of_month="1-7"),
+        "options": {"queue": "pipeline"},
+    },
     # FR-025 — weekly session co-occurrence rebuild: Monday 13:30 UTC.
     "weekly-session-cooccurrence": {
         "task": "cooccurrence.compute_session_cooccurrence",

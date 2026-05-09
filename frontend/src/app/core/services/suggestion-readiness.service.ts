@@ -1,7 +1,7 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Observable, catchError, of } from 'rxjs';
+import { Observable, catchError, of, switchMap } from 'rxjs';
 import { RealtimeService } from './realtime.service';
 
 /**
@@ -65,17 +65,27 @@ export class SuggestionReadinessService {
   readonly blocking = computed(() => this._payload()?.blocking ?? []);
   readonly updatedAt = computed(() => this._payload()?.updated_at ?? '');
 
-  /** Fetch once + subscribe to realtime prereq changes. Idempotent. */
+  /** Fetch once + subscribe to realtime prereq changes. Idempotent.
+   *
+   *  Race-condition fix (2026-05-09): the realtime broadcasts can fire
+   *  rapidly (10+ in a second on a busy pipeline). Previously we did
+   *  ``subscribe(() => this.refresh().subscribe())`` — every broadcast
+   *  spawned a new HTTP GET, racing every other in-flight one. The
+   *  payload that "won" was whichever response arrived last, not the
+   *  most recent server state. ``switchMap`` cancels the in-flight
+   *  request when a new broadcast arrives, so only the freshest fetch's
+   *  response wins. The chain stays subscribed via the original
+   *  ``takeUntilDestroyed`` so cancellation propagates correctly.
+   */
   start(): void {
     this.refresh().subscribe();
     this.realtime
       .subscribeTopic('suggestions.readiness')
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
-        // Any prereq change broadcast → re-fetch the canonical payload.
-        // Keeps the dedup logic server-side and the client tiny.
-        this.refresh().subscribe();
-      });
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        switchMap(() => this.refresh()),
+      )
+      .subscribe();
   }
 
   refresh(): Observable<ReadinessPayload | null> {

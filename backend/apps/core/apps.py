@@ -8,6 +8,31 @@ from django.db.models.signals import post_migrate
 logger = logging.getLogger(__name__)
 
 
+def _record_safe_mode_history(prior_value: str) -> None:
+    """Best-effort audit trail for the safe-mode-boot flag consumption.
+
+    Lazy-imported `write_history` so `core` doesn't grow a hard dependency
+    on `suggestions` at boot time; failure here must not crash startup.
+    """
+    try:
+        from apps.suggestions.weight_preset_service import write_history
+
+        write_history(
+            source="system_boot_safe_mode",
+            previous_weights={"system.performance_mode": str(prior_value)},
+            new_weights={"system.performance_mode": "safe"},
+            reason=(
+                "Safe-mode-boot flag consumed at startup — performance "
+                "mode forced to 'safe' by user-armed panic recovery."
+            ),
+        )
+    except Exception:
+        logger.debug(
+            "Could not write history for safe-mode-boot flag consumption",
+            exc_info=True,
+        )
+
+
 def _consume_safe_mode_boot_flag(sender, **kwargs):
     """If a prior session armed the safe-mode-boot flag, force Performance Mode
     to 'safe' now and clear the flag. Runs once per process after migrations.
@@ -22,12 +47,24 @@ def _consume_safe_mode_boot_flag(sender, **kwargs):
         return
 
     try:
+        from django.db import transaction
+
         flag = (
             AppSetting.objects.filter(key="system.boot_safe_once")
             .values_list("value", flat=True)
             .first()
         )
-        if flag and str(flag).lower() == "true":
+        if not (flag and str(flag).lower() == "true"):
+            return
+
+        # Capture prior value so the audit trail records what changed.
+        prior_value = (
+            AppSetting.objects.filter(key="system.performance_mode")
+            .values_list("value", flat=True)
+            .first()
+        ) or "default"
+
+        with transaction.atomic():
             AppSetting.objects.update_or_create(
                 key="system.performance_mode",
                 defaults={
@@ -37,9 +74,12 @@ def _consume_safe_mode_boot_flag(sender, **kwargs):
                 },
             )
             AppSetting.objects.filter(key="system.boot_safe_once").delete()
-            logger.warning(
-                "Safe-mode-boot flag consumed: performance mode forced to 'safe'."
-            )
+
+        _record_safe_mode_history(prior_value)
+        logger.warning(
+            "Safe-mode-boot flag consumed: performance mode forced to 'safe' (was '%s').",
+            prior_value,
+        )
     except Exception:
         logger.exception("Could not consume safe-mode-boot flag")
 
@@ -301,6 +341,13 @@ _MONTHLY_SCHEDULES: tuple[tuple[str, str, dict, str, str], ...] = (
         {},
         "45 13 1-7 * 0",
         "FR-018 monthly auto-tuner — 1st Sunday at 13:45 UTC.",
+    ),
+    (
+        "monthly-python-meta-tune",
+        "pipeline.monthly_meta_tune",
+        {},
+        "15 14 1-7 * 0",
+        "FR-018b monthly meta-algorithm auto-tuner — 1st Sunday at 14:15 UTC.",
     ),
     (
         "calibration-fit",

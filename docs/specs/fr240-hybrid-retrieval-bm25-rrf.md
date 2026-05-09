@@ -9,6 +9,7 @@
 | **Pipeline stage** | Stage 1 (coarse content-level retrieval) |
 | **Helpers** | `apps.pipeline.services.candidate_retrievers.LexicalRetriever`, `apps.pipeline.services.candidate_retrievers._fuse_via_rrf`, `apps.pipeline.services.reciprocal_rank_fusion.fuse` |
 | **Default state** | **ON.** v1 ships default-on via `stage1.lexical_retriever_enabled = true` (seeded by migration `0062_seed_fr240_fr241_default_on.py`). v2 BM25 swap-in uses the `pipeline.bm25_*` keys. |
+| **Related spec** | `xf-bm25-retrieval.md` — adds a *third* retriever that calls XenForo Enhanced Search via the existing REST API key for true BM25 over forum content only. Additive (not a replacement for v1 or v2); coexists in the same RRF fusion pipeline. Default-on via migration `0066_seed_xenforo_bm25_default_on.py`. |
 
 ## 2 · Motivation (ELI5)
 

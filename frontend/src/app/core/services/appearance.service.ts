@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { BehaviorSubject, Observable, Subject, catchError, debounceTime, map, of, take, tap } from 'rxjs';
 import { AuthService } from './auth.service';
 
@@ -63,6 +64,7 @@ const SIDEBAR_WIDTH_MAP: Record<string, string> = {
 export class AppearanceService {
   private http = inject(HttpClient);
   private auth = inject(AuthService);
+  private snack = inject(MatSnackBar);
   private apiUrl = '/api/settings/appearance/';
 
   private _config$ = new BehaviorSubject<AppearanceConfig>(DEFAULT_CONFIG);
@@ -96,10 +98,42 @@ export class AppearanceService {
         const patchToTransmit = { ...this.pendingPatch };
         this.pendingPatch = {};
         this.http.put<AppearanceConfig>(this.apiUrl, patchToTransmit).subscribe({
-          error: () => console.error('[AppearanceService] Failed to save appearance settings to server'),
+          error: () => {
+            // 2026-05-09 fix — previously the error path silently logged
+            // to console and dropped the patch on the floor, leaving the
+            // operator thinking their change saved when it didn't. Now:
+            //   1. Re-merge the patch into pendingPatch so the next save
+            //      attempt picks it up (manual or automatic via beforeunload).
+            //   2. Tell the operator something actually went wrong via a
+            //      Material snackbar.
+            this.pendingPatch = { ...patchToTransmit, ...this.pendingPatch };
+            this.snack.open(
+              "Couldn't save appearance changes — try again.",
+              'Dismiss',
+              { duration: 4000 },
+            );
+          },
         });
       }
     });
+
+    // C2 — Tab-close fallback. Synchronous PUT can't run during
+    // beforeunload, so use sendBeacon (designed exactly for this case).
+    // The browser fire-and-forgets the request as the page tears down.
+    if (typeof window !== 'undefined' && 'sendBeacon' in navigator) {
+      window.addEventListener('beforeunload', () => {
+        if (this._isLoggedIn && Object.keys(this.pendingPatch).length > 0) {
+          const blob = new Blob(
+            [JSON.stringify(this.pendingPatch)],
+            { type: 'application/json' },
+          );
+          // Best-effort — sendBeacon returns false if the queue is full;
+          // we can't recover from that path, but this is a strict
+          // improvement over the previous "drop on close" behaviour.
+          navigator.sendBeacon(this.apiUrl, blob);
+        }
+      });
+    }
   }
 
   get config(): AppearanceConfig {

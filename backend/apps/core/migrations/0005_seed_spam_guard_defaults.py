@@ -57,9 +57,17 @@ SPAM_GUARD_ROWS = [
 
 
 def seed_spam_guard_defaults(apps, schema_editor):
+    """Seed spam-guard defaults if absent.
+
+    Behaviour change (2026-05-09): switched from ``update_or_create`` to
+    ``get_or_create`` so re-running this migration (e.g. during a fresh
+    test database creation or a database restore) does NOT trample any
+    operator override of these spam-guard values. Matches the rule
+    documented in ``DEFAULT-ON-RULE.md``.
+    """
     AppSetting = apps.get_model("core", "AppSetting")
     for row in SPAM_GUARD_ROWS:
-        AppSetting.objects.update_or_create(
+        AppSetting.objects.get_or_create(
             key=row["key"],
             defaults={
                 "value": row["value"],

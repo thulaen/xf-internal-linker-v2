@@ -637,6 +637,20 @@
                     <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>XenForo BM25 retriever (Enhanced Search via REST API)</mat-label>
+                  <mat-select
+                    [(ngModel)]="stage1Retrievers.xenforo_bm25_retriever_enabled"
+                    [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn"
+                          matTooltip="Adds the XenForoBM25Retriever (Path A). For each destination, queries XenForo's Enhanced Search (Elasticsearch-backed BM25) via the existing API key and contributes BM25-ranked forum candidates. Fused with FAISS via RRF. XF-source candidates only — WordPress / blog / crawled hosts are unaffected. Source: docs/specs/xf-bm25-retrieval.md, BM25 Robertson & Zaragoza 2009."
+                          matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
               </div>
               <div class="card-actions-row">
                 <button mat-flat-button color="primary"
@@ -2487,7 +2501,7 @@
                           <span class="preset-name">{{ preset.name }}</span>
                           <span class="preset-date">{{ preset.created_at | date:'shortDate' }}</span>
                         </div>
-                        <button mat-stroked-button color="primary" (click)="applyPreset(preset)">Load</button>
+                        <button mat-stroked-button color="primary" [disabled]="applyingPreset" (click)="applyPreset(preset)">Load</button>
                         <button mat-icon-button color="warn" *ngIf="!preset.is_system" (click)="deletePreset(preset)"><mat-icon>delete</mat-icon></button>
                       </div>
                     }

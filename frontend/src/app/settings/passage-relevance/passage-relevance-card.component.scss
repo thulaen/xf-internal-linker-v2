@@ -1,3 +1,18 @@
+// Custom Angular components default to `display: inline`, which makes
+// the host element collapse to its narrowest content width when placed
+// inside a CSS grid. The parent settings page renders this card as
+// `<app-passage-relevance-card>` inside `.settings-grid`
+// (`grid-template-columns: repeat(auto-fit, minmax(280px, 1fr))`),
+// so without an explicit block-level host the column shrinks and every
+// word in the title wraps to a single character. Sibling plain
+// `<mat-card>` elements don't hit this because Angular Material gives
+// them `display: block`. See DESIGN-PATTERNS.md § Card anatomy.
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
 .settings-card {
   margin-bottom: var(--spacing-md, 24px);
 }
