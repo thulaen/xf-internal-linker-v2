@@ -114,6 +114,57 @@ def build_page_tfidf_vector(
     return vec
 
 
+def _aggregate_gsc_term_records(
+    records: list[dict[str, Any]],
+) -> tuple[dict[int, dict[str, int]], dict[str, int]]:
+    """Group ``records`` (page_id, token, clicks) into (page_term_clicks, doc_freq).
+
+    Two Polars group-bys replace the nested Python dict accumulator that lived in
+    ``refresh_gsc_query_tfidf`` — sum clicks per (page, token) for the per-page
+    click totals, and count distinct pages per token for document frequency.
+
+    Returns:
+      * ``page_term_clicks[page_id][token]`` — total clicks that token drove to that page.
+      * ``document_frequency[token]`` — number of distinct pages that token appears on.
+    Empty input yields two empty dicts.
+    """
+    page_term_clicks: dict[int, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    document_frequency: dict[str, int] = defaultdict(int)
+    if not records:
+        return page_term_clicks, document_frequency
+    try:
+        import polars as pl
+
+        df = pl.from_dicts(records)
+        page_token_clicks = (
+            df.group_by(["page_id", "token"])
+            .agg(pl.col("clicks").sum().alias("total"))
+        )
+        for page_id, token, total in page_token_clicks.iter_rows():
+            page_term_clicks[int(page_id)][str(token)] = int(total or 0)
+        token_doc_freq = (
+            df.group_by("token")
+            .agg(pl.col("page_id").n_unique().alias("pages"))
+        )
+        for token, pages in token_doc_freq.iter_rows():
+            document_frequency[str(token)] = int(pages or 0)
+    except Exception as exc:  # noqa: BLE001 — wrapped via ingest_error per CLAUDE.md silent-except rule.
+        try:
+            from apps.audit.error_ingest import ingest_error
+
+            ingest_error(
+                job_type="gsc_polars_tfidf",
+                step="aggregate_gsc_term_records",
+                error_message=f"Polars aggregation failed (n_records={len(records)})",
+                raw_exception=str(exc),
+                why="GSC TF-IDF refresh fell back to empty result; downstream call returns 0 pages_updated.",
+            )
+        except Exception:  # noqa: BLE001 — error-ingest itself failed; logging is the last line of defence.
+            logger.exception("ingest_error unavailable; logging GSC aggregate failure")
+        return defaultdict(lambda: defaultdict(int)), defaultdict(int)
+    return page_term_clicks, document_frequency
+
+
 def _count_distinct_days(search_metrics_iter: Iterable[dict]) -> int:
     """Count unique dates present in the SearchMetric stream.
 
@@ -207,12 +258,13 @@ def refresh_gsc_query_tfidf(
             "min_gsc_days_seen": gsc_days_seen,
         }
 
-    # Aggregate per-page token-click counts + global document frequency.
-    # page_term_clicks[page_id][token] = total clicks that token drove to page
-    # document_frequency[token] = number of distinct pages that token appears on
-    page_term_clicks: dict[int, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    # Aggregate per-page token-click counts + global document frequency via Polars.
+    # The per-row Python loop below tokenises each query and emits one record per
+    # (page, token) pair; Polars then sums clicks per (page, token) and counts
+    # distinct pages per token in two parallelised group-bys instead of nested
+    # Python dicts.
+    page_term_records: list[dict[str, Any]] = []
     page_query_count: dict[int, int] = defaultdict(int)
-    document_frequency: dict[str, int] = defaultdict(int)
 
     for row in raw_rows:
         page_id = row["content_item_id"]
@@ -224,23 +276,12 @@ def refresh_gsc_query_tfidf(
         if not tokens:
             continue
         page_query_count[page_id] += 1
-        seen_on_this_page_and_day = set()
         for tok in tokens:
-            page_term_clicks[page_id][tok] += clicks
-            if tok not in seen_on_this_page_and_day:
-                seen_on_this_page_and_day.add(tok)
-        # Track token presence per page (for DF).
-        for tok in set(tokens):
-            # We want DF to count pages, not rows. So defer per-page union below.
-            pass
+            page_term_records.append(
+                {"page_id": int(page_id), "token": tok, "clicks": int(clicks)},
+            )
 
-    # Document-frequency: count distinct pages per token.
-    token_pages: dict[str, set[int]] = defaultdict(set)
-    for page_id, term_clicks in page_term_clicks.items():
-        for tok in term_clicks:
-            token_pages[tok].add(page_id)
-    for tok, pages in token_pages.items():
-        document_frequency[tok] = len(pages)
+    page_term_clicks, document_frequency = _aggregate_gsc_term_records(page_term_records)
 
     corpus_size = len(page_term_clicks)
     _progress(
