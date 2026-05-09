@@ -120,6 +120,7 @@ When you must mention a technical concept, use the plain-English version from th
 | classic search-engine word-importance score — rare words across the whole corpus get a higher weight than common ones; combined with term frequency it gives the standard TF-IDF ranking number | IDF / inverse document frequency |
 | the cross-platform Unix-family filesystem standard — `os.replace()` is atomic on POSIX systems and on Windows, which is why the Parquet writer uses it to swap a `.tmp` file onto the live snapshot path without ever leaving a half-written file | POSIX |
 | Django's automatic test mode — switched on when the project is run via `manage.py test` or pytest; the codebase reads it through `sys.argv` inspection because Django doesn't set a single `settings.TESTING` flag | TESTING / Django test runner |
+| the two-character end-of-line sequence `\r\n` (carriage return then newline) — the line terminator the standard CSV format requires; the project's CSV exports emit CRLF so Excel and other tools parse them without complaint | CRLF / carriage return + line feed |
 
 If a term you need is not in this table, define it yourself in parentheses the first time you use it.
 

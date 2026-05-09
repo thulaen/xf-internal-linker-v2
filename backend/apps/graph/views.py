@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import csv
+import io
 import uuid
 from datetime import datetime, timedelta
+from typing import Any, Iterable
 
 from django.db.models import Count, Q
 from django.db.models.functions import TruncDate
@@ -22,6 +23,64 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .serializers import BrokenLinkSerializer, OrphanAuditSerializer
+
+
+def _polars_chunked_csv(
+    rows_iter: Iterable[dict[str, Any]],
+    columns: list[str],
+    *,
+    chunk_size: int = 250,
+):
+    """Yield CSV chunks via Polars; byte-identical to ``csv.writer`` output.
+
+    Emits the header eagerly (so empty result sets still produce a valid CSV
+    with column names), then streams ``chunk_size`` rows at a time. Uses CRLF
+    line terminators and converts None/empty inputs into Polars nulls so the
+    CSV output matches csv.writer's QUOTE_MINIMAL behaviour (no quotes around
+    empty cells).
+    """
+    import polars as pl
+
+    schema = {col: pl.Utf8 for col in columns}
+
+    # Always emit the header — even if there are zero rows.
+    header_buf = io.BytesIO()
+    pl.DataFrame(schema=schema).write_csv(
+        header_buf, line_terminator="\r\n", include_header=True
+    )
+    yield header_buf.getvalue().decode("utf-8")
+
+    chunk: list[dict[str, Any]] = []
+    for row_dict in rows_iter:
+        chunk.append({col: _coerce_csv_value(row_dict.get(col)) for col in columns})
+        if len(chunk) >= chunk_size:
+            yield _flush_chunk_to_csv(chunk, schema)
+            chunk = []
+    if chunk:
+        yield _flush_chunk_to_csv(chunk, schema)
+
+
+def _coerce_csv_value(value: Any) -> str | None:
+    """Empty inputs become Polars nulls so the writer emits unquoted empty cells.
+
+    csv.writer with QUOTE_MINIMAL writes empty strings as ``,,`` (no quotes);
+    Polars's ``quote_style="necessary"`` quotes empty strings as ``""``. Converting
+    None and empty inputs to a Polars null and relying on ``null_value=""``
+    (Polars default) restores byte parity with csv.writer.
+    """
+    if value is None or value == "":
+        return None
+    return str(value)
+
+
+def _flush_chunk_to_csv(chunk: list[dict[str, Any]], schema: dict[str, Any]) -> str:
+    import polars as pl
+
+    buf = io.BytesIO()
+    pl.DataFrame(chunk, schema=schema).write_csv(
+        buf, line_terminator="\r\n", include_header=False
+    )
+    return buf.getvalue().decode("utf-8")
 
 
 class BrokenLinkViewSet(viewsets.ModelViewSet):
@@ -67,47 +126,40 @@ class BrokenLinkViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"], url_path="export-csv")
     def export_csv(self, request) -> StreamingHttpResponse:
         queryset = self.filter_queryset(self.get_queryset())
+        columns = [
+            "broken_link_id",
+            "source_content_id",
+            "source_content_title",
+            "source_content_url",
+            "url",
+            "http_status",
+            "redirect_url",
+            "status",
+            "notes",
+            "first_detected_at",
+            "last_checked_at",
+        ]
 
-        class Echo:
-            def write(self, value: str) -> str:
-                return value
-
-        writer = csv.writer(Echo())
-
-        def _rows():
-            yield writer.writerow(
-                [
-                    "broken_link_id",
-                    "source_content_id",
-                    "source_content_title",
-                    "source_content_url",
-                    "url",
-                    "http_status",
-                    "redirect_url",
-                    "status",
-                    "notes",
-                    "first_detected_at",
-                    "last_checked_at",
-                ]
-            )
+        def _rows_iter():
             for record in queryset.iterator(chunk_size=250):
-                yield writer.writerow(
-                    [
-                        str(record.broken_link_id),
-                        record.source_content_id,
-                        record.source_content.title,
-                        record.source_content.url,
-                        record.url,
-                        record.http_status,
-                        record.redirect_url,
-                        record.status,
-                        record.notes,
-                        _isoformat(record.first_detected_at),
-                        _isoformat(record.last_checked_at),
-                    ]
-                )
+                yield {
+                    "broken_link_id": str(record.broken_link_id),
+                    "source_content_id": record.source_content_id,
+                    "source_content_title": record.source_content.title,
+                    "source_content_url": record.source_content.url,
+                    "url": record.url,
+                    "http_status": record.http_status,
+                    "redirect_url": record.redirect_url,
+                    "status": record.status,
+                    "notes": record.notes,
+                    "first_detected_at": _isoformat(record.first_detected_at),
+                    "last_checked_at": _isoformat(record.last_checked_at),
+                }
 
-        response = StreamingHttpResponse(_rows(), content_type="text/csv")
+        response = StreamingHttpResponse(
+            _polars_chunked_csv(_rows_iter(), columns),
+            content_type="text/csv",
+        )
         response["Content-Disposition"] = (
             f'attachment; filename="broken-links-{datetime.utcnow().strftime("%Y%m%d-%H%M%S")}.csv"'
         )
@@ -258,38 +310,31 @@ class OrphanExportCSVView(APIView):
     def get(self, request) -> StreamingHttpResponse:
         mode = request.query_params.get("mode", "orphan")
         queryset = _get_audit_queryset(mode)
+        columns = [
+            "id",
+            "title",
+            "url",
+            "scope_title",
+            "inbound_link_count",
+            "pagerank_score",
+        ]
 
-        class Echo:
-            def write(self, value: str) -> str:
-                return value
-
-        writer = csv.writer(Echo())
-
-        def _rows():
-            yield writer.writerow(
-                [
-                    "id",
-                    "title",
-                    "url",
-                    "scope_title",
-                    "inbound_link_count",
-                    "pagerank_score",
-                ]
-            )
+        def _rows_iter():
             for item in queryset.iterator(chunk_size=250):
-                yield writer.writerow(
-                    [
-                        item.id,
-                        item.title,
-                        item.url,
-                        item.scope.title if item.scope else "",
-                        item.inbound_link_count,
-                        item.march_2026_pagerank_score,
-                    ]
-                )
+                yield {
+                    "id": item.id,
+                    "title": item.title,
+                    "url": item.url,
+                    "scope_title": item.scope.title if item.scope else "",
+                    "inbound_link_count": item.inbound_link_count,
+                    "pagerank_score": item.march_2026_pagerank_score,
+                }
 
         label = "low-authority" if mode == "low_authority" else "orphan"
-        response = StreamingHttpResponse(_rows(), content_type="text/csv")
+        response = StreamingHttpResponse(
+            _polars_chunked_csv(_rows_iter(), columns),
+            content_type="text/csv",
+        )
         response["Content-Disposition"] = (
             f'attachment; filename="{label}-audit-{datetime.utcnow().strftime("%Y%m%d-%H%M%S")}.csv"'
         )
