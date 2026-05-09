@@ -9,17 +9,68 @@ Both fields back the monthly Top-50 picker:
 
 Hand-rolled (not auto-generated) so the index name is explicit and the
 choices change is documented inline.
+
+SQLite caveat: the dashboard suggestion-counts view created by
+`core/0018_dashboard_suggestion_counts_mv.py` references `suggestions_
+suggestion`. AddField on SQLite triggers `_remake_table` which renames
+the underlying table mid-migration, breaking the view's reference. We
+work around this by dropping the view before AddField and recreating
+it after. On PostgreSQL the view is a real MATERIALIZED VIEW and is
+unaffected by AlterField (no `_remake_table`), but we run the same
+drop/recreate dance for parity (DROP MATERIALIZED VIEW IF EXISTS is
+idempotent).
 """
 
 from django.db import migrations, models
 
 
+SQL_DROP_SQLITE = "DROP VIEW IF EXISTS dashboard_suggestion_counts_mv;"
+SQL_DROP_PG_VIEW = "DROP MATERIALIZED VIEW IF EXISTS dashboard_suggestion_counts_mv;"
+SQL_DROP_PG_INDEX = "DROP INDEX IF EXISTS dashboard_suggestion_counts_mv_status_idx;"
+
+SQL_CREATE_SQLITE = (
+    "CREATE VIEW IF NOT EXISTS dashboard_suggestion_counts_mv AS "
+    "SELECT status, COUNT(*) AS count FROM suggestions_suggestion GROUP BY status;"
+)
+SQL_CREATE_PG_VIEW = """
+CREATE MATERIALIZED VIEW IF NOT EXISTS dashboard_suggestion_counts_mv AS
+SELECT
+    status,
+    COUNT(*) AS count
+FROM suggestions_suggestion
+GROUP BY status
+WITH DATA;
+"""
+SQL_CREATE_PG_INDEX = """
+CREATE UNIQUE INDEX IF NOT EXISTS dashboard_suggestion_counts_mv_status_idx
+    ON dashboard_suggestion_counts_mv (status);
+"""
+
+
+def drop_dashboard_view(apps, schema_editor):
+    if schema_editor.connection.vendor == "sqlite":
+        schema_editor.execute(SQL_DROP_SQLITE)
+    else:
+        schema_editor.execute(SQL_DROP_PG_INDEX)
+        schema_editor.execute(SQL_DROP_PG_VIEW)
+
+
+def recreate_dashboard_view(apps, schema_editor):
+    if schema_editor.connection.vendor == "sqlite":
+        schema_editor.execute(SQL_CREATE_SQLITE)
+    else:
+        schema_editor.execute(SQL_CREATE_PG_VIEW)
+        schema_editor.execute(SQL_CREATE_PG_INDEX)
+
+
 class Migration(migrations.Migration):
     dependencies = [
         ("suggestions", "0064_seed_w_embedding_age"),
+        ("core", "0018_dashboard_suggestion_counts_mv"),
     ]
 
     operations = [
+        migrations.RunPython(drop_dashboard_view, recreate_dashboard_view),
         migrations.AddField(
             model_name="suggestion",
             name="batch_label",
@@ -55,4 +106,5 @@ class Migration(migrations.Migration):
                 max_length=20,
             ),
         ),
+        migrations.RunPython(recreate_dashboard_view, drop_dashboard_view),
     ]
