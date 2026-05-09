@@ -108,13 +108,22 @@ ext_modules = [
         if sys.platform != "win32"
         else ["/O2", "/std:c++17", "/arch:AVX2"],
     ),
-    Pybind11Extension(
-        "pixie_walk",
-        ["pixie_walk.cpp"],
-        extra_compile_args=["-O3", "-std=c++17", "-march=native"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17", "/arch:AVX2"],
-    ),
+    # NOTE: pixie_walk.cpp is an empty 0-byte stub left from phase-0
+    # scaffolding (FR-021). The C++ Pixie-style random walk over the
+    # Article-Entity bipartite graph was never written. Its caller in
+    # apps/pipeline/services/candidate_retrievers.py wraps the import in
+    # try/except ImportError and gracefully degrades — PixieRetriever
+    # silently returns no candidates, which is the same behaviour every
+    # contributor has lived with since the project was created. Skipping
+    # the build here so the link step doesn't fail on the missing
+    # PyInit_pixie_walk symbol. Re-enable when a real implementation lands.
+    # Pybind11Extension(
+    #     "pixie_walk",
+    #     ["pixie_walk.cpp"],
+    #     extra_compile_args=["-O3", "-std=c++17", "-march=native"]
+    #     if sys.platform != "win32"
+    #     else ["/O2", "/std:c++17", "/arch:AVX2"],
+    # ),
     Pybind11Extension(
         "quantemb",
         ["quantemb.cpp"],
