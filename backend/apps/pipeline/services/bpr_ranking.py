@@ -136,6 +136,149 @@ def _load_v2_npz(path: str) -> BPRSnapshot | None:
         return None
 
 
+def _parquet_companion_path(path: str) -> str:
+    """Map the configured BPR model path to its Parquet sidecar location.
+
+    ``model.pkl`` → ``model.parquet``. Keeps the AppSetting pointing at the
+    historical npz/pickle path while we migrate the on-disk format.
+    """
+    from pathlib import Path
+
+    p = Path(path)
+    if p.suffix.lower() == ".parquet":
+        return str(p)
+    return str(p.with_suffix(".parquet"))
+
+
+def _build_bpr_v3_rows(
+    *,
+    user_factors: np.ndarray,
+    item_factors: np.ndarray,
+    user_index: dict[str, int],
+    item_index: dict[str, int],
+    factors: int,
+) -> dict[str, list]:
+    """Flatten the BPR snapshot into the four parallel column lists used by V3.
+
+    The result feeds straight into ``pl.DataFrame(...)`` with the long-form
+    Parquet schema (entity_kind, entity_id, idx, vector).
+    """
+    kinds: list[str] = ["meta"]
+    ids: list[str] = ["factors"]
+    idxs: list[int] = [0]
+    vecs: list[list[float]] = [[float(factors)]]
+    for user_id, idx in user_index.items():
+        kinds.append("user")
+        ids.append(str(user_id))
+        idxs.append(int(idx))
+        vecs.append([float(x) for x in user_factors[idx]])
+    for item_id, idx in item_index.items():
+        kinds.append("item")
+        ids.append(str(item_id))
+        idxs.append(int(idx))
+        vecs.append([float(x) for x in item_factors[idx]])
+    return {"entity_kind": kinds, "entity_id": ids, "idx": idxs, "vector": vecs}
+
+
+def _save_v3_parquet(
+    path: str,
+    *,
+    user_factors: np.ndarray,
+    item_factors: np.ndarray,
+    user_index: dict[str, int],
+    item_index: dict[str, int],
+    factors: int,
+) -> bool:
+    """Write the BPR snapshot as a single Parquet file. Atomic via tmp + rename.
+
+    Schema: entity_kind (Utf8), entity_id (Utf8), idx (Int64), vector (List[Float32]).
+    The ``factors`` count is stored as a meta-row (entity_kind="meta", entity_id="factors").
+    Returns False if Polars is unavailable; caller falls back to V2 npz.
+    """
+    try:
+        import polars as pl
+
+        from apps.pipeline.services._parquet_io import write_parquet_atomic
+    except ImportError:
+        logger.debug("Polars or _parquet_io missing — falling back to V2 npz")
+        return False
+    try:
+        columns = _build_bpr_v3_rows(
+            user_factors=user_factors,
+            item_factors=item_factors,
+            user_index=user_index,
+            item_index=item_index,
+            factors=factors,
+        )
+        df = pl.DataFrame(
+            columns,
+            schema={
+                "entity_kind": pl.Utf8,
+                "entity_id": pl.Utf8,
+                "idx": pl.Int64,
+                "vector": pl.List(pl.Float32),
+            },
+        )
+        n = len(columns["entity_kind"])
+        write_parquet_atomic(df, path, estimated_bytes=max(1, n) * factors * 5)
+        return True
+    except Exception as exc:  # noqa: BLE001 — Parquet write failed; caller falls back to V2 npz.
+        logger.warning("bpr_ranking: V3 Parquet write failed at %s: %s", path, exc)
+        return False
+
+
+def _load_v3_parquet(path: str) -> BPRSnapshot | None:
+    """Try to load a V3 (Polars Parquet) snapshot.
+
+    Returns None if the file is missing or fails to parse. The caller will
+    cascade to V2 npz, then V1 pickle.
+    """
+    if not os.path.exists(path):
+        return None
+    try:
+        import polars as pl
+
+        df = pl.read_parquet(path)
+        meta = df.filter(pl.col("entity_kind") == "meta").to_dicts()
+        factors = DEFAULT_FACTORS
+        for row in meta:
+            if row.get("entity_id") == "factors":
+                vector = row.get("vector") or []
+                if vector:
+                    factors = int(vector[0])
+                break
+
+        user_rows = df.filter(pl.col("entity_kind") == "user").sort("idx").to_dicts()
+        item_rows = df.filter(pl.col("entity_kind") == "item").sort("idx").to_dicts()
+
+        user_index = {str(r["entity_id"]): int(r["idx"]) for r in user_rows}
+        item_index = {str(r["entity_id"]): int(r["idx"]) for r in item_rows}
+
+        if user_rows:
+            user_factors = np.asarray(
+                [r["vector"] for r in user_rows], dtype=np.float32
+            )
+        else:
+            user_factors = np.zeros((0, factors), dtype=np.float32)
+        if item_rows:
+            item_factors = np.asarray(
+                [r["vector"] for r in item_rows], dtype=np.float32
+            )
+        else:
+            item_factors = np.zeros((0, factors), dtype=np.float32)
+
+        return BPRSnapshot(
+            user_index=user_index,
+            item_index=item_index,
+            factors=factors,
+            user_factors=user_factors,
+            item_factors=item_factors,
+        )
+    except Exception as exc:  # noqa: BLE001 — V3 read failed; cascade to V2.
+        logger.warning("bpr_ranking: V3 Parquet load failed at %s: %s", path, exc)
+        return None
+
+
 def _load_v1_legacy_pickle(path: str) -> BPRSnapshot | None:
     """Fallback for legacy pickled snapshots produced before 2026-05-09.
 
@@ -167,18 +310,23 @@ def _load_v1_legacy_pickle(path: str) -> BPRSnapshot | None:
 def load_snapshot() -> BPRSnapshot:
     """Return the persisted snapshot or :data:`_EMPTY` on cold start.
 
-    Tries the safe V2 npz format first; falls back to the deprecated V1
-    pickle format for backwards compatibility (logs a deprecation warning).
+    Tries V3 (Parquet) first, then V2 (npz), then the deprecated V1 pickle
+    format for backwards compatibility. Each cascade step logs a warning so
+    operators can see which format is active.
     """
     global _MODEL_CACHE
     if not HAS_BPR:
         return _EMPTY
     path = _read_path()
-    if not path or not os.path.exists(path):
+    if not path:
         return _EMPTY
     if _MODEL_CACHE is not None and _MODEL_CACHE[0] == path:
         return _MODEL_CACHE[1]
-    snap = _load_v2_npz(path) or _load_v1_legacy_pickle(path)
+
+    parquet_path = _parquet_companion_path(path)
+    snap: BPRSnapshot | None = _load_v3_parquet(parquet_path)
+    if snap is None and os.path.exists(path):
+        snap = _load_v2_npz(path) or _load_v1_legacy_pickle(path)
     if snap is None:
         return _EMPTY
     _MODEL_CACHE = (path, snap, None)
@@ -286,30 +434,36 @@ def fit_and_save(
         logger.warning("bpr_ranking.fit_and_save train failed: %s", exc)
         return False
 
-    # V2 format (2026-05-09): write factor arrays via numpy.savez_compressed,
-    # indexes as JSON inside the same archive. No pickle anywhere on the
-    # save path. Old V1 pickled snapshots remain readable via the
-    # _load_v1_legacy_pickle fallback for one release.
-    #
-    # Pass a file handle (not a path string) so numpy doesn't auto-append
-    # ".npz" — operator's configured path is honoured exactly.
-    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
-    with open(output_path, "wb") as fh:
-        np.savez_compressed(
-            fh,
-            user_factors=np.asarray(model.user_factors, dtype=np.float32),
-            item_factors=np.asarray(model.item_factors, dtype=np.float32),
-            # numpy arrays don't natively hold dicts, so we store the
-            # indexes as JSON-encoded byte arrays. ``np.load`` reads them
-            # back as 0-d numpy arrays of bytes — see _load_v2_npz.
-            user_index_json=np.frombuffer(
-                json.dumps(user_index).encode("utf-8"), dtype=np.uint8
-            ),
-            item_index_json=np.frombuffer(
-                json.dumps(item_index).encode("utf-8"), dtype=np.uint8
-            ),
-            factors=np.int32(factors),
-        )
+    # V3 format (2026-05-09): single Parquet file at <path>.parquet. No pickle.
+    # Falls back to V2 npz at the original path if Polars is unavailable, so a
+    # broken Polars install never loses a refit. V1 pickle snapshots remain
+    # readable via the legacy load path for one release.
+    user_factors_arr = np.asarray(model.user_factors, dtype=np.float32)
+    item_factors_arr = np.asarray(model.item_factors, dtype=np.float32)
+    parquet_path = _parquet_companion_path(output_path)
+    saved_v3 = _save_v3_parquet(
+        parquet_path,
+        user_factors=user_factors_arr,
+        item_factors=item_factors_arr,
+        user_index=user_index,
+        item_index=item_index,
+        factors=factors,
+    )
+    if not saved_v3:
+        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+        with open(output_path, "wb") as fh:
+            np.savez_compressed(
+                fh,
+                user_factors=user_factors_arr,
+                item_factors=item_factors_arr,
+                user_index_json=np.frombuffer(
+                    json.dumps(user_index).encode("utf-8"), dtype=np.uint8
+                ),
+                item_index_json=np.frombuffer(
+                    json.dumps(item_index).encode("utf-8"), dtype=np.uint8
+                ),
+                factors=np.int32(factors),
+            )
     global _MODEL_CACHE
     _MODEL_CACHE = None
     return True
