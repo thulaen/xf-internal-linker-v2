@@ -5,7 +5,7 @@ import { Subject } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
 import { ScrollHighlightService } from './scroll-highlight.service';
 import { waitForElement, revealHiddenParent, waitForElementVisible } from '../utils/scroll-highlight.utils';
-import { findDeepLink } from '../routing/deep-link-catalog';
+import { DEEP_LINK_CATALOG, findDeepLink } from '../routing/deep-link-catalog';
 
 /**
  * Global link interceptor — registered once at app startup, works everywhere forever.
@@ -52,6 +52,8 @@ export class GlobalLinkInterceptorService implements OnDestroy {
     //      "share a link to a specific surface" pattern.
     //   b) `#fragment` — scroll-and-highlight an element by id, plus
     //      auto-reveal it if hidden inside a tab or expansion panel.
+    //      If the fragment matches a catalog `scrollTarget` whose entry
+    //      declares a `tab`, also switch to that tab BEFORE scrolling.
     this.router.events.pipe(
       filter(e => e instanceof NavigationEnd),
       takeUntil(this.destroy$),
@@ -66,8 +68,40 @@ export class GlobalLinkInterceptorService implements OnDestroy {
       const fragment = tree.fragment;
       if (!fragment) return;
 
+      // If the fragment is a catalog-known card whose host page has
+      // multiple tabs, the matching tab must be activated before the
+      // element exists in the DOM. Re-navigate with `?tab=` set so
+      // `appTabFragment` can flip the tab; that produces a fresh
+      // NavigationEnd which arrives here again, this time with the
+      // tab already active and the element available for scrolling.
+      const tabKey = this.findTabKeyForScrollTarget(fragment);
+      const currentTab = tree.queryParams['tab'];
+      if (tabKey && currentTab !== tabKey) {
+        void this.router.navigate([], {
+          fragment,
+          queryParams: { tab: tabKey },
+          queryParamsHandling: 'merge',
+          replaceUrl: true,
+        });
+        return;
+      }
+
       this.scrollToFragmentWhenReady(fragment);
     });
+  }
+
+  /**
+   * Return the catalog `tab` key for a given `scrollTarget` id, or null.
+   * Used so a bare `/settings#settings-pagerank` link knows to switch to
+   * the "Ranking Weights" tab before scrolling.
+   */
+  private findTabKeyForScrollTarget(fragment: string): string | null {
+    for (const entry of DEEP_LINK_CATALOG) {
+      if (entry.scrollTarget === fragment && entry.tab) {
+        return entry.tab;
+      }
+    }
+    return null;
   }
 
   /**

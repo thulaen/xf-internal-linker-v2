@@ -203,7 +203,9 @@
   <button
     mat-icon-button
     type="button"
+    i18n-matTooltip="@@app.toolbar.glossaryTooltip"
     matTooltip="Open the glossary (Alt + G)"
+    i18n-aria-label="@@app.toolbar.glossaryAria"
     aria-label="Open glossary"
     (click)="glossary.toggle()"
   >
@@ -213,7 +215,9 @@
   <button
     mat-icon-button
     type="button"
+    i18n-matTooltip="@@app.toolbar.replayTourTooltip"
     matTooltip="Replay the dashboard guided tour"
+    i18n-aria-label="@@app.toolbar.replayTourAria"
     aria-label="Replay guided tour"
     (click)="startDashboardTour()"
   >
@@ -223,7 +227,9 @@
   <button
     mat-icon-button
     type="button"
+    i18n-matTooltip="@@app.toolbar.faqTooltip"
     matTooltip="Open frequently-asked questions"
+    i18n-aria-label="@@app.toolbar.faqAria"
     aria-label="Open FAQ"
     (click)="faq.toggle()"
   >
@@ -237,7 +243,9 @@
   <button
     mat-icon-button
     type="button"
+    i18n-matTooltip="@@app.toolbar.featureRequestTooltip"
     matTooltip="Suggest a feature"
+    i18n-aria-label="@@app.toolbar.featureRequestAria"
     aria-label="Suggest a feature"
     (click)="openFeatureRequestDialog()"
   >
@@ -250,7 +258,9 @@
   <button
     mat-icon-button
     type="button"
+    i18n-matTooltip="@@app.toolbar.a11yTooltip"
     matTooltip="Accessibility settings"
+    i18n-aria-label="@@app.toolbar.a11yAria"
     aria-label="Accessibility settings"
     [matMenuTriggerFor]="a11yMenu"
   >
@@ -258,7 +268,7 @@
   </button>
   <mat-menu #a11yMenu="matMenu" xPosition="before" class="ga4-menu">
     <div class="a11y-menu-body" (click)="$event.stopPropagation()">
-      <h3 class="a11y-menu-title">Accessibility</h3>
+      <h3 class="a11y-menu-title" i18n="@@app.a11yMenu.title">Accessibility</h3>
 
       <div class="a11y-menu-row">
         <span class="a11y-menu-label">High contrast</span>
@@ -317,7 +327,7 @@
       </div>
 
       <div class="a11y-menu-actions">
-        <button mat-button type="button" (click)="a11y.resetAll()">
+        <button mat-button type="button" (click)="a11y.resetAll()" i18n="@@app.a11yMenu.reset">
           Reset to defaults
         </button>
       </div>
@@ -325,13 +335,20 @@
   </mat-menu>
   <button
     mat-icon-button
+    i18n-matTooltip="@@app.toolbar.customizeTooltip"
     matTooltip="Customize appearance"
+    i18n-aria-label="@@app.toolbar.customizeAria"
     aria-label="Customize appearance"
     (click)="customizerOpen = !customizerOpen"
   >
     <mat-icon>palette</mat-icon>
   </button>
-  <button mat-icon-button matTooltip="Open Django Admin" aria-label="Open Django Admin" (click)="goToAdmin($event)">
+  <button mat-icon-button
+    i18n-matTooltip="@@app.toolbar.adminTooltip"
+    matTooltip="Open Django Admin"
+    i18n-aria-label="@@app.toolbar.adminAria"
+    aria-label="Open Django Admin"
+    (click)="goToAdmin($event)">
     <mat-icon>admin_panel_settings</mat-icon>
   </button>
 
