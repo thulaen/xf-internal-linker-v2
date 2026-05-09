@@ -116,6 +116,37 @@ Rules:
 - Do **not** add per-component CSS for this slot; the global rule already covers it.
 - Header still must not contain primary content (forms, paragraphs, save buttons) — those go in `mat-card-content`. The action slot is for one quick toggle / icon-button only.
 
+### Custom-element cards inside `.settings-grid`
+
+When a settings card is extracted into its own component (e.g. `<app-passage-relevance-card>`) and placed alongside plain `<mat-card class="settings-card">` siblings, the grid placement rule MUST live on the parent grid, not on the child component.
+
+The parent rule in `settings.component.scss` is:
+
+```scss
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+
+  > * {
+    grid-column: span 6;
+    @media (max-width: 1200px) { grid-column: 1 / -1; }
+  }
+
+  > .settings-card--wide {
+    grid-column: 1 / -1;
+  }
+}
+```
+
+Why `> *` (every direct child) and not `.settings-card`:
+- `<mat-card class="settings-card">` matches `.settings-card`. ✓
+- `<app-passage-relevance-card>` is a custom element with no `.settings-card` class on the host — `.settings-card` rules don't reach it. Without `> *`, Angular places the custom element in a single auto-track (~60px), and every word in the title wraps to its own line.
+- A `:host { display: block; width: 100% }` patch on the child does NOT fix this. `width: 100%` of one grid track is still one grid track.
+
+Rules:
+- Never put `grid-column: …` on a child component's `:host` block to compensate for missing parent rules. The parent grid owns placement.
+- The bug that prompted this rule shipped as a vertically-collapsed Passage-Level Relevance card next to a normally-sized Rare-Term Propagation card. It was caught in screenshot review on 2026-05-09; the fix moved the span rule from `.settings-card` to `.settings-grid > *`.
+
 ---
 
 ## 3. The Cardinal Rule: Co-location

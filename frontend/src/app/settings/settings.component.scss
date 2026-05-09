@@ -102,10 +102,32 @@
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: var(--spacing-md);
+
+  // Apply the half-row span and small-screen full-width fallback to ALL
+  // direct children, not just `.settings-card`. Custom-element cards
+  // extracted from this page (`<app-passage-relevance-card>` and any
+  // future siblings) fall into auto-placement when the rule targets only
+  // `.settings-card`, which collapses them into a single grid track
+  // (~60px) so every word in the title wraps to its own line. A
+  // `:host { display: block; width: 100% }` patch on the child component
+  // is NOT enough because `width: 100%` of one grid track is still one
+  // grid track. See DESIGN-PATTERNS.md § Card anatomy.
+  > * {
+    grid-column: span 6;
+
+    @media (max-width: 1200px) {
+      grid-column: 1 / -1;
+    }
+  }
+
+  > .settings-card--wide {
+    grid-column: 1 / -1;
+  }
 }
 
 .settings-card {
-  grid-column: span 6;
+  // grid-column rules live on `.settings-grid > *` above so custom-element
+  // siblings inherit the span automatically. Keep the cosmetic styles here.
   display: flex;
   flex-direction: column;
   border-color: var(--s-border) !important;
@@ -145,12 +167,11 @@
     gap: var(--spacing-sm, 8px);
     flex-shrink: 0;
   }
-
-  @media (max-width: 1200px) {
-    grid-column: 1 / -1;
-  }
 }
 
+// Used by `<mat-card class="settings-card settings-card--wide">` at the
+// top of the page (the loading-state card lives outside `.settings-grid`,
+// so it needs its own full-width rule).
 .settings-card--wide {
   grid-column: 1 / -1;
 }

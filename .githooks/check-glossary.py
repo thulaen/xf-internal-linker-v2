@@ -190,6 +190,17 @@ ALLOWLIST: frozenset[str] = frozenset({
     # are doc-filename references; COMMANDS is a TypeScript variable name
     # (DEEP_LINK_CATALOG → COMMANDS in command-palette.commands.ts).
     "ROLLOUT", "SETTINGS-SPLIT-PLAN", "COMMANDS",
+    # 2026-05-09 settings-grid layout fix. DESIGN-PATTERNS is a doc
+    # filename; COMP is the Angular `_ngcontent-%COMP%` placeholder
+    # token in compiled CSS; MQTTUWQS is a content-hash example in
+    # the handoff describing a build artefact filename.
+    "DESIGN-PATTERNS", "COMP", "MQTTUWQS",
+    # Standard accessibility / OS / English-emphasis tokens.
+    "ARIA", "ESC", "TTL", "INPUT", "DID", "WORK",
+    # ISO 4217 currency codes — extension of the existing USD/EUR/GBP
+    # entries above. These are user-facing strings the locale service
+    # passes through to `Intl.NumberFormat({style:'currency'})`.
+    "JPY", "CNY", "INR", "CAD", "AUD", "BRL", "MXN", "KRW",
 })
 
 # Regex: 3+ consecutive uppercase letters with optional repeated hyphen-
