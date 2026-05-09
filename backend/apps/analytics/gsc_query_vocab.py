@@ -115,13 +115,22 @@ def build_page_tfidf_vector(
 
 
 def _aggregate_gsc_term_records(
-    records: list[dict[str, Any]],
+    records: list[dict[str, Any]] | None = None,
+    *,
+    columns: dict[str, list[Any]] | None = None,
 ) -> tuple[dict[int, dict[str, int]], dict[str, int]]:
-    """Group ``records`` (page_id, token, clicks) into (page_term_clicks, doc_freq).
+    """Group (page_id, token, clicks) input into (page_term_clicks, doc_freq).
 
-    Two Polars group-bys replace the nested Python dict accumulator that lived in
-    ``refresh_gsc_query_tfidf`` — sum clicks per (page, token) for the per-page
-    click totals, and count distinct pages per token for document frequency.
+    Two Polars group-bys replace the nested Python dict accumulator that lived
+    in ``refresh_gsc_query_tfidf`` — sum clicks per (page, token) for the per-
+    page click totals, and count distinct pages per token for document
+    frequency.
+
+    Accepts either:
+      * ``columns={"page_id": [...], "token": [...], "clicks": [...]}`` (fast
+        path — caller built parallel lists in one Python pass), or
+      * ``records=[{"page_id": ..., "token": ..., "clicks": ...}, ...]`` (slow
+        path — kept for back-compat with existing tests).
 
     Returns:
       * ``page_term_clicks[page_id][token]`` — total clicks that token drove to that page.
@@ -130,12 +139,17 @@ def _aggregate_gsc_term_records(
     """
     page_term_clicks: dict[int, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     document_frequency: dict[str, int] = defaultdict(int)
-    if not records:
+    has_columns = columns is not None and any(columns.values())
+    has_records = records is not None and len(records) > 0
+    if not has_columns and not has_records:
         return page_term_clicks, document_frequency
     try:
         import polars as pl
 
-        df = pl.from_dicts(records)
+        if has_columns:
+            df = pl.DataFrame(columns)
+        else:
+            df = pl.from_dicts(records)
         page_token_clicks = (
             df.group_by(["page_id", "token"])
             .agg(pl.col("clicks").sum().alias("total"))
@@ -149,13 +163,14 @@ def _aggregate_gsc_term_records(
         for token, pages in token_doc_freq.iter_rows():
             document_frequency[str(token)] = int(pages or 0)
     except Exception as exc:  # noqa: BLE001 — wrapped via ingest_error per CLAUDE.md silent-except rule.
+        n = len(records) if has_records else len(columns["clicks"]) if has_columns else 0
         try:
             from apps.audit.error_ingest import ingest_error
 
             ingest_error(
                 job_type="gsc_polars_tfidf",
                 step="aggregate_gsc_term_records",
-                error_message=f"Polars aggregation failed (n_records={len(records)})",
+                error_message=f"Polars aggregation failed (n_records={n})",
                 raw_exception=str(exc),
                 why="GSC TF-IDF refresh fell back to empty result; downstream call returns 0 pages_updated.",
             )
@@ -259,11 +274,13 @@ def refresh_gsc_query_tfidf(
         }
 
     # Aggregate per-page token-click counts + global document frequency via Polars.
-    # The per-row Python loop below tokenises each query and emits one record per
-    # (page, token) pair; Polars then sums clicks per (page, token) and counts
-    # distinct pages per token in two parallelised group-bys instead of nested
-    # Python dicts.
-    page_term_records: list[dict[str, Any]] = []
+    # The per-row Python loop tokenises each query and appends one entry per
+    # (page, token) pair into three parallel column lists; passing those columns
+    # to ``_aggregate_gsc_term_records`` lets Polars build the DataFrame in one
+    # native step (no intermediate ``list[dict]`` allocation per row).
+    page_ids_col: list[int] = []
+    tokens_col: list[str] = []
+    clicks_col: list[int] = []
     page_query_count: dict[int, int] = defaultdict(int)
 
     for row in raw_rows:
@@ -277,11 +294,13 @@ def refresh_gsc_query_tfidf(
             continue
         page_query_count[page_id] += 1
         for tok in tokens:
-            page_term_records.append(
-                {"page_id": int(page_id), "token": tok, "clicks": int(clicks)},
-            )
+            page_ids_col.append(int(page_id))
+            tokens_col.append(tok)
+            clicks_col.append(int(clicks))
 
-    page_term_clicks, document_frequency = _aggregate_gsc_term_records(page_term_records)
+    page_term_clicks, document_frequency = _aggregate_gsc_term_records(
+        columns={"page_id": page_ids_col, "token": tokens_col, "clicks": clicks_col},
+    )
 
     corpus_size = len(page_term_clicks)
     _progress(

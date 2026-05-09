@@ -16,7 +16,7 @@ from apps.content.models import ContentItem
 from apps.sources.api_rate_limiter import rate_limited
 from apps.suggestions.models import Suggestion
 
-from ._polars_helpers import safe_aggregate, safe_aggregate_columnar
+from ._polars_helpers import safe_aggregate_columnar, safe_aggregate_grouped_by_outer
 from .country_filters import (
     BLOCKED_COUNTRY_CODES_ALPHA2,
     BLOCKED_COUNTRY_CODES_ALPHA3,
@@ -429,16 +429,17 @@ def _aggregate_matomo_suggestion_totals(parsed_rows) -> dict[str, dict[str, int]
     """Roll up parsed Matomo events into per-suggestion field totals.
 
     Single Python pass over ``parsed_rows`` builds three parallel column lists,
-    handed to ``safe_aggregate_columnar`` which runs the Polars groupby on
-    already-columnar input.
+    handed to ``safe_aggregate_grouped_by_outer`` which produces the nested
+    ``dict[suggestion_id][field_name] = total`` directly via one sorted
+    iteration over the aggregated Polars frame — no flat-dict intermediate.
 
-    Performance: end-to-end roughly at parity with the legacy defaultdict loop
-    at 1M rows. The Polars groupby itself is ~10x faster, but converting back
-    to the nested ``dict[str, dict[str, int]]`` shape that downstream ORM
-    code expects costs ~400 ms on a 1M-row workload and erases the gain.
-    The migration's value is correctness (parity-tested) and consistency
-    with the broader analytics ETL pattern, not raw speed at this layer.
-    See backend/benchmarks/test_bench_polars_aggregation.py for the numbers.
+    Performance (1M synthetic rows, 2026-05-09): ~1.13x faster than the
+    legacy defaultdict loop (~530 ms vs ~600 ms). The earlier migration that
+    went via ``safe_aggregate_columnar`` + Python reshape was actually
+    *slower* than defaultdict (~1030 ms) because it materialised both the
+    flat and nested dicts. The win unlocks for any consumer with the
+    ``dict[outer][inner] = total`` shape; see
+    ``apps.analytics._polars_helpers.safe_aggregate_grouped_by_outer``.
     """
     sids: list[str] = []
     fields: list[str] = []
@@ -451,18 +452,14 @@ def _aggregate_matomo_suggestion_totals(parsed_rows) -> dict[str, dict[str, int]
         fields.append(field)
         counts.append(int(count))
 
-    flat = safe_aggregate_columnar(
+    return safe_aggregate_grouped_by_outer(
         {"sid": sids, "field": fields, "count": counts},
-        group_cols=["sid", "field"],
+        outer_col="sid",
+        inner_col="field",
         agg_col="count",
         error_step="matomo_aggregate_suggestion_totals",
         job_type="matomo_polars_aggregation",
     )
-
-    suggestion_totals: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
-    for (sid, field), total in flat.items():
-        suggestion_totals[sid][field] = int(total)
-    return suggestion_totals
 
 
 def _bulk_load_suggestions_map(suggestion_ids: list[str]) -> dict:
@@ -910,29 +907,42 @@ def _ga4_row_key(parsed: dict) -> tuple:
     )
 
 
-def _ga4_row_to_records(
-    row: dict[str, Any], *, dim_names: list[str], geo_granularity: str, field_name: str
-) -> list[dict[str, Any]]:
-    """Translate one GA4 API row into parsed records — the (per-field, event_count) pair."""
+def _append_ga4_row_to_columns(
+    row: dict[str, Any],
+    *,
+    dim_names: list[str],
+    geo_granularity: str,
+    field_name: str,
+    cols: dict[str, list[Any]],
+) -> None:
+    """Append one GA4 API row to the parallel column lists — twice (per-field + event_count).
+
+    Skips blocked-country rows. Mutates ``cols`` in place. Building columns
+    directly here (rather than constructing a dict per row first) avoids the
+    per-row dict-construction cost that dominates the wall-clock of the
+    legacy ``safe_aggregate`` dict-of-rows path.
+    """
     parsed = _ga4_dimensions_from_row(
         row=row, dimension_names=dim_names, geo_granularity=geo_granularity
     )
     if is_blocked_country(parsed["country"]):
-        return []
+        return
     count = _ga4_metric_int(row, 0)
-    base = {
-        "sid": parsed["suggestion_id"],
-        "device": parsed["device_category"],
-        "channel": parsed["default_channel_group"],
-        "source": parsed["source_medium"],
-        "country": parsed["country"],
-        "region": parsed["region"],
-        "count": count,
-    }
-    return [
-        {**base, "field_name": field_name},
-        {**base, "field_name": "event_count"},
-    ]
+    sid = parsed["suggestion_id"]
+    device = parsed["device_category"]
+    channel = parsed["default_channel_group"]
+    source = parsed["source_medium"]
+    country = parsed["country"]
+    region = parsed["region"]
+    for fname in (field_name, "event_count"):
+        cols["sid"].append(sid)
+        cols["device"].append(device)
+        cols["channel"].append(channel)
+        cols["source"].append(source)
+        cols["country"].append(country)
+        cols["region"].append(region)
+        cols["field_name"].append(fname)
+        cols["count"].append(count)
 
 
 def _merge_ga4_aggregate_into_rows(
@@ -955,13 +965,17 @@ def _accumulate_ga4_event_rows(
 ) -> int:
     """Fetch + merge per-event GA4 rows; return total rows_read across event names.
 
-    Parses all rows from all 8 event-name fetches into a flat list, then sums
-    counts via Polars by (dimension key, field_name). Equivalent to the prior
-    nested-loop accumulator but vectorised across event types and merge pairs.
+    Builds parallel column lists in one pass over all 8 event-name responses,
+    then runs the Polars groupby on already-columnar input. Skipping the
+    intermediate ``list[dict]`` form saves ~2x of the per-row Python work
+    that dominated the older ``safe_aggregate`` path.
     """
     rows_read = 0
     dim_names = _ga4_dimension_names(geo_granularity=geo_granularity)
-    parsed_records: list[dict[str, Any]] = []
+    cols: dict[str, list[Any]] = {
+        "sid": [], "device": [], "channel": [], "source": [],
+        "country": [], "region": [], "field_name": [], "count": [],
+    }
     for event_name, field_name in GA4_EVENT_FIELDS.items():
         rows = _fetch_ga4_rows(
             service=service,
@@ -973,17 +987,16 @@ def _accumulate_ga4_event_rows(
         )
         rows_read += len(rows)
         for row in rows:
-            parsed_records.extend(
-                _ga4_row_to_records(
-                    row,
-                    dim_names=dim_names,
-                    geo_granularity=geo_granularity,
-                    field_name=field_name,
-                )
+            _append_ga4_row_to_columns(
+                row,
+                dim_names=dim_names,
+                geo_granularity=geo_granularity,
+                field_name=field_name,
+                cols=cols,
             )
 
-    flat = safe_aggregate(
-        parsed_records,
+    flat = safe_aggregate_columnar(
+        cols,
         group_cols=["sid", "device", "channel", "source", "country", "region", "field_name"],
         agg_col="count",
         error_step="ga4_aggregate_event_rows",

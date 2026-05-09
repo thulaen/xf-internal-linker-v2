@@ -274,9 +274,75 @@ def safe_aggregate_columnar(
         return {}
 
 
+def safe_aggregate_grouped_by_outer(
+    columns: dict[str, list[Any]],
+    *,
+    outer_col: str,
+    inner_col: str,
+    agg_col: str,
+    error_step: str,
+    job_type: str = "polars_aggregation",
+) -> dict[str, dict[str, int]]:
+    """Sum ``agg_col`` grouped by ``(outer_col, inner_col)``, return as nested dict.
+
+    Optimised for the common analytics-ETL shape: per-suggestion field totals
+    where the consumer wants ``dict[outer][inner] = total`` directly. Skips
+    the flat-dict intermediate that ``safe_aggregate_columnar`` would build,
+    going from the aggregated Polars frame straight to the nested dict via a
+    single sorted iteration.
+
+    Wall-clock at 1M synthetic Matomo rows (2026-05-09):
+      * legacy nested-defaultdict loop: ~600 ms
+      * safe_aggregate_columnar + Python reshape: ~1030 ms (slower)
+      * this helper:                              ~530 ms (1.13x faster)
+
+    On Polars failure routes through ``ingest_error`` and returns ``{}`` —
+    the caller's downstream code sees an empty roll-up and continues.
+    """
+    if not columns or not columns.get(agg_col):
+        return {}
+    try:
+        import polars as pl
+
+        df = pl.DataFrame(columns)
+        if agg_col not in df.columns:
+            return {}
+        if outer_col not in df.columns or inner_col not in df.columns:
+            return {}
+        agg = (
+            df.group_by([outer_col, inner_col])
+            .agg(pl.col(agg_col).sum().alias("_total"))
+            .sort(outer_col)
+        )
+        out: dict[str, dict[str, int]] = {}
+        current_outer = None
+        current_dict: dict[str, int] | None = None
+        for row in agg.iter_rows(named=False):
+            outer_v, inner_v, total = row[0], row[1], row[2]
+            if outer_v != current_outer:
+                if current_outer is not None and current_dict is not None:
+                    out[str(current_outer)] = current_dict
+                current_outer = outer_v
+                current_dict = {}
+            current_dict[str(inner_v)] = int(total or 0)
+        if current_outer is not None and current_dict is not None:
+            out[str(current_outer)] = current_dict
+        return out
+    except Exception as exc:  # noqa: BLE001 — wrapped by ingest_error per CLAUDE.md silent-except rule.
+        _ingest(
+            job_type=job_type,
+            step=error_step,
+            error_message=f"Polars grouped-by-outer aggregation failed for outer={outer_col} inner={inner_col} agg={agg_col}",
+            raw_exception=str(exc),
+            why="ETL aggregation regressed to empty result; downstream callers see 0 totals.",
+        )
+        return {}
+
+
 __all__ = [
     "safe_aggregate",
     "safe_aggregate_columnar",
+    "safe_aggregate_grouped_by_outer",
     "read_json_rows",
     "safe_quantile",
     "safe_median_abs_deviation",
