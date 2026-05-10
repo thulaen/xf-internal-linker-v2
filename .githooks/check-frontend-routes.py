@@ -157,9 +157,21 @@ def to_regex(pattern: str) -> re.Pattern[str]:
 
 
 def url_matches(url: str, regexes: list[re.Pattern[str]]) -> bool:
-    for rx in regexes:
-        if rx.match(url):
-            return True
+    """Try the URL as-is AND with the /api/ prefix stripped.
+
+    Backend patterns inside `apps/api/urls.py` are mounted at `/api/` by
+    `config/urls.py: path("api/", include("apps.api.urls"))`. The patterns
+    inside that file therefore look like `prune/safe/` (no leading slash,
+    no /api/ prefix). When the frontend calls `/api/prune/safe/`, the
+    pattern won't match the full URL — strip the /api/ prefix and try again.
+    """
+    candidates = [url]
+    if url.startswith("/api/"):
+        candidates.append("/" + url[len("/api/"):])
+    for cand in candidates:
+        for rx in regexes:
+            if rx.match(cand):
+                return True
     return False
 
 
