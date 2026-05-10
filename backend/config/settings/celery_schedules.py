@@ -156,20 +156,44 @@ CELERY_BEAT_SCHEDULE = {
         "kwargs": {"trigger": "scheduled"},
         "options": {"queue": "default"},
     },
-    # Auto-issues daily picker chain (11:00 / 11:15 / 11:20 / 11:30 UTC).
-    # All inside the active-laptop window (11:00–23:00 UTC) per the
-    # operator's directive — the laptop is likely OFF outside that
-    # window, so cron firing at 04:00 just queues tasks that storm-fire
-    # at next boot. See docs/CPP-DAILY-ISSUE-PICKER-SPEC.md for math.
+    # Auto-issues picker chain inside the active-laptop window
+    # (11:00–23:00 UTC). The laptop is likely OFF outside that window,
+    # so cron firing at 04:00 just queues tasks that storm-fire at next
+    # boot. See docs/CPP-DAILY-ISSUE-PICKER-SPEC.md for math.
+    #
+    # GlitchTip picker bumped to every 30 min (2026-05-10) so the
+    # session-start ritual sees fresh data. Picker is a pure DB job
+    # (~0.4 s per run on 89 unacked errors) and idempotent — upserts via
+    # the (source, external_id) unique constraint. Staggered 5 minutes
+    # after `audit.sync_glitchtip_issues` (at :00,:30) so the mirror is
+    # always populated before the picker reads it.
     "auto-issues-glitchtip-pick": {
         "task": "auto_issues.pick_daily_glitchtip_issues",
-        "schedule": crontab(hour=11, minute=0),
-        "options": {"queue": "default", "expires": 600},
+        "schedule": crontab(hour="11-23", minute="5,35"),
+        "options": {"queue": "default", "expires": 1500},
     },
+    # Pyroscope picker bumped to every 30 min (2026-05-10) so the
+    # session-start ritual sees fresh hotspots. Same-day hotspot
+    # detector added per plan does-adding-qodana-make-swift-wall.md
+    # Stream 2 — week-over-week regressions still gated on 7-day
+    # warmup, but hotspots produce findings from day one. Staggered at
+    # :10/:40 (5 min after picker chain at :05/:35) so Postgres isn't
+    # contended.
     "auto-issues-pyroscope-pick": {
         "task": "auto_issues.pick_daily_pyroscope_regressions",
-        "schedule": crontab(hour=11, minute=15),
-        "options": {"queue": "default", "expires": 600},
+        "schedule": crontab(hour="11-23", minute="10,40"),
+        "options": {"queue": "default", "expires": 1500},
+    },
+    # Loki picker added 2026-05-10 per plan
+    # does-adding-qodana-make-swift-wall.md Stream 4. Mines
+    # repeated WARN/ERROR patterns from Loki via LogQL and produces
+    # source='loki' AutoIssues. Staggered at :15/:45 so it runs after
+    # GlitchTip (:05/:35) and Pyroscope (:10/:40) — no Postgres
+    # contention, no Loki contention either.
+    "auto-issues-loki-pick": {
+        "task": "auto_issues.pick_daily_loki_findings",
+        "schedule": crontab(hour="11-23", minute="15,45"),
+        "options": {"queue": "default", "expires": 1500},
     },
     "auto-issues-internal-pick": {
         "task": "auto_issues.pick_daily_internal_issues",

@@ -58,6 +58,13 @@ ALLOWLIST: frozenset[str] = frozenset({
     "VS", "AKA", "FAQ", "ETA", "DPI", "LCP", "FCP", "CLS", "TTFB",
     # Math / stats common shorthand
     "MIN", "MAX", "AVG", "SUM", "STD", "P50", "P95", "P99",
+    # Hex / address / register shorthand that shows up in synthetic
+    # log lines (`<HEX>` placeholders inside `loki_picker._normalize_line`,
+    # "Segfault at 0x... — RIP" test fixtures, etc). These are NOT new
+    # technical concepts — they are well-known existing terms used as
+    # markers or test scaffolding. Adding here so the glossary check
+    # doesn't keep flagging legitimate test/code use.
+    "HEX", "RIP",
     # Common English words / SQL constants / log levels / Django magic that
     # happen to be all-caps in our codebase or docstrings.
     "AND", "OR", "NOT", "NULL", "TRUE", "FALSE", "NONE", "DOES", "WHERE",

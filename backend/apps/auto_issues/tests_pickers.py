@@ -23,7 +23,9 @@ from apps.auto_issues.services.pyroscope_picker import (
     PyroscopeCandidate,
     _compare_sides,
     _extract_function_totals,
+    _select_hotspots,
     _stable_fingerprint,
+    pick_pyroscope_hotspots,
     pick_pyroscope_regressions,
 )
 from apps.auto_issues.tasks import close_stale_issues
@@ -266,3 +268,158 @@ class CloseStaleIssuesTaskTests(TestCase):
         old.refresh_from_db()
         self.assertEqual(old.status, AutoIssue.STATUS_DEFERRED)
         self.assertEqual(old.resolved_by, "auto-stale")
+
+
+class PickerScheduleCadenceTests(SimpleTestCase):
+    """Pin the GlitchTip picker schedule so it cannot silently regress to
+    once-daily.
+
+    Why: the picker runs as part of the session-start ABSOLUTE rule.
+    When the schedule was `crontab(hour=11, minute=0)` (once daily), 89
+    unacknowledged GlitchTip errors sat un-promoted to AutoIssues until
+    11:00 UTC, and any agent session before that hour saw a stale 0
+    count. Bumping cadence to every 30 min during the active-laptop
+    window (11-23 UTC) keeps the data fresh. See plan
+    `does-adding-qodana-make-swift-wall.md` Stream 1.
+
+    The picker is a pure DB job (~0.4 s per run) and idempotent via the
+    `(source, external_id)` unique constraint — running 24× per active
+    day is cheap and safe.
+    """
+
+    def test_glitchtip_picker_runs_at_least_every_30_minutes(self):
+        from config.settings.celery_schedules import CELERY_BEAT_SCHEDULE
+
+        entry = CELERY_BEAT_SCHEDULE.get("auto-issues-glitchtip-pick")
+        self.assertIsNotNone(entry, "GlitchTip picker schedule entry missing")
+        cron = entry["schedule"]
+        self.assertIn(
+            5, cron.minute,
+            "GlitchTip picker must fire at :05 (5 min after sync at :00)",
+        )
+        self.assertIn(
+            35, cron.minute,
+            "GlitchTip picker must fire at :35 (5 min after sync at :30)",
+        )
+        self.assertEqual(
+            len(cron.hour), 13,
+            "GlitchTip picker must run hours 11-23 inclusive (13 hours)",
+        )
+
+    def test_glitchtip_picker_staggered_after_sync(self):
+        """Picker minutes must be 5 min after sync minutes so the mirror
+        is populated before the picker reads it."""
+        from config.settings.celery_schedules import CELERY_BEAT_SCHEDULE
+
+        sync = CELERY_BEAT_SCHEDULE["glitchtip-issue-sync"]["schedule"]
+        picker = CELERY_BEAT_SCHEDULE["auto-issues-glitchtip-pick"]["schedule"]
+        for sync_min in sync.minute:
+            self.assertIn(
+                (sync_min + 5) % 60, picker.minute,
+                f"Picker should fire 5 min after sync at :{sync_min:02d}",
+            )
+
+    def test_pyroscope_picker_runs_every_30_minutes(self):
+        """Pyroscope picker must run frequently enough that session-start
+        sees fresh hotspots — same as GlitchTip. Stream 2 of plan
+        does-adding-qodana-make-swift-wall.md."""
+        from config.settings.celery_schedules import CELERY_BEAT_SCHEDULE
+
+        entry = CELERY_BEAT_SCHEDULE.get("auto-issues-pyroscope-pick")
+        self.assertIsNotNone(entry, "Pyroscope picker schedule entry missing")
+        cron = entry["schedule"]
+        self.assertIn(10, cron.minute)
+        self.assertIn(40, cron.minute)
+        self.assertEqual(
+            len(cron.hour), 13,
+            "Pyroscope picker must run hours 11-23 inclusive",
+        )
+
+    def test_pyroscope_picker_staggered_after_glitchtip(self):
+        """Pyroscope must fire 5 min after GlitchTip so the two pickers
+        don't fight Postgres in the same instant."""
+        from config.settings.celery_schedules import CELERY_BEAT_SCHEDULE
+
+        gt = CELERY_BEAT_SCHEDULE["auto-issues-glitchtip-pick"]["schedule"]
+        pyro = CELERY_BEAT_SCHEDULE["auto-issues-pyroscope-pick"]["schedule"]
+        for gt_min in gt.minute:
+            self.assertIn(
+                (gt_min + 5) % 60, pyro.minute,
+                f"Pyroscope should fire 5 min after GT at :{gt_min:02d}",
+            )
+
+
+class PyroscopeHotspotDetectorTests(SimpleTestCase):
+    """Tests for the same-day hotspot detector added 2026-05-10
+    (plan does-adding-qodana-make-swift-wall.md Stream 2).
+
+    Same-day hotspots fill the 7-day warmup gap of the week-over-week
+    regression detector. We test the pure-function selector here; the
+    integration with Pyroscope HTTP is tested via mock in
+    ``PyroscopeHotspotIntegrationTests`` below.
+    """
+
+    def test_select_hotspots_filters_below_threshold(self):
+        # 100 ns total. function_a is 60% (= hotspot at 5%), function_b is 3%
+        # (= below threshold), function_c is 37%.
+        totals = {"function_a": 60.0, "function_b": 3.0, "function_c": 37.0}
+        cands = _select_hotspots(totals, threshold_pct=5.0)
+        names = sorted(c.function_name for c in cands)
+        self.assertEqual(names, ["function_a", "function_c"])
+
+    def test_select_hotspots_returns_empty_when_all_below_threshold(self):
+        # 1000 ns total spread across 100 functions evenly -> each is 1%.
+        # At threshold 5% nothing should pass.
+        totals = {f"fn_{i}": 10.0 for i in range(100)}
+        cands = _select_hotspots(totals, threshold_pct=5.0)
+        self.assertEqual(cands, [])
+
+    def test_select_hotspots_extracts_file_hint_when_present(self):
+        # Pyroscope sometimes encodes file paths as "module/file.py:lineno".
+        totals = {"apps/audit/tasks.py:447 sync_glitchtip_issues": 80.0}
+        cands = _select_hotspots(totals, threshold_pct=5.0)
+        self.assertEqual(len(cands), 1)
+        self.assertEqual(cands[0].file_hint, "apps/audit/tasks.py")
+
+    def test_select_hotspots_handles_zero_total(self):
+        # Empty dict shouldn't divide-by-zero.
+        cands = _select_hotspots({}, threshold_pct=5.0)
+        self.assertEqual(cands, [])
+
+
+class PyroscopeHotspotIntegrationTests(TestCase):
+    """End-to-end test that mocks the Pyroscope HTTP API and asserts
+    AutoIssue rows materialize with kind='hotspot'-style fingerprints
+    (prefixed so they don't collide with regression rows)."""
+
+    def test_pick_pyroscope_hotspots_skips_when_server_unset(self):
+        with mock.patch.dict("os.environ", {"PYROSCOPE_SERVER_ADDRESS": ""}, clear=False):
+            result = pick_pyroscope_hotspots(server="")
+        self.assertEqual(result, {"status": "skipped", "reason": "missing_pyroscope_server"})
+
+    @mock.patch(
+        "apps.auto_issues.services.pyroscope_picker._query_pyroscope_render"
+    )
+    def test_pick_pyroscope_hotspots_promotes_to_autoissue(self, mock_render):
+        # Stub a flamegraph where one function dominates (80% of total).
+        mock_render.return_value = {
+            "flamebearer": {
+                "names": ["root", "hot_function", "cold_function"],
+                "levels": [
+                    [0, 100, 0, 0],
+                    [0, 80, 80, 1, 0, 20, 20, 2],
+                ],
+            },
+        }
+        result = pick_pyroscope_hotspots(
+            server="http://pyroscope:4040",
+            applications=("xf-linker-backend",),
+            limit=5,
+        )
+        self.assertEqual(result["status"], "ok")
+        self.assertGreaterEqual(result["promoted"], 1)
+        # AutoIssue row should be present with the hotspot prefix.
+        rows = AutoIssue.objects.filter(source=AutoIssue.SOURCE_PYROSCOPE)
+        self.assertGreaterEqual(rows.count(), 1)
+        # Title should mention the percent share.
+        self.assertTrue(any("burning" in r.title.lower() for r in rows))

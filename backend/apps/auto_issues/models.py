@@ -6,7 +6,10 @@ via ``manage.py print_open_issues``.
 
 Sources:
 - ``glitchtip``  — backend / frontend exceptions captured via Sentry SDK.
-- ``pyroscope``  — hot Python functions whose self-CPU >2x week-over-week.
+- ``pyroscope``  — hot Python functions: regressions (week-over-week)
+                  AND same-day hotspots (added 2026-05-10).
+- ``loki``       — repeated WARN/ERROR patterns mined from container
+                  stdout via LogQL (added 2026-05-10).
 - ``agent``      — bugs found by an AI session that don't yet have a GT
                   issue (e.g. dead code, missing validation, smells).
 
@@ -22,10 +25,12 @@ from django.db import models
 class AutoIssue(models.Model):
     SOURCE_GLITCHTIP = "glitchtip"
     SOURCE_PYROSCOPE = "pyroscope"
+    SOURCE_LOKI = "loki"
     SOURCE_AGENT = "agent"
     SOURCE_CHOICES = [
         (SOURCE_GLITCHTIP, "GlitchTip"),
         (SOURCE_PYROSCOPE, "Pyroscope"),
+        (SOURCE_LOKI, "Loki"),
         (SOURCE_AGENT, "Agent find"),
     ]
 

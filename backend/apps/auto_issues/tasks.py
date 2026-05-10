@@ -1,14 +1,15 @@
-"""Celery tasks for the daily issue picker.
+"""Celery tasks for the issue picker chain.
 
-Three tasks:
+Tasks:
   - ``pick_daily_glitchtip_issues`` — promote top GT-mirror rows.
-  - ``pick_daily_pyroscope_regressions`` — surface CPU regressions.
+  - ``pick_daily_pyroscope_regressions`` — surface CPU regressions
+    AND same-day hotspots (added 2026-05-10).
   - ``close_stale_issues`` — auto-defer rows idle ≥30 days under 0.3 score.
 
-Schedule (UTC) — wired in `backend/config/settings/celery_schedules.py`:
-  04:00  pick_daily_glitchtip_issues
-  04:15  pick_daily_pyroscope_regressions
-  04:30  close_stale_issues
+Schedules (UTC) live in ``backend/config/settings/celery_schedules.py``.
+The pickers run every 30 min during the active-laptop window 11-23 UTC
+so session-start sees fresh data; staggered :05/:35 (GT) and :10/:40
+(Pyroscope) so they don't fight Postgres.
 """
 
 from __future__ import annotations
@@ -44,13 +45,50 @@ def pick_daily_glitchtip_issues():
     gpu_required=False,
     storage_writes_to="postgres_main",
     ram_peak_mb=256,
-    expected_seconds_p50=60,
+    expected_seconds_p50=90,
 )
 def pick_daily_pyroscope_regressions():
-    """Query Pyroscope for week-over-week regressions and write to auto_issues."""
-    from apps.auto_issues.services.pyroscope_picker import pick_pyroscope_regressions
+    """Query Pyroscope for both week-over-week regressions and same-day
+    hotspots; write both to auto_issues.
 
-    return pick_pyroscope_regressions()
+    Hotspot detection added 2026-05-10 per plan
+    ``does-adding-qodana-make-swift-wall.md`` Stream 2 — needed because
+    week-over-week regressions need 7 days of profile history, leaving
+    Pyroscope-source AutoIssues empty during the warmup. Hotspots work
+    from day one. The two detectors use disjoint fingerprint prefixes
+    so they never collide on the unique constraint.
+    """
+    from apps.auto_issues.services.pyroscope_picker import (
+        pick_pyroscope_hotspots,
+        pick_pyroscope_regressions,
+    )
+
+    regressions = pick_pyroscope_regressions()
+    hotspots = pick_pyroscope_hotspots()
+    return {"regressions": regressions, "hotspots": hotspots}
+
+
+@shared_task(name="auto_issues.pick_daily_loki_findings")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=192,
+    expected_seconds_p50=45,
+)
+def pick_daily_loki_findings():
+    """Query Loki for hot patterns + WARN/ERROR rate bursts; write to auto_issues.
+
+    Added 2026-05-10 per plan
+    ``does-adding-qodana-make-swift-wall.md`` Stream 4. Two disjoint
+    detectors run in one call: hot_pattern (works from day one) and
+    warn_burst (needs ≥24 h of baseline). The two use disjoint
+    fingerprint prefixes (``loki:hot::`` and ``loki:burst::``) so they
+    never collide on the AutoIssue unique constraint.
+    """
+    from apps.auto_issues.services.loki_picker import pick_loki_findings
+
+    return pick_loki_findings()
 
 
 @shared_task(name="auto_issues.run_retention_cleanup")

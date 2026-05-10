@@ -1,10 +1,19 @@
-"""Pyroscope → AutoIssue picker — regression detection.
+"""Pyroscope → AutoIssue picker — regression + hotspot detection.
 
-Reads Pyroscope's HTTP API and surfaces functions whose self-CPU time
-grew ≥2× week-over-week AND account for ≥5 % of the total runtime in
-the most recent 24 h window. Each surviving function becomes one
-AutoIssue row with `source='pyroscope'` and a priority score from
-``services.scoring``.
+Two complementary detectors:
+
+1. ``pick_pyroscope_regressions`` — week-over-week. Surfaces functions
+   whose self-CPU grew ≥2× week-over-week AND account for ≥5 % of the
+   total runtime. Needs 7 days of profile history.
+
+2. ``pick_pyroscope_hotspots`` — same-day. Surfaces any function whose
+   self-CPU exceeds X % of total runtime in the last hour. No history
+   required, so it produces findings from day one (added 2026-05-10
+   per plan ``does-adding-qodana-make-swift-wall.md`` Stream 2).
+
+Both write AutoIssue rows with ``source='pyroscope'`` and a priority
+score from ``services.scoring``. The ``kind`` column distinguishes them
+(``regression`` vs ``hotspot``).
 
 Design decisions (from SPEC § Open design decisions):
   - (d) We query 24h chunks instead of 7-day windows so a single API
@@ -12,12 +21,11 @@ Design decisions (from SPEC § Open design decisions):
   - We do NOT auto-assign (decision (c)); rows land as `status='open'`.
 
 Pyroscope HTTP API used (OSS 1.9 — Phlare-derived):
-  GET /pyroscope/render-diff?
-      from=<unix-ts>&until=<unix-ts>&query=<labelset>
+  GET /pyroscope/render-diff?from=...&until=...&query=...    (regressions)
+  GET /pyroscope/render?from=...&until=...&query=...         (hotspots)
 The diff endpoint returns left/right flamegraphs for week-over-week
-comparison. We extract per-function totals from each side and compute
-ratio = right_total / left_total (clamped to a minimum left_total to
-avoid divide-by-zero noise).
+comparison. The render endpoint returns a single flamegraph for the
+last-hour hotspot view.
 """
 
 from __future__ import annotations
@@ -277,4 +285,216 @@ def pick_pyroscope_regressions(
         "status": "ok",
         "regressions_found": len(cands),
         "promoted": min(len(scored), limit),
+    }
+
+
+# --- Same-day hotspot detector ---------------------------------------------
+#
+# Added 2026-05-10 per plan ``does-adding-qodana-make-swift-wall.md``
+# Stream 2. The week-over-week regressions detector above needs 7 days of
+# profile history; this detector works from day one.
+
+_HOTSPOT_PCT_DEFAULT = 5.0
+_HOTSPOT_WINDOW_DEFAULT_S = 3600
+
+
+def _read_hotspot_settings() -> tuple[float, int]:
+    """Read tunable hotspot thresholds from AppSetting with constant fallback.
+
+    Returns ``(threshold_pct, window_seconds)``. Defaults match the
+    seed values in migration ``0004_seed_pyroscope_hotspot_threshold``.
+    Falls back to module constants if AppSetting rows are missing
+    (fresh test DB, etc.).
+    """
+    from apps.core.models import AppSetting
+
+    pct_row = AppSetting.objects.filter(
+        key="pyroscope.hotspot_pct_threshold"
+    ).only("value").first()
+    win_row = AppSetting.objects.filter(
+        key="pyroscope.hotspot_window_seconds"
+    ).only("value").first()
+    try:
+        pct = float(pct_row.value) if pct_row else _HOTSPOT_PCT_DEFAULT
+    except (TypeError, ValueError):
+        pct = _HOTSPOT_PCT_DEFAULT
+    try:
+        win = int(win_row.value) if win_row else _HOTSPOT_WINDOW_DEFAULT_S
+    except (TypeError, ValueError):
+        win = _HOTSPOT_WINDOW_DEFAULT_S
+    return pct, win
+
+
+def _query_pyroscope_render(
+    server: str,
+    application: str,
+    *,
+    until: int,
+    span_seconds: int,
+) -> dict[str, Any]:
+    """Fetch a single-period flamegraph from Pyroscope (no diff).
+
+    Returns the raw JSON. On any HTTP failure returns an empty dict so
+    the caller can no-op cleanly. Pyroscope OSS 1.x render endpoint
+    returns a top-level ``flamebearer`` payload — same shape that
+    ``_extract_function_totals`` already understands.
+    """
+    params = {
+        "from": (until - span_seconds) * 1000,
+        "until": until * 1000,
+        "query": (
+            "process_cpu:cpu:nanoseconds:cpu:nanoseconds"
+            f"{{service_name=\"{application}\"}}"
+        ),
+        "format": "json",
+    }
+    try:
+        r = requests.get(
+            f"{server.rstrip('/')}/pyroscope/render",
+            params=params,
+            timeout=_REQUEST_TIMEOUT,
+        )
+        r.raise_for_status()
+        return r.json()
+    except (requests.RequestException, ValueError) as exc:
+        logger.warning("[pyroscope_picker] render fetch failed: %s", exc)
+        return {}
+
+
+def _select_hotspots(
+    totals: dict[str, float], threshold_pct: float
+) -> list[PyroscopeCandidate]:
+    """Return functions whose self-time ≥ threshold_pct of grand total."""
+    grand_total = sum(totals.values()) or 1.0
+    threshold_share = max(threshold_pct, 0.0) / 100.0
+    candidates: list[PyroscopeCandidate] = []
+    for fn_name, self_ns in totals.items():
+        if self_ns / grand_total < threshold_share:
+            continue
+        file_hint = ""
+        if ":" in fn_name and "/" in fn_name:
+            file_hint = fn_name.split(":", 1)[0]
+        candidates.append(
+            PyroscopeCandidate(
+                function_name=fn_name,
+                file_hint=file_hint,
+                left_self_ns=0.0,  # no historical comparison
+                right_self_ns=self_ns,
+                right_total_ns=grand_total,
+            )
+        )
+    return candidates
+
+
+def _gather_hotspots(
+    server: str,
+    applications: tuple[str, ...],
+    *,
+    threshold_pct: float,
+    window_s: int,
+) -> list[PyroscopeCandidate]:
+    until = int(time.time())
+    cands: list[PyroscopeCandidate] = []
+    for app in applications:
+        payload = _query_pyroscope_render(
+            server, app, until=until, span_seconds=window_s
+        )
+        if not payload:
+            continue
+        totals = _extract_function_totals(payload)
+        cands.extend(_select_hotspots(totals, threshold_pct))
+    return cands
+
+
+def _upsert_hotspot_row(score: float, pc: PyroscopeCandidate) -> str:
+    """Cross-source-dedup upsert for one same-day hotspot. Returns outcome."""
+    share_pct = pc.right_self_ns * 100.0 / max(pc.right_total_ns, 1.0)
+    title = (
+        f"Pyroscope: {pc.function_name[:200]} burning "
+        f"{share_pct:.1f}% of CPU"
+    )
+    description = (
+        f"Function `{pc.function_name}` accounts for {share_pct:.1f}% "
+        f"of total CPU in the last hour ({pc.right_self_ns / 1e6:.1f} ms "
+        f"self-time). No week-over-week history required — this is a "
+        "same-day hotspot. Investigate whether the workload is expected "
+        "or this is an opportunity for a C++ extension / caching."
+    )
+    canonical = canonical_fingerprint(pc.function_name, pc.file_hint)
+    fingerprint = _stable_fingerprint(
+        f"hotspot::{pc.function_name}", pc.file_hint
+    )
+    _, outcome = upsert_dedup(
+        canonical=canonical,
+        source=AutoIssue.SOURCE_PYROSCOPE,
+        external_id=fingerprint,
+        fingerprint=fingerprint,
+        title=title,
+        description=description,
+        affected_files=[pc.file_hint] if pc.file_hint else [],
+        severity=AutoIssue.SEVERITY_MEDIUM,
+        priority_score=float(score),
+        occurrence_count=int(pc.right_self_ns / 1e6),
+    )
+    return outcome
+
+
+def _score_and_upsert_hotspots(
+    cands: list[PyroscopeCandidate], *, limit: int
+) -> int:
+    """Score candidates, sort, upsert top-K. Returns count promoted."""
+    max_blast = max(c.right_self_ns for c in cands)
+    scored = [
+        (score_candidate(_candidate_for_score(pc, max_blast)), pc)
+        for pc in cands
+    ]
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    promoted = 0
+    for score, pc in scored[:limit]:
+        _upsert_hotspot_row(score, pc)
+        promoted += 1
+    return promoted
+
+
+def pick_pyroscope_hotspots(
+    *,
+    server: str | None = None,
+    applications: tuple[str, ...] = (
+        "xf-linker-backend",
+        "xf-linker-celery-default",
+        "xf-linker-celery-pipeline",
+        "xf-linker-celery-beat",
+    ),
+    limit: int = _MAX_PER_RUN,
+) -> dict:
+    """Top-level entrypoint — fetch single-period flamegraphs, promote
+    hotspots above threshold to AutoIssue rows.
+
+    No-ops cleanly when the Pyroscope server is unreachable or returns
+    nothing. Idempotent: hotspots use a separate fingerprint prefix
+    (``hotspot::``) from regressions so the two detectors never collide
+    on the ``(source, external_id)`` unique constraint.
+    """
+    server = server or os.environ.get("PYROSCOPE_SERVER_ADDRESS", "")
+    if not server:
+        return {"status": "skipped", "reason": "missing_pyroscope_server"}
+    threshold_pct, window_s = _read_hotspot_settings()
+    cands = _gather_hotspots(
+        server, applications,
+        threshold_pct=threshold_pct, window_s=window_s,
+    )
+    if not cands:
+        return {"status": "ok", "hotspots_found": 0, "promoted": 0}
+    promoted = _score_and_upsert_hotspots(cands, limit=limit)
+    logger.info(
+        "[auto_issues.pyroscope_picker.hotspots] found=%d promoted=%d "
+        "threshold_pct=%.1f window_s=%d",
+        len(cands), promoted, threshold_pct, window_s,
+    )
+    return {
+        "status": "ok",
+        "hotspots_found": len(cands),
+        "promoted": promoted,
+        "threshold_pct": threshold_pct,
+        "window_seconds": window_s,
     }
