@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Pre-commit glossary check.
 
@@ -125,6 +125,7 @@ ALLOWLIST: frozenset[str] = frozenset({
     "INFO", "WARN", "WARNING", "ERROR", "DEBUG", "TRACE", "FATAL",
     "NOTICE", "SUCCESS", "FAILED", "FAIL", "PASS", "SKIP", "SKIPPED",
     "COMPLETED", "RUNNING", "PENDING", "QUEUED", "PROCESSING", "ABORTED",
+    "ATTENTION",
     "BENCHMARK", "BENCH",
     # PowerShell built-in variables / common shell vars
     "LASTEXITCODE", "PSScriptRoot", "PSCommandPath", "ErrorActionPreference",

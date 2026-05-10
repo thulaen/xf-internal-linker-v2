@@ -238,7 +238,7 @@ _ACTION_CHIPS: list[tuple[re.Pattern[str], list[dict[str, str]]]] = [
         [
             {
                 "label": "Free Docker disk now",
-                "action_url": "/api/system/disk-prune/",
+                "action_url": "/api/prune/safe/",
                 "tooltip": "Runs the safe-prune script (~16 GB typical reclaim).",
             },
             {

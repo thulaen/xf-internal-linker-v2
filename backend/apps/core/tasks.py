@@ -370,3 +370,19 @@ def activity_resumed_revert() -> dict:
         logger.exception("activity_resumed_revert failed")
 
     return result
+
+
+# ── Task Discovery re-exports ────────────────────────────────────────
+# Celery's ``autodiscover_tasks()`` only looks for the literal file
+# ``tasks.py`` in each app. Since the core app's tasks were split into
+# domain-specific files to stay under the 1500-line cap, we must
+# explicitly import them here so they are registered with the Celery
+# app instance on worker startup.
+from . import tasks_backups  # noqa: F401
+from . import tasks_compression_audit  # noqa: F401
+from . import tasks_cpp_fallback  # noqa: F401
+from . import tasks_dashboard  # noqa: F401
+from . import tasks_gpu_cleanup  # noqa: F401
+from . import tasks_passkey_cleanup  # noqa: F401
+from . import tasks_performance_cert  # noqa: F401
+from . import tasks_schedule_recovery  # noqa: F401

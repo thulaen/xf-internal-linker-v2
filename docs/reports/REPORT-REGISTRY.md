@@ -432,8 +432,9 @@ Tracked as AutoIssue #8 / #9 / #10 / #11 (one per table). Each AutoIssue has the
 - **Severity:** medium
 - **Affected files:** `backend/apps/audit/fix_suggestions.py`, `backend/apps/diagnostics/services/why_so_long.py`, `backend/apps/api/urls.py`
 - **Description:** Two operator-facing fix buttons point to `/api/system/disk-prune/`, but the actual safe-prune endpoint is `/api/prune/safe/`. The Health page safe-prune card uses the correct route, so the mismatch is likely stale wiring. Operators who click the old action may get a missing-endpoint error instead of the safe prune flow.
-- **Status:** OPEN
-- **Recommended fix:** Update the stale action URLs to `/api/prune/safe/` or route them through a shared constant so the fix buttons and the Health page cannot drift apart again.
+- **Status:** RESOLVED
+- **Resolved:** 2026-05-10
+- **Fixed in:** Antigravity (Gemini) turn 5; updated stale URLs in `why_so_long.py` and `fix_suggestions.py`.
 - **Regression watch:** Any future "fix action" URL should resolve in the API schema before it is shown to operators.
 
 ---
@@ -689,6 +690,28 @@ _(None yet. When all findings in a report are resolved, move the report entry he
 - **Fixed in:** `celery_schedules.py` — schedule changed from `crontab(hour=11, minute=0)` (daily) to `crontab(hour="11-23", minute="5,35")` (every 30 min during the active-laptop window 11-23 UTC). Staggered 5 minutes after `audit.sync_glitchtip_issues` (which fires at `:00,:30`) so the mirror is always populated before the picker reads it. `expires` bumped from 600 s to 1500 s so a slow run still wins its slot. New tests in `apps.auto_issues.tests_pickers.PickerScheduleCadenceTests` pin the cadence and stagger so it cannot silently regress to once-daily. Manual picker run while the diagnosis was in progress promoted 20 of the 89 GlitchTip errors to AutoIssues; `print_open_issues --source glitchtip` now returns 20 rows.
 - **Regression watch:** If `print_open_issues --source glitchtip` ever returns 0 again while `ErrorLog.objects.filter(source='glitchtip', acknowledged=False).exclude(glitchtip_issue_id='').count()` is non-zero, someone either reverted the schedule, paused the celery-beat container, or broke `pick_glitchtip_issues`. The cadence test will catch the schedule revert; the picker unit test catches the second.
 - **Lessons learned:** *Trap:* a Celery beat schedule comment that calls itself a "daily picker chain" reads as a hard design constraint, but the actual reason was just "stagger the four pickers within the 11-30 min boot window". Schedule cadence and stagger are two separate decisions. *Fix shape:* keep the stagger (still :00 / :05 / :15 / :20 / :25 / :30 in the active-laptop window), but each picker can fire as often as its work warrants. Pure-DB pickers should fire on the same cadence as their source-of-truth refresh.
+
+### ISS-108 — ProgrammingError: connection in transaction status INTRANS / Cannot open connection in atomic block (2026-05-10)
+
+- **Found by:** Antigravity (via GlitchTip auto-issue #44)
+- **Severity:** high
+- **Affected files:** `backend/apps/core/views_mcp.py`
+- **Description:** Background threads in MCP management views were hitting "interleaved connection" or "atomic block" errors when multiple operations tried to share or reuse a stale database connection.
+- **Status:** RESOLVED
+- **Resolved:** 2026-05-10
+- **Fixed in:** Hardened `backend/apps/core/views_mcp.py` by explicitly closing database connections at the start of every background thread. This ensures each thread acquires a fresh, isolated connection.
+- **Regression watch:** If `ProgrammingError` returns in `views_mcp.py`, verify that `django.db.connection.close()` is still present at the very top of each thread's target function.
+
+### ISS-109 — KeyError: 'core.*' / 'pipeline.*' during Celery task discovery (2026-05-10)
+
+- **Found by:** Antigravity (via GlitchTip auto-issues #45, #46, #47)
+- **Severity:** high
+- **Affected files:** `backend/apps/core/tasks.py`, `backend/apps/pipeline/tasks.py`
+- **Description:** Celery's `autodiscover_tasks()` failed to find tasks split into separate `tasks_*.py` files, leading to `KeyError` when dispatched via the Beat schedule or recovery tick.
+- **Status:** RESOLVED
+- **Resolved:** 2026-05-10
+- **Fixed in:** Added explicit re-exports of all split-out task files in the main `tasks.py` of both `apps.core` and `apps.pipeline`. Verified all 50+ tasks are now correctly registered via `celery inspect registered`.
+- **Regression watch:** If adding a NEW `tasks_submodule.py`, you MUST add an explicit `from . import tasks_submodule` in the app's primary `tasks.py` to ensure Celery discovers it.
 
 ---
 

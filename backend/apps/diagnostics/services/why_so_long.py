@@ -221,7 +221,7 @@ def _action_chips_for_verdict(verdict: str) -> list[dict[str, str]]:
         "disk_bound": [
             {
                 "label": "Free Docker disk now",
-                "action_url": "/api/system/disk-prune/",
+                "action_url": "/api/prune/safe/",
                 "tooltip": "Runs the safe-prune script to reclaim Docker build cache.",
             },
         ],

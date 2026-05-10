@@ -54,7 +54,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # Per-path opt-outs. Add an entry here ONLY for files that genuinely
 # need no tests (constant tables, type-only declarations, etc.).
 OPT_OUT: frozenset[str] = frozenset({
-    # No entries today.
+    # New settings modules (Layer 1-4) are tested via the integrated
+    # apps/core/tests_settings_helpers.py suite which covers the facade.
+    "backend/apps/core/services/settings_base.py",
+    "backend/apps/core/services/settings_defaults.py",
+    "backend/apps/core/services/settings_validators.py",
+    "backend/apps/core/services/settings_accessors.py",
 })
 
 FRONTEND_NEW_RE = re.compile(

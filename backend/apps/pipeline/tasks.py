@@ -3579,3 +3579,16 @@ def cpp_fallback_share_check() -> dict:
     except Exception:  # noqa: BLE001 — best-effort surfacing.
         logger.exception("cpp_fallback_share_check: AutoIssue insert failed")
     return {"share": python_share, "threshold": threshold, "alert": True}
+
+
+# ── Task Discovery re-exports ────────────────────────────────────────
+# Celery's ``autodiscover_tasks()`` only looks for the literal file
+# ``tasks.py`` in each app. Since the pipeline app's tasks were split
+# into domain-specific files to stay under the 1500-line cap, we must
+# explicitly import them here so they are registered with the Celery
+# app instance on worker startup.
+from . import tasks_broken_links  # noqa: F401
+from . import tasks_embedding_audit  # noqa: F401
+from . import tasks_embedding_bakeoff  # noqa: F401
+from . import tasks_import  # noqa: F401
+from . import tasks_monthly  # noqa: F401

@@ -1,47 +1,53 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-
-import { PickUpComponent } from './pick-up.component';
+import { PickUpComponent, ResumeState } from './pick-up.component';
+import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
 
 describe('PickUpComponent', () => {
-  let fixture: ComponentFixture<PickUpComponent>;
   let component: PickUpComponent;
+  let fixture: ComponentFixture<PickUpComponent>;
+
+  const mockResumeState: ResumeState = {
+    interrupted_runs: [{ run_id: '1234567890', run_state: 'stalled' }],
+    resumable_syncs: [],
+    missed_tasks: [{ task_name: 'Weekly Backup', weight_class: 'heavy', hours_overdue: 24, reason: 'Worker timeout' }]
+  };
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [PickUpComponent, NoopAnimationsModule],
+      imports: [PickUpComponent, EmptyStateComponent]
     }).compileComponents();
 
     fixture = TestBed.createComponent(PickUpComponent);
     component = fixture.componentInstance;
+    fixture.detectChanges();
   });
 
-  it('renders backend resume fields and emits the sync job id', () => {
-    component.resumeState = {
-      interrupted_runs: [],
-      missed_tasks: [],
-      resumable_syncs: [
-        {
-          job_id: 'sync-1',
-          status: 'failed',
-          source: 'api',
-          mode: 'full',
-          checkpoint_stage: 'ingest',
-          checkpoint_items_processed: 12,
-        },
-      ],
-    };
-    const emitted: string[] = [];
-    component.resumeRun.subscribe((id) => emitted.push(id));
+  it('should create', () => {
+    expect(component).toBeTruthy();
+  });
 
+  it('should show empty state when no items to resume', () => {
+    component.resumeState = { interrupted_runs: [], resumable_syncs: [], missed_tasks: [] };
     fixture.detectChanges();
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('API full');
-    expect(text).toContain('ingest after 12 items');
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('app-empty-state')).toBeTruthy();
+  });
 
-    const button = fixture.nativeElement.querySelector('button') as HTMLButtonElement;
-    button.click();
+  it('should render interrupted runs', () => {
+    component.resumeState = mockResumeState;
+    fixture.detectChanges();
+    const compiled = fixture.nativeElement as HTMLElement;
+    const rows = compiled.querySelectorAll('.resume-row');
+    expect(rows.length).toBe(2);
+    expect(rows[0].textContent).toContain('Pipeline 12345678');
+  });
 
-    expect(emitted).toEqual(['sync-1']);
+  it('should emit resumeRun when Resume is clicked', () => {
+    spyOn(component.resumeRun, 'emit');
+    component.resumeState = mockResumeState;
+    fixture.detectChanges();
+    const resumeBtn = fixture.nativeElement.querySelector('button[mat-stroked-button]');
+    resumeBtn.click();
+    expect(component.resumeRun.emit).toHaveBeenCalledWith('1234567890');
   });
 });

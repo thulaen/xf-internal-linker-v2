@@ -39,7 +39,15 @@ describe('GoalTrackerComponent', () => {
 
   it('renders without error when data is supplied', () => {
     // DashboardData shape — only the fields GoalTracker reads are required.
-    component.data = { approved: 5 } as any;
+    component.data = {
+      suggestion_counts: { pending: 0, approved: 5, applied: 0, rejected: 0, total: 5 },
+      content_count: 10,
+      open_broken_links: 0,
+      last_sync: null,
+      pipeline_runs: [],
+      recent_imports: [],
+      system_health: { status: 'healthy', summary: {}, total_monitored: 0 }
+    } as DashboardData;
     fixture.detectChanges();
     expect(fixture.nativeElement).toBeTruthy();
   });

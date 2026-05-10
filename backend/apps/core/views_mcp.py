@@ -133,6 +133,9 @@ def mcp_run_monthly(request):
         )
 
     def _run() -> None:
+        from django.db import connection
+
+        connection.close()
         try:
             from django.core.management import call_command
 
@@ -175,6 +178,9 @@ def schedule_run_now(request, task_name: str):
         )
 
     def _run() -> None:
+        from django.db import connection
+
+        connection.close()
         try:
             spec.fire_callable(datetime.now(timezone.utc))
         except Exception:
