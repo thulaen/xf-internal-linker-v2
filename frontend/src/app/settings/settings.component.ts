@@ -66,17 +66,12 @@ import { MetaAlgorithmsTabComponent } from './meta-algorithms-tab/meta-algorithm
 import { ConnectSyncTabComponent } from './connect-sync-tab/connect-sync-tab.component';
 import { LibraryHistoryTabComponent } from './library-history-tab/library-history-tab.component';
 import { NotificationsTabComponent } from './notifications-tab/notifications-tab.component';
+import { RankingWeightsTabComponent } from './ranking-weights-tab/ranking-weights-tab.component';
 import { SiloArchitectureTabComponent } from './silo-architecture-tab/silo-architecture-tab.component';
 import { PassageRelevanceCardComponent } from './passage-relevance/passage-relevance-card.component';
 import { SettingsOverviewComponent } from './settings-overview/settings-overview.component';
-import { MatDialog } from '@angular/material/dialog';
-// Group A.4 + A.5 — plain-English tooltips and "View spec" dialog wiring
-// for the FR-099–FR-105 meta-algo cards.
-import {
-  metaAlgoSpecSlug,
-  metaAlgoTip,
-} from './meta-algo-tooltips';
-import { SpecViewerDialogComponent } from './spec-viewer-dialog/spec-viewer-dialog.component';
+// MatDialog / meta-algo tooltips / SpecViewerDialogComponent — moved to
+// `<app-ranking-weights-tab>` along with the FR-099–FR-105 card UI.
 
 interface SettingTooltip {
   definition: string;
@@ -2071,6 +2066,7 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
     ConnectSyncTabComponent,
     LibraryHistoryTabComponent,
     NotificationsTabComponent,
+    RankingWeightsTabComponent,
     SiloArchitectureTabComponent,
     TabFragmentRouterDirective,
     SettingsOverviewComponent,
@@ -2083,8 +2079,6 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   private route = inject(ActivatedRoute);
   private realtime = inject(RealtimeService);
   private cdr = inject(ChangeDetectorRef);
-  // Group A.5 — opens the "View spec" markdown dialog for FR-099–FR-105 cards.
-  private dialog = inject(MatDialog);
 
   /**
    * Phase R1.4 — tracks the last realtime refresh so we don't spam the user
@@ -2700,49 +2694,8 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     return sectionValue?.[field];
   }
 
-  /**
-   * Group A.4 — plain-English helper for meta-algo card titles.
-   * Returns a one-line description sourced from
-   * `frontend/src/app/settings/meta-algo-tooltips.ts`. Used as a
-   * `[matTooltip]` value on each FR-099–FR-105 card title so a
-   * vibe-coder operator can hover the header to learn what the card
-   * does without reading the full hint paragraph or the spec.
-   */
-  metaAlgoTip(key: string): string {
-    return metaAlgoTip(key);
-  }
-
-  /**
-   * Group A.5 — opens the spec markdown for an FR-099–FR-105 meta-algo
-   * inside a Material dialog. The dialog fetches
-   * ``GET /api/docs/specs/<slug>/`` (server-side renders the markdown
-   * to safe HTML) and shows it inline so the operator never leaves the
-   * Settings page. Closes via the dialog's own Close action.
-   *
-   * Returns silently when the meta key has no spec mapping — callers
-   * should hide the "View spec" button in that case (template uses
-   * ``@if (metaAlgoHasSpec('darb'))``).
-   */
-  openMetaAlgoSpec(key: string): void {
-    const slug = metaAlgoSpecSlug(key);
-    if (!slug) return;
-    this.dialog.open(SpecViewerDialogComponent, {
-      width: '720px',
-      maxWidth: '92vw',
-      maxHeight: '88vh',
-      autoFocus: true,
-      restoreFocus: true,
-      data: {
-        specSlug: slug,
-        fallbackTitle: key.toUpperCase(),
-      },
-    });
-  }
-
-  /** Template-side guard so the View spec button hides when no spec is mapped. */
-  metaAlgoHasSpec(key: string): boolean {
-    return metaAlgoSpecSlug(key).length > 0;
-  }
+  // metaAlgoTip / openMetaAlgoSpec / metaAlgoHasSpec — extracted to
+  // `<app-ranking-weights-tab>` along with the FR-099–FR-105 card UI.
 
   fieldSeverity(value: number | undefined | null, key: string): FieldSeverity {
     if (value == null) return 'none';
@@ -2773,21 +2726,11 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     return String(a) === String(b);
   }
 
-  telemetryStatusLabel(status: string): string {
-    return {
-      connected: 'Connected',
-      saved: 'Saved',
-      error: 'Error',
-      not_configured: 'Not set up',
-    }[status] ?? 'Unknown';
-  }
-
-  // Both helpers accept `undefined` so the template can pass
-  // `xenforo.health?.status` directly without a `?? 'unknown'` per call.
-  // Each falls through to a muted/help_outline default.
-  telemetryStatusClass(status: string | undefined): string {
-    return `status-pill--${status === 'connected' || status === 'healthy' ? 'success' : (status === 'error' || status === 'down') ? 'danger' : (status === 'warning' || status === 'stale') ? 'warning' : status === 'saved' ? 'status' : 'muted'}`;
-  }
+  // telemetryStatusLabel / telemetryStatusClass — extracted to
+  // `<app-connect-sync-tab>` and `<app-ranking-weights-tab>`. The
+  // parent template no longer calls them directly because every status
+  // pill it used to render now lives inside one of those two child
+  // components, each of which owns its own copy of the helper.
 
   // lastSyncLabel / getHealthIcon / hasGoogleAppCredentials /
   // shouldShowReconnectGoogle / shouldShowGA4FallbackFields /
@@ -3165,430 +3108,22 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     this.destroy$.complete();
   }
 
-  savePhraseMatchingSettings(): void {
-    this.savingPhraseMatching = true;
-    this.siloSvc.updatePhraseMatchingSettings(this.phraseMatching)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (phraseMatching) => {
-        this.phraseMatching = phraseMatching;
-        this.refreshCurrentWeights();
-        this.savingPhraseMatching = false;
-        this.snack.open('Phrase matching settings saved', undefined, { duration: 2500 });
-      },
-      error: (error) => {
-        this.savingPhraseMatching = false;
-        this.snack.open(error?.error?.detail || 'Failed to save phrase matching settings', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  saveLearnedAnchorSettings(): void {
-    this.savingLearnedAnchor = true;
-    this.siloSvc.updateLearnedAnchorSettings(this.learnedAnchor)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (learnedAnchor) => {
-        this.learnedAnchor = learnedAnchor;
-        this.refreshCurrentWeights();
-        this.savingLearnedAnchor = false;
-        this.snack.open('Learned anchor settings saved', undefined, { duration: 2500 });
-      },
-      error: (error) => {
-        this.savingLearnedAnchor = false;
-        this.snack.open(error?.error?.detail || 'Failed to save learned anchor settings', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  saveRareTermPropagationSettings(): void {
-    this.savingRareTermPropagation = true;
-    this.siloSvc.updateRareTermPropagationSettings(this.rareTermPropagation)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (rareTermPropagation) => {
-        this.rareTermPropagation = rareTermPropagation;
-        this.refreshCurrentWeights();
-        this.savingRareTermPropagation = false;
-        this.snack.open('Rare-term propagation settings saved', undefined, { duration: 2500 });
-      },
-      error: (error) => {
-        this.savingRareTermPropagation = false;
-        this.snack.open(error?.error?.detail || 'Failed to save rare-term propagation settings', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  saveFieldAwareRelevanceSettings(): void {
-    this.savingFieldAwareRelevance = true;
-    this.siloSvc.updateFieldAwareRelevanceSettings(this.fieldAwareRelevance)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (fieldAwareRelevance) => {
-        this.fieldAwareRelevance = fieldAwareRelevance;
-        this.refreshCurrentWeights();
-        this.savingFieldAwareRelevance = false;
-        this.snack.open('Field-aware relevance settings saved', undefined, { duration: 2500 });
-      },
-      error: (error) => {
-        this.savingFieldAwareRelevance = false;
-        this.snack.open(error?.error?.detail || 'Failed to save field-aware relevance settings', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-
-  saveGraphCandidateSettings(): void {
-    this.savingGraphCandidate = true;
-    this.siloSvc.updateGraphCandidateSettings(this.graphCandidate)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (graphCandidate) => {
-        this.graphCandidate = graphCandidate;
-        this.refreshCurrentWeights();
-        this.savingGraphCandidate = false;
-        this.snack.open('Graph candidate settings saved', undefined, { duration: 2500 });
-      },
-      error: (error) => {
-        this.savingGraphCandidate = false;
-        this.snack.open(error?.error?.detail || 'Failed to save graph candidate settings', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  saveValueModelSettings(): void {
-    this.savingValueModel = true;
-    this.siloSvc.updateValueModelSettings(this.valueModel)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (valueModel) => {
-        this.valueModel = valueModel;
-        this.refreshCurrentWeights();
-        this.savingValueModel = false;
-        this.snack.open('Value model settings saved', undefined, { duration: 2500 });
-      },
-      error: (error) => {
-        this.savingValueModel = false;
-        this.snack.open(error?.error?.detail || 'Failed to save value model settings', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  triggerGraphRebuild(): void {
-    if (!confirm('Manually rebuild the bipartite knowledge graph? This will trigger a full refresh of entity nodes.')) return;
-    this.isGraphRebuilding = true;
-    this.siloSvc.rebuildKnowledgeGraph().pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: () => {
-        this.isGraphRebuilding = false;
-        this.snack.open('Knowledge graph rebuild queued.', undefined, { duration: 3000 });
-      },
-      error: (err) => {
-        this.isGraphRebuilding = false;
-        this.snack.open(err?.error?.detail || 'Failed to trigger graph rebuild', 'Dismiss', { duration: 4500 });
-      },
-    });
-  }
-
-  saveLinkFreshnessSettings(): void {
-    this.savingLinkFreshness = true;
-    this.siloSvc.updateLinkFreshnessSettings(this.linkFreshness)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (linkFreshness) => {
-        this.linkFreshness = linkFreshness;
-        this.refreshCurrentWeights();
-        this.savingLinkFreshness = false;
-        this.snack.open('Link Freshness settings saved', undefined, { duration: 2500 });
-      },
-      error: (error) => {
-        this.savingLinkFreshness = false;
-        this.snack.open(error?.error?.detail || 'Failed to save Link Freshness settings', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  saveSpamGuardSettings(): void {
-    this.savingSpamGuards = true;
-    this.siloSvc.updateSpamGuardSettings(this.spamGuards)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (spamGuards) => {
-        this.spamGuards = spamGuards;
-        this.savingSpamGuards = false;
-        this.snack.open('Spam guard settings saved', undefined, { duration: 2500 });
-      },
-      error: (error) => {
-        this.savingSpamGuards = false;
-        this.snack.open(error?.error?.detail || 'Failed to save spam guard settings', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  saveAnchorDiversitySettings(): void {
-    this.savingAnchorDiversity = true;
-    this.siloSvc.updateAnchorDiversitySettings(this.anchorDiversity)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (anchorDiversity) => {
-        this.anchorDiversity = anchorDiversity;
-        this.refreshCurrentWeights();
-        this.savingAnchorDiversity = false;
-        this.snack.open('Anchor Diversity settings saved', undefined, { duration: 2500 });
-      },
-      error: (error) => {
-        this.savingAnchorDiversity = false;
-        this.snack.open(error?.error?.detail || error?.error?.error || 'Failed to save Anchor Diversity settings', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  saveKeywordStuffingSettings(): void {
-    this.savingKeywordStuffing = true;
-    this.siloSvc.updateKeywordStuffingSettings(this.keywordStuffing)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (keywordStuffing) => {
-        this.keywordStuffing = keywordStuffing;
-        this.refreshCurrentWeights();
-        this.savingKeywordStuffing = false;
-        this.snack.open('Keyword Stuffing settings saved', undefined, { duration: 2500 });
-      },
-      error: (error) => {
-        this.savingKeywordStuffing = false;
-        this.snack.open(error?.error?.detail || error?.error?.error || 'Failed to save Keyword Stuffing settings', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  saveLinkFarmSettings(): void {
-    this.savingLinkFarm = true;
-    this.siloSvc.updateLinkFarmSettings(this.linkFarm)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (linkFarm) => {
-        this.linkFarm = linkFarm;
-        this.refreshCurrentWeights();
-        this.savingLinkFarm = false;
-        this.snack.open('Link-Farm settings saved', undefined, { duration: 2500 });
-      },
-      error: (error) => {
-        this.savingLinkFarm = false;
-        this.snack.open(error?.error?.detail || error?.error?.error || 'Failed to save Link-Farm settings', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  // FR-099 through FR-105 — saves all 7 signals via the grouped endpoint.
-  // Each card's Save button calls this; we set the per-signal spinner so
-  // the right card shows "Saving..." while the whole batch goes up.
-  private _saveFr099Fr105(spinnerSetter: (v: boolean) => void, name: string): void {
-    // Suppress the realtime echo — see _markLocalSave docstring.
-    this._markLocalSave();
-    spinnerSetter(true);
-    const payload = {
-      darb: this.darb,
-      kmig: this.kmig,
-      tapb: this.tapb,
-      kcib: this.kcib,
-      berp: this.berp,
-      hgte: this.hgte,
-      rsqva: this.rsqva,
-    };
-    this.siloSvc.updateFr099Fr105Settings(payload)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-        next: (saved) => {
-          if (saved?.darb) this.darb = { ...this.darb, ...saved.darb };
-          if (saved?.kmig) this.kmig = { ...this.kmig, ...saved.kmig };
-          if (saved?.tapb) this.tapb = { ...this.tapb, ...saved.tapb };
-          if (saved?.kcib) this.kcib = { ...this.kcib, ...saved.kcib };
-          if (saved?.berp) this.berp = { ...this.berp, ...saved.berp };
-          if (saved?.hgte) this.hgte = { ...this.hgte, ...saved.hgte };
-          if (saved?.rsqva) this.rsqva = { ...this.rsqva, ...saved.rsqva };
-          this.refreshCurrentWeights();
-          spinnerSetter(false);
-          this.snack.open(`${name} settings saved`, undefined, { duration: 2500 });
-        },
-        error: (error) => {
-          spinnerSetter(false);
-          this.snack.open(error?.error?.detail || error?.error?.error || `Failed to save ${name} settings`, 'Dismiss', { duration: 4000 });
-        },
-      });
-  }
-  saveDarbSettings(): void { this._saveFr099Fr105(v => this.savingDarb = v, 'DARB'); }
-  saveKmigSettings(): void { this._saveFr099Fr105(v => this.savingKmig = v, 'KMIG'); }
-  saveTapbSettings(): void { this._saveFr099Fr105(v => this.savingTapb = v, 'TAPB'); }
-  saveKcibSettings(): void { this._saveFr099Fr105(v => this.savingKcib = v, 'KCIB'); }
-  saveBerpSettings(): void { this._saveFr099Fr105(v => this.savingBerp = v, 'BERP'); }
-  saveHgteSettings(): void { this._saveFr099Fr105(v => this.savingHgte = v, 'HGTE'); }
-  saveRsqvaSettings(): void { this._saveFr099Fr105(v => this.savingRsqva = v, 'RSQVA'); }
-
-  // Group C — Stage-1 candidate retriever flags. Both default off;
-  // flipping either on activates RRF fusion (#31) on the next pipeline
-  // pass with no other code change.
-  saveStage1RetrieverSettings(): void {
-    this.savingStage1Retrievers = true;
-    this.siloSvc.updateStage1RetrieverSettings(this.stage1Retrievers)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-        next: (saved) => {
-          if (saved) {
-            this.stage1Retrievers = { ...this.stage1Retrievers, ...saved };
-          }
-          this.savingStage1Retrievers = false;
-          this.snack.open(
-            'Stage-1 retrievers saved',
-            undefined,
-            { duration: 2500 },
-          );
-        },
-        error: (error) => {
-          this.savingStage1Retrievers = false;
-          this.snack.open(
-            error?.error?.detail
-              || error?.error?.error
-              || 'Failed to save Stage-1 retrievers',
-            'Dismiss',
-            { duration: 4000 },
-          );
-        },
-      });
-  }
-
-  // Phase 6 — 10 optional-pick master switches. All default ON via
-  // the seed migration. Single Save button posts the whole tree.
-  savePhase6PickSettings(): void {
-    this.savingPhase6Picks = true;
-    this.siloSvc.updatePhase6PickSettings(this.phase6Picks)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-        next: (saved) => {
-          if (saved) {
-            this.phase6Picks = { ...this.phase6Picks, ...saved };
-          }
-          this.savingPhase6Picks = false;
-          this.snack.open(
-            'Optional pick toggles saved',
-            undefined,
-            { duration: 2500 },
-          );
-        },
-        error: (error) => {
-          this.savingPhase6Picks = false;
-          this.snack.open(
-            error?.error?.detail
-              || error?.error?.error
-              || 'Failed to save optional pick toggles',
-            'Dismiss',
-            { duration: 4000 },
-          );
-        },
-      });
-  }
-
-  saveClickDistanceSettings(): void {
-    this.savingClickDistance = true;
-    this.siloSvc.updateClickDistanceSettings(this.clickDistance)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (clickDistance) => {
-        this.clickDistance = clickDistance;
-        this.refreshCurrentWeights();
-        this.savingClickDistance = false;
-        this.snack.open('Click distance settings saved', undefined, { duration: 2500 });
-      },
-      error: (error) => {
-        this.savingClickDistance = false;
-        this.snack.open(error?.error?.detail || 'Failed to save click distance settings', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  saveFeedbackRerankSettings(): void {
-    this.savingFeedbackRerank = true;
-    this.siloSvc.updateFeedbackRerankSettings(this.feedbackRerank)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (feedbackRerank) => {
-        this.feedbackRerank = feedbackRerank;
-        this.refreshCurrentWeights();
-        this.savingFeedbackRerank = false;
-        this.snack.open('Explore/Exploit reranking settings saved', undefined, { duration: 2500 });
-      },
-      error: (error) => {
-        this.savingFeedbackRerank = false;
-        this.snack.open(error?.error?.detail || 'Failed to save explore/exploit settings', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  saveClusteringSettings(): void {
-    this.savingClustering = true;
-    this.siloSvc.updateClusteringSettings(this.clustering)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (clustering) => {
-        this.clustering = clustering;
-        this.refreshCurrentWeights();
-        this.savingClustering = false;
-        this.snack.open('Clustering settings saved', undefined, { duration: 2500 });
-      },
-      error: (error) => {
-        this.savingClustering = false;
-        this.snack.open(error?.error?.detail || 'Failed to save clustering settings', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  saveSlateDiversitySettings(): void {
-    this.savingSlate = true;
-    this.siloSvc.updateSlateDiversitySettings(this.slateDiversity)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (slateDiversity) => {
-        this.slateDiversity = slateDiversity;
-        this.refreshCurrentWeights();
-        this.savingSlate = false;
-        this.snack.open('Slate diversity settings saved', undefined, { duration: 2500 });
-      },
-      error: (error) => {
-        this.savingSlate = false;
-        this.snack.open(error?.error?.error || 'Failed to save slate diversity settings', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  recalculateClickDistance(): void {
-    this.recalculatingClickDistance = true;
-    this.siloSvc.recalculateClickDistance()
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (response) => {
-        this.recalculatingClickDistance = false;
-        this.snack.open(`Click distance recalculation started (${response.job_id.slice(0, 8)})`, 'Dismiss', { duration: 5000 });
-      },
-      error: (error) => {
-        this.recalculatingClickDistance = false;
-        this.snack.open(error?.error?.detail || 'Failed to start click distance recalculation', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  recalculateClustering(): void {
-    this.recalculatingClustering = true;
-    this.siloSvc.recalculateClustering()
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (response) => {
-        this.recalculatingClustering = false;
-        this.snack.open(`Clustering recalculation started (${response.job_id.slice(0, 8)})`, 'Dismiss', { duration: 5000 });
-      },
-      error: (error) => {
-        this.recalculatingClustering = false;
-        this.snack.open(error?.error?.detail || 'Failed to start clustering recalculation', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
+  // Per-card save + recalculate handlers (savePhraseMatchingSettings,
+  // saveLearnedAnchorSettings, saveRareTermPropagationSettings,
+  // saveFieldAwareRelevanceSettings, saveGraphCandidateSettings,
+  // saveValueModelSettings, triggerGraphRebuild, saveLinkFreshnessSettings,
+  // saveSpamGuardSettings, saveAnchorDiversitySettings,
+  // saveKeywordStuffingSettings, saveLinkFarmSettings, _saveFr099Fr105 +
+  // its seven thin saveDarb/Kmig/Tapb/Kcib/Berp/Hgte/Rsqva wrappers,
+  // saveStage1RetrieverSettings, savePhase6PickSettings,
+  // saveClickDistanceSettings, saveFeedbackRerankSettings,
+  // saveClusteringSettings, saveSlateDiversitySettings,
+  // recalculateClickDistance, recalculateClustering) all extracted to
+  // `<app-ranking-weights-tab>` along with their corresponding card UI.
+  // The grouped `saveAllSettings()` forkJoin below still PUTs every
+  // payload from the parent's local copies (kept in sync via `reload()`
+  // after every save), so the global "Save all changes" button still
+  // flushes every one of those 23 sections in a single network burst.
 
   private loadGroupsAndScopes(): void {
     this.siloSvc.listSiloGroups()
@@ -3617,56 +3152,12 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   }
 
   // saveSettings() (silo) extracted to <app-silo-architecture-tab>.
-
-  saveWeightedAuthoritySettings(): void {
-    this.savingWeightedAuthority = true;
-    this.siloSvc.updateWeightedAuthoritySettings(this.weightedAuthority)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (weightedAuthority) => {
-        this.weightedAuthority = weightedAuthority;
-        this.refreshCurrentWeights();
-        this.savingWeightedAuthority = false;
-        this.snack.open('March 2026 PageRank settings saved', undefined, { duration: 2500 });
-      },
-      error: (error) => {
-        this.savingWeightedAuthority = false;
-        this.snack.open(error?.error?.detail || 'Failed to save March 2026 PageRank settings', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  recalculateWeightedAuthority(): void {
-    this.recalculatingWeightedAuthority = true;
-    this.siloSvc.recalculateWeightedAuthority()
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (response) => {
-        this.recalculatingWeightedAuthority = false;
-        this.snack.open(`March 2026 PageRank recalculation started (${response.job_id.slice(0, 8)})`, 'Dismiss', { duration: 5000 });
-      },
-      error: (error) => {
-        this.recalculatingWeightedAuthority = false;
-        this.snack.open(error?.error?.detail || 'Failed to start March 2026 PageRank recalculation', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  recalculateLinkFreshness(): void {
-    this.recalculatingLinkFreshness = true;
-    this.siloSvc.recalculateLinkFreshness()
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (response) => {
-        this.recalculatingLinkFreshness = false;
-        this.snack.open(`Link Freshness recalculation started (${response.job_id.slice(0, 8)})`, 'Dismiss', { duration: 5000 });
-      },
-      error: (error) => {
-        this.recalculatingLinkFreshness = false;
-        this.snack.open(error?.error?.detail || 'Failed to start Link Freshness recalculation', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
+  // saveWeightedAuthoritySettings / recalculateWeightedAuthority /
+  // recalculateLinkFreshness extracted to <app-ranking-weights-tab>.
+  // The parent's `saveAllSettings()` forkJoin below still PUTs the
+  // weighted-authority + freshness payloads from the parent's local
+  // copies (kept in sync via `reload()` after every save), so the
+  // global "Save all changes" button still flushes both sections.
 
   // saveXenForoSettings / saveWordPressSettings / saveWebhookSettings /
   // xfWebhookUrl / wpWebhookUrl — extracted to <app-connect-sync-tab>.

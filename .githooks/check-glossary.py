@@ -240,6 +240,25 @@ ALLOWLIST: frozenset[str] = frozenset({
     # connection-card UI copy (URI scheme labels, PEM-format key blobs,
     # PRIVATE KEY field labels, etc).
     "URI", "PEM", "PRIVATE", "KEY", "HEALTH",
+    # Algorithm shorthand surfaced in ranking-weights tab UI labels.
+    # SCC = Strongly Connected Components (graph algorithm).
+    # PRF = Pseudo-Relevance Feedback (information-retrieval signal).
+    "SCC", "PRF",
+    # Academic conference / venue / library shorthand surfaced as
+    # citation labels next to spec links in ranking-weights tab.
+    # ICWSM = International Conference on Weblogs and Social Media.
+    # ACL = Association for Computational Linguistics.
+    # EACL = European chapter of ACL. JMLR = Journal of Machine
+    # Learning Research. WMT = Workshop on Machine Translation.
+    # VADER = sentiment-analysis lexicon library. YAKE = keyword
+    # extraction algorithm. All third-party citations, not project jargon.
+    "VADER", "ICWSM", "ACL", "YAKE", "EACL", "JMLR", "WMT",
+    # More academic / venue shorthand from same citation block.
+    # KDD = Knowledge Discovery and Data Mining. LTR = Learning To Rank.
+    # UAI = Uncertainty in Artificial Intelligence. ICDM = International
+    # Conference on Data Mining. SIAM = Society for Industrial and
+    # Applied Mathematics. CACM = Communications of the ACM.
+    "KDD", "LTR", "UAI", "ICDM", "SIAM", "CACM",
 })
 
 # Regex: 3+ consecutive uppercase letters with optional repeated hyphen-

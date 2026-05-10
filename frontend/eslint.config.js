@@ -37,6 +37,18 @@ module.exports = tseslint.config(
       // consecutive sessions.
       "@typescript-eslint/no-explicit-any": "warn",
       "@angular-eslint/prefer-inject": "off",
+      // Honour the `_` prefix convention for intentionally-unused arguments
+      // (e.g. interface stubs, callback signatures kept for parity with a
+      // sibling. Standard TypeScript convention; matches what subagents
+      // reach for when extracting a method that no longer reads an arg).
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          "argsIgnorePattern": "^_",
+          "varsIgnorePattern": "^_",
+          "caughtErrorsIgnorePattern": "^_"
+        }
+      ],
     },
   },
   {

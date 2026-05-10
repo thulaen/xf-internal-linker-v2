@@ -1,0 +1,138 @@
+// Local copies of the layout classes the legacy parent `SettingsComponent`
+// applied via its own view-encapsulated stylesheet. Kept in sync with
+// `frontend/src/app/settings/settings.component.scss` so the extracted
+// Ranking Weights tab renders identically. The canonical card chrome
+// (border, padding, header) comes from the global `ga4-card` partial
+// loaded by `frontend/src/styles/_card-anatomy.scss`.
+
+:host {
+  display: block;
+}
+
+.tab-content {
+  padding: 8px 0 120px;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--spacing-md);
+
+  // Apply the half-row span and small-screen full-width fallback to ALL
+  // direct children, not just `.settings-card`. Custom-element cards
+  // (`<app-passage-relevance-card>`) collapse into a single grid track
+  // when the rule targets only `.settings-card`. See DESIGN-PATTERNS.md.
+  > * {
+    grid-column: span 6;
+
+    @media (max-width: 1200px) {
+      grid-column: 1 / -1;
+    }
+  }
+
+  > .settings-card--wide {
+    grid-column: 1 / -1;
+  }
+}
+
+.settings-card {
+  display: flex;
+  flex-direction: column;
+
+  mat-card-header {
+    padding: 16px 24px;
+    background: var(--color-bg-faint);
+    border-bottom: 1px solid var(--color-border);
+
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm, 8px);
+
+    /* stylelint-disable-next-line selector-pseudo-element-no-unknown -- Angular ::ng-deep is required to reach Material's internal `.mat-mdc-card-header-text` wrapper from a component-scoped style. */
+    ::ng-deep .mat-mdc-card-header-text {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+  }
+
+  mat-card-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .card-title-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm, 8px);
+    flex-shrink: 0;
+  }
+}
+
+.settings-card--wide {
+  grid-column: 1 / -1;
+}
+
+.card-content {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.hint {
+  margin: 0 0 16px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.number-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.card-actions-row {
+  margin-top: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+
+  button {
+    white-space: nowrap;
+    flex: 1;
+    min-width: fit-content;
+    justify-content: center;
+  }
+}
+
+// Teaser card for Search Console connection status.
+.integration-status {
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.status-pill--success, .status-pill--healthy { background: var(--color-success-light); color: var(--color-success-dark); border: 1px solid var(--color-success-light); }
+.status-pill--danger, .status-pill--error, .status-pill--down { background: var(--color-error-light); color: var(--color-error-dark); border: 1px solid var(--color-error-light); }
+.status-pill--warning, .status-pill--stale { background: var(--color-warning-light); color: var(--color-warning-dark); border: 1px solid var(--color-warning); }
+.status-pill--status { background: var(--color-blue-50); color: var(--color-primary); border: 1px solid var(--color-blue-100); }
+.status-pill--muted { background: var(--color-bg-faint); color: var(--color-text-muted); }
