@@ -209,6 +209,9 @@ ALLOWLIST: frozenset[str] = frozenset({
     "NEITHER", "MEDIUM", "HIGH", "LOW", "ONCE",
     # Project marker comments / placeholder shapes documented in CLAUDE.md.
     "AUTOTUNER-EXCLUDED", "DEFERRED-KNOWN", "RPT-NNN", "ISS-NNN",
+    # More plain-English ALL-CAPS narrative tokens used in handoff /
+    # docs prose ("MISSING test files", "WHY this matters", etc).
+    "MISSING", "WHY",
 })
 
 # Regex: 3+ consecutive uppercase letters with optional repeated hyphen-

@@ -19,7 +19,12 @@
   },
   "overrides": [
     {
-      "files": ["src/styles/default-theme.scss", "src/styles.scss"],
+      "files": [
+        "src/styles/default-theme.scss",
+        "src/styles.scss",
+        "src/styles/_*.scss",
+        "src/styles/themes/_*.scss"
+      ],
       "rules": {
         "color-no-hex": null,
         "declaration-property-value-disallowed-list": null

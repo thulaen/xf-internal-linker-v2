@@ -127,20 +127,20 @@ jobs:
         working-directory: frontend
         run: npx ng lint
 
-  # ── 6b. Stylelint for SCSS (non-blocking initially) ──────────────
+  # ── 6b. Stylelint for SCSS (BLOCKING — hardened 2026-05-10) ──────
   # Enforces the CLAUDE.md design rules: no hardcoded hex (use CSS
   # variables from default-theme.scss), no linear-gradient or radial-
   # gradient, no orange shades (#f6821f, #ee730a, #ff6600). The
   # default-theme.scss and styles.scss files are exempted via overrides
   # in frontend/.stylelintrc.json — those are the source of truth.
   #
-  # Currently NON-BLOCKING because the existing codebase has ~180
-  # legacy hardcoded-hex violations in component SCSS files. Once a
-  # cleanup PR replaces those with CSS variables, remove `|| true`
-  # below to make this a hard gate. See docs/TESTING.md and the
-  # spawned follow-up task for the cleanup plan.
+  # Was non-blocking until 2026-05-10 because the codebase had ~180
+  # legacy hardcoded-hex violations. Those were swept in the prevention
+  # cleanup (Phase 2a) and the gate was flipped to blocking. See
+  # docs/CI-GATES.md for the inventory and PLAIN-ENGLISH-RULE.md for
+  # what each rule means.
   frontend-lint-scss:
-    name: Stylelint (SCSS, non-blocking)
+    name: Stylelint (SCSS)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -151,9 +151,9 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
-      - name: Stylelint (SCSS) — surface violations as warnings
+      - name: Stylelint (SCSS) — fails on any violation
         working-directory: frontend
-        run: npm run lint:scss || true
+        run: npm run lint:scss
 
   # ── 7. Python type checking (mypy) ──────────────────────────────
   backend-typecheck:
@@ -246,9 +246,12 @@ jobs:
       - name: Validate docker-compose.yml syntax
         run: docker compose config
 
-  # ── 12. Semgrep security scan (non-blocking — informational only) ─
+  # ── 12. Semgrep security scan (BLOCKING on ERROR-only — hardened 2026-05-10) ─
+  # Was `|| true` (informational only). Now fails CI on findings whose
+  # severity is ERROR; WARNING/INFO ride through and upload as artifacts
+  # for triage. See docs/CI-GATES.md.
   semgrep:
-    name: Semgrep Security Scan
+    name: Semgrep Security Scan (ERROR-only)
     runs-on: ubuntu-latest
     container:
       image: returntocorp/semgrep
@@ -260,10 +263,11 @@ jobs:
           --config=p/django
           --config=p/python
           --config=p/secrets
+          --severity=ERROR
+          --error
           --output=semgrep-results.json
           --json
           backend/
-          || true
       - name: Upload Semgrep results
         if: always()
         uses: actions/upload-artifact@v5
@@ -272,9 +276,13 @@ jobs:
           path: semgrep-results.json
           retention-days: 30
 
-  # ── 13. Trivy container vulnerability scan (non-blocking) ─────────
+  # ── 13. Trivy container vulnerability scan (BLOCKING on fixable HIGH/CRITICAL — hardened 2026-05-10) ─
+  # Was `exit-code: '0'` (always-pass). Now fails CI when a fixable
+  # CRITICAL or HIGH CVE is detected; unfixed CVEs ride through via
+  # `ignore-unfixed: true` so we don't permanently fail on third-party
+  # vulns the upstream hasn't shipped a patch for. See docs/CI-GATES.md.
   trivy-scan:
-    name: Trivy Dependency Scan
+    name: Trivy Dependency Scan (fixable HIGH/CRITICAL)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -284,7 +292,8 @@ jobs:
           scan-type: fs
           scan-ref: .
           severity: CRITICAL,HIGH
-          exit-code: '0'
+          exit-code: '1'
+          ignore-unfixed: true
           format: table
           output: trivy-results.txt
       - name: Upload Trivy results
@@ -429,9 +438,12 @@ jobs:
         working-directory: backend/extensions/build_asan
         run: ctest --output-on-failure
 
-  # ── 19. ThreadSanitizer (non-blocking — TBB may produce false positives) ─
+  # ── 19. ThreadSanitizer (advisory — see docs/CI-GATES.md) ────────
+  # GATE-DOWNGRADE-JUSTIFICATION: TBB false-positive noise; suppression
+  # file requires Linux TSAN run before flipping blocking. Plan-to-flip
+  # documented in docs/CI-GATES.md under "Advisory Gate Justifications".
   cpp-tsan:
-    name: C++ ThreadSanitizer
+    name: C++ ThreadSanitizer (advisory)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -447,20 +459,19 @@ jobs:
       - name: Build
         working-directory: backend/extensions
         run: cmake --build build_tsan --parallel
-      - name: Test (non-blocking)
+      - name: Test (advisory — see GATE-DOWNGRADE-JUSTIFICATION above)
         working-directory: backend/extensions/build_tsan
         run: ctest --output-on-failure || true
 
-  # ── 20. Missing-tests warning (non-blocking initially — hardens later) ─
+  # ── 20. Missing-tests check (BLOCKING — hardened 2026-05-10) ─────
   # When a PR adds a new backend service module under
   # backend/apps/*/services/ or a new Angular *.component.ts / *.service.ts,
-  # check whether a matching test file landed in the same PR. If not, emit
-  # a GitHub annotation as a WARNING (this job does not fail today). After
-  # ~4 weeks of clean runs, change `::warning::` below to `::error::` and
-  # add `exit 1` to harden it into a blocking gate. See docs/TESTING.md
-  # for the naming conventions this check enforces.
+  # check whether a matching test file landed in the same PR. If not, fail.
+  # The local pre-commit hook (.githooks/check-missing-tests.py) catches
+  # the same thing earlier; this CI gate is the safety net for force-pushed
+  # branches and PRs from contributors without the local hook installed.
   missing-tests-check:
-    name: Missing Tests Warning
+    name: Missing Tests (blocking)
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
@@ -505,8 +516,9 @@ jobs:
           done
 
           if [ -n "$MISSING" ]; then
-            echo "::warning::New modules added without matching test files:${MISSING}"
-            echo "::warning::See docs/TESTING.md for naming conventions and where new tests go."
+            echo "::error::New modules added without matching test files:${MISSING}"
+            echo "::error::See docs/TESTING.md for naming conventions and where new tests go."
+            exit 1
           else
             echo "All new modules have matching test files."
           fi

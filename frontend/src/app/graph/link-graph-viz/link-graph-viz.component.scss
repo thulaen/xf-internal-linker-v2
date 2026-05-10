@@ -52,7 +52,7 @@
 .graph-tooltip {
   position: absolute;
   pointer-events: none;
-  background: #fff;
+  background: var(--color-bg-white);
   border: var(--card-border);
   border-radius: var(--card-border-radius);
   padding: var(--space-sm) var(--space-md);
