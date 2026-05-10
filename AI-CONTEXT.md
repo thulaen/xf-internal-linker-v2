@@ -1236,13 +1236,13 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 ### 2026-04-20 - Remove stale embedding runtime entries and make `BAAI/bge-m3` the live champion (Codex)
 
 - **AI/tool:** Codex
-- **Why:** User asked to delete the stale `BAAI/bge-small-en-v1.5` / Nomic embedding runtime presence and make `BAAI/bge-m3` the active champion, not just the persisted default.
+- **Why:** User asked to delete the stale `<legacy-model>` / Nomic embedding runtime presence and make `BAAI/bge-m3` the active champion, not just the persisted default.
 - **What was done:**
   - Verified `AppSetting(key="embedding_model")` is `BAAI/bge-m3`.
-  - Removed the stale embedding runtime registry row for `BAAI/bge-small-en-v1.5`.
+  - Removed the stale embedding runtime registry row for `<legacy-model>`.
   - Ensured the only remaining embedding `RuntimeModelRegistry` row is `BAAI/bge-m3` with `role="champion"`, `status="ready"`, `dimension=1024`, `algorithm_version="fr020-v1"`, `device_target="cuda"`, and `batch_size=32`.
   - Preloaded `BAAI/bge-m3` through the backend runtime so the container now has a concrete Hugging Face cache entry for that model under `/tmp/.cache/huggingface/hub/models--BAAI--bge-m3`.
-  - Searched common backend-container cache locations for `*bge-small-en-v1.5*` and `*nomic*` artifacts and found none, so there was no on-disk stale cache to delete beyond removing the stale registry row.
+  - Searched common backend-container cache locations for `*<legacy-model>*` and `*nomic*` artifacts and found none, so there was no on-disk stale cache to delete beyond removing the stale registry row.
 
 - **Intentional files changed:**
   - `AI-CONTEXT.md`
