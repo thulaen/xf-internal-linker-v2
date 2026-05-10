@@ -1,0 +1,223 @@
+// Local copies of the layout classes the legacy parent `SettingsComponent`
+// applied via its own view-encapsulated stylesheet. Kept in sync with
+// `frontend/src/app/settings/settings.component.scss` so the extracted
+// Connect & Sync tab renders identically. The canonical card chrome
+// (border, padding, header) comes from the global `ga4-card` partial
+// loaded by `frontend/src/styles/_card-anatomy.scss`.
+
+:host {
+  display: block;
+}
+
+.tab-content {
+  padding: 8px 0 120px;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--spacing-md);
+
+  > * {
+    grid-column: span 6;
+
+    @media (max-width: 1200px) {
+      grid-column: 1 / -1;
+    }
+  }
+
+  > .settings-card--wide {
+    grid-column: 1 / -1;
+  }
+}
+
+.settings-card {
+  display: flex;
+  flex-direction: column;
+
+  mat-card-header {
+    padding: 16px 24px;
+    background: var(--color-bg-faint);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  mat-card-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+  }
+}
+
+.settings-card--wide {
+  grid-column: 1 / -1;
+}
+
+.card-content {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.hint {
+  margin: 0 0 16px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.number-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.card-actions-row {
+  margin-top: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+
+  button {
+    white-space: nowrap;
+    flex: 1;
+    min-width: fit-content;
+    justify-content: center;
+  }
+}
+
+.wordpress-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.wordpress-form .form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sync-schedule-box,
+.last-sync-box {
+  padding: 24px;
+  background: var(--color-bg-faint);
+  border: 1px solid var(--color-border);
+  border-radius: var(--card-border-radius);
+}
+
+.analytics-guardrail-box {
+  padding: 16px 20px;
+  background: var(--color-warning-light);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--card-border-radius);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.analytics-guardrail-box__title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-warning-dark);
+}
+
+.schedule-header {
+  margin-bottom: 12px;
+  h3 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+  }
+}
+
+.action-buttons {
+  display: flex;
+  gap: 16px;
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+
+.integration-status {
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.status-pill--success, .status-pill--healthy { background: var(--color-success-light); color: var(--color-success-dark); border: 1px solid var(--color-success-light); }
+.status-pill--danger, .status-pill--error, .status-pill--down { background: var(--color-error-light); color: var(--color-error-dark); border: 1px solid var(--color-error-light); }
+.status-pill--warning, .status-pill--stale { background: var(--color-warning-light); color: var(--color-warning-dark); border: 1px solid var(--color-warning); }
+.status-pill--status { background: var(--color-blue-50); color: var(--color-primary); border: 1px solid var(--color-blue-100); }
+.status-pill--muted { background: var(--color-bg-faint); color: var(--color-text-muted); }
+
+.health-indicator {
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+}
+
+.health-issue-box {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--color-error-light);
+  border: 1px solid var(--color-error);
+  border-radius: var(--card-border-radius);
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+
+  mat-icon {
+    color: var(--color-error-dark);
+    flex-shrink: 0;
+  }
+
+  .issue-content {
+    flex: 1;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--color-text-primary);
+
+    strong {
+      color: var(--color-error-dark);
+      margin-right: 4px;
+    }
+
+    .fix-text {
+      margin-top: 4px;
+      padding-top: 4px;
+      border-top: 1px solid rgba(0, 0, 0, 0.05);
+      color: var(--color-text-muted);
+
+      strong {
+        color: var(--color-primary);
+      }
+    }
+  }
+}

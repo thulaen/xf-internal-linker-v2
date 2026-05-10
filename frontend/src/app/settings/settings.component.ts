@@ -39,7 +39,6 @@ import {
   Phase6PickSettings,
   WeightedAuthoritySettings,
   XenForoSettings,
-  XenForoSettingsUpdate,
   WordPressSettings,
   WordPressSettingsUpdate,
   GSCSettings,
@@ -49,7 +48,6 @@ import {
   SlateDiversitySettings,
   WeightPreset,
   WeightAdjustmentHistory,
-  AnalyticsConnectionResult,
   GA4TelemetrySettings,
   GA4TelemetryUpdate,
   GoogleOAuthSettings,
@@ -59,13 +57,13 @@ import {
   ValueModelSettings,
   SpamGuardSettings,
   WebhookSettings,
-  WebhookSettingsUpdate,
 } from './silo-settings.service';
 import { WeightDiagnosticsCardComponent } from './weight-diagnostics-card/weight-diagnostics-card.component';
 import { PerformanceSettingsComponent } from './performance-settings/performance-settings.component';
 import { HelpersSettingsComponent } from './helpers-settings/helpers-settings.component';
 // Phase MS — Meta Algorithm Settings tab (new at the end of the tab group).
 import { MetaAlgorithmsTabComponent } from './meta-algorithms-tab/meta-algorithms-tab.component';
+import { ConnectSyncTabComponent } from './connect-sync-tab/connect-sync-tab.component';
 import { LibraryHistoryTabComponent } from './library-history-tab/library-history-tab.component';
 import { NotificationsTabComponent } from './notifications-tab/notifications-tab.component';
 import { SiloArchitectureTabComponent } from './silo-architecture-tab/silo-architecture-tab.component';
@@ -2070,6 +2068,7 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
     PerformanceSettingsComponent,
     HelpersSettingsComponent,
     MetaAlgorithmsTabComponent,
+    ConnectSyncTabComponent,
     LibraryHistoryTabComponent,
     NotificationsTabComponent,
     SiloArchitectureTabComponent,
@@ -2178,32 +2177,18 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   savingFeedbackRerank = false;
   savingClustering = false;
   savingSlate = false;
-  savingXenForo = false;
-  savingWordPress = false;
-  savingWebhooks = false;
   recalculatingWeightedAuthority = false;
   recalculatingLinkFreshness = false;
   recalculatingClickDistance = false;
   recalculatingClustering = false;
-  runningWordPressSync = false;
-  savingGA4Telemetry = false;
-  savingMatomoTelemetry = false;
-  testingGA4Telemetry = false;
-  testingGA4TelemetryRead = false;
-  testingMatomoTelemetry = false;
-  testingGSCConnection = false;
-  testingXenForo = false;
-  testingWordPress = false;
-  testingWebhooks = false;
-  runningGSCSync = false;
-  savingGoogleAuth = false;
 
-  // ── Crawler settings ──────────────────────────────────────────
-  crawlerExcludedPaths: string[] = [
-    '/members/', '/login/', '/register/', '/account/',
-    '/search/', '/admin.php', '/help/',
-  ];
-  newCrawlerExclusion = '';
+  // savingXenForo / savingWordPress / savingWebhooks / runningWordPressSync
+  // / savingGA4Telemetry / savingMatomoTelemetry / testingGA4Telemetry /
+  // testingGA4TelemetryRead / testingMatomoTelemetry / testingGSCConnection
+  // / testingXenForo / testingWordPress / testingWebhooks / runningGSCSync
+  // / savingGoogleAuth — moved with the per-card buttons to
+  // <app-connect-sync-tab>. crawlerExcludedPaths / newCrawlerExclusion
+  // moved with the Crawler card to the same child.
 
   // Tab persistence
   selectedTabIndex = Number(localStorage.getItem('settings_active_tab') || '0');
@@ -2324,8 +2309,8 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     message: 'Paste the Google OAuth client ID and secret once, then sign in once.',
     last_sync: null,
   };
-  showGA4FallbackFields = false;
-  showGSCFallbackFields = false;
+  // showGA4FallbackFields / showGSCFallbackFields — moved with the
+  // GA4 + GSC cards to <app-connect-sync-tab>.
   ga4Telemetry: GA4TelemetrySettings = {
     behavior_enabled: false,
     property_id: '',
@@ -2804,76 +2789,10 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     return `status-pill--${status === 'connected' || status === 'healthy' ? 'success' : (status === 'error' || status === 'down') ? 'danger' : (status === 'warning' || status === 'stale') ? 'warning' : status === 'saved' ? 'status' : 'muted'}`;
   }
 
-  getHealthIcon(status: string | undefined): string {
-    switch (status) {
-      case 'healthy': return 'check_circle';
-      case 'warning': return 'warning';
-      case 'error':   return 'error';
-      case 'down':    return 'dangerous';
-      case 'stale':   return 'update';
-      default:        return 'help_outline';
-    }
-  }
-
-  lastSyncLabel(sync: { completed_at: string | null; started_at: string | null; rows_written: number } | null): string {
-    if (!sync) return 'Never synced';
-    const stamp = sync.completed_at || sync.started_at;
-    if (!stamp) return `${sync.rows_written} rows written`;
-    return `${new Date(stamp).toLocaleString()} • ${sync.rows_written} rows written`;
-  }
-
-  hasGoogleAppCredentials(): boolean {
-    return Boolean(this.googleAuthClientId.trim() || this.googleOAuth.client_secret_configured || this.googleAuthClientSecret.trim());
-  }
-
-  shouldShowReconnectGoogle(): boolean {
-    return !this.googleOAuth.oauth_connected && this.hasGoogleAppCredentials();
-  }
-
-  shouldShowGA4FallbackFields(): boolean {
-    return this.showGA4FallbackFields || !this.googleOAuth.oauth_connected;
-  }
-
-  shouldShowGSCFallbackFields(): boolean {
-    return this.showGSCFallbackFields || !this.googleOAuth.oauth_connected;
-  }
-
-  saveGoogleAuthSettings(): void {
-    this.savingGoogleAuth = true;
-    const payload: { client_id: string; client_secret?: string } = {
-      client_id: this.googleAuthClientId.trim(),
-    };
-    if (this.googleAuthClientSecret.trim()) {
-      payload.client_secret = this.googleAuthClientSecret.trim();
-    }
-    // Mark local save so the realtime echo on `settings.runtime` doesn't
-    // misfire as "Settings changed in another tab".
-    this._markLocalSave();
-    this.siloSvc.updateGoogleOAuthSettings(payload).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: (googleOAuth) => {
-        // Spread-merge — see saveAllSettings comment for full rationale.
-        this.googleOAuth = { ...this.googleOAuth, ...(googleOAuth ?? {}) };
-        this.googleAuthClientId = googleOAuth?.client_id ?? this.googleAuthClientId ?? '';
-        this.googleAuthClientSecret = '';
-        this.ga4Telemetry = {
-          ...this.ga4Telemetry,
-          google_oauth_client_id: googleOAuth?.client_id,
-          google_oauth_client_secret_configured: googleOAuth?.client_secret_configured,
-          oauth_connected: googleOAuth?.oauth_connected,
-        };
-        this.ga4Gsc = {
-          ...this.ga4Gsc,
-          oauth_connected: googleOAuth?.oauth_connected,
-        };
-        this.savingGoogleAuth = false;
-        this.snack.open('Google app settings saved.', undefined, { duration: 3000 });
-      },
-      error: (error) => {
-        this.savingGoogleAuth = false;
-        this.snack.open(error?.error?.detail || 'Failed to save Google app settings.', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
+  // lastSyncLabel / getHealthIcon / hasGoogleAppCredentials /
+  // shouldShowReconnectGoogle / shouldShowGA4FallbackFields /
+  // shouldShowGSCFallbackFields / saveGoogleAuthSettings — moved with
+  // the Connect & Sync tab to <app-connect-sync-tab>.
 
   private presetMatchesCurrent(preset: WeightPreset): boolean {
     const presetEntries = Object.entries(preset.weights ?? {});
@@ -3318,332 +3237,6 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     });
   }
 
-  updateGSCSettings(): void {
-    this.savingGA4GSC = true;
-    const payload: GSCSettingsUpdate = {
-      ranking_weight: this.ga4Gsc.ranking_weight,
-      property_url: this.ga4Gsc.property_url,
-      client_email: this.ga4Gsc.client_email,
-      sync_enabled: this.ga4Gsc.sync_enabled,
-      sync_lookback_days: this.ga4Gsc.sync_lookback_days,
-    };
-    if (this.gscPrivateKey) {
-      payload.private_key = this.gscPrivateKey;
-    }
-
-    // Mark local save so the realtime echo on `settings.runtime` doesn't
-    // misfire as "Settings changed in another tab".
-    this._markLocalSave();
-    this.siloSvc.updateGSCSettings(payload).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: (ga4Gsc: GSCSettings) => {
-        // Spread-merge: PUT response strips `health` — see saveAllSettings.
-        this.ga4Gsc = { ...this.ga4Gsc, ...(ga4Gsc ?? {}) };
-        this.gscManualBackfillDays = Math.max(
-          Number(this.ga4Gsc.sync_lookback_days || 1),
-          Number(this.ga4Gsc.manual_backfill_suggested_days || 180),
-        );
-        this.gscPrivateKey = '';
-        this.savingGA4GSC = false;
-        this.snack.open('Search Console settings saved.', undefined, { duration: 3000 });
-      },
-      error: (error: { error?: { detail?: string } } | unknown) => {
-        this.savingGA4GSC = false;
-        const detail = (error as { error?: { detail?: string } })?.error?.detail;
-        this.snack.open(detail || 'Failed to save settings.', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  authorizeGoogle(): void {
-    this.siloSvc.getGoogleAuthUrl().pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: (res) => {
-        if (res.authorization_url) {
-          window.location.href = res.authorization_url;
-        }
-      },
-      error: (err) => {
-        this.snack.open('Failed to start Google authorization: ' + (err?.error?.detail || 'Unknown error'), 'Dismiss', { duration: 5000 });
-      }
-    });
-  }
-
-  unlinkGoogleAccount(): void {
-    if (!confirm('Are you sure you want to unlink your Google account? Access to GA4 and GSC via OAuth will be revoked.')) return;
-    this.siloSvc.unlinkGoogleAccount().pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: () => {
-        this.snack.open('Google account unlinked.', undefined, { duration: 3000 });
-        this.reload();
-      },
-      error: (err) => {
-        this.snack.open('Failed to unlink Google account: ' + (err?.error?.detail || 'Unknown error'), 'Dismiss', { duration: 5000 });
-      }
-    });
-  }
-
-  testGSCConnection(): void {
-    this.testingGSCConnection = true;
-    this.siloSvc.testGSCConnection({
-      property_url: this.ga4Gsc.property_url.trim() || undefined,
-      client_email: this.ga4Gsc.client_email.trim() || undefined,
-      private_key: this.gscPrivateKey.trim() || undefined,
-    }).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: (result: AnalyticsConnectionResult) => {
-        this.testingGSCConnection = false;
-        this.ga4Gsc = {
-          ...this.ga4Gsc,
-          connection_status: result.status,
-          connection_message: result.message,
-        };
-        this.snack.open(result.message, undefined, { duration: 3500 });
-      },
-      error: (error) => {
-        this.testingGSCConnection = false;
-        const message = error?.error?.message || error?.error?.detail || 'Search Console connection failed';
-        this.ga4Gsc = {
-          ...this.ga4Gsc,
-          connection_status: 'error',
-          connection_message: message,
-        };
-        this.snack.open(message, 'Dismiss', { duration: 4500 });
-      },
-    });
-  }
-
-  testXenForoConnection(): void {
-    this.testingXenForo = true;
-    this.siloSvc.testXenForoConnection({
-      base_url: this.xenforo.base_url?.trim() || undefined,
-      api_key: this.xfApiKey?.trim() || undefined,
-    }).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: (result: AnalyticsConnectionResult) => {
-        this.testingXenForo = false;
-        this.snack.open(result.message, undefined, { duration: 3500 });
-      },
-      error: (error) => {
-        this.testingXenForo = false;
-        const message = error?.error?.message || error?.error?.detail || 'XenForo connection failed';
-        this.snack.open(message, 'Dismiss', { duration: 4500 });
-      },
-    });
-  }
-
-  testWordPressConnection(): void {
-    this.testingWordPress = true;
-    this.siloSvc.testWordPressConnection({
-      base_url: this.wordpress.base_url?.trim() || undefined,
-      username: this.wordpress.username?.trim() || undefined,
-      app_password: this.wordpressPassword?.trim() || undefined,
-    }).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: (result: AnalyticsConnectionResult) => {
-        this.testingWordPress = false;
-        this.snack.open(result.message, undefined, { duration: 3500 });
-      },
-      error: (error) => {
-        this.testingWordPress = false;
-        const message = error?.error?.message || error?.error?.detail || 'WordPress connection failed';
-        this.snack.open(message, 'Dismiss', { duration: 4500 });
-      },
-    });
-  }
-
-  testWebhookEndpoints(): void {
-    this.testingWebhooks = true;
-    this.siloSvc.testWebhookEndpoints()
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (result: AnalyticsConnectionResult) => {
-        this.testingWebhooks = false;
-        this.snack.open(result.message, undefined, { duration: 3500 });
-      },
-      error: (error) => {
-        this.testingWebhooks = false;
-        const message = error?.error?.message || error?.error?.detail || 'Webhook test failed';
-        this.snack.open(message, 'Dismiss', { duration: 4500 });
-      },
-    });
-  }
-
-  runGSCSync(): void {
-    const lookbackDays = Math.max(1, Number(this.gscManualBackfillDays || this.ga4Gsc.sync_lookback_days));
-    if (!confirm(`Run a GSC performance sync now? This will re-read the last ${lookbackDays} days and replace matching rows with the new country-filtered data.`)) return;
-    this.runningGSCSync = true;
-    this.siloSvc.runGSCSync({ lookback_days: lookbackDays }).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: (res) => {
-        this.runningGSCSync = false;
-        this.snack.open(res?.message || 'GSC performance sync queued.', undefined, { duration: 3500 });
-      },
-      error: (err) => {
-        this.runningGSCSync = false;
-        this.snack.open(err?.error?.detail || 'Failed to queue GSC sync', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-
-  saveGA4TelemetrySettings(): void {
-    this.savingGA4Telemetry = true;
-    const payload: GA4TelemetryUpdate = {
-      behavior_enabled: this.ga4Telemetry.behavior_enabled,
-      property_id: this.ga4Telemetry.property_id.trim(),
-      measurement_id: this.ga4Telemetry.measurement_id.trim(),
-      read_project_id: this.ga4Telemetry.read_project_id.trim(),
-      read_client_email: this.ga4Telemetry.read_client_email.trim(),
-      sync_enabled: this.ga4Telemetry.sync_enabled,
-      sync_lookback_days: Number(this.ga4Telemetry.sync_lookback_days),
-      event_schema: this.ga4Telemetry.event_schema.trim(),
-      geo_granularity: this.ga4Telemetry.geo_granularity,
-      retention_days: Number(this.ga4Telemetry.retention_days),
-      impression_visible_ratio: Number(this.ga4Telemetry.impression_visible_ratio),
-      impression_min_ms: Number(this.ga4Telemetry.impression_min_ms),
-      engaged_min_seconds: Number(this.ga4Telemetry.engaged_min_seconds),
-    };
-    if (this.ga4TelemetrySecret.trim()) {
-      payload.api_secret = this.ga4TelemetrySecret.trim();
-    }
-    if (this.ga4TelemetryReadPrivateKey.trim()) {
-      payload.read_private_key = this.ga4TelemetryReadPrivateKey.trim();
-    }
-
-    // Mark local save so the realtime echo on `settings.runtime` doesn't
-    // misfire as "Settings changed in another tab".
-    this._markLocalSave();
-    this.siloSvc.updateGA4TelemetrySettings(payload)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (ga4Telemetry) => {
-        // Spread-merge — preserves connection_status / connection_message
-        // and any read_connection_* fields that the PUT response may strip.
-        this.ga4Telemetry = { ...this.ga4Telemetry, ...(ga4Telemetry ?? {}) };
-        this.ga4TelemetrySecret = '';
-        this.ga4TelemetryReadPrivateKey = '';
-        this.savingGA4Telemetry = false;
-        this.snack.open('GA4 telemetry settings saved', undefined, { duration: 2500 });
-      },
-      error: (error) => {
-        this.savingGA4Telemetry = false;
-        this.snack.open(error?.error?.detail || 'Failed to save GA4 telemetry settings', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  testGA4TelemetryConnection(): void {
-    this.testingGA4Telemetry = true;
-    this.siloSvc.testGA4TelemetryConnection({
-      measurement_id: this.ga4Telemetry.measurement_id.trim() || undefined,
-      api_secret: this.ga4TelemetrySecret.trim() || undefined,
-    }).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: (result: AnalyticsConnectionResult) => {
-        this.testingGA4Telemetry = false;
-        this.ga4Telemetry = {
-          ...this.ga4Telemetry,
-          connection_status: result.status,
-          connection_message: result.message,
-        };
-        this.snack.open(result.message, undefined, { duration: 3000 });
-      },
-      error: (error) => {
-        this.testingGA4Telemetry = false;
-        const message = error?.error?.message || error?.error?.detail || 'GA4 connection test failed';
-        this.ga4Telemetry = {
-          ...this.ga4Telemetry,
-          connection_status: 'error',
-          connection_message: message,
-        };
-        this.snack.open(message, 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  testGA4TelemetryReadConnection(): void {
-    this.testingGA4TelemetryRead = true;
-    this.siloSvc.testGA4TelemetryReadConnection({
-      property_id: this.ga4Telemetry.property_id.trim() || undefined,
-      read_project_id: this.ga4Telemetry.read_project_id.trim() || undefined,
-      read_client_email: this.ga4Telemetry.read_client_email.trim() || undefined,
-      read_private_key: this.ga4TelemetryReadPrivateKey.trim() || undefined,
-    }).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: (result: AnalyticsConnectionResult) => {
-        this.testingGA4TelemetryRead = false;
-        this.ga4Telemetry = {
-          ...this.ga4Telemetry,
-          read_connection_status: result.status,
-          read_connection_message: result.message,
-        };
-        this.snack.open(result.message, undefined, { duration: 3000 });
-      },
-      error: (error) => {
-        this.testingGA4TelemetryRead = false;
-        const message = error?.error?.message || error?.error?.detail || 'GA4 read-access test failed';
-        this.ga4Telemetry = {
-          ...this.ga4Telemetry,
-          read_connection_status: 'error',
-          read_connection_message: message,
-        };
-        this.snack.open(message, 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  saveMatomoTelemetrySettings(): void {
-    this.savingMatomoTelemetry = true;
-    const payload: MatomoTelemetryUpdate = {
-      enabled: this.matomoTelemetry.enabled,
-      url: this.matomoTelemetry.url.trim(),
-      site_id_xenforo: this.matomoTelemetry.site_id_xenforo.trim(),
-      site_id_wordpress: this.matomoTelemetry.site_id_wordpress.trim(),
-      sync_enabled: this.matomoTelemetry.sync_enabled,
-      sync_lookback_days: Number(this.matomoTelemetry.sync_lookback_days),
-    };
-    if (this.matomoTelemetryToken.trim()) {
-      payload.token_auth = this.matomoTelemetryToken.trim();
-    }
-
-    this.siloSvc.updateMatomoTelemetrySettings(payload)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (matomoTelemetry) => {
-        // Spread-merge so a PUT response missing any field (connection_*,
-        // last_sync, etc.) doesn't overwrite the previously-loaded values.
-        this.matomoTelemetry = { ...this.matomoTelemetry, ...(matomoTelemetry ?? {}) };
-        this.matomoTelemetryToken = '';
-        this.savingMatomoTelemetry = false;
-        this.snack.open('Matomo telemetry settings saved', undefined, { duration: 2500 });
-      },
-      error: (error) => {
-        this.savingMatomoTelemetry = false;
-        this.snack.open(error?.error?.detail || 'Failed to save Matomo telemetry settings', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  testMatomoTelemetryConnection(): void {
-    this.testingMatomoTelemetry = true;
-    this.siloSvc.testMatomoTelemetryConnection({
-      url: this.matomoTelemetry.url.trim() || undefined,
-      site_id_xenforo: this.matomoTelemetry.site_id_xenforo.trim() || undefined,
-      token_auth: this.matomoTelemetryToken.trim() || undefined,
-    }).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: (result: AnalyticsConnectionResult) => {
-        this.testingMatomoTelemetry = false;
-        this.matomoTelemetry = {
-          ...this.matomoTelemetry,
-          connection_status: result.status,
-          connection_message: result.message,
-        };
-        this.snack.open(result.message, undefined, { duration: 3000 });
-      },
-      error: (error) => {
-        this.testingMatomoTelemetry = false;
-        const message = error?.error?.message || error?.error?.detail || 'Matomo connection test failed';
-        this.matomoTelemetry = {
-          ...this.matomoTelemetry,
-          connection_status: 'error',
-          connection_message: message,
-        };
-        this.snack.open(message, 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
 
   saveGraphCandidateSettings(): void {
     this.savingGraphCandidate = true;
@@ -4075,95 +3668,11 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     });
   }
 
-  saveXenForoSettings(): void {
-    if (!this.xenforo.base_url.trim()) {
-      this.snack.open('Forum URL is required.', 'Dismiss', { duration: 3000 });
-      return;
-    }
-    this.savingXenForo = true;
-    const payload: XenForoSettingsUpdate = { base_url: this.xenforo.base_url.trim() };
-    if (this.xfApiKey.trim()) {
-      payload.api_key = this.xfApiKey.trim();
-    }
-    this.siloSvc.updateXenForoSettings(payload)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: () => {
-        this.xfApiKey = '';
-        this.savingXenForo = false;
-        this.siloSvc.getXenForoSettings()
-          .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-          .subscribe({
-          next: (xf) => { this.xenforo = { ...this.xenforo, ...xf }; },
-          error: () => {},
-        });
-        this.snack.open('XenForo credentials saved.', 'Dismiss', { duration: 3000 });
-      },
-      error: (err) => {
-        this.savingXenForo = false;
-        this.snack.open(err?.error?.detail || 'Failed to save XenForo settings.', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  saveWordPressSettings(): void {
-    this.savingWordPress = true;
-    const payload: WordPressSettingsUpdate = {
-      base_url: this.wordpress.base_url.trim(),
-      username: this.wordpress.username.trim(),
-      sync_enabled: this.wordpress.sync_enabled,
-      sync_hour: Number(this.wordpress.sync_hour),
-      sync_minute: Number(this.wordpress.sync_minute),
-    };
-    if (this.wordpressPassword.trim()) {
-      payload.app_password = this.wordpressPassword.trim();
-    }
-
-    // Mark local save so the realtime echo on `settings.runtime` doesn't
-    // misfire as "Settings changed in another tab".
-    this._markLocalSave();
-    this.siloSvc.updateWordPressSettings(payload)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (wordpress) => {
-        // Spread-merge: PUT response strips `health` — preserve previously
-        // loaded value. See saveAllSettings comment for full rationale.
-        this.wordpress = { ...this.wordpress, ...(wordpress ?? {}) };
-        this.wordpressPassword = '';
-        this.savingWordPress = false;
-        this.snack.open('WordPress settings saved', undefined, { duration: 2500 });
-      },
-      error: (error) => {
-        this.savingWordPress = false;
-        this.snack.open(error?.error?.detail || 'Failed to save WordPress settings', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  get xfWebhookUrl(): string { return `${window.location.origin}/api/sync/webhooks/xenforo/`; }
-  get wpWebhookUrl(): string { return `${window.location.origin}/api/sync/webhooks/wordpress/`; }
-
-  saveWebhookSettings(): void {
-    const payload: WebhookSettingsUpdate = {};
-    if (this.xfWebhookSecret.trim()) payload.xf_webhook_secret = this.xfWebhookSecret.trim();
-    if (this.wpWebhookSecret.trim()) payload.wp_webhook_secret = this.wpWebhookSecret.trim();
-    this.savingWebhooks = true;
-    this.siloSvc.updateWebhookSettings(payload)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (result) => {
-        this.webhookSettings = result;
-        this.xfWebhookSecret = '';
-        this.wpWebhookSecret = '';
-        this.savingWebhooks = false;
-        this.snack.open('Webhook secrets saved.', undefined, { duration: 2500 });
-      },
-      error: (err) => {
-        this.savingWebhooks = false;
-        this.snack.open(err?.error?.detail || 'Failed to save webhook secrets.', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
+  // saveXenForoSettings / saveWordPressSettings / saveWebhookSettings /
+  // xfWebhookUrl / wpWebhookUrl — extracted to <app-connect-sync-tab>.
+  // The grouped `saveAllSettings()` below still PUTs WordPress + webhook
+  // payloads as part of the global "Save All" forkJoin so the parent
+  // owns the source-of-truth re-hydration after a Save All click.
 
   saveAllSettings(): void {
     // Suppress the realtime-echo "Settings changed in another tab" toast.
@@ -4347,45 +3856,8 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     });
   }
 
-  clearWordPressPassword(): void {
-    this.savingWordPress = true;
-    this.siloSvc.updateWordPressSettings({
-      base_url: this.wordpress.base_url.trim(),
-      username: this.wordpress.username.trim(),
-      sync_enabled: this.wordpress.sync_enabled,
-      sync_hour: Number(this.wordpress.sync_hour),
-      sync_minute: Number(this.wordpress.sync_minute),
-      app_password: '',
-    }).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: (wordpress) => {
-        // Spread-merge — see saveAllSettings for the full rationale.
-        this.wordpress = { ...this.wordpress, ...(wordpress ?? {}) };
-        this.wordpressPassword = '';
-        this.savingWordPress = false;
-        this.snack.open('WordPress Application Password cleared', undefined, { duration: 2500 });
-      },
-      error: (error) => {
-        this.savingWordPress = false;
-        this.snack.open(error?.error?.detail || 'Failed to clear WordPress password', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  runWordPressSync(): void {
-    this.runningWordPressSync = true;
-    this.siloSvc.runWordPressSync()
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (response) => {
-        this.runningWordPressSync = false;
-        this.snack.open(`WordPress sync started (${response.job_id.slice(0, 8)})`, 'Dismiss', { duration: 5000 });
-      },
-      error: (error) => {
-        this.runningWordPressSync = false;
-        this.snack.open(error?.error?.detail || 'Failed to start WordPress sync', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
+  // clearWordPressPassword / runWordPressSync — extracted to
+  // <app-connect-sync-tab>.
 
   // createGroup() / saveGroup() / deleteGroup() / updateScope() extracted
   // to <app-silo-architecture-tab>. The parent retains `siloGroups`,
@@ -4398,18 +3870,20 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   // and emits `(dirtyChanged)` so the parent's isDirty signal still
   // fires when the user touches a notification toggle.
 
-  // ── Crawler exclusion helpers ─────────────────────────────────
-  addCrawlerExclusion(): void {
-    const path = this.newCrawlerExclusion.trim();
-    if (!path || this.crawlerExcludedPaths.includes(path)) return;
-    this.crawlerExcludedPaths = [...this.crawlerExcludedPaths, path];
-    this.newCrawlerExclusion = '';
-    this.isDirty = true;
-  }
+  // ── Crawler exclusion helpers — extracted to <app-connect-sync-tab>.
 
-  removeCrawlerExclusion(path: string): void {
-    this.crawlerExcludedPaths = this.crawlerExcludedPaths.filter((p) => p !== path);
-    this.isDirty = true;
-  }
+  // ── Connect & Sync per-card save / test helpers ───────────────
+  // Extracted to `<app-connect-sync-tab>` (see ./connect-sync-tab/).
+  // The child owns its own state, save flow, test flow, and load flow.
+  // The parent retains its own `xenforo` / `wordpress` / `webhookSettings`
+  // / `googleOAuth` / `ga4Telemetry` / `matomoTelemetry` / `ga4Gsc` copies
+  // because:
+  //   - `noSourceConnected` (rendered in the tab label) reads
+  //     `xenforo.health` and `wordpress.health`.
+  //   - `saveAllSettings()` builds a forkJoin payload that includes
+  //     wordpress, ga4Gsc, googleOAuth, ga4Telemetry, matomoTelemetry.
+  //   - `getFeatureSummary()` reads `ga4Gsc.ranking_weight`.
+  //   - The Diagnostics-tab teaser card reads `ga4Gsc.connection_status`
+  //     via `telemetryStatusClass` / `telemetryStatusLabel`.
 }
 

@@ -236,6 +236,10 @@ ALLOWLIST: frozenset[str] = frozenset({
     # Network metrics + project shorthand surfaced in helper-node
     # heartbeat code + benchmark + ABI compatibility diagnostics.
     "RTT", "WPM", "XFIL", "ABI",
+    # Web standards + crypto file format extensions surfaced in
+    # connection-card UI copy (URI scheme labels, PEM-format key blobs,
+    # PRIVATE KEY field labels, etc).
+    "URI", "PEM", "PRIVATE", "KEY", "HEALTH",
 })
 
 # Regex: 3+ consecutive uppercase letters with optional repeated hyphen-
