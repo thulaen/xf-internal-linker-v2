@@ -22,7 +22,7 @@
           <span class="count-badge">{{ totalCount() }}</span>
         }
       </div>
-      <p class="page-description">Review and approve link suggestions</p>
+      <p class="page-description" i18n="@@review.description">Review and approve link suggestions</p>
       <p class="review-summary">
         Sort the strongest ideas first, inspect the host sentence, and decide what should go live.
       </p>
@@ -84,7 +84,7 @@
 
       <mat-checkbox [(ngModel)]="sameSiloOnly" (change)="toggleSameSiloOnly()"
         matTooltip="A silo is a group of related pages. When checked, only shows suggestions where source and destination are in the same topic group.">
-        Same silo only
+        <ng-container i18n="@@review.filters.sameSiloOnly">Same silo only</ng-container>
       </mat-checkbox>
     </div>
   </div>
@@ -95,11 +95,11 @@
     <span class="batch-count">{{ selectedIds().size }} selected</span>
     <button mat-flat-button color="primary" (click)="batchApprove()">
       <mat-icon>check_circle</mat-icon>
-      Approve All
+      <ng-container i18n="@@review.batch.approveAll">Approve All</ng-container>
     </button>
     <button mat-stroked-button color="warn" [matMenuTriggerFor]="batchRejectMenu">
       <mat-icon>visibility_off</mat-icon>
-      Reject All
+      <ng-container i18n="@@review.batch.rejectAll">Reject All</ng-container>
       <mat-icon>arrow_drop_down</mat-icon>
     </button>
     <mat-menu #batchRejectMenu>
@@ -150,7 +150,7 @@
       [indeterminate]="someSelected()"
       (change)="toggleSelectAll()"
     >
-      Select all on this page
+      <ng-container i18n="@@review.selectAllPage">Select all on this page</ng-container>
     </mat-checkbox>
   </div>
 
@@ -267,7 +267,7 @@
               (click)="quickApprove(s, $event)"
             >
               <mat-icon>check_circle</mat-icon>
-              Approve
+              <ng-container i18n="@@review.actions.approve">Approve</ng-container>
             </button>
           }
           @if (s.status === 'pending' || s.status === 'approved') {
@@ -277,7 +277,7 @@
               [matMenuTriggerFor]="rejectMenu"
             >
               <mat-icon>visibility_off</mat-icon>
-              Reject
+              <ng-container i18n="@@review.actions.reject">Reject</ng-container>
               <mat-icon>arrow_drop_down</mat-icon>
             </button>
             <mat-menu #rejectMenu>

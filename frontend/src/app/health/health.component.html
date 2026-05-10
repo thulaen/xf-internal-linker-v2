@@ -3,8 +3,8 @@
   <!-- ── Header ─────────────────────────────────────────────────── -->
   <div class="header">
     <div class="header-content">
-      <h1>System Health Dashboard</h1>
-      <p class="page-description">Every service, every requirement, every active job — explained in plain English</p>
+      <h1 i18n="@@health.title">System Health Dashboard</h1>
+      <p class="page-description" i18n="@@health.description">Every service, every requirement, every active job — explained in plain English</p>
     </div>
     <div class="header-actions">
       <button mat-flat-button color="primary" (click)="refreshAll()" [disabled]="refreshing() || loading()">
@@ -13,7 +13,7 @@
         } @else {
           <mat-icon class="icon-md spin">sync</mat-icon>
         }
-        <span>Full System Re-check</span>
+        <span i18n="@@health.fullSystemRecheck">Full System Re-check</span>
       </button>
     </div>
   </div>
@@ -23,20 +23,20 @@
     <mat-card class="summary-card ga4-card" id="health-summary-card">
       <div class="summary-content">
         <div class="summary-stat">
-          <span class="label">Overall Status</span>
+          <span class="label" i18n="@@health.summary.overallStatus">Overall Status</span>
           <span class="value" [ngClass]="'status-' + sum.system_status">
             <mat-icon class="icon-md">{{ getStatusIcon(sum.system_status) }}</mat-icon>
             {{ sum.system_status | uppercase }}
           </span>
         </div>
         <div class="summary-stat">
-          <span class="label">Healthy</span>
+          <span class="label" i18n="@@health.summary.healthy">Healthy</span>
           <span class="value healthy-val">
             <mat-icon class="icon-md">check_circle</mat-icon>{{ healthyCount() }}
           </span>
         </div>
         <div class="summary-stat">
-          <span class="label">Warnings</span>
+          <span class="label" i18n="@@health.summary.warnings">Warnings</span>
           <span class="value" [class.warn-val]="warningCount() > 0">
             @if (warningCount() > 0) {
               <mat-icon class="icon-md">warning</mat-icon>
@@ -47,7 +47,7 @@
           </span>
         </div>
         <div class="summary-stat">
-          <span class="label">Errors / Down</span>
+          <span class="label" i18n="@@health.summary.errorsDown">Errors / Down</span>
           <span class="value" [class.error-val]="errorCount() > 0">
             @if (errorCount() > 0) {
               <mat-icon class="icon-md">error</mat-icon>
@@ -58,7 +58,7 @@
           </span>
         </div>
         <div class="summary-stat">
-          <span class="label">Not Configured</span>
+          <span class="label" i18n="@@health.summary.notConfigured">Not Configured</span>
           <span class="value" [class.muted-val]="true">
             <mat-icon class="icon-md">settings</mat-icon>{{ notConfiguredCount() }}
           </span>
@@ -76,7 +76,7 @@
     <section class="tier-section">
       <h2 class="section-title">
         <mat-icon class="icon-base">category</mat-icon>
-        Services by Requirement
+        <ng-container i18n="@@health.servicesByRequirement">Services by Requirement</ng-container>
       </h2>
       <!-- Phase NV / Gap 145 — appPersistTab remembers the last-viewed tier. -->
       <mat-tab-group animationDuration="200ms" appPersistTab="health.tiers">
@@ -109,7 +109,7 @@
           <mat-card class="info-card ga4-card" id="health-disk-usage-card">
             <mat-card-header>
               <mat-icon mat-card-avatar>storage</mat-icon>
-              <mat-card-title>Disk Usage</mat-card-title>
+              <mat-card-title i18n="@@health.diskUsage.title">Disk Usage</mat-card-title>
             </mat-card-header>
             <mat-card-content>
               <div class="metric-row"><span>Database</span><span>{{ disk.db_size_mb }} MB</span></div>
@@ -122,7 +122,7 @@
             <mat-card class="info-card ga4-card" id="runtime-panel" appDeepLinkSpotlight="runtime-panel">
               <mat-card-header>
                 <mat-icon mat-card-avatar>memory</mat-icon>
-                <mat-card-title>GPU Status</mat-card-title>
+                <mat-card-title i18n="@@health.gpuStatus.title">GPU Status</mat-card-title>
               </mat-card-header>
               <mat-card-content>
                 <div class="metric-row"><span>Temperature</span><span [class.warn]="(gpu.temp_c ?? 0) >= 86">{{ gpu.temp_c }}°C</span></div>
@@ -180,9 +180,9 @@
   <section class="jobs-section" id="jobs-section">
     <h2 class="section-title">
       <mat-icon class="icon-base">pending_actions</mat-icon>
-      Active Jobs
+      <ng-container i18n="@@health.activeJobs.title">Active Jobs</ng-container>
     </h2>
-    <p class="section-subtitle">Jobs currently running in the background. Progress updates every 5 seconds.</p>
+    <p class="section-subtitle" i18n="@@health.activeJobs.subtitle">Jobs currently running in the background. Progress updates every 5 seconds.</p>
 
     @if (activeJobs().length > 0) {
       <mat-card class="jobs-card ga4-card" id="health-active-jobs-card">
@@ -241,7 +241,7 @@
   <section class="services-section" id="services-section">
     <h2 class="section-title">
       <mat-icon class="icon-base">monitor_heart</mat-icon>
-      All Monitored Services
+      <ng-container i18n="@@health.allMonitoredServices">All Monitored Services</ng-container>
     </h2>
     <p class="section-subtitle">
       One card per service. Problems are at the top. Healthy services are below.

@@ -2,9 +2,9 @@
   <div class="inline-page-header" id="analytics-header">
     <h1 class="page-title">
       <mat-icon class="icon-lg">analytics</mat-icon>
-      Analytics & Insights
+      <ng-container i18n="@@analytics.title">Analytics & Insights</ng-container>
     </h1>
-    <p class="page-description">Monitor your link performance, algorithm uplift, and telemetry health in real-time.</p>
+    <p class="page-description" i18n="@@analytics.description">Monitor your link performance, algorithm uplift, and telemetry health in real-time.</p>
   </div>
   @if (loading) {
     <div class="loading-state">
@@ -21,9 +21,9 @@
   } @else if (overview; as data) {
     <div class="toolbar">
       <mat-button-toggle-group [value]="selectedSource" (change)="onSourceChange($event)" class="source-toggle">
-        <mat-button-toggle value="all">Combined View</mat-button-toggle>
-        <mat-button-toggle value="ga4">Google Analytics 4</mat-button-toggle>
-        <mat-button-toggle value="matomo">Matomo Analytics</mat-button-toggle>
+        <mat-button-toggle value="all" i18n="@@analytics.source.combined">Combined View</mat-button-toggle>
+        <mat-button-toggle value="ga4" i18n="@@analytics.source.ga4">Google Analytics 4</mat-button-toggle>
+        <mat-button-toggle value="matomo" i18n="@@analytics.source.matomo">Matomo Analytics</mat-button-toggle>
       </mat-button-toggle-group>
     </div>
 
@@ -31,7 +31,7 @@
       <mat-card class="stat-card ga4-card" id="analytics-stat-telemetry-records">
         <mat-icon class="stat-card__icon icon-lg">database</mat-icon>
         <mat-card-content class="stat-card__content ga4-card">
-          <span class="stat-card__label">Telemetry Records</span>
+          <span class="stat-card__label" i18n="@@analytics.stats.telemetryRecords">Telemetry Records</span>
           <span class="stat-card__value">{{ data.telemetry_row_count | number }}</span>
           <span class="stat-card__subtext">Stored in the last 30 days</span>
         </mat-card-content>
@@ -40,7 +40,7 @@
       <mat-card class="stat-card ga4-card" id="analytics-stat-coverage-snapshots">
         <mat-icon class="stat-card__icon icon-lg">health_and_safety</mat-icon>
         <mat-card-content class="stat-card__content ga4-card">
-          <span class="stat-card__label">Coverage Snapshots</span>
+          <span class="stat-card__label" i18n="@@analytics.stats.coverageSnapshots">Coverage Snapshots</span>
           <span class="stat-card__value">{{ data.coverage_row_count | number }}</span>
           <span class="stat-card__subtext">Health checks performed</span>
         </mat-card-content>
@@ -49,7 +49,7 @@
       <mat-card class="stat-card ga4-card" id="analytics-stat-total-clicks">
         <mat-icon class="stat-card__icon icon-lg">ads_click</mat-icon>
         <mat-card-content class="stat-card__content ga4-card">
-          <span class="stat-card__label">Total Clicks</span>
+          <span class="stat-card__label" i18n="@@analytics.stats.totalClicks">Total Clicks</span>
           <span class="stat-card__value">{{ data.totals_last_30_days.clicks | number }}</span>
           <span class="stat-card__subtext">Tracked suggestion interactions</span>
         </mat-card-content>
@@ -58,7 +58,7 @@
       <mat-card class="stat-card ga4-card" id="analytics-stat-engaged-sessions">
         <mat-icon class="stat-card__icon icon-lg">person_celebrating</mat-icon>
         <mat-card-content class="stat-card__content ga4-card">
-          <span class="stat-card__label">Engaged Sessions</span>
+          <span class="stat-card__label" i18n="@@analytics.stats.engagedSessions">Engaged Sessions</span>
           <span class="stat-card__value">{{ data.totals_last_30_days.engaged_sessions | number }}</span>
           <span class="stat-card__subtext">High-intent user sessions</span>
         </mat-card-content>
@@ -69,7 +69,7 @@
       @if (funnel; as funnelData) {
         <mat-card class="report-card ga4-card" id="analytics-funnel">
           <mat-card-header>
-            <mat-card-title>Funnel Performance</mat-card-title>
+            <mat-card-title i18n="@@analytics.funnel.title">Funnel Performance</mat-card-title>
             <mat-card-subtitle>Last {{ funnelData.days }} days — {{ sourceLabel(selectedSource) }}</mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
@@ -121,7 +121,7 @@
       @if (versionComparison; as versionData) {
         <mat-card class="report-card ga4-card" id="analytics-algorithm">
           <mat-card-header>
-            <mat-card-title>Algorithm Performance</mat-card-title>
+            <mat-card-title i18n="@@analytics.algorithm.title">Algorithm Performance</mat-card-title>
             <mat-card-subtitle>Comparison across different model versions</mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
@@ -182,7 +182,7 @@
       @if (health; as healthData) {
         <mat-card class="report-card health-card ga4-card" id="analytics-health">
           <mat-card-header>
-            <mat-card-title>System Health</mat-card-title>
+            <mat-card-title i18n="@@analytics.systemHealth.title">System Health</mat-card-title>
             <mat-card-subtitle>Telemetry integrity and tracking coverage</mat-card-subtitle>
             <span class="status-badge-lg" [ngClass]="coverageStateClass(healthData.overall.latest_state)">
               {{ coverageStateLabel(healthData.overall.latest_state) }}
@@ -238,7 +238,7 @@
       @if (trend; as trendData) {
         <mat-card class="report-card ga4-card" id="analytics-trend">
           <mat-card-header>
-            <mat-card-title>Engagement Trend</mat-card-title>
+            <mat-card-title i18n="@@analytics.engagementTrend.title">Engagement Trend</mat-card-title>
             <mat-card-subtitle>User interaction trends over the last {{ trendData.items.length }} days</mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
@@ -271,7 +271,7 @@
       @if (breakdowns; as breakdownData) {
         <div class="breakdown-grid" id="analytics-breakdowns">
           <mat-card class="report-card ga4-card" id="analytics-device-mix-card">
-            <mat-card-header><mat-card-title>Device Mix</mat-card-title></mat-card-header>
+            <mat-card-header><mat-card-title i18n="@@analytics.deviceMix.title">Device Mix</mat-card-title></mat-card-header>
             <mat-card-content>
               @if (deviceChartData && breakdownData.device_categories.length) {
                 <div class="chart-wrapper chart-wrapper--sm">
@@ -284,7 +284,7 @@
           </mat-card>
 
           <mat-card class="report-card ga4-card" id="analytics-channel-mix-card">
-            <mat-card-header><mat-card-title>Channel Mix</mat-card-title></mat-card-header>
+            <mat-card-header><mat-card-title i18n="@@analytics.channelMix.title">Channel Mix</mat-card-title></mat-card-header>
             <mat-card-content>
               @if (channelChartData && breakdownData.channel_groups.length) {
                 <div class="chart-wrapper chart-wrapper--sm">
@@ -297,7 +297,7 @@
           </mat-card>
 
           <mat-card class="report-card ga4-card" id="analytics-geographic-mix-card">
-            <mat-card-header><mat-card-title>Geographic Mix</mat-card-title></mat-card-header>
+            <mat-card-header><mat-card-title i18n="@@analytics.geographicMix.title">Geographic Mix</mat-card-title></mat-card-header>
             <mat-card-content>
               @if (geoChartData && breakdownData.countries.length) {
                 <div class="chart-wrapper chart-wrapper--sm">

@@ -28,15 +28,15 @@
     <div class="dashboard-hero-highlights">
       <span class="hero-pill" appScrollHighlight="suggestion-stats" style="cursor:pointer">
         <mat-icon class="icon-sm">insights</mat-icon>
-        Suggestion queue
+        <ng-container i18n="@@dashboard.hero.suggestionQueue">Suggestion queue</ng-container>
       </span>
       <span class="hero-pill" appScrollHighlight="sync-activity" style="cursor:pointer">
         <mat-icon class="icon-sm">sync</mat-icon>
-        Sync activity
+        <ng-container i18n="@@dashboard.hero.syncActivity">Sync activity</ng-container>
       </span>
       <span class="hero-pill" appScrollHighlight="system-signals" style="cursor:pointer">
         <mat-icon class="icon-sm">monitor_heart</mat-icon>
-        System signals
+        <ng-container i18n="@@dashboard.hero.systemSignals">System signals</ng-container>
       </span>
     </div>
   </div>
@@ -54,11 +54,11 @@
       } @else {
         <mat-icon>play_arrow</mat-icon>
       }
-      Run Pipeline
+      <ng-container i18n="@@dashboard.hero.runPipeline">Run Pipeline</ng-container>
     </button>
     <button mat-stroked-button routerLink="/jobs">
       <mat-icon>upload_file</mat-icon>
-      Import Data
+      <ng-container i18n="@@dashboard.hero.importData">Import Data</ng-container>
     </button>
   </div>
 
@@ -225,9 +225,9 @@
     <div class="checklist-header">
       <div class="checklist-title-row">
         <mat-icon class="icon-lg">rocket_launch</mat-icon>
-        <h2>Getting Started</h2>
+        <h2 i18n="@@dashboard.gettingStarted.title">Getting Started</h2>
       </div>
-      <p class="checklist-subtitle">Complete these steps to start generating link suggestions.</p>
+      <p class="checklist-subtitle" i18n="@@dashboard.gettingStarted.subtitle">Complete these steps to start generating link suggestions.</p>
       <button mat-icon-button class="checklist-dismiss" matTooltip="Dismiss" (click)="dismissSetupChecklist()">
         <mat-icon>close</mat-icon>
       </button>
@@ -415,8 +415,8 @@
       </div>
       <div>
         <div class="stat-value">{{ data.suggestion_counts.pending | number }}</div>
-        <div class="stat-label">Pending review</div>
-        <div class="stat-note">Needs a decision next</div>
+        <div class="stat-label" i18n="@@dashboard.stats.pendingReview">Pending review</div>
+        <div class="stat-note" i18n="@@dashboard.stats.pendingReviewNote">Needs a decision next</div>
       </div>
     </mat-card>
 
@@ -426,8 +426,8 @@
       </div>
       <div>
         <div class="stat-value">{{ data.suggestion_counts.approved | number }}</div>
-        <div class="stat-label">Approved</div>
-        <div class="stat-note">Ready for publishing work</div>
+        <div class="stat-label" i18n="@@dashboard.stats.approved">Approved</div>
+        <div class="stat-note" i18n="@@dashboard.stats.approvedNote">Ready for publishing work</div>
       </div>
     </mat-card>
 
@@ -437,8 +437,8 @@
       </div>
       <div>
         <div class="stat-value">{{ data.suggestion_counts.applied | number }}</div>
-        <div class="stat-label">Applied live links</div>
-        <div class="stat-note">Already showing on site</div>
+        <div class="stat-label" i18n="@@dashboard.stats.applied">Applied live links</div>
+        <div class="stat-note" i18n="@@dashboard.stats.appliedNote">Already showing on site</div>
       </div>
     </mat-card>
 
@@ -448,8 +448,8 @@
       </div>
       <div>
         <div class="stat-value">{{ data.content_count | number }}</div>
-        <div class="stat-label">Content items</div>
-        <div class="stat-note">Available for matching</div>
+        <div class="stat-label" i18n="@@dashboard.stats.contentItems">Content items</div>
+        <div class="stat-note" i18n="@@dashboard.stats.contentItemsNote">Available for matching</div>
       </div>
     </mat-card>
   </div>
@@ -467,8 +467,8 @@
             <div class="empty-icon-wrap">
               <mat-icon>not_started</mat-icon>
             </div>
-            <h3>No runs yet</h3>
-            <p>Click <strong>Run Pipeline</strong> above to generate your first suggestions.</p>
+            <h3 i18n="@@dashboard.runs.emptyTitle">No runs yet</h3>
+            <p i18n="@@dashboard.runs.emptyHint">Click <strong>Run Pipeline</strong> above to generate your first suggestions.</p>
           </div>
         } @else {
           <div class="table-shell">
@@ -537,8 +537,8 @@
             <div class="empty-icon-wrap">
               <mat-icon>cloud_upload</mat-icon>
             </div>
-            <h3>No imports yet</h3>
-            <p>Use the <a routerLink="/jobs">Jobs page</a> to upload a JSONL file.</p>
+            <h3 i18n="@@dashboard.imports.emptyTitle">No imports yet</h3>
+            <p i18n="@@dashboard.imports.emptyHint">Use the <a routerLink="/jobs">Jobs page</a> to upload a JSONL file.</p>
           </div>
         } @else {
           <div class="import-list">
