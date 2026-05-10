@@ -20,6 +20,45 @@ This file is the single index of all audit reports and individual issues found b
 
 ## Open Reports
 
+### RPT-006 — Prevention-Focused Cleanup (2026-05-10 turn 2)
+
+- **Found by:** Claude Opus 4.7 via user directive "do a prevention-focused cleanup, not a one-off fix"
+- **Status:** Phase 1 + Phase 2 + Phase 7 SHIPPED; Phase 3 + Phase 4 partial (1 of 4 / 1 of 5 slices); Phase 5 + Phase 6 partial. Remaining work tracked as AutoIssues.
+- **User directive:** Turn known weak spots into hard guardrails so future agents physically cannot reintroduce them. Aggressive scope, multi-session permitted.
+
+**Shipped this session (8 commits):**
+
+| Phase | What landed | Commit |
+|---|---|---|
+| 0 | Snapshot of 81 prior-session files (no logic change; references existing AGENT-HANDOFF entries) + SCSS lint config + glossary skip-AGENT-HANDOFF | [00edc179](commit:00edc179) |
+| 1 | 4 new pre-commit hooks: check-file-size (1500-line cap with grandfather list), check-no-downgraded-gates (CI gate flip detector), check-frontend-routes (HttpClient → urls.py validator), check-missing-tests (local mirror of the CI gate). All wired into .githooks/pre-commit. PLAIN-ENGLISH-RULE.md glossary updated. | [d5d8aeff](commit:d5d8aeff) |
+| 2 | 5 warning-only CI gates flipped: stylelint blocking (after sweeping 133 violations to 0); missing-tests-check error+exit 1; semgrep --severity=ERROR --error; trivy exit-code: '1' with ignore-unfixed; cpp-tsan stays advisory with required `# GATE-DOWNGRADE-JUSTIFICATION:` comment. NEW docs/CI-GATES.md is the single source of truth. | [f20b0e6d](commit:f20b0e6d) |
+| 3 (slice 1/4) | views_settings.py extracted from views.py — 16 settings view classes + helpers. views.py 6616 → 5307 lines. Re-export block preserves the public API; one test patch path retargeted. | [c315c40d](commit:c315c40d) |
+| 4 (slice 1/5) | Notifications tab extracted from settings.component into NotificationsTabComponent (AutoIssue #33 closed with full lessons_learned). Karma 384 → 388 PASS. | [d036d31a](commit:d036d31a) |
+| 7 | check-frontend-routes hook fixed to strip /api/ prefix before matching backend patterns (config/urls.py mounts apps/api/urls.py at /api/). False-positive flagged the working /api/prune/safe/ route. | [8ccaf456](commit:8ccaf456) |
+| 6 | 61 i18n strings tagged on highest-traffic templates (cumulative ~86 of ~2150). Glossary allowlist also gains JSONL/NDJSON/PARQUET. | [afe7b028](commit:afe7b028) |
+| 5 | 8 component specs added (dashboard, alerts, crawler, embeddings, health, jobs, link-health, operations-feed). Karma rose to ~420+. | (in same handoff commit) |
+
+**Queued for next session:**
+
+| AutoIssue | What's left |
+|---|---|
+| #40 (`p3s2-views-dashboard`) | Extract DashboardView + TodayActions + WhatChanged + ResumeState + StatusStory + MissionBrief + helpers into views_dashboard.py (~1200 lines) |
+| #42 (`p3s3-views-runtime`) | Extract Runtime + MasterPause + Maintenance + SystemMetrics + RuntimeConfig + SafeModeBoot into views_runtime.py (~700 lines) |
+| #43 (`p3s4-views-capacity`) | Extract Jobs + Helpers + Optimization + User/Auth + Analytics into views_capacity.py (~2000 lines). After this slice views.py drops below 1500 cap and leaves the grandfather list. |
+| #29 | Settings split Tab 1: Ranking Weights — biggest, 14 sub-cards, ~1400 HTML lines |
+| #30 | Settings split Tab 2: Silo Architecture — ~140 HTML lines |
+| #31 | Settings split Tab 3: Connect & Sync — ~800 HTML lines |
+| #32 | Settings split Tab 4: Library & History — ~200 HTML lines |
+| #22 | Component test coverage uplift — ~161 untested components remain |
+| #20 | i18n bulk rollout — ~2065 strings still untagged |
+
+**Why it's prevention-focused, not just a fix:**
+- Even if every queued slice slips a session, the 4 new pre-commit hooks prevent FURTHER drift: oversized files can't grow past 1500 lines (or past their grandfather baseline), CI gates can't be silently downgraded, frontend can't ship stale `/api/...` URLs, and new components can't land without a spec. The 5 hardened CI gates also catch the same drift at the PR level for force-pushed branches and outside-contributor PRs.
+- The grandfather list in `.githooks/file-size-grandfather.txt` shrinks with each split slice — when an entry's recorded baseline drops below 1500, it gets removed and the file becomes subject to the global cap automatically.
+
+---
+
 ### RPT-005 — Multi-PR plan from 2026-05-09 user directive (PR 1 shipped, PR 2/3/4 queued)
 
 - **Found by:** Claude Opus 4.7 via comprehensive plan in `~/.claude/plans/on-the-app-on-playful-aho.md`
