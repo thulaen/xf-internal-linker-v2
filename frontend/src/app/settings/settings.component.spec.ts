@@ -10,6 +10,7 @@ import { WeightDiagnosticsCardComponent } from './weight-diagnostics-card/weight
 import { PerformanceSettingsComponent } from './performance-settings/performance-settings.component';
 import { HelpersSettingsComponent } from './helpers-settings/helpers-settings.component';
 import { MetaAlgorithmsTabComponent } from './meta-algorithms-tab/meta-algorithms-tab.component';
+import { NotificationsTabComponent } from './notifications-tab/notifications-tab.component';
 import { SiloSettingsService } from './silo-settings.service';
 import { NotificationService } from '../core/services/notification.service';
 
@@ -41,6 +42,13 @@ class MockHelpersSettingsComponent {}
 })
 class MockMetaAlgorithmsTabComponent {}
 
+@Component({
+  selector: 'app-notifications-tab',
+  standalone: true,
+  template: '',
+})
+class MockNotificationsTabComponent {}
+
 describe('SettingsComponent', () => {
   it('renders the telemetry settings cards on the WordPress sync tab', async () => {
     localStorage.setItem('settings_active_tab', '2');
@@ -52,6 +60,7 @@ describe('SettingsComponent', () => {
           PerformanceSettingsComponent,
           HelpersSettingsComponent,
           MetaAlgorithmsTabComponent,
+          NotificationsTabComponent,
         ],
       },
       add: {
@@ -60,6 +69,7 @@ describe('SettingsComponent', () => {
           MockPerformanceSettingsComponent,
           MockHelpersSettingsComponent,
           MockMetaAlgorithmsTabComponent,
+          MockNotificationsTabComponent,
         ],
       },
     });

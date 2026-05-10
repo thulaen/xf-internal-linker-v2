@@ -20,12 +20,6 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ActivatedRoute } from '@angular/router';
 import { HasUnsavedChanges } from '../core/guards/unsaved-changes.guard';
-import { DesktopNotificationService } from '../core/services/desktop-notification.service';
-import {
-  NotificationPreferences,
-  NotificationService,
-} from '../core/services/notification.service';
-import { AudioCueService } from '../core/services/audio-cue.service';
 import {
   AnchorDiversitySettings,
   FieldAwareRelevanceSettings,
@@ -73,6 +67,7 @@ import { PerformanceSettingsComponent } from './performance-settings/performance
 import { HelpersSettingsComponent } from './helpers-settings/helpers-settings.component';
 // Phase MS — Meta Algorithm Settings tab (new at the end of the tab group).
 import { MetaAlgorithmsTabComponent } from './meta-algorithms-tab/meta-algorithms-tab.component';
+import { NotificationsTabComponent } from './notifications-tab/notifications-tab.component';
 import { PassageRelevanceCardComponent } from './passage-relevance/passage-relevance-card.component';
 import { SettingsOverviewComponent } from './settings-overview/settings-overview.component';
 import { MatDialog } from '@angular/material/dialog';
@@ -2074,6 +2069,7 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
     PerformanceSettingsComponent,
     HelpersSettingsComponent,
     MetaAlgorithmsTabComponent,
+    NotificationsTabComponent,
     TabFragmentRouterDirective,
     SettingsOverviewComponent,
   ],
@@ -2081,9 +2077,6 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
 })
 export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   private siloSvc = inject(SiloSettingsService);
-  private notifSvc = inject(NotificationService);
-  desktopSvc = inject(DesktopNotificationService);
-  private audioSvc = inject(AudioCueService);
   private snack = inject(MatSnackBar);
   private route = inject(ActivatedRoute);
   private realtime = inject(RealtimeService);
@@ -2202,8 +2195,6 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   testingWebhooks = false;
   runningGSCSync = false;
   savingGoogleAuth = false;
-  savingNotifPrefs = false;
-  testingNotification = false;
 
   // ── Crawler settings ──────────────────────────────────────────
   crawlerExcludedPaths: string[] = [
@@ -2211,28 +2202,6 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     '/search/', '/admin.php', '/help/',
   ];
   newCrawlerExclusion = '';
-
-  notifPrefs: NotificationPreferences = {
-    desktop_enabled: true,
-    sound_enabled: true,
-    quiet_hours_enabled: false,
-    quiet_hours_start: '22:00',
-    quiet_hours_end: '07:00',
-    min_desktop_severity: 'warning',
-    min_sound_severity: 'error',
-    enable_job_completed: true,
-    enable_job_failed: true,
-    enable_job_stalled: true,
-    enable_model_status: true,
-    enable_gsc_spikes: true,
-    toast_enabled: true,
-    toast_min_severity: 'warning',
-    duplicate_cooldown_seconds: 900,
-    job_stalled_default_minutes: 15,
-    gsc_spike_min_impressions_delta: 50,
-    gsc_spike_min_clicks_delta: 5,
-    gsc_spike_min_relative_lift: 0.5,
-  };
 
   // Tab persistence
   selectedTabIndex = Number(localStorage.getItem('settings_active_tab') || '0');
@@ -2622,6 +2591,18 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   markDirty(): void {
     this.isDirty = true;
+  }
+
+  /**
+   * Listens to extracted-tab `(dirtyChanged)` outputs (currently only
+   * `<app-notifications-tab>`) so the parent's isDirty signal continues
+   * to drive the unsaved-changes guard after the tab moved out of this
+   * file. Child emits `true` on edit, `false` after a successful save.
+   */
+  onChildDirty(dirty: boolean): void {
+    if (dirty) {
+      this.isDirty = true;
+    }
   }
 
   @HostListener('window:beforeunload', ['$event'])
@@ -3099,7 +3080,6 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       stage1Retrievers: this.siloSvc.getStage1RetrieverSettings(),
       phase6Picks: this.siloSvc.getPhase6PickSettings(),
       currentWeights: this.siloSvc.getCurrentWeights(),
-      notifPrefs: this.notifSvc.loadPreferences(),
     }).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
       next: (data) => {
         // Merge API data with the class-level defaults so that boolean
@@ -3157,7 +3137,6 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
         if (data.phase6Picks) {
           this.phase6Picks = { ...this.phase6Picks, ...data.phase6Picks };
         }
-        this.notifPrefs = { ...this.notifPrefs, ...data.notifPrefs };
         this.currentWeights = data.currentWeights;
         this.loadGroupsAndScopes();
       },
@@ -4671,49 +4650,10 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   }
 
   // ── Notification preferences ──────────────────────────────────────
-
-  saveNotifPrefs(): void {
-    this.savingNotifPrefs = true;
-    this.notifSvc.savePreferences(this.notifPrefs)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (saved) => {
-        this.notifPrefs = saved;
-        this.savingNotifPrefs = false;
-        this.snack.open('Notification preferences saved.', undefined, { duration: 2500 });
-      },
-      error: () => {
-        this.savingNotifPrefs = false;
-        this.snack.open('Failed to save notification preferences.', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  sendTestNotification(severity: string): void {
-    this.testingNotification = true;
-    this.notifSvc.sendTestNotification(severity)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: () => {
-        this.testingNotification = false;
-        this.snack.open('Test notification sent.', undefined, { duration: 2500 });
-        this.audioSvc.playTone(severity === 'error' || severity === 'urgent' ? 'error' : 'warning');
-      },
-      error: () => {
-        this.testingNotification = false;
-        this.snack.open('Failed to send test notification.', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  async requestDesktopPermission(): Promise<void> {
-    const result = await this.desktopSvc.requestPermission();
-    if (result === 'granted') {
-      this.snack.open('Desktop notifications enabled.', undefined, { duration: 2500 });
-    } else if (result === 'denied') {
-      this.snack.open('Desktop notifications blocked by the browser.', 'Dismiss', { duration: 5000 });
-    }
-  }
+  // Extracted to `<app-notifications-tab>` (see ./notifications-tab/).
+  // The child component owns its own state, save flow, and load flow,
+  // and emits `(dirtyChanged)` so the parent's isDirty signal still
+  // fires when the user touches a notification toggle.
 
   // ── Crawler exclusion helpers ─────────────────────────────────
   addCrawlerExclusion(): void {
