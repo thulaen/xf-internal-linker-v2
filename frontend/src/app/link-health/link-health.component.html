@@ -25,9 +25,9 @@
   <div class="page-header" id="link-health-header">
     <h1 class="page-title">
       <mat-icon>link_off</mat-icon>
-      Link Health
+      <span i18n="@@link-health.title">Link Health</span>
     </h1>
-    <p class="page-description">Scan live forum URLs and persist any issues for review</p>
+    <p class="page-description" i18n="@@link-health.subtitle">Scan live forum URLs and persist any issues for review</p>
     <div class="header-actions">
       <button
         mat-stroked-button
@@ -35,7 +35,7 @@
         (click)="exportCsv()"
       >
         <mat-icon>download</mat-icon>
-        Export CSV
+        <span i18n="@@link-health.action.export-csv">Export CSV</span>
       </button>
       <button
         mat-flat-button
@@ -45,7 +45,7 @@
         (click)="startScan()"
       >
         <mat-icon>play_arrow</mat-icon>
-        Scan Now
+        <span i18n="@@link-health.action.scan-now-1">Scan Now</span>
       </button>
     </div>
   </div>
@@ -55,7 +55,7 @@
     <mat-card class="summary-card ga4-card" id="link-health-summary-open">
       <mat-card-content>
         <div class="summary-header">
-          <span class="summary-label">Open</span>
+          <span class="summary-label" i18n="@@link-health.summary.open">Open</span>
           <span class="indicator status-open"></span>
         </div>
         <strong>{{ s.open | number }}</strong>
@@ -64,7 +64,7 @@
     <mat-card class="summary-card ga4-card" id="link-health-summary-ignored">
       <mat-card-content>
         <div class="summary-header">
-          <span class="summary-label">Ignored</span>
+          <span class="summary-label" i18n="@@link-health.summary.ignored">Ignored</span>
           <span class="indicator status-ignored"></span>
         </div>
         <strong>{{ s.ignored | number }}</strong>
@@ -73,7 +73,7 @@
     <mat-card class="summary-card ga4-card" id="link-health-summary-fixed">
       <mat-card-content>
         <div class="summary-header">
-          <span class="summary-label">Fixed</span>
+          <span class="summary-label" i18n="@@link-health.summary.fixed">Fixed</span>
           <span class="indicator status-fixed"></span>
         </div>
         <strong>{{ s.fixed | number }}</strong>
@@ -94,7 +94,7 @@
     </mat-chip-listbox>
 
     <mat-form-field appearance="outline" class="status-code-field">
-      <mat-label>HTTP status</mat-label>
+      <mat-label i18n="@@link-health.field.http-status">HTTP status</mat-label>
       <mat-select [(ngModel)]="httpStatusFilter" (ngModelChange)="onHttpStatusChange()">
         @for (option of httpStatusOptions; track option.label) {
           <mat-option [value]="option.value">{{ option.label }}</mat-option>
@@ -115,7 +115,7 @@
     <div class="empty-icon-wrap">
       <mat-icon class="icon-3xl">link_off</mat-icon>
     </div>
-    <h3>No broken links found</h3>
+    <h3 i18n="@@link-health.empty.title">No broken links found</h3>
     <p>
       @if (statusFilter() !== 'all' || httpStatusFilter !== null) {
         No records match the current filters.
@@ -126,7 +126,7 @@
     @if (!scanning()) {
       <button mat-flat-button color="primary" class="btn-prominent" (click)="startScan()">
         <mat-icon>play_arrow</mat-icon>
-        Scan Now
+        <span i18n="@@link-health.action.scan-now-2">Scan Now</span>
       </button>
     }
   </div>
@@ -136,7 +136,7 @@
   <div class="table-wrapper" id="link-health-table">
     <table mat-table [dataSource]="brokenLinks()" [trackBy]="trackById" class="broken-links-table">
       <ng-container matColumnDef="source_thread">
-        <th mat-header-cell *matHeaderCellDef>Source thread</th>
+        <th mat-header-cell *matHeaderCellDef i18n="@@link-health.col.source-thread">Source thread</th>
         <td mat-cell *matCellDef="let link">
           <div class="source-thread-cell">
             <span class="source-title">{{ link.source_content_title }}</span>
@@ -148,7 +148,7 @@
       </ng-container>
 
       <ng-container matColumnDef="url">
-        <th mat-header-cell *matHeaderCellDef>URL</th>
+        <th mat-header-cell *matHeaderCellDef i18n="@@link-health.col.url">URL</th>
         <td mat-cell *matCellDef="let link">
           <div class="url-cell">
             <a
@@ -170,7 +170,7 @@
       </ng-container>
 
       <ng-container matColumnDef="http_status">
-        <th mat-header-cell *matHeaderCellDef>HTTP status</th>
+        <th mat-header-cell *matHeaderCellDef i18n="@@link-health.col.http-status">HTTP status</th>
         <td mat-cell *matCellDef="let link">
           <span class="http-status-chip" [class.connection-error]="link.http_status === 0">
             {{ statusLabel(link.http_status) }}
@@ -179,21 +179,21 @@
       </ng-container>
 
       <ng-container matColumnDef="status">
-        <th mat-header-cell *matHeaderCellDef>Status</th>
+        <th mat-header-cell *matHeaderCellDef i18n="@@link-health.col.status">Status</th>
         <td mat-cell *matCellDef="let link">
           <span class="status-chip status-{{ link.status }}">{{ link.status }}</span>
         </td>
       </ng-container>
 
       <ng-container matColumnDef="first_detected_at">
-        <th mat-header-cell *matHeaderCellDef>First detected</th>
+        <th mat-header-cell *matHeaderCellDef i18n="@@link-health.col.first-detected">First detected</th>
         <td mat-cell *matCellDef="let link">
           {{ link.first_detected_at | date:'mediumDate' }}
         </td>
       </ng-container>
 
       <ng-container matColumnDef="actions">
-        <th mat-header-cell *matHeaderCellDef>Actions</th>
+        <th mat-header-cell *matHeaderCellDef i18n="@@link-health.col.actions">Actions</th>
         <td mat-cell *matCellDef="let link">
           <div class="action-row">
             <button
@@ -203,7 +203,7 @@
               (click)="markStatus(link, 'fixed')"
             >
               <mat-icon>check_circle</mat-icon>
-              Mark Fixed
+              <span i18n="@@link-health.action.mark-fixed">Mark Fixed</span>
             </button>
             <button
               mat-button
@@ -211,7 +211,7 @@
               (click)="markStatus(link, 'ignored')"
             >
               <mat-icon>visibility_off</mat-icon>
-              Ignore
+              <span i18n="@@link-health.action.ignore">Ignore</span>
             </button>
             <button
               mat-icon-button

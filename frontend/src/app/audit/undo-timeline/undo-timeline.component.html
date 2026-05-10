@@ -1,8 +1,8 @@
 <div class="page-content">
   <header class="page-header">
     <div>
-      <h1>Undo History</h1>
-      <p class="subtitle">
+      <h1 i18n="@@undo-timeline.title">Undo History</h1>
+      <p class="subtitle" i18n="@@undo-timeline.subtitle">
         Recent setting + preset changes you can roll back. Restoring records a new
         event so you can undo the undo.
       </p>
@@ -13,14 +13,14 @@
       [disabled]="loading()"
       matTooltip="Reload the timeline">
       <mat-icon>refresh</mat-icon>
-      Refresh
+      <span i18n="@@undo-timeline.action.refresh">Refresh</span>
     </button>
   </header>
 
   <mat-card class="filter-card ga4-card" id="undo-timeline-filter-card">
     <div class="filter-row">
       <mat-form-field appearance="outline" class="filter-field">
-        <mat-label>Look back (days)</mat-label>
+        <mat-label i18n="@@undo-timeline.field.lookback">Look back (days)</mat-label>
         <mat-select
           [ngModel]="lookbackDays()"
           (ngModelChange)="lookbackDays.set($event); refresh()">
@@ -32,7 +32,7 @@
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="filter-field">
-        <mat-label>Subject type</mat-label>
+        <mat-label i18n="@@undo-timeline.field.subject-type">Subject type</mat-label>
         <mat-select
           [ngModel]="subjectFilter()"
           (ngModelChange)="subjectFilter.set($event); refresh()">
@@ -44,7 +44,7 @@
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="filter-field">
-        <mat-label>Actor</mat-label>
+        <mat-label i18n="@@undo-timeline.field.actor">Actor</mat-label>
         <input
           matInput
           [ngModel]="actorFilter()"
@@ -64,7 +64,7 @@
   @if (loading()) {
     <div class="state-block">
       <mat-spinner diameter="32"></mat-spinner>
-      <span>Loading audit timeline…</span>
+      <span i18n="@@undo-timeline.loading">Loading audit timeline…</span>
     </div>
   } @else if (error()) {
     <mat-card class="error-card ga4-card" id="undo-timeline-error-card">
@@ -74,20 +74,20 @@
   } @else if (entries().length === 0) {
     <mat-card class="empty-card ga4-card" id="undo-timeline-empty-card">
       <mat-icon class="empty-icon" aria-hidden="true">history</mat-icon>
-      <h2>No restorable events in this window</h2>
-      <p>
+      <h2 i18n="@@undo-timeline.empty.title">No restorable events in this window</h2>
+      <p i18n="@@undo-timeline.empty.body">
         Try widening the look-back window or clearing the subject-type filter.
       </p>
     </mat-card>
   } @else {
     <table mat-table [dataSource]="entries()" class="timeline-table" [trackBy]="trackById">
       <ng-container matColumnDef="created_at">
-        <th mat-header-cell *matHeaderCellDef>When</th>
+        <th mat-header-cell *matHeaderCellDef i18n="@@undo-timeline.col.when">When</th>
         <td mat-cell *matCellDef="let row">{{ formatDate(row.created_at) }}</td>
       </ng-container>
 
       <ng-container matColumnDef="subject">
-        <th mat-header-cell *matHeaderCellDef>Subject</th>
+        <th mat-header-cell *matHeaderCellDef i18n="@@undo-timeline.col.subject">Subject</th>
         <td mat-cell *matCellDef="let row">
           <div class="subject-cell">
             <strong>{{ row.subject_type }}</strong>

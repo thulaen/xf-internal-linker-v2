@@ -1,8 +1,8 @@
 <div class="diagnostics-page">
   <header class="page-header">
     <div class="title-section">
-      <h1>System Diagnostics & Health</h1>
-      <p class="subtitle">Real-time status of the whole machine and service stack</p>
+      <h1 i18n="@@diagnostics.title">System Diagnostics & Health</h1>
+      <p class="subtitle" i18n="@@diagnostics.subtitle">Real-time status of the whole machine and service stack</p>
     </div>
 
     <div class="actions">
@@ -16,7 +16,7 @@
   @if (loading()) {
     <div class="loading-overlay">
       <mat-spinner diameter="40"></mat-spinner>
-      <p>Performing deep-stack analysis...</p>
+      <p i18n="@@diagnostics.loading">Performing deep-stack analysis...</p>
     </div>
   } @else {
     <!-- ════════════════════════════════════════════════════════════════
@@ -30,7 +30,7 @@
       <section id="diagnostics-errors" class="error-log-section">
         <div class="section-heading error-log-heading">
           <div class="error-log-title-group">
-            <h2>Error Log</h2>
+            <h2 i18n="@@diagnostics.error-log.title">Error Log</h2>
             @if (errors().length > 0) {
               <span class="error-count-badge"
                     [matTooltip]="errors().length + ' unacknowledged'"
@@ -44,7 +44,7 @@
                     (click)="openDjangoAdmin()"
                     matTooltip="Open Django Admin in a new tab">
               <mat-icon>admin_panel_settings</mat-icon>
-              <span>Django Admin</span>
+              <span i18n="@@diagnostics.action.django-admin">Django Admin</span>
             </button>
           </div>
         </div>
@@ -55,7 +55,7 @@
             <div class="pipeline-gate-banner" role="alert">
               <mat-icon aria-hidden="true">error</mat-icon>
               <div class="pipeline-gate-body">
-                <strong>Pipeline cannot run — fix these first:</strong>
+                <strong i18n="@@diagnostics.pipeline-gate.headline">Pipeline cannot run — fix these first:</strong>
                 <ul>
                   @for (b of pg.blockers; track b.check) {
                     <li>
@@ -142,7 +142,8 @@
                     mat-stroked-button
                     class="node-filter-chip"
                     [class.active]="!filterNodeId()"
-                    (click)="toggleNodeFilter(null)">
+                    (click)="toggleNodeFilter(null)"
+                    i18n="@@diagnostics.filter.all-nodes">
               All nodes
             </button>
             @for (node of uniqueNodes(); track node) {
@@ -164,9 +165,9 @@
           (selectedIndexChange)="onErrorTabChange($event)"
           appPersistTab="diagnostics.errors"
           animationDuration="200ms">
-          <mat-tab label="Internal"></mat-tab>
-          <mat-tab label="Glitchtip"></mat-tab>
-          <mat-tab label="All"></mat-tab>
+          <mat-tab label="Internal" i18n-label="@@diagnostics.tab.internal"></mat-tab>
+          <mat-tab label="Glitchtip" i18n-label="@@diagnostics.tab.glitchtip"></mat-tab>
+          <mat-tab label="All" i18n-label="@@diagnostics.tab.all"></mat-tab>
         </mat-tab-group>
 
         <div
@@ -185,7 +186,7 @@
                 class="glitchtip-visit-button"
                 (click)="openGlitchtip()">
                 <mat-icon>open_in_new</mat-icon>
-                <span>Visit Glitchtip</span>
+                <span i18n="@@diagnostics.action.visit-glitchtip">Visit Glitchtip</span>
               </button>
             </div>
           }
@@ -194,7 +195,7 @@
           @if (activeGroupedErrors().length === 0) {
             <div class="error-empty-state" role="status">
               <mat-icon class="empty-check">check_circle</mat-icon>
-              <p>No unacknowledged errors — everything looks healthy.</p>
+              <p i18n="@@diagnostics.empty.healthy">No unacknowledged errors — everything looks healthy.</p>
             </div>
           }
 

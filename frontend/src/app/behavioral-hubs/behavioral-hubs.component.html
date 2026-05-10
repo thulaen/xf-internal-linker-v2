@@ -3,7 +3,7 @@
   <!-- Header -->
   <div class="page-header">
     <div class="header-row">
-      <h1 class="page-title">Behavioral Hubs</h1>
+      <h1 class="page-title" i18n="@@behavioral-hubs.title">Behavioral Hubs</h1>
       <div class="header-actions">
         <button mat-stroked-button (click)="triggerCompute()" [disabled]="triggeringCompute()" class="action-btn">
           @if (triggeringCompute()) {
@@ -11,7 +11,7 @@
           } @else {
             <mat-icon>sync</mat-icon>
           }
-          Compute Co-Occurrence
+          <span i18n="@@behavioral-hubs.action.compute">Compute Co-Occurrence</span>
         </button>
         <button mat-stroked-button (click)="triggerDetect()" [disabled]="triggeringDetect()" class="action-btn">
           @if (triggeringDetect()) {
@@ -19,11 +19,11 @@
           } @else {
             <mat-icon>hub</mat-icon>
           }
-          Rebuild Hubs
+          <span i18n="@@behavioral-hubs.action.rebuild">Rebuild Hubs</span>
         </button>
       </div>
     </div>
-    <p class="page-description">
+    <p class="page-description" i18n="@@behavioral-hubs.subtitle">
       Discover and manage clusters of articles frequently co-visited by readers.
       Co-occurrence data comes from GA4 session paths and is rebuilt weekly.
     </p>
@@ -70,26 +70,26 @@
         } @else if (hubs().length === 0) {
           <div class="empty-state">
             <mat-icon class="empty-icon">hub</mat-icon>
-            <h3>No behavioral hubs detected yet</h3>
+            <h3 i18n="@@behavioral-hubs.empty.title">No behavioral hubs detected yet</h3>
             <p>Run <strong>Compute Co-Occurrence</strong> to fetch GA4 session data, then <strong>Rebuild Hubs</strong> to cluster co-read articles.</p>
           </div>
         } @else {
           <mat-table [dataSource]="hubs()" class="hubs-table">
 
             <ng-container matColumnDef="name">
-              <mat-header-cell *matHeaderCellDef>Hub</mat-header-cell>
+              <mat-header-cell *matHeaderCellDef i18n="@@behavioral-hubs.col.hub">Hub</mat-header-cell>
               <mat-cell *matCellDef="let hub">
                 <span class="hub-name">{{ hub.name }}</span>
               </mat-cell>
             </ng-container>
 
             <ng-container matColumnDef="member_count">
-              <mat-header-cell *matHeaderCellDef>Members</mat-header-cell>
+              <mat-header-cell *matHeaderCellDef i18n="@@behavioral-hubs.col.members">Members</mat-header-cell>
               <mat-cell *matCellDef="let hub">{{ hub.member_count }}</mat-cell>
             </ng-container>
 
             <ng-container matColumnDef="auto_link_enabled">
-              <mat-header-cell *matHeaderCellDef>Auto-link</mat-header-cell>
+              <mat-header-cell *matHeaderCellDef i18n="@@behavioral-hubs.col.auto-link">Auto-link</mat-header-cell>
               <mat-cell *matCellDef="let hub">
                 @if (hub.auto_link_enabled) {
                   <mat-icon class="icon-on" matTooltip="Auto-link enabled">check_circle</mat-icon>
@@ -100,14 +100,14 @@
             </ng-container>
 
             <ng-container matColumnDef="detection_method">
-              <mat-header-cell *matHeaderCellDef>Method</mat-header-cell>
+              <mat-header-cell *matHeaderCellDef i18n="@@behavioral-hubs.col.method">Method</mat-header-cell>
               <mat-cell *matCellDef="let hub">
                 <span class="method-tag">{{ hub.detection_method === 'manual' ? 'Manual' : 'Auto' }}</span>
               </mat-cell>
             </ng-container>
 
             <ng-container matColumnDef="updated_at">
-              <mat-header-cell *matHeaderCellDef>Updated</mat-header-cell>
+              <mat-header-cell *matHeaderCellDef i18n="@@behavioral-hubs.col.updated">Updated</mat-header-cell>
               <mat-cell *matCellDef="let hub">{{ hub.updated_at | date:'mediumDate' }}</mat-cell>
             </ng-container>
 

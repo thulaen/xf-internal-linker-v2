@@ -3,9 +3,9 @@
 <div class="page-container">
   <h1 class="page-title">
     <mat-icon class="page-title-icon">travel_explore</mat-icon>
-    Web Crawler
+    <span i18n="@@crawler.title">Web Crawler</span>
   </h1>
-  <p class="page-subtitle">
+  <p class="page-subtitle" i18n="@@crawler.subtitle">
     Crawl your sites to discover pages, audit SEO metadata, and detect broken links.
     The crawler works alongside your API imports — it fills in what the APIs miss.
   </p>
@@ -15,7 +15,7 @@
     <mat-card-content>
       <div class="controls-row">
         <mat-form-field class="domain-select">
-          <mat-label>Domain</mat-label>
+          <mat-label i18n="@@crawler.field.domain">Domain</mat-label>
           <mat-select [(value)]="selectedDomain">
             @for (domain of domains(); track domain) {
               <mat-option [value]="domain">{{ domain }}</mat-option>
@@ -26,14 +26,14 @@
         <mat-form-field class="slider-field"
           matTooltip="How many pages per second to crawl. Lower = gentler on your server. Start with 2-4 for most sites."
         >
-          <mat-label>Rate (req/sec)</mat-label>
+          <mat-label i18n="@@crawler.field.rate">Rate (req/sec)</mat-label>
           <input matInput type="number" autocomplete="off" [(ngModel)]="rateLimit" min="1" max="10" />
         </mat-form-field>
 
         <mat-form-field class="slider-field"
           matTooltip="How many clicks deep from the homepage to crawl. 5 is usually enough for most sites."
         >
-          <mat-label>Max Depth</mat-label>
+          <mat-label i18n="@@crawler.field.max-depth">Max Depth</mat-label>
           <input matInput type="number" autocomplete="off" [(ngModel)]="maxDepth" min="1" max="10" />
         </mat-form-field>
 
@@ -47,7 +47,7 @@
                 matTooltip="Pause the crawl. You can resume it later from where it stopped."
               >
                 <mat-icon>pause</mat-icon>
-                Pause
+                <span i18n="@@crawler.action.pause">Pause</span>
               </button>
             } @else {
               <button
@@ -70,7 +70,7 @@
               matTooltip="Start crawling the selected domain. The crawler will respect robots.txt and rate limits."
             >
               <mat-icon>play_arrow</mat-icon>
-              Start Crawl
+              <span i18n="@@crawler.action.start-2">Start Crawl</span>
             </button>
           }
           @if (hasResumable()) {
@@ -81,7 +81,7 @@
               matTooltip="Resume the paused crawl from its checkpoint."
             >
               <mat-icon>fast_forward</mat-icon>
-              Resume
+              <span i18n="@@crawler.action.resume">Resume</span>
             </button>
           }
         </div>
@@ -104,11 +104,11 @@
       <div class="sitemap-section">
         <div class="sitemap-add-row">
           <mat-form-field class="sitemap-domain-field">
-            <mat-label>Domain</mat-label>
+            <mat-label i18n="@@crawler.sitemap.domain">Domain</mat-label>
             <input matInput autocomplete="off" [(ngModel)]="newSitemapDomain" placeholder="yoursite.com" />
           </mat-form-field>
           <mat-form-field class="sitemap-url-field">
-            <mat-label>Sitemap URL</mat-label>
+            <mat-label i18n="@@crawler.sitemap.url">Sitemap URL</mat-label>
             <input matInput type="url" autocomplete="url" [(ngModel)]="newSitemapUrl" placeholder="https://yoursite.com/sitemap.xml" />
           </mat-form-field>
           <button
@@ -119,7 +119,7 @@
             matTooltip="Add this sitemap so the crawler knows where to find your pages"
           >
             <mat-icon>add</mat-icon>
-            Add
+            <span i18n="@@crawler.action.add">Add</span>
           </button>
         </div>
 
@@ -178,40 +178,40 @@
   <mat-tab-group (selectedIndexChange)="onTabChange($event)" class="results-tabs">
 
     <!-- Tab 0: Overview -->
-    <mat-tab label="Overview">
+    <mat-tab label="Overview" i18n-label="@@crawler.tab.overview">
       <div class="tab-content">
         @if (sessions().length === 0) {
           <div class="empty-state">
             <mat-icon class="empty-icon">travel_explore</mat-icon>
-            <h3>No crawl sessions yet</h3>
-            <p>Start your first crawl to see results here.</p>
+            <h3 i18n="@@crawler.empty.no-sessions.title">No crawl sessions yet</h3>
+            <p i18n="@@crawler.empty.no-sessions.body">Start your first crawl to see results here.</p>
           </div>
         } @else {
           <div class="stat-grid">
             @if (sessions()[0]; as latest) {
               <div class="stat-card">
                 <div class="stat-value">{{ latest.pages_crawled }}</div>
-                <div class="stat-label">Pages Crawled</div>
+                <div class="stat-label" i18n="@@crawler.stat.pages-crawled">Pages Crawled</div>
               </div>
               <div class="stat-card">
                 <div class="stat-value">{{ latest.new_pages_discovered }}</div>
-                <div class="stat-label">New Discoveries</div>
+                <div class="stat-label" i18n="@@crawler.stat.new-discoveries">New Discoveries</div>
               </div>
               <div class="stat-card">
                 <div class="stat-value">{{ latest.pages_changed }}</div>
-                <div class="stat-label">Changed Pages</div>
+                <div class="stat-label" i18n="@@crawler.stat.changed-pages">Changed Pages</div>
               </div>
               <div class="stat-card">
                 <div class="stat-value">{{ latest.broken_links_found }}</div>
-                <div class="stat-label">Broken Links</div>
+                <div class="stat-label" i18n="@@crawler.stat.broken-links">Broken Links</div>
               </div>
               <div class="stat-card">
                 <div class="stat-value">{{ formatBytes(latest.bytes_downloaded) }}</div>
-                <div class="stat-label">Downloaded</div>
+                <div class="stat-label" i18n="@@crawler.stat.downloaded">Downloaded</div>
               </div>
               <div class="stat-card">
                 <div class="stat-value">{{ formatDuration(latest.elapsed_seconds) }}</div>
-                <div class="stat-label">Duration</div>
+                <div class="stat-label" i18n="@@crawler.stat.duration">Duration</div>
               </div>
             }
           </div>

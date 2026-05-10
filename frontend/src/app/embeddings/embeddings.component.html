@@ -1,7 +1,7 @@
 <div class="embeddings-page">
   <header class="page-header">
-    <h1 class="page-title">Embeddings</h1>
-    <p class="page-subtitle">
+    <h1 class="page-title" i18n="@@embeddings.title">Embeddings</h1>
+    <p class="page-subtitle" i18n="@@embeddings.subtitle">
       Switch providers, monitor cost, run bake-offs, and audit embedding quality.
     </p>
   </header>
@@ -13,13 +13,13 @@
   } @else {
     <mat-tab-group animationDuration="200ms" dynamicHeight>
       <!-- OVERVIEW -->
-      <mat-tab label="Overview">
+      <mat-tab label="Overview" i18n-label="@@embeddings.tab.overview">
         <div class="tab-body">
           @if (status(); as s) {
             <div class="overview-grid">
               <mat-card appearance="outlined" class="overview-card ga4-card" id="embeddings-overview-active-provider">
                 <mat-card-header>
-                  <mat-card-title>Active provider</mat-card-title>
+                  <mat-card-title i18n="@@embeddings.card.active-provider">Active provider</mat-card-title>
                 </mat-card-header>
                 <mat-card-content>
                   <mat-chip-set>
@@ -48,7 +48,7 @@
 
               <mat-card appearance="outlined" class="overview-card ga4-card" id="embeddings-overview-hardware">
                 <mat-card-header>
-                  <mat-card-title>Hardware</mat-card-title>
+                  <mat-card-title i18n="@@embeddings.card.hardware">Hardware</mat-card-title>
                 </mat-card-header>
                 <mat-card-content>
                   <mat-chip-set>
@@ -72,7 +72,7 @@
 
               <mat-card appearance="outlined" class="overview-card ga4-card" id="embeddings-overview-coverage">
                 <mat-card-header>
-                  <mat-card-title>Coverage</mat-card-title>
+                  <mat-card-title i18n="@@embeddings.card.coverage">Coverage</mat-card-title>
                 </mat-card-header>
                 <mat-card-content>
                   <dl class="kv">
@@ -89,7 +89,7 @@
 
               <mat-card appearance="outlined" class="overview-card ga4-card" id="embeddings-overview-spend">
                 <mat-card-header>
-                  <mat-card-title>Spend this month</mat-card-title>
+                  <mat-card-title i18n="@@embeddings.card.spend">Spend this month</mat-card-title>
                 </mat-card-header>
                 <mat-card-content>
                   @if (s.spend_this_month.length === 0) {
@@ -110,7 +110,7 @@
       </mat-tab>
 
       <!-- PROVIDERS -->
-      <mat-tab label="Providers">
+      <mat-tab label="Providers" i18n-label="@@embeddings.tab.providers">
         <div class="tab-body">
           <mat-card appearance="outlined" id="embeddings-providers-active-card">
             <mat-card-header>
@@ -155,7 +155,7 @@
                   } @else {
                     <mat-icon aria-hidden="true">swap_horiz</mat-icon>
                   }
-                  <span>Apply provider change</span>
+                  <span i18n="@@embeddings.action.apply-provider">Apply provider change</span>
                 </button>
               </div>
 
@@ -171,7 +171,7 @@
                   } @else {
                     <mat-icon aria-hidden="true">verified</mat-icon>
                   }
-                  <span>Test local</span>
+                  <span i18n="@@embeddings.action.test-local">Test local</span>
                 </button>
                 <button
                   mat-stroked-button
@@ -184,7 +184,7 @@
                   } @else {
                     <mat-icon aria-hidden="true">verified</mat-icon>
                   }
-                  <span>Test OpenAI</span>
+                  <span i18n="@@embeddings.action.test-openai">Test OpenAI</span>
                 </button>
                 <button
                   mat-stroked-button
@@ -197,7 +197,7 @@
                   } @else {
                     <mat-icon aria-hidden="true">verified</mat-icon>
                   }
-                  <span>Test Gemini</span>
+                  <span i18n="@@embeddings.action.test-gemini">Test Gemini</span>
                 </button>
               </div>
             </mat-card-content>
@@ -205,7 +205,7 @@
 
           <mat-card appearance="outlined" class="settings-card" id="embeddings-provider-settings-card">
             <mat-card-header>
-              <mat-card-title>Provider settings</mat-card-title>
+              <mat-card-title i18n="@@embeddings.card.provider-settings">Provider settings</mat-card-title>
               <mat-card-subtitle>
                 API key is stored as a secret. Never commit keys to code.
               </mat-card-subtitle>
@@ -256,7 +256,7 @@
                       <mat-spinner diameter="18"></mat-spinner>
                     </span>
                   }
-                  <span>Save settings</span>
+                  <span i18n="@@embeddings.action.save-settings">Save settings</span>
                 </button>
               </div>
             </mat-card-content>
@@ -265,11 +265,11 @@
       </mat-tab>
 
       <!-- RUN CONTROL -->
-      <mat-tab label="Run Control">
+      <mat-tab label="Run Control" i18n-label="@@embeddings.tab.run-control">
         <div class="tab-body">
           <mat-card appearance="outlined" id="embeddings-embed-pipeline-card">
             <mat-card-header>
-              <mat-card-title>Embed pipeline</mat-card-title>
+              <mat-card-title i18n="@@embeddings.card.embed-pipeline">Embed pipeline</mat-card-title>
               <mat-card-subtitle>
                 Trigger re-embed or audit on demand. Pause/resume honoured by the pause contract.
               </mat-card-subtitle>
@@ -288,7 +288,7 @@
                   } @else {
                     <mat-icon aria-hidden="true">fact_check</mat-icon>
                   }
-                  <span>Run audit now</span>
+                  <span i18n="@@embeddings.action.run-audit">Run audit now</span>
                 </button>
                 <button
                   mat-raised-button
@@ -301,7 +301,7 @@
                   } @else {
                     <mat-icon aria-hidden="true">compare_arrows</mat-icon>
                   }
-                  <span>Run bake-off now</span>
+                  <span i18n="@@embeddings.action.run-bakeoff">Run bake-off now</span>
                 </button>
               </div>
 
@@ -320,7 +320,7 @@
       </mat-tab>
 
       <!-- BAKE-OFF -->
-      <mat-tab label="Bake-off">
+      <mat-tab label="Bake-off" i18n-label="@@embeddings.tab.bakeoff">
         <div class="tab-body">
           <mat-card appearance="outlined" id="embeddings-bakeoff-card">
             <mat-card-header>

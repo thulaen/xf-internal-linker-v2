@@ -2,9 +2,9 @@
   <header class="page-header">
     <h1>
       <mat-icon class="page-icon">developer_board</mat-icon>
-      Models
+      <span i18n="@@admin-models.title">Models</span>
     </h1>
-    <p class="page-subtitle">
+    <p class="page-subtitle" i18n="@@admin-models.subtitle">
       Operator control for every registered ML model — embeddings, classifier, reranker, and the typed knowledge graph.
       Pause, drain, promote, or roll back each one independently. Actions are audit-logged.
     </p>
@@ -24,7 +24,7 @@
   @if (loading()) {
     <div class="state-row">
       <mat-spinner diameter="32"></mat-spinner>
-      <span>Loading registry…</span>
+      <span i18n="@@admin-models.loading">Loading registry…</span>
     </div>
   }
 
@@ -33,12 +33,12 @@
       <mat-card-content>
         <mat-icon>error_outline</mat-icon>
         <div>
-          <p class="state-headline">Could not load the model registry.</p>
+          <p class="state-headline" i18n="@@admin-models.error.headline">Could not load the model registry.</p>
           <p class="state-detail">{{ error() }}</p>
         </div>
         <button mat-stroked-button color="primary" (click)="refresh()">
           <mat-icon>refresh</mat-icon>
-          Retry
+          <span i18n="@@admin-models.action.retry">Retry</span>
         </button>
       </mat-card-content>
     </mat-card>
@@ -67,41 +67,41 @@
           <mat-card-header>
             <mat-card-title>
               <mat-icon class="role-icon">workspace_premium</mat-icon>
-              Champion
+              <span i18n="@@admin-models.role.champion">Champion</span>
             </mat-card-title>
             <mat-card-subtitle>{{ m.model_name }}</mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
             <div class="meta-grid">
               <div class="meta-row">
-                <span class="meta-label">Family</span>
+                <span class="meta-label" i18n="@@admin-models.meta.family-1">Family</span>
                 <span class="meta-value">{{ m.model_family || '—' }}</span>
               </div>
               <div class="meta-row">
-                <span class="meta-label">Status</span>
+                <span class="meta-label" i18n="@@admin-models.meta.status-1">Status</span>
                 <mat-chip [color]="statusColor(m.status)" highlighted>{{ m.status }}</mat-chip>
               </div>
               <div class="meta-row">
-                <span class="meta-label">Device target</span>
+                <span class="meta-label" i18n="@@admin-models.meta.device-target">Device target</span>
                 <span class="meta-value">{{ m.device_target }}</span>
               </div>
               <div class="meta-row">
-                <span class="meta-label">Batch size</span>
+                <span class="meta-label" i18n="@@admin-models.meta.batch-size">Batch size</span>
                 <span class="meta-value">{{ m.batch_size }}</span>
               </div>
               @if (m.dimension !== null) {
                 <div class="meta-row">
-                  <span class="meta-label">Dimension</span>
+                  <span class="meta-label" i18n="@@admin-models.meta.dimension">Dimension</span>
                   <span class="meta-value">{{ m.dimension }}</span>
                 </div>
               }
               <div class="meta-row">
-                <span class="meta-label">Algorithm version</span>
+                <span class="meta-label" i18n="@@admin-models.meta.algorithm-version-1">Algorithm version</span>
                 <span class="meta-value">{{ m.algorithm_version }}</span>
               </div>
               @if (m.promoted_at) {
                 <div class="meta-row">
-                  <span class="meta-label">Promoted</span>
+                  <span class="meta-label" i18n="@@admin-models.meta.promoted">Promoted</span>
                   <span class="meta-value">{{ m.promoted_at | date:'medium' }}</span>
                 </div>
               }
@@ -119,7 +119,7 @@
                 } @else {
                   <mat-icon>pause</mat-icon>
                 }
-                Pause
+                <span i18n="@@admin-models.action.pause">Pause</span>
               </button>
               <button
                 mat-stroked-button
@@ -132,7 +132,7 @@
                 } @else {
                   <mat-icon>play_arrow</mat-icon>
                 }
-                Resume
+                <span i18n="@@admin-models.action.resume">Resume</span>
               </button>
               <button
                 mat-stroked-button
@@ -146,7 +146,7 @@
                 } @else {
                   <mat-icon>do_not_disturb</mat-icon>
                 }
-                Drain
+                <span i18n="@@admin-models.action.drain">Drain</span>
               </button>
             </div>
           </mat-card-content>
@@ -158,7 +158,7 @@
           <mat-card-header>
             <mat-card-title>
               <mat-icon class="role-icon">science</mat-icon>
-              Candidate
+              <span i18n="@@admin-models.role.candidate">Candidate</span>
             </mat-card-title>
             <mat-card-subtitle>{{ m.model_name }}</mat-card-subtitle>
           </mat-card-header>

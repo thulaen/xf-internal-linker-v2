@@ -1,7 +1,7 @@
 <section class="scheduled-updates-page" id="scheduled-updates">
   <header class="page-header">
-    <h1 class="page-title">Scheduled Updates</h1>
-    <p class="page-subtitle">
+    <h1 class="page-title" i18n="@@scheduled-updates.title">Scheduled Updates</h1>
+    <p class="page-subtitle" i18n="@@scheduled-updates.subtitle">
       Background refresh jobs run once at a time inside the
       <strong>11 am – 11 pm</strong> window. Each job is pausable and
       resumable. Missed windows surface as deduped alerts.
@@ -51,13 +51,14 @@
           matBadgeOverlap="false"
           matBadgeColor="warn"
           [matBadgeHidden]="activeAlertCount === 0"
+          i18n="@@scheduled-updates.tab.alerts"
         >
           Alerts
         </span>
       </ng-template>
 
       <div class="tab-body">
-        <p class="empty-state" *ngIf="activeAlerts.length === 0">
+        <p class="empty-state" *ngIf="activeAlerts.length === 0" i18n="@@scheduled-updates.empty.alerts">
           No active alerts. When a job misses its window, fails, or stalls,
           a deduped alert appears here (one row per job per day).
         </p>
@@ -101,9 +102,9 @@
     </mat-tab>
 
     <!-- Tab 2 — Running now -->
-    <mat-tab label="Running">
+    <mat-tab label="Running" i18n-label="@@scheduled-updates.tab.running">
       <div class="tab-body">
-        <p class="empty-state" *ngIf="!runningJob && !pausedJob">
+        <p class="empty-state" *ngIf="!runningJob && !pausedJob" i18n="@@scheduled-updates.empty.running">
           No job is currently running or paused. The next tick picks up
           the highest-priority pending job whose estimate fits the
           remaining window.
@@ -134,11 +135,11 @@
           <mat-card-actions align="end">
             <button mat-stroked-button (click)="pause(runningJob)">
               <mat-icon>pause</mat-icon>
-              Pause
+              <span i18n="@@scheduled-updates.action.pause">Pause</span>
             </button>
             <button mat-stroked-button color="warn" (click)="cancel(runningJob)">
               <mat-icon>cancel</mat-icon>
-              Cancel
+              <span i18n="@@scheduled-updates.action.cancel">Cancel</span>
             </button>
           </mat-card-actions>
         </mat-card>
@@ -157,7 +158,7 @@
           <mat-card-actions align="end">
             <button mat-raised-button color="primary" (click)="resume(pausedJob)">
               <mat-icon>play_arrow</mat-icon>
-              Resume
+              <span i18n="@@scheduled-updates.action.resume">Resume</span>
             </button>
           </mat-card-actions>
         </mat-card>
@@ -165,10 +166,10 @@
     </mat-tab>
 
     <!-- Tab 3 — Schedule (missed + pending + upcoming) -->
-    <mat-tab label="Schedule">
+    <mat-tab label="Schedule" i18n-label="@@scheduled-updates.tab.schedule">
       <div class="tab-body">
         <section *ngIf="missedJobs.length" class="schedule-section">
-          <h2>Missed</h2>
+          <h2 i18n="@@scheduled-updates.section.missed">Missed</h2>
           <mat-card
             *ngFor="let job of missedJobs; trackBy: trackByJobId"
             class="schedule-card ga4-card"
