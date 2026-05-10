@@ -220,6 +220,9 @@ ALLOWLIST: frozenset[str] = frozenset({
     # Common file format extensions surfaced in user-facing copy
     # (e.g. "Export to JSONL", "JSONL log file").
     "JSONL", "NDJSON", "PARQUET",
+    # More plain-English narrative ALL-CAPS that show up in tests +
+    # docstring prose ("STATUS column", "ROUTE prefix", etc).
+    "STATUS", "ROUTE", "ROUTES", "ENDPOINT", "ENDPOINTS",
 })
 
 # Regex: 3+ consecutive uppercase letters with optional repeated hyphen-
