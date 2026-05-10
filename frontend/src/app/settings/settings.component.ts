@@ -49,7 +49,6 @@ import {
   SlateDiversitySettings,
   WeightPreset,
   WeightAdjustmentHistory,
-  RankingChallenger,
   AnalyticsConnectionResult,
   GA4TelemetrySettings,
   GA4TelemetryUpdate,
@@ -67,6 +66,7 @@ import { PerformanceSettingsComponent } from './performance-settings/performance
 import { HelpersSettingsComponent } from './helpers-settings/helpers-settings.component';
 // Phase MS — Meta Algorithm Settings tab (new at the end of the tab group).
 import { MetaAlgorithmsTabComponent } from './meta-algorithms-tab/meta-algorithms-tab.component';
+import { LibraryHistoryTabComponent } from './library-history-tab/library-history-tab.component';
 import { NotificationsTabComponent } from './notifications-tab/notifications-tab.component';
 import { SiloArchitectureTabComponent } from './silo-architecture-tab/silo-architecture-tab.component';
 import { PassageRelevanceCardComponent } from './passage-relevance/passage-relevance-card.component';
@@ -2070,6 +2070,7 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
     PerformanceSettingsComponent,
     HelpersSettingsComponent,
     MetaAlgorithmsTabComponent,
+    LibraryHistoryTabComponent,
     NotificationsTabComponent,
     SiloArchitectureTabComponent,
     TabFragmentRouterDirective,
@@ -2522,25 +2523,22 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   xfWebhookSecret = '';
   wpWebhookSecret = '';
 
-  // Weight presets
+  // Weight presets — kept here because cross-tab tooltips
+  // (`recommendedValueLabel`, `getFeatureSummary`, `currentFeatureCount`,
+  // `currentOffFeatures`) and the fresh-install auto-apply guard
+  // (`checkAndAutoApplyRecommended`) all read these fields. The Library
+  // & History tab UI moved to `<app-library-history-tab>` and owns its
+  // own duplicate copies for its cards. The booleans / action methods
+  // (applyingPreset, saveCurrentAsPreset, ...) and the challengers list
+  // moved with the tab.
   weightPresets: WeightPreset[] = [];
   loadingPresets = false;
-  applyingPreset = false;
-  savingPreset = false;
-  deletingPreset = false;
-  renamingPresetId: number | null = null;
-  newPresetName = '';
-  renamePresetValue = '';
-  showSavePresetInput = false;
 
-  // Weight history
+  // Weight history — same rationale as `weightPresets`. The auto-apply
+  // guard reads `weightHistory.length === 0` to decide whether to seed
+  // Recommended on a truly fresh install.
   weightHistory: WeightAdjustmentHistory[] = [];
-  challengers: RankingChallenger[] = [];
-  loadingChallengers = false;
-  triggeringWeightTune = false;
-  evaluatingChallenger = false;
   loadingHistory = false;
-  rollingBack = false;
   currentWeights: Record<string, string> = {};
 
   siloGroups: SiloGroup[] = [];
@@ -2588,15 +2586,32 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   }
 
   /**
-   * Listens to extracted-tab `(dirtyChanged)` outputs (currently only
-   * `<app-notifications-tab>`) so the parent's isDirty signal continues
-   * to drive the unsaved-changes guard after the tab moved out of this
-   * file. Child emits `true` on edit, `false` after a successful save.
+   * Listens to extracted-tab `(dirtyChanged)` outputs (Notifications,
+   * Silo Architecture, Library & History) so the parent's isDirty signal
+   * continues to drive the unsaved-changes guard after those tabs moved
+   * out of this file. Child emits `true` on edit, `false` after a
+   * successful save. Preserves the historical "set-only" semantic: the
+   * parent's isDirty only flips on; it is cleared by the `reload()` /
+   * preset-apply paths, never by a sibling tab's quiet save.
    */
   onChildDirty(dirty: boolean): void {
     if (dirty) {
       this.isDirty = true;
     }
+  }
+
+  /**
+   * Listens to `<app-library-history-tab>` `(presetApplied)` output. Fires
+   * after a successful preset apply or weight rollback inside the child.
+   * The parent must re-run the giant 25+ endpoint forkJoin via `reload()`
+   * so every weight card on every other tab re-hydrates from the
+   * server-of-truth post-apply. Payload is the preset name (or `null` for
+   * rollback) — informational only; the reload path is identical for
+   * both. Mirrors the historical inline `applyPreset → this.reload()`
+   * flow that the child replaced.
+   */
+  onPresetApplied(): void {
+    this.reload();
   }
 
   @HostListener('window:beforeunload', ['$event'])
@@ -3179,7 +3194,8 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
         this.loadingHistory = false;
       },
     });
-    this.loadChallengers();
+    // Challenger list moved to `<app-library-history-tab>`; the child
+    // owns its own `loadChallengers()` and refresh cadence.
   }
 
   private checkAndAutoApplyRecommended(): void {
@@ -3215,199 +3231,15 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     });
   }
 
-  applyPreset(preset: WeightPreset): void {
-    // Two-stage confirmation when the user has unsaved edits on any
-    // settings card. Without this, reload() at line 3238 would silently
-    // overwrite in-flight edits with the post-preset server response —
-    // the AutoIssue #15 bug. The first prompt is the historical "are
-    // you sure?"; the second is the new unsaved-changes warning.
-    if (!confirm(`Apply preset "${preset.name}"? This will overwrite all current weight settings.`)) return;
-    if (this.isDirty && !confirm(
-      'You have unsaved edits on this page. Applying the preset will discard them and reload the saved values from the server. Continue?'
-    )) return;
-    this.applyingPreset = true;
-    this.siloSvc.applyWeightPreset(preset.id).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: () => {
-        this.applyingPreset = false;
-        this.snack.open(`Preset "${preset.name}" applied. Reloading settings...`, undefined, { duration: 3000 });
-        // Apply path always reloads from server-of-truth post-apply;
-        // any in-flight dirty bit is now stale.
-        this.isDirty = false;
-        this.reload();
-      },
-      error: (err) => {
-        this.applyingPreset = false;
-        this.snack.open(err?.error?.detail || 'Failed to apply preset', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  saveCurrentAsPreset(): void {
-    const name = this.newPresetName.trim();
-    if (!name) return;
-    this.savingPreset = true;
-    this.siloSvc.getCurrentWeights().pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: (weights) => {
-        this.siloSvc.createWeightPreset({ name, weights }).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-          next: () => {
-            this.savingPreset = false;
-            this.newPresetName = '';
-            this.showSavePresetInput = false;
-            this.snack.open(`Preset "${name}" saved.`, undefined, { duration: 2500 });
-            this.reloadPresetsAndHistory();
-          },
-          error: (err) => {
-            this.savingPreset = false;
-            this.snack.open(err?.error?.detail || err?.error?.name?.[0] || 'Failed to save preset', 'Dismiss', { duration: 4000 });
-          },
-        });
-      },
-      error: () => {
-        this.savingPreset = false;
-        this.snack.open('Failed to read current weights', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  startRenamePreset(preset: WeightPreset): void {
-    this.renamingPresetId = preset.id;
-    this.renamePresetValue = preset.name;
-  }
-
-  confirmRenamePreset(preset: WeightPreset): void {
-    const name = this.renamePresetValue.trim();
-    if (!name || name === preset.name) { this.renamingPresetId = null; return; }
-    this.siloSvc.renameWeightPreset(preset.id, name).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: () => {
-        this.renamingPresetId = null;
-        this.snack.open('Preset renamed.', undefined, { duration: 2000 });
-        this.reloadPresetsAndHistory();
-      },
-      error: (err) => {
-        this.renamingPresetId = null;
-        this.snack.open(err?.error?.detail || 'Failed to rename preset', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  deletePreset(preset: WeightPreset): void {
-    if (!confirm(`Delete preset "${preset.name}"? This cannot be undone.`)) return;
-    this.deletingPreset = true;
-    this.siloSvc.deleteWeightPreset(preset.id).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: () => {
-        this.deletingPreset = false;
-        this.snack.open(`Preset "${preset.name}" deleted.`, undefined, { duration: 2500 });
-        this.reloadPresetsAndHistory();
-      },
-      error: (err) => {
-        this.deletingPreset = false;
-        this.snack.open(err?.error?.detail || 'Failed to delete preset', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  rollbackWeights(row: WeightAdjustmentHistory): void {
-    const dateStr = new Date(row.created_at).toLocaleString();
-    if (!confirm(`Roll back to weights from ${dateStr}? This will overwrite all current weight settings.`)) return;
-    this.rollingBack = true;
-    this.siloSvc.rollbackWeights(row.id).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: () => {
-        this.rollingBack = false;
-        this.snack.open(`Rolled back to weights from ${dateStr}. Reloading...`, undefined, { duration: 3000 });
-        this.reload();
-      },
-      error: (err) => {
-        this.rollingBack = false;
-        this.snack.open(err?.error?.detail || 'Rollback failed', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  triggerWeightTune(): void {
-    if (!confirm('Run the auto-tune now? This will analyse recent data and may propose new weights.')) return;
-    this.triggeringWeightTune = true;
-    this.siloSvc.triggerWeightTune().pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: () => {
-        this.triggeringWeightTune = false;
-        this.snack.open('Weight-tune task queued. Check back in a moment.', undefined, { duration: 3000 });
-        setTimeout(() => this.loadChallengers(), 5000);
-      },
-      error: (err) => {
-        this.triggeringWeightTune = false;
-        this.snack.open(err?.error?.detail || 'Failed to queue the tune task.', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  historySourceLabel(source: string): string {
-    return {
-      auto_tune: 'Auto-tune',
-      manual: 'Manual',
-      preset_applied: 'Preset applied',
-      r_auto: 'Legacy R tune',
-      cs_auto_tune: 'Auto-tuner (Python L-BFGS)',
-    }[source] ?? source;
-  }
-
-  // ── FR-018 Weight Tuning ──────────────────────────────────────────────────
-
-  get pendingChallenger(): RankingChallenger | null {
-    return this.challengers.find((c) => c.status === 'pending') ?? null;
-  }
-
-  loadChallengers(): void {
-    this.loadingChallengers = true;
-    this.siloSvc.listChallengers().pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: (challengers) => { this.challengers = challengers; this.loadingChallengers = false; },
-      error: () => { this.loadingChallengers = false; },
-    });
-  }
-
-
-  promoteChallenger(challenger: RankingChallenger): void {
-    if (!confirm('Promote this challenger? Its weights will become active immediately.')) return;
-    this.evaluatingChallenger = true;
-    this.siloSvc.evaluateChallenger(challenger.run_id).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: () => {
-        this.evaluatingChallenger = false;
-        this.snack.open('Challenger evaluation queued. Reload the page to see the new weights.', undefined, { duration: 4000 });
-        this.loadChallengers();
-      },
-      error: () => {
-        this.evaluatingChallenger = false;
-        this.snack.open('Failed to queue challenger evaluation.', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  rejectChallenger(challenger: RankingChallenger): void {
-    if (!confirm('Reject this challenger? It will not be applied.')) return;
-    this.siloSvc.rejectChallenger(challenger.id).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: () => {
-        this.snack.open('Challenger rejected.', undefined, { duration: 2500 });
-        this.loadChallengers();
-      },
-      error: () => this.snack.open('Failed to reject challenger.', 'Dismiss', { duration: 4000 }),
-    });
-  }
-
-  challengerImprovementPct(c: RankingChallenger): string {
-    if (c.predicted_quality_score == null || c.champion_quality_score == null || c.champion_quality_score === 0) return '';
-    const pct = ((c.predicted_quality_score - c.champion_quality_score) / c.champion_quality_score) * 100;
-    return (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%';
-  }
-
-  challengerDiffKeys(c: RankingChallenger): string[] {
-    return Object.keys(c.candidate_weights ?? {});
-  }
-
-  deltaKeys(delta: Record<string, any> | null | undefined): string[] {
-    return delta ? Object.keys(delta) : [];
-  }
-
-  formatDeltaLine(key: string, entry: { previous: string | null; new: string | null }): string {
-    return `${key}: ${entry.previous ?? '-'} -> ${entry.new ?? '-'}`;
-  }
+  // The Library & History tab UI moved to `<app-library-history-tab>`.
+  // applyPreset / saveCurrentAsPreset / deletePreset / rollbackWeights /
+  // triggerWeightTune / loadChallengers / promoteChallenger /
+  // rejectChallenger / challengerImprovementPct / challengerDiffKeys /
+  // deltaKeys / formatDeltaLine / historySourceLabel / startRenamePreset
+  // / confirmRenamePreset all moved with it. The parent listens on the
+  // child's `(presetApplied)` Output via `onPresetApplied()` above so the
+  // giant 25+ endpoint reload still fires after a preset apply or
+  // rollback, keeping every other weight card in sync with the server.
 
   ngOnDestroy(): void {
     this.destroy$.next();

@@ -1,0 +1,401 @@
+// Local copies of the layout classes the legacy parent `SettingsComponent`
+// applied via its own view-encapsulated stylesheet. Kept in sync with
+// `frontend/src/app/settings/settings.component.scss` so the extracted
+// Library & History tab renders identically. The canonical card chrome
+// (border, padding, header) comes from the global `ga4-card` partial
+// loaded by `frontend/src/styles/_card-anatomy.scss`.
+
+:host {
+  display: block;
+}
+
+.tab-content {
+  padding: 8px 0 120px;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--spacing-md);
+
+  > * {
+    grid-column: span 6;
+
+    @media (max-width: 1200px) {
+      grid-column: 1 / -1;
+    }
+  }
+
+  > .settings-card--wide {
+    grid-column: 1 / -1;
+  }
+}
+
+.settings-card {
+  display: flex;
+  flex-direction: column;
+
+  mat-card-header {
+    padding: 16px 24px;
+    background: var(--color-bg-faint);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  mat-card-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+  }
+}
+
+.settings-card--wide {
+  grid-column: 1 / -1;
+}
+
+.card-content {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+// ── Status pills (used inside the preset hero badges) ─────────────
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--color-bg-faint);
+  color: var(--color-text-muted);
+}
+
+.status-pill--primary {
+  background: var(--color-primary);
+  color: var(--color-bg-white);
+  border: 1px solid var(--color-primary);
+}
+
+.status-pill--status {
+  background: var(--color-bg-white);
+  color: var(--color-primary);
+  border: 1px solid var(--color-blue-100);
+}
+
+// ── Preset hero ──────────────────────────────────────────────────
+
+.preset-hero {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 24px;
+
+  @media (max-width: 1200px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.preset-summary-compact {
+  padding: 24px;
+  background: var(--color-blue-50);
+  border: 1px solid var(--color-blue-100);
+  border-radius: var(--card-border-radius);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+
+  .preset-status-badges {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .status-kicker {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--color-primary);
+  }
+}
+
+.preset-header-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.compact-hint {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.compact-button-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.save-preset-inline {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+
+  mat-form-field {
+    width: 180px;
+    margin-bottom: 0;
+  }
+}
+
+.preset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.preset-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--card-border-radius);
+  background: var(--color-bg-white);
+
+  &.preset-row--active {
+    border-color: var(--color-primary);
+    border-left: 4px solid var(--color-primary);
+    background: var(--color-blue-50);
+  }
+
+  .preset-icon {
+    color: var(--color-primary);
+  }
+
+  button {
+    margin-left: auto;
+  }
+}
+
+.preset-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+
+  .preset-name {
+    font-weight: 600;
+    font-size: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .preset-date {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+  }
+}
+
+// ── FR-018 Weight Auto-Tuner card ────────────────────────────────
+
+.tune-trigger-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+
+  .tune-hint {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+  }
+}
+
+.challenger-loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-lg) 0;
+}
+
+.challenger-empty {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+
+  mat-icon {
+    color: var(--color-text-secondary);
+  }
+}
+
+.challenger-pending {
+  border: var(--card-border);
+  border-radius: var(--card-border-radius);
+  padding: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.challenger-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+
+  .challenger-icon {
+    color: var(--color-primary);
+  }
+
+  .challenger-title {
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  .challenger-date {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    margin-left: auto;
+  }
+}
+
+.challenger-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+
+  &--positive {
+    background: var(--color-google-green-faint);
+    color: var(--color-google-green);
+  }
+}
+
+.challenger-diff {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+  font-size: 12px;
+
+  .diff-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  .diff-key {
+    width: 200px;
+    font-family: var(--font-mono);
+    color: var(--color-text-secondary);
+  }
+
+  .diff-old {
+    color: var(--color-text-secondary);
+  }
+
+  .diff-arrow {
+    font-size: 16px;
+    color: var(--color-text-secondary);
+  }
+
+  .diff-new {
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+}
+
+.challenger-actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.challenger-history {
+  margin-top: var(--space-lg);
+}
+
+// ── Tables (used by both adjustment history and challenger history) ─
+
+.history-table-container {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+
+  th, td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--color-border);
+    text-align: left;
+  }
+
+  th {
+    color: var(--color-text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .reason-cell {
+    max-width: 280px;
+    color: var(--color-text-secondary);
+  }
+
+  .date-cell {
+    white-space: nowrap;
+    color: var(--color-text-secondary);
+  }
+
+  .run-id-cell {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--color-text-secondary);
+  }
+}
+
+.delta-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.delta-line {
+  font-family: var(--font-mono);
+  color: var(--color-text-primary);
+}
+
+// ── Source/status tags ───────────────────────────────────────────
+
+.source-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--color-bg-faint);
+  color: var(--color-text-muted);
+
+  &--promoted {
+    background: var(--color-google-green-faint);
+    color: var(--color-google-green);
+  }
+
+  &--rejected,
+  &--rolled_back {
+    background: var(--color-google-red-faint);
+    color: var(--color-google-red);
+  }
+
+  &--pending {
+    background: var(--color-blue-50);
+    color: var(--color-primary);
+  }
+}
