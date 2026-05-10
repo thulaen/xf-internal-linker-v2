@@ -129,3 +129,41 @@ if [ -n "$STAGED_TEMPLATES" ] && command -v python > /dev/null; then
   echo "→ Design-pattern check (DESIGN-PATTERNS.md §13)"
   python "$HOOK_DIR/check-design-patterns.py" $STAGED_TEMPLATES
 fi
+
+# 14. File-size cap from CLAUDE.md (1,500 lines per file). Blocks new
+#     files past the cap and prevents grandfathered files (in
+#     .githooks/file-size-grandfather.txt) from growing past their
+#     baseline. The cap exists to prevent god classes; views.py +
+#     settings.component.ts are the in-flight examples.
+if command -v python > /dev/null; then
+  echo "→ File-size cap (CLAUDE.md ≤1500 lines)"
+  python "$HOOK_DIR/check-file-size.py"
+fi
+
+# 15. No-downgraded-gates. When .github/workflows/ci.yml is staged,
+#     block silent flips of blocking gates to warning-only (|| true,
+#     continue-on-error, exit-code: '0', ::warning::) unless the
+#     diff also contains a `# GATE-DOWNGRADE-JUSTIFICATION:` line.
+if command -v python > /dev/null; then
+  echo "→ No-downgraded-gates (.github/workflows/ci.yml)"
+  python "$HOOK_DIR/check-no-downgraded-gates.py"
+fi
+
+# 16. Frontend route validation. Every HttpClient.<verb>('/api/...')
+#     call in staged frontend TS files must resolve to a real
+#     path('...') in backend/apps/**/urls.py. Prevents stale
+#     frontend → backend URL drift.
+STAGED_FE_TS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^frontend/src/app/.*\.ts$' | grep -v '\.spec\.ts$' || true)
+if [ -n "$STAGED_FE_TS" ] && command -v python > /dev/null; then
+  echo "→ Frontend route validation (HttpClient → urls.py)"
+  python "$HOOK_DIR/check-frontend-routes.py" $STAGED_FE_TS
+fi
+
+# 17. Missing-tests check. Newly-added .component.ts / .service.ts /
+#     services/*.py files MUST ship with a matching test file in
+#     the same commit. Local equivalent of the (post-hardening)
+#     blocking CI gate.
+if command -v python > /dev/null; then
+  echo "→ Missing-tests check (every new module needs a test)"
+  python "$HOOK_DIR/check-missing-tests.py"
+fi

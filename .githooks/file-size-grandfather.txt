@@ -1,0 +1,17 @@
+# Grandfather list — files that exceed the 1,500-line cap and are
+# being actively decomposed. Format: path:current_line_count
+#
+# Rules:
+#   1. A file in this list may only SHRINK below its recorded baseline.
+#      The hook (check-file-size.py) blocks commits that grow a
+#      grandfathered file past its baseline.
+#   2. Once a file is split below the global 1,500-line cap, REMOVE
+#      its entry. The hook will then enforce the cap on it.
+#   3. Do NOT add new entries. The cap exists to prevent god classes;
+#      a fresh file should never need this list. New files always start
+#      under the cap.
+#
+# Current entries (2026-05-10, recorded for the prevention-cleanup batch):
+backend/apps/core/views.py:6616
+frontend/src/app/settings/settings.component.ts:4732
+frontend/src/app/settings/settings.component.html:2863
