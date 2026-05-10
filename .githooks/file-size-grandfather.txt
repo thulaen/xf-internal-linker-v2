@@ -12,7 +12,8 @@
 #      under the cap.
 #
 # Current entries (2026-05-10, recorded for the prevention-cleanup batch):
-backend/apps/core/views.py:3565
+backend/apps/core/views.py:1728
+backend/apps/core/views_capacity.py:2035
 backend/apps/core/views_settings.py:1433
 frontend/src/app/settings/settings.component.ts:4672
 frontend/src/app/settings/settings.component.html:2699
