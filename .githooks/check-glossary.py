@@ -223,6 +223,9 @@ ALLOWLIST: frozenset[str] = frozenset({
     # More plain-English narrative ALL-CAPS that show up in tests +
     # docstring prose ("STATUS column", "ROUTE prefix", etc).
     "STATUS", "ROUTE", "ROUTES", "ENDPOINT", "ENDPOINTS",
+    "TOGGLED",
+    # Out-Of-Memory — common shorthand in operator-facing diagnostics.
+    "OOM",
 })
 
 # Regex: 3+ consecutive uppercase letters with optional repeated hyphen-
