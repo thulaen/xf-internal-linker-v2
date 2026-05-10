@@ -483,17 +483,17 @@ services:
   # for how Pyroscope hot-functions feed the auto_issues registry.
   # ─────────────────────────────────────────────
   pyroscope:
-    # NOTE: ingest from `pyroscope-io==0.8.7` (the legacy Python agent)
-    # is currently a no-op against this 1.x server because the agent's
-    # `/ingest` push-protocol is accepted (200 OK) but not indexed.
-    # Tracked as ISS-103 in `docs/reports/REPORT-REGISTRY.md`. The Python
-    # picker (`apps.auto_issues.services.pyroscope_picker`) handles the
-    # empty-data case gracefully — returns `regressions_found=0`. Two
-    # paths to fix: (a) switch the Python agent to OTLP profiles export
-    # once pyroscope-io supports it, OR (b) route profiles through the
-    # OTel collector instead. Until then Pyroscope's UI is reachable
-    # (so manual `py-spy dump` or other ad-hoc profiling can land here)
-    # but auto-shipping from the SDK does not yet.
+    # ISS-103 RESOLVED 2026-05-09: the legacy `pyroscope-io==0.8.7`
+    # `/ingest` push-protocol was incompatible with this 1.x server (200
+    # OK accepted but no profiles indexed). Fixed by upgrading the agent
+    # to `pyroscope-io==1.0.6` which sends pprof-format profiles. Verified
+    # via `curl POST http://localhost:4040/querier.v1.QuerierService/LabelValues -d '{"name":"service_name"}'`
+    # which now returns `["pyroscope", "xf-linker-backend",
+    # "xf-linker-celery-beat", "xf-linker-celery-default",
+    # "xf-linker-celery-pipeline"]`. Both detectors are wired:
+    # week-over-week regressions (needs 7-day history, ready 2026-05-16)
+    # and same-day hotspots (added 2026-05-10, works from day one — see
+    # `apps.auto_issues.services.pyroscope_picker.pick_pyroscope_hotspots`).
     image: grafana/pyroscope:1.9.0
     container_name: xf_linker_pyroscope
     restart: always
@@ -567,6 +567,72 @@ services:
       postgres-exporter:
         condition: service_started
 
+  # ─────────────────────────────────────────────
+  # Loki — log aggregation database. Stores all container stdout logs
+  # (shipped by Grafana Alloy below) for 30 days, queryable via LogQL.
+  # Default-on alongside GlitchTip + Pyroscope + otel-collector.
+  # Localhost-only on :3100. Single-binary filesystem-backed mode (the
+  # operator's laptop is not a multi-node cluster) — TSDB schema, no
+  # object storage, in-memory ring.
+  #
+  # Why Loki on top of GlitchTip + OTel: GlitchTip captures errors;
+  # otel-collector captures traces; Loki captures EVERY stdout line so
+  # we can grep across services (`{container_name=~".+"} |~ "WARN"`).
+  # The `loki_picker` (apps.auto_issues.services.loki_picker, Stream 4)
+  # turns repeated WARN/ERROR patterns into AutoIssues with
+  # source='loki'. See plan does-adding-qodana-make-swift-wall.md.
+  # ─────────────────────────────────────────────
+  loki:
+    image: grafana/loki:3.3.2
+    container_name: xf_linker_loki
+    restart: always
+    mem_limit: 512m
+    user: "0:0"  # Loki writes to /loki; root inside container is fine because the volume is named (no host bind).
+    command: ["-config.file=/etc/loki/loki-config.yaml"]
+    configs:
+      - source: loki_config
+        target: /etc/loki/loki-config.yaml
+    volumes:
+      - loki_data:/loki
+    ports:
+      - "127.0.0.1:3100:3100"
+
+  # ─────────────────────────────────────────────
+  # Grafana Alloy — log shipper. Discovers running Docker containers via
+  # the Docker socket and tails each container's stdout, forwarding to
+  # Loki. Replaces Promtail (EOL March 2026); single-purpose here (logs
+  # only) because Alloy's stock build does NOT include the contrib
+  # `sentry` exporter that otel-collector uses to push traces to
+  # GlitchTip — so otel-collector stays in place for traces + metrics +
+  # nginx logs, and Alloy is purely additive for container logs.
+  # See plan does-adding-qodana-make-swift-wall.md Stream 3.
+  # ─────────────────────────────────────────────
+  alloy:
+    image: grafana/alloy:v1.5.1
+    container_name: xf_linker_alloy
+    restart: always
+    mem_limit: 192m
+    command:
+      - "run"
+      - "--server.http.listen-addr=0.0.0.0:12345"
+      - "--storage.path=/var/lib/alloy/data"
+      - "/etc/alloy/config.alloy"
+    configs:
+      - source: alloy_config
+        target: /etc/alloy/config.alloy
+    volumes:
+      # Read-only Docker socket — Alloy uses it to discover containers
+      # and tail their log streams. NOT used to start/stop containers.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy_data:/var/lib/alloy/data
+    ports:
+      # Alloy's own UI/debug endpoint. Localhost-only; exposes pipeline
+      # graph + component status at http://localhost:12345.
+      - "127.0.0.1:12345:12345"
+    depends_on:
+      loki:
+        condition: service_started
+
 volumes:
   pgdata:
     driver: local
@@ -582,9 +648,17 @@ volumes:
     driver: local
   nginx_logs:
     driver: local
+  loki_data:
+    driver: local
+  alloy_data:
+    driver: local
 
 configs:
   pyroscope_config:
     file: ./pyroscope.yaml
   otelcol_config:
     file: ./otelcol-config.yaml
+  loki_config:
+    file: ./loki-config.yaml
+  alloy_config:
+    file: ./config.alloy

@@ -1,0 +1,62 @@
+// Grafana Alloy — Docker-container log shipper for the XF Internal
+// Linker stack. Discovers all running containers via the Docker socket
+// (mounted read-only), tails each container's stdout, and forwards
+// every line to Loki at http://loki:3100.
+//
+// Scope on purpose: logs only. Traces + metrics + nginx access logs
+// continue to flow through `otel-collector` because Alloy's stock
+// build does NOT include the contrib `sentry` exporter that ships
+// traces to GlitchTip's Sentry-compatible endpoint. See plan
+// docs/plans/does-adding-qodana-make-swift-wall.md Stream 3.
+
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+// 1. Discover every running Docker container on this host.
+discovery.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "30s"
+}
+
+// 2. Re-label so Loki sees readable labels, not raw __meta_docker_*.
+//    The leading `/` on container names is stripped because it makes
+//    LogQL filters awkward (`{container_name="/xf_linker_backend"}`).
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container_name"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_log_stream"]
+    target_label  = "stream"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+}
+
+// 3. Tail logs from every discovered container.
+loki.source.docker "all" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.relabel.containers.output
+  forward_to    = [loki.write.default.receiver]
+  refresh_interval = "30s"
+}
+
+// 4. Push to Loki.
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+  external_labels = {
+    host = "xf-linker-laptop",
+  }
+}
