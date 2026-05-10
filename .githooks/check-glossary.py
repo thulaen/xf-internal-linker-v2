@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Pre-commit glossary check.
 
@@ -31,7 +31,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 GLOSSARY_PATH = REPO_ROOT / "PLAIN-ENGLISH-RULE.md"
 
 # Common false-positives that never need a glossary entry. Keep this short
-# and obvious — anything genuinely new should land in the glossary itself.
+# and obvious â€” anything genuinely new should land in the glossary itself.
 ALLOWLIST: frozenset[str] = frozenset({
     # Web standards
     "CSS", "HTML", "URL", "URLs", "JSON", "HTTP", "HTTPS", "CSV", "JSX", "TSX",
@@ -60,8 +60,8 @@ ALLOWLIST: frozenset[str] = frozenset({
     "MIN", "MAX", "AVG", "SUM", "STD", "P50", "P95", "P99",
     # Hex / address / register shorthand that shows up in synthetic
     # log lines (`<HEX>` placeholders inside `loki_picker._normalize_line`,
-    # "Segfault at 0x... — RIP" test fixtures, etc). These are NOT new
-    # technical concepts — they are well-known existing terms used as
+    # "Segfault at 0x... â€” RIP" test fixtures, etc). These are NOT new
+    # technical concepts â€” they are well-known existing terms used as
     # markers or test scaffolding. Adding here so the glossary check
     # doesn't keep flagging legitimate test/code use.
     "HEX", "RIP",
@@ -95,7 +95,7 @@ ALLOWLIST: frozenset[str] = frozenset({
     # UPDATE/SELECT etc were missed by the earlier list).
     "SELECT", "INSERT", "UPDATE", "CREATE", "DATABASE", "OWNER",
     "CONFLICT", "ILIKE", "ORDER", "LIMIT",
-    # PostgreSQL libpq environment variables — show up in psql wrapper
+    # PostgreSQL libpq environment variables â€” show up in psql wrapper
     # commands inside docker-compose healthcheck blocks.
     "PGHOST", "PGUSER", "PGPASSWORD", "PGDATABASE", "HOSTNAME",
     # Hyphenated tokens that are doc-filename references or shell /
@@ -105,13 +105,13 @@ ALLOWLIST: frozenset[str] = frozenset({
     "OTLP-HTTP", "PRE-EXISTING", "CREATE-DATABASE", "CMD-SHELL",
     "SEI-2003-TR-002",
     # One-off regex character class that the glossary's `[A-Z]{3,}`
-    # pattern reads as a token (see `deploy_check_picker.py` —
+    # pattern reads as a token (see `deploy_check_picker.py` â€”
     # `[WEC]` matches Django check IDs of severity W/E/C).
     "WEC",
     # Common project shorthand / academic citation tokens that are not
     # technical jargon a non-coder would need defined.
     "TAC", "ISBN", "WSDM", "STRIDE", "IEEE", "CMU", "SEI",
-    # All-caps form of "Celery" — the lowercase form is already in the
+    # All-caps form of "Celery" â€” the lowercase form is already in the
     # glossary, but the regex catches the uppercase variant separately.
     "CELERY",
     # Everyday English caps used in the session-start-banner script
@@ -140,7 +140,7 @@ ALLOWLIST: frozenset[str] = frozenset({
     "FOO", "BAR", "BAZ", "QUX", "SAMPLE", "EXAMPLE", "TEST",
     # Marketing / SEO abbreviations that appear in user-facing copy
     "SEO", "CRM", "CTR", "CTA", "ROI", "KPI", "B2B", "B2C",
-    # RFC 2119 keywords — common in spec / rule prose
+    # RFC 2119 keywords â€” common in spec / rule prose
     "MUST", "SHOULD", "MAY", "MUST-NOT", "SHOULD-NOT", "REQUIRED",
     "RECOMMENDED", "OPTIONAL",
     # Project-specific compound nouns that read more naturally hyphenated
@@ -195,7 +195,7 @@ ALLOWLIST: frozenset[str] = frozenset({
     "AUTOTUNER",
     # 2026-05-09 frontend audit session. ROLLOUT and SETTINGS-SPLIT-PLAN
     # are doc-filename references; COMMANDS is a TypeScript variable name
-    # (DEEP_LINK_CATALOG → COMMANDS in command-palette.commands.ts).
+    # (DEEP_LINK_CATALOG â†’ COMMANDS in command-palette.commands.ts).
     "ROLLOUT", "SETTINGS-SPLIT-PLAN", "COMMANDS",
     # 2026-05-09 settings-grid layout fix. DESIGN-PATTERNS is a doc
     # filename; COMP is the Angular `_ngcontent-%COMP%` placeholder
@@ -204,11 +204,11 @@ ALLOWLIST: frozenset[str] = frozenset({
     "DESIGN-PATTERNS", "COMP", "MQTTUWQS",
     # Standard accessibility / OS / English-emphasis tokens.
     "ARIA", "ESC", "TTL", "INPUT", "DID", "WORK",
-    # ISO 4217 currency codes — extension of the existing USD/EUR/GBP
+    # ISO 4217 currency codes â€” extension of the existing USD/EUR/GBP
     # entries above. These are user-facing strings the locale service
     # passes through to `Intl.NumberFormat({style:'currency'})`.
     "JPY", "CNY", "INR", "CAD", "AUD", "BRL", "MXN", "KRW",
-    # 2026-05-10 prevention-cleanup batch — ALL-CAPS English words that
+    # 2026-05-10 prevention-cleanup batch â€” ALL-CAPS English words that
     # appear in narrative comments + docstrings across the new files
     # (tunable_registry.py, ONGOING-CODE-QUALITY.md, self_test_smoke.py,
     # verify_unused_python.py, acknowledge_resolved_warnings.py).
@@ -231,7 +231,7 @@ ALLOWLIST: frozenset[str] = frozenset({
     # docstring prose ("STATUS column", "ROUTE prefix", etc).
     "STATUS", "ROUTE", "ROUTES", "ENDPOINT", "ENDPOINTS",
     "TOGGLED", "ANY",
-    # Out-Of-Memory — common shorthand in operator-facing diagnostics.
+    # Out-Of-Memory â€” common shorthand in operator-facing diagnostics.
     "OOM",
     # Network metrics + project shorthand surfaced in helper-node
     # heartbeat code + benchmark + ABI compatibility diagnostics.
@@ -259,6 +259,8 @@ ALLOWLIST: frozenset[str] = frozenset({
     # Conference on Data Mining. SIAM = Society for Industrial and
     # Applied Mathematics. CACM = Communications of the ACM.
     "KDD", "LTR", "UAI", "ICDM", "SIAM", "CACM",
+    # Karma helper script output headings - plain English not jargon.
+    "TOTAL", "FAILURES",
 })
 
 # Regex: 3+ consecutive uppercase letters with optional repeated hyphen-
@@ -268,11 +270,11 @@ ACRONYM_PATTERN = re.compile(r"\b(?:[A-Z]{3,}(?:-[A-Z0-9]+)*|FR-\d{3}|RPT-\d{3}|
 
 # Numbered identifiers (FR-250, RPT-002, ISS-031) are covered by the
 # generic "FR-XXX (any 3-digit feature number)" entry already in the
-# glossary — match each numbered hit against this pattern instead of
+# glossary â€” match each numbered hit against this pattern instead of
 # requiring a per-number row.
 NUMBERED_ID_PATTERN = re.compile(r"^(FR|RPT|ISS)-\d{3}$")
 
-# Lines we never scan — they're not user-facing prose.
+# Lines we never scan â€” they're not user-facing prose.
 SKIP_LINE_PATTERNS = (
     re.compile(r"^\s*//"),       # JS / TS line comments
     re.compile(r"^\s*#"),         # Python / shell comments AND markdown headers (handled below)
@@ -281,7 +283,7 @@ SKIP_LINE_PATTERNS = (
     re.compile(r"^\s*<!--"),      # HTML comment opener
 )
 
-# File extensions / paths we never scan — generated / binary / test snapshots.
+# File extensions / paths we never scan â€” generated / binary / test snapshots.
 SKIP_FILE_PATTERNS = (
     re.compile(r"\.lock$"),
     re.compile(r"\.min\.(js|css)$"),
@@ -325,7 +327,7 @@ def load_glossary_terms() -> set[str]:
     for line in content.splitlines():
         if "|" not in line:
             continue
-        # Markdown table separator rows look like `| --- | --- |` — skip.
+        # Markdown table separator rows look like `| --- | --- |` â€” skip.
         if set(line.replace("|", "").strip()) <= {"-", " ", ":"}:
             continue
         for cell in line.split("|"):
@@ -364,7 +366,7 @@ def get_staged_added_lines(paths: list[str]) -> list[tuple[str, int, str]]:
             current_line = 0
             continue
         if line.startswith("@@"):
-            # @@ -old,+new @@ — capture the new-file start line
+            # @@ -old,+new @@ â€” capture the new-file start line
             match = re.search(r"\+(\d+)", line)
             if match:
                 current_line = int(match.group(1)) - 1
@@ -417,7 +419,7 @@ def find_violations(
 def main(argv: list[str]) -> int:
     paths = argv[1:]
     if not paths:
-        # Hook called with no args — pull staged paths ourselves.
+        # Hook called with no args â€” pull staged paths ourselves.
         try:
             out = subprocess.check_output(
                 ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
@@ -433,7 +435,7 @@ def main(argv: list[str]) -> int:
         return 0
     print("\nFAIL check-glossary: new technical terms found without a plain-English glossary entry.\n")
     for term, file, line_no in violations:
-        print(f"  {term} — {file}:{line_no}")
+        print(f"  {term} â€” {file}:{line_no}")
     print(
         "\nTo fix: add a row to the table in `PLAIN-ENGLISH-RULE.md` describing"
         "\neach term in plain English. Format: | <plain-English substitute> | <term> |"
