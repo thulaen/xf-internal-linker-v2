@@ -718,7 +718,7 @@ class GA4GSCSettingsApiTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("property_url", response.json()["detail"])
 
-    @patch("apps.core.views._build_gsc_service")
+    @patch("apps.core.views_settings._build_gsc_service")
     def test_ga4_gsc_test_connection_uses_saved_credentials(self, build_service_mock):
         AppSetting.objects.bulk_create(
             [

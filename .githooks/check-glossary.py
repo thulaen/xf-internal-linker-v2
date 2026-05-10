@@ -212,6 +212,11 @@ ALLOWLIST: frozenset[str] = frozenset({
     # More plain-English ALL-CAPS narrative tokens used in handoff /
     # docs prose ("MISSING test files", "WHY this matters", etc).
     "MISSING", "WHY",
+    # Image / asset file format extensions accepted by site-asset upload views.
+    "WEBP", "ICO", "BMP", "TIFF", "AVIF", "HEIC", "HEIF",
+    # More plain-English narrative ALL-CAPS that show up in handoff /
+    # docstring prose ("FILES touched", "VIEWS extracted", etc).
+    "FILES", "VIEWS",
 })
 
 # Regex: 3+ consecutive uppercase letters with optional repeated hyphen-
