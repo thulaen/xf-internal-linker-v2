@@ -68,6 +68,7 @@ import { HelpersSettingsComponent } from './helpers-settings/helpers-settings.co
 // Phase MS — Meta Algorithm Settings tab (new at the end of the tab group).
 import { MetaAlgorithmsTabComponent } from './meta-algorithms-tab/meta-algorithms-tab.component';
 import { NotificationsTabComponent } from './notifications-tab/notifications-tab.component';
+import { SiloArchitectureTabComponent } from './silo-architecture-tab/silo-architecture-tab.component';
 import { PassageRelevanceCardComponent } from './passage-relevance/passage-relevance-card.component';
 import { SettingsOverviewComponent } from './settings-overview/settings-overview.component';
 import { MatDialog } from '@angular/material/dialog';
@@ -2070,6 +2071,7 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
     HelpersSettingsComponent,
     MetaAlgorithmsTabComponent,
     NotificationsTabComponent,
+    SiloArchitectureTabComponent,
     TabFragmentRouterDirective,
     SettingsOverviewComponent,
   ],
@@ -2183,7 +2185,6 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   recalculatingClickDistance = false;
   recalculatingClustering = false;
   runningWordPressSync = false;
-  creatingGroup = false;
   savingGA4Telemetry = false;
   savingMatomoTelemetry = false;
   testingGA4Telemetry = false;
@@ -2546,13 +2547,10 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   scopes: ScopeItem[] = [];
 
 
-  newGroup: Pick<SiloGroup, 'name' | 'slug' | 'description' | 'display_order'> = {
-    name: '',
-    slug: '',
-    description: '',
-    display_order: 0,
-  };
-
+  // `modeOptions` retained even though the silo tab moved to
+  // `<app-silo-architecture-tab>` — `recommendedValueLabel('silo.mode')`
+  // (called by tooltip rendering across all tabs) still needs the
+  // value→label map.
   modeOptions: Array<{ value: SiloMode; label: string; description: string }> = [
     {
       value: 'disabled',
@@ -2570,10 +2568,6 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       description: 'Block cross-silo matches only when both sides have silo assignments.',
     },
   ];
-
-  get selectedModeDescription(): string {
-    return this.modeOptions.find((option) => option.value === this.settings.mode)?.description ?? '';
-  }
 
   get recommendedPreset(): WeightPreset | null {
     return this.weightPresets.find((preset) => preset.is_system && preset.name.toLowerCase().includes('recommended')) ?? null;
@@ -4197,23 +4191,7 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     });
   }
 
-  saveSettings(): void {
-    this.savingSettings = true;
-    this.siloSvc.updateSettings(this.settings)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (settings) => {
-        this.settings = settings;
-        this.refreshCurrentWeights();
-        this.savingSettings = false;
-        this.snack.open('Silo settings saved', undefined, { duration: 2500 });
-      },
-      error: (error) => {
-        this.savingSettings = false;
-        this.snack.open(error?.error?.detail || 'Failed to save silo settings', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
+  // saveSettings() (silo) extracted to <app-silo-architecture-tab>.
 
   saveWeightedAuthoritySettings(): void {
     this.savingWeightedAuthority = true;
@@ -4577,77 +4555,10 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     });
   }
 
-  createGroup(): void {
-    if (!this.newGroup.name.trim()) {
-      this.snack.open('Group name is required', 'Dismiss', { duration: 3000 });
-      return;
-    }
-    this.creatingGroup = true;
-    this.siloSvc.createSiloGroup(this.newGroup)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (group) => {
-        this.siloGroups = [...this.siloGroups, group].sort((a, b) => a.display_order - b.display_order || a.name.localeCompare(b.name));
-        this.newGroup = { name: '', slug: '', description: '', display_order: 0 };
-        this.creatingGroup = false;
-        this.snack.open('Silo group created', undefined, { duration: 2500 });
-      },
-      error: () => {
-        this.creatingGroup = false;
-        this.snack.open('Failed to create silo group', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  saveGroup(group: SiloGroup): void {
-    this.siloSvc.updateSiloGroup(group.id, {
-      name: group.name,
-      slug: group.slug,
-      description: group.description,
-      display_order: group.display_order,
-    }).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: (updated) => {
-        Object.assign(group, updated);
-        this.snack.open('Silo group updated', undefined, { duration: 2500 });
-      },
-      error: () => {
-        this.snack.open('Failed to update silo group', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  deleteGroup(group: SiloGroup): void {
-    this.siloSvc.deleteSiloGroup(group.id)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: () => {
-        this.siloGroups = this.siloGroups.filter((item) => item.id !== group.id);
-        this.scopes = this.scopes.map((scope) =>
-          scope.silo_group === group.id
-            ? { ...scope, silo_group: null, silo_group_name: '' }
-            : scope
-        );
-        this.snack.open('Silo group deleted', undefined, { duration: 2500 });
-      },
-      error: () => {
-        this.snack.open('Failed to delete silo group', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
-  updateScope(scope: ScopeItem, siloGroupId: number | null): void {
-    this.siloSvc.updateScopeSilo(scope.id, siloGroupId)
-      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-      .subscribe({
-      next: (updated) => {
-        Object.assign(scope, updated);
-        this.snack.open('Scope assignment saved', undefined, { duration: 2000 });
-      },
-      error: () => {
-        this.snack.open('Failed to save scope assignment', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
+  // createGroup() / saveGroup() / deleteGroup() / updateScope() extracted
+  // to <app-silo-architecture-tab>. The parent retains `siloGroups`,
+  // `scopes`, and `assignedScopeCount` because the overview header card
+  // (`<app-settings-overview>`) still consumes those counts.
 
   // ── Notification preferences ──────────────────────────────────────
   // Extracted to `<app-notifications-tab>` (see ./notifications-tab/).

@@ -12,8 +12,11 @@
 #      under the cap.
 #
 # Current entries (2026-05-10, recorded for the prevention-cleanup batch):
-backend/apps/core/views.py:1728
+# views.py removed 2026-05-10 (slice 5): shared helpers extracted into
+# services/settings_helpers.py; views.py is now 381 lines (well below cap).
+# settings_helpers.py inherits the bulk that used to live in views.py.
+backend/apps/core/services/settings_helpers.py:1804
 backend/apps/core/views_capacity.py:2035
-backend/apps/core/views_settings.py:1433
-frontend/src/app/settings/settings.component.ts:4672
-frontend/src/app/settings/settings.component.html:2699
+backend/apps/core/views_settings.py:1437
+frontend/src/app/settings/settings.component.ts:4583
+frontend/src/app/settings/settings.component.html:2575

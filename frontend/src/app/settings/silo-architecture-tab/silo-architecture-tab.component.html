@@ -1,0 +1,132 @@
+<div class="tab-content" id="silo-architecture">
+  <div class="settings-grid">
+    <!-- Silo Mode -->
+    <mat-card class="settings-card" id="silo-settings">
+      <mat-card-header>
+        <mat-card-title>Silo Ranking Mode</mat-card-title>
+      </mat-card-header>
+      <mat-card-content class="card-content ga4-card">
+        <p class="hint">How strictly the app keeps links within silos.</p>
+        <div class="number-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Mode</mat-label>
+            <mat-select [(ngModel)]="settings.mode" (ngModelChange)="markDirty()">
+              @for (option of modeOptions; track option.value) {
+                <mat-option [value]="option.value">{{ option.label }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline" *ngIf="settings.mode === 'prefer_same_silo'">
+            <mat-label>Same-silo boost</mat-label>
+            <input matInput autocomplete="off" type="number" min="0" max="0.25" step="0.01" [(ngModel)]="settings.same_silo_boost" (ngModelChange)="markDirty()" />
+          </mat-form-field>
+          <mat-form-field appearance="outline" *ngIf="settings.mode === 'prefer_same_silo'">
+            <mat-label>Cross-silo penalty</mat-label>
+            <input matInput autocomplete="off" type="number" min="0" max="0.25" step="0.01" [(ngModel)]="settings.cross_silo_penalty" (ngModelChange)="markDirty()" />
+          </mat-form-field>
+        </div>
+        <div class="card-actions-row">
+          <button mat-flat-button color="primary" [disabled]="savingSilo()" (click)="saveSettings()">
+            <mat-icon>save</mat-icon>
+            {{ savingSilo() ? 'Saving...' : 'Save silo settings' }}
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Create Group -->
+    <mat-card class="settings-card" id="settings-create-silo-group">
+      <mat-card-header>
+        <mat-card-title>Create Silo Group</mat-card-title>
+      </mat-card-header>
+      <mat-card-content class="card-content ga4-card">
+        <div class="group-create-form">
+          <mat-form-field appearance="outline">
+            <mat-label>Group name</mat-label>
+            <input matInput autocomplete="off" [(ngModel)]="newGroup.name" placeholder="e.g. Technology" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Slug (optional)</mat-label>
+            <input matInput autocomplete="off" [(ngModel)]="newGroup.slug" placeholder="e.g. tech" />
+          </mat-form-field>
+          <button mat-flat-button color="primary" [disabled]="creatingGroup() || !newGroup.name.trim()" (click)="createGroup()">
+            <mat-icon>add</mat-icon> Create Group
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Group List -->
+    <mat-card class="settings-card settings-card--wide" id="silo-groups">
+      <mat-card-header>
+        <mat-card-title>Manage Silo Groups</mat-card-title>
+      </mat-card-header>
+      <mat-card-content class="card-content ga4-card">
+        <p class="hint">A silo group is just a bucket of related pages.</p>
+        <div class="group-table-container">
+          <table class="group-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Slug</th>
+                <th>Order</th>
+                <th>Scopes</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (group of siloGroups; track group.id) {
+                <tr>
+                  <td>
+                    <input class="inline-input" [(ngModel)]="group.name" (blur)="saveGroup(group)" />
+                  </td>
+                  <td>
+                    <input class="inline-input" [(ngModel)]="group.slug" (blur)="saveGroup(group)" />
+                  </td>
+                  <td>
+                    <input class="inline-input inline-input--num" type="number" [(ngModel)]="group.display_order" (blur)="saveGroup(group)" />
+                  </td>
+                  <td class="stat-cell">{{ group.scope_count }}</td>
+                  <td>
+                    <button mat-icon-button color="warn" (click)="deleteGroup(group)" title="Delete group">
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Scope Mapping -->
+    <mat-card class="settings-card settings-card--wide" id="scope-assignments">
+      <mat-card-header>
+        <mat-card-title>Scope Mapping</mat-card-title>
+      </mat-card-header>
+      <mat-card-content class="card-content ga4-card">
+        <p class="hint">Map post types and taxonomies to silo groups.</p>
+        <div class="scope-grid">
+          @for (scope of scopes; track scope.id) {
+            <div class="scope-item">
+              <div class="scope-info">
+                <span class="scope-title">{{ scope.title }}</span>
+                <span class="scope-meta">{{ scope.scope_type_label }} • {{ scope.content_count }} posts</span>
+              </div>
+              <mat-form-field appearance="outline" class="scope-select">
+                <mat-label>Silo Group</mat-label>
+                <mat-select [ngModel]="scope.silo_group" (selectionChange)="updateScope(scope, $event.value)">
+                  <mat-option [value]="null"><em>None (Global)</em></mat-option>
+                  @for (group of siloGroups; track group.id) {
+                    <mat-option [value]="group.id">{{ group.name }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+            </div>
+          }
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</div>

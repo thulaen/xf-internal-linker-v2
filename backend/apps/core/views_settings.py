@@ -41,14 +41,18 @@ from rest_framework.views import APIView
 
 from apps.api.throttles import WeightRecalcThrottle as _WeightRecalcThrottle
 
-# Helpers that remain in views.py — re-imported here so the moved view
-# classes keep working unchanged. Listed alphabetically by feature area
-# to make adding new settings less error-prone.
+# Appearance / asset constants live in views.py because they describe the
+# /api/settings/appearance/ surface, not the shared settings flow.
 from .views import (
     DEFAULT_APPEARANCE,
     _ASSET_MAX_BYTES,
     _FAVICON_ALLOWED,
     _LOGO_ALLOWED,
+)
+# Settings helpers + per-feature validators / accessors live in
+# ``apps/core/services/settings_helpers.py`` — moved out of views.py on
+# 2026-05-10 (slice 5) so that file could drop below the 1500-line cap.
+from .services.settings_helpers import (
     _get_app_setting_value,
     _sync_wordpress_periodic_task,
     _validate_field_aware_relevance_settings,

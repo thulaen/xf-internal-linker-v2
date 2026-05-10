@@ -566,17 +566,13 @@ class ClickDistanceSettingsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # Lazy import: ``get_click_distance_settings`` lives in ``views.py``
-        # (it is shared with non-view callers) and ``views.py`` imports
-        # from this module at the bottom of its file — a top-level
-        # import here would create a circular import at module-load time.
-        from apps.core.views import get_click_distance_settings
+        from apps.core.services.settings_helpers import get_click_distance_settings
 
         return Response(get_click_distance_settings())
 
     def put(self, request):
         from apps.core.models import AppSetting
-        from apps.core.views import (
+        from apps.core.services.settings_helpers import (
             _validate_click_distance_settings,
             get_click_distance_settings,
         )
@@ -619,13 +615,13 @@ class FeedbackRerankSettingsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from apps.core.views import get_feedback_rerank_settings
+        from apps.core.services.settings_helpers import get_feedback_rerank_settings
 
         return Response(get_feedback_rerank_settings())
 
     def put(self, request):
         from apps.core.models import AppSetting
-        from apps.core.views import (
+        from apps.core.services.settings_helpers import (
             _validate_feedback_rerank_settings,
             get_feedback_rerank_settings,
         )
@@ -680,13 +676,13 @@ class ClusteringSettingsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from apps.core.views import get_clustering_settings
+        from apps.core.services.settings_helpers import get_clustering_settings
 
         return Response(get_clustering_settings())
 
     def put(self, request):
         from apps.core.models import AppSetting
-        from apps.core.views import (
+        from apps.core.services.settings_helpers import (
             _validate_clustering_settings,
             get_clustering_settings,
         )
@@ -747,12 +743,7 @@ class ClusteringRecalculateView(APIView):
 
 def _validate_slate_diversity_settings(payload: dict, current: dict) -> dict:
     """Validate and clamp slate diversity settings."""
-    # Lazy import: ``DEFAULT_SLATE_DIVERSITY_SETTINGS`` lives in
-    # ``views.py`` (it is the canonical default tuple shared with the
-    # ``get_slate_diversity_settings`` accessor) and ``views.py``
-    # imports from this module at the bottom of its file — a top-level
-    # import here would create a circular import at module-load time.
-    from apps.core.views import DEFAULT_SLATE_DIVERSITY_SETTINGS
+    from apps.core.services.settings_helpers import DEFAULT_SLATE_DIVERSITY_SETTINGS
 
     def _get_float(key: str) -> float:
         val = payload.get(key, current.get(key))
@@ -783,13 +774,13 @@ class SlateDiversitySettingsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from apps.core.views import get_slate_diversity_settings
+        from apps.core.services.settings_helpers import get_slate_diversity_settings
 
         return Response(get_slate_diversity_settings())
 
     def put(self, request):
         from apps.core.models import AppSetting
-        from apps.core.views import get_slate_diversity_settings
+        from apps.core.services.settings_helpers import get_slate_diversity_settings
 
         current = get_slate_diversity_settings()
         try:
@@ -954,13 +945,13 @@ class GraphCandidateSettingsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from apps.core.views import get_graph_candidate_settings
+        from apps.core.services.settings_helpers import get_graph_candidate_settings
 
         return Response(get_graph_candidate_settings())
 
     def put(self, request):
         from apps.core.models import AppSetting
-        from apps.core.views import get_graph_candidate_settings
+        from apps.core.services.settings_helpers import get_graph_candidate_settings
 
         current = get_graph_candidate_settings()
         try:
@@ -1207,7 +1198,7 @@ class ValueModelSettingsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from apps.core.views import get_value_model_settings
+        from apps.core.services.settings_helpers import get_value_model_settings
 
         return Response(get_value_model_settings())
 
@@ -1220,7 +1211,7 @@ class ValueModelSettingsView(APIView):
         the lint budget AND the row-shape is independently testable.
         """
         from apps.core.models import AppSetting
-        from apps.core.views import get_value_model_settings
+        from apps.core.services.settings_helpers import get_value_model_settings
 
         current = get_value_model_settings()
         try:
