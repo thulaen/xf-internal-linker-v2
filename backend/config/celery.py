@@ -37,7 +37,9 @@ app.conf.result_expires = 3600
 @app.task(bind=True, ignore_result=True)
 def debug_task(self):
     """Debug task to verify Celery is working."""
-    print(f"Request: {self.request!r}")
+    import logging as _logging
+
+    _logging.getLogger(__name__).info("debug_task fired: request=%r", self.request)
 
 
 # ── Startup catch-up ────────────────────────────────────────────────

@@ -45,7 +45,7 @@
   <div class="layout-main">
 
     <!-- 1. API Sources (XF & WP) -->
-    <mat-card data-ga4-panel class="sources-card api-sources" id="jobs-api-channels">
+    <mat-card data-ga4-panel class="sources-card api-sources ga4-card" id="jobs-api-channels">
       <mat-card-header>
         <mat-card-title>API Channels</mat-card-title>
         <mat-card-subtitle>Direct synchronization with WordPress and XenForo</mat-card-subtitle>
@@ -190,7 +190,7 @@
     </mat-card>
 
     <!-- 2. File Import (JSONL) -->
-    <mat-card data-ga4-panel class="sources-card file-sources" id="jobs-file-import">
+    <mat-card data-ga4-panel class="sources-card file-sources ga4-card" id="jobs-file-import">
       <mat-card-header>
         <mat-card-title>Offline Import</mat-card-title>
         <mat-card-subtitle>Process local .jsonl export files</mat-card-subtitle>
@@ -302,7 +302,7 @@
 
   <!-- ── Right column: History ──────────────────────────────────── -->
   <div class="layout-side">
-    <mat-card data-ga4-panel class="history-card" id="jobs-history">
+    <mat-card data-ga4-panel class="history-card ga4-card" id="jobs-history">
       <mat-card-header>
         <mat-card-title>Recent Activity</mat-card-title>
         <mat-card-subtitle>Historical sync logs</mat-card-subtitle>
@@ -402,7 +402,7 @@
       } @else {
         <div class="queue-list">
           @for (item of queueItems(); track $any(item).run_id || $any(item).job_id) {
-            <mat-card class="queue-card" data-ga4-panel [id]="'jobs-queue-card-' + ($any(item).run_id || $any(item).job_id)">
+            <mat-card class="queue-card ga4-card" data-ga4-panel [id]="'jobs-queue-card-' + ($any(item).run_id || $any(item).job_id)">
               <div class="queue-card-header">
                 <mat-icon>{{ $any(item).type === 'pipeline' ? 'auto_fix_high' : 'sync' }}</mat-icon>
                 <span class="queue-card-name">{{ $any(item).type === 'pipeline' ? 'Pipeline Run' : 'Content Sync' }}</span>
@@ -480,7 +480,7 @@
       } @else {
         <div class="quarantine-list">
           @for (item of quarantineItems(); track $any(item).run_id) {
-            <mat-card class="quarantine-card" data-ga4-panel [id]="'jobs-quarantine-card-' + $any(item).run_id">
+            <mat-card class="quarantine-card ga4-card" data-ga4-panel [id]="'jobs-quarantine-card-' + $any(item).run_id">
               <div class="quarantine-header">
                 <mat-icon class="quarantine-icon">warning</mat-icon>
                 <span class="quarantine-run-id">

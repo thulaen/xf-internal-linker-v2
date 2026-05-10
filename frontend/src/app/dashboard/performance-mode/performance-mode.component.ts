@@ -73,8 +73,9 @@ const MODES: PerformanceOption[] = [
                     class="mode-button"
                     [class.active]="currentMode === opt.key"
                     [class.pending]="pending() === opt.key"
-                    [disabled]="pending() !== null"
-                    [matTooltip]="opt.tooltip"
+                    [class.unavailable]="opt.key === 'high' && !highCapable()"
+                    [disabled]="pending() !== null || (opt.key === 'high' && !highCapable())"
+                    [matTooltip]="(opt.key === 'high' && !highCapable()) ? unavailableTooltip() : opt.tooltip"
                     matTooltipPosition="right"
                     matTooltipShowDelay="250"
                     (click)="selectMode(opt.key)">
@@ -220,6 +221,15 @@ const MODES: PerformanceOption[] = [
     .mode-button.pending {
       opacity: 1;
     }
+    /* Hardware-incapable state — distinct from generic disabled so the
+       user can tell "you can't pick this on this machine" apart from
+       "another switch is in flight". Strikethrough on the label
+       communicates "permanently unavailable" at a glance. */
+    .mode-button.unavailable {
+      opacity: 0.45;
+      border-style: dashed;
+    }
+    .mode-button.unavailable .mode-label { text-decoration: line-through; }
     .mode-button.active mat-icon { color: var(--color-primary); }
     .mode-button mat-icon { color: var(--color-text-muted); }
     .mode-label { font-size: 13px; font-weight: 500; color: var(--color-text-primary); }
@@ -345,6 +355,26 @@ export class PerformanceModeComponent implements OnInit {
    * restarts. Backend enforcement is plan items 12-14 (auto_revert_performance_mode).
    */
   readonly expiry = this.perfMode.expiry;
+
+  /**
+   * Hardware-capability gate (added 2026-05-09 per AutoIssue #16). The
+   * backend's `_runtime_settings_snapshot()` reports whether the host
+   * has a CUDA-capable GPU with ≥4 GB VRAM. When false, the "High
+   * Performance" button renders disabled with a tooltip explaining why
+   * — instead of letting the user pick High and silently fall back to
+   * CPU at runtime (the prior UX bug).
+   */
+  readonly highCapable = this.perfMode.highPerformanceCapable;
+  readonly hardwareTier = this.perfMode.hardwareTier;
+  readonly hardwareSummary = this.perfMode.hardwareSummary;
+  readonly unavailableTooltip = () => {
+    const summary = this.hardwareSummary();
+    const tier = this.hardwareTier();
+    if (summary) {
+      return `High Performance is unavailable on this hardware (${summary}). Needs a CUDA GPU with at least 4 GB of VRAM.`;
+    }
+    return `High Performance is unavailable on this hardware (tier=${tier}). Needs a CUDA GPU with at least 4 GB of VRAM.`;
+  };
 
   ngOnInit(): void {
     this.http.get<{ armed: boolean }>('/api/system/safe-mode-boot/')

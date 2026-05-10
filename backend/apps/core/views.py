@@ -3693,6 +3693,13 @@ def _runtime_settings_snapshot() -> dict[str, object]:
         "performance_mode_expiry": "none",
         "performance_mode_expires_at": "",
         "master_pause": False,
+        # Hardware-tier gate (added 2026-05-09 per AutoIssue #16). The
+        # frontend uses these to disable the High button when the user's
+        # machine can't run high-mode (no GPU, low VRAM). Without the
+        # gate the user could pick High and silently fall back to CPU.
+        "hardware_tier": "low",
+        "high_performance_capable": False,
+        "hardware_summary": "",
     }
     try:
         # ONE bulk query covers all 5 keys; original was 5 separate
@@ -3708,6 +3715,7 @@ def _runtime_settings_snapshot() -> dict[str, object]:
 
     expiry_raw = rows.get("system.performance_mode_expiry")
     expiry = expiry_raw if expiry_raw in ("none", "activity", "night") else "none"
+    hw = _hardware_capability_snapshot()
     return {
         "runtime_mode": rows.get("system.runtime_mode") or defaults["runtime_mode"],
         "performance_mode": get_requested_performance_mode(),
@@ -3716,6 +3724,37 @@ def _runtime_settings_snapshot() -> dict[str, object]:
         "performance_mode_expires_at": rows.get("system.performance_mode_expires_at")
         or "",
         "master_pause": (rows.get("system.master_pause") or "false").lower() == "true",
+        "hardware_tier": hw["tier"],
+        "high_performance_capable": hw["high_performance_capable"],
+        "hardware_summary": hw["summary"],
+    }
+
+
+def _hardware_capability_snapshot() -> dict[str, object]:
+    """Detect hardware tier + whether High Performance can actually run.
+
+    Defensive: hardware_profile may be unavailable in test bootstrap or
+    during early app init. Falls back to a CPU-only "low" tier so the
+    frontend renders a disabled button instead of a misleading enabled
+    one.
+    """
+    try:
+        from apps.pipeline.services.hardware_profile import detect_profile
+
+        profile = detect_profile()
+    except Exception:  # noqa: BLE001 — hardware probe is best-effort.
+        return {
+            "tier": "low",
+            "high_performance_capable": False,
+            "summary": "Hardware probe unavailable",
+        }
+    # High Performance requires CUDA + ≥4 GB VRAM (per
+    # `apps.pipeline.services.embeddings._get_effective_runtime_resolution`).
+    capable = bool(profile.has_cuda and profile.vram_gb >= 4.0)
+    return {
+        "tier": profile.tier,
+        "high_performance_capable": capable,
+        "summary": profile.describe(),
     }
 
 

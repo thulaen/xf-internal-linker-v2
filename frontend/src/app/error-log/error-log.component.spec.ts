@@ -6,6 +6,7 @@ import { EMPTY, of } from 'rxjs';
 
 import { ErrorLogComponent } from './error-log.component';
 import { DiagnosticsService, ErrorLogEntry } from '../diagnostics/diagnostics.service';
+import { AutoIssuesService } from '../core/services/auto-issues.service';
 import { GlitchtipService } from '../core/services/glitchtip.service';
 import { VisibilityGateService } from '../core/util/visibility-gate.service';
 
@@ -131,6 +132,46 @@ describe('ErrorLogComponent', () => {
     expect(text).toContain(detailedError.error_message);
     expect(text).toContain(detailedError.how_to_fix);
     expect(text).toContain(detailedError.raw_exception);
+  });
+
+  it('Auto-Issues tab loads ONLY open status — never fetches resolved (2026-05-09 noise rule)', async () => {
+    const autoIssuesListSpy = jasmine.createSpy('autoIssues.list').and.returnValue(
+      of({ count: 0, next: null, previous: null, results: [] }),
+    );
+    const autoIssuesServiceStub = {
+      list: autoIssuesListSpy,
+      resync: jasmine.createSpy('resync').and.returnValue(of({})),
+      flushCache: jasmine.createSpy('flushCache').and.returnValue(of({})),
+    };
+    diagnosticsServiceStub.getErrors.and.returnValue(of([]));
+    glitchtipServiceStub.getRecentEvents.and.returnValue(of([]));
+
+    await TestBed.configureTestingModule({
+      imports: [ErrorLogComponent, NoopAnimationsModule],
+      providers: [
+        provideHttpClient(),
+        provideRouter([]),
+        { provide: DiagnosticsService, useValue: diagnosticsServiceStub },
+        { provide: GlitchtipService, useValue: glitchtipServiceStub },
+        { provide: AutoIssuesService, useValue: autoIssuesServiceStub },
+        { provide: VisibilityGateService, useValue: visibilityGateStub },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(ErrorLogComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    fixture.componentInstance.loadAutoIssues();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    // Exactly one call, with status=open. Resolved must NOT be requested.
+    expect(autoIssuesListSpy.calls.count()).toBe(1);
+    expect(autoIssuesListSpy.calls.argsFor(0)).toEqual([{ status: 'open' }]);
+    const everyCall = autoIssuesListSpy.calls.allArgs();
+    const fetchedResolved = everyCall.some((args) => args[0]?.status === 'resolved');
+    expect(fetchedResolved).toBe(false);
   });
 
   it('renders the GlitchTip outbound link on grouped GlitchTip rows', async () => {

@@ -85,8 +85,12 @@ export class ErrorLogComponent implements OnInit {
   errors: ErrorLogEntry[] = [];
   glitchtipEvents: ErrorLogEntry[] = [];
   glitchtipLastSyncedAt: string | null = null;
+  // Resolved issues are intentionally hidden from this UI per the
+  // 2026-05-09 directive (less noise on the page). They remain queryable
+  // by agents via the `search_resolved_issues` management command for
+  // lessons-learned lookup. Recurrence after resolution creates a NEW
+  // open row (see backend/apps/auto_issues/services/dedup.py:159).
   autoIssuesOpen: AutoIssue[] = [];
-  autoIssuesResolved: AutoIssue[] = [];
   autoIssuesLastSyncedAt: string | null = null;
   resyncBusy = false;
   flushBusy = false;
@@ -95,7 +99,14 @@ export class ErrorLogComponent implements OnInit {
   selectedTabIndex = 0;
 
   filterJobType = '';
-  filterAcknowledged = '';
+  // Default to 'unreviewed' so the page only shows things still
+  // requiring attention. Resolved-and-acknowledged rows stay in the DB
+  // for forensic value but don't clutter the operator's first view.
+  // Same UX direction as the auto-issues tab (open-only by default).
+  // The Status select in the toolbar lets the operator switch to
+  // 'All' or 'Reviewed' if they want history. (2026-05-10, AutoIssue
+  // follow-up to the screenshot showing 6 stale x134 warnings.)
+  filterAcknowledged = 'unreviewed';
 
   readonly glitchtipBaseUrl = environment.glitchtipBaseUrl;
   // Pyroscope dashboard URL — same host-port pattern as GlitchTip's
@@ -131,6 +142,9 @@ export class ErrorLogComponent implements OnInit {
   }
 
   loadAutoIssues(): void {
+    // Open-only by design (2026-05-09). Resolved rows stay in the database
+    // for agent `search_resolved_issues` lookup but are not shown here —
+    // less noise, only "things that still need attention" on this page.
     this.autoIssues.list({ status: 'open' })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -140,15 +154,6 @@ export class ErrorLogComponent implements OnInit {
           this.cdr.markForCheck();
         },
         error: (err) => console.warn('autoIssues open list failed', err),
-      });
-    this.autoIssues.list({ status: 'resolved' })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (page) => {
-          this.autoIssuesResolved = page.results;
-          this.cdr.markForCheck();
-        },
-        error: (err) => console.warn('autoIssues resolved list failed', err),
       });
   }
 

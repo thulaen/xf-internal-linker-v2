@@ -7,6 +7,12 @@
 @use './styles/attention';
 @use './styles/themes/icons';
 @use './styles/themes/material-overrides';
+// Canonical card anatomy — every card must conform to `.ga4-card` +
+// nested elements. Added 2026-05-10 to close the visual-inconsistency
+// gap surfaced by the Passage-Level Relevance vs Rare-Term Propagation
+// screenshot. See `frontend/src/styles/_card-anatomy.scss` and
+// `frontend/DESIGN-PATTERNS.md` for the full anatomy + usage rules.
+@use './styles/card-anatomy';
 // Phase A1 / Gaps 98-101 — accessibility theme variants (high
 // contrast, font-size scaling, dyslexia font stack, CVD-safe
 // palettes). Loaded AFTER the default theme so its rebound

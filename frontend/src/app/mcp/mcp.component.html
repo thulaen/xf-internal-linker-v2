@@ -36,7 +36,7 @@
         }
       </div>
     </mat-card-header>
-    <mat-card-content class="card-content">
+    <mat-card-content class="card-content ga4-card">
       @if (healthError(); as msg) {
         <p class="error-line">
           <mat-icon class="icon-md">warning</mat-icon>
@@ -75,7 +75,7 @@
     <mat-card-header>
       <mat-card-title>AI agents detected on this machine</mat-card-title>
     </mat-card-header>
-    <mat-card-content class="card-content">
+    <mat-card-content class="card-content ga4-card">
       @if (!agents()) {
         <div class="loading-row">
           <mat-spinner diameter="24"></mat-spinner>
@@ -123,7 +123,7 @@
     <mat-card-header>
       <mat-card-title>Tools your AI agent can call</mat-card-title>
     </mat-card-header>
-    <mat-card-content class="card-content">
+    <mat-card-content class="card-content ga4-card">
       <ul class="tools-list">
         @for (tool of tools; track tool.name) {
           <li>
@@ -148,7 +148,7 @@
         </button>
       </div>
     </mat-card-header>
-    <mat-card-content class="card-content">
+    <mat-card-content class="card-content ga4-card">
       <p class="hint">
         Every registered schedule is tracked here. If your laptop was off when a schedule
         was supposed to fire, the app notices on next boot and runs the missed job

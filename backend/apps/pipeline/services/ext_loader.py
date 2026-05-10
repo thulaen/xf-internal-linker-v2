@@ -83,10 +83,14 @@ def _log_to_errorlog(
     message: str,
     exc: BaseException | None = None,
 ) -> None:
-    """Write a C++ extension failure to the ErrorLog table.
+    """Write a C++ extension failure to the ErrorLog table + AutoIssue.
 
-    This makes extension failures visible in the dashboard Error Log tab,
-    alongside job failures from Celery tasks.
+    Writing to BOTH surfaces means the operator sees the failure on the
+    `/error-log` page (ErrorLog row) AND the next agent's session-start
+    `print_open_issues` picks it up automatically (AutoIssue row, dedup-
+    safe so reboots don't pile up duplicates). Per ONGOING-CODE-QUALITY.md
+    "severe finds go to BOTH AutoIssue + Registry" — this is the
+    runtime-surfaced equivalent for fallback regressions.
     """
     try:
         from apps.audit.models import ErrorLog
@@ -105,4 +109,35 @@ def _log_to_errorlog(
         )
     except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         # ErrorLog itself may not be available during early startup or tests.
+        pass
+
+    # AutoIssue surface (added 2026-05-09 per AutoIssue #14). Fingerprint
+    # combines module_name + step so a single rebuild closes ALL extension
+    # failures on the next clean boot, while a partial rebuild that leaves
+    # one extension broken still surfaces it.
+    try:
+        from apps.auto_issues.models import AutoIssue
+        from apps.auto_issues.services.dedup import upsert_dedup, IssueObservation
+
+        canonical = f"cpp_fallback:{module_name}:{step}"
+        upsert_dedup(**IssueObservation(
+            canonical=canonical,
+            source="internal",
+            external_id=canonical,
+            fingerprint=canonical,
+            title=f"C++ extension '{module_name}' fell back to Python ({step})",
+            description=(
+                f"{message}\n\n"
+                "Python fallback is 50-100x slower per the FR-247 SLO. "
+                "Rebuild via `cd backend/extensions && pip install -e .` and "
+                "redeploy the backend image to clear this issue. The fingerprint "
+                "is dedup-safe so reboots don't pile up duplicates; a successful "
+                "load on next start auto-resolves the row."
+            ),
+            affected_files=[f"backend/extensions/{module_name}.cpp"],
+            severity=AutoIssue.SEVERITY_HIGH,
+            priority_score=70.0,
+            occurrence_count=1,
+        ).__dict__)
+    except Exception:  # noqa: BLE001 — AutoIssue surface is best-effort.
         pass

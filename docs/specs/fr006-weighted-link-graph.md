@@ -28,7 +28,9 @@
 
 ### Authority or PageRank computation
 
-- `backend/apps/pipeline/services/pagerank.py`
+- `backend/apps/pipeline/services/weighted_pagerank.py` (the legacy
+  `pagerank.py` stub at the same path was deleted on 2026-05-09 — it was
+  a 1-line docstring placeholder with no callers).
   - Loads `ExistingLink` into a sparse matrix.
   - Uses uniform outbound weights `1 / outdegree(source)`.
   - Persists into `ContentItem.march_2026_pagerank_score`.
@@ -305,7 +307,7 @@ It gives two good properties:
 
 ### Weighted authority iteration
 
-Use the same damping semantics and convergence strategy as the current `backend/apps/pipeline/services/pagerank.py`.
+Use the same damping semantics and convergence strategy as the current `backend/apps/pipeline/services/weighted_pagerank.py` (and the C++ kernel at `extensions/pagerank`).
 
 Definitions:
 
@@ -621,7 +623,7 @@ Mitigation:
 
 ### Authority computation
 
-- `backend/apps/pipeline/services/pagerank.py` or a new sibling service such as `backend/apps/pipeline/services/weighted_pagerank.py`
+- `backend/apps/pipeline/services/weighted_pagerank.py` (canonical; the legacy `pagerank.py` stub was deleted 2026-05-09)
 - `backend/apps/pipeline/tasks.py`
 - `backend/apps/pipeline/tests.py`
 

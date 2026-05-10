@@ -29,7 +29,7 @@
   }
 
   @if (error() && !loading()) {
-    <mat-card class="state-card error-card" appearance="outlined" id="admin-models-error-card">
+    <mat-card class="state-card error-card ga4-card" appearance="outlined" id="admin-models-error-card">
       <mat-card-content>
         <mat-icon>error_outline</mat-icon>
         <div>
@@ -45,7 +45,7 @@
   }
 
   @if (!loading() && !error() && !hasModels()) {
-    <mat-card class="state-card empty-card" appearance="outlined" id="admin-models-empty-card">
+    <mat-card class="state-card empty-card ga4-card" appearance="outlined" id="admin-models-empty-card">
       <mat-card-content>
         <mat-icon class="empty-icon">inventory_2</mat-icon>
         <div>
@@ -63,7 +63,7 @@
     <!-- Active champion + candidate side-by-side. Each gets the seven action buttons. -->
     <div class="model-grid">
       @if (s.active_model; as m) {
-        <mat-card class="model-card champion-card" appearance="outlined" id="admin-models-champion-card">
+        <mat-card class="model-card champion-card ga4-card" appearance="outlined" id="admin-models-champion-card">
           <mat-card-header>
             <mat-card-title>
               <mat-icon class="role-icon">workspace_premium</mat-icon>
@@ -154,7 +154,7 @@
       }
 
       @if (s.candidate_model; as m) {
-        <mat-card class="model-card candidate-card" appearance="outlined" id="admin-models-candidate-card">
+        <mat-card class="model-card candidate-card ga4-card" appearance="outlined" id="admin-models-candidate-card">
           <mat-card-header>
             <mat-card-title>
               <mat-icon class="role-icon">science</mat-icon>
@@ -219,7 +219,7 @@
 
     <!-- Backfill progress (when a swap is in flight). -->
     @if (s.backfill; as b) {
-      <mat-card class="model-card backfill-card" appearance="outlined" id="admin-models-backfill-card">
+      <mat-card class="model-card backfill-card ga4-card" appearance="outlined" id="admin-models-backfill-card">
         <mat-card-header>
           <mat-card-title>
             <mat-icon class="role-icon">sync</mat-icon>
@@ -239,7 +239,7 @@
 
     <!-- Placements: where each model is loaded (primary or helper PC). -->
     @if (placements().length > 0) {
-      <mat-card class="model-card placements-card" appearance="outlined" id="admin-models-placements-card">
+      <mat-card class="model-card placements-card ga4-card" appearance="outlined" id="admin-models-placements-card">
         <mat-card-header>
           <mat-card-title>
             <mat-icon class="role-icon">memory</mat-icon>
@@ -280,7 +280,7 @@
     }
 
     <!-- Recent audit log: last 10 actions on this registry. -->
-    <mat-card class="model-card audit-card" appearance="outlined" id="admin-models-audit-card">
+    <mat-card class="model-card audit-card ga4-card" appearance="outlined" id="admin-models-audit-card">
       <mat-card-header>
         <mat-card-title>
           <mat-icon class="role-icon">history</mat-icon>

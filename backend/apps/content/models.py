@@ -918,6 +918,21 @@ class SupersededEmbedding(models.Model):
             models.Index(fields=["content_item", "-superseded_at"]),
             models.Index(fields=["superseded_at", "replacement_verified_at"]),
         ]
+        constraints = [
+            # Migration content.0043 added this UniqueConstraint to close
+            # AutoIssue #9 / RPT-004 row 2 (NO-DUPLICATES.md invariant).
+            # Without it, the supersede archive could pile up duplicate
+            # rows on every retry of the embed-recompute path.
+            models.UniqueConstraint(
+                fields=[
+                    "content_item",
+                    "embedding_model_version",
+                    "content_hash",
+                    "content_version",
+                ],
+                name="unique_superseded_embedding_archive",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"SupersededEmbedding<content={self.content_item_id} superseded_at={self.superseded_at}>"

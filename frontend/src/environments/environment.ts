@@ -16,4 +16,9 @@ export const environment = {
   // because the browser runs on the host. The backend uses a different
   // DSN that points at `glitchtip:8000` (in-network hostname) — see `.env`.
   glitchtipDsn: 'http://2887afdd98bb447ba734ab8d653fee27@localhost:1337/1',
+  // OpenTelemetry collector OTLP/HTTP endpoint. Same host:port pattern as
+  // the backend collector — runs on `otel-collector:4318` inside the docker
+  // network and is also exposed to the host. Browser requests go to the
+  // host-port surface. Empty string disables browser tracing.
+  otelEndpoint: 'http://localhost:4318',
 };

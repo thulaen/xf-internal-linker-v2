@@ -8,7 +8,7 @@
 
 ## What this document is
 
-A specification for a small, fast, lightweight C++ extension that runs once per day, looks at every issue captured by GlitchTip and Pyroscope in the last 24 h, ranks them, and writes the **top 10** into the `auto_issues` Postgres table. Agents read that table at session start and fix at least two before any new task. The point is: turn a constant trickle of "things that broke" into a small, prioritised, **bounded** to-do list that doesn't grow to infinity.
+A specification for a small, fast, lightweight C++ extension that runs once per day, looks at every issue captured by GlitchTip and Pyroscope in the last 24 h, ranks them, and writes the **top 10** into the `auto_issues` Postgres table. Agents read that table at session start and fix at least three before any new task (raised from 2 → 3 on 2026-05-09 per [`ONGOING-CODE-QUALITY.md`](../ONGOING-CODE-QUALITY.md) §2). The point is: turn a constant trickle of "things that broke" into a small, prioritised, **bounded** to-do list that doesn't grow to infinity.
 
 This spec is required reading before the implementation session per CLAUDE.md "PARAMOUNT — Citations on every default" and the "PARAMOUNT — THINK BEFORE YOU CODE" rule.
 

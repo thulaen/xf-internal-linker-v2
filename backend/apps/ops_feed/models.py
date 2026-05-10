@@ -49,7 +49,11 @@ class OperationEvent(models.Model):
     runtime_context = models.JSONField(default=dict, blank=True)
     # Stable hash the dedup engine uses to roll up repeats within a 60s
     # window. Computed in the emitter, stored so the UI can collapse
-    # bursts retroactively.
+    # bursts retroactively. UNIQUE on non-blank values (a partial unique
+    # constraint via UniqueConstraint(condition=...) below) so the dedup
+    # name is enforced at the DB level, not just the application layer.
+    # Blank values are allowed (legacy rows without a hash) — the partial
+    # condition skips them. Closes AutoIssue #10 + RPT-004 row 3.
     dedup_key = models.CharField(max_length=100, blank=True, db_index=True)
     occurrence_count = models.IntegerField(default=1)
     # Optional linkage to an ErrorLog row — the UI shows a "Fix"
@@ -64,6 +68,16 @@ class OperationEvent(models.Model):
         indexes = [
             models.Index(fields=["severity", "-timestamp"], name="ofeed_sev_ts_idx"),
             models.Index(fields=["dedup_key", "-timestamp"], name="ofeed_dedup_idx"),
+        ]
+        constraints = [
+            # Partial unique constraint — the empty string is the legacy
+            # "no hash supplied" sentinel and is exempt. Closes
+            # AutoIssue #10 + RPT-004 row 3 (NO-DUPLICATES.md invariant).
+            models.UniqueConstraint(
+                fields=("dedup_key",),
+                condition=~models.Q(dedup_key=""),
+                name="unique_operation_event_dedup_key",
+            ),
         ]
 
     def __str__(self) -> str:  # pragma: no cover — admin cosmetic

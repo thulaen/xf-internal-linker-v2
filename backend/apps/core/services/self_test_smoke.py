@@ -49,7 +49,9 @@ ARTIFACT_RULES: tuple[ArtifactRule, ...] = (
     ArtifactRule(
         "knowledge_graph.PixieWalkVisit",
         ("source_content", "visited_content", "signal_version"),
-        "updated_at",
+        # Model has `created_at` (not `updated_at`); rule was a typo
+        # caught on 2026-05-09 by the live boot-time audit.
+        "created_at",
     ),
     ArtifactRule("ops_feed.OperationEvent", ("dedup_key",), "timestamp"),
     ArtifactRule(
@@ -86,14 +88,29 @@ def startup_smoke_test_enabled() -> bool:
 
 
 def run_startup_smoke_tests() -> list[str]:
-    """Run structural artifact-table checks and return warning messages."""
+    """Run structural artifact-table checks and return warning messages.
+
+    Side-effect (added 2026-05-10): tables that USED to be flagged but
+    no longer are get their historical ``ErrorLog`` rows
+    auto-acknowledged. Without this, every fix to the audit leaves a
+    pile of stale ``x134``-style warnings on `/error-log` forever — the
+    exact UX bug the user surfaced via screenshot. The acknowledge pass
+    is gated on the audit returning EMPTY for a given step, so a still-
+    failing table keeps its open ErrorLog rows visible.
+    """
     if not startup_smoke_test_enabled():
         return []
 
     warnings: list[str] = []
+    flagged_steps: set[str] = set()
     for rule in ARTIFACT_RULES:
         warning = _check_rule(rule)
         if warning:
+            try:
+                model = apps.get_model(rule.model_label)
+                flagged_steps.add(model._meta.db_table)
+            except LookupError:
+                pass
             warnings.append(warning)
             _log_warning(rule, warning)
 
@@ -101,9 +118,37 @@ def run_startup_smoke_tests() -> list[str]:
         if any(rule.model_label == model._meta.label for rule in ARTIFACT_RULES):
             continue
         warning = WARNING_TEMPLATE.format(table_name=model._meta.db_table)
+        flagged_steps.add(model._meta.db_table)
         warnings.append(warning)
         _log_warning_for_table(model._meta.db_table, warning)
+
+    _auto_acknowledge_resolved_smoke_warnings(flagged_steps)
     return warnings
+
+
+def _auto_acknowledge_resolved_smoke_warnings(currently_flagged: set[str]) -> int:
+    """Mark stale startup_smoke_test ErrorLog rows acknowledged.
+
+    A row is "stale" when its ``step`` (the table name the audit was
+    complaining about) is NOT in the current ``currently_flagged`` set.
+    Tables that are still flagged keep their open rows visible.
+
+    Returns the count of rows acknowledged so the management-command
+    backfill can report progress.
+    """
+    try:
+        from apps.audit.models import ErrorLog
+    except Exception:  # noqa: BLE001 — apps.audit may be unavailable on cold-start.
+        logger.debug("ErrorLog model unavailable; skipping auto-acknowledge.")
+        return 0
+
+    qs = ErrorLog.objects.filter(
+        job_type="startup_smoke_test",
+        acknowledged=False,
+    )
+    if currently_flagged:
+        qs = qs.exclude(step__in=currently_flagged)
+    return qs.update(acknowledged=True)
 
 
 def _check_rule(rule: ArtifactRule) -> str | None:
@@ -150,6 +195,15 @@ def _discover_content_artifact_models() -> Iterable[type[models.Model]]:
         "embedding_text_hash",
         "superseded_at",
     }
+    # Models that legitimately carry a marker field but are NOT per-content
+    # artefacts — they are the parent / canonical tables themselves, or
+    # operator-state tables where the marker means something different.
+    # Discovery walk skips them so the audit doesn't false-flag.
+    excluded_canonical_tables = {
+        # ContentItem IS the content. A child table would derive from it
+        # (e.g. ContentItem.embedding); the parent itself is excluded.
+        "content.ContentItem",
+    }
     for model in apps.get_models():
         if model._meta.app_label not in {
             "analytics",
@@ -160,6 +214,8 @@ def _discover_content_artifact_models() -> Iterable[type[models.Model]]:
             "pipeline",
             "suggestions",
         }:
+            continue
+        if model._meta.label in excluded_canonical_tables:
             continue
         field_names = {field.name for field in model._meta.get_fields()}
         if marker_fields & field_names:

@@ -16,10 +16,10 @@ Atomicity:
 
 Disk pressure:
   Pre-flights large writes via ``apps.pipeline.services.disk_pressure
-  .require_free_disk()`` if that module is on disk. The disk-pressure module
-  is referenced by the project's PARAMOUNT rules but is shipped lazily — if
-  it's missing we degrade gracefully (skip the guard) the same way
-  ``apps.core.helpers.archive`` does.
+  .require_free_disk()``. The module shipped 2026-05-09 and now performs the
+  real watermark check. The defensive ``ImportError`` catch in
+  ``_try_disk_pressure_guard`` is retained as a pure safety net for tests
+  that mock the import out.
 
 Backward-compatible reads:
   ``read_parquet_or_legacy()`` tries Parquet first, falls back to a caller-
@@ -41,14 +41,17 @@ _legacy_warning_emitted: set[str] = set()
 
 
 def _try_disk_pressure_guard(estimated_bytes: int, *, safety_margin_gb: int = 2) -> None:
-    """Best-effort disk-pressure pre-flight; no-op if the module is missing."""
+    """Disk-pressure pre-flight. Raises DiskPressureError on insufficient free space.
+
+    The module ships in the same commit as DISK-PRESSURE-RULES.md so the only
+    way we hit ImportError is when a test explicitly mocks it out — keep the
+    catch as a defensive net but never silently swallow other exceptions.
+    """
     try:
         from apps.pipeline.services.disk_pressure import require_free_disk
 
         require_free_disk(estimated_bytes=estimated_bytes, safety_margin_gb=safety_margin_gb)
     except ImportError:
-        # disk_pressure module not yet shipped — same defensive pattern as
-        # apps.core.helpers.archive uses for the same reason.
         logger.debug("disk_pressure module unavailable; skipping pre-flight guard")
 
 

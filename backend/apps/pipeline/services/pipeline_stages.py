@@ -3,6 +3,13 @@
 Extracted from pipeline.py to satisfy file-length limits.
 Stage 1 (coarse retrieval), Stage 2 (sentence scoring), Stage 2+3 scoring
 loop, persistence helpers, and related utilities live here.
+
+OpenTelemetry custom spans (added 2026-05-09 per AutoIssue #12). The
+auto-instrumentation in `config.settings.base` covers HTTP requests,
+Celery tasks, Postgres queries, and Redis calls. The custom spans here
+add ranking-pipeline structure: every stage call becomes a parent span
+so the GlitchTip Performance tab shows where time is actually spent
+(retrieval vs reranking vs scoring) without you having to read code.
 """
 
 from __future__ import annotations
@@ -18,6 +25,31 @@ try:
     HAS_CPP_SIMSEARCH = True
 except ImportError:
     HAS_CPP_SIMSEARCH = False
+
+
+# OpenTelemetry tracer — defensive import so the module still loads when
+# the OTel SDK is absent (test runners that mock it out, fresh installs
+# before the package install). When the import fails, `_tracer` becomes
+# a no-op stand-in whose `start_as_current_span` returns a context
+# manager that yields a dummy span object. Same pattern as
+# `apps.observability.tracing` if one ever ships.
+try:
+    from opentelemetry import trace as _otel_trace
+
+    _tracer = _otel_trace.get_tracer(__name__)
+except Exception:  # noqa: BLE001 — defensive on cold-start / test runners.
+    class _NoopSpan:
+        def set_attribute(self, *_args, **_kwargs) -> None: pass
+        def end(self) -> None: pass
+
+    class _NoopTracer:
+        from contextlib import contextmanager
+
+        @contextmanager
+        def start_as_current_span(self, _name: str):  # type: ignore[no-redef]
+            yield _NoopSpan()
+
+    _tracer = _NoopTracer()  # type: ignore[assignment]
 
 
 # FR-247 — Fast-path observability. SLO-tracked counter per pathway so a
@@ -206,18 +238,28 @@ def _stage1_candidates(
         run_retrievers,
     )
 
-    active_retrievers = (
-        list(retrievers) if retrievers is not None else default_retrievers()
-    )
-    context = RetrievalContext(
-        destination_keys=destination_keys,
-        dest_embeddings=dest_embeddings,
-        content_records=content_records,
-        content_to_sentence_ids=content_to_sentence_ids,
-        top_k=top_k,
-        block_size=block_size,
-    )
-    return run_retrievers(active_retrievers, context=context)
+    with _tracer.start_as_current_span("pipeline.stage1_candidates") as span:
+        active_retrievers = (
+            list(retrievers) if retrievers is not None else default_retrievers()
+        )
+        span.set_attribute("ranker.destination_count", len(destination_keys))
+        span.set_attribute("ranker.top_k", int(top_k))
+        span.set_attribute("ranker.block_size", int(block_size))
+        span.set_attribute("ranker.retriever_count", len(active_retrievers))
+        context = RetrievalContext(
+            destination_keys=destination_keys,
+            dest_embeddings=dest_embeddings,
+            content_records=content_records,
+            content_to_sentence_ids=content_to_sentence_ids,
+            top_k=top_k,
+            block_size=block_size,
+        )
+        result = run_retrievers(active_retrievers, context=context)
+        span.set_attribute(
+            "ranker.candidates_total",
+            sum(len(v) for v in result.values()),
+        )
+        return result
 
 
 def _run_faiss_block_search(  # noqa: forbidden-pattern too-many-args  # justification: host_scores_out is the FR-238 diagnostic surface; bundling the search-config args (host_pk_set/block_size/top_k/faiss_search) into a dataclass would obscure their direct role at the FAISS boundary.
@@ -633,46 +675,52 @@ def _score_sentences_stage2(
     """Stage 2: score candidate sentences by cosine similarity to destination."""
     if not sentence_ids:
         return []
-    if sentence_id_to_row is None:
-        sentence_id_to_row = {
-            sentence_id: index for index, sentence_id in enumerate(sentence_ids_ordered)
-        }
-    candidate_rows, candidate_ids = _build_candidate_row_ids(
-        sentence_ids, sentence_id_to_row
-    )
-    if not candidate_rows:
-        return []
-    if HAS_CPP_SIMSEARCH:
-        top_idx, top_scores = simsearch.score_and_topk(
-            destination_embedding,
-            sentence_embeddings,
-            candidate_rows,
-            top_k,
+    with _tracer.start_as_current_span("pipeline.stage2_score_sentences") as span:
+        span.set_attribute("ranker.candidate_count", len(sentence_ids))
+        span.set_attribute("ranker.top_k", int(top_k))
+        if sentence_id_to_row is None:
+            sentence_id_to_row = {
+                sentence_id: index for index, sentence_id in enumerate(sentence_ids_ordered)
+            }
+        candidate_rows, candidate_ids = _build_candidate_row_ids(
+            sentence_ids, sentence_id_to_row
         )
-        _record_stage2_path("cpp")
-    else:
-        top_idx, top_scores = _topk_numpy_scores(
-            destination_embedding,
-            sentence_embeddings,
-            candidate_rows,
-            top_k,
-        )
-        _record_stage2_path("python")
-    matches: list[SentenceSemanticMatch] = []
-    for i, score in zip(top_idx, top_scores, strict=True):
-        sid = candidate_ids[i]
-        record = sentence_records.get(sid)
-        if record is None:
-            continue
-        matches.append(
-            SentenceSemanticMatch(
-                host_content_id=record.content_id,
-                host_content_type=record.content_type,
-                sentence_id=sid,
-                score_semantic=float(score),
+        if not candidate_rows:
+            return []
+        if HAS_CPP_SIMSEARCH:
+            top_idx, top_scores = simsearch.score_and_topk(
+                destination_embedding,
+                sentence_embeddings,
+                candidate_rows,
+                top_k,
             )
-        )
-    return matches
+            _record_stage2_path("cpp")
+            span.set_attribute("ranker.compute_path", "cpp")
+        else:
+            top_idx, top_scores = _topk_numpy_scores(
+                destination_embedding,
+                sentence_embeddings,
+                candidate_rows,
+                top_k,
+            )
+            _record_stage2_path("python")
+            span.set_attribute("ranker.compute_path", "python")
+        matches: list[SentenceSemanticMatch] = []
+        for i, score in zip(top_idx, top_scores, strict=True):
+            sid = candidate_ids[i]
+            record = sentence_records.get(sid)
+            if record is None:
+                continue
+            matches.append(
+                SentenceSemanticMatch(
+                    host_content_id=record.content_id,
+                    host_content_type=record.content_type,
+                    sentence_id=sid,
+                    score_semantic=float(score),
+                )
+            )
+        span.set_attribute("ranker.matches_returned", len(matches))
+        return matches
 
 
 # ---------------------------------------------------------------------------

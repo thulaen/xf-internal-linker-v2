@@ -442,8 +442,14 @@ describe('SiloSettingsService', () => {
   });
 
   it('updateFr099Fr105Settings PUTs the combined endpoint', () => {
-    service.updateFr099Fr105Settings({ kmig_enabled: true }).subscribe();
-    expectPut('/api/settings/fr099-fr105/', { kmig_enabled: true }).flush({});
+    // Structured shape — the seven signal sections are nested under
+    // their signal name (rsqva / berp / hgte / darb / kcib / kmig / tapb).
+    // Each section's inner payload is free-form; the previous flat
+    // `{ kmig_enabled: true }` shape didn't match the real call-site
+    // (settings.component.ts) which sends `{ kmig: this.kmig, ... }`.
+    const payload = { kmig: { enabled: true } };
+    service.updateFr099Fr105Settings(payload).subscribe();
+    expectPut('/api/settings/fr099-fr105/', payload).flush({});
   });
 
   it('getStage1RetrieverSettings GETs the stage1 endpoint', () => {

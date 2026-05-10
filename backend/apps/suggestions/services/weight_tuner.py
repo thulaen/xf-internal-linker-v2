@@ -9,6 +9,30 @@ from scipy.optimize import minimize
 from apps.suggestions.models import Suggestion, RankingChallenger
 from apps.suggestions.weight_preset_service import get_current_weights
 
+# OpenTelemetry tracer — defensive import so the module loads cleanly
+# when the SDK is absent. The auto-instrumentation in
+# `config.settings.base` covers Postgres queries from this file; this
+# tracer adds a parent span for the whole tune-loop so the GlitchTip
+# trace shows "tune started → collected N samples → L-BFGS-B optimised
+# → returned challenger" as one navigable tree (added 2026-05-09 per
+# AutoIssue #12).
+try:
+    from opentelemetry import trace as _otel_trace
+
+    _tracer = _otel_trace.get_tracer(__name__)
+except Exception:  # noqa: BLE001 — SDK absent; degrade to no-op tracer.
+    class _NoopSpan:
+        def set_attribute(self, *_args, **_kwargs) -> None: pass
+
+    class _NoopTracer:
+        from contextlib import contextmanager
+
+        @contextmanager
+        def start_as_current_span(self, _name: str):  # type: ignore[no-redef]
+            yield _NoopSpan()
+
+    _tracer = _NoopTracer()  # type: ignore[assignment]
+
 logger = logging.getLogger(__name__)
 
 _DRIFT_LIMIT_PER_RUN = 0.05
@@ -134,38 +158,82 @@ class WeightTuner:
     further changes.
     """
 
+    # Mapping from blend-weight key (e.g. "w_semantic") to its matching
+    # feature column on the Suggestion model (e.g. "score_semantic").
+    # Keep these in sync with each entry in tunable_registry.BLEND_WEIGHTS:
+    # the registry stores the canonical weight keys; this map turns each
+    # `w_X` into the corresponding `score_X` the tuner reads from the DB.
+    _WEIGHT_TO_FEATURE: dict[str, str] = {
+        "w_semantic": "score_semantic",
+        "w_keyword": "score_keyword",
+        "w_node": "score_node_affinity",
+        "w_quality": "score_quality",
+        # Conditional: registered in CONDITIONAL_BLEND_WEIGHTS, only
+        # used when its enabling AppSetting is non-zero.
+        "w_embedding_age": "score_embedding_age",
+    }
+
     def __init__(self, lookback_days: int = 90):
         self.lookback_days = lookback_days
-        self.feature_keys = [
-            "score_semantic",
-            "score_keyword",
-            "score_node_affinity",
-            "score_quality",
-        ]
-        self.weight_keys = ["w_semantic", "w_keyword", "w_node", "w_quality"]
-        self._maybe_add_fr249_age_decay()
+        self.weight_keys, self.feature_keys = self._load_active_weights()
 
-    def _maybe_add_fr249_age_decay(self) -> None:
-        """Add ``score_embedding_age`` as a 5th tunable when enabled.
+    def _load_active_weights(self) -> tuple[list[str], list[str]]:
+        """Walk the canonical registry to assemble (weight_keys, feature_keys).
 
-        Cold-start safe: any read failure leaves the tuner at the
-        4-weight baseline. Honoured weight floor is the recommended
-        default (0.05) — operators can override via
-        ``pipeline.embedding_age_weight_in_composite``.
+        The unconditional set is `tunable_registry.BLEND_WEIGHTS` — those
+        always participate. The conditional set
+        `CONDITIONAL_BLEND_WEIGHTS` is added only when its enabling
+        AppSetting is present and non-zero (cold-start safe: any read
+        error leaves the tuner at the unconditional baseline).
         """
-        try:
-            from apps.suggestions.recommended_weights import recommended_float
+        from apps.suggestions.tunable_registry import (
+            BLEND_WEIGHTS,
+            CONDITIONAL_BLEND_WEIGHTS,
+        )
 
-            weight = recommended_float("pipeline.embedding_age_weight_in_composite")
-        except Exception:  # noqa: BLE001 — cold-start safe.
-            return
-        if weight is None or float(weight) <= 0.0:
-            return
-        self.feature_keys.append("score_embedding_age")
-        self.weight_keys.append("w_embedding_age")
+        weight_keys: list[str] = list(BLEND_WEIGHTS.keys())
+        feature_keys: list[str] = [
+            self._WEIGHT_TO_FEATURE[k] for k in weight_keys
+        ]
+        # Conditional weights — guarded by a setting key.
+        for w_key, (gate_key, _entry) in CONDITIONAL_BLEND_WEIGHTS.items():
+            try:
+                from apps.suggestions.recommended_weights import recommended_float
+
+                gate_value = recommended_float(gate_key)
+            except Exception:  # noqa: BLE001 — cold-start safe.
+                continue
+            if gate_value is None or float(gate_value) <= 0.0:
+                continue
+            feature = self._WEIGHT_TO_FEATURE.get(w_key)
+            if feature is None:
+                logger.warning(
+                    "weight_tuner: conditional blend weight %s has no feature mapping in _WEIGHT_TO_FEATURE — skipping",
+                    w_key,
+                )
+                continue
+            weight_keys.append(w_key)
+            feature_keys.append(feature)
+        return weight_keys, feature_keys
+
+    # Backwards-compatible alias kept for any caller that grepped this
+    # name; the registry-driven `_load_active_weights` replaced it.
+    def _maybe_add_fr249_age_decay(self) -> None:
+        """Deprecated — registry-driven; retained as a no-op for callers."""
+        # The conditional include for `w_embedding_age` is now handled
+        # inside `_load_active_weights` via CONDITIONAL_BLEND_WEIGHTS.
+        return
 
     def run(self, run_id: str) -> RankingChallenger | None:
         """Execute the tuning loop and return a new RankingChallenger if improved."""
+        with _tracer.start_as_current_span("autotuner.weight_tuner.run") as span:
+            span.set_attribute("autotuner.run_id", run_id)
+            span.set_attribute("autotuner.lookback_days", self.lookback_days)
+            span.set_attribute("autotuner.weight_keys", ",".join(self.weight_keys))
+            return self._run_traced(run_id, span)
+
+    def _run_traced(self, run_id: str, span) -> RankingChallenger | None:
+        """The original `run` body — extracted so the span wraps it."""
         _emit_weight_tuner_event(
             "meta_algorithm.tune_started",
             "Weight tuning started",

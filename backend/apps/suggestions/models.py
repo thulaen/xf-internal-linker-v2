@@ -922,6 +922,22 @@ class Suggestion(TimestampedModel):
                 name="sug_status_updated_at_idx",
             ),
         ]
+        constraints = [
+            # Migration suggestions.0068 added this UniqueConstraint to
+            # close AutoIssue #11 / RPT-004 row 4. Without it, two
+            # pipeline reruns over the same corpus could leave duplicate
+            # suggestion rows, doubling the review queue.
+            models.UniqueConstraint(
+                fields=[
+                    "pipeline_run",
+                    "host",
+                    "destination",
+                    "host_sentence_text",
+                    "anchor_phrase",
+                ],
+                name="unique_suggestion_per_pipeline_pair",
+            ),
+        ]
 
     def __str__(self) -> str:
         return (

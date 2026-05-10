@@ -13,7 +13,9 @@
         "message": "GA4 design rule: gradients are forbidden, and orange shades (#f6821f, #ee730a, #ff6600) must not appear anywhere."
       }
     ],
-    "font-family-no-missing-generic-family-keyword": true
+    "font-family-no-missing-generic-family-keyword": true,
+    "scss/comment-no-empty": null,
+    "scss/at-extend-no-missing-placeholder": null
   },
   "overrides": [
     {

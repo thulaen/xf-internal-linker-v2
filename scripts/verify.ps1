@@ -90,6 +90,32 @@ try {
         throw "Frontend unit tests failed."
     }
 
+    # NO-DUPLICATES.md CI gate. Confirms every per-content artefact table
+    # still satisfies the (content_hash, signal_version) + supersede +
+    # retention pattern. Catches regressions where a later migration
+    # drops a hash column or a new artefact table forgets to declare.
+    Write-Host "Running NO-DUPLICATES invariant audit (verify_dedup_invariant.py)..."
+    Push-Location (Join-Path $repoRoot "backend")
+    try {
+        & $python (Join-Path $repoRoot "scripts\verify_dedup_invariant.py")
+        if ($LASTEXITCODE -ne 0) {
+            throw "NO-DUPLICATES invariant audit failed."
+        }
+    } finally {
+        Pop-Location
+    }
+
+    # Dead-service sweep. Finds backend/apps/*/services/*.py files that
+    # nothing imports — typical cause is a refactor that moved logic but
+    # left the old file behind. Exits non-zero if any orphan turns up.
+    # Each legitimate single-file kept-for-management-command service can
+    # opt out with a top-of-file `# verify-unused-python: kept-for-<reason>`.
+    Write-Host "Running dead-service sweep (verify_unused_python.py)..."
+    & $python (Join-Path $repoRoot "scripts\verify_unused_python.py")
+    if ($LASTEXITCODE -ne 0) {
+        throw "Dead-service sweep found orphaned service files."
+    }
+
     Write-Host "Verification completed."
 } finally {
     Write-Host "Pruning verification artifacts to reclaim disk space..."

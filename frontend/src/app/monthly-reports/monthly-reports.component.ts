@@ -6,7 +6,8 @@
  * scrollable <pre> block — readable, copyable, no extra markdown-rendering
  * dependency. A future iteration can swap in `marked` or similar.
  */
-import { ChangeDetectionStrategy, Component, OnInit, signal, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, signal, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule, DatePipe } from '@angular/common';
 
 import { MatCardModule } from '@angular/material/card';
@@ -43,13 +44,14 @@ export class MonthlyReportsComponent implements OnInit {
 
   private readonly mcp = inject(McpService);
   private readonly snack = inject(MatSnackBar);
+  private readonly destroyRef = inject(DestroyRef);
 
   ngOnInit(): void {
     this.refresh();
   }
 
   refresh(): void {
-    this.mcp.listMonthlyReports().subscribe({
+    this.mcp.listMonthlyReports().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
         this.reports.set(res.reports);
         if (res.reports.length > 0 && !this.selectedMonth()) {
@@ -67,7 +69,7 @@ export class MonthlyReportsComponent implements OnInit {
     this.selectedMonth.set(month);
     this.selectedBody.set(null);
     this.loadingBody.set(true);
-    this.mcp.readMonthlyReport(month).subscribe({
+    this.mcp.readMonthlyReport(month).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
         this.selectedBody.set(res);
         this.loadingBody.set(false);
@@ -86,7 +88,7 @@ export class MonthlyReportsComponent implements OnInit {
   runNow(): void {
     if (this.runBusy()) return;
     this.runBusy.set(true);
-    this.mcp.runMonthly().subscribe({
+    this.mcp.runMonthly().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
         this.runBusy.set(false);
         this.snack.open(

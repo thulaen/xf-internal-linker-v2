@@ -12,11 +12,11 @@
     </div>
   </mat-card-header>
 
-  <mat-card-content class="card-content" *ngIf="loading">
+  <mat-card-content class="card-content ga4-card" *ngIf="loading">
     <p class="mat-body-2 text-muted">Loading...</p>
   </mat-card-content>
 
-  <mat-card-content class="card-content" *ngIf="!loading && settings">
+  <mat-card-content class="card-content ga4-card" *ngIf="!loading && settings">
     <p class="mat-body-2 text-muted description">
       Chunks long articles into overlapping passages and uses IVF-OPQ indexing for granular semantic matching, allowing queries to match specific paragraphs deep inside a thread.
     </p>

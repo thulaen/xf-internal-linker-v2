@@ -2,10 +2,12 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   inject,
   OnInit,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
@@ -92,6 +94,7 @@ export class UndoTimelineComponent implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly snack = inject(MatSnackBar);
   private readonly confirm = inject(ConfirmService);
+  private readonly destroyRef = inject(DestroyRef);
 
   // Filter state.
   readonly lookbackDays = signal<number>(30);
@@ -132,6 +135,7 @@ export class UndoTimelineComponent implements OnInit {
 
     this.http
       .get<TimelineResponse>('/api/audit/timeline/', { params })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (resp) => {
           this.entries.set(resp.entries);
@@ -161,6 +165,7 @@ export class UndoTimelineComponent implements OnInit {
     this.busyRowId.set(entry.id);
     this.http
       .post<RestoreResponse>(`/api/audit/timeline/${entry.id}/restore/`, {})
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (resp) => {
           this.busyRowId.set(null);

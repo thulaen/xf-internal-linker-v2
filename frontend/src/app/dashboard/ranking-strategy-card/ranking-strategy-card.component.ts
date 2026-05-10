@@ -5,6 +5,21 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatChipsModule } from '@angular/material/chips';
 
+/**
+ * Challenger row shape — narrow enough for what this card renders.
+ * Replaces a `: any[]` annotation flagged by the 2026-05-09 audit
+ * (AutoIssue #21). Source-of-truth shape is the backend
+ * RankingChallenger serializer; we re-declare a permissive subset here
+ * to avoid a deep import that would couple this leaf component to the
+ * settings module. No index signature: explicit fields keep dot-access
+ * type-safe for the Angular template type-checker.
+ */
+export interface ChallengerRow {
+  id?: number | string;
+  name?: string;
+  status?: string;
+}
+
 @Component({
   selector: 'app-ranking-strategy-card',
   standalone: true,
@@ -75,5 +90,5 @@ import { MatChipsModule } from '@angular/material/chips';
   `],
 })
 export class RankingStrategyCardComponent {
-  @Input() challengers: any[] = [];
+  @Input() challengers: ChallengerRow[] = [];
 }

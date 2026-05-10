@@ -62,20 +62,23 @@ def emit(
         dedup_key = _make_dedup_key(
             event_type, source, related_entity_type, related_entity_id
         )
-        cutoff = timezone.now() - timedelta(seconds=_DEDUP_WINDOW_SECONDS)
 
+        # Schema-enforced dedup since 2026-05-10 (AutoIssue #10):
+        # `dedup_key` carries a partial UniqueConstraint on non-blank
+        # values. The previous 60-second window logic is now redundant
+        # at the DB level — there is at most one row per dedup_key.
+        # The application still bumps occurrence_count + refreshes
+        # plain_english/severity on each emission so the UI shows the
+        # most recent wording. Race-safe via select_for_update.
         with transaction.atomic():
             existing = (
                 OperationEvent.objects.select_for_update(skip_locked=True)
-                .filter(dedup_key=dedup_key, timestamp__gte=cutoff)
+                .filter(dedup_key=dedup_key)
                 .order_by("-timestamp")
                 .first()
             )
             if existing is not None:
                 existing.occurrence_count = (existing.occurrence_count or 1) + 1
-                # Update payload to latest — the most recent wording wins
-                # so the UI reflects current state instead of the first
-                # event's stale copy.
                 existing.plain_english = plain_english
                 existing.severity = severity
                 existing.runtime_context = dict(runtime_context or {})

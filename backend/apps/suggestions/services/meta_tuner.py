@@ -40,54 +40,25 @@ logger = logging.getLogger(__name__)
 # Per-run drift cap (±5%). Same risk profile as WeightTuner.
 _META_DRIFT_PCT = 0.05
 
-# Per-key bounds. Every lower bound is positive — DEFAULT-ON-RULE.md
-# forbids zeroing a feature. Lower / upper sourced from the citations
-# at module top; the comment on each row says where the range comes from.
-_META_PARAM_BOUNDS: dict[str, tuple[float, float]] = {
-    # Cormack 2009 §3: k=60 is recommended; range 20–200 is safe per the paper.
-    "pipeline.rrf_k": (20.0, 200.0),
-    # Robertson & Zaragoza 2009 §3.5: k1 ∈ [0.5, 3.0], b ∈ [0.05, 1.0].
-    "pipeline.bm25_k1": (0.5, 3.0),
-    "pipeline.bm25_b": (0.05, 1.0),
-    # Carbonell 1998 §3: lambda ∈ [0, 1]; 0.05 floor avoids "all relevance, no diversity".
-    "pipeline.stage1_mmr_lambda": (0.05, 0.95),
-    # Drosou & Pitoura 2010 §3.1: similarity cap typically 0.5–1.0.
-    "slate_diversity.similarity_cap": (0.5, 1.0),
-    "slate_diversity.diversity_lambda": (0.05, 0.95),
-    # Stage-1 / Stage-2 top-K — operator-tunable retrieval depth.
-    "pipeline.stage1_top_k": (10.0, 500.0),
-    "pipeline.stage2_top_k": (1.0, 100.0),
-    "pipeline.stage1_overfetch_multiplier": (1.0, 5.0),
-    # Min semantic score floor — anti-noise threshold.
-    "pipeline.min_semantic_score": (0.10, 0.50),
-    # NRT delta refresh / buffer.
-    "pipeline.nrt_delta_max_size": (1000.0, 100000.0),
-    "pipeline.nrt_delta_refresh_seconds": (10.0, 300.0),
-    # Calibration validation set floor.
-    "pipeline.calibration_validation_set_min_size": (100.0, 10000.0),
-    # Click-distance decay constant (FR-012).
-    "click_distance.k_cd": (1.0, 10.0),
-    # FR-013 explore-exploit rate (UCB1 exploration constant).
-    "explore_exploit.exploration_rate": (0.1, 3.0),
-    # Field-aware relevance (FR-011) — title-vs-body weights.
-    "field_aware_relevance.title_field_weight": (0.05, 1.0),
-    # Clustering similarity threshold (FR-014).
-    "clustering.similarity_threshold": (0.01, 0.50),
-    # Embedding block size (F2 fix) — autotuner can adjust per-tier.
-    "pipeline.embedding_block_size": (32.0, 1024.0),
-}
+# Per-key bounds + excluded keys are now sourced from the canonical
+# tunable registry at `apps.suggestions.tunable_registry`. Adding a new
+# meta-algo parameter is a single edit there — this file picks it up
+# automatically per docs/AUTOTUNER-FUTURE-AWARENESS.md.
+from apps.suggestions.tunable_registry import (  # noqa: E402
+    META_PARAMS_EXCLUDED as _AUTOTUNER_EXCLUDED,
+    get_meta_param_bounds,
+)
 
-# Keys explicitly excluded from auto-tuning. The autotuner must not move
-# these even though they live in the Recommended preset — the comment
-# explains why.
-_AUTOTUNER_EXCLUDED: dict[str, str] = {
-    # Embedding-age half-life is data-driven (depends on actual embedding
-    # refresh cadence); a monthly nudge of ±5% would damage the freshness
-    # signal in unpredictable ways.
-    "pipeline.embedding_age_half_life_days": (
-        "data-driven decay constant — depends on actual ingest cadence"
-    ),
-}
+
+def _bounds() -> dict[str, tuple[float, float]]:
+    """Lazy accessor so the registry can be reloaded in tests."""
+    return get_meta_param_bounds()
+
+
+# Backwards-compatible alias kept for callers that grep this name.
+# Equivalent to `_bounds()` — the dict is rebuilt each call to honour
+# any test-time monkeypatching of the registry.
+_META_PARAM_BOUNDS = _bounds()
 
 
 def get_tunable_meta_keys() -> list[str]:

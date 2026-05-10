@@ -96,8 +96,36 @@ fi
 
 # 10. Registry-read marker enforcement. When AGENT-HANDOFF.md is touched,
 #     the new entry MUST contain `[REGISTRY READ: <N> open auto-issues ...
-#     — picked: #..., #...]` per the ABSOLUTE rule in CLAUDE.md.
+#     — picked: #..., #..., #...]` per the ABSOLUTE rule in CLAUDE.md.
+#     Three picks (raised from two on 2026-05-09 — see ONGOING-CODE-QUALITY.md).
 if command -v python > /dev/null; then
   echo "→ Registry-read marker (CLAUDE.md ABSOLUTE rule)"
   python "$HOOK_DIR/check-registry-read.py"
+fi
+
+# 11. Autotuner future-awareness. When a migration introduces a new
+#     tunable AppSetting key (pipeline.*, w_*, score_*, etc.) the same
+#     commit MUST add a matching entry to tunable_registry.py — or an
+#     explicit `# AUTOTUNER-EXCLUDED: <reason>` comment in the migration.
+#     See docs/AUTOTUNER-FUTURE-AWARENESS.md.
+if [ -n "$STAGED_MIGRATIONS" ] && command -v python > /dev/null; then
+  echo "→ Autotuner future-awareness (AUTOTUNER-FUTURE-AWARENESS.md)"
+  python "$HOOK_DIR/check-autotuner-registry.py"
+fi
+
+# 12. Recommended-preset coverage. Same trigger as #11 — when a tunable key
+#     is added, the Recommended preset MUST be updated in the same commit
+#     (recommended_weights.py append OR WeightPreset upsert in migration).
+if [ -n "$STAGED_MIGRATIONS" ] && command -v python > /dev/null; then
+  echo "→ Recommended-preset coverage (AUTOTUNER-FUTURE-AWARENESS.md)"
+  python "$HOOK_DIR/check-recommended-preset-coverage.py"
+fi
+
+# 13. Design-pattern check on Angular templates. Blocks the legacy
+#     "Status: Active/Off" form-field pattern outside filter contexts;
+#     enforces frontend/DESIGN-PATTERNS.md §13 (Card Anatomy — Canonical).
+STAGED_TEMPLATES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^frontend/.*\.html$' || true)
+if [ -n "$STAGED_TEMPLATES" ] && command -v python > /dev/null; then
+  echo "→ Design-pattern check (DESIGN-PATTERNS.md §13)"
+  python "$HOOK_DIR/check-design-patterns.py" $STAGED_TEMPLATES
 fi

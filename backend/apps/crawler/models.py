@@ -342,9 +342,13 @@ class CrawlerVisit(TimestampedModel):
         verbose_name = "Crawler Visit"
         verbose_name_plural = "Crawler Visits"
         constraints = [
+            # Migration crawler.0006 widened this from (session, page_meta)
+            # to the 3-tuple so a re-visit with NEW content (different
+            # content_hash) can be a NEW row instead of colliding. Closes
+            # AutoIssue #8 / RPT-004 row 1.
             models.UniqueConstraint(
-                fields=["session", "page_meta"],
-                name="unique_visit_per_session_page",
+                fields=["session", "page_meta", "content_hash"],
+                name="unique_visit_per_session_page_content",
             ),
         ]
         indexes = [

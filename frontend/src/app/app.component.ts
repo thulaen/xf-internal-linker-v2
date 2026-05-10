@@ -13,6 +13,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { SwUpdate } from '@angular/service-worker';
 import { AlertDeliveryService } from './core/services/alert-delivery.service';
 import { AppearanceService } from './core/services/appearance.service';
 import { AuthService } from './core/services/auth.service';
@@ -123,6 +125,7 @@ interface NavSection {
     NavProgressBarComponent,
     MatBadgeModule,
     MatChipsModule,
+    MatSnackBarModule,
     // Phase D2 — global UI surfaces always rendered by the shell.
     GlossaryDrawerComponent,
     FaqDrawerComponent,
@@ -175,6 +178,13 @@ export class AppComponent implements OnInit {
   // Public so the toolbar template can read the signals.
   a11y = inject(A11yPrefsService);
   locale = inject(LocaleService);
+  // Service-worker update notifier (added 2026-05-10 per AutoIssue #24).
+  // Wired below in `ngOnInit` to surface a toast when a new bundle has
+  // been downloaded but not yet activated. Without this, users could
+  // be on a stale bundle for ~30 s after a deploy (the prior session's
+  // verification path documented this as a known issue).
+  private readonly swUpdate = inject(SwUpdate, { optional: true });
+  private readonly snack = inject(MatSnackBar);
   // Phase OB / Gaps 131 + 132 — feature-flag service. Start() kicks
   // the initial fetch; components read `isEnabled()` / `variantOf()`
   // anywhere.
@@ -408,6 +418,7 @@ export class AppComponent implements OnInit {
     // load()/start() here would cause a redundant double-fetch.
     this.alertDelivery.start();
     this.linkInterceptor.init();
+    this.wireServiceWorkerUpdates();
     // Phase GB / Gap 150 — register the milestone catalogue so the
     // Preference Center's progress meter has a known denominator.
     this.onboarding.registerCatalogue(ONBOARDING_CATALOGUE);
@@ -721,5 +732,46 @@ export class AppComponent implements OnInit {
     const main = document.getElementById('main-content');
     if (!main) return;
     main.focus({ preventScroll: false });
+  }
+
+  /**
+   * Service-worker update notifier (AutoIssue #24, 2026-05-10).
+   *
+   * Subscribes to `SwUpdate.versionUpdates` and surfaces a snackbar with
+   * a "Reload now" action whenever a new bundle has been downloaded but
+   * not yet activated. Without this, users would be on a stale bundle
+   * until they hard-refreshed (the prior session's verification path
+   * documented this as a ~30 s post-deploy gap).
+   *
+   * Defensive: SwUpdate is null when the service worker isn't enabled
+   * (dev mode, or browsers that don't support it). Wrapped in try/catch
+   * so an errant subscription never breaks the app shell.
+   */
+  private wireServiceWorkerUpdates(): void {
+    if (!this.swUpdate?.isEnabled) return;
+    try {
+      this.swUpdate.versionUpdates
+        .pipe(
+          filter((evt) => evt.type === 'VERSION_READY'),
+          takeUntilDestroyed(this.destroyRef),
+        )
+        .subscribe(() => {
+          const ref = this.snack.open(
+            'A new version of the app is ready.',
+            'Reload now',
+            { duration: 0 }, // sticky — user controls dismissal
+          );
+          ref.onAction()
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(() => {
+              this.swUpdate
+                ?.activateUpdate()
+                .then(() => this.document.defaultView?.location.reload())
+                .catch(() => this.document.defaultView?.location.reload());
+            });
+        });
+    } catch (err) {
+      console.warn('[sw-update] wiring failed', err);
+    }
   }
 }

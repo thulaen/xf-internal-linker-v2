@@ -20,6 +20,97 @@ This file is the single index of all audit reports and individual issues found b
 
 ## Open Reports
 
+### RPT-005 — Multi-PR plan from 2026-05-09 user directive (PR 1 shipped, PR 2/3/4 queued)
+
+- **Found by:** Claude Opus 4.7 via comprehensive plan in `~/.claude/plans/on-the-app-on-playful-aho.md`
+- **Status:** PR 1 shipped this session; PR 2 partial (frontend OTel done, backend custom spans + C++ tracing pending); PR 3 + PR 4 queued as 14 individual AutoIssues for auto-fix-3 pickup over the next sessions
+- **User directive:** "do all things, don't defer things. address all things deferred. do sanity checks when done."
+- **Why this is one report and many AutoIssues:** the plan has 4 PRs spanning frontend, backend, governance, telemetry, settings refactor, i18n rollout, RxJS leak sweep, etc. The work is too large for one session but each slice is independently trackable.
+
+**PR 1 — SHIPPED 2026-05-09 (this session):**
+
+| Track | What landed | Verification |
+|---|---|---|
+| Governance — agent rules | New file [`ONGOING-CODE-QUALITY.md`](../../ONGOING-CODE-QUALITY.md) consolidates fix-as-you-go + dual-logging rules; CLAUDE / AGENTS / CODEX / GEMINI .md all reference it; auto-fix count raised from 2→3 across 4 agent files + the hook regex; CPP picker spec text updated | Hook test passed via stage/commit cycle |
+| Errors page | Auto-Issues tab now loads ONLY open status; resolved bucket entirely removed from UI; new spec test asserts `status: 'resolved'` is never fetched | Karma 370/370 PASS; new bundle main-CU73NNPP.js deployed; live-verified `autoIssuesResolved` no longer in deployed JS |
+| Autotuner future-awareness | New file [`docs/AUTOTUNER-FUTURE-AWARENESS.md`](../AUTOTUNER-FUTURE-AWARENESS.md); RANKING-GATES.md gains Gate A13; two new pre-commit hooks `check-autotuner-registry.py` + `check-recommended-preset-coverage.py` block migrations that add tunable keys without registering them | Both hooks exit 0 against current tree; pre-commit shim wired into steps 11 + 12 |
+| disk_pressure circuit breaker | New module `backend/apps/pipeline/services/disk_pressure.py` with `require_free_disk()`, `current_state()`, `refresh_disk_pressure_state()`; new Celery beat task firing every 60 s; `_parquet_io.py` no longer comments "module not yet shipped" | 11/11 backend tests pass; OperatorAlert + ErrorLog dual-write on first state transition |
+| Forbidden-patterns linter | Extended with rule #10 — bare `print(...)` in backend source outside tests/migrations/management/scripts blocks the commit; rule #4 (TODO scoping) now accepts both RPT-NNN and ISS-NNN; FIXME comments also covered | Hook syntax-clean; strict scan of new disk_pressure.py exits 0 |
+| NO-DUPLICATES invariant cleanup | Boot-time audit warning count dropped from 6 → 4 (rule typos in `self_test_smoke.py` fixed: PixieWalkVisit retention_field `updated_at`→`created_at`; ContentItem added to discovery-walk skip list as canonical-not-artefact); 4 remaining gaps tracked as AutoIssue #8/#9/#10/#11 + RPT-004 below | Live boot audit re-run: 6 warnings → 4; verify_dedup_invariant.py wired into scripts/verify.ps1 |
+| Dead-stub deletion | `backend/apps/pipeline/services/pagerank.py` (1-line empty docstring stub) deleted via `git rm`; spec doc `docs/specs/fr006-weighted-link-graph.md` updated to point at `weighted_pagerank.py` instead | git rm clean; spec doc text updated |
+| Glossary | Added 9 new entries to PLAIN-ENGLISH-RULE.md — `auto-fix-3`, `REGISTRY READ marker`, `RESOLVED HISTORY marker`, `search_resolved_issues`, `NO-DUPLICATES invariant`, `tunable_registry`, `ONGOING-CODE-QUALITY.md`, `disk_pressure`, etc. | All terms defined in plain English; pre-commit hook check-glossary.py exits 0 |
+
+**PR 2 — frontend OTel SHIPPED, backend custom spans + C++ tracing queued:**
+
+| AutoIssue | What's left |
+|---|---|
+| #12 (`pr2-pipeline-spans`) | Custom `tracer.start_as_current_span(...)` calls inside `pipeline_stages._stage1_candidates / _stage2_rerank / _stage3_calibrate` + `WeightTuner.run` |
+| #13 (`pr2-cpp-tracing`) | OTEL-CPP span layer around `rerank_factors_core`, `bm25_score_batch`, etc. — needs build-system work |
+| #14 (`pr2-pipeline-debug`) | Benchmark-storm caller logging (ISS-102) + C++ fallback AutoIssue surfacing (`ext_loader.py`) + daily fallback-share-check beat task |
+
+Backend OTEL was discovered to be ALREADY comprehensively wired in `backend/config/settings/base.py:641-718` — DjangoInstrumentor, CeleryInstrumentor, PsycopgInstrumentor, RedisInstrumentor, RequestsInstrumentor, HTTPXClientInstrumentor, LoggingInstrumentor, SystemMetricsInstrumentor are all live. Only the prior investigation report missed that block. So PR 2's backend auto-instrumentation work was effectively already done before this session started.
+
+**Frontend OTEL shipped this session:** new file `frontend/src/app/core/observability/otel-bootstrap.ts` wraps `WebTracerProvider` + `OTLPTraceExporter` + `FetchInstrumentation` + `XMLHttpRequestInstrumentation` + `ZoneContextManager`; main.ts initialises it (gated to skip when `__karma__` is present so TestBed zones don't conflict); environment.ts + environment.production.ts gain `otelEndpoint` field. Bundle rebuilt to main-CU73NNPP.js (692 KB, +200 KB for OTEL SDK). 9 new npm packages added.
+
+**PR 3 — frontend save sweep + autotuner registry + perf-mode gate (queued):**
+
+| AutoIssue | What's left |
+|---|---|
+| #15 (`pr3-settings-reload-overwrite`) | Settings page `forkJoin(reload all 25)` overwrites unsaved edits — needs scoped per-card reload + HasUnsavedChanges guard |
+| #16 (`pr3-perf-mode-hardware-gate`) | Performance-Mode High button has no hardware-availability gate; CPU-only users can pick it and silently fall back |
+| #17 (`pr3-autotuner-registry-impl`) | Wire `backend/apps/suggestions/tunable_registry.py` + refactor weight_tuner + meta_tuner to read from it (to make the new hooks have a real source of truth) |
+| #18 (`pr3-rxjs-leak-dirty30`) | Add `takeUntilDestroyed(this.destroyRef)` to top-30 most-trafficked components |
+
+**PR 4 — promoted-from-deferred work (queued):**
+
+| AutoIssue | What's left |
+|---|---|
+| #19 (`pr4-settings-split`) | Split `settings.component.ts` (4,683 lines) into 9 tab components per SETTINGS-SPLIT-PLAN.md |
+| #20 (`pr4-i18n-rollout`) | Tag remaining ~2,150 user-visible strings; build emits zero untranslated warnings |
+| #21 (`pr4-any-cleanup`) | Replace 13 TypeScript `any` annotations + ESLint rule |
+| #22 (`pr4-component-tests`) | Specs for ~169 untested components; raise karma thresholds to 70/55/65/70 |
+| #23 (`pr4-cpp-benchmarks`) | Google Benchmark coverage for ~38 hot-path C++ files |
+| #24 (`pr4-sw-cache-doc`) | Service-worker update toast + frontend/SERVICE-WORKER-CACHE.md |
+| #25 (`pr4-fr016-017-spec`) | Spec for `score_ga4_gsc` combined attribution signal |
+| #26 (`pr4-dead-services-sweep`) | Audit `backend/apps/*/services/*.py` for orphans (~37 candidates) + new `scripts/verify_unused_python.py` |
+| #27 (`pr4-rxjs-leak-remaining`) | After PR 3's dirty-30, add `takeUntilDestroyed` to remaining ~133 components |
+| #28 (`pr4-print-to-logger`) | Convert ~163 `print()` sites in `backend/apps/` to `logger.*` (linter blocks new ones) |
+
+---
+
+### RPT-004 — NO-DUPLICATES invariant gaps in 4 artefact tables (2026-05-09 → RESOLVED 2026-05-10)
+
+- **Found by:** Claude Opus 4.7
+- **Status:** RESOLVED 2026-05-10 — all 4 migrations applied, model files updated, boot-time audit returns 0 warnings.
+
+**Closure (2026-05-10):**
+- Migration `crawler.0006_crawlervisit_unique_per_visit` — dropped the (session, page_meta) constraint and added the 3-tuple (session, page_meta, content_hash). Live table had 0 rows so safe.
+- Migration `content.0043_supersededembedding_unique_archive` — added the 4-tuple constraint. Live table had 0 rows so safe.
+- Migration `ops_feed.0002_operationevent_unique_dedup_key` — dedup'd 1,491 duplicate rows (kept latest per key) then added a partial UniqueConstraint on `dedup_key WHERE dedup_key != ''`. Updated `apps.ops_feed.services.emit` to drop the redundant 60-second time-window logic since the schema now enforces uniqueness directly.
+- Migration `suggestions.0068_suggestion_unique_5tuple` — added the 5-tuple constraint with a defensive dedup-first phase. Live table had 0 rows so the dedup pass was a no-op.
+- Each model class file (`crawler/models.py`, `content/models.py`, `suggestions/models.py`, `ops_feed/models.py`) updated in the same change so `m._meta.constraints` matches the DB schema. The boot-time `run_startup_smoke_tests()` now returns `[]`.
+- AutoIssues #8 / #9 / #10 / #11 marked RESOLVED with `lessons_learned` populated. Trap recorded: data migrations alone aren't enough — the model class file must declare the same constraint or `m._meta.constraints` stays out of sync with the DB.
+
+**Original report (2026-05-09):**
+- **Scope:** Boot-time self-audit (`apps.core.services.self_test_smoke.run_startup_smoke_tests`) flags 4 per-content artefact tables that don't satisfy the `(content_hash, signal_version)` skip-if-unchanged + supersede + retention pattern from [`NO-DUPLICATES.md`](../../NO-DUPLICATES.md).
+
+| # | Table | Missing piece | Fix shape |
+|---|-------|---------------|-----------|
+| 1 | `crawler.CrawlerVisit` | `(session, page_meta)` constraint exists but rule expects `(session, page_meta, content_hash)` so a re-visit with new content can be a NEW row | Either widen the existing constraint OR confirm the writer always upserts on the 2-tuple (then update the rule). If widen: dedup any existing collisions first. |
+| 2 | `content.SupersededEmbedding` | NO unique constraint at all | Add `UniqueConstraint(content_item, embedding_model_version, content_hash, content_version)` after dedup of any existing duplicates. |
+| 3 | `ops_feed.OperationEvent` | `dedup_key` field exists but isn't `unique=True` | Add `unique=True` (or `UniqueConstraint`) on `dedup_key`. The field name is the clue — it's already supposed to be unique. |
+| 4 | `suggestions.Suggestion` | 5-tuple unique key not enforced | Add `UniqueConstraint(pipeline_run, host, destination, host_sentence_text, anchor_phrase)` after dedup. Risky — 91-field table, many writers; verify no in-flight migration assumes duplicates are allowed. |
+
+Fixed in this session (2026-05-09):
+- `knowledge_graph.PixieWalkVisit` rule had `retention_field='updated_at'` but the model has `created_at` — typo.
+- `content.ContentItem` flagged by discovery walk because it carries marker fields (`content_hash`, `embedding_text_hash`) but it IS the canonical content table, not a per-content artefact. Added to the `excluded_canonical_tables` skip list in `_discover_content_artifact_models`.
+
+Tracked as AutoIssue #8 / #9 / #10 / #11 (one per table). Each AutoIssue has the same description and severity=high so the next session's auto-fix-3 picker surfaces them by `priority_score`.
+
+**Why this rule exists:** without unique enforcement, every pipeline rerun can pile up duplicate rows. The user's 59 GB free disk + 12 GB RAM laptop runs out of headroom fast under quadratic table growth. See [`NO-DUPLICATES.md`](../../NO-DUPLICATES.md) for the full rationale.
+
+---
+
 ### RPT-003 — GlitchTip Integration Lost + 5 Adjacent Bugs (2026-05-09)
 
 - **Found by:** Claude

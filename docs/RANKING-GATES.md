@@ -156,6 +156,14 @@ Divergences tagged:
 beta = min(0.5, beta_param)
 ```
 
+#### A13 — Autotuner registry entry in the same commit (added 2026-05-09)
+
+Every new ranking weight or meta-algorithm parameter MUST appear in the canonical tunable registry at [`backend/apps/suggestions/tunable_registry.py`](../backend/apps/suggestions/tunable_registry.py) — `BLEND_WEIGHTS` for ranking-blend weights, `META_PARAMS` for meta-algorithm parameters — within the same commit that introduces the key. Schema: `key → (lower, upper, citation, default)`. Lower bound must be strictly positive (DEFAULT-ON-RULE.md).
+
+Pre-commit hook [`.githooks/check-autotuner-registry.py`](../.githooks/check-autotuner-registry.py) blocks commits that introduce a tunable `AppSetting.key` without either (a) a paired registry entry, or (b) an explicit `# AUTOTUNER-EXCLUDED: <reason>` comment in the migration.
+
+See [`docs/AUTOTUNER-FUTURE-AWARENESS.md`](AUTOTUNER-FUTURE-AWARENESS.md) for the full pattern + canonical example.
+
 ---
 
 ## Gate B — User-Idea Overlap Gate

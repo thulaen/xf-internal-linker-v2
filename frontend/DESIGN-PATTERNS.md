@@ -461,3 +461,83 @@ Without `min-width: 0` on `.page-title`, a long page title (or a small viewport 
 ### When NOT to add a global `.page-header` rule
 
 There are 11 components currently using `class="page-header"`, each with its own per-component CSS. A global rule would risk regressing them all. Apply the defenses **inside** each component's SCSS, copying the snippet above. If a future migration consolidates the layout, that's when to consider lifting the rule.
+
+---
+
+## 13. Card Anatomy — Canonical (added 2026-05-10)
+
+### Why this section exists
+
+Before 2026-05-10, every card in the app implemented its own header layout. Some cards put the enable/disable toggle in the **card header** (e.g. Passage-Level Relevance), others put it as a **`Status: Active` form field** inside the card body (e.g. Rare-Term Propagation, the 7 FR-099–105 meta-algo cards, anchor diversity, keyword stuffing, link farm, learned anchor corroboration, etc.). Two visually-different patterns for the same purpose meant sibling cards in `.settings-grid` rendered at different heights with the toggle at different y-coordinates — the bug surfaced by the user's 2026-05-10 screenshot.
+
+### The fix
+
+Single canonical anatomy in [`frontend/src/styles/_card-anatomy.scss`](src/styles/_card-anatomy.scss). Every card (settings, dashboard, review, error log, suggestions, etc.) MUST use this anatomy.
+
+### Canonical structure
+
+```html
+<mat-card class="settings-card" id="<unique-id>">
+  <mat-card-header>
+    <mat-card-title>{{ Title }}</mat-card-title>
+    <!-- Toggle in HEADER, not in form body. Always present when the
+         card represents an enable-able feature; always uses
+         mat-slide-toggle, never a mat-select with Active/Off options. -->
+    <div class="card-title-actions">
+      <mat-slide-toggle
+        [(ngModel)]="<feature>.enabled"
+        color="primary"
+        [matTooltip]="tip('<feature>.enabled')"
+        matTooltipClass="setting-tooltip">
+        {{ <feature>.enabled ? 'Enabled' : 'Disabled' }}
+      </mat-slide-toggle>
+    </div>
+  </mat-card-header>
+  <mat-card-content class="card-content">
+    <p class="hint">{{ Plain-English description }}</p>
+    <div class="number-grid">
+      <!-- form fields, NOT including the enable toggle anymore -->
+    </div>
+  </mat-card-content>
+</mat-card>
+```
+
+### What ALL cards now share
+
+- Same internal padding (`var(--space-lg)` = 24 px) on all sides — Layout Precision Rule B.
+- Same border / radius / shadow tokens (no inline overrides).
+- Title at the top-left, optional FR-XXX badge + slide toggle at the top-right.
+- Description as `<p class="hint">` directly below the header.
+- Form fields inside `<div class="number-grid">` (or `<div class="settings-grid">` when the card hosts a sub-grid).
+- Equal-height cards in any `[class$="-grid"]` container — `.ga4-card { align-self: stretch }` is the global rule.
+
+### What this replaces
+
+Pre-2026-05-10:
+
+```html
+<!-- DON'T do this anymore — Status as a form field -->
+<mat-form-field appearance="outline">
+  <mat-label>Status</mat-label>
+  <mat-select [(ngModel)]="myFeature.enabled" [compareWith]="compareBooleans">
+    <mat-option [value]="true">Active</mat-option>
+    <mat-option [value]="false">Off</mat-option>
+  </mat-select>
+</mat-form-field>
+```
+
+That pattern was eliminated from `settings.component.html` on 2026-05-10 by `frontend/src/app/settings/.transform-status-to-toggle.py` (one-shot, deleted post-run). 13 cards converted in one pass.
+
+### Migration checklist for any new card
+
+1. ✅ Use `<mat-card class="settings-card">` (or `class="ga4-card"`) — never raw `<div>`.
+2. ✅ Header has `<mat-card-title>` + optional `<div class="card-title-actions">` for toggles + chips.
+3. ✅ NEVER put a `<mat-label>Status</mat-label>` form field — promote to header toggle.
+4. ✅ Description in `<p class="hint">`, not in the title bar or below the form.
+5. ✅ Form fields use `<mat-form-field appearance="outline">` exclusively.
+6. ✅ Bottom action row (`Save`, etc.) in `<div class="card-actions-row">` outside the form grid.
+7. ✅ Card has a unique `id="..."` so the deep-linking catalog can target it.
+
+### Future enforcement
+
+A pre-commit hook checking for the legacy `<mat-label>Status</mat-label>` pattern is queued under AutoIssue tracking; until then, this section is the authority. PRs that re-introduce a Status form field for an enable/disable will fail review.

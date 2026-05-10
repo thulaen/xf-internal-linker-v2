@@ -11,6 +11,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -2061,6 +2062,7 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
     MatIconModule,
     MatInputModule,
     MatSelectModule,
+    MatSlideToggleModule,
     MatSnackBarModule,
     MatTabsModule,
     MatTooltipModule,
@@ -2710,11 +2712,17 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     return lines.join('\n\n');
   }
 
-  valueFor(key: string): any {
+  valueFor(key: string): unknown {
+    // Reflective dotted-key reader for the settings cards. Returns
+    // `unknown` so call-sites narrow the value before using it; the
+    // template-binding sites coerce to string with `| json` or stringify
+    // by interpolation. Replaces a `: any` flagged by the 2026-05-09
+    // audit (AutoIssue #21).
     const parts = key.split('.');
     if (parts.length !== 2) return null;
     const [section, field] = parts;
-    return (this as any)[section]?.[field];
+    const sectionValue = (this as unknown as Record<string, Record<string, unknown> | undefined>)[section];
+    return sectionValue?.[field];
   }
 
   /**
@@ -3215,6 +3223,12 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     const recommended = this.recommendedPreset;
     if (!recommended) return;
     if (!this.presetMatchesCurrent(recommended)) return;
+    // Defensive: even on a fresh install, if the user already started
+    // editing a card before the auto-apply fires, don't trample their
+    // input. The auto-apply window is only relevant when nothing on the
+    // page has been touched yet — same trigger condition the toast was
+    // designed for. AutoIssue #15.
+    if (this.isDirty) return;
     // currentWeights == Recommended AND no history → genuinely fresh.
     // Apply once so a history row exists and we never fire again.
     this.siloSvc.applyWeightPreset(recommended.id).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
@@ -3229,12 +3243,23 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   }
 
   applyPreset(preset: WeightPreset): void {
+    // Two-stage confirmation when the user has unsaved edits on any
+    // settings card. Without this, reload() at line 3238 would silently
+    // overwrite in-flight edits with the post-preset server response —
+    // the AutoIssue #15 bug. The first prompt is the historical "are
+    // you sure?"; the second is the new unsaved-changes warning.
     if (!confirm(`Apply preset "${preset.name}"? This will overwrite all current weight settings.`)) return;
+    if (this.isDirty && !confirm(
+      'You have unsaved edits on this page. Applying the preset will discard them and reload the saved values from the server. Continue?'
+    )) return;
     this.applyingPreset = true;
     this.siloSvc.applyWeightPreset(preset.id).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
       next: () => {
         this.applyingPreset = false;
         this.snack.open(`Preset "${preset.name}" applied. Reloading settings...`, undefined, { duration: 3000 });
+        // Apply path always reloads from server-of-truth post-apply;
+        // any in-flight dirty bit is now stale.
+        this.isDirty = false;
         this.reload();
       },
       error: (err) => {
@@ -3516,9 +3541,10 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
         this.savingGA4GSC = false;
         this.snack.open('Search Console settings saved.', undefined, { duration: 3000 });
       },
-      error: (error: any) => {
+      error: (error: { error?: { detail?: string } } | unknown) => {
         this.savingGA4GSC = false;
-        this.snack.open(error?.error?.detail || 'Failed to save settings.', 'Dismiss', { duration: 4000 });
+        const detail = (error as { error?: { detail?: string } })?.error?.detail;
+        this.snack.open(detail || 'Failed to save settings.', 'Dismiss', { duration: 4000 });
       },
     });
   }

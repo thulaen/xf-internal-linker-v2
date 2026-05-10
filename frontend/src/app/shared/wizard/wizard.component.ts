@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   ContentChildren,
+  DestroyRef,
   Directive,
   EventEmitter,
   Input,
@@ -9,8 +10,10 @@ import {
   QueryList,
   TemplateRef,
   computed,
+  inject,
   signal, AfterContentInit,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule, NgTemplateOutlet } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -284,9 +287,13 @@ export class FormWizardComponent implements AfterContentInit {
 
   readonly stepArray = signal<readonly FormWizardStepComponent[]>([]);
 
+  private readonly destroyRef = inject(DestroyRef);
+
   ngAfterContentInit(): void {
     this.refreshSteps();
-    this.stepsQuery.changes.subscribe(() => this.refreshSteps());
+    this.stepsQuery.changes
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.refreshSteps());
   }
 
   // ── derived state ──────────────────────────────────────────────────

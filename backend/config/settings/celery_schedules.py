@@ -342,6 +342,27 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": 300.0,
         "options": {"queue": "default", "expires": 290},
     },
+    # Disk-pressure circuit breaker — every 60 s (DISK-PRESSURE-RULES.md).
+    # Refreshes the cached state (GREEN/YELLOW/RED/CRITICAL) so callers
+    # of `current_state()` and `require_free_disk()` see the latest free
+    # disk without each one paying the `shutil.disk_usage()` cost.
+    # First transition into YELLOW+ raises an OperatorAlert; repeats are
+    # silenced by the dedup window inside the service module.
+    "refresh-disk-pressure-state": {
+        "task": "pipeline.refresh_disk_pressure_state",
+        "schedule": 60.0,
+        "options": {"queue": "default", "expires": 55},
+    },
+    # FR-247 SLO check — once per day at 04:00 UTC. Reads the in-memory
+    # Stage-2 path counters and files an AutoIssue if the Python fallback
+    # share has crept above `pipeline.cpp_path_alert_threshold` (default 5 %).
+    # Catches silent C++ → Python regressions that the operator would
+    # otherwise only see on the `/performance` dashboard. AutoIssue #14.
+    "cpp-fallback-share-check": {
+        "task": "pipeline.cpp_fallback_share_check",
+        "schedule": crontab(minute=0, hour=4),
+        "options": {"queue": "default", "expires": 3500},
+    },
     # Plan item 12 + 14 — auto-revert performance mode every 5 minutes.
     # Reads system.performance_mode_expiry / _expires_at AppSettings and flips
     # HIGH to BALANCED when the "Until tonight ends" window closes.  Light

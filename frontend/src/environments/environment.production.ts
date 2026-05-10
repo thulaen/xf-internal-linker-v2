@@ -16,4 +16,8 @@ export const environment = {
   // (`localhost:1337`) because the browser runs on the host. For prod
   // deploys, replace this string at build time with the production DSN.
   glitchtipDsn: 'http://2887afdd98bb447ba734ab8d653fee27@localhost:1337/1',
+  // OpenTelemetry collector OTLP/HTTP endpoint. The browser runs on the
+  // host so we point at the host-exposed port (`:4318`). Empty disables
+  // browser tracing.
+  otelEndpoint: `${window.location.protocol}//${window.location.hostname}:4318`,
 };

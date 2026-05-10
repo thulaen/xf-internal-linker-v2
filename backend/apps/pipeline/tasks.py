@@ -3494,3 +3494,88 @@ def train_opq_codebook(self, *, sample_size: int = 100_000) -> dict:
 
     train_codebook(sample_size=sample_size)
     return {"status": "completed", "sample_size": sample_size}
+
+
+@shared_task(
+    name="pipeline.refresh_disk_pressure_state",
+    time_limit=30,
+    soft_time_limit=20,
+)
+def refresh_disk_pressure_state() -> dict:
+    """Beat-driven refresh of the cached disk-pressure state.
+
+    Wraps `apps.pipeline.services.disk_pressure.refresh_disk_pressure_state`
+    so the beat schedule can fire it every 60 s. The wrapper exists only
+    to give the function a celery `name` — the real logic lives in the
+    service module and is unit-tested there.
+    """
+    from apps.pipeline.services.disk_pressure import (
+        refresh_disk_pressure_state as _refresh,
+    )
+
+    state = _refresh()
+    return {"state": state}
+
+
+@shared_task(
+    name="pipeline.cpp_fallback_share_check",
+    time_limit=60,
+    soft_time_limit=45,
+)
+def cpp_fallback_share_check() -> dict:
+    """Daily check that the Stage-2 Python-fallback share is below the alert
+    threshold (FR-247). When `python_share > pipeline.cpp_path_alert_threshold`
+    (default 5 %), file an AutoIssue so the next agent picks it up via
+    auto-fix-3.
+
+    Why daily: in-memory counters reset on every backend restart, so a
+    one-shot check during the warm-up window can be misleading. A daily
+    sample averages over a full operating day's traffic. AutoIssue #14
+    follow-up — added 2026-05-09.
+    """
+    from apps.pipeline.services.pipeline_stages import (
+        get_stage2_path_runtime_status,
+    )
+
+    status = get_stage2_path_runtime_status()
+    python_share = float(status.get("python_share", 0.0) or 0.0)
+    threshold = float(status.get("alert_threshold", 0.05) or 0.05)
+    if python_share <= threshold:
+        return {"share": python_share, "threshold": threshold, "alert": False}
+    try:
+        from apps.auto_issues.models import AutoIssue
+        from apps.auto_issues.services.dedup import upsert_dedup, IssueObservation
+
+        canonical = "cpp_fallback_share_above_threshold"
+        upsert_dedup(**IssueObservation(
+            canonical=canonical,
+            source="internal",
+            external_id=canonical,
+            fingerprint=canonical,
+            title=(
+                f"C++ Stage-2 fallback share {python_share:.1%} > threshold "
+                f"{threshold:.1%}"
+            ),
+            description=(
+                f"FR-247 SLO breach: the Python fallback path served "
+                f"{python_share:.1%} of Stage-2 sentence scoring runs, above "
+                f"the configured alert threshold of {threshold:.1%}. Each "
+                f"Python-path call is 50-100x slower than the C++ kernel.\n\n"
+                "Likely causes: (a) a prior session's `pip install -e .` did "
+                "not run, (b) an extension was renamed and the import path is "
+                "stale, (c) the simsearch import succeeded but a downstream "
+                "guard turned the C++ path off. Re-run "
+                "`scripts/build-native-extensions.ps1` or `cd backend/extensions "
+                "&& pip install -e .` and restart the backend image."
+            ),
+            affected_files=[
+                "backend/apps/pipeline/services/pipeline_stages.py",
+                "backend/extensions/simsearch.cpp",
+            ],
+            severity=AutoIssue.SEVERITY_HIGH,
+            priority_score=72.0,
+            occurrence_count=1,
+        ).__dict__)
+    except Exception:  # noqa: BLE001 — best-effort surfacing.
+        logger.exception("cpp_fallback_share_check: AutoIssue insert failed")
+    return {"share": python_share, "threshold": threshold, "alert": True}

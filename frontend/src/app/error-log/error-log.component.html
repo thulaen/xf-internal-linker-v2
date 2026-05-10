@@ -102,12 +102,14 @@
   }
 
   @if (selectedTabIndex === autoIssuesTabIndex) {
-    @if (autoIssuesOpen.length === 0 && autoIssuesResolved.length === 0) {
+    @if (autoIssuesOpen.length === 0) {
       <div class="empty-state">
         <mat-icon class="empty-icon">check_circle</mat-icon>
-        <h2>No issues to triage</h2>
+        <h2>No open issues</h2>
         <p>Auto-issues populate from GlitchTip + internal errors + Pyroscope regressions.
-        Same root cause from multiple sources lands as ONE row, deduped automatically.</p>
+        Same root cause from multiple sources lands as ONE row, deduped automatically.
+        Resolved issues are hidden from this list — agents still read them via
+        <code>search_resolved_issues</code> for lessons learned.</p>
       </div>
     }
 
@@ -165,40 +167,6 @@
                     }
                   </ul>
                 </div>
-              }
-            </div>
-          </mat-expansion-panel>
-        }
-      </mat-accordion>
-    }
-
-    @if (autoIssuesResolved.length > 0) {
-      <h3 class="auto-issues-heading">Recently resolved ({{ autoIssuesResolved.length }}) — read these for prior fixes</h3>
-      <mat-accordion class="error-accordion">
-        @for (issue of autoIssuesResolved; track trackAutoIssue($index, issue)) {
-          <mat-expansion-panel class="error-panel reviewed-panel">
-            <mat-expansion-panel-header>
-              <mat-panel-title>
-                <div class="panel-title-row">
-                  <span class="tone-badge tone-good">{{ issue.severity }}</span>
-                  <span class="panel-location">{{ issue.title }}</span>
-                </div>
-              </mat-panel-title>
-              <mat-panel-description>
-                <div class="panel-description-row">
-                  <span class="panel-preview">resolved by {{ issue.resolved_by || '?' }}</span>
-                  <span class="panel-date">{{ issue.resolved_at | date:'short' }}</span>
-                </div>
-              </mat-panel-description>
-            </mat-expansion-panel-header>
-            <div class="panel-body">
-              @if (issue.lessons_learned) {
-                <div class="why-box">
-                  <div class="why-header"><mat-icon>lightbulb</mat-icon><strong>Lessons learned</strong></div>
-                  <pre class="exception-pre">{{ issue.lessons_learned }}</pre>
-                </div>
-              } @else {
-                <p><em>No lessons_learned recorded — protocol violation per CLAUDE.md.</em></p>
               }
             </div>
           </mat-expansion-panel>

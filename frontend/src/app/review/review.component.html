@@ -157,7 +157,7 @@
   <div class="cards-list" id="review-cards">
     @for (s of suggestions(); track s.suggestion_id) {
       <div
-        class="suggestion-card"
+        class="suggestion-card ga4-card"
         tabindex="0"
         role="button"
         [class.selected]="isSelected(s.suggestion_id)"

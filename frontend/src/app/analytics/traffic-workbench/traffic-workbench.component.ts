@@ -6,6 +6,17 @@ import { ConfidenceBadgeComponent } from '../../shared/confidence-badge/confiden
 
 const WOW_THRESHOLD = 30;
 
+/**
+ * One row of week-over-week telemetry. Replaces a `: any[]` annotation
+ * flagged by the 2026-05-09 audit (AutoIssue #21). The fields the
+ * component actually reads are declared; extra fields on the source
+ * payload are accepted via the optional shape.
+ */
+export interface WowTelemetryRow {
+  change_pct: number;
+  [key: string]: unknown;
+}
+
 @Component({
   selector: 'app-traffic-workbench',
   standalone: true,
@@ -53,13 +64,13 @@ const WOW_THRESHOLD = 30;
   `],
 })
 export class TrafficWorkbenchComponent {
-  @Input() set telemetryData(data: any[]) {
+  @Input() set telemetryData(data: WowTelemetryRow[]) {
     this._data = data ?? [];
     this.filteredRows = this._data
       .filter(r => Math.abs(r.change_pct ?? 0) > WOW_THRESHOLD)
       .sort((a, b) => Math.abs(b.change_pct) - Math.abs(a.change_pct));
   }
 
-  private _data: any[] = [];
-  filteredRows: any[] = [];
+  private _data: WowTelemetryRow[] = [];
+  filteredRows: WowTelemetryRow[] = [];
 }

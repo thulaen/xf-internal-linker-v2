@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, signal, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal, computed } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -55,6 +56,7 @@ type QuickControlModel = RuntimeModel & {
 export class QuickControlsComponent implements OnInit {
   private readonly svc = inject(RuntimeModelsService);
   private readonly snack = inject(MatSnackBar);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly loading = signal<boolean>(true);
   readonly error = signal<string>('');
@@ -100,7 +102,8 @@ export class QuickControlsComponent implements OnInit {
         catchError(() => of(null))
       ))
     ).pipe(
-      finalize(() => this.loading.set(false))
+      finalize(() => this.loading.set(false)),
+      takeUntilDestroyed(this.destroyRef),
     ).subscribe(results => {
       const valid = results.filter((r): r is RuntimeModelsSummary => !!r);
       this.summaries.set(valid);
@@ -130,7 +133,7 @@ export class QuickControlsComponent implements OnInit {
     if (this.busyId()) return;
     
     this.busyId.set(`${model.id}:${action}`);
-    this.svc.action(model.id, action).subscribe({
+    this.svc.action(model.id, action).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.snack.open(`Action "${action}" applied to ${model.model_name}.`, 'OK', { duration: 3000 });
         this.refresh();

@@ -11,7 +11,7 @@
   </p>
 
   <!-- ── Controls Card ──────────────────────────────────────────── -->
-  <mat-card class="controls-card" id="crawler-controls-card">
+  <mat-card class="controls-card ga4-card" id="crawler-controls-card">
     <mat-card-content>
       <div class="controls-row">
         <mat-form-field class="domain-select">
@@ -152,7 +152,7 @@
   <!-- ── Active Session Progress ────────────────────────────────── -->
   @if (activeSession(); as active) {
     @if (active.status === 'running' || active.status === 'pending') {
-      <mat-card class="progress-card" id="crawler-progress-card">
+      <mat-card class="progress-card ga4-card" id="crawler-progress-card">
         <mat-card-content>
           <div class="progress-header">
             <span class="progress-title">
@@ -222,7 +222,7 @@
     <!-- Tab 1: Storage -->
     <mat-tab label="Storage">
       <div class="tab-content">
-        <mat-card class="storage-card" id="crawler-storage-usage-card">
+        <mat-card class="storage-card ga4-card" id="crawler-storage-usage-card">
           <mat-card-content>
             <div class="storage-bar-label">
               Crawler storage: {{ formatBytes(storageBytes()) }} / 20 GB
@@ -235,7 +235,7 @@
           </mat-card-content>
         </mat-card>
 
-        <mat-card class="storage-card prune-card" id="crawler-prune-policy-card">
+        <mat-card class="storage-card prune-card ga4-card" id="crawler-prune-policy-card">
           <mat-card-content>
             <h3 class="prune-title">
               <mat-icon>auto_delete</mat-icon>

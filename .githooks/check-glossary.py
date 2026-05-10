@@ -201,6 +201,14 @@ ALLOWLIST: frozenset[str] = frozenset({
     # entries above. These are user-facing strings the locale service
     # passes through to `Intl.NumberFormat({style:'currency'})`.
     "JPY", "CNY", "INR", "CAD", "AUD", "BRL", "MXN", "KRW",
+    # 2026-05-10 prevention-cleanup batch — ALL-CAPS English words that
+    # appear in narrative comments + docstrings across the new files
+    # (tunable_registry.py, ONGOING-CODE-QUALITY.md, self_test_smoke.py,
+    # verify_unused_python.py, acknowledge_resolved_warnings.py).
+    "USED", "EMPTY", "TUNABLE", "KEYSET", "ADD", "ENTRY", "HERE",
+    "NEITHER", "MEDIUM", "HIGH", "LOW", "ONCE",
+    # Project marker comments / placeholder shapes documented in CLAUDE.md.
+    "AUTOTUNER-EXCLUDED", "DEFERRED-KNOWN", "RPT-NNN", "ISS-NNN",
 })
 
 # Regex: 3+ consecutive uppercase letters with optional repeated hyphen-
@@ -235,6 +243,7 @@ SKIP_FILE_PATTERNS = (
     re.compile(r"^docs/reports/"),  # report registry handles its own jargon
     re.compile(r"^GLOSSARY-RULE\.md$"),  # the rule doc itself uses acronyms as examples
     re.compile(r"^PLAIN-ENGLISH-RULE\.md$"),  # the glossary itself
+    re.compile(r"^AGENT-HANDOFF\.md$"),  # session-log artifact, not user-facing prose; bundle content hashes (e.g. main-LKCJGWJN.js) and ALL-CAPS narrative emphasis would otherwise force per-session allowlist churn
     re.compile(r"\.cpp$"),  # C++ source files have their own header
     re.compile(r"\.h$"),
     re.compile(r"\.svg$"),

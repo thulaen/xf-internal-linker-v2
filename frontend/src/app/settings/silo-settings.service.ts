@@ -5,6 +5,25 @@ import { map, catchError } from 'rxjs/operators';
 
 export type SiloMode = 'disabled' | 'prefer_same_silo' | 'strict_same_silo';
 
+/**
+ * Bag for the FR-099 .. FR-105 settings endpoint. Seven signals share
+ * one endpoint with heterogeneous per-signal payload schemas; the seven
+ * known sections are declared as named optional fields so dot-access
+ * stays ergonomic at call-sites. Each section's inner payload is
+ * `Record<string, unknown>` because the per-signal schema varies and is
+ * still narrowed at runtime by the settings page. Replaces `: any`
+ * annotations flagged by the 2026-05-09 audit (AutoIssue #21).
+ */
+export interface Fr099Fr105Settings {
+  rsqva?: Record<string, unknown>;
+  berp?: Record<string, unknown>;
+  hgte?: Record<string, unknown>;
+  darb?: Record<string, unknown>;
+  kcib?: Record<string, unknown>;
+  kmig?: Record<string, unknown>;
+  tapb?: Record<string, unknown>;
+}
+
 export interface SiloSettings {
   mode: SiloMode;
   same_silo_boost: number;
@@ -932,12 +951,15 @@ export class SiloSettingsService {
 
   // FR-099 through FR-105 — single grouped endpoint for all 7 signals.
   // See docs/specs/fr099-*.md through fr105-*.md and docs/RANKING-GATES.md.
-  getFr099Fr105Settings(): Observable<any> {
-    return this.http.get<any>('/api/settings/fr099-fr105/');
+  // Free-form key-value bag because the seven signals share an endpoint
+  // but have heterogeneous schemas; replaces `: any` annotations flagged
+  // by the 2026-05-09 audit (AutoIssue #21).
+  getFr099Fr105Settings(): Observable<Fr099Fr105Settings> {
+    return this.http.get<Fr099Fr105Settings>('/api/settings/fr099-fr105/');
   }
 
-  updateFr099Fr105Settings(payload: any): Observable<any> {
-    return this.http.put<any>('/api/settings/fr099-fr105/', payload);
+  updateFr099Fr105Settings(payload: Fr099Fr105Settings): Observable<Fr099Fr105Settings> {
+    return this.http.put<Fr099Fr105Settings>('/api/settings/fr099-fr105/', payload);
   }
 
   // Group C Stage-1 retriever flags (Lexical + QueryExpansion).

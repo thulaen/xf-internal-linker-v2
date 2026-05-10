@@ -1,6 +1,6 @@
 
     <section class="perf-settings" id="performance-tunables-section">
-      <mat-card class="setting-card" id="runtime-recommendations">
+      <mat-card class="setting-card ga4-card" id="runtime-recommendations">
         <mat-card-header>
           <mat-icon mat-card-avatar>memory</mat-icon>
           <mat-card-title>Runtime profile recommendation</mat-card-title>
@@ -54,7 +54,7 @@
         </mat-card-content>
       </mat-card>
 
-      <mat-card class="setting-card" id="model-runtime">
+      <mat-card class="setting-card ga4-card" id="model-runtime">
         <mat-card-header>
           <mat-icon mat-card-avatar>hub</mat-icon>
           <mat-card-title>Model runtime</mat-card-title>
@@ -75,7 +75,7 @@
             </div>
           } @else if (runtimeSummary(); as runtime) {
             <div class="runtime-summary-grid">
-              <mat-card class="mini-card" id="performance-settings-active-model-mini">
+              <mat-card class="mini-card ga4-card" id="performance-settings-active-model-mini">
                 <mat-card-content>
                   <div class="mini-label">Active model</div>
                   <div class="mini-value">{{ runtime.model_runtime.active_model?.model_name || 'Not registered yet' }}</div>
@@ -86,7 +86,7 @@
                   </div>
                 </mat-card-content>
               </mat-card>
-              <mat-card class="mini-card" id="performance-settings-candidate-model-mini">
+              <mat-card class="mini-card ga4-card" id="performance-settings-candidate-model-mini">
                 <mat-card-content>
                   <div class="mini-label">Candidate model</div>
                   <div class="mini-value">{{ runtime.model_runtime.candidate_model?.model_name || 'None queued' }}</div>
@@ -95,7 +95,7 @@
                   </div>
                 </mat-card-content>
               </mat-card>
-              <mat-card class="mini-card" id="performance-settings-hot-swap-mini">
+              <mat-card class="mini-card ga4-card" id="performance-settings-hot-swap-mini">
                 <mat-card-content>
                   <div class="mini-label">Hot swap safety</div>
                   <div class="mini-value">{{ runtime.model_runtime.hot_swap_safe ? 'Safe' : 'Blocked' }}</div>
@@ -117,7 +117,7 @@
             }
 
             <div class="model-grid">
-              <mat-card class="mini-card model-card" *ngIf="runtime.model_runtime.active_model as active" id="performance-settings-champion-card">
+              <mat-card class="mini-card model-card ga4-card" *ngIf="runtime.model_runtime.active_model as active" id="performance-settings-champion-card">
                 <mat-card-content>
                   <div class="model-card-head">
                     <div>
@@ -136,7 +136,7 @@
                 </mat-card-content>
               </mat-card>
 
-              <mat-card class="mini-card model-card" *ngIf="runtime.model_runtime.candidate_model as candidate" id="performance-settings-candidate-card">
+              <mat-card class="mini-card model-card ga4-card" *ngIf="runtime.model_runtime.candidate_model as candidate" id="performance-settings-candidate-card">
                 <mat-card-content>
                   <div class="model-card-head">
                     <div>
@@ -268,7 +268,7 @@
         </mat-card-content>
       </mat-card>
 
-      <mat-card class="setting-card" id="performance-settings-batch-size">
+      <mat-card class="setting-card ga4-card" id="performance-settings-batch-size">
         <mat-card-header>
           <mat-icon mat-card-avatar>layers</mat-icon>
           <mat-card-title>Batch size</mat-card-title>
@@ -299,7 +299,7 @@
         </mat-card-content>
       </mat-card>
 
-      <mat-card class="setting-card" id="hardware-tuning">
+      <mat-card class="setting-card ga4-card" id="hardware-tuning">
         <mat-card-header>
           <mat-icon mat-card-avatar>tune</mat-icon>
           <mat-card-title>Hardware tuning</mat-card-title>

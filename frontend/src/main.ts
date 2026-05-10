@@ -19,7 +19,29 @@ import { bootstrapApplication } from '@angular/platform-browser';
 import * as Sentry from '@sentry/angular';
 import { appConfig } from './app/app.config';
 import { AppComponent } from './app/app.component';
+import { initOtelBrowser } from './app/core/observability/otel-bootstrap';
 import { environment } from './environments/environment';
+
+// Browser-side OpenTelemetry — every fetch / XHR / page-load becomes a
+// span exported to the same OTel collector the backend uses. Sentry
+// already handles errors + Web Vitals; OTEL handles the trace tree so
+// browser → backend → DB → C++ shows up as one trace in GlitchTip's
+// Performance tab. Empty endpoint disables.
+//
+// Skip when running under Karma — the ZoneContextManager that
+// `initOtelBrowser` installs as the global context manager conflicts
+// with Angular TestBed's own zone, causing tab labels to never render
+// and the suite to time out / disconnect. Karma sets `__karma__` on
+// window before any test bootstrap, so this gate is reliable.
+const inKarma = typeof window !== 'undefined' && '__karma__' in window;
+if (environment.otelEndpoint && !inKarma) {
+  initOtelBrowser({
+    endpoint: environment.otelEndpoint,
+    serviceName: 'xf-linker-frontend',
+    serviceVersion: environment.appVersion,
+    environment: environment.production ? 'production' : 'development',
+  });
+}
 
 if (environment.glitchtipDsn) {
   Sentry.init({

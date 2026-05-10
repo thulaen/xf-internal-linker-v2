@@ -34,6 +34,21 @@ import { FilterPersistenceService } from '../core/services/filter-persistence.se
 
 const TOGGLE_STORAGE_PAGE_ID = 'analytics-filters';
 
+/**
+ * Subset of the GA4 / Matomo / GSC sync summary the analytics page renders.
+ * The backend's full payload has more fields; this interface declares only
+ * what `lastSyncLabel` reads. Replaces a `: any` annotation flagged by the
+ * 2026-05-09 audit (AutoIssue #21).
+ */
+interface SyncSummary {
+  completed_at?: string | null;
+  started_at?: string | null;
+  rows_written?: number;
+  rows_read?: number;
+  status?: 'ok' | 'error' | string;
+  error_message?: string;
+}
+
 interface AnalyticsToggleSnapshot {
   engagementWindowDays: 7 | 14 | 30;
   topSuggestionsOrder: 'clicks' | 'quick_exit';
@@ -659,16 +674,16 @@ export class AnalyticsComponent implements OnInit {
     return ga4?.read_connection_message || ga4?.connection_message || 'Fill in the GA4 fields and test the connection.';
   }
 
-  lastSyncLabel(sync: any | null): string {
+  lastSyncLabel(sync: SyncSummary | null | undefined): string {
     if (!sync) return 'Never synced';
     const stamp = sync.completed_at || sync.started_at;
     if (!stamp) return `${sync.rows_written || 0} rows written`;
-    
+
     let summary = `${new Date(stamp).toLocaleString()}`;
     if (sync.rows_written !== undefined) summary += ` - ${sync.rows_written} rows written`;
     if (sync.rows_read !== undefined && sync.rows_read > 0) summary += ` (${sync.rows_read} read)`;
-    if (sync.status && sync.status === 'error') summary += ` [FAILED: ${sync.error_message || 'Unknown'}]`;
-    
+    if (sync.status === 'error') summary += ` [FAILED: ${sync.error_message || 'Unknown'}]`;
+
     return summary;
   }
 

@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
 """Pre-commit linter — flag forbidden patterns from PERFORMANCE-SAFE-DEFAULTS.md.
 
-Scans staged Python files for the seven highest-impact forbidden patterns:
+Scans staged Python files for ten high-impact forbidden patterns:
 
     1. ``except Exception:`` with no ``ingest_error`` call in the same block
     2. ``while True:`` with no break/timeout in the body
     3. ``.objects.all()`` immediately followed by ``for x in``
-    4. ``# TODO`` without a ``RPT-XXX`` reference
-    5. New function over 50 lines
-    6. Module with no docstring
-    7. Magic number in expression (literal != 0, 1, -1) without nearby
-       constant assignment — heuristic; high false-positive risk so this
-       check only emits at WARNING level (does not block commit).
+    4. ``# TODO`` / ``# FIXME`` without an ``(RPT-NNN)`` or ``(ISS-NNN)`` reference
+    5. New function over 50 lines (warn)
+    6. Module with no docstring (warn)
+    7. Celery task with no ``@HelperConstraint`` (warn)
+    8. Function with >7 args (warn)
+    9. Function with >4 nesting levels (warn)
+    10. Bare ``print(...)`` in backend source outside tests/migrations/management
+        (block — convert to ``logger.*`` or move to a CLI-shaped location)
 
 Conservative — false positives are easier to silence (with a
 ``# noqa: forbidden-pattern <id>`` comment near the violation) than false
-negatives are to recover from once a bad pattern lands. Patterns 1-4 BLOCK
-the commit; 5-7 emit warnings only.
+negatives are to recover from once a bad pattern lands. Patterns 1-4 + 10 BLOCK
+the commit; 5-9 emit warnings only.
 
 Exit codes:
     0   — staged Python files are clean (or none staged)
@@ -285,11 +287,16 @@ def scan_unbounded_iteration(source: str, source_lines: list[str], path: Path) -
     return out
 
 
-_TODO_RE = re.compile(r"#\s*TODO\b(?!\(RPT-\d+)", re.IGNORECASE)
+_TODO_RE = re.compile(r"#\s*(TODO|FIXME)\b(?!\((?:RPT|ISS)-\d+)", re.IGNORECASE)
 
 
 def scan_unscoped_todo(source: str, source_lines: list[str], path: Path) -> list[Violation]:
-    """Rule 4: ``# TODO`` without an ``(RPT-NNN)`` ticket reference."""
+    """Rule 4: ``# TODO`` / ``# FIXME`` without a ``(RPT-NNN)`` or ``(ISS-NNN)`` reference.
+
+    Both prefixes are accepted because the project tracks two surfaces:
+    Registry reports (RPT) and per-issue rows (ISS / AutoIssue). A scoped
+    TODO must point at one or the other.
+    """
     out: list[Violation] = []
     for match in _TODO_RE.finditer(source):
         lineno = source[: match.start()].count("\n") + 1
@@ -302,8 +309,84 @@ def scan_unscoped_todo(source: str, source_lines: list[str], path: Path) -> list
                 rule="unscoped-todo",
                 severity="block",
                 detail=(
-                    "# TODO without a (RPT-NNN) reference. Either resolve, or "
-                    "tag with a Report Registry entry: # TODO(RPT-042): ..."
+                    "# TODO/FIXME without an (RPT-NNN) or (ISS-NNN) reference. "
+                    "Either resolve, or tag with a tracking entry: "
+                    "# TODO(RPT-042): ... or # TODO(ISS-103): ..."
+                ),
+            )
+        )
+    return out
+
+
+# Rule 10 — committed `print(...)` calls in backend source. Allowed in
+# tests, migrations, and management commands (which are CLI-facing). The
+# rest of the backend uses `logger.*`. The check is AST-based to avoid
+# false positives on docstrings / comments containing the word "print".
+_PRINT_ALLOWED_PATH_RE = re.compile(
+    r"/(tests?|migrations|management/commands)/", re.IGNORECASE
+)
+# Files named tests.py / tests_*.py / test_*.py at any depth — also exempt.
+# Without this carve-out, a print() inside `apps/foo/tests.py` (legacy
+# single-file layout) would block the commit even though Django treats
+# the file as test-only.
+_PRINT_ALLOWED_FILENAME_RE = re.compile(
+    r"/(tests?\.py|tests?_[^/]+\.py|test_[^/]+\.py)$", re.IGNORECASE
+)
+_PRINT_ALLOWED_FILE_RE = re.compile(r"^backend/scripts/", re.IGNORECASE)
+
+
+def scan_committed_prints(
+    tree: ast.Module, source_lines: list[str], path: Path
+) -> list[Violation]:
+    """Rule 10: bare `print(...)` calls left in committed backend source.
+
+    Skipped for tests, migrations, management/commands, and ``backend/scripts/``
+    (CLI-facing files where stdout IS the output channel). Honors the
+    ``# noqa: forbidden-pattern print-statement`` per-line override and a
+    file-wide ``# print-allowed: <reason>`` top-of-file comment for the
+    rare debug helper that genuinely belongs on stdout.
+    """
+    out: list[Violation] = []
+    posix = str(path).replace("\\", "/")
+    if not posix.startswith("backend/apps/") and not posix.startswith("backend/config/"):
+        return out
+    if (
+        _PRINT_ALLOWED_PATH_RE.search(posix)
+        or _PRINT_ALLOWED_FILENAME_RE.search(posix)
+        or _PRINT_ALLOWED_FILE_RE.search(posix)
+    ):
+        return out
+    # File-wide opt-out via top-of-file comment.
+    head = "\n".join(source_lines[:5]).lower()
+    if "# print-allowed:" in head:
+        return out
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        is_print = (
+            isinstance(func, ast.Name) and func.id == "print"
+        ) or (
+            isinstance(func, ast.Attribute) and func.attr == "print"
+            and isinstance(func.value, ast.Name) and func.value.id == "builtins"
+        )
+        if not is_print:
+            continue
+        if _has_noqa(source_lines, node.lineno, window=1):
+            continue
+        out.append(
+            Violation(
+                path=path,
+                lineno=node.lineno,
+                rule="print-statement",
+                severity="block",
+                detail=(
+                    "bare print() in backend source — convert to logger.* "
+                    "(info / debug / warning / error). For genuine stdout output "
+                    "(e.g. management commands) move the file under "
+                    "management/commands/ or add a top-of-file "
+                    "`# print-allowed: <reason>` comment."
                 ),
             )
         )
@@ -552,6 +635,7 @@ def lint_file(path: Path, *, strict: bool = False) -> list[Violation]:
     violations.extend(scan_missing_helper_constraint(tree, path))
     violations.extend(scan_too_many_args(tree, source_lines, path))
     violations.extend(scan_deep_nesting(tree, source_lines, path))
+    violations.extend(scan_committed_prints(tree, source_lines, path))
 
     # Diff-awareness: drop pre-existing violations unless --strict.
     if strict:

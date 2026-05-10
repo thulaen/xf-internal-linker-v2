@@ -447,7 +447,7 @@
         <div class="wave2-signal-grid">
           @for (signal of wave2SignalCards(); track signal.id) {
             @let health = signal.system_health;
-            <mat-card [attr.id]="'wave2-signal-card-' + signal.id" class="wave2-signal-card">
+            <mat-card [attr.id]="'wave2-signal-card-' + signal.id" class="wave2-signal-card ga4-card">
               <mat-card-header>
                 <mat-card-title [matTooltip]="signal.description">
                   {{ signal.name }}
@@ -524,7 +524,7 @@
             Sanderson 2010 FnTIR §5.2 sample-size gate.
           </p>
         </div>
-        <mat-card class="ndcg-eval-card" id="ndcg-eval-card">
+        <mat-card class="ndcg-eval-card ga4-card" id="ndcg-eval-card">
           <mat-card-content>
             @if (!nd.available || nd.sufficient_data === false) {
               <p class="ndcg-status-pending">

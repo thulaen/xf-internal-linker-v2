@@ -29,8 +29,13 @@ module.exports = tseslint.config(
           style: "kebab-case",
         },
       ],
-      // Suppress noisy rules — tighten progressively
-      "@typescript-eslint/no-explicit-any": "off",
+      // Promoted from "off" → "warn" on 2026-05-09 (AutoIssue #21).
+      // 9 site-level any annotations were replaced with proper types in the
+      // same change; warn is enough to surface regressions in PRs without
+      // breaking CI for the 0-3 acceptable third-party-typing escape hatches.
+      // Promote to "error" once the bundle is fully `any`-free for two
+      // consecutive sessions.
+      "@typescript-eslint/no-explicit-any": "warn",
       "@angular-eslint/prefer-inject": "off",
     },
   },

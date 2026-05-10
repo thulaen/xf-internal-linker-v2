@@ -105,16 +105,16 @@
       @if (healthSummary) {
         <dl class="system-health-stats">
           <div>
-            <dt>Total services</dt>
+            <dt i18n="@@app.health.totalServices">Total services</dt>
             <dd>{{ healthSummary.total_services }}</dd>
           </div>
           <div>
-            <dt>Issues</dt>
+            <dt i18n="@@app.health.issues">Issues</dt>
             <dd [class.dd-warn]="healthSummary.degraded_count > 0">{{ healthSummary.degraded_count }}</dd>
           </div>
           @if (healthSummary.last_check_at) {
             <div>
-              <dt>Last check</dt>
+              <dt i18n="@@app.health.lastCheck">Last check</dt>
               <dd>{{ healthSummary.last_check_at | date:'short' }}</dd>
             </div>
           }
@@ -126,7 +126,7 @@
            appScrollHighlight="services-section"
            [scrollHighlightDelay]="200">
           <mat-icon>open_in_new</mat-icon>
-          View full health dashboard
+          <ng-container i18n="@@app.health.viewFullDashboard">View full health dashboard</ng-container>
         </a>
       </div>
     </div>
@@ -271,7 +271,7 @@
       <h3 class="a11y-menu-title" i18n="@@app.a11yMenu.title">Accessibility</h3>
 
       <div class="a11y-menu-row">
-        <span class="a11y-menu-label">High contrast</span>
+        <span class="a11y-menu-label" i18n="@@app.a11yMenu.highContrast">High contrast</span>
         <button
           mat-stroked-button
           type="button"
@@ -283,7 +283,7 @@
       </div>
 
       <div class="a11y-menu-row">
-        <span class="a11y-menu-label">Font size</span>
+        <span class="a11y-menu-label" i18n="@@app.a11yMenu.fontSize">Font size</span>
         <div class="a11y-menu-segments">
           @for (size of fontSizeChoices; track size) {
             <button
@@ -299,7 +299,7 @@
       </div>
 
       <div class="a11y-menu-row">
-        <span class="a11y-menu-label">Dyslexia-friendly font</span>
+        <span class="a11y-menu-label" i18n="@@app.a11yMenu.dyslexiaFont">Dyslexia-friendly font</span>
         <button
           mat-stroked-button
           type="button"
@@ -311,7 +311,7 @@
       </div>
 
       <div class="a11y-menu-row a11y-menu-cvd">
-        <span class="a11y-menu-label">Colour-blind palette</span>
+        <span class="a11y-menu-label" i18n="@@app.a11yMenu.cvdPalette">Colour-blind palette</span>
         <div class="a11y-menu-segments">
           @for (p of cvdChoices; track p.value) {
             <button
@@ -372,11 +372,11 @@
       <mat-divider></mat-divider>
       <button mat-menu-item (click)="goToAdmin($event)">
         <mat-icon>settings</mat-icon>
-        <span>Admin Panel</span>
+        <span i18n="@@app.userMenu.adminPanel">Admin Panel</span>
       </button>
       <button mat-menu-item (click)="logout()">
         <mat-icon>logout</mat-icon>
-        <span>Sign out</span>
+        <span i18n="@@app.userMenu.signOut">Sign out</span>
       </button>
     </mat-menu>
   }
