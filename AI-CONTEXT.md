@@ -540,6 +540,16 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-05-11 - Prevention sweep component tests and backend gate repair (Codex)
+
+- **AI/tool:** Codex.
+- **Why:** User asked to continue the locked prevention sweep one slice at a time, using the latest handoff and the original mission plan as the source of truth.
+- **What changed:** Added and stabilized the next frontend component test coverage slice, raising the frontend unit test count from 535 to 613. Fixed a small shared wizard refresh bug exposed by the new tests. Repaired four backend prevention-test failures found during required verification: default-on Stage-1 retriever settings now match the retriever registry, spam-guard descriptions carry patent citations, and two pipeline tasks have helper-machine routing metadata.
+- **Files intentionally changed:** dashboard/shared/settings frontend spec files, `frontend/src/app/shared/ui/typing-indicator/typing-indicator.component.ts`, `frontend/src/app/shared/wizard/wizard.component.ts`, `backend/apps/core/views_stage1_retrievers.py`, `backend/apps/core/views_ml_settings.py`, `backend/apps/pipeline/services/candidate_retrievers.py`, `backend/apps/pipeline/tasks.py`, and `AGENT-HANDOFF.md`.
+- **Verification:** `npm run test:ci` passed 613 tests. `npm run build:prod` passed with existing warnings. `docker compose exec -T backend python manage.py check` passed. `docker compose exec -T backend python manage.py test apps.core --keepdb --noinput` passed 434 tests. The four prevention hooks passed.
+- **Known issues:** Build warnings remain in existing frontend areas: optional-chain cleanup in Error Log, unused imports in Settings, bundle budget, and OpenTelemetry package format warnings. No new AutoIssues were filed because the issues found during verification were fixed in this session.
+- **Commits:** `8224165e` Add frontend component coverage tests; `6c5a73b2` Fix backend prevention test failures.
+
 ### 2026-05-08 - Backup helper extraction and reliability tests (Codex)
 
 - **AI/tool:** Codex.

@@ -8595,3 +8595,49 @@ Verification completed:
 
 Notes for the next agent:
 - Django test startup still logs the pre-existing FAISS process warning and a couple of early audit/ops-feed table warnings while the sqlite test database is being prepared, but the targeted tests pass.
+# 2026-05-11 - Codex — Prevention sweep component coverage slice + backend gate repair
+
+[HANDOFF READ: 2026-05-10 by Antigravity (Gemini) — Settings helpers were split into smaller backend modules, dashboard tests were stabilized, and one false health alert was tightened.]
+
+[REGISTRY READ: 44 open (5 agent / 20 glitchtip / 9 pyroscope / 10 loki), 21 registry — picked: auto-fix-12 satisfier]
+
+[RESOLVED HISTORY: 1 prior fix read in frontend/src/app/dashboard; 0 prior fixes read in frontend/src/app/shared/ui; 0 prior fixes read in frontend/src/app/shared/wizard; 4 prior fixes read in backend/apps/core; 2 prior fixes read in backend/apps/pipeline/services]
+
+**What I did:** Continued the locked prevention sweep with one primary slice: frontend component test coverage. Added and stabilized dashboard/shared/settings tests, then fixed the small shared wizard refresh bug those tests exposed. During required backend verification, repaired four existing prevention-test failures so the backend gate is green again.
+
+**What was accomplished:** Frontend unit tests now run 613 passing tests, up from the 535 count in the last green handoff. Backend `apps.core` now runs 434 passing tests. The default-on Stage-1 retrievers now agree between the settings endpoint and the pipeline registry; spam-guard setting descriptions carry patent citations; and two pipeline scheduled tasks now carry helper-machine routing metadata.
+
+**What still has issues or errors:** No test is currently failing. The production frontend build still prints existing warnings about bundle size, OpenTelemetry package format, Error Log optional chains, and unused Settings imports. AutoIssue #22 is still open because this was a partial coverage slice, not the full remaining component-test backlog. No AutoIssues were closed this session.
+
+**Files changed:**
+- `frontend/src/app/dashboard/**.spec.ts` and `frontend/src/app/dashboard/mission-critical/*.spec.ts` — added and stabilized dashboard coverage.
+- `frontend/src/app/shared/ui/**/*.spec.ts`, `frontend/src/app/shared/wizard/wizard.component.spec.ts` — added shared UI and wizard coverage.
+- `frontend/src/app/shared/ui/typing-indicator/typing-indicator.component.ts` — added a timer signal so stale typing notices disappear without another event.
+- `frontend/src/app/shared/wizard/wizard.component.ts` — allowed validity changes from projected steps to refresh the Next button.
+- `frontend/src/app/settings/settings.component.spec.ts` — mocked extracted child tabs enough for the settings smoke test to compile and run.
+- `backend/apps/core/views_stage1_retrievers.py`, `backend/apps/pipeline/services/candidate_retrievers.py` — aligned cold-start defaults for default-on retrievers.
+- `backend/apps/core/views_ml_settings.py` — added patent citations to spam-guard descriptions.
+- `backend/apps/pipeline/tasks.py` — added helper-machine routing metadata to two scheduled tasks while keeping the grandfathered file under its allowed line baseline.
+- `AI-CONTEXT.md`, `AGENT-HANDOFF.md` — recorded this session.
+
+**Verification:**
+- PASS — `docker compose exec -T backend python manage.py check`
+- PASS — `docker compose exec -T backend python manage.py test apps.core --keepdb --noinput` (434 tests)
+- PASS — `cd frontend && npm run test:ci` (613 tests)
+- PASS — `cd frontend && npm run build:prod` (warnings only)
+- PASS — `python .githooks/check-file-size.py`
+- PASS — `python .githooks/check-no-downgraded-gates.py`
+- PASS — `python .githooks/check-frontend-routes.py`
+- PASS — `python .githooks/check-missing-tests.py`
+
+**Commits:**
+- `8224165e` — Add frontend component coverage tests
+- `6c5a73b2` — Fix backend prevention test failures
+
+**Final cumulative numbers:** Component coverage backlog moved from about 146 untested components to about 137. The overall locked plan still has roughly 65-70% left: AutoIssue #22 coverage batches, AutoIssue #20 translation tagging, `views_capacity.py` splitting, careful `settings.component.ts` shared-state refactor, remaining observability issues, and Linux-only thread-safety suppression work.
+
+**Tech-debt delta:** -15 debt items, +78 frontend tests.
+  Component coverage gaps reduced: 9 new spec files plus existing spec stabilizations.
+  Silent UI bug fixed: wizard Next button now responds when a step becomes invalid after render.
+  Backend gate debt fixed: 2 default mismatches, 3 missing citation descriptions, 2 missing helper metadata decorators.
+  Disposable artifacts removed: local test-output files and generated translation output that were not part of the slice.
