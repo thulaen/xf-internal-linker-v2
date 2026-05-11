@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 @HelperConstraint(storage_writes_to="redis", ram_peak_mb=128, expected_seconds_p50=5)
 def refresh_disk_pressure_state() -> dict:
     """Beat-driven refresh of the cached disk-pressure state."""
-    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     from apps.pipeline.services.disk_pressure import (
         refresh_disk_pressure_state as _refresh,
@@ -39,8 +39,8 @@ def cpp_fallback_share_check() -> dict:
     """Daily check that the Stage-2 Python-fallback share is below the alert
     threshold (FR-247).
     """
-    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     from apps.pipeline.services.pipeline_stages import (
         get_stage2_path_runtime_status,

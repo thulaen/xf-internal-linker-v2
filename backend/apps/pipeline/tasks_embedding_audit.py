@@ -41,8 +41,8 @@ def embedding_accuracy_audit(self, *, fortnightly: bool = True, force: bool = Fa
         fortnightly: Enforce the 13-day gate. Tests / manual runs set False.
         force: Bypass all gates (manual 'Run audit now' from the UI).
     """
-    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
     from apps.pipeline.services.embedding_audit import (
         get_last_run_at,
         get_thresholds,

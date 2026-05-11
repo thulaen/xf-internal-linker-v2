@@ -35,8 +35,8 @@ logger = logging.getLogger(__name__)
     expected_seconds_p50=2,
 )
 def performance_cert_recompute() -> dict[str, str]:
-    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Refresh the cert verdict from the latest completed BenchmarkRun.
 

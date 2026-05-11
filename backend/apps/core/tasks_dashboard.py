@@ -36,8 +36,8 @@ logger = logging.getLogger(__name__)
     ram_peak_mb=256,
 )
 def refresh_dashboard_matviews() -> dict[str, bool]:
-    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Refresh every dashboard materialised view.
 

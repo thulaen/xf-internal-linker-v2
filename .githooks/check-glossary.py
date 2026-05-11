@@ -37,8 +37,10 @@ ALLOWLIST: frozenset[str] = frozenset({
     "CSS", "HTML", "URL", "URLs", "JSON", "HTTP", "HTTPS", "CSV", "JSX", "TSX",
     "SCSS", "DOM", "AST", "GUI", "CLI", "UI", "UX", "ID", "IDs", "SDK", "REST",
     "RPC", "JWT", "TLS", "SSL", "CRC", "MD5", "SHA", "UUID", "ISO", "RFC",
+    "UTF-8", "INTERPOLATION", "ICU", "ISO-8601",
     "GMT", "UTC", "MIME", "PNG", "JPG", "JPEG", "GIF", "SVG", "PDF", "MP3",
-    "MP4", "ZIP", "TAR", "GZ", "TXT", "YAML", "YML", "TOML", "INI",
+    "MP4", "ZIP", "TAR", "GZ", "TXT", "YAML", "YML", "TOML", "INI", "IPW",
+    "UUID-PK", "FOREVER",
     # Hardware / OS
     "OS", "CPU", "GPU", "RAM", "ROM", "USB", "IP", "IPv4", "IPv6", "TCP",
     "UDP", "DNS", "BIOS", "ARM", "ARM64", "AMD64", "x86", "x86_64",

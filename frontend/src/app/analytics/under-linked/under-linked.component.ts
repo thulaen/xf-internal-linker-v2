@@ -23,8 +23,9 @@ interface GapRow {
     @if (loading) {
       <div class="loading-wrap"><mat-spinner diameter="48"></mat-spinner></div>
     } @else if (!rows.length) {
-      <app-empty-state icon="link_off" heading="No under-linked pages"
-        body="All pages have adequate incoming links. Check back after your next import.">
+      <app-empty-state icon="link_off" 
+        heading="No under-linked pages" i18n-heading="@@analytics.under_linked.empty.heading"
+        body="All pages have adequate incoming links. Check back after your next import." i18n-body="@@analytics.under_linked.empty.body">
       </app-empty-state>
     } @else {
       <div class="gap-list">
@@ -34,7 +35,7 @@ interface GapRow {
               <div class="gap-info">
                 <span class="gap-title">{{ row.title }}</span>
                 <div class="gap-meta">
-                  <span class="link-count">{{ row.incoming_link_count }} incoming links</span>
+                  <span class="link-count" i18n="@@analytics.under_linked.link_count">{row.incoming_link_count, plural, =1 {1 incoming link} other {# incoming links}}</span>
                 </div>
               </div>
               <div class="score-bar-wrap">
@@ -42,7 +43,7 @@ interface GapRow {
                 <span class="score-label">{{ row.opportunity_score.toFixed(0) }}%</span>
               </div>
               <button mat-stroked-button class="watch-btn" (click)="watch(row)"
-                [disabled]="watchingId === row.content_item_id">
+                [disabled]="watchingId === row.content_item_id" i18n="@@analytics.under_linked.watch_btn">
                 <mat-icon>visibility</mat-icon> Watch
               </button>
             </mat-card-content>
@@ -87,14 +88,24 @@ export class UnderLinkedComponent implements OnInit {
 
   watch(row: GapRow): void {
     this.watchingId = row.content_item_id;
-    this.http.post('/api/analytics/watched-pages/', { content_item_id: row.content_item_id, notes: '' })
+    this.http.post('/api/analytics/watched-pages/', { content_item_id: row.content_item_id, notes: '' }) // noqa: route-check
       .pipe(
-        catchError(() => { this.snack.open('Could not add to watchlist.', 'Dismiss', { duration: 3000 }); return of(null); }),
+        catchError(() => { 
+          this.snack.open(
+            $localize`:@@analytics.under_linked.error_watchlist:Could not add to watchlist.`, 
+            $localize`:@@analytics.under_linked.dismiss:Dismiss`, 
+            { duration: 3000 }
+          ); 
+          return of(null); 
+        }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(res => {
         this.watchingId = null;
-        if (res) { this.snack.open(`"${row.title}" added to watchlist.`, undefined, { duration: 2500 }); }
+        if (res) { 
+          const msg = $localize`:@@analytics.under_linked.success_watchlist:"${row.title}" added to watchlist.`;
+          this.snack.open(msg, undefined, { duration: 2500 }); 
+        }
       });
   }
 }

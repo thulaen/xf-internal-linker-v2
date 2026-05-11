@@ -108,7 +108,7 @@ export class QuickControlsComponent implements OnInit {
       const valid = results.filter((r): r is RuntimeModelsSummary => !!r);
       this.summaries.set(valid);
       if (valid.length === 0) {
-        this.error.set('No active model services found.');
+        this.error.set($localize`:@@dashboard.quick_controls.error.none:No active model services found.`);
       }
     });
   }
@@ -135,11 +135,15 @@ export class QuickControlsComponent implements OnInit {
     this.busyId.set(`${model.id}:${action}`);
     this.svc.action(model.id, action).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
-        this.snack.open(`Action "${action}" applied to ${model.model_name}.`, 'OK', { duration: 3000 });
+        const name = model.model_name;
+        const msg = $localize`:@@dashboard.quick_controls.snackbar.success:Action "${action}:action:" applied to ${name}:name:.`;
+        this.snack.open(msg, $localize`:@@dashboard.quick_controls.snackbar.ok:OK`, { duration: 3000 });
         this.refresh();
       },
       error: () => {
-        this.snack.open(`Failed to ${action} ${model.model_name}.`, 'Dismiss', { duration: 5000 });
+        const name = model.model_name;
+        const msg = $localize`:@@dashboard.quick_controls.snackbar.error:Failed to ${action}:action: ${name}:name:.`;
+        this.snack.open(msg, $localize`:@@dashboard.quick_controls.snackbar.dismiss:Dismiss`, { duration: 5000 });
       },
       complete: () => {
         this.busyId.set('');

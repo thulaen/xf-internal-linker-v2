@@ -119,9 +119,17 @@ export class TypingIndicatorComponent implements OnInit {
   readonly label = computed(() => {
     const o = this.others();
     if (o.length === 0) return '';
-    if (o.length === 1) return `${o[0].username} is editing…`;
-    if (o.length === 2) return `${o[0].username} and ${o[1].username} are editing…`;
-    return `${o.length} others are editing…`;
+    if (o.length === 1) {
+      const username = o[0].username;
+      return $localize`:@@shared.typing_indicator.one: ${username}:username: is editing…`;
+    }
+    if (o.length === 2) {
+      const u1 = o[0].username;
+      const u2 = o[1].username;
+      return $localize`:@@shared.typing_indicator.two: ${u1}:user1: and ${u2}:user2: are editing…`;
+    }
+    const count = o.length;
+    return $localize`:@@shared.typing_indicator.many: ${count}:count: others are editing…`;
   });
 
   ngOnInit(): void {

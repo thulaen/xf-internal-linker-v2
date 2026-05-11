@@ -45,8 +45,8 @@ _MIN_RECLAIM_MB_THRESHOLD = 50
     ram_peak_mb=256,
 )
 def gpu_memory_cleanup() -> dict[str, float | str]:
-    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Clear unused CUDA memory and report MB reclaimed.
 

@@ -29,31 +29,32 @@ export interface ChallengerRow {
     <mat-card id="ranking-strategy">
       <mat-card-header>
         <mat-icon mat-card-avatar>tune</mat-icon>
-        <mat-card-title>Ranking Strategy</mat-card-title>
+        <mat-card-title i18n="@@dashboard.ranking.title">Ranking Strategy</mat-card-title>
       </mat-card-header>
       <mat-card-content>
         <div class="strategy-header">
-          <mat-chip class="engine-chip" disableRipple>
+          <mat-chip class="engine-chip" disableRipple i18n="@@dashboard.ranking.engine">
             <mat-icon matChipAvatar>psychology</mat-icon>
             Auto-tuner (Python L-BFGS)
           </mat-chip>
           <a mat-stroked-button routerLink="/settings" fragment="ranking-weights">
-            <mat-icon>settings</mat-icon> Adjust Weights
+            <mat-icon>settings</mat-icon>
+            <span i18n="@@dashboard.ranking.btn.adjust">Adjust Weights</span>
           </a>
         </div>
         @if (challengers.length > 0) {
           <div class="challengers">
-            <span class="section-label">Challengers Active</span>
+            <span class="section-label" i18n="@@dashboard.ranking.challengers.label">Challengers Active</span>
             @for (c of challengers; track $index) {
               <div class="challenger-row">
                 <mat-icon class="challenger-icon">science</mat-icon>
-                <span class="challenger-name">{{ c.name ?? 'Challenger ' + ($index + 1) }}</span>
+                <span class="challenger-name">{{ getChallengerName(c, $index) }}</span>
                 <span class="challenger-status">{{ c.status ?? 'running' }}</span>
               </div>
             }
           </div>
         } @else {
-          <p class="no-challengers">No challengers running. The current weights are stable.</p>
+          <p class="no-challengers" i18n="@@dashboard.ranking.challengers.none">No challengers running. The current weights are stable.</p>
         }
       </mat-card-content>
     </mat-card>
@@ -91,4 +92,10 @@ export interface ChallengerRow {
 })
 export class RankingStrategyCardComponent {
   @Input() challengers: ChallengerRow[] = [];
+
+  getChallengerName(c: ChallengerRow, index: number): string {
+    if (c.name) return c.name;
+    const num = index + 1;
+    return $localize`:@@dashboard.ranking.challenger.fallback:Challenger ${num}:index:`;
+  }
 }

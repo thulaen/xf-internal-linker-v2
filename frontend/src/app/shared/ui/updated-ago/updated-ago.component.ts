@@ -43,6 +43,7 @@ import { MatIconModule } from '@angular/material/icon';
         [matTooltip]="tooltipText"
         matTooltipPosition="above"
         aria-label="Data last updated {{ label }}"
+        i18n-aria-label="@@shared.updated_ago.ariaLabel"
       >
         <mat-icon class="updated-ago-icon" aria-hidden="true">schedule</mat-icon>
         <span class="updated-ago-label">{{ label }}</span>
@@ -62,7 +63,7 @@ import { MatIconModule } from '@angular/material/icon';
       color: var(--color-text-secondary);
       white-space: nowrap;
       transition: color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-                  background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                   background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .updated-ago-icon {
       font-size: 12px;
@@ -136,7 +137,8 @@ export class UpdatedAgoComponent implements OnInit, OnChanges, OnDestroy {
 
     const ageMs = Date.now() - ts.getTime();
     this.label = formatAgo(ageMs);
-    this.tooltipText = `Last updated: ${ts.toLocaleString()}`;
+    const dateStr = ts.toLocaleString();
+    this.tooltipText = $localize`:@@shared.updated_ago.tooltip:Last updated: ${dateStr}:date:`;
 
     if (ageMs >= this.errorAfterMs) {
       this.staleness = 'error';
@@ -150,13 +152,13 @@ export class UpdatedAgoComponent implements OnInit, OnChanges, OnDestroy {
 
 /** Format a duration in ms as a short human-readable string. */
 function formatAgo(ms: number): string {
-  if (ms < 0) return 'just now';
+  if (ms < 0) return $localize`:@@shared.updated_ago.justNow:just now`;
   const s = Math.floor(ms / 1000);
-  if (s < 60) return 'just now';
+  if (s < 60) return $localize`:@@shared.updated_ago.justNow:just now`;
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return $localize`:@@shared.updated_ago.minsAgo:${m}:mins:m ago`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
+  if (h < 24) return $localize`:@@shared.updated_ago.hoursAgo:${h}:hours:h ago`;
   const d = Math.floor(h / 24);
-  return `${d}d ago`;
+  return $localize`:@@shared.updated_ago.daysAgo:${d}:days:d ago`;
 }

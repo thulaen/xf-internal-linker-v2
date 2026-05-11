@@ -85,6 +85,9 @@ class PipelineConfig(AppConfig):
             from . import tasks_embedding_bakeoff  # noqa: F401
             from . import tasks_import  # noqa: F401
             from . import tasks_monthly  # noqa: F401
+            from . import tasks_tuning  # noqa: F401
+            from . import tasks_embeddings  # noqa: F401
+            from . import tasks_link_health  # noqa: F401
         except Exception:  # noqa: BLE001
             import logging
 

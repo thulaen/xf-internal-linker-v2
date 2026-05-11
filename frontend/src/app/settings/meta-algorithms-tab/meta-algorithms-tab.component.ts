@@ -111,11 +111,11 @@ import { SpecViewerDialogComponent } from '../spec-viewer-dialog/spec-viewer-dia
             [value]="statusFilter()"
             (valueChange)="onStatusChange($event)"
           >
-            <mat-option value="" i18n="@@metaAlgorithms.status.all">All</mat-option>
-            <mat-option value="active" i18n="@@metaAlgorithms.status.active">Active only</mat-option>
-            <mat-option value="disabled-pending-implementation" i18n="@@metaAlgorithms.status.spec">Spec only</mat-option>
-            <mat-option value="forward-declared" i18n="@@metaAlgorithms.status.forward">Forward-declared</mat-option>
-            <mat-option value="disabled" i18n="@@metaAlgorithms.status.disabled">Disabled</mat-option>
+            <mat-option value="" i18n="@@metaAlgorithms.filter.all">All</mat-option>
+            <mat-option value="active" i18n="@@metaAlgorithms.filter.active">Active only</mat-option>
+            <mat-option value="disabled-pending-implementation" i18n="@@metaAlgorithms.filter.spec">Spec only</mat-option>
+            <mat-option value="forward-declared" i18n="@@metaAlgorithms.filter.forward">Forward-declared</mat-option>
+            <mat-option value="disabled" i18n="@@metaAlgorithms.filter.disabled">Disabled</mat-option>
           </mat-select>
         </mat-form-field>
 
@@ -357,16 +357,21 @@ export class MetaAlgorithmsTabComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
+          const id = ev.id;
+          const state = ev.enabled 
+            ? $localize`:@@settings.actions.enabled:enabled` 
+            : $localize`:@@settings.actions.disabled:disabled`;
           this.snack.open(
-            $localize`:@@metaAlgorithms.success.toggled:${ev.id} → ${ev.enabled ? 'enabled' : 'disabled'}.`,
+            $localize`:@@metaAlgorithms.success.toggled:${id}:id: → ${state}:state:.`,
             $localize`:@@settings.actions.ok:OK`,
             { duration: 2500 },
           );
         },
         error: () => {
+          const id = ev.id;
           this.rows.set(snapshot);
           this.snack.open(
-            $localize`:@@metaAlgorithms.errors.toggleFailed:Could not toggle ${ev.id} — reverted.`,
+            $localize`:@@metaAlgorithms.errors.toggleFailed:Could not toggle ${id}:id: — reverted.`,
             $localize`:@@settings.actions.ok:OK`,
             { duration: 4000 },
           );
@@ -378,13 +383,15 @@ export class MetaAlgorithmsTabComponent implements OnInit {
     const row = this.rows().find((r) => r.id === ev.id);
     if (!row) return;
     switch (ev.action) {
-      case 'run':
+      case 'run': {
+        const title = row.title;
         this.snack.open(
-          $localize`:@@metaAlgorithms.success.runQueued:Run queued for ${row.title}. Gated by the sequential-execution lock.`,
+          $localize`:@@metaAlgorithms.success.runQueued:Run queued for ${title}:title:. Gated by the sequential-execution lock.`,
           $localize`:@@settings.actions.ok:OK`,
           { duration: 3000 },
         );
         break;
+      }
       case 'spec':
         if (row.spec_path) {
           this.dialog.open(SpecViewerDialogComponent, {
@@ -418,10 +425,22 @@ export class MetaAlgorithmsTabComponent implements OnInit {
       return $localize`:@@metaAlgorithms.families.signalTip:${f.total} forward-declared ranking signals.`;
     }
     const parts: string[] = [];
-    if (f.active > 0) parts.push($localize`:@@metaAlgorithms.families.activeCount:${f.active} active`);
-    if (f.forward > 0) parts.push($localize`:@@metaAlgorithms.families.forwardCount:${f.forward} forward`);
-    if (f.disabled > 0) parts.push($localize`:@@metaAlgorithms.families.disabledCount:${f.disabled} disabled`);
-    return $localize`:@@metaAlgorithms.families.genericTip:${f.family}: ${parts.join(' · ') || `${f.total} metas`}`;
+    if (f.active > 0) {
+      const active = f.active;
+      parts.push($localize`:@@metaAlgorithms.families.activeCount:${active}:count: active`);
+    }
+    if (f.forward > 0) {
+      const forward = f.forward;
+      parts.push($localize`:@@metaAlgorithms.families.forwardCount:${forward}:count: forward`);
+    }
+    if (f.disabled > 0) {
+      const disabled = f.disabled;
+      parts.push($localize`:@@metaAlgorithms.families.disabledCount:${disabled}:count: disabled`);
+    }
+    
+    const family = f.family;
+    const summary = parts.length > 0 ? parts.join(' · ') : $localize`:@@metaAlgorithms.families.fallbackCount:${f.total}:total: metas`;
+    return $localize`:@@metaAlgorithms.families.genericTip:${family}:family:: ${summary}:summary:`;
   }
 
   trackById(_: number, row: MetaRow): string {

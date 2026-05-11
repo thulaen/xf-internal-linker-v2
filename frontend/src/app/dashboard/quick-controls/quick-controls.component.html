@@ -1,8 +1,8 @@
 <mat-card class="quick-controls-card ga4-card" data-ga4-panel id="quick-controls-card">
   <mat-card-header>
     <mat-icon mat-card-avatar>settings_input_component</mat-icon>
-    <mat-card-title>Quick Controls</mat-card-title>
-    <mat-card-subtitle>Monitor and control active model services</mat-card-subtitle>
+    <mat-card-title i18n="@@dashboard.quick_controls.title">Quick Controls</mat-card-title>
+    <mat-card-subtitle i18n="@@dashboard.quick_controls.subtitle">Monitor and control active model services</mat-card-subtitle>
   </mat-card-header>
 
   <mat-card-content>
@@ -35,19 +35,21 @@
                 <button mat-stroked-button color="primary" 
                         [disabled]="isBusy(model.id, 'pause')"
                         (click)="pause(model)"
+                        i18n-matTooltip="@@dashboard.quick_controls.tooltip.pause"
                         matTooltip="Pause all model work">
                   @if (isBusy(model.id, 'pause')) { <mat-spinner diameter="16"></mat-spinner> }
                   @else { <mat-icon>pause</mat-icon> }
-                  Pause
+                  <span i18n="@@dashboard.quick_controls.btn.pause">Pause</span>
                 </button>
               } @else if (model.display_status === 'paused') {
                 <button mat-stroked-button color="primary" 
                         [disabled]="isBusy(model.id, 'resume')"
                         (click)="resume(model)"
+                        i18n-matTooltip="@@dashboard.quick_controls.tooltip.resume"
                         matTooltip="Resume all model work">
                   @if (isBusy(model.id, 'resume')) { <mat-spinner diameter="16"></mat-spinner> }
                   @else { <mat-icon>play_arrow</mat-icon> }
-                  Resume
+                  <span i18n="@@dashboard.quick_controls.btn.resume">Resume</span>
                 </button>
               }
 
@@ -57,18 +59,20 @@
                 <button mat-stroked-button color="primary"
                         [disabled]="isBusy(model.id, 'promote')"
                         (click)="promote(model)"
+                        i18n-matTooltip="@@dashboard.quick_controls.tooltip.promote"
                         matTooltip="Promote to champion">
-                  Promote
+                  <span i18n="@@dashboard.quick_controls.btn.promote">Promote</span>
                 </button>
               }
 
               <button mat-stroked-button color="warn"
                       [disabled]="model.display_status === 'draining' || isBusy(model.id, 'drain')"
                       (click)="drain(model)"
+                      i18n-matTooltip="@@dashboard.quick_controls.tooltip.drain"
                       matTooltip="Drain and retire this placement">
                 @if (isBusy(model.id, 'drain')) { <mat-spinner diameter="16"></mat-spinner> }
                 @else { <mat-icon>delete_sweep</mat-icon> }
-                Drain
+                <span i18n="@@dashboard.quick_controls.btn.drain">Drain</span>
               </button>
             </div>
           </div>
@@ -80,7 +84,7 @@
   <mat-card-actions align="end">
     <button mat-button color="primary" routerLink="/admin/models">
       <mat-icon>open_in_new</mat-icon>
-      Manage All
+      <span i18n="@@dashboard.quick_controls.btn.manage_all">Manage All</span>
     </button>
   </mat-card-actions>
 </mat-card>

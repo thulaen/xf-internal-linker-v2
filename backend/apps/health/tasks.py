@@ -28,8 +28,8 @@ logger = logging.getLogger(__name__)
     ram_peak_mb=256,
 )
 def run_all_health_checks():
-    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """
     Run all registered health checks from the registry.

@@ -1,78 +1,106 @@
-import { TestBed } from '@angular/core/testing';
-import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { of } from 'rxjs';
-
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { QuickControlsComponent } from './quick-controls.component';
-import {
-  RuntimeModelsService,
-  RuntimeModelsSummary,
-} from '../../admin-models/runtime-models.service';
-
-const baseSummary: RuntimeModelsSummary = {
-  task_type: 'embedding',
-  active_model: {
-    id: 1,
-    task_type: 'embedding',
-    model_name: 'BAAI/bge-m3',
-    model_family: 'sentence-transformers',
-    dimension: 1024,
-    device_target: 'cpu',
-    batch_size: 32,
-    memory_profile: {},
-    role: 'champion',
-    status: 'ready',
-    health_result: {},
-    algorithm_version: 'fr020-v1',
-    promoted_at: null,
-    draining_since: null,
-    last_warmup_result: {},
-  },
-  candidate_model: null,
-  placements: [],
-  reclaimable_disk_bytes: 0,
-  backfill: null,
-  device: 'cpu',
-  hot_swap_safe: true,
-  master_paused: false,
-  recent_audit_log: [],
-  last_audit_at: null,
-};
-
-function render(summary: RuntimeModelsSummary) {
-  return TestBed.configureTestingModule({
-    imports: [QuickControlsComponent, NoopAnimationsModule],
-    providers: [
-      {
-        provide: RuntimeModelsService,
-        useValue: {
-          list: () => of(summary),
-          action: () => of({ status: 'ok' }),
-        },
-      },
-    ],
-  })
-    .compileComponents()
-    .then(() => {
-      const fixture = TestBed.createComponent(QuickControlsComponent);
-      fixture.detectChanges();
-      return fixture;
-    });
-}
+import { RuntimeModelsService } from '../../admin-models/runtime-models.service';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { of, throwError } from 'rxjs';
+import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { By } from '@angular/platform-browser';
+import { provideRouter } from '@angular/router';
 
 describe('QuickControlsComponent', () => {
-  it('shows Pause when runtime work is not globally paused', async () => {
-    const fixture = await render(baseSummary);
-    const text = fixture.nativeElement.textContent;
+  let component: QuickControlsComponent;
+  let fixture: ComponentFixture<QuickControlsComponent>;
+  let svcSpy: jasmine.SpyObj<RuntimeModelsService>;
+  let snackSpy: jasmine.SpyObj<MatSnackBar>;
 
-    expect(text).toContain('Pause');
-    expect(text).not.toContain('Resume');
+  beforeEach(async () => {
+    svcSpy = jasmine.createSpyObj('RuntimeModelsService', ['list', 'action']);
+    snackSpy = jasmine.createSpyObj('MatSnackBar', ['open']);
+
+    svcSpy.list.and.returnValue(of({
+      task_type: 'embedding',
+      active_model: {
+        id: 1,
+        model_name: 'BGE-M3',
+        status: 'ready',
+        task_type: 'embedding',
+        role: 'champion'
+      },
+      candidates: [],
+      master_paused: false
+    } as any));
+
+    await TestBed.configureTestingModule({
+      imports: [QuickControlsComponent, NoopAnimationsModule],
+      providers: [
+        { provide: RuntimeModelsService, useValue: svcSpy },
+        { provide: MatSnackBar, useValue: snackSpy },
+        provideRouter([])
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(QuickControlsComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
   });
 
-  it('shows Resume when runtime work is globally paused', async () => {
-    const fixture = await render({ ...baseSummary, master_paused: true });
-    const text = fixture.nativeElement.textContent;
+  it('should create', () => {
+    expect(component).toBeTruthy();
+  });
 
-    expect(text).toContain('Resume');
-    expect(text).not.toContain('Pause');
+  it('should list active models on init', () => {
+    expect(svcSpy.list).toHaveBeenCalled();
+    expect(component.activeModels().length).toBeGreaterThan(0);
+    expect(component.activeModels()[0].model_name).toBe('BGE-M3');
+  });
+
+  it('should show Pause button for ready models', () => {
+    const pauseBtn = fixture.debugElement.query(By.css('button[matTooltip*="Pause"]'));
+    expect(pauseBtn).toBeTruthy();
+    expect(pauseBtn.nativeElement.textContent).toContain('Pause');
+  });
+
+  it('should show Resume button for paused models', () => {
+    component.summaries.set([{
+      task_type: 'embedding',
+      active_model: { id: 1, model_name: 'M', status: 'ready', task_type: 'embedding', role: 'champion' },
+      candidates: [],
+      master_paused: true
+    } as any]);
+    fixture.detectChanges();
+
+    const resumeBtn = fixture.debugElement.query(By.css('button[matTooltip*="Resume"]'));
+    expect(resumeBtn).toBeTruthy();
+    expect(resumeBtn.nativeElement.textContent).toContain('Resume');
+  });
+
+  it('should call pause action and show snackbar', () => {
+    svcSpy.action.and.returnValue(of({}));
+    const model = component.activeModels()[0];
+    component.pause(model);
+
+    expect(svcSpy.action).toHaveBeenCalledWith(model.id, 'pause');
+    expect(snackSpy.open).toHaveBeenCalledWith(jasmine.stringMatching(/Action "pause" applied/), jasmine.any(String), jasmine.any(Object));
+  });
+
+  it('should handle action error with snackbar', () => {
+    svcSpy.action.and.returnValue(throwError(() => new Error('fail')));
+    const model = component.activeModels()[0];
+    component.pause(model);
+
+    expect(snackSpy.open).toHaveBeenCalledWith(jasmine.stringMatching(/Failed to pause/), jasmine.any(String), jasmine.any(Object));
+  });
+
+  it('should show Promote button only for non-champions', () => {
+    component.summaries.set([{
+      task_type: 'embedding',
+      active_model: { id: 2, model_name: 'C', status: 'ready', task_type: 'embedding', role: 'candidate' },
+      candidates: [],
+      master_paused: false
+    } as any]);
+    fixture.detectChanges();
+
+    const promoteBtn = fixture.debugElement.query(By.css('button[matTooltip*="Promote"]'));
+    expect(promoteBtn).toBeTruthy();
   });
 });

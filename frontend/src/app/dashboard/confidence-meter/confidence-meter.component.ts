@@ -83,4 +83,9 @@ export class ConfidenceMeterComponent {
   trackByName(_index: number, c: ConfidenceContributor): string {
     return c.name;
   }
+
+  getTooltip(): string {
+    const label = this.snapshot()?.label ?? '';
+    return $localize`:@@dashboard.confidence.tooltip:Ready-to-Rock score: ${label}:label:`;
+  }
 }

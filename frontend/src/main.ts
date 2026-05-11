@@ -8,13 +8,6 @@
  * dev), `Sentry.init` is never called — zero overhead, zero network.
  */
 
-// `@angular/localize/init` MUST be imported before any component class is
-// instantiated. It sets up the global `$localize` template tag so any
-// `i18n=` attribute or `$localize`-tagged template literal works at
-// runtime. With this import in place, English (en-US) is the source
-// locale; additional locales are added by extracting and translating
-// `messages.xlf` then building per-locale bundles via `ng build --localize`.
-import '@angular/localize/init';
 import { bootstrapApplication } from '@angular/platform-browser';
 import * as Sentry from '@sentry/angular';
 import { appConfig } from './app/app.config';

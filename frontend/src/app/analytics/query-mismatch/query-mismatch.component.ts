@@ -25,7 +25,7 @@ interface MismatchRow {
     @if (loading) {
       <div class="loading-wrap"><mat-spinner diameter="48"></mat-spinner></div>
     } @else if (!rows.length) {
-      <p class="empty-hint">No query mismatches detected.</p>
+      <p class="empty-hint" i18n="@@analytics.query_mismatch.empty">No query mismatches detected.</p>
     } @else {
       <div class="mismatch-list">
         @for (row of rows; track row.query + row.landing_page_id) {
@@ -33,16 +33,16 @@ interface MismatchRow {
             <mat-card-content class="mismatch-row">
               <mat-icon class="mismatch-icon">swap_horiz</mat-icon>
               <div class="mismatch-body">
-                <p class="hint-text">
+                <p class="hint-text" i18n="@@analytics.query_mismatch.hint">
                   People search "<strong>{{ row.query }}</strong>" but land on
                   "<strong>{{ row.landing_page_title }}</strong>."
                 </p>
                 <div class="mismatch-stats">
-                  <span>{{ row.clicks | number }} clicks</span>
+                  <span i18n="@@analytics.query_mismatch.clicks">{{ row.clicks | number }} clicks</span>
                   <span class="separator"> -- </span>
-                  <span>{{ row.impressions | number }} impressions</span>
+                  <span i18n="@@analytics.query_mismatch.impressions">{{ row.impressions | number }} impressions</span>
                   <span class="separator"> -- </span>
-                  <span>Avg position: {{ row.avg_position | number:'1.1-1' }}</span>
+                  <span i18n="@@analytics.query_mismatch.avg_position">Avg position: {{ row.avg_position | number:'1.1-1' }}</span>
                 </div>
               </div>
             </mat-card-content>
@@ -83,7 +83,7 @@ export class QueryMismatchComponent implements OnInit {
   loading = true;
 
   ngOnInit(): void {
-    this.http.get<MismatchRow[]>('/api/analytics/query-mismatch/')
+    this.http.get<MismatchRow[]>('/api/analytics/query-mismatch/') // noqa: route-check
       .pipe(catchError(() => of([])), takeUntilDestroyed(this.destroyRef))
       .subscribe(data => { this.rows = data; this.loading = false; });
   }

@@ -10,7 +10,7 @@
           <div class="health-indicator" [matTooltip]="xenforo.health?.issue" i18n-matTooltip="@@settings.tips.telemetryHealthIssue" matTooltipClass="setting-tooltip">
             <span class="status-pill" [ngClass]="telemetryStatusClass(xenforo.health?.status)">
               <mat-icon>{{ getHealthIcon(xenforo.health?.status) }}</mat-icon>
-              {{ xenforo.health?.label }}
+              {{ healthLabel(xenforo.health?.status) }}
             </span>
           </div>
         </div>
@@ -46,11 +46,11 @@
       <mat-card-actions align="end">
         <button mat-stroked-button [disabled]="testingXenForo" (click)="testXenForoConnection()">
           @if (testingXenForo) { <mat-spinner diameter="18"></mat-spinner> }
-          <mat-icon>wifi_tethering</mat-icon> <span i18n="@@settings.actions.testConnection">Test Connection</span>
+          <mat-icon>wifi_tethering</mat-icon> <span>{{ testConnectionLabel }}</span>
         </button>
         <button mat-flat-button color="primary" [disabled]="savingXenForo" (click)="saveXenForoSettings()">
           @if (savingXenForo) { <mat-spinner diameter="18"></mat-spinner> }
-          <span i18n="@@settings.actions.save">{{ savingXenForo ? 'Saving...' : 'Save' }}</span>
+          <span>{{ saveXenForoLabel }}</span>
         </button>
       </mat-card-actions>
     </mat-card>
@@ -62,7 +62,7 @@
           <div class="health-indicator" [matTooltip]="wordpress.health?.issue" i18n-matTooltip="@@settings.tips.telemetryHealthIssue" matTooltipClass="setting-tooltip">
             <span class="status-pill" [ngClass]="telemetryStatusClass(wordpress.health?.status)">
               <mat-icon>{{ getHealthIcon(wordpress.health?.status) }}</mat-icon>
-              {{ wordpress.health?.label }}
+              {{ healthLabel(wordpress.health?.status) }}
             </span>
           </div>
         </div>
@@ -137,7 +137,7 @@
           <div class="action-buttons">
             <button mat-stroked-button [disabled]="testingWordPress" (click)="testWordPressConnection()">
               @if (testingWordPress) { <mat-spinner diameter="18"></mat-spinner> }
-              <mat-icon>wifi_tethering</mat-icon> <span i18n="@@settings.actions.testConnection">Test Connection</span>
+              <mat-icon>wifi_tethering</mat-icon> <span>{{ testConnectionLabel }}</span>
             </button>
             <button mat-stroked-button [disabled]="savingWordPress || !wordpress.app_password_configured" (click)="clearWordPressPassword()">
               <mat-icon>key_off</mat-icon> <span i18n="@@settings.actions.clearPassword">Clear Password</span>
@@ -282,7 +282,7 @@
               @if (webhookSettings.xf_secret_configured) {
                 <ng-container i18n="@@settings.hints.webhookSecretSet">Secret set. Leave blank to keep current.</ng-container>
               } @else {
-                <ng-container i18n="@@settings.hints.webhookSecretNotSet">No secret set - all incoming XenForo webhooks will be accepted.</ng-container>
+                <ng-container i18n="@@settings.hints.webhookSecretNotSetXF">No secret set - all incoming XenForo webhooks will be accepted.</ng-container>
               }
             </mat-hint>
           </mat-form-field>
@@ -294,7 +294,7 @@
               @if (webhookSettings.wp_secret_configured) {
                 <ng-container i18n="@@settings.hints.webhookSecretSet">Secret set. Leave blank to keep current.</ng-container>
               } @else {
-                <ng-container i18n="@@settings.hints.webhookSecretNotSet">No secret set - all incoming WordPress webhooks will be accepted.</ng-container>
+                <ng-container i18n="@@settings.hints.webhookSecretNotSetWP">No secret set - all incoming WordPress webhooks will be accepted.</ng-container>
               }
             </mat-hint>
           </mat-form-field>
@@ -307,7 +307,7 @@
         </button>
         <button mat-flat-button color="primary" [disabled]="savingWebhooks" (click)="saveWebhookSettings()">
           @if (savingWebhooks) { <mat-spinner diameter="18"></mat-spinner> }
-          <span i18n="@@settings.actions.save">{{ savingWebhooks ? 'Saving...' : 'Save' }}</span>
+          <span>{{ saveWebhooksLabel }}</span>
         </button>
       </mat-card-actions>
     </mat-card>
@@ -548,13 +548,13 @@
 
           <div class="action-buttons">
             <button mat-stroked-button color="primary" [disabled]="testingGA4Telemetry" (click)="testGA4TelemetryConnection()">
-              <mat-icon>wifi_tethering</mat-icon> <span i18n="@@settings.actions.testBrowserEvents">{{ testingGA4Telemetry ? 'Testing...' : 'Test Browser Events' }}</span>
+              <mat-icon>wifi_tethering</mat-icon> <span>{{ testGA4Label }}</span>
             </button>
             <button mat-stroked-button color="primary" [disabled]="testingGA4TelemetryRead" (click)="testGA4TelemetryReadConnection()">
-              <mat-icon>cloud_sync</mat-icon> <span i18n="@@settings.actions.testReadAccess">{{ testingGA4TelemetryRead ? 'Testing Read...' : 'Test Read Access' }}</span>
+              <mat-icon>cloud_sync</mat-icon> <span>{{ testGA4ReadLabel }}</span>
             </button>
             <button mat-flat-button color="primary" [disabled]="savingGA4Telemetry" (click)="saveGA4TelemetrySettings()">
-              <mat-icon>save</mat-icon> <span i18n="@@settings.actions.saveGA4">{{ savingGA4Telemetry ? 'Saving...' : 'Save GA4' }}</span>
+              <mat-icon>save</mat-icon> <span>{{ saveGA4Label }}</span>
             </button>
           </div>
         </div>
@@ -638,10 +638,10 @@
 
           <div class="action-buttons">
             <button mat-stroked-button color="primary" [disabled]="testingMatomoTelemetry" (click)="testMatomoTelemetryConnection()">
-              <mat-icon>wifi_tethering</mat-icon> <span i18n="@@settings.actions.testConnection">{{ testingMatomoTelemetry ? 'Testing...' : 'Test Connection' }}</span>
+              <mat-icon>wifi_tethering</mat-icon> <span>{{ testMatomoLabel }}</span>
             </button>
             <button mat-flat-button color="primary" [disabled]="savingMatomoTelemetry" (click)="saveMatomoTelemetrySettings()">
-              <mat-icon>save</mat-icon> <span i18n="@@settings.actions.saveMatomo">{{ savingMatomoTelemetry ? 'Saving...' : 'Save Matomo' }}</span>
+              <mat-icon>save</mat-icon> <span>{{ saveMatomoLabel }}</span>
             </button>
           </div>
         </div>
@@ -732,7 +732,7 @@
           </mat-checkbox>
 
           <mat-form-field appearance="outline">
-            <mat-label i18n="@@settings.labels.lookbackDays">Lookback Days</mat-label>
+            <mat-label i18n="@@settings.labels.lookbackDays">Lookback days</mat-label>
             <input matInput autocomplete="off" type="number" min="1" max="90" [(ngModel)]="ga4Gsc.sync_lookback_days" (ngModelChange)="markDirty()" />
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.sync_lookback_days')" i18n-matTooltip="@@settings.tips.gscLookbackDays" matTooltipClass="setting-tooltip">
               <mat-icon class="icon-md">info_outline</mat-icon>
@@ -774,15 +774,15 @@
         <div class="card-actions-row">
           <button mat-flat-button color="primary" [disabled]="savingGA4GSC" (click)="updateGSCSettings()">
             <mat-icon *ngIf="!savingGA4GSC">save</mat-icon>
-            <span i18n="@@settings.actions.saveGSCSettings">{{ savingGA4GSC ? 'Saving...' : 'Save GSC Settings' }}</span>
+            <span>{{ saveGSCLabel }}</span>
           </button>
           <button mat-stroked-button [disabled]="testingGSCConnection" (click)="testGSCConnection()">
             <mat-icon *ngIf="!testingGSCConnection">cable</mat-icon>
-            <span i18n="@@settings.actions.testConnection">{{ testingGSCConnection ? 'Testing...' : 'Test Connection' }}</span>
+            <span>{{ testGSCLabel }}</span>
           </button>
           <button mat-stroked-button [disabled]="runningGSCSync || ga4Gsc.connection_status !== 'connected'" (click)="runGSCSync()" [matTooltip]="'Trigger a manual performance data backfill for the selected one-time window.'" i18n-matTooltip="@@settings.tips.manualBackfillTooltip">
             <mat-icon *ngIf="!runningGSCSync">sync</mat-icon>
-            <span i18n="@@settings.actions.manualBackfill">{{ runningGSCSync ? 'Syncing...' : 'Manual Backfill' }}</span>
+            <span>{{ manualBackfillLabel }}</span>
           </button>
         </div>
       </mat-card-content>

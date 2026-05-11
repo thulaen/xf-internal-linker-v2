@@ -32,9 +32,6 @@ describe('ConfidenceMeterComponent', () => {
         provideNoopAnimations(),
       ],
     })
-      .overrideComponent(ConfidenceMeterComponent, {
-        set: { template: '<div></div>' },
-      })
       .compileComponents();
     fixture = TestBed.createComponent(ConfidenceMeterComponent);
     component = fixture.componentInstance;

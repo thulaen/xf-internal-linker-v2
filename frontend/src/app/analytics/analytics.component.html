@@ -9,7 +9,7 @@
   @if (loading) {
     <div class="loading-state">
       <mat-spinner diameter="40"></mat-spinner>
-      <p>Loading telemetry overview...</p>
+      <p i18n="@@analytics.loading">Loading telemetry overview...</p>
     </div>
   } @else if (error) {
     <mat-card class="error-card ga4-card" id="analytics-error-card">
@@ -33,7 +33,7 @@
         <mat-card-content class="stat-card__content ga4-card">
           <span class="stat-card__label" i18n="@@analytics.stats.telemetryRecords">Telemetry Records</span>
           <span class="stat-card__value">{{ data.telemetry_row_count | number }}</span>
-          <span class="stat-card__subtext">Stored in the last 30 days</span>
+          <span class="stat-card__subtext" i18n="@@analytics.stats.telemetryRecords.sub">Stored in the last 30 days</span>
         </mat-card-content>
       </mat-card>
 
@@ -42,7 +42,7 @@
         <mat-card-content class="stat-card__content ga4-card">
           <span class="stat-card__label" i18n="@@analytics.stats.coverageSnapshots">Coverage Snapshots</span>
           <span class="stat-card__value">{{ data.coverage_row_count | number }}</span>
-          <span class="stat-card__subtext">Health checks performed</span>
+          <span class="stat-card__subtext" i18n="@@analytics.stats.coverageSnapshots.sub">Health checks performed</span>
         </mat-card-content>
       </mat-card>
 
@@ -51,7 +51,7 @@
         <mat-card-content class="stat-card__content ga4-card">
           <span class="stat-card__label" i18n="@@analytics.stats.totalClicks">Total Clicks</span>
           <span class="stat-card__value">{{ data.totals_last_30_days.clicks | number }}</span>
-          <span class="stat-card__subtext">Tracked suggestion interactions</span>
+          <span class="stat-card__subtext" i18n="@@analytics.stats.totalClicks.sub">Tracked suggestion interactions</span>
         </mat-card-content>
       </mat-card>
 
@@ -60,7 +60,7 @@
         <mat-card-content class="stat-card__content ga4-card">
           <span class="stat-card__label" i18n="@@analytics.stats.engagedSessions">Engaged Sessions</span>
           <span class="stat-card__value">{{ data.totals_last_30_days.engaged_sessions | number }}</span>
-          <span class="stat-card__subtext">High-intent user sessions</span>
+          <span class="stat-card__subtext" i18n="@@analytics.stats.engagedSessions.sub">High-intent user sessions</span>
         </mat-card-content>
       </mat-card>
     </div>
@@ -70,7 +70,7 @@
         <mat-card class="report-card ga4-card" id="analytics-funnel">
           <mat-card-header>
             <mat-card-title i18n="@@analytics.funnel.title">Funnel Performance</mat-card-title>
-            <mat-card-subtitle>Last {{ funnelData.days }} days — {{ sourceLabel(selectedSource) }}</mat-card-subtitle>
+            <mat-card-subtitle i18n="@@analytics.funnel.subtitle">Last {{ funnelData.days }} days — {{ sourceLabel(selectedSource) }}</mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
             <div class="funnel-container">
@@ -79,7 +79,7 @@
               } @else {
                 <div class="empty-chart">
                   <mat-icon class="icon-3xl">bar_chart</mat-icon>
-                  <p>No funnel data available for the selected period.</p>
+                  <p i18n="@@analytics.funnel.empty">No funnel data available for the selected period.</p>
                 </div>
               }
             </div>
@@ -88,8 +88,8 @@
                 <div class="breakdown-item">
                   <span class="breakdown-item__name">{{ row.telemetry_source | uppercase }}</span>
                   <div class="breakdown-item__metrics">
-                    <span><strong>{{ row.clicks }}</strong> clicks</span>
-                    <span><strong>{{ row.engaged_sessions }}</strong> engaged</span>
+                    <span><strong i18n="@@analytics.funnel.clicks">{{ row.clicks }} clicks</strong></span>
+                    <span><strong i18n="@@analytics.funnel.engaged">{{ row.engaged_sessions }} engaged</strong></span>
                   </div>
                 </div>
               }
@@ -100,16 +100,17 @@
 
       <div id="analytics-engagement-mix" class="engagement-mix-slot">
         <div class="engagement-mix-controls">
-          <span class="engagement-mix-controls__label">Window</span>
+          <span class="engagement-mix-controls__label" i18n="@@analytics.engagement_mix.window_label">Window</span>
           <mat-button-toggle-group
             [value]="engagementWindowDays"
             (change)="onEngagementWindowChange($event)"
             class="window-toggle"
             aria-label="Engagement mix window"
+            i18n-aria-label="@@analytics.engagement_mix.window_aria"
           >
-            <mat-button-toggle [value]="7">7 days</mat-button-toggle>
-            <mat-button-toggle [value]="14">14 days</mat-button-toggle>
-            <mat-button-toggle [value]="30">30 days</mat-button-toggle>
+            <mat-button-toggle [value]="7" i18n="@@analytics.engagement_mix.window.7d">7 days</mat-button-toggle>
+            <mat-button-toggle [value]="14" i18n="@@analytics.engagement_mix.window.14d">14 days</mat-button-toggle>
+            <mat-button-toggle [value]="30" i18n="@@analytics.engagement_mix.window.30d">30 days</mat-button-toggle>
           </mat-button-toggle-group>
         </div>
         <app-engagement-mix
@@ -122,7 +123,7 @@
         <mat-card class="report-card ga4-card" id="analytics-algorithm">
           <mat-card-header>
             <mat-card-title i18n="@@analytics.algorithm.title">Algorithm Performance</mat-card-title>
-            <mat-card-subtitle>Comparison across different model versions</mat-card-subtitle>
+            <mat-card-subtitle i18n="@@analytics.algorithm.subtitle">Comparison across different model versions</mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
             @if (versionChartData) {
@@ -132,17 +133,17 @@
             }
             
             <div class="table-section">
-              <h3>Detailed Version Metrics</h3>
+              <h3 i18n="@@analytics.algorithm.table_title">Detailed Version Metrics</h3>
               @if (versionData.items.length) {
                 <div class="table-container">
                   <table class="premium-table">
                     <thead>
                       <tr>
-                        <th>Algorithm Version</th>
-                        <th class="text-right">CTR</th>
-                        <th class="text-center">Uplift</th>
-                        <th class="text-right">Engagement</th>
-                        <th class="text-right">Conv.</th>
+                        <th i18n="@@analytics.algorithm.col.version">Algorithm Version</th>
+                        <th class="text-right" i18n="@@analytics.algorithm.col.ctr">CTR</th>
+                        <th class="text-center" i18n="@@analytics.algorithm.col.uplift">Uplift</th>
+                        <th class="text-right" i18n="@@analytics.algorithm.col.engagement">Engagement</th>
+                        <th class="text-right" i18n="@@analytics.algorithm.col.conv">Conv.</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -151,7 +152,7 @@
                           <td>
                             <div class="version-info">
                               <span class="version-info__slug">{{ row.version_slug }}</span>
-                              <span class="version-info__meta">{{ row.clicks }} clicks • {{ row.impressions }} views</span>
+                              <span class="version-info__meta" i18n="@@analytics.algorithm.meta">{{ row.clicks }} clicks • {{ row.impressions }} views</span>
                             </div>
                           </td>
                           <td class="text-right"><strong>{{ formatPercent(row.ctr) }}</strong></td>
@@ -171,7 +172,7 @@
                 </div>
               } @else {
                 <div class="empty-state-mini">
-                  <p>No version data yet. Suggestions require algorithm version slugs to track performance.</p>
+                  <p i18n="@@analytics.algorithm.empty">No version data yet. Suggestions require algorithm version slugs to track performance.</p>
                 </div>
               }
             </div>
@@ -183,7 +184,7 @@
         <mat-card class="report-card health-card ga4-card" id="analytics-health">
           <mat-card-header>
             <mat-card-title i18n="@@analytics.systemHealth.title">System Health</mat-card-title>
-            <mat-card-subtitle>Telemetry integrity and tracking coverage</mat-card-subtitle>
+            <mat-card-subtitle i18n="@@analytics.systemHealth.subtitle">Telemetry integrity and tracking coverage</mat-card-subtitle>
             <span class="status-badge-lg" [ngClass]="coverageStateClass(healthData.overall.latest_state)">
               {{ coverageStateLabel(healthData.overall.latest_state) }}
             </span>
@@ -191,44 +192,44 @@
           <mat-card-content>
             <div class="health-grid">
               <div class="health-metric">
-                <span class="health-metric__label">Impression Coverage</span>
+                <span class="health-metric__label" i18n="@@analytics.systemHealth.metric.impression">Impression Coverage</span>
                 <span class="health-metric__value">{{ formatPercent(healthData.overall.impression_coverage_rate) }}</span>
-                <p class="health-metric__desc">{{ healthData.overall.observed_impression_links }} of {{ healthData.overall.expected_instrumented_links }} links</p>
+                <p class="health-metric__desc" i18n="@@analytics.systemHealth.desc.impression">{{ healthData.overall.observed_impression_links }} of {{ healthData.overall.expected_instrumented_links }} links</p>
               </div>
               <div class="health-metric">
-                <span class="health-metric__label">Click Coverage</span>
+                <span class="health-metric__label" i18n="@@analytics.systemHealth.metric.click">Click Coverage</span>
                 <span class="health-metric__value">{{ formatPercent(healthData.overall.click_coverage_rate) }}</span>
-                <p class="health-metric__desc">{{ healthData.overall.observed_click_links }} links matched</p>
+                <p class="health-metric__desc" i18n="@@analytics.systemHealth.desc.click">{{ healthData.overall.observed_click_links }} links matched</p>
               </div>
               <div class="health-metric">
-                <span class="health-metric__label">Attribution Rate</span>
+                <span class="health-metric__label" i18n="@@analytics.systemHealth.metric.attribution">Attribution Rate</span>
                 <span class="health-metric__value">{{ formatPercent(healthData.overall.attribution_rate) }}</span>
-                <p class="health-metric__desc">{{ healthData.overall.attributed_destination_sessions }} sessions attributed</p>
+                <p class="health-metric__desc" i18n="@@analytics.systemHealth.desc.attribution">{{ healthData.overall.attributed_destination_sessions }} sessions attributed</p>
               </div>
               <div class="health-metric">
-                <span class="health-metric__label">Data Integrity</span>
+                <span class="health-metric__label" i18n="@@analytics.systemHealth.metric.integrity">Data Integrity</span>
                 <span class="health-metric__value">{{ healthData.overall.duplicate_event_drops + healthData.overall.missing_metadata_events }}</span>
-                <p class="health-metric__desc">Cleanup actions performed</p>
+                <p class="health-metric__desc" i18n="@@analytics.systemHealth.desc.integrity">Cleanup actions performed</p>
               </div>
             </div>
 
             <div class="health-status-bar">
               <div class="day-tracker">
-                <span class="day-badge day-badge--healthy">
+                <span class="day-badge day-badge--healthy" i18n="@@analytics.systemHealth.badge.healthy">
                   <mat-icon class="icon-sm">check_circle</mat-icon>
                   {{ healthData.overall.healthy_days }} Healthy
                 </span>
-                <span class="day-badge day-badge--partial">
+                <span class="day-badge day-badge--partial" i18n="@@analytics.systemHealth.badge.partial">
                   <mat-icon class="icon-sm">warning</mat-icon>
                   {{ healthData.overall.partial_days }} Partial
                 </span>
-                <span class="day-badge day-badge--degraded">
+                <span class="day-badge day-badge--degraded" i18n="@@analytics.systemHealth.badge.degraded">
                   <mat-icon class="icon-sm">error</mat-icon>
                   {{ healthData.overall.degraded_days }} Degraded
                 </span>
               </div>
               @if (healthData.overall.latest_date) {
-                <span class="last-check">Latest Check: {{ healthData.overall.latest_date }}</span>
+                <span class="last-check" i18n="@@analytics.systemHealth.latest_check">Latest Check: {{ healthData.overall.latest_date }}</span>
               }
             </div>
           </mat-card-content>
@@ -239,7 +240,7 @@
         <mat-card class="report-card ga4-card" id="analytics-trend">
           <mat-card-header>
             <mat-card-title i18n="@@analytics.engagementTrend.title">Engagement Trend</mat-card-title>
-            <mat-card-subtitle>User interaction trends over the last {{ trendData.items.length }} days</mat-card-subtitle>
+            <mat-card-subtitle i18n="@@analytics.engagementTrend.subtitle">User interaction trends over the last {{ trendData.items.length }} days</mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
             <div class="trend-section">
@@ -249,18 +250,18 @@
                 </div>
                 <div class="trend-footer">
                   <div class="trend-stat">
-                    <span>Current CTR</span>
+                    <span i18n="@@analytics.engagementTrend.current_ctr">Current CTR</span>
                     <strong>{{ formatPercent(trendData.items[trendData.items.length - 1].ctr) }}</strong>
                   </div>
                   <div class="trend-stat">
-                    <span>Engaged View Rate</span>
+                    <span i18n="@@analytics.engagementTrend.engaged_view_rate">Engaged View Rate</span>
                     <strong>{{ formatPercent(trendData.items[trendData.items.length - 1].engagement_rate) }}</strong>
                   </div>
                 </div>
               } @else {
                 <div class="empty-chart">
                   <mat-icon class="icon-3xl">show_chart</mat-icon>
-                  <p>Insufficient trend data. Run a sync to populate interaction history.</p>
+                  <p i18n="@@analytics.engagementTrend.empty">Insufficient trend data. Run a sync to populate interaction history.</p>
                 </div>
               }
             </div>
@@ -278,7 +279,7 @@
                   <canvas baseChart [data]="deviceChartData" [options]="doughnutOptions" [type]="'doughnut'"></canvas>
                 </div>
               } @else {
-                <div class="empty-state-mini"><p>No device data.</p></div>
+                <div class="empty-state-mini"><p i18n="@@analytics.deviceMix.empty">No device data.</p></div>
               }
             </mat-card-content>
           </mat-card>
@@ -291,7 +292,7 @@
                   <canvas baseChart [data]="channelChartData" [options]="doughnutOptions" [type]="'doughnut'"></canvas>
                 </div>
               } @else {
-                <div class="empty-state-mini"><p>No channel data.</p></div>
+                <div class="empty-state-mini"><p i18n="@@analytics.channelMix.empty">No channel data.</p></div>
               }
             </mat-card-content>
           </mat-card>
@@ -305,7 +306,11 @@
                 </div>
                 <div class="card-footer">
                   <button mat-button color="primary" (click)="toggleFullGeo()">
-                    {{ showFullGeo ? 'Hide Details' : 'View Full Breakdown' }}
+                    @if (showFullGeo) {
+                      <ng-container i18n="@@analytics.geographicMix.hide">Hide Details</ng-container>
+                    } @else {
+                      <ng-container i18n="@@analytics.geographicMix.view">View Full Breakdown</ng-container>
+                    }
                   </button>
                 </div>
 
@@ -314,10 +319,10 @@
                       <table class="premium-table premium-table--compact">
                         <thead>
                           <tr>
-                            <th>Country</th>
-                            <th>Region</th>
-                            <th class="text-right">Clicks</th>
-                            <th class="text-right">CTR</th>
+                            <th i18n="@@analytics.geographicMix.col.country">Country</th>
+                            <th i18n="@@analytics.geographicMix.col.region">Region</th>
+                            <th class="text-right" i18n="@@analytics.geographicMix.col.clicks">Clicks</th>
+                            <th class="text-right" i18n="@@analytics.geographicMix.col.ctr">CTR</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -334,7 +339,7 @@
                     </div>
                 }
               } @else {
-                <div class="empty-state-mini"><p>No country data.</p></div>
+                <div class="empty-state-mini"><p i18n="@@analytics.geographicMix.empty">No country data.</p></div>
               }
             </mat-card-content>
           </mat-card>
@@ -345,12 +350,12 @@
       @if (topSuggestions; as topData) {
         <mat-card class="report-card ga4-card" id="analytics-top-suggestions">
           <mat-card-header>
-            <mat-card-title>Top suggestion rows</mat-card-title>
+            <mat-card-title i18n="@@analytics.topSuggestions.title">Top suggestion rows</mat-card-title>
             <mat-card-subtitle>
               @if (topSuggestionsOrder === 'quick_exit') {
-                Rows with the highest quick-exit share (bad-match candidates)
+                <ng-container i18n="@@analytics.topSuggestions.subtitle.quick_exit">Rows with the highest quick-exit share (bad-match candidates)</ng-container>
               } @else {
-                Highest performing link suggestions by engagement
+                <ng-container i18n="@@analytics.topSuggestions.subtitle.performing">Highest performing link suggestions by engagement</ng-container>
               }
             </mat-card-subtitle>
             <mat-button-toggle-group
@@ -358,9 +363,10 @@
               (change)="onTopSuggestionsOrderChange($event)"
               class="top-sort-toggle"
               aria-label="Top suggestions sort order"
+              i18n-aria-label="@@analytics.topSuggestions.sort_aria"
             >
-              <mat-button-toggle value="clicks">Top clicks</mat-button-toggle>
-              <mat-button-toggle value="quick_exit">Bad matches</mat-button-toggle>
+              <mat-button-toggle value="clicks" i18n="@@analytics.topSuggestions.sort.clicks">Top clicks</mat-button-toggle>
+              <mat-button-toggle value="quick_exit" i18n="@@analytics.topSuggestions.sort.quick_exit">Bad matches</mat-button-toggle>
             </mat-button-toggle-group>
           </mat-card-header>
           <mat-card-content>
@@ -370,27 +376,27 @@
                   <div class="top-row">
                     <div class="top-row__main">
                       <span class="top-row__title">{{ item.destination_title }}</span>
-                      <span class="top-row__meta">Anchor: {{ item.anchor_phrase || 'No saved anchor' }}</span>
-                      <span class="top-row__source">{{ item.telemetry_source | uppercase }} • Status: {{ item.status }}</span>
+                      <span class="top-row__meta" i18n="@@analytics.topSuggestions.anchor">Anchor: {{ item.anchor_phrase || 'No saved anchor' }}</span>
+                      <span class="top-row__source" i18n="@@analytics.topSuggestions.source_status">{{ item.telemetry_source | uppercase }} • Status: {{ item.status }}</span>
                     </div>
                     <div class="top-row__metrics">
                       <div class="top-metric">
-                        <span class="top-metric__label">Clicks</span>
+                        <span class="top-metric__label" i18n="@@analytics.topSuggestions.metric.clicks">Clicks</span>
                         <span class="top-metric__value">{{ item.clicks }}</span>
                       </div>
                       <div class="top-metric">
-                        <span class="top-metric__label">CTR</span>
+                        <span class="top-metric__label" i18n="@@analytics.topSuggestions.metric.ctr">CTR</span>
                         <span class="top-metric__value">{{ formatPercent(item.ctr) }}</span>
                       </div>
                       <div class="top-metric">
-                        <span class="top-metric__label">Engaged</span>
+                        <span class="top-metric__label" i18n="@@analytics.topSuggestions.metric.engaged">Engaged</span>
                         <span class="top-metric__value">{{ formatPercent(item.engagement_rate) }}</span>
                       </div>
                       <div
                         class="top-metric"
                         [matTooltip]="quickExitTooltip(item)"
                       >
-                        <span class="top-metric__label">Quick exit</span>
+                        <span class="top-metric__label" i18n="@@analytics.topSuggestions.metric.quick_exit">Quick exit</span>
                         <span
                           class="top-metric__value"
                           [class.top-metric__value--alert]="isHighQuickExit(item)"
@@ -401,7 +407,7 @@
                 }
               </div>
             } @else {
-              <div class="empty-state-mini"><p>No suggestion rows yet. Perform a sync to see top performers.</p></div>
+              <div class="empty-state-mini"><p i18n="@@analytics.topSuggestions.empty">No suggestion rows yet. Perform a sync to see top performers.</p></div>
             }
           </mat-card-content>
         </mat-card>
@@ -412,24 +418,24 @@
       <!-- Search Impact Section -->
     <div class="report-section-header">
       <div class="section-title-group">
-        <h2 class="section-title">
+        <h2 class="section-title" i18n="@@analytics.impact.title">
           <mat-icon>insights</mat-icon>
           Search Outcome Attribution
         </h2>
         <mat-button-toggle-group [value]="selectedImpactWindow" (change)="onImpactWindowChange($event)" class="window-toggle">
-          <mat-button-toggle value="7d">7 Days</mat-button-toggle>
-          <mat-button-toggle value="14d">14 Days</mat-button-toggle>
-          <mat-button-toggle value="28d">28 Days</mat-button-toggle>
+          <mat-button-toggle value="7d" i18n="@@analytics.impact.window.7d">7 Days</mat-button-toggle>
+          <mat-button-toggle value="14d" i18n="@@analytics.impact.window.14d">14 Days</mat-button-toggle>
+          <mat-button-toggle value="28d" i18n="@@analytics.impact.window.28d">28 Days</mat-button-toggle>
         </mat-button-toggle-group>
       </div>
-      <p class="section-subtitle">Bayesian uplift measured via Google Search Console, normalized against a site-wide control group.</p>
+      <p class="section-subtitle" i18n="@@analytics.impact.subtitle">Bayesian uplift measured via Google Search Console, normalized against a site-wide control group.</p>
     </div>
 
     <div class="impact-charts-row" *ngIf="searchImpacts.length > 0">
       <mat-card class="report-card ga4-card" id="analytics-traffic-lift-scatter-card">
         <mat-card-header>
-          <mat-card-title>Traffic vs. Lift Scatter</mat-card-title>
-          <mat-card-subtitle>Each dot is one applied suggestion. Position shows baseline traffic vs. measured lift.</mat-card-subtitle>
+          <mat-card-title i18n="@@analytics.impact.scatter.title">Traffic vs. Lift Scatter</mat-card-title>
+          <mat-card-subtitle i18n="@@analytics.impact.scatter.subtitle">Each dot is one applied suggestion. Position shows baseline traffic vs. measured lift.</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           @if (scatterChartData) {
@@ -439,7 +445,7 @@
           } @else {
             <div class="empty-chart chart-wrapper--md">
               <mat-icon class="icon-3xl">scatter_plot</mat-icon>
-              <p>Not enough data to plot.</p>
+              <p i18n="@@analytics.impact.scatter.empty">Not enough data to plot.</p>
             </div>
           }
         </mat-card-content>
@@ -448,18 +454,18 @@
       <div class="cohort-grid">
         <mat-card class="report-card cohort-card ga4-card" id="analytics-cohort-by-platform-card">
           <mat-card-header>
-            <mat-card-title>By Platform</mat-card-title>
-            <mat-card-subtitle>Results split by XenForo vs WordPress content</mat-card-subtitle>
+            <mat-card-title i18n="@@analytics.impact.cohort.platform.title">By Platform</mat-card-title>
+            <mat-card-subtitle i18n="@@analytics.impact.cohort.platform.subtitle">Results split by XenForo vs WordPress content</mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
             <table class="premium-table premium-table--compact">
               <thead>
                 <tr>
-                  <th>Platform</th>
-                  <th class="text-center">Positive</th>
-                  <th class="text-center">Neutral</th>
-                  <th class="text-center">Negative</th>
-                  <th class="text-center">Total</th>
+                  <th i18n="@@analytics.impact.cohort.col.platform">Platform</th>
+                  <th class="text-center" i18n="@@analytics.impact.cohort.col.positive">Positive</th>
+                  <th class="text-center" i18n="@@analytics.impact.cohort.col.neutral">Neutral</th>
+                  <th class="text-center" i18n="@@analytics.impact.cohort.col.negative">Negative</th>
+                  <th class="text-center" i18n="@@analytics.impact.cohort.col.total">Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -479,18 +485,18 @@
 
         <mat-card class="report-card cohort-card ga4-card" id="analytics-cohort-by-anchor-family-card">
           <mat-card-header>
-            <mat-card-title>By Anchor Family</mat-card-title>
-            <mat-card-subtitle>Top 10 keyword groups (first word of anchor phrase)</mat-card-subtitle>
+            <mat-card-title i18n="@@analytics.impact.cohort.anchor.title">By Anchor Family</mat-card-title>
+            <mat-card-subtitle i18n="@@analytics.impact.cohort.anchor.subtitle">Top 10 keyword groups (first word of anchor phrase)</mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
             <table class="premium-table premium-table--compact">
               <thead>
                 <tr>
-                  <th>Anchor Family</th>
-                  <th class="text-center">Positive</th>
-                  <th class="text-center">Neutral</th>
-                  <th class="text-center">Negative</th>
-                  <th class="text-center">Total</th>
+                  <th i18n="@@analytics.impact.cohort.col.anchor_family">Anchor Family</th>
+                  <th class="text-center" i18n="@@analytics.impact.cohort.col.positive">Positive</th>
+                  <th class="text-center" i18n="@@analytics.impact.cohort.col.neutral">Neutral</th>
+                  <th class="text-center" i18n="@@analytics.impact.cohort.col.negative">Negative</th>
+                  <th class="text-center" i18n="@@analytics.impact.cohort.col.total">Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -515,19 +521,19 @@
     <div class="impact-grid" *ngIf="searchImpacts.length > 0; else noImpactData">
       <mat-card class="report-card impact-card--main ga4-card" id="analytics-applied-suggestions-card">
         <mat-card-header>
-          <mat-card-title>Applied Suggestions Performance</mat-card-title>
-          <mat-card-subtitle>{{ selectedImpactWindow }} window — {{ searchImpacts.length }} tracked links</mat-card-subtitle>
+          <mat-card-title i18n="@@analytics.impact.applied.title">Applied Suggestions Performance</mat-card-title>
+          <mat-card-subtitle i18n="@@analytics.impact.applied.subtitle">{{ selectedImpactWindow }} window — {{ searchImpacts.length }} tracked links</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           <div class="table-container">
             <table class="premium-table">
               <thead>
                 <tr>
-                  <th>Link Suggestion</th>
-                  <th class="text-center">Attribution Result</th>
-                  <th class="text-right">Confidence</th>
-                  <th class="text-right">Relative Lift</th>
-                  <th class="text-right">Clicks (Baseline → Post)</th>
+                  <th i18n="@@analytics.impact.applied.col.link">Link Suggestion</th>
+                  <th class="text-center" i18n="@@analytics.impact.applied.col.result">Attribution Result</th>
+                  <th class="text-right" i18n="@@analytics.impact.applied.col.confidence">Confidence</th>
+                  <th class="text-right" i18n="@@analytics.impact.applied.col.lift">Relative Lift</th>
+                  <th class="text-right" i18n="@@analytics.impact.applied.col.clicks">Clicks (Baseline → Post)</th>
                 </tr>
               </thead>
               <tbody>
@@ -539,8 +545,8 @@
                           <mat-icon class="icon-md">{{ expandedSuggestionId === impact.suggestion_id ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
                           <span class="version-info__slug">{{ impact.anchor_phrase }}</span>
                         </div>
-                        <span class="version-info__meta">Target: {{ impact.destination_title }}</span>
-                        <span class="version-info__meta text-subtle">Applied: {{ impact.apply_date | date:'shortDate' }}</span>
+                        <span class="version-info__meta" i18n="@@analytics.impact.applied.target">Target: {{ impact.destination_title }}</span>
+                        <span class="version-info__meta text-subtle" i18n="@@analytics.impact.applied.applied_date">Applied: {{ impact.apply_date | date:'shortDate' }}</span>
                       </div>
                     </td>
                     <td class="text-center">
@@ -549,9 +555,9 @@
                       </span>
                     </td>
                     <td class="text-right">
-                      <div class="probability-cell" [matTooltip]="'Bayesian probability that this internal link caused a positive improvement.'">
+                      <div class="probability-cell" [matTooltip]="'Bayesian probability that this internal link caused a positive improvement.'" i18n-matTooltip="@@analytics.impact.applied.confidence_tooltip">
                         <strong>{{ formatPercent(impact.probability_of_uplift) }}</strong>
-                        <span class="text-subtle">confident</span>
+                        <span class="text-subtle" i18n="@@analytics.impact.applied.confident">confident</span>
                       </div>
                     </td>
                     <td class="text-right">
@@ -573,13 +579,13 @@
                           @if (loadingDetail) {
                             <div class="detail-loading">
                               <mat-spinner diameter="24"></mat-spinner>
-                              <span>Loading keyword attribution...</span>
+                              <span i18n="@@analytics.impact.detail.loading">Loading keyword attribution...</span>
                             </div>
                           } @else if (selectedImpactDetail; as detail) {
                             <div class="detail-content">
                               <div class="detail-header">
-                                <h4 class="detail-title">Query-Level Attribution Breakdown</h4>
-                                <p class="detail-subtitle">Attributing clicks to specific search queries that appeared after the link was applied.</p>
+                                <h4 class="detail-title" i18n="@@analytics.impact.detail.title">Query-Level Attribution Breakdown</h4>
+                                <p class="detail-subtitle" i18n="@@analytics.impact.detail.subtitle">Attributing clicks to specific search queries that appeared after the link was applied.</p>
                               </div>
                               
                               @if (detail.keywords.length > 0) {
@@ -587,10 +593,10 @@
                                   <table class="premium-table premium-table--compact">
                                     <thead>
                                       <tr>
-                                        <th>Search Query</th>
-                                        <th class="text-right">Impressions (Base → Post)</th>
-                                        <th class="text-right">Clicks (Base → Post)</th>
-                                        <th class="text-right">Lift %</th>
+                                        <th i18n="@@analytics.impact.detail.col.query">Search Query</th>
+                                        <th class="text-right" i18n="@@analytics.impact.detail.col.impressions">Impressions (Base → Post)</th>
+                                        <th class="text-right" i18n="@@analytics.impact.detail.col.clicks">Clicks (Base → Post)</th>
+                                        <th class="text-right" i18n="@@analytics.impact.detail.col.lift">Lift %</th>
                                       </tr>
                                     </thead>
                                     <tbody>
@@ -600,7 +606,7 @@
                                             <div class="query-cell">
                                               <span>{{ kw.query }}</span>
                                               @if (kw.is_anchor_match) {
-                                                <span class="anchor-match-chip">Anchor Match</span>
+                                                <span class="anchor-match-chip" i18n="@@analytics.impact.detail.anchor_match">Anchor Match</span>
                                               }
                                             </div>
                                           </td>
@@ -625,13 +631,13 @@
                               } @else {
                                 <div class="detail-empty">
                                   <mat-icon>info_outline</mat-icon>
-                                  <span>No specific search queries have shown significant attribution signals for this link yet.</span>
+                                  <span i18n="@@analytics.impact.detail.empty">No specific search queries have shown significant attribution signals for this link yet.</span>
                                 </div>
                               }
 
                               @if (detail.impact_reports.length) {
                                 <div class="detail-section">
-                                  <h5 class="detail-section-title">Matched Control</h5>
+                                  <h5 class="detail-section-title" i18n="@@analytics.impact.detail.control_title">Matched Control</h5>
                                   @for (report of detail.impact_reports; track report.metric_type) {
                                     <div class="control-report-row">
                                       <span class="control-metric-label">{{ report.metric_type }}</span>
@@ -643,13 +649,19 @@
                                       <span class="uplift-badge" [class.uplift-badge--negative]="report.delta_percent < 0">
                                         {{ report.delta_percent > 0 ? '+' : '' }}{{ report.delta_percent | number:'1.0-1' }}%
                                       </span>
-                                      <span class="text-subtle">
+                                      <span class="text-subtle" i18n="@@analytics.impact.detail.controls_count">
                                         {{ report.control_match_count }}&thinsp;/&thinsp;{{ report.control_pool_size }} controls
                                       </span>
                                       <span
                                         class="anchor-match-chip"
                                         [class.anchor-match-chip--muted]="!report.is_conclusive"
-                                      >{{ report.is_conclusive ? 'Conclusive' : 'Inconclusive' }}</span>
+                                      >
+                                        @if (report.is_conclusive) {
+                                          <ng-container i18n="@@analytics.impact.detail.conclusive">Conclusive</ng-container>
+                                        } @else {
+                                          <ng-container i18n="@@analytics.impact.detail.inconclusive">Inconclusive</ng-container>
+                                        }
+                                      </span>
                                     </div>
                                   }
                                 </div>
@@ -669,30 +681,30 @@
 
       <mat-card class="report-card impact-card--side ga4-card" id="analytics-statistical-method-card">
         <mat-card-header>
-          <mat-card-title>Statistical Method</mat-card-title>
-          <mat-card-subtitle>How we measure SEO impact</mat-card-subtitle>
+          <mat-card-title i18n="@@analytics.impact.method.title">Statistical Method</mat-card-title>
+          <mat-card-subtitle i18n="@@analytics.impact.method.subtitle">How we measure SEO impact</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           <div class="methodology-box">
              <div class="method-item">
                 <mat-icon>groups</mat-icon>
                 <div>
-                  <strong>Global Control Baseline</strong>
-                  <p>Lift is normalized against "All pages NOT receiving a link" to filter out site-wide seasonality and Google updates.</p>
+                  <strong i18n="@@analytics.impact.method.global_control.title">Global Control Baseline</strong>
+                  <p i18n="@@analytics.impact.method.global_control.desc">Lift is normalized against "All pages NOT receiving a link" to filter out site-wide seasonality and Google updates.</p>
                 </div>
              </div>
              <div class="method-item">
                 <mat-icon>functions</mat-icon>
                 <div>
-                  <strong>Bayesian Smoothing</strong>
-                  <p>Uses hierarchical priors to avoid noise on low-traffic pages, delivering reliable "Probability of Uplift" scores.</p>
+                  <strong i18n="@@analytics.impact.method.bayesian.title">Bayesian Smoothing</strong>
+                  <p i18n="@@analytics.impact.method.bayesian.desc">Uses hierarchical priors to avoid noise on low-traffic pages, delivering reliable "Probability of Uplift" scores.</p>
                 </div>
              </div>
              <div class="method-item">
                 <mat-icon>update</mat-icon>
                 <div>
-                  <strong>GSC Latency</strong>
-                  <p>Google Search Console data typically arrives with a 48-72 hour lag. Performance is refreshed daily.</p>
+                  <strong i18n="@@analytics.impact.method.latency.title">GSC Latency</strong>
+                  <p i18n="@@analytics.impact.method.latency.desc">Google Search Console data typically arrives with a 48-72 hour lag. Performance is refreshed daily.</p>
                 </div>
              </div>
           </div>
@@ -704,11 +716,11 @@
       <mat-card class="empty-state-card ga4-card" id="analytics-no-impact-data-card">
         <mat-card-content>
           <mat-icon class="icon-3xl">query_stats</mat-icon>
-          <h3>Search Impact Data Pending</h3>
-          <p>We are waiting for Google Search Console to process enough days of data for your applied suggestions.</p>
+          <h3 i18n="@@analytics.impact.empty.title">Search Impact Data Pending</h3>
+          <p i18n="@@analytics.impact.empty.desc">We are waiting for Google Search Console to process enough days of data for your applied suggestions.</p>
           <div class="action-buttons">
             <button mat-stroked-button color="primary" [routerLink]="['/settings']">
-              <mat-icon>settings</mat-icon> Check GSC Credentials
+              <mat-icon>settings</mat-icon> <ng-container i18n="@@analytics.impact.empty.check_btn">Check GSC Credentials</ng-container>
             </button>
           </div>
         </mat-card-content>
@@ -718,36 +730,44 @@
     <div class="footer-grid" id="analytics-integrations">
         <mat-card class="connection-card ga4-card" id="analytics-integration-ga4-card">
           <mat-card-header>
-            <mat-card-title>GA4 Integration</mat-card-title>
+            <mat-card-title i18n="@@analytics.integrations.ga4.title">GA4 Integration</mat-card-title>
             <span class="status-chip" [ngClass]="ga4StatusLabel().toLowerCase()">{{ ga4StatusLabel() }}</span>
           </mat-card-header>
           <mat-card-content>
             <p>{{ ga4StatusMessage() }}</p>
-            <div class="sync-meta">Last synchronized: {{ lastSyncLabel(data.ga4.last_sync) }}</div>
+            <div class="sync-meta" i18n="@@analytics.integrations.last_sync">Last synchronized: {{ lastSyncLabel(data.ga4.last_sync) }}</div>
           </mat-card-content>
         </mat-card>
 
         <mat-card class="connection-card ga4-card" id="analytics-integration-matomo-card">
           <mat-card-header>
-            <mat-card-title>Matomo Integration</mat-card-title>
+            <mat-card-title i18n="@@analytics.integrations.matomo.title">Matomo Integration</mat-card-title>
             <span class="status-chip" [ngClass]="statusLabel(data.matomo.connection_status).toLowerCase()">{{ statusLabel(data.matomo.connection_status) }}</span>
           </mat-card-header>
           <mat-card-content>
             <p>{{ data.matomo.connection_message }}</p>
-            <div class="sync-meta">Last synchronized: {{ lastSyncLabel(data.matomo.last_sync) }}</div>
+            <div class="sync-meta" i18n="@@analytics.integrations.last_sync">Last synchronized: {{ lastSyncLabel(data.matomo.last_sync) }}</div>
           </mat-card-content>
         </mat-card>
 
         <mat-card class="action-card ga4-card" id="analytics-manual-sync-card">
-          <mat-card-header><mat-card-title>Manual Synchronization</mat-card-title></mat-card-header>
+          <mat-card-header><mat-card-title i18n="@@analytics.integrations.sync.title">Manual Synchronization</mat-card-title></mat-card-header>
           <mat-card-content>
-            <p>Force a real-time data pull from external analytics providers.</p>
+            <p i18n="@@analytics.integrations.sync.desc">Force a real-time data pull from external analytics providers.</p>
             <div class="action-buttons">
-              <button mat-flat-button color="primary" [disabled]="syncingGa4" (click)="runGa4Sync()">
-                {{ syncingGa4 ? 'Syncing GA4...' : 'Sync GA4' }}
+              <button mat-flat-button color="primary" [disabled]="syncingGa4" (click)="runGa4Sync()" i18n="@@analytics.integrations.sync.ga4">
+                @if (syncingGa4) {
+                  Syncing GA4...
+                } @else {
+                  Sync GA4
+                }
               </button>
-              <button mat-flat-button color="accent" [disabled]="syncingMatomo" (click)="runMatomoSync()">
-                {{ syncingMatomo ? 'Syncing Matomo...' : 'Sync Matomo' }}
+              <button mat-flat-button color="accent" [disabled]="syncingMatomo" (click)="runMatomoSync()" i18n="@@analytics.integrations.sync.matomo">
+                @if (syncingMatomo) {
+                  Syncing Matomo...
+                } @else {
+                  Sync Matomo
+                }
               </button>
             </div>
           </mat-card-content>
@@ -761,7 +781,7 @@
          API fan-out for this route only pay for what the user sees.
          See docs/PERFORMANCE.md §13. -->
     <div class="stage7-section">
-      <h2 class="section-title">
+      <h2 class="section-title" i18n="@@analytics.proof.title">
         <mat-icon>verified</mat-icon>
         SEO Proof & Insights
       </h2>

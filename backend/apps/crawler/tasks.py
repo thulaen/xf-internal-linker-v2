@@ -36,8 +36,8 @@ _MS_PER_SEC = 1000.0  # millisecond conversion factor
     ram_peak_mb=256,
 )
 def pulse_heartbeat():
-    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """
     Lightweight liveness probe: ping all core services, record a pulse event,

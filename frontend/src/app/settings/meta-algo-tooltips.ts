@@ -28,50 +28,43 @@ export interface MetaAlgoHelper {
 export const META_ALGO_HELPERS: Record<string, MetaAlgoHelper> = {
   // FR-099 Dangling Authority Redistribution Bonus
   darb: {
-    tooltip:
-      'DARB: Boosts pages from highly-trusted sites that barely link out, so their authority does not get lost in dead-end pages. Source: FR-099 spec.',
+    tooltip: $localize`:@@metaAlgorithms.darb.tip:DARB: Boosts pages from highly-trusted sites that barely link out, so their authority does not get lost in dead-end pages. Source: FR-099 spec.`,
     specSlug: 'fr099-dangling-authority-redistribution-bonus',
   },
 
   // FR-100 Katz Marginal Information Gain
   kmig: {
-    tooltip:
-      'KMIG: Adds a small bonus to suggested links that introduce a fresh topic the host page has not covered yet. Source: FR-100 spec.',
+    tooltip: $localize`:@@metaAlgorithms.kmig.tip:KMIG: Adds a small bonus to suggested links that introduce a fresh topic the host page has not covered yet. Source: FR-100 spec.`,
     specSlug: 'fr100-katz-marginal-information-gain',
   },
 
   // FR-101 Tarjan Articulation Point Boost
   tapb: {
-    tooltip:
-      'TAPB: Boosts pages that act as the only bridge between two parts of the site so they stay reachable. Source: FR-101 spec.',
+    tooltip: $localize`:@@metaAlgorithms.tapb.tip:TAPB: Boosts pages that act as the only bridge between two parts of the site so they stay reachable. Source: FR-101 spec.`,
     specSlug: 'fr101-tarjan-articulation-point-boost',
   },
 
   // FR-102 K-Core Integration Boost
   kcib: {
-    tooltip:
-      'KCIB: Boosts pages that sit deep inside a dense cluster of related pages (well-integrated content). Source: FR-102 spec.',
+    tooltip: $localize`:@@metaAlgorithms.kcib.tip:KCIB: Boosts pages that sit deep inside a dense cluster of related pages (well-integrated content). Source: FR-102 spec.`,
     specSlug: 'fr102-kcore-integration-boost',
   },
 
   // FR-103 Bridge-Edge Redundancy Penalty
   berp: {
-    tooltip:
-      'BERP: Slightly penalises suggestions that would pile yet another link across an already-over-used bridge between page clusters. Source: FR-103 spec.',
+    tooltip: $localize`:@@metaAlgorithms.berp.tip:BERP: Slightly penalises suggestions that would pile yet another link across an already-over-used bridge between page clusters. Source: FR-103 spec.`,
     specSlug: 'fr103-bridge-edge-redundancy-penalty',
   },
 
   // FR-104 Host-Graph Topic Entropy Boost
   hgte: {
-    tooltip:
-      'HGTE: Boosts host pages that touch many different topics, so suggestions for those hosts stay diverse instead of repetitive. Source: FR-104 spec.',
+    tooltip: $localize`:@@metaAlgorithms.hgte.tip:HGTE: Boosts host pages that touch many different topics, so suggestions for those hosts stay diverse instead of repetitive. Source: FR-104 spec.`,
     specSlug: 'fr104-host-graph-topic-entropy-boost',
   },
 
   // FR-105 Reverse Search-Query Vocabulary Alignment
   rsqva: {
-    tooltip:
-      'RSQVA: Aligns suggestions with the actual Google-search vocabulary your readers use, so links match what real visitors are searching for. Source: FR-105 spec.',
+    tooltip: $localize`:@@metaAlgorithms.rsqva.tip:RSQVA: Aligns suggestions with the actual Google-search vocabulary your readers use, so links match what real visitors are searching for. Source: FR-105 spec.`,
     specSlug: 'fr105-reverse-search-query-vocabulary-alignment',
   },
 };

@@ -4,7 +4,7 @@
       <mat-icon
         class="confidence-icon"
         aria-hidden="true"
-        [matTooltip]="'Ready-to-Rock score: ' + snapshot()!.label">
+        [matTooltip]="getTooltip()">
         {{ toneIcon() }}
       </mat-icon>
       <div class="confidence-text">
@@ -25,14 +25,14 @@
         <mat-expansion-panel-header>
           <mat-panel-title>
             <mat-icon class="drill-icon" aria-hidden="true">expand_more</mat-icon>
-            Score breakdown
+            <span i18n="@@dashboard.confidence.breakdown">Score breakdown</span>
           </mat-panel-title>
           @if (weakestContributors().length > 0) {
-            <mat-panel-description>
-              {{ weakestContributors().length }} item{{ weakestContributors().length === 1 ? '' : 's' }} need attention
+            <mat-panel-description i18n="@@dashboard.confidence.attention">
+              {weakestContributors().length, plural, =1 {1 item needs attention} other {{{weakestContributors().length}} items need attention}}
             </mat-panel-description>
           } @else {
-            <mat-panel-description>All contributors at full marks</mat-panel-description>
+            <mat-panel-description i18n="@@dashboard.confidence.full_marks">All contributors at full marks</mat-panel-description>
           }
         </mat-expansion-panel-header>
 

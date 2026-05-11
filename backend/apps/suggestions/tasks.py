@@ -37,8 +37,8 @@ def prune_rejected_pairs() -> dict[str, int]:
 
     Returns a dict with ``deleted`` and ``remaining`` counts for the operator.
     """
-    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
     from .models import REJECTED_PAIR_PRUNE_AFTER_DAYS, RejectedPair
 
     threshold = timezone.now() - timedelta(days=REJECTED_PAIR_PRUNE_AFTER_DAYS)

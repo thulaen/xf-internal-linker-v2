@@ -41,8 +41,8 @@ logger = logging.getLogger(__name__)
     expected_seconds_p50=300,
 )
 def create_database_snapshot() -> dict:
-    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     from apps.audit.error_ingest import ingest_error
     from apps.audit.models import ErrorLog

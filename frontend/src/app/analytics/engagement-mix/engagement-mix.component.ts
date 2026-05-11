@@ -51,9 +51,9 @@ interface Tier {
       <mat-card-header>
         <mat-card-title class="card-title">
           <mat-icon class="title-icon">insights</mat-icon>
-          <span>Engagement mix</span>
+          <span i18n="@@analytics.engagement_mix.title">Engagement mix</span>
         </mat-card-title>
-        <mat-card-subtitle>
+        <mat-card-subtitle i18n="@@analytics.engagement_mix.subtitle">
           How many readers stick around vs bounce back.
         </mat-card-subtitle>
       </mat-card-header>
@@ -63,7 +63,7 @@ interface Tier {
             <mat-spinner diameter="36"></mat-spinner>
           </div>
         } @else if (!data || data.totals.destination_views === 0) {
-          <p class="empty-hint">
+          <p class="empty-hint" i18n="@@analytics.engagement_mix.empty">
             No destination views yet in this window. Engagement signals start
             appearing once the browser bridge is installed and readers land
             on an instrumented page.
@@ -81,7 +81,7 @@ interface Tier {
             }
           </div>
           <div class="tier-reach-strip">
-            <p class="strip-caption">Tier reach (share of destination views)</p>
+            <p class="strip-caption" i18n="@@analytics.engagement_mix.strip_caption">Tier reach (share of destination views)</p>
             @for (tier of tiers; track tier.label) {
               <div class="tier-row">
                 <span class="tier-row-label">{{ tier.label }}</span>
@@ -257,38 +257,32 @@ export class EngagementMixComponent {
     const { totals, rates } = payload;
     return [
       {
-        label: 'Quick exit',
+        label: $localize`:@@analytics.engagement_mix.tier.quick_exit:Quick exit`,
         rate: rates.quick_exit_rate,
         count: totals.quick_exit_sessions,
         cssClass: 'tier-quick-exit',
-        tooltip:
-          'Readers who left within 5 seconds of landing on the destination. ' +
-          'Strong negative signal — the link probably did not match intent.',
+        tooltip: $localize`:@@analytics.engagement_mix.tier.quick_exit.tooltip:Readers who left within 5 seconds of landing on the destination. Strong negative signal — the link probably did not match intent.`,
       },
       {
-        label: 'Engaged 10s+',
+        label: $localize`:@@analytics.engagement_mix.tier.engaged:Engaged 10s+`,
         rate: rates.engaged_rate,
         count: totals.engaged_sessions,
         cssClass: 'tier-engaged',
-        tooltip:
-          'Readers who stayed engaged on the destination for at least 10 seconds.',
+        tooltip: $localize`:@@analytics.engagement_mix.tier.engaged.tooltip:Readers who stayed engaged on the destination for at least 10 seconds.`,
       },
       {
-        label: 'Dwell 30s+',
+        label: $localize`:@@analytics.engagement_mix.tier.dwell_30:Dwell 30s+`,
         rate: rates.dwell_30s_rate,
         count: totals.dwell_30s_sessions,
         cssClass: 'tier-dwell-30',
-        tooltip:
-          'Readers who stayed on the destination for at least 30 seconds.',
+        tooltip: $localize`:@@analytics.engagement_mix.tier.dwell_30.tooltip:Readers who stayed on the destination for at least 30 seconds.`,
       },
       {
-        label: 'Dwell 60s+',
+        label: $localize`:@@analytics.engagement_mix.tier.dwell_60:Dwell 60s+`,
         rate: rates.dwell_60s_rate,
         count: totals.dwell_60s_sessions,
         cssClass: 'tier-dwell-60',
-        tooltip:
-          'Readers who stayed on the destination for at least 60 seconds. ' +
-          'Strongest positive engagement signal.',
+        tooltip: $localize`:@@analytics.engagement_mix.tier.dwell_60.tooltip:Readers who stayed on the destination for at least 60 seconds. Strongest positive engagement signal.`,
       },
     ];
   }

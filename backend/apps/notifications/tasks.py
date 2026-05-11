@@ -26,8 +26,8 @@ logger = logging.getLogger(__name__)
 )
 def check_silent_failure() -> dict:
     """Alert if no sync has completed in 72+ hours."""
-    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
     from apps.sync.models import SyncJob
     from apps.notifications.services import emit_operator_alert
     from apps.notifications.models import OperatorAlert

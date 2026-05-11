@@ -35,8 +35,8 @@ logger = logging.getLogger(__name__)
     expected_seconds_p50=120,
 )
 def compression_audit_run() -> dict[str, int]:
-    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Walk every candidate table; persist a top-10 savings report.
 

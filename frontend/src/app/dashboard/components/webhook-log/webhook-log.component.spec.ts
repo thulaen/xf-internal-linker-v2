@@ -1,50 +1,31 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { of, NEVER } from 'rxjs';
 import { WebhookLogComponent } from './webhook-log.component';
-import { SyncService, WebhookReceipt } from '../../../jobs/sync.service';
+import { SyncService } from '../../../jobs/sync.service';
 import { RealtimeService } from '../../../core/services/realtime.service';
-
-const MOCK_RECEIPTS: WebhookReceipt[] = [
-  {
-    receipt_id: 'r1',
-    created_at: '2026-01-01T00:00:00Z',
-    source: 'xenforo',
-    event_type: 'post.created',
-    status: 'ok',
-    occurrence_count: 1,
-    last_seen_at: '2026-01-01T00:00:00Z',
-  },
-  {
-    receipt_id: 'r2',
-    created_at: '2026-01-02T00:00:00Z',
-    source: 'wordpress',
-    event_type: 'post.updated',
-    status: 'error',
-    error_message: 'timeout',
-    occurrence_count: 3,
-    last_seen_at: '2026-01-02T00:00:00Z',
-  },
-];
+import { of, Subject } from 'rxjs';
+import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { By } from '@angular/platform-browser';
 
 describe('WebhookLogComponent', () => {
-  let fixture: ComponentFixture<WebhookLogComponent>;
   let component: WebhookLogComponent;
+  let fixture: ComponentFixture<WebhookLogComponent>;
   let syncSvcSpy: jasmine.SpyObj<SyncService>;
-
-  /** A cold observable that never emits — simulates a connected but silent WebSocket. */
-  const silentRealtime = { subscribeTopic: () => NEVER };
+  let realtimeSvcSpy: jasmine.SpyObj<RealtimeService>;
+  let receiptsSubject: Subject<any>;
 
   beforeEach(async () => {
+    receiptsSubject = new Subject();
     syncSvcSpy = jasmine.createSpyObj('SyncService', ['getWebhookReceipts']);
-    syncSvcSpy.getWebhookReceipts.and.returnValue(of(MOCK_RECEIPTS));
+    realtimeSvcSpy = jasmine.createSpyObj('RealtimeService', ['subscribeTopic']);
+
+    syncSvcSpy.getWebhookReceipts.and.returnValue(of([]));
+    realtimeSvcSpy.subscribeTopic.and.returnValue(receiptsSubject.asObservable());
 
     await TestBed.configureTestingModule({
-      imports: [WebhookLogComponent],
+      imports: [WebhookLogComponent, NoopAnimationsModule],
       providers: [
-        provideNoopAnimations(),
         { provide: SyncService, useValue: syncSvcSpy },
-        { provide: RealtimeService, useValue: silentRealtime },
+        { provide: RealtimeService, useValue: realtimeSvcSpy },
       ],
     }).compileComponents();
 
@@ -53,35 +34,102 @@ describe('WebhookLogComponent', () => {
     fixture.detectChanges();
   });
 
-  it('renders without error', () => {
-    expect(fixture.nativeElement).toBeTruthy();
+  it('should create', () => {
+    expect(component).toBeTruthy();
   });
 
-  it('calls getWebhookReceipts on init', () => {
-    expect(syncSvcSpy.getWebhookReceipts).toHaveBeenCalledTimes(1);
+  it('should render empty state when no receipts', () => {
+    component.receipts.set([]);
+    fixture.detectChanges();
+    const emptyState = fixture.debugElement.query(By.css('.empty-state'));
+    expect(emptyState).toBeTruthy();
+    expect(emptyState.nativeElement.textContent).toContain('No webhook activity');
   });
 
-  it('populates the receipts signal with the loaded data', () => {
-    expect(component.receipts()).toEqual(MOCK_RECEIPTS);
+  it('should render table when receipts exist', () => {
+    const mockReceipts = [
+      {
+        receipt_id: '1',
+        created_at: new Date().toISOString(),
+        source: 'xenforo',
+        event_type: 'thread.create',
+        status: 'processed',
+        occurrence_count: 1
+      }
+    ];
+    component.receipts.set(mockReceipts as any);
+    fixture.detectChanges();
+    
+    const table = fixture.debugElement.query(By.css('.webhook-table'));
+    expect(table).toBeTruthy();
+    
+    const rows = fixture.debugElement.queryAll(By.css('tr[mat-row]'));
+    expect(rows.length).toBe(1);
+    expect(rows[0].nativeElement.textContent).toContain('thread.create');
   });
 
-  it('renders one table row per receipt', () => {
-    const rows = fixture.nativeElement.querySelectorAll('tr[mat-row]');
-    expect(rows.length).toBe(MOCK_RECEIPTS.length);
+  it('should update receipts on realtime create event', () => {
+    const initialReceipts = [{ receipt_id: '1', event_type: 'old' }];
+    component.receipts.set(initialReceipts as any);
+    
+    const newReceipt = {
+      receipt_id: '2',
+      event_type: 'new',
+      source: 'wordpress',
+      status: 'processed',
+      created_at: new Date().toISOString(),
+      occurrence_count: 1
+    };
+    
+    receiptsSubject.next({
+      event: 'receipt.created',
+      payload: newReceipt
+    });
+    
+    expect(component.receipts().length).toBe(2);
+    expect(component.receipts()[0].receipt_id).toBe('2');
   });
 
-  it('shows an empty table when the service returns an empty array', () => {
-    syncSvcSpy.getWebhookReceipts.and.returnValue(of([]));
-    const f2 = TestBed.createComponent(WebhookLogComponent);
-    f2.detectChanges();
-    expect(f2.componentInstance.receipts().length).toBe(0);
+  it('should remove receipt on realtime delete event', () => {
+    const initialReceipts = [
+      { receipt_id: '1', event_type: 'one' },
+      { receipt_id: '2', event_type: 'two' }
+    ];
+    component.receipts.set(initialReceipts as any);
+    
+    receiptsSubject.next({
+      event: 'receipt.deleted',
+      payload: { receipt_id: '1' }
+    });
+    
+    expect(component.receipts().length).toBe(1);
+    expect(component.receipts()[0].receipt_id).toBe('2');
   });
 
-  it('shows the displayed columns for the table', () => {
-    // Verifies the column definition list is non-empty and contains expected columns.
-    const cols = fixture.componentInstance.displayedColumns;
-    expect(cols).toContain('status');
-    expect(cols).toContain('source');
-    expect(cols.length).toBeGreaterThan(0);
+  it('should show dedup count and tooltip when occurrence_count > 1', () => {
+    const mockReceipts = [
+      {
+        receipt_id: '1',
+        created_at: new Date().toISOString(),
+        source: 'xenforo',
+        event_type: 'ping',
+        status: 'ignored',
+        occurrence_count: 5
+      }
+    ];
+    component.receipts.set(mockReceipts as any);
+    fixture.detectChanges();
+    
+    const dedupCount = fixture.debugElement.query(By.css('.dedup-count'));
+    expect(dedupCount).toBeTruthy();
+    expect(dedupCount.nativeElement.textContent).toContain('×5');
+  });
+
+  it('should clean up interval on destroy', () => {
+    const clearIntervalSpy = spyOn(window, 'clearInterval');
+    // @ts-expect-error - accessing private for test
+    component.refreshInterval = 123;
+    component.ngOnDestroy();
+    expect(clearIntervalSpy).toHaveBeenCalledWith(123);
   });
 });

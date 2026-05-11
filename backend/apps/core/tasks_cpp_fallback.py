@@ -49,8 +49,8 @@ def cpp_fallback_check() -> dict[str, int]:
 
     from apps.core.services.cpp_fallback_warning import check_and_emit_fallback_events
 
-    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     events = check_and_emit_fallback_events()
     if events:

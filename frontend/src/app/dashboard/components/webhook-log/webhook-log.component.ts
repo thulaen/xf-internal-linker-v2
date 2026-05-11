@@ -127,4 +127,8 @@ export class WebhookLogComponent implements OnInit, OnDestroy {
   getStatusClass(status: string): string {
     return `status-${status}`;
   }
+
+  getDedupTooltip(count: number): string {
+    return $localize`:@@dashboard.webhook.table.dedup_tooltip:Collapsed ${count}:count: identical events`;
+  }
 }

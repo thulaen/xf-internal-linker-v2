@@ -804,7 +804,7 @@
               </div>
               <div class="card-actions-row">
                 @if (metaAlgoHasSpec('darb')) {
-                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('darb')" matTooltip="Open the FR-099 spec inside this page (no navigation away)." i18n-matTooltip="@@metaAlgorithms.actions.viewSpecTooltip">
+                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('darb')" matTooltip="Open the FR-099 spec inside this page (no navigation away)." i18n-matTooltip="@@metaAlgorithms.actions.viewSpecTooltipDARB">
                     <mat-icon>description</mat-icon>
                     <ng-container i18n="@@metaAlgorithms.actions.viewSpec">View spec</ng-container>
                   </button>
@@ -862,7 +862,7 @@
               </div>
               <div class="card-actions-row">
                 @if (metaAlgoHasSpec('kmig')) {
-                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('kmig')" matTooltip="Open the FR-100 spec inside this page (no navigation away)." i18n-matTooltip="@@metaAlgorithms.actions.viewSpecTooltip">
+                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('kmig')" matTooltip="Open the FR-100 spec inside this page (no navigation away)." i18n-matTooltip="@@metaAlgorithms.actions.viewSpecTooltipKMIG">
                     <mat-icon>description</mat-icon>
                     <ng-container i18n="@@metaAlgorithms.actions.viewSpec">View spec</ng-container>
                   </button>
@@ -911,9 +911,9 @@
               </div>
               <div class="card-actions-row">
                 @if (metaAlgoHasSpec('tapb')) {
-                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('tapb')" matTooltip="Open the FR-101 spec inside this page (no navigation away).">
+                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('tapb')" matTooltip="Open the FR-101 spec inside this page (no navigation away)." i18n-matTooltip="@@metaAlgorithms.actions.viewSpecTooltipTAPB">
                     <mat-icon>description</mat-icon>
-                    View spec
+                    <ng-container i18n="@@metaAlgorithms.actions.viewSpec">View spec</ng-container>
                   </button>
                 }
                 <button mat-flat-button color="primary" [disabled]="savingTapb" (click)="saveTapbSettings()">
@@ -957,9 +957,9 @@
               </div>
               <div class="card-actions-row">
                 @if (metaAlgoHasSpec('kcib')) {
-                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('kcib')" matTooltip="Open the FR-102 spec inside this page (no navigation away).">
+                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('kcib')" matTooltip="Open the FR-102 spec inside this page (no navigation away)." i18n-matTooltip="@@metaAlgorithms.actions.viewSpecTooltipKCIB">
                     <mat-icon>description</mat-icon>
-                    View spec
+                    <ng-container i18n="@@metaAlgorithms.actions.viewSpec">View spec</ng-container>
                   </button>
                 }
                 <button mat-flat-button color="primary" [disabled]="savingKcib" (click)="saveKcibSettings()">
@@ -1003,9 +1003,9 @@
               </div>
               <div class="card-actions-row">
                 @if (metaAlgoHasSpec('berp')) {
-                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('berp')" matTooltip="Open the FR-103 spec inside this page (no navigation away).">
+                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('berp')" matTooltip="Open the FR-103 spec inside this page (no navigation away)." i18n-matTooltip="@@metaAlgorithms.actions.viewSpecTooltipBERP">
                     <mat-icon>description</mat-icon>
-                    View spec
+                    <ng-container i18n="@@metaAlgorithms.actions.viewSpec">View spec</ng-container>
                   </button>
                 }
                 <button mat-flat-button color="primary" [disabled]="savingBerp" (click)="saveBerpSettings()">
@@ -1049,9 +1049,9 @@
               </div>
               <div class="card-actions-row">
                 @if (metaAlgoHasSpec('hgte')) {
-                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('hgte')" [matTooltip]="metaAlgoTip('hgte')" i18n-matTooltip="@@settings.tips.viewSpec">
+                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('hgte')" matTooltip="Open the FR-104 spec inside this page (no navigation away)." i18n-matTooltip="@@metaAlgorithms.actions.viewSpecTooltipHGTE">
                     <mat-icon>description</mat-icon>
-                    <span i18n="@@settings.actions.viewSpec">View spec</span>
+                    <ng-container i18n="@@metaAlgorithms.actions.viewSpec">View spec</ng-container>
                   </button>
                 }
                 <button mat-flat-button color="primary" [disabled]="savingHgte" (click)="saveHgteSettings()">
@@ -1109,9 +1109,9 @@
               </div>
               <div class="card-actions-row">
                 @if (metaAlgoHasSpec('rsqva')) {
-                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('rsqva')" [matTooltip]="metaAlgoTip('rsqva')" i18n-matTooltip="@@settings.tips.viewSpec">
+                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('rsqva')" matTooltip="Open the FR-105 spec inside this page (no navigation away)." i18n-matTooltip="@@metaAlgorithms.actions.viewSpecTooltipRSQVA">
                     <mat-icon>description</mat-icon>
-                    <span i18n="@@settings.actions.viewSpec">View spec</span>
+                    <ng-container i18n="@@metaAlgorithms.actions.viewSpec">View spec</ng-container>
                   </button>
                 }
                 <button mat-flat-button color="primary" [disabled]="savingRsqva" (click)="saveRsqvaSettings()">
@@ -1303,7 +1303,7 @@
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline" *ngIf="valueModel.enabled">
-                  <mat-label i18n="@@settings.labels.lookbackDays">Lookback (days)</mat-label>
+                  <mat-label i18n="@@settings.labels.lookbackDays">Lookback days</mat-label>
                   <input matInput autocomplete="off" type="number" min="7" max="365" step="7" [(ngModel)]="valueModel.traffic_lookback_days" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.traffic_lookback_days')" i18n-matTooltip="@@settings.tips.lookbackDays" matTooltipClass="setting-tooltip">
                     <mat-icon class="icon-md">info_outline</mat-icon>

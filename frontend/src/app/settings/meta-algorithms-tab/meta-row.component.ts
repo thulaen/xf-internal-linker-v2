@@ -41,7 +41,7 @@ import { MetaRow } from './meta-algorithms.service';
       <span class="mr-title">
         {{ row.title }}
         @if (row.cpp_kernel) {
-          <mat-icon class="mr-icon mr-cpp" [matTooltip]="'C++ accelerated: ' + row.cpp_kernel" i18n-matTooltip="@@metaAlgorithms.row.cppTip">
+          <mat-icon class="mr-icon mr-cpp" [matTooltip]="cppTooltip(row.cpp_kernel)">
             bolt
           </mat-icon>
         }
@@ -202,12 +202,17 @@ export class MetaRowComponent {
     const f = this.row.family;
     if (f === 'active') return $localize`:@@metaAlgorithms.family.activeTip:Currently shipped — wired into the pipeline.`;
     if (f === 'signal') return $localize`:@@metaAlgorithms.family.signalTip:Forward-declared ranking signal.`;
-    if (f.startsWith('P')) return $localize`:@@metaAlgorithms.family.optTip:Optimiser block ${f} — see docs/specs/.`;
-    if (f.startsWith('Q')) return $localize`:@@metaAlgorithms.family.advTip:Advanced-methods block ${f} — see docs/specs/.`;
-    return $localize`:@@metaAlgorithms.family.genericTip:Family ${f}`;
+    if (f.startsWith('P')) return $localize`:@@metaAlgorithms.family.optTip:Optimiser block ${f}:family: — see docs/specs/.`;
+    if (f.startsWith('Q')) return $localize`:@@metaAlgorithms.family.advTip:Advanced-methods block ${f}:family: — see docs/specs/.`;
+    return $localize`:@@metaAlgorithms.family.genericTip:Family ${f}:family:`;
+  }
+
+  cppTooltip(kernel: string): string {
+    return $localize`:@@metaAlgorithms.row.cppTip:C++ accelerated: ${kernel}:kernel:`;
   }
 
   get toggleAriaLabel(): string {
-    return $localize`:@@metaAlgorithms.row.toggleAria:Enable ${this.row.title}`;
+    const title = this.row.title;
+    return $localize`:@@metaAlgorithms.row.toggleAria:Enable ${title}:title:`;
   }
 }

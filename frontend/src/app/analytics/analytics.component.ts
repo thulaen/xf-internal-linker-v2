@@ -135,19 +135,31 @@ export class AnalyticsComponent implements OnInit {
         callbacks: {
           label: (ctx) => {
             const raw = ctx.raw as { x: number; y: number; label?: string };
-            return ` ${raw.label ?? ctx.dataset.label}: ${raw.x} baseline clicks, ${raw.y > 0 ? '+' : ''}${raw.y}% lift`;
+            const baselineClicks = $localize`:@@analytics.impact.scatter.tooltip.baseline:baseline clicks`;
+            const liftLabel = $localize`:@@analytics.impact.scatter.tooltip.lift:lift`;
+            return ` ${raw.label ?? ctx.dataset.label}: ${raw.x} ${baselineClicks}, ${raw.y > 0 ? '+' : ''}${raw.y}% ${liftLabel}`;
           }
         }
       }
     },
     scales: {
       x: {
-        title: { display: true, text: 'Baseline Traffic (Clicks)', color: '#5f6368', font: { size: 11 } },
+        title: { 
+          display: true, 
+          text: $localize`:@@analytics.impact.scatter.axis.x:Baseline Traffic (Clicks)`, 
+          color: '#5f6368', 
+          font: { size: 11 } 
+        },
         ticks: { color: '#5f6368', font: { size: 11 } },
         grid: { color: 'rgba(95, 99, 104, 0.1)' }
       },
       y: {
-        title: { display: true, text: 'Lift (%)', color: '#5f6368', font: { size: 11 } },
+        title: { 
+          display: true, 
+          text: $localize`:@@analytics.impact.scatter.axis.y:Lift (%)`, 
+          color: '#5f6368', 
+          font: { size: 11 } 
+        },
         ticks: { color: '#5f6368', font: { size: 11 } },
         grid: { color: 'rgba(95, 99, 104, 0.1)' }
       }
@@ -220,7 +232,12 @@ export class AnalyticsComponent implements OnInit {
         type: 'linear',
         display: true,
         position: 'left',
-        title: { display: true, text: 'Clicks', color: '#5f6368', font: { size: 11 } },
+        title: { 
+          display: true, 
+          text: $localize`:@@analytics.engagementTrend.axis.clicks:Clicks`, 
+          color: '#5f6368', 
+          font: { size: 11 } 
+        },
         ticks: { color: '#5f6368', font: { size: 11 } },
         grid: { color: 'rgba(95, 99, 104, 0.1)' }
       },
@@ -228,7 +245,12 @@ export class AnalyticsComponent implements OnInit {
         type: 'linear',
         display: true,
         position: 'right',
-        title: { display: true, text: 'Rate (%)', color: '#5f6368', font: { size: 11 } },
+        title: { 
+          display: true, 
+          text: $localize`:@@analytics.engagementTrend.axis.rate:Rate (%)`, 
+          color: '#5f6368', 
+          font: { size: 11 } 
+        },
         ticks: { color: '#5f6368', font: { size: 11 } },
         min: 0,
         max: 100,
@@ -262,7 +284,12 @@ export class AnalyticsComponent implements OnInit {
       y: {
         min: 0,
         max: 100,
-        title: { display: true, text: 'Performance (%)', color: '#5f6368', font: { size: 11 } },
+        title: { 
+          display: true, 
+          text: $localize`:@@analytics.algorithm.axis.performance:Performance (%)`, 
+          color: '#5f6368', 
+          font: { size: 11 } 
+        },
         ticks: { color: '#5f6368', font: { size: 11 } },
         grid: { color: 'rgba(95, 99, 104, 0.1)' }
       },
@@ -347,7 +374,9 @@ export class AnalyticsComponent implements OnInit {
       },
       error: () => {
         this.loadingImpacts = false;
-        this.snack.open('Could not load Search Impact data.', 'Dismiss', { duration: 3000 });
+        const msg = $localize`:@@analytics.impact.error_load:Could not load Search Impact data.`;
+        const dismiss = $localize`:@@analytics.impact.dismiss:Dismiss`;
+        this.snack.open(msg, dismiss, { duration: 3000 });
         this.cdr.markForCheck();
       }
     });
@@ -479,7 +508,9 @@ export class AnalyticsComponent implements OnInit {
       },
       error: () => {
         this.loadingDetail = false;
-        this.snack.open('Could not load impact details.', 'Dismiss', { duration: 3000 });
+        const msg = $localize`:@@analytics.impact.detail.error_load:Could not load impact details.`;
+        const dismiss = $localize`:@@analytics.impact.dismiss:Dismiss`;
+        this.snack.open(msg, dismiss, { duration: 3000 });
         this.cdr.markForCheck();
       }
     });
@@ -519,7 +550,7 @@ export class AnalyticsComponent implements OnInit {
         this.cdr.markForCheck();
       },
       error: () => {
-        this.error = 'Could not load telemetry details.';
+        this.error = $localize`:@@analytics.error_load:Could not load telemetry details.`;
         this.loading = false;
         this.cdr.markForCheck();
       },
@@ -538,7 +569,13 @@ export class AnalyticsComponent implements OnInit {
     if (!totals) return;
 
     this.funnelChartData = {
-      labels: ['Impressions', 'Clicks', 'Views', 'Engaged', 'Conversions'],
+      labels: [
+        $localize`:@@analytics.funnel.label.impressions:Impressions`, 
+        $localize`:@@analytics.funnel.label.clicks:Clicks`, 
+        $localize`:@@analytics.funnel.label.views:Views`, 
+        $localize`:@@analytics.funnel.label.engaged:Engaged`, 
+        $localize`:@@analytics.funnel.label.conversions:Conversions`
+      ],
       datasets: [{
         data: [
           totals.impressions,
@@ -570,7 +607,7 @@ export class AnalyticsComponent implements OnInit {
       labels: labels,
       datasets: [
         {
-          label: 'Clicks',
+          label: $localize`:@@analytics.engagementTrend.dataset.clicks:Clicks`,
           data: this.trend.items.map(i => i.clicks),
           borderColor: '#1a73e8',
           backgroundColor: 'rgba(26, 115, 232, 0.1)',
@@ -579,7 +616,7 @@ export class AnalyticsComponent implements OnInit {
           yAxisID: 'y'
         },
         {
-          label: 'CTR (%)',
+          label: $localize`:@@analytics.engagementTrend.dataset.ctr:CTR (%)`,
           data: this.trend.items.map(i => i.ctr * 100),
           borderColor: '#34a853',
           backgroundColor: 'transparent',
@@ -588,7 +625,7 @@ export class AnalyticsComponent implements OnInit {
           yAxisID: 'y1'
         },
         {
-          label: 'Engagement (%)',
+          label: $localize`:@@analytics.engagementTrend.dataset.engagement:Engagement (%)`,
           data: this.trend.items.map(i => i.engagement_rate * 100),
           borderColor: '#fbbc04',
           backgroundColor: 'transparent',
@@ -606,13 +643,13 @@ export class AnalyticsComponent implements OnInit {
       labels: this.versionComparison.items.map(i => i.version_slug),
       datasets: [
         {
-          label: 'CTR (%)',
+          label: $localize`:@@analytics.algorithm.dataset.ctr:CTR (%)`,
           data: this.versionComparison.items.map(i => i.ctr * 100),
           backgroundColor: 'rgba(26, 115, 232, 0.8)',
           borderRadius: 4
         },
         {
-          label: 'Engagement (%)',
+          label: $localize`:@@analytics.algorithm.dataset.engagement:Engagement (%)`,
           data: this.versionComparison.items.map(i => i.engagement_rate * 100),
           backgroundColor: 'rgba(52, 168, 83, 0.8)',
           borderRadius: 4
@@ -647,7 +684,7 @@ export class AnalyticsComponent implements OnInit {
     this.geoChartData = {
       labels: topCountries.map(i => i.label),
       datasets: [{
-        label: 'Clicks',
+        label: $localize`:@@analytics.geographicMix.dataset.clicks:Clicks`,
         data: topCountries.map(i => i.clicks),
         backgroundColor: 'rgba(26, 115, 232, 0.7)',
         borderRadius: 4
@@ -657,11 +694,11 @@ export class AnalyticsComponent implements OnInit {
 
   statusLabel(status: string): string {
     return {
-      connected: 'Connected',
-      saved: 'Saved',
-      error: 'Error',
-      not_configured: 'Not set up',
-    }[status] ?? 'Unknown';
+      connected: $localize`:@@analytics.integrations.status.connected:Connected`,
+      saved: $localize`:@@analytics.integrations.status.saved:Saved`,
+      error: $localize`:@@analytics.integrations.status.error:Error`,
+      not_configured: $localize`:@@analytics.integrations.status.not_configured:Not set up`,
+    }[status] ?? $localize`:@@analytics.integrations.status.unknown:Unknown`;
   }
 
   ga4StatusLabel(): string {
@@ -671,31 +708,45 @@ export class AnalyticsComponent implements OnInit {
 
   ga4StatusMessage(): string {
     const ga4 = this.overview?.ga4;
-    return ga4?.read_connection_message || ga4?.connection_message || 'Fill in the GA4 fields and test the connection.';
+    return ga4?.read_connection_message || ga4?.connection_message || $localize`:@@analytics.integrations.ga4.setup_hint:Fill in the GA4 fields and test the connection.`;
   }
 
   lastSyncLabel(sync: SyncSummary | null | undefined): string {
-    if (!sync) return 'Never synced';
+    if (!sync) return $localize`:@@analytics.integrations.sync.never:Never synced`;
     const stamp = sync.completed_at || sync.started_at;
-    if (!stamp) return `${sync.rows_written || 0} rows written`;
+    if (!stamp) {
+      const rows = sync.rows_written || 0;
+      return $localize`:@@analytics.integrations.sync.rows_only:${rows} rows written`;
+    }
 
     let summary = `${new Date(stamp).toLocaleString()}`;
-    if (sync.rows_written !== undefined) summary += ` - ${sync.rows_written} rows written`;
-    if (sync.rows_read !== undefined && sync.rows_read > 0) summary += ` (${sync.rows_read} read)`;
-    if (sync.status === 'error') summary += ` [FAILED: ${sync.error_message || 'Unknown'}]`;
+    if (sync.rows_written !== undefined) {
+      const written = sync.rows_written;
+      summary += $localize`:@@analytics.integrations.sync.written: - ${written} rows written`;
+    }
+    if (sync.rows_read !== undefined && sync.rows_read > 0) {
+      const readCount = sync.rows_read;
+      summary += $localize`:@@analytics.integrations.sync.read: (${readCount} read)`;
+    }
+    if (sync.status === 'error') {
+      const err = sync.error_message || $localize`:@@analytics.integrations.sync.unknown_error:Unknown`;
+      summary += $localize`:@@analytics.integrations.sync.failed: [FAILED: ${err}]`;
+    }
 
     return summary;
   }
 
   integrationStatusLabel(status: AnalyticsIntegrationResponse['status'] | undefined): string {
-    return status === 'ready' ? 'Ready to install' : 'Needs setup';
+    return status === 'ready' 
+      ? $localize`:@@analytics.integrations.status.ready:Ready to install` 
+      : $localize`:@@analytics.integrations.status.needs_setup:Needs setup`;
   }
 
   sourceLabel(source: 'all' | 'ga4' | 'matomo'): string {
     return {
-      all: 'Combined',
-      ga4: 'GA4 only',
-      matomo: 'Matomo only',
+      all: $localize`:@@analytics.source.combined_label:Combined`,
+      ga4: $localize`:@@analytics.source.ga4_label:GA4 only`,
+      matomo: $localize`:@@analytics.source.matomo_label:Matomo only`,
     }[source];
   }
 
@@ -729,22 +780,21 @@ export class AnalyticsComponent implements OnInit {
 
   quickExitTooltip(item: AnalyticsTopSuggestion): string {
     if (item.destination_views === 0) {
-      return 'No destination views yet in this window.';
+      return $localize`:@@analytics.topSuggestions.tooltip.no_views:No destination views yet in this window.`;
     }
     const pct = (item.quick_exit_rate * 100).toFixed(1);
-    return (
-      `${item.quick_exit_sessions} of ${item.destination_views} readers ` +
-      `(${pct}%) left within 5 seconds of landing on the destination. ` +
-      'High quick-exit usually means the link does not match reader intent.'
-    );
+    const sessions = item.quick_exit_sessions;
+    const views = item.destination_views;
+    
+    return $localize`:@@analytics.topSuggestions.tooltip.quick_exit_desc:${sessions} of ${views} readers (${pct}%) left within 5 seconds of landing on the destination. High quick-exit usually means the link does not match reader intent.`;
   }
 
   coverageStateLabel(state: AnalyticsHealthSummary['latest_state']): string {
     return {
-      healthy: 'Healthy',
-      partial: 'Partial',
-      degraded: 'Degraded',
-      no_data: 'No data',
+      healthy: $localize`:@@analytics.systemHealth.state.healthy:Healthy`,
+      partial: $localize`:@@analytics.systemHealth.state.partial:Partial`,
+      degraded: $localize`:@@analytics.systemHealth.state.degraded:Degraded`,
+      no_data: $localize`:@@analytics.systemHealth.state.no_data:No data`,
     }[state];
   }
 
@@ -792,11 +842,11 @@ export class AnalyticsComponent implements OnInit {
       return [];
     }
     return [
-      { label: 'Impressions', value: totals.impressions },
-      { label: 'Clicks', value: totals.clicks },
-      { label: 'Destination views', value: totals.destination_views },
-      { label: 'Engaged sessions', value: totals.engaged_sessions },
-      { label: 'Conversions', value: totals.conversions },
+      { label: $localize`:@@analytics.funnel.step.impressions:Impressions`, value: totals.impressions },
+      { label: $localize`:@@analytics.funnel.step.clicks:Clicks`, value: totals.clicks },
+      { label: $localize`:@@analytics.funnel.step.views:Destination views`, value: totals.destination_views },
+      { label: $localize`:@@analytics.funnel.step.engaged:Engaged sessions`, value: totals.engaged_sessions },
+      { label: $localize`:@@analytics.funnel.step.conversions:Conversions`, value: totals.conversions },
     ];
   }
 
@@ -819,19 +869,24 @@ export class AnalyticsComponent implements OnInit {
   async copySnippet(): Promise<void> {
     const snippet = this.integration?.browser_snippet ?? '';
     if (!snippet) {
-      this.snack.open('No browser snippet is ready yet.', 'Dismiss', { duration: 3000 });
+      const msg = $localize`:@@analytics.integrations.copy.error_no_snippet:No browser snippet is ready yet.`;
+      const dismiss = $localize`:@@analytics.impact.dismiss:Dismiss`;
+      this.snack.open(msg, dismiss, { duration: 3000 });
       return;
     }
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(snippet);
-        this.snack.open('Browser snippet copied.', undefined, { duration: 2500 });
+        const msg = $localize`:@@analytics.integrations.copy.success:Browser snippet copied.`;
+        this.snack.open(msg, undefined, { duration: 2500 });
         return;
       }
     } catch {
       // Fall through to the plain warning below.
     }
-    this.snack.open('Clipboard copy is not available in this browser.', 'Dismiss', { duration: 3500 });
+    const msg = $localize`:@@analytics.integrations.copy.error_clipboard:Clipboard copy is not available in this browser.`;
+    const dismiss = $localize`:@@analytics.impact.dismiss:Dismiss`;
+    this.snack.open(msg, dismiss, { duration: 3500 });
   }
 
   runGa4Sync(): void {
@@ -845,7 +900,9 @@ export class AnalyticsComponent implements OnInit {
       },
       error: (error) => {
         this.syncingGa4 = false;
-        this.snack.open(error?.error?.detail || 'Could not queue the GA4 sync.', 'Dismiss', { duration: 4000 });
+        const msg = error?.error?.detail || $localize`:@@analytics.integrations.ga4.error_sync:Could not queue the GA4 sync.`;
+        const dismiss = $localize`:@@analytics.impact.dismiss:Dismiss`;
+        this.snack.open(msg, dismiss, { duration: 4000 });
         this.cdr.markForCheck();
       },
     });
@@ -862,7 +919,9 @@ export class AnalyticsComponent implements OnInit {
       },
       error: (error) => {
         this.syncingMatomo = false;
-        this.snack.open(error?.error?.detail || 'Could not queue the Matomo sync.', 'Dismiss', { duration: 4000 });
+        const msg = error?.error?.detail || $localize`:@@analytics.integrations.matomo.error_sync:Could not queue the Matomo sync.`;
+        const dismiss = $localize`:@@analytics.impact.dismiss:Dismiss`;
+        this.snack.open(msg, dismiss, { duration: 4000 });
         this.cdr.markForCheck();
       },
     });
@@ -870,10 +929,10 @@ export class AnalyticsComponent implements OnInit {
 
   rewardLabel(label: string): string {
     return {
-      positive: 'Positive Uplift',
-      neutral: 'Neutral Change',
-      negative: 'Negative Impact',
-      inconclusive: 'Inconclusive',
+      positive: $localize`:@@analytics.impact.reward.positive:Positive Uplift`,
+      neutral: $localize`:@@analytics.impact.reward.neutral:Neutral Change`,
+      negative: $localize`:@@analytics.impact.reward.negative:Negative Impact`,
+      inconclusive: $localize`:@@analytics.impact.reward.inconclusive:Inconclusive`,
     }[label] ?? label;
   }
 

@@ -30,8 +30,8 @@ logger = logging.getLogger(__name__)
     ram_peak_mb=256,
 )
 def schedule_tracker_recovery_tick() -> dict:
-    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Run the missed-schedule recovery sweep."""
     from apps.core.services.schedule_tracker import recover_missed_runs

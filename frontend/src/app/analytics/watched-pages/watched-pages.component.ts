@@ -24,7 +24,7 @@ interface WatchedPage {
     @if (loading) {
       <div class="loading-wrap"><mat-spinner diameter="48"></mat-spinner></div>
     } @else if (!pages.length) {
-      <p class="empty-hint">You are not watching any pages yet. Add pages from the Under-Linked tab.</p>
+      <p class="empty-hint" i18n="@@analytics.watched_pages.empty">You are not watching any pages yet. Add pages from the Under-Linked tab.</p>
     } @else {
       <div class="watch-list">
         @for (page of pages; track page.id) {
@@ -38,12 +38,13 @@ interface WatchedPage {
                     <span class="watch-notes">{{ page.notes }}</span>
                     <span class="separator"> -- </span>
                   }
-                  <span class="watch-date">Added {{ page.added_at | date:'mediumDate' }}</span>
+                  <span class="watch-date" i18n="@@analytics.watched_pages.added_on">Added {{ page.added_at | date:'mediumDate' }}</span>
                 </div>
               </div>
               <button mat-icon-button (click)="remove(page)"
                 [disabled]="removingId === page.id"
-                matTooltip="Remove from watchlist" aria-label="Remove from watchlist">
+                matTooltip="Remove from watchlist" i18n-matTooltip="@@analytics.watched_pages.remove_btn" 
+                aria-label="Remove from watchlist" i18n-aria-label="@@analytics.watched_pages.remove_btn">
                 <mat-icon>close</mat-icon>
               </button>
             </mat-card-content>
@@ -81,23 +82,32 @@ export class WatchedPagesComponent implements OnInit {
   removingId: number | null = null;
 
   ngOnInit(): void {
-    this.http.get<WatchedPage[]>('/api/analytics/watched-pages/')
+    this.http.get<WatchedPage[]>('/api/analytics/watched-pages/') // noqa: route-check
       .pipe(catchError(() => of([])), takeUntilDestroyed(this.destroyRef))
       .subscribe(data => { this.pages = data; this.loading = false; });
   }
 
   remove(page: WatchedPage): void {
     this.removingId = page.id;
-    this.http.delete(`/api/analytics/watched-pages/${page.id}/`)
+    this.http.delete(`/api/analytics/watched-pages/${page.id}/`) // noqa: route-check
       .pipe(
-        catchError(() => { this.snack.open('Could not remove page.', 'Dismiss', { duration: 3000 }); return of(null); }),
+        catchError(() => { 
+          this.snack.open(
+            $localize`:@@analytics.watched_pages.error_remove:Could not remove page.`, 
+            $localize`:@@analytics.watched_pages.dismiss:Dismiss`, 
+            { duration: 3000 }
+          ); 
+          return of(null); 
+        }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(res => {
         this.removingId = null;
         if (res !== null) {
           this.pages = this.pages.filter(p => p.id !== page.id);
-          this.snack.open(`"${page.title}" removed.`, undefined, { duration: 2500 });
+          const title = page.title;
+          const msg = $localize`:@@analytics.watched_pages.success_remove:"${title}:title:" removed.`;
+          this.snack.open(msg, undefined, { duration: 2500 });
         }
       });
   }

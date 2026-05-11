@@ -24,7 +24,7 @@ export interface WowTelemetryRow {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (!filteredRows.length) {
-      <p class="empty-hint">No pages with more than 30% week-over-week traffic change.</p>
+      <p class="empty-hint" i18n="@@analytics.traffic_workbench.empty">No pages with more than 30% week-over-week traffic change.</p>
     } @else {
       <div class="workbench-list">
         @for (row of filteredRows; track row.title) {

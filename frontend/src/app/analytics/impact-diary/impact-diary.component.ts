@@ -24,7 +24,7 @@ interface ImpactEntry {
     @if (loading) {
       <div class="loading-wrap"><mat-spinner diameter="48"></mat-spinner></div>
     } @else if (!entries.length) {
-      <p class="empty-hint">No impact reports recorded yet.</p>
+      <p class="empty-hint" i18n="@@analytics.impact_diary.empty">No impact reports recorded yet.</p>
     } @else {
       <div class="timeline">
         @for (entry of entries; track entry.suggestion_id + entry.created_at) {
@@ -44,7 +44,7 @@ interface ImpactEntry {
               </div>
               <div class="entry-meta">
                 @if (!entry.is_conclusive) {
-                  <mat-chip class="inconclusive-chip" disableRipple>Not enough data yet</mat-chip>
+                  <mat-chip class="inconclusive-chip" disableRipple i18n="@@analytics.impact_diary.inconclusive">Not enough data yet</mat-chip>
                 } @else {
                   <app-confidence-badge [level]="entry.confidence"></app-confidence-badge>
                 }
@@ -91,7 +91,7 @@ export class ImpactDiaryComponent implements OnInit {
   loading = true;
 
   ngOnInit(): void {
-    this.http.get<ImpactEntry[]>('/api/analytics/impacts/')
+    this.http.get<ImpactEntry[]>('/api/analytics/impacts/') // noqa: route-check
       .pipe(catchError(() => of([])), takeUntilDestroyed(this.destroyRef))
       .subscribe(data => { this.entries = data; this.loading = false; });
   }

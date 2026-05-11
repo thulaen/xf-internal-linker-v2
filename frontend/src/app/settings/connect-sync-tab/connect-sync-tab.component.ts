@@ -324,12 +324,81 @@ export class ConnectSyncTabComponent implements OnInit, OnDestroy {
   }
 
   telemetryStatusLabel(status: string): string {
-    return {
-      connected: 'Connected',
-      saved: 'Saved',
-      error: 'Error',
-      not_configured: 'Not set up',
-    }[status] ?? 'Unknown';
+    switch (status) {
+      case 'connected': return $localize`:@@settings.status.connected:Connected`;
+      case 'saved': return $localize`:@@settings.status.saved:Saved`;
+      case 'error': return $localize`:@@settings.status.error:Error`;
+      case 'not_configured': return $localize`:@@settings.status.notConfigured:Not set up`;
+      default: return $localize`:@@settings.status.unknown:Unknown`;
+    }
+  }
+
+  get saveLabel(): string {
+    return $localize`:@@settings.actions.save:Save`;
+  }
+
+  get savingLabel(): string {
+    return $localize`:@@settings.actions.saving:Saving...`;
+  }
+
+  get saveXenForoLabel(): string {
+    return this.savingXenForo ? this.savingLabel : this.saveLabel;
+  }
+
+  get testConnectionLabel(): string {
+    return $localize`:@@settings.actions.testConnection:Test Connection`;
+  }
+
+  get testingLabel(): string {
+    return $localize`:@@settings.actions.testing:Testing...`;
+  }
+
+  get saveWordPressLabel(): string {
+    return this.savingWordPress ? this.savingLabel : this.saveLabel;
+  }
+
+  get saveGA4Label(): string {
+    return this.savingGA4Telemetry ? this.savingLabel : this.saveLabel;
+  }
+
+  get testGA4Label(): string {
+    return this.testingGA4Telemetry 
+      ? $localize`:@@settings.actions.testing:Testing...` 
+      : $localize`:@@settings.actions.testBrowserEvents:Test Browser Events`;
+  }
+
+  get testGA4ReadLabel(): string {
+    return this.testingGA4TelemetryRead 
+      ? $localize`:@@settings.actions.testingRead:Testing Read...` 
+      : $localize`:@@settings.actions.testReadAccess:Test Read Access`;
+  }
+
+  get saveMatomoLabel(): string {
+    return this.savingMatomoTelemetry ? this.savingLabel : this.saveLabel;
+  }
+
+  get testMatomoLabel(): string {
+    return this.testingMatomoTelemetry ? this.testingLabel : this.testConnectionLabel;
+  }
+
+  get saveWebhooksLabel(): string {
+    return this.savingWebhooks ? this.savingLabel : this.saveLabel;
+  }
+
+  get saveGSCLabel(): string {
+    return this.savingGA4GSC
+      ? $localize`:@@settings.actions.saving:Saving...`
+      : $localize`:@@settings.actions.saveGSCSettings:Save GSC Settings`;
+  }
+
+  get testGSCLabel(): string {
+    return this.testingGSCConnection ? this.testingLabel : this.testConnectionLabel;
+  }
+
+  get manualBackfillLabel(): string {
+    return this.runningGSCSync
+      ? $localize`:@@settings.actions.syncing:Syncing...`
+      : $localize`:@@settings.actions.manualBackfill:Manual Backfill`;
   }
 
   telemetryStatusClass(status: string | undefined): string {
@@ -347,11 +416,26 @@ export class ConnectSyncTabComponent implements OnInit, OnDestroy {
     }
   }
 
+  healthLabel(status: string | undefined): string {
+    switch (status) {
+      case 'healthy': return $localize`:@@settings.status.healthy:Healthy`;
+      case 'warning': return $localize`:@@settings.status.warning:Warning`;
+      case 'error': return $localize`:@@settings.status.error:Error`;
+      case 'down': return $localize`:@@settings.status.down:Down`;
+      case 'stale': return $localize`:@@settings.status.stale:Stale`;
+      default: return status || $localize`:@@settings.status.unknown:Unknown`;
+    }
+  }
+
   lastSyncLabel(sync: { completed_at: string | null; started_at: string | null; rows_written: number } | null): string {
-    if (!sync) return 'Never synced';
+    if (!sync) return $localize`:@@settings.sync.neverSynced:Never synced`;
     const stamp = sync.completed_at || sync.started_at;
-    if (!stamp) return `${sync.rows_written} rows written`;
-    return `${new Date(stamp).toLocaleString()} • ${sync.rows_written} rows written`;
+    const rows = sync.rows_written;
+    const rowsWritten = $localize`:@@settings.sync.rowsWritten:{rows, plural, =1 {1 row written} other {${rows}:count: rows written}}`;
+    
+    if (!stamp) return rowsWritten;
+    const dateStr = new Date(stamp).toLocaleString();
+    return $localize`:@@settings.sync.lastSyncWithRows:${dateStr}:date: • ${rowsWritten}:summary:`;
   }
 
   hasGoogleAppCredentials(): boolean {

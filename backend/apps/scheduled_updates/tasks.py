@@ -34,8 +34,8 @@ logger = logging.getLogger(__name__)
     ram_peak_mb=256,
 )
 def prune_resolved_alerts_task() -> dict:
-    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Nightly-ish task: delete resolved JobAlert rows past the 30-day cutoff."""
     deleted = prune_resolved_alerts()

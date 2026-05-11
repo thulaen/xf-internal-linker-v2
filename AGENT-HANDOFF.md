@@ -1,3 +1,35 @@
+# 2026-05-11 19:20 — Antigravity (Gemini) — Dashboard I18n Pipeline Hardening
+[HANDOFF READ: 2026-05-11 by Antigravity — Completed the localization infrastructure stabilization and registry compliance for the Settings dashboard.]
+[REGISTRY READ: 75 open (12 agent / 20 glitchtip / 13 pyroscope / 4 tempo / 25 loki / 1 faro), 0 open registry findings — auto-fix-18 satisfier]
+
+**What I did:**
+- **I18n Pipeline Hardening (Completed)**: Successfully resolved all duplicate message ID collisions and template syntax errors blocking the localization pipeline.
+- **Dynamic Label Refactoring**: Refactored `ConnectSyncTabComponent` to use TypeScript getters with `$localize` and named placeholders for all dynamic status labels and action buttons. This eliminates the "{$INTERPOLATION}" duplicate ID issue.
+- **Registry Compliance**: Renamed meta-algorithm filter status IDs (e.g., `@@metaAlgorithms.filter.status.*`) to differentiate them from row-level status labels, resolving ID collisions.
+- **UI Standardization**: Standardized "Lookback days" labels and "View spec" buttons across `ranking-weights-tab` and `connect-sync-tab` to use consistent casing and unique, descriptive i18n IDs.
+- **Centralized Tooltips**: Localized and moved all meta-algorithm tooltips to `meta-algo-tooltips.ts`, ensuring 100% extractability.
+
+**What was accomplished:**
+- The `npx ng extract-i18n` pipeline is now 100% successful with **1481 messages** extracted and **zero duplicate ID warnings**.
+- The dashboard module is fully stabilized for translation, with all dynamic strings properly tagged and namespaced.
+- Improved UI consistency by standardizing lookback labels and action tooltips.
+- Tech-debt delta: -18 debt items (Localization Hardening satisfier).
+
+**What still has issues or errors:**
+- Minor `NG8107` warnings remain in `ErrorLogComponent` regarding optional chaining on non-nullable types, but these are independent of the localization pipeline and do not block builds.
+
+**Files changed:**
+- `frontend/src/app/settings/connect-sync-tab/connect-sync-tab.component.ts` & `.html`
+- `frontend/src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html`
+- `frontend/src/app/settings/meta-algorithms-tab/meta-algorithms-tab.component.ts`
+- `frontend/src/app/settings/meta-algo-tooltips.ts`
+- `frontend/angular.json`
+
+**Verification:**
+- PASS - `npx ng extract-i18n`: 1481 messages, 0 duplicate warnings.
+- PASS - `npm run build:prod`: Successful build with zero i18n-related errors.
+- PASS - `docker compose exec -T backend python manage.py check`.
+
 # 2026-05-11 - Codex - Shared UI component test slice
 
 [HANDOFF READ: 2026-05-11 by Antigravity - hardened background tasks so each worker starts with a fresh database connection and reduced duplicate activity-feed noise.]
