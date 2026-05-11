@@ -1,11 +1,11 @@
 <div class="page-header page-header--settings" id="settings-header">
   <div class="header-main">
     <div class="header-copy">
-      <h1 class="page-title">
+      <h1 class="page-title" i18n="@@settings.title">
         <mat-icon>settings</mat-icon>
         Settings
       </h1>
-      <p class="page-description">
+      <p class="page-description" i18n="@@settings.description">
         Tune how links are picked. Hover any info icon to see a plain-English explanation.
       </p>
     </div>
@@ -16,7 +16,7 @@
 
 @if (loading) {
   <mat-card class="settings-card settings-card--wide" id="settings-loading-card">
-    <mat-card-content>Loading settings...</mat-card-content>
+    <mat-card-content i18n="@@settings.loading">Loading settings...</mat-card-content>
   </mat-card>
 } @else {
   <app-settings-overview
@@ -43,8 +43,8 @@
     <mat-tab>
       <ng-template mat-tab-label>
         <mat-icon class="tab-icon icon-md">fitness_center</mat-icon>
-        Ranking Weights
-        <mat-icon class="tab-label-info icon-sm" [matTooltip]="tip('tabs.ranking_weights')" matTooltipClass="setting-tooltip">info_outline</mat-icon>
+        <span i18n="@@settings.tabs.rankingWeights">Ranking Weights</span>
+        <mat-icon class="tab-label-info icon-sm" [matTooltip]="tip('tabs.ranking_weights')" i18n-matTooltip="@@settings.tips.rankingWeights" matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
       <ng-template matTabContent>
         <app-ranking-weights-tab (dirtyChanged)="onChildDirty($event)"></app-ranking-weights-tab>
@@ -56,8 +56,8 @@
     <mat-tab>
       <ng-template mat-tab-label>
         <mat-icon class="tab-icon icon-md">account_tree</mat-icon>
-        Silo Architecture
-        <mat-icon class="tab-label-info icon-sm" [matTooltip]="tip('tabs.silo_architecture')" matTooltipClass="setting-tooltip">info_outline</mat-icon>
+        <span i18n="@@settings.tabs.siloArchitecture">Silo Architecture</span>
+        <mat-icon class="tab-label-info icon-sm" [matTooltip]="tip('tabs.silo_architecture')" i18n-matTooltip="@@settings.tips.siloArchitecture" matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
       <ng-template matTabContent>
         <app-silo-architecture-tab (dirtyChanged)="onChildDirty($event)"></app-silo-architecture-tab>
@@ -68,11 +68,11 @@
     <mat-tab>
       <ng-template mat-tab-label>
         <mat-icon class="tab-icon icon-md">sync</mat-icon>
-        Connect & Sync
+        <span i18n="@@settings.tabs.connectSync">Connect & Sync</span>
         @if (noSourceConnected) {
-          <span class="required-dot" matTooltip="Required — connect at least one content source to get started"></span>
+          <span class="required-dot" matTooltip="Required — connect at least one content source to get started" i18n-matTooltip="@@settings.tips.sourceRequired"></span>
         }
-        <mat-icon class="tab-label-info icon-sm" [matTooltip]="tip('tabs.wordpress_sync')" matTooltipClass="setting-tooltip">info_outline</mat-icon>
+        <mat-icon class="tab-label-info icon-sm" [matTooltip]="tip('tabs.wordpress_sync')" i18n-matTooltip="@@settings.tips.wordpressSync" matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
       <ng-template matTabContent>
         <app-connect-sync-tab (dirtyChanged)="onChildDirty($event)"></app-connect-sync-tab>
@@ -84,8 +84,8 @@
     <mat-tab>
       <ng-template mat-tab-label>
         <mat-icon class="tab-icon icon-md">history</mat-icon>
-        Library & History
-        <mat-icon class="tab-label-info icon-sm" [matTooltip]="tip('tabs.library_history')" matTooltipClass="setting-tooltip">info_outline</mat-icon>
+        <span i18n="@@settings.tabs.libraryHistory">Library & History</span>
+        <mat-icon class="tab-label-info icon-sm" [matTooltip]="tip('tabs.library_history')" i18n-matTooltip="@@settings.tips.libraryHistory" matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
       <ng-template matTabContent>
         <app-library-history-tab
@@ -100,7 +100,7 @@
     <mat-tab>
       <ng-template mat-tab-label>
         <mat-icon style="margin-right: 6px; font-size: 16px; height: 16px; width: 16px;">notifications</mat-icon>
-        Notifications
+        <span i18n="@@settings.tabs.notifications">Notifications</span>
       </ng-template>
       <ng-template matTabContent>
         <app-notifications-tab (dirtyChanged)="onChildDirty($event)"></app-notifications-tab>
@@ -112,8 +112,8 @@
     <mat-tab>
       <ng-template mat-tab-label>
         <mat-icon class="tab-icon icon-md">analytics</mat-icon>
-        Diagnostics
-        <mat-icon class="tab-label-info icon-sm" [matTooltip]="tip('tabs.diagnostics')" matTooltipClass="setting-tooltip">info_outline</mat-icon>
+        <span i18n="@@settings.tabs.diagnostics">Diagnostics</span>
+        <mat-icon class="tab-label-info icon-sm" [matTooltip]="tip('tabs.diagnostics')" i18n-matTooltip="@@settings.tips.diagnostics" matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
 
       <ng-template matTabContent>
@@ -127,8 +127,8 @@
     <mat-tab>
       <ng-template mat-tab-label>
         <mat-icon class="tab-icon icon-md">speed</mat-icon>
-        Performance
-        <mat-icon class="tab-label-info icon-sm" matTooltip="Adjust batch size and worker count. Batch size applies instantly; worker count applies after a Docker restart." matTooltipClass="setting-tooltip">info_outline</mat-icon>
+        <span i18n="@@settings.tabs.performance">Performance</span>
+        <mat-icon class="tab-label-info icon-sm" matTooltip="Adjust batch size and worker count. Batch size applies instantly; worker count applies after a Docker restart." i18n-matTooltip="@@settings.tips.performance" matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
 
       <ng-template matTabContent>
@@ -142,8 +142,8 @@
     <mat-tab>
       <ng-template mat-tab-label>
         <mat-icon class="tab-icon icon-md">device_hub</mat-icon>
-        Helpers
-        <mat-icon class="tab-label-info icon-sm" matTooltip="Register secondary helper machines to share heavy jobs. Each helper advertises its CPU, RAM and GPU and only takes work it is allowed to run." matTooltipClass="setting-tooltip">info_outline</mat-icon>
+        <span i18n="@@settings.tabs.helpers">Helpers</span>
+        <mat-icon class="tab-label-info icon-sm" matTooltip="Register secondary helper machines to share heavy jobs. Each helper advertises its CPU, RAM and GPU and only takes work it is allowed to run." i18n-matTooltip="@@settings.tips.helpers" matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
 
       <ng-template matTabContent>
@@ -162,8 +162,8 @@
     <mat-tab>
       <ng-template mat-tab-label>
         <mat-icon class="tab-icon icon-md">auto_awesome</mat-icon>
-        Meta Algorithms
-        <mat-icon class="tab-label-info icon-sm" matTooltip="Enable, disable, run, or inspect the meta-algorithms the ranker knows about. Winners run by default; alternates are pre-filled so you can swap them in." matTooltipClass="setting-tooltip">info_outline</mat-icon>
+        <span i18n="@@settings.tabs.metaAlgorithms">Meta Algorithms</span>
+        <mat-icon class="tab-label-info icon-sm" matTooltip="Enable, disable, run, or inspect the meta-algorithms the ranker knows about. Winners run by default; alternates are pre-filled so you can swap them in." i18n-matTooltip="@@settings.tips.metaAlgorithms" matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
 
       <ng-template matTabContent>

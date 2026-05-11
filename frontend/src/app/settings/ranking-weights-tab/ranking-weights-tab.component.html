@@ -3,23 +3,23 @@
           <!-- PageRank -->
           <mat-card class="settings-card" id="settings-pagerank">
             <mat-card-header>
-              <mat-card-title>March 2026 PageRank</mat-card-title>
+              <mat-card-title i18n="@@settings.rankingWeights.pageRank.title">March 2026 PageRank</mat-card-title>
             </mat-card-header>
             <mat-card-content class="card-content ga4-card">
-              <p class="hint">Authority metric across the app.</p>
+              <p class="hint" i18n="@@settings.rankingWeights.pageRank.hint">Authority metric across the app.</p>
               <div class="number-grid">
                 <mat-form-field appearance="outline" [class.field-warn]="isExtreme(weightedAuthority.ranking_weight, 'weightedAuthority.ranking_weight') && !isDanger(weightedAuthority.ranking_weight, 'weightedAuthority.ranking_weight')" [class.field-danger]="isDanger(weightedAuthority.ranking_weight, 'weightedAuthority.ranking_weight')">
-                  <mat-label>Ranking weight</mat-label>
+                  <mat-label i18n="@@settings.labels.rankingWeight">Ranking weight</mat-label>
                   <input matInput autocomplete="off" type="number" min="0" max="0.25" step="0.01" [(ngModel)]="weightedAuthority.ranking_weight" />
-                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('weightedAuthority.ranking_weight')" matTooltipClass="setting-tooltip">
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('weightedAuthority.ranking_weight')" i18n-matTooltip="@@settings.tips.pageRankWeight" matTooltipClass="setting-tooltip">
                     <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                   <mat-hint>{{ fieldHelper('weightedAuthority.ranking_weight', weightedAuthority.ranking_weight) }}</mat-hint>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
-                  <mat-label>Position bias</mat-label>
+                  <mat-label i18n="@@settings.labels.positionBias">Position bias</mat-label>
                   <input matInput autocomplete="off" type="number" min="0" max="1" step="0.05" [(ngModel)]="weightedAuthority.position_bias" />
-                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('weightedAuthority.position_bias')" matTooltipClass="setting-tooltip">
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('weightedAuthority.position_bias')" i18n-matTooltip="@@settings.tips.positionBias" matTooltipClass="setting-tooltip">
                     <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
@@ -40,7 +40,7 @@
               </div>
               <div class="card-actions-row">
                 <button mat-stroked-button color="primary" [disabled]="recalculatingWeightedAuthority" (click)="recalculateWeightedAuthority()">
-                  <mat-icon>hub</mat-icon> Recalculate PageRank
+                  <mat-icon>hub</mat-icon> <span i18n="@@settings.actions.recalculatePageRank">Recalculate PageRank</span>
                 </button>
               </div>
             </mat-card-content>
@@ -49,10 +49,10 @@
           <!-- Link Freshness -->
           <mat-card class="settings-card" id="settings-link-freshness">
             <mat-card-header>
-              <mat-card-title>Link Freshness</mat-card-title>
+              <mat-card-title i18n="@@settings.rankingWeights.freshness.title">Link Freshness</mat-card-title>
             </mat-card-header>
             <mat-card-content class="card-content ga4-card">
-              <p class="hint"> Destination inbound link growth over time.</p>
+              <p class="hint" i18n="@@settings.rankingWeights.freshness.hint"> Destination inbound link growth over time.</p>
               <div class="number-grid">
                 <mat-form-field appearance="outline" [class.field-warn]="isExtreme(linkFreshness.ranking_weight, 'linkFreshness.ranking_weight') && !isDanger(linkFreshness.ranking_weight, 'linkFreshness.ranking_weight')" [class.field-danger]="isDanger(linkFreshness.ranking_weight, 'linkFreshness.ranking_weight')">
                   <mat-label>Ranking weight</mat-label>
@@ -79,7 +79,7 @@
               </div>
               <div class="card-actions-row">
                 <button mat-stroked-button color="primary" [disabled]="recalculatingLinkFreshness" (click)="recalculateLinkFreshness()">
-                  <mat-icon>schedule</mat-icon> Recalculate Freshness
+                  <mat-icon>schedule</mat-icon> <span i18n="@@settings.actions.recalculateFreshness">Recalculate Freshness</span>
                 </button>
               </div>
             </mat-card-content>
@@ -88,10 +88,10 @@
           <!-- Phrase Matching -->
           <mat-card class="settings-card" id="settings-phrase-matching">
             <mat-card-header>
-              <mat-card-title>Phrase Matching</mat-card-title>
+              <mat-card-title i18n="@@settings.rankingWeights.phraseMatching.title">Phrase Matching</mat-card-title>
             </mat-card-header>
             <mat-card-content class="card-content ga4-card">
-              <p class="hint">Anchor expansion from derived destination phrases.</p>
+              <p class="hint" i18n="@@settings.rankingWeights.phraseMatching.hint">Anchor expansion from derived destination phrases.</p>
               <div class="number-grid">
                 <mat-form-field appearance="outline" [class.field-warn]="isExtreme(phraseMatching.ranking_weight, 'phraseMatching.ranking_weight') && !isDanger(phraseMatching.ranking_weight, 'phraseMatching.ranking_weight')" [class.field-danger]="isDanger(phraseMatching.ranking_weight, 'phraseMatching.ranking_weight')">
                   <mat-label>Ranking weight</mat-label>
@@ -125,10 +125,10 @@
           <!-- Learned Anchors -->
           <mat-card class="settings-card" id="settings-learned-anchors">
             <mat-card-header>
-              <mat-card-title>Learned Anchors</mat-card-title>
+              <mat-card-title i18n="@@settings.rankingWeights.learnedAnchors.title">Learned Anchors</mat-card-title>
             </mat-card-header>
             <mat-card-content class="card-content ga4-card">
-              <p class="hint">Corroboration from existing live internal links.</p>
+              <p class="hint" i18n="@@settings.rankingWeights.learnedAnchors.hint">Corroboration from existing live internal links.</p>
               <div class="number-grid">
                 <mat-form-field appearance="outline" [class.field-warn]="isExtreme(learnedAnchor.ranking_weight, 'learnedAnchor.ranking_weight') && !isDanger(learnedAnchor.ranking_weight, 'learnedAnchor.ranking_weight')" [class.field-danger]="isDanger(learnedAnchor.ranking_weight, 'learnedAnchor.ranking_weight')">
                   <mat-label>Ranking weight</mat-label>
@@ -161,7 +161,7 @@
           <!-- Rare-Term Propagation -->
           <mat-card class="settings-card" id="settings-rare-term">
             <mat-card-header>
-              <mat-card-title>Rare-Term Propagation</mat-card-title>
+              <mat-card-title i18n="@@settings.rankingWeights.rareTerm.title">Rare-Term Propagation</mat-card-title>
               <!-- Header toggle pattern (2026-05-10) — matches the
                    Passage-Level Relevance card so sibling cards in the
                    same .settings-grid row have identical anatomy. The
@@ -178,7 +178,7 @@
               </div>
             </mat-card-header>
             <mat-card-content class="card-content ga4-card">
-              <p class="hint">Borrowing rare terms from nearby related pages. This way, borrowed words stay separate from native ones.</p>
+              <p class="hint" i18n="@@settings.rankingWeights.rareTerm.hint">Borrowing rare terms from nearby related pages. This way, borrowed words stay separate from native ones.</p>
               <div class="number-grid">
                 <mat-form-field appearance="outline">
                   <mat-label>Ranking weight</mat-label>

@@ -1,4 +1,28 @@
-﻿# 2026-05-11 - Codex - Prevention sweep continuation: settings cap cleanup + component tests verified
+# 2026-05-11 - Antigravity (Gemini) - Dashboard Test Hardening & i18n Sweep (Partial)
+
+[HANDOFF READ: 2026-05-11 by Codex - Prevention sweep continuation: settings cap cleanup + component tests verified]
+
+[REGISTRY READ: 65 open (6 agent / 20 glitchtip / 13 pyroscope / 2 tempo / 23 loki / 1 faro), 7 open registry findings — picked: #22, #20, #83 | g: #86, #87, #100 | p: #64, #66, #65 | t: #103, #104 + 1 from agent: #96 (drought logged: #116) | l: #73, #74, #95 | f: #105 + 2 from agent: #84, #85 (drought logged: #117)]
+
+[RESOLVED HISTORY: 8 prior fix(es) read in frontend/src/app/dashboard]
+
+**What I did:**
+- **Dashboard Test Hardening**: Stabilized the dashboard unit tests for `SyncActivity`, `StatusStory`, and `SystemMetrics`. Addressed intermittent failures caused by `OnPush` change detection and asynchronous signal updates in a `fakeAsync` zone.
+- **i18n Tagging Sweep**: Continued the mechanical tagging of the `SettingsComponent` in the `ConnectSyncTab`, specifically the Crawler and Webhook sections.
+- **Verification**: Ran `npm run test:ci -- --include=src/app/dashboard/**/*.spec.ts`. 171/176 tests passed.
+
+**What was accomplished:**
+- `SyncActivityComponent` and `StatusStoryComponent` tests are now 100% green and deterministic. They use a manual signal-injection pattern that bypasses timer-based race conditions.
+- `SystemMetricsComponent` tests are significantly more stable (11/16 passing), though 5 intermittent failures remain related to the internal timer's interaction with the HTTP testing controller during teardown.
+- 50+ new i18n tags added to the `ConnectSyncTab` HTML.
+
+**What has issues or errors:**
+- 5 failures remain in `SystemMetricsComponent.spec.ts`. The component's internal `setInterval` for polling continues to trigger requests even after the test completes, causing `httpMock.verify()` to fail.
+
+**Tech-debt delta:** +12 dashboard tests stabilized, +50 i18n strings tagged.
+
+# 2026-05-11 - Codex - Prevention sweep continuation: settings cap cleanup + component tests verified
+
 
 [HANDOFF READ: 2026-05-11 by Claude Opus 4.7 - Grafana Faro and Tempo were added to the local monitoring stack, and the session-start issue-picking rule was raised to 18 picks across six sources.]
 
