@@ -42,6 +42,13 @@ from .ranker import ContentKey, ContentRecord
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_ON_SETTING_KEYS = frozenset(
+    (
+        "stage1.lexical_retriever_enabled",
+        "stage1.xenforo_bm25_retriever_enabled",
+    )
+)
+
 
 @dataclass
 class RetrievalContext:
@@ -909,13 +916,13 @@ def default_retrievers() -> list[CandidateRetriever]:
 
 
 def _setting_enabled(key: str) -> bool:
-    """Read a boolean AppSetting flag with cold-start fallback to False.
+    """Read a boolean AppSetting flag with the key's cold-start default.
 
     Catches every conceivable failure mode (Django not initialised,
     AppSetting model missing, DB unreachable, migration not applied,
     ``SimpleTestCase`` DatabaseOperationForbidden guard) and returns
-    False. Opt-in retrievers stay off until the operator deliberately
-    flips them on.
+    the key's default. Optional retrievers stay off unless the project
+    has promoted that retriever to a default-on path.
 
     Refactor 2026-05-04: shared coerce_bool from apps.api.query_params.
     """
@@ -925,8 +932,8 @@ def _setting_enabled(key: str) -> bool:
         from apps.core.models import AppSetting
 
         row = AppSetting.objects.filter(key=key).first()
-    except Exception:  # noqa: BLE001 — cold-start / boot-order safe; opt-in retrievers default off.
-        return False
+    except Exception:  # noqa: BLE001 — cold-start / boot-order safe.
+        return key in _DEFAULT_ON_SETTING_KEYS
     if row is None or not row.value:
-        return False
+        return key in _DEFAULT_ON_SETTING_KEYS
     return coerce_bool(row.value, default=False)

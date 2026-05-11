@@ -30,9 +30,9 @@ from .views_antispam import _persist_settings, _read_setting
 
 # Defaults + descriptions
 _SETTINGS_DEFAULTS: dict[str, bool] = {
-    "lexical_retriever_enabled": False,
+    "lexical_retriever_enabled": True,
     "query_expansion_retriever_enabled": False,
-    "xenforo_bm25_retriever_enabled": False,
+    "xenforo_bm25_retriever_enabled": True,
 }
 
 _SETTINGS_DESCRIPTIONS: dict[str, str] = {
@@ -68,7 +68,7 @@ def _coerce_bool(value, fallback: bool) -> bool:
 
 
 def get_stage1_retriever_settings() -> dict[str, bool]:
-    """Read the two flags back as a flat ``{field: bool}`` dict."""
+    """Read the three flags back as a flat ``{field: bool}`` dict."""
     out: dict[str, bool] = {}
     for field, default in _SETTINGS_DEFAULTS.items():
         out[field] = _read_setting(

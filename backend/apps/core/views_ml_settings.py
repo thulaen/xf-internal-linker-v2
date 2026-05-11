@@ -678,19 +678,20 @@ _SPAM_GUARD_ROW_SPEC: tuple[tuple[str, str, str, str], ...] = (
         "max_existing_links_per_host",
         "spam_guards.max_existing_links_per_host",
         "int",
-        "Maximum number of existing outgoing body links a host page may already carry.",
+        "Maximum number of existing outgoing body links a host page may already carry "
+        "(US9699123B2).",
     ),
     (
         "max_anchor_words",
         "spam_guards.max_anchor_words",
         "int",
-        "Maximum number of words allowed in a suggested anchor phrase.",
+        "Maximum number of words allowed in a suggested anchor phrase (US9699123B2).",
     ),
     (
         "paragraph_window",
         "spam_guards.paragraph_window",
         "int",
-        "Sentence-position window for paragraph-cluster detection.",
+        "Sentence-position window for paragraph-cluster detection (US9699123B2).",
     ),
 )
 

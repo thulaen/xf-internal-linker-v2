@@ -3494,13 +3494,12 @@ def train_opq_codebook(self, *, sample_size: int = 100_000) -> dict:
 
     train_codebook(sample_size=sample_size)
     return {"status": "completed", "sample_size": sample_size}
-
-
 @shared_task(
     name="pipeline.refresh_disk_pressure_state",
     time_limit=30,
     soft_time_limit=20,
 )
+@HelperConstraint(storage_writes_to="redis", ram_peak_mb=128, expected_seconds_p50=5)
 def refresh_disk_pressure_state() -> dict:
     """Beat-driven refresh of the cached disk-pressure state.
 
@@ -3515,13 +3514,12 @@ def refresh_disk_pressure_state() -> dict:
 
     state = _refresh()
     return {"state": state}
-
-
 @shared_task(
     name="pipeline.cpp_fallback_share_check",
     time_limit=60,
     soft_time_limit=45,
 )
+@HelperConstraint(ram_peak_mb=128, expected_seconds_p50=10)
 def cpp_fallback_share_check() -> dict:
     """Daily check that the Stage-2 Python-fallback share is below the alert
     threshold (FR-247). When `python_share > pipeline.cpp_path_alert_threshold`
