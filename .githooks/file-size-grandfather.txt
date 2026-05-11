@@ -19,10 +19,8 @@
 backend/apps/core/views_capacity.py:2035
 backend/apps/core/views_settings.py:1437
 backend/apps/pipeline/tasks.py:3594
-# settings.component.ts dropped to 3380 lines (was 3889) after the
-# Ranking Weights tab moved to <app-ranking-weights-tab> and 23 dead
-# per-card save handlers + 5 dead helper methods were removed.
-frontend/src/app/settings/settings.component.ts:3380
+# settings.component.ts removed 2026-05-11: dropped to 1166 lines
+# after granular tab modularization and state cleanup.
 # settings.component.html removed 2026-05-10: dropped to 191 lines
 # after the Ranking Weights tab moved to <app-ranking-weights-tab>;
 # every tab now references an <app-*-tab> child, so the parent

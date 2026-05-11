@@ -62,6 +62,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Subject, forkJoin } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
+import { SETTING_TOOLTIPS } from '../setting-tooltips';
 
 import { PassageRelevanceCardComponent } from '../passage-relevance/passage-relevance-card.component';
 import {
@@ -478,7 +479,17 @@ export class RankingWeightsTabComponent implements OnInit, OnDestroy {
    * parent. Same convention as connect-sync-tab + silo-architecture-tab.
    */
   tip(key: string): string {
-    return key;
+    const t = SETTING_TOOLTIPS[key];
+    if (!t) return `No tooltip defined for "${key}" - add an entry to SETTING_TOOLTIPS in setting-tooltips.ts`;
+    
+    const lines: string[] = [];
+    if (t.definition) lines.push(t.definition);
+    if (t.impact) lines.push(`Impact: ${t.impact}`);
+    if (t.default) lines.push(`Default: ${t.default}`);
+    if (t.example) lines.push(`Example: ${t.example}`);
+    if (t.range) lines.push(`Range: ${t.range}`);
+    
+    return lines.join('\n\n');
   }
 
   /**

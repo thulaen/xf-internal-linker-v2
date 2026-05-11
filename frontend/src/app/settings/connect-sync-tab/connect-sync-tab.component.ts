@@ -68,6 +68,7 @@ import {
   XenForoSettings,
   XenForoSettingsUpdate,
 } from '../silo-settings.service';
+import { SETTING_TOOLTIPS } from '../setting-tooltips';
 
 /**
  * Sentinel record for the "Pending check" health state on a freshly
@@ -309,7 +310,17 @@ export class ConnectSyncTabComponent implements OnInit, OnDestroy {
    * tooltips after extraction (returns the key for hover).
    */
   tip(key: string): string {
-    return key;
+    const t = SETTING_TOOLTIPS[key];
+    if (!t) return `No tooltip defined for "${key}" - add an entry to SETTING_TOOLTIPS in setting-tooltips.ts`;
+    
+    const lines: string[] = [];
+    if (t.definition) lines.push(t.definition);
+    if (t.impact) lines.push(`Impact: ${t.impact}`);
+    if (t.default) lines.push(`Default: ${t.default}`);
+    if (t.example) lines.push(`Example: ${t.example}`);
+    if (t.range) lines.push(`Range: ${t.range}`);
+    
+    return lines.join('\n\n');
   }
 
   telemetryStatusLabel(status: string): string {

@@ -10,10 +10,6 @@
       </p>
     </div>
     <div class="header-actions">
-      <button mat-flat-button color="primary" [disabled]="savingSettings" (click)="saveAllSettings()" class="save-all-btn">
-        <mat-icon>{{ savingSettings ? 'sync' : 'save' }}</mat-icon>
-        {{ savingSettings ? 'Saving...' : 'Save all changes' }}
-      </button>
     </div>
   </div>
 </div>
@@ -178,14 +174,5 @@
     </mat-tab>
   </mat-tab-group>
 
-  <!-- Sticky Mobile/Global Save Trigger for UX -->
-  <div class="settings-footer">
-    <div class="footer-hint">
-       Changes are stored locally until you click "Save all changes".
-    </div>
-    <button mat-flat-button color="primary" [disabled]="savingSettings" (click)="saveAllSettings()" class="save-all-btn">
-      <mat-icon>{{ savingSettings ? 'sync' : 'save' }}</mat-icon>
-      {{ savingSettings ? 'Saving...' : 'Save all changes' }}
-    </button>
-  </div>
+  <!-- Sticky Mobile/Global Save Trigger for UX — REMOVED (Save per-card instead) -->
 }
