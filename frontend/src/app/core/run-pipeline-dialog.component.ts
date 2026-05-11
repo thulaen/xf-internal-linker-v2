@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -44,7 +44,7 @@ interface RerunOption {
 
       <mat-form-field appearance="outline" class="mode-select">
         <mat-label>Pipeline mode</mat-label>
-        <mat-select [(ngModel)]="selectedMode">
+        <mat-select [value]="selectedMode()" (selectionChange)="selectedMode.set($event.value)">
           @for (opt of options; track opt.value) {
             <mat-option [value]="opt.value">
               <span class="option-label">{{ opt.label }}</span>
@@ -112,7 +112,7 @@ interface RerunOption {
 export class RunPipelineDialogComponent {
   readonly dialogRef = inject(MatDialogRef) as MatDialogRef<RunPipelineDialogComponent, RunPipelineDialogResult | null>;
 
-  selectedMode = 'skip_pending';
+  readonly selectedMode = signal('skip_pending');
 
   readonly options: RerunOption[] = [
     {
@@ -136,10 +136,10 @@ export class RunPipelineDialogComponent {
   ];
 
   get activeDescription(): string {
-    return this.options.find(o => o.value === this.selectedMode)?.description ?? '';
+    return this.options.find(o => o.value === this.selectedMode())?.description ?? '';
   }
 
   confirm(): void {
-    this.dialogRef.close({ rerunMode: this.selectedMode });
+    this.dialogRef.close({ rerunMode: this.selectedMode() });
   }
 }

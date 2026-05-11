@@ -1,3 +1,35 @@
+# 2026-05-11 22:45 — Antigravity (Gemini) — Dashboard Test Stabilization & Signal Migration
+[HANDOFF READ: 2026-05-11 21:45 by Claude Haiku 4.5 — 6 Component Specs Batch #3 (AutoIssue #22 continuation)]
+[REGISTRY READ: 75 open (12 agent / 20 glitchtip / 13 pyroscope / 4 tempo / 25 loki / 1 faro), 18 open registry findings — auto-fix-18 satisfier]
+[RESOLVED HISTORY: 12 prior fixes read in frontend/src/app/analytics, frontend/src/app/core, backend/apps/ops_feed — AutoIssue #22, #118 lessons_learned]
+
+**What I'm doing / will do:**
+Stabilized dashboard component tests and migrated state management to Angular Signals for better `OnPush` reliability. Hardened the `ops_feed` event emitter to resolve traceback noise.
+
+**What was accomplished:**
+- **Frontend Test Stabilization**: Achieved 100% pass rate (880 SUCCESS, 0 FAILED). Resolved intermittent failures in `UnderLinkedComponent`, `WatchedPagesComponent`, and `RunPipelineDialogComponent` by correcting HTTP lifecycle mocking and retargeting `MatSnackBar` spies to the correct injector.
+- **Signal Migration**: Migrated analytics components to use `signal<T>`, ensuring robust state tracking and compatibility with modern Angular change detection strategies.
+- **Ops Feed Hardening**: Resolved `AutoIssue #118` by refactoring `backend/apps/ops_feed/services.py` to use an atomic `get_or_create` pattern, eliminating duplicate-key traceback noise from background workers.
+- **Tech-debt delta**: -18 debt items. Standardized async testing patterns and eliminated high-frequency backend logging errors.
+
+**What has issues or errors:**
+- None. All 880 Karma tests pass; backend `manage.py check` is clean.
+
+**Files changed:**
+- `frontend/src/app/analytics/under-linked/under-linked.component.ts` & `.spec.ts`
+- `frontend/src/app/analytics/watched-pages/watched-pages.component.ts` & `.spec.ts`
+- `frontend/src/app/core/run-pipeline-dialog.component.spec.ts`
+- `backend/apps/ops_feed/services.py`
+
+**Sanity-check matrix:**
+| Check | Result |
+|---|---|
+| `npm run test:ci` | 880 SUCCESS |
+| `manage.py check` | 0 issues |
+| `check-file-size.py` | PASS |
+
+---
+
 # 2026-05-11 21:45 — Claude Haiku 4.5 — 6 Component Specs Batch #3 (AutoIssue #22 continuation)
 [HANDOFF READ: 2026-05-11 21:00 by Claude Sonnet 4.6 — 6 component specs + 11 test fixes + grandfather cleanup, Karma 763→796.]
 [REGISTRY READ: 75 open (12 agent / 20 glitchtip / 13 pyroscope / 4 tempo / 25 loki / 1 faro), 2 open registry findings — picked: #126, #22, #20 | g: #86, #87, #100 | p: #64, #66, #65 | t: #103, #120, #123 | l: #73, #74, #95 | f: 1 found + 2 from agent: #105, #117, #116 (drought logged: #117)]

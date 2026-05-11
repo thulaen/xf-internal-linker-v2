@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, DestroyRef, inject, OnInit } from '@angular/core';
+import { Component, ChangeDetectionStrategy, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
 import { MatCardModule } from '@angular/material/card';
@@ -21,13 +21,13 @@ interface WatchedPage {
   imports: [MatCardModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule, MatSnackBarModule, DatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (loading) {
+    @if (loading()) {
       <div class="loading-wrap"><mat-spinner diameter="48"></mat-spinner></div>
-    } @else if (!pages.length) {
+    } @else if (!pages().length) {
       <p class="empty-hint" i18n="@@analytics.watched_pages.empty">You are not watching any pages yet. Add pages from the Under-Linked tab.</p>
     } @else {
       <div class="watch-list">
-        @for (page of pages; track page.id) {
+        @for (page of pages(); track page.id) {
           <mat-card class="watch-card" appearance="outlined">
             <mat-card-content class="watch-row">
               <div class="watch-info">
@@ -42,7 +42,7 @@ interface WatchedPage {
                 </div>
               </div>
               <button mat-icon-button (click)="remove(page)"
-                [disabled]="removingId === page.id"
+                [disabled]="removingId() === page.id"
                 matTooltip="Remove from watchlist" i18n-matTooltip="@@analytics.watched_pages.remove_btn" 
                 aria-label="Remove from watchlist" i18n-aria-label="@@analytics.watched_pages.remove_btn">
                 <mat-icon>close</mat-icon>
@@ -77,18 +77,21 @@ export class WatchedPagesComponent implements OnInit {
   private snack = inject(MatSnackBar);
   // Phase E2 / Gap 41 — cancel in-flight HTTP on destroy.
   private destroyRef = inject(DestroyRef);
-  pages: WatchedPage[] = [];
-  loading = true;
-  removingId: number | null = null;
+  readonly pages = signal<WatchedPage[]>([]);
+  readonly loading = signal(true);
+  readonly removingId = signal<number | null>(null);
 
   ngOnInit(): void {
     this.http.get<WatchedPage[]>('/api/analytics/watched-pages/') // noqa: route-check
       .pipe(catchError(() => of([])), takeUntilDestroyed(this.destroyRef))
-      .subscribe(data => { this.pages = data; this.loading = false; });
+      .subscribe(data => { 
+        this.pages.set(data); 
+        this.loading.set(false); 
+      });
   }
 
   remove(page: WatchedPage): void {
-    this.removingId = page.id;
+    this.removingId.set(page.id);
     this.http.delete(`/api/analytics/watched-pages/${page.id}/`) // noqa: route-check
       .pipe(
         catchError(() => { 
@@ -102,9 +105,9 @@ export class WatchedPagesComponent implements OnInit {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(res => {
-        this.removingId = null;
+        this.removingId.set(null);
         if (res !== null) {
-          this.pages = this.pages.filter(p => p.id !== page.id);
+          this.pages.update(pList => pList.filter(p => p.id !== page.id));
           const title = page.title;
           const msg = $localize`:@@analytics.watched_pages.success_remove:"${title}:title:" removed.`;
           this.snack.open(msg, undefined, { duration: 2500 });

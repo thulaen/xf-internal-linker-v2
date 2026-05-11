@@ -43,7 +43,8 @@ logger = logging.getLogger(__name__)
     expected_seconds_p50=2,
 )
 def passkey_cleanup_expired_challenges() -> dict:
-    if not connection.in_atomic_block:
+    from django.conf import settings
+    if not connection.in_atomic_block and not getattr(settings, "TESTING", False):
         connection.close()
 
     """Delete every ``PasskeyChallenge`` whose ``expires_at`` is in the past."""

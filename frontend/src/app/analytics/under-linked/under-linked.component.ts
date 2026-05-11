@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, DestroyRef, inject, OnInit } from '@angular/core';
+import { Component, ChangeDetectionStrategy, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
 import { MatCardModule } from '@angular/material/card';
@@ -20,16 +20,16 @@ interface GapRow {
   imports: [MatCardModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatSnackBarModule, EmptyStateComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (loading) {
+    @if (loading()) {
       <div class="loading-wrap"><mat-spinner diameter="48"></mat-spinner></div>
-    } @else if (!rows.length) {
+    } @else if (!rows().length) {
       <app-empty-state icon="link_off" 
         heading="No under-linked pages" i18n-heading="@@analytics.under_linked.empty.heading"
         body="All pages have adequate incoming links. Check back after your next import." i18n-body="@@analytics.under_linked.empty.body">
       </app-empty-state>
     } @else {
       <div class="gap-list">
-        @for (row of rows; track row.content_item_id) {
+        @for (row of rows(); track row.content_item_id) {
           <mat-card class="gap-card" appearance="outlined">
             <mat-card-content class="gap-row">
               <div class="gap-info">
@@ -43,7 +43,7 @@ interface GapRow {
                 <span class="score-label">{{ row.opportunity_score.toFixed(0) }}%</span>
               </div>
               <button mat-stroked-button class="watch-btn" (click)="watch(row)"
-                [disabled]="watchingId === row.content_item_id" i18n="@@analytics.under_linked.watch_btn">
+                [disabled]="watchingId() === row.content_item_id" i18n="@@analytics.under_linked.watch_btn">
                 <mat-icon>visibility</mat-icon> Watch
               </button>
             </mat-card-content>
@@ -76,32 +76,33 @@ export class UnderLinkedComponent implements OnInit {
   private snack = inject(MatSnackBar);
   // Phase E2 / Gap 41 — cancel in-flight HTTP on destroy.
   private destroyRef = inject(DestroyRef);
-  rows: GapRow[] = [];
-  loading = true;
-  watchingId: number | null = null;
+  readonly rows = signal<GapRow[]>([]);
+  readonly loading = signal(true);
+  readonly watchingId = signal<number | null>(null);
 
   ngOnInit(): void {
     this.http.get<GapRow[]>('/api/graph/gap-analysis/')
       .pipe(catchError(() => of([])), takeUntilDestroyed(this.destroyRef))
-      .subscribe(data => { this.rows = data; this.loading = false; });
+      .subscribe(data => { 
+        this.rows.set(data); 
+        this.loading.set(false); 
+      });
   }
 
   watch(row: GapRow): void {
-    this.watchingId = row.content_item_id;
+    this.watchingId.set(row.content_item_id);
     this.http.post('/api/analytics/watched-pages/', { content_item_id: row.content_item_id, notes: '' }) // noqa: route-check
       .pipe(
         catchError(() => { 
-          this.snack.open(
-            $localize`:@@analytics.under_linked.error_watchlist:Could not add to watchlist.`, 
-            $localize`:@@analytics.under_linked.dismiss:Dismiss`, 
-            { duration: 3000 }
-          ); 
+          this.watchingId.set(null); 
+          const msg = $localize`:@@analytics.under_linked.error_watchlist:Could not add to watchlist.`;
+          this.snack.open(msg, 'Dismiss', { duration: 5000 });
           return of(null); 
         }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(res => {
-        this.watchingId = null;
+        this.watchingId.set(null);
         if (res) { 
           const msg = $localize`:@@analytics.under_linked.success_watchlist:"${row.title}" added to watchlist.`;
           this.snack.open(msg, undefined, { duration: 2500 }); 

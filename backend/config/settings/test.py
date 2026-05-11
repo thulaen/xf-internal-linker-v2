@@ -8,6 +8,7 @@ suite can run without Docker, PostgreSQL, or Redis.
 from .base import *  # noqa: F401, F403
 
 DEBUG = False
+TESTING = True
 
 SECRET_KEY = locals().get("SECRET_KEY", "test-secret-key")
 
