@@ -25,6 +25,7 @@ import logging
 from celery import shared_task
 
 from apps.core.helpers import HelperConstraint
+from django.db import connection
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,9 @@ logger = logging.getLogger(__name__)
     expected_seconds_p50=2,
 )
 def passkey_cleanup_expired_challenges() -> dict:
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Delete every ``PasskeyChallenge`` whose ``expires_at`` is in the past."""
     from django.utils import timezone
 

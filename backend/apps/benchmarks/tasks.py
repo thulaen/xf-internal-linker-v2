@@ -6,6 +6,7 @@ from celery import shared_task
 from django.utils import timezone
 
 from apps.core.helpers import HelperConstraint
+from django.db import connection
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,9 @@ def _summarise_results(all_results):
     expected_seconds_p50=600,
 )
 def run_all_benchmarks(self, run_id: int | None = None, trigger: str = "scheduled"):
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Execute all benchmarks (C++ and Python) and store results."""
     from .models import BenchmarkResult, BenchmarkRun
     from .services.runner import (

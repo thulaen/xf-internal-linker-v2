@@ -182,6 +182,13 @@ class CoreConfig(AppConfig):
         # registers the recovery tick with Celery. Mirrors the existing
         # pattern for tasks_passkey_cleanup etc.
         from . import tasks  # noqa: F401
+        from . import tasks_backups  # noqa: F401
+        from . import tasks_compression_audit  # noqa: F401
+        from . import tasks_cpp_fallback  # noqa: F401
+        from . import tasks_dashboard  # noqa: F401
+        from . import tasks_gpu_cleanup  # noqa: F401
+        from . import tasks_passkey_cleanup  # noqa: F401
+        from . import tasks_performance_cert  # noqa: F401
         from . import tasks_schedule_recovery  # noqa: F401
 
         # Register the operationally-important infrequent celery-beat

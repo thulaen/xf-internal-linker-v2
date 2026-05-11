@@ -16,6 +16,7 @@ import logging
 from celery import shared_task
 
 from apps.core.helpers import HelperConstraint
+from django.db import connection
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,9 @@ logger = logging.getLogger(__name__)
     expected_seconds_p50=120,
 )
 def compression_audit_run() -> dict[str, int]:
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Walk every candidate table; persist a top-10 savings report.
 
     Plain-English: every Sunday at 03:00 UTC, scan ~10 known-large

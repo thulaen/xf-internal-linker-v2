@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 
 from celery import shared_task
+from django.db import connection
 from django.utils import timezone
 
 from apps.core.helpers import HelperConstraint
@@ -25,6 +26,8 @@ logger = logging.getLogger(__name__)
 )
 def check_silent_failure() -> dict:
     """Alert if no sync has completed in 72+ hours."""
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
     from apps.sync.models import SyncJob
     from apps.notifications.services import emit_operator_alert
     from apps.notifications.models import OperatorAlert
@@ -59,6 +62,8 @@ def check_silent_failure() -> dict:
 )
 def check_zero_suggestion_run() -> dict:
     """Alert if the latest pipeline run produced zero suggestions with decent content."""
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
     from apps.suggestions.models import PipelineRun
     from apps.content.models import ContentItem
     from apps.notifications.services import emit_operator_alert
@@ -98,6 +103,8 @@ def check_zero_suggestion_run() -> dict:
 )
 def check_post_link_regression() -> dict:
     """Alert if an applied link caused a significant traffic regression."""
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
     from apps.analytics.models import ImpactReport
     from apps.notifications.services import emit_operator_alert
     from apps.notifications.models import OperatorAlert
@@ -135,6 +142,8 @@ def check_post_link_regression() -> dict:
 )
 def check_autotune_status() -> dict:
     """Alert when a ranking challenger is promoted or rolled back."""
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
     from apps.suggestions.models import RankingChallenger
     from apps.notifications.services import emit_operator_alert
     from apps.notifications.models import OperatorAlert

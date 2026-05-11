@@ -36,6 +36,9 @@ _MS_PER_SEC = 1000.0  # millisecond conversion factor
     ram_peak_mb=256,
 )
 def pulse_heartbeat():
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """
     Lightweight liveness probe: ping all core services, record a pulse event,
     and push rolling stats to the C++ ring buffer.
@@ -154,6 +157,9 @@ def pulse_heartbeat():
     ram_peak_mb=256,
 )
 def watchdog_check():
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """
     Check for stuck sync jobs and crawler sessions.
     Emits warnings for jobs with no progress in 30+ minutes.
@@ -243,6 +249,9 @@ def watchdog_check():
     expected_seconds_p50=120,
 )
 def auto_prune():
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """
     Self-pruning to save disk.  Runs every 4 weeks.
 
@@ -326,6 +335,9 @@ def auto_prune():
     expected_seconds_p50=3600,
 )
 def orchestrate_full_run():
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """
     Single-button workflow: sync all sources, crawl all domains, run pipeline.
 
@@ -442,6 +454,9 @@ def orchestrate_full_run():
     expected_seconds_p50=1800,
 )
 def run_crawl_session(session_id: str):
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     from apps.crawler.services.site_crawler import run_crawl_session_sync
     import uuid
 

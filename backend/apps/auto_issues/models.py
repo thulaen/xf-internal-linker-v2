@@ -76,6 +76,8 @@ class AutoIssue(models.Model):
     fingerprint = models.CharField(
         max_length=64,
         db_index=True,
+        blank=True,
+        default="",
         help_text="Source-specific fingerprint. Differs across sources (GT, internal, Pyroscope each compute their own).",
     )
     # Source-agnostic dedup key. When the same root cause is captured by

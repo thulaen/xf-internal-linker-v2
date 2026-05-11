@@ -9,6 +9,7 @@ from celery import shared_task
 
 from apps.core.helpers import HelperConstraint
 from apps.pipeline.decorators import with_weight_lock
+from django.db import connection
 
 logger = logging.getLogger(__name__)
 
@@ -202,6 +203,9 @@ def _finalize_failed_run(run, exc: Exception) -> dict:
 )
 @with_weight_lock("medium")
 def compute_session_cooccurrence(self) -> dict:
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Fetch GA4 session data, build the co-occurrence matrix, chain hub
     detection on success. Weekly via CELERY_BEAT_SCHEDULE. Emits FR-019
     operator alerts on both terminal states.
@@ -249,6 +253,9 @@ def compute_session_cooccurrence(self) -> dict:
     expected_seconds_p50=600,
 )
 def detect_behavioral_hubs() -> dict:
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Run hub detection from existing co-occurrence data."""
     from .services import detect_behavioral_hubs as _detect
 
@@ -300,6 +307,9 @@ def _score_suggestions_for_run(suggestions, settings, site_max_jaccard):
     expected_seconds_p50=600,
 )
 def apply_value_model_scores(run_id: str) -> dict:
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Compute score_value_model and value_model_diagnostics for all suggestions in a run.
 
     Called automatically after pipeline.run_pipeline completes successfully.

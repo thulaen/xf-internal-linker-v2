@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 
 from celery import shared_task
+from django.db import connection
 
 from apps.core.helpers import HelperConstraint
 
@@ -31,6 +32,8 @@ logger = logging.getLogger(__name__)
 )
 def run_monthly_top_50_celery() -> dict:
     """Invoke the management command with strategy='auto' for the current UTC month."""
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
     from datetime import datetime, timezone
 
     from django.core.management import call_command

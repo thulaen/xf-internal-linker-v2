@@ -20,6 +20,7 @@ from celery import shared_task
 from django.utils import timezone
 
 from apps.core.helpers import HelperConstraint
+from django.db import connection
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,9 @@ logger = logging.getLogger(__name__)
     expected_seconds_p50=15,
 )
 def pick_daily_glitchtip_issues():
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Read the audit_errorlog mirror, score top-K, write to auto_issues."""
     from apps.auto_issues.services.glitchtip_picker import pick_glitchtip_issues
 
@@ -48,6 +52,9 @@ def pick_daily_glitchtip_issues():
     expected_seconds_p50=90,
 )
 def pick_daily_pyroscope_regressions():
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Query Pyroscope for both week-over-week regressions and same-day
     hotspots; write both to auto_issues.
 
@@ -77,6 +84,9 @@ def pick_daily_pyroscope_regressions():
     expected_seconds_p50=45,
 )
 def pick_daily_loki_findings():
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Query Loki for hot patterns + WARN/ERROR rate bursts; write to auto_issues.
 
     Added 2026-05-10 per plan
@@ -100,6 +110,9 @@ def pick_daily_loki_findings():
     expected_seconds_p50=30,
 )
 def pick_daily_faro_findings():
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Query Loki for Faro browser RUM events; promote JS error clusters
     and Web Vitals (LCP/INP/CLS) breaches to AutoIssue.
 
@@ -125,6 +138,9 @@ def pick_daily_faro_findings():
     expected_seconds_p50=30,
 )
 def pick_daily_tempo_findings():
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Query Tempo TraceQL for slow spans and error spans; promote both
     to AutoIssue.
 
@@ -147,6 +163,9 @@ def pick_daily_tempo_findings():
     storage_writes_to="postgres_main", ram_peak_mb=128, expected_seconds_p50=120,
 )
 def run_retention_cleanup():
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """90-day data retention across Pyroscope + audit_errorlog + auto_issues."""
     from apps.auto_issues.services.retention_cleanup import run_retention_cleanup as _run
 
@@ -159,6 +178,9 @@ def run_retention_cleanup():
     storage_writes_to="postgres_main", ram_peak_mb=64, expected_seconds_p50=2,
 )
 def pick_disk_pressure():
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Hourly disk-fill probe → AutoIssue."""
     from apps.auto_issues.services.disk_pressure_picker import pick_disk_pressure as _pick
 
@@ -171,6 +193,9 @@ def pick_disk_pressure():
     storage_writes_to="postgres_main", ram_peak_mb=64, expected_seconds_p50=10,
 )
 def pick_slo_probes():
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Synthetic SLO probes → AutoIssue (15-min cadence)."""
     from apps.auto_issues.services.slo_probe_picker import pick_slo_probes as _pick
 
@@ -183,6 +208,9 @@ def pick_slo_probes():
     storage_writes_to="postgres_main", ram_peak_mb=128, expected_seconds_p50=5,
 )
 def pick_missed_runs():
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Schedule-tracker missed-runs → AutoIssue (daily)."""
     from apps.auto_issues.services.missed_runs_picker import pick_missed_runs as _pick
 
@@ -195,6 +223,9 @@ def pick_missed_runs():
     storage_writes_to="postgres_main", ram_peak_mb=128, expected_seconds_p50=15,
 )
 def pick_deploy_check_findings():
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Django check --deploy → AutoIssue (weekly)."""
     from apps.auto_issues.services.deploy_check_picker import pick_deploy_check_findings as _pick
 
@@ -207,6 +238,9 @@ def pick_deploy_check_findings():
     storage_writes_to="postgres_main", ram_peak_mb=256, expected_seconds_p50=30,
 )
 def pick_output_quality():
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Output-quality probes → AutoIssue (daily)."""
     from apps.auto_issues.services.output_quality_picker import pick_output_quality as _pick
 
@@ -222,6 +256,9 @@ def pick_output_quality():
     expected_seconds_p50=180,
 )
 def pick_weekly_pip_audit_findings():
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Weekly dependency CVE scan via pip-audit → AutoIssue.
 
     Closes a gap GlitchTip + Pyroscope + pg_stat_statements all miss:
@@ -243,6 +280,9 @@ def pick_weekly_pip_audit_findings():
     expected_seconds_p50=5,
 )
 def pick_daily_slow_queries():
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Top-K slow queries from `pg_stat_statements` → auto_issues.
 
     Closes a gap that GlitchTip + Pyroscope miss: queries that get
@@ -265,6 +305,9 @@ def pick_daily_slow_queries():
     expected_seconds_p50=15,
 )
 def pick_daily_internal_issues():
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Promote top in-app `audit_errorlog` (source='internal') rows into auto_issues.
 
     Closes the source-coverage gap: errors caught in-process by
@@ -288,6 +331,9 @@ def pick_daily_internal_issues():
     expected_seconds_p50=5,
 )
 def close_stale_issues():
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Auto-defer rows idle ≥30 days under 0.3 priority score.
 
     SPEC § Anti-bloat — bounded growth guarantee. Re-running is safe

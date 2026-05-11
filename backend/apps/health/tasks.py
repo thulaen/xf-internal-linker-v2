@@ -4,6 +4,7 @@ Health tasks — periodic health checks.
 
 import logging
 from celery import shared_task
+from django.db import connection
 
 from apps.core.helpers import HelperConstraint
 
@@ -27,6 +28,9 @@ logger = logging.getLogger(__name__)
     ram_peak_mb=256,
 )
 def run_all_health_checks():
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """
     Run all registered health checks from the registry.
 
@@ -74,6 +78,9 @@ def run_all_health_checks():
     ram_peak_mb=256,
 )
 def run_single_health_check(service_key: str):
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Run a single health check (e.g. from the UI)."""
     try:
         record = perform_health_check(service_key)

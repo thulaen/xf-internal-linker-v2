@@ -1,3 +1,22 @@
+# 2026-05-11 16:15 — Antigravity (Gemini) — Celery Task Connection Hardening
+[HANDOFF READ: 2026-05-11 by Antigravity — Completed localization tagging for the Settings dashboard components including overview, diagnostics, performance, and helpers.]
+[REGISTRY READ: 71 open (9 agent / 19 glitchtip / 13 pyroscope / 4 tempo / 25 loki / 1 faro), 1 open registry findings — auto-fix-18 satisfier]
+
+**What I did:**
+- **Celery Connection Hardening (Completed)**: Implemented mandatory `connection.close()` at the entry point of all background tasks across the monolith. This resolves the persistent `ProgrammingError` (Cannot open new connection in atomic block) and `OperationalError` issues caused by stale database connections in long-running worker processes.
+- **Full Coverage Sweep**: Audited and updated `crawler/tasks.py`, `health/tasks.py`, `scheduled_updates/tasks.py`, `scheduled_updates/runner.py`, and all eight split-out task files in `core/` (`tasks_backups.py`, `tasks_dashboard.py`, etc.).
+- **Ops Feed Refinement**: Improved the `emit()` service in `ops_feed` to use a more robust upsert pattern that avoids duplicate-key log noise (AutoIssue #118).
+- **Issue Resolution**: Marked #86 (GlitchTip), #83 (SLO/Health), and #118 (Ops Feed) as RESOLVED in the registry and tracker.
+
+**What was accomplished:**
+- The background worker infrastructure is now hardened against database transaction leakage and stale connection reuse.
+- All Celery tasks now start with a guaranteed fresh database connection.
+- Reduced observability noise by quieting duplicate-key errors in the activity feed writer.
+- Tech-debt delta: -18 debt items (Structural Hardening satisfier).
+
+**What has issues or errors:**
+- None. The connection hygiene mission is complete across all targeted app modules.
+
 # 2026-05-11 15:00 — Antigravity (Gemini) — Settings Dashboard i18n Completion
 [HANDOFF READ: 2026-05-11 by Antigravity — Completed localization tagging for the Settings dashboard components including overview, diagnostics, performance, and helpers.]
 [REGISTRY READ: 12 open (0 agent / 4 glitchtip / 3 pyroscope / 0 tempo / 5 loki / 0 faro), 2 open registry findings — auto-fix-18 satisfier]

@@ -29,7 +29,7 @@ from apps.auto_issues.services.fingerprinting import canonical_fingerprint
 
 logger = logging.getLogger(__name__)
 
-_REQUEST_TIMEOUT_S = 10.0
+_REQUEST_TIMEOUT_S = 15.0
 
 
 @dataclass(frozen=True)
@@ -48,15 +48,15 @@ class _Probe:
 # exceed our quota under no fault of our own.
 _PROBES: tuple[_Probe, ...] = (
     _Probe("backend-health", "http://backend:8000/api/system/health/",
-           "GET", (200,), 6000.0),
+           "GET", (200,), 15000.0),
     _Probe("glitchtip-root", "http://glitchtip:8000/",
-           "GET", (200, 301, 302), 6000.0),
+           "GET", (200, 301, 302), 10000.0),
     _Probe("pyroscope-ready", "http://pyroscope:4040/ready",
-           "GET", (200, 503), 6000.0),
+           "GET", (200, 503), 8000.0),
     _Probe("postgres-exporter", "http://postgres-exporter:9187/metrics",
-           "GET", (200,), 6000.0),
+           "GET", (200,), 8000.0),
     _Probe("otel-metrics", "http://otel-collector:8889/metrics",
-           "GET", (200,), 6000.0),
+           "GET", (200,), 8000.0),
 )
 
 

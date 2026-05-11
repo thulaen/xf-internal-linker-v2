@@ -65,8 +65,8 @@ const THRESHOLDS: Record<string, { good: number; poor: number; unit: string }> =
     <mat-card class="rs-card">
       <mat-card-header>
         <mat-icon mat-card-avatar class="rs-avatar">monitoring</mat-icon>
-        <mat-card-title>Real User Monitoring</mat-card-title>
-        <mat-card-subtitle>
+        <mat-card-title i18n="@@rumSummary.title">Real User Monitoring</mat-card-title>
+        <mat-card-subtitle i18n="@@rumSummary.subtitle">
           Web Vitals · last 24h
         </mat-card-subtitle>
       </mat-card-header>
@@ -75,7 +75,7 @@ const THRESHOLDS: Record<string, { good: number; poor: number; unit: string }> =
           <div class="rs-spinner"><mat-spinner diameter="24" /></div>
         } @else if (summary(); as s) {
           @if (totalSamples(s) === 0) {
-            <p class="rs-empty">
+            <p class="rs-empty" i18n="@@rumSummary.noSamples">
               No real-user samples yet. Samples land in
               <code>/api/telemetry/web-vitals/</code> from every active session.
             </p>
@@ -90,7 +90,7 @@ const THRESHOLDS: Record<string, { good: number; poor: number; unit: string }> =
                     </dt>
                     <dd class="rs-val">
                       {{ m.p75 | number:'1.0-1' }}{{ unitOf(name) }}
-                      <span class="rs-n">· {{ m.n }} samples</span>
+                      <span class="rs-n">· <ng-container i18n="@@rumSummary.sampleCount">{m.n, plural, =1 {1 sample} other {# samples}}</ng-container></span>
                     </dd>
                   </div>
                 }
@@ -98,7 +98,7 @@ const THRESHOLDS: Record<string, { good: number; poor: number; unit: string }> =
             </dl>
           }
         } @else {
-          <p class="rs-empty">Could not load RUM summary.</p>
+          <p class="rs-empty" i18n="@@rumSummary.loadError">Could not load RUM summary.</p>
         }
       </mat-card-content>
     </mat-card>

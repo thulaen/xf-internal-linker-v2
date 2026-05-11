@@ -23,6 +23,7 @@ import logging
 from celery import shared_task
 
 from apps.core.helpers import HelperConstraint
+from django.db import connection
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,9 @@ logger = logging.getLogger(__name__)
     ram_peak_mb=256,
 )
 def refresh_dashboard_matviews() -> dict[str, bool]:
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Refresh every dashboard materialised view.
 
     Returns a status dict so the operator (or alerting layer) can see which

@@ -24,24 +24,24 @@ interface PerformanceOption {
 const MODES: PerformanceOption[] = [
   {
     key: 'safe',
-    label: 'Safe While I Work',
+    label: $localize`@@performanceMode.safeLabelShort:Safe While I Work`,
     icon: 'shield',
-    description: 'Quietest. Keep working.',
-    tooltip: 'Quietest mode. Uses about 25% of GPU memory so you can keep using your computer while the linker runs in the background.',
+    description: $localize`@@performanceMode.safeDescShort:Quietest. Keep working.`,
+    tooltip: $localize`@@performanceMode.safeTooltip:Quietest mode. Uses about 25% of GPU memory so you can keep using your computer while the linker runs in the background.`,
   },
   {
     key: 'balanced',
-    label: 'Balanced',
+    label: $localize`@@performanceMode.balancedLabelShort:Balanced`,
     icon: 'balance',
-    description: 'Default. Good speed.',
-    tooltip: 'Default mode. Good speed without hogging your computer. Mostly runs on the CPU.',
+    description: $localize`@@performanceMode.balancedDescShort:Default. Good speed.`,
+    tooltip: $localize`@@performanceMode.balancedTooltip:Default mode. Good speed without hogging your computer. Mostly runs on the CPU.`,
   },
   {
     key: 'high',
-    label: 'High Performance Now',
+    label: $localize`@@performanceMode.highLabelShort:High Performance Now`,
     icon: 'speed',
-    description: 'Fastest. Heavy GPU use.',
-    tooltip: 'Fastest mode. Uses up to 80% of GPU memory (~4.8 GB on your RTX 3050). Close Chrome tabs first or the browser may slow down.',
+    description: $localize`@@performanceMode.highDescShort:Fastest. Heavy GPU use.`,
+    tooltip: $localize`@@performanceMode.highTooltip:Fastest mode. Uses up to 80% of GPU memory (~4.8 GB on your RTX 3050). Close Chrome tabs first or the browser may slow down.`,
   },
 ];
 
@@ -64,7 +64,7 @@ const MODES: PerformanceOption[] = [
     <mat-card id="performance-mode">
       <mat-card-header>
         <mat-icon mat-card-avatar>speed</mat-icon>
-        <mat-card-title>Performance Mode</mat-card-title>
+        <mat-card-title i18n="@@performanceMode.title">Performance Mode</mat-card-title>
       </mat-card-header>
       <mat-card-content>
         <div class="mode-options">
@@ -92,8 +92,8 @@ const MODES: PerformanceOption[] = [
 
         <!-- Time-bound auto-revert chips — shown only for High Performance mode -->
         @if (currentMode === 'high') {
-          <div class="expiry-row" role="radiogroup" aria-label="Auto-revert timer">
-            <span class="expiry-label">Auto-revert to Balanced:</span>
+          <div class="expiry-row" role="radiogroup" aria-label="Auto-revert timer" i18n-aria-label="@@performanceMode.autoRevertTimerLabel">
+            <span class="expiry-label" i18n="@@performanceMode.autoRevertLabel">Auto-revert to Balanced:</span>
             <div class="expiry-chips">
               <button type="button"
                       class="expiry-chip"
@@ -101,9 +101,10 @@ const MODES: PerformanceOption[] = [
                       [attr.aria-checked]="expiry() === 'none'"
                       [class.active]="expiry() === 'none'"
                       (click)="setExpiry('none')"
-                      matTooltip="Stay in High Performance until you change it manually">
+                      matTooltip="Stay in High Performance until you change it manually"
+                      i18n-matTooltip="@@performanceMode.stayOnTooltip">
                 <mat-icon class="expiry-icon">all_inclusive</mat-icon>
-                Stay on
+                <ng-container i18n="@@performanceMode.stayOn">Stay on</ng-container>
               </button>
               <button type="button"
                       class="expiry-chip"
@@ -111,9 +112,10 @@ const MODES: PerformanceOption[] = [
                       [attr.aria-checked]="expiry() === 'activity'"
                       [class.active]="expiry() === 'activity'"
                       (click)="setExpiry('activity')"
-                      matTooltip="Revert to Balanced the moment you start using keyboard or mouse again">
+                      matTooltip="Revert to Balanced the moment you start using keyboard or mouse again"
+                      i18n-matTooltip="@@performanceMode.untilIComeBackTooltip">
                 <mat-icon class="expiry-icon">directions_walk</mat-icon>
-                Until I come back
+                <ng-container i18n="@@performanceMode.untilIComeBack">Until I come back</ng-container>
               </button>
               <button type="button"
                       class="expiry-chip"
@@ -121,13 +123,14 @@ const MODES: PerformanceOption[] = [
                       [attr.aria-checked]="expiry() === 'night'"
                       [class.active]="expiry() === 'night'"
                       (click)="setExpiry('night')"
-                      matTooltip="Revert to Balanced at 6:00 AM local time">
+                      matTooltip="Revert to Balanced at 6:00 AM local time"
+                      i18n-matTooltip="@@performanceMode.untilTonightEndsTooltip">
                 <mat-icon class="expiry-icon">bedtime</mat-icon>
-                Until tonight ends
+                <ng-container i18n="@@performanceMode.untilTonightEnds">Until tonight ends</ng-container>
               </button>
             </div>
             @if (expiry() !== 'none') {
-              <span class="expiry-hint">
+              <span class="expiry-hint" i18n="@@performanceMode.expiryHint">
                 <mat-icon class="expiry-hint-icon">info</mat-icon>
                 Saved on the backend as a performance preference. Active workers finish their current safe boundary.
               </span>
@@ -140,33 +143,33 @@ const MODES: PerformanceOption[] = [
           <mat-expansion-panel-header>
             <mat-panel-title>
               <mat-icon class="help-icon">help_outline</mat-icon>
-              What do these mean?
+              <ng-container i18n="@@performanceMode.helpTitle">What do these mean?</ng-container>
             </mat-panel-title>
           </mat-expansion-panel-header>
           <dl class="glossary">
-            <dt>Safe While I Work</dt>
-            <dd>Uses about 25% of your graphics card memory. You can keep browsing and working while the linker runs quietly in the background.</dd>
+            <dt i18n="@@performanceMode.safeLabel">Safe While I Work</dt>
+            <dd i18n="@@performanceMode.safeDesc">Uses about 25% of your graphics card memory. You can keep browsing and working while the linker runs quietly in the background.</dd>
 
-            <dt>Balanced (default)</dt>
-            <dd>Good speed without hogging your computer. Mostly uses the CPU; a smart choice most of the time.</dd>
+            <dt i18n="@@performanceMode.balancedLabel">Balanced (default)</dt>
+            <dd i18n="@@performanceMode.balancedDesc">Good speed without hogging your computer. Mostly uses the CPU; a smart choice most of the time.</dd>
 
-            <dt>High Performance</dt>
-            <dd>Goes full throttle. Uses up to 80% of your graphics card memory (around 4.8 GB on your RTX 3050). Close Chrome tabs before switching.</dd>
+            <dt i18n="@@performanceMode.highLabel">High Performance</dt>
+            <dd i18n="@@performanceMode.highDesc">Goes full throttle. Uses up to 80% of your graphics card memory (around 4.8 GB on your RTX 3050). Close Chrome tabs before switching.</dd>
 
-            <dt>CPU vs GPU</dt>
-            <dd>The CPU (processor) is the general-purpose brain; the GPU (graphics card) is a specialist that is much faster at the kind of number-crunching the linker does. GPU mode is faster, but needs memory.</dd>
+            <dt i18n="@@performanceMode.cpuVsGpuLabel">CPU vs GPU</dt>
+            <dd i18n="@@performanceMode.cpuVsGpuDesc">The CPU (processor) is the general-purpose brain; the GPU (graphics card) is a specialist that is much faster at the kind of number-crunching the linker does. GPU mode is faster, but needs memory.</dd>
 
-            <dt>VRAM</dt>
-            <dd>The graphics card's own memory. Separate from your main RAM. Measured here in megabytes (MB).</dd>
+            <dt i18n="@@performanceMode.vramLabel">VRAM</dt>
+            <dd i18n="@@performanceMode.vramDesc">The graphics card's own memory. Separate from your main RAM. Measured here in megabytes (MB).</dd>
 
-            <dt>Batch size</dt>
-            <dd>How many paragraphs the linker processes at the same time. Bigger batch = faster, but uses more memory. Adjustable in Settings → Performance.</dd>
+            <dt i18n="@@performanceMode.batchSizeLabel">Batch size</dt>
+            <dd i18n="@@performanceMode.batchSizeDesc">How many paragraphs the linker processes at the same time. Bigger batch = faster, but uses more memory. Adjustable in Settings → Performance.</dd>
 
-            <dt>GPU temperature</dt>
-            <dd>If your graphics card hits 86°C, the linker automatically pauses heavy work until it cools back down to 78°C. This protects the hardware.</dd>
+            <dt i18n="@@performanceMode.gpuTempLabel">GPU temperature</dt>
+            <dd i18n="@@performanceMode.gpuTempDesc">If your graphics card hits 86°C, the linker automatically pauses heavy work until it cools back down to 78°C. This protects the hardware.</dd>
 
-            <dt>Worker</dt>
-            <dd>A helper process that runs background jobs (imports, scoring, etc). More workers = more things in parallel, but also more memory used. Changes need a restart to apply.</dd>
+            <dt i18n="@@performanceMode.workerLabel">Worker</dt>
+            <dd i18n="@@performanceMode.workerDesc">A helper process that runs background jobs (imports, scoring, etc). More workers = more things in parallel, but also more memory used. Changes need a restart to apply.</dd>
           </dl>
         </mat-expansion-panel>
       </mat-accordion>
@@ -176,17 +179,19 @@ const MODES: PerformanceOption[] = [
                 type="button"
                 [disabled]="pending() !== null || bootArmed() || currentMode === 'safe'"
                 matTooltip="Sets the next backend restart to force Safe mode. Use only if the app is misbehaving."
+                i18n-matTooltip="@@performanceMode.safeBootTooltip"
                 (click)="armSafeModeBoot()">
           <mat-icon>lifebuoy</mat-icon>
-          {{ bootArmed() ? 'Safe Boot Armed' : 'Safe Boot on Restart' }}
+          {{ safeBootLabel() }}
         </button>
         <button mat-stroked-button
                 type="button"
                 [disabled]="pending() !== null || currentMode === 'balanced'"
                 matTooltip="One-click escape. Returns to the default mode."
+                i18n-matTooltip="@@performanceMode.resetToBalancedTooltip"
                 (click)="selectMode('balanced')">
           <mat-icon>restart_alt</mat-icon>
-          Reset to Balanced
+          <ng-container i18n="@@performanceMode.resetToBalanced">Reset to Balanced</ng-container>
         </button>
       </mat-card-actions>
     </mat-card>
@@ -371,9 +376,15 @@ export class PerformanceModeComponent implements OnInit {
     const summary = this.hardwareSummary();
     const tier = this.hardwareTier();
     if (summary) {
-      return `High Performance is unavailable on this hardware (${summary}). Needs a CUDA GPU with at least 4 GB of VRAM.`;
+      return $localize`@@performanceMode.unavailableTooltipSummary:High Performance is unavailable on this hardware (${summary}:summary). Needs a CUDA GPU with at least 4 GB of VRAM.`;
     }
-    return `High Performance is unavailable on this hardware (tier=${tier}). Needs a CUDA GPU with at least 4 GB of VRAM.`;
+    return $localize`@@performanceMode.unavailableTooltipTier:High Performance is unavailable on this hardware (tier=${tier}:tier). Needs a CUDA GPU with at least 4 GB of VRAM.`;
+  };
+
+  readonly safeBootLabel = () => {
+    return this.bootArmed()
+      ? $localize`@@performanceMode.safeBootArmed:Safe Boot Armed`
+      : $localize`@@performanceMode.safeBootOnRestart:Safe Boot on Restart`;
   };
 
   ngOnInit(): void {
@@ -394,7 +405,7 @@ export class PerformanceModeComponent implements OnInit {
     const expiresAt = next === 'night' ? this.next6AmLocalIso() : '';
     this.perfMode.setExpiry(next, expiresAt).pipe(
       catchError(() => {
-        this.snack.open('Could not save revert timer. Try again.', 'OK', { duration: 4000 });
+        this.snack.open($localize`@@performanceMode.saveExpiryError:Could not save revert timer. Try again.`, $localize`@@common.ok:OK`, { duration: 4000 });
         return EMPTY;
       }),
       takeUntilDestroyed(this.destroyRef),
@@ -424,8 +435,8 @@ export class PerformanceModeComponent implements OnInit {
       .subscribe(() => {
         this.bootArmed.set(true);
         this.snack.open(
-          'Safe Boot armed. The next backend restart will force Safe mode.',
-          'OK',
+          $localize`@@performanceMode.safeBootArmedMsg:Safe Boot armed. The next backend restart will force Safe mode.`,
+          $localize`@@common.ok:OK`,
           { duration: 4000 },
         );
       });
@@ -469,7 +480,8 @@ export class PerformanceModeComponent implements OnInit {
         this.currentMode = key;
         this.modeChange.emit(key);
         if (opt) {
-          this.snack.open(`Switched to ${opt.label}`, 'OK', { duration: 2500 });
+          const label = opt.label;
+          this.snack.open($localize`@@performanceMode.switchedTo:Switched to ${label}:label`, $localize`@@common.ok:OK`, { duration: 2500 });
         }
       });
   }
@@ -480,23 +492,23 @@ export class PerformanceModeComponent implements OnInit {
   standalone: true,
   imports: [MatButtonModule, MatDialogModule, MatIconModule],
   template: `
-    <h2 mat-dialog-title>
+    <h2 mat-dialog-title i18n="@@confirmHighPerformance.title">
       <mat-icon class="warn-icon">warning_amber</mat-icon>
       Switch to High Performance?
     </h2>
     <mat-dialog-content>
-      <p>
+      <p i18n="@@confirmHighPerformance.memoryWarning">
         This mode uses up to <strong>80% of GPU memory</strong> (about 4.8 GB on your RTX 3050).
       </p>
-      <p>
+      <p i18n="@@confirmHighPerformance.performanceWarning">
         If your browser or other apps need the GPU at the same time, they may slow down or stutter.
         It is best to close most Chrome tabs before switching.
       </p>
-      <p>Continue?</p>
+      <p i18n="@@confirmHighPerformance.continuePrompt">Continue?</p>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button type="button" [mat-dialog-close]="false">Cancel</button>
-      <button mat-raised-button color="primary" type="button" [mat-dialog-close]="true">
+      <button mat-button type="button" [mat-dialog-close]="false" i18n="@@common.cancel">Cancel</button>
+      <button mat-raised-button color="primary" type="button" [mat-dialog-close]="true" i18n="@@confirmHighPerformance.yesSwitch">
         Yes, switch
       </button>
     </mat-dialog-actions>

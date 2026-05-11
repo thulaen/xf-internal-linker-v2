@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from apps.api.query_params import coerce_int
 from apps.core.helpers import HelperConstraint
+from django.db import connection
 
 from .models import AnalyticsSyncRun
 from .sync import run_ga4_sync, run_matomo_sync, run_gsc_sync
@@ -49,6 +50,9 @@ def _queue_scheduled_sync(
     expected_seconds_p50=300,
 )
 def sync_matomo_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     sync_run = _load_sync_run(sync_run_id)
     sync_run.status = "running"
     sync_run.error_message = ""
@@ -94,6 +98,9 @@ def sync_matomo_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
     expected_seconds_p50=300,
 )
 def sync_ga4_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     sync_run = _load_sync_run(sync_run_id)
     sync_run.status = "running"
     sync_run.error_message = ""
@@ -142,6 +149,9 @@ def sync_ga4_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
     expected_seconds_p50=300,
 )
 def sync_gsc_performance(self, sync_run_id: int) -> dict[str, int | str]:
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     sync_run = _load_sync_run(sync_run_id)
     sync_run.status = "running"
     sync_run.error_message = ""
@@ -192,6 +202,9 @@ def sync_gsc_performance(self, sync_run_id: int) -> dict[str, int | str]:
     ram_peak_mb=256,
 )
 def schedule_ga4_telemetry_hourly() -> dict[str, int | str]:
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     return _queue_scheduled_sync(
         source="ga4",
         lookback_days=2,
@@ -207,6 +220,9 @@ def schedule_ga4_telemetry_hourly() -> dict[str, int | str]:
     ram_peak_mb=256,
 )
 def schedule_ga4_telemetry_daily() -> dict[str, int | str]:
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     return _queue_scheduled_sync(
         source="ga4",
         lookback_days=7,
@@ -222,6 +238,9 @@ def schedule_ga4_telemetry_daily() -> dict[str, int | str]:
     ram_peak_mb=256,
 )
 def schedule_matomo_telemetry_hourly() -> dict[str, int | str]:
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     return _queue_scheduled_sync(
         source="matomo",
         lookback_days=1,
@@ -237,6 +256,9 @@ def schedule_matomo_telemetry_hourly() -> dict[str, int | str]:
     ram_peak_mb=256,
 )
 def schedule_matomo_telemetry_daily() -> dict[str, int | str]:
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     return _queue_scheduled_sync(
         source="matomo",
         lookback_days=7,
@@ -252,6 +274,9 @@ def schedule_matomo_telemetry_daily() -> dict[str, int | str]:
     ram_peak_mb=256,
 )
 def schedule_gsc_performance_daily() -> dict[str, int | str]:
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     from .views import get_gsc_settings
 
     settings = get_gsc_settings()
@@ -286,19 +311,10 @@ def schedule_gsc_performance_daily() -> dict[str, int | str]:
     expected_seconds_p50=600,
 )
 def refresh_gsc_query_tfidf(self, lookback_days: int = 90) -> dict[str, int]:
-    """FR-105 RSQVA — recompute per-page GSC query TF-IDF vectors.
+    """FR-105 RSQVA — recompute per-page GSC query TF-IDF vectors."""
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
 
-    Populates `ContentItem.gsc_query_tfidf_vector` from recent
-    `SearchMetric(source="gsc", query != "")` rows. Runs daily by default
-    (Celery Beat `schedule_gsc_performance_daily` stores the underlying
-    per-query data; this task consumes it into TF-IDF space).
-
-    Safe no-op when GSC data is below the 7-day BLC §6.4 floor — the
-    helper returns zero-counts and FR-105's signal evaluation stays in
-    `vector_not_computed` fallback.
-
-    See docs/specs/fr105-reverse-search-query-vocabulary-alignment.md.
-    """
     from .gsc_query_vocab import refresh_gsc_query_tfidf as _impl
 
     return _impl(lookback_days=lookback_days)
@@ -316,6 +332,9 @@ def refresh_gsc_query_tfidf(self, lookback_days: int = 90) -> dict[str, int]:
 )
 def recompute_all_search_impact() -> dict[str, int]:
     """Recompute search impact for all applied suggestions."""
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     from apps.suggestions.models import Suggestion
     from .impact_engine import compute_search_impact
 
@@ -342,6 +361,9 @@ def detect_traffic_spikes() -> dict[str, int]:
     FR-023 Part 3: Momentum-based spike detection.
     Alerts the dashboard when a page's daily traffic exceeds 3x its 7-day trailing average.
     """
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     from django.db.models import Avg, Sum
     from apps.notifications.services import emit_operator_alert
     from apps.notifications.models import OperatorAlert

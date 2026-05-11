@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 
 from celery import shared_task
+from django.db import connection
 
 from apps.core.helpers import HelperConstraint
 
@@ -41,6 +42,8 @@ def embedding_provider_bakeoff(
     self, *, sample_size: int | None = None, providers: list[str] | None = None
 ):
     """Score every configured provider on approved/rejected qrels."""
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
     from apps.core.models import AppSetting
     from apps.pipeline.services.embedding_bakeoff import (
         load_texts,

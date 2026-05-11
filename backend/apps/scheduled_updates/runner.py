@@ -35,6 +35,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from apps.core.helpers import HelperConstraint
+from django.db import connection
 
 from .alerts import (
     detect_missed_jobs,
@@ -277,6 +278,9 @@ def _execute_job(job: ScheduledJob, definition: JobDefinition) -> str:
     ram_peak_mb=256,
 )
 def run_next_scheduled_job() -> dict:
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Beat-fired runner — starts at most one ScheduledJob per invocation.
 
     The returned dict is Celery-result-friendly (JSON-serialisable) so

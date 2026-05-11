@@ -16,6 +16,7 @@ import logging
 from celery import shared_task
 
 from apps.core.helpers import HelperConstraint
+from django.db import connection
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,9 @@ logger = logging.getLogger(__name__)
     expected_seconds_p50=2,
 )
 def performance_cert_recompute() -> dict[str, str]:
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Refresh the cert verdict from the latest completed BenchmarkRun.
 
     Returns ``{verdict: "pass"|"warn"|"fail"|"unknown"}`` so the

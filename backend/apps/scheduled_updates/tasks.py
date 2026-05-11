@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 
 from celery import shared_task
+from django.db import connection
 
 from apps.core.helpers import HelperConstraint
 
@@ -33,6 +34,9 @@ logger = logging.getLogger(__name__)
     ram_peak_mb=256,
 )
 def prune_resolved_alerts_task() -> dict:
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Nightly-ish task: delete resolved JobAlert rows past the 30-day cutoff."""
     deleted = prune_resolved_alerts()
     return {"deleted": deleted}
@@ -46,6 +50,9 @@ def prune_resolved_alerts_task() -> dict:
     ram_peak_mb=256,
 )
 def detect_stalled_jobs_task() -> dict:
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Raise STALLED alerts for long-running ScheduledJobs (≥ 4 h).
 
     Scheduled independently so it keeps running even during hours when

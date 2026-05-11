@@ -52,7 +52,12 @@ def auto_revert_performance_mode() -> dict:
     Runs every 5 minutes. Idempotent — if the mode is already Balanced or no
     expiry is set, the task is a no-op and returns ``{"reverted": False}``.
     """
+    from django.db import connection
+
     from apps.core.models import AppSetting
+
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
 
     result: dict = {"reverted": False, "reason": ""}
 
@@ -182,7 +187,12 @@ def prune_stale_checkpoints() -> dict:
     we have a single canonical scratch directory to scan.  For now this task
     bounds the DB-side growth of checkpoint state.  Runs on the light queue.
     """
+    from django.db import connection
+
     from apps.sync.models import SyncJob
+
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
 
     now = timezone.now()
     completed_cutoff = now - timedelta(hours=24)
@@ -259,7 +269,12 @@ def prune_superseded_embeddings() -> dict:
     Thin Celery wrapper around ``apps.content.supersede.prune_verified_rows``
     so the logic stays unit-testable without Celery.
     """
+    from django.db import connection
+
     from apps.content.supersede import prune_verified_rows
+
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
 
     try:
         return prune_verified_rows()
@@ -292,7 +307,12 @@ def resume_after_wake() -> dict:
     and ships out-of-band with host hooks; this task is the in-container tail
     that tidies state once the worker reboots.
     """
+    from django.db import connection
+
     from apps.core.models import AppSetting
+
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
 
     try:
         enabled = (
@@ -352,7 +372,12 @@ def activity_resumed_revert() -> dict:
     Separate task from the periodic one so the endpoint can hand off the
     revert to Celery without blocking the user's HTTP call.
     """
+    from django.db import connection
+
     from apps.core.models import AppSetting
+
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
 
     result: dict = {"reverted": False, "reason": ""}
     try:

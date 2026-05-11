@@ -2,6 +2,7 @@
 
 from celery import shared_task
 import logging
+from django.db import connection
 from apps.content.services.clustering import ClusteringService
 from apps.core.helpers import HelperConstraint
 
@@ -24,6 +25,8 @@ logger = logging.getLogger(__name__)
 )
 def cluster_items(item_ids: list[int]) -> dict:
     """Trigger clustering logic for a batch of recently imported/updated items."""
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
     service = ClusteringService()
     count = 0
     failed_ids = []

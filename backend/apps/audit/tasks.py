@@ -12,6 +12,7 @@ from datetime import date, timedelta
 from typing import Any, Callable
 
 from celery import shared_task
+from django.db import connection
 from django.utils import timezone
 
 from apps.api.query_params import coerce_int
@@ -303,14 +304,6 @@ def _merge_glitchtip_id_into_existing_row(
 # ─────────────────────────────────────────────────────────────────────────
 
 
-@shared_task(name="audit.compute_weekly_reviewer_scorecard")
-@HelperConstraint(
-    cpu_intensive=True,
-    gpu_required=False,
-    storage_writes_to="postgres_main",
-    ram_peak_mb=512,
-    expected_seconds_p50=300,
-)
 def _gather_review_actions(period_start, period_end):
     """All AuditEntry rows for approve/reject actions in the given week."""
     from apps.audit.models import AuditEntry
@@ -355,9 +348,18 @@ def _build_scorecard_kwargs(review_actions, period_start, period_end):
     )
 
 
+@shared_task(name="audit.compute_weekly_reviewer_scorecard")
+@HelperConstraint(
+    cpu_intensive=True,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=300,
+)
 def compute_weekly_reviewer_scorecard():
     """Compute ReviewerScorecard for the previous calendar week. Runs Monday 03:00 UTC."""
-    from apps.audit.models import ReviewerScorecard
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
 
     today = timezone.now().date()
     period_start, period_end = _scorecard_week_period(today)
@@ -385,13 +387,6 @@ def compute_weekly_reviewer_scorecard():
 # ─────────────────────────────────────────────────────────────────────────
 
 
-@shared_task(name="audit.sync_glitchtip_issues")
-@HelperConstraint(
-    cpu_intensive=False,
-    gpu_required=False,
-    storage_writes_to="postgres_main",
-    ram_peak_mb=256,
-)
 def _glitchtip_env() -> tuple[str, str, str, str]:
     """Return (api_url, token, org_slug, project_slug). All four blank when unset."""
     import os
@@ -444,12 +439,22 @@ def _tally_sync_outcomes(issues, api_url, suggest_fn, error_log_cls, runtime_sna
     return counts
 
 
+@shared_task(name="audit.sync_glitchtip_issues")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+)
 def sync_glitchtip_issues():
     """Pull open GlitchTip issues and mirror them into ErrorLog for operator triage.
 
     Runs every 30 minutes via Celery Beat. Graceful no-op when env vars are
     missing so a project without GlitchTip doesn't see Beat errors every 30 min.
     """
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     from apps.audit.fix_suggestions import suggest
     from apps.audit.models import ErrorLog
     from apps.audit.runtime_context import snapshot as runtime_snapshot

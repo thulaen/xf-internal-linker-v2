@@ -39,6 +39,29 @@ def _make_dedup_key(
     return hashlib.sha1(raw, usedforsecurity=False).hexdigest()[:20]
 
 
+def _update_event(
+    event,
+    plain_english: str,
+    severity: str,
+    runtime_context: Mapping[str, object] | None,
+    error_log_id: int | None,
+) -> None:
+    event.occurrence_count = (event.occurrence_count or 1) + 1
+    event.plain_english = plain_english
+    event.severity = severity
+    event.runtime_context = dict(runtime_context or {})
+    event.error_log_id = error_log_id
+    event.save(
+        update_fields=[
+            "occurrence_count",
+            "plain_english",
+            "severity",
+            "runtime_context",
+            "error_log_id",
+        ]
+    )
+
+
 def emit(
     event_type: str,
     plain_english: str,
@@ -70,45 +93,62 @@ def emit(
         # The application still bumps occurrence_count + refreshes
         # plain_english/severity on each emission so the UI shows the
         # most recent wording. Race-safe via select_for_update.
-        with transaction.atomic():
-            existing = (
-                OperationEvent.objects.select_for_update(skip_locked=True)
-                .filter(dedup_key=dedup_key)
-                .order_by("-timestamp")
-                .first()
-            )
-            if existing is not None:
-                existing.occurrence_count = (existing.occurrence_count or 1) + 1
-                existing.plain_english = plain_english
-                existing.severity = severity
-                existing.runtime_context = dict(runtime_context or {})
-                existing.error_log_id = error_log_id
-                existing.save(
-                    update_fields=[
-                        "occurrence_count",
-                        "plain_english",
-                        "severity",
-                        "runtime_context",
-                        "error_log_id",
-                    ]
-                )
-                row = existing
-            else:
-                row = OperationEvent.objects.create(
-                    event_type=event_type[:60],
-                    source=source[:60],
+        from django.db import IntegrityError
+        from django.db.models import F
+
+        # Phase OF — Optimized Upsert Pattern (AutoIssue #118).
+        # We use update() first as it's the 99% case for repeats and is 
+        # naturally race-safe (atomic increment).
+        updated = OperationEvent.objects.filter(dedup_key=dedup_key).update(
+            occurrence_count=F("occurrence_count") + 1,
+            plain_english=plain_english,
+            severity=severity
+            if severity in {c[0] for c in OperationEvent.SEVERITY_CHOICES}
+            else "info",
+            runtime_context=dict(runtime_context or {}),
+            error_log_id=error_log_id,
+            timestamp=timezone.now(),
+        )
+
+        if updated:
+            # Re-fetch the row we just updated to broadcast it.
+            # Using .first() is safer than .get() if legacy data has duplicates.
+            row = OperationEvent.objects.filter(dedup_key=dedup_key).first()
+        else:
+            # Row doesn't exist. Try to create it. 
+            # We handle the race where another thread creates it between our 
+            # update and create calls.
+            try:
+                with transaction.atomic():
+                    row = OperationEvent.objects.create(
+                        event_type=event_type[:60],
+                        source=source[:60],
+                        plain_english=plain_english,
+                        severity=severity
+                        if severity in {c[0] for c in OperationEvent.SEVERITY_CHOICES}
+                        else "info",
+                        related_entity_type=related_entity_type[:60],
+                        related_entity_id=str(related_entity_id)[:100],
+                        runtime_context=dict(runtime_context or {}),
+                        dedup_key=dedup_key,
+                        error_log_id=error_log_id,
+                    )
+            except IntegrityError:
+                # Someone else created it. Update the existing one.
+                OperationEvent.objects.filter(dedup_key=dedup_key).update(
+                    occurrence_count=F("occurrence_count") + 1,
                     plain_english=plain_english,
                     severity=severity
                     if severity in {c[0] for c in OperationEvent.SEVERITY_CHOICES}
                     else "info",
-                    related_entity_type=related_entity_type[:60],
-                    related_entity_id=str(related_entity_id)[:100],
                     runtime_context=dict(runtime_context or {}),
-                    dedup_key=dedup_key,
                     error_log_id=error_log_id,
+                    timestamp=timezone.now(),
                 )
+                row = OperationEvent.objects.filter(dedup_key=dedup_key).first()
 
-        _broadcast(row)
+        if row:
+            _broadcast(row)
     except Exception:  # noqa: BLE001
         # Emission is observability glue — never let it bring down the
         # caller. A dropped event is better than a dropped import task.

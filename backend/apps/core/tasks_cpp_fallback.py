@@ -45,7 +45,12 @@ def cpp_fallback_check() -> dict[str, int]:
 
     Returns ``{events_emitted: N}`` so the operator can see it ran.
     """
+    from django.db import connection
+
     from apps.core.services.cpp_fallback_warning import check_and_emit_fallback_events
+
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
 
     events = check_and_emit_fallback_events()
     if events:

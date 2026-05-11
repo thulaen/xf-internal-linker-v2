@@ -33,7 +33,7 @@ def _candidate_for_internal(row: "ErrorLog", *, max_blast: int) -> Candidate:
     return Candidate(
         source=AutoIssue.SOURCE_AGENT,
         external_id=str(row.fingerprint or row.pk),
-        fingerprint=row.fingerprint,
+        fingerprint=row.fingerprint or "",
         severity=row.severity,
         last_seen=row.created_at,
         blast_observed=float(row.occurrence_count),

@@ -517,7 +517,7 @@ services:
   # — so /metrics on :8889 includes both app + DB metrics.
   # ─────────────────────────────────────────────
   postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:v0.15.0
+    image: prometheuscommunity/postgres-exporter:v0.16.0
     container_name: xf_linker_postgres_exporter
     restart: always
     mem_limit: 64m

@@ -19,6 +19,7 @@ from celery import shared_task
 
 from apps.core.helpers import HelperConstraint
 from apps.ops_feed.services import emit
+from django.db import connection
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,9 @@ _MIN_RECLAIM_MB_THRESHOLD = 50
     ram_peak_mb=256,
 )
 def gpu_memory_cleanup() -> dict[str, float | str]:
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     """Clear unused CUDA memory and report MB reclaimed.
 
     Plain-English: PyTorch keeps a per-process cache of GPU memory that

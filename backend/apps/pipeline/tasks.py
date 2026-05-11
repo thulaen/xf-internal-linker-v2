@@ -22,10 +22,10 @@ from apps.core.pause_contract import JobPaused
 from apps.core.helpers import HelperConstraint
 from apps.core.helpers.resource_aware_retry import resource_aware_retry
 from requests import RequestException
-from django.db import DatabaseError, IntegrityError
+from django.db import DatabaseError, IntegrityError, connection
 from urllib.error import URLError
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__) # fixed
 
 _MAX_BROKEN_LINK_SCAN_URLS = 10_000  # maxsize for broken-link scan
 _BROKEN_LINK_SCAN_TIMEOUT_SECONDS = 10
@@ -271,6 +271,9 @@ def run_pipeline(
     rerun_mode: str = "skip_pending",
 ) -> dict:
     """Execute the full 3-stage ML suggestion pipeline."""
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     run = _claim_pipeline_run(self, run_id)
     if run is None:
         return {"error": "PipelineRun not found"}
@@ -437,6 +440,9 @@ def generate_embeddings(
     force_reembed: bool = False,
 ) -> dict:
     """Generate and store embeddings for ContentItems and Sentences."""
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     from apps.sync.models import SyncJob
     from apps.pipeline.services.embeddings import generate_all_embeddings
 
@@ -568,6 +574,9 @@ def _handle_embed_failed(job, job_id: str, exc: Exception) -> None:
 )
 def recalculate_weighted_authority(self, job_id: str | None = None) -> dict:
     """Recompute Weighted PageRank from the stored graph and current settings."""
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     job_id = job_id or str(uuid.uuid4())
     _publish_progress(
         job_id, "running", 0.0, f"Starting {_PAGERANK_VERSION_LABEL} recalculation..."
@@ -612,6 +621,9 @@ def recalculate_weighted_authority(self, job_id: str | None = None) -> dict:
 )
 def recalculate_link_freshness(self, job_id: str | None = None) -> dict:
     """Recompute Link Freshness from the stored link-history rows and current settings."""
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     job_id = job_id or str(uuid.uuid4())
     _publish_progress(
         job_id, "running", 0.0, "Starting Link Freshness recalculation..."
@@ -649,11 +661,6 @@ def dispatch_graph_rebuild(job_id: str | None = None) -> dict[str, Any]:
         "message": "Knowledge graph rebuild started.",
         "runtime_owner": "celery",
     }
-    return {
-        "job_id": job_id,
-        "message": "Knowledge graph rebuild started.",
-        "runtime_owner": "celery",
-    }
 
 
 @shared_task(
@@ -671,6 +678,9 @@ def dispatch_graph_rebuild(job_id: str | None = None) -> dict[str, Any]:
 )
 def build_knowledge_graph(self, job_id: str | None = None) -> dict:
     """Python fallback for building the bipartite knowledge graph."""
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     job_id = job_id or str(uuid.uuid4())
     _publish_progress(job_id, "running", 0.0, "Starting knowledge graph build...")
     try:
@@ -721,6 +731,9 @@ def import_content(
     force_reembed: bool = False,
 ) -> dict:
     """Import/sync content from XenForo, WordPress, or JSONL export."""
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     job_id = job_id or str(uuid.uuid4())
     job, state = _init_import_job_and_state(job_id, source, mode, force_reembed)
     _publish_import_start_or_resume(job, state, job_id, source, mode)
@@ -978,7 +991,7 @@ def _handle_import_failed(job, state, job_id: str, exc: Exception) -> None:
 
 @shared_task(
     bind=True,
-    name="pipeline.scan_broken_links",
+    name="pipeline.scan_broken_links", # test
     queue="default",
     time_limit=7200,
     soft_time_limit=7140,
@@ -993,6 +1006,9 @@ def _handle_import_failed(job, state, job_id: str, exc: Exception) -> None:
 )
 def scan_broken_links(self, job_id: str | None = None) -> dict:
     """Scan live URLs referenced in content and persist broken-link findings."""
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     from apps.pipeline.tasks_broken_links import collect_urls_to_scan
 
     job_id = job_id or str(uuid.uuid4())
@@ -1140,6 +1156,9 @@ def _publish_broken_link_scan_completion(
 )
 def verify_suggestions(self, suggestion_ids: list[str] | None = None) -> dict:
     """Check whether applied suggestions are still live via XenForo API."""
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     from apps.suggestions.models import Suggestion
     from apps.sync.services.xenforo_api import XenForoAPIClient
 
@@ -1254,6 +1273,9 @@ def _verify_one_suggestion(client, suggestion) -> str:
 )
 def recalculate_click_distance_task(self, job_id: str | None = None) -> dict:
     """Recompute Phase 15 Click-Distance scores for all active ContentItems."""
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     job_id = job_id or str(uuid.uuid4())
     _publish_progress(
         job_id,
@@ -1324,6 +1346,9 @@ def _status_label(http_status: int) -> str:
 )
 def run_clustering_pass(job_id: str | None = None) -> dict:
     """Run a batch clustering pass over all ContentItems with embeddings."""
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     from apps.content.models import ContentItem
     from apps.content.services.clustering import ClusteringService
     from apps.pipeline.services.embeddings import get_current_embedding_filter
@@ -1531,6 +1556,9 @@ def nightly_data_retention(progress_callback=None):
     progress bar. Defaults to a no-op so the existing Celery / manual
     paths see no behavior change.
     """
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     from django.utils import timezone
 
     _report = _retention_progress_reporter(progress_callback)
@@ -1823,6 +1851,9 @@ def cleanup_stuck_sync_jobs():
 
     Scheduled daily at 03:30 UTC (after nightly_data_retention).
     """
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     from datetime import timedelta
     from django.utils import timezone
     from apps.sync.models import SyncJob
@@ -1893,6 +1924,9 @@ def sync_single_xf_item(
     content_id: int, content_type: str = "thread", node_id: int | None = None
 ) -> dict:
     """Real-time sync for a single XenForo item (thread or resource) via webhook."""
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     from apps.pipeline.tasks import import_content
 
     logger.info(
@@ -1980,6 +2014,9 @@ def _ensure_scope_for_xf_node(xf_node_id: int, content_type: str):
 )
 def sync_single_wp_item(post_id: int, content_type: str = "post") -> dict:
     """Real-time sync for a single WordPress post/page via webhook."""
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     from apps.core.views import get_wordpress_runtime_config
     from apps.sync.services.wordpress_api import WordPressAPIClient
     from apps.pipeline.tasks import import_content
@@ -2039,6 +2076,8 @@ def monthly_weight_tune(self):
 
     Scheduled at 13:45 UTC on the first Sunday of every month.
     """
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
     import traceback
     import uuid as _uuid
 
@@ -2149,6 +2188,8 @@ def monthly_meta_tune(self):
     Scheduled at 14:15 UTC on the first Sunday — 30 minutes after the
     FR-018 weight tuner to avoid Postgres write-window contention.
     """
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
     import traceback
     import uuid as _uuid
 
@@ -2321,6 +2362,8 @@ def evaluate_meta_challenger(self, run_id: str):
     See ``_meta_safety_gate`` and `docs/specs/fr018b-meta-algorithm-autotuner.md`
     for the gate's two safety checks (recent rollback + consecutive failures).
     """
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
     from apps.suggestions.models import RankingChallenger
 
     challenger = RankingChallenger.objects.filter(
@@ -2380,6 +2423,8 @@ def evaluate_weight_challenger(self, *, run_id: str):
     Called automatically after monthly_weight_tune, or manually via
     POST /api/settings/weight-tune/trigger/.
     """
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
     from apps.suggestions.models import RankingChallenger
 
     try:
@@ -2539,6 +2584,9 @@ def check_weight_rollback():
     Rollback trigger: average GSC clicks in the 14-day window after promotion
     is more than 15% below the 14-day baseline before promotion.
     """
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     import traceback
     from datetime import timedelta
 
@@ -2708,6 +2756,9 @@ def check_gsc_spikes(self) -> dict:
     Thresholds are read from the notifications.settings AppSetting so
     the operator can tune them from the UI.
     """
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     from apps.content.models import ContentItem
 
     thresholds, today, recent_window, baseline_window = _gsc_spike_setup()
@@ -2879,6 +2930,9 @@ def refresh_faiss_index():
     silent stack trace in container logs. Re-raises so Celery's own
     retry/visibility mechanics still see the failure.
     """
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     import traceback
 
     from apps.audit.error_ingest import ingest_error
@@ -2924,6 +2978,9 @@ def calibration_fit():
     reason on /error-log. The cold-start logistic stays active until
     the first successful fit lands.
     """
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     from apps.pipeline.services.score_calibration import (
         VALIDATION_SET_MIN_SIZE_DEFAULT,
         persist_active_params,
@@ -3036,6 +3093,9 @@ def nrt_delta_flush():
     + returns silently. The base 15-minute rebuild is the consistency
     floor — this task is purely an optimisation.
     """
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     try:
         from apps.pipeline.services.nrt_delta_index import get_live_delta
     except Exception:  # noqa: BLE001 — defensive cold-start.
@@ -3131,6 +3191,9 @@ def backfill_long_tail_embeddings(
     Bounded: ``max_items`` caps the run. ``None`` = process every
     eligible item until done.
     """
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     last_pk = _read_backfill_checkpoint()
     eligible = _build_long_tail_eligible_qs(last_pk, body_to_distilled_ratio)
     processed = 0
@@ -3286,6 +3349,9 @@ def reembed_null_embeddings(
     Returns:
         Dict with ``processed`` and ``complete`` (False iff capped at max_items).
     """
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     from apps.core.models import AppSetting
 
     last_pk = _read_checkpoint_pk(_NULL_REEMBED_CHECKPOINT_KEY)
@@ -3394,6 +3460,9 @@ def refresh_passage_embeddings(self, *, max_items: int = _PASSAGE_REFRESH_BATCH_
     checkpoint), the checkpoint resets to 0 so the next tick starts
     a fresh sweep.
     """
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     from apps.core.models import AppSetting
 
     last_pk = _read_checkpoint_pk(_PASSAGE_REFRESH_CHECKPOINT_KEY)
@@ -3490,95 +3559,13 @@ def train_opq_codebook(self, *, sample_size: int = 100_000) -> dict:
     last-OOM size is remembered in AppSetting so the next scheduled run
     starts at the smaller size without OOMing again.
     """
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
+
     from apps.pipeline.services.opq_trainer import train_codebook
 
     train_codebook(sample_size=sample_size)
     return {"status": "completed", "sample_size": sample_size}
-@shared_task(
-    name="pipeline.refresh_disk_pressure_state",
-    time_limit=30,
-    soft_time_limit=20,
-)
-@HelperConstraint(storage_writes_to="redis", ram_peak_mb=128, expected_seconds_p50=5)
-def refresh_disk_pressure_state() -> dict:
-    """Beat-driven refresh of the cached disk-pressure state.
-
-    Wraps `apps.pipeline.services.disk_pressure.refresh_disk_pressure_state`
-    so the beat schedule can fire it every 60 s. The wrapper exists only
-    to give the function a celery `name` — the real logic lives in the
-    service module and is unit-tested there.
-    """
-    from apps.pipeline.services.disk_pressure import (
-        refresh_disk_pressure_state as _refresh,
-    )
-
-    state = _refresh()
-    return {"state": state}
-@shared_task(
-    name="pipeline.cpp_fallback_share_check",
-    time_limit=60,
-    soft_time_limit=45,
-)
-@HelperConstraint(ram_peak_mb=128, expected_seconds_p50=10)
-def cpp_fallback_share_check() -> dict:
-    """Daily check that the Stage-2 Python-fallback share is below the alert
-    threshold (FR-247). When `python_share > pipeline.cpp_path_alert_threshold`
-    (default 5 %), file an AutoIssue so the next agent picks it up via
-    auto-fix-3.
-
-    Why daily: in-memory counters reset on every backend restart, so a
-    one-shot check during the warm-up window can be misleading. A daily
-    sample averages over a full operating day's traffic. AutoIssue #14
-    follow-up — added 2026-05-09.
-    """
-    from apps.pipeline.services.pipeline_stages import (
-        get_stage2_path_runtime_status,
-    )
-
-    status = get_stage2_path_runtime_status()
-    python_share = float(status.get("python_share", 0.0) or 0.0)
-    threshold = float(status.get("alert_threshold", 0.05) or 0.05)
-    if python_share <= threshold:
-        return {"share": python_share, "threshold": threshold, "alert": False}
-    try:
-        from apps.auto_issues.models import AutoIssue
-        from apps.auto_issues.services.dedup import upsert_dedup, IssueObservation
-
-        canonical = "cpp_fallback_share_above_threshold"
-        upsert_dedup(**IssueObservation(
-            canonical=canonical,
-            source="internal",
-            external_id=canonical,
-            fingerprint=canonical,
-            title=(
-                f"C++ Stage-2 fallback share {python_share:.1%} > threshold "
-                f"{threshold:.1%}"
-            ),
-            description=(
-                f"FR-247 SLO breach: the Python fallback path served "
-                f"{python_share:.1%} of Stage-2 sentence scoring runs, above "
-                f"the configured alert threshold of {threshold:.1%}. Each "
-                f"Python-path call is 50-100x slower than the C++ kernel.\n\n"
-                "Likely causes: (a) a prior session's `pip install -e .` did "
-                "not run, (b) an extension was renamed and the import path is "
-                "stale, (c) the simsearch import succeeded but a downstream "
-                "guard turned the C++ path off. Re-run "
-                "`scripts/build-native-extensions.ps1` or `cd backend/extensions "
-                "&& pip install -e .` and restart the backend image."
-            ),
-            affected_files=[
-                "backend/apps/pipeline/services/pipeline_stages.py",
-                "backend/extensions/simsearch.cpp",
-            ],
-            severity=AutoIssue.SEVERITY_HIGH,
-            priority_score=72.0,
-            occurrence_count=1,
-        ).__dict__)
-    except Exception:  # noqa: BLE001 — best-effort surfacing.
-        logger.exception("cpp_fallback_share_check: AutoIssue insert failed")
-    return {"share": python_share, "threshold": threshold, "alert": True}
-
-
 # ── Task Discovery re-exports ────────────────────────────────────────
 # Celery's ``autodiscover_tasks()`` only looks for the literal file
 # ``tasks.py`` in each app. Since the pipeline app's tasks were split
@@ -3590,3 +3577,4 @@ from . import tasks_embedding_audit  # noqa: F401
 from . import tasks_embedding_bakeoff  # noqa: F401
 from . import tasks_import  # noqa: F401
 from . import tasks_monthly  # noqa: F401
+from . import tasks_internal_health  # noqa: F401

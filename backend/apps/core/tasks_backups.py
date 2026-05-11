@@ -23,6 +23,7 @@ import traceback
 from celery import shared_task
 
 from apps.core.helpers import HelperConstraint
+from django.db import connection
 
 logger = logging.getLogger(__name__)
 
@@ -40,14 +41,9 @@ logger = logging.getLogger(__name__)
     expected_seconds_p50=300,
 )
 def create_database_snapshot() -> dict:
-    """Run one daily backup pass. Returns a dict summary for telemetry.
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    connection.close()
 
-    Defensive: every failure path routes to ``/error-log`` via
-    ``ingest_error`` AND returns a structured dict with the failure
-    detail so a Celery result viewer shows it. Never re-raises — this
-    task is best-effort; we'd rather have a noisy /error-log entry
-    than a green Celery beat that never actually backed anything up.
-    """
     from apps.audit.error_ingest import ingest_error
     from apps.audit.models import ErrorLog
     from apps.core.backups import run_backup_pass
