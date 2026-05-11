@@ -540,6 +540,18 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-05-11 - Shared UI component test slice (Codex)
+
+- **AI/tool:** Codex.
+- **Why:** User asked to continue the locked prevention sweep one small slice at a time, using the original mission plan and latest handoff numbers as the source of truth.
+- **What changed:** Added six shared UI component test files, fixed frontend test and build blockers exposed by the verification run, and logged the backend test-settings footgun as AutoIssue #126 plus registry entry `ISS-126`.
+- **Files intentionally changed:** shared UI spec files under `frontend/src/app/shared/ui`, dashboard test/build fixes under `frontend/src/app/dashboard`, one settings template build fix under `frontend/src/app/settings/ranking-weights-tab`, `frontend/src/localize.d.ts`, `docs/reports/REPORT-REGISTRY.md`, `AGENT-HANDOFF.md`, and this session note.
+- **Verification:** `npm run test:ci` passed 763 tests. The focused shared UI slice passed 20 tests. `npm run build:prod` passed with existing warnings. `docker compose exec -T backend python manage.py check` passed. `docker compose exec -T backend python manage.py test apps.core --settings=config.settings.test --keepdb --noinput` passed 434 tests. The same backend test command without `--settings=config.settings.test` failed in passkey cleanup tests; that is now tracked as AutoIssue #126 / `ISS-126`. The four prevention hooks passed.
+- **Known issues:** AutoIssue #22 remains open because this was one coverage batch, not the full component-test backlog. Build warnings remain for bundle size, Angular localize import placement, optional-chain cleanup in Error Log, and monitoring package format. Deep-link hook warnings remain informational.
+- **Docker prune:** Completed after rerunning the safe cleanup script with Docker permission; reclaimed 0B this time and did not delete named database or data volumes.
+- **Commit/push state:** Code slice commit `6aeeb614` created on `master`. Final handoff/docs commit pending. No branch was created or pushed.
+- **Tech-debt delta:** -12 debt items: six missing shared UI specs added, three malformed `$localize` placeholders fixed, one missing frontend localize type declaration added, one fragile polling test stabilized, and one broken settings tooltip binding fixed.
+
 ### 2026-05-11 - Prevention sweep cleanup continuation (Codex)
 
 - **AI/tool:** Codex.

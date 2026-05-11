@@ -1,3 +1,47 @@
+# 2026-05-11 - Codex - Shared UI component test slice
+
+[HANDOFF READ: 2026-05-11 by Antigravity - hardened background tasks so each worker starts with a fresh database connection and reduced duplicate activity-feed noise.]
+
+[REGISTRY READ: 74 open (11 agent / 20 glitchtip / 13 pyroscope / 4 tempo / 25 loki / 1 faro), 1 open registry finding - picked: #22, #20, #118 | g: #86, #87, #100 | p: #64, #66, #65 | t: #103, #120, #123 | l: #73, #74, #95 | f: #105 + 2 from agent: #117, #116 (drought logged: #117)]
+
+[RESOLVED HISTORY: 0 prior fix(es) read in frontend/src/app/shared/ui; 10 prior fix(es) read in frontend; 1 prior fix(es) read in frontend/src/app/dashboard; 7 prior fix(es) read in frontend/src/app/settings]
+
+**What I did:** Continued the locked prevention sweep with one primary slice: AutoIssue #22 component-test coverage. I kept the original mission plan unchanged and did not create or switch branches.
+
+**What was accomplished:** Added tests for six shared UI components: anchor link button, error card, raw data toggle, recommended hint, reconnecting hint, and snap-back button. The frontend test count is now 763 passing tests, up from the previous 689-test baseline. I also fixed small verification blockers found while proving the slice: malformed frontend localization placeholders, a missing compile-time localize type declaration, one polling-test cleanup issue, one OnPush input test issue, and a settings tooltip binding typo that broke the production build.
+
+**What still has issues or errors:** AutoIssue #22 remains open because this was one batch, not the full component-test backlog. Running the backend core tests without the repo's test settings failed in passkey cleanup tests with "Cannot open a new connection in an atomic block"; the equivalent repo test command with `--settings=config.settings.test` passed 434 tests. I logged that test-command footgun as AutoIssue #126 and registry entry `ISS-126`. Existing production build warnings remain for bundle size, Angular localize import placement, optional-chain cleanup in Error Log, and monitoring package format.
+
+**Files changed:**
+- `frontend/src/app/shared/ui/*/*.spec.ts` - six new shared UI component tests.
+- `frontend/src/localize.d.ts` - compile-time support for `$localize` in tests and production builds.
+- `frontend/src/app/dashboard/performance-mode/performance-mode.component.ts` and `.spec.ts` - fixed localization placeholder syntax and removed fragile test typing.
+- `frontend/src/app/dashboard/ready-to-run/ready-to-run.component.ts` and `.spec.ts` - fixed localization metadata syntax and the test input update path.
+- `frontend/src/app/dashboard/rum-summary/rum-summary.component.spec.ts` - flushed the polling timer cleanly in tests.
+- `frontend/src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html` - fixed a tooltip binding to the existing helper.
+- `docs/reports/REPORT-REGISTRY.md`, `AI-CONTEXT.md`, `AGENT-HANDOFF.md` - logged the discovered backend test wrapper issue and this session record.
+
+**Verification:**
+- PASS - focused shared UI tests: 20 tests.
+- PASS - focused dashboard performance-mode test after warning cleanup: 6 tests.
+- PASS - `npm run test:ci`: 763 tests.
+- PASS - `npm run build:prod`, with existing warnings listed above.
+- PASS - `docker compose exec -T backend python manage.py check`.
+- PASS - `docker compose exec -T backend python manage.py test apps.core --settings=config.settings.test --keepdb --noinput`: 434 tests.
+- PASS - `python .githooks/check-file-size.py`.
+- PASS - `python .githooks/check-no-downgraded-gates.py`.
+- PASS - `python .githooks/check-frontend-routes.py`.
+- PASS - `python .githooks/check-missing-tests.py`.
+- PASS - `powershell -ExecutionPolicy Bypass -File scripts\prune-verification-artifacts.ps1`; the elevated rerun reclaimed 0B and kept named database/data volumes intact.
+
+**Commits:**
+- `6aeeb614` - Add shared UI tests and fix frontend checks.
+- final handoff/docs commit - this entry.
+
+**Final cumulative numbers:** Component coverage backlog moved from roughly 128-130 untested components to roughly 122-124 after this six-component batch. The locked prevention plan still has roughly 58-62% left: more AutoIssue #22 component coverage batches, remaining AutoIssue #20 localization tagging if any untagged strings remain, `views_capacity.py` splitting, `services/settings_helpers.py` splitting, careful settings shared-state work, open observability issues, and Linux-only thread-safety suppression work.
+
+**Tech-debt delta:** -12 debt items. Six missing component specs were added, three malformed localization placeholders were fixed, one missing localize type declaration was added, one polling test was stabilized, and one broken settings tooltip binding was repaired. One new deferred issue was filed: AutoIssue #126 / `ISS-126`.
+
 # 2026-05-11 16:15 — Antigravity (Gemini) — Celery Task Connection Hardening
 [HANDOFF READ: 2026-05-11 by Antigravity — Completed localization tagging for the Settings dashboard components including overview, diagnostics, performance, and helpers.]
 [REGISTRY READ: 71 open (9 agent / 19 glitchtip / 13 pyroscope / 4 tempo / 25 loki / 1 faro), 1 open registry findings — auto-fix-18 satisfier]
