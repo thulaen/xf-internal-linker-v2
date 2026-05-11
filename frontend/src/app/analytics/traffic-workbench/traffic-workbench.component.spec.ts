@@ -41,7 +41,6 @@ describe('TrafficWorkbenchComponent', () => {
       row(31, 'Just over'),
     ];
     fixture.detectChanges();
-    // filteredRows excludes the 5% row; 3 rows remain
     expect(component.filteredRows.length).toBe(3);
   });
 
@@ -66,5 +65,42 @@ describe('TrafficWorkbenchComponent', () => {
     fixture.detectChanges();
     const icon = fixture.nativeElement.querySelector('mat-icon.arrow-down');
     expect(icon).toBeTruthy();
+  });
+
+  it('sorts rows by absolute change value descending', () => {
+    component.telemetryData = [row(35), row(50), row(-45)];
+    fixture.detectChanges();
+    expect(component.filteredRows[0].change_pct).toBe(50);
+    expect(component.filteredRows[1].change_pct).toBe(-45);
+    expect(component.filteredRows[2].change_pct).toBe(35);
+  });
+
+  it('displays page title in row', () => {
+    component.telemetryData = [row(40, 'My Page Title')];
+    fixture.detectChanges();
+    const title = fixture.nativeElement.querySelector('.row-title');
+    expect(title.textContent).toContain('My Page Title');
+  });
+
+  it('formats percentage change with + sign for positive', () => {
+    component.telemetryData = [row(45.7)];
+    fixture.detectChanges();
+    const delta = fixture.nativeElement.querySelector('.delta-pos');
+    expect(delta.textContent).toContain('+');
+    expect(delta.textContent).toContain('45.7%');
+  });
+
+  it('applies delta-pos class for positive change', () => {
+    component.telemetryData = [row(40)];
+    fixture.detectChanges();
+    const delta = fixture.nativeElement.querySelector('[class*="delta-"]');
+    expect(delta.classList.contains('delta-pos')).toBe(true);
+  });
+
+  it('applies delta-neg class for negative change', () => {
+    component.telemetryData = [row(-40)];
+    fixture.detectChanges();
+    const delta = fixture.nativeElement.querySelector('[class*="delta-"]');
+    expect(delta.classList.contains('delta-neg')).toBe(true);
   });
 });

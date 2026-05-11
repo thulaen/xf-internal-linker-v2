@@ -90,4 +90,124 @@ describe('ReviewComponent', () => {
     expect(loadSpy).not.toHaveBeenCalled();
     expect(component.suggestions()[0].status).toBe('approved');
   });
+
+  it('should load suggestions on init', () => {
+    expect(suggestService.list).toHaveBeenCalled();
+    expect(component.suggestions().length).toBe(1);
+  });
+
+  it('should quickApprove a suggestion', () => {
+    const updatedSuggestion = { ...mockSuggestion, status: 'approved' as const };
+    suggestService.approve.and.returnValue(of(updatedSuggestion as any));
+
+    component.quickApprove(mockSuggestion, new MouseEvent('click'));
+
+    expect(suggestService.approve).toHaveBeenCalledWith('s1');
+  });
+
+  it('should quickReject a suggestion with reason', () => {
+    const updatedSuggestion = { ...mockSuggestion, status: 'rejected' as const };
+    suggestService.reject.and.returnValue(of(updatedSuggestion as any));
+
+    component.quickReject(mockSuggestion, 'duplicate', new MouseEvent('click'));
+
+    expect(suggestService.reject).toHaveBeenCalledWith('s1', 'duplicate');
+  });
+
+  it('should toggle selection of suggestions', () => {
+    component.toggleSelect('s1');
+    expect(component.isSelected('s1')).toBe(true);
+
+    component.toggleSelect('s1');
+    expect(component.isSelected('s1')).toBe(false);
+  });
+
+  it('should select all suggestions on current page', () => {
+    component.suggestions.set([
+      { ...mockSuggestion, suggestion_id: 's1' },
+      { ...mockSuggestion, suggestion_id: 's2' },
+    ]);
+
+    component.toggleSelectAll();
+
+    expect(component.allSelected()).toBe(true);
+    expect(component.isSelected('s1')).toBe(true);
+    expect(component.isSelected('s2')).toBe(true);
+  });
+
+  it('should clear all selections', () => {
+    component.selectedIds.set(new Set(['s1', 's2']));
+    component.clearSelection();
+    expect(component.selectedIds().size).toBe(0);
+  });
+
+  it('should batch approve selected suggestions', () => {
+    spyOn(window, 'confirm').and.returnValue(true);
+    component.selectedIds.set(new Set(['s1', 's2']));
+    suggestService.batchAction.and.returnValue(of({ updated: 2 }));
+
+    component.batchApprove();
+
+    expect(suggestService.batchAction).toHaveBeenCalledWith('approve', ['s1', 's2']);
+  });
+
+  it('should batch reject selected suggestions', () => {
+    spyOn(window, 'confirm').and.returnValue(true);
+    component.selectedIds.set(new Set(['s1', 's2']));
+    suggestService.batchAction.and.returnValue(of({ updated: 2 }));
+
+    component.batchReject('duplicate');
+
+    expect(suggestService.batchAction).toHaveBeenCalledWith('reject', ['s1', 's2'], 'duplicate');
+  });
+
+  it('should compute scoreColor based on score', () => {
+    expect(component.scoreColor(0.9)).toBe('high');
+    expect(component.scoreColor(0.6)).toBe('medium');
+    expect(component.scoreColor(0.4)).toBe('low');
+  });
+
+  it('should calculate daysWaiting since created_at', () => {
+    const pastDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const days = component.daysWaiting(pastDate.toISOString());
+    expect(days).toBe(7);
+  });
+
+  it('should determine aging level based on days', () => {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+
+    expect(component.agingLevel(thirtyDaysAgo.toISOString())).toBe('red');
+    expect(component.agingLevel(sevenDaysAgo.toISOString())).toBe('amber');
+    expect(component.agingLevel(twoDaysAgo.toISOString())).toBe('neutral');
+  });
+
+  it('should map anchor_confidence to confidence level', () => {
+    const s1 = { ...mockSuggestion, score_final: 0.9, anchor_confidence: 'strong' as const };
+    const s2 = { ...mockSuggestion, score_final: 0.9, anchor_confidence: 'weak' as const };
+    const s3 = { ...mockSuggestion, score_final: 0.3, anchor_confidence: 'strong' as const };
+
+    expect(component.confidenceLevel(s1 as any)).toBe('high');
+    expect(component.confidenceLevel(s2 as any)).toBe('medium');
+    expect(component.confidenceLevel(s3 as any)).toBe('thin');
+  });
+
+  it('should identify suggestions needing human judgment', () => {
+    const needsJudgment = { ...mockSuggestion, score_final: 0.6, anchor_confidence: 'strong' as const };
+    const doesNotNeed = { ...mockSuggestion, score_final: 0.9, anchor_confidence: 'strong' as const };
+
+    expect(component.needsHumanJudgment(needsJudgment as any)).toBe(true);
+    expect(component.needsHumanJudgment(doesNotNeed as any)).toBe(false);
+  });
+
+  it('should provide silo label', () => {
+    expect(component.siloLabel('MySilo')).toBe('MySilo');
+    expect(component.siloLabel('')).toBe('Unassigned');
+  });
+
+  it('should track by suggestion id', () => {
+    const id = component.trackById(0, mockSuggestion);
+    expect(id).toBe('s1');
+  });
 });

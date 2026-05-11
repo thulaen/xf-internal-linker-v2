@@ -96,4 +96,102 @@ describe('JobsComponent', () => {
     expect(component.syncJobs()).toEqual([]);
     expect(console.error).toHaveBeenCalled();
   });
+
+  it('resumeSyncJob calls service and shows snack on success', () => {
+    fixture.detectChanges();
+    httpMock.match(() => true).forEach((req) => req.flush({ items: [], locks: {} }));
+    component.resumeSyncJob('j1');
+    expect(syncSvc.resumeJob).toHaveBeenCalledWith('j1');
+  });
+
+  it('should load source status on init', () => {
+    fixture.detectChanges();
+    httpMock.match(() => true).forEach((req) => req.flush({ items: [], locks: {} }));
+    expect(component.sourceStatus().api).toBe(true);
+    expect(component.sourceStatus().wp).toBe(false);
+  });
+
+  it('should compute anyRunning based on job states', () => {
+    fixture.detectChanges();
+    httpMock.match(() => true).forEach((req) => req.flush({ items: [], locks: {} }));
+    const job = component.jobs();
+    expect(component.anyRunning()).toBe(false);
+    component.jobs.set({ ...job, api: { ...job.api, state: 'running' } });
+    expect(component.anyRunning()).toBe(true);
+  });
+
+  it('should compute canSyncAll when sources are available and jobs are idle', () => {
+    fixture.detectChanges();
+    httpMock.match(() => true).forEach((req) => req.flush({ items: [], locks: {} }));
+    component.sourceStatus.set({ api: true, wp: false });
+    expect(component.canSyncAll()).toBe(true);
+  });
+
+  it('should compute selectedFile signal', () => {
+    fixture.detectChanges();
+    httpMock.match(() => true).forEach((req) => req.flush({ items: [], locks: {} }));
+    const file = new File(['test'], 'test.jsonl');
+    component.selectedFile.set(file);
+    expect(component.selectedFile()).toBe(file);
+    component.selectedFile.set(null);
+    expect(component.selectedFile()).toBeNull();
+  });
+
+  it('should compute isDragOver signal', () => {
+    fixture.detectChanges();
+    httpMock.match(() => true).forEach((req) => req.flush({ items: [], locks: {} }));
+    expect(component.isDragOver()).toBe(false);
+    component.isDragOver.set(true);
+    expect(component.isDragOver()).toBe(true);
+  });
+
+  it('getDuration returns elapsed time for running job', () => {
+    fixture.detectChanges();
+    httpMock.match(() => true).forEach((req) => req.flush({ items: [], locks: {} }));
+    const job: any = {
+      job_id: 'j1',
+      source: 'api',
+      mode: 'full',
+      status: 'running',
+      created_at: new Date(Date.now() - 5000).toISOString(),
+      progress: 50,
+      message: 'Processing',
+      items_synced: 10,
+      items_updated: 5,
+      ml_items_queued: 0,
+      ml_items_completed: 0,
+      spacy_items_completed: 0,
+      embedding_items_completed: 0,
+      checkpoint_stage: 'ingest',
+      checkpoint_items_processed: 10,
+      is_resumable: false,
+    };
+    const duration = component.getDuration(job);
+    expect(duration).toBeDefined();
+  });
+
+  it('getSuccessRate returns rate from job', () => {
+    fixture.detectChanges();
+    httpMock.match(() => true).forEach((req) => req.flush({ items: [], locks: {} }));
+    const job: any = {
+      job_id: 'j1',
+      source: 'api',
+      mode: 'full',
+      status: 'running',
+      created_at: new Date().toISOString(),
+      progress: 95,
+      message: 'Processing',
+      items_synced: 95,
+      items_updated: 0,
+      ml_items_queued: 0,
+      ml_items_completed: 0,
+      spacy_items_completed: 0,
+      embedding_items_completed: 0,
+      checkpoint_stage: 'ingest',
+      checkpoint_items_processed: 100,
+      is_resumable: false,
+    };
+    const rate = component.getSuccessRate(job);
+    expect(typeof rate).toBe('string');
+  });
 });

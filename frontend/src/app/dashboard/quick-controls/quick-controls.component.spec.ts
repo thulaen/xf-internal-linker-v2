@@ -1,9 +1,8 @@
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
-import { DestroyRef } from '@angular/core';
 import { QuickControlsComponent } from './quick-controls.component';
 import { RuntimeModelsService } from '../../admin-models/runtime-models.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { of, throwError } from 'rxjs';
+import { of, throwError, delay } from 'rxjs';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
@@ -13,10 +12,6 @@ describe('QuickControlsComponent', () => {
   let fixture: ComponentFixture<QuickControlsComponent>;
   let svcSpy: jasmine.SpyObj<RuntimeModelsService>;
   let snackOpenSpy: jasmine.Spy;
-
-  const mockDestroyRef = {
-    onDestroy: (_cb: () => void) => () => {},
-  };
 
   beforeEach(async () => {
     svcSpy = jasmine.createSpyObj('RuntimeModelsService', ['list', 'action']);
@@ -38,7 +33,6 @@ describe('QuickControlsComponent', () => {
       imports: [QuickControlsComponent, NoopAnimationsModule],
       providers: [
         { provide: RuntimeModelsService, useValue: svcSpy },
-        { provide: DestroyRef, useValue: mockDestroyRef },
         provideRouter([])
       ],
     }).compileComponents();
@@ -49,11 +43,30 @@ describe('QuickControlsComponent', () => {
     fixture.detectChanges();
   });
 
-  it('should create', () => {
+  it('should create and render the card', () => {
     expect(component).toBeTruthy();
+    const card = fixture.debugElement.query(By.css('mat-card'));
+    expect(card).toBeTruthy();
   });
 
-  it('should list active models on init', () => {
+  it('should display loading spinner initially', () => {
+    component.loading.set(true);
+    fixture.detectChanges();
+    const spinner = fixture.debugElement.query(By.css('mat-spinner'));
+    expect(spinner).toBeTruthy();
+  });
+
+  it('should display error when no models found', fakeAsync(() => {
+    component.error.set('No active model services found.');
+    fixture.detectChanges();
+    tick();
+
+    const errorDiv = fixture.debugElement.query(By.css('.quick-error'));
+    expect(errorDiv).toBeTruthy();
+    expect(errorDiv.nativeElement.textContent).toContain('No active model');
+  }));
+
+  it('should list and display active models on init', () => {
     expect(svcSpy.list).toHaveBeenCalled();
     expect(component.activeModels().length).toBeGreaterThan(0);
     expect(component.activeModels()[0].model_name).toBe('BGE-M3');
@@ -79,7 +92,7 @@ describe('QuickControlsComponent', () => {
     expect(resumeBtn.nativeElement.textContent).toContain('Resume');
   });
 
-  it('should call pause action and show snackbar', fakeAsync(() => {
+  it('should call pause action and show success snackbar', fakeAsync(() => {
     svcSpy.action.and.returnValue(of({ status: 'ok' }));
     const model = component.activeModels()[0];
     component.pause(model);
@@ -93,7 +106,7 @@ describe('QuickControlsComponent', () => {
     );
   }));
 
-  it('should handle action error with snackbar', fakeAsync(() => {
+  it('should handle action error with error snackbar', fakeAsync(() => {
     svcSpy.action.and.returnValue(throwError(() => new Error('fail')));
     const model = component.activeModels()[0];
     component.pause(model);
@@ -118,4 +131,57 @@ describe('QuickControlsComponent', () => {
     const promoteBtn = fixture.debugElement.query(By.css('button[matTooltip*="Promote"]'));
     expect(promoteBtn).toBeTruthy();
   });
+
+  it('should set busy state during action execution', fakeAsync(() => {
+    // Use a delayed observable so the subscription doesn't complete synchronously
+    svcSpy.action.and.returnValue(of({ status: 'ok' }).pipe(delay(1)));
+    const models = component.activeModels();
+    expect(models.length).toBeGreaterThan(0, 'No models available');
+    const model = models[0];
+
+    expect(component.busyId()).toBe('');
+    component.resume(model);
+    // Signal is set synchronously in runAction before subscribe
+    expect(component.busyId()).toBe(`${model.id}:resume`);
+
+    // Tick to process the observable subscription and complete handler
+    tick(1);
+    expect(component.busyId()).toBe('');
+  }));
+
+  it('should disable action buttons when busy', fakeAsync(() => {
+    // Use a delayed observable so the subscription doesn't complete synchronously
+    svcSpy.action.and.returnValue(of({ status: 'ok' }).pipe(delay(1)));
+    const model = component.activeModels()[0];
+
+    component.pause(model);
+    // Signal is set synchronously in runAction before subscribe
+    expect(component.isBusy(model.id, 'pause')).toBe(true);
+    expect(component.isBusy(model.id, 'resume')).toBe(false);
+
+    // Tick to process the observable subscription and complete handler
+    tick(1);
+    expect(component.isBusy(model.id, 'pause')).toBe(false);
+  }));
+
+  it('should call drain action on drain button click', fakeAsync(() => {
+    svcSpy.action.and.returnValue(of({ status: 'ok' }));
+    const model = component.activeModels()[0];
+
+    component.drain(model);
+
+    expect(svcSpy.action).toHaveBeenCalledWith(model.id, 'drain');
+    tick(0);
+  }));
+
+  it('should refresh models after action completes', fakeAsync(() => {
+    svcSpy.action.and.returnValue(of({ status: 'ok' }));
+    const initialListCallCount = svcSpy.list.calls.count();
+    const model = component.activeModels()[0];
+
+    component.pause(model);
+    tick(0);
+
+    expect(svcSpy.list.calls.count()).toBeGreaterThan(initialListCallCount);
+  }));
 });

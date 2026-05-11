@@ -113,4 +113,80 @@ describe('HealthComponent', () => {
     const dbAfter = component.services().find((s) => s.service_key === 'database');
     expect(dbAfter?.status).toBe('error');
   });
+
+  it('computes healthyCount from services signal', () => {
+    fixture.detectChanges();
+    expect(component.healthyCount()).toBe(1);
+    expect(component.warningCount()).toBe(1);
+  });
+
+  it('computes errorCount when services have error status', () => {
+    fixture.detectChanges();
+    component.services.set([svc('db1', 'error'), svc('db2', 'down')]);
+    expect(component.errorCount()).toBe(2);
+  });
+
+  it('getStatusIcon returns correct icon for each status', () => {
+    expect(component.getStatusIcon('healthy')).toBe('check_circle');
+    expect(component.getStatusIcon('error')).toBe('error');
+    expect(component.getStatusIcon('down')).toBe('dangerous');
+    expect(component.getStatusIcon('warning')).toBe('warning');
+    expect(component.getStatusIcon('stale')).toBe('update');
+  });
+
+  it('getStatusClass returns status-prefixed class', () => {
+    expect(component.getStatusClass('healthy')).toBe('status-healthy');
+    expect(component.getStatusClass('error')).toBe('status-error');
+  });
+
+  it('getServiceName uses service_name or derives from service_key', () => {
+    const s1 = svc('my_service');
+    const s2 = { ...svc('my_service'), service_name: 'Custom Name' };
+    expect(component.getServiceName(s1)).toBe('my_service');
+    expect(component.getServiceName(s2 as ServiceHealth)).toBe('Custom Name');
+  });
+
+  it('getServiceDescription returns description or empty string', () => {
+    const s1 = svc('my_service');
+    const s2 = { ...svc('my_service'), service_description: 'Test description' };
+    expect(component.getServiceDescription(s1)).toBe('');
+    expect(component.getServiceDescription(s2 as ServiceHealth)).toBe('Test description');
+  });
+
+  it('refreshService sets and clears refreshingServices flag', () => {
+    fixture.detectChanges();
+    // Override the spy to return a subject we can control
+    const checkServiceSubject = new Subject<ServiceHealth>();
+    healthSvc.checkService.and.returnValue(checkServiceSubject.asObservable());
+
+    expect(component.refreshingServices().has('database')).toBeFalse();
+    component.refreshService('database');
+    // Flag is set synchronously before the observable completes
+    expect(component.refreshingServices().has('database')).toBeTrue();
+
+    // Emit the result to complete the observable
+    checkServiceSubject.next(svc('database'));
+    checkServiceSubject.complete();
+    // Flag is cleared after finalize runs
+    expect(component.refreshingServices().has('database')).toBeFalse();
+  });
+
+  it('tracks job by id', () => {
+    const job = { job_id: '123', status: 'running' };
+    expect(component.trackJobId(0, job as any)).toBe('123');
+  });
+
+  it('getSettingsFragment maps service keys to fragment identifiers', () => {
+    expect(component.getSettingsFragment('ga4')).toBe('ga4-settings');
+    expect(component.getSettingsFragment('matomo')).toBe('matomo-settings');
+    expect(component.getSettingsFragment('model_runtime')).toBe('model-runtime');
+    expect(component.getSettingsFragment('unknown')).toBeUndefined();
+  });
+
+  it('getInfraFixHint provides actionable hints for infrastructure services', () => {
+    const dbHint = component.getInfraFixHint('database');
+    expect(dbHint).toContain('PostgreSQL');
+    const redisHint = component.getInfraFixHint('redis');
+    expect(redisHint).toContain('Redis');
+  });
 });

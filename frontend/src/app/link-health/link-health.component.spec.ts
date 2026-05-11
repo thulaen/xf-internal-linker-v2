@@ -100,4 +100,91 @@ describe('LinkHealthComponent', () => {
     fixture.detectChanges();
     expect(component.loading()).toBeFalse();
   });
+
+  it('should filter by HTTP status code', () => {
+    fixture.detectChanges();
+    component.httpStatusFilter = 404;
+    component.onHttpStatusChange();
+    expect(component.page()).toBe(1);
+    expect(brokenSvc.list).toHaveBeenCalled();
+  });
+
+  it('should load summary with counts', () => {
+    fixture.detectChanges();
+    expect(component.summary().open).toBeGreaterThanOrEqual(0);
+    expect(component.summary().ignored).toBeGreaterThanOrEqual(0);
+    expect(component.summary().fixed).toBeGreaterThanOrEqual(0);
+  });
+
+  it('should start broken-link scan', () => {
+    fixture.detectChanges();
+    component.startScan();
+    expect(brokenSvc.startScan).toHaveBeenCalled();
+    expect(component.jobId()).toBe('scan1');
+  });
+
+  it('should prevent multiple concurrent scans', () => {
+    fixture.detectChanges();
+    component.scanning.set(true);
+    component.startScan();
+    expect(brokenSvc.startScan).not.toHaveBeenCalled();
+  });
+
+  it('should export CSV with current filters', () => {
+    brokenSvc.exportCsv.and.returnValue(of(new Blob(['test'])));
+    spyOn(window.URL, 'createObjectURL').and.returnValue('blob:url');
+    spyOn(window.URL, 'revokeObjectURL');
+    spyOn(window, 'open');
+
+    fixture.detectChanges();
+    component.statusFilter.set('open');
+    component.exportCsv();
+
+    expect(brokenSvc.exportCsv).toHaveBeenCalledWith({
+      status: 'open',
+      http_status: null,
+    });
+  });
+
+  it('should handle page change', () => {
+    fixture.detectChanges();
+    brokenSvc.list.calls.reset();
+    component.onPageChange({ pageIndex: 2, pageSize: 25, length: 100, previousPageIndex: 0 });
+    expect(component.page()).toBe(3);
+    expect(brokenSvc.list).toHaveBeenCalled();
+  });
+
+  it('should track by broken link id', () => {
+    const link = makeLink({ broken_link_id: 'test-123' });
+    expect(component.trackById(0, link)).toBe('test-123');
+  });
+
+  it('should provide HTTP status label', () => {
+    expect(component.statusLabel(404)).toBe('404');
+    expect(component.statusLabel(0)).toBe('Connection error');
+  });
+
+  it('should open source thread in new window', () => {
+    spyOn(window, 'open');
+    fixture.detectChanges();
+    component.openSourceThread('https://example.com/thread');
+    expect(window.open).toHaveBeenCalledWith(
+      'https://example.com/thread',
+      '_blank',
+      'noopener,noreferrer'
+    );
+  });
+
+  it('should not open thread if URL is empty', () => {
+    spyOn(window, 'open');
+    fixture.detectChanges();
+    component.openSourceThread('');
+    expect(window.open).not.toHaveBeenCalled();
+  });
+
+  it('should disable fix button during scan', () => {
+    fixture.detectChanges();
+    component.scanning.set(true);
+    expect(component.scanning()).toBe(true);
+  });
 });
