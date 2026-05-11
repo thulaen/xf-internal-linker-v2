@@ -181,6 +181,7 @@ class CoreConfig(AppConfig):
         # Sentient-schedules — explicit import so the @shared_task decorator
         # registers the recovery tick with Celery. Mirrors the existing
         # pattern for tasks_passkey_cleanup etc.
+        from . import tasks  # noqa: F401
         from . import tasks_schedule_recovery  # noqa: F401
 
         # Register the operationally-important infrequent celery-beat

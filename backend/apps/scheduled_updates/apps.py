@@ -16,3 +16,4 @@ class ScheduledUpdatesConfig(AppConfig):
         # Late import — AppConfig.ready fires after models are loaded, which
         # some entrypoints need.
         from . import jobs  # noqa: F401
+        from . import tasks  # noqa: F401

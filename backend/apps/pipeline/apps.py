@@ -78,12 +78,13 @@ class PipelineConfig(AppConfig):
         # Explicit import so the @shared_task decorator registers
         # `pipeline.run_monthly_top_50_celery` with Celery on boot.
         try:
+            from . import tasks  # noqa: F401
             from . import tasks_monthly  # noqa: F401
         except Exception:  # noqa: BLE001  # noqa: forbidden-pattern silent-except  # justification: optional sub-module import at app ready; logger.exception below leaves a paper trail and the rest of the pipeline app keeps booting — the missing task only matters when the monthly cron fires.
             import logging
 
             logging.getLogger(__name__).exception(
-                "pipeline.ready: failed to import tasks_monthly (continuing)"
+                "pipeline.ready: failed to import tasks/tasks_monthly (continuing)"
             )
 
     def _register_monthly_top_50_schedule(self) -> None:

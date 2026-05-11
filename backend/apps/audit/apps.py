@@ -11,4 +11,10 @@ class AuditConfig(AppConfig):
     def ready(self):
         # Startup smoke tests are wired from CoreConfig. Keeping this app
         # side-effect free avoids duplicate post-migrate audits.
+        try:
+            from . import tasks  # noqa: F401
+        except Exception:  # noqa: BLE001
+            import logging
+
+            logging.getLogger(__name__).debug("audit.ready: tasks import failed", exc_info=True)
         return None
