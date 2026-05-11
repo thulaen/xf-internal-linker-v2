@@ -12,6 +12,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 
+import { interval } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import { RealtimeService } from '../../../core/services/realtime.service';
 
@@ -105,8 +106,10 @@ export class TypingIndicatorComponent implements OnInit {
   private lastSentAt = 0;
 
   private readonly _peers = signal<ReadonlyMap<string, TypingPeer>>(new Map());
+  private readonly _tick = signal(0);
 
   readonly others = computed(() => {
+    this._tick();
     const cutoff = Date.now() - STALE_AFTER_MS;
     return [...this._peers().values()]
       .filter((p) => p.lastSeen >= cutoff)
@@ -122,6 +125,10 @@ export class TypingIndicatorComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    interval(1000)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this._tick.set(Date.now()));
+
     this.auth.currentUser$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((u) => (this.myUsername = u?.username ?? ''));

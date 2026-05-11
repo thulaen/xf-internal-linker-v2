@@ -34,8 +34,9 @@ describe('PickUpComponent', () => {
   });
 
   it('should render interrupted runs', () => {
-    component.resumeState = mockResumeState;
+    fixture.componentRef.setInput('resumeState', { ...mockResumeState });
     fixture.detectChanges();
+
     const compiled = fixture.nativeElement as HTMLElement;
     const rows = compiled.querySelectorAll('.resume-row');
     expect(rows.length).toBe(2);
@@ -44,9 +45,11 @@ describe('PickUpComponent', () => {
 
   it('should emit resumeRun when Resume is clicked', () => {
     spyOn(component.resumeRun, 'emit');
-    component.resumeState = mockResumeState;
+    fixture.componentRef.setInput('resumeState', { ...mockResumeState });
     fixture.detectChanges();
+
     const resumeBtn = fixture.nativeElement.querySelector('button[mat-stroked-button]');
+    expect(resumeBtn).toBeTruthy();
     resumeBtn.click();
     expect(component.resumeRun.emit).toHaveBeenCalledWith('1234567890');
   });

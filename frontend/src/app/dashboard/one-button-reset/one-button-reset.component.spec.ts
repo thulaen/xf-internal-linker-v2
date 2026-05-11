@@ -51,7 +51,7 @@ describe('OneButtonResetComponent', () => {
   });
 
   it('should handle refresh error', () => {
-    mockDash.refresh.and.returnValue(throwError(() => new Error('fail')));
+    (mockDash.refresh as jasmine.Spy).and.returnValue(throwError(() => new Error('fail')));
     component.onReset();
     expect(component.busy()).toBeFalse();
     expect(mockSnack.open).toHaveBeenCalledWith('Reset failed — check your connection.', 'Dismiss', jasmine.any(Object));

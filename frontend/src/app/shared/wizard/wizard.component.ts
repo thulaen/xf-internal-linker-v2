@@ -99,7 +99,6 @@ export class FormWizardStepComponent {
 @Component({
   selector: 'app-form-wizard',
   standalone: true,
-  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
     NgTemplateOutlet,

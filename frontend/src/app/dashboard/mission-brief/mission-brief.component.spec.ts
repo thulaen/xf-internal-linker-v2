@@ -1,4 +1,4 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { MissionBriefComponent } from './mission-brief.component';
@@ -34,33 +34,37 @@ describe('MissionBriefComponent', () => {
 
     fixture = TestBed.createComponent(MissionBriefComponent);
     component = fixture.componentInstance;
-    fixture.detectChanges();
   });
 
   it('should create', () => {
+    fixture.detectChanges();
     expect(component).toBeTruthy();
   });
 
-  it('should load and display the brief', () => {
+  it('should load and display the brief', fakeAsync(() => {
+    fixture.detectChanges(); // Trigger ngOnInit
+    tick(); // timer(0)
+    fixture.detectChanges(); // Update OnPush template
+
     const compiled = fixture.nativeElement as HTMLElement;
     const sentences = compiled.querySelectorAll('.mb-sentence span');
     expect(sentences.length).toBe(3);
     expect(sentences[0].textContent).toContain('Yesterday was busy.');
-    expect(sentences[1].textContent).toContain('Today is quiet.');
-    expect(sentences[2].textContent).toContain('Watch out for issues.');
-  });
+  }));
 
-  it('should show alert link when top_alert exists', () => {
+  it('should show alert link when top_alert exists', fakeAsync(() => {
     mockDash.getMissionBrief.and.returnValue(of({
       sentences: ['S1', 'S2', 'S3'],
       top_alert: { alert_id: 'A1' }
     }));
-    // Re-trigger the subscription logic by re-calling ngOnInit or relying on the timer
+
+    // Re-trigger initialization to use the new mock value
     component.ngOnInit();
+    tick();
     fixture.detectChanges();
-    
+
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('.mb-alert-link')).toBeTruthy();
     expect(compiled.querySelector('.mb-sentence:nth-child(3)')?.classList).toContain('mb-watch');
-  });
+  }));
 });

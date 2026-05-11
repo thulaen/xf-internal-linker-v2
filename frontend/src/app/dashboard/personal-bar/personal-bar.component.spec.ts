@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { PersonalBarComponent } from './personal-bar.component';
-import { AuthService } from '../../core/services/auth.service';
+import { AuthService, AuthUser } from '../../core/services/auth.service';
 
 describe('PersonalBarComponent', () => {
   let component: PersonalBarComponent;
@@ -11,7 +11,13 @@ describe('PersonalBarComponent', () => {
   beforeEach(async () => {
     localStorage.clear();
     mockAuth = {
-      currentUser$: of({ username: 'Alice' })
+      currentUser$: of({
+        id: 1,
+        username: 'Alice',
+        email: 'alice@example.com',
+        is_staff: true,
+        date_joined: new Date().toISOString()
+      } as AuthUser)
     };
 
     await TestBed.configureTestingModule({

@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { GoalTrackerComponent } from './goal-tracker.component';
+import { DashboardData } from '../dashboard.service';
 
 /** localStorage keys the component uses — kept in sync with the source constants. */
 const GOAL_KEY = 'xfil_daily_goal_value';

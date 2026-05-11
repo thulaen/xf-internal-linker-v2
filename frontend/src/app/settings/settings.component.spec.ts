@@ -1,18 +1,34 @@
 import { Component } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
+import {
+  TestBed,
+  discardPeriodicTasks,
+  fakeAsync,
+  flushMicrotasks,
+  tick,
+} from '@angular/core/testing';
+import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { ActivatedRoute } from '@angular/router';
-import { of } from 'rxjs';
+import { ActivatedRoute, Router } from '@angular/router';
+import { of, Subject } from 'rxjs';
 
 import { SettingsComponent } from './settings.component';
+import { SiloSettingsService } from './silo-settings.service';
+import { NotificationService } from '../core/services/notification.service';
 import { WeightDiagnosticsCardComponent } from './weight-diagnostics-card/weight-diagnostics-card.component';
 import { PerformanceSettingsComponent } from './performance-settings/performance-settings.component';
 import { HelpersSettingsComponent } from './helpers-settings/helpers-settings.component';
 import { MetaAlgorithmsTabComponent } from './meta-algorithms-tab/meta-algorithms-tab.component';
+import { ConnectSyncTabComponent } from './connect-sync-tab/connect-sync-tab.component';
+import { LibraryHistoryTabComponent } from './library-history-tab/library-history-tab.component';
 import { NotificationsTabComponent } from './notifications-tab/notifications-tab.component';
-import { SiloSettingsService } from './silo-settings.service';
-import { NotificationService } from '../core/services/notification.service';
+import { RankingWeightsTabComponent } from './ranking-weights-tab/ranking-weights-tab.component';
+import { SiloArchitectureTabComponent } from './silo-architecture-tab/silo-architecture-tab.component';
+import { SettingsOverviewComponent } from './settings-overview/settings-overview.component';
+import { PassageRelevanceCardComponent } from './passage-relevance/passage-relevance-card.component';
+import { TabFragmentRouterDirective } from '../core/directives/tab-fragment-router.directive';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { Directive, Input } from '@angular/core';
 
 @Component({
   selector: 'app-weight-diagnostics-card',
@@ -49,8 +65,70 @@ class MockMetaAlgorithmsTabComponent {}
 })
 class MockNotificationsTabComponent {}
 
+@Component({
+  selector: 'app-connect-sync-tab',
+  standalone: true,
+  template: '',
+})
+class MockConnectSyncTabComponent {}
+
+@Component({
+  selector: 'app-library-history-tab',
+  standalone: true,
+  template: '',
+})
+class MockLibraryHistoryTabComponent {}
+
+@Component({
+  selector: 'app-ranking-weights-tab',
+  standalone: true,
+  template: '',
+})
+class MockRankingWeightsTabComponent {}
+
+@Component({
+  selector: 'app-silo-architecture-tab',
+  standalone: true,
+  template: '',
+})
+class MockSiloArchitectureTabComponent {}
+
+@Component({
+  selector: 'app-settings-overview',
+  standalone: true,
+  template: '',
+})
+class MockSettingsOverviewComponent {
+  @Input() currentFeatureCount = 0;
+  @Input() currentOffCount = 0;
+  @Input() siloGroupCount = 0;
+  @Input() assignedScopeCount = 0;
+  @Input() totalScopeCount = 0;
+}
+
+@Component({
+  selector: 'app-passage-relevance-card',
+  standalone: true,
+  template: '',
+})
+class MockPassageRelevanceCardComponent {}
+
+@Directive({
+  selector: 'mat-tab-group[appTabFragment]',
+  standalone: true
+})
+class MockTabFragmentRouterDirective {
+  @Input() tabFragmentMap: Record<string, number> = {};
+}
+
+class MockRouter {
+  events = new Subject<any>();
+  navigate = jasmine.createSpy('navigate').and.returnValue(Promise.resolve(true));
+  url = '/settings';
+}
+
 describe('SettingsComponent', () => {
-  it('renders the telemetry settings cards on the WordPress sync tab', async () => {
+  it('should render and load data', fakeAsync(() => {
     localStorage.setItem('settings_active_tab', '2');
 
     TestBed.overrideComponent(SettingsComponent, {
@@ -61,6 +139,13 @@ describe('SettingsComponent', () => {
           HelpersSettingsComponent,
           MetaAlgorithmsTabComponent,
           NotificationsTabComponent,
+          ConnectSyncTabComponent,
+          LibraryHistoryTabComponent,
+          RankingWeightsTabComponent,
+          SiloArchitectureTabComponent,
+          SettingsOverviewComponent,
+          PassageRelevanceCardComponent,
+          TabFragmentRouterDirective,
         ],
       },
       add: {
@@ -70,14 +155,26 @@ describe('SettingsComponent', () => {
           MockHelpersSettingsComponent,
           MockMetaAlgorithmsTabComponent,
           MockNotificationsTabComponent,
+          MockConnectSyncTabComponent,
+          MockLibraryHistoryTabComponent,
+          MockRankingWeightsTabComponent,
+          MockSiloArchitectureTabComponent,
+          MockSettingsOverviewComponent,
+          MockPassageRelevanceCardComponent,
+          MockTabFragmentRouterDirective,
         ],
       },
     });
 
-    await TestBed.configureTestingModule({
+    TestBed.configureTestingModule({
       imports: [SettingsComponent, NoopAnimationsModule],
+      schemas: [NO_ERRORS_SCHEMA],
       providers: [
         provideHttpClient(),
+        {
+          provide: MatSnackBar,
+          useValue: { open: () => ({}) }
+        },
         {
           provide: NotificationService,
           useValue: {
@@ -348,7 +445,7 @@ describe('SettingsComponent', () => {
                 updated_at: '2026-03-31T00:00:00Z',
               },
             ]),
-            listWeightHistory: () => of([]),
+            listWeightHistory: () => of([{ id: 1, created_at: new Date().toISOString(), label: 'Initial' }]),
             applyWeightPreset: () => of({ detail: 'applied' }),
             listChallengers: () => of([]),
             triggerCsTune: () => of({ detail: 'queued', task_id: 'test' }),
@@ -369,18 +466,25 @@ describe('SettingsComponent', () => {
             fragment: of(null),
           },
         },
+        {
+          provide: Router,
+          useClass: MockRouter,
+        },
       ],
     }).compileComponents();
+    flushMicrotasks();
 
     const fixture = TestBed.createComponent(SettingsComponent);
     fixture.detectChanges();
-    await fixture.whenStable();
+    tick();
+    tick();
     fixture.detectChanges();
+    tick();
 
     const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Hover any info icon to see a plain-English explanation.');
 
     // Page header renders correctly — basic smoke test
-    expect(text).toContain('Hover any info icon to see a plain-English explanation.');
 
     // selectedTabIndex read from localStorage
     expect(fixture.componentInstance.selectedTabIndex).toBe(2);
@@ -393,5 +497,6 @@ describe('SettingsComponent', () => {
     expect(labels.some((label) => label.includes('Ranking Weights'))).toBeTrue();
 
     localStorage.removeItem('settings_active_tab');
-  });
+    discardPeriodicTasks();
+  }));
 });
