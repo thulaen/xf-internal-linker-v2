@@ -35,26 +35,6 @@ import { SpecViewerDialogComponent } from '../spec-viewer-dialog/spec-viewer-dia
 
 /**
  * Phase MS — Meta Algorithm Settings tab.
- *
- * Virtual-scrolled list of every meta-algorithm the app knows about.
- * After PR-A (RPT-002, 2026-04-22) the registry holds 39 active metas
- * (META-01..META-39); forward-declared rows return when the 52-pick
- * roster lands.
- *
- * Noob-first defaults:
- *   • filter starts at `status=active` so the list is short (~39 rows)
- *   • the Status dropdown lets you switch to forward-declared / disabled
- *   • family chips double as counters ("P1 — 6") and dedup: each family
- *     shows total and a colour dot indicating how many are active
- *
- * Power-user features:
- *   • free-text search across id / META-code / title
- *   • bulk toggle per family (enable / disable the whole block)
- *   • "View spec" deep-links to docs/specs/meta-NN-*.md (resolves fuzzy
- *     pattern to the best match via a backend fetch)
- *
- * No new state — every change routes through AppSetting via the toggle
- * endpoint, so Weight Diagnostics / pipeline see the update immediately.
  */
 @Component({
   selector: 'app-meta-algorithms-tab',
@@ -81,16 +61,18 @@ import { SpecViewerDialogComponent } from '../spec-viewer-dialog/spec-viewer-dia
     <section class="ma-tab">
       <header class="ma-header">
         <div class="ma-title-row">
-          <h2 class="ma-title">
+          <h2 class="ma-title" i18n="@@metaAlgorithms.title">
             <mat-icon>auto_awesome</mat-icon>
             Meta Algorithms
           </h2>
-          <span class="ma-count">{{ filteredRows().length }} shown</span>
+          <span class="ma-count">
+            <ng-container i18n="@@metaAlgorithms.count">{{ filteredRows().length }} shown</ng-container>
+          </span>
           @if (loading()) {
             <mat-spinner diameter="16" />
           }
         </div>
-        <p class="ma-subtitle">
+        <p class="ma-subtitle" i18n="@@metaAlgorithms.subtitle">
           Manage every algorithm the ranking pipeline knows about.
           Winners are on by default; alternates are off but pre-filled
           so you can swap them in instantly.
@@ -99,7 +81,7 @@ import { SpecViewerDialogComponent } from '../spec-viewer-dialog/spec-viewer-dia
 
       <div class="ma-controls">
         <mat-form-field appearance="outline" class="ma-search">
-          <mat-label>Search</mat-label>
+          <mat-label i18n="@@metaAlgorithms.search.label">Search</mat-label>
           <input
             matInput
             type="search"
@@ -107,6 +89,7 @@ import { SpecViewerDialogComponent } from '../spec-viewer-dialog/spec-viewer-dia
             [(ngModel)]="searchModel"
             (ngModelChange)="onSearchChange($event)"
             placeholder="name, META code, or family"
+            i18n-placeholder="@@metaAlgorithms.search.placeholder"
           />
           @if (searchModel) {
             <button
@@ -114,6 +97,7 @@ import { SpecViewerDialogComponent } from '../spec-viewer-dialog/spec-viewer-dia
               mat-icon-button
               type="button"
               aria-label="Clear search"
+              i18n-aria-label="@@metaAlgorithms.search.clearAria"
               (click)="onSearchChange('')"
             >
               <mat-icon>close</mat-icon>
@@ -122,16 +106,16 @@ import { SpecViewerDialogComponent } from '../spec-viewer-dialog/spec-viewer-dia
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="ma-status-filter">
-          <mat-label>Status</mat-label>
+          <mat-label i18n="@@metaAlgorithms.status.label">Status</mat-label>
           <mat-select
             [value]="statusFilter()"
             (valueChange)="onStatusChange($event)"
           >
-            <mat-option value="">All</mat-option>
-            <mat-option value="active">Active only</mat-option>
-            <mat-option value="disabled-pending-implementation">Spec only</mat-option>
-            <mat-option value="forward-declared">Forward-declared</mat-option>
-            <mat-option value="disabled">Disabled</mat-option>
+            <mat-option value="" i18n="@@metaAlgorithms.status.all">All</mat-option>
+            <mat-option value="active" i18n="@@metaAlgorithms.status.active">Active only</mat-option>
+            <mat-option value="disabled-pending-implementation" i18n="@@metaAlgorithms.status.spec">Spec only</mat-option>
+            <mat-option value="forward-declared" i18n="@@metaAlgorithms.status.forward">Forward-declared</mat-option>
+            <mat-option value="disabled" i18n="@@metaAlgorithms.status.disabled">Disabled</mat-option>
           </mat-select>
         </mat-form-field>
 
@@ -142,7 +126,7 @@ import { SpecViewerDialogComponent } from '../spec-viewer-dialog/spec-viewer-dia
           [disabled]="loading()"
         >
           <mat-icon>refresh</mat-icon>
-          Refresh
+          <ng-container i18n="@@metaAlgorithms.refreshBtn">Refresh</ng-container>
         </button>
       </div>
 
@@ -151,8 +135,9 @@ import { SpecViewerDialogComponent } from '../spec-viewer-dialog/spec-viewer-dia
         [value]="familyFilter()"
         (change)="onFamilyChange($any($event))"
         aria-label="Filter by family"
+        i18n-aria-label="@@metaAlgorithms.families.ariaLabel"
       >
-        <mat-chip-option value="">All families</mat-chip-option>
+        <mat-chip-option value="" i18n="@@metaAlgorithms.families.all">All families</mat-chip-option>
         @for (f of families(); track f.family) {
           <mat-chip-option [value]="f.family" [matTooltip]="familyTooltip(f)">
             {{ f.family }} · {{ f.total }}
@@ -163,23 +148,24 @@ import { SpecViewerDialogComponent } from '../spec-viewer-dialog/spec-viewer-dia
       @if (filteredRows().length === 0) {
         <section class="ma-empty" role="status">
           <mat-icon>search_off</mat-icon>
-          <p>No meta-algorithms match those filters.</p>
+          <p i18n="@@metaAlgorithms.empty.message">No meta-algorithms match those filters.</p>
           <button
             mat-stroked-button
             type="button"
             (click)="resetFilters()"
+            i18n="@@metaAlgorithms.empty.resetBtn"
           >
             Reset filters
           </button>
         </section>
       } @else {
         <div class="ma-header-row" role="row" aria-hidden="true">
-          <span>Family</span>
-          <span>Code</span>
-          <span>Name</span>
-          <span>Status</span>
-          <span>Weight</span>
-          <span>On</span>
+          <span i18n="@@metaAlgorithms.table.family">Family</span>
+          <span i18n="@@metaAlgorithms.table.code">Code</span>
+          <span i18n="@@metaAlgorithms.table.name">Name</span>
+          <span i18n="@@metaAlgorithms.table.status">Status</span>
+          <span i18n="@@metaAlgorithms.table.weight">Weight</span>
+          <span i18n="@@metaAlgorithms.table.on">On</span>
           <span></span>
         </div>
         <cdk-virtual-scroll-viewport
@@ -322,8 +308,8 @@ export class MetaAlgorithmsTabComponent implements OnInit {
         error: () => {
           this.loading.set(false);
           this.snack.open(
-            'Could not load meta-algorithm list.',
-            'Retry',
+            $localize`:@@metaAlgorithms.errors.loadFailed:Could not load meta-algorithm list.`,
+            $localize`:@@settings.actions.retry:Retry`,
             { duration: 5000 },
           );
         },
@@ -372,16 +358,16 @@ export class MetaAlgorithmsTabComponent implements OnInit {
       .subscribe({
         next: () => {
           this.snack.open(
-            `${ev.id} → ${ev.enabled ? 'enabled' : 'disabled'}.`,
-            'OK',
+            $localize`:@@metaAlgorithms.success.toggled:${ev.id} → ${ev.enabled ? 'enabled' : 'disabled'}.`,
+            $localize`:@@settings.actions.ok:OK`,
             { duration: 2500 },
           );
         },
         error: () => {
           this.rows.set(snapshot);
           this.snack.open(
-            `Could not toggle ${ev.id} — reverted.`,
-            'OK',
+            $localize`:@@metaAlgorithms.errors.toggleFailed:Could not toggle ${ev.id} — reverted.`,
+            $localize`:@@settings.actions.ok:OK`,
             { duration: 4000 },
           );
         },
@@ -394,8 +380,8 @@ export class MetaAlgorithmsTabComponent implements OnInit {
     switch (ev.action) {
       case 'run':
         this.snack.open(
-          `Run queued for ${row.title}. Gated by the sequential-execution lock.`,
-          'OK',
+          $localize`:@@metaAlgorithms.success.runQueued:Run queued for ${row.title}. Gated by the sequential-execution lock.`,
+          $localize`:@@settings.actions.ok:OK`,
           { duration: 3000 },
         );
         break;
@@ -426,16 +412,16 @@ export class MetaAlgorithmsTabComponent implements OnInit {
 
   familyTooltip(f: FamilySummary): string {
     if (f.family === 'active') {
-      return `${f.total} currently shipped meta-algorithms.`;
+      return $localize`:@@metaAlgorithms.families.activeTip:${f.total} currently shipped meta-algorithms.`;
     }
     if (f.family === 'signal') {
-      return `${f.total} forward-declared ranking signals.`;
+      return $localize`:@@metaAlgorithms.families.signalTip:${f.total} forward-declared ranking signals.`;
     }
     const parts: string[] = [];
-    if (f.active > 0) parts.push(`${f.active} active`);
-    if (f.forward > 0) parts.push(`${f.forward} forward`);
-    if (f.disabled > 0) parts.push(`${f.disabled} disabled`);
-    return `${f.family}: ${parts.join(' · ') || `${f.total} metas`}`;
+    if (f.active > 0) parts.push($localize`:@@metaAlgorithms.families.activeCount:${f.active} active`);
+    if (f.forward > 0) parts.push($localize`:@@metaAlgorithms.families.forwardCount:${f.forward} forward`);
+    if (f.disabled > 0) parts.push($localize`:@@metaAlgorithms.families.disabledCount:${f.disabled} disabled`);
+    return $localize`:@@metaAlgorithms.families.genericTip:${f.family}: ${parts.join(' · ') || `${f.total} metas`}`;
   }
 
   trackById(_: number, row: MetaRow): string {

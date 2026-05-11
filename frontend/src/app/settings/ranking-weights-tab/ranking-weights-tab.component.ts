@@ -531,11 +531,11 @@ export class RankingWeightsTabComponent implements OnInit, OnDestroy {
   /** Status-pill label for the Search Console teaser card. */
   telemetryStatusLabel(status: string): string {
     return {
-      connected: 'Connected',
-      saved: 'Saved',
-      error: 'Error',
-      not_configured: 'Not set up',
-    }[status] ?? 'Unknown';
+      connected: $localize`:@@settings.telemetry.status.connected:Connected`,
+      saved: $localize`:@@settings.telemetry.status.saved:Saved`,
+      error: $localize`:@@settings.telemetry.status.error:Error`,
+      not_configured: $localize`:@@settings.telemetry.status.notConfigured:Not set up`,
+    }[status] ?? $localize`:@@settings.telemetry.status.unknown:Unknown`;
   }
 
   /** Plain-English title hover for FR-099–FR-105 meta-algo cards. */
@@ -589,12 +589,12 @@ export class RankingWeightsTabComponent implements OnInit, OnDestroy {
         next: (weightedAuthority) => {
           this.weightedAuthority = { ...this.weightedAuthority, ...weightedAuthority };
           this.savingWeightedAuthority = false;
-          this.snack.open('March 2026 PageRank settings saved', undefined, { duration: 2500 });
+          this.snack.open($localize`:@@settings.rankingWeights.pageRank.success:March 2026 PageRank settings saved`, undefined, { duration: 2500 });
           this.cdr.markForCheck();
         },
         error: (error) => {
           this.savingWeightedAuthority = false;
-          this.snack.open(error?.error?.detail || 'Failed to save March 2026 PageRank settings', 'Dismiss', { duration: 4000 });
+          this.snack.open(error?.error?.detail || $localize`:@@settings.rankingWeights.pageRank.error:Failed to save March 2026 PageRank settings`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 4000 });
           this.cdr.markForCheck();
         },
       });

@@ -204,10 +204,10 @@
           <!-- Field-Aware Relevance -->
           <mat-card class="settings-card" id="settings-field-aware-relevance">
             <mat-card-header>
-              <mat-card-title>Field-Aware Relevance</mat-card-title>
+              <mat-card-title i18n="@@settings.rankingWeights.fieldAware.title">Field-Aware Relevance</mat-card-title>
             </mat-card-header>
             <mat-card-content class="card-content ga4-card">
-              <p class="hint">Alignment between host sentence and destination fields.</p>
+              <p class="hint" i18n="@@settings.rankingWeights.fieldAware.hint">Alignment between host sentence and destination fields.</p>
               <div class="number-grid">
                 <mat-form-field appearance="outline" [class.field-warn]="isExtreme(fieldAwareRelevance.ranking_weight, 'fieldAwareRelevance.ranking_weight') && !isDanger(fieldAwareRelevance.ranking_weight, 'fieldAwareRelevance.ranking_weight')" [class.field-danger]="isDanger(fieldAwareRelevance.ranking_weight, 'fieldAwareRelevance.ranking_weight')">
                   <mat-label i18n="@@settings.labels.rankingWeight">Ranking weight</mat-label>
@@ -245,7 +245,7 @@
           <!-- Traffic & Search Signals (Teaser) -->
           <mat-card class="settings-card" id="settings-traffic-search-signals">
             <mat-card-header>
-              <mat-card-title>Traffic & Search Signals</mat-card-title>
+              <mat-card-title i18n="@@settings.rankingWeights.trafficSearch.title">Traffic & Search Signals</mat-card-title>
             </mat-card-header>
             <mat-card-content class="card-content ga4-card">
               <p class="hint" i18n="@@settings.rankingWeights.trafficSearch.hint">Attributing search outcomes to your internal linking efforts.</p>
@@ -253,10 +253,10 @@
                 <span class="status-pill" [ngClass]="telemetryStatusClass(ga4GscConnectionStatus)">
                   {{ telemetryStatusLabel(ga4GscConnectionStatus) }}
                 </span>
-                <span class="integration-status__message" *ngIf="ga4GscConnectionStatus !== 'connected'">
+                <span class="integration-status__message" *ngIf="ga4GscConnectionStatus !== 'connected'" i18n="@@settings.rankingWeights.trafficSearch.disconnected">
                   Connect to Search Console to use search performance as a ranking signal.
                 </span>
-                <span class="integration-status__message" *ngIf="ga4GscConnectionStatus === 'connected'">
+                <span class="integration-status__message" *ngIf="ga4GscConnectionStatus === 'connected'" i18n="@@settings.rankingWeights.trafficSearch.connected">
                   Search signals are active and influencing link rankings.
                 </span>
               </div>
@@ -269,10 +269,10 @@
           <!-- Click Distance -->
           <mat-card class="settings-card" id="settings-click-distance">
             <mat-card-header>
-              <mat-card-title>Click Distance</mat-card-title>
+              <mat-card-title i18n="@@settings.rankingWeights.clickDistance.title">Click Distance</mat-card-title>
             </mat-card-header>
             <mat-card-content class="card-content ga4-card">
-              <p class="hint">Structural proximity to home and URL depth.</p>
+              <p class="hint" i18n="@@settings.rankingWeights.clickDistance.hint">Structural proximity to home and URL depth.</p>
               <div class="number-grid">
                 <mat-form-field appearance="outline">
                   <mat-label i18n="@@settings.labels.rankingWeight">Ranking weight</mat-label>
@@ -307,7 +307,7 @@
           <!-- Spam Guards -->
           <mat-card class="settings-card" id="settings-spam-guards">
             <mat-card-header>
-              <mat-card-title>Spam Guards</mat-card-title>
+              <mat-card-title i18n="@@settings.rankingWeights.spamGuards.title">Spam Guards</mat-card-title>
             </mat-card-header>
             <mat-card-content class="card-content ga4-card">
               <p class="hint" i18n="@@settings.rankingWeights.spamGuards.hint">Patent-backed limits that prevent the tool from producing spammy internal-link suggestions.</p>
@@ -352,12 +352,17 @@
                   color="primary"
                   [matTooltip]="tip('anchorDiversity.enabled')"
                   matTooltipClass="setting-tooltip">
-                  {{ anchorDiversity.enabled ? 'Enabled' : 'Disabled' }}
+                  <ng-container *ngIf="anchorDiversity.enabled; else disabledTextAD">
+                    <ng-container i18n="@@settings.options.enabled">Enabled</ng-container>
+                  </ng-container>
+                  <ng-template #disabledTextAD>
+                    <ng-container i18n="@@settings.options.disabled">Disabled</ng-container>
+                  </ng-template>
                 </mat-slide-toggle>
               </div>
             </mat-card-header>
             <mat-card-content class="card-content ga4-card">
-              <p class="hint">FR-045 exact-match reuse guard. Keeps anchor wording varied without changing anchor selection itself.</p>
+              <p class="hint" i18n="@@settings.rankingWeights.anchorDiversity.hint">FR-045 exact-match reuse guard. Keeps anchor wording varied without changing anchor selection itself.</p>
               <div class="number-grid">                <mat-form-field appearance="outline">
                   <mat-label i18n="@@settings.labels.rankingWeight">Ranking weight</mat-label>
                   <input matInput autocomplete="off" type="number" min="0" max="0.25" step="0.01" [(ngModel)]="anchorDiversity.ranking_weight" />
@@ -415,12 +420,17 @@
                   color="primary"
                   [matTooltip]="tip('keywordStuffing.enabled')"
                   matTooltipClass="setting-tooltip">
-                  {{ keywordStuffing.enabled ? 'Enabled' : 'Disabled' }}
+                  <ng-container *ngIf="keywordStuffing.enabled; else disabledTextKS">
+                    <ng-container i18n="@@settings.options.enabled">Enabled</ng-container>
+                  </ng-container>
+                  <ng-template #disabledTextKS>
+                    <ng-container i18n="@@settings.options.disabled">Disabled</ng-container>
+                  </ng-template>
                 </mat-slide-toggle>
               </div>
             </mat-card-header>
             <mat-card-content class="card-content ga4-card">
-              <p class="hint">FR-198 content anomaly penalty using KL divergence against the site baseline language model.</p>
+              <p class="hint" i18n="@@settings.rankingWeights.keywordStuffing.hint">FR-198 content anomaly penalty using KL divergence against the site baseline language model.</p>
               <div class="number-grid">                <mat-form-field appearance="outline">
                   <mat-label i18n="@@settings.labels.rankingWeight">Ranking weight</mat-label>
                   <input matInput autocomplete="off" type="number" min="0" max="0.25" step="0.01" [(ngModel)]="keywordStuffing.ranking_weight" />
@@ -475,12 +485,17 @@
                   color="primary"
                   [matTooltip]="tip('linkFarm.enabled')"
                   matTooltipClass="setting-tooltip">
-                  {{ linkFarm.enabled ? 'Enabled' : 'Disabled' }}
+                  <ng-container *ngIf="linkFarm.enabled; else disabledTextLF">
+                    <ng-container i18n="@@settings.options.enabled">Enabled</ng-container>
+                  </ng-container>
+                  <ng-template #disabledTextLF>
+                    <ng-container i18n="@@settings.options.disabled">Disabled</ng-container>
+                  </ng-template>
                 </mat-slide-toggle>
               </div>
             </mat-card-header>
             <mat-card-content class="card-content ga4-card">
-              <p class="hint">FR-197 reciprocal-ring penalty using strongly connected components on the existing internal graph.</p>
+              <p class="hint" i18n="@@settings.rankingWeights.linkFarm.hint">FR-197 reciprocal-ring penalty using strongly connected components on the existing internal graph.</p>
               <div class="number-grid">                <mat-form-field appearance="outline">
                   <mat-label i18n="@@settings.labels.rankingWeight">Ranking weight</mat-label>
                   <input matInput autocomplete="off" type="number" min="0" max="0.25" step="0.01" [(ngModel)]="linkFarm.ranking_weight" />
@@ -526,10 +541,10 @@
                Source: docs/specs/pick-31-rrf.md, pick-27-query-expansion-bow.md. -->
           <mat-card class="settings-card" id="stage1-retrievers">
             <mat-card-header>
-              <mat-card-title>Stage-1 Candidate Retrievers (Group C)</mat-card-title>
+              <mat-card-title i18n="@@settings.rankingWeights.stage1.title">Stage-1 Candidate Retrievers (Group C)</mat-card-title>
             </mat-card-header>
             <mat-card-content class="card-content ga4-card">
-              <p class="hint">
+              <p class="hint" i18n="@@settings.rankingWeights.stage1.hint">
                 Add complementary candidate retrievers to Stage-1. The
                 semantic (BGE-M3 cosine) retriever is always on. Flipping
                 either flag below activates Reciprocal Rank Fusion (RRF,
@@ -546,6 +561,7 @@
                   </mat-select>
                   <button matSuffix mat-icon-button type="button" class="info-btn"
                           matTooltip="Group C.2 — adds the LexicalRetriever (token-overlap on titles + scopes). Catches synonyms / spelling-out gaps that dense embeddings miss."
+                          i18n-matTooltip="@@settings.tips.lexicalRetriever"
                           matTooltipClass="setting-tooltip">
                     <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
@@ -560,6 +576,7 @@
                   </mat-select>
                   <button matSuffix mat-icon-button type="button" class="info-btn"
                           matTooltip="Group C.3 — adds the QueryExpansionRetriever (Rocchio 1971 / Lavrenko-Croft 2001 PRF). Pulls in hosts that share expansion terms even when they don't share literal title tokens. Combine with lexical retriever for the richest fused ranking."
+                          i18n-matTooltip="@@settings.tips.queryExpansionRetriever"
                           matTooltipClass="setting-tooltip">
                     <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
@@ -574,6 +591,7 @@
                   </mat-select>
                   <button matSuffix mat-icon-button type="button" class="info-btn"
                           matTooltip="Adds the XenForoBM25Retriever (Path A). For each destination, queries XenForo's Enhanced Search (Elasticsearch-backed BM25) via the existing API key and contributes BM25-ranked forum candidates. Fused with FAISS via RRF. XF-source candidates only — WordPress / blog / crawled hosts are unaffected. Source: docs/specs/xf-bm25-retrieval.md, BM25 Robertson & Zaragoza 2009."
+                          i18n-matTooltip="@@settings.tips.bm25Retriever"
                           matTooltipClass="setting-tooltip">
                     <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
@@ -584,7 +602,7 @@
                         [disabled]="savingStage1Retrievers"
                         (click)="saveStage1RetrieverSettings()">
                   <mat-icon>{{ savingStage1Retrievers ? 'sync' : 'merge' }}</mat-icon>
-                  {{ savingStage1Retrievers ? 'Saving...' : 'Save Stage-1 retrievers' }}
+                  <span i18n="@@settings.actions.saveStage1Retrievers">{{ savingStage1Retrievers ? 'Saving...' : 'Save Stage-1 retrievers' }}</span>
                 </button>
               </div>
             </mat-card-content>
@@ -598,10 +616,10 @@
                consumer logic. Each card cites the paper that backs the pick. -->
           <mat-card class="settings-card" id="phase6-picks">
             <mat-card-header>
-              <mat-card-title>Optional Pick Toggles (10 paper-backed helpers)</mat-card-title>
+              <mat-card-title i18n="@@settings.rankingWeights.phase6.title">Optional Pick Toggles (10 paper-backed helpers)</mat-card-title>
             </mat-card-header>
             <mat-card-content class="card-content ga4-card">
-              <p class="hint">
+              <p class="hint" i18n="@@settings.rankingWeights.phase6.hint">
                 These 10 helpers come from the 52-pick research plan.
                 All default ON; the pip deps + model files are already
                 installed. Flip OFF any pick whose RAM or training cost
@@ -744,51 +762,56 @@
           <!-- FR-099 DARB -->
           <mat-card class="settings-card" id="darb">
             <mat-card-header>
-              <mat-card-title [matTooltip]="metaAlgoTip('darb')" matTooltipclass="setting-tooltip ga4-card" matTooltipPosition="above">Dangling Authority Redistribution Bonus (FR-099)</mat-card-title>
+              <mat-card-title [matTooltip]="metaAlgoTip('darb')" i18n-matTooltip="@@metaAlgorithms.tips.darb" matTooltipclass="setting-tooltip ga4-card" matTooltipPosition="above" i18n="@@settings.rankingWeights.darb.title">Dangling Authority Redistribution Bonus (FR-099)</mat-card-title>
               <div class="card-title-actions">
                 <mat-slide-toggle
                   [(ngModel)]="darb.enabled"
                   color="primary"
                   [matTooltip]="tip('darb.enabled')"
                   matTooltipClass="setting-tooltip">
-                  {{ darb.enabled ? 'Enabled' : 'Disabled' }}
+                  <ng-container *ngIf="darb.enabled; else disabledTextDARB">
+                    <ng-container i18n="@@settings.options.enabled">Enabled</ng-container>
+                  </ng-container>
+                  <ng-template #disabledTextDARB>
+                    <ng-container i18n="@@settings.options.disabled">Disabled</ng-container>
+                  </ng-template>
                 </mat-slide-toggle>
               </div>
             </mat-card-header>
             <mat-card-content class="card-content ga4-card">
-              <p class="hint">Boost candidates from high-value hosts that barely link out — fixes the Reddit-post "dead-end street" problem. Source: Page et al. 1999 §2.5.</p>
+              <p class="hint" i18n="@@settings.rankingWeights.darb.hint">Boost candidates from high-value hosts that barely link out — fixes the Reddit-post "dead-end street" problem. Source: Page et al. 1999 §2.5.</p>
               <div class="number-grid">                <mat-form-field appearance="outline">
                   <mat-label i18n="@@settings.labels.rankingWeight">Ranking weight</mat-label>
                   <input matInput autocomplete="off" type="number" min="0" max="0.15" step="0.01" [(ngModel)]="darb.ranking_weight" />
-                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('darb.ranking_weight')" matTooltipClass="setting-tooltip">
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('darb.ranking_weight')" i18n-matTooltip="@@settings.tips.darbWeight" matTooltipClass="setting-tooltip">
                     <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
-                  <mat-label>Out-degree saturation</mat-label>
+                  <mat-label i18n="@@settings.labels.outDegreeSaturation">Out-degree saturation</mat-label>
                   <input matInput autocomplete="off" type="number" min="1" max="20" step="1" [(ngModel)]="darb.out_degree_saturation" />
-                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('darb.out_degree_saturation')" matTooltipClass="setting-tooltip">
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('darb.out_degree_saturation')" i18n-matTooltip="@@settings.tips.outDegreeSaturation" matTooltipClass="setting-tooltip">
                     <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
-                  <mat-label>Min host value</mat-label>
+                  <mat-label i18n="@@settings.labels.minHostValue">Min host value</mat-label>
                   <input matInput autocomplete="off" type="number" min="0" max="1" step="0.05" [(ngModel)]="darb.min_host_value" />
-                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('darb.min_host_value')" matTooltipClass="setting-tooltip">
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('darb.min_host_value')" i18n-matTooltip="@@settings.tips.minHostValue" matTooltipClass="setting-tooltip">
                     <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
               </div>
               <div class="card-actions-row">
                 @if (metaAlgoHasSpec('darb')) {
-                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('darb')" matTooltip="Open the FR-099 spec inside this page (no navigation away).">
+                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('darb')" matTooltip="Open the FR-099 spec inside this page (no navigation away)." i18n-matTooltip="@@metaAlgorithms.actions.viewSpecTooltip">
                     <mat-icon>description</mat-icon>
-                    View spec
+                    <ng-container i18n="@@metaAlgorithms.actions.viewSpec">View spec</ng-container>
                   </button>
                 }
                 <button mat-flat-button color="primary" [disabled]="savingDarb" (click)="saveDarbSettings()">
                   <mat-icon>{{ savingDarb ? 'sync' : 'alt_route' }}</mat-icon>
-                  {{ savingDarb ? 'Saving...' : 'Save DARB' }}
+                  <span i18n="@@settings.actions.saveDarb">{{ savingDarb ? 'Saving...' : 'Save DARB' }}</span>
                 </button>
               </div>
             </mat-card-content>
@@ -797,51 +820,56 @@
           <!-- FR-100 KMIG -->
           <mat-card class="settings-card" id="kmig">
             <mat-card-header>
-              <mat-card-title [matTooltip]="metaAlgoTip('kmig')" matTooltipclass="setting-tooltip ga4-card" matTooltipPosition="above">Katz Marginal Information Gain (FR-100)</mat-card-title>
+              <mat-card-title [matTooltip]="metaAlgoTip('kmig')" i18n-matTooltip="@@metaAlgorithms.tips.kmig" matTooltipclass="setting-tooltip ga4-card" matTooltipPosition="above" i18n="@@settings.rankingWeights.kmig.title">Katz Marginal Information Gain (FR-100)</mat-card-title>
               <div class="card-title-actions">
                 <mat-slide-toggle
                   [(ngModel)]="kmig.enabled"
                   color="primary"
                   [matTooltip]="tip('kmig.enabled')"
                   matTooltipClass="setting-tooltip">
-                  {{ kmig.enabled ? 'Enabled' : 'Disabled' }}
+                  <ng-container *ngIf="kmig.enabled; else disabledTextKMIG">
+                    <ng-container i18n="@@settings.options.enabled">Enabled</ng-container>
+                  </ng-container>
+                  <ng-template #disabledTextKMIG>
+                    <ng-container i18n="@@settings.options.disabled">Disabled</ng-container>
+                  </ng-template>
                 </mat-slide-toggle>
               </div>
             </mat-card-header>
             <mat-card-content class="card-content ga4-card">
-              <p class="hint">Penalises candidates already reachable within 1-2 hops via existing links — avoids redundant edges. Source: Katz 1953, Psychometrika 18(1) §2 eq. 2.</p>
+              <p class="hint" i18n="@@settings.rankingWeights.kmig.hint">Attenuation-based boost for candidates that reside in deep but high-quality subgraphs. Source: Katz 1953.</p>
               <div class="number-grid">                <mat-form-field appearance="outline">
                   <mat-label i18n="@@settings.labels.rankingWeight">Ranking weight</mat-label>
                   <input matInput autocomplete="off" type="number" min="0" max="0.15" step="0.01" [(ngModel)]="kmig.ranking_weight" />
-                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('kmig.ranking_weight')" matTooltipClass="setting-tooltip">
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('kmig.ranking_weight')" i18n-matTooltip="@@settings.tips.kmigWeight" matTooltipClass="setting-tooltip">
                     <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
-                  <mat-label>Katz attenuation β</mat-label>
+                  <mat-label i18n="@@settings.labels.kmigAttenuation">Katz attenuation β</mat-label>
                   <input matInput autocomplete="off" type="number" min="0.1" max="0.9" step="0.05" [(ngModel)]="kmig.attenuation" />
-                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('kmig.attenuation')" matTooltipClass="setting-tooltip">
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('kmig.attenuation')" i18n-matTooltip="@@settings.tips.kmigAttenuation" matTooltipClass="setting-tooltip">
                     <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
-                  <mat-label>Max hops</mat-label>
+                  <mat-label i18n="@@settings.labels.maxHops">Max hops</mat-label>
                   <input matInput autocomplete="off" type="number" min="1" max="3" step="1" [(ngModel)]="kmig.max_hops" />
-                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('kmig.max_hops')" matTooltipClass="setting-tooltip">
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('kmig.max_hops')" i18n-matTooltip="@@settings.tips.maxHops" matTooltipClass="setting-tooltip">
                     <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
               </div>
               <div class="card-actions-row">
                 @if (metaAlgoHasSpec('kmig')) {
-                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('kmig')" matTooltip="Open the FR-100 spec inside this page (no navigation away).">
+                  <button mat-stroked-button type="button" (click)="openMetaAlgoSpec('kmig')" matTooltip="Open the FR-100 spec inside this page (no navigation away)." i18n-matTooltip="@@metaAlgorithms.actions.viewSpecTooltip">
                     <mat-icon>description</mat-icon>
-                    View spec
+                    <ng-container i18n="@@metaAlgorithms.actions.viewSpec">View spec</ng-container>
                   </button>
                 }
                 <button mat-flat-button color="primary" [disabled]="savingKmig" (click)="saveKmigSettings()">
-                  <mat-icon>{{ savingKmig ? 'sync' : 'route' }}</mat-icon>
-                  {{ savingKmig ? 'Saving...' : 'Save KMIG' }}
+                  <mat-icon>{{ savingKmig ? 'sync' : 'schema' }}</mat-icon>
+                  <span i18n="@@settings.actions.saveKmig">{{ savingKmig ? 'Saving...' : 'Save KMIG' }}</span>
                 </button>
               </div>
             </mat-card-content>

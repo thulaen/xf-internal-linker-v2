@@ -3,51 +3,51 @@
       <mat-card class="setting-card ga4-card" id="runtime-recommendations">
         <mat-card-header>
           <mat-icon mat-card-avatar>memory</mat-icon>
-          <mat-card-title>Runtime profile recommendation</mat-card-title>
-          <mat-card-subtitle>Upgrade-aware defaults based on the machine this app is running on.</mat-card-subtitle>
+          <mat-card-title i18n="@@performance.runtimeRecommendation.title">Runtime profile recommendation</mat-card-title>
+          <mat-card-subtitle i18n="@@performance.runtimeRecommendation.subtitle">Upgrade-aware defaults based on the machine this app is running on.</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           @if (runtimeLoading()) {
             <div class="empty-row">
               <mat-icon>sync</mat-icon>
-              <span>Loading runtime summary…</span>
+              <span i18n="@@performance.runtimeRecommendation.loading">Loading runtime summary…</span>
             </div>
           } @else if (runtimeSummary(); as runtime) {
             <div class="runtime-banner" [class.runtime-banner--upgrade]="runtime.hardware.detected_upgrade">
               <mat-icon>{{ runtime.hardware.detected_upgrade ? 'upgrade' : 'verified' }}</mat-icon>
               <div class="runtime-banner-copy">
-                <strong>{{ runtime.recommended_profile.profile | titlecase }} profile</strong>
+                <strong i18n="@@performance.runtimeRecommendation.profileLabel">{{ runtime.recommended_profile.profile | titlecase }} profile</strong>
                 <p>{{ runtime.recommended_profile.reason }}</p>
               </div>
-              <button mat-stroked-button color="primary" type="button" (click)="applyRecommendedProfile()">
+              <button mat-stroked-button color="primary" type="button" (click)="applyRecommendedProfile()" i18n="@@performance.runtimeRecommendation.applyBtn">
                 Apply suggested limits
               </button>
             </div>
 
             <div class="hardware-grid">
               <div class="hardware-pill">
-                <span class="pill-label">CPU</span>
-                <span class="pill-value">{{ runtime.hardware.cpu_cores }} cores</span>
+                <span class="pill-label" i18n="@@performance.hardware.cpu">CPU</span>
+                <span class="pill-value"><ng-container i18n="@@performance.hardware.cores">{{ runtime.hardware.cpu_cores }} cores</ng-container></span>
               </div>
               <div class="hardware-pill">
-                <span class="pill-label">RAM</span>
-                <span class="pill-value">{{ runtime.hardware.ram_gb }} GB</span>
+                <span class="pill-label" i18n="@@performance.hardware.ram">RAM</span>
+                <span class="pill-value"><ng-container i18n="@@performance.hardware.gb">{{ runtime.hardware.ram_gb }} GB</ng-container></span>
               </div>
               <div class="hardware-pill">
-                <span class="pill-label">GPU</span>
-                <span class="pill-value">{{ runtime.hardware.gpu_name || 'CPU-only' }}</span>
+                <span class="pill-label" i18n="@@performance.hardware.gpu">GPU</span>
+                <span class="pill-value">{{ runtime.hardware.gpu_name || ('CPU-only' | titlecase) }}</span>
               </div>
               <div class="hardware-pill">
-                <span class="pill-label">VRAM</span>
-                <span class="pill-value">{{ runtime.hardware.gpu_vram_gb || 0 }} GB</span>
+                <span class="pill-label" i18n="@@performance.hardware.vram">VRAM</span>
+                <span class="pill-value"><ng-container i18n="@@performance.hardware.gb">{{ runtime.hardware.gpu_vram_gb || 0 }} GB</ng-container></span>
               </div>
               <div class="hardware-pill">
-                <span class="pill-label">Disk free</span>
-                <span class="pill-value">{{ runtime.hardware.disk_free_gb }} GB</span>
+                <span class="pill-label" i18n="@@performance.hardware.diskFree">Disk free</span>
+                <span class="pill-value"><ng-container i18n="@@performance.hardware.gb">{{ runtime.hardware.disk_free_gb }} GB</ng-container></span>
               </div>
               <div class="hardware-pill">
-                <span class="pill-label">Native kernels</span>
-                <span class="pill-value">{{ runtime.hardware.native_kernels_healthy ? 'Healthy' : 'Needs attention' }}</span>
+                <span class="pill-label" i18n="@@performance.hardware.nativeKernels">Native kernels</span>
+                <span class="pill-value" i18n="@@performance.hardware.nativeKernelsStatus">{{ runtime.hardware.native_kernels_healthy ? 'Healthy' : 'Needs attention' }}</span>
               </div>
             </div>
           }
@@ -57,50 +57,50 @@
       <mat-card class="setting-card ga4-card" id="model-runtime">
         <mat-card-header>
           <mat-icon mat-card-avatar>hub</mat-icon>
-          <mat-card-title>Model runtime</mat-card-title>
-          <mat-card-subtitle>FR-020 champion, candidate, placements, backfill, and hot-swap actions.</mat-card-subtitle>
+          <mat-card-title i18n="@@performance.modelRuntime.title">Model runtime</mat-card-title>
+          <mat-card-subtitle i18n="@@performance.modelRuntime.subtitle">FR-020 champion, candidate, placements, backfill, and hot-swap actions.</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           <div class="section-actions">
             <button mat-stroked-button type="button" (click)="reloadRuntime()" [disabled]="runtimeLoading()">
               <mat-icon>refresh</mat-icon>
-              Refresh runtime
+              <ng-container i18n="@@performance.modelRuntime.refreshBtn">Refresh runtime</ng-container>
             </button>
           </div>
 
           @if (runtimeLoading()) {
             <div class="empty-row">
               <mat-icon>sync</mat-icon>
-              <span>Loading model runtime…</span>
+              <span i18n="@@performance.modelRuntime.loading">Loading model runtime…</span>
             </div>
           } @else if (runtimeSummary(); as runtime) {
             <div class="runtime-summary-grid">
               <mat-card class="mini-card ga4-card" id="performance-settings-active-model-mini">
                 <mat-card-content>
-                  <div class="mini-label">Active model</div>
-                  <div class="mini-value">{{ runtime.model_runtime.active_model?.model_name || 'Not registered yet' }}</div>
+                  <div class="mini-label" i18n="@@performance.modelRuntime.activeModelLabel">Active model</div>
+                  <div class="mini-value">{{ runtime.model_runtime.active_model?.model_name || ('Not registered yet' | titlecase) }}</div>
                   <div class="mini-meta">
                     {{ runtime.model_runtime.active_model?.device_target || runtime.model_runtime.device }}
                     <span class="meta-sep"> • </span>
-                    {{ runtime.model_runtime.active_model?.dimension || 1024 }} dims
+                    <ng-container i18n="@@performance.modelRuntime.dims">{{ runtime.model_runtime.active_model?.dimension || 1024 }} dims</ng-container>
                   </div>
                 </mat-card-content>
               </mat-card>
               <mat-card class="mini-card ga4-card" id="performance-settings-candidate-model-mini">
                 <mat-card-content>
-                  <div class="mini-label">Candidate model</div>
-                  <div class="mini-value">{{ runtime.model_runtime.candidate_model?.model_name || 'None queued' }}</div>
+                  <div class="mini-label" i18n="@@performance.modelRuntime.candidateModelLabel">Candidate model</div>
+                  <div class="mini-value">{{ runtime.model_runtime.candidate_model?.model_name || ('None queued' | titlecase) }}</div>
                   <div class="mini-meta">
-                    {{ runtime.model_runtime.candidate_model?.status || 'Idle' }}
+                    {{ runtime.model_runtime.candidate_model?.status || ('Idle' | titlecase) }}
                   </div>
                 </mat-card-content>
               </mat-card>
               <mat-card class="mini-card ga4-card" id="performance-settings-hot-swap-mini">
                 <mat-card-content>
-                  <div class="mini-label">Hot swap safety</div>
-                  <div class="mini-value">{{ runtime.model_runtime.hot_swap_safe ? 'Safe' : 'Blocked' }}</div>
+                  <div class="mini-label" i18n="@@performance.modelRuntime.hotSwapLabel">Hot swap safety</div>
+                  <div class="mini-value" i18n="@@performance.modelRuntime.hotSwapStatus">{{ runtime.model_runtime.hot_swap_safe ? 'Safe' : 'Blocked' }}</div>
                   <div class="mini-meta">
-                    Reclaimable disk {{ humanBytes(runtime.model_runtime.reclaimable_disk_bytes) }}
+                    <ng-container i18n="@@performance.modelRuntime.reclaimableDisk">Reclaimable disk</ng-container> {{ humanBytes(runtime.model_runtime.reclaimable_disk_bytes) }}
                   </div>
                 </mat-card-content>
               </mat-card>
@@ -109,8 +109,8 @@
             @if (runtime.model_runtime.backfill; as backfill) {
               <div class="backfill-panel">
                 <div class="backfill-copy">
-                  <strong>Backfill {{ backfill.status }}</strong>
-                  <span>{{ backfill.compatibility_status }} compatibility</span>
+                  <strong i18n="@@performance.modelRuntime.backfillStatus">Backfill {{ backfill.status }}</strong>
+                  <span i18n="@@performance.modelRuntime.compatibility">{{ backfill.compatibility_status }} compatibility</span>
                 </div>
                 <mat-progress-bar mode="determinate" [value]="backfill.progress_pct || 0"></mat-progress-bar>
               </div>
@@ -121,17 +121,17 @@
                 <mat-card-content>
                   <div class="model-card-head">
                     <div>
-                      <div class="mini-label">Champion</div>
+                      <div class="mini-label" i18n="@@performance.modelRuntime.championLabel">Champion</div>
                       <div class="mini-value">{{ active.model_name }}</div>
-                      <div class="mini-meta">{{ active.status }} • {{ active.device_target }} • batch {{ active.batch_size }}</div>
+                      <div class="mini-meta">{{ active.status }} • {{ active.device_target }} • <ng-container i18n="@@performance.modelRuntime.batch">batch {{ active.batch_size }}</ng-container></div>
                     </div>
                     <span class="status-chip">{{ active.role }}</span>
                   </div>
                   <div class="button-row">
-                    <button mat-stroked-button type="button" (click)="runModelAction(active, 'pause')" [disabled]="actionPending()">Pause</button>
-                    <button mat-stroked-button type="button" (click)="runModelAction(active, 'resume')" [disabled]="actionPending()">Resume</button>
-                    <button mat-stroked-button type="button" (click)="runModelAction(active, 'drain')" [disabled]="actionPending()">Drain</button>
-                    <button mat-flat-button color="primary" type="button" (click)="runModelAction(active, 'rollback')" [disabled]="actionPending()">Rollback</button>
+                    <button mat-stroked-button type="button" (click)="runModelAction(active, 'pause')" [disabled]="actionPending()" i18n="@@performance.modelRuntime.pauseBtn">Pause</button>
+                    <button mat-stroked-button type="button" (click)="runModelAction(active, 'resume')" [disabled]="actionPending()" i18n="@@performance.modelRuntime.resumeBtn">Resume</button>
+                    <button mat-stroked-button type="button" (click)="runModelAction(active, 'drain')" [disabled]="actionPending()" i18n="@@performance.modelRuntime.drainBtn">Drain</button>
+                    <button mat-flat-button color="primary" type="button" (click)="runModelAction(active, 'rollback')" [disabled]="actionPending()" i18n="@@performance.modelRuntime.rollbackBtn">Rollback</button>
                   </div>
                 </mat-card-content>
               </mat-card>
@@ -140,19 +140,19 @@
                 <mat-card-content>
                   <div class="model-card-head">
                     <div>
-                      <div class="mini-label">Candidate</div>
+                      <div class="mini-label" i18n="@@performance.modelRuntime.candidateLabel">Candidate</div>
                       <div class="mini-value">{{ candidate.model_name }}</div>
-                      <div class="mini-meta">{{ candidate.status }} • {{ candidate.device_target }} • batch {{ candidate.batch_size }}</div>
+                      <div class="mini-meta">{{ candidate.status }} • {{ candidate.device_target }} • <ng-container i18n="@@performance.modelRuntime.batch">batch {{ candidate.batch_size }}</ng-container></div>
                     </div>
                     <span class="status-chip status-chip--candidate">{{ candidate.role }}</span>
                   </div>
                   <div class="button-row">
-                    <button mat-stroked-button type="button" (click)="runModelAction(candidate, 'download')" [disabled]="actionPending()">Download</button>
-                    <button mat-stroked-button type="button" (click)="runModelAction(candidate, 'warm')" [disabled]="actionPending()">Warm</button>
-                    <button mat-stroked-button type="button" (click)="runModelAction(candidate, 'pause')" [disabled]="actionPending()">Pause</button>
-                    <button mat-stroked-button type="button" (click)="runModelAction(candidate, 'resume')" [disabled]="actionPending()">Resume</button>
-                    <button mat-stroked-button type="button" (click)="runModelAction(candidate, 'drain')" [disabled]="actionPending()">Drain</button>
-                    <button mat-flat-button color="primary" type="button" (click)="runModelAction(candidate, 'promote')" [disabled]="actionPending() || candidate.status !== 'ready'">Promote</button>
+                    <button mat-stroked-button type="button" (click)="runModelAction(candidate, 'download')" [disabled]="actionPending()" i18n="@@performance.modelRuntime.downloadBtn">Download</button>
+                    <button mat-stroked-button type="button" (click)="runModelAction(candidate, 'warm')" [disabled]="actionPending()" i18n="@@performance.modelRuntime.warmBtn">Warm</button>
+                    <button mat-stroked-button type="button" (click)="runModelAction(candidate, 'pause')" [disabled]="actionPending()" i18n="@@performance.modelRuntime.pauseBtn">Pause</button>
+                    <button mat-stroked-button type="button" (click)="runModelAction(candidate, 'resume')" [disabled]="actionPending()" i18n="@@performance.modelRuntime.resumeBtn">Resume</button>
+                    <button mat-stroked-button type="button" (click)="runModelAction(candidate, 'drain')" [disabled]="actionPending()" i18n="@@performance.modelRuntime.drainBtn">Drain</button>
+                    <button mat-flat-button color="primary" type="button" (click)="runModelAction(candidate, 'promote')" [disabled]="actionPending() || candidate.status !== 'ready'" i18n="@@performance.modelRuntime.promoteBtn">Promote</button>
                   </div>
                 </mat-card-content>
               </mat-card>
@@ -162,46 +162,46 @@
 
             <div class="register-grid">
               <mat-form-field appearance="outline">
-                <mat-label>Model name</mat-label>
+                <mat-label i18n="@@performance.register.modelName">Model name</mat-label>
                 <input matInput autocomplete="off" [(ngModel)]="registration.model_name" />
               </mat-form-field>
               <mat-form-field appearance="outline">
-                <mat-label>Family</mat-label>
+                <mat-label i18n="@@performance.register.family">Family</mat-label>
                 <input matInput autocomplete="off" [(ngModel)]="registration.model_family" />
               </mat-form-field>
               <mat-form-field appearance="outline">
-                <mat-label>Dimension</mat-label>
+                <mat-label i18n="@@performance.register.dimension">Dimension</mat-label>
                 <input matInput autocomplete="off" type="number" min="1" step="1" [(ngModel)]="registration.dimension" />
               </mat-form-field>
               <mat-form-field appearance="outline">
-                <mat-label>Batch size</mat-label>
+                <mat-label i18n="@@performance.register.batchSize">Batch size</mat-label>
                 <input matInput autocomplete="off" type="number" min="1" step="1" [(ngModel)]="registration.batch_size" />
               </mat-form-field>
               <mat-form-field appearance="outline">
-                <mat-label>Device</mat-label>
+                <mat-label i18n="@@performance.register.device">Device</mat-label>
                 <mat-select [(ngModel)]="registration.device_target">
-                  <mat-option value="cpu">CPU</mat-option>
-                  <mat-option value="cuda">CUDA</mat-option>
+                  <mat-option value="cpu" i18n="@@performance.register.deviceCpu">CPU</mat-option>
+                  <mat-option value="cuda" i18n="@@performance.register.deviceCuda">CUDA</mat-option>
                 </mat-select>
               </mat-form-field>
               <mat-form-field appearance="outline">
-                <mat-label>Role</mat-label>
+                <mat-label i18n="@@performance.register.role">Role</mat-label>
                 <mat-select [(ngModel)]="registration.role">
-                  <mat-option value="candidate">Candidate</mat-option>
-                  <mat-option value="retired">Retired</mat-option>
+                  <mat-option value="candidate" i18n="@@performance.register.roleCandidate">Candidate</mat-option>
+                  <mat-option value="retired" i18n="@@performance.register.roleRetired">Retired</mat-option>
                 </mat-select>
               </mat-form-field>
               <mat-form-field appearance="outline">
-                <mat-label>Executor</mat-label>
+                <mat-label i18n="@@performance.register.executor">Executor</mat-label>
                 <mat-select [(ngModel)]="registration.executor_type">
-                  <mat-option value="primary">Primary</mat-option>
-                  <mat-option value="helper">Helper</mat-option>
+                  <mat-option value="primary" i18n="@@performance.register.executorPrimary">Primary</mat-option>
+                  <mat-option value="helper" i18n="@@performance.register.executorHelper">Helper</mat-option>
                 </mat-select>
               </mat-form-field>
               <mat-form-field appearance="outline" *ngIf="registration.executor_type === 'helper'">
-                <mat-label>Helper node</mat-label>
+                <mat-label i18n="@@performance.register.helperNode">Helper node</mat-label>
                 <mat-select [(ngModel)]="registration.helper_id">
-                  <mat-option [value]="null">Choose helper</mat-option>
+                  <mat-option [value]="null" i18n="@@performance.register.chooseHelper">Choose helper</mat-option>
                   <mat-option *ngFor="let helper of helpers(); trackBy: trackByHelperId" [value]="helper.id">{{ helper.name }}</mat-option>
                 </mat-select>
               </mat-form-field>
@@ -210,16 +210,16 @@
             <div class="section-actions">
               <button mat-flat-button color="primary" type="button" (click)="registerModel()" [disabled]="registering() || !registration.model_name.trim()">
                 <mat-icon>{{ registering() ? 'sync' : 'add' }}</mat-icon>
-                {{ registering() ? 'Registering…' : 'Register model candidate' }}
+                <ng-container i18n="@@performance.register.submitBtn">{{ registering() ? 'Registering…' : 'Register model candidate' }}</ng-container>
               </button>
             </div>
 
             <div class="placements-section">
-              <h3 class="subheading">Placements & reclaimable disk</h3>
+              <h3 class="subheading" i18n="@@performance.placements.title">Placements & reclaimable disk</h3>
               @if (runtime.model_runtime.placements.length === 0) {
                 <div class="empty-row">
                   <mat-icon>folder_open</mat-icon>
-                  <span>No registered placements yet.</span>
+                  <span i18n="@@performance.placements.empty">No registered placements yet.</span>
                 </div>
               } @else {
                 <div class="placement-list">
@@ -227,7 +227,7 @@
                     <div class="placement-copy">
                       <strong>{{ placement.model_name }}</strong>
                       <span>
-                        {{ placement.executor_type === 'helper' ? ('Helper: ' + (placement.helper_name || 'unknown')) : 'Primary node' }}
+                        {{ placement.executor_type === 'helper' ? ('Helper: ' + (placement.helper_name || 'unknown')) : ('Primary node' | titlecase) }}
                         <span class="meta-sep"> • </span>
                         {{ placement.status }}
                         <span class="meta-sep"> • </span>
@@ -240,6 +240,7 @@
                       type="button"
                       (click)="deletePlacement(placement)"
                       [disabled]="deletingPlacement() || !placement.deletable"
+                      i18n="@@performance.placements.deleteBtn"
                     >
                       Delete old placement
                     </button>
@@ -249,11 +250,11 @@
             </div>
 
             <div class="audit-section">
-              <h3 class="subheading">Runtime audit log</h3>
+              <h3 class="subheading" i18n="@@performance.audit.title">Runtime audit log</h3>
               @if ((runtime.model_runtime.recent_audit_log || []).length === 0) {
                 <div class="empty-row">
                   <mat-icon>receipt_long</mat-icon>
-                  <span>No runtime actions logged yet.</span>
+                  <span i18n="@@performance.audit.empty">No runtime actions logged yet.</span>
                 </div>
               } @else {
                 <div class="audit-list">
@@ -268,185 +269,96 @@
         </mat-card-content>
       </mat-card>
 
-      <mat-card class="setting-card ga4-card" id="performance-settings-batch-size">
-        <mat-card-header>
-          <mat-icon mat-card-avatar>layers</mat-icon>
-          <mat-card-title>Batch size</mat-card-title>
-          <mat-card-subtitle>How many paragraphs the linker processes at once.</mat-card-subtitle>
-        </mat-card-header>
-        <mat-card-content>
-          <p class="plain-text">
-            Bigger batch = faster runs, but uses more memory. If the linker ever runs out of memory,
-            drop this number. The default (32) is safe on most machines.
-          </p>
-          <div class="slider-row">
-            <mat-slider
-              [min]="batchMin()"
-              [max]="batchMax()"
-              [step]="8"
-              discrete
-              [displayWith]="labelWithMb">
-              <input matSliderThumb
-                     [ngModel]="batchSize()"
-                     (ngModelChange)="batchSize.set($event)" />
-            </mat-slider>
-            <span class="slider-value">{{ batchSize() }}</span>
-          </div>
-          <div class="slider-ends">
-            <span>{{ batchMin() }}</span>
-            <span>{{ batchMax() }}</span>
-          </div>
-        </mat-card-content>
-      </mat-card>
-
-      <mat-card class="setting-card ga4-card" id="hardware-tuning">
+      <mat-card class="setting-card ga4-card" id="performance-tunables">
         <mat-card-header>
           <mat-icon mat-card-avatar>tune</mat-icon>
-          <mat-card-title>Hardware tuning</mat-card-title>
-          <mat-card-subtitle>Safe laptop controls for GPU, CPU, and the default queue.</mat-card-subtitle>
+          <mat-card-title i18n="@@performance.tunables.title">Performance tunables</mat-card-title>
+          <mat-card-subtitle i18n="@@performance.tunables.subtitle">Fine-tune memory limits, batching, and concurrency for this machine.</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
-          <p class="plain-text">
-            These sliders trade speed against heat and memory pressure. GPU, CPU, and OOM settings apply on the next run.
-            Default-queue concurrency still needs a worker restart.
-          </p>
-
-          <div class="tuning-grid">
-            <section class="tuning-control" id="gpu-memory-budget-control">
-              <div class="tuning-copy">
-                <strong>GPU memory budget</strong>
-                <span>Leave headroom for Chrome and the desktop while embeddings run.</span>
+          <div class="tunables-grid">
+            <div class="tunable-item">
+              <div class="tunable-copy">
+                <strong i18n="@@performance.tunables.batchSize">Embedding batch size</strong>
+                <p i18n="@@performance.tunables.batchSizeDesc">Higher values improve throughput but use more VRAM/RAM. Suggested: 32 or 64.</p>
               </div>
-              <div class="slider-row">
-                <mat-slider
-                  [min]="gpuBudgetMin()"
-                  [max]="gpuBudgetMax()"
-                  [step]="1"
-                  discrete
-                  [displayWith]="labelWithMb">
-                  <input matSliderThumb
-                         [ngModel]="gpuMemoryBudget()"
-                         (ngModelChange)="gpuMemoryBudget.set($event)" />
+              <div class="tunable-control">
+                <mat-slider [min]="batchMin()" [max]="batchMax()" step="8" discrete>
+                  <input matSliderThumb [ngModel]="batchSize()" (ngModelChange)="batchSize.set($event)">
                 </mat-slider>
-                <span class="slider-value">{{ gpuMemoryBudget() }}%</span>
+                <span class="tunable-value">{{ batchSize() }}</span>
               </div>
-              <div class="slider-ends">
-                <span>{{ gpuBudgetMin() }}%</span>
-                <span>{{ gpuBudgetMax() }}%</span>
-              </div>
-            </section>
-
-            <section class="tuning-control" id="gpu-temp-pause-control">
-              <div class="tuning-copy">
-                <strong>GPU temp pause</strong>
-                <span>Pause new GPU batches before the laptop gets uncomfortably hot.</span>
-              </div>
-              <div class="slider-row">
-                <mat-slider
-                  [min]="gpuTempMin()"
-                  [max]="gpuTempMax()"
-                  [step]="1"
-                  discrete
-                  [displayWith]="labelWithMb">
-                  <input matSliderThumb
-                         [ngModel]="gpuTempPause()"
-                         (ngModelChange)="gpuTempPause.set($event)" />
-                </mat-slider>
-                <span class="slider-value">{{ gpuTempPause() }}°C</span>
-              </div>
-              <div class="slider-ends">
-                <span>{{ gpuTempMin() }}°C</span>
-                <span>{{ gpuTempMax() }}°C</span>
-              </div>
-            </section>
-
-            <section class="tuning-control" id="cpu-encode-threads-control">
-              <div class="tuning-copy">
-                <strong>CPU encode threads</strong>
-                <span>Helpful when the embedding model is running on CPU instead of the GPU.</span>
-              </div>
-              <div class="slider-row">
-                <mat-slider
-                  [min]="cpuThreadsMin()"
-                  [max]="cpuThreadsMax()"
-                  [step]="1"
-                  discrete
-                  [displayWith]="labelWithMb">
-                  <input matSliderThumb
-                         [ngModel]="cpuEncodeThreads()"
-                         (ngModelChange)="cpuEncodeThreads.set($event)" />
-                </mat-slider>
-                <span class="slider-value">{{ cpuEncodeThreads() }}</span>
-              </div>
-              <div class="slider-ends">
-                <span>{{ cpuThreadsMin() }}</span>
-                <span>{{ cpuThreadsMax() }}</span>
-              </div>
-            </section>
-
-            <section class="tuning-control" id="default-queue-concurrency-control">
-              <div class="tuning-copy">
-                <strong>Default-queue concurrency</strong>
-                <span>Only light background jobs use this. Pipeline and embeddings stay single-worker.</span>
-              </div>
-              <div class="slider-row">
-                <mat-slider
-                  [min]="queueConcMin()"
-                  [max]="queueConcMax()"
-                  [step]="1"
-                  discrete>
-                  <input matSliderThumb
-                         [ngModel]="defaultQueueConcurrency()"
-                         (ngModelChange)="defaultQueueConcurrency.set($event)" />
-                </mat-slider>
-                <span class="slider-value">{{ defaultQueueConcurrency() }}</span>
-              </div>
-              <div class="slider-ends">
-                <span>{{ queueConcMin() }}</span>
-                <span>{{ queueConcMax() }}</span>
-              </div>
-            </section>
-
-            <section class="tuning-control tuning-control--toggle" id="aggressive-oom-backoff-control">
-              <div class="tuning-copy">
-                <strong>Aggressive OOM backoff</strong>
-                <span>Retry with a smaller batch after memory pressure instead of stopping on the first OOM.</span>
-              </div>
-              <mat-slide-toggle
-                [ngModel]="aggressiveOomBackoff()"
-                (ngModelChange)="aggressiveOomBackoff.set($event)">
-                Keep auto-retrying after an OOM
-              </mat-slide-toggle>
-            </section>
-          </div>
-
-          <div class="info-note" id="hardware-tuning-faiss-note">
-            <mat-icon>info</mat-icon>
-            <span>
-              Pipeline and embeddings stay pinned to one worker because the FAISS index lives inside a single process.
-            </span>
-          </div>
-
-          @if (dirtyConcurrency()) {
-            <div class="restart-banner" role="alert">
-              <mat-icon>restart_alt</mat-icon>
-              <span>
-                Default-queue concurrency changed. Restart the default worker after saving so the new queue count takes effect safely.
-              </span>
             </div>
-          }
+
+            <div class="tunable-item">
+              <div class="tunable-copy">
+                <strong i18n="@@performance.tunables.gpuBudget">GPU memory budget %</strong>
+                <p i18n="@@performance.tunables.gpuBudgetDesc">Cap on how much VRAM the embedding models can claim. Prevents OOM crashes.</p>
+              </div>
+              <div class="tunable-control">
+                <mat-slider [min]="gpuBudgetMin()" [max]="gpuBudgetMax()" step="5" discrete>
+                  <input matSliderThumb [ngModel]="gpuMemoryBudget()" (ngModelChange)="gpuMemoryBudget.set($event)">
+                </mat-slider>
+                <span class="tunable-value">{{ gpuMemoryBudget() }}%</span>
+              </div>
+            </div>
+
+            <div class="tunable-item">
+              <div class="tunable-copy">
+                <strong i18n="@@performance.tunables.gpuTemp">GPU temp pause threshold</strong>
+                <p i18n="@@performance.tunables.gpuTempDesc">Pause work if GPU exceeds this temperature (Celsius) to prevent throttling.</p>
+              </div>
+              <div class="tunable-control">
+                <mat-slider [min]="gpuTempMin()" [max]="gpuTempMax()" step="1" discrete>
+                  <input matSliderThumb [ngModel]="gpuTempPause()" (ngModelChange)="gpuTempPause.set($event)">
+                </mat-slider>
+                <span class="tunable-value">{{ gpuTempPause() }}°C</span>
+              </div>
+            </div>
+
+            <div class="tunable-item">
+              <div class="tunable-copy">
+                <strong i18n="@@performance.tunables.cpuThreads">CPU encoding threads</strong>
+                <p i18n="@@performance.tunables.cpuThreadsDesc">Number of cores used for pre-processing text before embedding.</p>
+              </div>
+              <div class="tunable-control">
+                <mat-slider [min]="cpuThreadsMin()" [max]="cpuThreadsMax()" step="1" discrete>
+                  <input matSliderThumb [ngModel]="cpuEncodeThreads()" (ngModelChange)="cpuEncodeThreads.set($event)">
+                </mat-slider>
+                <span class="tunable-value">{{ cpuEncodeThreads() }}</span>
+              </div>
+            </div>
+
+            <div class="tunable-item">
+              <div class="tunable-copy">
+                <strong i18n="@@performance.tunables.concurrency">Default queue concurrency</strong>
+                <p i18n="@@performance.tunables.concurrencyDesc">How many parallel jobs to run per queue. Higher = faster but heavy load.</p>
+              </div>
+              <div class="tunable-control">
+                <mat-slider [min]="queueConcMin()" [max]="queueConcMax()" step="1" discrete>
+                  <input matSliderThumb [ngModel]="defaultQueueConcurrency()" (ngModelChange)="defaultQueueConcurrency.set($event)">
+                </mat-slider>
+                <span class="tunable-value">{{ defaultQueueConcurrency() }}</span>
+                <mat-icon class="restart-hint" *ngIf="dirtyConcurrency" matTooltip="Changing this requires a service restart to take effect." i18n-matTooltip="@@performance.tunables.restartTooltip">info</mat-icon>
+              </div>
+            </div>
+
+            <div class="tunable-item tunable-item--toggle">
+              <div class="tunable-copy">
+                <strong i18n="@@performance.tunables.oomBackoff">Aggressive OOM backoff</strong>
+                <p i18n="@@performance.tunables.oomBackoffDesc">Instantly pause intake if a single Out-Of-Memory error is detected.</p>
+              </div>
+              <mat-slide-toggle [checked]="aggressiveOomBackoff()" (change)="aggressiveOomBackoff.set($event.checked)"></mat-slide-toggle>
+            </div>
+          </div>
+
+          <div class="section-actions section-actions--save">
+            <button mat-button type="button" (click)="reset()" [disabled]="saving()" i18n="@@performance.tunables.discardBtn">Discard changes</button>
+            <button mat-raised-button color="primary" type="button" (click)="save()" [disabled]="saving()">
+              <mat-icon>{{ saving() ? 'sync' : 'save' }}</mat-icon>
+              <ng-container i18n="@@performance.tunables.saveBtn">{{ saving() ? 'Saving…' : 'Save performance settings' }}</ng-container>
+            </button>
+          </div>
         </mat-card-content>
       </mat-card>
-
-      <div class="actions">
-        <button mat-stroked-button type="button" (click)="reset()" [disabled]="saving()">
-          <mat-icon>refresh</mat-icon>
-          Reset to defaults
-        </button>
-        <button mat-flat-button color="primary" type="button" (click)="save()" [disabled]="saving()">
-          <mat-icon>{{ saving() ? 'sync' : 'save' }}</mat-icon>
-          {{ saving() ? 'Saving…' : 'Save changes' }}
-        </button>
-      </div>
     </section>
-  

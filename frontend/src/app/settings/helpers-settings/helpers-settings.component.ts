@@ -46,8 +46,8 @@ import {
         <div class="helpers-title-row">
           <mat-icon class="helpers-title-icon">device_hub</mat-icon>
           <div>
-            <h2 class="helpers-title">Helper nodes</h2>
-            <p class="helpers-subtitle">
+            <h2 class="helpers-title" i18n="@@helpers.title">Helper nodes</h2>
+            <p class="helpers-subtitle" i18n="@@helpers.subtitle">
               Secondary machines can contribute CPU, RAM, and optional GPU work. Intake pause,
               liveness, warmed models, and live pressure all come from the existing helper registry.
             </p>
@@ -55,32 +55,32 @@ import {
         </div>
         <button mat-stroked-button type="button" (click)="reload()" [disabled]="loading()">
           <mat-icon>refresh</mat-icon>
-          Refresh
+          <ng-container i18n="@@helpers.refreshBtn">Refresh</ng-container>
         </button>
       </header>
 
       <div class="summary-grid" *ngIf="nodes().length > 0">
         <mat-card class="summary-card">
           <mat-card-content>
-            <span class="summary-label">Online</span>
+            <span class="summary-label" i18n="@@helpers.onlineLabel">Online</span>
             <strong>{{ counts().online }}</strong>
           </mat-card-content>
         </mat-card>
         <mat-card class="summary-card">
           <mat-card-content>
-            <span class="summary-label">Busy</span>
+            <span class="summary-label" i18n="@@helpers.busyLabel">Busy</span>
             <strong>{{ counts().busy }}</strong>
           </mat-card-content>
         </mat-card>
         <mat-card class="summary-card">
           <mat-card-content>
-            <span class="summary-label">Stale</span>
+            <span class="summary-label" i18n="@@helpers.staleLabel">Stale</span>
             <strong>{{ counts().stale }}</strong>
           </mat-card-content>
         </mat-card>
         <mat-card class="summary-card">
           <mat-card-content>
-            <span class="summary-label">Offline</span>
+            <span class="summary-label" i18n="@@helpers.offlineLabel">Offline</span>
             <strong>{{ counts().offline }}</strong>
           </mat-card-content>
         </mat-card>
@@ -88,59 +88,59 @@ import {
 
       <mat-card class="register-card" id="helpers-registration">
         <mat-card-header>
-          <mat-card-title>Register helper node</mat-card-title>
-          <mat-card-subtitle>Add a secondary machine without leaving the existing helper registry flow.</mat-card-subtitle>
+          <mat-card-title i18n="@@helpers.register.title">Register helper node</mat-card-title>
+          <mat-card-subtitle i18n="@@helpers.register.subtitle">Add a secondary machine without leaving the existing helper registry flow.</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           <div class="register-grid">
             <mat-form-field appearance="outline">
-              <mat-label>Name</mat-label>
+              <mat-label i18n="@@helpers.register.name">Name</mat-label>
               <input matInput autocomplete="off" [(ngModel)]="draft.name" />
             </mat-form-field>
             <mat-form-field appearance="outline">
-              <mat-label>Token</mat-label>
+              <mat-label i18n="@@helpers.register.token">Token</mat-label>
               <input matInput autocomplete="off" [(ngModel)]="draft.token" />
             </mat-form-field>
             <mat-form-field appearance="outline">
-              <mat-label>Role</mat-label>
+              <mat-label i18n="@@helpers.register.role">Role</mat-label>
               <mat-select [(ngModel)]="draft.role">
-                <mat-option value="worker">Worker</mat-option>
-                <mat-option value="gpu">GPU worker</mat-option>
-                <mat-option value="crawler">Crawler</mat-option>
+                <mat-option value="worker" i18n="@@helpers.register.roleWorker">Worker</mat-option>
+                <mat-option value="gpu" i18n="@@helpers.register.roleGpu">GPU worker</mat-option>
+                <mat-option value="crawler" i18n="@@helpers.register.roleCrawler">Crawler</mat-option>
               </mat-select>
             </mat-form-field>
             <mat-form-field appearance="outline">
-              <mat-label>Time policy</mat-label>
+              <mat-label i18n="@@helpers.register.timePolicy">Time policy</mat-label>
               <mat-select [(ngModel)]="draft.time_policy">
-                <mat-option value="anytime">Anytime</mat-option>
-                <mat-option value="nighttime">Nighttime</mat-option>
-                <mat-option value="maintenance">Maintenance window</mat-option>
+                <mat-option value="anytime" i18n="@@helpers.register.policyAnytime">Anytime</mat-option>
+                <mat-option value="nighttime" i18n="@@helpers.register.policyNighttime">Nighttime</mat-option>
+                <mat-option value="maintenance" i18n="@@helpers.register.policyMaintenance">Maintenance window</mat-option>
               </mat-select>
             </mat-form-field>
             <mat-form-field appearance="outline">
-              <mat-label>Max concurrency</mat-label>
+              <mat-label i18n="@@helpers.register.maxConcurrency">Max concurrency</mat-label>
               <input matInput autocomplete="off" type="number" min="1" step="1" [(ngModel)]="draft.max_concurrency" />
             </mat-form-field>
             <mat-form-field appearance="outline">
-              <mat-label>CPU cap %</mat-label>
+              <mat-label i18n="@@helpers.register.cpuCap">CPU cap %</mat-label>
               <input matInput autocomplete="off" type="number" min="10" max="100" step="5" [(ngModel)]="draft.cpu_cap_pct" />
             </mat-form-field>
             <mat-form-field appearance="outline">
-              <mat-label>RAM cap %</mat-label>
+              <mat-label i18n="@@helpers.register.ramCap">RAM cap %</mat-label>
               <input matInput autocomplete="off" type="number" min="10" max="100" step="5" [(ngModel)]="draft.ram_cap_pct" />
             </mat-form-field>
             <mat-form-field appearance="outline">
-              <mat-label>Accepting work</mat-label>
+              <mat-label i18n="@@helpers.register.acceptingWork">Accepting work</mat-label>
               <mat-select [(ngModel)]="draft.accepting_work">
-                <mat-option [value]="true">Yes</mat-option>
-                <mat-option [value]="false">No</mat-option>
+                <mat-option [value]="true" i18n="@@helpers.register.yes">Yes</mat-option>
+                <mat-option [value]="false" i18n="@@helpers.register.no">No</mat-option>
               </mat-select>
             </mat-form-field>
           </div>
           <div class="button-row">
             <button mat-flat-button color="primary" type="button" (click)="createHelper()" [disabled]="creating() || !draft.name.trim() || !draft.token.trim()">
               <mat-icon>{{ creating() ? 'sync' : 'add' }}</mat-icon>
-              {{ creating() ? 'Registering…' : 'Register helper' }}
+              <ng-container i18n="@@helpers.register.submitBtn">{{ creating() ? 'Registering…' : 'Register helper' }}</ng-container>
             </button>
           </div>
         </mat-card-content>
@@ -154,7 +154,9 @@ import {
         <app-empty-state
           icon="device_hub"
           heading="No helper nodes registered"
+          i18n-heading="@@helpers.empty.title"
           body="The main machine is handling everything solo. Register a helper here if you want to offload RAM-heavy or GPU-heavy background work."
+          i18n-body="@@helpers.empty.subtitle"
         />
       } @else {
         <div class="helpers-grid">
@@ -168,68 +170,90 @@ import {
                   <span class="helper-name">{{ node.name }}</span>
                   <mat-chip class="helper-role-chip" disableRipple>{{ node.role }}</mat-chip>
                   <mat-chip class="helper-accepting-chip" disableRipple [class.helper-accepting-chip--paused]="!node.accepting_work">
-                    {{ node.accepting_work ? 'Accepting work' : 'Paused intake' }}
+                    <ng-container *ngIf="node.accepting_work; else pausedIntake">
+                      <ng-container i18n="@@helpers.status.acceptingWork">Accepting work</ng-container>
+                    </ng-container>
+                    <ng-template #pausedIntake>
+                      <ng-container i18n="@@helpers.status.pausedIntake">Paused intake</ng-container>
+                    </ng-template>
                   </mat-chip>
                 </div>
                 <span class="helper-heartbeat">
-                  {{ node.last_heartbeat ? ('Last seen ' + (node.last_heartbeat | date:'short')) : 'Never seen' }}
+                  <ng-container *ngIf="node.last_heartbeat; else neverSeen">
+                    <ng-container i18n="@@helpers.lastSeen">Last seen {{ node.last_heartbeat | date:'short' }}</ng-container>
+                  </ng-container>
+                  <ng-template #neverSeen>
+                    <ng-container i18n="@@helpers.neverSeen">Never seen</ng-container>
+                  </ng-template>
                 </span>
               </div>
 
               <div class="helper-metrics">
                 <div class="metric-pill">
-                  <span class="metric-pill__label">Jobs</span>
-                  <span class="metric-pill__value">{{ node.active_jobs }} active • {{ node.queued_jobs }} queued</span>
-                </div>
-                <div class="metric-pill">
-                  <span class="metric-pill__label">CPU</span>
-                  <span class="metric-pill__value">{{ node.cpu_pct || 0 }}% of {{ node.cpu_cap_pct }}%</span>
-                </div>
-                <div class="metric-pill">
-                  <span class="metric-pill__label">RAM</span>
-                  <span class="metric-pill__value">{{ node.ram_pct || 0 }}% of {{ node.ram_cap_pct }}%</span>
-                </div>
-                <div class="metric-pill" *ngIf="node.gpu_util_pct !== null || node.gpu_vram_total_mb !== null">
-                  <span class="metric-pill__label">GPU</span>
+                  <span class="metric-pill__label" i18n="@@helpers.metrics.jobs">Jobs</span>
                   <span class="metric-pill__value">
-                    {{ node.gpu_util_pct ?? 0 }}% util
-                    <span class="meta-sep"> • </span>
-                    {{ node.gpu_vram_used_mb ?? 0 }}/{{ node.gpu_vram_total_mb ?? 0 }} MB
+                    <ng-container i18n="@@helpers.metrics.jobSummary">{{ node.active_jobs }} active • {{ node.queued_jobs }} queued</ng-container>
                   </span>
                 </div>
                 <div class="metric-pill">
-                  <span class="metric-pill__label">Network</span>
-                  <span class="metric-pill__value">{{ node.network_rtt_ms ?? 0 }} ms RTT</span>
+                  <span class="metric-pill__label" i18n="@@helpers.metrics.cpu">CPU</span>
+                  <span class="metric-pill__value">
+                    <ng-container i18n="@@helpers.metrics.cpuUsage">{{ node.cpu_pct || 0 }}% of {{ node.cpu_cap_pct }}%</ng-container>
+                  </span>
                 </div>
                 <div class="metric-pill">
-                  <span class="metric-pill__label">Native kernels</span>
-                  <span class="metric-pill__value">{{ node.native_kernels_healthy ? 'Healthy' : 'Unavailable' }}</span>
+                  <span class="metric-pill__label" i18n="@@helpers.metrics.ram">RAM</span>
+                  <span class="metric-pill__value">
+                    <ng-container i18n="@@helpers.metrics.ramUsage">{{ node.ram_pct || 0 }}% of {{ node.ram_cap_pct }}%</ng-container>
+                  </span>
+                </div>
+                <div class="metric-pill" *ngIf="node.gpu_util_pct !== null || node.gpu_vram_total_mb !== null">
+                  <span class="metric-pill__label" i18n="@@helpers.metrics.gpu">GPU</span>
+                  <span class="metric-pill__value">
+                    <ng-container i18n="@@helpers.metrics.gpuSummary">
+                      {{ node.gpu_util_pct ?? 0 }}% util
+                      <span class="meta-sep"> • </span>
+                      {{ node.gpu_vram_used_mb ?? 0 }}/{{ node.gpu_vram_total_mb ?? 0 }} MB
+                    </ng-container>
+                  </span>
+                </div>
+                <div class="metric-pill">
+                  <span class="metric-pill__label" i18n="@@helpers.metrics.network">Network</span>
+                  <span class="metric-pill__value">
+                    <ng-container i18n="@@helpers.metrics.networkLatency">{{ node.network_rtt_ms ?? 0 }} ms RTT</ng-container>
+                  </span>
+                </div>
+                <div class="metric-pill">
+                  <span class="metric-pill__label" i18n="@@helpers.metrics.nativeKernels">Native kernels</span>
+                  <span class="metric-pill__value">
+                    <ng-container i18n="@@helpers.metrics.nativeKernelsStatus">{{ node.native_kernels_healthy ? 'Healthy' : 'Unavailable' }}</ng-container>
+                  </span>
                 </div>
               </div>
 
               <div class="helper-meta">
                 <div class="helper-meta-row">
-                  <span class="meta-label">Capabilities</span>
+                  <span class="meta-label" i18n="@@helpers.meta.capabilities">Capabilities</span>
                   <span class="meta-value">{{ formatCapabilities(node.capabilities) }}</span>
                 </div>
                 <div class="helper-meta-row">
-                  <span class="meta-label">Queues</span>
+                  <span class="meta-label" i18n="@@helpers.meta.queues">Queues</span>
                   <span class="meta-value">{{ formatList(node.allowed_queues, 'any') }}</span>
                 </div>
                 <div class="helper-meta-row">
-                  <span class="meta-label">Job lanes</span>
+                  <span class="meta-label" i18n="@@helpers.meta.jobLanes">Job lanes</span>
                   <span class="meta-value">{{ formatList(node.allowed_job_types, 'any') }}</span>
                 </div>
                 <div class="helper-meta-row">
-                  <span class="meta-label">Warmed models</span>
+                  <span class="meta-label" i18n="@@helpers.meta.warmedModels">Warmed models</span>
                   <span class="meta-value">{{ formatList(node.warmed_model_keys, 'none reported') }}</span>
                 </div>
                 <div class="helper-meta-row">
-                  <span class="meta-label">Policy</span>
+                  <span class="meta-label" i18n="@@helpers.meta.policy">Policy</span>
                   <span class="meta-value">
                     {{ policyDisplay(node.time_policy) }}
                     <span class="meta-sep"> • </span>
-                    Concurrency {{ node.max_concurrency }}
+                    <ng-container i18n="@@helpers.meta.concurrency">Concurrency {{ node.max_concurrency }}</ng-container>
                   </span>
                 </div>
               </div>
@@ -237,11 +261,16 @@ import {
               <div class="button-row">
                 <button mat-stroked-button type="button" (click)="toggleAcceptingWork(node)" [disabled]="updatingNodeId() === node.id">
                   <mat-icon>{{ node.accepting_work ? 'pause_circle' : 'play_circle' }}</mat-icon>
-                  {{ node.accepting_work ? 'Pause intake' : 'Resume intake' }}
+                  <ng-container *ngIf="node.accepting_work; else resumeText">
+                    <ng-container i18n="@@helpers.actions.pauseIntake">Pause intake</ng-container>
+                  </ng-container>
+                  <ng-template #resumeText>
+                    <ng-container i18n="@@helpers.actions.resumeIntake">Resume intake</ng-container>
+                  </ng-template>
                 </button>
                 <button mat-stroked-button color="warn" type="button" (click)="deleteHelper(node)" [disabled]="updatingNodeId() === node.id">
                   <mat-icon>delete</mat-icon>
-                  Remove helper
+                  <ng-container i18n="@@helpers.actions.removeBtn">Remove helper</ng-container>
                 </button>
               </div>
             </mat-card>
@@ -489,7 +518,7 @@ export class HelpersSettingsComponent implements OnInit {
       .pipe(
         finalize(() => this.loading.set(false)),
         catchError(() => {
-          this.snack.open('Could not load helper nodes.', 'Dismiss', { duration: 4000 });
+          this.snack.open($localize`:@@helpers.errors.loadFailed:Could not load helper nodes.`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 4000 });
           return EMPTY;
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -499,7 +528,7 @@ export class HelpersSettingsComponent implements OnInit {
 
   createHelper(): void {
     if (!this.draft.name?.trim() || !this.draft.token?.trim()) {
-      this.snack.open('Helper name and token are required.', 'Dismiss', { duration: 3000 });
+      this.snack.open($localize`:@@helpers.errors.nameTokenRequired:Helper name and token are required.`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 3000 });
       return;
     }
 
@@ -512,13 +541,13 @@ export class HelpersSettingsComponent implements OnInit {
       .pipe(
         finalize(() => this.creating.set(false)),
         catchError((error) => {
-          this.snack.open(error?.error?.error || 'Could not register helper node.', 'Dismiss', { duration: 4500 });
+          this.snack.open(error?.error?.error || $localize`:@@helpers.errors.registerFailed:Could not register helper node.`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 4500 });
           return EMPTY;
         }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(() => {
-        this.snack.open('Helper node registered.', 'Dismiss', { duration: 3000 });
+        this.snack.open($localize`:@@helpers.success.registered:Helper node registered.`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 3000 });
         this.draft = {
           name: '',
           token: '',
@@ -539,7 +568,7 @@ export class HelpersSettingsComponent implements OnInit {
       .pipe(
         finalize(() => this.updatingNodeId.set(null)),
         catchError((error) => {
-          this.snack.open(error?.error?.error || 'Could not update helper state.', 'Dismiss', { duration: 4500 });
+          this.snack.open(error?.error?.error || $localize`:@@helpers.errors.updateFailed:Could not update helper state.`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 4500 });
           return EMPTY;
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -547,8 +576,10 @@ export class HelpersSettingsComponent implements OnInit {
       .subscribe((updated) => {
         this.nodes.set(this.nodes().map((item) => item.id === updated.id ? updated : item));
         this.snack.open(
-          updated.accepting_work ? 'Helper intake resumed.' : 'Helper intake paused.',
-          'Dismiss',
+          updated.accepting_work 
+            ? $localize`:@@helpers.success.resumed:Helper intake resumed.` 
+            : $localize`:@@helpers.success.paused:Helper intake paused.`,
+          $localize`:@@settings.actions.dismiss:Dismiss`,
           { duration: 3000 },
         );
       });
@@ -560,29 +591,29 @@ export class HelpersSettingsComponent implements OnInit {
       .pipe(
         finalize(() => this.updatingNodeId.set(null)),
         catchError((error) => {
-          this.snack.open(error?.error?.error || 'Could not remove helper node.', 'Dismiss', { duration: 4500 });
+          this.snack.open(error?.error?.error || $localize`:@@helpers.errors.removeFailed:Could not remove helper node.`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 4500 });
           return EMPTY;
         }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(() => {
         this.nodes.set(this.nodes().filter((item) => item.id !== node.id));
-        this.snack.open('Helper removed.', 'Dismiss', { duration: 3000 });
+        this.snack.open($localize`:@@helpers.success.removed:Helper removed.`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 3000 });
       });
   }
 
   formatCapabilities(caps: Record<string, unknown> | null | undefined): string {
-    if (!caps || Object.keys(caps).length === 0) return 'Not reported';
+    if (!caps || Object.keys(caps).length === 0) return $localize`:@@helpers.meta.notReported:Not reported`;
     const parts: string[] = [];
     const cpuCores = caps['cpu_cores'];
     const ramGb = caps['ram_gb'];
     const gpuVramGb = caps['gpu_vram_gb'];
     const gpuName = caps['gpu_name'];
-    if (cpuCores != null) parts.push(`${cpuCores} CPU cores`);
-    if (ramGb != null) parts.push(`${ramGb} GB RAM`);
+    if (cpuCores != null) parts.push($localize`:@@helpers.meta.cpuCores:${cpuCores} CPU cores`);
+    if (ramGb != null) parts.push($localize`:@@helpers.meta.ramGb:${ramGb} GB RAM`);
     if (gpuName) parts.push(String(gpuName));
-    if (gpuVramGb != null) parts.push(`${gpuVramGb} GB VRAM`);
-    return parts.length > 0 ? parts.join(' • ') : 'Not reported';
+    if (gpuVramGb != null) parts.push($localize`:@@helpers.meta.gpuVramGb:${gpuVramGb} GB VRAM`);
+    return parts.length > 0 ? parts.join(' • ') : $localize`:@@helpers.meta.notReported:Not reported`;
   }
 
   formatList(values: string[] | null | undefined, emptyLabel: string): string {
@@ -592,11 +623,11 @@ export class HelpersSettingsComponent implements OnInit {
   policyDisplay(policy: string): string {
     switch (policy) {
       case 'anytime':
-        return 'Available anytime';
+        return $localize`:@@helpers.meta.policyAnytime:Available anytime`;
       case 'nighttime':
-        return 'Nighttime only';
+        return $localize`:@@helpers.meta.policyNighttime:Nighttime only`;
       case 'maintenance':
-        return 'Maintenance window only';
+        return $localize`:@@helpers.meta.policyMaintenance:Maintenance window only`;
       default:
         return policy;
     }
@@ -605,13 +636,13 @@ export class HelpersSettingsComponent implements OnInit {
   statusTooltip(status: string): string {
     switch (status) {
       case 'online':
-        return 'Healthy and ready for more work.';
+        return $localize`:@@helpers.tips.online:Healthy and ready for more work.`;
       case 'busy':
-        return 'Healthy and actively running work.';
+        return $localize`:@@helpers.tips.busy:Healthy and actively running work.`;
       case 'stale':
-        return 'Heartbeat is old enough that routing should be cautious.';
+        return $localize`:@@helpers.tips.stale:Heartbeat is old enough that routing should be cautious.`;
       case 'offline':
-        return 'No recent heartbeat from this helper.';
+        return $localize`:@@helpers.tips.offline:No recent heartbeat from this helper.`;
       default:
         return status;
     }

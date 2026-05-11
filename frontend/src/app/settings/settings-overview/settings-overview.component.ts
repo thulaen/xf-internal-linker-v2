@@ -15,27 +15,27 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
     <section class="settings-overview" id="settings-overview">
       <div class="settings-overview__stats">
         <article class="overview-stat">
-          <span class="overview-stat__label">Live features on</span>
+          <span class="overview-stat__label" i18n="@@settings.overview.liveFeaturesLabel">Live features on</span>
           <strong>{{ currentFeatureCount }}</strong>
-          <p>Ranking features currently active.</p>
+          <p i18n="@@settings.overview.liveFeaturesDesc">Ranking features currently active.</p>
         </article>
 
         <article class="overview-stat">
-          <span class="overview-stat__label">Recommended still off</span>
+          <span class="overview-stat__label" i18n="@@settings.overview.recommendedOffLabel">Recommended still off</span>
           <strong>{{ currentOffCount }}</strong>
-          <p>Features from recommended preset still disabled.</p>
+          <p i18n="@@settings.overview.recommendedOffDesc">Features from recommended preset still disabled.</p>
         </article>
 
         <article class="overview-stat">
-          <span class="overview-stat__label">Silo groups</span>
+          <span class="overview-stat__label" i18n="@@settings.overview.siloGroupsLabel">Silo groups</span>
           <strong>{{ siloGroupCount }}</strong>
-          <p>Active content families.</p>
+          <p i18n="@@settings.overview.siloGroupsDesc">Active content families.</p>
         </article>
 
         <article class="overview-stat">
-          <span class="overview-stat__label">Assigned scopes</span>
+          <span class="overview-stat__label" i18n="@@settings.overview.assignedScopesLabel">Assigned scopes</span>
           <strong>{{ assignedScopeCount }}/{{ totalScopeCount }}</strong>
-          <p>Scopes mapped to silos.</p>
+          <p i18n="@@settings.overview.assignedScopesDesc">Scopes mapped to silos.</p>
         </article>
       </div>
     </section>

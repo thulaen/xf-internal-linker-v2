@@ -35,13 +35,13 @@ import { MetaRow } from './meta-algorithms.service';
   template: `
     <div class="mr-row" [attr.data-id]="row.id">
       <span class="mr-family" [matTooltip]="familyTooltip()">{{ row.family }}</span>
-      <span class="mr-code" [matTooltip]="row.meta_code || 'Not assigned'">
+      <span class="mr-code" [matTooltip]="row.meta_code || notAssignedLabel" i18n-matTooltip="@@metaAlgorithms.row.notAssignedTip">
         {{ row.meta_code || '—' }}
       </span>
       <span class="mr-title">
         {{ row.title }}
         @if (row.cpp_kernel) {
-          <mat-icon class="mr-icon mr-cpp" matTooltip="C++ accelerated: {{ row.cpp_kernel }}">
+          <mat-icon class="mr-icon mr-cpp" [matTooltip]="'C++ accelerated: ' + row.cpp_kernel" i18n-matTooltip="@@metaAlgorithms.row.cppTip">
             bolt
           </mat-icon>
         }
@@ -50,7 +50,7 @@ import { MetaRow } from './meta-algorithms.service';
         {{ statusLabel() }}
       </span>
       @if (row.weight_value) {
-        <span class="mr-weight" matTooltip="Weight value (read-only here; edit in Weight Diagnostics)">
+        <span class="mr-weight" matTooltip="Weight value (read-only here; edit in Weight Diagnostics)" i18n-matTooltip="@@metaAlgorithms.row.weightTip">
           w = {{ row.weight_value }}
         </span>
       } @else {
@@ -61,7 +61,7 @@ import { MetaRow } from './meta-algorithms.service';
         [checked]="row.enabled"
         [disabled]="row.status === 'disabled-pending-implementation'"
         (change)="toggled.emit({ id: row.id, enabled: $event.checked })"
-        [attr.aria-label]="'Enable ' + row.title"
+        [attr.aria-label]="toggleAriaLabel"
       />
       <button
         mat-icon-button
@@ -69,6 +69,7 @@ import { MetaRow } from './meta-algorithms.service';
         class="mr-actions"
         [matMenuTriggerFor]="menu"
         aria-label="More actions"
+        i18n-aria-label="@@metaAlgorithms.row.actionsAria"
       >
         <mat-icon>more_vert</mat-icon>
       </button>
@@ -80,7 +81,7 @@ import { MetaRow } from './meta-algorithms.service';
           (click)="actionClick.emit({ id: row.id, action: 'run' })"
         >
           <mat-icon>play_arrow</mat-icon>
-          Run now
+          <ng-container i18n="@@metaAlgorithms.row.runBtn">Run now</ng-container>
         </button>
         <button
           mat-menu-item
@@ -89,7 +90,7 @@ import { MetaRow } from './meta-algorithms.service';
           (click)="actionClick.emit({ id: row.id, action: 'spec' })"
         >
           <mat-icon>description</mat-icon>
-          View spec
+          <ng-container i18n="@@metaAlgorithms.row.viewSpecBtn">View spec</ng-container>
         </button>
         <button
           mat-menu-item
@@ -97,7 +98,7 @@ import { MetaRow } from './meta-algorithms.service';
           (click)="actionClick.emit({ id: row.id, action: 'ops_feed' })"
         >
           <mat-icon>rss_feed</mat-icon>
-          Show in Ops Feed
+          <ng-container i18n="@@metaAlgorithms.row.opsFeedBtn">Show in Ops Feed</ng-container>
         </button>
         <button
           mat-menu-item
@@ -105,7 +106,7 @@ import { MetaRow } from './meta-algorithms.service';
           (click)="actionClick.emit({ id: row.id, action: 'mission_critical' })"
         >
           <mat-icon>dashboard_customize</mat-icon>
-          Show in Mission Critical
+          <ng-container i18n="@@metaAlgorithms.row.dashboardBtn">Show in Mission Critical</ng-container>
         </button>
       </mat-menu>
     </div>
@@ -183,22 +184,30 @@ export class MetaRowComponent {
   @Output() toggled = new EventEmitter<{ id: string; enabled: boolean }>();
   @Output() actionClick = new EventEmitter<{ id: string; action: string }>();
 
+  get notAssignedLabel(): string {
+    return $localize`:@@metaAlgorithms.row.notAssigned:Not assigned`;
+  }
+
   statusLabel(): string {
     switch (this.row.status) {
-      case 'active': return 'Active';
-      case 'disabled': return 'Disabled';
-      case 'disabled-pending-implementation': return 'Spec only';
-      case 'forward-declared': return 'Forward';
+      case 'active': return $localize`:@@metaAlgorithms.status.active:Active`;
+      case 'disabled': return $localize`:@@metaAlgorithms.status.disabled:Disabled`;
+      case 'disabled-pending-implementation': return $localize`:@@metaAlgorithms.status.spec:Spec only`;
+      case 'forward-declared': return $localize`:@@metaAlgorithms.status.forward:Forward`;
       default: return this.row.status;
     }
   }
 
   familyTooltip(): string {
     const f = this.row.family;
-    if (f === 'active') return 'Currently shipped — wired into the pipeline.';
-    if (f === 'signal') return 'Forward-declared ranking signal.';
-    if (f.startsWith('P')) return `Optimiser block ${f} — see docs/specs/.`;
-    if (f.startsWith('Q')) return `Advanced-methods block ${f} — see docs/specs/.`;
-    return `Family ${f}`;
+    if (f === 'active') return $localize`:@@metaAlgorithms.family.activeTip:Currently shipped — wired into the pipeline.`;
+    if (f === 'signal') return $localize`:@@metaAlgorithms.family.signalTip:Forward-declared ranking signal.`;
+    if (f.startsWith('P')) return $localize`:@@metaAlgorithms.family.optTip:Optimiser block ${f} — see docs/specs/.`;
+    if (f.startsWith('Q')) return $localize`:@@metaAlgorithms.family.advTip:Advanced-methods block ${f} — see docs/specs/.`;
+    return $localize`:@@metaAlgorithms.family.genericTip:Family ${f}`;
+  }
+
+  get toggleAriaLabel(): string {
+    return $localize`:@@metaAlgorithms.row.toggleAria:Enable ${this.row.title}`;
   }
 }

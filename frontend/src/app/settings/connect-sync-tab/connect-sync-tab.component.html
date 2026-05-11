@@ -7,7 +7,7 @@
             <mat-card-title i18n="@@settings.connectSync.xenforo.title">XenForo Connection</mat-card-title>
             <mat-card-subtitle i18n="@@settings.connectSync.xenforo.subtitle">Forum URL and REST API key for direct content sync</mat-card-subtitle>
           </div>
-          <div class="health-indicator" [matTooltip]="xenforo.health?.issue" matTooltipClass="setting-tooltip">
+          <div class="health-indicator" [matTooltip]="xenforo.health?.issue" i18n-matTooltip="@@settings.tips.telemetryHealthIssue" matTooltipClass="setting-tooltip">
             <span class="status-pill" [ngClass]="telemetryStatusClass(xenforo.health?.status)">
               <mat-icon>{{ getHealthIcon(xenforo.health?.status) }}</mat-icon>
               {{ xenforo.health?.label }}
@@ -37,8 +37,8 @@
           <div class="health-issue-box" *ngIf="!xenforo.health?.is_healthy && xenforo.health?.issue">
             <mat-icon>error_outline</mat-icon>
             <div class="issue-content">
-              <strong>Issue:</strong> {{ xenforo.health?.issue }}
-              <div class="fix-text" *ngIf="xenforo.health?.fix"><strong>Fix:</strong> {{ xenforo.health?.fix }}</div>
+              <strong i18n="@@settings.labels.issue">Issue:</strong> {{ xenforo.health?.issue }}
+              <div class="fix-text" *ngIf="xenforo.health?.fix"><strong i18n="@@settings.labels.fix">Fix:</strong> {{ xenforo.health?.fix }}</div>
             </div>
           </div>
         </div>
@@ -50,7 +50,7 @@
         </button>
         <button mat-flat-button color="primary" [disabled]="savingXenForo" (click)="saveXenForoSettings()">
           @if (savingXenForo) { <mat-spinner diameter="18"></mat-spinner> }
-          <span i18n="@@settings.actions.save">Save</span>
+          <span i18n="@@settings.actions.save">{{ savingXenForo ? 'Saving...' : 'Save' }}</span>
         </button>
       </mat-card-actions>
     </mat-card>
@@ -59,7 +59,7 @@
       <mat-card-header>
         <div class="header-main" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
           <mat-card-title i18n="@@settings.connectSync.wordpress.title">WordPress Connection</mat-card-title>
-          <div class="health-indicator" [matTooltip]="wordpress.health?.issue" matTooltipClass="setting-tooltip">
+          <div class="health-indicator" [matTooltip]="wordpress.health?.issue" i18n-matTooltip="@@settings.tips.telemetryHealthIssue" matTooltipClass="setting-tooltip">
             <span class="status-pill" [ngClass]="telemetryStatusClass(wordpress.health?.status)">
               <mat-icon>{{ getHealthIcon(wordpress.health?.status) }}</mat-icon>
               {{ wordpress.health?.label }}
@@ -80,16 +80,16 @@
 
           <div class="form-row">
             <mat-form-field appearance="outline">
-              <mat-label>Username</mat-label>
+              <mat-label i18n="@@settings.labels.username">Username</mat-label>
               <input matInput autocomplete="off" [(ngModel)]="wordpress.username" (ngModelChange)="markDirty()" />
-              <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('wordpress.username')" matTooltipClass="setting-tooltip">
+              <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('wordpress.username')" i18n-matTooltip="@@settings.tips.wordpressUsername" matTooltipClass="setting-tooltip">
                 <mat-icon class="icon-md">info_outline</mat-icon>
               </button>
             </mat-form-field>
             <mat-form-field appearance="outline">
-              <mat-label>App Password</mat-label>
+              <mat-label i18n="@@settings.labels.appPassword">App Password</mat-label>
               <input matInput autocomplete="off" type="password" [(ngModel)]="wordpressPassword" (ngModelChange)="markDirty()" />
-              <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('wordpress.app_password')" matTooltipClass="setting-tooltip">
+              <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('wordpress.app_password')" i18n-matTooltip="@@settings.tips.wordpressAppPassword" matTooltipClass="setting-tooltip">
                 <mat-icon class="icon-md">info_outline</mat-icon>
               </button>
               <mat-hint>
@@ -104,28 +104,30 @@
           <div class="health-issue-box" *ngIf="!wordpress.health?.is_healthy && wordpress.health?.issue">
             <mat-icon>error_outline</mat-icon>
             <div class="issue-content">
-              <strong>Issue:</strong> {{ wordpress.health?.issue }}
-              <div class="fix-text" *ngIf="wordpress.health?.fix"><strong>Fix:</strong> {{ wordpress.health?.fix }}</div>
+              <strong i18n="@@settings.labels.issue">Issue:</strong> {{ wordpress.health?.issue }}
+              <div class="fix-text" *ngIf="wordpress.health?.fix"><strong i18n="@@settings.labels.fix">Fix:</strong> {{ wordpress.health?.fix }}</div>
             </div>
           </div>
 
           <div class="sync-schedule-box">
             <div class="schedule-header">
-              <h3>Sync Schedule</h3>
-              <mat-checkbox [(ngModel)]="wordpress.sync_enabled" (ngModelChange)="markDirty()" [matTooltip]="tip('wordpress.sync_enabled')" matTooltipClass="setting-tooltip">Enable auto-sync</mat-checkbox>
+              <h3 i18n="@@settings.connectSync.syncSchedule.title">Sync Schedule</h3>
+              <mat-checkbox [(ngModel)]="wordpress.sync_enabled" (ngModelChange)="markDirty()" [matTooltip]="tip('wordpress.sync_enabled')" i18n-matTooltip="@@settings.tips.wordpressSyncEnabled" matTooltipClass="setting-tooltip">
+                <ng-container i18n="@@settings.labels.enableAutoSync">Enable auto-sync</ng-container>
+              </mat-checkbox>
             </div>
             <div class="form-row" *ngIf="wordpress.sync_enabled">
               <mat-form-field appearance="outline">
-                <mat-label>Hour (UTC 0-23)</mat-label>
+                <mat-label i18n="@@settings.labels.hourUtc">Hour (UTC 0-23)</mat-label>
                 <input matInput autocomplete="off" type="number" [(ngModel)]="wordpress.sync_hour" (ngModelChange)="markDirty()" />
-                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('wordpress.sync_hour')" matTooltipClass="setting-tooltip">
+                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('wordpress.sync_hour')" i18n-matTooltip="@@settings.tips.wordpressSyncHour" matTooltipClass="setting-tooltip">
                   <mat-icon class="icon-md">info_outline</mat-icon>
                 </button>
               </mat-form-field>
               <mat-form-field appearance="outline">
-                <mat-label>Minute (0-59)</mat-label>
+                <mat-label i18n="@@settings.labels.minute">Minute (0-59)</mat-label>
                 <input matInput autocomplete="off" type="number" [(ngModel)]="wordpress.sync_minute" (ngModelChange)="markDirty()" />
-                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('wordpress.sync_minute')" matTooltipClass="setting-tooltip">
+                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('wordpress.sync_minute')" i18n-matTooltip="@@settings.tips.wordpressSyncMinute" matTooltipClass="setting-tooltip">
                   <mat-icon class="icon-md">info_outline</mat-icon>
                 </button>
               </mat-form-field>
@@ -135,13 +137,13 @@
           <div class="action-buttons">
             <button mat-stroked-button [disabled]="testingWordPress" (click)="testWordPressConnection()">
               @if (testingWordPress) { <mat-spinner diameter="18"></mat-spinner> }
-              <mat-icon>wifi_tethering</mat-icon> Test Connection
+              <mat-icon>wifi_tethering</mat-icon> <span i18n="@@settings.actions.testConnection">Test Connection</span>
             </button>
             <button mat-stroked-button [disabled]="savingWordPress || !wordpress.app_password_configured" (click)="clearWordPressPassword()">
-              <mat-icon>key_off</mat-icon> Clear Password
+              <mat-icon>key_off</mat-icon> <span i18n="@@settings.actions.clearPassword">Clear Password</span>
             </button>
             <button mat-stroked-button color="primary" [disabled]="runningWordPressSync" (click)="runWordPressSync()">
-              <mat-icon>sync</mat-icon> Run Manual Sync Now
+              <mat-icon>sync</mat-icon> <span i18n="@@settings.actions.runManualSync">Run Manual Sync Now</span>
             </button>
           </div>
         </div>
@@ -160,7 +162,7 @@
       </mat-card-header>
       <mat-card-content class="card-content ga4-card">
 
-        <p class="hint">
+        <p class="hint" i18n="@@settings.connectSync.crawler.webCrawlerLink">
           <mat-icon style="font-size: 16px; width: 16px; height: 16px; vertical-align: middle; color: var(--color-primary);">info</mat-icon>
           Sitemap management (add, remove, auto-discover) is on the
           <a routerLink="/crawler" style="color: var(--color-primary);">Web Crawler</a> page.
@@ -178,9 +180,9 @@
                 matTooltip="Pages per second. Lower = gentler on your server." i18n-matTooltip="@@settings.tips.crawlRate" />
             </mat-form-field>
             <mat-form-field style="width: 140px;">
-              <mat-label>Max Depth</mat-label>
+              <mat-label i18n="@@settings.labels.maxDepth">Max Depth</mat-label>
               <input matInput autocomplete="off" type="number" value="5" min="1" max="10"
-                matTooltip="Click distance from homepage. 5 is enough for most sites." />
+                matTooltip="Click distance from homepage. 5 is enough for most sites." i18n-matTooltip="@@settings.tips.maxDepth" />
             </mat-form-field>
           </div>
         </div>
@@ -188,10 +190,10 @@
         <mat-divider style="margin: 16px 0;" />
 
         <div class="settings-row">
-          <h4 style="font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 8px;">
+          <h4 style="font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 8px;" i18n="@@settings.connectSync.crawler.exclusionPatternsTitle">
             URL Exclusion Patterns
           </h4>
-          <p class="hint">
+          <p class="hint" i18n="@@settings.connectSync.crawler.exclusionPatternsHint">
             Paths the crawler will skip. These apply to all domains.
             One path per line (e.g. <code style="background: var(--color-bg-faint); padding: 2px 4px; border-radius: 4px; font-size: 12px;">/members/</code>).
           </p>
@@ -199,7 +201,7 @@
             @for (path of crawlerExcludedPaths; track path) {
               <mat-chip-row (removed)="removeCrawlerExclusion(path)">
                 {{ path }}
-                <button matChipRemove>
+                <button matChipRemove [matTooltip]="'Remove ' + path" i18n-matTooltip="@@settings.actions.removeExclusionTooltip">
                   <mat-icon>cancel</mat-icon>
                 </button>
               </mat-chip-row>
@@ -207,12 +209,12 @@
           </div>
           <div style="display: flex; gap: 8px; align-items: flex-end; margin-top: 12px;">
             <mat-form-field style="flex: 1; max-width: 300px;">
-              <mat-label>Add exclusion path</mat-label>
-              <input matInput autocomplete="off" [(ngModel)]="newCrawlerExclusion" placeholder="/admin/" />
+              <mat-label i18n="@@settings.labels.addExclusionPath">Add exclusion path</mat-label>
+              <input matInput autocomplete="off" [(ngModel)]="newCrawlerExclusion" placeholder="/admin/" i18n-placeholder="@@settings.placeholders.exclusionPath" />
             </mat-form-field>
             <button mat-stroked-button (click)="addCrawlerExclusion()" [disabled]="!newCrawlerExclusion"
               style="margin-bottom: 16px;">
-              <mat-icon>add</mat-icon> Add
+              <mat-icon>add</mat-icon> <span i18n="@@settings.actions.add">Add</span>
             </button>
           </div>
         </div>
@@ -220,23 +222,23 @@
         <mat-divider style="margin: 16px 0;" />
 
         <div class="settings-row">
-          <h4 style="font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 8px;">
+          <h4 style="font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 8px;" i18n="@@settings.connectSync.crawler.dataRetentionTitle">
             Data Retention &amp; Auto-Prune
           </h4>
           <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--color-text-secondary);">
-            <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;" i18n="@@settings.connectSync.crawler.retentionRuns">
               <mat-icon style="font-size: 18px; width: 18px; height: 18px; color: var(--color-text-muted);">schedule</mat-icon>
               Runs automatically every <strong>4 weeks</strong>
             </div>
-            <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;" i18n="@@settings.connectSync.crawler.retentionAge">
               <mat-icon style="font-size: 18px; width: 18px; height: 18px; color: var(--color-text-muted);">delete_sweep</mat-icon>
               Crawl page data older than <strong>90 days</strong> is deleted (session summaries are kept)
             </div>
-            <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;" i18n="@@settings.connectSync.crawler.retentionDeadPages">
               <mat-icon style="font-size: 18px; width: 18px; height: 18px; color: var(--color-text-muted);">link_off</mat-icon>
               Pages returning 404 three times in a row are marked as dead and skipped
             </div>
-            <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;" i18n="@@settings.connectSync.crawler.retentionArchivedLinks">
               <mat-icon style="font-size: 18px; width: 18px; height: 18px; color: var(--color-text-muted);">auto_fix_high</mat-icon>
               Fixed broken links are archived after <strong>30 days</strong>
             </div>
@@ -268,31 +270,31 @@
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>WordPress Receiver URL</mat-label>
+            <mat-label i18n="@@settings.labels.wpWebhookUrl">WordPress Receiver URL</mat-label>
             <input matInput autocomplete="off" [value]="wpWebhookUrl" readonly />
-            <mat-hint>Paste this into your WordPress webhook plugin settings</mat-hint>
+            <mat-hint i18n="@@settings.hints.wpWebhookUrl">Paste this into your WordPress webhook plugin settings</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>XenForo Webhook Secret</mat-label>
-            <input matInput autocomplete="off" type="password" [(ngModel)]="xfWebhookSecret" (ngModelChange)="markDirty()" placeholder="Enter a secret to validate incoming requests" />
+            <mat-label i18n="@@settings.labels.xfWebhookSecret">XenForo Webhook Secret</mat-label>
+            <input matInput autocomplete="off" type="password" [(ngModel)]="xfWebhookSecret" (ngModelChange)="markDirty()" placeholder="Enter a secret to validate incoming requests" i18n-placeholder="@@settings.placeholders.webhookSecret" />
             <mat-hint>
               @if (webhookSettings.xf_secret_configured) {
-                Secret set. Leave blank to keep current.
+                <ng-container i18n="@@settings.hints.webhookSecretSet">Secret set. Leave blank to keep current.</ng-container>
               } @else {
-                No secret set - all incoming XenForo webhooks will be accepted.
+                <ng-container i18n="@@settings.hints.webhookSecretNotSet">No secret set - all incoming XenForo webhooks will be accepted.</ng-container>
               }
             </mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>WordPress Webhook Secret</mat-label>
-            <input matInput autocomplete="off" type="password" [(ngModel)]="wpWebhookSecret" (ngModelChange)="markDirty()" placeholder="Enter a secret to validate incoming requests" />
+            <mat-label i18n="@@settings.labels.wpWebhookSecret">WordPress Webhook Secret</mat-label>
+            <input matInput autocomplete="off" type="password" [(ngModel)]="wpWebhookSecret" (ngModelChange)="markDirty()" placeholder="Enter a secret to validate incoming requests" i18n-placeholder="@@settings.placeholders.webhookSecret" />
             <mat-hint>
               @if (webhookSettings.wp_secret_configured) {
-                Secret set. Leave blank to keep current.
+                <ng-container i18n="@@settings.hints.webhookSecretSet">Secret set. Leave blank to keep current.</ng-container>
               } @else {
-                No secret set - all incoming WordPress webhooks will be accepted.
+                <ng-container i18n="@@settings.hints.webhookSecretNotSet">No secret set - all incoming WordPress webhooks will be accepted.</ng-container>
               }
             </mat-hint>
           </mat-form-field>
@@ -301,11 +303,11 @@
       <mat-card-actions align="end">
         <button mat-stroked-button [disabled]="testingWebhooks" (click)="testWebhookEndpoints()">
           @if (testingWebhooks) { <mat-spinner diameter="18"></mat-spinner> }
-          <mat-icon>hub</mat-icon> Test Webhook Endpoints
+          <mat-icon>hub</mat-icon> <span i18n="@@settings.actions.testWebhooks">Test Webhook Endpoints</span>
         </button>
         <button mat-flat-button color="primary" [disabled]="savingWebhooks" (click)="saveWebhookSettings()">
           @if (savingWebhooks) { <mat-spinner diameter="18"></mat-spinner> }
-          Save
+          <span i18n="@@settings.actions.save">{{ savingWebhooks ? 'Saving...' : 'Save' }}</span>
         </button>
       </mat-card-actions>
     </mat-card>
@@ -330,43 +332,43 @@
             </button>
           </mat-form-field>
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Google OAuth Client Secret</mat-label>
-            <input matInput autocomplete="off" type="password" [(ngModel)]="googleAuthClientSecret" (ngModelChange)="markDirty()" placeholder="Actual secret for the client ID" />
-            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('googleOAuth.client_secret')" matTooltipClass="setting-tooltip">
+            <mat-label i18n="@@settings.labels.googleClientSecret">Google OAuth Client Secret</mat-label>
+            <input matInput autocomplete="off" type="password" [(ngModel)]="googleAuthClientSecret" (ngModelChange)="markDirty()" placeholder="Actual secret for the client ID" i18n-placeholder="@@settings.placeholders.googleClientSecret" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('googleOAuth.client_secret')" i18n-matTooltip="@@settings.tips.googleClientSecret" matTooltipClass="setting-tooltip">
               <mat-icon class="icon-md">info_outline</mat-icon>
             </button>
             <mat-hint>
               @if (googleOAuth.client_secret_configured) {
-                Secret stored. Leave blank to keep it.
+                <ng-container i18n="@@settings.hints.googleSecretStored">Secret stored. Leave blank to keep it.</ng-container>
               } @else {
-                Found in Google Cloud Console under Credentials.
+                <ng-container i18n="@@settings.hints.googleSecretGenerate">Found in Google Cloud Console under Credentials.</ng-container>
               }
             </mat-hint>
           </mat-form-field>
         </div>
 
-        <div class="last-sync-box">Last synced: {{ lastSyncLabel(googleOAuth.last_sync) }}</div>
+        <div class="last-sync-box" i18n="@@settings.labels.lastSynced">Last synced: {{ lastSyncLabel(googleOAuth.last_sync) }}</div>
 
         <div class="action-buttons">
           <button mat-stroked-button color="primary" [disabled]="savingGoogleAuth" (click)="saveGoogleAuthSettings()">
-            <mat-icon>save</mat-icon> {{ savingGoogleAuth ? 'Saving...' : 'Save Google App' }}
+            <mat-icon>save</mat-icon> <span i18n="@@settings.actions.saveGoogleApp">{{ savingGoogleAuth ? 'Saving...' : 'Save Google App' }}</span>
           </button>
           @if (!googleOAuth.oauth_connected) {
             <button mat-flat-button color="primary" [disabled]="!hasGoogleAppCredentials()" (click)="authorizeGoogle()">
-              <mat-icon>login</mat-icon> {{ shouldShowReconnectGoogle() ? 'Reconnect' : 'Sign in with Google' }}
+              <mat-icon>login</mat-icon> <span i18n="@@settings.actions.googleSignIn">{{ shouldShowReconnectGoogle() ? 'Reconnect' : 'Sign in with Google' }}</span>
             </button>
           } @else {
             <button mat-stroked-button color="warn" (click)="unlinkGoogleAccount()">
-              <mat-icon>link_off</mat-icon> Disconnect
+              <mat-icon>link_off</mat-icon> <span i18n="@@settings.actions.disconnect">Disconnect</span>
             </button>
           }
         </div>
 
         <p class="hint" style="font-size: 11px; margin-top: 8px;">
-          <strong>Redirect URI:</strong> <code>http://localhost:8000/api/analytics/oauth/callback/</code> (or your real app URL).
+          <strong i18n="@@settings.labels.redirectUri">Redirect URI:</strong> <code>http://localhost:8000/api/analytics/oauth/callback/</code> <ng-container i18n="@@settings.hints.redirectUriOrReal">(or your real app URL).</ng-container>
         </p>
         @if (googleOAuth.oauth_connected) {
-          <p class="hint">Google sign-in is connected. You can keep the old fallback key fields hidden unless you want a backup setup.</p>
+          <p class="hint" i18n="@@settings.connectSync.google.connectedHint">Google sign-in is connected. You can keep the old fallback key fields hidden unless you want a backup setup.</p>
         }
       </mat-card-content>
     </mat-card>
@@ -389,35 +391,37 @@
         <div class="wordpress-form">
           <div class="sync-schedule-box">
             <div class="schedule-header">
-              <h3>Browser Event Setup</h3>
-              <mat-checkbox [(ngModel)]="ga4Telemetry.behavior_enabled" (ngModelChange)="markDirty()" [matTooltip]="tip('ga4Telemetry.behavior_enabled')" matTooltipClass="setting-tooltip">Enable browser events</mat-checkbox>
+              <h3 i18n="@@settings.connectSync.ga4.browserEventsTitle">Browser Event Setup</h3>
+              <mat-checkbox [(ngModel)]="ga4Telemetry.behavior_enabled" (ngModelChange)="markDirty()" [matTooltip]="tip('ga4Telemetry.behavior_enabled')" i18n-matTooltip="@@settings.tips.ga4BehaviorEnabled" matTooltipClass="setting-tooltip">
+                <ng-container i18n="@@settings.labels.enableBrowserEvents">Enable browser events</ng-container>
+              </mat-checkbox>
             </div>
             <mat-form-field appearance="outline">
-              <mat-label>GA4 Property ID</mat-label>
-              <input matInput autocomplete="off" [(ngModel)]="ga4Telemetry.property_id" (ngModelChange)="markDirty()" placeholder="123456789" />
-              <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.property_id')" matTooltipClass="setting-tooltip">
+              <mat-label i18n="@@settings.labels.ga4PropertyId">GA4 Property ID</mat-label>
+              <input matInput autocomplete="off" [(ngModel)]="ga4Telemetry.property_id" (ngModelChange)="markDirty()" placeholder="123456789" i18n-placeholder="@@settings.placeholders.ga4PropertyId" />
+              <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.property_id')" i18n-matTooltip="@@settings.tips.ga4PropertyId" matTooltipClass="setting-tooltip">
                 <mat-icon class="icon-md">info_outline</mat-icon>
               </button>
             </mat-form-field>
             <div class="form-row">
               <mat-form-field appearance="outline">
-                <mat-label>Measurement ID</mat-label>
-                <input matInput autocomplete="off" [(ngModel)]="ga4Telemetry.measurement_id" (ngModelChange)="markDirty()" placeholder="G-ABC123XYZ" />
-                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.measurement_id')" matTooltipClass="setting-tooltip">
+                <mat-label i18n="@@settings.labels.measurementId">Measurement ID</mat-label>
+                <input matInput autocomplete="off" [(ngModel)]="ga4Telemetry.measurement_id" (ngModelChange)="markDirty()" placeholder="G-ABC123XYZ" i18n-placeholder="@@settings.placeholders.measurementId" />
+                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.measurement_id')" i18n-matTooltip="@@settings.tips.measurementId" matTooltipClass="setting-tooltip">
                   <mat-icon class="icon-md">info_outline</mat-icon>
                 </button>
               </mat-form-field>
               <mat-form-field appearance="outline">
-                <mat-label>API Secret</mat-label>
+                <mat-label i18n="@@settings.labels.apiSecret">API Secret</mat-label>
                 <input matInput autocomplete="off" type="password" [(ngModel)]="ga4TelemetrySecret" (ngModelChange)="markDirty()" />
-                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.api_secret')" matTooltipClass="setting-tooltip">
+                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.api_secret')" i18n-matTooltip="@@settings.tips.ga4ApiSecret" matTooltipClass="setting-tooltip">
                   <mat-icon class="icon-md">info_outline</mat-icon>
                 </button>
                 <mat-hint>
                   @if (ga4Telemetry.api_secret_configured) {
-                    Secret stored. Leave blank to keep it.
+                    <ng-container i18n="@@settings.hints.secretStored">Secret stored. Leave blank to keep it.</ng-container>
                   } @else {
-                    Paste the GA4 Measurement Protocol API secret.
+                    <ng-container i18n="@@settings.hints.ga4ApiSecretPaste">Paste the GA4 Measurement Protocol API secret.</ng-container>
                   }
                 </mat-hint>
               </mat-form-field>
@@ -426,129 +430,131 @@
 
           <div class="sync-schedule-box">
             <div class="schedule-header">
-              <h3>Service Account (Fallback)</h3>
+              <h3 i18n="@@settings.connectSync.ga4.fallbackTitle">Service Account (Fallback)</h3>
               @if (googleOAuth.oauth_connected) {
                 <button mat-stroked-button type="button" (click)="showGA4FallbackFields = !showGA4FallbackFields">
-                  {{ shouldShowGA4FallbackFields() ? 'Hide fallback fields' : 'Show fallback fields' }}
+                  <span i18n="@@settings.actions.toggleGA4Fallback">{{ shouldShowGA4FallbackFields() ? 'Hide fallback fields' : 'Show fallback fields' }}</span>
                 </button>
               }
             </div>
             @if (shouldShowGA4FallbackFields()) {
-              <mat-checkbox [(ngModel)]="ga4Telemetry.sync_enabled" (ngModelChange)="markDirty()" [matTooltip]="tip('ga4Telemetry.sync_enabled')" matTooltipClass="setting-tooltip">Enable GA4 sync</mat-checkbox>
+              <mat-checkbox [(ngModel)]="ga4Telemetry.sync_enabled" (ngModelChange)="markDirty()" [matTooltip]="tip('ga4Telemetry.sync_enabled')" i18n-matTooltip="@@settings.tips.ga4SyncEnabled" matTooltipClass="setting-tooltip">
+                <ng-container i18n="@@settings.labels.enableGA4Sync">Enable GA4 sync</ng-container>
+              </mat-checkbox>
               <div class="form-row">
                 <mat-form-field appearance="outline">
-                  <mat-label>Read project ID</mat-label>
-                  <input matInput autocomplete="off" [(ngModel)]="ga4Telemetry.read_project_id" (ngModelChange)="markDirty()" placeholder="my-ga4-project" />
-                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.read_project_id')" matTooltipClass="setting-tooltip">
+                  <mat-label i18n="@@settings.labels.readProjectId">Read project ID</mat-label>
+                  <input matInput autocomplete="off" [(ngModel)]="ga4Telemetry.read_project_id" (ngModelChange)="markDirty()" placeholder="my-ga4-project" i18n-placeholder="@@settings.placeholders.readProjectId" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.read_project_id')" i18n-matTooltip="@@settings.tips.ga4ReadProjectId" matTooltipClass="setting-tooltip">
                     <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
-                  <mat-label>Read client email</mat-label>
-                  <input matInput autocomplete="off" [(ngModel)]="ga4Telemetry.read_client_email" (ngModelChange)="markDirty()" placeholder="reader@project.iam.gserviceaccount.com" />
-                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.read_client_email')" matTooltipClass="setting-tooltip">
+                  <mat-label i18n="@@settings.labels.readClientEmail">Read client email</mat-label>
+                  <input matInput autocomplete="off" [(ngModel)]="ga4Telemetry.read_client_email" (ngModelChange)="markDirty()" placeholder="reader@project.iam.gserviceaccount.com" i18n-placeholder="@@settings.placeholders.readClientEmail" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.read_client_email')" i18n-matTooltip="@@settings.tips.ga4ReadClientEmail" matTooltipClass="setting-tooltip">
                     <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
               </div>
               <mat-form-field appearance="outline">
-                <mat-label>Read private key</mat-label>
-                <textarea matInput autocomplete="off" rows="5" [(ngModel)]="ga4TelemetryReadPrivateKey" (ngModelChange)="markDirty()" placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
-                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.read_private_key')" matTooltipClass="setting-tooltip">
+                <mat-label i18n="@@settings.labels.readPrivateKey">Read private key</mat-label>
+                <textarea matInput autocomplete="off" rows="5" [(ngModel)]="ga4TelemetryReadPrivateKey" (ngModelChange)="markDirty()" placeholder="-----BEGIN PRIVATE KEY-----" i18n-placeholder="@@settings.placeholders.readPrivateKey"></textarea>
+                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.read_private_key')" i18n-matTooltip="@@settings.tips.ga4ReadPrivateKey" matTooltipClass="setting-tooltip">
                   <mat-icon class="icon-md">info_outline</mat-icon>
                 </button>
                 <mat-hint>
                   @if (ga4Telemetry.read_private_key_configured) {
-                    Private key stored. Leave blank to keep it.
+                    <ng-container i18n="@@settings.hints.privateKeyStored">Private key stored. Leave blank to keep it.</ng-container>
                   } @else {
-                    Paste the service-account private key for the GA4 Data API.
+                    <ng-container i18n="@@settings.hints.ga4PrivateKeyPaste">Paste the service-account private key for the GA4 Data API.</ng-container>
                   }
                 </mat-hint>
               </mat-form-field>
             } @else {
-              <p class="hint">Google sign-in handles GA4 read access. Open the fallback fields only if you want a backup service-account setup.</p>
+              <p class="hint" i18n="@@settings.connectSync.ga4.fallbackHint">Google sign-in handles GA4 read access. Open the fallback fields only if you want a backup service-account setup.</p>
             }
           </div>
 
           <div class="sync-schedule-box">
             <div class="schedule-header">
-              <h3>Telemetry Rules</h3>
-              <span class="integration-status__message">These settings shape what we store after the sync runs.</span>
+              <h3 i18n="@@settings.connectSync.ga4.rulesTitle">Telemetry Rules</h3>
+              <span class="integration-status__message" i18n="@@settings.connectSync.ga4.rulesSubtitle">These settings shape what we store after the sync runs.</span>
             </div>
             <div class="form-row">
               <mat-form-field appearance="outline">
-                <mat-label>Sync lookback days</mat-label>
+                <mat-label i18n="@@settings.labels.syncLookbackDays">Sync lookback days</mat-label>
                 <input matInput autocomplete="off" type="number" min="1" max="30" [(ngModel)]="ga4Telemetry.sync_lookback_days" (ngModelChange)="markDirty()" />
-                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.sync_lookback_days')" matTooltipClass="setting-tooltip">
+                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.sync_lookback_days')" i18n-matTooltip="@@settings.tips.syncLookbackDays" matTooltipClass="setting-tooltip">
                   <mat-icon class="icon-md">info_outline</mat-icon>
                 </button>
               </mat-form-field>
               <mat-form-field appearance="outline">
-                <mat-label>Geo granularity</mat-label>
+                <mat-label i18n="@@settings.labels.geoGranularity">Geo granularity</mat-label>
                 <mat-select [(ngModel)]="ga4Telemetry.geo_granularity" (ngModelChange)="markDirty()">
-                  <mat-option value="none">Do not store geography</mat-option>
-                  <mat-option value="country">Country only</mat-option>
-                  <mat-option value="country_region">Country and region</mat-option>
+                  <mat-option value="none" i18n="@@settings.options.geoNone">Do not store geography</mat-option>
+                  <mat-option value="country" i18n="@@settings.options.geoCountry">Country only</mat-option>
+                  <mat-option value="country_region" i18n="@@settings.options.geoCountryRegion">Country and region</mat-option>
                 </mat-select>
-                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.geo_granularity')" matTooltipClass="setting-tooltip">
+                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.geo_granularity')" i18n-matTooltip="@@settings.tips.geoGranularity" matTooltipClass="setting-tooltip">
                   <mat-icon class="icon-md">info_outline</mat-icon>
                 </button>
               </mat-form-field>
             </div>
             <div class="form-row">
               <mat-form-field appearance="outline">
-                <mat-label>Event schema</mat-label>
+                <mat-label i18n="@@settings.labels.eventSchema">Event schema</mat-label>
                 <input matInput autocomplete="off" [(ngModel)]="ga4Telemetry.event_schema" (ngModelChange)="markDirty()" />
-                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.event_schema')" matTooltipClass="setting-tooltip">
+                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.event_schema')" i18n-matTooltip="@@settings.tips.eventSchema" matTooltipClass="setting-tooltip">
                   <mat-icon class="icon-md">info_outline</mat-icon>
                 </button>
               </mat-form-field>
               <mat-form-field appearance="outline">
-                <mat-label>Retention days</mat-label>
+                <mat-label i18n="@@settings.labels.retentionDays">Retention days</mat-label>
                 <input matInput autocomplete="off" type="number" min="1" max="800" [(ngModel)]="ga4Telemetry.retention_days" (ngModelChange)="markDirty()" />
-                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.retention_days')" matTooltipClass="setting-tooltip">
+                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.retention_days')" i18n-matTooltip="@@settings.tips.retentionDays" matTooltipClass="setting-tooltip">
                   <mat-icon class="icon-md">info_outline</mat-icon>
                 </button>
               </mat-form-field>
             </div>
             <div class="form-row">
               <mat-form-field appearance="outline">
-                <mat-label>Impression visible ratio</mat-label>
+                <mat-label i18n="@@settings.labels.impressionVisibleRatio">Impression visible ratio</mat-label>
                 <input matInput autocomplete="off" type="number" min="0.25" max="1" step="0.05" [(ngModel)]="ga4Telemetry.impression_visible_ratio" (ngModelChange)="markDirty()" />
-                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.impression_visible_ratio')" matTooltipClass="setting-tooltip">
+                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.impression_visible_ratio')" i18n-matTooltip="@@settings.tips.impressionVisibleRatio" matTooltipClass="setting-tooltip">
                   <mat-icon class="icon-md">info_outline</mat-icon>
                 </button>
               </mat-form-field>
               <mat-form-field appearance="outline">
-                <mat-label>Impression time (ms)</mat-label>
+                <mat-label i18n="@@settings.labels.impressionMinMs">Impression time (ms)</mat-label>
                 <input matInput autocomplete="off" type="number" min="250" max="5000" step="50" [(ngModel)]="ga4Telemetry.impression_min_ms" (ngModelChange)="markDirty()" />
-                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.impression_min_ms')" matTooltipClass="setting-tooltip">
+                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.impression_min_ms')" i18n-matTooltip="@@settings.tips.impressionMinMs" matTooltipClass="setting-tooltip">
                   <mat-icon class="icon-md">info_outline</mat-icon>
                 </button>
               </mat-form-field>
             </div>
             <div class="form-row">
               <mat-form-field appearance="outline">
-                <mat-label>Engaged seconds</mat-label>
+                <mat-label i18n="@@settings.labels.engagedMinSeconds">Engaged seconds</mat-label>
                 <input matInput autocomplete="off" type="number" min="5" max="60" [(ngModel)]="ga4Telemetry.engaged_min_seconds" (ngModelChange)="markDirty()" />
-                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.engaged_min_seconds')" matTooltipClass="setting-tooltip">
+                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.engaged_min_seconds')" i18n-matTooltip="@@settings.tips.engagedMinSeconds" matTooltipClass="setting-tooltip">
                   <mat-icon class="icon-md">info_outline</mat-icon>
                 </button>
               </mat-form-field>
             </div>
           </div>
 
-          <div class="last-sync-box">Last sync: {{ lastSyncLabel(ga4Telemetry.last_sync) }}</div>
+          <div class="last-sync-box" i18n="@@settings.labels.lastSync">Last sync: {{ lastSyncLabel(ga4Telemetry.last_sync) }}</div>
 
           <div class="action-buttons">
             <button mat-stroked-button color="primary" [disabled]="testingGA4Telemetry" (click)="testGA4TelemetryConnection()">
-              <mat-icon>wifi_tethering</mat-icon> {{ testingGA4Telemetry ? 'Testing...' : 'Test Browser Events' }}
+              <mat-icon>wifi_tethering</mat-icon> <span i18n="@@settings.actions.testBrowserEvents">{{ testingGA4Telemetry ? 'Testing...' : 'Test Browser Events' }}</span>
             </button>
             <button mat-stroked-button color="primary" [disabled]="testingGA4TelemetryRead" (click)="testGA4TelemetryReadConnection()">
-              <mat-icon>cloud_sync</mat-icon> {{ testingGA4TelemetryRead ? 'Testing Read...' : 'Test Read Access' }}
+              <mat-icon>cloud_sync</mat-icon> <span i18n="@@settings.actions.testReadAccess">{{ testingGA4TelemetryRead ? 'Testing Read...' : 'Test Read Access' }}</span>
             </button>
             <button mat-flat-button color="primary" [disabled]="savingGA4Telemetry" (click)="saveGA4TelemetrySettings()">
-              <mat-icon>save</mat-icon> {{ savingGA4Telemetry ? 'Saving...' : 'Save GA4' }}
+              <mat-icon>save</mat-icon> <span i18n="@@settings.actions.saveGA4">{{ savingGA4Telemetry ? 'Saving...' : 'Save GA4' }}</span>
             </button>
           </div>
         </div>
@@ -557,10 +563,10 @@
 
     <mat-card class="settings-card" id="matomo-settings">
       <mat-card-header>
-        <mat-card-title>Matomo Telemetry</mat-card-title>
+        <mat-card-title i18n="@@settings.connectSync.matomo.title">Matomo Telemetry</mat-card-title>
       </mat-card-header>
       <mat-card-content class="card-content ga4-card">
-        <p class="hint">This is the on-site copy that keeps the small-count click data from getting blurred away.</p>
+        <p class="hint" i18n="@@settings.connectSync.matomo.hint">This is the on-site copy that keeps the small-count click data from getting blurred away.</p>
         <div class="integration-status">
           <span class="status-pill" [ngClass]="telemetryStatusClass(matomoTelemetry.connection_status)">{{ telemetryStatusLabel(matomoTelemetry.connection_status) }}</span>
           <span class="integration-status__message">{{ matomoTelemetry.connection_message }}</span>
@@ -568,70 +574,74 @@
 
         <div class="wordpress-form">
           <mat-form-field appearance="outline">
-            <mat-label>Matomo URL</mat-label>
-            <input matInput autocomplete="off" [(ngModel)]="matomoTelemetry.url" (ngModelChange)="markDirty()" placeholder="https://matomo.example.com" />
-            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('matomoTelemetry.url')" matTooltipClass="setting-tooltip">
+            <mat-label i18n="@@settings.labels.matomoUrl">Matomo URL</mat-label>
+            <input matInput autocomplete="off" [(ngModel)]="matomoTelemetry.url" (ngModelChange)="markDirty()" placeholder="https://matomo.example.com" i18n-placeholder="@@settings.placeholders.matomoUrl" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('matomoTelemetry.url')" i18n-matTooltip="@@settings.tips.matomoUrl" matTooltipClass="setting-tooltip">
               <mat-icon class="icon-md">info_outline</mat-icon>
             </button>
           </mat-form-field>
 
           <div class="form-row">
             <mat-form-field appearance="outline">
-              <mat-label>XenForo site ID</mat-label>
-              <input matInput autocomplete="off" [(ngModel)]="matomoTelemetry.site_id_xenforo" (ngModelChange)="markDirty()" placeholder="7" />
-              <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('matomoTelemetry.site_id_xenforo')" matTooltipClass="setting-tooltip">
+              <mat-label i18n="@@settings.labels.xfSiteId">XenForo site ID</mat-label>
+              <input matInput autocomplete="off" [(ngModel)]="matomoTelemetry.site_id_xenforo" (ngModelChange)="markDirty()" placeholder="7" i18n-placeholder="@@settings.placeholders.xfSiteId" />
+              <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('matomoTelemetry.site_id_xenforo')" i18n-matTooltip="@@settings.tips.xfSiteId" matTooltipClass="setting-tooltip">
                 <mat-icon class="icon-md">info_outline</mat-icon>
               </button>
             </mat-form-field>
             <mat-form-field appearance="outline">
-              <mat-label>WordPress site ID</mat-label>
-              <input matInput autocomplete="off" [(ngModel)]="matomoTelemetry.site_id_wordpress" (ngModelChange)="markDirty()" placeholder="Optional" />
-              <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('matomoTelemetry.site_id_wordpress')" matTooltipClass="setting-tooltip">
+              <mat-label i18n="@@settings.labels.wpSiteId">WordPress site ID</mat-label>
+              <input matInput autocomplete="off" [(ngModel)]="matomoTelemetry.site_id_wordpress" (ngModelChange)="markDirty()" placeholder="Optional" i18n-placeholder="@@settings.placeholders.wpSiteId" />
+              <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('matomoTelemetry.site_id_wordpress')" i18n-matTooltip="@@settings.tips.wpSiteId" matTooltipClass="setting-tooltip">
                 <mat-icon class="icon-md">info_outline</mat-icon>
               </button>
             </mat-form-field>
           </div>
 
           <mat-form-field appearance="outline">
-            <mat-label>Token Auth</mat-label>
+            <mat-label i18n="@@settings.labels.tokenAuth">Token Auth</mat-label>
             <input matInput autocomplete="off" type="password" [(ngModel)]="matomoTelemetryToken" (ngModelChange)="markDirty()" />
-            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('matomoTelemetry.token_auth')" matTooltipClass="setting-tooltip">
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('matomoTelemetry.token_auth')" i18n-matTooltip="@@settings.tips.matomoTokenAuth" matTooltipClass="setting-tooltip">
               <mat-icon class="icon-md">info_outline</mat-icon>
             </button>
             <mat-hint>
               @if (matomoTelemetry.token_auth_configured) {
-                Token stored. Leave blank to keep it.
+                <ng-container i18n="@@settings.hints.tokenStored">Token stored. Leave blank to keep it.</ng-container>
               } @else {
-                Paste the Matomo API token.
+                <ng-container i18n="@@settings.hints.matomoTokenPaste">Paste the Matomo API token.</ng-container>
               }
             </mat-hint>
           </mat-form-field>
 
           <div class="sync-schedule-box">
             <div class="schedule-header">
-              <h3>Sync Rules</h3>
-              <mat-checkbox [(ngModel)]="matomoTelemetry.enabled" (ngModelChange)="markDirty()" [matTooltip]="tip('matomoTelemetry.enabled')" matTooltipClass="setting-tooltip">Enable Matomo collection</mat-checkbox>
+              <h3 i18n="@@settings.connectSync.matomo.syncRulesTitle">Sync Rules</h3>
+              <mat-checkbox [(ngModel)]="matomoTelemetry.enabled" (ngModelChange)="markDirty()" [matTooltip]="tip('matomoTelemetry.enabled')" i18n-matTooltip="@@settings.tips.matomoEnabled" matTooltipClass="setting-tooltip">
+                <ng-container i18n="@@settings.labels.enableMatomoCollection">Enable Matomo collection</ng-container>
+              </mat-checkbox>
             </div>
             <div class="form-row">
-              <mat-checkbox [(ngModel)]="matomoTelemetry.sync_enabled" (ngModelChange)="markDirty()" [matTooltip]="tip('matomoTelemetry.sync_enabled')" matTooltipClass="setting-tooltip">Enable Matomo sync</mat-checkbox>
+              <mat-checkbox [(ngModel)]="matomoTelemetry.sync_enabled" (ngModelChange)="markDirty()" [matTooltip]="tip('matomoTelemetry.sync_enabled')" i18n-matTooltip="@@settings.tips.matomoSyncEnabled" matTooltipClass="setting-tooltip">
+                <ng-container i18n="@@settings.labels.enableMatomoSync">Enable Matomo sync</ng-container>
+              </mat-checkbox>
               <mat-form-field appearance="outline">
-                <mat-label>Sync lookback days</mat-label>
+                <mat-label i18n="@@settings.labels.syncLookbackDays">Sync lookback days</mat-label>
                 <input matInput autocomplete="off" type="number" min="1" max="30" [(ngModel)]="matomoTelemetry.sync_lookback_days" (ngModelChange)="markDirty()" />
-                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('matomoTelemetry.sync_lookback_days')" matTooltipClass="setting-tooltip">
+                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('matomoTelemetry.sync_lookback_days')" i18n-matTooltip="@@settings.tips.syncLookbackDays" matTooltipClass="setting-tooltip">
                   <mat-icon class="icon-md">info_outline</mat-icon>
                 </button>
               </mat-form-field>
             </div>
           </div>
 
-          <div class="last-sync-box">Last sync: {{ lastSyncLabel(matomoTelemetry.last_sync) }}</div>
+          <div class="last-sync-box" i18n="@@settings.labels.lastSync">Last sync: {{ lastSyncLabel(matomoTelemetry.last_sync) }}</div>
 
           <div class="action-buttons">
             <button mat-stroked-button color="primary" [disabled]="testingMatomoTelemetry" (click)="testMatomoTelemetryConnection()">
-              <mat-icon>wifi_tethering</mat-icon> {{ testingMatomoTelemetry ? 'Testing...' : 'Test Connection' }}
+              <mat-icon>wifi_tethering</mat-icon> <span i18n="@@settings.actions.testConnection">{{ testingMatomoTelemetry ? 'Testing...' : 'Test Connection' }}</span>
             </button>
             <button mat-flat-button color="primary" [disabled]="savingMatomoTelemetry" (click)="saveMatomoTelemetrySettings()">
-              <mat-icon>save</mat-icon> {{ savingMatomoTelemetry ? 'Saving...' : 'Save Matomo' }}
+              <mat-icon>save</mat-icon> <span i18n="@@settings.actions.saveMatomo">{{ savingMatomoTelemetry ? 'Saving...' : 'Save Matomo' }}</span>
             </button>
           </div>
         </div>
@@ -642,8 +652,8 @@
     <mat-card class="settings-card" id="gsc-settings">
       <mat-card-header>
         <div class="header-main" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-          <mat-card-title>Google Search Console</mat-card-title>
-          <div class="health-indicator" [matTooltip]="ga4Gsc.health.issue" matTooltipClass="setting-tooltip">
+          <mat-card-title i18n="@@settings.connectSync.gsc.title">Google Search Console</mat-card-title>
+          <div class="health-indicator" [matTooltip]="ga4Gsc.health.issue" i18n-matTooltip="@@settings.tips.telemetryHealthIssue" matTooltipClass="setting-tooltip">
             <span class="status-pill" [ngClass]="telemetryStatusClass(ga4Gsc.health.status)">
               <mat-icon>{{ getHealthIcon(ga4Gsc.health.status) }}</mat-icon>
               {{ ga4Gsc.health.label }}
@@ -652,12 +662,12 @@
         </div>
       </mat-card-header>
       <mat-card-content class="card-content ga4-card">
-        <p class="hint">Connect to Google Search Console to pull daily performance data and attribute search outcomes to your internal linking efforts.</p>
+        <p class="hint" i18n="@@settings.connectSync.gsc.hint">Connect to Google Search Console to pull daily performance data and attribute search outcomes to your internal linking efforts.</p>
         <div class="health-issue-box" *ngIf="!ga4Gsc.health.is_healthy && ga4Gsc.health.issue">
           <mat-icon>error_outline</mat-icon>
           <div class="issue-content">
-            <strong>Issue:</strong> {{ ga4Gsc.health.issue }}
-            <p class="fix-text" *ngIf="ga4Gsc.health.fix"><strong>Fix:</strong> {{ ga4Gsc.health.fix }}</p>
+            <strong i18n="@@settings.labels.issue">Issue:</strong> {{ ga4Gsc.health.issue }}
+            <p class="fix-text" *ngIf="ga4Gsc.health.fix"><strong i18n="@@settings.labels.fix">Fix:</strong> {{ ga4Gsc.health.fix }}</p>
           </div>
         </div>
 
@@ -669,15 +679,15 @@
         </div>
 
         <div class="analytics-guardrail-box">
-          <div class="analytics-guardrail-box__title">Traffic filter</div>
-          <p class="hint">Blocked countries: {{ ga4Gsc.excluded_countries.join(', ') || 'China, Singapore' }}. These regions are excluded from GA4, Matomo, and GSC imports so bot-heavy traffic does not influence the project.</p>
+          <div class="analytics-guardrail-box__title" i18n="@@settings.labels.trafficFilter">Traffic filter</div>
+          <p class="hint" i18n="@@settings.connectSync.gsc.trafficFilterHint">Blocked countries: {{ ga4Gsc.excluded_countries.join(', ') || 'China, Singapore' }}. These regions are excluded from GA4, Matomo, and GSC imports so bot-heavy traffic does not influence the project.</p>
         </div>
 
         <div class="number-grid">
           <mat-form-field appearance="outline">
-            <mat-label>Property URL</mat-label>
-            <input matInput autocomplete="off" [(ngModel)]="ga4Gsc.property_url" (ngModelChange)="markDirty()" placeholder="https://example.com/ or sc-domain:example.com" />
-            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.property_url')" matTooltipClass="setting-tooltip">
+            <mat-label i18n="@@settings.labels.propertyUrl">Property URL</mat-label>
+            <input matInput autocomplete="off" [(ngModel)]="ga4Gsc.property_url" (ngModelChange)="markDirty()" placeholder="https://example.com/ or sc-domain:example.com" i18n-placeholder="@@settings.placeholders.propertyUrl" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.property_url')" i18n-matTooltip="@@settings.tips.propertyUrl" matTooltipClass="setting-tooltip">
               <mat-icon class="icon-md">info_outline</mat-icon>
             </button>
           </mat-form-field>
@@ -686,7 +696,7 @@
         @if (googleOAuth.oauth_connected) {
           <div class="action-buttons">
             <button mat-stroked-button type="button" (click)="showGSCFallbackFields = !showGSCFallbackFields">
-              {{ shouldShowGSCFallbackFields() ? 'Hide fallback fields' : 'Show fallback fields' }}
+              <span i18n="@@settings.actions.toggleGSCFallback">{{ shouldShowGSCFallbackFields() ? 'Hide fallback fields' : 'Show fallback fields' }}</span>
             </button>
           </div>
         }
@@ -694,43 +704,45 @@
         @if (shouldShowGSCFallbackFields()) {
           <div class="number-grid">
             <mat-form-field appearance="outline">
-              <mat-label>Service Account Email</mat-label>
-              <input matInput autocomplete="off" [(ngModel)]="ga4Gsc.client_email" (ngModelChange)="markDirty()" placeholder="gsc-bot@project.iam.gserviceaccount.com" />
-              <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.client_email')" matTooltipClass="setting-tooltip">
+              <mat-label i18n="@@settings.labels.serviceAccountEmail">Service Account Email</mat-label>
+              <input matInput autocomplete="off" [(ngModel)]="ga4Gsc.client_email" (ngModelChange)="markDirty()" placeholder="gsc-bot@project.iam.gserviceaccount.com" i18n-placeholder="@@settings.placeholders.serviceAccountEmail" />
+              <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.client_email')" i18n-matTooltip="@@settings.tips.serviceAccountEmail" matTooltipClass="setting-tooltip">
                 <mat-icon class="icon-md">info_outline</mat-icon>
               </button>
             </mat-form-field>
           </div>
 
           <mat-form-field appearance="outline">
-            <mat-label>Service Account Private Key</mat-label>
-            <textarea matInput autocomplete="off" rows="3" [(ngModel)]="gscPrivateKey" (ngModelChange)="markDirty()" [placeholder]="ga4Gsc.private_key_configured ? '••••••••••••••••••••••••••••' : 'Paste raw PEM private key here'"></textarea>
-            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.private_key')" matTooltipClass="setting-tooltip">
+            <mat-label i18n="@@settings.labels.serviceAccountPrivateKey">Service Account Private Key</mat-label>
+            <textarea matInput autocomplete="off" rows="3" [(ngModel)]="gscPrivateKey" (ngModelChange)="markDirty()" [placeholder]="ga4Gsc.private_key_configured ? '••••••••••••••••••••••••••••' : 'Paste raw PEM private key here'" i18n-placeholder="@@settings.placeholders.privateKey"></textarea>
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.private_key')" i18n-matTooltip="@@settings.tips.serviceAccountPrivateKey" matTooltipClass="setting-tooltip">
               <mat-icon class="icon-md">info_outline</mat-icon>
             </button>
-            <mat-hint *ngIf="ga4Gsc.private_key_configured">Private key is already configured. Leave blank to keep current key.</mat-hint>
+            <mat-hint *ngIf="ga4Gsc.private_key_configured" i18n="@@settings.hints.privateKeyConfigured">Private key is already configured. Leave blank to keep current key.</mat-hint>
           </mat-form-field>
         } @else {
-          <p class="hint">Google sign-in handles Search Console access. Open the fallback fields only if you want a backup service-account setup.</p>
+          <p class="hint" i18n="@@settings.connectSync.gsc.fallbackHint">Google sign-in handles Search Console access. Open the fallback fields only if you want a backup service-account setup.</p>
         }
 
         <mat-divider></mat-divider>
 
         <div class="number-grid">
-          <mat-checkbox [(ngModel)]="ga4Gsc.sync_enabled" (ngModelChange)="markDirty()" [matTooltip]="tip('ga4Gsc.sync_enabled')" matTooltipClass="setting-tooltip">Enable Daily Sync</mat-checkbox>
+          <mat-checkbox [(ngModel)]="ga4Gsc.sync_enabled" (ngModelChange)="markDirty()" [matTooltip]="tip('ga4Gsc.sync_enabled')" i18n-matTooltip="@@settings.tips.gscSyncEnabled" matTooltipClass="setting-tooltip">
+            <ng-container i18n="@@settings.labels.enableDailySync">Enable Daily Sync</ng-container>
+          </mat-checkbox>
 
           <mat-form-field appearance="outline">
-            <mat-label>Lookback Days</mat-label>
+            <mat-label i18n="@@settings.labels.lookbackDays">Lookback Days</mat-label>
             <input matInput autocomplete="off" type="number" min="1" max="90" [(ngModel)]="ga4Gsc.sync_lookback_days" (ngModelChange)="markDirty()" />
-            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.sync_lookback_days')" matTooltipClass="setting-tooltip">
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.sync_lookback_days')" i18n-matTooltip="@@settings.tips.gscLookbackDays" matTooltipClass="setting-tooltip">
               <mat-icon class="icon-md">info_outline</mat-icon>
             </button>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
-            <mat-label>Ranking weight</mat-label>
+            <mat-label i18n="@@settings.labels.rankingWeight">Ranking weight</mat-label>
             <input matInput autocomplete="off" type="number" min="0" max="0.3" step="0.01" [(ngModel)]="ga4Gsc.ranking_weight" (ngModelChange)="markDirty()" />
-            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.ranking_weight')" matTooltipClass="setting-tooltip">
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.ranking_weight')" i18n-matTooltip="@@settings.tips.gscRankingWeight" matTooltipClass="setting-tooltip">
               <mat-icon class="icon-md">info_outline</mat-icon>
             </button>
           </mat-form-field>
@@ -738,21 +750,21 @@
 
         <div class="last-sync-box" *ngIf="ga4Gsc.last_sync">
           <div class="schedule-header">
-            <h3>Last Performance Sync</h3>
+            <h3 i18n="@@settings.connectSync.gsc.lastSyncTitle">Last Performance Sync</h3>
             <span>{{ lastSyncLabel(ga4Gsc.last_sync) }}</span>
           </div>
         </div>
 
         <div class="sync-schedule-box">
           <div class="schedule-header">
-            <h3>One-Time Cleanup Backfill</h3>
+            <h3 i18n="@@settings.connectSync.gsc.backfillTitle">One-Time Cleanup Backfill</h3>
           </div>
-          <p class="hint">Use a bigger window once to rewrite older Search Console rows with the new country filter. Daily sync can stay small.</p>
+          <p class="hint" i18n="@@settings.connectSync.gsc.backfillHint">Use a bigger window once to rewrite older Search Console rows with the new country filter. Daily sync can stay small.</p>
           <div class="number-grid">
             <mat-form-field appearance="outline">
-              <mat-label>Backfill Days</mat-label>
+              <mat-label i18n="@@settings.labels.backfillDays">Backfill Days</mat-label>
               <input matInput autocomplete="off" type="number" min="1" [max]="ga4Gsc.manual_backfill_max_days" [(ngModel)]="gscManualBackfillDays" (ngModelChange)="markDirty()" />
-              <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.manual_backfill_days')" matTooltipClass="setting-tooltip">
+              <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.manual_backfill_days')" i18n-matTooltip="@@settings.tips.gscBackfillDays" matTooltipClass="setting-tooltip">
                 <mat-icon class="icon-md">info_outline</mat-icon>
               </button>
             </mat-form-field>
@@ -762,18 +774,15 @@
         <div class="card-actions-row">
           <button mat-flat-button color="primary" [disabled]="savingGA4GSC" (click)="updateGSCSettings()">
             <mat-icon *ngIf="!savingGA4GSC">save</mat-icon>
-            <span *ngIf="!savingGA4GSC">Save GSC Settings</span>
-            <span *ngIf="savingGA4GSC">Saving...</span>
+            <span i18n="@@settings.actions.saveGSCSettings">{{ savingGA4GSC ? 'Saving...' : 'Save GSC Settings' }}</span>
           </button>
           <button mat-stroked-button [disabled]="testingGSCConnection" (click)="testGSCConnection()">
             <mat-icon *ngIf="!testingGSCConnection">cable</mat-icon>
-            <span *ngIf="!testingGSCConnection">Test Connection</span>
-            <span *ngIf="testingGSCConnection">Testing...</span>
+            <span i18n="@@settings.actions.testConnection">{{ testingGSCConnection ? 'Testing...' : 'Test Connection' }}</span>
           </button>
-          <button mat-stroked-button [disabled]="runningGSCSync || ga4Gsc.connection_status !== 'connected'" (click)="runGSCSync()" matTooltip="Trigger a manual performance data backfill for the selected one-time window.">
+          <button mat-stroked-button [disabled]="runningGSCSync || ga4Gsc.connection_status !== 'connected'" (click)="runGSCSync()" [matTooltip]="'Trigger a manual performance data backfill for the selected one-time window.'" i18n-matTooltip="@@settings.tips.manualBackfillTooltip">
             <mat-icon *ngIf="!runningGSCSync">sync</mat-icon>
-            <span *ngIf="!runningGSCSync">Manual Backfill</span>
-            <span *ngIf="runningGSCSync">Syncing...</span>
+            <span i18n="@@settings.actions.manualBackfill">{{ runningGSCSync ? 'Syncing...' : 'Manual Backfill' }}</span>
           </button>
         </div>
       </mat-card-content>

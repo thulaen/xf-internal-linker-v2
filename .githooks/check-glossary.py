@@ -45,7 +45,7 @@ ALLOWLIST: frozenset[str] = frozenset({
     # Common backend frameworks already covered by the existing glossary
     "API", "APIs", "DRF", "ORM", "SQL", "PSQL", "ETL",
     # Common units / numeric prefixes
-    "KB", "MB", "GB", "TB", "PB", "MS", "NS", "US",
+    "KB", "MB", "GB", "TB", "PB", "MS", "NS", "US", "ERR", "CPP",
     # English words that happen to be uppercase
     "OK", "USA", "UK", "EU", "USD", "EUR", "GBP",
     # Project-specific paths / files (rarely meaningful as terms)

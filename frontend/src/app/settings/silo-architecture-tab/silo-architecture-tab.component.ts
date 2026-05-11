@@ -94,18 +94,18 @@ export class SiloArchitectureTabComponent implements OnInit {
   modeOptions: Array<{ value: SiloMode; label: string; description: string }> = [
     {
       value: 'disabled',
-      label: 'Disabled',
-      description: 'Preserve current ranking behaviour with no silo effect.',
+      label: $localize`:@@settings.siloArchitecture.modes.disabled:Disabled`,
+      description: $localize`:@@settings.siloArchitecture.modes.disabledDesc:Preserve current ranking behaviour with no silo effect.`,
     },
     {
       value: 'prefer_same_silo',
-      label: 'Prefer same silo',
-      description: 'Boost same-silo candidates and penalize cross-silo candidates.',
+      label: $localize`:@@settings.siloArchitecture.modes.preferSame:Prefer same silo`,
+      description: $localize`:@@settings.siloArchitecture.modes.preferSameDesc:Boost same-silo candidates and penalize cross-silo candidates.`,
     },
     {
       value: 'strict_same_silo',
-      label: 'Strict same silo',
-      description: 'Block cross-silo matches only when both sides have silo assignments.',
+      label: $localize`:@@settings.siloArchitecture.modes.strictSame:Strict same silo`,
+      description: $localize`:@@settings.siloArchitecture.modes.strictSameDesc:Block cross-silo matches only when both sides have silo assignments.`,
     },
   ];
 
@@ -117,7 +117,7 @@ export class SiloArchitectureTabComponent implements OnInit {
           this.settings = { ...this.settings, ...data };
         },
         error: () => {
-          this.snack.open('Failed to load silo settings', 'Dismiss', { duration: 4000 });
+          this.snack.open($localize`:@@settings.siloArchitecture.errors.loadSettingsFailed:Failed to load silo settings`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 4000 });
         },
       });
     this.loadGroupsAndScopes();
@@ -145,12 +145,12 @@ export class SiloArchitectureTabComponent implements OnInit {
                 this.scopes = scopes;
               },
               error: () => {
-                this.snack.open('Failed to load scopes', 'Dismiss', { duration: 4000 });
+                this.snack.open($localize`:@@settings.siloArchitecture.errors.loadScopesFailed:Failed to load scopes`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 4000 });
               },
             });
         },
         error: () => {
-          this.snack.open('Failed to load silo groups', 'Dismiss', { duration: 4000 });
+          this.snack.open($localize`:@@settings.siloArchitecture.errors.loadGroupsFailed:Failed to load silo groups`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 4000 });
         },
       });
   }
@@ -164,18 +164,18 @@ export class SiloArchitectureTabComponent implements OnInit {
           this.settings = { ...this.settings, ...settings };
           this.savingSilo.set(false);
           this.dirtyChanged.emit(false);
-          this.snack.open('Silo settings saved', undefined, { duration: 2500 });
+          this.snack.open($localize`:@@settings.siloArchitecture.success.saved:Silo settings saved`, undefined, { duration: 2500 });
         },
         error: (error) => {
           this.savingSilo.set(false);
-          this.snack.open(error?.error?.detail || 'Failed to save silo settings', 'Dismiss', { duration: 4000 });
+          this.snack.open(error?.error?.detail || $localize`:@@settings.siloArchitecture.errors.saveFailed:Failed to save silo settings`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 4000 });
         },
       });
   }
 
   createGroup(): void {
     if (!this.newGroup.name.trim()) {
-      this.snack.open('Group name is required', 'Dismiss', { duration: 3000 });
+      this.snack.open($localize`:@@settings.siloArchitecture.errors.nameRequired:Group name is required`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 3000 });
       return;
     }
     this.creatingGroup.set(true);
@@ -188,11 +188,11 @@ export class SiloArchitectureTabComponent implements OnInit {
           );
           this.newGroup = { name: '', slug: '', description: '', display_order: 0 };
           this.creatingGroup.set(false);
-          this.snack.open('Silo group created', undefined, { duration: 2500 });
+          this.snack.open($localize`:@@settings.siloArchitecture.success.groupCreated:Silo group created`, undefined, { duration: 2500 });
         },
         error: () => {
           this.creatingGroup.set(false);
-          this.snack.open('Failed to create silo group', 'Dismiss', { duration: 4000 });
+          this.snack.open($localize`:@@settings.siloArchitecture.errors.groupCreateFailed:Failed to create silo group`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 4000 });
         },
       });
   }
@@ -206,10 +206,10 @@ export class SiloArchitectureTabComponent implements OnInit {
     }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (updated) => {
         Object.assign(group, updated);
-        this.snack.open('Silo group updated', undefined, { duration: 2500 });
+        this.snack.open($localize`:@@settings.siloArchitecture.success.groupUpdated:Silo group updated`, undefined, { duration: 2500 });
       },
       error: () => {
-        this.snack.open('Failed to update silo group', 'Dismiss', { duration: 4000 });
+        this.snack.open($localize`:@@settings.siloArchitecture.errors.groupUpdateFailed:Failed to update silo group`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 4000 });
       },
     });
   }
@@ -225,10 +225,10 @@ export class SiloArchitectureTabComponent implements OnInit {
               ? { ...scope, silo_group: null, silo_group_name: '' }
               : scope
           );
-          this.snack.open('Silo group deleted', undefined, { duration: 2500 });
+          this.snack.open($localize`:@@settings.siloArchitecture.success.groupDeleted:Silo group deleted`, undefined, { duration: 2500 });
         },
         error: () => {
-          this.snack.open('Failed to delete silo group', 'Dismiss', { duration: 4000 });
+          this.snack.open($localize`:@@settings.siloArchitecture.errors.groupDeleteFailed:Failed to delete silo group`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 4000 });
         },
       });
   }
@@ -239,10 +239,10 @@ export class SiloArchitectureTabComponent implements OnInit {
       .subscribe({
         next: (updated) => {
           Object.assign(scope, updated);
-          this.snack.open('Scope assignment saved', undefined, { duration: 2000 });
+          this.snack.open($localize`:@@settings.siloArchitecture.success.scopeSaved:Scope assignment saved`, undefined, { duration: 2000 });
         },
         error: () => {
-          this.snack.open('Failed to save scope assignment', 'Dismiss', { duration: 4000 });
+          this.snack.open($localize`:@@settings.siloArchitecture.errors.scopeSaveFailed:Failed to save scope assignment`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 4000 });
         },
       });
   }

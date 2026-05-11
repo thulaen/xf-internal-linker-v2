@@ -3,35 +3,35 @@
     <!-- Preset Hero -->
     <mat-card class="settings-card settings-card--featured" id="weight-presets">
       <mat-card-header>
-        <mat-card-title>Weight Presets</mat-card-title>
+        <mat-card-title i18n="@@settings.libraryHistory.presetsTitle">Weight Presets</mat-card-title>
       </mat-card-header>
       <mat-card-content class="card-content ga4-card">
         <div class="preset-hero">
           <section class="preset-summary-compact">
             <div class="preset-header-row">
-              <span class="status-kicker">Active Snapshot</span>
+              <span class="status-kicker" i18n="@@settings.labels.activeSnapshot">Active Snapshot</span>
               <div class="preset-status-badges">
                 <span class="status-pill status-pill--primary">{{ matchedPreset?.name ?? 'Custom' }}</span>
                 @if (matchedPreset?.id === recommendedPreset?.id) {
-                  <span class="status-pill status-pill--status">System Recommended</span>
+                  <span class="status-pill status-pill--status" i18n="@@settings.labels.systemRecommended">System Recommended</span>
                 }
               </div>
             </div>
-            <p class="compact-hint">Snapshot your current weights or reload research-backed defaults.</p>
+            <p class="compact-hint" i18n="@@settings.libraryHistory.presetsHint">Snapshot your current weights or reload research-backed defaults.</p>
             <div class="compact-button-row">
               @if (recommendedPreset) {
                 <button mat-stroked-button color="primary" [disabled]="applyingPreset() || matchedPreset?.id === recommendedPreset.id" (click)="applyPreset(recommendedPreset)">
-                  <mat-icon>bolt</mat-icon> Reset to Recommended
+                  <mat-icon>bolt</mat-icon> <span i18n="@@settings.actions.resetToRecommended">Reset to Recommended</span>
                 </button>
               }
               <button mat-stroked-button (click)="showSavePresetInput = true" *ngIf="!showSavePresetInput">
-                <mat-icon>add</mat-icon> Save as new preset
+                <mat-icon>add</mat-icon> <span i18n="@@settings.actions.saveAsNewPreset">Save as new preset</span>
               </button>
               <div class="save-preset-inline" *ngIf="showSavePresetInput">
                 <mat-form-field appearance="outline">
-                  <input matInput autocomplete="off" [(ngModel)]="newPresetName" placeholder="Name..." />
+                  <input matInput autocomplete="off" [(ngModel)]="newPresetName" placeholder="Name..." i18n-placeholder="@@settings.placeholders.presetName" />
                 </mat-form-field>
-                <button mat-flat-button color="primary" (click)="saveCurrentAsPreset()">Save</button>
+                <button mat-flat-button color="primary" (click)="saveCurrentAsPreset()" i18n="@@settings.actions.save">Save</button>
                 <button mat-icon-button (click)="showSavePresetInput = false"><mat-icon>close</mat-icon></button>
               </div>
             </div>
@@ -46,8 +46,8 @@
                     <span class="preset-name">{{ preset.name }}</span>
                     <span class="preset-date">{{ preset.created_at | date:'shortDate' }}</span>
                   </div>
-                  <button mat-stroked-button color="primary" [disabled]="applyingPreset()" (click)="applyPreset(preset)">Load</button>
-                  <button mat-icon-button color="warn" *ngIf="!preset.is_system" (click)="deletePreset(preset)"><mat-icon>delete</mat-icon></button>
+                  <button mat-stroked-button color="primary" [disabled]="applyingPreset()" (click)="applyPreset(preset)" i18n="@@settings.actions.load">Load</button>
+                  <button mat-icon-button color="warn" *ngIf="!preset.is_system" (click)="deletePreset(preset)" [matTooltip]="'Delete ' + preset.name" i18n-matTooltip="@@settings.actions.deletePresetTooltip"><mat-icon>delete</mat-icon></button>
                 </div>
               }
             </div>
@@ -59,8 +59,8 @@
     <!-- FR-018 Weight Auto-Tuner -->
     <mat-card class="settings-card settings-card--wide" id="ranking-challengers">
       <mat-card-header>
-        <mat-card-title>Ranking Auto-Tune (Poisson-Gamma)</mat-card-title>
-        <mat-card-subtitle>Optimiser proposes weight updates based on GSC, GA4, Matomo, and human review signals.</mat-card-subtitle>
+        <mat-card-title i18n="@@settings.libraryHistory.autoTuneTitle">Ranking Auto-Tune (Poisson-Gamma)</mat-card-title>
+        <mat-card-subtitle i18n="@@settings.libraryHistory.autoTuneSubtitle">Optimiser proposes weight updates based on GSC, GA4, Matomo, and human review signals.</mat-card-subtitle>
       </mat-card-header>
       <mat-card-content class="card-content ga4-card">
 
@@ -70,9 +70,9 @@
             @if (triggeringWeightTune()) {
               <mat-spinner diameter="18" style="display:inline-block;margin-right:8px;vertical-align:middle;"></mat-spinner>
             }
-            Run Auto-Tune Now
+            <span i18n="@@settings.actions.runAutoTune">Run Auto-Tune Now</span>
           </button>
-          <span class="tune-hint">Runs automatically on the first Sunday of every month at 02:30 UTC.</span>
+          <span class="tune-hint" i18n="@@settings.libraryHistory.autoTuneSchedule">Runs automatically on the first Sunday of every month at 02:30 UTC.</span>
         </div>
 
         <!-- Pending challenger -->
@@ -84,7 +84,7 @@
           <div class="challenger-pending">
             <div class="challenger-header">
               <mat-icon class="challenger-icon">auto_awesome</mat-icon>
-              <span class="challenger-title">Pending Challenger</span>
+              <span class="challenger-title" i18n="@@settings.labels.pendingChallenger">Pending Challenger</span>
               @if (challengerImprovementPct(pendingChallenger)) {
                 <span class="challenger-badge challenger-badge--positive">{{ challengerImprovementPct(pendingChallenger) }}</span>
               }
@@ -108,15 +108,15 @@
                 @if (evaluatingChallenger()) {
                   <mat-spinner diameter="18" style="display:inline-block;margin-right:8px;vertical-align:middle;"></mat-spinner>
                 }
-                Promote
+                <span i18n="@@settings.actions.promote">Promote</span>
               </button>
-              <button mat-button (click)="rejectChallenger(pendingChallenger)">Reject</button>
+              <button mat-button (click)="rejectChallenger(pendingChallenger)" i18n="@@settings.actions.reject">Reject</button>
             </div>
           </div>
         } @else {
           <div class="challenger-empty">
             <mat-icon>check_circle_outline</mat-icon>
-            <span>No pending challenger. Current weights are the champion.</span>
+            <span i18n="@@settings.libraryHistory.noChallenger">No pending challenger. Current weights are the champion.</span>
           </div>
         }
 
@@ -126,10 +126,10 @@
             <table class="history-table">
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Run ID</th>
-                  <th>Status</th>
-                  <th>Score &Delta;</th>
+                  <th i18n="@@settings.headers.date">Date</th>
+                  <th i18n="@@settings.headers.runId">Run ID</th>
+                  <th i18n="@@settings.headers.status">Status</th>
+                  <th i18n="@@settings.headers.scoreDelta">Score &Delta;</th>
                 </tr>
               </thead>
               <tbody>
@@ -152,18 +152,18 @@
     <!-- History -->
     <mat-card class="settings-card settings-card--wide" id="adjustment-history">
       <mat-card-header>
-        <mat-card-title>Adjustment History</mat-card-title>
+        <mat-card-title i18n="@@settings.libraryHistory.adjustmentHistoryTitle">Adjustment History</mat-card-title>
       </mat-card-header>
       <mat-card-content class="card-content ga4-card">
         <div class="history-table-container">
           <table class="history-table">
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Source</th>
-                <th>Reason</th>
-                <th>Changes</th>
-                <th>Action</th>
+                <th i18n="@@settings.headers.date">Date</th>
+                <th i18n="@@settings.headers.source">Source</th>
+                <th i18n="@@settings.headers.reason">Reason</th>
+                <th i18n="@@settings.headers.changes">Changes</th>
+                <th i18n="@@settings.headers.action">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -180,7 +180,7 @@
                     </div>
                   </td>
                   <td>
-                    <button mat-stroked-button color="warn" (click)="rollbackWeights(row)">Rollback</button>
+                    <button mat-stroked-button color="warn" (click)="rollbackWeights(row)" i18n="@@settings.actions.rollback">Rollback</button>
                   </td>
                 </tr>
               }
