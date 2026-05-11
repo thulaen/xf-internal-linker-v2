@@ -11,14 +11,18 @@
 #      a fresh file should never need this list. New files always start
 #      under the cap.
 #
-# Current entries (2026-05-10, recorded for the prevention-cleanup batch):
+# Current entries (2026-05-11, updated for prevention-cleanup batch):
 # views.py removed 2026-05-10 (slice 5): shared helpers extracted into
 # services/settings_helpers.py; views.py is now 381 lines (well below cap).
 # settings_helpers.py removed 2026-05-10 (slice 6): split into 4 layers;
 # facade is now 120 lines (well below cap).
-backend/apps/core/views_capacity.py:2035
-backend/apps/core/views_settings.py:1437
-backend/apps/pipeline/tasks.py:3594
+# views_capacity.py removed 2026-05-11: fully decomposed to domain-specific
+# modules (views_jobs.py, views_helpers.py, views_ml_settings.py, etc.);
+# file is now 8 lines (empty redirect stub, well below cap).
+# views_settings.py removed 2026-05-11: 1437 lines, already below the
+# 1500-line cap — no grandfather entry needed.
+# tasks.py removed 2026-05-11: split into tasks_tuning.py,
+# tasks_embeddings.py, tasks_link_health.py; tasks.py is now 990 lines.
 # settings.component.ts removed 2026-05-11: dropped to 1166 lines
 # after granular tab modularization and state cleanup.
 # settings.component.html removed 2026-05-10: dropped to 191 lines
@@ -26,3 +30,5 @@ backend/apps/pipeline/tasks.py:3594
 # every tab now references an <app-*-tab> child, so the parent
 # template is far below the 1500-line cap and the hook now enforces
 # it.
+#
+# No active grandfather entries as of 2026-05-11. All files are under cap.
