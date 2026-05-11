@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, Input, inject, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, inject, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { A11yPrefsService } from '../../../core/services/a11y-prefs.service';
 
@@ -51,16 +51,18 @@ import { A11yPrefsService } from '../../../core/services/a11y-prefs.service';
 })
 export class KbdHintComponent {
   /** e.g. "Ctrl+S", "Shift+?", "G" (comma-separate alternates). */
-  @Input() keys = '';
+  @Input() set keys(v: string) { this._keys.set(v); }
+  get keys() { return this._keys(); }
 
+  private readonly _keys = signal('');
   private a11y = inject(A11yPrefsService, { optional: true });
 
   protected readonly parts = computed(() => {
-    const raw = (this.keys ?? '').trim();
+    const raw = (this._keys() ?? '').trim();
     if (!raw) return [] as string[];
     // Comma-separated alternates → first alternate wins; UI stays small.
     const first = raw.split(',')[0].trim();
-    return first.split('+').map((part) => this.normalize(part.trim()));
+    return first.split('+').map((part: string) => this.normalize(part.trim()));
   });
 
   private normalize(part: string): string {

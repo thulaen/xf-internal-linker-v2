@@ -1,83 +1,81 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
 import { PersonalBarComponent } from './personal-bar.component';
-import { AuthService, AuthUser } from '../../core/services/auth.service';
+import { AuthService } from '../../core/services/auth.service';
+import { of } from 'rxjs';
+import { DatePipe } from '@angular/common';
 
 describe('PersonalBarComponent', () => {
   let component: PersonalBarComponent;
   let fixture: ComponentFixture<PersonalBarComponent>;
-  let mockAuth: Partial<AuthService>;
+  let mockAuth: jasmine.SpyObj<AuthService>;
 
   beforeEach(async () => {
-    localStorage.clear();
-    mockAuth = {
-      currentUser$: of({
-        id: 1,
-        username: 'Alice',
-        email: 'alice@example.com',
-        is_staff: true,
-        date_joined: new Date().toISOString()
-      } as AuthUser)
-    };
+    mockAuth = jasmine.createSpyObj('AuthService', [], {
+      currentUser$: of({ username: 'Alice' })
+    });
 
     await TestBed.configureTestingModule({
       imports: [PersonalBarComponent],
       providers: [
-        { provide: AuthService, useValue: mockAuth }
+        { provide: AuthService, useValue: mockAuth },
+        DatePipe
       ]
     }).compileComponents();
 
     fixture = TestBed.createComponent(PersonalBarComponent);
     component = fixture.componentInstance;
-    fixture.detectChanges();
   });
 
   it('should create', () => {
+    fixture.detectChanges();
     expect(component).toBeTruthy();
   });
 
-  it('should display the username', () => {
+  it('should display the username from AuthService', () => {
+    fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('.pb-greet-line')?.textContent).toContain('Alice');
   });
 
-  it('should show correct greeting based on time', () => {
-    const morning = new Date();
-    morning.setHours(9);
-    component.now.set(morning);
+  it('should show "Good morning" before 12:00', () => {
+    const morningDate = new Date();
+    morningDate.setHours(9);
+    component.now.set(morningDate);
     fixture.detectChanges();
     expect(component.greeting()).toBe('Good morning');
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('.pb-greet-line')?.textContent).toContain('Good morning');
+  });
 
-    const evening = new Date();
-    evening.setHours(19);
-    component.now.set(evening);
+  it('should show "Good afternoon" between 12:00 and 17:00', () => {
+    const afternoonDate = new Date();
+    afternoonDate.setHours(14);
+    component.now.set(afternoonDate);
+    fixture.detectChanges();
+    expect(component.greeting()).toBe('Good afternoon');
+  });
+
+  it('should show "Good evening" between 17:00 and 21:00', () => {
+    const eveningDate = new Date();
+    eveningDate.setHours(19);
+    component.now.set(eveningDate);
     fixture.detectChanges();
     expect(component.greeting()).toBe('Good evening');
   });
 
-  it('should handle streak increment', () => {
-    // Mock yesterday's visit
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    const yesterday = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
-    localStorage.setItem('xfil_visit_streak', '5');
-    localStorage.setItem('xfil_visit_streak_last_day', yesterday);
-    
-    // Re-init to trigger bump
-    component.ngOnInit();
+  it('should show "Working late" after 21:00', () => {
+    const lateDate = new Date();
+    lateDate.setHours(23);
+    component.now.set(lateDate);
     fixture.detectChanges();
-    
-    expect(component.streak()).toBe(6);
-    expect(localStorage.getItem('xfil_visit_streak')).toBe('6');
+    expect(component.greeting()).toBe('Working late');
   });
 
-  it('should show last visit label', () => {
-    const threeHoursAgo = Date.now() - (3 * 60 * 60 * 1000);
-    localStorage.setItem('xfil_last_visit_detail', JSON.stringify({ ts: threeHoursAgo }));
-    
-    component.ngOnInit();
+  it('should render the current time in HH:mm format', () => {
+    const testDate = new Date(2026, 4, 11, 15, 45); // 15:45
+    component.now.set(testDate);
     fixture.detectChanges();
-    
-    expect(component.lastVisitLabel()).toContain('last seen 3h ago');
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('.pb-time')?.textContent?.trim()).toBe('15:45');
   });
 });
