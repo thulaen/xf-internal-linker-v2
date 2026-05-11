@@ -4,8 +4,8 @@
       <mat-card-header>
         <div class="header-main" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
           <div class="title-group">
-            <mat-card-title>XenForo Connection</mat-card-title>
-            <mat-card-subtitle>Forum URL and REST API key for direct content sync</mat-card-subtitle>
+            <mat-card-title i18n="@@settings.connectSync.xenforo.title">XenForo Connection</mat-card-title>
+            <mat-card-subtitle i18n="@@settings.connectSync.xenforo.subtitle">Forum URL and REST API key for direct content sync</mat-card-subtitle>
           </div>
           <div class="health-indicator" [matTooltip]="xenforo.health?.issue" matTooltipClass="setting-tooltip">
             <span class="status-pill" [ngClass]="telemetryStatusClass(xenforo.health?.status)">
@@ -18,19 +18,19 @@
       <mat-card-content class="card-content ga4-card">
         <div class="wordpress-form">
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Forum URL</mat-label>
-            <input matInput autocomplete="off" [(ngModel)]="xenforo.base_url" (ngModelChange)="markDirty()" placeholder="https://yourforum.com" />
-            <mat-hint>No trailing slash. Example: https://www.goldmidi.com</mat-hint>
+            <mat-label i18n="@@settings.labels.forumUrl">Forum URL</mat-label>
+            <input matInput autocomplete="off" [(ngModel)]="xenforo.base_url" (ngModelChange)="markDirty()" placeholder="https://yourforum.com" i18n-placeholder="@@settings.placeholders.forumUrl" />
+            <mat-hint i18n="@@settings.hints.forumUrl">No trailing slash. Example: https://www.goldmidi.com</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>API Key</mat-label>
-            <input matInput autocomplete="off" type="password" [(ngModel)]="xfApiKey" (ngModelChange)="markDirty()" placeholder="Paste your XenForo REST API key" />
+            <mat-label i18n="@@settings.labels.apiKey">API Key</mat-label>
+            <input matInput autocomplete="off" type="password" [(ngModel)]="xfApiKey" (ngModelChange)="markDirty()" placeholder="Paste your XenForo REST API key" i18n-placeholder="@@settings.placeholders.apiKey" />
             <mat-hint>
               @if (xenforo.api_key_configured) {
-                Key stored. Leave blank to keep current.
+                <ng-container i18n="@@settings.hints.apiKeyStored">Key stored. Leave blank to keep current.</ng-container>
               } @else {
-                Generate a key in XenForo Admin -> API Keys.
+                <ng-container i18n="@@settings.hints.apiKeyGenerate">Generate a key in XenForo Admin -> API Keys.</ng-container>
               }
             </mat-hint>
           </mat-form-field>
@@ -46,11 +46,11 @@
       <mat-card-actions align="end">
         <button mat-stroked-button [disabled]="testingXenForo" (click)="testXenForoConnection()">
           @if (testingXenForo) { <mat-spinner diameter="18"></mat-spinner> }
-          <mat-icon>wifi_tethering</mat-icon> Test Connection
+          <mat-icon>wifi_tethering</mat-icon> <span i18n="@@settings.actions.testConnection">Test Connection</span>
         </button>
         <button mat-flat-button color="primary" [disabled]="savingXenForo" (click)="saveXenForoSettings()">
           @if (savingXenForo) { <mat-spinner diameter="18"></mat-spinner> }
-          Save
+          <span i18n="@@settings.actions.save">Save</span>
         </button>
       </mat-card-actions>
     </mat-card>
@@ -58,7 +58,7 @@
     <mat-card class="settings-card settings-card--wide" id="wordpress-settings">
       <mat-card-header>
         <div class="header-main" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-          <mat-card-title>WordPress Connection</mat-card-title>
+          <mat-card-title i18n="@@settings.connectSync.wordpress.title">WordPress Connection</mat-card-title>
           <div class="health-indicator" [matTooltip]="wordpress.health?.issue" matTooltipClass="setting-tooltip">
             <span class="status-pill" [ngClass]="telemetryStatusClass(wordpress.health?.status)">
               <mat-icon>{{ getHealthIcon(wordpress.health?.status) }}</mat-icon>
@@ -70,12 +70,12 @@
       <mat-card-content class="card-content ga4-card">
         <div class="wordpress-form">
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>WordPress site URL</mat-label>
-            <input matInput autocomplete="off" [(ngModel)]="wordpress.base_url" (ngModelChange)="markDirty()" placeholder="https://example.com" />
-            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('wordpress.base_url')" matTooltipClass="setting-tooltip">
+            <mat-label i18n="@@settings.labels.wordpressUrl">WordPress site URL</mat-label>
+            <input matInput autocomplete="off" [(ngModel)]="wordpress.base_url" (ngModelChange)="markDirty()" placeholder="https://example.com" i18n-placeholder="@@settings.placeholders.wordpressUrl" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('wordpress.base_url')" i18n-matTooltip="@@settings.tips.wordpressUrl" matTooltipClass="setting-tooltip">
               <mat-icon class="icon-md">info_outline</mat-icon>
             </button>
-            <mat-hint>Use main URL (no /wp-admin)</mat-hint>
+            <mat-hint i18n="@@settings.hints.wordpressUrl">Use main URL (no /wp-admin)</mat-hint>
           </mat-form-field>
 
           <div class="form-row">
@@ -94,9 +94,9 @@
               </button>
               <mat-hint>
                 @if (wordpress.app_password_configured) {
-                  Password stored. Leave blank to keep current.
+                  <ng-container i18n="@@settings.hints.wordpressPasswordStored">Password stored. Leave blank to keep current.</ng-container>
                 } @else {
-                  Application password from WP Profile settings.
+                  <ng-container i18n="@@settings.hints.wordpressPasswordGenerate">Application password from WP Profile settings.</ng-container>
                 }
               </mat-hint>
             </mat-form-field>
@@ -153,8 +153,8 @@
       <mat-card-header>
         <div class="header-main" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
           <div class="title-group">
-            <mat-card-title>Crawler Settings</mat-card-title>
-            <mat-card-subtitle>Default crawl parameters, URL exclusions, and data retention policy</mat-card-subtitle>
+            <mat-card-title i18n="@@settings.connectSync.crawler.title">Crawler Settings</mat-card-title>
+            <mat-card-subtitle i18n="@@settings.connectSync.crawler.subtitle">Default crawl parameters, URL exclusions, and data retention policy</mat-card-subtitle>
           </div>
         </div>
       </mat-card-header>
@@ -167,15 +167,15 @@
         </p>
 
         <div class="settings-row" style="margin-top: 16px;">
-          <h4 style="font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 8px;">
+          <h4 style="font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 8px;" i18n="@@settings.connectSync.crawler.paramsTitle">
             Default Crawl Parameters
           </h4>
-          <p class="hint">These defaults are used when starting a new crawl. You can override them per-session on the crawler page.</p>
+          <p class="hint" i18n="@@settings.connectSync.crawler.paramsHint">These defaults are used when starting a new crawl. You can override them per-session on the crawler page.</p>
           <div style="display: flex; gap: 16px; margin-top: 8px;">
             <mat-form-field style="width: 140px;">
-              <mat-label>Rate (req/sec)</mat-label>
+              <mat-label i18n="@@settings.labels.crawlRate">Rate (req/sec)</mat-label>
               <input matInput autocomplete="off" type="number" value="4" min="1" max="10"
-                matTooltip="Pages per second. Lower = gentler on your server." />
+                matTooltip="Pages per second. Lower = gentler on your server." i18n-matTooltip="@@settings.tips.crawlRate" />
             </mat-form-field>
             <mat-form-field style="width: 140px;">
               <mat-label>Max Depth</mat-label>
@@ -250,21 +250,21 @@
       <mat-card-header>
         <div class="header-main" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
           <div class="title-group">
-            <mat-card-title>Webhook Endpoints</mat-card-title>
-            <mat-card-subtitle>Configure secrets and verify incoming webhook receivers for XenForo and WordPress</mat-card-subtitle>
+            <mat-card-title i18n="@@settings.connectSync.webhooks.title">Webhook Endpoints</mat-card-title>
+            <mat-card-subtitle i18n="@@settings.connectSync.webhooks.subtitle">Configure secrets and verify incoming webhook receivers for XenForo and WordPress</mat-card-subtitle>
           </div>
         </div>
       </mat-card-header>
       <mat-card-content class="card-content ga4-card">
         <div class="wordpress-form">
-          <p class="hint">
+          <p class="hint" i18n="@@settings.connectSync.webhooks.hint">
             Point your XenForo and WordPress installations to these URLs, then set a shared secret below so only authorised requests are accepted.
           </p>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>XenForo Receiver URL</mat-label>
+            <mat-label i18n="@@settings.labels.xfWebhookUrl">XenForo Receiver URL</mat-label>
             <input matInput autocomplete="off" [value]="xfWebhookUrl" readonly />
-            <mat-hint>Paste this into XenForo Admin -> Webhooks -> URL</mat-hint>
+            <mat-hint i18n="@@settings.hints.xfWebhookUrl">Paste this into XenForo Admin -> Webhooks -> URL</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
@@ -312,10 +312,10 @@
 
     <mat-card class="settings-card settings-card--wide" id="google-settings">
       <mat-card-header>
-        <mat-card-title>Google Connection</mat-card-title>
+        <mat-card-title i18n="@@settings.connectSync.google.title">Google Connection</mat-card-title>
       </mat-card-header>
       <mat-card-content class="card-content ga4-card">
-        <p class="hint">Use one Google login for both GA4 and Search Console. Save the app details once, then sign in once.</p>
+        <p class="hint" i18n="@@settings.connectSync.google.hint">Use one Google login for both GA4 and Search Console. Save the app details once, then sign in once.</p>
         <div class="integration-status">
           <span class="status-pill" [ngClass]="telemetryStatusClass(googleOAuth.status)">{{ telemetryStatusLabel(googleOAuth.status) }}</span>
           <span class="integration-status__message">{{ googleOAuth.message }}</span>
@@ -323,9 +323,9 @@
 
         <div class="form-row">
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Google OAuth Client ID</mat-label>
-            <input matInput autocomplete="off" [(ngModel)]="googleAuthClientId" (ngModelChange)="markDirty()" placeholder="123456789-abcdef.apps.googleusercontent.com" />
-            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('googleOAuth.client_id')" matTooltipClass="setting-tooltip">
+            <mat-label i18n="@@settings.labels.googleClientId">Google OAuth Client ID</mat-label>
+            <input matInput autocomplete="off" [(ngModel)]="googleAuthClientId" (ngModelChange)="markDirty()" placeholder="123456789-abcdef.apps.googleusercontent.com" i18n-placeholder="@@settings.placeholders.googleClientId" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('googleOAuth.client_id')" i18n-matTooltip="@@settings.tips.googleClientId" matTooltipClass="setting-tooltip">
               <mat-icon class="icon-md">info_outline</mat-icon>
             </button>
           </mat-form-field>
@@ -373,10 +373,10 @@
 
     <mat-card class="settings-card" id="ga4-settings">
       <mat-card-header>
-        <mat-card-title>GA4 Telemetry</mat-card-title>
+        <mat-card-title i18n="@@settings.connectSync.ga4.title">GA4 Telemetry</mat-card-title>
       </mat-card-header>
       <mat-card-content class="card-content ga4-card">
-        <p class="hint">This card now has two jobs: send browser events out, and read daily totals back in.</p>
+        <p class="hint" i18n="@@settings.connectSync.ga4.hint">This card now has two jobs: send browser events out, and read daily totals back in.</p>
         <div class="integration-status">
           <span class="status-pill" [ngClass]="telemetryStatusClass(ga4Telemetry.connection_status)">{{ telemetryStatusLabel(ga4Telemetry.connection_status) }}</span>
           <span class="integration-status__message">{{ ga4Telemetry.connection_message }}</span>
