@@ -116,22 +116,22 @@ export class ReadyToRunComponent {
   }
 
   get gateMessage(): string {
-    if (this.gateLevel === 'green') return $localize`@@readyToRun.readyMsg:Ready to run the pipeline.`;
-    if (this.gateLevel === 'amber') return $localize`@@readyToRun.amberMsg:Check a few things before running.`;
-    return $localize`@@readyToRun.errorMsg:Fix issues before running the pipeline.`;
+    if (this.gateLevel === 'green') return $localize`:@@readyToRun.readyMsg:Ready to run the pipeline.`;
+    if (this.gateLevel === 'amber') return $localize`:@@readyToRun.amberMsg:Check a few things before running.`;
+    return $localize`:@@readyToRun.errorMsg:Fix issues before running the pipeline.`;
   }
 
   get blockers(): { label: string; icon: string; route?: string; fragment?: string }[] {
     const list: { label: string; icon: string; route?: string; fragment?: string }[] = [];
     if (this.health.status === 'error' || this.health.status === 'down') {
-      list.push({ label: $localize`@@readyToRun.healthDegraded:System health is degraded`, icon: 'monitor_heart', route: '/health' });
+      list.push({ label: $localize`:@@readyToRun.healthDegraded:System health is degraded`, icon: 'monitor_heart', route: '/health' });
     }
     if (this.lastRunDaysAgo !== null && this.lastRunDaysAgo > 7) {
       const days = this.lastRunDaysAgo;
-      list.push({ label: $localize`@@readyToRun.lastRunStale:Last pipeline run was ${days}:days: days ago`, icon: 'schedule' });
+      list.push({ label: $localize`:@@readyToRun.lastRunStale:Last pipeline run was ${days}:days: days ago`, icon: 'schedule' });
     }
     if (this.health.status === 'stale') {
-      list.push({ label: $localize`@@readyToRun.dataStale:Data may be stale -- consider re-syncing`, icon: 'sync_problem', route: '/jobs' });
+      list.push({ label: $localize`:@@readyToRun.dataStale:Data may be stale -- consider re-syncing`, icon: 'sync_problem', route: '/jobs' });
     }
     return list;
   }

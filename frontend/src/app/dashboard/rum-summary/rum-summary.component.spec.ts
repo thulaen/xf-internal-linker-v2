@@ -1,4 +1,4 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, discardPeriodicTasks, fakeAsync, tick } from '@angular/core/testing';
 import { RumSummaryComponent } from './rum-summary.component';
 import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
 import { VisibilityGateService } from '../../core/util/visibility-gate.service';
@@ -32,18 +32,24 @@ describe('RumSummaryComponent', () => {
     fixture = TestBed.createComponent(RumSummaryComponent);
     component = fixture.componentInstance;
     httpMock = TestBed.inject(HttpTestingController);
-    fixture.detectChanges();
   });
 
   afterEach(() => {
+    flushExtraPolls();
     httpMock.verify();
   });
+
+  function flushExtraPolls(): void {
+    httpMock.match('/api/rum/summary/').forEach((req) => {
+      req.flush({ window_hours: 24, metrics: {}, routes: {} });
+    });
+  }
 
   it('should create', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should fetch and display RUM summary', () => {
+  it('should fetch and display RUM summary', fakeAsync(() => {
     const mockSummary = {
       window_hours: 24,
       metrics: {
@@ -56,6 +62,8 @@ describe('RumSummaryComponent', () => {
       routes: {}
     };
 
+    fixture.detectChanges();
+    tick();
     const req = httpMock.expectOne('/api/rum/summary/');
     req.flush(mockSummary);
     fixture.detectChanges();
@@ -64,9 +72,11 @@ describe('RumSummaryComponent', () => {
     expect(rows.length).toBe(5);
     expect(rows[0].textContent).toContain('LCP');
     expect(rows[0].textContent).toContain('2,200'); // Decimal pipe formatting
-  });
+    flushExtraPolls();
+    discardPeriodicTasks();
+  }));
 
-  it('should show empty state if no samples', () => {
+  it('should show empty state if no samples', fakeAsync(() => {
     const mockSummary = {
       window_hours: 24,
       metrics: {
@@ -75,18 +85,26 @@ describe('RumSummaryComponent', () => {
       routes: {}
     };
 
+    fixture.detectChanges();
+    tick();
     const req = httpMock.expectOne('/api/rum/summary/');
     req.flush(mockSummary);
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('.rs-empty').textContent).toContain('No real-user samples yet');
-  });
+    flushExtraPolls();
+    discardPeriodicTasks();
+  }));
 
-  it('should handle error gracefully', () => {
+  it('should handle error gracefully', fakeAsync(() => {
+    fixture.detectChanges();
+    tick();
     const req = httpMock.expectOne('/api/rum/summary/');
     req.error(new ErrorEvent('Network error'));
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('.rs-empty').textContent).toContain('Could not load RUM summary');
-  });
+    flushExtraPolls();
+    discardPeriodicTasks();
+  }));
 });

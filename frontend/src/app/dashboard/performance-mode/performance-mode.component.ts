@@ -376,9 +376,9 @@ export class PerformanceModeComponent implements OnInit {
     const summary = this.hardwareSummary();
     const tier = this.hardwareTier();
     if (summary) {
-      return $localize`@@performanceMode.unavailableTooltipSummary:High Performance is unavailable on this hardware (${summary}:summary). Needs a CUDA GPU with at least 4 GB of VRAM.`;
+      return $localize`@@performanceMode.unavailableTooltipSummary:High Performance is unavailable on this hardware (${summary}:summary:). Needs a CUDA GPU with at least 4 GB of VRAM.`;
     }
-    return $localize`@@performanceMode.unavailableTooltipTier:High Performance is unavailable on this hardware (tier=${tier}:tier). Needs a CUDA GPU with at least 4 GB of VRAM.`;
+    return $localize`@@performanceMode.unavailableTooltipTier:High Performance is unavailable on this hardware (tier=${tier}:tier:). Needs a CUDA GPU with at least 4 GB of VRAM.`;
   };
 
   readonly safeBootLabel = () => {
@@ -481,7 +481,7 @@ export class PerformanceModeComponent implements OnInit {
         this.modeChange.emit(key);
         if (opt) {
           const label = opt.label;
-          this.snack.open($localize`@@performanceMode.switchedTo:Switched to ${label}:label`, $localize`@@common.ok:OK`, { duration: 2500 });
+          this.snack.open($localize`@@performanceMode.switchedTo:Switched to ${label}:label:`, $localize`@@common.ok:OK`, { duration: 2500 });
         }
       });
   }

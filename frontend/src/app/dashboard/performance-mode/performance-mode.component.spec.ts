@@ -3,21 +3,22 @@ import { PerformanceModeComponent, ConfirmHighPerformanceDialogComponent } from 
 import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
 import { PerformanceModeService } from '../../core/services/performance-mode.service';
 import { MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatDialogModule, MatDialog } from '@angular/material/dialog';
+import { MatDialogModule, MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
-import { signal } from '@angular/core';
+import { signal, WritableSignal } from '@angular/core';
 
 describe('PerformanceModeComponent', () => {
   let component: PerformanceModeComponent;
   let fixture: ComponentFixture<PerformanceModeComponent>;
   let httpMock: HttpTestingController;
-  let perfModeService: jasmine.SpyObj<PerformanceModeService>;
+  let highPerformanceCapable: WritableSignal<boolean>;
 
   beforeEach(async () => {
+    highPerformanceCapable = signal(true);
     const perfModeSpy = jasmine.createSpyObj('PerformanceModeService', ['refresh', 'setExpiry'], {
       expiry: signal('none'),
-      highPerformanceCapable: signal(true),
+      highPerformanceCapable,
       hardwareTier: signal('high'),
       hardwareSummary: signal('RTX 3050 6GB'),
     });
@@ -39,7 +40,6 @@ describe('PerformanceModeComponent', () => {
     fixture = TestBed.createComponent(PerformanceModeComponent);
     component = fixture.componentInstance;
     httpMock = TestBed.inject(HttpTestingController);
-    perfModeService = TestBed.inject(PerformanceModeService) as jasmine.SpyObj<PerformanceModeService>;
     fixture.detectChanges();
 
     // Initial ngOnInit call
@@ -62,7 +62,7 @@ describe('PerformanceModeComponent', () => {
   });
 
   it('should disable high performance button if not capable', () => {
-    (perfModeService as any).highPerformanceCapable.set(false);
+    highPerformanceCapable.set(false);
     fixture.detectChanges();
     const highButton = fixture.nativeElement.querySelector('.mode-button:nth-child(3)');
     expect(highButton.disabled).toBeTrue();
@@ -82,15 +82,13 @@ describe('PerformanceModeComponent', () => {
   });
 
   it('should open confirmation dialog when switching to high performance', () => {
-    const dialog = TestBed.inject(MatDialog);
-    spyOn(dialog, 'open').and.returnValue({
+    const dialogOpen = spyOn((component as unknown as { dialog: MatDialog }).dialog, 'open').and.returnValue({
       afterClosed: () => of(true)
-    } as any);
+    } as MatDialogRef<ConfirmHighPerformanceDialogComponent, boolean>);
 
-    const highButton = fixture.nativeElement.querySelector('.mode-button:nth-child(3)');
-    highButton.click();
+    component.selectMode('high');
 
-    expect(dialog.open).toHaveBeenCalledWith(ConfirmHighPerformanceDialogComponent, jasmine.any(Object));
+    expect(dialogOpen).toHaveBeenCalledWith(ConfirmHighPerformanceDialogComponent, jasmine.any(Object));
     
     const req = httpMock.expectOne('/api/settings/runtime/switch/');
     req.flush({});

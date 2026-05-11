@@ -54,7 +54,7 @@ describe('ReadyToRunComponent', () => {
   });
 
   it('should render blocker rows', () => {
-    component.health = { status: 'stale' };
+    fixture.componentRef.setInput('health', { status: 'stale' });
     fixture.detectChanges();
     const rows = fixture.nativeElement.querySelectorAll('.blocker-row');
     expect(rows.length).toBeGreaterThan(0);

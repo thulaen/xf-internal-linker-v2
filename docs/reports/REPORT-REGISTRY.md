@@ -20,6 +20,19 @@ This file is the single index of all audit reports and individual issues found b
 
 ## Open Reports
 
+### ISS-126 - Backend core tests fail under production-style settings (2026-05-11)
+
+- **Found by:** Codex during prevention sweep verification.
+- **AutoIssue:** #126.
+- **Status:** OPEN.
+- **Severity:** MEDIUM.
+- **Area:** `backend/apps/core/tests_passkey.py`, `backend/apps/core/tasks_passkey_cleanup.py`, `config/settings/test.py`.
+- **What is wrong in plain English:** running the core backend tests without the repository's test settings can fail the passkey cleanup tests with "Cannot open a new connection in an atomic block." The same tests pass when run with `config.settings.test`, which is the test configuration used elsewhere in the repo.
+- **Why it matters:** future agents can lose time chasing a backend failure that comes from the wrong test wrapper, not from the frontend slice they are trying to verify.
+- **Fix shape:** make the documented backend test command harder to misuse, or adjust the passkey cleanup test setup so it cannot accidentally inherit production-style database connection behavior.
+
+---
+
 ### ISS-118 - Ops feed writer logs duplicate-key errors for repeated dedup keys (2026-05-11)
 
 - **Found by:** Codex during the prevention sweep verification run.
