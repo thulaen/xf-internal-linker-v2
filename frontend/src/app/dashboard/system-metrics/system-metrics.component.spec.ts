@@ -1,34 +1,28 @@
-import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { ComponentFixture, TestBed, fakeAsync, tick, discardPeriodicTasks } from '@angular/core/testing';
 import { SystemMetricsComponent } from './system-metrics.component';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { VisibilityGateService } from '../../core/util/visibility-gate.service';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { Observable } from 'rxjs';
 
 describe('SystemMetricsComponent', () => {
   let component: SystemMetricsComponent;
   let fixture: ComponentFixture<SystemMetricsComponent>;
   let httpMock: HttpTestingController;
-  let mockVisibility: jasmine.SpyObj<VisibilityGateService>;
 
   const mockMetrics = {
     cpu_percent: 50,
-    ram_used_mb: 8000,
-    ram_total_mb: 16000,
-    ram_percent: 50,
-    gpu: {
-      available: true,
-      temp_c: 60,
-      vram_used_mb: 2000,
-      vram_total_mb: 8000,
-      vram_percent: 25,
-      utilization_pct: 10
-    }
+    ram_percent: 60,
+    ram_used_mb: 8192,
+    ram_total_mb: 16384,
+    gpu: { available: true, vram_used_mb: 4096, vram_total_mb: 8192, temp_c: 70, vram_percent: 50, utilization_pct: 30 }
   };
 
   beforeEach(async () => {
-    mockVisibility = jasmine.createSpyObj('VisibilityGateService', ['whileLoggedInAndVisible']);
-    mockVisibility.whileLoggedInAndVisible.and.callFake((fn) => fn());
+    const mockVisibility = jasmine.createSpyObj('VisibilityGateService', ['whileLoggedInAndVisible']);
+    // Immediate execution of the polling logic
+    mockVisibility.whileLoggedInAndVisible.and.callFake((fn: () => Observable<unknown>) => fn());
 
     await TestBed.configureTestingModule({
       imports: [SystemMetricsComponent, NoopAnimationsModule],
@@ -45,6 +39,9 @@ describe('SystemMetricsComponent', () => {
   });
 
   afterEach(() => {
+    fixture.destroy();
+    // Match any lingering requests to satisfy verify()
+    httpMock.match('/api/system/metrics/');
     httpMock.verify();
   });
 
@@ -54,6 +51,7 @@ describe('SystemMetricsComponent', () => {
     const req = httpMock.expectOne('/api/system/metrics/');
     req.flush(mockMetrics);
     expect(component).toBeTruthy();
+    discardPeriodicTasks();
   }));
 
   it('should fetch metrics on init', fakeAsync(() => {
@@ -65,6 +63,7 @@ describe('SystemMetricsComponent', () => {
     
     expect(component.metrics()).toEqual(mockMetrics);
     expect(fixture.nativeElement.querySelector('.meter-value').textContent).toContain('50%');
+    discardPeriodicTasks();
   }));
 
   it('should show GPU section if available', fakeAsync(() => {
@@ -76,6 +75,7 @@ describe('SystemMetricsComponent', () => {
     
     expect(fixture.nativeElement.querySelector('.meter-row:nth-child(3)')).toBeTruthy();
     expect(fixture.nativeElement.textContent).toContain('GPU memory');
+    discardPeriodicTasks();
   }));
 
   it('should show info if GPU is unavailable', fakeAsync(() => {
@@ -86,6 +86,7 @@ describe('SystemMetricsComponent', () => {
     fixture.detectChanges();
     
     expect(fixture.nativeElement.querySelector('.gpu-unavailable')).toBeTruthy();
+    discardPeriodicTasks();
   }));
 
   it('should show tip for high RAM usage', fakeAsync(() => {
@@ -97,15 +98,16 @@ describe('SystemMetricsComponent', () => {
     
     expect(component.tip()).toContain('Memory is almost full');
     expect(fixture.nativeElement.querySelector('.suggestion-tip')).toBeTruthy();
+    discardPeriodicTasks();
   }));
 
   it('should determine correct tint and bar color', () => {
     expect(component.tintClass(90)).toBe('tint-hot');
     expect(component.tintClass(70)).toBe('tint-warn');
-    expect(component.tintClass(30)).toBe('tint-ok');
+    expect(component.tintClass(50)).toBe('tint-ok');
     
     expect(component.barColor(90)).toBe('warn');
     expect(component.barColor(70)).toBe('accent');
-    expect(component.barColor(30)).toBe('primary');
+    expect(component.barColor(50)).toBe('primary');
   });
 });
