@@ -1,4 +1,5 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { DestroyRef } from '@angular/core';
 import { QuickControlsComponent } from './quick-controls.component';
 import { RuntimeModelsService } from '../../admin-models/runtime-models.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -11,11 +12,14 @@ describe('QuickControlsComponent', () => {
   let component: QuickControlsComponent;
   let fixture: ComponentFixture<QuickControlsComponent>;
   let svcSpy: jasmine.SpyObj<RuntimeModelsService>;
-  let snackSpy: jasmine.SpyObj<MatSnackBar>;
+  let snackOpenSpy: jasmine.Spy;
+
+  const mockDestroyRef = {
+    onDestroy: (_cb: () => void) => () => {},
+  };
 
   beforeEach(async () => {
     svcSpy = jasmine.createSpyObj('RuntimeModelsService', ['list', 'action']);
-    snackSpy = jasmine.createSpyObj('MatSnackBar', ['open']);
 
     svcSpy.list.and.returnValue(of({
       task_type: 'embedding',
@@ -34,13 +38,14 @@ describe('QuickControlsComponent', () => {
       imports: [QuickControlsComponent, NoopAnimationsModule],
       providers: [
         { provide: RuntimeModelsService, useValue: svcSpy },
-        { provide: MatSnackBar, useValue: snackSpy },
+        { provide: DestroyRef, useValue: mockDestroyRef },
         provideRouter([])
       ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(QuickControlsComponent);
     component = fixture.componentInstance;
+    snackOpenSpy = spyOn(MatSnackBar.prototype, 'open').and.callFake(() => null as any);
     fixture.detectChanges();
   });
 
@@ -74,22 +79,32 @@ describe('QuickControlsComponent', () => {
     expect(resumeBtn.nativeElement.textContent).toContain('Resume');
   });
 
-  it('should call pause action and show snackbar', () => {
-    svcSpy.action.and.returnValue(of({}));
+  it('should call pause action and show snackbar', fakeAsync(() => {
+    svcSpy.action.and.returnValue(of({ status: 'ok' }));
     const model = component.activeModels()[0];
     component.pause(model);
+    tick(0);
 
     expect(svcSpy.action).toHaveBeenCalledWith(model.id, 'pause');
-    expect(snackSpy.open).toHaveBeenCalledWith(jasmine.stringMatching(/Action "pause" applied/), jasmine.any(String), jasmine.any(Object));
-  });
+    expect(snackOpenSpy).toHaveBeenCalledWith(
+      jasmine.stringMatching(/Action "pause" applied/),
+      jasmine.any(String),
+      jasmine.any(Object)
+    );
+  }));
 
-  it('should handle action error with snackbar', () => {
+  it('should handle action error with snackbar', fakeAsync(() => {
     svcSpy.action.and.returnValue(throwError(() => new Error('fail')));
     const model = component.activeModels()[0];
     component.pause(model);
+    tick(0);
 
-    expect(snackSpy.open).toHaveBeenCalledWith(jasmine.stringMatching(/Failed to pause/), jasmine.any(String), jasmine.any(Object));
-  });
+    expect(snackOpenSpy).toHaveBeenCalledWith(
+      jasmine.stringMatching(/Failed to pause/),
+      jasmine.any(String),
+      jasmine.any(Object)
+    );
+  }));
 
   it('should show Promote button only for non-champions', () => {
     component.summaries.set([{

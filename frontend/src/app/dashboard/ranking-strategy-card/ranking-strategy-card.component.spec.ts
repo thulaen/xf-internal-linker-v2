@@ -36,7 +36,7 @@ describe('RankingStrategyCardComponent', () => {
       { id: 1, name: 'Model A', status: 'ready' },
       { id: 2, status: 'running' }
     ];
-    component.challengers = mockChallengers;
+    fixture.componentRef.setInput('challengers', mockChallengers);
     fixture.detectChanges();
 
     const rows = fixture.debugElement.queryAll(By.css('.challenger-row'));

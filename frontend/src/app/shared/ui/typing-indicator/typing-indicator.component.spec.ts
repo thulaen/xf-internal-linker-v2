@@ -64,7 +64,7 @@ describe('TypingIndicatorComponent', () => {
     fixture.detectChanges();
 
     const text = fixture.nativeElement.querySelector('.ti-text');
-    expect(text.textContent).toBe('bob is editing…');
+    expect(text.textContent.trim()).toBe('bob is editing…');
   }));
 
   it('should show "bob and charlie are editing…" when two peers type', fakeAsync(() => {
@@ -78,7 +78,7 @@ describe('TypingIndicatorComponent', () => {
     fixture.detectChanges();
 
     const text = fixture.nativeElement.querySelector('.ti-text');
-    expect(text.textContent).toBe('bob and charlie are editing…');
+    expect(text.textContent.trim()).toBe('bob and charlie are editing…');
   }));
 
   it('should publish typing event on host input', () => {

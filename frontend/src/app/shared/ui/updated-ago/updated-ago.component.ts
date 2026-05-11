@@ -42,8 +42,7 @@ import { MatIconModule } from '@angular/material/icon';
         [class.updated-ago-error]="staleness === 'error'"
         [matTooltip]="tooltipText"
         matTooltipPosition="above"
-        aria-label="Data last updated {{ label }}"
-        i18n-aria-label="@@shared.updated_ago.ariaLabel"
+        [attr.aria-label]="ariaLabel"
       >
         <mat-icon class="updated-ago-icon" aria-hidden="true">schedule</mat-icon>
         <span class="updated-ago-label">{{ label }}</span>
@@ -104,6 +103,10 @@ export class UpdatedAgoComponent implements OnInit, OnChanges, OnDestroy {
   label = '';
   tooltipText = '';
   staleness: 'ok' | 'warn' | 'error' = 'ok';
+
+  get ariaLabel(): string {
+    return $localize`:@@shared.updated_ago.ariaLabel:Data last updated ${this.label}:label:`;
+  }
 
   private timer: ReturnType<typeof setInterval> | null = null;
   private cdRef = inject(ChangeDetectorRef);
