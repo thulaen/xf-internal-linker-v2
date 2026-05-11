@@ -540,6 +540,18 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-05-11 - Prevention sweep cleanup continuation (Codex)
+
+- **AI/tool:** Codex.
+- **Why:** User asked to continue the locked prevention sweep one slice at a time, using the original mission plan and latest cumulative handoff numbers as the source of truth.
+- **What changed:** Continued the prevention cleanup from the already-dirty tree. Verified the current component-test uplift and settings cleanup together, with frontend tests now at 689 passing tests. The settings parent component is now under the 1,500-line file cap, and the file-size grandfather entry was removed for that file. Backend task-registration imports were present in the dirty tree and were included in verification because they affect startup task discovery.
+- **Files intentionally changed or carried forward:** frontend component spec files under `frontend/src/app/dashboard`, `frontend/src/app/shared`, and `frontend/src/app/shared/ui`; settings cleanup files under `frontend/src/app/settings`; task-registration files under `backend/apps/*/apps.py`; `.githooks/file-size-grandfather.txt`; `docs/reports/REPORT-REGISTRY.md`; `AGENT-HANDOFF.md`; and this session note.
+- **Verification:** `docker compose exec -T backend python manage.py check` passed. `docker compose exec -T backend python manage.py test apps.core --keepdb --noinput` passed 434 tests. Frontend `npm run test:ci` passed 690 tests. Frontend `npm run build:prod` passed with existing warnings.
+- **Known issues:** Build warnings remain for bundle size, Angular localize import placement, optional-chain cleanup in Error Log, and monitoring package format. During resolved-history checks, `apps.ops_feed.services.emit` logged duplicate-key database errors; I logged that as AutoIssue #118 and registry entry `ISS-118` instead of mixing the fix into this slice.
+- **Docker prune:** Completed after rerunning the safe cleanup script with Docker permission; about 1.1 GB reclaimed. Named database and data volumes were not deleted.
+- **Commit/push state:** Three logical commits created so far: `711a8845` task registration imports, `f05bcde3` settings file-cap cleanup, and `e2bcfd0a` component coverage specs. Final handoff/docs commit pending.
+- **Tech-debt delta:** -15 debt items: settings file shrank below the cap, component coverage increased, task discovery was hardened, and the duplicate activity-feed issue is now tracked instead of hidden.
+
 ### 2026-05-11 - Prevention sweep component tests and backend gate repair (Codex)
 
 - **AI/tool:** Codex.

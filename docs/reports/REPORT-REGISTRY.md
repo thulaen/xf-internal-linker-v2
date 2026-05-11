@@ -20,6 +20,19 @@ This file is the single index of all audit reports and individual issues found b
 
 ## Open Reports
 
+### ISS-118 - Ops feed writer logs duplicate-key errors for repeated dedup keys (2026-05-11)
+
+- **Found by:** Codex during the prevention sweep verification run.
+- **AutoIssue:** #118.
+- **Status:** OPEN.
+- **Severity:** MEDIUM.
+- **Area:** `backend/apps/ops_feed/services.py`.
+- **What is wrong in plain English:** the activity-feed writer correctly has a database rule that prevents duplicate entries, but the writer still tries to create the same event again and logs a noisy database traceback when the duplicate key already exists.
+- **Why it matters:** the database is protecting the data, but repeated tracebacks can hide real errors and make monitoring look worse than it is.
+- **Fix shape:** change the writer to treat an existing `dedup_key` as "already recorded" instead of logging a failure, then add a focused test that emits the same dedup key twice and confirms only one row exists with no error log.
+
+---
+
 ### RPT-007 — Grafana Faro + Tempo deployment + 18-pick Opening Ritual (2026-05-11)
 
 - **Found by:** Claude Opus 4.7 via user directive "Deploy and integrate Grafana Faro and Tempo into our existing observability stack, and establish a mandatory Opening Ritual for all AI agents."

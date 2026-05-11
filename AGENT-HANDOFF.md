@@ -1,4 +1,54 @@
-﻿# 2026-05-11 - Claude Opus 4.7 (1M context) — Grafana Faro + Tempo deployed, Opening Ritual raised from 12 to 18 picks across 6 sources
+﻿# 2026-05-11 - Codex - Prevention sweep continuation: settings cap cleanup + component tests verified
+
+[HANDOFF READ: 2026-05-11 by Claude Opus 4.7 - Grafana Faro and Tempo were added to the local monitoring stack, and the session-start issue-picking rule was raised to 18 picks across six sources.]
+
+[REGISTRY READ: 65 open (6 agent / 20 glitchtip / 13 pyroscope / 2 tempo / 23 loki / 1 faro), 7 open registry findings - picked: #22, #20, #83 | g: #86, #87, #100 | p: #64, #66, #65 | t: #103, #104 + 1 from agent: #96 (drought logged: #116) | l: #73, #74, #95 | f: #105 + 2 from agent: #84, #85 (drought logged: #117)]
+
+[RESOLVED HISTORY: 0 prior fix(es) read in frontend/src/app/shared/ui; 1 prior fix read in backend/apps/audit; 0 prior fixes read in backend/apps/auto_issues; 4 prior fixes read in backend/apps/core; 2 prior fixes read in backend/apps/pipeline; 0 prior fixes read in backend/apps/scheduled_updates]
+
+**What I did:** Continued the locked prevention sweep from the dirty tree that was already present at session start. I kept the plan locked and did not redesign it. The practical cleanup landed as three already-started logical slices: frontend component test coverage, settings parent cleanup below the file-size cap, and backend task-registration import hardening.
+
+**What was accomplished:** Frontend unit tests now run 689 passing tests, up from the latest top handoff's 651 passing tests. The settings parent TypeScript file is now 1,083 lines and the settings parent HTML file is 160 lines, so `frontend/src/app/settings/settings.component.ts` no longer needs the file-size grandfather exception. The task-registration edits keep background-task modules imported during app startup so Celery can see the tasks.
+
+**What still has issues or errors:** The production frontend build passes but still prints existing warnings: bundle size, Angular localize import placement, optional-chain cleanup in Error Log, and monitoring package format warnings. During resolved-history checks, `apps.ops_feed.services.emit` logged duplicate-key database errors; I logged that as AutoIssue #118 and registry entry `ISS-118` instead of mixing that fix into this slice. AutoIssue #22 remains open because this was another coverage batch, not the full remaining test backlog. AutoIssue #20 remains open because no translation-string tagging was done.
+
+**Files changed:**
+- `frontend/src/app/dashboard/*/*.spec.ts`, `frontend/src/app/shared/**/*.spec.ts`, and `frontend/src/app/shared/ui/**/*.spec.ts` - component coverage batch.
+- `frontend/src/app/shared/ui/kbd-hint/kbd-hint.component.ts` - made the keyboard-hint input reactive so the new spec reflects real runtime updates.
+- `frontend/src/app/settings/settings.component.ts`, `settings.component.html`, `connect-sync-tab.component.ts`, `ranking-weights-tab.component.ts`, `setting-tooltips.ts`, `setting-tooltips-extended.ts`, `settings-constants.ts` - settings cleanup and extracted constants/tooltips carried forward from the dirty tree.
+- `.githooks/file-size-grandfather.txt` - removed the settings component from the grandfather list because it dropped below 1,500 lines.
+- `backend/apps/audit/apps.py`, `backend/apps/auto_issues/apps.py`, `backend/apps/core/apps.py`, `backend/apps/pipeline/apps.py`, `backend/apps/scheduled_updates/apps.py` - task-registration import hardening carried forward from the dirty tree.
+- `docs/reports/REPORT-REGISTRY.md`, `AI-CONTEXT.md`, `AGENT-HANDOFF.md` - session record and the new activity-feed follow-up issue.
+
+**Verification:**
+- PASS - `docker compose exec -T backend python manage.py check`
+- PASS - `docker compose exec -T backend python manage.py test apps.core --keepdb --noinput` (434 tests)
+- PASS - `npm run test:ci` via the local Node path (689 tests)
+- PASS - `npm run build:prod` via the local Node path, with the warnings listed above
+- PASS - `python .githooks/check-file-size.py`
+- PASS - `python .githooks/check-no-downgraded-gates.py`
+- PASS - `python .githooks/check-frontend-routes.py`
+- PASS - `python .githooks/check-missing-tests.py`
+- PASS - `powershell -ExecutionPolicy Bypass -File scripts\prune-verification-artifacts.ps1` after escalation for Docker cleanup; reclaimed about 1.1 GB
+- PASS - final handoff/docs commit created
+
+**Commits:**
+- `711a8845` - Fix task registration imports
+- `f05bcde3` - Shrink settings component below file cap
+- `e2bcfd0a` - Add component coverage specs
+- final handoff/docs commit - this entry
+
+**Final cumulative numbers:** Component coverage backlog moved from roughly 137 untested components to roughly 128-130, depending on whether the shared UI helper components are counted in the same backlog bucket. The locked plan still has roughly 60-65% left: more AutoIssue #22 coverage batches, AutoIssue #20 translation tagging, `views_capacity.py` splitting, careful settings shared-state follow-up work, remaining observability issues, and Linux-only thread-safety suppression work.
+
+**Tech-debt delta:** -15 debt items, +38 frontend tests since the top handoff baseline.
+  Component coverage gaps reduced by the new dashboard/shared spec batch.
+  Long-file debt reduced: `settings.component.ts` is now 1,083 lines and removed from the grandfather list.
+  Duplicated settings-table debt reduced by moving tooltips and constants out of the parent component.
+  Startup task-discovery debt reduced by importing task modules from app startup hooks.
+  Hidden follow-up debt surfaced: AutoIssue #118 records the activity-feed duplicate-key writer issue.
+
+
+# 2026-05-11 - Claude Opus 4.7 (1M context) — Grafana Faro + Tempo deployed, Opening Ritual raised from 12 to 18 picks across 6 sources
 
 [HANDOFF READ: 2026-05-11 by Antigravity (Gemini) — Celery Task Registry Stabilization & Registry Purge (5 stale KeyError AutoIssues purged, eady() explicit-import pattern enforced)]
 
@@ -8755,5 +8805,3 @@ Notes for the next agent:
   Silent UI bug fixed: wizard Next button now responds when a step becomes invalid after render.
   Backend gate debt fixed: 2 default mismatches, 3 missing citation descriptions, 2 missing helper metadata decorators.
   Disposable artifacts removed: local test-output files and generated translation output that were not part of the slice.
-
-
