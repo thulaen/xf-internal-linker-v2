@@ -19,6 +19,7 @@ import { bootstrapApplication } from '@angular/platform-browser';
 import * as Sentry from '@sentry/angular';
 import { appConfig } from './app/app.config';
 import { AppComponent } from './app/app.component';
+import { initFaroBrowser } from './app/core/observability/faro-bootstrap';
 import { initOtelBrowser } from './app/core/observability/otel-bootstrap';
 import { environment } from './environments/environment';
 
@@ -40,6 +41,22 @@ if (environment.otelEndpoint && !inKarma) {
     serviceName: 'xf-linker-frontend',
     serviceVersion: environment.appVersion,
     environment: environment.production ? 'production' : 'development',
+  });
+}
+
+// Grafana Faro — Real User Monitoring (added 2026-05-11). Faro covers
+// JS errors, Web Vitals (LCP/INP/CLS) and session events. Ships to the
+// Alloy faro.receiver and from there into Loki, where `faro_picker`
+// promotes recurring problems into AutoIssue rows. Sits alongside the
+// OTel browser tracer — both SDKs run independently, no shared state.
+// Skipped under Karma so test runs don't try to reach the receiver.
+if (environment.faroEnabled && environment.faroEndpoint && !inKarma) {
+  initFaroBrowser({
+    url: environment.faroEndpoint,
+    appName: 'xf-linker-frontend',
+    appVersion: environment.appVersion,
+    environment: environment.production ? 'production' : 'development',
+    sessionSampleRate: environment.faroSessionSampleRate,
   });
 }
 

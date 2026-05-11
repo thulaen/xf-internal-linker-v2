@@ -1,0 +1,71 @@
+# Grafana data source provisioning (added 2026-05-11 per plan
+# ~/.claude/plans/objective-deploy-and-integrate-zany-bee.md Stream 2).
+#
+# All four sources live inside the docker network so we use the
+# service hostnames, not localhost. Tempo is the default data source
+# because the new trace dashboard is the main reason Grafana exists
+# in this stack. Loki ↔ Tempo cross-linking is enabled via traceID.
+
+apiVersion: 1
+
+datasources:
+  - name: Tempo
+    type: tempo
+    access: proxy
+    uid: tempo
+    url: http://tempo:3200
+    isDefault: true
+    jsonData:
+      # Open a related Loki query when an operator clicks a span — both
+      # stores share traceID + service.name so log lines around the
+      # span show up automatically.
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: -30s
+        spanEndTimeShift: 30s
+        tags:
+          - key: service.name
+            value: service
+        filterByTraceID: true
+      serviceMap:
+        datasourceUid: prometheus
+      nodeGraph:
+        enabled: true
+      search:
+        hide: false
+      lokiSearch:
+        datasourceUid: loki
+    editable: false
+
+  - name: Loki
+    type: loki
+    access: proxy
+    uid: loki
+    url: http://loki:3100
+    jsonData:
+      # Parse traceID out of structured log lines so a click on a log
+      # entry jumps to the matching Tempo trace.
+      derivedFields:
+        - datasourceUid: tempo
+          matcherRegex: "traceID=(\\w+)"
+          name: traceID
+          url: "$${__value.raw}"
+    editable: false
+
+  - name: Pyroscope
+    type: grafana-pyroscope-datasource
+    access: proxy
+    uid: pyroscope
+    url: http://pyroscope:4040
+    editable: false
+
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    uid: prometheus
+    # Otel-collector exposes the merged SDK + postgres-exporter metrics
+    # at this URL (see otelcol-config.yaml § exporters.prometheus).
+    url: http://otel-collector:8889
+    jsonData:
+      httpMethod: GET
+    editable: false

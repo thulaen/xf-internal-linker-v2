@@ -1,0 +1,64 @@
+# Tempo — distributed trace backend (added 2026-05-11 per plan
+# ~/.claude/plans/objective-deploy-and-integrate-zany-bee.md Stream 1).
+#
+# Monolithic single-binary mode for laptop / small-host operation.
+# No object storage, local filesystem only. Otel-collector forwards
+# spans here via an `otlp/tempo` exporter ALONGSIDE the existing
+# Sentry/GlitchTip exporter — fan-out, not substitution. The
+# GlitchTip pipeline is ABSOLUTE-protected.
+#
+# Retention is environment-driven so a future hardware upgrade can
+# bump it without editing this file: set TEMPO_RETENTION_HOURS in
+# .env. Default 72 h matches a low/medium-tier laptop's headroom.
+
+server:
+  http_listen_port: 3200
+
+# Tempo ingests OTLP from the otel-collector on internal docker
+# network ports only. NOT exposed to the host — the collector is the
+# single entry point for traces.
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        http:
+          endpoint: 0.0.0.0:4318
+        grpc:
+          endpoint: 0.0.0.0:4317
+
+ingester:
+  max_block_duration: 5m
+  trace_idle_period: 10s
+  flush_check_period: 10s
+
+compactor:
+  compaction:
+    # Hardware-aware via env var. 72 h on laptop tier; bump to 168 h
+    # on workstation tier. The Tempo container reads
+    # TEMPO_RETENTION_HOURS at boot — set it in .env.
+    block_retention: ${TEMPO_RETENTION_HOURS}h
+    compacted_block_retention: 1h
+
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /var/tempo/wal
+    local:
+      path: /var/tempo/blocks
+    pool:
+      max_workers: 50
+      queue_depth: 1000
+
+# In-memory metric generator disabled — Pyroscope + Prometheus already
+# cover this. Keeps Tempo footprint small.
+metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+      cluster: xf-linker-laptop
+
+usage_report:
+  # Opt out of Grafana Labs telemetry — laptop is single-host, anonymous
+  # usage stats add no value to the operator.
+  reporting_enabled: false

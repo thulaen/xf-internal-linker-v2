@@ -40,6 +40,7 @@
     "@angular/platform-browser-dynamic": "^20.3.18",
     "@angular/router": "^20.3.18",
     "@angular/service-worker": "^20.3.19",
+    "@grafana/faro-web-sdk": "^1.13.0",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/context-zone": "^1.30.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.57.0",

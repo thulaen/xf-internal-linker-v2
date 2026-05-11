@@ -21,4 +21,11 @@ export const environment = {
   // network and is also exposed to the host. Browser requests go to the
   // host-port surface. Empty string disables browser tracing.
   otelEndpoint: 'http://localhost:4318',
+  // Grafana Faro (added 2026-05-11). Real User Monitoring — JS errors,
+  // Web Vitals (LCP/INP/CLS), session events. Ships to the Alloy
+  // faro.receiver block on port 12347. Empty URL disables Faro
+  // bootstrap. Sits ALONGSIDE OpenTelemetry (no shared tracer).
+  faroEnabled: true,
+  faroEndpoint: 'http://localhost:12347/collect',
+  faroSessionSampleRate: 1.0,
 };

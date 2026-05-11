@@ -47,10 +47,13 @@ receivers:
 processors:
   # Batch traces / metrics / logs before export. Reduces network chatter
   # to GlitchTip's OTLP endpoint and keeps Prometheus scrapes coherent.
+  # Batch tuning bumped 2026-05-11 (timeout 5s -> 2s, send_batch_size
+  # 512 -> 1024) to amortize the extra `otlp/tempo` fan-out exporter
+  # without holding traces in memory longer than they were before.
   batch:
-    timeout: 5s
-    send_batch_size: 512
-    send_batch_max_size: 1024
+    timeout: 2s
+    send_batch_size: 1024
+    send_batch_max_size: 2048
 
   # Cap memory usage so a runaway trace storm can't OOM the collector.
   memory_limiter:
@@ -74,22 +77,39 @@ exporters:
   # 6.x is Sentry-compatible (NOT OTLP-native), so we use the contrib
   # `sentry` exporter that converts OTel spans into Sentry transactions
   # and pushes them as envelopes to the project's DSN.
+  #
+  # ABSOLUTE-protected per CLAUDE.md "Never disable or remove GlitchTip
+  # integration": this exporter must remain FIRST in the traces pipeline.
+  # The Tempo exporter below is ADDED alongside, never replacing.
   sentry:
     dsn: http://2887afdd98bb447ba734ab8d653fee27@glitchtip:8000/1
     environment: production
     insecure_skip_verify: true
 
+  # Traces → Grafana Tempo via OTLP gRPC (added 2026-05-11 per plan
+  # ~/.claude/plans/objective-deploy-and-integrate-zany-bee.md Stream 1).
+  # Tempo stores the full trace tree on disk so Grafana's Explore view
+  # can show end-to-end browser → backend → DB → C++ spans by traceID.
+  # The same trace lives in GlitchTip (via the sentry exporter above)
+  # so an error event and its trace can be cross-linked. No TLS — both
+  # collector and Tempo run inside the docker network.
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
   # Metrics → Prometheus scrape endpoint (host port 8889). Pull-based:
   # `curl http://localhost:8889/metrics` returns the current snapshot.
-  # When/if Grafana lands later, point its Prometheus data source here.
+  # Grafana's Prometheus data source points at otel-collector:8889.
   prometheus:
     endpoint: 0.0.0.0:8889
     namespace: xf_linker
     send_timestamps: true
     metric_expiration: 5m
 
-  # Logs → stdout for now. `docker compose logs otel-collector` shows
-  # them. When/if Loki lands, swap to `loki` exporter.
+  # Logs → stdout. `docker compose logs otel-collector` shows them.
+  # Loki gets container logs via the Alloy log shipper, not this
+  # collector, so no `loki` exporter is wired here.
   debug:
     verbosity: basic
 
@@ -98,7 +118,11 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, attributes/scrub, batch]
-      exporters: [sentry, debug]
+      # Fan-out: each trace is exported to BOTH GlitchTip (sentry) AND
+      # Tempo. Sentry stays FIRST per the ABSOLUTE rule. Adding Tempo
+      # as a second exporter increases collector RAM slightly (~30 MB)
+      # but the batch processor amortizes it.
+      exporters: [sentry, otlp/tempo, debug]
     metrics:
       receivers: [otlp, prometheus/postgres]
       processors: [memory_limiter, batch]

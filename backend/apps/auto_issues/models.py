@@ -8,8 +8,14 @@ Sources:
 - ``glitchtip``  — backend / frontend exceptions captured via Sentry SDK.
 - ``pyroscope``  — hot Python functions: regressions (week-over-week)
                   AND same-day hotspots (added 2026-05-10).
+- ``tempo``      — distributed-trace findings: slow spans (duration over
+                  threshold) AND error spans (status=error), grouped by
+                  ``(span_name, service)`` (added 2026-05-11).
 - ``loki``       — repeated WARN/ERROR patterns mined from container
                   stdout via LogQL (added 2026-05-10).
+- ``faro``       — frontend RUM: JS error clusters AND Web Vitals
+                  breaches (LCP / INP / CLS), shipped from Faro Web SDK
+                  through Alloy into Loki (added 2026-05-11).
 - ``agent``      — bugs found by an AI session that don't yet have a GT
                   issue (e.g. dead code, missing validation, smells).
 
@@ -25,12 +31,16 @@ from django.db import models
 class AutoIssue(models.Model):
     SOURCE_GLITCHTIP = "glitchtip"
     SOURCE_PYROSCOPE = "pyroscope"
+    SOURCE_TEMPO = "tempo"
     SOURCE_LOKI = "loki"
+    SOURCE_FARO = "faro"
     SOURCE_AGENT = "agent"
     SOURCE_CHOICES = [
         (SOURCE_GLITCHTIP, "GlitchTip"),
         (SOURCE_PYROSCOPE, "Pyroscope"),
+        (SOURCE_TEMPO, "Tempo"),
         (SOURCE_LOKI, "Loki"),
+        (SOURCE_FARO, "Faro"),
         (SOURCE_AGENT, "Agent find"),
     ]
 

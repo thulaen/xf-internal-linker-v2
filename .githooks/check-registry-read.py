@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pre-commit guard for the auto-fix-12-issues rule (raised 2026-05-10).
+"""Pre-commit guard for the auto-fix-18-issues rule (raised 2026-05-11).
 
 When an AGENT-HANDOFF.md entry is added or edited in this commit, the new
 content MUST include the `[REGISTRY READ: ...]` marker proving the agent
@@ -8,20 +8,21 @@ read the open auto-issues list at session-start.
 The marker has TWO halves:
 
 1. **Per-source breakdown.** Format:
-   `[REGISTRY READ: <N> open (<a> agent / <g> glitchtip / <p> pyroscope / <l> loki), <M> registry`
-   The four per-source numbers must sum to <N>.
+   `[REGISTRY READ: <N> open (<a> agent / <g> glitchtip / <p> pyroscope / <t> tempo / <l> loki / <f> faro), <M> registry`
+   The six per-source numbers must sum to <N>.
 
 2. **Picks.** Format:
-   `picked: #<id1>, #<id2>, #<id3>, #<id4> | gp: #<id5>, #<id6>, #<id7>, #<id8> | l: #<id9>, #<id10>, #<id11>, #<id12>]`
-   Exactly 12 ID tokens (matching `#\\S+`) total. The drought-substitution
-   form `l: 0 found + 4 from agent: #..., #..., #..., #... (drought logged: #...)`
-   is also accepted, provided `drought logged: #<id>` is present and the
-   total ID count still reaches 12.
+   `picked: #<id1>, #<id2>, #<id3> | g: #<id4>, #<id5>, #<id6> | p: #<id7>, #<id8>, #<id9> | t: #<id10>, #<id11>, #<id12> | l: #<id13>, #<id14>, #<id15> | f: #<id16>, #<id17>, #<id18>]`
+   Exactly 18 ID tokens (matching `#\\S+`) total — 3 per source × 6 sources.
+   The drought-substitution form `t: 0 found + 3 from agent: #..., #..., #... (drought logged: #...)`
+   is accepted per-bucket, provided `drought logged: #<id>` is present and
+   the total ID count still reaches 18.
 
-A `satisfier` exemption phrase (`auto-fix-12 satisfier` or
-`auto-fix-3 satisfier` for backwards compat) replaces the picks half when
-the session's own user-task is itself a multi-bug fix that satisfies the
-quota structurally — for example, this very rule-update session.
+A `satisfier` exemption phrase (`auto-fix-18 satisfier` or the legacy
+`auto-fix-12 satisfier` / `auto-fix-3 satisfier`) replaces the picks half
+when the session's own user-task is itself a multi-bug fix that satisfies
+the quota structurally — for example, the very session that lifted the
+rule from 12 to 18.
 
 Why a hook instead of a memory rule: agents have repeatedly forgotten to
 log new bugs into the registry / auto_issues table even though the rules
@@ -44,28 +45,39 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 HANDOFF = REPO_ROOT / "AGENT-HANDOFF.md"
 
-# The marker header — captures the per-source breakdown numbers so we
-# can assert they sum to N.
+# The marker header — captures the six per-source breakdown numbers so
+# we can assert they sum to N.  Order: agent / glitchtip / pyroscope /
+# tempo / loki / faro (the 6-source ritual raised on 2026-05-11).
 NEW_MARKER_RE = re.compile(
     r"\[REGISTRY READ:\s*(?P<n>\d+)\s+open\s*"
     r"\(\s*(?P<a>\d+)\s+agent\s*/\s*"
     r"(?P<g>\d+)\s+glitchtip\s*/\s*"
     r"(?P<p>\d+)\s+pyroscope\s*/\s*"
-    r"(?P<l>\d+)\s+loki\s*\)",
+    r"(?P<t>\d+)\s+tempo\s*/\s*"
+    r"(?P<l>\d+)\s+loki\s*/\s*"
+    r"(?P<f>\d+)\s+faro\s*\)",
     re.IGNORECASE,
 )
-# Backwards-compatible legacy header (old 3-pick rule). We REJECT this
-# format on a fresh commit but report a helpful message that points at
-# the new one. Same regex as the legacy hook.
+# 4-source marker from the previous (12-pick) era. We REJECT it now
+# but report a helpful message pointing at the new 6-source form.
+FOUR_SOURCE_MARKER_RE = re.compile(
+    r"\[REGISTRY READ:\s*\d+\s+open\s*"
+    r"\(\s*\d+\s+agent\s*/\s*"
+    r"\d+\s+glitchtip\s*/\s*"
+    r"\d+\s+pyroscope\s*/\s*"
+    r"\d+\s+loki\s*\)",
+    re.IGNORECASE,
+)
+# Backwards-compatible pre-2026-05-10 legacy header (3-pick rule).
 LEGACY_MARKER_RE = re.compile(
     r"\[REGISTRY READ:\s*\d+\s+open auto-issues",
     re.IGNORECASE,
 )
-# Inside the picks half, count IDs of the form #<token>. We require 12.
+# Inside the picks half, count IDs of the form #<token>. We require 18.
 ID_TOKEN_RE = re.compile(r"#[A-Za-z0-9._-]+")
-# Satisfier exemption — covers legacy "auto-fix-3 satisfier" and the
-# new "auto-fix-12 satisfier".
-SATISFIER_RE = re.compile(r"auto-fix-(?:3|12)\s+satisfier", re.IGNORECASE)
+# Satisfier exemption — covers the new "auto-fix-18 satisfier" plus the
+# legacy "auto-fix-12" and "auto-fix-3" phrases.
+SATISFIER_RE = re.compile(r"auto-fix-(?:3|12|18)\s+satisfier", re.IGNORECASE)
 # When the picks span uses drought substitution, this phrase MUST be
 # present somewhere in the marker so the next agent can find the logged
 # AutoIssue and investigate why the source was empty.
@@ -79,13 +91,21 @@ PICKS_SEGMENT_RE = re.compile(
 
 
 def _staged_diff_for(path: Path) -> str:
-    """Return the staged additions for *path* (lines starting with '+ ')."""
+    """Return the staged additions for *path* (lines starting with '+ ').
+
+    Force UTF-8 + `errors='replace'` so Windows hosts (default cp1252)
+    don't crash on em-dashes / arrows / non-ASCII glyphs in handoff
+    entries. The regex matchers operate on ASCII anchors so a swapped-
+    out byte never affects correctness.
+    """
     rel = path.relative_to(REPO_ROOT).as_posix()
     try:
         out = subprocess.check_output(
             ["git", "diff", "--cached", "--unified=0", "--", rel],
             cwd=REPO_ROOT,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
     except subprocess.CalledProcessError:
         return ""
@@ -101,6 +121,8 @@ def _commit_touches_handoff() -> bool:
             ["git", "diff", "--cached", "--name-only"],
             cwd=REPO_ROOT,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
     except subprocess.CalledProcessError:
         return False
@@ -115,17 +137,30 @@ def _fail(msg: str) -> int:
 def _validate_marker(added: str) -> int:
     new_match = NEW_MARKER_RE.search(added)
     if not new_match:
+        if FOUR_SOURCE_MARKER_RE.search(added):
+            return _fail(
+                "Found the 4-source / 12-pick `[REGISTRY READ: <N> open "
+                "(<a> agent / <g> glitchtip / <p> pyroscope / <l> loki), ...]` "
+                "marker. The rule was raised to 18 picks across 6 sources on "
+                "2026-05-11 (plan objective-deploy-and-integrate-zany-bee.md "
+                "Stream 8).\n"
+                "  Expected: `[REGISTRY READ: <N> open (<a> agent / <g> glitchtip / "
+                "<p> pyroscope / <t> tempo / <l> loki / <f> faro), <M> registry — "
+                "picked: #..., #..., #... | g: #..., #..., #... | p: #..., #..., #... "
+                "| t: #..., #..., #... | l: #..., #..., #... | f: #..., #..., #...]`\n"
+                "  Run `docker compose exec -T backend python manage.py print_open_issues "
+                "--source <each>` for the six per-source counts (agent, glitchtip, "
+                "pyroscope, tempo, loki, faro), pick 18 issues (3 per source), and "
+                "rewrite the marker."
+            )
         if LEGACY_MARKER_RE.search(added):
             return _fail(
-                "Found the legacy 3-pick `[REGISTRY READ: <N> open auto-issues, ...]` "
-                "marker. The rule was raised to 12 picks per session on 2026-05-10 "
-                "(plan does-adding-qodana-make-swift-wall.md Stream 5).\n"
+                "Found the pre-2026-05-10 legacy `[REGISTRY READ: <N> open auto-issues, "
+                "...]` marker. The rule has been raised twice since then (12 picks on "
+                "2026-05-10, 18 picks on 2026-05-11).\n"
                 "  Expected: `[REGISTRY READ: <N> open (<a> agent / <g> glitchtip / "
-                "<p> pyroscope / <l> loki), <M> registry — picked: #..., #..., #..., "
-                "#... | gp: #..., #..., #..., #... | l: #..., #..., #..., #...]`\n"
-                "  Run `docker compose exec -T backend python manage.py print_open_issues` "
-                "to get the per-source counts, pick 12 issues (4 + 4 GlitchTip/Pyroscope "
-                "+ 4 Loki), and rewrite the marker."
+                "<p> pyroscope / <t> tempo / <l> loki / <f> faro), <M> registry — "
+                "picked: #...x3 | g: #...x3 | p: #...x3 | t: #...x3 | l: #...x3 | f: #...x3]`."
             )
         return _fail(
             "This commit modifies AGENT-HANDOFF.md but the new lines do not contain "
@@ -133,19 +168,22 @@ def _validate_marker(added: str) -> int:
             "AGENTS.md requires running `manage.py print_open_issues` at session "
             "start and recording the result.\n"
             "  Expected format: `[REGISTRY READ: <N> open (<a> agent / <g> glitchtip "
-            "/ <p> pyroscope / <l> loki), <M> registry — picked: #..., ...]`"
+            "/ <p> pyroscope / <t> tempo / <l> loki / <f> faro), <M> registry — picked: #..., ...]`"
         )
     a = int(new_match.group("a"))
     g = int(new_match.group("g"))
     p = int(new_match.group("p"))
+    t = int(new_match.group("t"))
     l = int(new_match.group("l"))
+    f = int(new_match.group("f"))
     n = int(new_match.group("n"))
-    if a + g + p + l != n:
+    total = a + g + p + t + l + f
+    if total != n:
         return _fail(
             f"Per-source counts in `[REGISTRY READ: ...]` do not sum to N: "
-            f"{a} agent + {g} glitchtip + {p} pyroscope + {l} loki = "
-            f"{a + g + p + l}, but the header says {n} open. Re-run "
-            "`print_open_issues --source <each>` and reconcile."
+            f"{a} agent + {g} glitchtip + {p} pyroscope + {t} tempo + "
+            f"{l} loki + {f} faro = {total}, but the header says {n} open. "
+            "Re-run `print_open_issues --source <each>` and reconcile."
         )
     return 0
 
@@ -157,26 +195,28 @@ def _validate_picks(added: str) -> int:
     if not picks_match:
         return _fail(
             "The `[REGISTRY READ: ...]` marker is present but does not include a "
-            "`picked: #..., #..., ...]` segment. Need 12 picks total (4 + 4 "
-            "GlitchTip/Pyroscope + 4 Loki) OR the `auto-fix-12 satisfier` phrase."
+            "`picked: #..., ...]` segment. Need 18 picks total (3 from each of "
+            "agent, glitchtip, pyroscope, tempo, loki, faro) OR the "
+            "`auto-fix-18 satisfier` phrase."
         )
     picks_blob = picks_match.group("picks")
     ids = ID_TOKEN_RE.findall(picks_blob)
     # Drought-substitution form may include the drought-AutoIssue id; we
-    # don't require it to count toward 12, but we DO require the phrase.
+    # don't require it to count toward 18, but we DO require the phrase.
     has_drought_phrase = bool(DROUGHT_PHRASE_RE.search(picks_blob))
     drought_id_count = len(DROUGHT_PHRASE_RE.findall(picks_blob))
     has_substitution_form = bool(re.search(r"\bfrom\s+agent\b", picks_blob, re.IGNORECASE))
     effective_picks = len(ids) - drought_id_count
-    if effective_picks != 12:
+    if effective_picks != 18:
         return _fail(
-            f"Expected exactly 12 picked issue IDs in the `picked: ...` segment "
-            f"(4 + 4 GlitchTip/Pyroscope + 4 Loki). Found {effective_picks} "
+            f"Expected exactly 18 picked issue IDs in the `picked: ...` segment "
+            f"(3 per source × 6 sources). Found {effective_picks} "
             f"(raw # tokens = {len(ids)}, drought log refs = {drought_id_count}).\n"
-            "  If a category was empty at session-start, use the substitution "
-            "form: `l: 0 found + 4 from agent: #..., #..., #..., #... "
-            "(drought logged: #<id>)` — and file an `AutoIssue(kind='picker_drought')` "
-            "for that source so the next agent investigates."
+            "  If a per-source bucket was empty at session-start, use the "
+            "substitution form: `t: 0 found + 3 from agent: #..., #..., #... "
+            "(drought logged: #<id>)` — and file an "
+            "`AutoIssue(kind='picker_drought')` for that source so the next agent "
+            "investigates."
         )
     if has_substitution_form and not has_drought_phrase:
         return _fail(

@@ -91,6 +91,56 @@ def pick_daily_loki_findings():
     return pick_loki_findings()
 
 
+@shared_task(name="auto_issues.pick_daily_faro_findings")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=192,
+    expected_seconds_p50=30,
+)
+def pick_daily_faro_findings():
+    """Query Loki for Faro browser RUM events; promote JS error clusters
+    and Web Vitals (LCP/INP/CLS) breaches to AutoIssue.
+
+    Added 2026-05-11 per plan
+    ``~/.claude/plans/objective-deploy-and-integrate-zany-bee.md`` Stream 5.
+    Two disjoint detectors run in one call: error_cluster (works from
+    day one once Faro is shipping events) and webvital_breach (needs
+    ≥10 sessions over threshold). Disjoint fingerprint prefixes
+    (``faro:err::`` and ``faro:webvital::``) keep them from colliding
+    on the AutoIssue unique constraint.
+    """
+    from apps.auto_issues.services.faro_picker import pick_faro_findings
+
+    return pick_faro_findings()
+
+
+@shared_task(name="auto_issues.pick_daily_tempo_findings")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=192,
+    expected_seconds_p50=30,
+)
+def pick_daily_tempo_findings():
+    """Query Tempo TraceQL for slow spans and error spans; promote both
+    to AutoIssue.
+
+    Added 2026-05-11 per plan
+    ``~/.claude/plans/objective-deploy-and-integrate-zany-bee.md`` Stream 6.
+    Slow-span detector groups by (span_name, service.name) and
+    promotes p99 outliers above ``tempo.slow_span_threshold_ms``.
+    Error-span detector groups by the same key and promotes any cluster
+    over ``tempo.error_span_min_count``. Disjoint fingerprint prefixes
+    (``tempo:slow::`` and ``tempo:err::``).
+    """
+    from apps.auto_issues.services.tempo_picker import pick_tempo_findings
+
+    return pick_tempo_findings()
+
+
 @shared_task(name="auto_issues.run_retention_cleanup")
 @HelperConstraint(
     cpu_intensive=False, gpu_required=False,

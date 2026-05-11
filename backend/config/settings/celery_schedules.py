@@ -195,6 +195,28 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour="11-23", minute="15,45"),
         "options": {"queue": "default", "expires": 1500},
     },
+    # Faro picker added 2026-05-11 per plan
+    # ~/.claude/plans/objective-deploy-and-integrate-zany-bee.md Stream 5.
+    # Faro Web SDK ships browser RUM (JS errors + Web Vitals) through
+    # Alloy into Loki labelled `source="faro"`. Picker queries those
+    # streams via LogQL like the loki picker. Staggered at :20/:50 — 5
+    # min after Loki (:15/:45) and 5 min before Tempo (:25/:55).
+    "auto-issues-faro-pick": {
+        "task": "auto_issues.pick_daily_faro_findings",
+        "schedule": crontab(hour="11-23", minute="20,50"),
+        "options": {"queue": "default", "expires": 1500},
+    },
+    # Tempo picker added 2026-05-11 per plan
+    # ~/.claude/plans/objective-deploy-and-integrate-zany-bee.md Stream 6.
+    # otel-collector fans traces out to BOTH GlitchTip (Sentry exporter,
+    # ABSOLUTE-protected) AND Tempo (new otlp/tempo exporter). Picker
+    # queries Tempo's TraceQL API for slow + error spans. Staggered at
+    # :25/:55 (last in the chain) so no Postgres or Tempo contention.
+    "auto-issues-tempo-pick": {
+        "task": "auto_issues.pick_daily_tempo_findings",
+        "schedule": crontab(hour="11-23", minute="25,55"),
+        "options": {"queue": "default", "expires": 1500},
+    },
     "auto-issues-internal-pick": {
         "task": "auto_issues.pick_daily_internal_issues",
         "schedule": crontab(hour=11, minute=20),

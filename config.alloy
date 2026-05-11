@@ -60,3 +60,36 @@ loki.write "default" {
     host = "xf-linker-laptop",
   }
 }
+
+// 5. Faro receiver (added 2026-05-11 per plan
+//    ~/.claude/plans/objective-deploy-and-integrate-zany-bee.md Stream 4).
+//    Accepts browser RUM events from the Faro Web SDK over HTTP and
+//    forwards them to Loki labelled `{service="frontend", source="faro"}`.
+//    The `faro_picker` (apps.auto_issues.services.faro_picker) reads
+//    these streams via LogQL and promotes recurring problems into
+//    AutoIssue rows. CORS is open because the browser ships events
+//    directly to this endpoint from the user's origin.
+faro.receiver "default" {
+  server {
+    listen_address = "0.0.0.0"
+    listen_port    = 12347
+    cors_allowed_origins = ["*"]
+  }
+  output {
+    logs = [loki.write.faro.receiver]
+  }
+}
+
+// 6. Push Faro events to Loki on a dedicated channel so the faro
+//    picker can filter by `source="faro"` label without false hits
+//    from container-stdout logs.
+loki.write "faro" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+  external_labels = {
+    host    = "xf-linker-laptop",
+    service = "frontend",
+    source  = "faro",
+  }
+}

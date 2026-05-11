@@ -88,7 +88,7 @@ ALLOWLIST: frozenset[str] = frozenset({
     "RUN", "SAME", "FIRST", "YOU", "RECENT", "RESOLUTIONS",
     "YES", "DISCOVERED", "NOW", "FRESH", "CORRECT", "CONTROL",
     "CHANNEL", "WITHOUT", "PRE", "OTHER", "SINGLE", "STOP",
-    "WHEN", "THINK", "CODE", "SEARCH", "BLAST", "HISTORY",
+    "WHEN", "THINK", "CODE", "SEARCH", "BLAST", "HISTORY", "IMPORT", "SYNC",
     "RESOLVED", "WIRED", "DON", "SIGNAL", "ABSOLUTE", "SPEC",
     # SQL keywords frequently quoted in code comments / handoff prose
     # alongside the DDL allowlist above (those covered: CREATE/INSERT/
@@ -262,6 +262,10 @@ ALLOWLIST: frozenset[str] = frozenset({
     "KDD", "LTR", "UAI", "ICDM", "SIAM", "CACM",
     # Karma helper script output headings - plain English not jargon.
     "TOTAL", "FAILURES",
+    # `LogLevel.LOG` enum member from `@grafana/faro-web-sdk` (used in
+    # faro-bootstrap.ts to suppress non-error console captures). The SDK
+    # owns this identifier; we can't rename it.
+    "LOG",
 })
 
 # Regex: 3+ consecutive uppercase letters with optional repeated hyphen-

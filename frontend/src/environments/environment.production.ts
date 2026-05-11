@@ -20,4 +20,12 @@ export const environment = {
   // host so we point at the host-exposed port (`:4318`). Empty disables
   // browser tracing.
   otelEndpoint: `${window.location.protocol}//${window.location.hostname}:4318`,
+  // Grafana Faro (added 2026-05-11). Real User Monitoring — JS errors,
+  // Web Vitals (LCP/INP/CLS), session events. Ships to the Alloy
+  // faro.receiver block on the host-exposed port. Sits ALONGSIDE
+  // OpenTelemetry; no shared tracer. Session sampling drops to 25 %
+  // in production so a busy site doesn't flood Loki.
+  faroEnabled: true,
+  faroEndpoint: `${window.location.protocol}//${window.location.hostname}:12347/collect`,
+  faroSessionSampleRate: 0.25,
 };

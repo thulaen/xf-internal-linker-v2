@@ -629,8 +629,94 @@ services:
       # Alloy's own UI/debug endpoint. Localhost-only; exposes pipeline
       # graph + component status at http://localhost:12345.
       - "127.0.0.1:12345:12345"
+      # Faro receiver — the browser ships Faro Web SDK events to this
+      # port. Localhost-only because everything else in the stack is
+      # localhost-bound; for a multi-host deploy, change the bind.
+      - "127.0.0.1:12347:12347"
     depends_on:
       loki:
+        condition: service_started
+
+  # ─────────────────────────────────────────────
+  # Tempo — distributed trace backend (added 2026-05-11 per plan
+  # ~/.claude/plans/objective-deploy-and-integrate-zany-bee.md Stream 1).
+  # Monolithic single-binary mode; local filesystem storage on the
+  # tempo_data named volume. Retention defaults to 72 h on laptop
+  # tier and 168 h on workstation tier; pass TEMPO_RETENTION_HOURS in
+  # .env to override.
+  #
+  # otel-collector now fans traces out to BOTH the Sentry exporter
+  # (→ GlitchTip, ABSOLUTE-protected) AND a new otlp/tempo exporter
+  # (→ this service). The same trace exists in both stores so a
+  # GlitchTip error event and its full Tempo trace can be cross-linked
+  # via the shared traceID. See `otelcol-config.yaml` for the pipeline.
+  # ─────────────────────────────────────────────
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: xf_linker_tempo
+    restart: always
+    mem_limit: 768m
+    command:
+      - "-config.expand-env=true"
+      - "-config.file=/etc/tempo/config.yaml"
+    environment:
+      # 72h on low/medium tier; bump to 168h on workstation tier.
+      # The migration's `tempo.retention_hours` AppSetting is the
+      # operator-facing record of choice; this env var is what the
+      # Tempo container actually reads at boot.
+      TEMPO_RETENTION_HOURS: ${TEMPO_RETENTION_HOURS:-72}
+    configs:
+      - source: tempo_config
+        target: /etc/tempo/config.yaml
+    volumes:
+      - tempo_data:/var/tempo
+    ports:
+      # Tempo HTTP API (search + ready). Localhost-bound; the otel-
+      # collector talks to it via the docker network on internal
+      # gRPC :4317 (not exposed to host).
+      - "127.0.0.1:3200:3200"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3200/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────
+  # Grafana — visualisation UI for Tempo, Loki, Pyroscope, and the
+  # Prometheus metrics exported by otel-collector. Added 2026-05-11
+  # per plan Stream 2. Localhost-only on port 3000. Admin password
+  # required via GRAFANA_ADMIN_PASSWORD in .env. Anonymous access OFF.
+  # ─────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana-oss:11.4.0
+    container_name: xf_linker_grafana
+    restart: always
+    mem_limit: 512m
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      # Follows the same `:-default` pattern as GLITCHTIP_SECRET_KEY so a
+      # fresh checkout boots without manual .env edits. The default is
+      # NOT secret-strong on purpose — the user is expected to set
+      # GRAFANA_ADMIN_PASSWORD in .env before exposing Grafana beyond
+      # localhost. Grafana itself prompts for a password change on
+      # first login if the value is the default `admin`.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-changeme_use_a_strong_password}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_INSTALL_PLUGINS: ""
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      tempo:
+        condition: service_started
+      loki:
+        condition: service_started
+      pyroscope:
         condition: service_started
 
 volumes:
@@ -652,6 +738,10 @@ volumes:
     driver: local
   alloy_data:
     driver: local
+  tempo_data:
+    driver: local
+  grafana_data:
+    driver: local
 
 configs:
   pyroscope_config:
@@ -662,3 +752,5 @@ configs:
     file: ./loki-config.yaml
   alloy_config:
     file: ./config.alloy
+  tempo_config:
+    file: ./tempo/tempo-config.yaml

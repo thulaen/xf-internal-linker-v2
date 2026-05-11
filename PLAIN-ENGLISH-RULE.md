@@ -80,6 +80,8 @@ When you must mention a technical concept, use the plain-English version from th
 | a way an AI agent talks to a tool by exchanging text on standard input/output | stdio |
 | a way for a server to push updates to a browser as soon as they happen | HTTP-SSE / Server-Sent Events |
 | a small program that lets you run AI language models on your own laptop | Ollama |
+| an older mathematical method for securing data | RSA |
+| a smart algorithm that groups similar items together | HDBSCAN |
 | a short text string that says when something should run, e.g. "every Monday at 9am" | cron expression / cron string |
 | a Python library that knows how to read cron expressions | croniter |
 | a missed scheduled run that the app fired late after noticing it had been skipped | recovered run |
@@ -177,6 +179,19 @@ When you must mention a technical concept, use the plain-English version from th
 | short-window WARN/ERROR rate spike — Loki picker that compares the last hour's WARN/ERROR count to the 24-hour average and files an AutoIssue when the multiple is high | warn burst / loki warn_burst |
 | placeholder AutoIssue filed when an automated source produced fewer findings than the session-start ritual expects (e.g. Loki has only 2 hot patterns instead of 4); the next agent investigates why the source was empty | picker_drought |
 | structured-analysis output format — the standard JSON file every code-quality / security scanner writes (Static Analysis Results Interchange Format); the project does not currently emit SARIF but it would be the wire format if a Qodana / Semgrep importer is ever added | SARIF |
+| Grafana's frontend telemetry SDK — runs in the browser and ships JS errors, Web Vitals, and session events to the Alloy `faro.receiver` block; the `faro_picker` reads those streams from Loki and files an AutoIssue when a JS error or Web Vital breach repeats; added 2026-05-11 | Faro / Grafana Faro / @grafana/faro-web-sdk |
+| Grafana's distributed-trace backend — stores spans organised by traceID so a single trace tree (browser → backend → DB → C++) is queryable end-to-end; runs default-on at `localhost:3200`; otel-collector fans traces out to BOTH GlitchTip AND Tempo so the same trace lives in two stores; added 2026-05-11 | Tempo / Grafana Tempo |
+| visualisation UI for Tempo, Loki, Pyroscope, and Prometheus — runs default-on at `localhost:3000`; data sources are pre-provisioned from `grafana/provisioning/datasources/datasources.yaml`; admin password lives in `.env`; added 2026-05-11 | Grafana / Grafana OSS |
+| Real User Monitoring — telemetry from real users' browsers (page-load times, JS errors, button clicks) as opposed to synthetic probes; Faro is the project's RUM SDK | RUM / Real User Monitoring |
+| Google's three browser-performance metrics — Largest Contentful Paint (page-load speed), Interaction to Next Paint (responsiveness), Cumulative Layout Shift (visual stability); the faro picker files an AutoIssue when one breaches threshold on enough sessions | Web Vitals |
+| Largest Contentful Paint — how long until the biggest visible element finishes painting; Google's threshold for "needs improvement" is 2500 ms, which is the project's default Faro alert threshold | LCP / Largest Contentful Paint |
+| Interaction to Next Paint — latency between a user click/tap and the next visible frame; replaced FID in 2024; Google's "needs improvement" threshold is 200 ms | INP / Interaction to Next Paint |
+| Cumulative Layout Shift — unitless score for how much visible content jumps around while a page loads; lower is better; Google's "needs improvement" threshold is 0.10 | CLS / Cumulative Layout Shift |
+| one unit of work in a trace — one HTTP request, one DB query, one function call; spans nest inside each other to form a tree | span |
+| a tree of spans tied together by one ID — represents one end-to-end operation across services (browser, backend, DB, worker) | trace |
+| the 16-byte hex ID that joins every span in one trace — a GlitchTip error event and a Tempo trace with the same traceID describe the same user request | traceID |
+| one pipeline writing the same data to two destinations at once — in this project, the otel-collector traces pipeline now fans each span out to BOTH GlitchTip (Sentry exporter) AND Tempo (otlp/tempo exporter) so the trace lives in two stores | fan-out exporter |
+| the project's session-start rule raised to 18 picks (3 per source × 6 sources) on 2026-05-11 — every AI agent must fix three open issues from EACH of the six sources (agent, glitchtip, pyroscope, tempo, loki, faro) before working on whatever the user asked for; the satisfier phrase `auto-fix-18 satisfier` replaces the picks half when the session task itself is a multi-bug fix | auto-fix-18 / auto-fix-18 satisfier / fix eighteen before any new task |
 
 If a term you need is not in this table, define it yourself in parentheses the first time you use it.
 

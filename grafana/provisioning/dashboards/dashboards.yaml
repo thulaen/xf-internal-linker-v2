@@ -1,0 +1,22 @@
+# Grafana dashboard provisioning (added 2026-05-11 per plan
+# ~/.claude/plans/objective-deploy-and-integrate-zany-bee.md Stream 2).
+#
+# Loads every JSON file in /var/lib/grafana/dashboards as a read-only
+# provisioned dashboard. The compose mount maps the repo's
+# ./grafana/dashboards/ directory into that path so editing a JSON
+# file and restarting Grafana is the only required change.
+
+apiVersion: 1
+
+providers:
+  - name: xf-linker
+    orgId: 1
+    folder: ""
+    folderUid: ""
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

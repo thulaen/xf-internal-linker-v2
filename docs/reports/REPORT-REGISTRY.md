@@ -20,6 +20,45 @@ This file is the single index of all audit reports and individual issues found b
 
 ## Open Reports
 
+### RPT-007 — Grafana Faro + Tempo deployment + 18-pick Opening Ritual (2026-05-11)
+
+- **Found by:** Claude Opus 4.7 via user directive "Deploy and integrate Grafana Faro and Tempo into our existing observability stack, and establish a mandatory Opening Ritual for all AI agents."
+- **Status:** SHIPPED 2026-05-11 — services declared in compose, configs in place, pickers + tests written, Opening Ritual rule extended from 12 to 18 picks across 6 sources. End-to-end verification (docker compose up, manual smoke triggers) is the final gating step before the entry can be marked RESOLVED.
+- **User decisions captured during planning:** Quota raised to 18 (3 per source) rather than rebalanced; Faro sits ALONGSIDE the existing OTel browser tracer (RUM only, no shared tracer); Tempo stores traces locally with hardware-aware retention (72 h laptop / 168 h workstation); otel-collector fan-out preserves the ABSOLUTE-protected Sentry → GlitchTip pipeline.
+- **Plan:** [`~/.claude/plans/objective-deploy-and-integrate-zany-bee.md`](../../../.claude/plans/objective-deploy-and-integrate-zany-bee.md).
+
+**Shipped this session (10 streams):**
+
+| Stream | What landed | Files |
+|---|---|---|
+| 1 | Tempo service added to `docker-compose.yml` with hardware-aware retention env var; `tempo/tempo-config.yaml` written; `otelcol-config.yaml` traces pipeline gains a second exporter `otlp/tempo` ALONGSIDE the existing `sentry` exporter — fan-out, not substitution. Batch processor tuned (`timeout 5s → 2s`, `send_batch_size 512 → 1024`) to amortize the extra exporter. | `docker-compose.yml`, `tempo/tempo-config.yaml` (new), `otelcol-config.yaml` |
+| 2 | Grafana service added to compose; data sources for Tempo / Loki / Pyroscope / Prometheus auto-provisioned; minimal traces-overview dashboard JSON. Anonymous auth OFF; admin credentials via `.env`. | `docker-compose.yml`, `grafana/provisioning/datasources/datasources.yaml` (new), `grafana/provisioning/dashboards/dashboards.yaml` (new), `grafana/dashboards/traces-overview.json` (new), `.env.example` |
+| 3 | `@grafana/faro-web-sdk` added to `frontend/package.json`; new `faro-bootstrap.ts` sits alongside `otel-bootstrap.ts` (no shared tracer); `main.ts` wires Faro after OTel with a `__karma__` skip gate; production env defaults session sampling to 25 %. | `frontend/package.json`, `frontend/src/app/core/observability/faro-bootstrap.ts` (new), `frontend/src/environments/environment.ts`, `frontend/src/environments/environment.production.ts`, `frontend/src/main.ts` |
+| 4 | `faro.receiver` HTTP block added to `config.alloy` listening on `:12347` (CORS open); dedicated `loki.write "faro"` writes events with `{service="frontend", source="faro"}` external labels so the picker can filter cleanly. Alloy ports list gains `127.0.0.1:12347:12347`. | `config.alloy`, `docker-compose.yml` |
+| 5 | `faro_picker.py` (~370 lines) with two disjoint detectors — `pick_faro_error_clusters` (LogQL queries on the `source="faro"` label, normalized via the loki-picker fingerprinter) and `pick_faro_webvital_breaches` (LCP/INP/CLS samples grouped by route). Celery task wrapper + beat entry at `:20/:50` (between Loki and Tempo). 11 tests under `tests_faro_picker.py`. | `backend/apps/auto_issues/services/faro_picker.py` (new), `backend/apps/auto_issues/tests_faro_picker.py` (new), `backend/apps/auto_issues/tasks.py`, `backend/config/settings/celery_schedules.py` |
+| 6 | `tempo_picker.py` (~330 lines) with two disjoint detectors — `pick_tempo_slow_spans` (TraceQL `{ duration > Xms }`) and `pick_tempo_error_spans` (TraceQL `{ status = error }`). Cross-fingerprint with GlitchTip via `canonical_fingerprint(span_name, service_name)` so a slow span captured by Sentry/GlitchTip and surfaced by Tempo collapse into one row through `source_observations`. Celery wrapper + beat entry at `:25/:55`. 10 tests under `tests_tempo_picker.py`. | `backend/apps/auto_issues/services/tempo_picker.py` (new), `backend/apps/auto_issues/tests_tempo_picker.py` (new), `backend/apps/auto_issues/tasks.py`, `backend/config/settings/celery_schedules.py` |
+| 7 | `AutoIssue.source` choices gain `tempo` + `faro`; migration `0006_add_faro_tempo_sources` seeds 10 AppSettings keys (4 Tempo + 6 Faro) via `get_or_create` (DEFAULT-ON compliant — no `external-data-gated` exemption needed); hardware-aware `tempo.retention_hours` default. | `backend/apps/auto_issues/models.py`, `backend/apps/auto_issues/migrations/0006_add_faro_tempo_sources.py` (new) |
+| 8 | `CLAUDE.md` + `AGENTS.md` ABSOLUTE rule rewritten — quota raised from 12 to 18, marker grammar gains tempo + faro counts. `.githooks/check-registry-read.py` regex extended to 6 named groups (`a/g/p/t/l/f`), picks-count threshold raised to 18, `auto-fix-18` added to satisfier regex, helpful error messages on legacy markers. `.githooks/test_check_registry_read.py` rewritten with 12 tests covering the new format (all green host-side). `print_open_issues` now prints all six per-source counts in one line so a single command satisfies the marker. | `CLAUDE.md`, `AGENTS.md`, `.githooks/check-registry-read.py`, `.githooks/test_check_registry_read.py`, `backend/apps/auto_issues/management/commands/print_open_issues.py` |
+| 9 | 13 new plain-English glossary entries in `PLAIN-ENGLISH-RULE.md` (Faro, Tempo, Grafana, RUM, Web Vitals, LCP, INP, CLS, span, trace, traceID, fan-out exporter, auto-fix-18). | `PLAIN-ENGLISH-RULE.md` |
+| 10 | This registry entry. | `docs/reports/REPORT-REGISTRY.md` |
+
+**Why fan-out, not substitution:**
+otel-collector's existing trace pipeline shipped to GlitchTip via the Sentry envelope exporter. Tempo is OTLP-native; replacing the Sentry exporter would silently break the ABSOLUTE-protected GlitchTip integration. Instead, the new `otlp/tempo` exporter was APPENDED, leaving Sentry first in the list. Each trace now lives in both stores; an operator can pivot from a GlitchTip error event to its Tempo trace via the shared traceID.
+
+**ABSOLUTE rule honoured:**
+- GlitchTip services untouched; Sentry exporter still first.
+- No `docker compose down -v`.
+- No autostart-on-login change.
+- No `worktreeConfig` change.
+- Backend test `apps.audit.tests_glitchtip_compose_integrity` is on the verification checklist.
+
+**Known follow-ups (not blockers):**
+- Picker drought is expected on day one: Tempo + Faro return zero candidates until the new services start receiving real data. The drought clause in the hook + the substitution form `(drought logged: #<id>)` handle this. The next agent should expect their first `[REGISTRY READ ...]` to include 1–2 drought lines.
+- The Faro session sample rate of 0.25 in production was a conservative default for disk pressure; revisit after a week of real-user data.
+- The `tempo.retention_hours` AppSetting and the `TEMPO_RETENTION_HOURS` env var are kept in sync by hand for now — a future small management command could write the AppSetting value into `.env` on operator override.
+
+---
+
 ### RPT-006 — Prevention-Focused Cleanup (2026-05-10 turn 2)
 
 - **Found by:** Claude Opus 4.7 via user directive "do a prevention-focused cleanup, not a one-off fix"
@@ -709,9 +748,9 @@ _(None yet. When all findings in a report are resolved, move the report entry he
 - **Affected files:** `backend/apps/core/tasks.py`, `backend/apps/pipeline/tasks.py`
 - **Description:** Celery's `autodiscover_tasks()` failed to find tasks split into separate `tasks_*.py` files, leading to `KeyError` when dispatched via the Beat schedule or recovery tick.
 - **Status:** RESOLVED
-- **Resolved:** 2026-05-10
-- **Fixed in:** Added explicit re-exports of all split-out task files in the main `tasks.py` of both `apps.core` and `apps.pipeline`. Verified all 50+ tasks are now correctly registered via `celery inspect registered`.
-- **Regression watch:** If adding a NEW `tasks_submodule.py`, you MUST add an explicit `from . import tasks_submodule` in the app's primary `tasks.py` to ensure Celery discovers it.
+- **Resolved:** 2026-05-11
+- **Fixed in:** Added explicit imports of `tasks.py` (and relevant `tasks_*.py` sub-modules) in the `ready()` methods of `CoreConfig`, `PipelineConfig`, `AuditConfig`, `AutoIssuesConfig`, and `ScheduledUpdatesConfig`. This ensures all `@shared_task` decorated functions land in the Celery registry even when `autodiscover_tasks()` misses them.
+- **Regression watch:** If adding a NEW `tasks_submodule.py`, you MUST add an explicit `from . import tasks_submodule` in the app's `ready()` method (or its primary `tasks.py` if already imported in `ready()`). AutoIssues #44, #45, #46, #47, #48 purged.
 
 ---
 
