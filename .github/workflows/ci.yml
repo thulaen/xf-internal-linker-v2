@@ -494,6 +494,17 @@ jobs:
             cat mutmut-results.xml;
             exit 1
           )
+      - name: Mutation-score ratchet (FR-251 Gap #4)
+        if: always()
+        run: |
+          if [ -f backend/reports/mutmut.json ]; then
+            python .githooks/check-mutation-score.py \
+              --tool mutmut \
+              --target apps/auto_issues/services/fingerprinting.py \
+              --report backend/reports/mutmut.json
+          else
+            echo "check-mutation-score: mutmut.json absent; skipping"
+          fi
       - name: Upload mutmut report
         if: always()
         uses: actions/upload-artifact@v5
@@ -520,6 +531,17 @@ jobs:
       - name: Run Stryker
         working-directory: frontend
         run: npx stryker run
+      - name: Mutation-score ratchet (FR-251 Gap #4)
+        if: always()
+        run: |
+          if [ -f frontend/reports/stryker.json ]; then
+            python .githooks/check-mutation-score.py \
+              --tool stryker \
+              --target src/app/core/services/a11y-prefs.service.ts \
+              --report frontend/reports/stryker.json
+          else
+            echo "check-mutation-score: stryker.json absent; skipping"
+          fi
       - name: Upload Stryker report
         if: always()
         uses: actions/upload-artifact@v5
