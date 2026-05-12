@@ -18,6 +18,7 @@ pytest-xdist==3.6.1                  # Parallel test execution (-n auto)
 pytest-randomly==3.15.0              # Randomize test order — fails order-dependent tests
 mutmut==2.5.0                        # Python mutation testing — surviving mutants = non-zero exit
 pact-python==2.3.1                   # Contract testing — Django provider verification (Phase 5)
+hypothesis==6.115.5                  # Property-based testing — Level A coverage requires this (FR-251)
 factory-boy==3.3.1                   # Test data factories
 faker==33.1.0                        # Fake data for tests
 responses==0.25.3                    # Mock requests HTTP calls in tests

@@ -98,6 +98,7 @@ ALLOWLIST: frozenset[str] = frozenset({
     "SHIPPED",  # roadmap status — English past tense
     "EXACTLY",  # English adverb used as bold emphasis in rule prose
     "CORS",     # Cross-Origin Resource Sharing — well-known web standard initialism
+    "PLACEHOLDER",  # English word used in fixture schemas and templates
     "GATES",  # English plural in filename refs like `docs/CI-GATES.md`
     "STREQUAL", "SOURCE",  # CMake operators / function-arg names
     "VERSION", "LANGUAGES", "CXX", "PROPERTIES", "NAME", "TARGET",  # CMake keywords

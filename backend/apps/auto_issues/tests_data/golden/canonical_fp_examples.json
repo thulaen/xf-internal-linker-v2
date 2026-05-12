@@ -1,0 +1,29 @@
+{
+  "$schema_note": "Golden fixture template for FR-251 Level A. Each entry is one (input, expected_output) pair captured from a known-good run. The reader test `tests_fingerprinting_golden.py` re-runs the function against these inputs and asserts the output matches. Snapshot changes are reviewed by hand; never auto-update without inspecting.",
+  "cases": [
+    {
+      "name": "empty inputs",
+      "title": "",
+      "culprit": "",
+      "expected_fingerprint": "3eb416223e9e69e6"
+    },
+    {
+      "name": "simple title and culprit",
+      "title": "hello world",
+      "culprit": "backend/x.py",
+      "expected_fingerprint": "b4b4c98833b99056"
+    },
+    {
+      "name": "digit-runs are normalised",
+      "title": "Error at line 12345 in module 67890",
+      "culprit": "backend/y.py",
+      "expected_fingerprint": "7fb5bfac885c327a"
+    },
+    {
+      "name": "UUID is normalised",
+      "title": "Failed lookup for 550e8400-e29b-41d4-a716-446655440000",
+      "culprit": "backend/z.py",
+      "expected_fingerprint": "fbbab920c49ba4ac"
+    }
+  ]
+}
