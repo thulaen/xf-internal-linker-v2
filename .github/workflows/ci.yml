@@ -617,6 +617,46 @@ jobs:
         # order-dependent ASan failures. -j 2 caps parallel exec.
         run: ctest --output-on-failure --schedule-random -j 2
 
+  # ── 18b. MemorySanitizer (blocking, project-only) ────────────────
+  # Phase 4c — catches reads of uninitialised memory. Limited to our
+  # own C++ files via -fsanitize-blacklist=msan-ignore.txt so we don't
+  # have to recompile Faiss / Eigen / ICU / TBB with MSan (which would
+  # take 2-3 days and produce a fragile toolchain). Runs only on the
+  # tests that don't transitively call those libraries.
+  cpp-msan:
+    name: C++ MemorySanitizer (project-only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Clang + dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake libtbb-dev clang
+          pip install pybind11
+      - name: Configure with MSan + blacklist
+        working-directory: backend/extensions
+        run: |
+          cmake -B build_msan \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_CXX_FLAGS="-fsanitize=memory -fsanitize-memory-track-origins=2 -fsanitize-blacklist=$(pwd)/msan-ignore.txt -fno-omit-frame-pointer -g" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=memory"
+      - name: Build the three project-only test binaries
+        # Skip test_quantemb / test_ivf_index / test_streaming_sketches
+        # (Faiss / Eigen heavy paths that the blacklist suppresses but
+        # whose uninstrumented internals would still trip MSan).
+        working-directory: backend/extensions
+        run: cmake --build build_msan --parallel 2 --target test_simsearch test_scoring test_passagesim
+      - name: Run MSan-instrumented tests
+        working-directory: backend/extensions/build_msan
+        env:
+          MSAN_OPTIONS: "abort_on_error=1:print_stats=1:halt_on_error=1"
+        # Scheduled-random for inter-test order; GTEST_SHUFFLE for intra.
+        run: |
+          ctest --output-on-failure --schedule-random -j 2 \
+            -R '^(test_simsearch|test_scoring|test_passagesim)\.'
+
   # ── 19. ThreadSanitizer (advisory — see docs/CI-GATES.md) ────────
   # GATE-DOWNGRADE-JUSTIFICATION: TBB false-positive noise; suppression
   # file requires Linux TSAN run before flipping blocking. Plan-to-flip

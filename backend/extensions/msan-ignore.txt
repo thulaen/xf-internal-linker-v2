@@ -1,0 +1,45 @@
+# MemorySanitizer ignore list — Phase 4c of the test-hardening plan.
+#
+# MSan flags reads of uninitialised memory. To avoid false positives,
+# every transitive dependency must also be compiled with MSan. We do
+# NOT rebuild Faiss / Eigen / ICU / TBB with MSan — that's 2-3 days of
+# build-system work and the resulting toolchain is fragile. Instead,
+# this blacklist tells MSan to STOP instrumenting any function inside
+# those libraries; reads originating from blacklisted code are treated
+# as initialised.
+#
+# Format reference: https://clang.llvm.org/docs/SanitizerSpecialCaseList.html
+#
+# Locked decision: project-only MSan coverage. Faiss-heavy tests do
+# not run under MSan; only test_simsearch / test_scoring / test_passagesim
+# (which don't transitively call Faiss) are exercised in the cpp-msan
+# CI job.
+
+# Skip third-party C++ libraries.
+src:*/faiss/*
+src:*/Eigen/*
+src:*/eigen3/*
+src:*/icu/*
+src:*/tbb/*
+src:*/oneapi/*
+src:*/boost/*
+
+# Skip standard library / compiler runtime — already instrumented by
+# the LLVM build itself when libc++ is built with MSan, but the
+# system libstdc++ is not. Defensive blacklist.
+fun:std::*
+fun:__cxa_*
+
+# Skip Python C API (we compile against CPython headers but don't
+# control whether libpython is MSan-aware).
+fun:Py*
+fun:_Py*
+
+# Skip pybind11 internals — even with XF_BENCH_MODE stripping the
+# module-registration block, the pybind11/numpy.h header pulls in
+# uninstrumented templated helpers.
+src:*/pybind11/*
+
+# Skip GoogleTest framework (only relevant if MSan-instrumented binary
+# links GoogleTest directly).
+src:*/googletest/*
