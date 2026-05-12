@@ -74,6 +74,16 @@ ALLOWLIST: frozenset[str] = frozenset({
     "NAME", "PATH", "REGISTRY", "BACKEND", "FRONTEND",
     "PRIOR", "STATE", "NEW", "OLD",  # everyday English, all-caps in prose / fixture suffixes
     "COMMAND", "README",  # CMake keyword in add_test(...) + the README filename shorthand
+    # Ruff rule-family codes used in backend/ruff.toml's ignore list — they
+    # are tool-specific identifiers (documented in Ruff's rule index), not
+    # new project vocabulary. Adding them here so the glossary check doesn't
+    # treat them as undefined acronyms. Phase 3 of the test-hardening plan.
+    "ANN", "ARG", "ASYNC", "BLE", "COM", "CPY", "DJ", "DTZ",
+    "EM", "ERA", "EXE", "FBT", "FIX", "FURB", "ICN", "INP",
+    "ISC", "NPY", "PERF", "PGH", "PIE", "PLC", "PLR", "PLW",
+    "PTH", "PYI", "RET", "RUF", "SIM", "SLF", "TC", "TCH",
+    "TRY",
+    "SRCS",  # bash-array name in the cpp-clang-tidy CI step
     # More everyday English words that get capitalised mid-sentence in
     # narrative documentation (e.g. "TURN OFF", "ONE release",
     # "WHICH key" in instructional prose) and aren't technical jargon.

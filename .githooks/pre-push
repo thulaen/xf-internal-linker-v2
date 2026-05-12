@@ -97,6 +97,33 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
+# ── Phase 3 heavy band: clang-tidy on changed C++ files ──────────
+# Opt-in by presence:
+#  - skipped when clang-tidy isn't on PATH (CI is the safety net)
+#  - skipped when compile_commands.json isn't present (no CMake build yet)
+# When both are present, every changed .cpp gets clang-tidy-checked against
+# the WarningsAsErrors subset in .clang-tidy. A failing rule blocks the push.
+echo "=> Clang-Tidy (changed C++ files)"
+UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || echo "origin/master")
+CHANGED_CPP=$(git diff --name-only "${UPSTREAM}...HEAD" 2>/dev/null | grep -E '^backend/extensions/.*\.cpp$' | grep -v '/build' || true)
+if [ -n "$CHANGED_CPP" ] && command -v clang-tidy > /dev/null 2>&1; then
+  COMPDB="$REPO_ROOT/backend/extensions/build/compile_commands.json"
+  if [ -f "$COMPDB" ]; then
+    for src in $CHANGED_CPP; do
+      echo "   clang-tidy $src"
+      clang-tidy --quiet -p "$REPO_ROOT/backend/extensions/build" "$REPO_ROOT/$src"
+      if [ $? -ne 0 ]; then
+        echo "[ERROR] clang-tidy reported a WarningsAsErrors-class issue in $src. Push aborted."
+        echo "        See .clang-tidy for the enforced rule list."
+        exit 1
+      fi
+    done
+  else
+    echo "   SKIPPED — no compile_commands.json at $COMPDB"
+    echo "   Run: cmake -B backend/extensions/build -S backend/extensions -DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+  fi
+fi
+
 echo "========================================="
 echo "All checks passed! Push proceeding..."
 echo "========================================="

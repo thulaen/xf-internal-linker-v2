@@ -1,4 +1,13 @@
 ---
+# Clang-Tidy config — Phase 3 of the test-hardening plan.
+# `Checks:` enables a broad set of rule families. `WarningsAsErrors:`
+# narrows the FAIL-the-build subset to genuine bug families (bugprone,
+# cert, performance-copy/move) so the gate ships green while still
+# catching the highest-signal regressions. The advisory rules stay as
+# warnings so devs see them locally without breaking CI.
+#
+# Tighten the WarningsAsErrors list incrementally as the codebase cleans
+# up — same ratchet pattern as backend/ruff.toml.
 Checks: >
   clang-diagnostic-*,
   clang-analyzer-*,
@@ -7,12 +16,41 @@ Checks: >
   performance-*,
   readability-*,
   bugprone-*,
+  cert-*,
   -modernize-use-trailing-return-type,
   -readability-magic-numbers,
   -cppcoreguidelines-avoid-magic-numbers,
-  -readability-identifier-length
-WarningsAsErrors: ''
-HeaderFilterRegex: '.*'
+  -readability-identifier-length,
+  -bugprone-easily-swappable-parameters,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-bounds-constant-array-index,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -cppcoreguidelines-pro-type-vararg
+# Fail the build on bug-prone patterns + accidental copies + cert
+# security rules. The user-facing intent in the brief was specifically
+# "fail the build automatically if it detects outdated paradigms or
+# accidental object copies" — performance-unnecessary-copy-initialization
+# is the exact rule for the latter.
+WarningsAsErrors: >
+  bugprone-*,
+  cert-*,
+  performance-unnecessary-copy-initialization,
+  performance-move-const-arg,
+  performance-for-range-copy,
+  performance-implicit-conversion-in-loop,
+  cppcoreguidelines-slicing,
+  cppcoreguidelines-pro-type-static-cast-downcast,
+  cppcoreguidelines-pro-type-cstyle-cast,
+  modernize-use-nullptr,
+  modernize-use-override,
+  modernize-use-equals-default,
+  modernize-use-equals-delete,
+  clang-analyzer-deadcode.*,
+  clang-analyzer-cplusplus.*,
+  -bugprone-easily-swappable-parameters
+# Restrict header scanning to project headers — skip GoogleTest /
+# pybind11 / TBB headers that we don't control.
+HeaderFilterRegex: '^.*/backend/extensions/(?!.*/build).*\.(h|hpp)$'
 FormatStyle: file
 CheckOptions:
   - key: readability-identifier-naming.VariableCase

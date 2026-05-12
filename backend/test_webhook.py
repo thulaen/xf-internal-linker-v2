@@ -30,7 +30,7 @@ def test_thread_insert():
 
     print(f"Sending thread_insert to {URL}...")
     try:
-        response = requests.post(URL, json=payload, headers=headers)
+        response = requests.post(URL, json=payload, headers=headers, timeout=5)
         print(f"Status Code: {response.status_code}")
         print(f"Response: {response.text}")
     except Exception as e:
@@ -43,7 +43,7 @@ def test_invalid_secret():
 
     print(f"\nSending with WRONG SECRET to {URL}...")
     try:
-        response = requests.post(URL, json=payload, headers=headers)
+        response = requests.post(URL, json=payload, headers=headers, timeout=5)
         print(f"Status Code: {response.status_code}")
         print(f"Response: {response.text}")
     except Exception as e:

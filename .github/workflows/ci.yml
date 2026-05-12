@@ -428,6 +428,36 @@ jobs:
         # concurrency policy (will be replaced by ${MAX_JOBS_FAST} in Phase 2).
         run: ctest --output-on-failure --schedule-random -j 2
 
+  # ── 17b. Clang-Tidy semantic gate (blocking) ─────────────────────
+  # Phase 3 of the test-hardening plan. Fails the build on the
+  # WarningsAsErrors subset declared in .clang-tidy (bugprone-*, cert-*,
+  # performance-unnecessary-copy-initialization, accidental moves, etc.).
+  # The full Checks: list runs but the rest stay advisory until each
+  # rule family is cleaned up — see backend/ruff.toml for the analogous
+  # ratchet pattern on the Python side.
+  cpp-clang-tidy:
+    name: C++ Clang-Tidy (semantic)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake libtbb-dev clang-tidy
+      - name: Configure (emit compile_commands.json)
+        working-directory: backend/extensions
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: Build (so headers are generated where applicable)
+        working-directory: backend/extensions
+        run: cmake --build build --parallel 2
+      - name: Run clang-tidy on project sources
+        working-directory: backend/extensions
+        # `-p build` reads compile_commands.json. We deliberately limit
+        # to the top-level .cpp files (the C++ "hot path" modules) so
+        # GoogleTest / pybind11 internals don't bloat the report.
+        run: |
+          mapfile -t SRCS < <(find . -maxdepth 1 -name "*.cpp")
+          if [ "${#SRCS[@]}" -eq 0 ]; then echo "no C++ sources found"; exit 1; fi
+          clang-tidy --quiet -p build "${SRCS[@]}"
+
   # ── 18. AddressSanitizer (blocking) ──────────────────────────────
   cpp-asan:
     name: C++ AddressSanitizer
