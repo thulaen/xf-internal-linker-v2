@@ -85,6 +85,8 @@ ALLOWLIST: frozenset[str] = frozenset({
     "TRY",
     "SRCS",  # bash-array name in the cpp-clang-tidy CI step
     "MUTATION-TESTING-CPP",  # future doc filename referenced from MUTATION-TESTING.md
+    "TESTING-STANDARD", "CONTRACT-TESTING",  # doc filename refs from services/go/
+    "PPA",  # apt Personal Package Archive — Ubuntu standard, well-known initialism
     "GATES",  # English plural in filename refs like `docs/CI-GATES.md`
     "STREQUAL", "SOURCE",  # CMake operators / function-arg names
     "VERSION", "LANGUAGES", "CXX", "PROPERTIES", "NAME", "TARGET",  # CMake keywords

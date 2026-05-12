@@ -40,6 +40,13 @@ read this file to understand WHY each gate is where it is.
 | 18 | `cpp-asan` (AddressSanitizer) | Block | `ctest --output-on-failure` in ASAN build. |
 | 19 | `cpp-tsan` (ThreadSanitizer) | **Advisory** | See justification below. |
 | 20 | `missing-tests-check` | Block (after 2026-05-10 hardening) | Was `::warning::`; now `::error::` + `exit 1`. The local pre-commit hook (`.githooks/check-missing-tests.py`) catches the same thing earlier. |
+| 21 | `cpp-clang-tidy` (semantic — Phase 3) | Block | `.clang-tidy` WarningsAsErrors covers bugprone-*, cert-*, performance-unnecessary-copy-initialization, accidental-copy/move rules, modernize-use-nullptr/override/equals-default. |
+| 22 | `python-mutmut` (Python mutation — Phase 4a) | Block | Scoped to `apps/auto_issues/services/fingerprinting.py`; surviving mutants fail via junitxml inspection. Scope expansion tracked under AutoIssue #162. |
+| 23 | `frontend-stryker` (Angular mutation — Phase 4a) | Block | Scoped to `src/app/core/services/a11y-prefs.service.ts`; `thresholds.break: 40` is the hard floor. |
+| 24 | `cpp-mull` (C++ mutation — Phase 4a) | **Advisory** | See justification below (Mull toolchain not yet in runner image). |
+| 25 | `cpp-libfuzzer-smoke` (libFuzzer 60s/target — Phase 4b) | Block | Three starter targets (fuzz_simsearch / fuzz_scoring / fuzz_passagesim) with `-fsanitize=fuzzer,address,undefined`. Crash reproducers upload as `libfuzzer-crashes` artefact. |
+| 26 | `cpp-msan` (MemorySanitizer project-only — Phase 4c) | Block | `-fsanitize-blacklist=msan-ignore.txt` excludes Faiss/Eigen/ICU/TBB/pybind11. Runs only `test_simsearch + test_scoring + test_passagesim`. `MSAN_OPTIONS=halt_on_error=1`. |
+| 27 | `super-linter` (Hadolint + GH Actions YAML + Markdown + Bash + Gitleaks — Phase 5) | Block | `super-linter/super-linter@v7` with `ENV_FILE=.github/super-linter.env`. Disables Ruff/ESLint/Stylelint which run as dedicated jobs. |
 
 ## Advisory Gate Justifications
 
@@ -56,6 +63,19 @@ read this file to understand WHY each gate is where it is.
 5. Update this file to flip `cpp-tsan` from Advisory to Block.
 
 **`# GATE-DOWNGRADE-JUSTIFICATION:`** TBB false-positive noise; suppression file requires Linux TSAN run before flipping blocking.
+
+### `cpp-mull` — C++ Mutation Testing
+
+**Status:** Advisory.
+**Reason:** Mull requires a Mull-compiled Clang toolchain (LLVM compiler plugin built against the same Clang version as the test binary). The ubuntu-latest GitHub Actions runner image doesn't ship Mull; installing it via apt or source-build adds ~10 minutes to every CI run for a tool that's still being scoped. The scaffolding (`mull.yml`, the placeholder CI job that detects Mull's absence) lands now so the config lives in version control.
+
+**Plan to remove the advisory:** A future session should:
+1. Add a step to the `cpp-mull` job that installs Mull from the Mull project's official PPA (or builds it from source with caching).
+2. Configure with `-fpass-plugin=mull-ir-frontend` against `test_simsearch`.
+3. Run `mull-runner --report-dir reports/mull -j ${MAX_JOBS_HEAVY}`.
+4. Flip the job from `exit 0` advisory to blocking on any surviving mutant.
+
+**`# GATE-DOWNGRADE-JUSTIFICATION:`** Mull-compatible Clang toolchain not in runner image yet; scaffolding only.
 
 ## How to Add or Modify a Gate
 
