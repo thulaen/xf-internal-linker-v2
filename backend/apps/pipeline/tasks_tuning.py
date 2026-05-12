@@ -92,11 +92,15 @@ def monthly_meta_tune(self):
     if not connection.in_atomic_block:
         connection.close()
     import uuid as _uuid
-    from apps.suggestions.services.meta_tuner import MetaTuner
+    # 2026-05-12: canonical class is MetaAlgorithmTuner; the historical
+    # import name MetaTuner was a typo that fired ImportError every
+    # monthly_meta_tune beat tick (Loki AutoIssue #155). Loki captured
+    # the breakage; this line is the fix.
+    from apps.suggestions.services.meta_tuner import MetaAlgorithmTuner
 
     run_id = str(_uuid.uuid4())
     try:
-        tuner = MetaTuner(lookback_days=90)
+        tuner = MetaAlgorithmTuner(lookback_days=90)
         challenger = tuner.run(run_id=run_id)
         if challenger:
             logger.info("[monthly_meta_tune] Found improvement. run_id=%s", run_id)

@@ -34,6 +34,13 @@ def _broken_link_allowed_domains() -> list[str]:
     return allowed_domains
 
 @shared_task(name="pipeline.scan_broken_links", time_limit=3600, soft_time_limit=3540)
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=300,
+)
 def scan_broken_links(job_id: str | None = None) -> dict:
     """FR-005 — identify and flag broken outbound internal links."""
     if not connection.in_atomic_block:

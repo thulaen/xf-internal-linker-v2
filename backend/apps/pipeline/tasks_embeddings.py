@@ -75,6 +75,13 @@ def calibration_fit():
         )
 
 @shared_task(name="pipeline.nrt_delta_flush", time_limit=300)
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=2048,
+    expected_seconds_p50=60,
+)
 def nrt_delta_flush():
     """Flush the NRT delta index into the primary FAISS index."""
     if not connection.in_atomic_block:
@@ -83,6 +90,13 @@ def nrt_delta_flush():
     flush_delta_index()
 
 @shared_task(bind=True, name="pipeline.backfill_long_tail_embeddings", time_limit=3600)
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=True,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=4096,
+    expected_seconds_p50=180,
+)
 def backfill_long_tail_embeddings(self, *, body_to_distilled_ratio: float = 0.3, max_items: int = 5000) -> dict:
     """Identify ContentItems with missing/stale embeddings and generate them."""
     if not connection.in_atomic_block:
@@ -91,6 +105,13 @@ def backfill_long_tail_embeddings(self, *, body_to_distilled_ratio: float = 0.3,
     return run_backfill(body_to_distilled_ratio=body_to_distilled_ratio, max_items=max_items)
 
 @shared_task(bind=True, name="pipeline.reembed_null_embeddings", time_limit=3600)
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=True,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=4096,
+    expected_seconds_p50=120,
+)
 def reembed_null_embeddings(self, *, max_items: int = 1000) -> dict:
     """Find ContentItems with NULL embeddings and generate them."""
     if not connection.in_atomic_block:
@@ -99,6 +120,13 @@ def reembed_null_embeddings(self, *, max_items: int = 1000) -> dict:
     return repair_null_embeddings(max_items=max_items)
 
 @shared_task(bind=True, name="pipeline.refresh_passage_embeddings", time_limit=3600)
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=True,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=4096,
+    expected_seconds_p50=120,
+)
 def refresh_passage_embeddings(self, *, max_items: int = 1000) -> dict:
     """Refresh passage-level embeddings for ContentItems."""
     if not connection.in_atomic_block:
@@ -107,6 +135,13 @@ def refresh_passage_embeddings(self, *, max_items: int = 1000) -> dict:
     return refresh_passages(max_items=max_items)
 
 @shared_task(bind=True, name="pipeline.train_opq_codebook", time_limit=3600)
+@HelperConstraint(
+    cpu_intensive=True,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=180,
+)
 def train_opq_codebook(self, *, sample_size: int = 100_000) -> dict:
     """Train the Optimized Product Quantization (OPQ) codebook for FAISS."""
     if not connection.in_atomic_block:
