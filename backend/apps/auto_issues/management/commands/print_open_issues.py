@@ -30,9 +30,10 @@ class Command(BaseCommand):
     _DEFAULT_LIMIT = 10
     _OPEN_STATUSES = (AutoIssue.STATUS_OPEN, AutoIssue.STATUS_PICKED)
 
-    # Ordered the same way the 6-source [REGISTRY READ] marker prints the
+    # Ordered the same way the 10-source [REGISTRY READ] marker prints the
     # per-source breakdown (agent / glitchtip / pyroscope / tempo / loki /
-    # faro). Matches `.githooks/check-registry-read.py:NEW_MARKER_RE`.
+    # faro / mutation / fuzz / contract / gh_ci). Matches
+    # `.githooks/check-registry-read.py:NEW_MARKER_RE`.
     _SOURCE_ORDER = (
         AutoIssue.SOURCE_AGENT,
         AutoIssue.SOURCE_GLITCHTIP,
@@ -40,6 +41,10 @@ class Command(BaseCommand):
         AutoIssue.SOURCE_TEMPO,
         AutoIssue.SOURCE_LOKI,
         AutoIssue.SOURCE_FARO,
+        AutoIssue.SOURCE_MUTATION,
+        AutoIssue.SOURCE_FUZZ,
+        AutoIssue.SOURCE_CONTRACT,
+        AutoIssue.SOURCE_GH_CI,
     )
 
     def add_arguments(self, parser):

@@ -69,13 +69,38 @@ read this file to understand WHY each gate is where it is.
 **Status:** Advisory.
 **Reason:** Mull requires a Mull-compiled Clang toolchain (LLVM compiler plugin built against the same Clang version as the test binary). The ubuntu-latest GitHub Actions runner image doesn't ship Mull; installing it via apt or source-build adds ~10 minutes to every CI run for a tool that's still being scoped. The scaffolding (`mull.yml`, the placeholder CI job that detects Mull's absence) lands now so the config lives in version control.
 
-**Plan to remove the advisory:** A future session should:
-1. Add a step to the `cpp-mull` job that installs Mull from the Mull project's official PPA (or builds it from source with caching).
-2. Configure with `-fpass-plugin=mull-ir-frontend` against `test_simsearch`.
-3. Run `mull-runner --report-dir reports/mull -j ${MAX_JOBS_HEAVY}`.
-4. Flip the job from `exit 0` advisory to blocking on any surviving mutant.
+**Plan to remove the advisory (detailed implementation path):**
 
-**`# GATE-DOWNGRADE-JUSTIFICATION:`** Mull-compatible Clang toolchain not in runner image yet; scaffolding only.
+A future session with Linux access should:
+
+1. **Research Mull installation options for ubuntu-latest** (first check: is there an official PPA?):
+   - Consult `https://mull.readthedocs.io/en/latest/` for the latest install guidance.
+   - Check if LLVM/Clang 18/19 (or current LTS) has prebuilt Mull artifacts.
+   - If PPA exists, add `sudo add-apt-repository ppa:...` + `apt-get install mull` to the CI step.
+   - If PPA unavailable, investigate source-build with caching: can we build Mull once per runner image update and cache the binary, avoiding the 10-min rebuild on every run?
+
+2. **Test Mull locally on Linux against the test binary**:
+   - On a Linux machine, build `test_simsearch` normally: `cd backend/extensions && cmake -B build && cmake --build build`.
+   - Then build with Mull support: `cmake -B build-mull -DMULL=ON` (if we add a CMakeLists.txt option).
+   - Run `mull-runner --report-dir reports/mull --filter test_simsearch`.
+   - Review the surviving-mutant report and decide: are there gaps in our test suite? Do we need more edge-case coverage?
+
+3. **Wire into CI**:
+   - Add a step to `.github/workflows/ci.yml` that installs Mull, then:
+     ```bash
+     cd backend/extensions && cmake -B build-mull && ctest -R test_simsearch --output-on-failure
+     mkdir -p reports && mull-runner --report-dir reports/mull -j ${CI_MAX_JOBS}
+     ```
+   - Parse the mull-runner JSON output to extract mutation score and fail if below a baseline (similar to `check-mutation-score.py` for mutmut/Stryker).
+   - Initially set baseline to a low value (e.g., 50%) to unblock the gate, then ratchet up as coverage improves.
+
+4. **Flip the gate from advisory to blocking**:
+   - Once stable, remove the `|| true` and set `if: success()` on the step so failures stop the merge.
+   - Update this file to mark `cpp-mull` as Block instead of Advisory.
+
+**Estimated effort:** ~2–3 hours (depends on whether PPA exists and whether caching is needed).
+
+**`# GATE-DOWNGRADE-JUSTIFICATION:`** Mull-compatible Clang toolchain not in runner image yet; detailed unblocking path documented above.
 
 ## How to Add or Modify a Gate
 
