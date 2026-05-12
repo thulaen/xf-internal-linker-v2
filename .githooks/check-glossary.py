@@ -96,6 +96,8 @@ ALLOWLIST: frozenset[str] = frozenset({
     "APPENDED",  # English past tense in management-command stdout messages
     "READ-ONLY",  # English compound term, common in docs
     "SHIPPED",  # roadmap status — English past tense
+    "EXACTLY",  # English adverb used as bold emphasis in rule prose
+    "CORS",     # Cross-Origin Resource Sharing — well-known web standard initialism
     "GATES",  # English plural in filename refs like `docs/CI-GATES.md`
     "STREQUAL", "SOURCE",  # CMake operators / function-arg names
     "VERSION", "LANGUAGES", "CXX", "PROPERTIES", "NAME", "TARGET",  # CMake keywords

@@ -21,6 +21,8 @@ This file is the single source of truth for how to write code in this repository
 
 When uncertain, inspect the codebase, tests, documentation, package files, database schema, API contracts, issues, or source material before editing code. If the answer is still uncertain, state the uncertainty in plain English and make the smallest safe change.
 
+**Fail gracefully on missing context.** If you lack the file, the spec, the schema, or the conversation context to complete a task accurately, STOP and output a clear plain-English message stating exactly what information or file you need to read next. Do not fill in the blanks with assumptions. The "smallest safe change" path applies only when the missing information is non-blocking; when the missing information is the crux of the task, stopping and asking is mandatory.
+
 ---
 
 ## Source-of-truth order
@@ -121,6 +123,23 @@ Fix these when they are in your diff path:
 
 ---
 
+## KISS and DRY — including the over-DRY trap
+
+Two principles modulate the [Code-smell policy](#code-smell-policy) above. Apply them together: KISS prevents premature abstraction, DRY prevents copy-paste rot. They argue with each other on purpose.
+
+- **KISS (Keep It Stupidly Simple).** Pick the simplest design that solves the actual problem. Three similar lines is better than a premature abstraction. Don't design for hypothetical future requirements. No half-finished implementations.
+- **DRY (Don't Repeat Yourself).** When the same logic appears 3+ times AND the abstraction is genuinely reusable, extract a named helper. Two occurrences usually aren't enough — the third occurrence proves the pattern.
+- **The over-DRY trap.** It is possible to make something overly DRY — abstracting an already-small object with little reusability creates worse code than the duplication it replaces. **Red flags that you are over-DRYing:**
+  - The abstraction has exactly one caller.
+  - The duplicated code is shorter than the abstraction's signature + import.
+  - The justification is "I might need this elsewhere later" — speculative, not real.
+  - The abstraction takes a config-bag dict / kwargs of booleans because the call sites differ in tiny ways.
+  - You needed to read the abstraction's source to know what it does; the inline copy was self-explanatory.
+
+When in doubt, leave the duplication and revisit when a real third caller appears.
+
+---
+
 ## Long-function rule
 
 Refactor a function when any of these is true:
@@ -136,10 +155,31 @@ Refactor by extracting **named helper functions** with clear responsibility. Don
 
 ---
 
+## Design principles — Law of Demeter, Separation of Concerns, Fail Fast
+
+Three principles that shape how you split functions, organise modules, and validate inputs. They aren't separate sections in the smell list — they are the WHY behind several smells at once.
+
+- **Law of Demeter** ("only talk to your immediate friends"). A method may only call methods on:
+  - itself (`self.foo()`),
+  - its parameters (`arg.bar()`),
+  - objects it creates locally (`x = X(); x.baz()`),
+  - its direct component objects (`self._inner.qux()`).
+
+  Forbidden: deep chains like `a.b().c().d()` or `self.user.profile.preferences.notifications.email_enabled()`. When you write that, you're coupling the caller to four classes' internals at once. Refactor by adding a method on `self.user` (or wherever) that returns the leaf value directly — a tell-don't-ask redesign.
+
+- **Separation of Concerns.** Each module owns one responsibility. Mixing import-parsing + scoring + persistence in one function is forbidden. The test for whether a function violates SoC: can you describe its job without using the word "and"? "Parses XenForo JSONL **and** computes scores **and** writes to the database" is three jobs; split them.
+
+- **Fail Fast.** Validate inputs at the boundary and raise immediately on invariant violations. Don't paper over with defaults that hide the bug. If `score()` is called with a negative weight, raise `ValueError("weight must be ≥ 0")` at line 1; don't silently clamp to 0 and continue. The error message is the operator's first hint that something upstream is wrong; suppressing it converts a five-minute fix into a multi-day debug.
+
+These principles drive concrete refactors: deep `a.b().c()` chains break LoD; god-functions break SoC; silent fallbacks break Fail Fast. When you spot one, fix in-scope per the [Code-smell policy](#code-smell-policy).
+
+---
+
 ## Bug-fixing rules
 
 When fixing a bug:
 
+0. **Root-cause-in-plain-text first.** Before writing any patch, write a one-paragraph plain-English explanation of the root cause. State the failing invariant, the path that led to it, and why the existing code didn't prevent it. The patch comes AFTER this explanation, not instead of it. Skipping the plain-text root-cause statement is a protocol violation; a one-line "fix typo" patch with no explanation does not count. The discipline forces you to actually understand the bug before reaching for code — band-aid fixes evaporate under this requirement because they never had a coherent root-cause story.
 1. Reproduce the failure or reason from a concrete trace.
 2. Identify the root cause — not the symptom.
 3. Add a regression test (preferably one that would have caught it earlier).
@@ -232,6 +272,8 @@ If using a paper, patent, or standard, record in the spec or commit:
 - What was intentionally not implemented
 
 **Do not cite a paper you have not inspected.** Cite-and-move is hallucination.
+
+**Inline source references in code.** When implementing complex logic from a paper, patent, or standard, leave brief inline comments mentioning the specific section, equation, or concept from the source. Format examples: `# Eq. 3.2 of Jia & Harman 2011`, `// §4.1 of RFC 7519 — exp claim`, `# Algorithm 2 line 7, BGE-M3 paper`. The inline reference lets the next reader trace the implementation back to the original text without re-reading the entire source. Pair the inline comment with the full citation in the spec or commit message; don't restate the full bibliography in code.
 
 ---
 
@@ -561,6 +603,7 @@ Concurrent code requires tests or a clearly-written verification plan.
 
 Before refactoring:
 
+- **Preserve behaviour EXACTLY.** When fixing bugs, breaking down long functions, or restructuring code, the overall behaviour and output must remain byte-equivalent unless the user explicitly asked you to change it. A refactor that "incidentally" returns different sort order, a different exception type, a different rounding mode, or a different ordering of side effects is a protocol violation. If the change requires a behaviour shift to work, stop and tell the user before continuing. Add a behaviour-preservation note to the commit body for any refactor that touches a function with no characterization tests.
 - Identify current behaviour (read tests + read code).
 - Preserve public interfaces unless intentionally changed.
 - Add **characterization tests** if behaviour is unclear.
@@ -605,6 +648,18 @@ Before editing a file, inspect enough surrounding code to understand:
 - Ownership boundaries
 
 Do not create duplicate modules when an existing place already owns the behaviour. Search before you write.
+
+---
+
+## Commit-message rules — atomic and descriptive
+
+- **One purpose per commit.** No "fixes + refactor + new feature" combos. If your diff touches three concerns, split into three commits.
+- **Title under 70 characters.** First line is a noun phrase or imperative: `fix(scoring): clamp negative weights at boundary`, not `fix stuff` or `update`.
+- **Body explains the WHY.** Title says what; body says why — the bug that motivated the fix, the constraint that motivated the refactor, the spec reference that motivated the feature. WHAT is visible in the diff; WHY is invisible without the message.
+- **Forbidden generic titles:** `fix`, `update`, `stuff`, `wip`, `misc`, `minor`, `cleanup` standalone (allowed with a qualifier: `cleanup(audit): remove dead error_intelligence imports`).
+- **Reference any tracked issue.** If the commit resolves an AutoIssue or RPT entry, mention the ID in the body — `Resolves AutoIssue #163` or `Implements FR-251 M2`.
+- **Co-Authored-By** stays the agent's signature: `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>` (or the agent equivalent for Codex / Antigravity / future).
+- **Never amend a pushed commit.** Create a follow-up commit instead. Amending rewrites history and confuses anyone who fetched the original.
 
 ---
 
@@ -653,6 +708,35 @@ A task is done **only when**:
 - Security was not weakened.
 - Documentation was updated where needed.
 - **Coverage target for the task type was met** (see table below) OR an explicit `[COVERAGE SUMMARY: not met — <reason>]` was filed.
+
+---
+
+## Major-change review gates
+
+Some changes are too consequential to land without an explicit human check, regardless of session mode (auto-mode included). Before writing any code for a change that falls into any of the categories below, post a 3-5 bullet **high-level summary** of the planned change and the marker `[REVIEW GATE: awaiting approval]`. STOP there. Resume only when the user confirms in plain English.
+
+**Categories that REQUIRE a review gate:**
+
+- **Core architecture changes.** Splitting / merging services, swapping a major dependency, changing the request-handling shape, restructuring the celery beat topology.
+- **Database schema changes that migrate existing data.** Adding a column with a default is fine in-line; rewriting existing rows, dropping a column, or changing a unique constraint requires a gate.
+- **Global-state changes.** Singletons, app-wide config keys, environment variables that change runtime behaviour, feature flags that gate critical paths.
+- **Public-API contract changes.** Renaming an endpoint, changing the shape of a response, changing the auth header expected. Breaks every existing consumer.
+- **Security-model changes.** Auth flow edits, permission-class changes, CSRF / CORS rule changes, secret-handling changes.
+- **ABSOLUTE-rule-adjacent work.** Any change that touches GlitchTip / Sentry / pgdata volumes / passwords / `worktreeConfig` plumbing — these have their own ABSOLUTE rules in `CLAUDE.md`, and the review gate exists on top.
+
+**Format of the summary:**
+
+```
+[REVIEW GATE]
+Planned change: <one-line>
+Touched: <files/paths>
+Behaviour shift: <yes/no + summary>
+Migration shape: <forward/backward, irreversible?>
+Risk: <one line + worst-case rollback path>
+[REVIEW GATE: awaiting approval]
+```
+
+**Auto-mode interaction.** This rule cannot be bypassed by an in-session prompt or by auto mode. Auto mode skips routine confirmations; it does NOT skip the major-change review gate. A user who wants to skip the gate must say so explicitly in chat for that specific change.
 
 ---
 
@@ -739,6 +823,22 @@ Honesty is mandatory. Faking a "met" status is a protocol violation that the nex
 - `AI-CONTEXT.md` — repository state, session gate, plain-English rule.
 - `PLAIN-ENGLISH-RULE.md` — communication standard + glossary.
 - `ONGOING-CODE-QUALITY.md` — fix-as-you-go + dual-logging policy.
+
+---
+
+## Context-window discipline
+
+Tool-use rules for keeping the agent's own working memory healthy. These apply to every agent (Claude / Codex / Antigravity / future) and to every session.
+
+- **Don't read entire directories blindly.** Use `Glob` to find file paths and `Grep` to locate the symbol or string first. Then `Read` only the relevant file with `offset` + `limit` when the file is large.
+- **Re-use earlier tool results.** If a file's content was already returned in this conversation, work from that copy instead of re-reading it. The harness tracks file state; re-reading without an edit between is wasted context.
+- **Spawn an Explore subagent for cross-file surveys.** If the question requires reading >3 files (or surveying broadly), launch an `Explore` agent. The subagent has its own context window and reports back a summary; your context stays focused.
+- **Never re-read a file you just edited.** `Edit` and `Write` succeed atomically. If they returned success, the file is in the state you wrote. Re-reading is the opposite of trust and burns the context window for nothing.
+- **Targeted Grep over open-ended Read.** "Find the function that handles X" → `Grep` for `def X|function X`. Not "Read backend/apps/whatever/views.py from offset 0 limit 2000".
+- **Prefer one large parallel batch over many sequential round-trips.** When multiple reads / searches are independent, batch them in one assistant turn so the harness can dispatch in parallel. Sequential single-tool turns waste both wall-clock time and prompt budget on framing tokens.
+- **Stop loading when you have enough.** If three Read calls have produced enough context to answer the question, write the answer. Loading more "just to be sure" is a context leak.
+
+These habits matter most on long sessions and on multi-step plans: a session that reads 50 files without filtering runs out of working memory before it ships the work.
 
 ---
 
