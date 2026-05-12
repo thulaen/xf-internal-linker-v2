@@ -101,6 +101,7 @@ ALLOWLIST: frozenset[str] = frozenset({
     "PLACEHOLDER",  # English word used in fixture schemas and templates
     "GOES",  # English verb used in rule prose ("ONLY GOES UP")
     "STAGED",  # English participle used as a CLI arg sentinel
+    "DCOVERAGE",  # CMake `-DCOVERAGE=ON` flag (the `D` is CMake's define prefix)
     "GATES",  # English plural in filename refs like `docs/CI-GATES.md`
     "STREQUAL", "SOURCE",  # CMake operators / function-arg names
     "VERSION", "LANGUAGES", "CXX", "PROPERTIES", "NAME", "TARGET",  # CMake keywords

@@ -37,6 +37,18 @@ link_directories(${PYTHON_LIBS_DIR})
 
 add_compile_definitions(XF_BENCH_MODE)
 add_compile_options(-O1)
+
+# ── Coverage plumbing — FR-251 Gap #3 ─────────────────────────────
+# Enable with `-DCOVERAGE=ON`. Adds GCC/Clang coverage flags so an lcov
+# pass after `ctest` produces a per-file branch + line report. The
+# default OFF preset keeps the normal unit-test build fast. CI's
+# `cpp-coverage` job sets COVERAGE=ON.
+option(COVERAGE "Build with --coverage flags for lcov output" OFF)
+if (COVERAGE)
+    message(STATUS "Coverage build enabled — adding --coverage to CXX/LD flags")
+    add_compile_options(--coverage -O0 -g)
+    add_link_options(--coverage)
+endif()
 add_executable(test_simsearch tests/test_simsearch.cpp simsearch.cpp)
 target_include_directories(test_simsearch PRIVATE include)
 if (TBB_FOUND)

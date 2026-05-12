@@ -706,6 +706,44 @@ jobs:
         # surface order-dependent TSan races. -j 2 caps parallel exec.
         run: ctest --output-on-failure --schedule-random -j 2 || true
 
+  # ── 17f. C++ coverage report (advisory — FR-251 Gap #3) ──────────
+  # GATE-DOWNGRADE-JUSTIFICATION: baseline not yet seeded — the first
+  # CI run captures the per-file line / branch %. Flips to blocking
+  # after one seed run; tracked alongside the Mull blocking flip.
+  cpp-coverage:
+    name: C++ coverage (lcov, advisory)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build + coverage tooling
+        run: sudo apt-get update && sudo apt-get install -y cmake libtbb-dev lcov
+      - name: Configure with COVERAGE=ON
+        working-directory: backend/extensions
+        run: cmake -B build_cov -DCMAKE_BUILD_TYPE=Debug -DCOVERAGE=ON
+      - name: Build
+        working-directory: backend/extensions
+        run: cmake --build build_cov --parallel 2
+      - name: Run tests under coverage
+        working-directory: backend/extensions/build_cov
+        run: ctest --output-on-failure --schedule-random -j 2 || true
+      - name: Generate lcov report
+        working-directory: backend/extensions
+        run: |
+          lcov --capture --directory build_cov --output-file build_cov/coverage.info
+          lcov --remove build_cov/coverage.info '*/_deps/*' '*/tests/*' '*/build_cov/*' \
+            --output-file build_cov/coverage.filtered.info
+          lcov --list build_cov/coverage.filtered.info > build_cov/coverage.txt
+          cat build_cov/coverage.txt
+      - name: Upload C++ coverage report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: cpp-coverage
+          path: |
+            backend/extensions/build_cov/coverage.filtered.info
+            backend/extensions/build_cov/coverage.txt
+          retention-days: 30
+
   # ── 19a. Per-PR coverage-delta (BLOCKING — FR-251 Gap #2) ────────
   # Reuses `.githooks/check-per-module-coverage.py` against the PR base
   # so the per-module ratchet is enforced in CI as well as pre-push.
