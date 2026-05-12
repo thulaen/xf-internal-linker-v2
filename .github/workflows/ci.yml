@@ -684,6 +684,37 @@ jobs:
         # surface order-dependent TSan races. -j 2 caps parallel exec.
         run: ctest --output-on-failure --schedule-random -j 2 || true
 
+  # ── 19b. Super-Linter (BLOCKING, covers the gaps) ────────────────
+  # Phase 5 — Super-Linter pins ~50 linters; we only enable the ones
+  # we don't already run as dedicated jobs (Hadolint, GitHub Actions,
+  # Markdown, Bash, YAML, JSON, Gitleaks). Ruff / ESLint / Stylelint
+  # are disabled in .github/super-linter.env so we don't run them
+  # twice with potentially-conflicting versions.
+  super-linter:
+    name: Super-Linter (gaps)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Super-Linter needs full git history to know what's "changed".
+          fetch-depth: 0
+      - name: Lint Code Base
+        uses: super-linter/super-linter@v7
+        env:
+          DEFAULT_BRANCH: master
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Read the rest of the env from .github/super-linter.env so
+          # the config lives in version control and stays in sync with
+          # the Phase 6 lint-error AutoIssue picker.
+          ENV_FILE: .github/super-linter.env
+      - name: Upload SARIF report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: super-linter-results
+          path: super-linter.log
+          retention-days: 30
+
   # ── 20. Missing-tests check (BLOCKING — hardened 2026-05-10) ─────
   # When a PR adds a new backend service module under
   # backend/apps/*/services/ or a new Angular *.component.ts / *.service.ts,
