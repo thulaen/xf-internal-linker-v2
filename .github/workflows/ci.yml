@@ -684,6 +684,35 @@ jobs:
         # surface order-dependent TSan races. -j 2 caps parallel exec.
         run: ctest --output-on-failure --schedule-random -j 2 || true
 
+  # ── 19a. Per-PR coverage-delta (BLOCKING — FR-251 Gap #2) ────────
+  # Reuses `.githooks/check-per-module-coverage.py` against the PR base
+  # so the per-module ratchet is enforced in CI as well as pre-push.
+  # On main-branch pushes the check is a no-op (no diff against itself).
+  coverage-delta-check:
+    name: Per-module coverage ratchet
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # need history to diff against base
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install backend deps + coverage
+        working-directory: backend
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      - name: Run per-module ratchet against PR base
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.test
+          DJANGO_SECRET_KEY: ci-fake-secret-key
+        run: |
+          python .githooks/check-per-module-coverage.py \
+            --against="origin/${{ github.event.pull_request.base.ref }}"
+
   # ── 19b. Super-Linter (BLOCKING, covers the gaps) ────────────────
   # Phase 5 — Super-Linter pins ~50 linters; we only enable the ones
   # we don't already run as dedicated jobs (Hadolint, GitHub Actions,
