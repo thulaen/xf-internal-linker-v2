@@ -167,3 +167,55 @@ if command -v python > /dev/null; then
   echo "→ Missing-tests check (every new module needs a test)"
   python "$HOOK_DIR/check-missing-tests.py"
 fi
+
+# ── Phase 2 fast band: random-order tests for changed files only ──
+# These three stages run the existing test suites with randomised order
+# (pytest-randomly / Jasmine random / GTEST_SHUFFLE) but only on the
+# files actually touched by this commit. They're opt-in by presence:
+# if pytest / ng / a prebuilt C++ binary isn't reachable, the stage
+# silently skips so the hook never blocks on missing local tooling.
+# CI is the safety net for contributors without the full dev stack.
+#
+# Heavy tools (mutation / fuzz / sanitizers) DO NOT run here — they
+# live on .githooks/pre-push so commits stay fast.
+
+# 18. Python fast random — pytest with pytest-randomly on changed tests.
+#     Concurrency cap from .githooks/lib-hwprofile.sh.
+STAGED_PY_TESTS=$(echo "$STAGED_PY" | grep -E '(/tests?/|/test_|tests?_)' || true)
+if [ -n "$STAGED_PY_TESTS" ] && command -v pytest > /dev/null; then
+  # shellcheck source=lib-hwprofile.sh
+  source "${HOOK_DIR}/lib-hwprofile.sh"
+  echo "→ pytest random-order (changed tests, -n ${MAX_JOBS_FAST:-2})"
+  (cd "$REPO_ROOT/backend" && pytest -p randomly -x -q --maxfail=1 -n "${MAX_JOBS_FAST:-2}" --no-cov $STAGED_PY_TESTS)
+fi
+
+# 19. Angular fast random — Karma with Jasmine random:true on changed specs.
+#     Skipped if frontend/node_modules absent.
+STAGED_NG_SPECS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^frontend/src/.*\.spec\.ts$' || true)
+if [ -n "$STAGED_NG_SPECS" ] && [ -d "$REPO_ROOT/frontend/node_modules/@angular/cli" ]; then
+  echo "→ ng test random-order (changed specs)"
+  # Build a comma-separated include pattern matching each changed spec
+  # (Karma's --include accepts repeated values; we emit one flag per file).
+  _ng_include_flags=""
+  for spec in $STAGED_NG_SPECS; do
+    rel=${spec#frontend/}
+    _ng_include_flags="$_ng_include_flags --include=$rel"
+  done
+  (cd "$REPO_ROOT/frontend" && npx ng test --watch=false --browsers=ChromeHeadlessNoSandbox --code-coverage=false $_ng_include_flags)
+fi
+
+# 20. C++ fast random — run only the test binary owning the changed
+#     .cpp/.h file (mapped via lib-cpp-changed.sh) with --gtest_shuffle.
+#     Skipped if the binary isn't already built — pre-push rebuilds.
+STAGED_CPP=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^backend/extensions/.*\.(cpp|h)$' || true)
+if [ -n "$STAGED_CPP" ]; then
+  CPP_TARGETS=$(bash "$HOOK_DIR/lib-cpp-changed.sh" "$STAGED_CPP" || true)
+  if [ -n "$CPP_TARGETS" ]; then
+    for tgt in $CPP_TARGETS; do
+      if [ -x "$REPO_ROOT/backend/extensions/build/$tgt" ]; then
+        echo "→ $tgt --gtest_shuffle (changed C++)"
+        "$REPO_ROOT/backend/extensions/build/$tgt" --gtest_shuffle
+      fi
+    done
+  fi
+fi

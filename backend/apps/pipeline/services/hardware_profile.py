@@ -1,3 +1,4 @@
+# print-allowed: __main__ JSON CLI consumed by .githooks/lib-hwprofile.sh (Phase 2)
 """Hardware-aware dynamic batch sizing (plan Part 8a, FR-233).
 
 Detects RAM / CPU / VRAM at module import time (cheap; cached) and recommends
@@ -208,6 +209,29 @@ def _tier_cap(tier: Tier) -> int:
     }.get(tier, 64)
 
 
+def max_jobs_fast(profile: HardwareProfile | None = None) -> int:
+    """Concurrency cap for fast unit suites (pytest / Karma / C++ unit).
+
+    Tier-aware so a workstation isn't artificially hobbled. Used by the
+    `.githooks/lib-hwprofile.sh` helper to set MAX_JOBS_FAST. Floor at 1
+    so a single-core VM still functions.
+    """
+    prof = profile or detect_profile()
+    return max(1, {"low": 2, "medium": 4, "high": 6, "workstation": 8}.get(prof.tier, 2))
+
+
+def max_jobs_heavy(profile: HardwareProfile | None = None) -> int:
+    """Concurrency cap for heavy tools (mutation / fuzz / sanitizers).
+
+    Honours the project policy "max 2 or 3 workers for heavy band" so
+    Mull / mutmut / Stryker / libFuzzer / MSan / ASan / TSan can never
+    oversubscribe the machine and crash the user's session. Capped at
+    min(3, tier_cap_fast) so low-end hosts get 2 and high-end hosts 3.
+    """
+    fast = max_jobs_fast(profile)
+    return max(1, min(3, fast))
+
+
 def polars_thread_count(profile: HardwareProfile | None = None) -> int:
     """Return the thread budget for the Polars query engine.
 
@@ -236,7 +260,44 @@ def _read_setting_override() -> str:
 __all__ = [
     "HardwareProfile",
     "detect_profile",
+    "max_jobs_fast",
+    "max_jobs_heavy",
     "polars_thread_count",
     "recommended_batch_size",
     "refresh",
 ]
+
+
+def _emit_json(profile: HardwareProfile) -> str:
+    import json
+
+    return json.dumps(
+        {
+            "tier": profile.tier,
+            "cpu_cores": profile.cpu_cores,
+            "ram_gb": round(profile.ram_gb, 2),
+            "has_cuda": profile.has_cuda,
+            "vram_gb": round(profile.vram_gb, 2),
+            "max_jobs_fast": max_jobs_fast(profile),
+            "max_jobs_heavy": max_jobs_heavy(profile),
+        }
+    )
+
+
+if __name__ == "__main__":
+    # CLI entry consumed by .githooks/lib-hwprofile.sh so pre-commit /
+    # pre-push hooks can derive MAX_JOBS_FAST + MAX_JOBS_HEAVY from the
+    # detected tier without hardcoding worker counts. Usage:
+    #   python -m apps.pipeline.services.hardware_profile --json
+    # The JSON line is parseable by `python -c "import json,sys;..."`.
+    import sys
+
+    if "--json" in sys.argv:
+        # Skip Django AppSetting override when run as a CLI — pre-commit
+        # runs before Django settings may be importable; auto-detect only.
+        prof = detect_profile()
+        print(_emit_json(prof))
+    else:
+        prof = detect_profile()
+        print(prof.describe())
+        print(f"  max_jobs_fast={max_jobs_fast(prof)}  max_jobs_heavy={max_jobs_heavy(prof)}")
