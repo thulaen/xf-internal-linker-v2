@@ -180,7 +180,7 @@ When updating a golden fixture:
 
 Coverage gaps live in the AutoIssue table as `source='agent'`, metadata `{"kind": "coverage-gap", "level": "A/B/C", "area": "..."}`.
 
-Drain rate: **10 per session** alongside the standard 18-pick quota. Marker line in the opening ritual:
+Drain rate: **10 per session** alongside the standard 30-pick quota (3 per source × 10 sources). Marker line in the opening ritual:
 
 ```
 [COVERAGE GAPS READ: 10 picked — #163, #164, ...]

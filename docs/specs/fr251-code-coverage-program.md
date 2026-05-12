@@ -15,7 +15,7 @@ Test suites that say "all green" but actually only exercise one of three branche
 
 1. Sets per-task coverage targets so agents know what "done" looks like.
 2. Lists the Level A areas requiring MC/DC (Modified Condition / Decision Coverage) + property tests + mutation testing + golden fixtures + E2E.
-3. Establishes a 10-per-session coverage-gap drain alongside the existing 18-pick auto-issue ritual.
+3. Establishes a 10-per-session coverage-gap drain alongside the 30-pick auto-issue ritual (3 per source × 10 sources after the 2026-05-12 source extension).
 4. Adds a `[COVERAGE SUMMARY: ...]` marker at the end of every slice / task / session so progress is visible and honesty is mandatory.
 
 This FR is **rules-only**. The work to actually achieve the coverage lives in the AutoIssue backlog created in the same PR (one issue per Level A area + per-language target + per macro-rule group). See `AI-CODING-GUIDELINES.md` and `docs/CODE-COVERAGE-RULES.md` for the full text of the rules; this spec is the change-control wrapper.
@@ -36,8 +36,8 @@ The above are all real, inspectable sources. Each was opened before being cited.
 |---|---|
 | Backlog granularity | **One AutoIssue per area** (~25 total). Each AutoIssue's description enumerates the sub-rules from the brief. |
 | Ritual enforcement | **Separate marker line** `[COVERAGE GAPS READ: 10 picked — ...]` validated by `.githooks/check-registry-read.py`. Mirrors the Phase-7 `[CI FAILED RUNS READ: ...]` pattern. |
-| Drain rate | **10 coverage-gap AutoIssues per session**, in addition to the standard 18-pick + 10 latest failed CI runs. |
-| Drought clause | Same shape as the 18-pick drought clause: file new AutoIssues for missing Level A areas; use the substitution form `<K> picked + <10-K> filed`. |
+| Drain rate | **10 coverage-gap AutoIssues per session**, in addition to the standard 30-pick + 10 latest failed CI runs. |
+| Drought clause | Same shape as the 30-pick drought clause: file new AutoIssues for missing Level A areas; use the substitution form `<K> picked + <10-K> filed`. |
 | End-of-slice marker | `[COVERAGE SUMMARY: target=<X>% actual=<Y>% — met / not met — <reason if not met>]`. |
 | Per-language floors | Backend 90% line + 85% branch; Celery 90%; API 90%; Angular components+services 75%; C++ 100% branch + Mull mutation ≥ 70%. |
 
@@ -67,7 +67,7 @@ The 14 Level A areas from `docs/CODE-COVERAGE-RULES.md` each map to one open Aut
 1. **At session start:** agent reads `AI-CODING-GUIDELINES.md` + `docs/CODE-COVERAGE-RULES.md`, emits the `[GUIDELINES READ: ...]` marker.
 2. **Still at session start:** agent runs `print_open_issues`, which (extended in this PR) emits `[COVERAGE GAPS READ: 10 picked — ...]`.
 3. **Picks the right target** for whatever the user asked: looks up the touched files in the per-task table.
-4. **Drains the 10 coverage gaps** as the first work of the session (alongside the 18 auto-issues and the 10 latest failed CI runs).
+4. **Drains the 10 coverage gaps** as the first work of the session (alongside the 30 auto-issues and the 10 latest failed CI runs).
 5. **Does the user's task**, meeting the right coverage target.
 6. **Ends every slice / task / session with `[COVERAGE SUMMARY: ...]`** — honest met / not-met + reason if not met.
 

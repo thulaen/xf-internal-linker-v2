@@ -11,7 +11,7 @@ This file is the single source of truth for how to write code in this repository
 1. **Read it once per session, at session start, before any work.** Confirm with the marker `[GUIDELINES READ: AI-CODING-GUIDELINES.md + docs/CODE-COVERAGE-RULES.md]` immediately after the `[REGISTRY READ: ...]` marker.
 2. **Pick the right coverage target for the task.** Find the task type in the [Per-task coverage targets](#per-task-coverage-targets) table below. Note the target. Plan the change to meet it.
 3. **End every slice, task, and session with a coverage summary.** Output `[COVERAGE SUMMARY: target=<X>% actual=<Y>% — met / not met — <one-line reason if not met>]`. Honesty is mandatory; the auto-iterate rule (see `CLAUDE.md`) requires you to chase the gap to zero, not paper over it.
-4. **Drain the coverage backlog every session.** Alongside the 18 auto-issues from the standard quota and the 10 latest failed CI runs, pick **10 coverage-gap AutoIssues** (source='agent', kind='coverage-gap'). Marker `[COVERAGE GAPS READ: 10 picked — #..., ...]`.
+4. **Drain the coverage backlog every session.** Alongside the 30 auto-issues from the standard quota (3 per source × 10 sources) and the 10 latest failed CI runs, pick **10 coverage-gap AutoIssues** (source='agent', kind='coverage-gap'). Marker `[COVERAGE GAPS READ: 10 picked — #..., ...]`.
 
 ---
 
@@ -786,7 +786,7 @@ Independently of whatever feature work the user asked for, every agent picks **1
 [COVERAGE GAPS READ: 10 picked — #163, #164, #165, #166, #167, #168, #169, #170, #171, #172]
 ```
 
-Validated by `.githooks/check-registry-read.py`. This is **in addition** to the standard 18-pick (`[REGISTRY READ: ...]`) and the 10 latest failed CI runs (`[CI FAILED RUNS READ: ...]`). Total per session: **38 items to triage**, with the agent then doing the user-requested work on top.
+Validated by `.githooks/check-registry-read.py`. This is **in addition** to the standard 30-pick (`[REGISTRY READ: ...]`) and the 10 latest failed CI runs (`[CI FAILED RUNS READ: ...]`). Total per session: **50 items to triage**, with the agent then doing the user-requested work on top.
 
 If fewer than 10 coverage-gap AutoIssues are open (drought), the agent must:
 

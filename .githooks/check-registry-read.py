@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pre-commit guard for the auto-fix-18-issues rule (raised 2026-05-11).
+"""Pre-commit guard for the auto-fix-30-issues rule (raised to 30 on 2026-05-12 when sources extended from 6 to 10; was auto-fix-18 between 2026-05-11 and 2026-05-12).
 
 When an AGENT-HANDOFF.md entry is added or edited in this commit, the new
 content MUST include the `[REGISTRY READ: ...]` marker proving the agent
@@ -16,13 +16,13 @@ The marker has TWO halves:
    Exactly 30 ID tokens (matching `#\\S+`) total — 3 per source × 10 sources.
    The drought-substitution form `t: 0 found + 3 from agent: #..., #..., #... (drought logged: #...)`
    is accepted per-bucket, provided `drought logged: #<id>` is present and
-   the total ID count still reaches 18.
+   the total ID count still reaches 30.
 
-A `satisfier` exemption phrase (`auto-fix-18 satisfier` or the legacy
-`auto-fix-12 satisfier` / `auto-fix-3 satisfier`) replaces the picks half
-when the session's own user-task is itself a multi-bug fix that satisfies
-the quota structurally — for example, the very session that lifted the
-rule from 12 to 18.
+A `satisfier` exemption phrase (`auto-fix-30 satisfier`, or any of the
+legacy `auto-fix-18` / `auto-fix-12` / `auto-fix-3 satisfier` phrases)
+replaces the picks half when the session's own user-task is itself a
+multi-bug fix that satisfies the quota structurally — for example,
+the very session that lifted the rule from 18 to 30.
 
 Why a hook instead of a memory rule: agents have repeatedly forgotten to
 log new bugs into the registry / auto_issues table even though the rules
@@ -80,9 +80,10 @@ LEGACY_MARKER_RE = re.compile(
 )
 # Inside the picks half, count IDs of the form #<token>. We require 18.
 ID_TOKEN_RE = re.compile(r"#[A-Za-z0-9._-]+")
-# Satisfier exemption — covers the new "auto-fix-18 satisfier" plus the
-# legacy "auto-fix-12" and "auto-fix-3" phrases.
-SATISFIER_RE = re.compile(r"auto-fix-(?:3|12|18)\s+satisfier", re.IGNORECASE)
+# Satisfier exemption — covers the current "auto-fix-30 satisfier" plus
+# the legacy "auto-fix-18", "auto-fix-12", and "auto-fix-3" phrases for
+# backwards compat with historical AGENT-HANDOFF entries on master.
+SATISFIER_RE = re.compile(r"auto-fix-(?:3|12|18|30)\s+satisfier", re.IGNORECASE)
 # When the picks span uses drought substitution, this phrase MUST be
 # present somewhere in the marker so the next agent can find the logged
 # AutoIssue and investigate why the source was empty.
@@ -108,7 +109,7 @@ CI_FAILED_RUNS_RE = re.compile(
 # FR-251 — fourth and fifth required markers (added 2026-05-12). Agents
 # must confirm they read the comprehensive AI-CODING-GUIDELINES.md +
 # CODE-COVERAGE-RULES.md, and must drain 10 coverage-gap AutoIssues per
-# session in addition to the 18-pick auto-issue quota and the 10 latest
+# session in addition to the 30-pick auto-issue quota and the 10 latest
 # failed CI runs.
 GUIDELINES_READ_RE = re.compile(
     r"\[GUIDELINES READ:\s*AI-CODING-GUIDELINES\.md\s*\+\s*docs/CODE-COVERAGE-RULES\.md\s*\]",
@@ -179,13 +180,13 @@ def _validate_marker(added: str) -> int:
                 "Found the 4-source / 12-pick `[REGISTRY READ: <N> open "
                 "(<a> agent / <g> glitchtip / <p> pyroscope / <l> loki), ...]` "
                 "marker. The rule was raised to 18 picks across 6 sources on "
-                "2026-05-11, then extended to 10 sources on 2026-05-12.\n"
+                "2026-05-11, then extended to 30 picks across 10 sources on 2026-05-12.\n"
                 "  Expected: `[REGISTRY READ: <N> open (<a> agent / <g> glitchtip / "
                 "<p> pyroscope / <t> tempo / <l> loki / <f> faro / <m> mutation / "
                 "<z> fuzz / <c> contract / <gh> gh_ci), <M> registry — "
                 "picked: #..., #..., #... | g: #..., #..., #... | ... (10 sources total)]`\n"
                 "  Run `docker compose exec -T backend python manage.py print_open_issues` "
-                "for all ten per-source counts, pick 18 issues (3 per source), and "
+                "for all ten per-source counts, pick 30 issues (3 per source × 10 sources), and "
                 "rewrite the marker."
             )
         if LEGACY_MARKER_RE.search(added):
@@ -240,7 +241,7 @@ def _validate_picks(added: str) -> int:
             "The `[REGISTRY READ: ...]` marker is present but does not include a "
             "`picked: #..., ...]` segment. Need 30 picks total (3 from each of "
             "agent, glitchtip, pyroscope, tempo, loki, faro, mutation, fuzz, "
-            "contract, gh_ci) OR the `auto-fix-18 satisfier` phrase."
+            "contract, gh_ci) OR the `auto-fix-30 satisfier` phrase (the legacy `auto-fix-18 satisfier` is also accepted)."
         )
     picks_blob = picks_match.group("picks")
     ids = ID_TOKEN_RE.findall(picks_blob)
@@ -317,7 +318,7 @@ def _validate_coverage_gaps(added: str) -> int:
     """FR-251 — the fifth required marker.
 
     Confirms the agent picked 10 coverage-gap AutoIssues to drain this
-    session (alongside the 18-pick auto-issues + 10 latest failed CI
+    session (alongside the 30-pick auto-issues + 10 latest failed CI
     runs). Accepts the populated form, the drought form, and the
     `0 picked + 10 to file` form when the queue is empty.
     """
