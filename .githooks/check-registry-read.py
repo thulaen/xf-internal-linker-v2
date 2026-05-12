@@ -120,10 +120,21 @@ COVERAGE_GAPS_RE = re.compile(
     re.IGNORECASE,
 )
 # FR-251 — end-of-slice / end-of-task / end-of-session marker. Required
-# in any AGENT-HANDOFF entry that records work performed. Two acceptable
-# forms: a "met" marker, or a "not met" marker with a reason.
+# in any AGENT-HANDOFF entry that records work performed.
+#
+# Strengthened 2026-05-12: both `target=` and `actual=` MUST be
+# percentages with the `%` symbol. Bad markers the hook rejects:
+#   target=Level A actual=8/8
+#   target=N/A actual=N/A
+# Good markers the hook accepts:
+#   target=90% actual=92.5% — met
+#   target=75% actual=68.0% — not met — reason
+#   target=0% actual=0% — met (no code changes; no coverage applicable)
 COVERAGE_SUMMARY_RE = re.compile(
-    r"\[COVERAGE SUMMARY:[^\]]*\b(?:met|not met)\b[^\]]*\]",
+    r"\[COVERAGE SUMMARY:\s*"
+    r"target\s*=\s*\d+(?:\.\d+)?\s*%\s+"
+    r"actual\s*=\s*\d+(?:\.\d+)?\s*%\s*"
+    r"[^\]]*\b(?:met|not met)\b[^\]]*\]",
     re.IGNORECASE,
 )
 
@@ -336,6 +347,35 @@ def _validate_coverage_gaps(added: str) -> int:
     )
 
 
+def _validate_coverage_summary(added: str) -> int:
+    """FR-251 strengthening (2026-05-12) — the sixth required marker.
+
+    Confirms the new AGENT-HANDOFF entry includes a
+    `[COVERAGE SUMMARY: target=<X>% actual=<Y>% — met / not met]` line.
+    Both target and actual MUST be percentages with the `%` symbol per
+    the Plain-English Absolutism rule in `PLAIN-ENGLISH-RULE.md`.
+
+    Documentation-only sessions use `target=0% actual=0% — met (no
+    code changes; no coverage applicable)`.
+    """
+    if COVERAGE_SUMMARY_RE.search(added):
+        return 0
+    return _fail(
+        "This commit modifies AGENT-HANDOFF.md but the new lines do not contain "
+        "a valid `[COVERAGE SUMMARY: ...]` marker required by FR-251 (strengthened "
+        "2026-05-12). Both `target=` and `actual=` MUST be percentages with the "
+        "`%` symbol.\n"
+        "  Bad:  [COVERAGE SUMMARY: target=Level A actual=8/8 tests — met]\n"
+        "  Bad:  [COVERAGE SUMMARY: target=N/A actual=N/A — met]\n"
+        "  Good: [COVERAGE SUMMARY: target=90% actual=92.5% — met]\n"
+        "  Good: [COVERAGE SUMMARY: target=75% actual=68.0% — not met — reason]\n"
+        "  Good (docs-only): [COVERAGE SUMMARY: target=0% actual=0% — met "
+        "(no code changes; no coverage applicable)]\n"
+        "  Run `docker compose exec -T backend python manage.py measure_coverage "
+        "--module <path>` to capture the actual percentage for the files you touched."
+    )
+
+
 def main() -> int:
     if not _commit_touches_handoff():
         return 0
@@ -348,7 +388,9 @@ def main() -> int:
         return rc
     if (rc := _validate_guidelines_read(added)) != 0:
         return rc
-    return _validate_coverage_gaps(added)
+    if (rc := _validate_coverage_gaps(added)) != 0:
+        return rc
+    return _validate_coverage_summary(added)
 
 
 if __name__ == "__main__":

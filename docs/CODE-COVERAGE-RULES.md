@@ -200,7 +200,13 @@ After every meaningful unit of work, emit:
 [COVERAGE SUMMARY: target=<X>% actual=<Y>% — met / not met — <reason if not met>]
 ```
 
-Honesty is mandatory. Claiming `met` when the suite is red is a protocol violation that the next agent will discover when CI fails or the coverage ratchet rejects the next PR.
+**Percentage format is mandatory.** Both `target=` and `actual=` MUST be percentages with the `%` symbol. The pre-commit hook `.githooks/check-registry-read.py` enforces this. Bad examples that the hook rejects: `target=Level A`, `actual=8/8`, `target=N/A`. Good examples: `target=90% actual=92.5% — met`, `target=75% actual=68.0% — not met — reason`.
+
+When the task is documentation only, use `target=0% actual=0% — met (no code changes; no coverage applicable)` so the marker still parses.
+
+**No analogies or metaphors in the reason field.** Write the literal cause. Per `PLAIN-ENGLISH-RULE.md` § Plain-English Absolutism, every word an agent sends must be direct and literal.
+
+Honesty is mandatory. Claiming `met` when the suite is failing is a protocol violation that the next agent will discover when CI fails or the coverage ratchet rejects the next pull request.
 
 ---
 

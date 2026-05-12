@@ -804,10 +804,20 @@ After every meaningful unit of work, emit:
 [COVERAGE SUMMARY: target=<X>% actual=<Y>% — met / not met — <reason if not met>]
 ```
 
-- **Met:** target reached or exceeded.
+**Percentage format is mandatory.** Both `target=` and `actual=` MUST be percentages with the `%` symbol. The pre-commit hook `.githooks/check-registry-read.py` enforces this format on any AGENT-HANDOFF entry that records work.
+
+- **Correct:** `[COVERAGE SUMMARY: target=90% actual=92.5% — met]`
+- **Correct:** `[COVERAGE SUMMARY: target=75% actual=68.0% — not met — Angular coverage dropped 3 percentage points; will add 2 more spec files in the follow-up commit]`
+- **Wrong:** `[COVERAGE SUMMARY: target=Level A actual=8/8 tests pass — met]` (no `%`)
+- **Wrong:** `[COVERAGE SUMMARY: target=N/A actual=N/A — met]` (no `%`)
+- **When the task is documentation only:** `[COVERAGE SUMMARY: target=0% actual=0% — met (no code changes; no coverage applicable)]`
+
+- **Met:** target reached or exceeded — actual ≥ target.
 - **Not met:** target missed; the next line must explain why AND propose the smallest follow-up that would meet the target. Filing an AutoIssue for that follow-up is mandatory.
 
-Honesty is mandatory. Faking a "met" status is a protocol violation that the next agent will discover when CI fails or when the coverage ratchet rejects the next PR.
+Honesty is mandatory. Faking a "met" status is a protocol violation that the next agent will discover when CI fails or when the coverage ratchet rejects the next pull request.
+
+**No analogies, no metaphors in the reason field.** Write the literal cause. Example to avoid: "the ratchet was already at the floor." Replacement: "the file's coverage was already at the minimum allowed value."
 
 ---
 

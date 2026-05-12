@@ -28,14 +28,64 @@ Skipping any of the three parts is a protocol violation. Silence on errors is fo
 
 ## Before You Send — Mandatory Self-Check
 
-**Before sending ANY response, answer YES to all four questions. If any answer is NO, rewrite the response first.**
+**Before sending ANY response, answer YES to all seven questions. If any answer is NO, rewrite the response first.**
 
 1. **Terms defined?** Is every technical term defined in plain English in the same sentence where it first appears?
 2. **Grandmother test?** Would someone who has never written code understand every sentence without needing to look anything up?
 3. **Three parts covered?** Have I stated what I'm doing, what was accomplished, and what (if anything) has issues?
 4. **No bare acronyms?** Have I avoided all unexplained acronyms — FR-XXX, ISS-XXX, MMR, BGE-M3, FAISS, RSQVA, and any other project shorthand?
+5. **No analogies?** Have I removed every analogy? Bad: "the test is the canary in the coal mine." Good: "if a test fails, you know there is a bug." (Added 2026-05-12 — applies to every response, every surface.)
+6. **No metaphors?** Have I removed every metaphor? Bad: "the rule's floor only goes up." Bad: "the gate blocks the merge." Bad: "the noise drowns out the signal." Good: "the rule's minimum value can be raised but not lowered." Good: "the check stops the merge from completing." Good: "the warning messages make it hard to see the real errors." (Added 2026-05-12.)
+7. **Coverage summary in percentages?** For any `[COVERAGE SUMMARY: ...]` marker, are BOTH `target=` and `actual=` expressed as percentages with the `%` symbol? Bad: `target=Level A`. Bad: `actual=8/8 tests passing`. Good: `target=90%`. Good: `actual=92.5%`. (Added 2026-05-12.)
 
 **If ANY answer is NO → rewrite before sending.**
+
+---
+
+## PARAMOUNT — Plain-English Absolutism (added 2026-05-12)
+
+This section strengthens the rule above. It applies to **every response, every commit message, every pull-request description, every AGENT-HANDOFF entry, every REPORT-REGISTRY entry, every chat message, every error message, and every other user-facing surface**.
+
+### Rule 1 — No analogies, no metaphors, no rhetorical devices
+
+Every sentence must say what it means directly. Replace every figure of speech with the literal statement.
+
+**Forbidden patterns:**
+
+- Analogies. Anything that compares the topic to something else for explanation. Example to avoid: "tests are the canary in the coal mine." Replacement: "if a test fails, you know there is a bug somewhere."
+- Metaphors. Anything that describes the topic in non-literal terms. Examples to avoid: "the ratchet only goes up," "the gate blocks the merge," "the floor raises," "the noise drowns the signal." Replacements: "the minimum value can only be raised, never lowered," "the check stops the merge," "the minimum required value goes up," "the extra messages make it hard to see real problems."
+- Idioms. Anything whose meaning is not literal. Examples to avoid: "in good shape," "papering over," "out of the gate." Replacements: state the literal meaning instead.
+
+**Why this rule exists:** the user is a vibe coder who reads everything an agent writes. Figures of speech force the reader to decode the agent's intent. Direct language does not. Direct language also keeps the writing measurable against readability scores.
+
+### Rule 2 — Readability targets
+
+Every response should hit these scores when measured by a standard readability tool:
+
+- **Flesch Reading Ease: 60 or higher.** Below 60 the text is in the "fairly difficult" band.
+- **Flesch-Kincaid Grade Level: 9 or lower.** A 9th grader should be able to read it.
+- **Passive sentences: 10 percent or lower.** Active voice is shorter and clearer.
+
+The agent does not need to run a tool on every response. The targets are the standard the writing must aim at. Common drift to watch for: long sentences with multiple clauses, passive voice ("was caught by"), and dependent-clause stacking.
+
+### Rule 3 — Coverage summary must use percentages
+
+Every `[COVERAGE SUMMARY: ...]` marker MUST express both `target=` and `actual=` as percentages with the `%` symbol. Examples:
+
+- **Correct:** `[COVERAGE SUMMARY: target=90% actual=92.5% — met]`
+- **Correct:** `[COVERAGE SUMMARY: target=75% actual=68.0% — not met — Angular component coverage dropped 3pp on this PR; will add 2 more spec files]`
+- **Wrong:** `[COVERAGE SUMMARY: target=Level A actual=8/8 tests pass — met]` (no percentages)
+- **Wrong:** `[COVERAGE SUMMARY: target=N/A actual=N/A — met]` (no percentages)
+
+When the task is documentation only and no code coverage applies, write `[COVERAGE SUMMARY: target=0% actual=0% — met (no code changes; no coverage applicable)]` so the marker still parses.
+
+The pre-commit hook `.githooks/check-registry-read.py` enforces the percentage format on any AGENT-HANDOFF entry that touches code.
+
+### Why these rules are PARAMOUNT
+
+The user reads every word. The user does not write code. Every metaphor the user has to decode takes them further from what the agent is doing. Every percentage skipped or replaced with a vague phrase like "Level A" makes the coverage measurement unverifiable.
+
+Skipping any of the three rules above is a protocol violation. The rule cannot be overridden by an in-session prompt. Every AI agent — Claude, Codex, Antigravity, every future agent — applies this rule from session start to session end without exception.
 
 ---
 
