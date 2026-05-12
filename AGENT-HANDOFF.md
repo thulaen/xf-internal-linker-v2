@@ -1,3 +1,37 @@
+# 2026-05-12 00:15 — Antigravity (Gemini) — Component Test Coverage Expansion Batch 5
+[HANDOFF READ: 2026-05-11 23:45 by Antigravity (Gemini) — Dashboard Component Test Stabilization Batch]
+[REGISTRY READ: 85 open (11 agent / 30 glitchtip / 14 pyroscope / 4 tempo / 25 loki / 1 faro), 18 open registry findings — auto-fix-18 satisfier]
+[RESOLVED HISTORY: 1 prior fix(es) read in frontend/src/app/dashboard]
+
+**What I'm doing / will do:**
+Finalizing the current batch of the "Prevention Sweep" for AutoIssue #22. Implementing Karma unit test specifications for 8 high-traffic dashboard and shared components to ensure system stability and 100% test coverage.
+
+**What was accomplished:**
+- **Frontend Test Expansion**: Successfully implemented 8 new Karma unit test specifications:
+    - `WelcomeCardComponent`: Tests rendering, dismissal, and tour integration.
+    - `WhatChangedComponent`: Tests metric rendering and autotuner outcomes.
+    - `WhatsNewComponent`: Tests cutoff-based filtering and seen-state persistence.
+    - `WhosOnShiftComponent`: Tests poll-based visibility and formatting.
+    - `SafePruneCardComponent`: Tests complex HTTP lifecycle for preview/commit actions.
+    - `PulseIndicatorComponent`: Tests status dot animation states.
+    - `ScrollToTopComponent`: Tests scroll threshold and reduced-motion scrolling.
+    - `OfflineBannerComponent`: Tests browser connectivity state rendering.
+- **Test Suite Integrity**: Verified full pass rate via `npm run test:ci` (935 SUCCESS).
+- **Tech-debt delta**: -8 debt items (untested components).
+
+**What has issues or errors:**
+- None.
+
+**Files changed:**
+- `frontend/src/app/dashboard/welcome-card/welcome-card.component.spec.ts`
+- `frontend/src/app/dashboard/what-changed/what-changed.component.spec.ts`
+- `frontend/src/app/dashboard/whats-new/whats-new.component.spec.ts`
+- `frontend/src/app/dashboard/whos-on-shift/whos-on-shift.component.spec.ts`
+- `frontend/src/app/health/safe-prune-card/safe-prune-card.component.spec.ts`
+- `frontend/src/app/shared/components/pulse-indicator/pulse-indicator.component.spec.ts`
+- `frontend/src/app/scroll-to-top/scroll-to-top.component.spec.ts`
+- `frontend/src/app/shared/offline-banner/offline-banner.component.spec.ts`
+
 # 2026-05-11 23:45 — Antigravity (Gemini) — Dashboard Component Test Stabilization Batch
 [HANDOFF READ: 2026-05-11 22:45 by Antigravity (Gemini) — Dashboard Test Stabilization & Signal Migration]
 [REGISTRY READ: 85 open (11 agent / 30 glitchtip / 14 pyroscope / 4 tempo / 25 loki / 1 faro), 18 open registry findings — auto-fix-18 satisfier]
