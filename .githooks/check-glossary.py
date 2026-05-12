@@ -87,6 +87,7 @@ ALLOWLIST: frozenset[str] = frozenset({
     "MUTATION-TESTING-CPP",  # future doc filename referenced from MUTATION-TESTING.md
     "TESTING-STANDARD", "CONTRACT-TESTING",  # doc filename refs from services/go/
     "PPA",  # apt Personal Package Archive — Ubuntu standard, well-known initialism
+    "DEFAULT-ON",  # the project term "default-on rule" is already glossed (lowercase form)
     "GATES",  # English plural in filename refs like `docs/CI-GATES.md`
     "STREQUAL", "SOURCE",  # CMake operators / function-arg names
     "VERSION", "LANGUAGES", "CXX", "PROPERTIES", "NAME", "TARGET",  # CMake keywords

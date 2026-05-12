@@ -217,6 +217,46 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour="11-23", minute="25,55"),
         "options": {"queue": "default", "expires": 1500},
     },
+    # ── Phase 6 of the test-hardening plan (2026-05-12) ──
+    # Five new pickers. Times chosen so they DON'T overlap with the
+    # existing :05/:10/:15/:20/:25 chain. Each runs at the bottom of
+    # the hour within the active 11-23 UTC window.
+    "auto-issues-mutation-pick": {
+        # Reads mutmut + Stryker + Mull JSON reports. Daily 11:30 UTC
+        # (after CI nightly mutation runs finish ~11:00).
+        "task": "auto_issues.pick_mutation_survivors",
+        "schedule": crontab(hour=11, minute=30),
+        "options": {"queue": "default", "expires": 1500},
+    },
+    "auto-issues-fuzz-pick": {
+        # Scans backend/extensions/fuzz/ for crash-* / oom-* / leak-*
+        # reproducers. Daily 11:35 UTC (after libFuzzer nightly runs).
+        "task": "auto_issues.pick_fuzz_crashes",
+        "schedule": crontab(hour=11, minute=35),
+        "options": {"queue": "default", "expires": 600},
+    },
+    "auto-issues-lint-error-pick": {
+        # Reads Super-Linter SARIF output. Every 30 min :30/:00 within
+        # active window — Super-Linter runs on every PR so we want
+        # near-real-time pickup.
+        "task": "auto_issues.pick_lint_errors",
+        "schedule": crontab(hour="11-23", minute="0,30"),
+        "options": {"queue": "default", "expires": 1500},
+    },
+    "auto-issues-contract-drift-pick": {
+        # Reads Pact provider-verification JSON. Every 30 min :35/:05.
+        "task": "auto_issues.pick_contract_drift",
+        "schedule": crontab(hour="11-23", minute="5,35"),
+        "options": {"queue": "default", "expires": 1500},
+    },
+    "auto-issues-ci-failed-runs-pick": {
+        # Shells `gh run list --status failure --limit 10`. Every 30
+        # min :40/:10 — surfaces failing CI runs into the same 18-pick
+        # queue agents read at session start.
+        "task": "auto_issues.pick_ci_failed_runs",
+        "schedule": crontab(hour="11-23", minute="10,40"),
+        "options": {"queue": "default", "expires": 1500},
+    },
     "auto-issues-internal-pick": {
         "task": "auto_issues.pick_daily_internal_issues",
         "schedule": crontab(hour=11, minute=20),

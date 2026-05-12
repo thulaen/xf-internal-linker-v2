@@ -157,6 +157,85 @@ def pick_daily_tempo_findings():
     return pick_tempo_findings()
 
 
+# ── Phase 6 of the test-hardening plan (2026-05-12) ──
+# Five new pickers covering the new failure-signal sources.
+
+
+@shared_task(name="auto_issues.pick_mutation_survivors")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=192,
+    expected_seconds_p50=15,
+)
+def pick_mutation_survivors():
+    """Read mutmut + Stryker + Mull JSON reports; upsert each surviving mutant."""
+    connection.close()
+    from apps.auto_issues.services.mutation import pick_mutation_survivors as _run
+    return _run()
+
+
+@shared_task(name="auto_issues.pick_fuzz_crashes")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=128,
+    expected_seconds_p50=10,
+)
+def pick_fuzz_crashes():
+    """Scan backend/extensions/fuzz/ for libFuzzer reproducers; upsert each."""
+    connection.close()
+    from apps.auto_issues.services.fuzz import pick_fuzz_crashes as _run
+    return _run()
+
+
+@shared_task(name="auto_issues.pick_lint_errors")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=192,
+    expected_seconds_p50=20,
+)
+def pick_lint_errors():
+    """Read Super-Linter SARIF; upsert each finding above min severity."""
+    connection.close()
+    from apps.auto_issues.services.lint_error import pick_lint_errors as _run
+    return _run()
+
+
+@shared_task(name="auto_issues.pick_contract_drift")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=128,
+    expected_seconds_p50=15,
+)
+def pick_contract_drift():
+    """Read Pact provider-verification JSON; upsert each failed interaction."""
+    connection.close()
+    from apps.auto_issues.services.contract_drift import pick_contract_drift as _run
+    return _run()
+
+
+@shared_task(name="auto_issues.pick_ci_failed_runs")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=128,
+    expected_seconds_p50=10,
+)
+def pick_ci_failed_runs():
+    """Shell `gh run list --status failure --limit 10`; upsert each run."""
+    connection.close()
+    from apps.auto_issues.services.ci_failed_runs import pick_ci_failed_runs as _run
+    return _run()
+
+
 @shared_task(name="auto_issues.run_retention_cleanup")
 @HelperConstraint(
     cpu_intensive=False, gpu_required=False,

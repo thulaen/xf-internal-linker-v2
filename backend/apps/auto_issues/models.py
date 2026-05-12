@@ -35,6 +35,11 @@ class AutoIssue(models.Model):
     SOURCE_LOKI = "loki"
     SOURCE_FARO = "faro"
     SOURCE_AGENT = "agent"
+    # Phase 6 of the test-hardening plan (added 2026-05-12):
+    SOURCE_MUTATION = "mutation"     # mutmut / Stryker / Mull surviving mutants
+    SOURCE_FUZZ = "fuzz"             # libFuzzer crashes / coverage gaps
+    SOURCE_CONTRACT = "contract"     # Pact provider-verification drift
+    SOURCE_GH_CI = "gh_ci"           # gh run list --status failure
     SOURCE_CHOICES = [
         (SOURCE_GLITCHTIP, "GlitchTip"),
         (SOURCE_PYROSCOPE, "Pyroscope"),
@@ -42,6 +47,10 @@ class AutoIssue(models.Model):
         (SOURCE_LOKI, "Loki"),
         (SOURCE_FARO, "Faro"),
         (SOURCE_AGENT, "Agent find"),
+        (SOURCE_MUTATION, "Mutation testing"),
+        (SOURCE_FUZZ, "Fuzz testing"),
+        (SOURCE_CONTRACT, "Contract drift"),
+        (SOURCE_GH_CI, "GH Actions CI failure"),
     ]
 
     STATUS_OPEN = "open"
