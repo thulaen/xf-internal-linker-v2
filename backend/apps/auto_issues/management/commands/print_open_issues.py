@@ -4,9 +4,20 @@ Used by the pre-session hook (``.githooks/print-open-issues.ps1``) and by
 the ``[REGISTRY READ: ...]`` startup marker every agent must emit per the
 ABSOLUTE rule in CLAUDE.md. Output is intentionally compact so it fits
 in a session-start banner.
+
+Phase 7 of the test-hardening plan added a second marker line for
+``[CI FAILED RUNS READ: ...]`` so the opening ritual also surfaces the
+10 latest failed GitHub Actions workflow runs that haven't been
+remediated. Failing CI runs auto-issue themselves via the
+``ci_failed_runs`` picker (Phase 6) so they CAN show up among the 18
+picks; the explicit ``gh run list`` step is the freshness check at
+session start.
 """
 
 from __future__ import annotations
+
+import json
+import subprocess
 
 from django.core.management.base import BaseCommand
 
@@ -87,4 +98,56 @@ class Command(BaseCommand):
             file_hint = f" — {files}" if files else ""
             self.stdout.write(
                 f"  #{r.id} [{r.source}/{r.severity}] {r.title[:80]}{file_hint}"
+            )
+
+        # Phase 7: also print the 10 latest failed CI runs so the
+        # opening ritual surfaces them before any new work begins.
+        self._print_ci_failed_runs()
+
+    def _print_ci_failed_runs(self) -> None:
+        """Shell out to `gh run list` and print the second marker line.
+
+        Fails graceful: if `gh` isn't installed or isn't authed, prints
+        a `[CI FAILED RUNS READ: skipped — gh unavailable]` marker and
+        returns. The check-registry-read.py hook accepts that form so
+        contributors without `gh` aren't blocked.
+        """
+        try:
+            result = subprocess.run(
+                [
+                    "gh", "run", "list",
+                    "--status", "failure",
+                    "--limit", "10",
+                    "--json", "databaseId,name,headBranch,conclusion,url,workflowName",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            self.stdout.write("[CI FAILED RUNS READ: skipped — gh unavailable]")
+            return
+
+        if result.returncode != 0:
+            # gh not authed, no remote, or some other transient failure.
+            self.stdout.write("[CI FAILED RUNS READ: skipped — gh unavailable]")
+            return
+
+        try:
+            runs = json.loads(result.stdout or "[]")
+        except json.JSONDecodeError:
+            self.stdout.write("[CI FAILED RUNS READ: skipped — gh JSON unparseable]")
+            return
+
+        if not runs:
+            self.stdout.write("[CI FAILED RUNS READ: 0 latest — no failed runs]")
+            return
+
+        run_ids = ", ".join(f"#{r['databaseId']}" for r in runs[:10])
+        self.stdout.write(f"[CI FAILED RUNS READ: {len(runs)} latest — picked: {run_ids}]")
+        for r in runs[:10]:
+            self.stdout.write(
+                f"  #{r['databaseId']} [{r.get('workflowName', '?')}/{r.get('name', '?')}] "
+                f"on {r.get('headBranch', '?')} — {r.get('url', '')}"
             )

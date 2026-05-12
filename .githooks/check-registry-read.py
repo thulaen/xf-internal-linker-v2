@@ -88,6 +88,18 @@ PICKS_SEGMENT_RE = re.compile(
     r"picked:\s*(?P<picks>[^\]]+?)\]",
     re.IGNORECASE | re.DOTALL,
 )
+# Phase 7 — the second required marker line. Captures the latest 10
+# failed GitHub Actions workflow runs from `gh run list --status failure
+# --limit 10`. Two valid forms:
+#   - populated:  `[CI FAILED RUNS READ: 7 latest — picked: #123, #456]`
+#                 (or "0 latest — no failed runs" when the queue is clean)
+#   - skipped:    `[CI FAILED RUNS READ: skipped — gh unavailable]`
+#                 (or "skipped — gh JSON unparseable")
+# The skipped form is accepted so contributors without `gh` aren't blocked.
+CI_FAILED_RUNS_RE = re.compile(
+    r"\[CI FAILED RUNS READ:\s*(?:\d+\s+latest|skipped)[^\]]*\]",
+    re.IGNORECASE,
+)
 
 
 def _staged_diff_for(path: Path) -> str:
@@ -228,13 +240,38 @@ def _validate_picks(added: str) -> int:
     return 0
 
 
+def _validate_ci_failed_runs(added: str) -> int:
+    """Phase 7 — the second required marker.
+
+    Confirms the new AGENT-HANDOFF entry includes a
+    `[CI FAILED RUNS READ: ...]` line proving the agent ran
+    `gh run list --status failure --limit 10` (or recorded that `gh`
+    was unavailable). The skipped form is accepted so contributors
+    without `gh` aren't blocked, but it must still be PRESENT.
+    """
+    if CI_FAILED_RUNS_RE.search(added):
+        return 0
+    return _fail(
+        "This commit modifies AGENT-HANDOFF.md but the new lines do not contain "
+        "the `[CI FAILED RUNS READ: ...]` marker required by Phase 7 of the "
+        "test-hardening plan.\n"
+        "  Run `docker compose exec -T backend python manage.py print_open_issues` "
+        "— it prints both required markers in one call.\n"
+        "  If `gh` is unavailable on this machine, the printed form will be "
+        "`[CI FAILED RUNS READ: skipped — gh unavailable]`, which the hook "
+        "still accepts. Copy that line into the handoff."
+    )
+
+
 def main() -> int:
     if not _commit_touches_handoff():
         return 0
     added = _staged_diff_for(HANDOFF)
     if (rc := _validate_marker(added)) != 0:
         return rc
-    return _validate_picks(added)
+    if (rc := _validate_picks(added)) != 0:
+        return rc
+    return _validate_ci_failed_runs(added)
 
 
 if __name__ == "__main__":

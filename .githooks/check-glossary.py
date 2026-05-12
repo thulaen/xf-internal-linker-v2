@@ -91,6 +91,7 @@ ALLOWLIST: frozenset[str] = frozenset({
     "PRIVATE", "PUBLIC", "INTERFACE",  # CMake target_link/include scopes
     "RELEASE", "DEBUG",  # CMake build types
     "ASSERT", "EXEC", "REQUIRED", "CONFIG",  # CMake / pytest common all-caps
+    "CAN", "MUST", "MAY", "SHOULD",  # RFC-2119-style English in docstrings / rules
     # More everyday English words that get capitalised mid-sentence in
     # narrative documentation (e.g. "TURN OFF", "ONE release",
     # "WHICH key" in instructional prose) and aren't technical jargon.
