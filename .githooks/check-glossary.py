@@ -86,6 +86,11 @@ ALLOWLIST: frozenset[str] = frozenset({
     "SRCS",  # bash-array name in the cpp-clang-tidy CI step
     "MUTATION-TESTING-CPP",  # future doc filename referenced from MUTATION-TESTING.md
     "GATES",  # English plural in filename refs like `docs/CI-GATES.md`
+    "STREQUAL", "SOURCE",  # CMake operators / function-arg names
+    "VERSION", "LANGUAGES", "CXX", "PROPERTIES", "NAME", "TARGET",  # CMake keywords
+    "PRIVATE", "PUBLIC", "INTERFACE",  # CMake target_link/include scopes
+    "RELEASE", "DEBUG",  # CMake build types
+    "ASSERT", "EXEC", "REQUIRED", "CONFIG",  # CMake / pytest common all-caps
     # More everyday English words that get capitalised mid-sentence in
     # narrative documentation (e.g. "TURN OFF", "ONE release",
     # "WHICH key" in instructional prose) and aren't technical jargon.

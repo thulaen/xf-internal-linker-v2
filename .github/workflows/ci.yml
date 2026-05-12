@@ -528,6 +528,52 @@ jobs:
           path: frontend/reports/
           retention-days: 30
 
+  # ── 17e+. libFuzzer smoke (blocking, 60s per target) ─────────────
+  # Phase 4b — runs each starter fuzz target for 60 s under
+  # `-fsanitize=fuzzer,address,undefined`. Any crash / leak / UB
+  # report fails the job. Nightly build extends each to 30 min.
+  cpp-libfuzzer-smoke:
+    name: C++ libFuzzer smoke (60s/target)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Clang + dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake libtbb-dev clang
+          pip install pybind11
+      - name: Configure fuzz build (Clang only)
+        working-directory: backend/extensions/fuzz
+        run: |
+          cmake -B build_fuzz -S . \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo
+      - name: Build fuzz targets
+        working-directory: backend/extensions/fuzz
+        run: cmake --build build_fuzz --parallel 2
+      - name: fuzz_simsearch (60s)
+        working-directory: backend/extensions/fuzz
+        run: ./build_fuzz/fuzz_simsearch -max_total_time=60 -workers=2 corpus/simsearch/
+      - name: fuzz_scoring (60s)
+        working-directory: backend/extensions/fuzz
+        run: ./build_fuzz/fuzz_scoring -max_total_time=60 -workers=2 corpus/scoring/
+      - name: fuzz_passagesim (60s)
+        working-directory: backend/extensions/fuzz
+        run: ./build_fuzz/fuzz_passagesim -max_total_time=60 -workers=2 corpus/passagesim/
+      - name: Upload any crash reproducers
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: libfuzzer-crashes
+          path: |
+            backend/extensions/fuzz/crash-*
+            backend/extensions/fuzz/oom-*
+            backend/extensions/fuzz/leak-*
+            backend/extensions/fuzz/timeout-*
+          retention-days: 30
+          if-no-files-found: ignore
+
   # ── 17e. C++ mutation testing (Mull, advisory) ───────────────────
   # GATE-DOWNGRADE-JUSTIFICATION: Mull requires a Mull-compiled Clang
   # toolchain that the ubuntu-latest runner image doesn't yet ship.
