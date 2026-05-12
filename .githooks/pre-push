@@ -124,6 +124,65 @@ if [ -n "$CHANGED_CPP" ] && command -v clang-tidy > /dev/null 2>&1; then
   fi
 fi
 
+# ── Phase 4d heavy band: mutation / fuzz on changed files ────────
+# Each tool is opt-in by presence (skipped when the binary or the
+# build directory it needs isn't available). Same pattern as the
+# clang-tidy step above. CI still runs the full scope.
+
+UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || echo "origin/master")
+CHANGED=$(git diff --name-only "${UPSTREAM}...HEAD" 2>/dev/null || true)
+
+# mutmut: run only when the in-scope module changed
+# (apps/auto_issues/services/fingerprinting.py). Expands one module
+# at a time via the AutoIssue ratchet (see #162).
+CHANGED_FINGERPRINT=$(echo "$CHANGED" | grep -E '^backend/apps/auto_issues/services/fingerprinting\.py$' || true)
+if [ -n "$CHANGED_FINGERPRINT" ] && command -v mutmut > /dev/null 2>&1; then
+  echo "=> mutmut (apps/auto_issues/services/fingerprinting.py)"
+  (cd "$REPO_ROOT/backend" && mutmut run \
+      --paths-to-mutate=apps/auto_issues/services/fingerprinting.py \
+      --runner="python -m pytest apps/auto_issues -p randomly -x -q --no-cov" \
+      --processes=2 || true
+   cd "$REPO_ROOT/backend" && mutmut results) || {
+    echo "[ERROR] mutmut found surviving mutants. Push aborted."
+    exit 1
+  }
+fi
+
+# Stryker: run only when the in-scope Angular service changed.
+CHANGED_A11Y=$(echo "$CHANGED" | grep -E '^frontend/src/app/core/services/a11y-prefs\.service\.ts$' || true)
+if [ -n "$CHANGED_A11Y" ] && [ -d "$REPO_ROOT/frontend/node_modules/@stryker-mutator/core" ]; then
+  echo "=> Stryker (a11y-prefs.service.ts)"
+  (cd "$REPO_ROOT/frontend" && npx stryker run) || {
+    echo "[ERROR] Stryker threshold breach (mutation score below 40%). Push aborted."
+    exit 1
+  }
+fi
+
+# libFuzzer 60-second smoke for changed C++ files. Opt-in by presence
+# of the build_fuzz directory; the dev needs to have configured a
+# Clang-only fuzz build at least once.
+CHANGED_CPP_HOT=$(echo "$CHANGED" | grep -E '^backend/extensions/(simsearch|scoring|passagesim)\.cpp$' || true)
+if [ -n "$CHANGED_CPP_HOT" ] && [ -d "$REPO_ROOT/backend/extensions/fuzz/build_fuzz" ]; then
+  echo "=> libFuzzer 60s smoke (changed hot-path C++)"
+  for src in $CHANGED_CPP_HOT; do
+    case "$(basename "$src" .cpp)" in
+      simsearch|scoring|passagesim)
+        target="fuzz_$(basename "$src" .cpp)"
+        if [ -x "$REPO_ROOT/backend/extensions/fuzz/build_fuzz/$target" ]; then
+          echo "   ./$target -max_total_time=60 -workers=2"
+          (cd "$REPO_ROOT/backend/extensions/fuzz" && \
+            "./build_fuzz/$target" -max_total_time=60 -workers=2 "corpus/${target#fuzz_}/")
+          if [ $? -ne 0 ]; then
+            echo "[ERROR] libFuzzer found a crash in $target. Push aborted."
+            echo "        Crash reproducer dropped into backend/extensions/fuzz/"
+            exit 1
+          fi
+        fi
+        ;;
+    esac
+  done
+fi
+
 echo "========================================="
 echo "All checks passed! Push proceeding..."
 echo "========================================="
