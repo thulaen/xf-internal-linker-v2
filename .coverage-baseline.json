@@ -1,0 +1,16 @@
+{
+  "$schema_note": "Per-module coverage ratchet baseline (FR-251 Gap #1). Keys are repo-relative file paths; values are the highest coverage percentage recorded for that file. Pre-push hook and CI both compare current coverage against these baselines and FAIL when a touched file drops below its recorded floor. The baseline ONLY GOES UP — every PR that improves coverage for a file MUST update the entry; entries are never lowered. To seed an entry: run `docker compose exec -T backend python manage.py measure_coverage --module <path> --json` and paste the line_pct value here (rounded to one decimal place).",
+  "files": {
+    "apps/auto_issues/services/fingerprinting.py": 92.0,
+    "apps/auto_issues/services/dedup.py": 85.0,
+    "apps/auto_issues/services/ci_failed_runs.py": 90.0,
+    "apps/auto_issues/services/fuzz.py": 85.0,
+    "apps/auto_issues/services/mutation.py": 80.0,
+    "apps/auto_issues/services/lint_error.py": 80.0,
+    "apps/auto_issues/services/contract_drift.py": 80.0,
+    "apps/auto_issues/management/commands/measure_coverage.py": 90.0,
+    "apps/auto_issues/management/commands/auto_issues_append_registry.py": 85.0,
+    "apps/auto_issues/management/commands/print_open_issues.py": 75.0,
+    "apps/pipeline/services/hardware_profile.py": 80.0
+  }
+}

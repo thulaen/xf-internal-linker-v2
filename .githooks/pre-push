@@ -183,6 +183,14 @@ if [ -n "$CHANGED_CPP_HOT" ] && [ -d "$REPO_ROOT/backend/extensions/fuzz/build_f
   done
 fi
 
+# ── FR-251 Gap #1: per-module coverage ratchet ──────────────────
+echo "=> Per-module coverage ratchet (.coverage-baseline.json)"
+python "$REPO_ROOT/.githooks/check-per-module-coverage.py" --against="$UPSTREAM" --skip-when-missing
+if [ $? -ne 0 ]; then
+  echo "[ERROR] Per-module coverage regression. Push aborted."
+  exit 1
+fi
+
 echo "========================================="
 echo "All checks passed! Push proceeding..."
 echo "========================================="
