@@ -100,6 +100,26 @@ CI_FAILED_RUNS_RE = re.compile(
     r"\[CI FAILED RUNS READ:\s*(?:\d+\s+latest|skipped)[^\]]*\]",
     re.IGNORECASE,
 )
+# FR-251 — fourth and fifth required markers (added 2026-05-12). Agents
+# must confirm they read the comprehensive AI-CODING-GUIDELINES.md +
+# CODE-COVERAGE-RULES.md, and must drain 10 coverage-gap AutoIssues per
+# session in addition to the 18-pick auto-issue quota and the 10 latest
+# failed CI runs.
+GUIDELINES_READ_RE = re.compile(
+    r"\[GUIDELINES READ:\s*AI-CODING-GUIDELINES\.md\s*\+\s*docs/CODE-COVERAGE-RULES\.md\s*\]",
+    re.IGNORECASE,
+)
+COVERAGE_GAPS_RE = re.compile(
+    r"\[COVERAGE GAPS READ:\s*(?:\d+\s+picked(?:\s*\+\s*\d+\s+(?:to file|filed))?|drought)[^\]]*\]",
+    re.IGNORECASE,
+)
+# FR-251 — end-of-slice / end-of-task / end-of-session marker. Required
+# in any AGENT-HANDOFF entry that records work performed. Two acceptable
+# forms: a "met" marker, or a "not met" marker with a reason.
+COVERAGE_SUMMARY_RE = re.compile(
+    r"\[COVERAGE SUMMARY:[^\]]*\b(?:met|not met)\b[^\]]*\]",
+    re.IGNORECASE,
+)
 
 
 def _staged_diff_for(path: Path) -> str:
@@ -241,7 +261,7 @@ def _validate_picks(added: str) -> int:
 
 
 def _validate_ci_failed_runs(added: str) -> int:
-    """Phase 7 — the second required marker.
+    """Phase 7 — the third required marker (after HANDOFF READ + REGISTRY READ).
 
     Confirms the new AGENT-HANDOFF entry includes a
     `[CI FAILED RUNS READ: ...]` line proving the agent ran
@@ -263,6 +283,47 @@ def _validate_ci_failed_runs(added: str) -> int:
     )
 
 
+def _validate_guidelines_read(added: str) -> int:
+    """FR-251 — the fourth required marker.
+
+    Confirms the agent read both AI-CODING-GUIDELINES.md and
+    docs/CODE-COVERAGE-RULES.md at session start. Exact format:
+    `[GUIDELINES READ: AI-CODING-GUIDELINES.md + docs/CODE-COVERAGE-RULES.md]`.
+    """
+    if GUIDELINES_READ_RE.search(added):
+        return 0
+    return _fail(
+        "This commit modifies AGENT-HANDOFF.md but the new lines do not contain "
+        "the `[GUIDELINES READ: AI-CODING-GUIDELINES.md + docs/CODE-COVERAGE-RULES.md]` "
+        "marker required by FR-251.\n"
+        "  Read both files at session start; emit the marker as-is. The marker "
+        "exists so every agent confirms it understands the per-task coverage "
+        "targets in the guidelines before claiming any work is done."
+    )
+
+
+def _validate_coverage_gaps(added: str) -> int:
+    """FR-251 — the fifth required marker.
+
+    Confirms the agent picked 10 coverage-gap AutoIssues to drain this
+    session (alongside the 18-pick auto-issues + 10 latest failed CI
+    runs). Accepts the populated form, the drought form, and the
+    `0 picked + 10 to file` form when the queue is empty.
+    """
+    if COVERAGE_GAPS_RE.search(added):
+        return 0
+    return _fail(
+        "This commit modifies AGENT-HANDOFF.md but the new lines do not contain "
+        "the `[COVERAGE GAPS READ: ...]` marker required by FR-251.\n"
+        "  Run `docker compose exec -T backend python manage.py print_open_issues` "
+        "— it now prints the coverage-gap marker alongside the auto-issue and "
+        "CI-failure markers.\n"
+        "  Drain rate: 10 coverage-gap AutoIssues per session. If fewer than 10 "
+        "are open, the drought form `<K> picked + <10-K> to file — ...` is "
+        "accepted and the agent files the remainder per docs/CODE-COVERAGE-RULES.md."
+    )
+
+
 def main() -> int:
     if not _commit_touches_handoff():
         return 0
@@ -271,7 +332,11 @@ def main() -> int:
         return rc
     if (rc := _validate_picks(added)) != 0:
         return rc
-    return _validate_ci_failed_runs(added)
+    if (rc := _validate_ci_failed_runs(added)) != 0:
+        return rc
+    if (rc := _validate_guidelines_read(added)) != 0:
+        return rc
+    return _validate_coverage_gaps(added)
 
 
 if __name__ == "__main__":

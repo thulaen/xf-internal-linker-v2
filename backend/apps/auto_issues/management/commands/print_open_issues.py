@@ -104,6 +104,15 @@ class Command(BaseCommand):
         # opening ritual surfaces them before any new work begins.
         self._print_ci_failed_runs()
 
+        # FR-251: also print the top 10 coverage-gap AutoIssues so the
+        # session-start ritual surfaces them. See AI-CODING-GUIDELINES.md
+        # and docs/CODE-COVERAGE-RULES.md for the contract.
+        self._print_coverage_gaps()
+
+        # FR-251: emit the guidelines-read marker so the agent acknowledges
+        # both the comprehensive coding rules AND the coverage rules.
+        self.stdout.write("[GUIDELINES READ: AI-CODING-GUIDELINES.md + docs/CODE-COVERAGE-RULES.md]")
+
     def _print_ci_failed_runs(self) -> None:
         """Shell out to `gh run list` and print the second marker line.
 
@@ -150,4 +159,43 @@ class Command(BaseCommand):
             self.stdout.write(
                 f"  #{r['databaseId']} [{r.get('workflowName', '?')}/{r.get('name', '?')}] "
                 f"on {r.get('headBranch', '?')} — {r.get('url', '')}"
+            )
+
+    def _print_coverage_gaps(self) -> None:
+        """Print the top-10 open coverage-gap AutoIssues + the marker line.
+
+        Coverage-gap AutoIssues are agent-filed entries with a title
+        starting with `[coverage-gap]`. They live in the same AutoIssue
+        table as everything else, but the ritual mandates a separate
+        10-pick quota so coverage work doesn't get squeezed out by
+        higher-severity telemetry findings.
+
+        Drought form: when fewer than 10 are open, the marker uses
+        `<K> picked + <10-K> filed` and the agent files new gap rows
+        for missing Level A areas (see docs/CODE-COVERAGE-RULES.md).
+        """
+        qs = AutoIssue.objects.filter(
+            status__in=self._OPEN_STATUSES,
+            source=AutoIssue.SOURCE_AGENT,
+            title__startswith="[coverage-gap]",
+        ).order_by("-priority_score", "-last_seen")[:10]
+        rows = list(qs)
+        if not rows:
+            self.stdout.write(
+                "[COVERAGE GAPS READ: 0 picked + 10 to file — drought; file new "
+                "AutoIssue(kind='coverage-gap') rows for missing Level A areas "
+                "from docs/CODE-COVERAGE-RULES.md before claiming the ritual is done]"
+            )
+            return
+        pick_ids = ", ".join(f"#{r.id}" for r in rows)
+        if len(rows) < 10:
+            self.stdout.write(
+                f"[COVERAGE GAPS READ: {len(rows)} picked + {10 - len(rows)} to file — "
+                f"#{pick_ids} (drought; file the remainder per docs/CODE-COVERAGE-RULES.md)]"
+            )
+        else:
+            self.stdout.write(f"[COVERAGE GAPS READ: 10 picked — {pick_ids}]")
+        for r in rows:
+            self.stdout.write(
+                f"  #{r.id} [agent/{r.severity}] {r.title[:90]}"
             )

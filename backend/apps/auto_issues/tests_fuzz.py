@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 from django.test import SimpleTestCase
 
 from apps.auto_issues.services import fuzz
@@ -20,3 +22,20 @@ class FuzzPickerTests(SimpleTestCase):
         self.assertEqual(fuzz._kind_from_filename("timeout-cafe"), "timeout")
         self.assertEqual(fuzz._kind_from_filename("README.md"), "")
         self.assertEqual(fuzz._kind_from_filename(""), "")
+
+    def test_coverage_gap_returns_int_with_db_mock(self) -> None:
+        # The coverage-gap picker is best-effort. We mock the upsert so
+        # the test doesn't need a real DB (SimpleTestCase forbids DB).
+        with patch.object(fuzz, "_upsert_coverage_gap", return_value=True):
+            result = fuzz.pick_fuzz_coverage_gaps()
+        self.assertIsInstance(result, int)
+        self.assertGreaterEqual(result, 0)
+
+    def test_coverage_gap_skips_when_no_extensions_dir(self) -> None:
+        # When neither the resolved nor /repo path is a directory, the
+        # picker returns 0 cleanly.
+        from pathlib import Path
+        with patch.object(fuzz, "_resolve", return_value=Path("/nonexistent")):
+            with patch.object(Path, "is_dir", return_value=False):
+                result = fuzz.pick_fuzz_coverage_gaps()
+        self.assertEqual(result, 0)

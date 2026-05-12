@@ -42,6 +42,22 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 - Python/C++ remains the single source of truth for all business logic, link scanning, and sitemap processing.
 - Normal pending phase work continues after this helper addition. The next queued product phase in the current cleaned repo state is Phase 19 / `FR-016`.
 
+## Active
+
+### FR-251 — Code-Coverage Program (strict per-task targets + 10-per-session drain)
+
+**Requested:** 2026-05-12.
+**Status:** Rules in place; backlog seeded; drain begins next session.
+**Spec:** [`docs/specs/fr251-code-coverage-program.md`](docs/specs/fr251-code-coverage-program.md).
+**Rules:** [`AI-CODING-GUIDELINES.md`](AI-CODING-GUIDELINES.md) + [`docs/CODE-COVERAGE-RULES.md`](docs/CODE-COVERAGE-RULES.md).
+**Roadmap:** [`docs/ROADMAP.md`](docs/ROADMAP.md) M0-M10.
+
+**What this is:** A strict, future-aware code-coverage program. Every change picks the right coverage target from the per-task table in `AI-CODING-GUIDELINES.md`. Every Level A area (14 of them — import normalisation, text cleaning, sentence splitting, embedding lifecycle, index build/search, scoring, meta-algo, business logic, near-dup removal, existing-link detection, broken-link detection, approval transitions, permissions, analytics import, Celery idempotency, DB integrity) requires MC/DC + property-based tests + full branch + mutation testing + golden fixtures + E2E. Per-language floors: backend 90%, API 90%, Celery 90%, Angular 75%, C++ 100% branch + Mull mutation ≥ 70%.
+
+**Opening-ritual extension:** alongside the existing 18 auto-issue picks and 10 latest failed CI runs, every session picks 10 coverage-gap AutoIssues. Marker `[COVERAGE GAPS READ: 10 picked — #..., ...]`. End-of-slice marker `[COVERAGE SUMMARY: target=X% actual=Y% — met / not met]`.
+
+**Backlog:** ~23 AutoIssues filed in the same PR that landed the rules. Drain rate is 10 per session; no hard date for full drain — this is a multi-session program.
+
 ## Pending Slices
 
 **What this is:** Deferred sub-features and follow-up work that belongs to a parent FR but ships in a later session. Tracked separately so a new AI session can see what's queued without grep-hunting through `AGENT-HANDOFF.md` and per-FR specs.

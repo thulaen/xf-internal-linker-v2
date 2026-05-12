@@ -88,6 +88,14 @@ ALLOWLIST: frozenset[str] = frozenset({
     "TESTING-STANDARD", "CONTRACT-TESTING",  # doc filename refs from services/go/
     "PPA",  # apt Personal Package Archive — Ubuntu standard, well-known initialism
     "DEFAULT-ON",  # the project term "default-on rule" is already glossed (lowercase form)
+    "CONTEXT", "ROADMAP",  # filename refs (AI-CONTEXT.md / ROADMAP.md) — common English words
+    "FLIPS", "LONG-TERM",  # English words used in milestone status (ROADMAP.md)
+    "MUTATION-TESTING", "FEATURE-REQUESTS",  # filename refs (already-glossed docs)
+    "NNN",  # placeholder for a numeric suffix (RPT-NNN, FR-NNN) — already explained inline
+    "MULTILINE",  # Python re module flag (re.MULTILINE)
+    "APPENDED",  # English past tense in management-command stdout messages
+    "READ-ONLY",  # English compound term, common in docs
+    "SHIPPED",  # roadmap status — English past tense
     "GATES",  # English plural in filename refs like `docs/CI-GATES.md`
     "STREQUAL", "SOURCE",  # CMake operators / function-arg names
     "VERSION", "LANGUAGES", "CXX", "PROPERTIES", "NAME", "TARGET",  # CMake keywords
