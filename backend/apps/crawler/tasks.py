@@ -158,7 +158,8 @@ def pulse_heartbeat():
 )
 def watchdog_check():
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """
     Check for stuck sync jobs and crawler sessions.
@@ -250,7 +251,8 @@ def watchdog_check():
 )
 def auto_prune():
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """
     Self-pruning to save disk.  Runs every 4 weeks.
@@ -336,7 +338,8 @@ def auto_prune():
 )
 def orchestrate_full_run():
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """
     Single-button workflow: sync all sources, crawl all domains, run pipeline.
@@ -455,7 +458,8 @@ def orchestrate_full_run():
 )
 def run_crawl_session(session_id: str):
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     from apps.crawler.services.site_crawler import run_crawl_session_sync
     import uuid

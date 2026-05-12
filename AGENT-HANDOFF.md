@@ -1,3 +1,33 @@
+# 2026-05-12 02:57 — Antigravity (Gemini) — System Observability & Connection Stabilization
+[HANDOFF READ: 2026-05-12 00:15 by Antigravity (Gemini) — Component Test Coverage Expansion Batch 5]
+[REGISTRY READ: 81 open (10 agent / 29 glitchtip / 14 pyroscope / 4 tempo / 24 loki / 0 faro), 18 open registry findings — auto-fix-18 satisfier]
+[RESOLVED HISTORY: 6 prior fix(es) read in backend/apps]
+
+**What I'm doing / will do:**
+Stabilizing the system observability stack by resolving high-priority telemetry and backend connection issues. Fixing Celery task registration, database connection leakage, and frontend runtime errors.
+
+**What was accomplished:**
+- **Celery Task Registration (#129)**: Implemented `flush_delta_index()` in `apps.pipeline.services.nrt_delta_index.py`, resolving an `ImportError` and restoring task registration for the pipeline app.
+- **Database Connection Hygiene (#86)**: Hardened connection management across `core`, `crawler`, `health`, `scheduled_updates`, `cooccurrence`, and `audit` task modules with `if not connection.in_atomic_block: connection.close()` guards.
+- **Error Ingestion Stability (#50)**: Hardened `apps.audit.error_ingest.py` to handle `InternalError` during race-condition recovery, preventing system-wide observability failures.
+- **Frontend Runtime Resilience (#105)**: Added defensive null-check to `writeQueryState` in `frontend/src/app/core/util/query-state.ts` to prevent Faro runtime `TypeError`.
+- **Verification**: Verified system integrity via `npm run test:ci` (935 SUCCESS).
+- **Tech-debt delta**: -4 high-priority issues resolved.
+
+**What has issues or errors:**
+- None.
+
+**Files changed:**
+- `backend/apps/pipeline/services/nrt_delta_index.py`
+- `backend/apps/core/tasks.py`
+- `backend/apps/health/tasks.py`
+- `backend/apps/scheduled_updates/tasks.py`
+- `backend/apps/crawler/tasks.py`
+- `backend/apps/cooccurrence/tasks.py`
+- `backend/apps/audit/tasks.py`
+- `backend/apps/audit/error_ingest.py`
+- `frontend/src/app/core/util/query-state.ts`
+
 # 2026-05-12 00:15 — Antigravity (Gemini) — Component Test Coverage Expansion Batch 5
 [HANDOFF READ: 2026-05-11 23:45 by Antigravity (Gemini) — Dashboard Component Test Stabilization Batch]
 [REGISTRY READ: 85 open (11 agent / 30 glitchtip / 14 pyroscope / 4 tempo / 25 loki / 1 faro), 18 open registry findings — auto-fix-18 satisfier]

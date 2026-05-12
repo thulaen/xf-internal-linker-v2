@@ -210,3 +210,14 @@ def reset_live_delta() -> None:
     global _LIVE_DELTA
     with _LIVE_DELTA_LOCK:
         _LIVE_DELTA = None
+
+
+def flush_delta_index() -> None:
+    """Clear the live delta index (typically after a base rebuild).
+
+    This fulfills the import requirement in tasks_embeddings.py and
+    follows the Bialecki 2012 §3 pattern of clearing the delta once
+    the base index has been refreshed from the source of truth (DB).
+    """
+    get_live_delta().clear()
+    logger.info("NRT delta index flushed (cleared).")

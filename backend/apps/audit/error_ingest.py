@@ -32,7 +32,7 @@ import re
 import socket
 from typing import NamedTuple, Optional
 
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, InternalError, transaction
 
 from .fix_suggestions import suggest
 from .models import ErrorLog
@@ -170,7 +170,10 @@ def _dedup_or_create(
                     existing, payload.raw_exception, payload.severity, ctx
                 )
             return _create_new(fp, node_id, node_role, ctx, payload)
-    except IntegrityError:
+    except (IntegrityError, InternalError):
+        # IntegrityError: a parallel worker raced us to the insert.
+        # InternalError: we are in a failed transaction block — fall back
+        # to a best-effort non-atomic read.
         return _recover_race(fp, node_id)
 
 

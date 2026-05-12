@@ -57,7 +57,8 @@ def auto_revert_performance_mode() -> dict:
     from apps.core.models import AppSetting
 
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     result: dict = {"reverted": False, "reason": ""}
 

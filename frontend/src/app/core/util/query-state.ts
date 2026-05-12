@@ -148,6 +148,7 @@ export function writeQueryState<TState extends object>(
   schema: QueryStateFields<TState>,
 ): Promise<boolean> {
   const queryParams: Record<string, string | null> = {};
+  if (!state) return Promise.resolve(false);
   for (const key of Object.keys(schema) as (keyof TState)[]) {
     const field = schema[key];
     const value = state[key];

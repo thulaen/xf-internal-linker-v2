@@ -51,7 +51,8 @@ def prune_resolved_alerts_task() -> dict:
 )
 def detect_stalled_jobs_task() -> dict:
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Raise STALLED alerts for long-running ScheduledJobs (≥ 4 h).
 

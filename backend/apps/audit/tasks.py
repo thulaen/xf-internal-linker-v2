@@ -359,7 +359,8 @@ def _build_scorecard_kwargs(review_actions, period_start, period_end):
 def compute_weekly_reviewer_scorecard():
     """Compute ReviewerScorecard for the previous calendar week. Runs Monday 03:00 UTC."""
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     today = timezone.now().date()
     period_start, period_end = _scorecard_week_period(today)
@@ -453,7 +454,8 @@ def sync_glitchtip_issues():
     missing so a project without GlitchTip doesn't see Beat errors every 30 min.
     """
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     from apps.audit.fix_suggestions import suggest
     from apps.audit.models import ErrorLog

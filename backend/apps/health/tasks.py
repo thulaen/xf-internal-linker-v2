@@ -79,7 +79,8 @@ def run_all_health_checks():
 )
 def run_single_health_check(service_key: str):
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Run a single health check (e.g. from the UI)."""
     try:
