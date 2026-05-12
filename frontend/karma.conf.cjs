@@ -9,7 +9,14 @@ module.exports = function (config) {
       require('@angular-devkit/build-angular/plugins/karma'),
     ],
     client: {
-      jasmine: {},
+      jasmine: {
+        // Randomize spec execution order — surfaces tests that only pass
+        // because of the order they ran in. seed:null lets Jasmine generate
+        // a fresh seed per run (printed in the output so failures repro).
+        random: true,
+        seed: null,
+        failSpecWithNoExpectations: true,
+      },
       clearContext: false,
     },
     coverageReporter: {

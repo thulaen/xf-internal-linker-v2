@@ -64,9 +64,13 @@ add_executable(test_streaming_sketches tests/test_streaming_sketches.cpp)
 target_include_directories(test_streaming_sketches PRIVATE include)
 target_link_libraries(test_streaming_sketches GTest::gtest_main)
 include(GoogleTest)
-gtest_discover_tests(test_simsearch)
-gtest_discover_tests(test_scoring)
-gtest_discover_tests(test_passagesim)
-gtest_discover_tests(test_quantemb)
-gtest_discover_tests(test_ivf_index)
-gtest_discover_tests(test_streaming_sketches)
+# PROPERTIES ENVIRONMENT "GTEST_SHUFFLE=1" tells GoogleTest to randomize
+# test execution order on every run. Order-dependent tests will surface as
+# non-zero exit. GTEST_RANDOM_SEED=0 means "pick a fresh seed each run"
+# (the seed is printed to stdout so a failing order can be reproduced).
+gtest_discover_tests(test_simsearch          PROPERTIES ENVIRONMENT "GTEST_SHUFFLE=1;GTEST_RANDOM_SEED=0")
+gtest_discover_tests(test_scoring            PROPERTIES ENVIRONMENT "GTEST_SHUFFLE=1;GTEST_RANDOM_SEED=0")
+gtest_discover_tests(test_passagesim         PROPERTIES ENVIRONMENT "GTEST_SHUFFLE=1;GTEST_RANDOM_SEED=0")
+gtest_discover_tests(test_quantemb           PROPERTIES ENVIRONMENT "GTEST_SHUFFLE=1;GTEST_RANDOM_SEED=0")
+gtest_discover_tests(test_ivf_index          PROPERTIES ENVIRONMENT "GTEST_SHUFFLE=1;GTEST_RANDOM_SEED=0")
+gtest_discover_tests(test_streaming_sketches PROPERTIES ENVIRONMENT "GTEST_SHUFFLE=1;GTEST_RANDOM_SEED=0")

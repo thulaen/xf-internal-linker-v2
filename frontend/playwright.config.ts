@@ -13,6 +13,9 @@ export default defineConfig({
   testDir: './tests',
   testIgnore: isCIRun ? ['**/live/**', '**/capture/**'] : [],
   fullyParallel: true,
+  // CI runners are 2-core; cap workers to 2 to honour the "heavy concurrency"
+  // policy in docs/CI-GATES.md. Locally, default to the machine's core count.
+  workers: process.env['CI'] || isCIRun ? 2 : undefined,
   retries: 1,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {

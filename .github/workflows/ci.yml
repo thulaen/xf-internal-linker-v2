@@ -45,8 +45,13 @@ jobs:
         # pytest.ini's `--cov-fail-under=68` is actually enforced at
         # CI time. Without this wrapper, coverage was measured but
         # never gated. Floor is a ratchet — only goes up, never down.
+        #
+        # `--shuffle` randomizes test execution order on every run (Django
+        # 4.0+ feature). Order-dependent tests will surface as non-zero
+        # exit. The seed is printed in the output for repro. The local
+        # pre-commit fast band uses pytest-randomly for the same purpose.
         run: |
-          python -m coverage run --source=apps,config manage.py test --verbosity=2 --noinput
+          python -m coverage run --source=apps,config manage.py test --verbosity=2 --noinput --shuffle
           python -m coverage report --fail-under=68
 
   # ── 2. Angular build + unit tests ───────────────────────────────
@@ -394,9 +399,12 @@ jobs:
 
       - name: Run edge-case tests
         working-directory: backend/extensions/benchmarks
+        # --gtest_shuffle randomizes within-binary test order so order-
+        # dependent edge tests surface as non-zero exit. Seed printed for
+        # repro. Matches the policy in docs/CI-GATES.md.
         run: |
-          ./build_ci/test_edges_simsearch
-          ./build_ci/test_edges_scoring
+          ./build_ci/test_edges_simsearch --gtest_shuffle
+          ./build_ci/test_edges_scoring --gtest_shuffle
 
   # ── 17. GoogleTest C++ unit tests (blocking) ─────────────────────
   cpp-test:
@@ -414,7 +422,11 @@ jobs:
         run: cmake --build build --parallel
       - name: Test
         working-directory: backend/extensions/build
-        run: ctest --output-on-failure
+        # --schedule-random shuffles inter-test ordering across binaries;
+        # CMakeLists.txt sets GTEST_SHUFFLE=1 for intra-binary order.
+        # -j 2 caps parallel test execution at 2 to match the heavy-band
+        # concurrency policy (will be replaced by ${MAX_JOBS_FAST} in Phase 2).
+        run: ctest --output-on-failure --schedule-random -j 2
 
   # ── 18. AddressSanitizer (blocking) ──────────────────────────────
   cpp-asan:
@@ -436,7 +448,9 @@ jobs:
         run: cmake --build build_asan --parallel
       - name: Test
         working-directory: backend/extensions/build_asan
-        run: ctest --output-on-failure
+        # --schedule-random + GTEST_SHUFFLE (from CMakeLists.txt) catch
+        # order-dependent ASan failures. -j 2 caps parallel exec.
+        run: ctest --output-on-failure --schedule-random -j 2
 
   # ── 19. ThreadSanitizer (advisory — see docs/CI-GATES.md) ────────
   # GATE-DOWNGRADE-JUSTIFICATION: TBB false-positive noise; suppression
@@ -461,7 +475,9 @@ jobs:
         run: cmake --build build_tsan --parallel
       - name: Test (advisory — see GATE-DOWNGRADE-JUSTIFICATION above)
         working-directory: backend/extensions/build_tsan
-        run: ctest --output-on-failure || true
+        # --schedule-random + GTEST_SHUFFLE (from CMakeLists.txt) help
+        # surface order-dependent TSan races. -j 2 caps parallel exec.
+        run: ctest --output-on-failure --schedule-random -j 2 || true
 
   # ── 20. Missing-tests check (BLOCKING — hardened 2026-05-10) ─────
   # When a PR adds a new backend service module under

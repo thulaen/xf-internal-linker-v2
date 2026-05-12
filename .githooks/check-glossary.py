@@ -73,6 +73,7 @@ ALLOWLIST: frozenset[str] = frozenset({
     "FROM", "INTO", "JOIN", "ASC", "DESC", "EXACT", "REGEX",
     "NAME", "PATH", "REGISTRY", "BACKEND", "FRONTEND",
     "PRIOR", "STATE", "NEW", "OLD",  # everyday English, all-caps in prose / fixture suffixes
+    "COMMAND", "README",  # CMake keyword in add_test(...) + the README filename shorthand
     # More everyday English words that get capitalised mid-sentence in
     # narrative documentation (e.g. "TURN OFF", "ONE release",
     # "WHICH key" in instructional prose) and aren't technical jargon.

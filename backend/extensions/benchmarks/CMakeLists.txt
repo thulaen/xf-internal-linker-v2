@@ -123,7 +123,9 @@ function(add_edge_test NAME)
             target_compile_definitions(test_edges_${NAME} PRIVATE HAS_TBB=1)
         endif()
     endif()
-    add_test(NAME edge_${NAME} COMMAND test_edges_${NAME})
+    # --gtest_shuffle randomizes within-binary test order so order-dependent
+    # edge tests surface as non-zero exit. Seed is printed for repro.
+    add_test(NAME edge_${NAME} COMMAND test_edges_${NAME} --gtest_shuffle)
 endfunction()
 
 enable_testing()
