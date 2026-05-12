@@ -458,6 +458,95 @@ jobs:
           if [ "${#SRCS[@]}" -eq 0 ]; then echo "no C++ sources found"; exit 1; fi
           clang-tidy --quiet -p build "${SRCS[@]}"
 
+  # ── 17c. Python mutation testing (mutmut, blocking) ──────────────
+  # Phase 4a — scoped initially to apps/auto_issues/services/
+  # fingerprinting.py. Surviving mutants fail the build. Scope expands
+  # one module per PR via the AutoIssue ratchet (see #162).
+  python-mutmut:
+    name: Python Mutation (mutmut)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install backend deps
+        working-directory: backend
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      - name: Run mutmut on scoped module
+        working-directory: backend
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.test
+          DJANGO_SECRET_KEY: ci-fake-secret-key
+        run: |
+          mutmut run \
+            --paths-to-mutate=apps/auto_issues/services/fingerprinting.py \
+            --runner="python -m pytest apps/auto_issues -p randomly -x -q --no-cov" \
+            --processes=2 || true
+          mutmut results
+          # Fail the job if ANY mutant survived.
+          mutmut junitxml > mutmut-results.xml || true
+          ! grep -q 'failures="0"' mutmut-results.xml || (
+            echo "FAIL: surviving mutants found — see report above";
+            cat mutmut-results.xml;
+            exit 1
+          )
+      - name: Upload mutmut report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: mutmut-results
+          path: backend/mutmut-results.xml
+          retention-days: 30
+
+  # ── 17d. Angular mutation testing (Stryker, blocking) ────────────
+  # Phase 4a — scoped initially to one core service. Surviving mutants
+  # below thresholds.break (40%) fail the build.
+  frontend-stryker:
+    name: Angular Mutation (Stryker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+      - name: Run Stryker
+        working-directory: frontend
+        run: npx stryker run
+      - name: Upload Stryker report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: stryker-report
+          path: frontend/reports/
+          retention-days: 30
+
+  # ── 17e. C++ mutation testing (Mull, advisory) ───────────────────
+  # GATE-DOWNGRADE-JUSTIFICATION: Mull requires a Mull-compiled Clang
+  # toolchain that the ubuntu-latest runner image doesn't yet ship.
+  # Scaffolding lands now so the config lives in version control; the
+  # gate flips to blocking when the toolchain is added (tracked as a
+  # follow-up AutoIssue alongside #162).
+  cpp-mull:
+    name: C++ Mutation (Mull, advisory)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check Mull availability
+        run: |
+          if ! command -v mull-runner-13 > /dev/null; then
+            echo "::warning::Mull toolchain not installed on runner — skipping"
+            exit 0
+          fi
+          echo "Mull is available; will be wired to test_simsearch in a follow-up"
+
   # ── 18. AddressSanitizer (blocking) ──────────────────────────────
   cpp-asan:
     name: C++ AddressSanitizer

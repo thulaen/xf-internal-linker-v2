@@ -84,6 +84,8 @@ ALLOWLIST: frozenset[str] = frozenset({
     "PTH", "PYI", "RET", "RUF", "SIM", "SLF", "TC", "TCH",
     "TRY",
     "SRCS",  # bash-array name in the cpp-clang-tidy CI step
+    "MUTATION-TESTING-CPP",  # future doc filename referenced from MUTATION-TESTING.md
+    "GATES",  # English plural in filename refs like `docs/CI-GATES.md`
     # More everyday English words that get capitalised mid-sentence in
     # narrative documentation (e.g. "TURN OFF", "ONE release",
     # "WHICH key" in instructional prose) and aren't technical jargon.

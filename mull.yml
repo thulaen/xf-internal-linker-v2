@@ -1,0 +1,36 @@
+# Mull configuration — C++ mutation testing.
+#
+# Phase 4a scaffold: the config below describes the intended scope.
+# The `cpp-mull` CI job currently runs in ADVISORY mode (see
+# .github/workflows/ci.yml) until a Mull-compiled Clang toolchain is
+# installed in the runner image. Once that lands, flip the CI step
+# back to blocking and drop the GATE-DOWNGRADE-JUSTIFICATION comment.
+#
+# Initial scope: test_simsearch only. Expansion via AutoIssue ratchet.
+
+# Skip mutating tests / benchmarks / build artefacts.
+excludePaths:
+  - tests/**
+  - benchmarks/**
+  - build*/**
+
+# The mutation operators we want enabled. Keep this list curated —
+# Mull supports many but most produce noise. The four below catch the
+# highest-signal regressions:
+#   cxx_relational_replacement: `<` <-> `>`, `==` <-> `!=`, etc.
+#   cxx_logical_or_to_and:      `||` <-> `&&`
+#   cxx_arithmetic_replacement: `+` <-> `-`, `*` <-> `/`, etc.
+#   remove_void_call:           drops a void-return function call entirely
+mutators:
+  - cxx_relational_replacement
+  - cxx_logical_or_to_and
+  - cxx_arithmetic_replacement
+  - remove_void_call
+
+# How long any one mutant can run before Mull kills it (in ms).
+# 30 s is generous; most C++ unit tests are sub-second.
+timeout: 30000
+
+# Parallelism cap matches MAX_JOBS_HEAVY (see hardware_profile.py).
+# CI runners are 2 cores; local dev machines fall back to 3.
+parallel-jobs: 2
