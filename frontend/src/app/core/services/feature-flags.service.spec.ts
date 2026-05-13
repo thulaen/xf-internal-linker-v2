@@ -48,6 +48,7 @@ describe('FeatureFlagsService', () => {
   it('refresh() is a no-op while logged out', () => {
     service.refresh();
     httpMock.expectNone('/api/feature-flags/');
+    expect(service.all()).toEqual([]);
   });
 
   it('refresh() fires the flags GET once the user logs in', () => {
@@ -125,6 +126,7 @@ describe('FeatureFlagsService', () => {
 
     service.recordExposure('cta');
     const post = httpMock.expectOne('/api/feature-flags/exposures/');
+    expect(post.request.method).toBe('POST');
     post.flush('nope', { status: 500, statusText: 'Server' });
     // The catchError branch returned of(null), so no error propagates.
     setTimeout(() => done(), 0);

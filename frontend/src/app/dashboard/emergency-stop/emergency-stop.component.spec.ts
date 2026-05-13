@@ -73,6 +73,7 @@ describe('EmergencyStopComponent', () => {
     await fixture.whenStable();
     // Verify no requests were made to master-pause.
     httpMock.expectNone('/api/settings/master-pause/');
+    expect(confirmSpy.ask).toHaveBeenCalledTimes(1);
     httpMock.verify();
   });
 });

@@ -41,6 +41,7 @@ describe('GlitchtipService', () => {
     const req = httpMock.expectOne(
       (r) => r.url === '/api/glitchtip/events/' && r.params.get('limit') === '10',
     );
+    expect(req.request.method).toBe('GET');
     req.flush([]);
   });
 
@@ -50,6 +51,7 @@ describe('GlitchtipService', () => {
       (r) =>
         r.url === '/api/glitchtip/events/' && r.params.get('status') === 'all',
     );
+    expect(req.request.method).toBe('GET');
     req.flush([]);
   });
 

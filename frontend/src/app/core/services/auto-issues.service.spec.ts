@@ -59,6 +59,7 @@ describe('AutoIssuesService', () => {
         r.params.get('status') === 'resolved' &&
         r.params.get('source') === 'agent',
     );
+    expect(req.request.method).toBe('GET');
     req.flush({ count: 0, next: null, previous: null, results: [] });
   });
 

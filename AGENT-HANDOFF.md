@@ -1,3 +1,50 @@
+# 2026-05-13 04:20 - Codex GPT-5 - Mission A dashboard i18n tags and Docker frontend test portability
+
+[REGISTRY READ: 162 open (49 agent / 35 glitchtip / 15 pyroscope / 4 tempo / 39 loki / 1 faro / 0 mutation / 19 fuzz / 0 contract / 0 gh_ci), 7 open registry findings - picked: auto-fix-30 satisfier]
+[CI FAILED RUNS READ: skipped - gh unavailable]
+[GUIDELINES READ: AI-CODING-GUIDELINES.md + docs/CODE-COVERAGE-RULES.md]
+[COVERAGE GAPS READ: 10 picked - #185, #184, #183, #182, #181, #176, #175, #174, #173, #172]
+[RESOLVED HISTORY: 1 prior fix(es) read in frontend/src/app/dashboard]
+[RESOLVED HISTORY: 1 prior fix(es) read in frontend/src/app/core]
+[COVERAGE SUMMARY: target=90% actual=100% - met for touched production TypeScript files; template, Dockerfile, generated translation file, and spec-only edits do not get separate Karma line coverage]
+
+What I did:
+I completed one small Mission A slice. I added translation IDs to two dashboard help callouts in `frontend/src/app/dashboard/dashboard.component.html`, regenerated `frontend/src/locale/messages.xlf`, and kept the dashboard card classes unchanged because the resolved history warned that removing `.ga4-card` breaks layout. I also made the Docker frontend tool image install Chromium and set `CHROME_BIN`, so frontend Node, npm, browser tests, translation extraction, and builds can run in Docker instead of depending on whichever PC is being used. While proving the Docker test path, I fixed six existing frontend specs that made real checks but had no `expect` assertion.
+
+What now works that did not before:
+The Docker frontend tool path now has Node `v22.22.2`, npm `10.9.7`, and Chromium available through `frontend-mutation-tools`. `docker compose run --rm frontend-mutation-tools npm exec -- ng extract-i18n` now succeeds and reports 1,487 messages. `docker compose run --rm frontend-mutation-tools npm run test:ci` now succeeds with `935 SUCCESS`. `docker compose build frontend-build` succeeds after the template and Docker changes. The fixed specs are in `frontend/src/app/core/services/glitchtip.service.spec.ts`, `frontend/src/app/core/services/auto-issues.service.spec.ts`, `frontend/src/app/core/services/feature-flags.service.spec.ts`, and `frontend/src/app/dashboard/emergency-stop/emergency-stop.component.spec.ts`. The final commit for this slice is the commit that contains this handoff note.
+
+What has issues or errors:
+Plain `npm` is not on this PowerShell path, and direct local Angular commands hit sandbox file-read errors, so I used Docker for the portable frontend path the user asked for. The first Docker Angular test attempt failed because Chromium was missing from the container; `frontend/Dockerfile.prod` now installs it. The full Docker frontend test suite then found six existing "no expectation" spec failures; those are fixed. Existing unrelated warnings still print during frontend builds and translation extraction: optional-chain warnings in error-log code, CommonJS dependency warnings for telemetry packages, and a production bundle warning. They do not fail the commands. I did not run the full backend Django suite because this slice touched frontend template, frontend test, Docker, and translation files only. `scripts/prune-verification-artifacts.ps1` pruned local build caches and confirmed `.git/config` was clean, but skipped Docker prune in the sandbox and could not run `diskpart.exe` without elevation.
+
+Mutation-test result for every touched file:
+`frontend/Dockerfile.prod` - not applicable because Dockerfiles have no mutation runner.
+`frontend/src/app/dashboard/dashboard.component.html` - not applicable because this was a translation-marker-only template edit with no executable logic.
+`frontend/src/locale/messages.xlf` - not applicable because this is generated translation data.
+`frontend/src/app/core/services/glitchtip.service.spec.ts` - not applicable because this is a test file, not a mutation target.
+`frontend/src/app/core/services/auto-issues.service.spec.ts` - not applicable because this is a test file, not a mutation target.
+`frontend/src/app/core/services/feature-flags.service.spec.ts` - not applicable because this is a test file, not a mutation target.
+`frontend/src/app/dashboard/emergency-stop/emergency-stop.component.spec.ts` - not applicable because this is a test file, not a mutation target.
+`AGENT-HANDOFF.md` - not applicable because this is documentation.
+
+Coverage percentage for every touched file:
+`frontend/Dockerfile.prod` - 0%; coverage is not applicable to Docker image setup.
+`frontend/src/app/dashboard/dashboard.component.html` - 0%; Karma reports coverage for component TypeScript, not separate HTML template lines. The related `frontend/src/app/dashboard/dashboard.component.ts` measured 53.75% lines in the full Docker coverage run, unchanged by this template-only slice.
+`frontend/src/locale/messages.xlf` - 0%; coverage is not applicable to generated translation data.
+`frontend/src/app/core/services/glitchtip.service.spec.ts` - 0%; spec files are test inputs, not coverage targets. The covered production file `frontend/src/app/core/services/glitchtip.service.ts` measured 100% lines and 100% statements.
+`frontend/src/app/core/services/auto-issues.service.spec.ts` - 0%; spec files are test inputs, not coverage targets. The covered production file `frontend/src/app/core/services/auto-issues.service.ts` measured 100% lines and 100% statements.
+`frontend/src/app/core/services/feature-flags.service.spec.ts` - 0%; spec files are test inputs, not coverage targets. The covered production file `frontend/src/app/core/services/feature-flags.service.ts` measured 92.5% lines and 93.47% statements.
+`frontend/src/app/dashboard/emergency-stop/emergency-stop.component.spec.ts` - 0%; spec files are test inputs, not coverage targets. The related production component is below 90% in existing coverage, but no production logic changed in this slice.
+`AGENT-HANDOFF.md` - 0%; coverage is not applicable to documentation.
+
+[PLAN REMAINING: ~24%]
+
+Next agent should pick up:
+Continue Phase 6 i18n tagging in `frontend/src/app/dashboard/dashboard.component.html` by tagging the remaining unmarked tutorial callout title/body inputs, then regenerate `frontend/src/locale/messages.xlf` and run the Docker frontend checks.
+
+Tech-debt delta: 11. Four dashboard translation markers were added, six frontend specs now have real assertions, and the Docker frontend tool image now owns its browser dependency instead of relying on host setup.
+
+---
 # 2026-05-13 03:05 - Codex GPT-5 - Mission A audit stopped before source edits
 
 [REGISTRY READ: 162 open (49 agent / 35 glitchtip / 15 pyroscope / 4 tempo / 39 loki / 1 faro / 0 mutation / 19 fuzz / 0 contract / 0 gh_ci), 7 open registry findings - picked: auto-fix-30 satisfier]

@@ -1705,21 +1705,14 @@
         <source>Could not add to watchlist.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/analytics/under-linked/under-linked.component.ts</context>
-          <context context-type="linenumber">95</context>
-        </context-group>
-      </trans-unit>
-      <trans-unit id="analytics.under_linked.dismiss" datatype="html">
-        <source>Dismiss</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/analytics/under-linked/under-linked.component.ts</context>
-          <context context-type="linenumber">96</context>
+          <context context-type="linenumber">98</context>
         </context-group>
       </trans-unit>
       <trans-unit id="analytics.under_linked.success_watchlist" datatype="html">
         <source>&quot;<x id="PH" equiv-text="row.title"/>&quot; added to watchlist.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/analytics/under-linked/under-linked.component.ts</context>
-          <context context-type="linenumber">106</context>
+          <context context-type="linenumber">107</context>
         </context-group>
       </trans-unit>
       <trans-unit id="analytics.watched_pages.empty" datatype="html">
@@ -1751,21 +1744,21 @@
         <source>Could not remove page.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/analytics/watched-pages/watched-pages.component.ts</context>
-          <context context-type="linenumber">96</context>
+          <context context-type="linenumber">99</context>
         </context-group>
       </trans-unit>
       <trans-unit id="analytics.watched_pages.dismiss" datatype="html">
         <source>Dismiss</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/analytics/watched-pages/watched-pages.component.ts</context>
-          <context context-type="linenumber">97</context>
+          <context context-type="linenumber">100</context>
         </context-group>
       </trans-unit>
       <trans-unit id="analytics.watched_pages.success_remove" datatype="html">
         <source>&quot;<x id="title" equiv-text="title"/>&quot; removed.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/analytics/watched-pages/watched-pages.component.ts</context>
-          <context context-type="linenumber">109</context>
+          <context context-type="linenumber">112</context>
         </context-group>
       </trans-unit>
       <trans-unit id="app.skipToContent" datatype="html">
@@ -3219,74 +3212,102 @@
           <context context-type="linenumber">591,593</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="dashboard.noobHelpers.title" datatype="html">
+        <source>Learn &amp; navigate</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/dashboard/dashboard.component.html</context>
+          <context context-type="linenumber">596,597</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="dashboard.noobHelpers.body" datatype="html">
+        <source>Type your intent in &apos;I want to…&apos; to jump to the right page, or pick from the structured &apos;Take me to…&apos; menu. The Color key explains the dots and chips you see across the app. The daily quiz teaches one new concept each day.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/dashboard/dashboard.component.html</context>
+          <context context-type="linenumber">598,599</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="dashboard.help.title" datatype="html">
         <source>Help &amp; admin</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/dashboard/dashboard.component.html</context>
-          <context context-type="linenumber">611,613</context>
+          <context context-type="linenumber">613,615</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="dashboard.helpAdmin.title" datatype="html">
+        <source>Help &amp; admin</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/dashboard/dashboard.component.html</context>
+          <context context-type="linenumber">618,619</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="dashboard.helpAdmin.body" datatype="html">
+        <source>One-Button Reset is the safe &apos;something feels off&apos; button — it refreshes data and reconnects live updates without losing your place. Tips rotate one tidbit per visit. Weekly Digest emails a summary every week.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/dashboard/dashboard.component.html</context>
+          <context context-type="linenumber">620,621</context>
         </context-group>
       </trans-unit>
       <trans-unit id="dashboard.wisdom.title" datatype="html">
         <source>Wisdom &amp; warnings</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/dashboard/dashboard.component.html</context>
-          <context context-type="linenumber">650,652</context>
+          <context context-type="linenumber">654,656</context>
         </context-group>
       </trans-unit>
       <trans-unit id="dashboard.rotating.winsTitle" datatype="html">
         <source>Latest wins</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/dashboard/dashboard.component.html</context>
-          <context context-type="linenumber">655,656</context>
+          <context context-type="linenumber">659,660</context>
         </context-group>
       </trans-unit>
       <trans-unit id="dashboard.rotating.winsSubtitle" datatype="html">
         <source>Recent successes worth knowing</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/dashboard/dashboard.component.html</context>
-          <context context-type="linenumber">657,659</context>
+          <context context-type="linenumber">661,663</context>
         </context-group>
       </trans-unit>
       <trans-unit id="dashboard.rotating.avoidsTitle" datatype="html">
         <source>Things to avoid</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/dashboard/dashboard.component.html</context>
-          <context context-type="linenumber">666,667</context>
+          <context context-type="linenumber">670,671</context>
         </context-group>
       </trans-unit>
       <trans-unit id="dashboard.rotating.avoidsSubtitle" datatype="html">
         <source>Don&apos;t trip over these</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/dashboard/dashboard.component.html</context>
-          <context context-type="linenumber">668,670</context>
+          <context context-type="linenumber">672,674</context>
         </context-group>
       </trans-unit>
       <trans-unit id="dashboard.rotating.pitfallsTitle" datatype="html">
         <source>Pitfall of the day</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/dashboard/dashboard.component.html</context>
-          <context context-type="linenumber">677,678</context>
+          <context context-type="linenumber">681,682</context>
         </context-group>
       </trans-unit>
       <trans-unit id="dashboard.rotating.pitfallsSubtitle" datatype="html">
         <source>A new one each day</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/dashboard/dashboard.component.html</context>
-          <context context-type="linenumber">679,681</context>
+          <context context-type="linenumber">683,685</context>
         </context-group>
       </trans-unit>
       <trans-unit id="dashboard.rotating.quotesTitle" datatype="html">
         <source>Quote of the day</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/dashboard/dashboard.component.html</context>
-          <context context-type="linenumber">689,690</context>
+          <context context-type="linenumber">693,694</context>
         </context-group>
       </trans-unit>
       <trans-unit id="dashboard.rotating.quotesSubtitle" datatype="html">
         <source>One per day, swapped at midnight</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/dashboard/dashboard.component.html</context>
-          <context context-type="linenumber">691,693</context>
+          <context context-type="linenumber">695,697</context>
         </context-group>
       </trans-unit>
       <trans-unit id="8849329330880248242" datatype="html">
@@ -5633,11 +5654,11 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1306,1307</context>
+          <context context-type="linenumber">1327,1328</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1395,1396</context>
+          <context context-type="linenumber">1416,1417</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.rankingWeight" datatype="html">
@@ -5672,47 +5693,47 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">278,279</context>
+          <context context-type="linenumber">299,300</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">367,368</context>
+          <context context-type="linenumber">388,389</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">435,436</context>
+          <context context-type="linenumber">456,457</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">500,501</context>
+          <context context-type="linenumber">521,522</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">784,785</context>
+          <context context-type="linenumber">805,806</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">842,843</context>
+          <context context-type="linenumber">863,864</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">895,896</context>
+          <context context-type="linenumber">916,917</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">944,945</context>
+          <context context-type="linenumber">965,966</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1036,1037</context>
+          <context context-type="linenumber">1057,1058</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1082,1083</context>
+          <context context-type="linenumber">1103,1104</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1142,1143</context>
+          <context context-type="linenumber">1163,1164</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.connectSync.gsc.lastSyncTitle" datatype="html">
@@ -6331,7 +6352,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.ts</context>
-          <context context-type="linenumber">597</context>
+          <context context-type="linenumber">599</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/silo-architecture-tab/silo-architecture-tab.component.ts</context>
@@ -8100,91 +8121,91 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">356,357</context>
+          <context context-type="linenumber">377,378</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">424,425</context>
+          <context context-type="linenumber">445,446</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">489,490</context>
+          <context context-type="linenumber">510,511</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">559,560</context>
+          <context context-type="linenumber">580,581</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">574,575</context>
+          <context context-type="linenumber">595,596</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">589,590</context>
+          <context context-type="linenumber">610,611</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">633,634</context>
+          <context context-type="linenumber">654,655</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">645,646</context>
+          <context context-type="linenumber">666,667</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">657,658</context>
+          <context context-type="linenumber">678,679</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">669,670</context>
+          <context context-type="linenumber">690,691</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">681,682</context>
+          <context context-type="linenumber">702,703</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">693,694</context>
+          <context context-type="linenumber">714,715</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">705,706</context>
+          <context context-type="linenumber">726,727</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">717,718</context>
+          <context context-type="linenumber">738,739</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">729,730</context>
+          <context context-type="linenumber">750,751</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">741,742</context>
+          <context context-type="linenumber">762,763</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">773,774</context>
+          <context context-type="linenumber">794,795</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">831,832</context>
+          <context context-type="linenumber">852,853</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1197,1198</context>
+          <context context-type="linenumber">1218,1219</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1321,1322</context>
+          <context context-type="linenumber">1342,1343</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1366,1367</context>
+          <context context-type="linenumber">1387,1388</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1411,1412</context>
+          <context context-type="linenumber">1432,1433</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.options.disabled" datatype="html">
@@ -8199,91 +8220,91 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">359,360</context>
+          <context context-type="linenumber">380,381</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">427,428</context>
+          <context context-type="linenumber">448,449</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">492,493</context>
+          <context context-type="linenumber">513,514</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">560,561</context>
+          <context context-type="linenumber">581,582</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">575,576</context>
+          <context context-type="linenumber">596,597</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">590,591</context>
+          <context context-type="linenumber">611,612</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">634,635</context>
+          <context context-type="linenumber">655,656</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">646,647</context>
+          <context context-type="linenumber">667,668</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">658,659</context>
+          <context context-type="linenumber">679,680</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">670,671</context>
+          <context context-type="linenumber">691,692</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">682,683</context>
+          <context context-type="linenumber">703,704</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">694,695</context>
+          <context context-type="linenumber">715,716</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">706,707</context>
+          <context context-type="linenumber">727,728</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">718,719</context>
+          <context context-type="linenumber">739,740</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">730,731</context>
+          <context context-type="linenumber">751,752</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">742,743</context>
+          <context context-type="linenumber">763,764</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">776,777</context>
+          <context context-type="linenumber">797,798</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">834,835</context>
+          <context context-type="linenumber">855,856</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1198,1199</context>
+          <context context-type="linenumber">1219,1220</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1322,1323</context>
+          <context context-type="linenumber">1343,1344</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1367,1368</context>
+          <context context-type="linenumber">1388,1389</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1412,1413</context>
+          <context context-type="linenumber">1433,1434</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.contextTokens" datatype="html">
@@ -8363,1001 +8384,1022 @@
           <context context-type="linenumber">221,222</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="settings.labels.headingShare" datatype="html">
+        <source>Heading share</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
+          <context context-type="linenumber">228,229</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.labels.introShare" datatype="html">
+        <source>Intro share</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
+          <context context-type="linenumber">235,236</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="settings.labels.bodyShare" datatype="html">
         <source>Body share</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">228,229</context>
+          <context context-type="linenumber">242,243</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.scopeLabelShare" datatype="html">
         <source>Scope label share</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">235,236</context>
+          <context context-type="linenumber">249,250</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.labels.learnedAnchorShare" datatype="html">
+        <source>Learned-anchor share</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
+          <context context-type="linenumber">256,257</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.trafficSearch.title" datatype="html">
         <source>Traffic &amp; Search Signals</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">248,250</context>
+          <context context-type="linenumber">269,271</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.trafficSearch.hint" datatype="html">
         <source>Attributing search outcomes to your internal linking efforts.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">251,253</context>
+          <context context-type="linenumber">272,274</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.trafficSearch.disconnected" datatype="html">
         <source> Connect to Search Console to use search performance as a ranking signal. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">257,259</context>
+          <context context-type="linenumber">278,280</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.trafficSearch.connected" datatype="html">
         <source> Search signals are active and influencing link rankings. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">260,262</context>
+          <context context-type="linenumber">281,283</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.actions.configureSearchSignals" datatype="html">
         <source>Configure Search Signals</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">264,266</context>
+          <context context-type="linenumber">285,287</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.clickDistance.title" datatype="html">
         <source>Click Distance</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">272,274</context>
+          <context context-type="linenumber">293,295</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.clickDistance.hint" datatype="html">
         <source>Structural proximity to home and URL depth.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">275,277</context>
+          <context context-type="linenumber">296,298</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.sensitivity" datatype="html">
         <source>Sensitivity (k)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">285,286</context>
+          <context context-type="linenumber">306,307</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.smoothing" datatype="html">
         <source>Smoothing (b)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">292,293</context>
+          <context context-type="linenumber">313,314</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.actions.recalculateScores" datatype="html">
         <source>Recalculate Scores</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">301,303</context>
+          <context context-type="linenumber">322,324</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.spamGuards.title" datatype="html">
         <source>Spam Guards</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">310,312</context>
+          <context context-type="linenumber">331,333</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.spamGuards.hint" datatype="html">
         <source>Patent-backed limits that prevent the tool from producing spammy internal-link suggestions.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">313,315</context>
+          <context context-type="linenumber">334,336</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.maxExistingLinksPerHost" datatype="html">
         <source>Max existing links per host</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">316,317</context>
+          <context context-type="linenumber">337,338</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.maxAnchorWords" datatype="html">
         <source>Max anchor words</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">323,324</context>
+          <context context-type="linenumber">344,345</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.paragraphWindow" datatype="html">
         <source>Paragraph window (sentences)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">330,331</context>
+          <context context-type="linenumber">351,352</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.actions.saveSpamGuards" datatype="html">
         <source><x id="INTERPOLATION" equiv-text="{{ savingSpamGuards ? &apos;Saving...&apos; : &apos;Save Spam Guards&apos; }}"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">340,341</context>
+          <context context-type="linenumber">361,362</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.anchorDiversity.title" datatype="html">
         <source>Anchor Diversity</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">348,349</context>
+          <context context-type="linenumber">369,370</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.anchorDiversity.hint" datatype="html">
         <source>FR-045 exact-match reuse guard. Keeps anchor wording varied without changing anchor selection itself.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">365,366</context>
+          <context context-type="linenumber">386,387</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.minHistoryCount" datatype="html">
         <source>Min history count</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">374,375</context>
+          <context context-type="linenumber">395,396</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.maxExactMatchShare" datatype="html">
         <source>Max exact-match share</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">381,382</context>
+          <context context-type="linenumber">402,403</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.maxExactMatchCount" datatype="html">
         <source>Max exact-match count</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">388,389</context>
+          <context context-type="linenumber">409,410</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.hardCap" datatype="html">
         <source>Hard cap</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">395,396</context>
+          <context context-type="linenumber">416,417</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.options.penaltyOnly" datatype="html">
         <source>Penalty only</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">397,398</context>
+          <context context-type="linenumber">418,419</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.options.hardBlock" datatype="html">
         <source>Hard block</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">398,399</context>
+          <context context-type="linenumber">419,420</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.actions.saveAnchorDiversity" datatype="html">
         <source><x id="INTERPOLATION" equiv-text="{{ savingAnchorDiversity ? &apos;Saving...&apos; : &apos;Save Anchor Diversity&apos; }}"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">408,409</context>
+          <context context-type="linenumber">429,430</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.keywordStuffing.title" datatype="html">
         <source>Keyword Stuffing</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">416,417</context>
+          <context context-type="linenumber">437,438</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.keywordStuffing.hint" datatype="html">
         <source>FR-198 content anomaly penalty using KL divergence against the site baseline language model.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">433,434</context>
+          <context context-type="linenumber">454,455</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.alpha" datatype="html">
         <source>Alpha</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">442,443</context>
+          <context context-type="linenumber">463,464</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.tau" datatype="html">
         <source>Tau</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">449,450</context>
+          <context context-type="linenumber">470,471</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.dirichletMu" datatype="html">
         <source>Dirichlet μ</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">456,457</context>
+          <context context-type="linenumber">477,478</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.topKStuffTerms" datatype="html">
         <source>Top suspicious terms</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">463,464</context>
+          <context context-type="linenumber">484,485</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.actions.saveKeywordStuffing" datatype="html">
         <source><x id="INTERPOLATION" equiv-text="{{ savingKeywordStuffing ? &apos;Saving...&apos; : &apos;Save Keyword Stuffing&apos; }}"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">473,474</context>
+          <context context-type="linenumber">494,495</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.linkFarm.title" datatype="html">
         <source>Link-Farm Detection</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">481,482</context>
+          <context context-type="linenumber">502,503</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.linkFarm.hint" datatype="html">
         <source>FR-197 reciprocal-ring penalty using strongly connected components on the existing internal graph.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">498,499</context>
+          <context context-type="linenumber">519,520</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.minSccSize" datatype="html">
         <source>Min SCC size</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">507,508</context>
+          <context context-type="linenumber">528,529</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.densityThreshold" datatype="html">
         <source>Density threshold</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">514,515</context>
+          <context context-type="linenumber">535,536</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.lambda" datatype="html">
         <source>Lambda</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">521,522</context>
+          <context context-type="linenumber">542,543</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.actions.saveLinkFarm" datatype="html">
         <source><x id="INTERPOLATION" equiv-text="{{ savingLinkFarm ? &apos;Saving...&apos; : &apos;Save Link-Farm Detection&apos; }}"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">531,532</context>
+          <context context-type="linenumber">552,553</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.stage1.title" datatype="html">
         <source>Stage-1 Candidate Retrievers (Group C)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">544,546</context>
+          <context context-type="linenumber">565,567</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.stage1.hint" datatype="html">
         <source> Add complementary candidate retrievers to Stage-1. The semantic (BGE-M3 cosine) retriever is always on. Flipping either flag below activates Reciprocal Rank Fusion (RRF, pick #31) per destination. Source: Cormack et al. 2009 SIGIR. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">548,551</context>
+          <context context-type="linenumber">569,572</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.retriever.lexical" datatype="html">
         <source>Lexical retriever (token overlap)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">555,557</context>
+          <context context-type="linenumber">576,578</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.tips.lexicalRetriever" datatype="html">
         <source>Group C.2 — adds the LexicalRetriever (token-overlap on titles + scopes). Catches synonyms / spelling-out gaps that dense embeddings miss.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">563,564</context>
+          <context context-type="linenumber">584,585</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.retriever.rocchio" datatype="html">
         <source>Query-expansion retriever (Rocchio PRF, pick #27)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">570,572</context>
+          <context context-type="linenumber">591,593</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.tips.queryExpansionRetriever" datatype="html">
         <source>Group C.3 — adds the QueryExpansionRetriever (Rocchio 1971 / Lavrenko-Croft 2001 PRF). Pulls in hosts that share expansion terms even when they don&apos;t share literal title tokens. Combine with lexical retriever for the richest fused ranking.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">578,579</context>
+          <context context-type="linenumber">599,600</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.retriever.bm25" datatype="html">
         <source>XenForo BM25 retriever (Enhanced Search via REST API)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">585,587</context>
+          <context context-type="linenumber">606,608</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.tips.bm25Retriever" datatype="html">
         <source>Adds the XenForoBM25Retriever (Path A). For each destination, queries XenForo&apos;s Enhanced Search (Elasticsearch-backed BM25) via the existing API key and contributes BM25-ranked forum candidates. Fused with FAISS via RRF. XF-source candidates only — WordPress / blog / crawled hosts are unaffected. Source: docs/specs/xf-bm25-retrieval.md, BM25 Robertson &amp; Zaragoza 2009.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">593,594</context>
+          <context context-type="linenumber">614,615</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.actions.saveStage1Retrievers" datatype="html">
         <source><x id="INTERPOLATION" equiv-text="{{ savingStage1Retrievers ? &apos;Saving...&apos; : &apos;Save Stage-1 retrievers&apos; }}"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">605,606</context>
+          <context context-type="linenumber">626,627</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.phase6.title" datatype="html">
         <source>Optional Pick Toggles (10 paper-backed helpers)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">619,621</context>
+          <context context-type="linenumber">640,642</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.phase6.hint" datatype="html">
         <source> These 10 helpers come from the 52-pick research plan. All default ON; the pip deps + model files are already installed. Flip OFF any pick whose RAM or training cost outweighs its benefit on your corpus. Each tooltip cites the paper. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">623,626</context>
+          <context context-type="linenumber">644,647</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.extractor.vader" datatype="html">
         <source>VADER Sentiment (#22)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">631,632</context>
+          <context context-type="linenumber">652,653</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.extractor.pysbd" datatype="html">
         <source>PySBD sentence splitter (#15)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">643,644</context>
+          <context context-type="linenumber">664,665</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.extractor.yake" datatype="html">
         <source>YAKE! keyword extractor (#17)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">655,656</context>
+          <context context-type="linenumber">676,677</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.extractor.trafilatura" datatype="html">
         <source>Trafilatura main-content (#7)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">667,668</context>
+          <context context-type="linenumber">688,689</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.extractor.fasttext" datatype="html">
         <source>FastText LangID (#14)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">679,680</context>
+          <context context-type="linenumber">700,701</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.extractor.lda" datatype="html">
         <source>LDA topic model (#18)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">691,692</context>
+          <context context-type="linenumber">712,713</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.extractor.kenlm" datatype="html">
         <source>KenLM trigram fluency (#23)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">703,704</context>
+          <context context-type="linenumber">724,725</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.extractor.node2vec" datatype="html">
         <source>Node2Vec graph embeddings (#37)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">715,716</context>
+          <context context-type="linenumber">736,737</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.extractor.bpr" datatype="html">
         <source>BPR pairwise LTR (#38)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">727,728</context>
+          <context context-type="linenumber">748,749</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.extractor.fm" datatype="html">
         <source>Factorization Machines (#39)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">739,740</context>
+          <context context-type="linenumber">760,761</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.darb.title" datatype="html">
         <source>Dangling Authority Redistribution Bonus (FR-099)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">765,766</context>
+          <context context-type="linenumber">786,787</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.darb.hint" datatype="html">
         <source>Boost candidates from high-value hosts that barely link out — fixes the Reddit-post &quot;dead-end street&quot; problem. Source: Page et al. 1999 §2.5.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">782,783</context>
+          <context context-type="linenumber">803,804</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.outDegreeSaturation" datatype="html">
         <source>Out-degree saturation</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">791,792</context>
+          <context context-type="linenumber">812,813</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.minHostValue" datatype="html">
         <source>Min host value</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">798,799</context>
+          <context context-type="linenumber">819,820</context>
         </context-group>
       </trans-unit>
       <trans-unit id="metaAlgorithms.actions.viewSpecTooltipDARB" datatype="html">
         <source>Open the FR-099 spec inside this page (no navigation away).</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">807</context>
+          <context context-type="linenumber">828</context>
         </context-group>
       </trans-unit>
       <trans-unit id="metaAlgorithms.actions.viewSpec" datatype="html">
         <source>View spec</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">809,811</context>
+          <context context-type="linenumber">830,832</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">867,869</context>
+          <context context-type="linenumber">888,890</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">916,918</context>
+          <context context-type="linenumber">937,939</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">962,964</context>
+          <context context-type="linenumber">983,985</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1008,1010</context>
+          <context context-type="linenumber">1029,1031</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1054,1056</context>
+          <context context-type="linenumber">1075,1077</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1114,1116</context>
+          <context context-type="linenumber">1135,1137</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.actions.saveDarb" datatype="html">
         <source><x id="INTERPOLATION" equiv-text="{{ savingDarb ? &apos;Saving...&apos; : &apos;Save DARB&apos; }}"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">814,815</context>
+          <context context-type="linenumber">835,836</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.kmig.title" datatype="html">
         <source>Katz Marginal Information Gain (FR-100)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">823,824</context>
+          <context context-type="linenumber">844,845</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.kmig.hint" datatype="html">
         <source>Attenuation-based boost for candidates that reside in deep but high-quality subgraphs. Source: Katz 1953.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">840,841</context>
+          <context context-type="linenumber">861,862</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.kmigAttenuation" datatype="html">
         <source>Katz attenuation β</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">849,850</context>
+          <context context-type="linenumber">870,871</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.maxHops" datatype="html">
         <source>Max hops</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">856,857</context>
+          <context context-type="linenumber">877,878</context>
         </context-group>
       </trans-unit>
       <trans-unit id="metaAlgorithms.actions.viewSpecTooltipKMIG" datatype="html">
         <source>Open the FR-100 spec inside this page (no navigation away).</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">865</context>
+          <context context-type="linenumber">886</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.actions.saveKmig" datatype="html">
         <source><x id="INTERPOLATION" equiv-text="{{ savingKmig ? &apos;Saving...&apos; : &apos;Save KMIG&apos; }}"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">872,873</context>
+          <context context-type="linenumber">893,894</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.articulationOnly" datatype="html">
         <source>Articulation-only mode</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">902,903</context>
+          <context context-type="linenumber">923,924</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.options.strictAps" datatype="html">
         <source>Strict (only APs)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">904,905</context>
+          <context context-type="linenumber">925,926</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.options.graded" datatype="html">
         <source>Graded (future)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">905,906</context>
+          <context context-type="linenumber">926,927</context>
         </context-group>
       </trans-unit>
       <trans-unit id="metaAlgorithms.actions.viewSpecTooltipTAPB" datatype="html">
         <source>Open the FR-101 spec inside this page (no navigation away).</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">914</context>
+          <context context-type="linenumber">935</context>
         </context-group>
       </trans-unit>
       <trans-unit id="metaAlgorithms.actions.viewSpecTooltipKCIB" datatype="html">
         <source>Open the FR-102 spec inside this page (no navigation away).</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">960</context>
+          <context context-type="linenumber">981</context>
         </context-group>
       </trans-unit>
       <trans-unit id="metaAlgorithms.actions.viewSpecTooltipBERP" datatype="html">
         <source>Open the FR-103 spec inside this page (no navigation away).</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1006</context>
+          <context context-type="linenumber">1027</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.hgte.title" datatype="html">
         <source>Host-Graph Topic Entropy Boost (FR-104)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1022,1023</context>
+          <context context-type="linenumber">1043,1044</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.hgte.hint" datatype="html">
         <source>Rewards candidates that diversify the host&apos;s outbound-link topic portfolio (Shannon entropy delta). Source: Shannon 1948 §6 eq. 4.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1034,1035</context>
+          <context context-type="linenumber">1055,1056</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.minHostOutDegree" datatype="html">
         <source>Min host out-degree</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1043,1044</context>
+          <context context-type="linenumber">1064,1065</context>
         </context-group>
       </trans-unit>
       <trans-unit id="metaAlgorithms.actions.viewSpecTooltipHGTE" datatype="html">
         <source>Open the FR-104 spec inside this page (no navigation away).</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1052</context>
+          <context context-type="linenumber">1073</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.actions.saveHgte" datatype="html">
         <source><x id="INTERPOLATION" equiv-text="{{ savingHgte ? &apos;Saving...&apos; : &apos;Save HGTE&apos; }}"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1059,1060</context>
+          <context context-type="linenumber">1080,1081</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.rsqva.title" datatype="html">
         <source>Reverse Search-Query Vocabulary Alignment (FR-105)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1068,1069</context>
+          <context context-type="linenumber">1089,1090</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.rsqva.hint" datatype="html">
         <source>TF-IDF cosine between host&apos;s and destination&apos;s Google Search Console query vocabularies — rewards user-intent overlap. Source: Salton &amp; Buckley 1988, Järvelin &amp; Kekäläinen 2002.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1080,1081</context>
+          <context context-type="linenumber">1101,1102</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.minQueriesPerPage" datatype="html">
         <source>Min queries per page</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1089,1090</context>
+          <context context-type="linenumber">1110,1111</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.minQueryClicks" datatype="html">
         <source>Min query clicks</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1096,1097</context>
+          <context context-type="linenumber">1117,1118</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.maxVocabSize" datatype="html">
         <source>Max vocab size</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1103,1104</context>
+          <context context-type="linenumber">1124,1125</context>
         </context-group>
       </trans-unit>
       <trans-unit id="metaAlgorithms.actions.viewSpecTooltipRSQVA" datatype="html">
         <source>Open the FR-105 spec inside this page (no navigation away).</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1112</context>
+          <context context-type="linenumber">1133</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.actions.saveRsqva" datatype="html">
         <source><x id="INTERPOLATION" equiv-text="{{ savingRsqva ? &apos;Saving...&apos; : &apos;Save RSQVA&apos; }}"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1119,1120</context>
+          <context context-type="linenumber">1140,1141</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.feedbackReranking.title" datatype="html">
         <source>Feedback Reranking</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1128,1129</context>
+          <context context-type="linenumber">1149,1150</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.nearDuplicateClustering.title" datatype="html">
         <source>Near-Duplicate Clustering</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1155,1157</context>
+          <context context-type="linenumber">1176,1178</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.nearDuplicateClustering.hint" datatype="html">
         <source>Prevents near-duplicate destination spam.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1158,1160</context>
+          <context context-type="linenumber">1179,1181</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.clusteringStatus" datatype="html">
         <source>Clustering Status</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1161,1162</context>
+          <context context-type="linenumber">1182,1183</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.options.active" datatype="html">
         <source>Active</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1163,1164</context>
+          <context context-type="linenumber">1184,1185</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.options.inactive" datatype="html">
         <source>Inactive</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1164,1165</context>
+          <context context-type="linenumber">1185,1186</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.similarityThreshold" datatype="html">
         <source>Similarity Thr.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1171,1172</context>
+          <context context-type="linenumber">1192,1193</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.actions.recalculateClusters" datatype="html">
         <source>Recalculate Clusters</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1180,1182</context>
+          <context context-type="linenumber">1201,1203</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.slateDiversity.title" datatype="html">
         <source>Slate Diversity</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1189,1191</context>
+          <context context-type="linenumber">1210,1212</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.slateDiversity.hint" datatype="html">
         <source>MMR reranking for suggestion diversity.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1192,1194</context>
+          <context context-type="linenumber">1213,1215</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.diversityEnable" datatype="html">
         <source>Diversity Enable</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1195,1196</context>
+          <context context-type="linenumber">1216,1217</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.lambdaDiversity" datatype="html">
         <source>Lambda (Diversity)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1205,1206</context>
+          <context context-type="linenumber">1226,1227</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.scoreWindow" datatype="html">
         <source>Score Window</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1212,1213</context>
+          <context context-type="linenumber">1233,1234</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.similarityCap" datatype="html">
         <source>Similarity Cap</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1219,1220</context>
+          <context context-type="linenumber">1240,1241</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.graphCandidates.title" datatype="html">
         <source>Graph Candidate Generation</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1232,1233</context>
+          <context context-type="linenumber">1253,1254</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.graphCandidates.hint" datatype="html">
         <source>Finds &quot;people also linked&quot; and structural paths via random walks.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1244,1245</context>
+          <context context-type="linenumber">1265,1266</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.walkSteps" datatype="html">
         <source>Walk steps / entity</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1246,1247</context>
+          <context context-type="linenumber">1267,1268</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.minStableNodes" datatype="html">
         <source>Min. stable nodes</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1253,1254</context>
+          <context context-type="linenumber">1274,1275</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.visitThreshold" datatype="html">
         <source>Visit thresh.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1260,1261</context>
+          <context context-type="linenumber">1281,1282</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.actions.rebuildKnowledgeGraph" datatype="html">
         <source>Rebuild Knowledge Graph</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1269,1271</context>
+          <context context-type="linenumber">1290,1292</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.valueModel.title" datatype="html">
         <source>Value Model Scoring</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1278,1279</context>
+          <context context-type="linenumber">1299,1300</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.valueModel.hint" datatype="html">
         <source>Pre-score and prune candidates based on engagement potential.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1290,1291</context>
+          <context context-type="linenumber">1311,1312</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.trafficWeight" datatype="html">
         <source>Traffic weight</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1292,1293</context>
+          <context context-type="linenumber">1313,1314</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.freshnessWeight" datatype="html">
         <source>Freshness weight</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1299,1300</context>
+          <context context-type="linenumber">1320,1321</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.engagementQuality.title" datatype="html">
         <source>Engagement Quality Signal (Read-Through Rate)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1316,1318</context>
+          <context context-type="linenumber">1337,1339</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.engagementSignal" datatype="html">
         <source>Engagement signal</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1319,1320</context>
+          <context context-type="linenumber">1340,1341</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.engagementWeight" datatype="html">
         <source>Engagement weight</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1329,1330</context>
+          <context context-type="linenumber">1350,1351</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.lookbackWindowDays" datatype="html">
         <source>Lookback window (days)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1336,1337</context>
+          <context context-type="linenumber">1357,1358</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.readingSpeedWpm" datatype="html">
         <source>Reading speed (WPM)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1343,1344</context>
+          <context context-type="linenumber">1364,1365</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.capRatio" datatype="html">
         <source>Cap ratio</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1350,1351</context>
+          <context context-type="linenumber">1371,1372</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.redditHotDecay.title" datatype="html">
         <source>Reddit Hot Decay (Traffic Momentum)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1361,1363</context>
+          <context context-type="linenumber">1382,1384</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.hotDecay" datatype="html">
         <source>Hot decay</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1364,1365</context>
+          <context context-type="linenumber">1385,1386</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.gravityFactor" datatype="html">
         <source>Gravity factor</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1374,1375</context>
+          <context context-type="linenumber">1395,1396</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.clicksWeight" datatype="html">
         <source>Clicks weight</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1381,1382</context>
+          <context context-type="linenumber">1402,1403</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.impressionsWeight" datatype="html">
         <source>Impressions weight</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1388,1389</context>
+          <context context-type="linenumber">1409,1410</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.coOccurrence.title" datatype="html">
         <source>Session Co-Occurrence Signal</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1406,1408</context>
+          <context context-type="linenumber">1427,1429</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.coOccurrenceSignal" datatype="html">
         <source>Co-occurrence signal</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1409,1410</context>
+          <context context-type="linenumber">1430,1431</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.coOccurrenceWeight" datatype="html">
         <source>Co-occurrence weight</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1419,1420</context>
+          <context context-type="linenumber">1440,1441</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.minCoSessions" datatype="html">
         <source>Min co-sessions</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1426,1427</context>
+          <context context-type="linenumber">1447,1448</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.fallbackValue" datatype="html">
         <source>Fallback value</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.html</context>
-          <context context-type="linenumber">1433,1434</context>
+          <context context-type="linenumber">1454,1455</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.telemetry.status.connected" datatype="html">
         <source>Connected</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.ts</context>
-          <context context-type="linenumber">534</context>
+          <context context-type="linenumber">536</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.telemetry.status.saved" datatype="html">
         <source>Saved</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.ts</context>
-          <context context-type="linenumber">535</context>
+          <context context-type="linenumber">537</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.telemetry.status.error" datatype="html">
         <source>Error</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.ts</context>
-          <context context-type="linenumber">536</context>
+          <context context-type="linenumber">538</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.telemetry.status.notConfigured" datatype="html">
         <source>Not set up</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.ts</context>
-          <context context-type="linenumber">537</context>
+          <context context-type="linenumber">539</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.telemetry.status.unknown" datatype="html">
         <source>Unknown</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.ts</context>
-          <context context-type="linenumber">538</context>
+          <context context-type="linenumber">540</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.pageRank.success" datatype="html">
         <source>March 2026 PageRank settings saved</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.ts</context>
-          <context context-type="linenumber">592</context>
+          <context context-type="linenumber">594</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.rankingWeights.pageRank.error" datatype="html">
         <source>Failed to save March 2026 PageRank settings</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/settings/ranking-weights-tab/ranking-weights-tab.component.ts</context>
-          <context context-type="linenumber">597</context>
+          <context context-type="linenumber">599</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.overview.liveFeaturesLabel" datatype="html">
