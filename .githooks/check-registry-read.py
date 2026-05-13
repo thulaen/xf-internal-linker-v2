@@ -26,8 +26,9 @@ Why a hook instead of a memory rule: agents have repeatedly forgotten to
 log new bugs into the registry / auto_issues table even though the rules
 exist as text. A hook makes silent skipping impossible.
 
-Bypass (intentional, e.g. mechanical merge): commit with --no-verify
-ONLY if you explain in chat why. The hook has no allowlist.
+Do not bypass this hook. A commit request requires the agent to resolve
+the 30 picked AutoIssues first, stage the handoff files, and let the
+database check pass.
 
 Run manually:
     python .githooks/check-registry-read.py [path/to/AGENT-HANDOFF.md]
@@ -42,6 +43,56 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 HANDOFF = REPO_ROOT / "AGENT-HANDOFF.md"
+AI_CONTEXT = REPO_ROOT / "AI-CONTEXT.md"
+SESSION_FILES = (HANDOFF, AI_CONTEXT)
+CODE_SUFFIXES = {
+    ".c",
+    ".cc",
+    ".cpp",
+    ".cs",
+    ".go",
+    ".h",
+    ".hpp",
+    ".html",
+    ".java",
+    ".js",
+    ".jsx",
+    ".kt",
+    ".mjs",
+    ".py",
+    ".rs",
+    ".scss",
+    ".sh",
+    ".swift",
+    ".ts",
+    ".tsx",
+}
+CODE_FILENAMES = {
+    "Dockerfile",
+    "Makefile",
+}
+GENERATED_BUILD_PARTS = {
+    "build",
+    "build_tests",
+    "build_fuzz",
+    "build_mull",
+    "build_asan",
+    "build_msan",
+    "build_tsan",
+    "build_cov",
+    "__pycache__",
+}
+GENERATED_BINARY_SUFFIXES = {
+    ".a",
+    ".dll",
+    ".dylib",
+    ".exe",
+    ".lib",
+    ".o",
+    ".obj",
+    ".pyd",
+    ".so",
+}
 
 # The marker header — captures the ten per-source breakdown numbers so
 # we can assert they sum to N.  Order: agent / glitchtip / pyroscope /
@@ -113,6 +164,22 @@ GUIDELINES_READ_RE = re.compile(
     r"\[GUIDELINES READ:\s*AI-CODING-GUIDELINES\.md\s*\+\s*docs/CODE-COVERAGE-RULES\.md\s*\]",
     re.IGNORECASE,
 )
+QUALITY_GATE_READ_RE = re.compile(
+    r"\[QUALITY GATE READ:\s*self-written code must pass guidelines,\s*"
+    r"tests,\s*coverage,\s*mutation tests,\s*and required check setup before commit\s*\]",
+    re.IGNORECASE,
+)
+QUALITY_GATE_RESULT_RE = re.compile(
+    r"\[QUALITY GATE RESULT:\s*(?P<body>[^\]]+)\]",
+    re.IGNORECASE,
+)
+QUALITY_REQUIRED_RESULTS = {
+    "guidelines": "passed",
+    "tests": "passed",
+    "coverage": "met",
+    "mutation": "passed",
+    "check_setup": "passed",
+}
 COVERAGE_GAPS_RE = re.compile(
     r"\[COVERAGE GAPS READ:\s*(?:\d+\s+picked(?:\s*\+\s*\d+\s+(?:to file|filed))?|drought)[^\]]*\]",
     re.IGNORECASE,
@@ -179,9 +246,99 @@ def _commit_touches_handoff() -> bool:
     return any(line.strip() == "AGENT-HANDOFF.md" for line in out.splitlines())
 
 
+def _staged_files() -> list[str]:
+    try:
+        out = subprocess.check_output(
+            ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
+            cwd=REPO_ROOT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except subprocess.CalledProcessError:
+        return []
+    return [line.strip() for line in out.splitlines() if line.strip()]
+
+
+def _is_code_file(path: str) -> bool:
+    parts = Path(path).parts
+    name = Path(path).name
+    suffix = Path(path).suffix.lower()
+    if suffix in CODE_SUFFIXES or name in CODE_FILENAMES:
+        return True
+    if parts and parts[0] == ".githooks" and suffix not in {".md", ".txt"}:
+        return True
+    return False
+
+
+def _staged_code_files() -> list[str]:
+    return [path for path in _staged_files() if _is_code_file(path)]
+
+
+def _is_generated_build_file(path: str) -> bool:
+    path_obj = Path(path)
+    parts = set(path_obj.parts)
+    if parts.intersection(GENERATED_BUILD_PARTS):
+        return True
+    if path_obj.suffix.lower() in GENERATED_BINARY_SUFFIXES:
+        return True
+    if path.startswith("backend/extensions/reports/"):
+        return True
+    return False
+
+
+def _staged_generated_build_files() -> list[str]:
+    return [path for path in _staged_files() if _is_generated_build_file(path)]
+
+
+def _unstaged_session_files() -> list[str]:
+    paths = [path.relative_to(REPO_ROOT).as_posix() for path in SESSION_FILES]
+    try:
+        out = subprocess.check_output(
+            ["git", "diff", "--name-only", "--", *paths],
+            cwd=REPO_ROOT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except subprocess.CalledProcessError:
+        return []
+    return [
+        line.strip()
+        for line in out.splitlines()
+        if line.strip() in {"AGENT-HANDOFF.md", "AI-CONTEXT.md"}
+    ]
+
+
 def _fail(msg: str) -> int:
     sys.stderr.write(f"\n\033[31m[check-registry-read]\033[0m FAIL: {msg}\n")
     return 1
+
+
+def _validate_no_unstaged_session_files() -> int:
+    files = _unstaged_session_files()
+    if not files:
+        return 0
+    listed = ", ".join(files)
+    return _fail(
+        f"{listed} has unstaged changes. Stage the session files and finish "
+        "the 30 picked AutoIssue fixes before committing. Do not unstage "
+        "`AGENT-HANDOFF.md` or `AI-CONTEXT.md` to avoid the database check."
+    )
+
+
+def _validate_no_generated_build_files() -> int:
+    files = _staged_generated_build_files()
+    if not files:
+        return 0
+    listed = ", ".join(files[:8])
+    if len(files) > 8:
+        listed += f", and {len(files) - 8} more"
+    return _fail(
+        "Generated build output or compiled binaries are staged. Build output "
+        "must stay in Docker-managed artifact storage, not Git. Unstage these "
+        f"files and keep only source, tests, config, and scripts: {listed}"
+    )
 
 
 def _extract_picked_issue_ids(added: str) -> list[str]:
@@ -403,6 +560,54 @@ def _validate_guidelines_read(added: str) -> int:
     )
 
 
+def _parse_quality_result(body: str) -> dict[str, str]:
+    results: dict[str, str] = {}
+    result_parts = re.findall(
+        r"([a-z_]+)\s*=\s*([^=]+?)(?=\s+[a-z_]+\s*=|$)",
+        body,
+    )
+    for key, value in result_parts:
+        results[key.lower()] = value.strip().lower()
+    return results
+
+
+def _validate_quality_gate_for_code(added: str, staged_code_files: list[str]) -> int:
+    if not staged_code_files:
+        return 0
+    listed = ", ".join(staged_code_files[:8])
+    if len(staged_code_files) > 8:
+        listed += f", and {len(staged_code_files) - 8} more"
+    if not QUALITY_GATE_READ_RE.search(added):
+        return _fail(
+            "Code files are staged, but the handoff does not include the "
+            "`[QUALITY GATE READ: ...]` marker. Add the marker after "
+            "`[GUIDELINES READ: ...]` before committing. Staged code files: "
+            f"{listed}"
+        )
+    result_match = QUALITY_GATE_RESULT_RE.search(added)
+    if not result_match:
+        return _fail(
+            "Code files are staged, but the handoff does not include the "
+            "`[QUALITY GATE RESULT: ...]` marker. Code commits must prove "
+            "guidelines, tests, coverage, mutation tests, and check setup all "
+            "passed before commit. Staged code files: "
+            f"{listed}"
+        )
+    results = _parse_quality_result(result_match.group("body"))
+    for key, expected in QUALITY_REQUIRED_RESULTS.items():
+        actual = results.get(key)
+        if actual != expected:
+            return _fail(
+                "Code files are staged, but the quality result is not passing. "
+                f"Expected `{key}={expected}` and found `{key}={actual or 'missing'}`. "
+                "Do not commit code with failing tests, unmet coverage, skipped "
+                "mutation tests, missing tools, broken containers, unavailable "
+                "checks, or known guideline violations. Fix the code or the "
+                "check setup until every required value passes."
+            )
+    return 0
+
+
 def _validate_coverage_gaps(added: str) -> int:
     """FR-251 — the fifth required marker.
 
@@ -455,7 +660,19 @@ def _validate_coverage_summary(added: str) -> int:
 
 
 def main() -> int:
-    if not _commit_touches_handoff():
+    if (rc := _validate_no_unstaged_session_files()) != 0:
+        return rc
+    if (rc := _validate_no_generated_build_files()) != 0:
+        return rc
+    staged_code_files = _staged_code_files()
+    touches_handoff = _commit_touches_handoff()
+    if staged_code_files and not touches_handoff:
+        return _fail(
+            "Code files are staged but `AGENT-HANDOFF.md` is not staged. "
+            "Stage a handoff entry with the quality gate read and result "
+            "markers before committing code."
+        )
+    if not touches_handoff:
         return 0
     added = _staged_diff_for(HANDOFF)
     if (rc := _validate_marker(added)) != 0:
@@ -465,6 +682,8 @@ def main() -> int:
     if (rc := _validate_ci_failed_runs(added)) != 0:
         return rc
     if (rc := _validate_guidelines_read(added)) != 0:
+        return rc
+    if (rc := _validate_quality_gate_for_code(added, staged_code_files)) != 0:
         return rc
     if (rc := _validate_coverage_gaps(added)) != 0:
         return rc

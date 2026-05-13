@@ -1,5 +1,7 @@
+#ifndef XF_BENCH_MODE
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -7,7 +9,9 @@
 
 #include "include/passagesim_core.h"
 
+#ifndef XF_BENCH_MODE
 namespace py = pybind11;
+#endif
 
 /**
  * Core implementation of MaxSim using standard loops.
@@ -49,6 +53,7 @@ void c_passagesim_maxsim(const float* query_ptr, const float* matrix_ptr, size_t
  *   matrix: np.array((N, dim), dtype=float32)
  * Returns: (best_sim, best_idx)
  */
+#ifndef XF_BENCH_MODE
 py::tuple maxsim(py::array_t<float> query, py::array_t<float> matrix) {
     py::buffer_info q_info = query.request();
     py::buffer_info m_info = matrix.request();
@@ -77,3 +82,4 @@ PYBIND11_MODULE(passagesim, m) {
     m.doc() = "Passage relevance similarity kernels";
     m.def("maxsim", &maxsim, "Compute maximum similarity across passages");
 }
+#endif

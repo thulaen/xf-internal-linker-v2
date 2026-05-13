@@ -97,6 +97,9 @@ services:
       # local-HTTP test, set `DJANGO_SECURE_HSTS_SECONDS=0` in `.env`.
       DJANGO_SECURE_HSTS_SECONDS: "${DJANGO_SECURE_HSTS_SECONDS:-31536000}"
       HOME: /tmp
+      PYTHONPATH: /opt/xf/compiled:/app
+      XF_COMPILED_ARTIFACT_ROOT: /opt/xf/compiled
+      XF_COMPILED_BUILD_ROOT: /tmp/xf-build
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
       REPO_ROOT: /repo
       PYROSCOPE_SERVER_ADDRESS: http://pyroscope:4040
@@ -107,6 +110,7 @@ services:
     volumes:
       - ./backend:/app
       - .:/repo:ro
+      - compiled_artifacts:/opt/xf/compiled
       - media_files:/app/media
       - staticfiles:/app/staticfiles
     ports:
@@ -135,7 +139,7 @@ services:
     # live in the host directory too; setuptools mtime-checks make this
     # a near-instant no-op when sources are unchanged.
     command: >
-      sh -c "(cd extensions && python setup.py build_ext --inplace) &&
+      sh -c "python /repo/scripts/ensure_compiled_artifacts.py &&
              until python manage.py migrate --noinput; do
                echo 'Postgres is not ready yet. Waiting 5 seconds...';
                sleep 5;
@@ -164,6 +168,9 @@ services:
       DJANGO_SETTINGS_MODULE: config.settings.production
       DJANGO_DEBUG: "False"
       HOME: /tmp
+      PYTHONPATH: /opt/xf/compiled:/app
+      XF_COMPILED_ARTIFACT_ROOT: /opt/xf/compiled
+      XF_COMPILED_BUILD_ROOT: /tmp/xf-build
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
       REPO_ROOT: /repo
       PYROSCOPE_SERVER_ADDRESS: http://pyroscope:4040
@@ -174,6 +181,7 @@ services:
     volumes:
       - ./backend:/app
       - .:/repo:ro
+      - compiled_artifacts:/opt/xf/compiled
       # 90-day Pyroscope retention cleanup (auto_issues.run_retention_cleanup)
       # walks this volume and deletes blocks older than 90 days. Pyroscope OSS
       # 1.9 doesn't expose a `retention_period` config knob, so the cleanup
@@ -198,7 +206,8 @@ services:
       redis:
         condition: service_healthy
     command: >
-      sh -c "python -c 'import drf_spectacular' &&
+      sh -c "python /repo/scripts/ensure_compiled_artifacts.py &&
+             python -c 'import drf_spectacular' &&
              DEFAULT_QUEUE_CONCURRENCY=$$(python manage.py print_default_queue_concurrency) &&
              celery -A config.celery worker --loglevel=warning --concurrency=$${DEFAULT_QUEUE_CONCURRENCY:-2} --prefetch-multiplier 1 --max-tasks-per-child=1000 -Q default"
 
@@ -221,6 +230,9 @@ services:
       DJANGO_SETTINGS_MODULE: config.settings.production
       DJANGO_DEBUG: "False"
       HOME: /tmp
+      PYTHONPATH: /opt/xf/compiled:/app
+      XF_COMPILED_ARTIFACT_ROOT: /opt/xf/compiled
+      XF_COMPILED_BUILD_ROOT: /tmp/xf-build
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
       REPO_ROOT: /repo
       PYROSCOPE_SERVER_ADDRESS: http://pyroscope:4040
@@ -232,6 +244,7 @@ services:
     volumes:
       - ./backend:/app
       - .:/repo:ro
+      - compiled_artifacts:/opt/xf/compiled
       # 90-day Pyroscope retention cleanup (auto_issues.run_retention_cleanup)
       # walks this volume and deletes blocks older than 90 days. Pyroscope OSS
       # 1.9 doesn't expose a `retention_period` config knob, so the cleanup
@@ -256,7 +269,8 @@ services:
       redis:
         condition: service_healthy
     command: >
-      sh -c "python -c 'import drf_spectacular' &&
+      sh -c "python /repo/scripts/ensure_compiled_artifacts.py &&
+             python -c 'import drf_spectacular' &&
              celery -A config.celery worker --loglevel=warning --concurrency=1 --prefetch-multiplier 1 --max-tasks-per-child=500 -Q pipeline,embeddings"
 
   # ─────────────────────────────────────────────
@@ -272,6 +286,9 @@ services:
       DJANGO_SETTINGS_MODULE: config.settings.production
       DJANGO_DEBUG: "False"
       HOME: /tmp
+      PYTHONPATH: /opt/xf/compiled:/app
+      XF_COMPILED_ARTIFACT_ROOT: /opt/xf/compiled
+      XF_COMPILED_BUILD_ROOT: /tmp/xf-build
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
       REPO_ROOT: /repo
       PYROSCOPE_SERVER_ADDRESS: http://pyroscope:4040
@@ -282,6 +299,7 @@ services:
     volumes:
       - ./backend:/app
       - .:/repo:ro
+      - compiled_artifacts:/opt/xf/compiled
     healthcheck:
       test: ["CMD-SHELL", "grep -q beat /proc/1/cmdline || exit 1"]
       interval: 60s
@@ -294,7 +312,8 @@ services:
       redis:
         condition: service_healthy
     command: >
-      sh -c "celery -A config.celery beat --loglevel=warning --scheduler django_celery_beat.schedulers:DatabaseScheduler"
+      sh -c "python /repo/scripts/ensure_compiled_artifacts.py &&
+             celery -A config.celery beat --loglevel=warning --scheduler django_celery_beat.schedulers:DatabaseScheduler"
 
   # ─────────────────────────────────────────────
   # Angular prod bundle build — runs once, publishes to volume, exits
@@ -323,16 +342,17 @@ services:
     working_dir: /app
     command: sh -c "npx stryker --version && echo 'Stryker is available in Docker'"
 
-  mutation-tools:
+  compiled-tools:
     build:
       context: .
       dockerfile: tools/mutation/Dockerfile
-    image: xf-linker-mutation-tools:latest
+    image: xf-linker-compiled-tools:latest
     profiles: ["tools"]
     working_dir: /repo
     volumes:
       - .:/repo
-    command: bash -lc "mutmut --version && mull-runner-19 --version && go version && command -v go-mutesting >/dev/null && echo 'mutation tools ready'"
+      - compiled_artifacts:/opt/xf/compiled
+    command: bash -lc "mutmut --version && mull-runner-19 --version && go version && command -v go-mutesting >/dev/null && cmake --version && clang++-19 --version && echo 'compiled tools ready'"
 
   # ─────────────────────────────────────────────
   # Nginx — serves the Angular prod bundle + proxies /api/ and /ws/
@@ -750,6 +770,8 @@ volumes:
   media_files:
     driver: local
   frontend_dist:
+    driver: local
+  compiled_artifacts:
     driver: local
   staticfiles:
     driver: local

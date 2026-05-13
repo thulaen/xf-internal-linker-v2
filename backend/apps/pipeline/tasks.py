@@ -7,7 +7,6 @@ import logging
 import time
 import uuid
 from typing import Any
-from urllib.parse import urljoin, urlparse
 
 import requests
 from asgiref.sync import async_to_sync
@@ -28,7 +27,6 @@ from urllib.error import URLError
 logger = logging.getLogger(__name__) # fixed
 
 _MAX_BROKEN_LINK_SCAN_URLS = 10_000  # maxsize for broken-link scan
-_BROKEN_LINK_SCAN_TIMEOUT_SECONDS = 10
 
 # Batch sizes for bulk DB writes
 _SENTENCE_BULK_CREATE_BATCH = 500  # maxsize for sentence bulk_create
@@ -234,7 +232,7 @@ def _publish_progress(
         logger.exception("Failed to publish progress event for job %s", job_id)
 
 
-def _emit_job_alert(  # noqa: forbidden-pattern too-many-args  # justification: shared by every task's success/failure path; bundling kwargs would obscure call sites
+def _emit_job_alert(  # noqa  # forbidden-pattern too-many-args  # justification: shared by every task's success/failure path; bundling kwargs would obscure call sites
     event_type: str,
     severity: str,
     title: str,
@@ -267,20 +265,6 @@ def _emit_job_alert(  # noqa: forbidden-pattern too-many-args  # justification: 
         logger.warning(
             "_emit_job_alert: failed to emit alert for job %s", job_id, exc_info=True
         )
-
-
-def _broken_link_allowed_domains() -> list[str]:
-    from django.conf import settings
-
-    allowed_domains: list[str] = []
-    for raw_url in [
-        getattr(settings, "XENFORO_BASE_URL", ""),
-        getattr(settings, "WORDPRESS_BASE_URL", ""),
-    ]:
-        host = urlparse(raw_url).netloc.strip().lower()
-        if host and host not in allowed_domains:
-            allowed_domains.append(host)
-    return allowed_domains
 
 
 def _save_checkpoint(
@@ -383,30 +367,110 @@ def recalculate_click_distance_task(self, job_id: str | None = None) -> dict:
         raise
 
 
-def _probe_link_health(session: requests.Session, url: str) -> tuple[int, str]:
-    """Check a URL with HEAD first, then GET when HEAD is not supported."""
-    try:
-        response = session.head(
-            url, allow_redirects=False, timeout=_BROKEN_LINK_SCAN_TIMEOUT_SECONDS
-        )
-        if response.status_code in {405, 501}:
-            response = session.get(
-                url, allow_redirects=False, timeout=_BROKEN_LINK_SCAN_TIMEOUT_SECONDS
-            )
-    except requests.RequestException:
-        logger.warning("Broken link scan request failed for %s", url, exc_info=True)
-        return 0, ""
-
-    redirect_url = ""
-    if response.status_code in {301, 302, 307, 308}:
-        location = response.headers.get("Location", "").strip()
-        if location:
-            redirect_url = urljoin(url, location)
-    return response.status_code, redirect_url
-
-
 def _status_label(http_status: int) -> str:
     return str(http_status) if http_status else "connection error"
+
+
+def _broken_link_scan_result(
+    *,
+    job_id: str,
+    scanned_urls: int,
+    flagged_urls: int,
+    fixed_urls: int,
+    hit_scan_cap: bool,
+    probe_backend: str,
+) -> dict[str, Any]:
+    return {
+        "job_id": job_id,
+        "scanned_urls": scanned_urls,
+        "flagged_urls": flagged_urls,
+        "fixed_urls": fixed_urls,
+        "hit_scan_cap": hit_scan_cap,
+        "probe_backend": probe_backend,
+    }
+
+
+def _empty_broken_link_scan_result(job_id: str, hit_scan_cap: bool) -> dict[str, Any]:
+    _publish_progress(job_id, "completed", 1.0, "No internal links found to scan.")
+    return _broken_link_scan_result(
+        job_id=job_id,
+        scanned_urls=0,
+        flagged_urls=0,
+        fixed_urls=0,
+        hit_scan_cap=hit_scan_cap,
+        probe_backend="python_async_httpx",
+    )
+
+
+def _execute_broken_link_scan(job_id: str) -> dict[str, Any]:
+    from django.utils import timezone
+
+    from apps.pipeline.tasks_broken_links import (
+        build_existing_records_map,
+        collect_urls_to_scan,
+        persist_scan_results,
+        scan_via_async_http,
+    )
+
+    _publish_progress(job_id, "running", 0.0, "Collecting links for health check...")
+    urls_to_scan, hit_scan_cap = collect_urls_to_scan()
+    total_urls = len(urls_to_scan)
+    if total_urls == 0:
+        return _empty_broken_link_scan_result(job_id, hit_scan_cap)
+
+    to_create: list[Any] = []
+    to_update: list[Any] = []
+    flagged_urls, fixed_urls, probe_backend = scan_via_async_http(
+        list(urls_to_scan.values()),
+        job_id=job_id,
+        total_urls=total_urls,
+        existing_records=build_existing_records_map(urls_to_scan),
+        to_create=to_create,
+        to_update=to_update,
+        checked_at=timezone.now(),
+        hit_scan_cap=hit_scan_cap,
+    )
+    persist_scan_results(to_create, to_update)
+    _publish_progress(
+        job_id,
+        "completed",
+        1.0,
+        "Broken link scan complete.",
+        scanned_urls=total_urls,
+        flagged_urls=flagged_urls,
+        fixed_urls=fixed_urls,
+        hit_scan_cap=hit_scan_cap,
+        probe_backend=probe_backend,
+    )
+    return _broken_link_scan_result(
+        job_id=job_id,
+        scanned_urls=total_urls,
+        flagged_urls=flagged_urls,
+        fixed_urls=fixed_urls,
+        hit_scan_cap=hit_scan_cap,
+        probe_backend=probe_backend,
+    )
+
+
+@shared_task(name="pipeline.scan_broken_links", time_limit=3600, soft_time_limit=3540)
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=300,
+)
+def scan_broken_links(job_id: str | None = None) -> dict[str, Any]:
+    """Identify and flag broken outbound internal links."""
+    if not connection.in_atomic_block:
+        connection.close()
+
+    return _execute_broken_link_scan(job_id or str(uuid.uuid4()))
+
+
+def dispatch_broken_link_scan(job_id: str | None = None) -> dict[str, str]:
+    scan_broken_links.delay(job_id=job_id)
+    return {"runtime_owner": "celery"}
 
 
 @shared_task(name="pipeline.run_clustering_pass", time_limit=1800, soft_time_limit=1740)
@@ -471,7 +535,7 @@ def run_clustering_pass(job_id: str | None = None) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _purge_aged_rows(  # noqa: forbidden-pattern too-many-args  # justification: shared by 9 retention blocks; bundling kwargs would add allocations and obscure the per-call config
+def _purge_aged_rows(  # noqa  # forbidden-pattern too-many-args  # justification: shared by 9 retention blocks; bundling kwargs would add allocations and obscure the per-call config
     *,
     model_cls,
     cutoff_field: str,
@@ -517,7 +581,7 @@ def _purge_aged_rows(  # noqa: forbidden-pattern too-many-args  # justification:
         return 0
 
 
-def _purge_with_bitmap_preview(  # noqa: forbidden-pattern too-many-args  # justification: shared by 3 IPS/IPW blocks (B.5, B.6, B.7); bundling reduces clarity at the per-call config sites
+def _purge_with_bitmap_preview(  # noqa  # forbidden-pattern too-many-args  # justification: shared by 3 IPS/IPW blocks (B.5, B.6, B.7); bundling reduces clarity at the per-call config sites
     *,
     queryset,
     use_bitmap: bool,
@@ -688,7 +752,7 @@ def _run_standard_purges(now, results: dict[str, int]) -> None:
         results["metric_snapshots_deleted"] = 0
 
 
-def _standard_purge_spec_rows() -> list[dict]:  # noqa: forbidden-pattern long-function  # justification: pure static data table — adding a new retention rule = one entry; splitting would obscure the inventory.
+def _standard_purge_spec_rows() -> list[dict]:  # noqa  # forbidden-pattern long-function  # justification: pure static data table — adding a new retention rule = one entry; splitting would obscure the inventory.
     """Static spec rows used by :func:`_build_standard_purge_specs`.
 
     The 7 retention-purge entries below are pure data — each row maps

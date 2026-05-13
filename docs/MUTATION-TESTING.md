@@ -29,17 +29,18 @@ behaviour matters more than adding a tool for every language.
 
 ## Docker Availability
 
-The `mutation-tools` Docker service installs the backend-side mutation tools so a new PC can
-rebuild the stack and get the same tools quickly:
+The `compiled-tools` Docker service installs the backend-side compiled-language and mutation
+tools so a new PC can rebuild the stack and get the same tools quickly:
 
 - `mutmut` for Python.
 - `mull-runner-19` for scoped C++ mutation pilots.
 - `go` and `go-mutesting` for future scoped Go package mutation pilots.
+- `cmake`, `ninja`, and `clang++-19` for C++ tests, fuzzing, and benchmarks.
 
 The frontend Stryker toolchain lives in the frontend build image. Check it with:
 
 ```bash
-docker compose --profile tools run --rm mutation-tools
+docker compose --profile tools run --rm compiled-tools
 docker compose --profile tools run --rm frontend-mutation-tools
 ```
 

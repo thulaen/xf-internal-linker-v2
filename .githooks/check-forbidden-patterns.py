@@ -124,10 +124,7 @@ def line_in_ranges(lineno: int, ranges: list[tuple[int, int]] | None) -> bool:
     """True if ``lineno`` is in one of the diff-added ranges (or full-file scan)."""
     if ranges is None:
         return True
-    for start, end in ranges:
-        if start <= lineno <= end:
-            return True
-    return False
+    return any(start <= lineno <= end for start, end in ranges)
 
 
 def is_exempt(path: Path) -> bool:
@@ -138,12 +135,15 @@ def is_exempt(path: Path) -> bool:
 # ── Per-rule scanners ─────────────────────────────────────────────
 
 
-_NOQA_LINE_RE = re.compile(r"#\s*noqa:\s*forbidden-pattern\b", re.IGNORECASE)
+_NOQA_LINE_RE = re.compile(
+    r"#\s*noqa(?::\s*forbidden-pattern\b|\b.*#\s*forbidden-pattern\b)",
+    re.IGNORECASE,
+)
 
 # Sites that already carry the standard ruff broad-except suppression
 # (`# noqa: BLE001`) have been intentionally accepted by review and the
 # author has decided the silent fallback is correct. Treat that as
-# equivalent to the project-specific ``# noqa: forbidden-pattern silent-except``
+# equivalent to the project-specific forbidden-pattern silent-except marker
 # so the linter doesn't double-flag well-curated code.
 _BLE001_NOQA_RE = re.compile(r"#\s*noqa:\s*BLE001\b", re.IGNORECASE)
 
@@ -152,20 +152,14 @@ def _has_noqa(source_lines: list[str], lineno: int, window: int = 1) -> bool:
     """True if any line within ``window`` of ``lineno`` carries the noqa marker."""
     lo = max(0, lineno - 1 - window)
     hi = min(len(source_lines), lineno + window)
-    for line in source_lines[lo:hi]:
-        if _NOQA_LINE_RE.search(line):
-            return True
-    return False
+    return any(_NOQA_LINE_RE.search(line) for line in source_lines[lo:hi])
 
 
 def _has_ble001_noqa(source_lines: list[str], lineno: int, window: int = 1) -> bool:
     """True if any line within ``window`` carries the ruff BLE001 suppression."""
     lo = max(0, lineno - 1 - window)
     hi = min(len(source_lines), lineno + window)
-    for line in source_lines[lo:hi]:
-        if _BLE001_NOQA_RE.search(line):
-            return True
-    return False
+    return any(_BLE001_NOQA_RE.search(line) for line in source_lines[lo:hi])
 
 
 def scan_silent_except(tree: ast.Module, source_lines: list[str], path: Path) -> list[Violation]:

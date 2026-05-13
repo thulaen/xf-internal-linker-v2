@@ -43,7 +43,7 @@ static void BM_DamerauLevenshtein(benchmark::State& state) {
     const std::string a = random_alpha(length, gen);
     const std::string b = random_alpha(length, gen);
     for (auto _ : state) {
-        const auto d = damerau_levenshtein(a, b);
+        auto d = damerau_levenshtein(a, b);
         benchmark::DoNotOptimize(d);
     }
     state.SetItemsProcessed(state.iterations() * static_cast<int64_t>(length));
@@ -56,7 +56,7 @@ static void BM_CharTrigramJaccard(benchmark::State& state) {
     const std::string a = random_alpha(length, gen);
     const std::string b = random_alpha(length, gen);
     for (auto _ : state) {
-        const auto j = char_trigram_jaccard(a, b);
+        auto j = char_trigram_jaccard(a, b);
         benchmark::DoNotOptimize(j);
     }
     state.SetItemsProcessed(state.iterations() * static_cast<int64_t>(length));
@@ -70,7 +70,7 @@ static void BM_BigramEntropy(benchmark::State& state) {
     std::mt19937 gen(42);
     const std::string text = random_alpha(length, gen);
     for (auto _ : state) {
-        const auto h = bigram_entropy(text);
+        auto h = bigram_entropy(text);
         benchmark::DoNotOptimize(h);
     }
     state.SetItemsProcessed(state.iterations() * static_cast<int64_t>(length));

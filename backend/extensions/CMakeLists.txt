@@ -38,14 +38,14 @@ link_directories(${PYTHON_LIBS_DIR})
 add_compile_definitions(XF_BENCH_MODE)
 add_compile_options(-O1)
 
-# ── Coverage plumbing — FR-251 Gap #3 ─────────────────────────────
-# Enable with `-DCOVERAGE=ON`. Adds GCC/Clang coverage flags so an lcov
-# pass after `ctest` produces a per-file branch + line report. The
+# Coverage plumbing for FR-251 Gap #3.
+# Enable with `-DCOVERAGE=ON`. This adds GCC/Clang coverage flags so an
+# lcov pass after `ctest` produces a per-file branch and line report. The
 # default OFF preset keeps the normal unit-test build fast. CI's
 # `cpp-coverage` job sets COVERAGE=ON.
 option(COVERAGE "Build with --coverage flags for lcov output" OFF)
 if (COVERAGE)
-    message(STATUS "Coverage build enabled — adding --coverage to CXX/LD flags")
+    message(STATUS "Coverage build enabled; adding --coverage to CXX/LD flags")
     add_compile_options(--coverage -O0 -g)
     add_link_options(--coverage)
 endif()
@@ -78,15 +78,21 @@ target_link_libraries(test_ivf_index GTest::gtest_main)
 add_executable(test_streaming_sketches tests/test_streaming_sketches.cpp)
 target_include_directories(test_streaming_sketches PRIVATE include)
 target_link_libraries(test_streaming_sketches GTest::gtest_main)
-include(GoogleTest)
-# PROPERTIES ENVIRONMENT "GTEST_SHUFFLE=1" tells GoogleTest to randomize
-# test execution order on every run. Order-dependent tests will surface as
-# non-zero exit. GTEST_RANDOM_SEED=0 means "pick a fresh seed each run"
-# (the seed is printed to stdout so a failing order can be reproduced).
-gtest_discover_tests(test_simsearch          PROPERTIES ENVIRONMENT "GTEST_SHUFFLE=1;GTEST_RANDOM_SEED=0")
-gtest_discover_tests(test_scoring            PROPERTIES ENVIRONMENT "GTEST_SHUFFLE=1;GTEST_RANDOM_SEED=0")
-gtest_discover_tests(test_passagesim         PROPERTIES ENVIRONMENT "GTEST_SHUFFLE=1;GTEST_RANDOM_SEED=0")
-gtest_discover_tests(test_fieldrel           PROPERTIES ENVIRONMENT "GTEST_SHUFFLE=1;GTEST_RANDOM_SEED=0")
-gtest_discover_tests(test_quantemb           PROPERTIES ENVIRONMENT "GTEST_SHUFFLE=1;GTEST_RANDOM_SEED=0")
-gtest_discover_tests(test_ivf_index          PROPERTIES ENVIRONMENT "GTEST_SHUFFLE=1;GTEST_RANDOM_SEED=0")
-gtest_discover_tests(test_streaming_sketches PROPERTIES ENVIRONMENT "GTEST_SHUFFLE=1;GTEST_RANDOM_SEED=0")
+
+enable_testing()
+set(XF_GTEST_TARGETS
+    test_simsearch
+    test_scoring
+    test_passagesim
+    test_fieldrel
+    test_quantemb
+    test_ivf_index
+    test_streaming_sketches
+)
+foreach(test_target IN LISTS XF_GTEST_TARGETS)
+    add_test(NAME ${test_target} COMMAND $<TARGET_FILE:${test_target}>)
+    set_tests_properties(
+        ${test_target}
+        PROPERTIES ENVIRONMENT "GTEST_SHUFFLE=1;GTEST_RANDOM_SEED=0"
+    )
+endforeach()

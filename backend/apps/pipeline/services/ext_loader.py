@@ -53,7 +53,7 @@ def load_extension(
     except ImportError as exc:
         msg = (
             f"C++ extension '{module_name}' failed to import: {exc}. "
-            f"Run: cd backend/extensions && pip install -e ."
+            "Run: powershell -ExecutionPolicy Bypass -File scripts\\build-native-extensions.ps1"
         )
         logger.warning(msg)
         _log_to_errorlog(module_name, "import", msg, exc)
@@ -104,7 +104,8 @@ def _log_to_errorlog(
                 f"The compiled C++ extension '{module_name}' could not be loaded. "
                 f"This means the affected pipeline stage is either using a slow Python "
                 f"fallback (50-100x slower) or is disabled entirely. "
-                f"To fix: rebuild extensions with 'cd backend/extensions && pip install -e .'"
+                "To fix: rebuild Docker-managed extensions with "
+                "'powershell -ExecutionPolicy Bypass -File scripts\\build-native-extensions.ps1'"
             ),
         )
     except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
@@ -129,7 +130,8 @@ def _log_to_errorlog(
             description=(
                 f"{message}\n\n"
                 "Python fallback is 50-100x slower per the FR-247 SLO. "
-                "Rebuild via `cd backend/extensions && pip install -e .` and "
+                "Rebuild via `powershell -ExecutionPolicy Bypass -File "
+                "scripts\\build-native-extensions.ps1` and "
                 "redeploy the backend image to clear this issue. The fingerprint "
                 "is dedup-safe so reboots don't pile up duplicates; a successful "
                 "load on next start auto-resolves the row."

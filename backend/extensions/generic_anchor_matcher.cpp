@@ -40,17 +40,22 @@
 // -Wall -Wextra -Wpedantic -Werror -Wconversion -fno-exceptions
 // -fno-rtti.
 
+#ifndef XF_BENCH_MODE
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#endif
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <queue>
 #include <string>
 #include <unordered_set>
 #include <vector>
 
+#ifndef XF_BENCH_MODE
 namespace py = pybind11;
+#endif
 
 namespace {
 
@@ -201,6 +206,7 @@ std::vector<std::string> find_all(std::shared_ptr<Automaton> aut, const std::str
     return out;
 }
 
+#ifndef XF_BENCH_MODE
 PYBIND11_MODULE(generic_anchor_matcher, m) {
     m.doc() = "Aho-Corasick generic-anchor blacklist matcher.";
     py::class_<Automaton, std::shared_ptr<Automaton>>(m, "Automaton")
@@ -211,3 +217,4 @@ PYBIND11_MODULE(generic_anchor_matcher, m) {
     m.def("find_all", &find_all, py::arg("automaton"), py::arg("text"),
           "Return distinct phrases that occur as substrings of *text*.");
 }
+#endif

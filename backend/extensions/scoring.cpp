@@ -1,11 +1,15 @@
+#ifndef XF_BENCH_MODE
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
+#endif
 
 #include <vector>
 
 #include "include/scoring_core.h"
 
+#ifndef XF_BENCH_MODE
 namespace py = pybind11;
+#endif
 
 void cscore_full_batch(const float* component_scores, size_t num_rows, size_t num_components,
                        const float* weights, size_t num_weights, const float* silo_scores,
@@ -24,6 +28,7 @@ void cscore_full_batch(const float* component_scores, size_t num_rows, size_t nu
     }
 }
 
+#ifndef XF_BENCH_MODE
 py::array_t<float> score_full_batch(py::array_t<float> component_scores, py::array_t<float> weights,
                                     py::array_t<float> silo_scores) {
     py::buffer_info c_info = component_scores.request();
@@ -49,3 +54,4 @@ py::array_t<float> score_full_batch(py::array_t<float> component_scores, py::arr
 PYBIND11_MODULE(scoring, m) {
     m.def("score_full_batch", &score_full_batch, "Compute final scores for a batch");
 }
+#endif

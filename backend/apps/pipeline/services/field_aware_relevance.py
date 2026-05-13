@@ -345,16 +345,9 @@ def _score_field(
             )
         )
     else:
-        # Phase 0.13 — empty top_terms means no matched tokens for this
-        # field; neutral 0.0 score keeps the field out of the BM25 sum
-        # without raising. The downstream score saturates at 0/(1+0)=0.0
-        # which is exactly what a missing field should contribute.
-        if not top_terms:
-            field_raw = 0.0
-        else:
-            field_raw = sum(float(row["token_score"]) for row in top_terms) / len(
-                top_terms
-            )
+        field_raw = sum(float(row["token_score"]) for row in top_terms) / len(
+            top_terms
+        )
         field_score = field_raw / (1.0 + field_raw)
     return field_score, top_terms
 
@@ -404,15 +397,20 @@ def _build_diagnostics(
         "matched_early_main_content": _has_early_match(matched_by_name),
         "matched_early_fields": _matched_early_fields(matched_by_name),
         "field_scores": {
-            profile.name: {
-                "score": round(
-                    float(matched_by_name.get(profile.name, (0.0, []))[0]), 6
-                ),
-                "matched_terms": matched_by_name.get(profile.name, (0.0, []))[1],
-            }
+            profile.name: _field_score_diagnostics(profile, matched_by_name)
             for profile in field_profiles
         },
     }
+
+
+def _field_score_diagnostics(
+    profile: _FieldProfile,
+    matched_by_name: dict[str, tuple[float, list[dict[str, object]]]],
+) -> dict[str, object]:
+    matched = matched_by_name.get(profile.name)
+    if matched is None:
+        return {"score": 0.0, "matched_terms": []}
+    return {"score": round(float(matched[0]), 6), "matched_terms": matched[1]}
 
 
 def _learned_anchor_text(rows: list[LearnedAnchorInputRow]) -> str:

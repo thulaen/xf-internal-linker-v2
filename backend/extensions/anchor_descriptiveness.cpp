@@ -36,8 +36,10 @@
 // - Two strings shorter than the n-gram length → fall back to
 //   single-string-as-only-gram set semantics (same as Python).
 
+#ifndef XF_BENCH_MODE
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#endif
 
 #include <algorithm>
 #include <cstddef>
@@ -47,7 +49,9 @@
 #include <unordered_set>
 #include <vector>
 
+#ifndef XF_BENCH_MODE
 namespace py = pybind11;
+#endif
 
 namespace {
 
@@ -166,6 +170,7 @@ double char_trigram_jaccard(const std::string& a, const std::string& b) {
     return static_cast<double>(inter) / static_cast<double>(uni);
 }
 
+#ifndef XF_BENCH_MODE
 PYBIND11_MODULE(anchor_descriptiveness, m) {
     m.doc() =
         "Anchor-text descriptiveness — Damerau-Levenshtein + "
@@ -175,3 +180,4 @@ PYBIND11_MODULE(anchor_descriptiveness, m) {
     m.def("char_trigram_jaccard", &char_trigram_jaccard, py::arg("a"), py::arg("b"),
           "Jaccard similarity over character 3-grams of the two inputs.");
 }
+#endif

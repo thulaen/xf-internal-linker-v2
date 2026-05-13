@@ -27,8 +27,10 @@
 // -march=native -Wall -Wextra -Wpedantic -Werror -Wconversion
 // -fno-exceptions -fno-rtti.
 
+#ifndef XF_BENCH_MODE
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#endif
 
 #include <array>
 #include <cmath>
@@ -37,7 +39,9 @@
 #include <string>
 #include <unordered_map>
 
+#ifndef XF_BENCH_MODE
 namespace py = pybind11;
+#endif
 
 // PARITY: matches anchor_garbage_signals.py::_bigram_entropy.
 //
@@ -83,8 +87,10 @@ double bigram_entropy(const std::string& text) {
     return bigram_entropy_core(text);
 }
 
+#ifndef XF_BENCH_MODE
 PYBIND11_MODULE(anchor_self_information, m) {
     m.doc() = "Shannon character-bigram entropy for anchor self-information.";
     m.def("bigram_entropy", &bigram_entropy, py::arg("text"),
           "Return Shannon character-bigram entropy of *text* in bits.");
 }
+#endif

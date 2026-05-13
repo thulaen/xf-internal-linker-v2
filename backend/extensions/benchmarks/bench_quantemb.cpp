@@ -6,7 +6,7 @@
 #include "include/quantemb_core.h"
 
 static void BM_QuantEmb_OPQ_Encode(benchmark::State& state) {
-    size_t num_vectors = (size_t)state.range(0);
+    size_t num_vectors = static_cast<size_t>(state.range(0));
     size_t dim = 1024;
     size_t m = 32;
     size_t k = 256;
@@ -32,7 +32,8 @@ static void BM_QuantEmb_OPQ_Encode(benchmark::State& state) {
         benchmark::DoNotOptimize(out_codes);
     }
 
-    state.SetItemsProcessed(state.iterations() * num_vectors);
+    state.SetItemsProcessed(
+        state.iterations() * static_cast<benchmark::IterationCount>(num_vectors));
 }
 
 // Benchmark across common batch sizes: 1, 8, 32, 64

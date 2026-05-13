@@ -8,15 +8,13 @@ from __future__ import annotations
 
 from collections import Counter
 import dataclasses
-import datetime
-from dataclasses import dataclass, field
 import heapq
 import logging
 import math
 import warnings
 import numpy as np
 from rapidfuzz import fuzz
-from typing import Any, Mapping, Optional, TypeAlias
+from typing import Any, Mapping
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +26,7 @@ except ImportError as _ext_err:
     HAS_CPP_EXT = False
     _msg = (
         "C++ scoring extension not found — ranker using slow Python fallback. "
-        "Run 'make build-ext' to compile."
+        "Run 'powershell -ExecutionPolicy Bypass -File scripts\\build-native-extensions.ps1'."
     )
     warnings.warn(_msg, RuntimeWarning)
     logging.getLogger(__name__).warning(_msg)
@@ -46,7 +44,7 @@ except ImportError as _ext_err:
                 "The compiled C++ scoring extension (.so on Linux, .pyd on Windows) "
                 "could not be imported. This means the ranker is using the slow Python "
                 "fallback which is 50-100x slower. Rebuild with: "
-                "cd backend/extensions && pip install -e ."
+                "powershell -ExecutionPolicy Bypass -File scripts\\build-native-extensions.ps1"
             ),
         )
     except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
@@ -81,15 +79,6 @@ _DEFAULT_MIN_HOST_CHARS = 300
 _THIN_WORD_HARD_THRESHOLD = 100
 _THIN_WORD_SOFT_THRESHOLD = 200
 
-#: Neutral mid-point used as the default value for every ranker score
-#: that maps a [0, 1] component into a centred [-1, +1] contribution
-#: via ``2 * (score - 0.5)``. A score of exactly ``_NEUTRAL_SCORE``
-#: contributes zero to ``score_final`` (the centred component is 0.0)
-#: so a missing or fallback value never tilts the ranking. Source:
-#: FR-053 §6 ("neutral is the centred zero, not the lowest score") and
-#: Croft-Metzler-Strohman 2010 §8.3 ("missing-feature defaults must
-#: not bias the composite score").
-_NEUTRAL_SCORE: float = 0.5
 
 from .field_aware_relevance import (
     FieldAwareRelevanceSettings,
@@ -118,192 +107,17 @@ from .rare_term_propagation import (
     RareTermPropagationSettings,
     evaluate_rare_term_propagation,
 )
-from apps.suggestions.recommended_weights import recommended_float, recommended_str
-
-
-ContentKey: TypeAlias = tuple[int, str]
-ExistingLinkKey: TypeAlias = tuple[ContentKey, ContentKey]
-
-
-@dataclass(frozen=True, slots=True)
-class ContentRecord:
-    """Pipeline metadata for a content item."""
-
-    content_id: int
-    content_type: str
-    title: str
-    distilled_text: str
-    scope_id: int
-    scope_type: str
-    parent_id: int | None
-    parent_type: str
-    grandparent_id: int | None
-    grandparent_type: str
-    silo_group_id: int | None
-    silo_group_name: str
-    reply_count: int
-    march_2026_pagerank_score: float
-    link_freshness_score: float
-    primary_post_char_count: int
-    tokens: frozenset[str]
-    content_value_score: float = 0.0
-    click_distance_score: float = _NEUTRAL_SCORE
-    scope_title: str = ""
-    parent_scope_title: str = ""
-    grandparent_scope_title: str = ""
-    cluster_id: int | None = None
-    is_canonical: bool = False
-    # Pick #21 — Snowball/Porter2 stems of the same surface tokens.
-    # Populated by ``pipeline_data._load_content_records`` when the
-    # ``parse.stemmer.enabled`` setting is on (default off — empty).
-    # Consumers that opt in (e.g. rare-term propagation) read this
-    # for stem-based comparison; everyone else keeps using ``tokens``.
-    stemmed_tokens: frozenset[str] = frozenset()
-    # Group G (Harmonious-12) — NLP enrichment metadata.
-    # Stores acronyms, lemmas, and noun-chunks from ContentItem.nlp_metadata.
-    nlp_metadata: dict[str, Any] = field(default_factory=dict)
-    # FR-249 — Embedding age decay proxy. ``updated_at`` is the closest
-    # signal we have for "when was this content's embedding last
-    # refreshed" — the embed pipeline regenerates the vector when
-    # content text changes, and content text changes update this
-    # column. Documented approximation; see
-    # docs/specs/fr249-embedding-age-decay.md §3.
-    updated_at: Optional["datetime.datetime"] = None
-
-    @property
-    def key(self) -> ContentKey:
-        return (self.content_id, self.content_type)
-
-
-@dataclass(frozen=True, slots=True)
-class SentenceRecord:
-    """Sentence metadata used during ranking."""
-
-    sentence_id: int
-    content_id: int
-    content_type: str
-    text: str
-    char_count: int
-    tokens: frozenset[str]
-    position: int = 0  # zero-based sentence index within the post (Sentence.position)
-    # Pick #21 — Snowball stems of ``tokens``. See ``ContentRecord.stemmed_tokens``.
-    stemmed_tokens: frozenset[str] = frozenset()
-    # Group G (Harmonious-12) — NLP metadata (referenced from parent ContentItem).
-    nlp_metadata: dict[str, Any] = field(default_factory=dict)
-
-    @property
-    def content_key(self) -> ContentKey:
-        return (self.content_id, self.content_type)
-
-
-@dataclass(frozen=True, slots=True)
-class SentenceSemanticMatch:
-    """Sentence-level semantic score produced by Stage 2."""
-
-    host_content_id: int
-    host_content_type: str
-    sentence_id: int
-    score_semantic: float
-
-    @property
-    def host_key(self) -> ContentKey:
-        return (self.host_content_id, self.host_content_type)
-
-
-@dataclass(frozen=True, slots=True)
-class ScoredCandidate:
-    """Fully scored candidate suggestion."""
-
-    destination_content_id: int
-    destination_content_type: str
-    host_content_id: int
-    host_content_type: str
-    host_sentence_id: int
-    score_semantic: float
-    score_keyword: float
-    score_node_affinity: float
-    score_quality: float
-    score_silo_affinity: float
-    score_phrase_relevance: float
-    score_learned_anchor_corroboration: float
-    score_rare_term_propagation: float
-    score_field_aware_relevance: float
-    score_ga4_gsc: float
-    score_click_distance: float
-    score_explore_exploit: float
-    score_cluster_suppression: float
-    score_final: float
-    anchor_phrase: str
-    anchor_start: int | None
-    anchor_end: int | None
-    anchor_confidence: str
-    phrase_match_diagnostics: dict[str, object]
-    learned_anchor_diagnostics: dict[str, object]
-    rare_term_diagnostics: dict[str, object]
-    field_aware_diagnostics: dict[str, object]
-    cluster_diagnostics: dict[str, object]
-    explore_exploit_diagnostics: dict[str, object]
-    click_distance_diagnostics: dict[str, object]
-    score_anchor_diversity: float = _NEUTRAL_SCORE
-    score_keyword_stuffing: float = _NEUTRAL_SCORE
-    score_link_farm: float = _NEUTRAL_SCORE
-    repeated_anchor: bool = False
-    anchor_diversity_diagnostics: dict[str, object] = field(default_factory=dict)
-    keyword_stuffing_diagnostics: dict[str, object] = field(default_factory=dict)
-    link_farm_diagnostics: dict[str, object] = field(default_factory=dict)
-    score_slate_diversity: float | None = field(default=None)
-    slate_diversity_diagnostics: dict[str, object] = field(default_factory=dict)
-    # FR-099 through FR-105 — graph-topology signals (default 0.0 = neutral).
-    # See docs/specs/fr099-*.md through docs/specs/fr105-*.md.
-    score_darb: float = 0.0
-    score_kmig: float = 0.0
-    score_tapb: float = 0.0
-    score_kcib: float = 0.0
-    score_berp: float = 0.0
-    score_hgte: float = 0.0
-    score_rsqva: float = 0.0
-    darb_diagnostics: dict[str, object] = field(default_factory=dict)
-    kmig_diagnostics: dict[str, object] = field(default_factory=dict)
-    tapb_diagnostics: dict[str, object] = field(default_factory=dict)
-    kcib_diagnostics: dict[str, object] = field(default_factory=dict)
-    berp_diagnostics: dict[str, object] = field(default_factory=dict)
-    hgte_diagnostics: dict[str, object] = field(default_factory=dict)
-    rsqva_diagnostics: dict[str, object] = field(default_factory=dict)
-    # FR-053 — Passage-Level Relevance Scoring (masterplan Group E).
-    # Default 0.5 = neutral (centred component is 0.0, no contribution).
-    # See docs/specs/fr053-passage-level-relevance.md.
-    score_passage_relevance: float = _NEUTRAL_SCORE
-    passage_relevance_diagnostics: dict[str, object] = field(default_factory=dict)
-    # FR-249 — Embedding age decay multiplier in [0, 1]. Default 1.0 =
-    # fresh / unknown-age (no penalty). Persisted to Suggestion.score_
-    # embedding_age and read by the FR-018 WeightTuner as a 5th
-    # tunable feature when there's enough labelled feedback.
-    # See docs/specs/fr249-embedding-age-decay.md.
-    score_embedding_age: float = 1.0
-
-    @property
-    def destination_key(self) -> ContentKey:
-        return (self.destination_content_id, self.destination_content_type)
-
-    @property
-    def host_key(self) -> ContentKey:
-        return (self.host_content_id, self.host_content_type)
-
-
-@dataclass(frozen=True, slots=True)
-class ClusteringSettings:
-    enabled: bool = False
-    similarity_threshold: float = 0.04
-    suppression_penalty: float = 20.0
-
-
-@dataclass(frozen=True, slots=True)
-class SiloSettings:
-    """Persisted controls for silo-aware ranking."""
-
-    mode: str = recommended_str("silo.mode")
-    same_silo_boost: float = recommended_float("silo.same_silo_boost")
-    cross_silo_penalty: float = recommended_float("silo.cross_silo_penalty")
+from .ranker_types import (
+    ClusteringSettings,
+    ContentKey,
+    ContentRecord,
+    ExistingLinkKey,
+    ScoredCandidate,
+    SentenceRecord,
+    SentenceSemanticMatch,
+    SiloSettings,
+    _NEUTRAL_SCORE,
+)
 
 
 def classify_silo_relationship(destination: ContentRecord, host: ContentRecord) -> str:

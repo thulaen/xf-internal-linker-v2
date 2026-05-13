@@ -105,6 +105,8 @@ ENV NLTK_DATA=/usr/share/nltk_data
 RUN mkdir -p /usr/share/nltk_data && \
     python -m nltk.downloader -d /usr/share/nltk_data wordnet omw-1.4
 
+RUN mkdir -p /opt/xf/compiled /tmp/xf-build
+
 # ── Pick #14 FastText LangID model (Joulin et al. 2016 EACL) ─────
 # Downloads the official lid.176.bin (126 MB, 176 languages) once at
 # build time to /opt/models/lid.176.bin. We use /opt/models — NOT
@@ -121,11 +123,8 @@ RUN mkdir -p /opt/models \
 # Copy application code
 COPY . .
  
-# Build C++ extensions
-RUN cd extensions && python setup.py build_ext --inplace
-
 # Create non-root user for security
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app /opt/xf/compiled /tmp/xf-build
 USER appuser
 
 EXPOSE 8000

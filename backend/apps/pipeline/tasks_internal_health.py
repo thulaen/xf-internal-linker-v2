@@ -69,8 +69,7 @@ def cpp_fallback_share_check() -> dict:
                 f"FR-247 SLO breach: the Python fallback path served "
                 f"{python_share:.1%} of Stage-2 sentence scoring runs, above "
                 f"the configured alert threshold of {threshold:.1%}.\n\n"
-                "Re-run `scripts/build-native-extensions.ps1` or `cd backend/extensions "
-                "&& pip install -e .` and restart the backend image."
+                "Re-run `scripts/build-native-extensions.ps1` and restart the backend image."
             ),
             affected_files=[
                 "backend/apps/pipeline/services/pipeline_stages.py",

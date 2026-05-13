@@ -33,6 +33,8 @@ std::uint64_t now_ns() {
         std::chrono::duration_cast<std::chrono::nanoseconds>(t).count());
 }
 
+}  // namespace
+
 struct Bucket {
     double tokens;                 // current available tokens
     std::uint64_t last_refill;     // monotonic ns
@@ -44,7 +46,7 @@ struct Bucket {
     std::mutex mu;                 // per-bucket lock; protects all fields
 };
 
-}  // namespace
+using BucketPtr = std::unique_ptr<Bucket>;
 
 class RateLimiterRegistry {
    public:
@@ -192,7 +194,7 @@ class RateLimiterRegistry {
         return now_mono_ns + static_cast<std::uint64_t>(secs_until_midnight) * 1'000'000'000ULL;
     }
 
-    std::unordered_map<std::string, std::unique_ptr<Bucket>> buckets_;
+    std::unordered_map<std::string, BucketPtr> buckets_;
     std::mutex registry_mu_;  // protects buckets_ map (insert / lookup)
 };
 

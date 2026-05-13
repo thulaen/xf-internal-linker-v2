@@ -6,16 +6,29 @@ Add project-wide fixtures here; app-specific fixtures belong
 in each app's own conftest.py.
 """
 
-import pytest
-from django.contrib.auth import get_user_model
+import os
 
-User = get_user_model()
+import pytest
+
+
+def pytest_configure() -> None:
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.development")
+
+    import django
+
+    django.setup()
+
+
+def _user_model():
+    from django.contrib.auth import get_user_model
+
+    return get_user_model()
 
 
 @pytest.fixture
 def user(db):
     """A plain authenticated user with no special permissions."""
-    return User.objects.create_user(
+    return _user_model().objects.create_user(
         username="testuser",
         email="testuser@example.com",
         password="testpassword123",
@@ -25,7 +38,7 @@ def user(db):
 @pytest.fixture
 def admin_user(db):
     """A superuser for testing admin-only endpoints."""
-    return User.objects.create_superuser(
+    return _user_model().objects.create_superuser(
         username="admin",
         email="admin@example.com",
         password="adminpassword123",

@@ -1,7 +1,0 @@
-add_test([=[CscoreFullBatch.ZeroRows]=]  C:/Users/goldm/Dev/xf-internal-linker-v2/backend/extensions/build_tests/Release/test_scoring.exe [==[--gtest_filter=CscoreFullBatch.ZeroRows]==] --gtest_also_run_disabled_tests)
-set_tests_properties([=[CscoreFullBatch.ZeroRows]=]  PROPERTIES WORKING_DIRECTORY C:/Users/goldm/Dev/xf-internal-linker-v2/backend/extensions/build_tests SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
-add_test([=[CscoreFullBatch.SingleRowUniformWeights]=]  C:/Users/goldm/Dev/xf-internal-linker-v2/backend/extensions/build_tests/Release/test_scoring.exe [==[--gtest_filter=CscoreFullBatch.SingleRowUniformWeights]==] --gtest_also_run_disabled_tests)
-set_tests_properties([=[CscoreFullBatch.SingleRowUniformWeights]=]  PROPERTIES WORKING_DIRECTORY C:/Users/goldm/Dev/xf-internal-linker-v2/backend/extensions/build_tests SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
-add_test([=[CscoreFullBatch.BatchThreeRowsFirstComponentDominant]=]  C:/Users/goldm/Dev/xf-internal-linker-v2/backend/extensions/build_tests/Release/test_scoring.exe [==[--gtest_filter=CscoreFullBatch.BatchThreeRowsFirstComponentDominant]==] --gtest_also_run_disabled_tests)
-set_tests_properties([=[CscoreFullBatch.BatchThreeRowsFirstComponentDominant]=]  PROPERTIES WORKING_DIRECTORY C:/Users/goldm/Dev/xf-internal-linker-v2/backend/extensions/build_tests SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
-set(  test_scoring_TESTS CscoreFullBatch.ZeroRows CscoreFullBatch.SingleRowUniformWeights CscoreFullBatch.BatchThreeRowsFirstComponentDominant)

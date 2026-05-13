@@ -40,12 +40,13 @@ def _normalise(text: str) -> str:
     return out
 
 
-def canonical_fingerprint(title: str, culprit: str = "") -> str:
+def canonical_fingerprint(title: str, culprit: str | None = None) -> str:
     """Source-agnostic 16-char hex fingerprint.
 
     Same value across sources for the same root cause. Two distinct root
     causes with the same title hash to the same value (lossy by design —
     the title IS the operator-visible identity of the bug).
     """
-    norm = f"{_normalise(title)}|{_normalise(culprit)}"
-    return hashlib.sha1(norm.encode("utf-8")).hexdigest()[:16]
+    culprit_text = "" if culprit is None else culprit
+    norm = f"{_normalise(title)}|{_normalise(culprit_text)}"
+    return hashlib.sha1(norm.encode()).hexdigest()[:16]

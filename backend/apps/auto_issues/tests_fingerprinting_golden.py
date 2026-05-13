@@ -16,7 +16,7 @@ from pathlib import Path
 
 from django.test import SimpleTestCase
 
-from apps.auto_issues.services.fingerprinting import canonical_fingerprint
+from apps.auto_issues.services.fingerprinting import _normalise, canonical_fingerprint
 
 _GOLDEN_PATH = (
     Path(__file__).parent / "tests_data" / "golden" / "canonical_fp_examples.json"
@@ -51,3 +51,18 @@ class CanonicalFingerprintGolden(SimpleTestCase):
                         f"at {_GOLDEN_PATH} after reviewing the diff visually."
                     ),
                 )
+
+    def test_variable_values_are_normalised_to_lowercase_placeholders(self) -> None:
+        self.assertEqual(
+            _normalise(
+                "Crash at 0xDEADBEEF for "
+                "550e8400-e29b-41d4-a716-446655440000 in /tmp/app.py:1234"
+            ),
+            "crash at <hex> for <uuid> in <path>",
+        )
+
+    def test_default_culprit_matches_empty_culprit(self) -> None:
+        self.assertEqual(
+            canonical_fingerprint("Connection failed"),
+            canonical_fingerprint("Connection failed", ""),
+        )

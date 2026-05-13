@@ -6,7 +6,7 @@
 #include "include/passagesim_core.h"
 
 static void BM_PassageSim_MaxSim(benchmark::State& state) {
-    size_t num_passages = (size_t)state.range(0);
+    size_t num_passages = static_cast<size_t>(state.range(0));
     size_t dim = 1024;  // BGE-M3 standard
 
     std::vector<float> query(dim, 0.5f);
@@ -29,7 +29,8 @@ static void BM_PassageSim_MaxSim(benchmark::State& state) {
         benchmark::DoNotOptimize(index);
     }
 
-    state.SetItemsProcessed(state.iterations() * num_passages);
+    state.SetItemsProcessed(
+        state.iterations() * static_cast<benchmark::IterationCount>(num_passages));
 }
 
 // Benchmark across common passage counts: 10, 50, 100, 200

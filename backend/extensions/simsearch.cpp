@@ -1,5 +1,7 @@
+#ifndef XF_BENCH_MODE
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
+#endif
 
 #include <algorithm>
 #include <queue>
@@ -7,7 +9,9 @@
 
 #include "include/simsearch_core.h"
 
+#ifndef XF_BENCH_MODE
 namespace py = pybind11;
+#endif
 
 void cscore_and_topk(const float* destination_ptr, size_t dest_dim, const float* sentence_ptr,
                      size_t num_sentences, size_t sentence_dim, const int32_t* candidate_rows,
@@ -59,6 +63,7 @@ void cscore_and_topk(const float* destination_ptr, size_t dest_dim, const float*
     }
 }
 
+#ifndef XF_BENCH_MODE
 py::tuple score_and_topk(py::array_t<float> destination, py::array_t<float> sentences,
                          py::array_t<int32_t> candidate_rows, int top_k) {
     py::buffer_info d_info = destination.request();
@@ -92,3 +97,4 @@ py::tuple score_and_topk(py::array_t<float> destination, py::array_t<float> sent
 PYBIND11_MODULE(simsearch, m) {
     m.def("score_and_topk", &score_and_topk, "Score candidates and return top K");
 }
+#endif

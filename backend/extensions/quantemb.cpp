@@ -1,5 +1,7 @@
+#ifndef XF_BENCH_MODE
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -7,7 +9,9 @@
 
 #include "include/quantemb_core.h"
 
+#ifndef XF_BENCH_MODE
 namespace py = pybind11;
+#endif
 
 /**
  * Perform OPQ encoding.
@@ -56,6 +60,7 @@ void c_opq_encode(const float* vectors_ptr, size_t num_vectors, size_t dim,
     }
 }
 
+#ifndef XF_BENCH_MODE
 /**
  * Python wrapper for opq_encode.
  * Expects:
@@ -102,3 +107,4 @@ PYBIND11_MODULE(quantemb, m) {
     m.doc() = "Vector quantization and OPQ kernels";
     m.def("opq_encode", &opq_encode, "Perform OPQ encoding on vectors");
 }
+#endif

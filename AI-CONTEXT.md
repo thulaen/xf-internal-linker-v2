@@ -2,6 +2,14 @@
 
 This is the first continuity file every AI session must read.
 
+## Current Session Note - 2026-05-13 08:35 Codex GPT-5
+
+- Commit is blocked on purpose. The new quality gate is working, but it cannot honestly pass yet.
+- Docker mutation testing runs from a writable temp copy. Latest full run checked 648 mutations, killed 367, left 252 surviving relevance-scoring mutations, and reported 29 mutations with no mapped tests.
+- Focused fingerprint mutation survivors were repaired and pass when checked directly.
+- The 30 picked AutoIssues are still open in the database, so `verify_autoissue_quota` blocks the commit. Do not mark those rows resolved unless the fixes are real and `lessons_learned` is populated.
+- Next work: fix the remaining relevance-scoring mutation survivors and resolve the 30 picked AutoIssues before committing.
+
 ## Project Identity
 
 - Project: XF Internal Linker V2
@@ -82,6 +90,7 @@ Language-specific rules files:
 - `frontend/FRONTEND-RULES.md` — before any frontend work
 - `backend/PYTHON-RULES.md` — before any Python backend work
 - `backend/extensions/CPP-RULES.md` — before any C++ work
+- `COMPILED-LANGUAGE-RULES.md` - before any compiled-language work. Builds, runtime artifacts, checks, coverage, mutation tests, and fuzz tests must use Docker-managed storage.
 
 ### MUST UPDATE after work is done
 
@@ -185,6 +194,8 @@ If you decide not to fix that finding in the current session, you must do both:
 
 ## AI Handoff And Git Hygiene
 
+**ABSOLUTE — Self-Written Code Quality Gate:** Any code an agent writes must be fixed until it meets the coding guidelines, coverage target, mutation-test rule, and required test commands. If a required check cannot run, fix the check environment or command until it runs. Do not ask the user whether to fix code you wrote. Do not commit code with failing tests, unmet coverage, skipped mutation tests, missing tools, broken containers, or known guideline violations. If the machine itself cannot support the check after repair attempts, stop before committing and leave a clear status note. Do not commit. After `[GUIDELINES READ: ...]`, emit `[QUALITY GATE READ: self-written code must pass guidelines, tests, coverage, mutation tests, and required check setup before commit]`. Every code-changing handoff must include `[QUALITY GATE RESULT: guidelines=passed tests=passed coverage=met mutation=passed check_setup=passed]`.
+
 Simple version:
 Different AIs must leave the repo either clean or clearly explained.
 Do not leave mystery changes behind.
@@ -204,6 +215,7 @@ Do not leave mystery changes behind.
 - Never use `git add -A` in a dirty tree.
 - Stage only the intended files for the current slice.
 - **PARAMOUNT — Branch transparency: Never create, switch to, or push a new branch without telling the user in plain English first. Work done on a branch does not appear on `master` until merged. If the user did not ask for a branch, stay on `master`. Silence is forbidden.**
+- **ABSOLUTE — Commit Request Gate:** A commit request is a request to complete the 30-AutoIssue quota first. Do not ask the user whether to resolve the 30 issues. Do not make a partial commit to avoid the blocker. Do not unstage `AGENT-HANDOFF.md` or `AI-CONTEXT.md` to bypass the database check. If the 30 fixes are too large for the current turn, stop before committing and leave a clear status note.
 - If verification passes and the slice is safe, commit and push it in the same session so the next AI starts from a cleaner base. **This is mandatory: every session MUST automatically clean the tree (stage and commit) and push changes without rollbacks or regressions. No rollbacks unless sanity checks pass. Session-type gate: if backend or frontend application code changed, `docker-compose build` must succeed before any commit is allowed; if only documentation or configuration files changed, skip the build step and state that plainly in the commit message. If `docker-compose build` fails on a code-change session, do not commit — leave a Current Session Note in AI-CONTEXT.md describing the failure and stop.**
 - If verification cannot run, say that plainly in the handoff note and do not pretend the tree is safe.
 - All backend sessions must follow the migration/prune policy in `AGENTS.md`.
@@ -548,6 +560,36 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 ## Pending Configuration
 
 ## Current Session Note
+
+### 2026-05-13 - Self-written code quality gate hardening (Codex)
+
+- **AI/tool:** Codex.
+- **Why:** User asked for a hard rule that agent-written code must be fixed until coding rules, tests, coverage, mutation tests, and check setup all run and pass before commit.
+- **Files intentionally changed:** `AGENTS.md`, `CLAUDE.md`, `CODEX.md`, `GEMINI.md`, `AI-CONTEXT.md`, `AGENT-HANDOFF.md`, `PLAIN-ENGLISH-RULE.md`, `.githooks/check-registry-read.py`, `.githooks/test_check_registry_read.py`, `backend/pyproject.toml`, and `backend/conftest.py`.
+- **Verification:** `python .githooks/test_check_registry_read.py` passed 51 tests. Docker coverage for `.githooks/check-registry-read.py` reported 97%. Docker pytest for the mutation selection passed 8 tests plus 4 subtests after clearing broken coverage options for mutation runs. Docker mutation testing now runs to completion from a writable temp copy when called through `python -c 'from mutmut.__main__ import cli; cli()' run`.
+- **Known issues:** Mutation testing now runs, but the existing configured backend mutation targets still have surviving mutations. I cannot honestly mark mutation as passed or commit this work. This is not committed because the new code-quality rule and the existing 30-AutoIssue rule require those blockers to be fixed first.
+- **Commit/push state:** Not committed or pushed.
+- **Tech-debt delta:** -7 debt items: added code-file detection to the commit hook, added a quality-result parser, added blocking checks for missing quality markers, added tests for all requested quality failures, raised hook coverage to 97%, fixed the backend pytest startup bug in `conftest.py`, and updated the mutation config so Docker mutation testing can run.
+
+### 2026-05-13 - Commit request gate hardening (Codex)
+
+- **AI/tool:** Codex.
+- **Why:** User asked to make the ideal rules prevent agents from committing around the 30-AutoIssue quota.
+- **Files intentionally changed:** `AGENTS.md`, `CLAUDE.md`, `CODEX.md`, `GEMINI.md`, `AI-CONTEXT.md`, `AGENT-HANDOFF.md`, `.githooks/check-registry-read.py`, and `.githooks/test_check_registry_read.py`.
+- **Verification:** `python .githooks/test_check_registry_read.py` passed 30 tests. `python .githooks/check-glossary.py AGENTS.md CLAUDE.md CODEX.md GEMINI.md AI-CONTEXT.md .githooks/check-registry-read.py .githooks/test_check_registry_read.py` passed. `git diff --check` passed. `python .githooks/check-registry-read.py` now fails because `AGENT-HANDOFF.md` and `AI-CONTEXT.md` have unstaged changes, which proves the new blocker is active.
+- **Known issues:** This change is intentionally uncommitted because the new hook and the existing database quota rule now require the 30 picked AutoIssues to be resolved before committing session files.
+- **Commit/push state:** Not committed or pushed. The previous Go gate commit remains `11792800`; this rule-hardening work is still in the working tree.
+- **Tech-debt delta:** -5 debt items: removed the hook comment that allowed `--no-verify`, added a guard against unstaged session files, added tests for both blocked session files, added a test proving the hook checks that guard before other checks, and added matching plain-English commit-gate instructions for every agent file.
+
+### 2026-05-13 - Go coverage and mutation gates (Codex)
+
+- **AI/tool:** Codex.
+- **Why:** User asked to change Go code coverage in the repo to 95% and make sure mutation tests are always done.
+- **Files intentionally changed:** `.github/workflows/ci.yml`, `.githooks/pre-push`, `docs/GO-TESTING-STANDARD.md`, `docs/MUTATION-TESTING.md`, `docs/CODE-COVERAGE-RULES.md`, `AI-CODING-GUIDELINES.md`, `services/go/README.md`, `PLAIN-ENGLISH-RULE.md`, `AI-CONTEXT.md`, and `AGENT-HANDOFF.md`.
+- **Verification:** Docker Linux check passed for `.githooks/pre-push` with `bash -n`. Docker Python parsed `.github/workflows/ci.yml` as valid YAML. `python .githooks/check-no-downgraded-gates.py`, `python .githooks/check-glossary.py ...`, and `git diff --check` passed. `rg --files -g go.mod` found no Go module, so Go tests and Go mutation tests had no module to run against.
+- **Known issues:** No Go module exists yet, so the new Go checks are armed but cannot execute real Go code until the first `go.mod` lands. The safe prune script ran, but Docker prune was skipped by sandbox limits and VHDX compaction failed because `diskpart.exe` needs elevation.
+- **Commit/push state:** Not committed or pushed in this turn. The working tree contains this Go gate update only.
+- **Tech-debt delta:** -5 debt items: replaced a tool-install-only Go CI job with a real Go quality job, added a local push check for Go coverage, added a local push check for Go mutation testing, removed stale docs that said Go mutation had no blocking default, and added the missing plain-English glossary row for `go-mutesting`.
 
 ### 2026-05-13 - Mission A import task wrapper repair (Codex)
 

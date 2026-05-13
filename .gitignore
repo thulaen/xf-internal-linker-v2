@@ -122,6 +122,27 @@ tools/cloudflared.exe
 backend/extensions/benchmarks/build/
 backend/extensions/benchmarks/results/
 
+# Compiled-language runtime artifacts
+*.pyd
+*.dll
+*.dylib
+*.o
+*.obj
+*.a
+*.lib
+backend/extensions/*.so
+backend/extensions/*.pyd
+backend/extensions/build/
+backend/extensions/build_*/
+backend/extensions/fuzz/build*/
+backend/extensions/fuzz/crash-*
+backend/extensions/fuzz/oom-*
+backend/extensions/fuzz/leak-*
+backend/extensions/reports/
+build_fuzz*/
+cover.out
+*.coverprofile
+
 # C++ test build outputs (CMake / Visual Studio / googletest compile products)
 # The vendored googletest source under build_tests/_deps/googletest-src/
 # stays tracked; only the compiled output is ignored.

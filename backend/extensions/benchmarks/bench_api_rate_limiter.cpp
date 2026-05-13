@@ -13,22 +13,20 @@
 
 namespace {
 
-// Build a registry pre-loaded with N buckets so we can isolate the cost of
-// the hot path (try_acquire / wait_seconds) from the registration cost.
-RateLimiterRegistry build_registry(int n_buckets) {
-    RateLimiterRegistry reg;
+// Preload buckets so the hot-path benchmarks do not measure registration work.
+void populate_registry(RateLimiterRegistry& reg, int n_buckets) {
     for (int i = 0; i < n_buckets; ++i) {
         reg.register_bucket("bucket-" + std::to_string(i),
                             /*capacity=*/1000.0,
                             /*rate_per_sec=*/1000.0,
                             /*daily_quota=*/-1);
     }
-    return reg;
 }
 
 void BM_TryAcquireHotPath(benchmark::State& state) {
     const int n = static_cast<int>(state.range(0));
-    auto reg = build_registry(n);
+    RateLimiterRegistry reg;
+    populate_registry(reg, n);
     int idx = 0;
     for (auto _ : state) {
         const std::string name = "bucket-" + std::to_string(idx % n);
@@ -42,7 +40,8 @@ BENCHMARK(BM_TryAcquireHotPath)->Arg(1)->Arg(100)->Arg(10000);
 
 void BM_WaitSecondsHotPath(benchmark::State& state) {
     const int n = static_cast<int>(state.range(0));
-    auto reg = build_registry(n);
+    RateLimiterRegistry reg;
+    populate_registry(reg, n);
     int idx = 0;
     for (auto _ : state) {
         const std::string name = "bucket-" + std::to_string(idx % n);

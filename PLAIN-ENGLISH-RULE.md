@@ -111,6 +111,12 @@ When you must mention a technical concept, use the plain-English version from th
 | a Dockerfile line that sets a value the container can read while it runs | ENV |
 | a Dockerfile line that sets the folder future commands run from | WORKDIR |
 | a Dockerfile line that sets the default command for the container | CMD |
+| the repo rule file that explains how Docker builds and stores compiled-language outputs | COMPILED-LANGUAGE-RULES |
+| the container setting that tells Python where to look for importable modules | PYTHONPATH |
+| a GitHub Actions job or CMake target group that runs a repeatable project check | WORKFLOW |
+| a CMake built-in variable that names the current operating system inside the build script | SYSTEM |
+| a CMake list value used to collect source files or target names before a build step | LISTS |
+| an expected test item showing an extra matched phrase or result list entry | MORE |
 | Linux running inside Windows | WSL |
 | how many different paths exist through the code (lower = simpler) | cyclomatic complexity |
 | number-fingerprints stored in a searchable index | vector store |
@@ -298,6 +304,10 @@ When you must mention a technical concept, use the plain-English version from th
 | the explicit human-approval gate required before any code is written for a change that touches core architecture, database schema (data migration), global state, public API contract, security model, or ABSOLUTE-rule-adjacent territory. Format: `[REVIEW GATE: awaiting approval]` after a 3-5 bullet summary. Cannot be bypassed by auto mode or session prompt. See `AI-CODING-GUIDELINES.md` § Major-change review gates | review gate / REVIEW GATE marker |
 | a stable Ubuntu release that Canonical supports for 5 years and receives security patches for 10 years (e.g., 20.04 LTS, 22.04 LTS); the GitHub Actions `ubuntu-latest` runner ships the current LTS version | LTS / Long-Term Support |
 | a compiler flag that enables Mull mutation testing — wires the Mull LLVM plugin into the Clang compilation pipeline so code mutations can be injected at the IR level; e.g. `-fpass-plugin=mull-ir-frontend` | -DMULL / DMULL / Mull flag |
+
+| the required opening marker that says the agent knows its own code must pass the coding rules, required tests, coverage target, mutation tests, and local check setup before commit | QUALITY GATE READ marker |
+| the required handoff marker for code-changing sessions; it records that guidelines, tests, coverage, mutation tests, and check setup all passed before commit | QUALITY GATE RESULT marker |
+| the quality-result field that says the required local tools, commands, containers, and test setup all ran correctly | check_setup |
 
 If a term you need is not in this table, define it yourself in parentheses the first time you use it.
 

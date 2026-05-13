@@ -7,17 +7,17 @@ $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "dev-tools.ps1")
 
 $repoRoot = Get-RepoRoot
-$extensionsDir = Join-Path $repoRoot "backend\extensions"
-$python = Get-VenvPython
+$cleanCommand = if ($Clean) { "rm -rf /opt/xf/compiled/extensions /tmp/xf-build/cpp-runtime && " } else { "" }
+$command = @'
+set -euo pipefail
+__CLEAN_COMMAND__python /repo/scripts/ensure_compiled_artifacts.py
+'@
+$command = $command.Replace("__CLEAN_COMMAND__", $cleanCommand)
 
-if ($Clean) {
-    $buildDir = Join-Path $extensionsDir "build"
-    if (Test-Path $buildDir) {
-        Remove-Item -Recurse -Force $buildDir
-    }
+Write-Host "Building Docker-managed native extensions..."
+docker compose run --rm --no-deps backend bash -lc $command
+if ($LASTEXITCODE -ne 0) {
+    throw "Docker-managed native extension build failed."
 }
 
-Write-Host "Building native extensions in place..."
-Invoke-VsDevCommand -WorkingDirectory $extensionsDir -Command "`"$python`" setup.py build_ext --inplace"
-
-Write-Host "Native extension build completed."
+Write-Host "Native extension artifacts are ready in Docker storage."

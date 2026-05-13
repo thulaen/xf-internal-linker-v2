@@ -15,18 +15,21 @@ RUN apt-get update && \
       curl \
       git \
       cmake \
+      ninja-build \
       build-essential \
       libtbb-dev \
       clang-19 \
+      libclang-rt-19-dev \
       python3 \
+      python3-dev \
       python3-pip \
       python-is-python3 && \
     curl -1sLf 'https://dl.cloudsmith.io/public/mull-project/mull-stable/setup.deb.sh' | bash && \
     apt-get update && \
     apt-get install -y --no-install-recommends mull-19 && \
-    pip install --break-system-packages --no-cache-dir mutmut==3.5.0 && \
+    pip install --break-system-packages --no-cache-dir mutmut==3.5.0 pybind11==2.13.6 && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /repo
 
-CMD ["bash", "-lc", "mutmut --version && mull-runner-19 --version && go version && command -v go-mutesting >/dev/null && echo 'mutation tools ready'"]
+CMD ["bash", "-lc", "mutmut --version && mull-runner-19 --version && go version && command -v go-mutesting >/dev/null && cmake --version && clang++-19 --version && echo 'compiled tools ready'"]
