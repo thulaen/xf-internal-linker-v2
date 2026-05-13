@@ -69,6 +69,13 @@ Before any other work — before reading further files, before writing code, bef
 | 7 | `AGENTS.md` § Code Quality Mandate | Always — before writing any code |
 | 8 | `docs/PERFORMANCE.md` §13 | Before any performance investigation, benchmark, "feels slow" fix, or optimisation PR |
 
+The 30-AutoIssue marker is not enough by itself. When a handoff is committed,
+`.githooks/check-registry-read.py` runs `manage.py verify_autoissue_quota`
+through Docker and checks the database. All 30 picked AutoIssues must be
+resolved, have a resolve time, have `lessons_learned`, and be resolved after
+the previous handoff. If Docker or the database cannot be checked, the commit
+must fail.
+
 **Ranking Gate Rule (MANDATORY for all AI agents — Claude, Codex, Gemini, Antigravity, future agents).** Whenever the operator proposes a new ranking signal, meta, autotuner, or hyperparameter idea, run **Gate B** (User-Idea Overlap Gate in `docs/RANKING-GATES.md`) BEFORE promising, planning, or spec-writing. The output is a one-block report to the operator in the shape specified in RANKING-GATES.md §B6. Do not proceed until the operator explicitly says "proceed", "ship it", "spec it", or equivalent. Whenever an agent is about to write or modify code in a ranking signal, meta-algo, autotuner, or weight-preset file, run **Gate A** (Ranking Signal Implementation Gate in `docs/RANKING-GATES.md`) BEFORE writing any line of code. Every checkbox must pass or have an explicit written justification in the spec's `## Gate Justifications` section. Skipping either gate is a policy violation equivalent to bypassing a pre-commit hook.
 
 Language-specific rules files:

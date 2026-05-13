@@ -135,6 +135,9 @@ COVERAGE_SUMMARY_RE = re.compile(
     r"[^\]]*\b(?:met|not met)\b[^\]]*\]",
     re.IGNORECASE,
 )
+HANDOFF_HEADING_RE = re.compile(
+    r"^#\s+(?P<stamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})\b"
+)
 
 
 def _staged_diff_for(path: Path) -> str:
@@ -179,6 +182,14 @@ def _commit_touches_handoff() -> bool:
 def _fail(msg: str) -> int:
     sys.stderr.write(f"\n\033[31m[check-registry-read]\033[0m FAIL: {msg}\n")
     return 1
+
+
+def _extract_picked_issue_ids(added: str) -> list[str]:
+    picks_match = PICKS_SEGMENT_RE.search(added)
+    if not picks_match:
+        return []
+    picks_blob = DROUGHT_PHRASE_RE.sub("", picks_match.group("picks"))
+    return [token.removeprefix("#") for token in ID_TOKEN_RE.findall(picks_blob)]
 
 
 def _validate_marker(added: str) -> int:
@@ -281,6 +292,71 @@ def _validate_picks(added: str) -> int:
             "`(drought logged: #<id>)` phrase is missing. File an "
             "`AutoIssue(kind='picker_drought', source='agent')` for the dry "
             "source and reference its id in the marker."
+        )
+    return 0
+
+
+def _previous_handoff_stamp(path: Path = HANDOFF) -> str | None:
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    headings = [
+        match.group("stamp")
+        for line in text.splitlines()
+        if (match := HANDOFF_HEADING_RE.match(line))
+    ]
+    if len(headings) < 2:
+        return None
+    return headings[1]
+
+
+def _verify_autoissue_quota(added: str) -> int:
+    issue_ids = _extract_picked_issue_ids(added)
+    if not issue_ids:
+        return _fail(
+            "Could not extract the 30 picked AutoIssue IDs for the database check."
+        )
+    cmd = [
+        "docker",
+        "compose",
+        "exec",
+        "-T",
+        "backend",
+        "python",
+        "manage.py",
+        "verify_autoissue_quota",
+        "--ids",
+        *issue_ids,
+    ]
+    previous_stamp = _previous_handoff_stamp()
+    if previous_stamp:
+        cmd.extend(["--resolved-after", previous_stamp])
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=REPO_ROOT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return _fail(
+            "Docker is not available, so the AutoIssue database could not be checked. "
+            "Start the backend stack and commit again."
+        )
+    except OSError as exc:
+        return _fail(
+            "The AutoIssue database check could not run. "
+            f"System error: {exc}"
+        )
+    if result.returncode != 0:
+        detail = (result.stdout + result.stderr).strip()
+        return _fail(
+            "The handoff claims 30 AutoIssues, but the database check did not pass.\n"
+            f"{detail}"
         )
     return 0
 
@@ -392,7 +468,9 @@ def main() -> int:
         return rc
     if (rc := _validate_coverage_gaps(added)) != 0:
         return rc
-    return _validate_coverage_summary(added)
+    if (rc := _validate_coverage_summary(added)) != 0:
+        return rc
+    return _verify_autoissue_quota(added)
 
 
 if __name__ == "__main__":

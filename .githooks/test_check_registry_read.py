@@ -13,8 +13,9 @@ rejected because every session must pick 30 real issue IDs.
 from __future__ import annotations
 
 import importlib.util
+import tempfile
 import unittest
-from subprocess import CalledProcessError
+from subprocess import CalledProcessError, CompletedProcess
 from pathlib import Path
 from unittest import mock
 
@@ -73,6 +74,19 @@ def _valid_ten_source_marker(
         f"{p} pyroscope / {t} tempo / {l} loki / {f} faro / "
         f"{m} mutation / {z} fuzz / {c} contract / {gh} gh_ci), "
         f"6 registry - {picks}]{extra_phrase}"
+    )
+
+
+def _valid_numeric_ten_source_marker() -> str:
+    ids = iter(range(1, 31))
+    parts = []
+    for label in ("picked", "g", "p", "t", "l", "f", "m", "z", "c", "gh"):
+        prefix = "picked: " if label == "picked" else f"| {label}: "
+        parts.append(prefix + ", ".join(f"#{next(ids)}" for _ in range(3)))
+    return (
+        "[REGISTRY READ: 30 open (3 agent / 3 glitchtip / 3 pyroscope / "
+        "3 tempo / 3 loki / 3 faro / 3 mutation / 3 fuzz / 3 contract / "
+        f"3 gh_ci), 6 registry - {' '.join(parts)}]"
     )
 
 
@@ -162,6 +176,8 @@ class CheckRegistryReadHookTests(unittest.TestCase):
         )
         self.assertEqual(self.hook._validate_marker(added), 0)
         self.assertEqual(self.hook._validate_picks(added), 0)
+        self.assertNotIn("99", self.hook._extract_picked_issue_ids(added))
+        self.assertEqual(len(self.hook._extract_picked_issue_ids(added)), 30)
 
     def test_drought_substitution_without_phrase_rejected(self):
         added = (
@@ -240,6 +256,67 @@ class CheckRegistryReadHookTests(unittest.TestCase):
         ):
             self.assertFalse(self.hook._commit_touches_handoff())
 
+    def test_previous_handoff_stamp_reads_second_entry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "fake-handoff.md"
+            path.write_text(
+                "# 2026-05-13 06:15 - Codex\n"
+                "body\n"
+                "# 2026-05-13 05:45 - Codex\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                self.hook._previous_handoff_stamp(path),
+                "2026-05-13 05:45",
+            )
+
+    def test_verify_autoissue_quota_runs_backend_check(self):
+        added = _valid_numeric_ten_source_marker()
+        with (
+            mock.patch.object(
+                self.hook,
+                "_previous_handoff_stamp",
+                return_value="2026-05-13 05:45",
+            ),
+            mock.patch.object(
+                self.hook.subprocess,
+                "run",
+                return_value=CompletedProcess(
+                    args=[],
+                    returncode=0,
+                    stdout="ok",
+                    stderr="",
+                ),
+            ) as run,
+        ):
+            self.assertEqual(self.hook._verify_autoissue_quota(added), 0)
+        args = run.call_args.args[0]
+        self.assertIn("verify_autoissue_quota", args)
+        self.assertIn("--resolved-after", args)
+
+    def test_verify_autoissue_quota_rejects_backend_failure(self):
+        added = _valid_numeric_ten_source_marker()
+        with mock.patch.object(
+            self.hook.subprocess,
+            "run",
+            return_value=CompletedProcess(
+                args=[],
+                returncode=1,
+                stdout="",
+                stderr="bad",
+            ),
+        ):
+            self.assertEqual(self.hook._verify_autoissue_quota(added), 1)
+
+    def test_verify_autoissue_quota_rejects_missing_docker(self):
+        added = _valid_numeric_ten_source_marker()
+        with mock.patch.object(
+            self.hook.subprocess,
+            "run",
+            side_effect=FileNotFoundError,
+        ):
+            self.assertEqual(self.hook._verify_autoissue_quota(added), 1)
+
     def test_main_skips_when_handoff_unchanged(self):
         with mock.patch.object(self.hook, "_commit_touches_handoff", return_value=False):
             self.assertEqual(self.hook.main(), 0)
@@ -255,6 +332,7 @@ class CheckRegistryReadHookTests(unittest.TestCase):
         with (
             mock.patch.object(self.hook, "_commit_touches_handoff", return_value=True),
             mock.patch.object(self.hook, "_staged_diff_for", return_value=added),
+            mock.patch.object(self.hook, "_verify_autoissue_quota", return_value=0),
         ):
             self.assertEqual(self.hook.main(), 0)
 
