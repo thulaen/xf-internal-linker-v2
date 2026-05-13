@@ -622,15 +622,15 @@ jobs:
           path: backend/extensions/reports/mull/
           retention-days: 30
 
-  go-mutation-tooling:
-    name: Go Mutation Tooling (installed, no broad default run)
+  go-quality:
+    name: Go Tests, Coverage, and Mutation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Detect Go module
-        id: go-module
+      - name: Detect Go modules
+        id: go-modules
         run: |
-          if find . -name go.mod -not -path './.git/*' | grep -q .; then
+          if find . -name go.mod -not -path './.git/*' -not -path './vendor/*' | grep -q .; then
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
@@ -643,9 +643,36 @@ jobs:
         run: go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest
       - name: Verify Go mutation tool install
         run: go-mutesting --help
+      - name: Run Go tests with 95% coverage
+        if: steps.go-modules.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' mod; do
+            module_dir="$(dirname "$mod")"
+            echo "Go coverage: $module_dir"
+            (
+              cd "$module_dir"
+              go test -shuffle=on -race -count=1 -coverprofile=cover.out ./...
+              total="$(go tool cover -func=cover.out | awk '/^total:/ { gsub("%", "", $3); print $3 }')"
+              echo "Go coverage total: ${total}%"
+              awk -v coverage="$total" 'BEGIN { exit !(coverage >= 95.0) }'
+            )
+          done < <(find . -name go.mod -not -path './.git/*' -not -path './vendor/*' -print0)
+      - name: Run Go mutation tests
+        if: steps.go-modules.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' mod; do
+            module_dir="$(dirname "$mod")"
+            echo "Go mutation: $module_dir"
+            (
+              cd "$module_dir"
+              go-mutesting ./...
+            )
+          done < <(find . -name go.mod -not -path './.git/*' -not -path './vendor/*' -print0)
       - name: No Go module present
-        if: steps.go-module.outputs.present != 'true'
-        run: echo "No go.mod found, so Go mutation tooling was installed but no mutation run was started."
+        if: steps.go-modules.outputs.present != 'true'
+        run: echo "No go.mod found, so Go tests, Go coverage, and Go mutation tests had no module to run against."
 
   # ── 17e+. libFuzzer smoke (blocking, 60s per target) ─────────────
   # Phase 4b — runs each starter fuzz target for 60 s under

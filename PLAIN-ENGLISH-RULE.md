@@ -130,9 +130,11 @@ When you must mention a technical concept, use the plain-English version from th
 | a long string the app uses to prove it's allowed to call its own backend | Django Token |
 | running an AI agent without a chat window — give it one prompt, take its answer | headless mode |
 | a single number that combines several scoring factors into one final ranking number | composite score |
+| a Go test tool that makes small deliberate code changes and checks that the tests catch them | go-mutesting |
 | a tag we put on a link suggestion to mark it as picked but not yet applied | proposed |
 | Windows' built-in tool that runs a script at a specific time and date | Windows Task Scheduler |
 | a way an AI agent talks to a tool by exchanging text on standard input/output | stdio |
+| the shell setting that tells a script where to split text while reading it | IFS / Internal Field Separator |
 | a way for a server to push updates to a browser as soon as they happen | HTTP-SSE / Server-Sent Events |
 | a small program that lets you run AI language models on your own laptop | Ollama |
 | an older mathematical method for securing data | RSA |
@@ -157,6 +159,7 @@ When you must mention a technical concept, use the plain-English version from th
 | the FAISS index type that combines IVF coarse-grouping with OPQ compression | IVF-OPQ |
 | a math optimisation algorithm that finds the best settings to fit a curve to data, using only a small amount of memory — the project uses it to tune the ranker's signal weights | L-BFGS / BFGS / Limited-memory Broyden–Fletcher–Goldfarb–Shanno |
 | Windows's normal disk filesystem — does not honour Linux exec-bit permissions, so chmod is a silent no-op there | NTFS / New Technology File System |
+| a virtual hard-drive file that Windows uses to store Linux or Docker data | VHDX / Virtual Hard Disk v2 |
 | old-school keyword-match scoring used by classic search engines — rewards documents containing the query's words, with diminishing returns and a length penalty | BM25 / Best Match 25 / Okapi BM25 |
 | a one-line formula that merges two ranked lists into one final ranking by adding `1 / (60 + rank)` for each item in each list — the standard way to combine meaning-search and word-match results | RRF / Reciprocal Rank Fusion |
 | Elasticsearch's "find similar documents by term overlap" query — given one document, finds others that share many of the same words | MLT / More Like This |

@@ -69,12 +69,14 @@ These are **floors**. The strictest target wins when a task touches multiple are
 | Angular services (`frontend/src/app/**/*.service.ts`) | **75%** line + 60% branch |
 | Critical review-page workflows | **90%** + at least 1 Playwright E2E spec |
 | External integrations (GSC, GA4, Matomo, WP, XF, OpenAI, Gemini, webhooks) | **90%** + Pact contract + at least 1 integration smoke (mocked or sandboxed) |
+| Go modules (`**/go.mod`) | **95%** line coverage + blocking Go mutation testing |
 
 The current per-language floor is enforced by:
 
 - Backend: `--cov-fail-under=68` in `backend/pytest.ini` (ratchet; raises only).
 - Frontend: thresholds block in `frontend/karma.conf.cjs` (statements 30 / branches 25 / functions 30 / lines 30 — also a ratchet; raises only).
 - C++: GoogleTest line/branch coverage instrumented in `cpp-clang-tidy` build (followup PR plumbs `lcov` output).
+- Go: `go-quality` in `.github/workflows/ci.yml` and `.githooks/pre-push` run Go tests with `-coverprofile=cover.out`, fail below 95% total coverage, and run Go mutation testing when a Go module exists.
 
 **The floor only goes up.** Lowering it without a documented incident is a protocol violation.
 

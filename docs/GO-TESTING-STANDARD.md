@@ -24,7 +24,7 @@ Adding `-v` for verbose output during debugging is fine. Removing `-shuffle=on`,
 
 ## Coverage floor
 
-`go test -coverprofile=cover.out -shuffle=on -race -count=1 ./...` followed by `go tool cover -func=cover.out` and a CI step that fails when coverage drops below the documented floor for the service. Each service sets its own initial floor (typically 70%) at first-commit time and the floor is a ratchet — only goes up, never down. Same pattern as Python's `--cov-fail-under=68` in [pytest.ini](../backend/pytest.ini).
+`go test -coverprofile=cover.out -shuffle=on -race -count=1 ./...` followed by `go tool cover -func=cover.out` and a CI step that fails when coverage drops below **95%**. This is the repo-wide Go floor from the first Go service onward. The floor is a ratchet: it may be raised, but it must not be lowered without a documented incident.
 
 ## Linter
 
@@ -32,7 +32,7 @@ Strict `golangci-lint` config lives at [`services/go/.golangci.yml`](../services
 
 ## Mutation testing
 
-Future Go services will use `avito-tech/go-mutesting` for scoped package-level mutation checks. The CI job installs the tool now, but it must not run `./...` across a large module by default. Each Go service must declare the exact package or directory mutation scope before enabling a blocking mutation gate.
+Future Go services use `avito-tech/go-mutesting` as a blocking mutation check. The CI job installs the tool and runs `go-mutesting ./...` for every Go module that exists in the repo. If a service later becomes too large for a whole-module run, that service must add a documented package-level scope and keep mutation testing blocking for every package it owns.
 
 ## Fuzz testing
 
@@ -42,9 +42,9 @@ Go's standard library has built-in fuzzing (`go test -fuzz=Fuzz*`). When the fir
 
 When the first Go service is added:
 
-1. CI gains a `go-test` job mirroring `backend-test`, invoking the canonical command above.
+1. CI runs the `go-quality` job, invoking the canonical test command above and failing below 95% coverage.
 2. Pre-commit gains a `go vet && go test` step on changed packages only.
-3. Pre-push gains the full `go test ./...` + `golangci-lint run` heavy check.
+3. Pre-push runs the full Go test command with the 95% coverage floor and runs `go-mutesting ./...`.
 4. The 18-pick AutoIssue ritual gains a 7th source (`go_ci`) if Go-specific picker logic is added.
 
 ## Reference

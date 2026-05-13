@@ -132,6 +132,41 @@ fi
 UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || echo "origin/master")
 CHANGED=$(git diff --name-only "${UPSTREAM}...HEAD" 2>/dev/null || true)
 
+# Go: when any Go module exists, every push must run Go tests with the
+# project coverage floor and Go mutation testing. This is intentionally
+# module-wide because Go code is still scaffold-only in this repo.
+GO_MODS=$(find "$REPO_ROOT" -name go.mod -not -path '*/.git/*' -not -path '*/vendor/*' 2>/dev/null || true)
+if [ -n "$GO_MODS" ]; then
+  if ! command -v go > /dev/null 2>&1; then
+    echo "[ERROR] Go is required because go.mod exists. Push aborted."
+    exit 1
+  fi
+  if ! command -v go-mutesting > /dev/null 2>&1; then
+    echo "[ERROR] go-mutesting is required because go.mod exists. Push aborted."
+    echo "        Install it with: go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest"
+    exit 1
+  fi
+  while IFS= read -r mod; do
+    module_dir=$(dirname "$mod")
+    echo "=> Go tests with 95% coverage ($module_dir)"
+    (
+      cd "$module_dir" && \
+      go test -shuffle=on -race -count=1 -coverprofile=cover.out ./... && \
+      total=$(go tool cover -func=cover.out | awk '/^total:/ { gsub("%", "", $3); print $3 }') && \
+      echo "   Go coverage total: ${total}%" && \
+      awk -v coverage="$total" 'BEGIN { exit !(coverage >= 95.0) }'
+    ) || {
+      echo "[ERROR] Go coverage is below 95% or Go tests failed. Push aborted."
+      exit 1
+    }
+    echo "=> Go mutation testing ($module_dir)"
+    (cd "$module_dir" && go-mutesting ./...) || {
+      echo "[ERROR] Go mutation testing found a surviving mutation. Push aborted."
+      exit 1
+    }
+  done <<< "$GO_MODS"
+fi
+
 # mutmut: run only when the in-scope module changed
 # (apps/auto_issues/services/fingerprinting.py). Expands one module
 # at a time via the AutoIssue ratchet (see #162).

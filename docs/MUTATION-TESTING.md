@@ -25,7 +25,7 @@ behaviour matters more than adding a tool for every language.
 | Angular | StrykerJS | Active CI gate | Current release line is active in 2026, it supports Angular through the JavaScript and TypeScript runner, and CI runs it on a focused service. |
 | JavaScript / TypeScript | StrykerJS | Active path through the Angular gate | Same tool as Angular. Add non-Angular JavaScript files by expanding `frontend/stryker.config.json` with focused targets. |
 | C++ | Mull | Scoped CI pilot | Active project with scoped native-test execution. CI installs it only for `test_fieldrel`, not the whole C++ tree. |
-| Go | avito-tech/go-mutesting | Installed in CI, no broad default run | Active in 2025 and supports file, directory, and package targets. It is not a blocking default until the first Go package defines a focused scope. |
+| Go | avito-tech/go-mutesting | Active CI gate when Go modules exist | Active in 2025 and supports file, directory, and package targets. CI runs it for every Go module once a `go.mod` exists. |
 
 ## Docker Availability
 
@@ -90,17 +90,18 @@ checks the mutation score ratchet.
 
 ## Go Rule
 
-Go mutation testing must be ready before Go code lands, but it must not use a tool that is weak
-on large modules as a default whole-module gate.
+Go mutation testing must run before Go code lands and stay blocking after Go code exists.
 
 Gremlins is not enabled because its own project documentation says it is aimed at smallish Go
 modules and can take hours on very large modules. Gooze is also not enabled yet because it is
 new and still below version 1.0. Either tool can be reconsidered only as a focused package-level
 pilot with a time limit, pinned version, and machine-readable report.
 
-The installed Go candidate is `github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest`. CI
-installs it now so the tool is ready before Go code lands. It must run on an explicit package
-or directory target, not `./...` across a large module by default.
+The installed Go tool is `github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest`. CI
+installs it now so the tool is ready before Go code lands. The default target is `./...` inside
+each Go module. If a future Go module becomes too large for that whole-module target, the module
+must add a documented package-level target and keep mutation testing blocking for every package it
+owns.
 
 ## Ratchet
 

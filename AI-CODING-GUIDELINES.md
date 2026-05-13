@@ -750,6 +750,7 @@ The coverage target for a task is determined by what the task touches. If a task
 | API endpoints (`backend/apps/api/`, `backend/apps/*/views*.py`) | Level A | **90%** |
 | Celery tasks (`backend/apps/*/tasks*.py`) | Level A | **90%** |
 | C++ extensions (`backend/extensions/*.cpp`) | Level A (MC/DC) | **100% branch + mutation** |
+| Go modules (`**/go.mod`) | Level B + mutation | **95% line + blocking Go mutation testing** |
 | Angular components (`frontend/src/app/**/*.component.ts`) | Level B | **75%** |
 | Angular services (`frontend/src/app/**/*.service.ts`) | Level B | **75%** |
 | Critical review-page workflows | Level A + E2E | **90% + Playwright spec** |
