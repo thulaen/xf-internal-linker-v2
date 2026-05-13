@@ -33,6 +33,19 @@ This file is the single index of all audit reports and individual issues found b
 
 ---
 
+### ISS-127 - Broken-link scan task missing from pipeline task wrapper (2026-05-13)
+
+- **Found by:** Codex during Mission A import-task verification.
+- **AutoIssue:** #221.
+- **Status:** OPEN.
+- **Severity:** MEDIUM.
+- **Area:** `backend/apps/pipeline/tasks.py`, `backend/apps/pipeline/tasks_broken_links.py`, `backend/apps/pipeline/tests.py`.
+- **What is wrong in plain English:** the full backend test suite still expects `apps.pipeline.tasks.scan_broken_links`, but that task is not exported there after the broken-link split. Tests that call it fail with `AttributeError`.
+- **Why it matters:** the scheduled broken-link check may have no stable public task entry point, and the backend suite cannot complete while the old import path is missing.
+- **Fix shape:** restore a small public Celery task wrapper in `backend/apps/pipeline/tasks.py` that delegates to the helpers in `tasks_broken_links.py`, or update all callers and tests to import the new task owner consistently.
+
+---
+
 ### ISS-118 - Ops feed writer logs duplicate-key errors for repeated dedup keys (2026-05-11)
 
 - **Found by:** Codex during the prevention sweep verification run.

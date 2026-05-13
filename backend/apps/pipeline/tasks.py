@@ -1132,13 +1132,22 @@ def sync_single_wp_item(post_id: int, content_type: str = "post") -> dict:
 # ──────────────────────────────────────────────────────────────────────────────
 # Import orchestration (restored stubs after refactoring)
 # ──────────────────────────────────────────────────────────────────────────────
-# The full import pipeline was removed during the pipeline/tasks.py
-# refactoring but is still referenced by views_settings.py. These stubs
-# restore the function signatures to prevent crashes. Full implementation
-# (task queueing, progress tracking, error handling) is deferred.
-
-@shared_task(name="pipeline.import_content", time_limit=7200, soft_time_limit=6900)
+@shared_task(
+    bind=True,
+    name="pipeline.import_content",
+    time_limit=7200,
+    soft_time_limit=6900,
+)
+@with_weight_lock("heavy")
+@HelperConstraint(
+    cpu_intensive=False,  # network IO plus existing post-import batch helpers
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=2048,
+    expected_seconds_p50=1200,
+)
 def import_content(
+    self,
     *,
     scope_ids: list[int] | None = None,
     mode: str = "full",
@@ -1147,14 +1156,198 @@ def import_content(
     job_id: str | None = None,
     force_reembed: bool = False,
 ) -> dict[str, Any]:
-    """Stub: process content import. Actual implementation pending."""
-    logger.info(
-        f"import_content called (stub): source={source}, mode={mode}, job_id={job_id}"
+    """Run a content import and record progress on the matching SyncJob."""
+    if not connection.in_atomic_block:
+        connection.close()
+
+    job_id = job_id or str(uuid.uuid4())
+    job = _start_import_job(
+        job_id=job_id,
+        source=source,
+        mode=mode,
+        file_path=file_path,
     )
+    state = _build_import_state(
+        job=job,
+        job_id=job_id,
+        source=source,
+        mode=mode,
+        force_reembed=force_reembed,
+    )
+
+    try:
+        _publish_progress(job_id, "running", 0.0, "Starting content import.")
+        _run_import_source(state, job, scope_ids=scope_ids, file_path=file_path)
+        from apps.pipeline.tasks_import import (
+            run_post_import_steps,
+            update_scope_counts,
+        )
+
+        update_scope_counts(state.touched_scope_ids)
+        run_post_import_steps(state, job, job_id, _publish_progress)
+        _finish_import_job(job, state)
+    except JobPaused as exc:
+        _pause_import_job(job, exc)
+        _publish_progress(job_id, "paused", 0.0, f"Import paused: {exc}")
+        return _import_result(job, status="paused")
+    except (DatabaseError, TimeoutError, MemoryError, ValueError, SoftTimeLimitExceeded) as exc:
+        _fail_import_job(job, exc)
+        _publish_progress(job_id, "failed", 0.0, f"Content import failed: {exc}")
+        raise
+
+    _publish_progress(job_id, "completed", 1.0, "Content import complete.")
+    return _import_result(job, status="completed")
+
+
+def _start_import_job(
+    *,
+    job_id: str,
+    source: str,
+    mode: str,
+    file_path: str | None,
+):
+    from django.utils import timezone
+    from apps.sync.models import SyncJob
+
+    job, _ = SyncJob.objects.get_or_create(
+        job_id=job_id,
+        defaults={
+            "source": source,
+            "mode": mode,
+            "file_path": file_path or "",
+            "status": "running",
+            "started_at": timezone.now(),
+            "message": "Import running.",
+        },
+    )
+    job.source = source
+    job.mode = mode
+    job.file_path = file_path or job.file_path or ""
+    job.status = "running"
+    job.started_at = job.started_at or timezone.now()
+    job.message = "Import running."
+    job.save(
+        update_fields=[
+            "source",
+            "mode",
+            "file_path",
+            "status",
+            "started_at",
+            "message",
+            "updated_at",
+        ]
+    )
+    return job
+
+
+def _build_import_state(
+    *,
+    job,
+    job_id: str,
+    source: str,
+    mode: str,
+    force_reembed: bool,
+):
+    from apps.pipeline.tasks_import import ImportState
+
+    resume_last_item_id = job.checkpoint_last_item_id if job.is_resumable else None
+    resume_stage = job.checkpoint_stage if job.is_resumable else ""
+    return ImportState(
+        job_id=job_id,
+        source=source,
+        mode=mode,
+        force_reembed=force_reembed,
+        items_synced=job.checkpoint_items_processed if job.is_resumable else 0,
+        resume_last_item_id=resume_last_item_id,
+        resume_stage=resume_stage,
+    )
+
+
+def _run_import_source(
+    state,
+    job,
+    *,
+    scope_ids: list[int] | None,
+    file_path: str | None,
+) -> None:
+    from apps.pipeline.tasks_import import (
+        import_jsonl_content,
+        import_wordpress_content,
+        import_xenforo_scopes,
+    )
+
+    if state.source == "api":
+        import_xenforo_scopes(state, job, scope_ids, _publish_progress)
+        return
+    if state.source == "wp":
+        import_wordpress_content(state, job, _publish_progress)
+        return
+    if state.source == "jsonl":
+        if not file_path:
+            raise ValueError("JSONL imports require a saved file path.")
+        import_jsonl_content(state, job, file_path)
+        return
+    raise ValueError(f"Unsupported import source: {state.source}")
+
+
+def _finish_import_job(job, state) -> None:
+    from django.utils import timezone
+
+    job.status = "completed"
+    job.progress = 100.0
+    job.items_synced = state.items_synced
+    job.items_updated = state.items_updated
+    job.completed_at = timezone.now()
+    job.message = "Import complete."
+    job.error_message = ""
+    job.is_resumable = False
+    job.save(
+        update_fields=[
+            "status",
+            "progress",
+            "items_synced",
+            "items_updated",
+            "completed_at",
+            "message",
+            "error_message",
+            "is_resumable",
+            "updated_at",
+        ]
+    )
+
+
+def _fail_import_job(job, exc: Exception) -> None:
+    from django.utils import timezone
+
+    logger.exception("Content import %s failed", job.job_id)
+    job.status = "failed"
+    job.completed_at = timezone.now()
+    job.error_message = str(exc)
+    job.message = "Import failed."
+    job.save(
+        update_fields=[
+            "status",
+            "completed_at",
+            "error_message",
+            "message",
+            "updated_at",
+        ]
+    )
+
+
+def _pause_import_job(job, exc: Exception) -> None:
+    job.status = "paused"
+    job.is_resumable = bool(job.checkpoint_stage or job.checkpoint_last_item_id)
+    job.message = f"Import paused: {exc}"
+    job.save(update_fields=["status", "is_resumable", "message", "updated_at"])
+
+
+def _import_result(job, *, status: str) -> dict[str, Any]:
     return {
-        "job_id": job_id,
-        "status": "queued",
-        "message": f"{source} import queued",
+        "job_id": str(job.job_id),
+        "status": status,
+        "items_synced": job.items_synced,
+        "items_updated": job.items_updated,
     }
 
 

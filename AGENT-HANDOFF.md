@@ -1,3 +1,43 @@
+# 2026-05-13 05:45 - Codex GPT-5 - Repaired the public import task wrapper
+
+[REGISTRY READ: 165 open (52 agent / 35 glitchtip / 15 pyroscope / 4 tempo / 39 loki / 1 faro / 0 mutation / 19 fuzz / 0 contract / 0 gh_ci), 8 open registry findings - picked: #221, #126, #161 | g: #86, #127, #128 | p: #66, #64, #65 | t: #103, #120, #123 | l: #73, #74, #95 | f: 1 found + 2 from agent: #105, #22, #20 (drought logged: #117) | m: 0 found + 3 from agent: #207, #206, #214 (drought logged: #218) | z: #204, #203, #202 | c: 0 found + 3 from agent: #209, #208, #217 (drought logged: #219) | gh: 0 found + 3 from agent: #216, #215, #213 (drought logged: #220)]
+[CI FAILED RUNS READ: skipped - gh unavailable]
+[GUIDELINES READ: AI-CODING-GUIDELINES.md + docs/CODE-COVERAGE-RULES.md]
+[COVERAGE GAPS READ: 10 picked - #185, #184, #183, #182, #181, #176, #175, #174, #173, #172]
+[RESOLVED HISTORY: 2 prior fix(es) read in backend/apps/pipeline]
+[COVERAGE SUMMARY: target=90% actual=37% - not met - touched file coverage is low because backend/apps/pipeline/tasks.py is a large existing file and this slice covered only the import wrapper]
+
+What I did:
+I completed one small Mission A support slice: AutoIssue #160. `pipeline.import_content` in `backend/apps/pipeline/tasks.py` is no longer a stub. It now creates or updates the matching sync job, builds the existing import state, calls the existing source-specific import helpers, runs the existing post-import steps, and records completed, failed, or paused status. I also restored the heavy-task lock that a prior pipeline safety fix required.
+
+What now works that did not before:
+Manual and scheduled imports now call the real import helpers instead of returning a fake queued response. `backend/apps/pipeline/test_import_task_wrapper.py` now has focused tests for successful helper dispatch, missing file-backed imports, and pause recording. AutoIssue #160 is marked resolved with `lessons_learned` populated.
+
+What has issues or errors:
+The file-wide coverage rule is not met: `backend/apps/pipeline/tasks.py` measured 37%. The direct Python test runner failed before app startup because Django was not loaded, so I used the project Django test command. The backend container does not have `mutmut`, and the mutation-tools container only has configured targets for `apps/auto_issues/services/fingerprinting.py` and `apps/pipeline/services/field_aware_relevance.py`, so mutation testing for `tasks.py` was not runnable without changing the mutation configuration. The full backend suite failed with existing failures outside this slice: missing `scan_broken_links` on `apps.pipeline.tasks`, scheduled-job database connection errors that overlap `ISS-126`, ranking and language-detection assertion failures, and a duplicate suggestion test failure. I logged the broken-link task failure as AutoIssue #221 and registry entry `ISS-127`. I did not run frontend tests or the production frontend build because this slice touched backend Python and the backend full suite already failed before frontend checks.
+
+Mutation-test result for every touched file:
+`backend/apps/pipeline/tasks.py` - not run because the installed mutation configuration does not include this file, and `mutmut run --paths-to-mutate=...` is not supported by the installed mutation-tools command.
+`backend/apps/pipeline/test_import_task_wrapper.py` - not applicable because this is a test file.
+`docs/reports/REPORT-REGISTRY.md` - not applicable because this is documentation.
+`AI-CONTEXT.md` - not applicable because this is documentation.
+`AGENT-HANDOFF.md` - not applicable because this is documentation.
+
+Coverage percentage for every touched file:
+`backend/apps/pipeline/tasks.py` - 37%.
+`backend/apps/pipeline/test_import_task_wrapper.py` - 100%.
+`docs/reports/REPORT-REGISTRY.md` - 0%; coverage is not applicable to documentation.
+`AI-CONTEXT.md` - 0%; coverage is not applicable to documentation.
+`AGENT-HANDOFF.md` - 0%; coverage is not applicable to documentation.
+
+[PLAN REMAINING: ~24%]
+
+Next agent should pick up:
+Fix AutoIssue #221 in `backend/apps/pipeline/tasks.py`, `backend/apps/pipeline/tasks_broken_links.py`, and `backend/apps/pipeline/tests.py` by restoring a public broken-link scan task wrapper or updating every caller to the new task owner.
+
+Tech-debt delta: 5. Removed the fake import task response, removed stale comments that said the import implementation was deferred, restored the heavy-task lock on the import task, added three focused import-wrapper tests, and logged the broken-link task regression as AutoIssue #221 plus registry entry `ISS-127`.
+
+---
 # 2026-05-13 04:30 - Codex GPT-5 - Made the 30 AutoIssue ritual unskippable
 
 [REGISTRY READ: 165 open (52 agent / 35 glitchtip / 15 pyroscope / 4 tempo / 39 loki / 1 faro / 0 mutation / 19 fuzz / 0 contract / 0 gh_ci), 7 open registry findings - picked: #160, #126, #161 | g: #86, #127, #128 | p: #66, #64, #65 | t: #103, #120, #123 | l: #73, #74, #95 | f: 1 found + 2 from agent: #105, #22, #20 (drought logged: #117) | m: 0 found + 3 from agent: #207, #206, #214 (drought logged: #218) | z: #204, #203, #202 | c: 0 found + 3 from agent: #209, #208, #217 (drought logged: #219) | gh: 0 found + 3 from agent: #216, #215, #213 (drought logged: #220)]

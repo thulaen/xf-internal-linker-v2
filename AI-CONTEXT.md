@@ -542,6 +542,19 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-05-13 - Mission A import task wrapper repair (Codex)
+
+- **AI/tool:** Codex.
+- **Why:** User asked to continue Mission A from the locked original plan and pick one small slice. I picked AutoIssue #160 because the latest handoff named it as the next concrete slice.
+- **What changed:** Replaced the `pipeline.import_content` stub in `backend/apps/pipeline/tasks.py` with a real public task wrapper. It now creates or updates the matching `SyncJob`, builds the existing import state object, delegates to the existing source-specific helpers in `tasks_import.py`, runs the existing post-import steps, and records completed, failed, or paused status. It also restores the heavy-task lock required by the earlier pipeline safety fix. Added focused tests in `backend/apps/pipeline/test_import_task_wrapper.py`.
+- **Files intentionally changed:** `backend/apps/pipeline/tasks.py`, `backend/apps/pipeline/test_import_task_wrapper.py`, `docs/reports/REPORT-REGISTRY.md`, `AI-CONTEXT.md`, and `AGENT-HANDOFF.md`.
+- **Verification:** Focused Django tests passed: `docker compose exec -T backend python manage.py test apps.pipeline.test_import_task_wrapper apps.pipeline.tests.PipelineDispatchTests --settings=config.settings.test --shuffle --noinput` with 5 tests. Ruff passed on the touched backend files. The four prevention hooks passed. Coverage was measured with `coverage.py`: `backend/apps/pipeline/tasks.py` reported 37%, because the large existing task file has many unrelated paths and the focused slice only covers the import wrapper. This does not meet the file-wide 90% rule.
+- **Known issues:** Full backend `docker compose exec -T backend python manage.py test --keepdb --noinput` failed with existing failures outside this slice: missing `scan_broken_links` on `apps.pipeline.tasks`, scheduled-job database connection errors, ranking or language-detection assertion failures, and duplicate suggestion data in one pipeline test. I logged the broken-link task issue as AutoIssue #221 and registry entry `ISS-127`. The scheduled-job database error overlaps existing `ISS-126`, so I did not duplicate it. Mutmut could not run on `tasks.py` because the installed mutation configuration only targets `apps/auto_issues/services/fingerprinting.py` and `apps/pipeline/services/field_aware_relevance.py`; the backend container also does not have `mutmut` installed directly.
+- **Relevant open findings skipped:** I disclosed the broader pipeline open findings before writing code. I did not fix the search-index startup issue, disk-pressure notes, or the newly logged broken-link scan task because they are outside this import-task slice.
+- **Docker prune:** Ran `scripts\prune-verification-artifacts.ps1` first in the sandbox, then with Docker permission. The second run reclaimed 18.82 GB of Docker build cache and did not delete named database or data volumes.
+- **Commit/push state:** Changes are ready for a narrow commit after the handoff entry. No branch was created or pushed.
+- **Tech-debt delta:** -5 debt items: removed the import task stub, removed stale comments that said the real implementation was deferred, restored the missing heavy-task lock, added three focused import-wrapper tests, and logged the broken-link task regression instead of leaving it hidden.
+
 ### 2026-05-11 - Shared UI component test slice (Codex)
 
 - **AI/tool:** Codex.
