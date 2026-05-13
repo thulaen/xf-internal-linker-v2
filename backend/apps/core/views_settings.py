@@ -551,6 +551,16 @@ class FieldAwareRelevanceSettingsView(APIView):
                 "value_type": "float",
                 "description": "Share of FR-011 field-aware relevance assigned to destination title matches.",
             },
+            "field_aware_relevance.heading_field_weight": {
+                "value": str(validated["heading_field_weight"]),
+                "value_type": "float",
+                "description": "Share of FR-011 field-aware relevance assigned to destination heading matches.",
+            },
+            "field_aware_relevance.intro_field_weight": {
+                "value": str(validated["intro_field_weight"]),
+                "value_type": "float",
+                "description": "Share of FR-011 field-aware relevance assigned to early main-content matches.",
+            },
             "field_aware_relevance.body_field_weight": {
                 "value": str(validated["body_field_weight"]),
                 "value_type": "float",

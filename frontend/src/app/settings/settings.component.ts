@@ -263,10 +263,12 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   };
   fieldAwareRelevance: FieldAwareRelevanceSettings = {
     ranking_weight: 0.1,
-    title_field_weight: 0.4,
-    body_field_weight: 0.3,
-    scope_field_weight: 0.15,
-    learned_anchor_field_weight: 0.15,
+    title_field_weight: 0.3,
+    heading_field_weight: 0.15,
+    intro_field_weight: 0.2,
+    body_field_weight: 0.15,
+    scope_field_weight: 0.1,
+    learned_anchor_field_weight: 0.1,
   };
 
   private readonly DEFAULT_HEALTH = {

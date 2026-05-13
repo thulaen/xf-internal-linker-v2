@@ -99,6 +99,7 @@ When you must mention a technical concept, use the plain-English version from th
 | our similarity search engine that finds alike content | FAISS |
 | a database update script | migration |
 | a scoring factor | signal |
+| FR-011 Early Main-Content Matching â€” the field-aware relevance update that tracks whether matched words came from the title, headings, or first main-content passage | Early Main-Content Matching |
 | re-sorting results using better criteria | reranking |
 | a setting that controls how the AI behaves | hyperparameter |
 | code that runs thousands of times per second | hot path |
@@ -107,6 +108,10 @@ When you must mention a technical concept, use the plain-English version from th
 | the framework that builds the visual interface | Angular |
 | the framework that handles data storage and business logic | Django |
 | a packaging system that makes the app run the same everywhere | Docker |
+| a Dockerfile line that sets a value the container can read while it runs | ENV |
+| a Dockerfile line that sets the folder future commands run from | WORKDIR |
+| a Dockerfile line that sets the default command for the container | CMD |
+| Linux running inside Windows | WSL |
 | how many different paths exist through the code (lower = simpler) | cyclomatic complexity |
 | number-fingerprints stored in a searchable index | vector store |
 | turning text into number-fingerprints | encoding / vectorising |

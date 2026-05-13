@@ -385,16 +385,20 @@ This means "no field evidence," not "bad evidence."
 Persist operator-facing field weights:
 
 - `title_field_weight`
+- `heading_field_weight`
+- `intro_field_weight`
 - `body_field_weight`
 - `scope_field_weight`
 - `learned_anchor_field_weight`
 
 Default weights:
 
-- `title_field_weight = 0.40`
-- `body_field_weight = 0.30`
-- `scope_field_weight = 0.15`
-- `learned_anchor_field_weight = 0.15`
+- `title_field_weight = 0.30`
+- `heading_field_weight = 0.15`
+- `intro_field_weight = 0.20`
+- `body_field_weight = 0.15`
+- `scope_field_weight = 0.10`
+- `learned_anchor_field_weight = 0.10`
 
 ### Combined FR-011 score
 
@@ -460,7 +464,7 @@ This design matches the repo's current pattern because:
 - it creates one separate diagnostics object;
 - it uses additive bounded ranking like FR-008, FR-009, and FR-010;
 - it snapshots settings and algorithm version per run;
-- it stays off by default.
+- it stays on by default through its non-zero ranking weight.
 
 ## Settings And Defaults
 
@@ -470,25 +474,29 @@ Recommended keys:
 
 - `field_aware_relevance.ranking_weight`
 - `field_aware_relevance.title_field_weight`
+- `field_aware_relevance.heading_field_weight`
+- `field_aware_relevance.intro_field_weight`
 - `field_aware_relevance.body_field_weight`
 - `field_aware_relevance.scope_field_weight`
 - `field_aware_relevance.learned_anchor_field_weight`
 
 Defaults:
 
-- `ranking_weight = 0.0`
-- `title_field_weight = 0.40`
-- `body_field_weight = 0.30`
-- `scope_field_weight = 0.15`
-- `learned_anchor_field_weight = 0.15`
+- `ranking_weight = 0.10`
+- `title_field_weight = 0.30`
+- `heading_field_weight = 0.15`
+- `intro_field_weight = 0.20`
+- `body_field_weight = 0.15`
+- `scope_field_weight = 0.10`
+- `learned_anchor_field_weight = 0.10`
 
 Bounds:
 
-- `0.0 <= ranking_weight <= 0.10`
+- `0.0 <= ranking_weight <= 0.15`
 - each field weight must be finite and `>= 0.0`
 - at least one field weight must be `> 0.0`
 - recommended soft guardrail:
-  - `title_field_weight + body_field_weight + scope_field_weight + learned_anchor_field_weight > 0`
+  - all six field weights sum to `1.0`
 
 Not operator-facing in v1:
 
@@ -521,6 +529,8 @@ Required fields:
 `matched_fields` should be an object with one entry per field:
 
 - `title`
+- `heading`
+- `intro`
 - `body`
 - `scope_labels`
 - `learned_anchor_vocabulary`
@@ -539,8 +549,79 @@ Each field entry should include:
 Plain-English review helper text:
 
 - `Field-aware relevance means the host sentence matched some destination fields better than others.`
-- `Title matches are usually sharper. Body matches are broader. Scope labels are structural hints. Learned anchors are wording already used on the site.`
+- `Title, heading, and intro matches show early main-content evidence. Body matches are broader. Scope labels are structural hints. Learned anchors are wording already used on the site.`
 - `Neutral means the sentence did not give useful field-level evidence.`
+
+## 2026-05-12 Extension: Early Main-Content Matching
+
+FR-011 now treats early destination text as first-class field evidence. This is an
+extension of the existing field-aware relevance signal, not a new ranking
+feature.
+
+### Source Addendum
+
+- Existing FR-011 field weighting source: Robertson, Zaragoza, and Taylor
+  (2004), BM25F field weighting.
+- New patent source: Google patent `US11328114B2` and publication
+  `US20180276220A1`, which describe rendered-page indexing where text that
+  appears earlier in the rendered page can receive higher importance.
+- This project does not add ad logic here. Ads are stripped during import, so
+  the useful idea is early main-content evidence, not ad detection.
+- `HEURISTIC: preserves FR-011 total field weight while applying the
+  patent-backed early-content preference.` The patent supports the direction of
+  the preference, but it does not provide this project's exact six-field split.
+
+### Updated Fields
+
+FR-011 scores these destination fields:
+
+- `title`: `ContentRecord.title`.
+- `heading`: heading text when import metadata already provides it; otherwise
+  an empty field that contributes nothing.
+- `intro`: the first clean main-content window.
+- `body`: the remaining clean main content after the intro.
+- `scope`: scope, parent scope, and grandparent scope labels.
+- `learned_anchor`: clean learned anchor wording from inbound links.
+
+### Updated Defaults
+
+- `field_aware_relevance.ranking_weight = 0.10`
+- `field_aware_relevance.title_field_weight = 0.30`
+- `field_aware_relevance.heading_field_weight = 0.15`
+- `field_aware_relevance.intro_field_weight = 0.20`
+- `field_aware_relevance.body_field_weight = 0.15`
+- `field_aware_relevance.scope_field_weight = 0.10`
+- `field_aware_relevance.learned_anchor_field_weight = 0.10`
+
+The six field weights must sum to `1.00`. This keeps FR-011 on by default and
+shifts evidence toward title, heading, and intro while preserving body, scope,
+and learned-anchor evidence.
+
+### Diagnostics
+
+Extend `field_aware_diagnostics` with:
+
+- `field_weights.heading`
+- `field_weights.intro`
+- `field_scores.heading`
+- `field_scores.intro`
+- `matched_early_main_content`: `true` when title, heading, or intro matched.
+- `matched_early_fields`: a list containing any of `title`, `heading`, `intro`.
+
+The review detail view shows a short plain-English line:
+
+- `Matched in early main content: Yes`
+- `Matched in early main content: No`
+
+### Test Plan
+
+- Title, heading, intro, body, scope, and learned-anchor matches score
+  separately.
+- Missing heading or intro data stays safe and does not crash.
+- Intro or heading matches set `matched_early_main_content=true`.
+- Body-only matches set `matched_early_main_content=false`.
+- Settings defaults load, save, validate, and require the six field weights to
+  sum to `1.00`.
 
 ## Storage Impact
 

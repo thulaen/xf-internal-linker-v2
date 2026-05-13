@@ -83,6 +83,10 @@ DEFAULT_RARE_TERM_PROPAGATION_SETTINGS = {
 DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS = {
     "ranking_weight": recommended_float("field_aware_relevance.ranking_weight"),
     "title_field_weight": recommended_float("field_aware_relevance.title_field_weight"),
+    "heading_field_weight": recommended_float(
+        "field_aware_relevance.heading_field_weight"
+    ),
+    "intro_field_weight": recommended_float("field_aware_relevance.intro_field_weight"),
     "body_field_weight": recommended_float("field_aware_relevance.body_field_weight"),
     "scope_field_weight": recommended_float("field_aware_relevance.scope_field_weight"),
     "learned_anchor_field_weight": recommended_float(

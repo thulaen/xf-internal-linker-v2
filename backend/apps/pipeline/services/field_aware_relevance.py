@@ -22,15 +22,20 @@ if TYPE_CHECKING:
 
 
 MAX_MATCHED_TOKENS_PER_FIELD = 5
-FIELD_COUNT = 4
+FIELD_COUNT = 6
 BM25_K1 = 1.2
 TITLE_B = 0.20
+HEADING_B = 0.25
+INTRO_B = 0.50
 BODY_B = 0.75
 SCOPE_B = 0.35
 LEARNED_ANCHOR_B = 0.40
+INTRO_WINDOW_TOKENS = 80
 
 REFERENCE_FIELD_LENGTHS = {
     "title": 8.0,
+    "heading": 12.0,
+    "intro": 80.0,
     "body": 120.0,
     "scope": 8.0,
     "learned_anchor": 10.0,
@@ -42,10 +47,12 @@ class FieldAwareRelevanceSettings:
     """Operator-facing FR-011 settings."""
 
     ranking_weight: float = 0.0
-    title_field_weight: float = 0.40
-    body_field_weight: float = 0.30
-    scope_field_weight: float = 0.15
-    learned_anchor_field_weight: float = 0.15
+    title_field_weight: float = 0.30
+    heading_field_weight: float = 0.15
+    intro_field_weight: float = 0.20
+    body_field_weight: float = 0.15
+    scope_field_weight: float = 0.10
+    learned_anchor_field_weight: float = 0.10
 
 
 @dataclass(frozen=True, slots=True)
@@ -194,6 +201,7 @@ def _build_field_profiles(
     settings: FieldAwareRelevanceSettings,
 ) -> tuple[_FieldProfile, ...]:
     learned_anchor_text = _learned_anchor_text(inbound_anchor_rows)
+    intro_text, body_text = _split_intro_and_body(destination.distilled_text)
     return (
         _field_profile(
             "title",
@@ -202,8 +210,20 @@ def _build_field_profiles(
             TITLE_B,
         ),
         _field_profile(
+            "heading",
+            _heading_text(destination.nlp_metadata),
+            settings.heading_field_weight,
+            HEADING_B,
+        ),
+        _field_profile(
+            "intro",
+            intro_text,
+            settings.intro_field_weight,
+            INTRO_B,
+        ),
+        _field_profile(
             "body",
-            destination.distilled_text,
+            body_text,
             settings.body_field_weight,
             BODY_B,
         ),
@@ -371,6 +391,8 @@ def _build_diagnostics(
         "field_aware_state": field_aware_state,
         "field_weights": {
             "title": round(float(settings.title_field_weight), 6),
+            "heading": round(float(settings.heading_field_weight), 6),
+            "intro": round(float(settings.intro_field_weight), 6),
             "body": round(float(settings.body_field_weight), 6),
             "scope": round(float(settings.scope_field_weight), 6),
             "learned_anchor": round(float(settings.learned_anchor_field_weight), 6),
@@ -379,6 +401,8 @@ def _build_diagnostics(
             profile.name: profile.field_length for profile in field_profiles
         },
         "matched_field_count": len(matched_fields),
+        "matched_early_main_content": _has_early_match(matched_by_name),
+        "matched_early_fields": _matched_early_fields(matched_by_name),
         "field_scores": {
             profile.name: {
                 "score": round(
@@ -400,6 +424,52 @@ def _learned_anchor_text(rows: list[LearnedAnchorInputRow]) -> str:
             continue
         cleaned.append(raw_text)
     return " ".join(cleaned)
+
+
+def _split_intro_and_body(text: str) -> tuple[str, str]:
+    tokens = [match.group(0) for match in TOKEN_RE.finditer(text or "")]
+    if not tokens:
+        return "", ""
+    intro = " ".join(tokens[:INTRO_WINDOW_TOKENS])
+    body = " ".join(tokens[INTRO_WINDOW_TOKENS:])
+    return intro, body
+
+
+def _heading_text(metadata: dict[str, object] | None) -> str:
+    if not metadata:
+        return ""
+    headings = metadata.get("headings") or metadata.get("heading_text")
+    if isinstance(headings, str):
+        return headings
+    if isinstance(headings, list):
+        return " ".join(str(heading) for heading in headings if heading)
+    parts = []
+    for key in ("h1", "h2", "h3"):
+        value = metadata.get(key)
+        if isinstance(value, str):
+            parts.append(value)
+        elif isinstance(value, list):
+            parts.extend(str(item) for item in value if item)
+    return " ".join(parts)
+
+
+def _has_early_match(
+    matched_by_name: dict[str, tuple[float, list[dict[str, object]]]],
+) -> bool:
+    return any(
+        float(matched_by_name.get(name, (0.0, []))[0]) > 0.0
+        for name in ("title", "heading", "intro")
+    )
+
+
+def _matched_early_fields(
+    matched_by_name: dict[str, tuple[float, list[dict[str, object]]]],
+) -> list[str]:
+    return [
+        name
+        for name in ("title", "heading", "intro")
+        if float(matched_by_name.get(name, (0.0, []))[0]) > 0.0
+    ]
 
 
 def _token_counts(text: str) -> Counter[str]:

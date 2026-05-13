@@ -41,12 +41,13 @@ read this file to understand WHY each gate is where it is.
 | 19 | `cpp-tsan` (ThreadSanitizer) | **Advisory** | See justification below. |
 | 20 | `missing-tests-check` | Block (after 2026-05-10 hardening) | Was `::warning::`; now `::error::` + `exit 1`. The local pre-commit hook (`.githooks/check-missing-tests.py`) catches the same thing earlier. |
 | 21 | `cpp-clang-tidy` (semantic — Phase 3) | Block | `.clang-tidy` WarningsAsErrors covers bugprone-*, cert-*, performance-unnecessary-copy-initialization, accidental-copy/move rules, modernize-use-nullptr/override/equals-default. |
-| 22 | `python-mutmut` (Python mutation — Phase 4a) | Block | Scoped to `apps/auto_issues/services/fingerprinting.py`; surviving mutants fail via junitxml inspection. Scope expansion tracked under AutoIssue #162. |
-| 23 | `frontend-stryker` (Angular mutation — Phase 4a) | Block | Scoped to `src/app/core/services/a11y-prefs.service.ts`; `thresholds.break: 40` is the hard floor. |
-| 24 | `cpp-mull` (C++ mutation — Phase 4a) | **Advisory** | See justification below (Mull toolchain not yet in runner image). |
-| 25 | `cpp-libfuzzer-smoke` (libFuzzer 60s/target — Phase 4b) | Block | Three starter targets (fuzz_simsearch / fuzz_scoring / fuzz_passagesim) with `-fsanitize=fuzzer,address,undefined`. Crash reproducers upload as `libfuzzer-crashes` artefact. |
-| 26 | `cpp-msan` (MemorySanitizer project-only — Phase 4c) | Block | `-fsanitize-blacklist=msan-ignore.txt` excludes Faiss/Eigen/ICU/TBB/pybind11. Runs only `test_simsearch + test_scoring + test_passagesim`. `MSAN_OPTIONS=halt_on_error=1`. |
-| 27 | `super-linter` (Hadolint + GH Actions YAML + Markdown + Bash + Gitleaks — Phase 5) | Block | `super-linter/super-linter@v7` with `ENV_FILE=.github/super-linter.env`. Disables Ruff/ESLint/Stylelint which run as dedicated jobs. |
+| 22 | `python-mutmut` (Python mutation - Phase 4a) | Block | Scoped to `apps/auto_issues/services/fingerprinting.py` and `apps/pipeline/services/field_aware_relevance.py`; surviving mutants fail via junitxml inspection. |
+| 23 | `frontend-stryker` (Angular and JavaScript mutation - Phase 4a) | Block | Scoped to `src/app/core/services/a11y-prefs.service.ts`; `thresholds.break: 95` is the hard floor. |
+| 24 | `cpp-mull-fieldrel` (C++ mutation - scoped pilot) | Block | Installs Mull 19, runs only `test_fieldrel`, and fails below the configured mutation threshold. |
+| 25 | `go-mutation-tooling` (Go mutation install readiness) | Block | Installs `avito-tech/go-mutesting`; it does not run a broad whole-module mutation gate. |
+| 26 | `cpp-libfuzzer-smoke` (libFuzzer 60s/target — Phase 4b) | Block | Three starter targets (fuzz_simsearch / fuzz_scoring / fuzz_passagesim) with `-fsanitize=fuzzer,address,undefined`. Crash reproducers upload as `libfuzzer-crashes` artefact. |
+| 27 | `cpp-msan` (MemorySanitizer project-only — Phase 4c) | Block | `-fsanitize-blacklist=msan-ignore.txt` excludes Faiss/Eigen/ICU/TBB/pybind11. Runs only `test_simsearch + test_scoring + test_passagesim`. `MSAN_OPTIONS=halt_on_error=1`. |
+| 28 | `super-linter` (Hadolint + GH Actions YAML + Markdown + Bash + Gitleaks — Phase 5) | Block | `super-linter/super-linter@v7` with `ENV_FILE=.github/super-linter.env`. Disables Ruff/ESLint/Stylelint which run as dedicated jobs. |
 
 ## Advisory Gate Justifications
 
@@ -63,44 +64,6 @@ read this file to understand WHY each gate is where it is.
 5. Update this file to flip `cpp-tsan` from Advisory to Block.
 
 **`# GATE-DOWNGRADE-JUSTIFICATION:`** TBB false-positive noise; suppression file requires Linux TSAN run before flipping blocking.
-
-### `cpp-mull` — C++ Mutation Testing
-
-**Status:** Advisory.
-**Reason:** Mull requires a Mull-compiled Clang toolchain (LLVM compiler plugin built against the same Clang version as the test binary). The ubuntu-latest GitHub Actions runner image doesn't ship Mull; installing it via apt or source-build adds ~10 minutes to every CI run for a tool that's still being scoped. The scaffolding (`mull.yml`, the placeholder CI job that detects Mull's absence) lands now so the config lives in version control.
-
-**Plan to remove the advisory (detailed implementation path):**
-
-A future session with Linux access should:
-
-1. **Research Mull installation options for ubuntu-latest** (first check: is there an official PPA?):
-   - Consult `https://mull.readthedocs.io/en/latest/` for the latest install guidance.
-   - Check if LLVM/Clang 18/19 (or current LTS) has prebuilt Mull artifacts.
-   - If PPA exists, add `sudo add-apt-repository ppa:...` + `apt-get install mull` to the CI step.
-   - If PPA unavailable, investigate source-build with caching: can we build Mull once per runner image update and cache the binary, avoiding the 10-min rebuild on every run?
-
-2. **Test Mull locally on Linux against the test binary**:
-   - On a Linux machine, build `test_simsearch` normally: `cd backend/extensions && cmake -B build && cmake --build build`.
-   - Then build with Mull support: `cmake -B build-mull -DMULL=ON` (if we add a CMakeLists.txt option).
-   - Run `mull-runner --report-dir reports/mull --filter test_simsearch`.
-   - Review the surviving-mutant report and decide: are there gaps in our test suite? Do we need more edge-case coverage?
-
-3. **Wire into CI**:
-   - Add a step to `.github/workflows/ci.yml` that installs Mull, then:
-     ```bash
-     cd backend/extensions && cmake -B build-mull && ctest -R test_simsearch --output-on-failure
-     mkdir -p reports && mull-runner --report-dir reports/mull -j ${CI_MAX_JOBS}
-     ```
-   - Parse the mull-runner JSON output to extract mutation score and fail if below a baseline (similar to `check-mutation-score.py` for mutmut/Stryker).
-   - Initially set baseline to a low value (e.g., 50%) to unblock the gate, then ratchet up as coverage improves.
-
-4. **Flip the gate from advisory to blocking**:
-   - Once stable, remove the `|| true` and set `if: success()` on the step so failures stop the merge.
-   - Update this file to mark `cpp-mull` as Block instead of Advisory.
-
-**Estimated effort:** ~2–3 hours (depends on whether PPA exists and whether caching is needed).
-
-**`# GATE-DOWNGRADE-JUSTIFICATION:`** Mull-compatible Clang toolchain not in runner image yet; detailed unblocking path documented above.
 
 ## How to Add or Modify a Gate
 

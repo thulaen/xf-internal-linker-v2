@@ -2,7 +2,7 @@
 """Mutation-score ratchet — FR-251 Gap #4.
 
 Reads `.mutation-score-baseline.json` at repo root and the latest
-mutation-tool report (mutmut JSON, Stryker JSON, or Mull JSON) and fails
+mutation-tool report (mutmut, Stryker, or Mull JSON) and fails
 if the mutation score for the named (tool, target) pair has dropped
 below the recorded floor.
 
@@ -19,7 +19,7 @@ Usage:
 
     python .githooks/check-mutation-score.py \\
         --tool mull \\
-        --target test_simsearch \\
+        --target test_fieldrel \\
         --report backend/extensions/reports/mull/mutants.json
 
 Exit codes:
@@ -92,7 +92,11 @@ def _mull_score(data: Any) -> float | None:
     return 100.0 * killed / len(items)
 
 
-_PARSERS = {"mutmut": _mutmut_score, "stryker": _stryker_score, "mull": _mull_score}
+_PARSERS = {
+    "mutmut": _mutmut_score,
+    "stryker": _stryker_score,
+    "mull": _mull_score,
+}
 
 
 def main() -> int:

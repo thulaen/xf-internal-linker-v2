@@ -1,67 +1,119 @@
 # Mutation Testing
 
-Mutation testing checks how strong your tests are by deliberately breaking the code (mutating operators, inverting conditionals, deleting statements) and then running the test suite. If the tests still pass after the code has been broken, the mutation "survived" — meaning the test suite is too weak to catch that regression. Surviving mutants = non-zero exit; the CI gate blocks merge.
+Mutation testing checks whether tests notice when code is deliberately broken. A mutation tool
+changes one small thing, such as flipping `>` to `<`, then runs the tests. If the tests still
+pass, that mutant survived and the test suite needs a stronger assertion.
 
-This is the partner discipline to randomised test order (see `docs/CI-GATES.md`): randomisation catches order-dependent tests; mutation catches tests-that-don't-actually-assert.
+## Tool Standard
 
-## Scope (initial)
+Use a mutation tool only when all of these are true:
 
-Mutation testing is **scoped to one module per language** to start. The CI cost is high (each mutant runs the full test suite). The scope expands one module per PR via the AutoIssue ratchet (see AutoIssue #162 sweep tracker).
+- It has public releases or project activity from 2021-01-01 through 2026-05-12.
+- It is mature enough for repeatable CI use, or the repo keeps it in pilot mode only.
+- It can run on a small package, file, or test target instead of mutating the whole repo.
+- It has a time limit, worker limit, shard support, or another clear large-project control.
+- It writes a machine-readable report that can feed `.githooks/check-mutation-score.py`.
 
-| Language | Tool | Initial scope | Test command |
+Activity inside the last five years is required, but it is not enough by itself. Large-project
+behaviour matters more than adding a tool for every language.
+
+## Current Gates
+
+| Language area | Tool | Status | Reason |
 |---|---|---|---|
-| Python | mutmut 2.5.0 | `backend/apps/auto_issues/services/fingerprinting.py` | `python -m pytest apps/auto_issues -p randomly -x -q --no-cov` |
-| TypeScript | Stryker 8.x | `frontend/src/app/core/services/a11y-prefs.service.ts` | `karma` (project's standard Karma runner) |
-| C++ | Mull 0.21+ | `backend/extensions/test_simsearch` (scaffold only) | `ctest --output-on-failure` |
+| Python | mutmut | Active CI gate | Current release line is active in 2026, it works with pytest, and CI runs it on focused backend files. |
+| Angular | StrykerJS | Active CI gate | Current release line is active in 2026, it supports Angular through the JavaScript and TypeScript runner, and CI runs it on a focused service. |
+| JavaScript / TypeScript | StrykerJS | Active path through the Angular gate | Same tool as Angular. Add non-Angular JavaScript files by expanding `frontend/stryker.config.json` with focused targets. |
+| C++ | Mull | Scoped CI pilot | Active project with scoped native-test execution. CI installs it only for `test_fieldrel`, not the whole C++ tree. |
+| Go | avito-tech/go-mutesting | Installed in CI, no broad default run | Active in 2025 and supports file, directory, and package targets. It is not a blocking default until the first Go package defines a focused scope. |
 
-## Running locally
+## Docker Availability
 
-### Python (mutmut)
+The `mutation-tools` Docker service installs the backend-side mutation tools so a new PC can
+rebuild the stack and get the same tools quickly:
+
+- `mutmut` for Python.
+- `mull-runner-19` for scoped C++ mutation pilots.
+- `go` and `go-mutesting` for future scoped Go package mutation pilots.
+
+The frontend Stryker toolchain lives in the frontend build image. Check it with:
+
+```bash
+docker compose --profile tools run --rm mutation-tools
+docker compose --profile tools run --rm frontend-mutation-tools
+```
+
+Run frontend mutation from that image with:
+
+```bash
+docker compose --profile tools run --rm frontend-mutation-tools npx stryker run
+```
+
+## Python
 
 ```bash
 cd backend
 mutmut run \
-  --paths-to-mutate=apps/auto_issues/services/fingerprinting.py \
-  --runner="python -m pytest apps/auto_issues -p randomly -x -q --no-cov" \
+  --paths-to-mutate=apps/pipeline/services/field_aware_relevance.py \
+  --runner="python -m pytest apps/pipeline/tests.py::FieldAwareRelevanceServiceTests -p randomly -x -q --no-cov" \
   --processes=2
 mutmut results
 ```
 
-`mutmut results` exits non-zero if any mutant survived. To inspect a specific survivor: `mutmut show <id>`.
+`mutmut results` exits with failure if any mutant survived. Mutmut must run on a system with
+`fork`, so use Linux or WSL for local runs.
 
-### Angular (Stryker)
+## Angular And JavaScript
 
 ```bash
 cd frontend
-npx stryker run
+npm run test:mutation
 ```
 
-Reports land in `frontend/reports/stryker.html` (visual) and `frontend/reports/stryker.json` (CI-consumable). The `thresholds.break: 40` line in `stryker.config.json` is the hard floor — below 40% mutation score, CI fails.
+Reports land in `frontend/reports/stryker.html` and `frontend/reports/stryker.json`. The
+Stryker break threshold is 95%, so CI fails below 95%.
 
-### C++ (Mull)
+## C++ Rule
 
-Mull requires a Mull-compiled Clang toolchain. Setup steps in `backend/extensions/MUTATION-TESTING-CPP.md` (forthcoming). Until that lands the `cpp-mull` CI job stays in advisory mode behind a `# GATE-DOWNGRADE-JUSTIFICATION:` comment.
+Mull is installed in CI from the official Mull package repository and runs only against
+`test_fieldrel`. Do not expand it to the whole extension tree. Any new C++ target must have:
 
-## Plain-English summary
+- A focused target, not a whole-extension mutation run.
+- A fixed worker count and timeout.
+- A JSON report or another stable machine-readable report.
+- A documented runtime at three sizes: small, medium, and large.
+- A documented maintenance check showing the tool has been updated since 2021-01-01.
 
-Mutation testing pokes holes in the code and watches whether the tests scream. If they don't scream, the tests are too lax. New work is gated against that.
+The current C++ install path is the `cpp-mull-fieldrel` CI job. It installs Mull 19, builds the
+focused native test with Clang 19, writes `backend/extensions/reports/mull/mutants.json`, and
+checks the mutation score ratchet.
 
-## Pre-push vs CI
+## Go Rule
 
-| Stage | Scope | Time |
-|---|---|---|
-| Pre-push | Mutate only files changed in this push | ~3-5 min |
-| CI per-PR | Mutate the initial scope module | ~10-20 min |
-| CI nightly | Mutate every covered module | ~30-60 min |
+Go mutation testing must be ready before Go code lands, but it must not use a tool that is weak
+on large modules as a default whole-module gate.
 
-See `.githooks/pre-push` for the changed-files wiring.
+Gremlins is not enabled because its own project documentation says it is aimed at smallish Go
+modules and can take hours on very large modules. Gooze is also not enabled yet because it is
+new and still below version 1.0. Either tool can be reconsidered only as a focused package-level
+pilot with a time limit, pinned version, and machine-readable report.
 
-## Why each tool
-
-- **mutmut** — most popular Python mutation tool; supports parallel runs via `--processes`; integrates with pytest.
-- **Stryker** — TypeScript-native; integrates with Karma so we reuse our existing test infrastructure.
-- **Mull** — LLVM-based; runs mutants in parallel at the IR level (orders of magnitude faster than source-level mutation for C++).
+The installed Go candidate is `github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest`. CI
+installs it now so the tool is ready before Go code lands. It must run on an explicit package
+or directory target, not `./...` across a large module by default.
 
 ## Ratchet
 
-Each PR can expand the scope by adding one more file/module to the `paths-to-mutate` config. The goal is to grow coverage incrementally without blowing up CI runtime. New code should be testable enough that mutation testing surfaces no survivors on its first pass — if it does, the tests need more assertions before merge.
+`.mutation-score-baseline.json` records per-target floors. The score can go up, but it must
+not go down. New scoring, parsing, and state-transition code should add a focused Python,
+Angular, or JavaScript mutation target before merge when the target is small enough to run
+predictably.
+
+## Sources Checked
+
+- PyPI `mutmut` release history: current release `3.5.0` on 2026-02-22.
+- StrykerJS GitHub release history: current release `v9.6.1` on 2026-04-10.
+- Mull project site: active project docs describe C and C++ mutation testing with CI-native scoped runs.
+- Gremlins documentation and Go package page: active in 2025, but version `v0.6.0` is not stable and its docs warn about very large modules.
+- avito-tech `go-mutesting` Go package page: active in 2025, supports file, directory, and package targets, and has JSON output configuration.
+- Gooze Go package page: active in 2026, but version `v0.2.0` is too new for a default large-module gate.

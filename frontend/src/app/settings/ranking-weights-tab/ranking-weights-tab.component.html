@@ -225,6 +225,20 @@
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
+                  <mat-label i18n="@@settings.labels.headingShare">Heading share</mat-label>
+                  <input matInput autocomplete="off" type="number" min="0" max="1" step="0.05" [(ngModel)]="fieldAwareRelevance.heading_field_weight" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.heading_field_weight')" i18n-matTooltip="@@settings.tips.headingShare" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label i18n="@@settings.labels.introShare">Intro share</mat-label>
+                  <input matInput autocomplete="off" type="number" min="0" max="1" step="0.05" [(ngModel)]="fieldAwareRelevance.intro_field_weight" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.intro_field_weight')" i18n-matTooltip="@@settings.tips.introShare" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
                   <mat-label i18n="@@settings.labels.bodyShare">Body share</mat-label>
                   <input matInput autocomplete="off" type="number" min="0" max="1" step="0.05" [(ngModel)]="fieldAwareRelevance.body_field_weight" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.body_field_weight')" i18n-matTooltip="@@settings.tips.bodyShare" matTooltipClass="setting-tooltip">
@@ -235,6 +249,13 @@
                   <mat-label i18n="@@settings.labels.scopeLabelShare">Scope label share</mat-label>
                   <input matInput autocomplete="off" type="number" min="0" max="1" step="0.05" [(ngModel)]="fieldAwareRelevance.scope_field_weight" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.scope_field_weight')" i18n-matTooltip="@@settings.tips.scopeLabelShare" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label i18n="@@settings.labels.learnedAnchorShare">Learned-anchor share</mat-label>
+                  <input matInput autocomplete="off" type="number" min="0" max="1" step="0.05" [(ngModel)]="fieldAwareRelevance.learned_anchor_field_weight" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.learned_anchor_field_weight')" i18n-matTooltip="@@settings.tips.learnedAnchorShare" matTooltipClass="setting-tooltip">
                     <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>

@@ -313,6 +313,27 @@ services:
     volumes:
       - frontend_dist:/dist
 
+  frontend-mutation-tools:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      target: build
+    image: xf-linker-frontend-mutation-tools:latest
+    profiles: ["tools"]
+    working_dir: /app
+    command: sh -c "npx stryker --version && echo 'Stryker is available in Docker'"
+
+  mutation-tools:
+    build:
+      context: .
+      dockerfile: tools/mutation/Dockerfile
+    image: xf-linker-mutation-tools:latest
+    profiles: ["tools"]
+    working_dir: /repo
+    volumes:
+      - .:/repo
+    command: bash -lc "mutmut --version && mull-runner-19 --version && go version && command -v go-mutesting >/dev/null && echo 'mutation tools ready'"
+
   # ─────────────────────────────────────────────
   # Nginx — serves the Angular prod bundle + proxies /api/ and /ws/
   # Long-cache headers on hashed assets via nginx.prod.conf.

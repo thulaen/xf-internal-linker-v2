@@ -330,9 +330,22 @@
             - {{ fieldAwareMatchedFieldsSummary() }}
           }
         </p>
+        <p class="meta-line">
+          {{ fieldAwareEarlyMatchLabel() }}
+        </p>
         @if (fieldAwareTopTerms('title')) {
           <p class="meta-line">
             Top title terms: {{ fieldAwareTopTerms('title') }}
+          </p>
+        }
+        @if (fieldAwareTopTerms('heading')) {
+          <p class="meta-line">
+            Top heading terms: {{ fieldAwareTopTerms('heading') }}
+          </p>
+        }
+        @if (fieldAwareTopTerms('intro')) {
+          <p class="meta-line">
+            Top intro terms: {{ fieldAwareTopTerms('intro') }}
           </p>
         }
         @if (fieldAwareTopTerms('body')) {

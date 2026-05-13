@@ -482,16 +482,35 @@ jobs:
           DJANGO_SETTINGS_MODULE: config.settings.test
           DJANGO_SECRET_KEY: ci-fake-secret-key
         run: |
+          mkdir -p reports
           mutmut run \
             --paths-to-mutate=apps/auto_issues/services/fingerprinting.py \
             --runner="python -m pytest apps/auto_issues -p randomly -x -q --no-cov" \
             --processes=2 || true
           mutmut results
           # Fail the job if ANY mutant survived.
-          mutmut junitxml > mutmut-results.xml || true
-          ! grep -q 'failures="0"' mutmut-results.xml || (
+          mutmut junitxml > reports/mutmut-fingerprinting.xml || true
+          grep -q 'failures="0"' reports/mutmut-fingerprinting.xml || (
             echo "FAIL: surviving mutants found — see report above";
-            cat mutmut-results.xml;
+            cat reports/mutmut-fingerprinting.xml;
+            exit 1
+          )
+      - name: Run mutmut on FR-011 scorer
+        working-directory: backend
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.test
+          DJANGO_SECRET_KEY: ci-fake-secret-key
+        run: |
+          rm -rf .mutmut-cache
+          mutmut run \
+            --paths-to-mutate=apps/pipeline/services/field_aware_relevance.py \
+            --runner="python -m pytest apps/pipeline/tests.py::FieldAwareRelevanceServiceTests -p randomly -x -q --no-cov" \
+            --processes=2 || true
+          mutmut results
+          mutmut junitxml > reports/mutmut-field-aware-relevance.xml || true
+          grep -q 'failures="0"' reports/mutmut-field-aware-relevance.xml || (
+            echo "FAIL: surviving Python mutants found in field_aware_relevance.py";
+            cat reports/mutmut-field-aware-relevance.xml;
             exit 1
           )
       - name: Mutation-score ratchet (FR-251 Gap #4)
@@ -510,12 +529,12 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: mutmut-results
-          path: backend/mutmut-results.xml
+          path: backend/reports/mutmut-*.xml
           retention-days: 30
 
   # ── 17d. Angular mutation testing (Stryker, blocking) ────────────
   # Phase 4a — scoped initially to one core service. Surviving mutants
-  # below thresholds.break (40%) fail the build.
+  # below thresholds.break (95%) fail the build.
   frontend-stryker:
     name: Angular Mutation (Stryker)
     runs-on: ubuntu-latest
@@ -549,6 +568,84 @@ jobs:
           name: stryker-report
           path: frontend/reports/
           retention-days: 30
+
+  cpp-mull-fieldrel:
+    name: C++ Mutation (Mull, scoped field-aware relevance)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Mull and build dependencies
+        run: |
+          curl -1sLf 'https://dl.cloudsmith.io/public/mull-project/mull-stable/setup.deb.sh' | sudo -E bash
+          sudo apt-get update
+          sudo apt-get install -y cmake libtbb-dev clang-19 mull-19
+          pip install pybind11
+      - name: Configure C++ test for Mull
+        working-directory: backend/extensions
+        run: |
+          cmake -B build_mull \
+            -DCMAKE_C_COMPILER=clang-19 \
+            -DCMAKE_CXX_COMPILER=clang++-19 \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: Build focused native test
+        working-directory: backend/extensions
+        run: cmake --build build_mull --parallel 2 --target test_fieldrel
+      - name: Run scoped Mull pilot
+        working-directory: backend/extensions/build_mull
+        run: |
+          mkdir -p ../reports/mull
+          mull-runner-19 \
+            --config ../../../mull.yml \
+            --reporters Elements \
+            --report-dir ../reports/mull \
+            --report-name mutants.json \
+            --mutation-score-threshold 95 \
+            --test-program ./test_fieldrel
+      - name: Mutation-score ratchet for C++
+        if: always()
+        run: |
+          if [ -f backend/extensions/reports/mull/mutants.json ]; then
+            python .githooks/check-mutation-score.py \
+              --tool mull \
+              --target test_fieldrel \
+              --report backend/extensions/reports/mull/mutants.json
+          else
+            echo "FAIL: Mull report is absent"
+            exit 1
+          fi
+      - name: Upload Mull report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: mull-fieldrel-report
+          path: backend/extensions/reports/mull/
+          retention-days: 30
+
+  go-mutation-tooling:
+    name: Go Mutation Tooling (installed, no broad default run)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Detect Go module
+        id: go-module
+        run: |
+          if find . -name go.mod -not -path './.git/*' | grep -q .; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25.x"
+      - name: Install scoped Go mutation candidate
+        run: go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest
+      - name: Verify Go mutation tool install
+        run: go-mutesting --help
+      - name: No Go module present
+        if: steps.go-module.outputs.present != 'true'
+        run: echo "No go.mod found, so Go mutation tooling was installed but no mutation run was started."
 
   # ── 17e+. libFuzzer smoke (blocking, 60s per target) ─────────────
   # Phase 4b — runs each starter fuzz target for 60 s under
@@ -595,25 +692,6 @@ jobs:
             backend/extensions/fuzz/timeout-*
           retention-days: 30
           if-no-files-found: ignore
-
-  # ── 17e. C++ mutation testing (Mull, advisory) ───────────────────
-  # GATE-DOWNGRADE-JUSTIFICATION: Mull requires a Mull-compiled Clang
-  # toolchain that the ubuntu-latest runner image doesn't yet ship.
-  # Scaffolding lands now so the config lives in version control; the
-  # gate flips to blocking when the toolchain is added (tracked as a
-  # follow-up AutoIssue alongside #162).
-  cpp-mull:
-    name: C++ Mutation (Mull, advisory)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Check Mull availability
-        run: |
-          if ! command -v mull-runner-13 > /dev/null; then
-            echo "::warning::Mull toolchain not installed on runner — skipping"
-            exit 0
-          fi
-          echo "Mull is available; will be wired to test_simsearch in a follow-up"
 
   # ── 18. AddressSanitizer (blocking) ──────────────────────────────
   cpp-asan:
@@ -709,7 +787,7 @@ jobs:
   # ── 17f. C++ coverage report (advisory — FR-251 Gap #3) ──────────
   # GATE-DOWNGRADE-JUSTIFICATION: baseline not yet seeded — the first
   # CI run captures the per-file line / branch %. Flips to blocking
-  # after one seed run; tracked alongside the Mull blocking flip.
+  # after one seed run.
   cpp-coverage:
     name: C++ coverage (lcov, advisory)
     runs-on: ubuntu-latest

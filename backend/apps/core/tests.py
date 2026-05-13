@@ -584,6 +584,12 @@ class FieldAwareRelevanceSettingsApiTests(APITestCase):
                 "title_field_weight": recommended_float(
                     "field_aware_relevance.title_field_weight"
                 ),
+                "heading_field_weight": recommended_float(
+                    "field_aware_relevance.heading_field_weight"
+                ),
+                "intro_field_weight": recommended_float(
+                    "field_aware_relevance.intro_field_weight"
+                ),
                 "body_field_weight": recommended_float(
                     "field_aware_relevance.body_field_weight"
                 ),
@@ -600,10 +606,12 @@ class FieldAwareRelevanceSettingsApiTests(APITestCase):
             "/api/settings/field-aware-relevance/",
             {
                 "ranking_weight": 0.05,
-                "title_field_weight": 0.35,
-                "body_field_weight": 0.35,
-                "scope_field_weight": 0.15,
-                "learned_anchor_field_weight": 0.15,
+                "title_field_weight": 0.30,
+                "heading_field_weight": 0.15,
+                "intro_field_weight": 0.20,
+                "body_field_weight": 0.15,
+                "scope_field_weight": 0.10,
+                "learned_anchor_field_weight": 0.10,
             },
             format="json",
         )
@@ -616,7 +624,7 @@ class FieldAwareRelevanceSettingsApiTests(APITestCase):
         )
         self.assertEqual(
             AppSetting.objects.get(key="field_aware_relevance.body_field_weight").value,
-            "0.35",
+            "0.15",
         )
         self.assertEqual(
             AppSetting.objects.get(key="field_aware_relevance.ranking_weight").category,
@@ -628,10 +636,12 @@ class FieldAwareRelevanceSettingsApiTests(APITestCase):
             "/api/settings/field-aware-relevance/",
             {
                 "ranking_weight": 0.2,
-                "title_field_weight": 0.4,
-                "body_field_weight": 0.3,
-                "scope_field_weight": 0.15,
-                "learned_anchor_field_weight": 0.15,
+                "title_field_weight": 0.30,
+                "heading_field_weight": 0.15,
+                "intro_field_weight": 0.20,
+                "body_field_weight": 0.15,
+                "scope_field_weight": 0.10,
+                "learned_anchor_field_weight": 0.10,
             },
             format="json",
         )
@@ -644,6 +654,8 @@ class FieldAwareRelevanceSettingsApiTests(APITestCase):
             {
                 "ranking_weight": 0.05,
                 "title_field_weight": 0.4,
+                "heading_field_weight": 0.15,
+                "intro_field_weight": 0.20,
                 "body_field_weight": 0.3,
                 "scope_field_weight": 0.2,
                 "learned_anchor_field_weight": 0.2,

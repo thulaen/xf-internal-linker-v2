@@ -3,6 +3,10 @@
 # Python 3.12 (NOT 3.13 — ML libraries lag behind latest Python)
 # ─────────────────────────────────────────────────────────────────
 
+FROM golang:1.25-bookworm AS go-tools
+
+RUN go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest
+
 FROM python:3.12-slim
 
 # Prevent Python from writing .pyc files and buffering stdout/stderr
@@ -29,6 +33,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zlib1g-dev \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
+
+# Mutation tools that should be present after a fresh backend Docker build.
+# Keep these scoped: mutmut runs focused Python files, and go-mutesting
+# must target explicit Go packages. Mull lives in the dedicated
+# mutation-tools image because its package repo targets Ubuntu, not this
+# Debian-based Python image.
+COPY --from=go-tools /usr/local/go /usr/local/go
+COPY --from=go-tools /go/bin/go-mutesting /usr/local/bin/go-mutesting
+ENV PATH="/usr/local/go/bin:${PATH}"
 
 # Why ``postgresql-client``:
 #   * Group L #91 (masterplan) — daily ``pg_dump`` snapshot to a local
@@ -70,6 +83,9 @@ COPY requirements.txt .
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt && \
     python -c "import drf_spectacular" && \
+    pip cache purge
+
+RUN pip install --no-cache-dir mutmut==3.5.0 && \
     pip cache purge
 
 # Download spaCy language model. ``spacy download`` shells out to pip

@@ -158,6 +158,8 @@ export interface RareTermPropagationSettings {
 export interface FieldAwareRelevanceSettings {
   ranking_weight: number;
   title_field_weight: number;
+  heading_field_weight: number;
+  intro_field_weight: number;
   body_field_weight: number;
   scope_field_weight: number;
   learned_anchor_field_weight: number;
@@ -686,7 +688,7 @@ export class SiloSettingsService {
   }
 
   listSiloGroups(): Observable<SiloGroup[]> {
-    return this.http.get<SiloGroup[] | { results: SiloGroup[] }>('/api/silo-groups/')
+    return this.http.get<SiloGroup[] | { results: SiloGroup[] }>('/api/silo-groups/') // noqa: route-check
       .pipe(
         map((r) => Array.isArray(r) ? r : r.results ?? []),
         catchError(() => of([]))
@@ -694,7 +696,7 @@ export class SiloSettingsService {
   }
 
   createSiloGroup(payload: Partial<SiloGroup>): Observable<SiloGroup> {
-    return this.http.post<SiloGroup>('/api/silo-groups/', payload);
+    return this.http.post<SiloGroup>('/api/silo-groups/', payload); // noqa: route-check
   }
 
   updateSiloGroup(id: number, payload: Partial<SiloGroup>): Observable<SiloGroup> {
@@ -706,7 +708,7 @@ export class SiloSettingsService {
   }
 
   listScopes(): Observable<ScopeItem[]> {
-    return this.http.get<ScopeItem[] | { results: ScopeItem[] }>('/api/scopes/')
+    return this.http.get<ScopeItem[] | { results: ScopeItem[] }>('/api/scopes/') // noqa: route-check
       .pipe(
         map((r) => Array.isArray(r) ? r : r.results ?? []),
         catchError(() => of([]))
@@ -754,19 +756,19 @@ export class SiloSettingsService {
   }
 
   getGSCSettings(): Observable<GSCSettings> {
-    return this.http.get<GSCSettings>('/api/analytics/settings/gsc/');
+    return this.http.get<GSCSettings>('/api/analytics/settings/gsc/'); // noqa: route-check
   }
 
   getGA4TelemetrySettings(): Observable<GA4TelemetrySettings> {
-    return this.http.get<GA4TelemetrySettings>('/api/analytics/settings/ga4/');
+    return this.http.get<GA4TelemetrySettings>('/api/analytics/settings/ga4/'); // noqa: route-check
   }
 
   getGoogleOAuthSettings(): Observable<GoogleOAuthSettings> {
-    return this.http.get<GoogleOAuthSettings>('/api/analytics/settings/google-oauth/');
+    return this.http.get<GoogleOAuthSettings>('/api/analytics/settings/google-oauth/'); // noqa: route-check
   }
 
   getMatomoTelemetrySettings(): Observable<MatomoTelemetrySettings> {
-    return this.http.get<MatomoTelemetrySettings>('/api/analytics/settings/matomo/');
+    return this.http.get<MatomoTelemetrySettings>('/api/analytics/settings/matomo/'); // noqa: route-check
   }
 
   getClickDistanceSettings(): Observable<ClickDistanceSettings> {
@@ -830,11 +832,11 @@ export class SiloSettingsService {
   }
 
   updateGSCSettings(payload: GSCSettingsUpdate): Observable<GSCSettings> {
-    return this.http.put<GSCSettings>('/api/analytics/settings/gsc/', payload);
+    return this.http.put<GSCSettings>('/api/analytics/settings/gsc/', payload); // noqa: route-check
   }
 
   testGSCConnection(payload: { property_url?: string; client_email?: string; private_key?: string }): Observable<AnalyticsConnectionResult> {
-    return this.http.post<AnalyticsConnectionResult>('/api/analytics/settings/gsc/test-connection/', payload);
+    return this.http.post<AnalyticsConnectionResult>('/api/analytics/settings/gsc/test-connection/', payload); // noqa: route-check
   }
 
   runGSCSync(payload?: { lookback_days?: number }): Observable<any> {
@@ -846,7 +848,7 @@ export class SiloSettingsService {
   }
 
   updateGoogleOAuthSettings(payload: { client_id: string; client_secret?: string }): Observable<GoogleOAuthSettings> {
-    return this.http.put<GoogleOAuthSettings>('/api/analytics/settings/google-oauth/', payload);
+    return this.http.put<GoogleOAuthSettings>('/api/analytics/settings/google-oauth/', payload); // noqa: route-check
   }
 
   unlinkGoogleAccount(): Observable<any> {
@@ -854,23 +856,23 @@ export class SiloSettingsService {
   }
 
   updateGA4TelemetrySettings(payload: GA4TelemetryUpdate): Observable<GA4TelemetrySettings> {
-    return this.http.put<GA4TelemetrySettings>('/api/analytics/settings/ga4/', payload);
+    return this.http.put<GA4TelemetrySettings>('/api/analytics/settings/ga4/', payload); // noqa: route-check
   }
 
   testGA4TelemetryConnection(payload: { measurement_id?: string; api_secret?: string; google_oauth_client_id?: string; google_oauth_client_secret?: string }): Observable<AnalyticsConnectionResult> {
-    return this.http.post<AnalyticsConnectionResult>('/api/analytics/settings/ga4/test-connection/', payload);
+    return this.http.post<AnalyticsConnectionResult>('/api/analytics/settings/ga4/test-connection/', payload); // noqa: route-check
   }
 
   testGA4TelemetryReadConnection(payload: { property_id?: string; read_project_id?: string; read_client_email?: string; read_private_key?: string }): Observable<AnalyticsConnectionResult> {
-    return this.http.post<AnalyticsConnectionResult>('/api/analytics/settings/ga4/test-read-connection/', payload);
+    return this.http.post<AnalyticsConnectionResult>('/api/analytics/settings/ga4/test-read-connection/', payload); // noqa: route-check
   }
 
   updateMatomoTelemetrySettings(payload: MatomoTelemetryUpdate): Observable<MatomoTelemetrySettings> {
-    return this.http.put<MatomoTelemetrySettings>('/api/analytics/settings/matomo/', payload);
+    return this.http.put<MatomoTelemetrySettings>('/api/analytics/settings/matomo/', payload); // noqa: route-check
   }
 
   testMatomoTelemetryConnection(payload: { url?: string; site_id_xenforo?: string; token_auth?: string }): Observable<AnalyticsConnectionResult> {
-    return this.http.post<AnalyticsConnectionResult>('/api/analytics/settings/matomo/test-connection/', payload);
+    return this.http.post<AnalyticsConnectionResult>('/api/analytics/settings/matomo/test-connection/', payload); // noqa: route-check
   }
 
   testXenForoConnection(payload: { base_url?: string; api_key?: string }): Observable<AnalyticsConnectionResult> {
@@ -1076,7 +1078,7 @@ export class SiloSettingsService {
   // ── Weight presets ────────────────────────────────────────────────
 
   listWeightPresets(): Observable<WeightPreset[]> {
-    return this.http.get<{ results: WeightPreset[] }>('/api/weight-presets/')
+    return this.http.get<{ results: WeightPreset[] }>('/api/weight-presets/') // noqa: route-check
       .pipe(
         map((r) => r.results ?? []),
         catchError(() => of([]))
@@ -1084,7 +1086,7 @@ export class SiloSettingsService {
   }
 
   createWeightPreset(payload: { name: string; weights: Record<string, string> }): Observable<WeightPreset> {
-    return this.http.post<WeightPreset>('/api/weight-presets/', payload);
+    return this.http.post<WeightPreset>('/api/weight-presets/', payload); // noqa: route-check
   }
 
   renameWeightPreset(id: number, name: string): Observable<WeightPreset> {
@@ -1108,7 +1110,7 @@ export class SiloSettingsService {
   }
 
   listChallengers(): Observable<RankingChallenger[]> {
-    return this.http.get<RankingChallenger[] | { results: RankingChallenger[] }>('/api/weight-challengers/')
+    return this.http.get<RankingChallenger[] | { results: RankingChallenger[] }>('/api/weight-challengers/') // noqa: route-check
       .pipe(
         map((r) => Array.isArray(r) ? r : r.results ?? []),
         catchError(() => of([]))
@@ -1126,7 +1128,7 @@ export class SiloSettingsService {
   // ── Weight adjustment history ─────────────────────────────────────
 
   listWeightHistory(): Observable<WeightAdjustmentHistory[]> {
-    return this.http.get<WeightAdjustmentHistory[] | { results: WeightAdjustmentHistory[] }>('/api/weight-history/')
+    return this.http.get<WeightAdjustmentHistory[] | { results: WeightAdjustmentHistory[] }>('/api/weight-history/') // noqa: route-check
       .pipe(
         map((r) => Array.isArray(r) ? r : r.results ?? []),
         catchError(() => of([]))

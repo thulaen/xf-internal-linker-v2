@@ -334,6 +334,18 @@ def _load_field_aware_relevance_settings() -> FieldAwareRelevanceSettings:
                     recommended_float("field_aware_relevance.title_field_weight"),
                 )
             ),
+            heading_field_weight=float(
+                config.get(
+                    "heading_field_weight",
+                    recommended_float("field_aware_relevance.heading_field_weight"),
+                )
+            ),
+            intro_field_weight=float(
+                config.get(
+                    "intro_field_weight",
+                    recommended_float("field_aware_relevance.intro_field_weight"),
+                )
+            ),
             body_field_weight=float(
                 config.get(
                     "body_field_weight",

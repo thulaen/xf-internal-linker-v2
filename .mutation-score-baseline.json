@@ -1,9 +1,10 @@
 {
-  "$schema_note": "Mutation-score ratchet baseline (FR-251 Gap #4). One entry per (tool, target) pair. Values are the highest mutation score (% of mutants killed) recorded for that target. CI jobs `python-mutmut`, `frontend-stryker`, and `cpp-mull` compare current score against the recorded baseline and FAIL when the score drops. The baseline ONLY GOES UP. Empty initial state — first CI run on master seeds it.",
+  "$schema_note": "Mutation-score ratchet baseline (FR-251 Gap #4). One entry per (tool, target) pair. Values are the highest mutation score (% of mutants killed) recorded for that target. CI jobs `python-mutmut`, `frontend-stryker`, and scoped C++ Mull pilots compare current score against the recorded baseline and FAIL when the score drops. The baseline ONLY GOES UP. Empty initial state — first CI run on master seeds it.",
   "baselines": {
     "mutmut:apps/auto_issues/services/fingerprinting.py": null,
+    "mutmut:apps/pipeline/services/field_aware_relevance.py": 95.0,
     "stryker:src/app/core/services/a11y-prefs.service.ts": null,
-    "mull:test_simsearch": null
+    "mull:test_fieldrel": null
   },
   "_seeding_instructions": "After the first successful CI run on master, paste the per-target mutation score (as a float 0-100) into the corresponding entry above. Until seeded the entry stays null and the ratchet is a no-op for that target."
 }

@@ -119,8 +119,38 @@ META_PARAMS: dict[str, TunableEntry] = {
         citation="Auer et al. 2002 Machine Learning §4 (UCB1 exploration constant √2)",
     ),
     "field_aware_relevance.title_field_weight": TunableEntry(
-        lower=0.05, upper=1.0, default="0.40",
+        lower=0.05, upper=1.0, default="0.30",
         citation="Robertson et al. 2004 SIGIR §4 (BM25F field weight ranges)",
+    ),
+    "field_aware_relevance.heading_field_weight": TunableEntry(
+        lower=0.05,
+        upper=1.0,
+        default="0.15",
+        citation="US11328114B2 / US20180276220A1 early rendered-text weighting",
+    ),
+    "field_aware_relevance.intro_field_weight": TunableEntry(
+        lower=0.05,
+        upper=1.0,
+        default="0.20",
+        citation="US11328114B2 / US20180276220A1 early rendered-text weighting",
+    ),
+    "field_aware_relevance.body_field_weight": TunableEntry(
+        lower=0.05,
+        upper=1.0,
+        default="0.15",
+        citation="Robertson et al. 2004 SIGIR field-weight ranges",
+    ),
+    "field_aware_relevance.scope_field_weight": TunableEntry(
+        lower=0.05,
+        upper=1.0,
+        default="0.10",
+        citation="Robertson et al. 2004 SIGIR field-weight ranges",
+    ),
+    "field_aware_relevance.learned_anchor_field_weight": TunableEntry(
+        lower=0.05,
+        upper=1.0,
+        default="0.10",
+        citation="Robertson et al. 2004 SIGIR field-weight ranges",
     ),
     "clustering.similarity_threshold": TunableEntry(
         lower=0.01, upper=0.50, default="0.04",

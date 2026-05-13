@@ -26,7 +26,7 @@ Level A is the project's strictest tier. Applies to anything that touches busine
 - **100% line coverage** measured at PR time.
 - **100% branch coverage** (not just line — every `if` / `else` / `match` arm exercised).
 - **Property-based tests** for any function with combinatorial input space.
-- **Mutation testing** — mutmut (Python) / Stryker (Angular) / Mull (C++) must achieve mutation score above the documented threshold (see `docs/MUTATION-TESTING.md`).
+- **Mutation testing** — mutmut (Python) / Stryker (Angular) must achieve mutation score above the documented threshold (see `docs/MUTATION-TESTING.md`).
 - **Golden-fixture regression tests** — snapshot the expected output for known representative inputs; any change to the snapshot is reviewed.
 - **End-to-end review-workflow tests** (Playwright) for any code path that participates in a user-facing review or approval flow.
 - **Traceability** — each test references the rule, FR, or invariant it enforces, by ID or by comment.
@@ -64,7 +64,7 @@ These are **floors**. The strictest target wins when a task touches multiple are
 | API endpoints (`backend/apps/api/`, `backend/apps/*/views*.py`) | **90%** line + 85% branch |
 | Celery tasks (`backend/apps/*/tasks*.py`) | **90%** line + 85% branch |
 | Backend domain modules (`backend/apps/*/models.py`, `backend/apps/*/services/dedup.py`, etc.) | **90%** line + 85% branch |
-| C++ extensions (`backend/extensions/*.cpp`) | **100%** branch coverage + Mull mutation score ≥ 70% |
+| C++ extensions (`backend/extensions/*.cpp`) | **100%** branch coverage + scoped Mull pilot only when the target stays small and time-bounded |
 | Angular components (`frontend/src/app/**/*.component.ts`) | **75%** line + 60% branch |
 | Angular services (`frontend/src/app/**/*.service.ts`) | **75%** line + 60% branch |
 | Critical review-page workflows | **90%** + at least 1 Playwright E2E spec |
@@ -158,7 +158,7 @@ When implementing or reviewing the areas below, the property-test suite **must**
 
 ## Mutation-testing contract
 
-Every Level A change must run mutmut / Stryker / Mull on the touched module (changed-files scope in pre-push; full scope in CI nightly). Surviving mutants are non-zero exit.
+Every Level A change must run mutmut / Stryker on the touched module (changed-files scope in pre-push; full scope in CI nightly). Surviving mutants are non-zero exit.
 
 Tooling reference: `docs/MUTATION-TESTING.md`. Initial scope (one module per language) is documented there; expansion is one module per PR via the AutoIssue ratchet.
 
@@ -215,7 +215,7 @@ Honesty is mandatory. Claiming `met` when the suite is failing is a protocol vio
 - `AI-CODING-GUIDELINES.md` — the comprehensive guideline doc.
 - `docs/specs/fr251-code-coverage-program.md` — the FR spec for this program.
 - `docs/ROADMAP.md` — milestones and dates for raising the floor.
-- `docs/MUTATION-TESTING.md` — mutmut / Stryker / Mull operating manual.
+- `docs/MUTATION-TESTING.md` — mutmut / Stryker operating manual.
 - `docs/CI-GATES.md` — what CI enforces.
 - `CLAUDE.md` and `AGENTS.md` — the PARAMOUNT rules and opening ritual.
 
@@ -223,4 +223,4 @@ Honesty is mandatory. Claiming `met` when the suite is failing is a protocol vio
 
 ## Plain-English wrap-up
 
-These rules say: **tests must cover what they claim to cover, and the bar is high for anything that touches your data or your business rules.** Backend code that ships features needs 90% coverage minimum. C++ kernels need 100% branch coverage and pass mutation testing. Angular components are looser at 75%. Anything in the "Level A" list — scoring, parsing, state machines, money — gets the full property-test + mutation-test + end-to-end-test treatment. Every session picks 10 coverage gaps from the backlog and chips away at them. Every task ends with a coverage summary that is honest.
+These rules say: **tests must cover what they claim to cover, and the bar is high for anything that touches your data or your business rules.** Backend code that ships features needs 90% coverage minimum. C++ kernels need 100% branch coverage and must pass scoped native tests, sanitizers, fuzz tests, and benchmarks. Mutation testing is allowed only for small time-bounded Mull pilots. Angular components are looser at 75%. Anything in the "Level A" list — scoring, parsing, state machines, money — gets the full property-test + mutation-test + end-to-end-test treatment. Every session picks 10 coverage gaps from the backlog and chips away at them. Every task ends with a coverage summary that is honest.

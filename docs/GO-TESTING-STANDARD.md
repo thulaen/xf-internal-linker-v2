@@ -32,7 +32,7 @@ Strict `golangci-lint` config lives at [`services/go/.golangci.yml`](../services
 
 ## Mutation testing
 
-Future Go services will use `go-mutesting` to mutate source code and verify the test suite catches the mutations. Surviving mutants must fail the build. Pattern matches Python's `mutmut` and Angular's `Stryker`.
+Future Go services will use `avito-tech/go-mutesting` for scoped package-level mutation checks. The CI job installs the tool now, but it must not run `./...` across a large module by default. Each Go service must declare the exact package or directory mutation scope before enabling a blocking mutation gate.
 
 ## Fuzz testing
 

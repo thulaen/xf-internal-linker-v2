@@ -67,6 +67,147 @@ _SCORING_PROGRESS_INTERVAL = 100  # maxsize for scoring loop progress reporting
 _PAGERANK_VERSION_LABEL = "Weighted PageRank"
 
 
+def _scope_id_set(scope: dict[str, Any] | None) -> set[int] | None:
+    if not scope:
+        return None
+    raw_ids = scope.get("scope_ids")
+    if raw_ids is None:
+        return None
+    return {int(scope_id) for scope_id in raw_ids if scope_id is not None}
+
+
+def _content_item_id_set(scope: dict[str, Any] | None) -> set[int] | None:
+    if not scope:
+        return None
+    raw_ids = scope.get("content_item_ids")
+    if raw_ids is None:
+        return None
+    return {int(content_id) for content_id in raw_ids if content_id is not None}
+
+
+@shared_task(
+    bind=True,
+    name="pipeline.run_pipeline",
+    time_limit=7200,
+    soft_time_limit=6900,
+)
+@HelperConstraint(
+    cpu_intensive=True,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=4096,
+    expected_seconds_p50=1200,
+)
+def run_pipeline(
+    self,
+    *,
+    run_id: str,
+    host_scope: dict[str, Any] | None = None,
+    destination_scope: dict[str, Any] | None = None,
+    rerun_mode: str = "skip_pending",
+) -> dict[str, Any]:
+    from apps.pipeline.services.pipeline import run_pipeline as run_pipeline_service
+    from apps.suggestions.models import PipelineRun
+
+    if not connection.in_atomic_block:
+        connection.close()
+
+    started_at = time.monotonic()
+    PipelineRun.objects.filter(run_id=run_id).update(run_state="running")
+    _publish_progress(run_id, "running", 0.0, "Starting link suggestion pipeline.")
+
+    def _progress(progress: float, message: str) -> None:
+        _publish_progress(run_id, "running", progress, message)
+
+    try:
+        result = run_pipeline_service(
+            run_id=run_id,
+            rerun_mode=rerun_mode,
+            host_scope_ids=_scope_id_set(host_scope),
+            destination_scope_ids=_scope_id_set(destination_scope),
+            destination_content_item_ids=_content_item_id_set(destination_scope),
+            progress_fn=_progress,
+        )
+    except (DatabaseError, TimeoutError, MemoryError, ValueError) as exc:
+        _mark_pipeline_run_failed(run_id, started_at, exc)
+        raise
+
+    duration_seconds = _mark_pipeline_run_completed(run_id, started_at, result)
+    return {
+        "run_id": run_id,
+        "state": "completed",
+        "suggestions_created": result.suggestions_created,
+        "destinations_processed": result.items_in_scope,
+        "destinations_skipped": result.destinations_skipped,
+        "duration_seconds": duration_seconds,
+    }
+
+
+def _mark_pipeline_run_failed(
+    run_id: str,
+    started_at: float,
+    exc: Exception,
+) -> None:
+    from apps.suggestions.models import PipelineRun
+
+    PipelineRun.objects.filter(run_id=run_id).update(
+        run_state="failed",
+        duration_seconds=round(time.monotonic() - started_at, 3),
+        error_message=str(exc),
+    )
+    _publish_progress(
+        run_id,
+        "failed",
+        0.0,
+        f"Link suggestion pipeline failed: {exc}",
+        error=str(exc),
+    )
+
+
+def _mark_pipeline_run_completed(
+    run_id: str,
+    started_at: float,
+    result: Any,
+) -> float:
+    from apps.suggestions.models import PipelineRun
+
+    duration_seconds = round(time.monotonic() - started_at, 3)
+    PipelineRun.objects.filter(run_id=run_id).update(
+        run_state="completed",
+        suggestions_created=result.suggestions_created,
+        destinations_processed=result.items_in_scope,
+        destinations_skipped=result.destinations_skipped,
+        duration_seconds=duration_seconds,
+        error_message="",
+    )
+    _publish_progress(
+        run_id,
+        "completed",
+        1.0,
+        "Link suggestion pipeline complete.",
+        suggestions_created=result.suggestions_created,
+        destinations_processed=result.items_in_scope,
+        destinations_skipped=result.destinations_skipped,
+    )
+    return duration_seconds
+
+
+def dispatch_pipeline_run(
+    *,
+    run_id: str,
+    host_scope: dict[str, Any] | None = None,
+    destination_scope: dict[str, Any] | None = None,
+    rerun_mode: str = "skip_pending",
+) -> dict[str, str]:
+    run_pipeline.delay(
+        run_id=run_id,
+        host_scope=host_scope or {},
+        destination_scope=destination_scope or {},
+        rerun_mode=rerun_mode,
+    )
+    return {"runtime_owner": "celery"}
+
+
 def _publish_progress(
     job_id: str, state: str, progress: float, message: str, **extra: Any
 ) -> None:
@@ -996,6 +1137,7 @@ def sync_single_wp_item(post_id: int, content_type: str = "post") -> dict:
 # restore the function signatures to prevent crashes. Full implementation
 # (task queueing, progress tracking, error handling) is deferred.
 
+@shared_task(name="pipeline.import_content", time_limit=7200, soft_time_limit=6900)
 def import_content(
     *,
     scope_ids: list[int] | None = None,
@@ -1027,14 +1169,17 @@ def dispatch_import_content(
 ) -> dict[str, Any]:
     """Dispatcher: enqueue an import job. Calls import_content task."""
     job_id = job_id or str(uuid.uuid4())
-    return import_content(
-        scope_ids=scope_ids,
-        mode=mode,
-        source=source,
-        file_path=file_path,
-        job_id=job_id,
-        force_reembed=force_reembed,
+    import_content.apply_async(
+        kwargs={
+            "scope_ids": scope_ids,
+            "mode": mode,
+            "source": source,
+            "file_path": file_path,
+            "job_id": job_id,
+            "force_reembed": force_reembed,
+        }
     )
+    return {"runtime_owner": "celery", "job_id": job_id}
 
 
 # ──────────────────────────────────────────────────────────────────────────────

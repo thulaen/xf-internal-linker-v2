@@ -1,3 +1,35 @@
+# 2026-05-13 03:05 - Codex GPT-5 - Mission A audit stopped before source edits
+
+[REGISTRY READ: 162 open (49 agent / 35 glitchtip / 15 pyroscope / 4 tempo / 39 loki / 1 faro / 0 mutation / 19 fuzz / 0 contract / 0 gh_ci), 7 open registry findings - picked: auto-fix-30 satisfier]
+[CI FAILED RUNS READ: skipped - gh unavailable]
+[GUIDELINES READ: AI-CODING-GUIDELINES.md + docs/CODE-COVERAGE-RULES.md]
+[COVERAGE GAPS READ: 10 picked - #185, #184, #183, #182, #181, #176, #175, #174, #173, #172]
+[RESOLVED HISTORY: 0 prior fix(es) read in AGENT-HANDOFF.md]
+[COVERAGE SUMMARY: target=0% actual=0% - met (audit and handoff only; no source code changed by this session)]
+
+What I did:
+I read the Mission A plan at `C:\Users\goldm\OneDrive\Desktop\mission a original plan.txt`, read the latest handoff, ran the open issue command, skimmed the open report registry entries, checked the last 30 commits, checked the file-size grandfather list, checked the working tree, and ran the four Mission A prevention checks. I did not edit source code.
+
+What now works that did not before:
+No new behavior was added by this session. The audit confirmed these Mission A checks pass now: `python .githooks/check-file-size.py`, `python .githooks/check-no-downgraded-gates.py`, `python .githooks/check-frontend-routes.py`, and `python .githooks/check-missing-tests.py`. The audit also confirmed the original oversized files are now below the cap: `frontend/src/app/settings/settings.component.ts` is 1,085 lines, `backend/apps/core/views.py` is 362 lines, and `backend/apps/core/views_settings.py` is 1,235 lines.
+
+What has issues or errors:
+The working tree already had a large uncommitted change set before this session touched anything: 45 modified tracked files plus new files under `backend/apps/suggestions/migrations/`, `backend/extensions/tests/`, `backend/pyproject.toml`, and `tools/mutation/`. Existing uncommitted handoff entries in this same file say coverage and mutation proof were not completed for that prior work. I stopped before source edits because starting a new Mission A slice on top of unverified unrelated changes would mix ownership and make the final state harder to trust.
+
+Mutation-test result for every touched file:
+`AGENT-HANDOFF.md` - not applicable because this is documentation only.
+
+Coverage percentage for every touched file:
+`AGENT-HANDOFF.md` - 0%; coverage is not applicable to documentation.
+
+[PLAN REMAINING: ~25%]
+
+Next agent should pick up:
+First resolve the existing uncommitted change set before starting a new Mission A slice. The smallest safe slice is to audit and either finish or park the current uncommitted mutation-tool and early-main-content work in these files: `.github/workflows/ci.yml`, `backend/apps/pipeline/services/field_aware_relevance.py`, `frontend/src/app/settings/ranking-weights-tab/ranking-weights-tab.component.ts`, `frontend/package.json`, `frontend/package-lock.json`, `docker-compose.yml`, and `tools/mutation/Dockerfile`. After that tree is clean, the next Mission A slice should be Phase 6 i18n tagging in `frontend/src/app/dashboard/dashboard.component.html` only.
+
+Tech-debt delta: 0. This session found a process problem but did not change source code.
+
+---
 # 2026-05-12 08:45 — Claude Opus 4.7 (1M context) — FR-251 follow-ups: 9 new coding rules + 6 measurement gaps closed
 
 [HANDOFF READ: 2026-05-12 07:55 by Claude Opus 4.7 — FR-251 Code-Coverage Program + AI-CODING-GUIDELINES + Phase 6 follow-ups]
@@ -75,6 +107,75 @@ This is a follow-up slice on the same long session that already shipped (1) the 
 The session leaves the repo in good shape. Coverage rules exist; the 42-issue backlog is drainable; the four-baseline ratchet pattern is in place (Python file-level, mutation score, C++ via build flag, Angular via reporter); a one-shot `measure_coverage` command lets agents fill in the [COVERAGE SUMMARY: ...] marker honestly; property-test and golden-fixture scaffolds give the next agent a copyable template; the 9 new coding rules close out long-standing implicit conventions (KISS+DRY with the over-DRY trap, design principles, atomic commits, review gates for major changes, context-window discipline, fail-gracefully, root-cause-first, inline source citations, preserve-behaviour-EXACTLY refactors).
 
 The 5-marker opening ritual is non-trivially heavy (HANDOFF + REGISTRY + CI-FAILED-RUNS + GUIDELINES + COVERAGE-GAPS = 5 lines just to start a session, plus 18+10+10 = 38 items to triage). That weight is deliberate — it forces every agent to acknowledge the failure signals and coverage backlog before doing user-facing work. If the ritual ever feels too heavy in practice, the right move is to drain the backlog, not lower the gate.
+
+---
+
+# 2026-05-13 00:12 - Codex GPT-5 - Mutation tools installed and narrowed to mature scoped defaults
+
+[HANDOFF READ: 2026-05-12 by Codex GPT-5 - FR-011 early main-content scoring and diagnostics were implemented and verified with focused tests]
+[REGISTRY READ: auto-fix-30 satisfier, 86 open registry findings - picked: auto-fix-30 satisfier]
+[CI FAILED RUNS READ: carried forward from session gate - latest failed runs were already checked earlier in this task]
+[GUIDELINES READ: AI-CODING-GUIDELINES.md + docs/CODE-COVERAGE-RULES.md]
+[COVERAGE SUMMARY: target=90% actual=0% measured coverage - not met]
+
+**What I did:**
+Installed and configured mutation tools that meet the user's rule: active during 2021-2026, mature enough for scoped use, and safe for large projects through package/file/test-target limits.
+
+**What changed:**
+- Python now pins `mutmut==3.5.0` in `backend/requirements-dev.txt`, and I installed that version inside the backend container at `/tmp/.local/bin/mutmut`.
+- Angular and JavaScript now use StrykerJS `9.6.1` in `frontend/package.json` and `frontend/package-lock.json`.
+- C++ now has a scoped Mull config and CI job for `test_fieldrel` only. It does not mutate the whole C++ tree.
+- Go now has a CI install step for `github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest`, with no broad default mutation run. Future Go services must declare a focused package or directory scope before enabling a blocking gate.
+- `docs/MUTATION-TESTING.md`, `docs/CI-GATES.md`, `docs/GO-TESTING-STANDARD.md`, and the mutation-score ratchet were updated to reflect the installed tools and limits.
+
+**Verification run:**
+- `docker compose exec -T backend bash -lc '/tmp/.local/bin/mutmut --version'` - passed, reported `mutmut, version 3.5.0`.
+- `node frontend/node_modules/@stryker-mutator/core/bin/stryker --version` - passed with elevated permission, reported `9.6.1`.
+- `docker compose exec -T backend python -c "import yaml; yaml.safe_load(open('/repo/.github/workflows/ci.yml', encoding='utf-8')); print('workflow yaml ok')"` - passed.
+- `python -m py_compile .githooks/check-mutation-score.py` - passed.
+- `npm run test:ci -- --include='src/app/review/suggestion-detail-dialog.component.spec.ts' --include='src/app/settings/ranking-weights-tab/ranking-weights-tab.component.spec.ts' --include='src/app/settings/settings.component.spec.ts'` - passed, 8 tests.
+- `git diff --check` - passed.
+
+**What has issues or errors:**
+- Full `pip install -r backend/requirements-dev.txt` failed because existing `pyroscope-io` and `pact-python` pins require incompatible `cffi` ranges. I installed only `mutmut==3.5.0` to avoid changing unrelated dependencies.
+- npm reported 10 existing audit findings after the Stryker install. I did not run `npm audit fix` because that can make broad unrelated package changes.
+- Go is not installed on the Windows host, so the Go mutation tool was not installed locally. The CI job installs it on Ubuntu.
+- C++ Mull was not run locally because Mull is installed by the Ubuntu CI job, not in the Windows host or backend container.
+- Coverage was not measured, so the required 90% target was not proven.
+
+**Tech-debt delta:** -2. Mature mutation tooling is now pinned or installed for Python, Angular, JavaScript, C++, and future Go. Remaining debt is the unrelated backend dev dependency conflict and npm audit backlog.
+
+---
+
+# 2026-05-12 22:45 - Codex GPT-5 - Mutation setup narrowed to mature scoped tools
+
+[HANDOFF READ: 2026-05-12 by Codex GPT-5 - FR-011 early main-content scoring and diagnostics were implemented and verified with focused tests]
+[REGISTRY READ: auto-fix-30 satisfier, 86 open registry findings - picked: auto-fix-30 satisfier]
+[CI FAILED RUNS READ: carried forward from session gate - latest failed runs were already checked earlier in this task]
+[GUIDELINES READ: AI-CODING-GUIDELINES.md + docs/CODE-COVERAGE-RULES.md]
+[COVERAGE SUMMARY: target=90% actual=0% measured coverage - not met]
+
+**What I did:**
+Finished the mutation-tool cleanup after the user clarified that large-module support matters more than adding every possible tool.
+
+**What changed:**
+- Removed the new Go Gremlins setup, because it is not a good default for very large Go modules.
+- Removed the new C++ Mull mutation setup, including the CI job, config file, and baseline entries.
+- Kept the mature scoped mutation paths: Python `mutmut` and Angular `Stryker`, both with a 95% gate for the configured targets.
+- Kept the normal C++ `test_fieldrel` correctness test, because it verifies the hot path without adding a C++ mutation runner.
+- Updated mutation docs, CI gate docs, coverage docs, roadmap notes, and the mutation-score checker so they no longer advertise active Go or C++ mutation gates.
+
+**Verification run:**
+- `docker compose exec -T backend python -c "import yaml; yaml.safe_load(open('/repo/.github/workflows/ci.yml', encoding='utf-8')); print('workflow yaml ok')"` - passed.
+- `python -m py_compile .githooks/check-mutation-score.py` - passed.
+- Earlier in the same slice, `docker compose exec -T backend bash -lc "cd /app/extensions && cmake -S . -B build_tests_linux && cmake --build build_tests_linux --target test_fieldrel -j 2 && ./build_tests_linux/test_fieldrel --gtest_shuffle"` - passed, 5 tests.
+- Earlier in the same slice, `docker compose exec -T backend python manage.py test apps.pipeline.tests.FieldAwareRelevanceServiceTests --settings=config.settings.test --shuffle --noinput` - passed, 4 tests.
+
+**What has issues or errors:**
+- The actual mutation tools were not run locally because the container still does not have them installed. CI now sets the expected mature scoped gates, but local mutation pass percentages were not measured in this session.
+- Coverage was not measured, so the required 90% target was not proven.
+
+**Tech-debt delta:** -1. Removed unsuitable broad mutation gates from the new work and documented the narrower large-project-safe policy. Remaining debt is local installation or CI execution of the mature mutation tools.
 
 ---
 
@@ -9583,3 +9684,74 @@ Notes for the next agent:
   Silent UI bug fixed: wizard Next button now responds when a step becomes invalid after render.
   Backend gate debt fixed: 2 default mismatches, 3 missing citation descriptions, 2 missing helper metadata decorators.
   Disposable artifacts removed: local test-output files and generated translation output that were not part of the slice.
+# 2026-05-12 22:10 - Codex GPT-5 - FR-011 early main-content matching implemented
+
+[HANDOFF READ: 2026-05-12 08:45 by Claude Opus 4.7 - shipped code-coverage rules, test-hardening follow-ups, and noted that the issue counter still needs source-list cleanup]
+[REGISTRY READ: 162 open (49 agent / 35 glitchtip / 15 pyroscope / 4 tempo / 39 loki / 1 faro / 0 mutation / 19 fuzz / 0 contract / 0 gh_ci), 7 open registry findings - answer-only research, no code fixes picked]
+[CI FAILED RUNS READ: skipped - gh unavailable]
+[GUIDELINES READ: AI-CODING-GUIDELINES.md + docs/CODE-COVERAGE-RULES.md]
+[RESOLVED HISTORY: 3 prior fix(es) read in backend/apps/suggestions]
+[COVERAGE SUMMARY: target=90% actual=0% measured coverage - not met; focused tests passed, but no coverage measurement command was run]
+
+**What I did:**
+Implemented the FR-011 early main-content extension. FR-011 is the existing field-aware relevance score. It now splits destination evidence into title, heading, intro, body, scope, and learned-anchor fields. It also shows whether the match came from early main content.
+
+**What changed:**
+- Backend scoring now reads heading text from existing content metadata when present, splits the first 80 clean content tokens into the intro field, and keeps the remaining clean text as body text.
+- Backend diagnostics now include heading and intro scores, `matched_early_main_content`, and `matched_early_fields`.
+- Settings defaults now keep the feature on through `field_aware_relevance.ranking_weight = 0.10` and use the approved six-part field split: title `0.30`, heading `0.15`, intro `0.20`, body `0.15`, scope `0.10`, learned anchor `0.10`.
+- The Recommended preset, settings API, settings validation, settings screen, review detail dialog, manual docs, and FR-011 spec were updated.
+- Added migration `backend/apps/suggestions/migrations/0069_extend_field_aware_early_content_defaults.py` to seed the new default split for existing installs.
+- Restored missing pipeline dispatch helpers in `backend/apps/pipeline/tasks.py` because the start-run views and existing tests already expected `dispatch_pipeline_run` and a queued import task.
+- Updated the plain-English glossary for the new early main-content matching term.
+
+**Verification run:**
+- `docker compose exec -T backend python manage.py test apps.pipeline.tests.PipelineTaskRunStatsTests apps.pipeline.tests.PipelineDispatchTests apps.pipeline.tests.FieldAwareRelevanceServiceTests apps.core.tests.FieldAwareRelevanceSettingsApiTests apps.suggestions.tests.PipelineRunWeightedSnapshotTests --settings=config.settings.test --shuffle --noinput` - passed, 10 tests.
+- `docker compose exec -T backend python manage.py makemigrations --check --dry-run` - passed, no model migration drift.
+- `npm run test:ci -- --include='src/app/review/suggestion-detail-dialog.component.spec.ts' --include='src/app/settings/ranking-weights-tab/ranking-weights-tab.component.spec.ts' --include='src/app/settings/settings.component.spec.ts'` from `frontend/` - passed, 8 tests.
+- After splitting the restored pipeline task into smaller helpers, reran `docker compose exec -T backend python manage.py test apps.pipeline.tests.PipelineTaskRunStatsTests apps.pipeline.tests.PipelineDispatchTests apps.suggestions.tests.PipelineRunWeightedSnapshotTests --settings=config.settings.test --shuffle --noinput` - passed, 4 tests.
+- `scripts/prune-verification-artifacts.ps1` ran. It pruned local build caches. Docker prune was skipped because Docker was not allowed in this shell. Disk compaction tried to run but Windows `diskpart.exe` required elevation.
+
+**What has issues or errors:**
+- Coverage was not measured, so the required 90% target was not proven. Focused tests passed, but measured coverage is recorded as 0% for this handoff.
+- Docker prune and disk compaction did not complete because the shell lacked permission.
+- Historical migration `backend/apps/suggestions/migrations/0016_seed_recommended_preset.py` still contains the old FR-011 field split. That is expected because the new migration updates existing installs forward.
+- Changes are not committed or pushed.
+
+**Tech-debt delta:** -1. The requested FR-011 work landed, and one existing pipeline dispatch gap was fixed while testing. Remaining debt is the missing measured coverage run and the permission-limited cleanup steps.
+
+---
+
+# 2026-05-13 02:58 - Codex GPT-5 - Mutation tools added to Docker
+
+[HANDOFF READ: 2026-05-12 by Codex GPT-5 - added early main-content scoring, review diagnostics, Python and C++ coverage, and started mutation-tool setup after finding the mutation tools were not installed locally]
+[REGISTRY READ: auto-fix-30 satisfier, 86 open registry findings - picked: auto-fix-30 satisfier]
+[CI FAILED RUNS READ: carried forward from session gate - latest failed runs were already checked earlier in this task]
+[GUIDELINES READ: AI-CODING-GUIDELINES.md + docs/CODE-COVERAGE-RULES.md]
+[COVERAGE SUMMARY: target=95% actual=0% mutation score measured - not met; Docker tool availability was verified, but full mutation runs were not completed]
+
+**What I did:**
+Added Docker support for the mutation testing tools so a fresh machine can rebuild the same tool setup from the repository.
+
+**What changed:**
+- `tools/mutation/Dockerfile` now builds a dedicated tool image with `mutmut 3.5.0`, `mull-runner 0.34.0`, `clang-19`, Go `1.25.10`, and `go-mutesting`.
+- `docker-compose.yml` now has a `mutation-tools` service for Python, C++, and Go mutation tools, plus a `frontend-mutation-tools` service for Stryker.
+- `backend/Dockerfile` now installs `mutmut 3.5.0`, Go, and `go-mutesting` during backend image builds. Mull stays in the dedicated Ubuntu-based tool image because the Mull package repository publishes the needed package for Ubuntu, not the Debian base used by the backend image.
+- `docs/MUTATION-TESTING.md` explains the Docker commands for the portable mutation-tool setup.
+
+**Verification run:**
+- PASS - `docker compose build --progress=plain mutation-tools`
+- PASS - `docker compose --profile tools run --rm mutation-tools` printed `mutmut, version 3.5.0`, `mull-runner 0.34.0`, `LLVM: 19.1.1`, `go version go1.25.10 linux/amd64`, and `mutation tools ready`.
+- PASS - `docker compose build --progress=plain frontend-mutation-tools`
+- PASS - `docker compose --profile tools run --rm frontend-mutation-tools` printed `9.6.1` and `Stryker is available in Docker`.
+- PASS - `docker compose config --quiet`
+- PASS - `git diff --check` with line-ending warnings only.
+
+**What has issues or errors:**
+- Full mutation scores were not measured in this slice, so the required 95% mutation target is not proven yet.
+- The backend image rebuild timed out before completion earlier in the session. The dedicated `mutation-tools` and `frontend-mutation-tools` images did build and run successfully.
+- The frontend tool image build reported existing warnings: Angular optional-chain warnings, an initial bundle budget warning, CommonJS package warnings, and `npm audit` warnings.
+
+**Tech-debt delta:** -1. Mutation tools are now reproducible through Docker. Remaining debt is running the full mutation suites and proving the 95% score gates on the changed code.
+
+---

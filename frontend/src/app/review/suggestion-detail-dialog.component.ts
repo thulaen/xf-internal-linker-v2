@@ -298,7 +298,7 @@ export class SuggestionDetailDialogComponent implements OnInit {
       return 'Neutral means the sentence did not line up with the destination fields in a useful way.';
     }
     if (diagnostics.field_aware_state === 'computed_match') {
-      return 'Field-aware relevance checks where the sentence lines up with the destination title, body, scope labels, and learned anchor wording.';
+      return 'Field-aware relevance checks where the sentence lines up with the destination title, headings, intro, body, scope labels, and learned anchor wording.';
     }
     if (diagnostics.field_aware_state === 'neutral_no_destination_terms') {
       return 'Neutral means the destination did not have enough usable field text.';
@@ -336,22 +336,37 @@ export class SuggestionDetailDialogComponent implements OnInit {
     }
     const labels: Array<[keyof typeof diagnostics.field_scores, string]> = [
       ['title', 'title'],
+      ['heading', 'headings'],
+      ['intro', 'intro'],
       ['body', 'body'],
       ['scope', 'scope'],
       ['learned_anchor', 'learned anchors'],
     ];
     return labels
       .filter(([key]) => (diagnostics.field_scores[key]?.score ?? 0) > 0)
-      .map(([key, label]) => `${label} ${(diagnostics.field_scores[key].score * 100).toFixed(0)}`)
+      .map(([key, label]) => {
+        const score = diagnostics.field_scores[key]?.score ?? 0;
+        return `${label} ${(score * 100).toFixed(0)}`;
+      })
       .join(' - ');
   }
 
-  fieldAwareTopTerms(fieldName: 'title' | 'body' | 'scope' | 'learned_anchor'): string {
+  fieldAwareTopTerms(fieldName: 'title' | 'heading' | 'intro' | 'body' | 'scope' | 'learned_anchor'): string {
     const terms = this.detail?.field_aware_diagnostics?.field_scores?.[fieldName]?.matched_terms ?? [];
     return terms
       .slice(0, 3)
       .map((term) => term.token)
       .join(' - ');
+  }
+
+  fieldAwareEarlyMatchLabel(): string {
+    const diagnostics = this.detail?.field_aware_diagnostics;
+    if (!diagnostics) {
+      return 'Matched in early main content: No';
+    }
+    return diagnostics.matched_early_main_content
+      ? 'Matched in early main content: Yes'
+      : 'Matched in early main content: No';
   }
 
   clickDistanceSummary(): string {

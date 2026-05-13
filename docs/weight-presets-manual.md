@@ -108,11 +108,13 @@ If you have not assigned scopes to silo groups yet, this setting has little or n
 
 | Key | Recommended value | Plain-English reason |
 | --- | --- | --- |
-| `field_aware_relevance.ranking_weight` | `0.10` | Title/body alignment deserves a moderate voice. |
-| `field_aware_relevance.title_field_weight` | `0.40` | Titles are usually the clearest short summary. |
-| `field_aware_relevance.body_field_weight` | `0.30` | Body text matters, but titles still lead. |
-| `field_aware_relevance.scope_field_weight` | `0.15` | Scope labels are supporting evidence. |
-| `field_aware_relevance.learned_anchor_field_weight` | `0.15` | Learned anchor wording helps, but stays secondary. |
+| `field_aware_relevance.ranking_weight` | `0.10` | Field alignment deserves a moderate voice. |
+| `field_aware_relevance.title_field_weight` | `0.30` | Titles are usually the clearest short summary. |
+| `field_aware_relevance.heading_field_weight` | `0.15` | Headings show what each section is about. |
+| `field_aware_relevance.intro_field_weight` | `0.20` | Early main content is strong page-topic evidence. |
+| `field_aware_relevance.body_field_weight` | `0.15` | Later body text still matters, but it should not dominate. |
+| `field_aware_relevance.scope_field_weight` | `0.10` | Scope labels are supporting evidence. |
+| `field_aware_relevance.learned_anchor_field_weight` | `0.10` | Learned anchor wording helps, but stays secondary. |
 
 ### GA4 + Search Console
 

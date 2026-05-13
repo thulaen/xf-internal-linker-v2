@@ -400,12 +400,48 @@ class PipelineRunWeightedSnapshotTests(APITestCase):
             },
         )
         AppSetting.objects.update_or_create(
+            key="field_aware_relevance.heading_field_weight",
+            defaults={
+                "value": "0.1",
+                "value_type": "float",
+                "category": "ml",
+                "description": "Field-aware heading weight",
+            },
+        )
+        AppSetting.objects.update_or_create(
+            key="field_aware_relevance.intro_field_weight",
+            defaults={
+                "value": "0.1",
+                "value_type": "float",
+                "category": "ml",
+                "description": "Field-aware intro weight",
+            },
+        )
+        AppSetting.objects.update_or_create(
             key="field_aware_relevance.body_field_weight",
             defaults={
                 "value": "0.2",
                 "value_type": "float",
                 "category": "ml",
                 "description": "Field-aware body weight",
+            },
+        )
+        AppSetting.objects.update_or_create(
+            key="field_aware_relevance.scope_field_weight",
+            defaults={
+                "value": "0.05",
+                "value_type": "float",
+                "category": "ml",
+                "description": "Field-aware scope weight",
+            },
+        )
+        AppSetting.objects.update_or_create(
+            key="field_aware_relevance.learned_anchor_field_weight",
+            defaults={
+                "value": "0.05",
+                "value_type": "float",
+                "category": "ml",
+                "description": "Field-aware learned anchor weight",
             },
         )
 

@@ -39,7 +39,7 @@ The above are all real, inspectable sources. Each was opened before being cited.
 | Drain rate | **10 coverage-gap AutoIssues per session**, in addition to the standard 30-pick + 10 latest failed CI runs. |
 | Drought clause | Same shape as the 30-pick drought clause: file new AutoIssues for missing Level A areas; use the substitution form `<K> picked + <10-K> filed`. |
 | End-of-slice marker | `[COVERAGE SUMMARY: target=<X>% actual=<Y>% — met / not met — <reason if not met>]`. |
-| Per-language floors | Backend 90% line + 85% branch; Celery 90%; API 90%; Angular components+services 75%; C++ 100% branch + Mull mutation ≥ 70%. |
+| Per-language floors | Backend 90% line + 85% branch; Celery 90%; API 90%; Angular components+services 75%; C++ 100% branch. |
 
 ## Per-task coverage target table
 
@@ -50,7 +50,7 @@ The above are all real, inspectable sources. Each was opened before being cited.
 | Backend services | A | 90% line + 85% branch |
 | API endpoints | A | 90% line + 85% branch |
 | Celery tasks | A | 90% line + 85% branch |
-| C++ extensions | A (MC/DC) | 100% branch + Mull ≥ 70% |
+| C++ extensions | A (MC/DC) | 100% branch |
 | Angular components | B | 75% line + 60% branch |
 | Angular services | B | 75% line + 60% branch |
 | Critical review-page workflows | A + E2E | 90% + Playwright spec |

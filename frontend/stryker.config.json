@@ -19,8 +19,8 @@
   "htmlReporter": { "fileName": "reports/stryker.html" },
   "jsonReporter": { "fileName": "reports/stryker.json" },
   "thresholds": {
-    "high": 80,
-    "low": 60,
-    "break": 40
+    "high": 95,
+    "low": 95,
+    "break": 95
   }
 }

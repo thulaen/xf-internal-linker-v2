@@ -13,7 +13,7 @@ Multi-phase plan for raising the project's quality floor. Updated when new progr
 | 1 | Random-order tests across Python / Angular / C++ / Playwright | SHIPPED |
 | 2 | Pre-commit fast band + hardware-aware MAX_JOBS caps | SHIPPED |
 | 3 | Ruff `select=["ALL"]` + Clang-Tidy WarningsAsErrors curated | SHIPPED |
-| 4a | mutmut + Stryker + Mull (mutation testing) | SHIPPED (Mull advisory) |
+| 4a | mutmut + Stryker (mutation testing) | SHIPPED |
 | 4b | libFuzzer (3 starter targets + 60s smoke) | SHIPPED |
 | 4c | MemorySanitizer (project-only blacklist) | SHIPPED |
 | 4d | Pre-push heavy band wiring | SHIPPED |
@@ -34,11 +34,10 @@ Multi-phase plan for raising the project's quality floor. Updated when new progr
 | **M3** — First per-language ratchet | Backend `--cov-fail-under` raised from 68 → 75 | PENDING — after the first 50 coverage AutoIssues drain |
 | **M4** — Stryker mutation score ≥ 60% on scope module | Angular `a11y-prefs.service.ts` first; expand per ratchet | PENDING |
 | **M5** — mutmut mutation score ≥ 60% on scope module | Python `fingerprinting.py` first; expand per ratchet | PENDING |
-| **M6** — Mull mutation gate FLIPS from advisory to blocking | Requires Mull-compatible Clang in CI runner | PENDING |
 | **M7** — libFuzzer coverage-gap detection live | Picker emits `kind=fuzz-coverage-gap` rows for every public C++ API without a fuzz target | PENDING |
 | **M8** — Backend floor → 90% | Per-task table is the contract; this is the project-wide ratchet target | LONG-TERM |
 | **M9** — Angular floor → 75% | Same shape; component-level ratchet | LONG-TERM |
-| **M10** — C++ 100% branch + Mull ≥ 70% | Level A C++ contract met | LONG-TERM |
+| **M10** ? C++ 100% branch | Level A C++ contract met without a mutation gate until a large-project-safe tool is proven | LONG-TERM |
 
 ### Cleanup sweeps (parallel)
 

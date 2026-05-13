@@ -270,19 +270,27 @@ export interface FieldAwareDiagnostics {
     | 'neutral_processing_error';
   field_weights: {
     title: number;
+    heading?: number;
+    intro?: number;
     body: number;
     scope: number;
     learned_anchor: number;
   };
   field_lengths: {
     title: number;
+    heading?: number;
+    intro?: number;
     body: number;
     scope: number;
     learned_anchor: number;
   };
   matched_field_count: number;
+  matched_early_main_content?: boolean;
+  matched_early_fields?: string[];
   field_scores: {
     title: FieldAwareFieldDetail;
+    heading?: FieldAwareFieldDetail;
+    intro?: FieldAwareFieldDetail;
     body: FieldAwareFieldDetail;
     scope: FieldAwareFieldDetail;
     learned_anchor: FieldAwareFieldDetail;

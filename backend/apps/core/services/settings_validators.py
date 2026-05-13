@@ -185,8 +185,25 @@ def _validate_rare_term_propagation_settings(payload: dict, *, current: dict[str
 
 # ── Field-Aware Relevance ─────────────────────────────────────────
 
-_FIELD_AWARE_RELEVANCE_KEYS = ("ranking_weight", "title_field_weight", "body_field_weight", "scope_field_weight", "learned_anchor_field_weight")
-_FIELD_AWARE_RELEVANCE_BOUNDS = {"ranking_weight": (0.0, 0.15), "title_field_weight": (0.0, 1.0), "body_field_weight": (0.0, 1.0), "scope_field_weight": (0.0, 1.0), "learned_anchor_field_weight": (0.0, 1.0)}
+_FIELD_AWARE_RELEVANCE_KEYS = (
+    "ranking_weight",
+    "title_field_weight",
+    "heading_field_weight",
+    "intro_field_weight",
+    "body_field_weight",
+    "scope_field_weight",
+    "learned_anchor_field_weight",
+)
+_FIELD_AWARE_RELEVANCE_WEIGHT_KEYS = _FIELD_AWARE_RELEVANCE_KEYS[1:]
+_FIELD_AWARE_RELEVANCE_BOUNDS = {
+    "ranking_weight": (0.0, 0.15),
+    "title_field_weight": (0.0, 1.0),
+    "heading_field_weight": (0.0, 1.0),
+    "intro_field_weight": (0.0, 1.0),
+    "body_field_weight": (0.0, 1.0),
+    "scope_field_weight": (0.0, 1.0),
+    "learned_anchor_field_weight": (0.0, 1.0),
+}
 
 def _read_field_aware_relevance_settings() -> dict[str, float]:
     return {key: read_app_setting_float(f"field_aware_relevance.{key}", DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS[key]) for key in _FIELD_AWARE_RELEVANCE_KEYS}
@@ -195,8 +212,14 @@ def _validate_field_aware_relevance_settings(payload: dict, *, current: dict[str
     current = current or _read_field_aware_relevance_settings()
     validated = {key: coerce_setting_float(payload, current, key) for key in _FIELD_AWARE_RELEVANCE_KEYS}
     enforce_bounds(validated, _FIELD_AWARE_RELEVANCE_BOUNDS)
-    if not math.isclose(sum(validated[k] for k in _FIELD_AWARE_RELEVANCE_KEYS[1:]), 1.0, abs_tol=1e-6):
-        raise ValueError("title/body/scope/learned-anchor field weights must sum to 1.0.")
+    if not math.isclose(
+        sum(validated[k] for k in _FIELD_AWARE_RELEVANCE_WEIGHT_KEYS),
+        1.0,
+        abs_tol=1e-6,
+    ):
+        raise ValueError(
+            "title/heading/intro/body/scope/learned-anchor field weights must sum to 1.0."
+        )
     return validated
 
 # ── Clustering ────────────────────────────────────────────────────

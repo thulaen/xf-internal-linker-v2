@@ -52,6 +52,14 @@ _KEY_META: dict[str, dict[str, str]] = {
         "value_type": "float",
         "category": "ml",
     },
+    "field_aware_relevance.heading_field_weight": {
+        "value_type": "float",
+        "category": "ml",
+    },
+    "field_aware_relevance.intro_field_weight": {
+        "value_type": "float",
+        "category": "ml",
+    },
     "field_aware_relevance.body_field_weight": {
         "value_type": "float",
         "category": "ml",
