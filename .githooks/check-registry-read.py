@@ -18,11 +18,9 @@ The marker has TWO halves:
    is accepted per-bucket, provided `drought logged: #<id>` is present and
    the total ID count still reaches 30.
 
-A `satisfier` exemption phrase (`auto-fix-30 satisfier`, or any of the
-legacy `auto-fix-18` / `auto-fix-12` / `auto-fix-3 satisfier` phrases)
-replaces the picks half when the session's own user-task is itself a
-multi-bug fix that satisfies the quota structurally — for example,
-the very session that lifted the rule from 18 to 30.
+No satisfier phrase can replace the picks half. Every new handoff entry
+must include 30 real picked AutoIssue IDs. This applies to slices,
+multi-bug tasks, Mission A tasks, docs-only tasks, and any other work.
 
 Why a hook instead of a memory rule: agents have repeatedly forgotten to
 log new bugs into the registry / auto_issues table even though the rules
@@ -78,12 +76,12 @@ LEGACY_MARKER_RE = re.compile(
     r"\[REGISTRY READ:\s*\d+\s+open auto-issues",
     re.IGNORECASE,
 )
-# Inside the picks half, count IDs of the form #<token>. We require 18.
+# Inside the picks half, count IDs of the form #<token>. We require 30.
 ID_TOKEN_RE = re.compile(r"#[A-Za-z0-9._-]+")
-# Satisfier exemption — covers the current "auto-fix-30 satisfier" plus
-# the legacy "auto-fix-18", "auto-fix-12", and "auto-fix-3" phrases for
-# backwards compat with historical AGENT-HANDOFF entries on master.
-SATISFIER_RE = re.compile(r"auto-fix-(?:3|12|18|30)\s+satisfier", re.IGNORECASE)
+FORBIDDEN_SATISFIER_RE = re.compile(
+    r"auto-fix-(?:3|12|18|30)\s+satisfier",
+    re.IGNORECASE,
+)
 # When the picks span uses drought substitution, this phrase MUST be
 # present somewhere in the marker so the next agent can find the logged
 # AutoIssue and investigate why the source was empty.
@@ -244,15 +242,19 @@ def _validate_marker(added: str) -> int:
 
 
 def _validate_picks(added: str) -> int:
-    if SATISFIER_RE.search(added):
-        return 0  # satisfier exemption — session task is the multi-fix itself
+    if FORBIDDEN_SATISFIER_RE.search(added):
+        return _fail(
+            "30 real picked issue IDs are required. "
+            "Satisfier phrases are no longer accepted."
+        )
     picks_match = PICKS_SEGMENT_RE.search(added)
     if not picks_match:
         return _fail(
             "The `[REGISTRY READ: ...]` marker is present but does not include a "
             "`picked: #..., ...]` segment. Need 30 picks total (3 from each of "
             "agent, glitchtip, pyroscope, tempo, loki, faro, mutation, fuzz, "
-            "contract, gh_ci) OR the `auto-fix-30 satisfier` phrase (the legacy `auto-fix-18 satisfier` is also accepted)."
+            "contract, gh_ci). 30 real picked issue IDs are required. "
+            "Satisfier phrases are no longer accepted."
         )
     picks_blob = picks_match.group("picks")
     ids = ID_TOKEN_RE.findall(picks_blob)
