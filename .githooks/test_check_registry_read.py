@@ -21,6 +21,7 @@ from pathlib import Path
 from unittest import mock
 
 _HOOK_PATH = Path(__file__).resolve().parent / "check-registry-read.py"
+_REPO_ROOT = _HOOK_PATH.parents[1]
 
 
 def _load_hook():
@@ -44,7 +45,7 @@ def _valid_ten_source_marker(
     g: int = 3,
     p: int = 3,
     t: int = 3,
-    l: int = 3,
+    loki: int = 3,
     f: int = 3,
     m: int = 3,
     z: int = 3,
@@ -62,7 +63,7 @@ def _valid_ten_source_marker(
     picks_gh: int = 3,
     extra_phrase: str = "",
 ) -> str:
-    n = a + g + p + t + l + f + m + z + c + gh
+    n = a + g + p + t + loki + f + m + z + c + gh
     picks = (
         f"picked: {_ids('a', picks_a)} | g: {_ids('g', picks_g)} "
         f"| p: {_ids('p', picks_p)} | t: {_ids('t', picks_t)} "
@@ -72,7 +73,7 @@ def _valid_ten_source_marker(
     )
     return (
         f"[REGISTRY READ: {n} open ({a} agent / {g} glitchtip / "
-        f"{p} pyroscope / {t} tempo / {l} loki / {f} faro / "
+        f"{p} pyroscope / {t} tempo / {loki} loki / {f} faro / "
         f"{m} mutation / {z} fuzz / {c} contract / {gh} gh_ci), "
         f"6 registry - {picks}]{extra_phrase}"
     )
@@ -115,6 +116,48 @@ def _quality_result_marker(**overrides: str) -> str:
         f"mutation={values['mutation']} "
         f"check_setup={values['check_setup']}]"
     )
+
+
+def _self_review_marker(**overrides: str) -> str:
+    values = {
+        "scope": "task-files",
+        "autoissues": "none",
+        "fixes": "none",
+        "reuse": "passed",
+        "shared_library": "passed",
+        "complexity": "passed",
+        "tests": "passed",
+        "coverage": "met",
+        "mutation": "passed-or-not-required",
+        "benchmark": "passed-or-not-required",
+        "edge_cases": "covered",
+        "issues": "fixed-or-none",
+    }
+    values.update(overrides)
+    body = " ".join(f"{key}={value}" for key, value in values.items())
+    return f"[SELF REVIEW RESULT: {body}]"
+
+
+def _bdd_marker() -> str:
+    return (
+        "[BDD PROOF: Given code changes are staged When the handoff is written "
+        "Then the user-facing behavior is described in plain English]"
+    )
+
+
+def _tdd_marker(**overrides: str) -> str:
+    values = {
+        "before_or_alongside": "yes",
+        "tests": "python .githooks/test_check_registry_read.py",
+        "result": "passed",
+    }
+    values.update(overrides)
+    body = " ".join(f"{key}={value}" for key, value in values.items())
+    return f"[TDD PROOF: {body}]"
+
+
+def _lesson_read_marker() -> str:
+    return "[RESOLVED HISTORY: 2 prior fix(es) read in .githooks]"
 
 
 class CheckRegistryReadHookTests(unittest.TestCase):
@@ -303,6 +346,120 @@ class CheckRegistryReadHookTests(unittest.TestCase):
         )
         self.assertEqual(self.hook._validate_quality_gate_for_code(added, []), 0)
 
+    def test_code_commit_without_self_review_marker_fails(self):
+        self.assertEqual(
+            self.hook._validate_self_review_for_code(
+                "no self review",
+                ["backend/apps/core/foo.py"],
+            ),
+            1,
+        )
+
+    def test_self_review_marker_with_missing_fields_fails(self):
+        added = "[SELF REVIEW RESULT: scope=task-files issues=none]"
+        self.assertEqual(
+            self.hook._validate_self_review_for_code(
+                added,
+                ["backend/apps/core/foo.py"],
+            ),
+            1,
+        )
+
+    def test_self_review_marker_accepts_scoped_review_result(self):
+        self.assertEqual(
+            self.hook._validate_self_review_for_code(
+                _self_review_marker(),
+                ["backend/apps/core/foo.py"],
+            ),
+            0,
+        )
+
+    def test_docs_only_commit_does_not_require_self_review_marker(self):
+        self.assertEqual(self.hook._validate_self_review_for_code("", []), 0)
+
+    def test_code_commit_without_bdd_proof_marker_fails(self):
+        self.assertEqual(
+            self.hook._validate_bdd_proof_for_code(
+                "no bdd proof",
+                ["backend/apps/core/foo.py"],
+            ),
+            1,
+        )
+
+    def test_bdd_proof_without_given_when_then_fails(self):
+        added = "[BDD PROOF: code was tested]"
+        self.assertEqual(
+            self.hook._validate_bdd_proof_for_code(
+                added,
+                ["backend/apps/core/foo.py"],
+            ),
+            1,
+        )
+
+    def test_bdd_proof_with_given_when_then_passes(self):
+        self.assertEqual(
+            self.hook._validate_bdd_proof_for_code(
+                _bdd_marker(),
+                ["backend/apps/core/foo.py"],
+            ),
+            0,
+        )
+
+    def test_code_commit_without_tdd_proof_marker_fails(self):
+        self.assertEqual(
+            self.hook._validate_tdd_proof_for_code(
+                "no tdd proof",
+                ["backend/apps/core/foo.py"],
+            ),
+            1,
+        )
+
+    def test_tdd_proof_with_missing_fields_fails(self):
+        added = "[TDD PROOF: tests=python .githooks/test_check_registry_read.py]"
+        self.assertEqual(
+            self.hook._validate_tdd_proof_for_code(
+                added,
+                ["backend/apps/core/foo.py"],
+            ),
+            1,
+        )
+
+    def test_tdd_proof_with_failed_result_fails(self):
+        self.assertEqual(
+            self.hook._validate_tdd_proof_for_code(
+                _tdd_marker(result="failed"),
+                ["backend/apps/core/foo.py"],
+            ),
+            1,
+        )
+
+    def test_tdd_proof_with_passing_result_passes(self):
+        self.assertEqual(
+            self.hook._validate_tdd_proof_for_code(
+                _tdd_marker(),
+                ["backend/apps/core/foo.py"],
+            ),
+            0,
+        )
+
+    def test_code_commit_without_autoissue_lesson_read_fails(self):
+        self.assertEqual(
+            self.hook._validate_lesson_read_for_code(
+                "no resolved history",
+                ["backend/apps/core/foo.py"],
+            ),
+            1,
+        )
+
+    def test_code_commit_with_autoissue_lesson_read_passes(self):
+        self.assertEqual(
+            self.hook._validate_lesson_read_for_code(
+                _lesson_read_marker(),
+                ["backend/apps/core/foo.py"],
+            ),
+            0,
+        )
+
     def test_hook_python_changes_count_as_code(self):
         with mock.patch.object(
             self.hook,
@@ -368,6 +525,37 @@ class CheckRegistryReadHookTests(unittest.TestCase):
             return_value=[],
         ):
             self.assertEqual(self.hook._validate_no_generated_build_files(), 0)
+
+    def test_temporary_test_artifact_folder_is_blocked(self):
+        self.assertTrue(
+            self.hook._is_temporary_test_artifact(".pytest_cache/v/cache/nodeids")
+        )
+
+    def test_temporary_test_artifact_file_is_blocked(self):
+        self.assertTrue(self.hook._is_temporary_test_artifact("coverage.xml"))
+
+    def test_quality_evidence_summary_is_not_temporary_artifact(self):
+        self.assertFalse(
+            self.hook._is_temporary_test_artifact(
+                "backend/reports/quality-evidence/quality-debt.jsonl"
+            )
+        )
+
+    def test_staged_temporary_test_artifacts_are_rejected(self):
+        with mock.patch.object(
+            self.hook,
+            "_staged_temporary_test_artifacts",
+            return_value=[".pytest_cache/v/cache/nodeids"],
+        ):
+            self.assertEqual(self.hook._validate_no_temporary_test_artifacts(), 1)
+
+    def test_no_staged_temporary_test_artifacts_allows_commit_check_to_continue(self):
+        with mock.patch.object(
+            self.hook,
+            "_staged_temporary_test_artifacts",
+            return_value=[],
+        ):
+            self.assertEqual(self.hook._validate_no_temporary_test_artifacts(), 0)
 
     def test_unstaged_session_files_reads_git_diff(self):
         with mock.patch.object(
@@ -476,6 +664,20 @@ class CheckRegistryReadHookTests(unittest.TestCase):
         self.assertNotIn("commit with --no-verify", text)
         self.assertIn("Do not bypass this hook", text)
 
+    def test_rule_docs_name_claude_and_codex_bdd_tdd(self):
+        text = (_REPO_ROOT / "AI-CODING-GUIDELINES.md").read_text(encoding="utf-8")
+        self.assertIn('"agents" means Claude and Codex', text)
+        self.assertIn("BDD means behavior-driven description", text)
+        self.assertIn("TDD means test-driven development", text)
+        self.assertIn("[BDD PROOF:", text)
+        self.assertIn("[TDD PROOF:", text)
+
+    def test_autoissue_test_split_preserves_database_contract_tests(self):
+        text = (_REPO_ROOT / "AI-CODING-GUIDELINES.md").read_text(encoding="utf-8")
+        self.assertIn("Pure math, parsing, scoring, and fingerprint tests", text)
+        self.assertIn("must stay database-backed", text)
+        self.assertIn("Claude/Codex learning", text)
+
     def test_previous_handoff_stamp_reads_second_entry(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "fake-handoff.md"
@@ -572,6 +774,16 @@ class CheckRegistryReadHookTests(unittest.TestCase):
             ),
             mock.patch.object(
                 self.hook,
+                "_validate_no_generated_build_files",
+                return_value=0,
+            ),
+            mock.patch.object(
+                self.hook,
+                "_validate_no_temporary_test_artifacts",
+                return_value=0,
+            ),
+            mock.patch.object(
+                self.hook,
                 "_staged_code_files",
                 return_value=[".githooks/check-registry-read.py"],
             ),
@@ -586,6 +798,16 @@ class CheckRegistryReadHookTests(unittest.TestCase):
                 "_validate_no_unstaged_session_files",
                 return_value=0,
             ),
+            mock.patch.object(
+                self.hook,
+                "_validate_no_generated_build_files",
+                return_value=0,
+            ),
+            mock.patch.object(
+                self.hook,
+                "_validate_no_temporary_test_artifacts",
+                return_value=0,
+            ),
             mock.patch.object(self.hook, "_staged_code_files", return_value=[]),
             mock.patch.object(self.hook, "_commit_touches_handoff", return_value=False),
         ):
@@ -596,6 +818,16 @@ class CheckRegistryReadHookTests(unittest.TestCase):
             mock.patch.object(
                 self.hook,
                 "_validate_no_unstaged_session_files",
+                return_value=0,
+            ),
+            mock.patch.object(
+                self.hook,
+                "_validate_no_generated_build_files",
+                return_value=0,
+            ),
+            mock.patch.object(
+                self.hook,
+                "_validate_no_temporary_test_artifacts",
                 return_value=0,
             ),
             mock.patch.object(self.hook, "_staged_code_files", return_value=[]),
@@ -613,6 +845,14 @@ class CheckRegistryReadHookTests(unittest.TestCase):
             + _quality_read_marker()
             + "\n"
             + _quality_result_marker()
+            + "\n"
+            + _self_review_marker()
+            + "\n"
+            + _bdd_marker()
+            + "\n"
+            + _tdd_marker()
+            + "\n"
+            + _lesson_read_marker()
             + "\n[COVERAGE GAPS READ: 10 picked - #1, #2, #3]"
             + "\n[COVERAGE SUMMARY: target=90% actual=91% - met]"
         )
@@ -620,6 +860,16 @@ class CheckRegistryReadHookTests(unittest.TestCase):
             mock.patch.object(
                 self.hook,
                 "_validate_no_unstaged_session_files",
+                return_value=0,
+            ),
+            mock.patch.object(
+                self.hook,
+                "_validate_no_generated_build_files",
+                return_value=0,
+            ),
+            mock.patch.object(
+                self.hook,
+                "_validate_no_temporary_test_artifacts",
                 return_value=0,
             ),
             mock.patch.object(

@@ -10,9 +10,9 @@
 #include <cstdint>
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
-    volatile uint32_t hash = 0xCAFEBABEu;
-    for (size_t i = 0; i < size; ++i) {
-        hash ^= (hash << 5) + (hash >> 2) + data[i];
-    }
-    return hash == 0u ? 1 : 0;
+  volatile uint32_t hash = 0xCAFEBABEu;
+  for (size_t i = 0; i < size; ++i) {
+    hash ^= (hash << 5) + (hash >> 2) + data[i];
+  }
+  return hash == 0u ? 1 : 0;
 }

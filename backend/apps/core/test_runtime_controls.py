@@ -3,6 +3,7 @@
 from io import StringIO
 from unittest import mock
 
+import pytest
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test import TestCase, override_settings
@@ -16,6 +17,9 @@ from apps.core.performance_mode import (
     normalize_performance_mode,
 )
 from apps.core.views import RuntimeConfigView
+
+
+pytestmark = pytest.mark.django_db
 
 
 class RuntimeConfigViewTests(APITestCase):

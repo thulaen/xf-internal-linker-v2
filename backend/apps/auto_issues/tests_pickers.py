@@ -24,6 +24,7 @@ from apps.auto_issues.services.pyroscope_picker import (
     _compare_sides,
     _extract_function_totals,
     _select_hotspots,
+    _split_profiler_tooling_hotspots,
     _stable_fingerprint,
     pick_pyroscope_hotspots,
     pick_pyroscope_regressions,
@@ -119,10 +120,17 @@ class RegressionFactorTests(TestCase):
 
 
 class GlitchtipPickerTests(TestCase):
+    def setUp(self):
+        ErrorLog.objects.filter(source=ErrorLog.SOURCE_GLITCHTIP).delete()
+        AutoIssue.objects.filter(source=AutoIssue.SOURCE_GLITCHTIP).delete()
+
     def test_empty_mirror_returns_zero_promoted(self):
         result = pick_glitchtip_issues()
         self.assertEqual(result, {"status": "ok", "fetched": 0, "promoted": 0})
-        self.assertEqual(AutoIssue.objects.count(), 0)
+        self.assertEqual(
+            AutoIssue.objects.filter(source=AutoIssue.SOURCE_GLITCHTIP).count(),
+            0,
+        )
 
     def test_promotes_top_glitchtip_rows(self):
         ErrorLog.objects.create(
@@ -137,8 +145,10 @@ class GlitchtipPickerTests(TestCase):
         result = pick_glitchtip_issues(limit=5)
         self.assertEqual(result["fetched"], 1)
         self.assertEqual(result["promoted"], 1)
-        self.assertEqual(AutoIssue.objects.count(), 1)
-        row = AutoIssue.objects.first()
+        rows = AutoIssue.objects.filter(source=AutoIssue.SOURCE_GLITCHTIP)
+        self.assertEqual(rows.count(), 1)
+        row = rows.first()
+        self.assertIsNotNone(row)
         self.assertEqual(row.source, "glitchtip")
         self.assertEqual(row.external_id, "gt-1")
         self.assertGreater(row.priority_score, 0.0)
@@ -210,7 +220,7 @@ class PyroscopeFlamegraphParserTests(SimpleTestCase):
         self.assertNotEqual(a, c)
 
 
-class PyroscopePickerTopLevelTests(TestCase):
+class PyroscopePickerTopLevelTests(SimpleTestCase):
     @mock.patch.dict("os.environ", {"PYROSCOPE_SERVER_ADDRESS": ""})
     def test_no_server_address_skips_cleanly(self):
         result = pick_pyroscope_regressions(server="")
@@ -226,10 +236,14 @@ class PyroscopePickerTopLevelTests(TestCase):
 
 class CloseStaleIssuesTaskTests(TestCase):
     def test_closes_idle_low_score_rows(self):
+        AutoIssue.objects.filter(
+            status__in=(AutoIssue.STATUS_OPEN, AutoIssue.STATUS_PICKED)
+        ).update(priority_score=1.0)
+        prefix = f"close-stale-{id(self)}"
         # Stale + low score → should close.
         old = AutoIssue.objects.create(
             source="agent",
-            external_id="stale-1",
+            external_id=f"{prefix}-low",
             fingerprint="x",
             title="Stale low-priority",
             severity="low",
@@ -242,7 +256,7 @@ class CloseStaleIssuesTaskTests(TestCase):
         # Recent → should NOT close.
         AutoIssue.objects.create(
             source="agent",
-            external_id="recent-1",
+            external_id=f"{prefix}-recent",
             fingerprint="y",
             title="Recent",
             severity="low",
@@ -252,7 +266,7 @@ class CloseStaleIssuesTaskTests(TestCase):
         # High-score idle → should NOT close.
         old_high = AutoIssue.objects.create(
             source="agent",
-            external_id="stale-high-1",
+            external_id=f"{prefix}-high",
             fingerprint="z",
             title="Stale but high-priority",
             severity="critical",
@@ -386,6 +400,33 @@ class PyroscopeHotspotDetectorTests(SimpleTestCase):
         cands = _select_hotspots({}, threshold_pct=5.0)
         self.assertEqual(cands, [])
 
+    def test_split_profiler_tooling_hotspots_keeps_app_findings(self):
+        cands = [
+            PyroscopeCandidate(
+                function_name="Scheduler.make_sampler.<locals>._sample_stack",
+                file_hint="",
+                left_self_ns=0.0,
+                right_self_ns=80.0,
+                right_total_ns=100.0,
+            ),
+            PyroscopeCandidate(
+                function_name="apps.pipeline.services.score_matches",
+                file_hint="apps/pipeline/services.py",
+                left_self_ns=0.0,
+                right_self_ns=20.0,
+                right_total_ns=100.0,
+            ),
+        ]
+
+        app_cands, tooling_cands = _split_profiler_tooling_hotspots(cands)
+
+        self.assertEqual([c.function_name for c in app_cands], [
+            "apps.pipeline.services.score_matches",
+        ])
+        self.assertEqual([c.function_name for c in tooling_cands], [
+            "Scheduler.make_sampler.<locals>._sample_stack",
+        ])
+
 
 class PyroscopeHotspotIntegrationTests(TestCase):
     """End-to-end test that mocks the Pyroscope HTTP API and asserts
@@ -423,3 +464,42 @@ class PyroscopeHotspotIntegrationTests(TestCase):
         self.assertGreaterEqual(rows.count(), 1)
         # Title should mention the percent share.
         self.assertTrue(any("burning" in r.title.lower() for r in rows))
+
+    @mock.patch(
+        "apps.auto_issues.services.pyroscope_picker._query_pyroscope_render"
+    )
+    def test_pick_pyroscope_hotspots_groups_profiler_tooling(self, mock_render):
+        mock_render.return_value = {
+            "flamebearer": {
+                "names": [
+                    "root",
+                    "Scheduler.make_sampler.<locals>._sample_stack",
+                    "sleep",
+                    "encode_metrics",
+                ],
+                "levels": [
+                    [0, 300, 0, 0],
+                    [0, 100, 100, 1, 0, 100, 100, 2, 0, 100, 100, 3],
+                ],
+            },
+        }
+
+        result = pick_pyroscope_hotspots(
+            server="http://pyroscope:4040",
+            applications=("xf-linker-backend",),
+            limit=5,
+        )
+
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["app_hotspots_found"], 0)
+        self.assertEqual(result["profiler_tooling_found"], 3)
+        self.assertEqual(result["profiler_tooling_promoted"], 1)
+        rows = AutoIssue.objects.filter(
+            source=AutoIssue.SOURCE_PYROSCOPE,
+            title="Pyroscope: profiler-tooling overhead is above threshold",
+        )
+        self.assertEqual(rows.count(), 1)
+        row = rows.get()
+        self.assertIn("profiler-tooling", row.title)
+        self.assertEqual(row.category.key, "tooling")
+        self.assertNotIn("burning", row.title.lower())

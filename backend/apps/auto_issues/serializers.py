@@ -14,6 +14,9 @@ class AutoIssueSerializer(serializers.ModelSerializer):
     HTTP) see what prior fixes taught us about each area.
     """
 
+    category_key = serializers.CharField(source="category.key", read_only=True)
+    category_label = serializers.CharField(source="category.label", read_only=True)
+
     class Meta:
         model = AutoIssue
         fields = (
@@ -25,6 +28,8 @@ class AutoIssueSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "affected_files",
+            "category_key",
+            "category_label",
             "severity",
             "status",
             "priority_score",

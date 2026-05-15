@@ -47,6 +47,7 @@ class AciProducerTests(TestCase):
     def _seed_reviewed(self, *, score: float, status: str, lower: float, upper: float):
         from apps.suggestions.models import Suggestion
 
+        anchor_phrase = f"anchor-{Suggestion.objects.filter(pipeline_run=self.run).count()}"
         return Suggestion.objects.create(
             pipeline_run=self.run,
             destination=self.dest,
@@ -54,9 +55,9 @@ class AciProducerTests(TestCase):
             host_sentence=self.host_sentence,
             destination_title="dest",
             host_sentence_text="A host sentence.",
-            anchor_phrase="anchor",
+            anchor_phrase=anchor_phrase,
             anchor_start=0,
-            anchor_end=6,
+            anchor_end=len(anchor_phrase),
             anchor_confidence="strong",
             score_final=score,
             status=status,

@@ -109,8 +109,22 @@ class FastTextLangIdTests(TestCase):
     def test_real_prediction_classifies_english(self) -> None:
         """Real-data integration: with the model file present, fastText
         classifies obvious English correctly with high confidence."""
-        # Ensure we hit the real model — clear any stale cache + use
-        # the migrated default path.
+        from apps.core.models import AppSetting
+        from apps.core.runtime_flags import invalidate
+
+        AppSetting.objects.update_or_create(
+            key="fasttext_langid.enabled",
+            defaults={"value": "true", "description": ""},
+        )
+        AppSetting.objects.update_or_create(
+            key=fasttext_langid.KEY_MODEL_PATH,
+            defaults={"value": "/opt/models/lid.176.bin", "description": ""},
+        )
+        AppSetting.objects.update_or_create(
+            key=fasttext_langid.KEY_MIN_CONFIDENCE,
+            defaults={"value": "0.4", "description": ""},
+        )
+        invalidate("fasttext_langid.enabled")
         fasttext_langid._MODEL_SINGLETON = None
         fasttext_langid._MODEL_PATH_LOADED = None
         result = fasttext_langid.predict(

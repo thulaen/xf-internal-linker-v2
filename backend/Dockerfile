@@ -85,7 +85,21 @@ RUN pip install --upgrade pip && \
     python -c "import drf_spectacular" && \
     pip cache purge
 
-RUN pip install --no-cache-dir mutmut==3.5.0 && \
+RUN pip install --no-cache-dir \
+      mutmut==3.5.0 \
+      ruff==0.8.6 \
+      bandit==1.8.3 \
+      pip-audit==2.7.3 \
+      safety==3.6.2 \
+      pylint==3.3.8 \
+      coverage==7.6.10 \
+      pytest==8.3.4 \
+      pytest-cov==6.0.0 \
+      pytest-django==4.9.0 \
+      pytest-asyncio==0.25.0 \
+      pytest-randomly==3.15.0 \
+      pytest-benchmark==5.1.0 \
+      hypothesis==6.115.5 && \
     pip cache purge
 
 # Download spaCy language model. ``spacy download`` shells out to pip

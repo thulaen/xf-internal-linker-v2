@@ -34,7 +34,7 @@ CI pins **clang-format major 22** in `.github/workflows/ci.yml` (the `cpp-format
 
 Without a version pin the Ubuntu runner would install whatever major it currently ships, and different majors produce different output for the same `.clang-format` config — meaning a clean source could pass yesterday and fail today with no code change. Pinning fixes that.
 
-The style itself lives in `.clang-format` at the repo root: Google base, 4-space indent, 100-column limit, pointer/reference left-aligned, attached braces, regrouped includes.
+The style itself lives in `.clang-format` at the repo root and uses plain Google style.
 
 ### Local install (Windows)
 

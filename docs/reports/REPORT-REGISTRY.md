@@ -20,6 +20,33 @@ This file is the single index of all audit reports and individual issues found b
 
 ## Open Reports
 
+### ISS-129 - Management commands dispatch missed scheduled runs during schema work (2026-05-15)
+
+- **Found by:** Codex during the AutoIssue category migration and self-review logging work.
+- **AutoIssue:** #272.
+- **Status:** OPEN.
+- **Severity:** HIGH.
+- **Area:** `backend/apps/core/apps.py`, `backend/apps/core/services/schedule_tracker.py`.
+- **What is wrong in plain English:** running `manage.py migrate auto_issues` started the schedule recovery sweep and dispatched 81 missed scheduled runs. Schema work and small logging commands should not enqueue unrelated app work.
+- **Why it matters:** agents can trigger heavy background jobs while trying to apply a migration or record a review finding. That makes verification noisy and can put load on the system at the wrong time.
+- **Fix shape:** gate the schedule recovery sweep so it does not run during migrations, schema checks, self-review logging, or other maintenance commands.
+
+---
+
+### ISS-128 - Docker Desktop engine returns 500 while dashboard is running (2026-05-14)
+
+- **Found by:** Codex during safe Docker Desktop recovery.
+- **AutoIssue:** #257.
+- **Status:** RESOLVED 2026-05-14.
+- **Severity:** HIGH.
+- **Area:** `scripts/reset-docker-sockets.ps1`, `scripts/recover-docker-desktop-safe.ps1`, Docker Desktop, `docker-desktop` WSL distribution.
+- **What is wrong in plain English:** Docker Desktop can show its dashboard while normal Docker commands fail with a 500 error from the Docker engine pipe. In this state, `docker ps -a`, `docker volume ls`, and the AutoIssue startup check cannot run, even though Docker Desktop looks open.
+- **Why it matters:** agents may try risky cleanup if they mistake this for a broken project stack. The safe recovery must protect PostgreSQL, Redis, media, static files, frontend build output, GlitchTip, Grafana, Loki, Tempo, Pyroscope, and all Docker named volumes.
+- **Fix shape:** use `scripts/recover-docker-desktop-safe.ps1`. It first asks Docker Desktop to shut down normally, terminates only the `docker-desktop` WSL distribution, runs `scripts/reset-docker-sockets.ps1`, starts Docker Desktop, and waits until containers and volumes can be listed. If Windows administrator rights are needed, rerun the same script from Administrator PowerShell with `-AdminServiceRestart`; that mode restarts Docker helper processes and `com.docker.service` without deleting volumes.
+- **Closure:** current Docker health was restored, protected volumes were verified, a PostgreSQL backup was created at `backups/postgres-20260514-234111.dump`, safe cache/image cleanup ran after the backup, and the new safe recovery script was added. The trap is that Docker Desktop's visible dashboard is not proof that the Docker engine is healthy. The working fix is to prove health with both container and volume listing, then recover through WSL termination, socket reset, and service restart only when needed.
+
+---
+
 ### ISS-126 - Backend core tests fail under production-style settings (2026-05-11)
 
 - **Found by:** Codex during prevention sweep verification.

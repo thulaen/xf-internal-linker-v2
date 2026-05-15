@@ -28,6 +28,40 @@ from __future__ import annotations
 from django.db import models
 
 
+class AutoIssueCategory(models.Model):
+    """Extensible category taxonomy for AutoIssue rows."""
+
+    key = models.SlugField(
+        max_length=64,
+        unique=True,
+        help_text="Stable machine key, for example security or performance.",
+    )
+    label = models.CharField(max_length=128)
+    description = models.TextField(blank=True)
+    parent = models.ForeignKey(
+        "self",
+        blank=True,
+        null=True,
+        on_delete=models.PROTECT,
+        related_name="children",
+    )
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveSmallIntegerField(default=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "auto_issues_autoissuecategory"
+        ordering = ["sort_order", "label"]
+        indexes = [
+            models.Index(fields=["is_active", "sort_order"]),
+            models.Index(fields=["parent", "sort_order"]),
+        ]
+
+    def __str__(self) -> str:
+        return str(self.label)
+
+
 class AutoIssue(models.Model):
     SOURCE_GLITCHTIP = "glitchtip"
     SOURCE_PYROSCOPE = "pyroscope"
@@ -119,6 +153,13 @@ class AutoIssue(models.Model):
         blank=True,
         help_text="List of repo-relative file paths the fix is likely to touch. Used by agents to decide if their work overlaps.",
     )
+    category = models.ForeignKey(
+        AutoIssueCategory,
+        blank=True,
+        null=True,
+        on_delete=models.PROTECT,
+        related_name="issues",
+    )
 
     severity = models.CharField(
         max_length=12, choices=SEVERITY_CHOICES, default=SEVERITY_MEDIUM
@@ -170,9 +211,131 @@ class AutoIssue(models.Model):
         indexes = [
             models.Index(fields=["status", "-priority_score"]),
             models.Index(fields=["source", "status"]),
+            models.Index(fields=["category", "status"]),
             models.Index(fields=["canonical_fingerprint", "status"]),
         ]
         ordering = ["-priority_score", "-last_seen"]
 
     def __str__(self) -> str:
-        return f"[{self.source}/{self.severity}] {self.title[:60]}"
+        return f"[{self.source}/{self.severity}] {str(self.title)[:60]}"
+
+
+class QualityEvidence(models.Model):
+    """Compact, deduped evidence from tests and quality tools."""
+
+    CHECK_NORMAL_TEST = "normal_test"
+    CHECK_COVERAGE = "coverage"
+    CHECK_MUTATION = "mutation"
+    CHECK_STATIC_ANALYSIS = "static_analysis"
+    CHECK_SECURITY = "security"
+    CHECK_FUZZ = "fuzz"
+    CHECK_SANITIZER = "sanitizer"
+    CHECK_TOOL_READINESS = "tool_readiness"
+    CHECK_MISSING_REPORT = "missing_report"
+    CHECK_CI = "ci"
+    CHECK_CHOICES = [
+        (CHECK_NORMAL_TEST, "Normal test"),
+        (CHECK_COVERAGE, "Coverage"),
+        (CHECK_MUTATION, "Mutation"),
+        (CHECK_STATIC_ANALYSIS, "Static analysis"),
+        (CHECK_SECURITY, "Security"),
+        (CHECK_FUZZ, "Fuzz"),
+        (CHECK_SANITIZER, "Sanitizer"),
+        (CHECK_TOOL_READINESS, "Tool readiness"),
+        (CHECK_MISSING_REPORT, "Missing report"),
+        (CHECK_CI, "CI"),
+    ]
+
+    STATUS_PASSED = "passed"
+    STATUS_FAILED = "failed"
+    STATUS_CHOICES = [
+        (STATUS_PASSED, "Passed"),
+        (STATUS_FAILED, "Failed"),
+    ]
+
+    dedupe_key = models.CharField(
+        max_length=64,
+        unique=True,
+        help_text=(
+            "SHA-256 over check type, command, tool version, source hash, "
+            "file path, and failure fingerprint."
+        ),
+    )
+    check_type = models.CharField(max_length=32, choices=CHECK_CHOICES, db_index=True)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, db_index=True)
+    tool_name = models.CharField(max_length=64)
+    tool_version = models.CharField(max_length=128, blank=True)
+    command = models.TextField()
+    source_hash = models.CharField(max_length=64, db_index=True)
+    file_path = models.CharField(max_length=512, blank=True, db_index=True)
+    failure_fingerprint = models.CharField(max_length=128, blank=True, db_index=True)
+    target_percent = models.FloatField(null=True, blank=True)
+    actual_percent = models.FloatField(null=True, blank=True)
+    summary = models.TextField(
+        help_text="Plain-English compact summary. Service rejects values over 600 words.",
+    )
+    details = models.JSONField(default=dict, blank=True)
+    raw_report_hash = models.CharField(max_length=64, blank=True)
+    raw_snippet = models.ForeignKey(
+        "QualityRawSnippet",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="quality_evidence",
+    )
+    auto_issue = models.ForeignKey(
+        AutoIssue,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="quality_evidence",
+    )
+    occurrence_count = models.PositiveIntegerField(default=1)
+    first_seen = models.DateTimeField(auto_now_add=True)
+    last_seen = models.DateTimeField(auto_now=True)
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Retention marker used by quality evidence cleanup.",
+    )
+
+    class Meta:
+        db_table = "auto_issues_qualityevidence"
+        indexes = [
+            models.Index(fields=["check_type", "status", "-last_seen"]),
+            models.Index(fields=["source_hash", "failure_fingerprint"]),
+            models.Index(fields=["expires_at", "status"]),
+        ]
+        ordering = ["-last_seen"]
+
+    def __str__(self) -> str:
+        return f"[{self.check_type}/{self.status}] {self.tool_name}: {self.file_path}"
+
+
+class QualityRawSnippet(models.Model):
+    """Deduped compressed raw snippet for weekly quality snapshots."""
+
+    raw_report_hash = models.CharField(
+        max_length=64,
+        unique=True,
+        help_text="SHA-256 over the capped raw snippet bytes.",
+    )
+    raw_report_gzip = models.BinaryField()
+    uncompressed_bytes = models.PositiveIntegerField(default=0)
+    compressed_bytes = models.PositiveIntegerField(default=0)
+    reference_count = models.PositiveIntegerField(default=1)
+    first_captured_week_start = models.DateField(db_index=True)
+    last_captured_week_start = models.DateField(db_index=True)
+    first_seen = models.DateTimeField(auto_now_add=True)
+    last_seen = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "auto_issues_qualityrawsnippet"
+        indexes = [
+            models.Index(fields=["-last_captured_week_start", "-last_seen"]),
+        ]
+        ordering = ["-last_captured_week_start", "-last_seen"]
+
+    def __str__(self) -> str:
+        return f"[quality-raw] {str(self.raw_report_hash)[:12]}"

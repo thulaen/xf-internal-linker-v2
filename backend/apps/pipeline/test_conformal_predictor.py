@@ -65,6 +65,7 @@ class _Fixture:
         # is non-trivial (real production data has variance; degenerate
         # all-equal scores would yield half_width=0).
         for i in range(n_positive):
+            anchor_phrase = f"approved-anchor-{i}"
             Suggestion.objects.create(
                 pipeline_run=run,
                 destination=dest,
@@ -72,14 +73,15 @@ class _Fixture:
                 host_sentence=host_sentence,
                 destination_title="dest",
                 host_sentence_text="A host sentence.",
-                anchor_phrase="anchor",
+                anchor_phrase=anchor_phrase,
                 anchor_start=0,
-                anchor_end=6,
+                anchor_end=len(anchor_phrase),
                 anchor_confidence="strong",
                 score_final=0.7 + 0.005 * (i % 20),
                 status="approved",
             )
         for i in range(n_negative):
+            anchor_phrase = f"rejected-anchor-{i}"
             Suggestion.objects.create(
                 pipeline_run=run,
                 destination=dest,
@@ -87,9 +89,9 @@ class _Fixture:
                 host_sentence=host_sentence,
                 destination_title="dest",
                 host_sentence_text="A host sentence.",
-                anchor_phrase="anchor",
+                anchor_phrase=anchor_phrase,
                 anchor_start=0,
-                anchor_end=6,
+                anchor_end=len(anchor_phrase),
                 anchor_confidence="strong",
                 score_final=0.3 + 0.005 * (i % 20),
                 status="rejected",

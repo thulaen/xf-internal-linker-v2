@@ -315,10 +315,17 @@ class BuildDispatcherTests(TestCase):
         self.assertIsNone(ags.build_anchor_garbage_signals())
 
     def test_recommended_default_yields_active_dispatcher(self) -> None:
-        # Migration 0047 already seeded the dispatcher key with value
-        # 0.05. Just verify it parses and the dispatcher is built.
+        from apps.core.models import AppSetting
         from apps.core.runtime_flags import invalidate
 
+        AppSetting.objects.update_or_create(
+            key=ags.KEY_DISPATCHER_ENABLED,
+            defaults={"value": "true", "description": ""},
+        )
+        AppSetting.objects.update_or_create(
+            key=ags.KEY_DISPATCHER_WEIGHT,
+            defaults={"value": "0.05", "description": ""},
+        )
         invalidate(ags.KEY_DISPATCHER_ENABLED)
         d = ags.build_anchor_garbage_signals()
         self.assertIsNotNone(d)

@@ -76,14 +76,14 @@ class DiskPressureClassificationTests(TestCase):
             cache.delete(disk_pressure._CACHE_KEY)
             return disk_pressure.current_state()
 
-    def test_above_10gb_is_green(self) -> None:
-        self.assertEqual(self._classify(50.0), "GREEN")
+    def test_at_or_above_64gb_is_green(self) -> None:
+        self.assertEqual(self._classify(64.0), "GREEN")
 
-    def test_between_5_and_10gb_is_yellow(self) -> None:
-        self.assertEqual(self._classify(7.5), "YELLOW")
+    def test_between_48_and_64gb_is_yellow(self) -> None:
+        self.assertEqual(self._classify(60.0), "YELLOW")
 
-    def test_between_1_and_5gb_is_red(self) -> None:
-        self.assertEqual(self._classify(3.0), "RED")
+    def test_between_1_and_48gb_is_red(self) -> None:
+        self.assertEqual(self._classify(20.0), "RED")
 
     def test_below_1gb_is_critical(self) -> None:
         self.assertEqual(self._classify(0.5), "CRITICAL")
@@ -95,7 +95,7 @@ class DiskPressureRefreshTests(TestCase):
 
     def test_refresh_caches_state(self) -> None:
         with patch("apps.pipeline.services.disk_pressure.shutil.disk_usage",
-                   return_value=_fake_usage(free_gb=50.0)):
+                   return_value=_fake_usage(free_gb=70.0)):
             state = disk_pressure.refresh_disk_pressure_state()
         self.assertEqual(state, "GREEN")
         self.assertEqual(cache.get(disk_pressure._CACHE_KEY), "GREEN")
@@ -103,14 +103,14 @@ class DiskPressureRefreshTests(TestCase):
     def test_first_yellow_transition_emits_alert(self) -> None:
         with patch("apps.pipeline.services.disk_pressure._emit_alert") as emit:
             with patch("apps.pipeline.services.disk_pressure.shutil.disk_usage",
-                       return_value=_fake_usage(free_gb=7.0)):
+                       return_value=_fake_usage(free_gb=60.0)):
                 disk_pressure.refresh_disk_pressure_state()
         self.assertEqual(emit.call_count, 1)
 
     def test_repeat_at_same_state_does_not_re_alert(self) -> None:
         with patch("apps.pipeline.services.disk_pressure._emit_alert") as emit:
             with patch("apps.pipeline.services.disk_pressure.shutil.disk_usage",
-                       return_value=_fake_usage(free_gb=7.0)):
+                       return_value=_fake_usage(free_gb=60.0)):
                 disk_pressure.refresh_disk_pressure_state()
                 disk_pressure.refresh_disk_pressure_state()
                 disk_pressure.refresh_disk_pressure_state()
@@ -120,17 +120,17 @@ class DiskPressureRefreshTests(TestCase):
         # Trip into RED.
         with patch("apps.pipeline.services.disk_pressure._emit_alert"):
             with patch("apps.pipeline.services.disk_pressure.shutil.disk_usage",
-                       return_value=_fake_usage(free_gb=3.0)):
+                       return_value=_fake_usage(free_gb=20.0)):
                 disk_pressure.refresh_disk_pressure_state()
         self.assertEqual(cache.get(disk_pressure._LAST_ALERT_KEY), "RED")
         # Recover to GREEN — dedup key cleared.
         with patch("apps.pipeline.services.disk_pressure.shutil.disk_usage",
-                   return_value=_fake_usage(free_gb=50.0)):
+                   return_value=_fake_usage(free_gb=70.0)):
             disk_pressure.refresh_disk_pressure_state()
         self.assertIsNone(cache.get(disk_pressure._LAST_ALERT_KEY))
         # New trip into RED → re-alerts.
         with patch("apps.pipeline.services.disk_pressure._emit_alert") as emit:
             with patch("apps.pipeline.services.disk_pressure.shutil.disk_usage",
-                       return_value=_fake_usage(free_gb=3.0)):
+                       return_value=_fake_usage(free_gb=20.0)):
                 disk_pressure.refresh_disk_pressure_state()
         self.assertEqual(emit.call_count, 1)

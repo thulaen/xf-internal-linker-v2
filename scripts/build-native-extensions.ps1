@@ -7,12 +7,13 @@ $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "dev-tools.ps1")
 
 $repoRoot = Get-RepoRoot
-$cleanCommand = if ($Clean) { "rm -rf /opt/xf/compiled/extensions /tmp/xf-build/cpp-runtime && " } else { "" }
+$forceFlag = if ($Clean) { "--force" } else { "" }
 $command = @'
 set -euo pipefail
-__CLEAN_COMMAND__python /repo/scripts/ensure_compiled_artifacts.py
+python /repo/scripts/ensure_compiled_artifacts.py __FORCE_FLAG__
+python /repo/scripts/ensure_compiled_artifacts.py --prune-stale --retention-days 0
 '@
-$command = $command.Replace("__CLEAN_COMMAND__", $cleanCommand)
+$command = $command.Replace("__FORCE_FLAG__", $forceFlag)
 
 Write-Host "Building Docker-managed native extensions..."
 docker compose run --rm --no-deps backend bash -lc $command

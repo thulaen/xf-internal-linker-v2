@@ -38,30 +38,28 @@ class OpsFeedEmitTests(TestCase):
         self.assertEqual(event.plain_english, "Second message")
 
     def test_emit_is_safe_on_integrity_error(self):
-        # We simulate a race condition where the row is created between
-        # the check and the create call by mocking or just relying on
-        # the existing logic if we can trigger it.
-        
-        # Actually, the best way to verify "no noisy error log" is to
-        # capture logs during emission.
-        with self.assertLogs("apps.ops_feed.services", level="ERROR") as cm:
-            # We don't expect any ERROR logs even if duplicates happen
-            # because we catch IntegrityError and handle it.
-            emit(
-                event_type="test_event",
-                plain_english="Msg 1",
-                dedup_key="fixed_key" # wait, emit doesn't take dedup_key
-            )
-            # The second one should also be silent
-            emit(
-                event_type="test_event",
-                plain_english="Msg 2",
-            )
-        
-        # If assertLogs doesn't find any ERROR, it will pass.
-        # Wait, assertLogs FAILS if NO logs are found. 
-        # I should use a custom handler or just check that no ERRORs are logged.
-        pass
+        # `emit()` derives its dedup_key from (event_type, source,
+        # related_entity_type, related_entity_id) so two calls with
+        # the same producing args collapse onto one OperationEvent row.
+        # Verify the safe-path does NOT log at ERROR or higher. We
+        # capture log records manually because unittest.assertLogs
+        # fails when zero matching records are captured.
+        logger = logging.getLogger("apps.ops_feed.services")
+        captured: list[logging.LogRecord] = []
+
+        class _Capture(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                captured.append(record)
+
+        handler = _Capture(level=logging.ERROR)
+        logger.addHandler(handler)
+        try:
+            emit(event_type="test_event", plain_english="Msg 1")
+            emit(event_type="test_event", plain_english="Msg 2")
+        finally:
+            logger.removeHandler(handler)
+
+        self.assertEqual([record.getMessage() for record in captured], [])
 
     def test_emit_handles_integrity_error_silently(self):
         from unittest.mock import patch

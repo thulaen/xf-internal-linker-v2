@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 
 from django.test import TestCase
 
@@ -154,9 +156,10 @@ class FactorizationMachinesTests(TestCase):
                 key=factorization_machines.KEY_MODEL_PATH,
                 defaults={"value": path, "description": ""},
             )
-            preds = factorization_machines.predict(
-                [{"a": 0.5, "b": 0.5}, {"a": 0.0, "b": 0.0}]
-            )
+            with patch("apps.core.runtime_flags.is_enabled", return_value=True):
+                preds = factorization_machines.predict(
+                    [{"a": 0.5, "b": 0.5}, {"a": 0.0, "b": 0.0}]
+                )
             self.assertIsNotNone(preds)
             self.assertEqual(len(preds), 2)
             # Sanity: zero input → near zero; bigger input → bigger pred.
@@ -213,14 +216,15 @@ class FactorizationMachinesTests(TestCase):
                 defaults={"value": path, "description": ""},
             )
             # The four canonical XOR points.
-            preds = factorization_machines.predict(
-                [
-                    {"a": 0.0, "b": 0.0},  # target 0
-                    {"a": 0.0, "b": 1.0},  # target 1
-                    {"a": 1.0, "b": 0.0},  # target 1
-                    {"a": 1.0, "b": 1.0},  # target 0
-                ]
-            )
+            with patch("apps.core.runtime_flags.is_enabled", return_value=True):
+                preds = factorization_machines.predict(
+                    [
+                        {"a": 0.0, "b": 0.0},  # target 0
+                        {"a": 0.0, "b": 1.0},  # target 1
+                        {"a": 1.0, "b": 0.0},  # target 1
+                        {"a": 1.0, "b": 1.0},  # target 0
+                    ]
+                )
             self.assertIsNotNone(preds)
 
             # FM should rank the diagonal (a == b → target 0) BELOW

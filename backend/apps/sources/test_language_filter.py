@@ -33,18 +33,24 @@ class IsEnglishHappyPathTests(SimpleTestCase):
     def test_english_prediction_returns_true(self) -> None:
         from apps.sources.fasttext_langid import LangPrediction
 
-        with patch(
-            "apps.sources.fasttext_langid.predict",
-            return_value=LangPrediction(language="en", confidence=0.99),
+        with (
+            patch("apps.core.runtime_flags.is_enabled", return_value=True),
+            patch(
+                "apps.sources.fasttext_langid.predict",
+                return_value=LangPrediction(language="en", confidence=0.99),
+            ),
         ):
             self.assertTrue(language_filter.is_english("Hello world"))
 
     def test_undefined_prediction_returns_true(self) -> None:
         from apps.sources.fasttext_langid import UNDEFINED
 
-        with patch(
-            "apps.sources.fasttext_langid.predict",
-            return_value=UNDEFINED,
+        with (
+            patch("apps.core.runtime_flags.is_enabled", return_value=True),
+            patch(
+                "apps.sources.fasttext_langid.predict",
+                return_value=UNDEFINED,
+            ),
         ):
             # ``und`` falls back to "allow" — better to keep the row
             # than drop it on a low-confidence prediction.
@@ -53,23 +59,40 @@ class IsEnglishHappyPathTests(SimpleTestCase):
     def test_non_english_prediction_returns_false(self) -> None:
         from apps.sources.fasttext_langid import LangPrediction
 
-        with patch(
-            "apps.sources.fasttext_langid.predict",
-            return_value=LangPrediction(language="de", confidence=0.95),
+        with (
+            patch("apps.core.runtime_flags.is_enabled", return_value=True),
+            patch(
+                "apps.sources.fasttext_langid.predict",
+                return_value=LangPrediction(language="de", confidence=0.95),
+            ),
         ):
             self.assertFalse(language_filter.is_english("Hallo Welt"))
 
 
 class FilterContentRecordsTests(TestCase):
     def setUp(self) -> None:
+        from django.core.cache import cache
         from apps.core.models import AppSetting
         from apps.core.runtime_flags import invalidate
 
+        # Wipe any stale runtime_flag entries left in the process-wide
+        # Django cache by an earlier test class. Without this, a prior
+        # ``test_disabled_toggle_returns_input_verbatim`` run leaves
+        # ``runtime_flag:fasttext_langid.candidate_filter.enabled = False``
+        # cached; the next test in another file then short-circuits.
+        cache.clear()
         AppSetting.objects.update_or_create(
             key="fasttext_langid.candidate_filter.enabled",
             defaults={"value": "true", "description": ""},
         )
         invalidate("fasttext_langid.candidate_filter.enabled")
+
+    def tearDown(self) -> None:
+        # Same reason as setUp: keep the cache from leaking flipped
+        # flag values out of the test class.
+        from django.core.cache import cache
+
+        cache.clear()
 
     def test_empty_records_returns_empty_dict(self) -> None:
         self.assertEqual(language_filter.filter_english_content_records({}), {})

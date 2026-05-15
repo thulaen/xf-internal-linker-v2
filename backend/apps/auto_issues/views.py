@@ -45,6 +45,9 @@ class AutoIssueViewSet(viewsets.ReadOnlyModelViewSet):
         source_param = self.request.query_params.get("source")
         if source_param:
             qs = qs.filter(source=source_param)
+        category_param = self.request.query_params.get("category")
+        if category_param:
+            qs = qs.filter(category__key=category_param)
         return qs.order_by("-priority_score", "-last_seen")
 
     @action(

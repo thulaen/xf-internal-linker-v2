@@ -32,12 +32,8 @@ module.exports = function (config) {
         { type: 'json-summary' },
         { type: 'lcovonly' },
       ],
-      thresholds: {
-        statements: 30,
-        branches: 25,
-        functions: 30,
-        lines: 30,
-      },
+      // Whole-repo coverage is reported here, but the Docker quality scripts
+      // decide whether it is a touched-file blocker or quality debt.
     },
     reporters: ['progress'],
     browsers: ['ChromeHeadless'],

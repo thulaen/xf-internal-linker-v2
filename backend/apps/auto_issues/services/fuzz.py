@@ -21,6 +21,7 @@ import logging
 from pathlib import Path
 
 from django.conf import settings
+from django.utils import timezone
 from opentelemetry import trace
 
 from apps.auto_issues.models import AutoIssue
@@ -41,7 +42,7 @@ def _appsetting(key: str, default: str) -> str:
         if row and row.value:
             return str(row.value)
     except Exception:  # noqa: BLE001
-        pass
+        logger.debug("AppSetting lookup failed for %s; using default", key, exc_info=True)
     return default
 
 
@@ -126,11 +127,70 @@ def pick_fuzz_coverage_gaps() -> int:
         # that may have leaked into the top level.
         if stem.startswith(("test_", "fuzz_", "bench_")):
             continue
+        if not _has_public_cpp_surface(src):
+            continue
         if _upsert_coverage_gap(stem, src):
             count += 1
+    count += _resolve_stale_coverage_gaps(ext_root, existing_fuzz_targets)
     if count:
         logger.info("fuzz coverage-gap picker: emitted %d gap rows", count)
     return count
+
+
+def _has_public_cpp_surface(src_path: Path) -> bool:
+    """Return True when a C++ source has code worth fuzzing."""
+    try:
+        return src_path.stat().st_size > 0
+    except OSError:
+        logger.warning("fuzz coverage-gap: could not stat %s", src_path)
+        return False
+
+
+def _resolve_stale_coverage_gaps(ext_root: Path, existing_targets: set[str]) -> int:
+    """Close open fuzz-gap rows when the target now exists or the source is empty."""
+    resolved = 0
+    queryset = AutoIssue.objects.filter(
+        source=AutoIssue.SOURCE_FUZZ,
+        external_id__startswith="coverage-gap:",
+        status__in=[
+            AutoIssue.STATUS_OPEN,
+            AutoIssue.STATUS_PICKED,
+            AutoIssue.STATUS_FIXING,
+        ],
+    )
+    for issue in queryset.iterator():
+        module_stem = issue.external_id.split(":", 1)[1]
+        source_path = ext_root / f"{module_stem}.cpp"
+        target_exists = module_stem in existing_targets
+        source_is_empty = source_path.exists() and not _has_public_cpp_surface(source_path)
+        if not (target_exists or source_is_empty):
+            continue
+        issue.status = AutoIssue.STATUS_RESOLVED
+        issue.resolved_at = timezone.now()
+        issue.resolved_by = "codex"
+        issue.lessons_learned = _coverage_gap_resolved_lesson(
+            module_stem, target_exists=target_exists
+        )
+        issue.save(
+            update_fields=["status", "resolved_at", "resolved_by", "lessons_learned"]
+        )
+        resolved += 1
+    return resolved
+
+
+def _coverage_gap_resolved_lesson(module_stem: str, *, target_exists: bool) -> str:
+    if target_exists:
+        return (
+            f"Trap: {module_stem}.cpp was a public C++ hot path without a "
+            "Docker libFuzzer target, so sanitizer coverage missed malformed input.\n"
+            f"Fix shape: Added fuzz_{module_stem}.cpp and registered it in "
+            "the Docker fuzz build so future smoke runs compile and start it."
+        )
+    return (
+        f"Trap: {module_stem}.cpp is an empty C++ stub, not a public API to fuzz.\n"
+        "Fix shape: The fuzz picker now skips empty C++ stubs instead of filing "
+        "fake coverage gaps."
+    )
 
 
 def _upsert_coverage_gap(module_stem: str, src_path: Path) -> bool:

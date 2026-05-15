@@ -21,5 +21,5 @@ mull-runner-19 \
   --reporters Elements \
   --report-dir "$report_dir" \
   --report-name mutants.json \
-  --mutation-score-threshold 95 \
+  --mutation-score-threshold 100 \
   ./test_fieldrel

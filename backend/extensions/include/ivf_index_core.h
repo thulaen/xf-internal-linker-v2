@@ -20,9 +20,11 @@ extern "C" {
  *
  * Citation: Sivic-Zisserman 2003 ICCV (inverted file).
  */
-void c_ivf_find_top_centroids(const float* query_ptr, const float* centroids_ptr,
-                              size_t n_centroids, size_t dim, size_t nprobe,
-                              int32_t* out_centroid_ids, float* out_centroid_dists);
+void c_ivf_find_top_centroids(const float* query_ptr,
+                              const float* centroids_ptr, size_t n_centroids,
+                              size_t dim, size_t nprobe,
+                              int32_t* out_centroid_ids,
+                              float* out_centroid_dists);
 
 /**
  * Build the per-query Asymmetric-Distance Computation (ADC) lookup table.
@@ -45,8 +47,8 @@ void c_ivf_find_top_centroids(const float* query_ptr, const float* centroids_ptr
  * Citation: Jégou-Douze-Schmid 2010 CVPR (IVFADC).
  */
 void c_ivf_build_adc_lut(const float* query_ptr, const float* rotation_ptr,
-                         const float* codebooks_ptr, size_t dim, size_t m, size_t k,
-                         float* out_lut);
+                         const float* codebooks_ptr, size_t dim, size_t m,
+                         size_t k, float* out_lut);
 
 /**
  * Compute the asymmetric L2² distance for one OPQ-coded vector against
@@ -59,5 +61,6 @@ void c_ivf_build_adc_lut(const float* query_ptr, const float* rotation_ptr,
  *
  * Returns the scalar distance.
  */
-float c_ivf_adc_distance(const uint8_t* code_ptr, const float* lut_ptr, size_t m, size_t k);
+float c_ivf_adc_distance(const uint8_t* code_ptr, const float* lut_ptr,
+                         size_t m, size_t k);
 }

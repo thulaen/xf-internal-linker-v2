@@ -19,6 +19,20 @@ def pytest_configure() -> None:
     django.setup()
 
 
+def pytest_runtest_teardown(item, nextitem):
+    # Wipe process-wide Django cache after every test so a previous
+    # test that flipped a runtime flag (e.g. yake_keywords.enabled=false)
+    # doesn't leak a stale value to the next test. The DB transaction
+    # rolls back, but the cache survives. This hook is the central
+    # post-test cleanup; it's cheaper and safer than per-class tearDowns.
+    try:
+        from django.core.cache import cache
+
+        cache.clear()
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _user_model():
     from django.contrib.auth import get_user_model
 

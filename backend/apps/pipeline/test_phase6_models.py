@@ -5,9 +5,12 @@ from __future__ import annotations
 import math
 import unittest
 
+import pytest
 from django.test import TestCase
 
 from apps.pipeline.services import kenlm_fluency, lda_topics
+
+pytestmark = pytest.mark.django_db
 
 
 class LdaTopicsTests(TestCase):
@@ -55,6 +58,7 @@ class LdaTopicsTests(TestCase):
         import tempfile
 
         from apps.core.models import AppSetting
+        from apps.core.runtime_flags import invalidate
 
         documents = [
             ["python", "tutorial", "beginner"],
@@ -75,12 +79,14 @@ class LdaTopicsTests(TestCase):
             )
             self.assertTrue(ok)
             for key, value in (
+                ("lda.enabled", "true"),
                 (lda_topics.KEY_MODEL_PATH, model_path),
                 (lda_topics.KEY_DICT_PATH, dict_path),
             ):
                 AppSetting.objects.update_or_create(
                     key=key, defaults={"value": value, "description": ""}
                 )
+                invalidate(key)
             result = lda_topics.infer_topics(["python", "tutorial"])
             self.assertFalse(result.is_empty)
             # Top topic probability should be > 0.

@@ -12,5 +12,8 @@
     "apps/auto_issues/management/commands/auto_issues_append_registry.py": 85.0,
     "apps/auto_issues/management/commands/print_open_issues.py": 75.0,
     "apps/pipeline/services/hardware_profile.py": 80.0
+  },
+  "frontend": {
+    "files": {}
   }
 }

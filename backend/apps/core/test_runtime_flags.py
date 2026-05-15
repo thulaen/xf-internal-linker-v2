@@ -121,6 +121,15 @@ class Phase6ToggleShortCircuitTests(TestCase):
     def setUp(self) -> None:
         cache.clear()
 
+    def tearDown(self) -> None:
+        # Wipe cached runtime-flag values so the next test class
+        # doesn't read a stale `runtime_flag:<key>` entry from the
+        # process-wide Django cache. Without this, a flipped flag
+        # like `yake_keywords.enabled=false` survives the DB
+        # transaction rollback and breaks unrelated tests in random
+        # order.
+        cache.clear()
+
     def _set_flag(self, key: str, *, enabled: bool) -> None:
         from apps.core.models import AppSetting
 

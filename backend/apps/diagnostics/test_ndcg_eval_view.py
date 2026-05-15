@@ -83,7 +83,7 @@ class NdcgEvalViewTests(TestCase):
                     host_sentence=host_sentence,
                     destination_title=f"dest-{i}",
                     host_sentence_text="A host sentence.",
-                    anchor_phrase="anchor",
+                    anchor_phrase=f"anchor-{i}",
                     anchor_start=0,
                     anchor_end=6,
                     anchor_confidence="strong",

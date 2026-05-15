@@ -10,7 +10,10 @@
     }
   },
   "mutate": [
-    "src/app/core/services/a11y-prefs.service.ts"
+    "src/app/**/*.component.ts",
+    "src/app/**/*.service.ts",
+    "!src/app/**/*.spec.ts",
+    "!src/app/**/*.stories.ts"
   ],
   "concurrency": 2,
   "timeoutMS": 60000,

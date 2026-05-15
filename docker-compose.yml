@@ -97,7 +97,7 @@ services:
       # local-HTTP test, set `DJANGO_SECURE_HSTS_SECONDS=0` in `.env`.
       DJANGO_SECURE_HSTS_SECONDS: "${DJANGO_SECURE_HSTS_SECONDS:-31536000}"
       HOME: /tmp
-      PYTHONPATH: /opt/xf/compiled:/app
+      PYTHONPATH: /opt/xf/compiled/active:/opt/xf/compiled:/app
       XF_COMPILED_ARTIFACT_ROOT: /opt/xf/compiled
       XF_COMPILED_BUILD_ROOT: /tmp/xf-build
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
@@ -109,7 +109,7 @@ services:
       PYROSCOPE_APPLICATION_NAME: xf-linker-backend
     volumes:
       - ./backend:/app
-      - .:/repo:ro
+      - .:/repo
       - compiled_artifacts:/opt/xf/compiled
       - media_files:/app/media
       - staticfiles:/app/staticfiles
@@ -168,7 +168,7 @@ services:
       DJANGO_SETTINGS_MODULE: config.settings.production
       DJANGO_DEBUG: "False"
       HOME: /tmp
-      PYTHONPATH: /opt/xf/compiled:/app
+      PYTHONPATH: /opt/xf/compiled/active:/opt/xf/compiled:/app
       XF_COMPILED_ARTIFACT_ROOT: /opt/xf/compiled
       XF_COMPILED_BUILD_ROOT: /tmp/xf-build
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
@@ -230,7 +230,7 @@ services:
       DJANGO_SETTINGS_MODULE: config.settings.production
       DJANGO_DEBUG: "False"
       HOME: /tmp
-      PYTHONPATH: /opt/xf/compiled:/app
+      PYTHONPATH: /opt/xf/compiled/active:/opt/xf/compiled:/app
       XF_COMPILED_ARTIFACT_ROOT: /opt/xf/compiled
       XF_COMPILED_BUILD_ROOT: /tmp/xf-build
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
@@ -271,7 +271,7 @@ services:
     command: >
       sh -c "python /repo/scripts/ensure_compiled_artifacts.py &&
              python -c 'import drf_spectacular' &&
-             celery -A config.celery worker --loglevel=warning --concurrency=1 --prefetch-multiplier 1 --max-tasks-per-child=500 -Q pipeline,embeddings"
+             celery -A config.celery worker --loglevel=warning --pool=solo --concurrency=1 --prefetch-multiplier 1 -Q pipeline,embeddings"
 
   # ─────────────────────────────────────────────
   # Celery Beat — scheduled tasks (auto-resync, etc.)
@@ -286,7 +286,7 @@ services:
       DJANGO_SETTINGS_MODULE: config.settings.production
       DJANGO_DEBUG: "False"
       HOME: /tmp
-      PYTHONPATH: /opt/xf/compiled:/app
+      PYTHONPATH: /opt/xf/compiled/active:/opt/xf/compiled:/app
       XF_COMPILED_ARTIFACT_ROOT: /opt/xf/compiled
       XF_COMPILED_BUILD_ROOT: /tmp/xf-build
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
@@ -338,21 +338,42 @@ services:
       dockerfile: Dockerfile.prod
       target: build
     image: xf-linker-frontend-mutation-tools:latest
-    profiles: ["tools"]
+    container_name: xf_linker_frontend_mutation_tools
+    restart: unless-stopped
+    mem_limit: 1g
     working_dir: /app
-    command: sh -c "npx stryker --version && echo 'Stryker is available in Docker'"
+    volumes:
+      - .:/repo
+      - frontend_tool_cache:/root/.npm
+    command: sh -lc "tail -f /dev/null"
+    healthcheck:
+      test: ["CMD-SHELL", "node --version >/dev/null 2>&1 && npm --version >/dev/null 2>&1"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+      start_period: 20s
 
   compiled-tools:
     build:
       context: .
       dockerfile: tools/mutation/Dockerfile
     image: xf-linker-compiled-tools:latest
-    profiles: ["tools"]
+    container_name: xf_linker_compiled_tools
+    restart: unless-stopped
+    mem_limit: 2g
     working_dir: /repo
     volumes:
       - .:/repo
       - compiled_artifacts:/opt/xf/compiled
-    command: bash -lc "mutmut --version && mull-runner-19 --version && go version && command -v go-mutesting >/dev/null && cmake --version && clang++-19 --version && echo 'compiled tools ready'"
+      - compiled_tool_cache:/root/.cache
+      - go_tool_mod_cache:/go/pkg/mod
+    command: bash -lc "tail -f /dev/null"
+    healthcheck:
+      test: ["CMD-SHELL", "command -v mutmut >/dev/null 2>&1 && command -v mull-runner-19 >/dev/null 2>&1 && command -v go >/dev/null 2>&1 && command -v cmake >/dev/null 2>&1"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+      start_period: 20s
 
   # ─────────────────────────────────────────────
   # Nginx — serves the Angular prod bundle + proxies /api/ and /ws/
@@ -773,6 +794,12 @@ volumes:
     driver: local
   compiled_artifacts:
     driver: local
+  compiled_tool_cache:
+    driver: local
+  frontend_tool_cache:
+    driver: local
+  go_tool_mod_cache:
+    driver: local
   staticfiles:
     driver: local
   nginx_logs:
@@ -784,6 +811,10 @@ volumes:
   tempo_data:
     driver: local
   grafana_data:
+    driver: local
+  questdb_data:
+    driver: local
+  sqlite_registry_data:
     driver: local
 
 configs:

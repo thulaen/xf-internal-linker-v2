@@ -2,6 +2,8 @@
 
 from django.apps import AppConfig
 
+from apps.core.services.management_commands import is_lightweight_management_command
+
 
 class AuditConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
@@ -9,6 +11,11 @@ class AuditConfig(AppConfig):
     verbose_name = "Audit Trail"
 
     def ready(self):
+        import sys
+
+        if is_lightweight_management_command(sys.argv):
+            return None
+
         # Startup smoke tests are wired from CoreConfig. Keeping this app
         # side-effect free avoids duplicate post-migrate audits.
         try:

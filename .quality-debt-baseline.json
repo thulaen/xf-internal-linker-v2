@@ -1,0 +1,2069 @@
+{
+  "files": {
+    ".githooks/check-mutation-score.py": {
+      "issue_count": 3,
+      "score": 75.0,
+      "source_hash": "453113deb1db07650c04355e6013fa393987794addfc81aa5ee0e19318d8fd65"
+    },
+    ".githooks/check-per-module-coverage.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "99e6587d1519a2f2d81fd152216ddc7c647e36ae5b97fa9f580a941d8a1ab4e7"
+    },
+    ".githooks/check-registry-read.py": {
+      "issue_count": 12,
+      "score": 0.0,
+      "source_hash": "46600a34c018de23ad46e1c8a00b80231465fe155dc770c11e8df91096ce8ae8"
+    },
+    "backend/apps/analytics/_polars_helpers.py": {
+      "issue_count": 18,
+      "score": 0.0,
+      "source_hash": "b77c06cde68a05203dd6e5468874832356b9326f6501ed8f0fe7e46aa96763a0"
+    },
+    "backend/apps/analytics/external_errors.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "252974945af66d5a068e9203e5023ea3077a126a7bf961f3a8afbd8ad4a1b03a"
+    },
+    "backend/apps/analytics/gsc_query_vocab.py": {
+      "issue_count": 5,
+      "score": 75.0,
+      "source_hash": "8052cc56934ac2765b460091a23de6fc2955b71ce8d7316ed067e16112fb0202"
+    },
+    "backend/apps/analytics/impact_engine.py": {
+      "issue_count": 9,
+      "score": 55.0,
+      "source_hash": "f96af08277b8bf6c3adb727db3f97ad90686e06d448fdb9fde32d1deadac1601"
+    },
+    "backend/apps/analytics/sync.py": {
+      "issue_count": 41,
+      "score": 0.0,
+      "source_hash": "97c48488235c81668de1045431da7917d5d9ad64936e1fb9cac66d56f5436b77"
+    },
+    "backend/apps/analytics/tasks.py": {
+      "issue_count": 25,
+      "score": 0.0,
+      "source_hash": "d674d434259b15a90ee354ff94201073cc88b3b6ddd3e908690889cd7ec5c9d6"
+    },
+    "backend/apps/analytics/tests.py": {
+      "issue_count": 64,
+      "score": 0.0,
+      "source_hash": "2668aad1c60915feb86631322805bccabbf761e7ba791f1ea37b7aa3d3d497bf"
+    },
+    "backend/apps/analytics/views.py": {
+      "issue_count": 71,
+      "score": 0.0,
+      "source_hash": "61dffaeda3e14468ff12a02e928a14d9ad2ac1cc0fd3d509f47ae5249c1c2fbe"
+    },
+    "backend/apps/api/embedding_views.py": {
+      "issue_count": 11,
+      "score": 45.0,
+      "source_hash": "737c82c55c1c3c3a2ad63df60721681bda30824e209698c483f33da07709c1b2"
+    },
+    "backend/apps/api/ml_views.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "176705e3c81c78a5645e8cebdd5f220631523f661cc2220ab96ea67ac02e0fe4"
+    },
+    "backend/apps/api/urls.py": {
+      "issue_count": 9,
+      "score": 40.0,
+      "source_hash": "ad3d45dba5a3e8e7c9c5d146064425b553aa8daf7b8562f9959d372902140a5a"
+    },
+    "backend/apps/audit/apps.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "beaaef44d84391467caf3555c308da3cb9ae8489811b6c7114fd543c873c92df"
+    },
+    "backend/apps/audit/comments.py": {
+      "issue_count": 4,
+      "score": 65.0,
+      "source_hash": "994ed11789cad35a3f0842fbfece12b2e601221639c9a5b8b4a30c397bab2a7a"
+    },
+    "backend/apps/audit/data_quality.py": {
+      "issue_count": 6,
+      "score": 70.0,
+      "source_hash": "5d346e9fcd9c7134deec2bc3271447f42a1d619ae10489521464dc6c67770b77"
+    },
+    "backend/apps/audit/error_ingest.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "a2bb18a975d6696efaa114cda84f02f8e45a20b78f164836a1944e5804c97835"
+    },
+    "backend/apps/audit/error_intelligence.py": {
+      "issue_count": 4,
+      "score": 80.0,
+      "source_hash": "744e8f8a8e9b289f76fa4929b562f1aa90fbbbfd9c90ed82e6dac87e675ba38f"
+    },
+    "backend/apps/audit/fix_suggestions.py": {
+      "issue_count": 4,
+      "score": 80.0,
+      "source_hash": "418e61d5b5ac2b35a632c63e02923a73526c69a832b2d78688abc0e67f16ec7a"
+    },
+    "backend/apps/audit/models.py": {
+      "issue_count": 12,
+      "score": 0.0,
+      "source_hash": "4bfeee7d966b0a3a51e8458147cc67bd01fb076590cd25efb15769f29cd794e0"
+    },
+    "backend/apps/audit/runtime_context.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "ca78c9d62f7022b99c2d3f6e61cdbd38dfacbdaaf4a55ca8cb36736f38ca1cfe"
+    },
+    "backend/apps/audit/services/audit_logger.py": {
+      "issue_count": 13,
+      "score": 0.0,
+      "source_hash": "464adea0544b05a7b0c1655531d85c56cb185bbf5ba4d5b0c0a5e9c185c6471c"
+    },
+    "backend/apps/audit/services/feature_flags.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "f3902b57741685806ab8433164e5255ae14c9a59d38bc803d0b9c41c814ea515"
+    },
+    "backend/apps/audit/tasks.py": {
+      "issue_count": 7,
+      "score": 50.0,
+      "source_hash": "0897aa0cfba2b40862e21da1d62c7725509c26b22e9cda6acc0deb9a91c8ca00"
+    },
+    "backend/apps/auto_issues/admin.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "44b35457bf4c250258b2dd5828995b35507dbf0f320b8d37eab5ea5e84cfafc3"
+    },
+    "backend/apps/auto_issues/apps.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "697a191323b36317ee0d16e9b06dfc0d2fd936acd17aacacd1c3b1f4920248bc"
+    },
+    "backend/apps/auto_issues/management/commands/ingest_quality_evidence.py": {
+      "issue_count": 2,
+      "score": 85.0,
+      "source_hash": "556ac72db80b1ff03f1bba089ca31597a222ac9568dad418454d250bee8c10f9"
+    },
+    "backend/apps/auto_issues/management/commands/log_self_review_issue.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "fdf1f79dc9184695e80397be84cb95505a01a18cb5a64898d0cede5a9c325e22"
+    },
+    "backend/apps/auto_issues/management/commands/prune_quality_artifacts.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "c20b5df15432aa59b37d6a17e1e6e98b417e0e698b5b9057be5f2d5baccff8e4"
+    },
+    "backend/apps/auto_issues/management/commands/resolve_autoissue.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "f684a7e060472351ef521d82bcd3d6892d10eb8f791b1c9d0d932d3d49d329f6"
+    },
+    "backend/apps/auto_issues/management/commands/search_resolved_issues.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "7e3ae9473053ca6497bf021ba5b11d0887f55c41206c176ef75b421efde8922d"
+    },
+    "backend/apps/auto_issues/models.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "bcbc203b205abe46387209e8456f55148fb4f43869f06bcccdddcae3e8ef933c"
+    },
+    "backend/apps/auto_issues/serializers.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "cd7446acb92c9cd0b9aa3b9831dcb7853966cdfa9490d07caab7abb928ddfebc"
+    },
+    "backend/apps/auto_issues/services/categories.py": {
+      "issue_count": 11,
+      "score": 0.0,
+      "source_hash": "47cf6b4ddfeb7344245077828ea1bc25a5b9c2dba86b6ab3bdbea9b911ba5fd8"
+    },
+    "backend/apps/auto_issues/services/dedup.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "9fe09b746b878aa613a2ebbb2591fa1d929e073f39c541f3448a043c8b5c1768"
+    },
+    "backend/apps/auto_issues/services/deploy_check_picker.py": {
+      "issue_count": 5,
+      "score": 65.0,
+      "source_hash": "86ea26e31a039e271c0d916cf22f527addb96b33d3f0bff394c63b22054cacad"
+    },
+    "backend/apps/auto_issues/services/faro_picker.py": {
+      "issue_count": 16,
+      "score": 0.0,
+      "source_hash": "95254714a19154398aa187552243e62603d45ca07f36db0a7f0cdb5b8f088506"
+    },
+    "backend/apps/auto_issues/services/fuzz.py": {
+      "issue_count": 12,
+      "score": 5.0,
+      "source_hash": "d426dba7d36b17f12220388e39246510a2ee8f8ea478580ced8c57730ec936ad"
+    },
+    "backend/apps/auto_issues/services/glitchtip_picker.py": {
+      "issue_count": 11,
+      "score": 5.0,
+      "source_hash": "b8c0adb1e5b0c452b5334250d1de6ab528c71e1b7c6523636e1c5e7052853a9d"
+    },
+    "backend/apps/auto_issues/services/internal_picker.py": {
+      "issue_count": 13,
+      "score": 0.0,
+      "source_hash": "14a692efcb668f08c0079264bf926c2df481fb9589978aaf3afecc779fceda27"
+    },
+    "backend/apps/auto_issues/services/loki_picker.py": {
+      "issue_count": 17,
+      "score": 0.0,
+      "source_hash": "6886694b982589eca2f3a6395da8d14d663a75096addfbc149e459932ba937e7"
+    },
+    "backend/apps/auto_issues/services/pyroscope_picker.py": {
+      "issue_count": 18,
+      "score": 0.0,
+      "source_hash": "f5d0ee514fa5b674c874b83443a89489dcda2a21a650240bd3fc507bb0d79c07"
+    },
+    "backend/apps/auto_issues/services/quality_artifacts.py": {
+      "issue_count": 2,
+      "score": 85.0,
+      "source_hash": "0a21610ca18690c195539a755f621e07dff8f35c590d8ddc68bec86b03dda6fc"
+    },
+    "backend/apps/auto_issues/services/quality_evidence.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "5d6173bf491eb8a5678bfab293f881c38e918bc9d8304bc489a208b1bbd33035"
+    },
+    "backend/apps/auto_issues/services/scoring.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "d317d0653114eabd24c900d0790897c01025ff7ed75f8bf27fecda4529b9190f"
+    },
+    "backend/apps/auto_issues/services/slow_query_picker.py": {
+      "issue_count": 7,
+      "score": 50.0,
+      "source_hash": "b9be21bdb1327cda0e332b8f01709589a1cbbd785547945ea169067f3b3b3b97"
+    },
+    "backend/apps/auto_issues/services/tempo_picker.py": {
+      "issue_count": 12,
+      "score": 0.0,
+      "source_hash": "a2b4b4f464c90f69347cc7c3ce513c40e1c60e51399a0d6ac46e53418e3dd4b7"
+    },
+    "backend/apps/auto_issues/tasks.py": {
+      "issue_count": 16,
+      "score": 0.0,
+      "source_hash": "ac83296cff9e6557906504650418c580026b6a1387c82fe52e75b6f44906ce90"
+    },
+    "backend/apps/auto_issues/views.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "1853cc6af328ea1e1857d8d080eb2bfc240fd60300d0383d127d8f9365de6b73"
+    },
+    "backend/apps/benchmarks/services/runner.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "3aa99c24927e5feeedd12fb9d6144028087091bc370f25dc244c98982a9f669d"
+    },
+    "backend/apps/content/admin.py": {
+      "issue_count": 15,
+      "score": 0.0,
+      "source_hash": "18c3b1bebf201ea8f97a80065729d4a6ccf0396b24c17bd90dda0b194cee9fa6"
+    },
+    "backend/apps/content/identity.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "b1dd9fcc7ab4384a1b2461fad994cbe87b191a0faf8a8055565417de51e3e365"
+    },
+    "backend/apps/content/models.py": {
+      "issue_count": 14,
+      "score": 0.0,
+      "source_hash": "b139835c9d264cb6927c0e2d5664c1dc9702841909cf8d0db718ede683230d90"
+    },
+    "backend/apps/content/serializers.py": {
+      "issue_count": 13,
+      "score": 0.0,
+      "source_hash": "781be07d21b9de73f539e237faf7f474b9676eea12983046b8b8768baa2ebe53"
+    },
+    "backend/apps/content/services/clustering.py": {
+      "issue_count": 16,
+      "score": 0.0,
+      "source_hash": "998e9845a4ec1c523a517830665822a740b5ac96394000631309c05d70b82aff"
+    },
+    "backend/apps/content/supersede.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "59547a6510a0362f0410e025afafdb560a09306ca6a4f2322ab35596bea185dd"
+    },
+    "backend/apps/content/views.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "24097c17e310bd4d2361f288e0bb095cbb48e1818818816c0a48b2d8c053451b"
+    },
+    "backend/apps/cooccurrence/services.py": {
+      "issue_count": 10,
+      "score": 50.0,
+      "source_hash": "84ecd117949e1c78a6ca0a831ed7b90c1fc31645449008a0217752f7b8677114"
+    },
+    "backend/apps/cooccurrence/tasks.py": {
+      "issue_count": 18,
+      "score": 0.0,
+      "source_hash": "bc1764d899b36154abdfe8a897d9d1ce5fbf8e0124efca6774e2ee3d86c549b2"
+    },
+    "backend/apps/cooccurrence/views.py": {
+      "issue_count": 11,
+      "score": 15.0,
+      "source_hash": "eecbd71eb9c1beedf762fa3f96080eba7bc1a73852dd256197966df9ce3b32e1"
+    },
+    "backend/apps/core/apps.py": {
+      "issue_count": 12,
+      "score": 0.0,
+      "source_hash": "4353170d832eb5b86903b3c579c9f6158ef896d4dac5dd128d9c07b20283feae"
+    },
+    "backend/apps/core/helper_router.py": {
+      "issue_count": 18,
+      "score": 0.0,
+      "source_hash": "8e841547559234246be559d25c16bfe246143fcc1ebb31227a0e5fbdd8a3b2b7"
+    },
+    "backend/apps/core/helpers/__init__.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "189ad71cd7f952f0c66c2e0983ca56649183214eb8a449e2924d5d3dfb80085f"
+    },
+    "backend/apps/core/helpers/resource_aware_retry.py": {
+      "issue_count": 7,
+      "score": 65.0,
+      "source_hash": "5eb08c1b27d6980826d5fdd63f062dba884ee33ea7bd3448cd3d38f17dfc6580"
+    },
+    "backend/apps/core/management/commands/print_default_queue_concurrency.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "bda2aca0bd9803d4d08f14ca8c8a1d889dace5f930c735b2cc25abc24750d54d"
+    },
+    "backend/apps/core/management/commands/restore_db_snapshot.py": {
+      "issue_count": 4,
+      "score": 80.0,
+      "source_hash": "548c53da3c15557b1bd7eb151dd370cc716e076d0b1b18c36a619c7583c3f666"
+    },
+    "backend/apps/core/models.py": {
+      "issue_count": 10,
+      "score": 15.0,
+      "source_hash": "48593acce0f5825598e732f8dfbc5ba01efe45fca0a495505742556a0594f721"
+    },
+    "backend/apps/core/pause_contract.py": {
+      "issue_count": 5,
+      "score": 65.0,
+      "source_hash": "df1f7fc42802f21705331c0fc8042fe45e4ff8bb94a37af42bac915c5fb4e359"
+    },
+    "backend/apps/core/runtime_flags.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "75b5cccddcef809c8b3762f6d802f7eeebe96b7c5cdb024185ab9828a880e2b8"
+    },
+    "backend/apps/core/runtime_registry.py": {
+      "issue_count": 22,
+      "score": 0.0,
+      "source_hash": "950738970ba4437c797040fa19e7204ac2adb435fd024c4c118c49f66604d580"
+    },
+    "backend/apps/core/runtime_switcher.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "a2ef0d1aedf7271f5591de16b1c477273891e1dc037a1b1909bae0769e5f312d"
+    },
+    "backend/apps/core/services/async_context.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "5a0a09741f7d417cafa8174cce14b4519509a2d1eb30de3874c07be9cad8af5f"
+    },
+    "backend/apps/core/services/budget_forecaster.py": {
+      "issue_count": 4,
+      "score": 80.0,
+      "source_hash": "12a78c3dec89757b002e809d5766efa75083ebc930020d7c9ab992ac6c0c5e9f"
+    },
+    "backend/apps/core/services/cache_policy.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "33b795e3750dbd536c82291de8655eab34e8d3a41f11cfdd4bd1e9d1efaa9c3c"
+    },
+    "backend/apps/core/services/compression_audit.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "cd4efc866a8df9d8ba03fd985f882fbd895612889212ff3772bf3c478f2b328f"
+    },
+    "backend/apps/core/services/confidence_meter.py": {
+      "issue_count": 8,
+      "score": 60.0,
+      "source_hash": "4b176f59a496bf988ebc5f8d1ecc0d7ef23c8a697e0c5d2b43be812d89b58948"
+    },
+    "backend/apps/core/services/cpp_fallback_warning.py": {
+      "issue_count": 5,
+      "score": 75.0,
+      "source_hash": "81bfa814c05b5eeb2836b1317c97ba91afd83a9b2b54ab43be6942db6f25a742"
+    },
+    "backend/apps/core/services/dashboard_aggregates.py": {
+      "issue_count": 4,
+      "score": 80.0,
+      "source_hash": "fd930e556aeb57b6cbec0b745a97193e666b7b88888d6c88b82457bd481c2a0e"
+    },
+    "backend/apps/core/services/management_commands.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "f41359d76ab8392edfa0973a63d3981d91ada084d98d02870bb2ebe2ebde0240"
+    },
+    "backend/apps/core/services/performance_certification.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "03711e29f162c21ceb3f69ea183ff65d0cb2a9037e48ad118ba5e307a6500ea7"
+    },
+    "backend/apps/core/services/schedule_tracker.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "028fae1bac47157d59eb7c155d36866bb57d74357b19c8dcdc477ff1ab8ff751"
+    },
+    "backend/apps/core/services/self_test_smoke.py": {
+      "issue_count": 9,
+      "score": 45.0,
+      "source_hash": "bda7a5db58c7a4d1c9dac495a41023cc385ccb9f0afb223eae1b0df0f3c01b5e"
+    },
+    "backend/apps/core/services/settings_accessors.py": {
+      "issue_count": 12,
+      "score": 0.0,
+      "source_hash": "e38059f9e8824b9dcf52d3745ea7a4aefad04b76bf6954c8144978f88f0a16f1"
+    },
+    "backend/apps/core/services/settings_helpers.py": {
+      "issue_count": 12,
+      "score": 0.0,
+      "source_hash": "78eed12afa1f388fb810f5f3bbf3aec3873e41eb863c1e48e1373378a27f9078"
+    },
+    "backend/apps/core/services/settings_validators.py": {
+      "issue_count": 14,
+      "score": 0.0,
+      "source_hash": "aef21aa2434aee2b38df5528831f7f5edce9a2690cf020e4d8f63d36aa841202"
+    },
+    "backend/apps/core/signals.py": {
+      "issue_count": 2,
+      "score": 85.0,
+      "source_hash": "5b95914f60fd63387dbb8e7f24f9d4ad5baf9dadf23464fb5624bb113e8647d7"
+    },
+    "backend/apps/core/tasks.py": {
+      "issue_count": 20,
+      "score": 0.0,
+      "source_hash": "501ecc1510c91d0d1777726671c1d51910cc4a34f2205fcaee32b3b1c60666e0"
+    },
+    "backend/apps/core/tasks_backups.py": {
+      "issue_count": 8,
+      "score": 35.0,
+      "source_hash": "bf227f26554c001ea61987ecce7e8a1ffca877b20cc780a8ca923d5bd89ebca4"
+    },
+    "backend/apps/core/tasks_gpu_cleanup.py": {
+      "issue_count": 6,
+      "score": 55.0,
+      "source_hash": "d6ee9a5a43c8c9c32a6acc64bef8b760dc4aac3a0b571fc70c55f9e21162d809"
+    },
+    "backend/apps/core/tests.py": {
+      "issue_count": 36,
+      "score": 0.0,
+      "source_hash": "ee2f50aed49011b54c126b5e2ed68c6520f573d382df48cdf6ac3bb5431b1841"
+    },
+    "backend/apps/core/urls.py": {
+      "issue_count": 5,
+      "score": 75.0,
+      "source_hash": "3c40372a991f202978e330299c49e3e76c11cd9dfccca8de07bcf7d086972976"
+    },
+    "backend/apps/core/views.py": {
+      "issue_count": 12,
+      "score": 0.0,
+      "source_hash": "aa7e84ea1cd402973df40fff00d00d301d57976013fafca96dd1c9207cdf35f3"
+    },
+    "backend/apps/core/views_dashboard.py": {
+      "issue_count": 14,
+      "score": 20.0,
+      "source_hash": "2d28fc3d930effebb45a8a831acdfe0b12622f99964b626629e49a9f94d373dd"
+    },
+    "backend/apps/core/views_docs.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "b53f9d43c575f5ed251415d9302c34bc992c76b5646b4b3ebf78162828c72ea3"
+    },
+    "backend/apps/core/views_mcp.py": {
+      "issue_count": 7,
+      "score": 55.0,
+      "source_hash": "321fe07bf63d479eb7e040b12d8fab86bf0da8a223f1c39fcb37869a23e4d8f5"
+    },
+    "backend/apps/core/views_observability.py": {
+      "issue_count": 4,
+      "score": 80.0,
+      "source_hash": "560fc232c06cca05d15dededd1033dff176ab1c9a3f5e4977d7c070b36450555"
+    },
+    "backend/apps/core/views_passkey.py": {
+      "issue_count": 7,
+      "score": 65.0,
+      "source_hash": "fefc739bf7737c4d1608978d81d6d99cc5b22f9d90b47cb8cc6d9b12d46bf698"
+    },
+    "backend/apps/core/views_runtime.py": {
+      "issue_count": 13,
+      "score": 15.0,
+      "source_hash": "ea9ad3ccb0da2bca92dd8d1e3053ce9bb69353854c59268c5e98bad46e682552"
+    },
+    "backend/apps/core/views_settings.py": {
+      "issue_count": 27,
+      "score": 0.0,
+      "source_hash": "8535efec03b3b705faef680388e28cac78604cf3f5519bae57d96c5451d01020"
+    },
+    "backend/apps/core/views_stage1_retrievers.py": {
+      "issue_count": 3,
+      "score": 80.0,
+      "source_hash": "7a8eddb42da88318169dfb8f358b8b55b7c668ecce00028c42d757e05316ab0e"
+    },
+    "backend/apps/core/views_streaming.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "e942d7efc5f181333600b298f2fb38a849df6be328a524674340bac16e38eeac"
+    },
+    "backend/apps/crawler/apps.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "000d2bfa2d8271b78f696b5257c042d18da9e08e7b46e1b07dc08505ee1f92c8"
+    },
+    "backend/apps/crawler/models.py": {
+      "issue_count": 7,
+      "score": 40.0,
+      "source_hash": "26b4d1dc8ed20a770f7cdf24f60300fcdb21e383d21b5fbcda09afbcd8a1c580"
+    },
+    "backend/apps/crawler/services/site_crawler.py": {
+      "issue_count": 14,
+      "score": 30.0,
+      "source_hash": "c87389981c9538ba09644cf1313b360b25847d8746cb40fb9b003b7a625eacde"
+    },
+    "backend/apps/crawler/tasks.py": {
+      "issue_count": 25,
+      "score": 0.0,
+      "source_hash": "f1456a244392952b42e2c6c961c94475b0be6be587233e9ab4583a7ed1df46e9"
+    },
+    "backend/apps/diagnostics/apps.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "0d5468df0451b5045099ad3f28b441cceed28eedacd1642e7ee77cde39477058"
+    },
+    "backend/apps/diagnostics/integration_health.py": {
+      "issue_count": 5,
+      "score": 65.0,
+      "source_hash": "291ea861d111bc70113b6140dc62052c07462786aeb9b4e1dc13c6556de24367"
+    },
+    "backend/apps/diagnostics/services/slowness_analyzer.py": {
+      "issue_count": 8,
+      "score": 55.0,
+      "source_hash": "d7fbfa17e03f95d5a4dc40241d57d18b0f73aa177ac33ebeef73500e440e5da0"
+    },
+    "backend/apps/diagnostics/services/why_so_long.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "f27525df8acd353ba32557d0d5726c136c78a39d6b163b23669412771514f00b"
+    },
+    "backend/apps/diagnostics/signal_registry.py": {
+      "issue_count": 22,
+      "score": 0.0,
+      "source_hash": "39d5719ee87b1bee45698d683b7a3f5095fb85062dcc99edd70245db58dcaa39"
+    },
+    "backend/apps/diagnostics/views.py": {
+      "issue_count": 18,
+      "score": 0.0,
+      "source_hash": "c2aa51ae078fcbd66106f3e788437b55e743cb4b3dc5ac9ee0417823a526c959"
+    },
+    "backend/apps/graph/tests.py": {
+      "issue_count": 17,
+      "score": 0.0,
+      "source_hash": "b266cad37dd9acde982e65018daa189f4d2d8a073fb04e4e5df2ca33f5e3ec61"
+    },
+    "backend/apps/graph/views.py": {
+      "issue_count": 25,
+      "score": 0.0,
+      "source_hash": "e3974e39c019ba3e443438fdbac7aa4b34dc5ffd49daa5765cbef1720a991eee"
+    },
+    "backend/apps/health/apps.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "68257adb448c7535914cec1ff4f62f5d70a110d7c818da0157e8d1ec7e32c763"
+    },
+    "backend/apps/health/dev_tools_checks.py": {
+      "issue_count": 7,
+      "score": 65.0,
+      "source_hash": "bf4b95fc2f2582a23294a39a4c139c2fd77e16861624dbe6d39f4c35daace047"
+    },
+    "backend/apps/health/services.py": {
+      "issue_count": 33,
+      "score": 0.0,
+      "source_hash": "3346c60271e252782f8fa6d28a554abaae2d3e463b2b4d765f5017caeed49ceb"
+    },
+    "backend/apps/health/tasks.py": {
+      "issue_count": 11,
+      "score": 0.0,
+      "source_hash": "4127f6a2994dec21fa547c8f8e6c118f9ce38676e32ff9b98de57f89b4600b8b"
+    },
+    "backend/apps/health/views.py": {
+      "issue_count": 6,
+      "score": 55.0,
+      "source_hash": "dc1581068186e9e76c40a38138ee732952c607c59fe8e0ee7a271aec8a528567"
+    },
+    "backend/apps/notifications/alert_rules.py": {
+      "issue_count": 4,
+      "score": 80.0,
+      "source_hash": "90f94e6505aad7d6ee29d9bc4a8be22be050de6acf3c565acae10dae0cd2eeac"
+    },
+    "backend/apps/notifications/apps.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "22a01d681556db47f37f03a75d8a845724381044ba32b1fd0b95ae06c865a6a5"
+    },
+    "backend/apps/notifications/services.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "114c6c4a94626e6702b336f2db75a7d4fdfb7c80a56020c890ac25e92a1d6ae3"
+    },
+    "backend/apps/notifications/views.py": {
+      "issue_count": 8,
+      "score": 45.0,
+      "source_hash": "f497fa5eb013c69c80390a361e0a0738a50e6e15421af4d772aba6ac9ab80102"
+    },
+    "backend/apps/ops_feed/services.py": {
+      "issue_count": 15,
+      "score": 0.0,
+      "source_hash": "88506ec2eef678c4a54658e16965d0ec25729cad8311bb30081cf7673b4fbdf5"
+    },
+    "backend/apps/ops_feed/tests.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "9327dc82da18a43fc7c223e54bcec0ed8836da35ca1856191e890cedaf524cb6"
+    },
+    "backend/apps/pipeline/apps.py": {
+      "issue_count": 4,
+      "score": 80.0,
+      "source_hash": "770182da827f9970e30445c82176213ddd401f1f9387fb5ed1e129dba513663e"
+    },
+    "backend/apps/pipeline/consumers.py": {
+      "issue_count": 4,
+      "score": 80.0,
+      "source_hash": "dd6f43092c4869b47d435f4a0f2c40c38006112a8cac953b9bb7e253e06a8d6d"
+    },
+    "backend/apps/pipeline/management/commands/run_monthly_top_50.py": {
+      "issue_count": 3,
+      "score": 75.0,
+      "source_hash": "5ddf0e7e6ef1e4f6dd053a0d7ce0300bad817109954b1d067794bc5a9444c40d"
+    },
+    "backend/apps/pipeline/models.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "56af610550fd2a96b91f8548711c7e3274fd23b673ae36dcfc7a933498aa9a8c"
+    },
+    "backend/apps/pipeline/services/_parquet_io.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "f8cd90d9546083106d5405b6872f17cb159e7d04490d86c9c0fd213b75d97253"
+    },
+    "backend/apps/pipeline/services/adaptive_conformal_producer.py": {
+      "issue_count": 4,
+      "score": 75.0,
+      "source_hash": "1c42e0dbf05f994ce95e817aac0c83bd5f171c41504c395c8b3f1c0b6e6bab2d"
+    },
+    "backend/apps/pipeline/services/algorithm_versions.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "d74cdaf0a8f7fce0014ed13d58b09f376237a56c620c91e8cc11eb385a901848"
+    },
+    "backend/apps/pipeline/services/anchor_diversity.py": {
+      "issue_count": 20,
+      "score": 0.0,
+      "source_hash": "87ba2d66e31ff67a3080d00f034518e5fe6b29c426e5ca9f5b5ca2179e6c3951"
+    },
+    "backend/apps/pipeline/services/anchor_garbage_signals.py": {
+      "issue_count": 12,
+      "score": 40.0,
+      "source_hash": "47ae7e7bad7d2d1110217a4716c1c7fcd8b98f305ff90ac6ff243bdbb2e01e60"
+    },
+    "backend/apps/pipeline/services/async_http.py": {
+      "issue_count": 6,
+      "score": 70.0,
+      "source_hash": "ae141c463699f514c3def19afc485f7a3f7051ad3d3953718ea74d15f8915146"
+    },
+    "backend/apps/pipeline/services/bpr_ranking.py": {
+      "issue_count": 12,
+      "score": 20.0,
+      "source_hash": "ddd58a497bf1c28e68f9a1d10d78edb091cdee4e1e1b7b106ccd61362a3ad672"
+    },
+    "backend/apps/pipeline/services/candidate_retrievers.py": {
+      "issue_count": 23,
+      "score": 0.0,
+      "source_hash": "1758a7374fca9fa77485904929985b36c7e60412b5bb0c05bd59f0d4c889c969"
+    },
+    "backend/apps/pipeline/services/cascade_click_em_producer.py": {
+      "issue_count": 9,
+      "score": 35.0,
+      "source_hash": "626029502758520e3764d0b074509851058fa88ac38e517e5bc2161e5776510a"
+    },
+    "backend/apps/pipeline/services/circuit_breaker.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "7d7b4a4e7cd61e67935324a504a8cbe0f2ed4725d1b69d4b52a6ed15903e35b5"
+    },
+    "backend/apps/pipeline/services/click_distance.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "293adfe089627538798af3f60e46579d03866a6d22ab4ce698fc87f7f7450cfd"
+    },
+    "backend/apps/pipeline/services/conformal_prediction.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "2140de2955bf203d86de9851e9c2c75fff574a1377c17a6e0f3e2e2b7842e21d"
+    },
+    "backend/apps/pipeline/services/conformal_predictor.py": {
+      "issue_count": 7,
+      "score": 45.0,
+      "source_hash": "e6b1a0c07150c7435f18fc276c01e539f2ba9d0ed611e052e0e91b798e33d426"
+    },
+    "backend/apps/pipeline/services/disk_pressure.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "0e2b60ff32a640923582304e5bc312efcdb6d94b9e24b9a58a1792db0b306c84"
+    },
+    "backend/apps/pipeline/services/distiller.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "d553a684dfb4660dcc3ea14a5181241ebf33d8aeb008681bea695a66a74a3631"
+    },
+    "backend/apps/pipeline/services/domain_adapter.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "fee3c1460166e368e8e8ca9b123aafdf16866537cb580a76ba7502dc0ccab8fc"
+    },
+    "backend/apps/pipeline/services/embedding_age.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "47c51524936093c26c2634555237f0670f58f74f709096256d3f9fe88a046616"
+    },
+    "backend/apps/pipeline/services/embedding_audit.py": {
+      "issue_count": 7,
+      "score": 65.0,
+      "source_hash": "799af714780c1033db578826efb376ca47961d35ebfb40c1a32accf33e68f95b"
+    },
+    "backend/apps/pipeline/services/embedding_bakeoff.py": {
+      "issue_count": 11,
+      "score": 45.0,
+      "source_hash": "6ecd24d9496a0195d09993a6e6b17340792f57ea948f02bba31472d6cede6fcf"
+    },
+    "backend/apps/pipeline/services/embedding_providers/__init__.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "32d77ccbddc27ddcf980aa8c948414a9857d843bcc2921d2d86089708ff84b86"
+    },
+    "backend/apps/pipeline/services/embedding_providers/base.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "c2fef305f0cfa0956adf791bc9e7c8de37205f914fc06193cffbdeddd5d34900"
+    },
+    "backend/apps/pipeline/services/embedding_providers/gemini_provider.py": {
+      "issue_count": 14,
+      "score": 0.0,
+      "source_hash": "a0cf0cd6505bf169d1c4a8a1c01a4770b0ed64a51a3999ff4d586c41f8200c05"
+    },
+    "backend/apps/pipeline/services/embedding_providers/local_bge.py": {
+      "issue_count": 9,
+      "score": 25.0,
+      "source_hash": "55e802eb350e9e6a7cb81303bf7f8cbdac01c44b5a8a24fcd93223f955b9f2dc"
+    },
+    "backend/apps/pipeline/services/embedding_providers/openai_provider.py": {
+      "issue_count": 15,
+      "score": 0.0,
+      "source_hash": "327a104de3af73a70340d64d527e72d596bc5fab1f05938d81d512012f1db461"
+    },
+    "backend/apps/pipeline/services/embedding_quality_gate.py": {
+      "issue_count": 7,
+      "score": 60.0,
+      "source_hash": "b0a18b17af5f95bc5ed05bc62d567dd4b1dec99fc4ddefc36d8a37c1df6ce348"
+    },
+    "backend/apps/pipeline/services/embeddings.py": {
+      "issue_count": 40,
+      "score": 0.0,
+      "source_hash": "52a12f8667dee03ac53a0da5518f3a4b908545c2980e83bb7333128cd76c2eff"
+    },
+    "backend/apps/pipeline/services/ext_loader.py": {
+      "issue_count": 5,
+      "score": 75.0,
+      "source_hash": "84735794aaaee73c5c04d3cbf379cc2e1088504d2c7af829bb65548b3db4169d"
+    },
+    "backend/apps/pipeline/services/factorization_machines.py": {
+      "issue_count": 8,
+      "score": 50.0,
+      "source_hash": "bd734db1bfcfb372f4f4a6259c73f531379ae4ce5fbebca7a8cdc0119fa08804"
+    },
+    "backend/apps/pipeline/services/faiss_index.py": {
+      "issue_count": 7,
+      "score": 65.0,
+      "source_hash": "1b87fabfe15454092b099b5b94cc2e0b5110ee39943356188ab02772ccb88741"
+    },
+    "backend/apps/pipeline/services/feedback_relevance.py": {
+      "issue_count": 8,
+      "score": 40.0,
+      "source_hash": "890fbdb8bb1e4882bb0ed0d9ef0b8c19ab20c89c020fe0d47f61634571ab8d58"
+    },
+    "backend/apps/pipeline/services/field_aware_relevance.py": {
+      "issue_count": 9,
+      "score": 50.0,
+      "source_hash": "d5652640247bcf0f4424124a00148435859436af2a11864291a16bebc8719bf3"
+    },
+    "backend/apps/pipeline/services/graph_signal_store.py": {
+      "issue_count": 5,
+      "score": 65.0,
+      "source_hash": "98cb0260c9a896e2a20384d18e11751743875eb5756a6d7dbf6396e8bdf3b5c7"
+    },
+    "backend/apps/pipeline/services/hardware_profile.py": {
+      "issue_count": 4,
+      "score": 80.0,
+      "source_hash": "1e6d48876125cee358c905742e60296d1cedc041cd8baa406176e236df038561"
+    },
+    "backend/apps/pipeline/services/hits.py": {
+      "issue_count": 5,
+      "score": 70.0,
+      "source_hash": "0c23a9fc1b97ffb6531a5159d4d03de4a6cb37c97c6da935fa4a8d13e83a7653"
+    },
+    "backend/apps/pipeline/services/kenlm_fluency.py": {
+      "issue_count": 6,
+      "score": 65.0,
+      "source_hash": "333da4601d18a98d4340a363055258eb4a55ed0f0ee57cd913eb5b019dc4c1a0"
+    },
+    "backend/apps/pipeline/services/lda_topics.py": {
+      "issue_count": 4,
+      "score": 75.0,
+      "source_hash": "28f6a946743636750b7b92b600cb88414ae2501e2943bb3a56e8768e2c07b0e4"
+    },
+    "backend/apps/pipeline/services/learned_anchor.py": {
+      "issue_count": 23,
+      "score": 0.0,
+      "source_hash": "abb26b3259e8ce1451bbfaf5eacca06756490d46eae1037faec58e0e00fd505d"
+    },
+    "backend/apps/pipeline/services/meta_hpo_search_spaces.py": {
+      "issue_count": 6,
+      "score": 70.0,
+      "source_hash": "a268901a6e6b586e435d197c0a775532e170f1e67a324e04eb695f88a01ec1cc"
+    },
+    "backend/apps/pipeline/services/monthly_picker.py": {
+      "issue_count": 4,
+      "score": 80.0,
+      "source_hash": "4f37fd11d447b0319e6d7268ab7f408e939621fff7afed315541eea86955a0e7"
+    },
+    "backend/apps/pipeline/services/ndcg_eval.py": {
+      "issue_count": 5,
+      "score": 75.0,
+      "source_hash": "f68d317c0e28c44a03e1c0d18489a4437b768e453645cdb3b62a2ee72eb3300f"
+    },
+    "backend/apps/pipeline/services/nlp_enrichment.py": {
+      "issue_count": 6,
+      "score": 70.0,
+      "source_hash": "e6bee270a1f16e656384002fb16d401136e57444df7422e92220b6796be2f951"
+    },
+    "backend/apps/pipeline/services/node2vec_embeddings.py": {
+      "issue_count": 5,
+      "score": 70.0,
+      "source_hash": "d91d7342ad386e69c613454b39d7b2dc5dde05fe3115dba828cc1cbe8d4518c5"
+    },
+    "backend/apps/pipeline/services/nrt_delta_index.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "9f1882a84bb0f3bea821129940330dc899243bd8595f829b5dc73fa442ea9963"
+    },
+    "backend/apps/pipeline/services/pagerank_cuda.py": {
+      "issue_count": 23,
+      "score": 0.0,
+      "source_hash": "895bafd38fbc1984ddd36c34c3f1c0976abc16c926f749dcaeb23ee4211993e9"
+    },
+    "backend/apps/pipeline/services/passage_refresh.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "51cf9b7f483d511752032eb59298f76de321d76cb0a584c0fa04a268bc478a4e"
+    },
+    "backend/apps/pipeline/services/passage_relevance.py": {
+      "issue_count": 13,
+      "score": 30.0,
+      "source_hash": "81a9b80898e68361ea139765d60c34a612c9f4f4114498d7233b155ac3bb46b9"
+    },
+    "backend/apps/pipeline/services/penalty.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "8d994a54c46cbfe47d928385d04376f34c491ea6b86f357d67cd9e9a23278b14"
+    },
+    "backend/apps/pipeline/services/personalized_pagerank.py": {
+      "issue_count": 5,
+      "score": 75.0,
+      "source_hash": "8d29a4578262ade5d0e41d77129105aeab20d284117a96bce3f19349c203d039"
+    },
+    "backend/apps/pipeline/services/phase6_ranker_contribution.py": {
+      "issue_count": 8,
+      "score": 35.0,
+      "source_hash": "ab6e9baca7c5ad719693c4457b16b2871a7ac8eaca986dcf94f00be2a670fd2d"
+    },
+    "backend/apps/pipeline/services/phrase_matching.py": {
+      "issue_count": 23,
+      "score": 0.0,
+      "source_hash": "d17e1576f105967696420eed6e17eecd00b8f794bf7725844bd91f539bf38923"
+    },
+    "backend/apps/pipeline/services/pipeline.py": {
+      "issue_count": 6,
+      "score": 70.0,
+      "source_hash": "5d1a736f57db11795c4399cd9f42b23b4de534c6d90cad96c556df461693ade0"
+    },
+    "backend/apps/pipeline/services/pipeline_data.py": {
+      "issue_count": 10,
+      "score": 40.0,
+      "source_hash": "1f335e80290509f8ad8c0de0aebc34fc9bbd154094f8cc31814f97372f6afcf1"
+    },
+    "backend/apps/pipeline/services/pipeline_loaders.py": {
+      "issue_count": 22,
+      "score": 0.0,
+      "source_hash": "1ca70643cd715933e5583926aa5eaf60f0f4a034f69be8c1e40859f16a5b1767"
+    },
+    "backend/apps/pipeline/services/pipeline_persist.py": {
+      "issue_count": 10,
+      "score": 50.0,
+      "source_hash": "2b3a96588f7478affb9bb35a601c39062a2c2770a09dbf6a50f1fe945a8ce326"
+    },
+    "backend/apps/pipeline/services/pipeline_stages.py": {
+      "issue_count": 22,
+      "score": 0.0,
+      "source_hash": "5f4c6d201e4b295e84dbe07a9a14e1d85afe86bd96e5d8e38f83e14f2672f952"
+    },
+    "backend/apps/pipeline/services/polysemy_gate.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "f4e7ba7cea0b93fc8a9dfe044640ab647f12c69327ba80ebff100c8e0205b249"
+    },
+    "backend/apps/pipeline/services/position_bias_ips_producer.py": {
+      "issue_count": 7,
+      "score": 45.0,
+      "source_hash": "031d9c25ac509a4dccb722cbe0cf846892042aef50ebdf273cf75be82652e154"
+    },
+    "backend/apps/pipeline/services/product_quantization_producer.py": {
+      "issue_count": 9,
+      "score": 45.0,
+      "source_hash": "308d6f449d219232cb0d69a7fcc44c79409ce6434e631c1f30f36feaf5123592"
+    },
+    "backend/apps/pipeline/services/ranker.py": {
+      "issue_count": 19,
+      "score": 0.0,
+      "source_hash": "d9a8de423099ccc6102f46eee2cadfbdb1135a4b5b3347dbbf5e611cd884c3b4"
+    },
+    "backend/apps/pipeline/services/ranker_score_fn.py": {
+      "issue_count": 4,
+      "score": 80.0,
+      "source_hash": "aaa774d44976f2cf7b4478375323cc0bd7ebae22b7e3cf92144f2c20893632f8"
+    },
+    "backend/apps/pipeline/services/rare_term_propagation.py": {
+      "issue_count": 24,
+      "score": 0.0,
+      "source_hash": "73258b63356574e663c6b54dbe09d32f963b3efebd1c05ae40d79858f43b868b"
+    },
+    "backend/apps/pipeline/services/score_calibration.py": {
+      "issue_count": 8,
+      "score": 40.0,
+      "source_hash": "4db7fe064d04cbaf98188a0a1a7dfcc04d5696df8496c51229a0a4272529afb9"
+    },
+    "backend/apps/pipeline/services/score_calibrator.py": {
+      "issue_count": 6,
+      "score": 60.0,
+      "source_hash": "43a00188fed824a8685c4cfb6be7d30793b7bf09886c06fefa3d4db114fe2888"
+    },
+    "backend/apps/pipeline/services/sentence_splitter.py": {
+      "issue_count": 3,
+      "score": 75.0,
+      "source_hash": "5c5fc01b55f61bdb4b8644e5112302788a129b760d864c2f497fc75df9c4a69f"
+    },
+    "backend/apps/pipeline/services/spacy_loader.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "dcd20c53aaefcc13402bbaa43ab845f25a4afa195539fb14009242374d8dff10"
+    },
+    "backend/apps/pipeline/services/strategy_router.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "bc434983ff7ed2a93ce238bc776fd709e94d31073f55432ec977da416a228ccc"
+    },
+    "backend/apps/pipeline/services/text_cleaner.py": {
+      "issue_count": 4,
+      "score": 70.0,
+      "source_hash": "fdf2c48f2b91384bb79c09d5ccfb633edddb00bd041bde423d7410e810e23656"
+    },
+    "backend/apps/pipeline/services/waste_bitmaps.py": {
+      "issue_count": 4,
+      "score": 80.0,
+      "source_hash": "85014516c7320d61f7dd45d715dc45241ae91741fc6ba85740b5e733cd4bd950"
+    },
+    "backend/apps/pipeline/tasks.py": {
+      "issue_count": 30,
+      "score": 0.0,
+      "source_hash": "ef5a3eaa53e1f069d4113bb3b787a7f2129b450fc8b4238aafea420ffec331e8"
+    },
+    "backend/apps/pipeline/tasks_broken_links.py": {
+      "issue_count": 7,
+      "score": 65.0,
+      "source_hash": "b70633698862bbe84180ef1d30cf311381c2428932fadce335c314ec7d2f2a8a"
+    },
+    "backend/apps/pipeline/tasks_embedding_bakeoff.py": {
+      "issue_count": 11,
+      "score": 15.0,
+      "source_hash": "c02dea85df700bf8e7a5a2f00852a0e3298b6fe7ca4e87a40106a5192c286caf"
+    },
+    "backend/apps/pipeline/tasks_embeddings.py": {
+      "issue_count": 14,
+      "score": 0.0,
+      "source_hash": "6c0a70cf0b9b305011e7346c70f122e338d7d44eb648ab54736a0a5d7dd58ec1"
+    },
+    "backend/apps/pipeline/tasks_import.py": {
+      "issue_count": 15,
+      "score": 0.0,
+      "source_hash": "f7e31b9071bec563c450a902b74168c8d23afbc792a8c385f5e8964893962cf9"
+    },
+    "backend/apps/pipeline/tasks_import_helpers.py": {
+      "issue_count": 6,
+      "score": 65.0,
+      "source_hash": "f6a6b0568744b3baa2b68fcacb20f6a8e9648522e3fda13e19adac3298f87ef6"
+    },
+    "backend/apps/pipeline/tasks_link_health.py": {
+      "issue_count": 5,
+      "score": 60.0,
+      "source_hash": "8a28690a8a9244d5cb13b882f58cf6953d81266a7f28019fb68401f46082ae40"
+    },
+    "backend/apps/pipeline/tasks_monthly.py": {
+      "issue_count": 9,
+      "score": 15.0,
+      "source_hash": "e8599259efd1590cc699062e721c3c6a82e62765c44c0b332b0bd63f5f06068f"
+    },
+    "backend/apps/pipeline/tasks_tuning.py": {
+      "issue_count": 16,
+      "score": 0.0,
+      "source_hash": "335081f4d1008da41beebf92e72c62d6def5a26e3da0a227a844dffa70b8a89e"
+    },
+    "backend/apps/pipeline/tests.py": {
+      "issue_count": 136,
+      "score": 0.0,
+      "source_hash": "3622f5beaf1f1cc48592b48788a8880613c4ef84f3360f4a98f43cb51e07cb42"
+    },
+    "backend/apps/plugins/apps.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "1a35c287a3b1904c394dcdda1543fb115948b0f55bc305a9cfd7854f3188e80c"
+    },
+    "backend/apps/plugins/tests.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "1cf6b0fee2693f90c013f266f61f1438bd5a1ad8586a55b461482bb28c4cf553"
+    },
+    "backend/apps/realtime/permissions.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "200f565b50963573e156d975322aef35f74ac95695f3597b9828d7934728445f"
+    },
+    "backend/apps/realtime/services.py": {
+      "issue_count": 8,
+      "score": 30.0,
+      "source_hash": "1a630b9effeba6492d8a96c2a3592621b1d1f9793cc60863a0650bb82a2486c0"
+    },
+    "backend/apps/scheduled_updates/apps.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "1d6431b703a5eeb7e06c2096280f4006e4732abfe482073e3559b227253861c9"
+    },
+    "backend/apps/scheduled_updates/jobs.py": {
+      "issue_count": 26,
+      "score": 0.0,
+      "source_hash": "cff2e7b1e6dd8a88cf6049ac723183e244b5b281a2e92a4bc986e9790a9c60e9"
+    },
+    "backend/apps/scheduled_updates/lock.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "cdac1cb4e2235dc684aea1d817605d3c2b9bec2cae3dbde9039a4b354086dee4"
+    },
+    "backend/apps/scheduled_updates/runner.py": {
+      "issue_count": 7,
+      "score": 60.0,
+      "source_hash": "6c002e358db60f237d428cb604c022845765d74b0dd485b22db3641af650b29d"
+    },
+    "backend/apps/scheduled_updates/tests.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "8fcbc2066fb0f7b02e15a0fb0205d92e57bb619dc16a23275e0926f871d92bfd"
+    },
+    "backend/apps/scheduled_updates/window.py": {
+      "issue_count": 4,
+      "score": 70.0,
+      "source_hash": "dee41a74cc45dfd1189f27c2fdeccc5f958f25a88d136d529d0d178afb832c4e"
+    },
+    "backend/apps/sources/api_rate_limiter.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "b69712e6305be32c90e3630d6655cf5f5f4ee05fb1c41ad4477d7e2e114170b7"
+    },
+    "backend/apps/sources/apps.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "0a41b961ecf6923da4341c22b447b115733856268aaac7c5833fd31e545717c3"
+    },
+    "backend/apps/sources/backoff.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "40144dabe5d4d870acc603319b349043f90fd0fab6b4b705e83ce9c2b9e1edb6"
+    },
+    "backend/apps/sources/bloom_filter.py": {
+      "issue_count": 5,
+      "score": 55.0,
+      "source_hash": "ab8322ecdb7aac2723639372d5a27e195319188490f1076b916eca2604884a64"
+    },
+    "backend/apps/sources/encoding.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "9e026b762d2d3eefecd8b74869f8a3221c987c05ea1f99d512b08e5d85977071"
+    },
+    "backend/apps/sources/fasttext_langid.py": {
+      "issue_count": 6,
+      "score": 65.0,
+      "source_hash": "ceecc537574774d2e91e73862cf7338fc47026fb0200883ca22f1b8d17fb0150"
+    },
+    "backend/apps/sources/hyperloglog.py": {
+      "issue_count": 6,
+      "score": 50.0,
+      "source_hash": "e5082d27314b4b2825d593133d706b4630622cf9566eb6ae557d2c82176b8faa"
+    },
+    "backend/apps/sources/language_filter.py": {
+      "issue_count": 4,
+      "score": 80.0,
+      "source_hash": "16a19ba8ee983a3b669855e81456b48b87933670bb03ce2e5e2be5847a447366"
+    },
+    "backend/apps/sources/robots.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "276b7aec8f7945015db6fc37369d93fc70280128d85dd4b6b727b9cbf735040c"
+    },
+    "backend/apps/sources/tests.py": {
+      "issue_count": 25,
+      "score": 0.0,
+      "source_hash": "6e71364b19c923810dd535beb714f21457122668e895f0b42d7dbc50cd87cf0c"
+    },
+    "backend/apps/suggestions/admin.py": {
+      "issue_count": 14,
+      "score": 0.0,
+      "source_hash": "a888a060983c6f5256c01bf6ec1a43768d777c94504810aa33903f01e05d33c4"
+    },
+    "backend/apps/suggestions/apps.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "2cfb51cb50741ca29b108f74ab7919a85862756632eca92c50f91cd1c95f9764"
+    },
+    "backend/apps/suggestions/meta_registry.py": {
+      "issue_count": 8,
+      "score": 60.0,
+      "source_hash": "836e40f5d3d312d12fa142d910892bd4ee97f7556a6bcd5fc1f9094d552d15a1"
+    },
+    "backend/apps/suggestions/models.py": {
+      "issue_count": 14,
+      "score": 0.0,
+      "source_hash": "12bbc546caa4895511ba98648cb6ffe0ed7b59faf61f265c897352aa2500062e"
+    },
+    "backend/apps/suggestions/readiness.py": {
+      "issue_count": 15,
+      "score": 0.0,
+      "source_hash": "82f71a07c3bafbceebb2c5a4eec8773d04db608371c1efc940c8d536f1b368db"
+    },
+    "backend/apps/suggestions/readiness_signals.py": {
+      "issue_count": 5,
+      "score": 75.0,
+      "source_hash": "a49440c2c3c8db7e349c3fcc6b020a15ebef0aa76791685f9c6909bd9028cb94"
+    },
+    "backend/apps/suggestions/recommended_weights.py": {
+      "issue_count": 14,
+      "score": 0.0,
+      "source_hash": "1539b155a59d6ce7cb29a604417a4b4060d9b4b0d6e3a3aaef13a7adbad8dbd4"
+    },
+    "backend/apps/suggestions/recommended_weights_forward_settings.py": {
+      "issue_count": 12,
+      "score": 0.0,
+      "source_hash": "b6248763ee0253ecb80ecdfc9fc73f6c51448e0f08b02874e7c5c71c479bdcde"
+    },
+    "backend/apps/suggestions/serializers.py": {
+      "issue_count": 12,
+      "score": 0.0,
+      "source_hash": "f4687b7b431a9612330236fb20d4220e5d3544f7b2f44732bad51cbf47ea337c"
+    },
+    "backend/apps/suggestions/services/meta_tuner.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "ef02814802da968f4cbbf6850b0772d2e9cddd69a60d5ea0b7b3b11a32987439"
+    },
+    "backend/apps/suggestions/services/suggestion_explainer.py": {
+      "issue_count": 4,
+      "score": 80.0,
+      "source_hash": "b51d601626b2bc49539b5eaa5ccd8161c723d5a554799651faac2cfdbee7b9e8"
+    },
+    "backend/apps/suggestions/services/weight_tuner.py": {
+      "issue_count": 6,
+      "score": 65.0,
+      "source_hash": "357be41fd88c25cff280fdc289ab3e28c40341d3432245a41ff2a92c3a15f09a"
+    },
+    "backend/apps/suggestions/tunable_registry.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "c896e44e4d5bd3bf5df2b3d45ec2c7193c517855fee1acf7bb9995f493674aec"
+    },
+    "backend/apps/suggestions/views.py": {
+      "issue_count": 16,
+      "score": 0.0,
+      "source_hash": "058b7f7e666700dfbec2291878e386c1916716f27ae0ddc142d6d03fab745776"
+    },
+    "backend/apps/suggestions/weight_preset_service.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "34ff985c636e115438ea457f4fb8bac3b13e07291acf9de90e046cef83ed3110"
+    },
+    "backend/apps/sync/apps.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "310c8d8256610a7a5e23d4146734ed9ca300a4e728e6445dfc01d43e3f3354cd"
+    },
+    "backend/apps/sync/services/jsonl_importer.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "f52de1a958af56090b5299304aac937c99f8eb7358aa8823f8dcdf1f3b9445bf"
+    },
+    "backend/apps/sync/services/xenforo_api.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "35bfad51421978e0d87ff8e3ef555c8c669b878843b0a5772d0670872a8c2cd7"
+    },
+    "backend/apps/sync/services/xenforo_search.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "02173169604a482da17aa8eb3d82918ee2b1c11c4dc02ffffe4d3f57f4026d7f"
+    },
+    "backend/apps/sync/views.py": {
+      "issue_count": 17,
+      "score": 0.0,
+      "source_hash": "891d4431226913172ccf3a86af4643b73e87a994d16b42655a8b4a25d9c8f10b"
+    },
+    "backend/config/settings/base.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "d58d3111faf0f433225ff9c72c69150ce19ea2b9dbf96420c6f3b1a6db1c0ee8"
+    },
+    "backend/config/settings/celery_schedules.py": {
+      "issue_count": 8,
+      "score": 60.0,
+      "source_hash": "44df9c6ee0126178a79ed11fc42f9fe752dfa43f19b49e8897cd01f7c1d60780"
+    },
+    "backend/config/urls.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "de1cb596363b15cf3f5443a3d7ea987d18354488798e5c82d05e47c95fba3024"
+    },
+    "backend/conftest.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "d0b971217131a7a5ead33babe995cf4fceefd6759179d5f158af8cf148f3bdc3"
+    },
+    "backend/extensions/anchor_descriptiveness.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "a1c705c20913cf85f31032b613864fc175f3f9c1f25d7cdbb92f8a5f24c7f9a5"
+    },
+    "backend/extensions/anchor_diversity.cpp": {
+      "issue_count": 4,
+      "score": 65.0,
+      "source_hash": "bd1b4b4b0c3e64dfddcf8482a47eca2c61e988c8b7d56398538b2116eb113604"
+    },
+    "backend/extensions/anchor_self_information.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "38c209bae391b7b67433edcf963b5c86fb43e405a42e73d6f4e494098f723fa4"
+    },
+    "backend/extensions/api_rate_limiter.cpp": {
+      "issue_count": 11,
+      "score": 15.0,
+      "source_hash": "9133f4509822cb35fae7bf1cab589610a7b5d574958f8506a341c7cfc85a86f0"
+    },
+    "backend/extensions/benchmarks/bench_anchor_diversity.cpp": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "155875f8fbc3e884746b4fe3a2f5b97ba50db5ee10355ae6ddda82924309f0e3"
+    },
+    "backend/extensions/benchmarks/bench_anchor_garbage.cpp": {
+      "issue_count": 4,
+      "score": 80.0,
+      "source_hash": "8d5964e4df89468955479f9712f7c197e1b3ffc4727903b6e49f9ec5367ecc74"
+    },
+    "backend/extensions/benchmarks/bench_api_rate_limiter.cpp": {
+      "issue_count": 4,
+      "score": 70.0,
+      "source_hash": "ad2974aa2956311e694857b4eec0bb619cb6709655d6fe8af8b8a3e5cd52845b"
+    },
+    "backend/extensions/benchmarks/bench_common.h": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "e98e5715051f3d8d3fa5e239158654cec077c9bc1de3cd8ca5b27ccb5e76f686"
+    },
+    "backend/extensions/benchmarks/bench_feedrerank.cpp": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "a7c549ae8f2e449cc633b496f16e6d2e1045d7ecae72e1ed8aecd2058891fee2"
+    },
+    "backend/extensions/benchmarks/bench_fieldrel.cpp": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "f29c0287e97c3236661e9e9c261341266967debe7a5db20f9b486149f2a1faa7"
+    },
+    "backend/extensions/benchmarks/bench_ivf_index.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "af8b92d2df79aebcb3ca5b510fd146d443b780d20815578e253c170c32e4c6c2"
+    },
+    "backend/extensions/benchmarks/bench_l2norm.cpp": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "9ab9e8d51c080959112a680b3043116b00e97da1fbceeec5158780ba1b30277f"
+    },
+    "backend/extensions/benchmarks/bench_linkparse.cpp": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "aa6923d5945ce498b8d0903ae2c2e42c5eaf1f8af4e86ccbafa010f20e51f06e"
+    },
+    "backend/extensions/benchmarks/bench_pagerank.cpp": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "6b99f3d066c7208c26f7310728f9fe4768dfca7123a505eccf17d0df6c5e71b3"
+    },
+    "backend/extensions/benchmarks/bench_passagesim.cpp": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "6711498a6b5914cb584e8fc2519e8e79acd78b5891c659c839b8f1b5e76ec0fc"
+    },
+    "backend/extensions/benchmarks/bench_phrasematch.cpp": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "7022eaae2cd9e3d0bd015182740e8c996a7f59ac03b7b5b06c4f21e2a847789d"
+    },
+    "backend/extensions/benchmarks/bench_quantemb.cpp": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "9347b46991d0640fd7895d385b9d1bf77ea604d96f65d342b5d8e1e044c26a3c"
+    },
+    "backend/extensions/benchmarks/bench_rareterm.cpp": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "b6bff5b4752b9fd522f4e19ed6e0d24171422c5f4283628a2fd0aadb67a4963a"
+    },
+    "backend/extensions/benchmarks/bench_scoring.cpp": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "84e0369750336c523812dce062def5d4a9d197f685f3d7204c095b61fe76ed1f"
+    },
+    "backend/extensions/benchmarks/bench_simsearch.cpp": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "4fb43a7d36458da68e627cd29cc5a3e7620ac61bdb7ecd56619e911ae1f4455b"
+    },
+    "backend/extensions/benchmarks/bench_streaming_sketches.cpp": {
+      "issue_count": 7,
+      "score": 45.0,
+      "source_hash": "4aab7a647b8fd950a3d62522793c6ccf4258e32fe9c50f308a0a2d9ef4b19b71"
+    },
+    "backend/extensions/benchmarks/bench_texttok.cpp": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "77bd3e44d39dec064afaf835c5fe1b5bb565afe682d03d6e3f97eeed6e1af260"
+    },
+    "backend/extensions/compressed_bloom.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "c9f472dfbcf1387a82317c178227e933423f313fef4ffab4b9e99356f86ef8fc"
+    },
+    "backend/extensions/count_min_sketch.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "5f4341f33404f81b99651cb5e8d5db254a2849f07cce649e0fde5b1b714c3a07"
+    },
+    "backend/extensions/counting_bloom.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "a86aaabb68ec56c16e32681ce301da15ed6b1f34556af2072ddbfb3342e349ee"
+    },
+    "backend/extensions/feedrerank.cpp": {
+      "issue_count": 6,
+      "score": 60.0,
+      "source_hash": "787bffdb4782c2aeca74af834ad2af7928c988d432772eb7f87fe2d70da99005"
+    },
+    "backend/extensions/fieldrel.cpp": {
+      "issue_count": 2,
+      "score": 85.0,
+      "source_hash": "0cf471a2c7ff4d8b75bb8aaed6fd46ae4b7c70f45ce04daa5d245e7b77bcf056"
+    },
+    "backend/extensions/fuzz/fuzz_anchor_descriptiveness.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "44aa19acf299ece78e841d9984451e2bb8ecc867e6a3a026a7046b9b06ecb18c"
+    },
+    "backend/extensions/fuzz/fuzz_anchor_diversity.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "4a4099b3f3fade24e88a9e7f6fd9c165d3da1b198baa7c33a4087239765ef59f"
+    },
+    "backend/extensions/fuzz/fuzz_anchor_self_information.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "59d95cc37a88ea9798477bc732c7b5a1287d8873c079a566fe93c15294b80151"
+    },
+    "backend/extensions/fuzz/fuzz_api_rate_limiter.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "e8fbf67328e2fb66908c1eb246d812a0f46eb0cb7b5b87708c3118dee76e33d5"
+    },
+    "backend/extensions/fuzz/fuzz_compressed_bloom.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "d07d4f3a54810b5b9e08e0dbf93ef95dba4856076a87df416b7e6464b2ffc98b"
+    },
+    "backend/extensions/fuzz/fuzz_count_min_sketch.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "fa7c7bb809fb31a9b36bf8bd67e42e5dd3a1fa838aac9e0ad5e44bf36e097a2f"
+    },
+    "backend/extensions/fuzz/fuzz_counting_bloom.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "91c659284c37924cb2e9e2dbf020e64165a3a35d5de0897f7ab5c608008465ef"
+    },
+    "backend/extensions/fuzz/fuzz_feedrerank.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "66564fbb8ab77adeb8b1b989f78558ec6daf6187992f81e9ffb13c9925daf4c5"
+    },
+    "backend/extensions/fuzz/fuzz_fieldrel.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "640a32004021fde04d7b22f2f1a9652bcd38794fdd9dd246602fae8bd60273a4"
+    },
+    "backend/extensions/fuzz/fuzz_generic_anchor_matcher.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "728b22c319c8c5ebc5b5682d6bf91911f652424fc660da78c6bad422a3a1a915"
+    },
+    "backend/extensions/fuzz/fuzz_input.h": {
+      "issue_count": 0,
+      "score": 100.0,
+      "source_hash": "7c92311a22ba813ef29927e939f7add9943c1df4195d04ed8d28d1894316d9d9"
+    },
+    "backend/extensions/fuzz/fuzz_ivf_index.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "17708d410b57c989e8d3db89a9001a43196192777f92b361215bf06d8b7add78"
+    },
+    "backend/extensions/fuzz/fuzz_l2norm.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "19a807e061c8f496f2ac24095770353f0ccf893a3d44c74aaf669fde0f504a96"
+    },
+    "backend/extensions/fuzz/fuzz_linkparse.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "bd91c6aa7789dec2e14f4d4d43fed92db1d9794c1820564b865363831b013abd"
+    },
+    "backend/extensions/fuzz/fuzz_pagerank.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "de66dec72daae95ca7cfe1079c6610c17ea1551a9308fcfa9ed140cc9678f6ad"
+    },
+    "backend/extensions/fuzz/fuzz_passagesim.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "a487a0565126d1d2a8444b304c79f85fbce317d5832bbc85a1561a315948b297"
+    },
+    "backend/extensions/fuzz/fuzz_phrasematch.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "0b129f326225d6dc5f949c3979b9f4b0cad206fab8a66d13869ea964f31dd58e"
+    },
+    "backend/extensions/fuzz/fuzz_quantemb.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "36413d1d6b179b8bf39b3bb9dd4cc9a58bd41f1e953a801a2ca5fbb77cab58d1"
+    },
+    "backend/extensions/fuzz/fuzz_rareterm.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "eaa4996b2d0f3a1b4f1746a3f31a985ce6a3bc7738cb143c33e7be285c015121"
+    },
+    "backend/extensions/fuzz/fuzz_scoring.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "7155eb3f74828fd12a094827a3cdb6084befe66f9a4514a649476d845bf0c06d"
+    },
+    "backend/extensions/fuzz/fuzz_simsearch.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "5be30615483958bd4f51a2711e9321810c29ed416a3aa25878a566309771c2f9"
+    },
+    "backend/extensions/fuzz/fuzz_texttok.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "3226b15fba3b51c704e6d2012c2c611658fefcd651a8221100cb7f86a69e70fb"
+    },
+    "backend/extensions/generic_anchor_matcher.cpp": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "042f22ce44c93576b9051945a17286927bfd0fc261c0838248d66ff83db5f5da"
+    },
+    "backend/extensions/include/anchor_diversity_core.h": {
+      "issue_count": 3,
+      "score": 70.0,
+      "source_hash": "001b9e0bf85f1838f9b94de2e6014a87ce740fce4be387254d7a9220853b1a21"
+    },
+    "backend/extensions/include/feedrerank_core.h": {
+      "issue_count": 0,
+      "score": 100.0,
+      "source_hash": "1bd064b14b2817bc12bf3a9806e0baade99e691a6080df83f93d798763477cbc"
+    },
+    "backend/extensions/include/fieldrel_core.h": {
+      "issue_count": 1,
+      "score": 90.0,
+      "source_hash": "acef4b635f63f64bb7c2d69150ce42d74309a33d2a9b521643cb65f110b26b77"
+    },
+    "backend/extensions/include/ivf_index_core.h": {
+      "issue_count": 0,
+      "score": 100.0,
+      "source_hash": "822addf8747bdeeb434669a4acc5ee192ea550f8dd0c77d5b9b53ace6be6a74a"
+    },
+    "backend/extensions/include/l2norm_core.h": {
+      "issue_count": 0,
+      "score": 100.0,
+      "source_hash": "a5393036f20ade5f034b1e585e6fa4770ebed60d1b8ec60921cae5688e0de6d5"
+    },
+    "backend/extensions/include/linkparse_core.h": {
+      "issue_count": 0,
+      "score": 100.0,
+      "source_hash": "0d8b552d583cad6d07530ed2639ad2261c669f069eeec9f5c4f8ad165a716df6"
+    },
+    "backend/extensions/include/pagerank_core.h": {
+      "issue_count": 0,
+      "score": 100.0,
+      "source_hash": "f08827c555721b917d6e7e5cbd9f3ec08ff9f7a6776ef752246f9db14e7c53d6"
+    },
+    "backend/extensions/include/passagesim_core.h": {
+      "issue_count": 0,
+      "score": 100.0,
+      "source_hash": "c34182c63a55f06fab19e5c5e452e711b3dcd61b66d2481ab62c11e79c9de4e2"
+    },
+    "backend/extensions/include/phrasematch_core.h": {
+      "issue_count": 0,
+      "score": 100.0,
+      "source_hash": "1a334c221f52b8ff3cc8d1066152bef28b8d4518bb6d5d2b829e00c37f0e0471"
+    },
+    "backend/extensions/include/quantemb_core.h": {
+      "issue_count": 0,
+      "score": 100.0,
+      "source_hash": "53bdfac66403c4d34592f50a0d80ad8648470f791e20cb7a582949d21c28de65"
+    },
+    "backend/extensions/include/rareterm_core.h": {
+      "issue_count": 0,
+      "score": 100.0,
+      "source_hash": "a44c931ae28b5e6516fe8e75071ee007e5efc4caef0bb314f1c41586c9dff57b"
+    },
+    "backend/extensions/include/scoring_core.h": {
+      "issue_count": 0,
+      "score": 100.0,
+      "source_hash": "6336eb2953ed5245b13e7b31f5a385a86ee5c51513403616a11cfba0ac09b5a3"
+    },
+    "backend/extensions/include/simsearch_core.h": {
+      "issue_count": 0,
+      "score": 100.0,
+      "source_hash": "32331a1d694c6aebb45aca75d5c10dcd46fff0dd9ba8698b7e0c73535cf1b181"
+    },
+    "backend/extensions/include/texttok_core.h": {
+      "issue_count": 0,
+      "score": 100.0,
+      "source_hash": "76afc69c9a4fda54632bb05673602c06362e710ae0d02da255f1c545bf4533d6"
+    },
+    "backend/extensions/ivf_index.cpp": {
+      "issue_count": 4,
+      "score": 70.0,
+      "source_hash": "8678228840d73a786ce0103d0ec1596d848f4add17bc93e949a42862a9b3fd69"
+    },
+    "backend/extensions/l2norm.cpp": {
+      "issue_count": 13,
+      "score": 0.0,
+      "source_hash": "db46502f62934468d57e5698e3e4f079e5b2ad31b164b782f8c7c5c98b783f5f"
+    },
+    "backend/extensions/linkparse.cpp": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "79a2ec396468a09b3c0fa4e2aa1b7966892ba3f25894663fea6a72d82a8df692"
+    },
+    "backend/extensions/pagerank.cpp": {
+      "issue_count": 21,
+      "score": 0.0,
+      "source_hash": "e6f61afe50264c7c89a46aa922d412b8d827295dc12c09313d1eaf530f4043cd"
+    },
+    "backend/extensions/passagesim.cpp": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "1e883ca96c0d41c375b0c296d6582b5d8112471610957fbaf276167b6d37143b"
+    },
+    "backend/extensions/phrasematch.cpp": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "26fe2614d0222678c68416c0bcaf0a82007787adb6f5f763daf8b919719b46c6"
+    },
+    "backend/extensions/quantemb.cpp": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "d8025ef838ba240b7d13550c07eaa4551d58a9ea28d7b6f6c5613cfb78061550"
+    },
+    "backend/extensions/rareterm.cpp": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "fa5a04717a2af821e52851c347eccea934ab63393034c707d77bde0785f19314"
+    },
+    "backend/extensions/scoring.cpp": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "4f8164f5bc3af4b54f4d226d80cba83dc0fa5cbbb04cf89de5c00d36238c87d7"
+    },
+    "backend/extensions/simsearch.cpp": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "2ba2a72cd86a93b5f35b08a9a5fe420e3e69a205f6f24675e9a484a989febb89"
+    },
+    "backend/extensions/texttok.cpp": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "4f45588d3231d97202f10a0718e664e0c73ec205a282c029303bc653aad5e947"
+    },
+    "backend/fix3.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "f5e9a170a6133a5c2e91dfd4e6d4aa4d2508d07fd4398370606921445d03b9fc"
+    },
+    "frontend/src/app/admin-models/admin-models.component.html": {
+      "issue_count": 6,
+      "score": 45.0,
+      "source_hash": "0a6ef1da4ec0aa1fd85dc40224bb1e01a227b2b4769dc9016b8c8b829b1f1f11"
+    },
+    "frontend/src/app/admin-models/admin-models.component.scss": {
+      "issue_count": 6,
+      "score": 70.0,
+      "source_hash": "3b89044b2c9e66c36076f1b1b941a2b0954039daa97b94ffd723d6697a1984df"
+    },
+    "frontend/src/app/admin-models/admin-models.component.ts": {
+      "issue_count": 13,
+      "score": 0.0,
+      "source_hash": "e41246eba9add88218fa5e201d42f91b88160c91bda1c5d460e25f5de42fa3a6"
+    },
+    "frontend/src/app/admin-models/runtime-models.service.ts": {
+      "issue_count": 11,
+      "score": 0.0,
+      "source_hash": "0ee61f3bfea5e1a2e9469343d4e608e8faa2d4fbb3b8c19ed2271558fe42374b"
+    },
+    "frontend/src/app/analytics/analytics.component.html": {
+      "issue_count": 12,
+      "score": 0.0,
+      "source_hash": "05be65afaa52da08ac9f0f7ec62d99ac2b69908cee4ac7f470f64b0f9d075a18"
+    },
+    "frontend/src/app/analytics/analytics.component.scss": {
+      "issue_count": 13,
+      "score": 30.0,
+      "source_hash": "81024d29803221e6638db69bbe98cc197c89536ab729ca9831e94bd5979fa4e2"
+    },
+    "frontend/src/app/app.component.ts": {
+      "issue_count": 9,
+      "score": 45.0,
+      "source_hash": "175f83cb64218f857a70663d8070ed4cf8f8af0ccc068448d45ff1c431b82dd2"
+    },
+    "frontend/src/app/app.routes.ts": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "68288cf867d196c535d1178cbdf7f8f821776fe9b541b18e6fa66528ef8a38b8"
+    },
+    "frontend/src/app/audit/undo-timeline/undo-timeline.component.html": {
+      "issue_count": 0,
+      "score": 100.0,
+      "source_hash": "cd4c921b336a9513c41ec95d892a7cd8cd5d988c648d6e13dd0a4d8a5da82901"
+    },
+    "frontend/src/app/behavioral-hubs/behavioral-hubs.component.html": {
+      "issue_count": 2,
+      "score": 80.0,
+      "source_hash": "9df8619c56ff5540c364776ca4e75aeb18524ccffeb54615cab795aed44558ca"
+    },
+    "frontend/src/app/core/directives/stage-indicator.directive.ts": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "dafe58c336993d598e7377cb17480d4a5f1f4b18ac323b0b57f8325474b6bb48"
+    },
+    "frontend/src/app/core/services/appearance.service.ts": {
+      "issue_count": 2,
+      "score": 85.0,
+      "source_hash": "266cd6c898dd56b86c4dad05449d8ad1b3f38a4a805ee9617ca6404c5244b279"
+    },
+    "frontend/src/app/core/services/session-reauth.service.ts": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "91882c6959cda303cbdedcc46ee931d0b5c0b36a0dd4f3440f32216237cc242c"
+    },
+    "frontend/src/app/core/services/soft-lock.service.ts": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "2939c56367498a6d9b030aa4cf268d6a9ad99a5539d3be63b2fe13358b7afab0"
+    },
+    "frontend/src/app/core/services/suggestion-readiness.service.ts": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "90b0f0b204af5ef5ab510f86ee412056a9a99b905a5f28a063a9aa65cb54bdb1"
+    },
+    "frontend/src/app/crawler/crawler.component.html": {
+      "issue_count": 9,
+      "score": 10.0,
+      "source_hash": "6245b0e5ac9f59c0b15f9520a0fbc98406e6cf616b9f13fe7ce178a9e8ad53da"
+    },
+    "frontend/src/app/dashboard/command-suggestions/command-suggestions.component.ts": {
+      "issue_count": 4,
+      "score": 65.0,
+      "source_hash": "6a5de8c13ffb7dabfb597f82af28d78f5a155ec88c1548ea0eedec5c370a5023"
+    },
+    "frontend/src/app/dashboard/components/webhook-log/webhook-log.component.html": {
+      "issue_count": 0,
+      "score": 100.0,
+      "source_hash": "43e2da38238e88c5c3ffaeda086fde1f1e2741d4752e941fd039ef4b57122cd6"
+    },
+    "frontend/src/app/dashboard/confidence-meter/confidence-meter.component.html": {
+      "issue_count": 0,
+      "score": 100.0,
+      "source_hash": "fc1516972945ec3d93f0d3a75826d441eea722782725e8560bfc5eb5e7df8e45"
+    },
+    "frontend/src/app/dashboard/daily-quiz/daily-quiz.component.ts": {
+      "issue_count": 9,
+      "score": 20.0,
+      "source_hash": "85c085c44748a929f59f2fd4516b3e38cb236f48862371099e060d8b6cdff9a5"
+    },
+    "frontend/src/app/dashboard/dashboard.component.html": {
+      "issue_count": 12,
+      "score": 0.0,
+      "source_hash": "c25714d46e2c94a7f2cc78aae191ba368c740760999a2385272a38cc160817b9"
+    },
+    "frontend/src/app/dashboard/dashboard.component.scss": {
+      "issue_count": 26,
+      "score": 0.0,
+      "source_hash": "70e9dc16948f7b7de8da46c87695b438d5dc497d2c9f52137924fcf9cd2b85d5"
+    },
+    "frontend/src/app/dashboard/eli5-card/eli5-card.component.ts": {
+      "issue_count": 4,
+      "score": 65.0,
+      "source_hash": "b0dbf966cfa6a6c3bd2cdf512de97e147a68d0ec0dd229dad557157b968e3319"
+    },
+    "frontend/src/app/dashboard/goal-tracker/goal-tracker.component.ts": {
+      "issue_count": 11,
+      "score": 0.0,
+      "source_hash": "b9159554c67ee6b848bc75f5e4f6acd1e8d953d03130ab34a5263d46bddbeb89"
+    },
+    "frontend/src/app/dashboard/health-score-dial/health-score-dial.component.ts": {
+      "issue_count": 7,
+      "score": 40.0,
+      "source_hash": "d88471c94b487fa25a9751814badb0a83782f6b924a3441b2dafde295f371d69"
+    },
+    "frontend/src/app/dashboard/mission-brief/mission-brief.component.ts": {
+      "issue_count": 11,
+      "score": 0.0,
+      "source_hash": "5f4c4099628229794a0e70544e29761bd9a2373e983cbb763a8a9b49ef854905"
+    },
+    "frontend/src/app/dashboard/mission-critical/mc-tile.component.ts": {
+      "issue_count": 11,
+      "score": 0.0,
+      "source_hash": "2e714e194e5607327a66fb42e842e6cf0e09ad9536338f36abc4ddab6c3276fa"
+    },
+    "frontend/src/app/dashboard/mission-critical/mission-critical.component.ts": {
+      "issue_count": 11,
+      "score": 0.0,
+      "source_hash": "64a210a0f1cb090379c6e7c6827c067e2c06c1437e3c9ffaf5f1d56caeb9af20"
+    },
+    "frontend/src/app/dashboard/operator-checklist/operator-checklist.component.ts": {
+      "issue_count": 11,
+      "score": 0.0,
+      "source_hash": "814340ac87a0dbae21e5b90ee3fbec991bc6a2ed434f163ad2e3f9b9f1a31ec0"
+    },
+    "frontend/src/app/dashboard/performance-mode/performance-mode.component.ts": {
+      "issue_count": 8,
+      "score": 60.0,
+      "source_hash": "47b160a613b56a55260225793ffb6cab52098e368510b1ea635d876f9672486d"
+    },
+    "frontend/src/app/dashboard/priority-action-queue/priority-action-queue.component.ts": {
+      "issue_count": 10,
+      "score": 5.0,
+      "source_hash": "cf11af8d1ea5231d3eed804b1235896e0d6eaef45cfd145cf5c92e0b0628d0d9"
+    },
+    "frontend/src/app/dashboard/quick-controls/quick-controls.component.html": {
+      "issue_count": 2,
+      "score": 80.0,
+      "source_hash": "639b776126c11753af0f1f9eecb6747ccfa8f451bc5d4acd950b11d74bca3162"
+    },
+    "frontend/src/app/dashboard/quick-search-bar/quick-search-bar.component.ts": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "751146f2eb292b6e9b08505cf81f0ed45b661083a955eb1b34a32631d79cdddf"
+    },
+    "frontend/src/app/dashboard/running-now/running-now.component.ts": {
+      "issue_count": 5,
+      "score": 55.0,
+      "source_hash": "fbad8d8f629e8c3981dcab565b2c691d98ff1e2fd20f8377dd129a21c92cdf29"
+    },
+    "frontend/src/app/dashboard/runtime-mode/runtime-mode.component.ts": {
+      "issue_count": 3,
+      "score": 75.0,
+      "source_hash": "c0c7156718a19bffcfb5a1a00a5a77eee7c4dcbb7c1a33289343e7da6ef81c66"
+    },
+    "frontend/src/app/dashboard/status-story/status-story.component.ts": {
+      "issue_count": 11,
+      "score": 0.0,
+      "source_hash": "ed0fee2e91cad7ef6c82293b3a0ddfeca3f5095e54de0a078901ad7de0ff9041"
+    },
+    "frontend/src/app/dashboard/sync-activity/sync-activity.component.ts": {
+      "issue_count": 11,
+      "score": 0.0,
+      "source_hash": "f4942fb951091b0865443b5cf7f03c826c8dee6e0b0a977b86fbf25c68195684"
+    },
+    "frontend/src/app/dashboard/system-metrics/system-metrics.component.ts": {
+      "issue_count": 4,
+      "score": 65.0,
+      "source_hash": "58e017e943eab2b05895afc06a0cf4a2ae468af6b737263035a0063a42f4f2d9"
+    },
+    "frontend/src/app/dashboard/weekly-digest-optin/weekly-digest-optin.component.ts": {
+      "issue_count": 11,
+      "score": 0.0,
+      "source_hash": "aeb1eb835f87b9d66415c28a66d5ba2d059392c30fd5e45795f8a7d90809b2fc"
+    },
+    "frontend/src/app/dashboard/welcome-card/welcome-card.component.ts": {
+      "issue_count": 6,
+      "score": 45.0,
+      "source_hash": "ce2be8d8b4895a77d230de31af89785c6f5165454c7f2d548b805eb0b7213160"
+    },
+    "frontend/src/app/dashboard/whats-new/whats-new.component.ts": {
+      "issue_count": 6,
+      "score": 45.0,
+      "source_hash": "00fbde7a27d869d28aea45b1f013f7c280520cd9c45d9391b42b9edf3cc12369"
+    },
+    "frontend/src/app/diagnostics/diagnostics.component.html": {
+      "issue_count": 10,
+      "score": 0.0,
+      "source_hash": "2f8486721b00db33755b23f21020be632b5fe9caf14b86f780ebcf9abf0265de"
+    },
+    "frontend/src/app/diagnostics/diagnostics.component.scss": {
+      "issue_count": 37,
+      "score": 0.0,
+      "source_hash": "a188f52cf8c13eee3bd365392af0b71840c3d3288d202af7909c225390293510"
+    },
+    "frontend/src/app/diagnostics/service-card/service-card.component.html": {
+      "issue_count": 0,
+      "score": 100.0,
+      "source_hash": "5e940abcd7c4a6ed74cd6e32c89a8394570a0c57e309344f2e6ab91963287db2"
+    },
+    "frontend/src/app/diagnostics/service-card/service-card.component.ts": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "e551d82f2c6c21c278948224a11aa76cab0a299d4794abe4c79ae455d0e08585"
+    },
+    "frontend/src/app/embeddings/embeddings.component.html": {
+      "issue_count": 12,
+      "score": 0.0,
+      "source_hash": "250b1814c1833c34a1832c5846fa91b62280321be9d0a2d2cbf9d114781e7e6f"
+    },
+    "frontend/src/app/graph/graph.component.html": {
+      "issue_count": 10,
+      "score": 0.0,
+      "source_hash": "3dfa293a07d19952aab6c06339c0a8989a73e0a78dc2e706468d9dc87d1ce4b8"
+    },
+    "frontend/src/app/health/health.component.html": {
+      "issue_count": 1,
+      "score": 90.0,
+      "source_hash": "e342bd141c5324ddc4082dfb0c25360ce4d115e09032382e002c8c62f2695cfa"
+    },
+    "frontend/src/app/jobs/jobs.component.html": {
+      "issue_count": 10,
+      "score": 0.0,
+      "source_hash": "7423b510239ddb72fdf30a5ea2a32187aae7201bece9c0795767be073eb48e9c"
+    },
+    "frontend/src/app/link-health/link-health.component.html": {
+      "issue_count": 1,
+      "score": 90.0,
+      "source_hash": "1a190563dd54f0ef439d2b10e992d5599b1d6f1d05471ab16e7147b2260c4991"
+    },
+    "frontend/src/app/mcp/mcp.component.html": {
+      "issue_count": 7,
+      "score": 30.0,
+      "source_hash": "cc251c15fb6b086e2f648f043ed3705973038619277b8cd92eee8502f8427bd5"
+    },
+    "frontend/src/app/monthly-reports/monthly-reports.component.html": {
+      "issue_count": 0,
+      "score": 100.0,
+      "source_hash": "0e83369040f787d2748ace7e47b664b6a0043cada97d029c6cad353e5f0e30a1"
+    },
+    "frontend/src/app/performance/performance.component.html": {
+      "issue_count": 1,
+      "score": 90.0,
+      "source_hash": "2dcc2525b56a347cf877c980bb8bae4ff66b8e717e36ad39577c2a4f2e7215d8"
+    },
+    "frontend/src/app/preferences/preferences.component.ts": {
+      "issue_count": 16,
+      "score": 0.0,
+      "source_hash": "653ae1e67cafd2366dd758f07cd0b7c7d278e9b9f59d21f1eb89a8e471055bae"
+    },
+    "frontend/src/app/review/suggestion-detail-dialog.component.html": {
+      "issue_count": 12,
+      "score": 0.0,
+      "source_hash": "708cbde3bf4b8fda73653d732b910a76b99878108fd757f2d90f858aca02b247"
+    },
+    "frontend/src/app/review/suggestion-detail-dialog.component.scss": {
+      "issue_count": 0,
+      "score": 100.0,
+      "source_hash": "0326ea6164450c7190053e531e5b0401cfe927b296791a44a2fdc93f32a303f0"
+    },
+    "frontend/src/app/review/suggestion-detail-dialog.component.ts": {
+      "issue_count": 12,
+      "score": 20.0,
+      "source_hash": "fc06eee95cc7efce572ad007bd733928942529f0d76dd7d0841ae97d7e08a06b"
+    },
+    "frontend/src/app/review/suggestion.service.ts": {
+      "issue_count": 11,
+      "score": 0.0,
+      "source_hash": "d1b21556e836837a1ba57c39fcd5f365f7a2839b89854ed7acf7926244cb909b"
+    },
+    "frontend/src/app/scheduled-updates/scheduled-updates.component.html": {
+      "issue_count": 0,
+      "score": 100.0,
+      "source_hash": "ca4c08d84824b54a3e7ae0b6f019779f1370b4a3e2dd41392936af6363fb20bb"
+    },
+    "frontend/src/app/settings/meta-algo-tooltips.ts": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "93407e4a42b6d04a8b95b2c531f16247e717494d22b361e50fdf828a738e5f89"
+    },
+    "frontend/src/app/settings/passage-relevance/passage-relevance-card.component.html": {
+      "issue_count": 0,
+      "score": 100.0,
+      "source_hash": "9fa445e318bea89afa5f1a63bd11b4cbe6f2a8d925ae8e8b5c2628a0fa2d5065"
+    },
+    "frontend/src/app/settings/passage-relevance/passage-relevance-card.component.scss": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "706f38de3a1d841f7110fbacc193b8edb07a032d718e1dc461fc983796bb6174"
+    },
+    "frontend/src/app/settings/settings.component.ts": {
+      "issue_count": 13,
+      "score": 0.0,
+      "source_hash": "d78f347a791d1d14d78411133042f121b446377594f7d3f4d19985984e7ae61c"
+    },
+    "frontend/src/app/settings/silo-settings.service.ts": {
+      "issue_count": 14,
+      "score": 0.0,
+      "source_hash": "4db88c41e51769cdaaa8b58765232efd1139b6aee267de26377b2490d3806219"
+    },
+    "frontend/src/app/settings/spec-viewer-dialog/spec-viewer-dialog.component.ts": {
+      "issue_count": 7,
+      "score": 40.0,
+      "source_hash": "b7af4b754446fe73ffd4e666aee2e80f97969b319d58d6952a6f96f9cef1f546"
+    },
+    "frontend/src/app/settings/weight-diagnostics-card/weight-diagnostics-card.component.html": {
+      "issue_count": 0,
+      "score": 100.0,
+      "source_hash": "23124d2819c036dabf231a06ecde19f4974f235afc460603c0077bb193c380ac"
+    },
+    "frontend/src/app/shared/ui/baseline-indicator/baseline-indicator.component.ts": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "afcde664144d460114424eb04b1d294e47741006a5812cea636f4f2cedca413f"
+    },
+    "frontend/src/app/shared/ui/comments/comments.component.ts": {
+      "issue_count": 12,
+      "score": 0.0,
+      "source_hash": "f7dd3ed73e8b4a936cefb7e73e0c096ea5d4cb1268497359f41b949e28ffd331"
+    },
+    "frontend/src/app/shared/ui/dropzone/dropzone.component.ts": {
+      "issue_count": 3,
+      "score": 80.0,
+      "source_hash": "9968be9e3a2d0c10298d942cd3295346fd47d1a00c7979032404550bdfbe0f25"
+    },
+    "frontend/src/app/shared/ui/error-card/error-card.component.ts": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "4cbc0b89d032831a629eb013d4fd9b0827cd0b3d6d8c2537b7d1ab62cbf028aa"
+    },
+    "frontend/src/app/shared/ui/form-error-summary/form-error-summary.component.ts": {
+      "issue_count": 10,
+      "score": 5.0,
+      "source_hash": "7f841eb5b368f0788d0cc379a44b639c4abbce71d5e488ab25874fac1763a303"
+    },
+    "frontend/src/app/shared/ui/goal-progress/goal-progress.component.ts": {
+      "issue_count": 2,
+      "score": 85.0,
+      "source_hash": "e3cf7ee9d661021818379454e3d538a692f62db40101007a63a58ac6b08c76e8"
+    },
+    "frontend/src/app/shared/ui/markdown-editor/markdown-editor.component.ts": {
+      "issue_count": 6,
+      "score": 65.0,
+      "source_hash": "3f99df8682eaf38d45af91b32ed8be1e53d417cf9db1a176ab8829b5380e359f"
+    },
+    "frontend/src/app/shared/ui/share-link/share-link-dialog.component.ts": {
+      "issue_count": 9,
+      "score": 15.0,
+      "source_hash": "95b65818bba71a7f4e852332cda2e8a1b87ba9efac67280485aa61aa6f180be9"
+    },
+    "frontend/src/app/shared/ui/soft-lock-banner/soft-lock-banner.component.ts": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "f0dd8eda442bd135d0583c8610a7719002531df6a58b540f15745aec66dc6a8f"
+    },
+    "frontend/src/app/shared/ui/tutorial-callout/tutorial-callout.component.ts": {
+      "issue_count": 5,
+      "score": 55.0,
+      "source_hash": "354187d23443f14eaf5c5692fb85fc2cc888e12ff496b0af987ce8665d8b3ef0"
+    },
+    "frontend/src/app/shared/wizard/wizard.component.ts": {
+      "issue_count": 4,
+      "score": 65.0,
+      "source_hash": "7bd8711e63bf7ccddb07752dd01ff34b813f5a17295b6f795f99588de3d31a45"
+    },
+    "scripts/check_go_tools.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "ff5f8ad6a011b1ef891ef846cf3d9e2d9410d73395af78b0fad2c6017a45c8da"
+    },
+    "scripts/check_quality_policy.py": {
+      "issue_count": 4,
+      "score": 80.0,
+      "source_hash": "11f3222a3699ebabc89b4dd743759fb4bd427113bf8696f77b7f6294624ea839"
+    },
+    "scripts/check_quality_report.py": {
+      "issue_count": 3,
+      "score": 80.0,
+      "source_hash": "cf39b4d459e22cb74708f5178302005afdaf38394db1073a9d2596dfb416a65a"
+    },
+    "scripts/ensure_compiled_artifacts.py": {
+      "issue_count": 5,
+      "score": 70.0,
+      "source_hash": "5eef0ef88969ffc9090b3e023ad9b4171977fc00e85aaad035734c0987fc9eff"
+    },
+    "scripts/quality_debt_score.py": {
+      "issue_count": 2,
+      "score": 90.0,
+      "source_hash": "2f4e573d80fa0bdcf3e927535f725a924a3862292a54737c0eabbaf74c5b0133"
+    },
+    "scripts/run_quality_step.py": {
+      "issue_count": 2,
+      "score": 85.0,
+      "source_hash": "ada289f475e066a857d053f670c394345c2b66ed0a8cbce9cf6483086d4f9489"
+    },
+    "scripts/select_python_test_targets.py": {
+      "issue_count": 3,
+      "score": 85.0,
+      "source_hash": "5b67b46dc1fbd0110707cd45b6fd370291b1327af71e92357c78efbb2ffef504"
+    },
+    "scripts/write_quality_evidence.py": {
+      "issue_count": 2,
+      "score": 85.0,
+      "source_hash": "a86f16c0245464bd2ca5fedf9c3c74e805e206459c2372ca6eb5e907c1d3acdc"
+    }
+  },
+  "targets": {
+    "good_score": 90.0,
+    "new_code": 95.0
+  },
+  "version": 1
+}

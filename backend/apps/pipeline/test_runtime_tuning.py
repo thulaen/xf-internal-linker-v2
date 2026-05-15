@@ -310,3 +310,28 @@ class EmbeddingRuntimeTuningTests(TestCase):
             faiss_index.build_faiss_index()
 
         fake_faiss.index_cpu_to_gpu.assert_not_called()
+
+    @mock.patch(
+        "apps.pipeline.services.faiss_index.get_current_embedding_filter",
+        return_value={},
+    )
+    @mock.patch("apps.pipeline.services.faiss_index.emit")
+    @mock.patch("apps.content.models.ContentItem")
+    def test_empty_faiss_build_is_informational(
+        self,
+        content_item_model,
+        emit_mock,
+        _embedding_filter,
+    ):
+        content_item_model.objects.filter.return_value.values_list.return_value = []
+
+        with (
+            mock.patch.object(faiss_index, "HAS_FAISS", True),
+            mock.patch.object(faiss_index, "faiss", mock.Mock()),
+            self.assertLogs("apps.pipeline.services.faiss_index", level="INFO") as logs,
+        ):
+            faiss_index.build_faiss_index()
+
+        self.assertTrue(any("no embeddings found" in line for line in logs.output))
+        emit_mock.assert_called_once()
+        self.assertEqual(emit_mock.call_args.kwargs["severity"], "info")

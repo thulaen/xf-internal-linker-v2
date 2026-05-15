@@ -27,6 +27,10 @@ from typing import Any
 from django.utils import timezone
 
 from apps.auto_issues.models import AutoIssue
+from apps.auto_issues.services.categories import (
+    default_category_for_source,
+    get_or_create_category,
+)
 
 
 @dataclass(frozen=True)
@@ -48,6 +52,7 @@ class IssueObservation:
     severity: str
     priority_score: float
     occurrence_count: int
+    category_key: str | None = None
 
 
 _SEVERITY_RANK = {
@@ -94,6 +99,10 @@ def _merge_observation(observations: list, new: dict) -> list:
     return observations
 
 
+def _category_for_observation(obs: IssueObservation):
+    return get_or_create_category(obs.category_key or default_category_for_source(obs.source))
+
+
 def _create_new_canonical_row(obs: IssueObservation, new_obs: dict, now) -> AutoIssue:
     """First-time-seen canonical → fresh AutoIssue row."""
     return AutoIssue.objects.create(
@@ -108,6 +117,7 @@ def _create_new_canonical_row(obs: IssueObservation, new_obs: dict, now) -> Auto
         status=AutoIssue.STATUS_OPEN,
         priority_score=obs.priority_score,
         occurrence_count=obs.occurrence_count,
+        category=_category_for_observation(obs),
         last_seen=now,
         source_observations=[new_obs],
     )
@@ -132,9 +142,12 @@ def _merge_into_existing(
     existing.last_seen = now
     if not existing.affected_files and obs.affected_files:
         existing.affected_files = obs.affected_files
+    if existing.category_id is None:
+        existing.category = _category_for_observation(obs)
     existing.save(update_fields=[
         "source_observations", "priority_score", "severity",
         "occurrence_count", "last_seen", "affected_files",
+        "category",
     ])
     return existing, "updated" if seen_before else "merged"
 

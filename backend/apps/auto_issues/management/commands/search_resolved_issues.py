@@ -27,13 +27,15 @@ class Command(BaseCommand):
     help = "Search resolved AutoIssue rows by area / keyword / fingerprint."
 
     _DEFAULT_LIMIT = 10
+    _DEFAULT_SCAN_LIMIT = 500
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--area",
+            action="append",
             help=(
                 "Repo-relative path or path prefix; matches anything in "
-                "`affected_files`. Example: backend/apps/audit"
+                "`affected_files`. Can be repeated. Example: backend/apps/audit"
             ),
         )
         parser.add_argument(
@@ -53,14 +55,22 @@ class Command(BaseCommand):
             default=self._DEFAULT_LIMIT,
             help=f"Max matches to print (default {self._DEFAULT_LIMIT}).",
         )
+        parser.add_argument(
+            "--scan-limit",
+            type=int,
+            default=self._DEFAULT_SCAN_LIMIT,
+            help=(
+                "Max resolved rows to inspect for path-prefix matching "
+                f"(default {self._DEFAULT_SCAN_LIMIT})."
+            ),
+        )
 
     def handle(self, *args, **opts):
+        limit = _positive_int(opts["limit"], fallback=self._DEFAULT_LIMIT)
+        scan_limit = _positive_int(opts["scan_limit"], fallback=self._DEFAULT_SCAN_LIMIT)
         qs = AutoIssue.objects.filter(status=AutoIssue.STATUS_RESOLVED)
         if opts["fingerprint"]:
             qs = qs.filter(fingerprint=opts["fingerprint"])
-        if opts["area"]:
-            # JSONField icontains: matches any element containing the path.
-            qs = qs.filter(affected_files__icontains=opts["area"])
         if opts["keyword"]:
             kw = opts["keyword"]
             qs = qs.filter(
@@ -68,7 +78,12 @@ class Command(BaseCommand):
                 | Q(description__icontains=kw)
                 | Q(lessons_learned__icontains=kw)
             )
-        rows = list(qs.order_by("-resolved_at")[: opts["limit"]])
+        candidates = list(qs.order_by("-resolved_at")[:scan_limit])
+        areas = _as_area_list(opts["area"])
+        if len(areas) > 1:
+            self._write_multiple_area_results(candidates, areas=areas, limit=limit)
+            return
+        rows = _matching_rows(candidates, area=areas[0] if areas else None, limit=limit)
 
         if not rows:
             self.stdout.write("[RESOLVED SEARCH: 0 matches — no prior fixes found in this area]")
@@ -89,3 +104,58 @@ class Command(BaseCommand):
                 )
                 self.stdout.write(f"      lesson: {first_two}")
             self.stdout.write(f"      files: {files}")
+
+    def _write_multiple_area_results(
+        self,
+        candidates: list[AutoIssue],
+        *,
+        areas: list[str],
+        limit: int,
+    ) -> None:
+        for area in areas:
+            rows = _matching_rows(candidates, area=area, limit=limit)
+            if not rows:
+                self.stdout.write(f"[RESOLVED SEARCH: {area}: 0 matches]")
+                continue
+            self.stdout.write(f"[RESOLVED SEARCH: {area}: {len(rows)} prior fix(es)]")
+            for row in rows:
+                date = row.resolved_at.strftime("%Y-%m-%d") if row.resolved_at else "????-??-??"
+                self.stdout.write(f"  #{row.id} ({date}) {row.title[:80]}")
+
+
+def _matching_rows(rows, *, area: str | None, limit: int) -> list[AutoIssue]:
+    matches: list[AutoIssue] = []
+    for row in rows:
+        if area and not _row_touches_area(row, area):
+            continue
+        matches.append(row)
+        if len(matches) >= limit:
+            break
+    return matches
+
+
+def _row_touches_area(row: AutoIssue, area: str) -> bool:
+    normalised_area = _normalise_path(area)
+    for file_path in row.affected_files or []:
+        normalised_file = _normalise_path(str(file_path))
+        if normalised_file == normalised_area or normalised_file.startswith(
+            f"{normalised_area}/"
+        ):
+            return True
+    return False
+
+
+def _normalise_path(path: str) -> str:
+    return path.replace("\\", "/").strip().strip("/")
+
+
+def _as_area_list(value) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    return list(value)
+
+
+def _positive_int(value: int, *, fallback: int) -> int:
+    return value if isinstance(value, int) and value > 0 else fallback

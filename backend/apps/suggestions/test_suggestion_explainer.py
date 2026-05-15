@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 from django.test import TestCase
 
 from apps.suggestions.services.suggestion_explainer import (
@@ -13,6 +14,9 @@ from apps.suggestions.services.suggestion_explainer import (
     FeatureContribution,
     explain_suggestion,
 )
+
+
+pytestmark = pytest.mark.django_db
 
 
 class _StubSuggestion:

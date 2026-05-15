@@ -142,10 +142,15 @@ class GatherContextTests(SimpleTestCase):
     def test_falls_back_to_hostname_and_primary_role(
         self, _mock_hostname, _mock_snapshot
     ):
-        # Strip both env vars so the defaults fire (the helper reads
-        # ``socket.gethostname`` for node_id and the literal "primary"
-        # for node_role).
-        with patch.dict(os.environ, {}, clear=True):
+        # Remove only the env vars under test so the defaults fire (the
+        # helper reads `socket.gethostname` for node_id and the literal
+        # "primary" for node_role). DO NOT clear all of os.environ —
+        # that nukes mutmut's MUTANT_UNDER_TEST guard env var and
+        # breaks any mutmut workspace that rewrites this module.
+        stripped = {
+            k: v for k, v in os.environ.items() if k not in {"NODE_ID", "NODE_ROLE"}
+        }
+        with patch.dict(os.environ, stripped, clear=True):
             _fp, node_id, node_role, _ctx = _gather_context("job", "step", "msg")
         self.assertEqual(node_id, "host-fallback")
         self.assertEqual(node_role, ErrorLog.NODE_ROLE_PRIMARY)

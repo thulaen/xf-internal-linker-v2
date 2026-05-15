@@ -44,6 +44,7 @@ class FixSuggestionsTests(TestCase):
     def test_disk_full_matches(self):
         fix = fix_suggestions.suggest("No space left on device", "", "")
         self.assertIn("prune", fix)
+        self.assertNotIn("docker volume prune", fix)
 
     def test_generic_fallback(self):
         fix = fix_suggestions.suggest("something nobody ever saw", "", "")

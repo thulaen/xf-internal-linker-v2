@@ -36,6 +36,7 @@ Run manually:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import re
 import subprocess
 import sys
@@ -93,6 +94,29 @@ GENERATED_BINARY_SUFFIXES = {
     ".pyd",
     ".so",
 }
+TEMP_TEST_ARTIFACT_PARTS = {
+    ".hypothesis",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    "htmlcov",
+    "mutmut-cache",
+    "mutation-report",
+    "stryker-tmp",
+}
+TEMP_TEST_ARTIFACT_NAMES = {
+    ".coverage",
+    "coverage.xml",
+}
+TEMP_TEST_ARTIFACT_SUFFIXES = {
+    ".gcda",
+    ".gcno",
+    ".prof",
+    ".profdata",
+    ".profraw",
+    ".pprof",
+    ".tmp",
+}
 
 # The marker header — captures the ten per-source breakdown numbers so
 # we can assert they sum to N.  Order: agent / glitchtip / pyroscope /
@@ -113,7 +137,7 @@ NEW_MARKER_RE = re.compile(
     re.IGNORECASE,
 )
 # 4-source marker from the previous (12-pick) era. We REJECT it now
-# but report a helpful message pointing at the new 6-source form.
+# but report a helpful message pointing at the new 10-source form.
 FOUR_SOURCE_MARKER_RE = re.compile(
     r"\[REGISTRY READ:\s*\d+\s+open\s*"
     r"\(\s*\d+\s+agent\s*/\s*"
@@ -180,6 +204,36 @@ QUALITY_REQUIRED_RESULTS = {
     "mutation": "passed",
     "check_setup": "passed",
 }
+SELF_REVIEW_RESULT_RE = re.compile(
+    r"\[SELF REVIEW RESULT:\s*(?P<body>[^\]]+)\]",
+    re.IGNORECASE,
+)
+SELF_REVIEW_REQUIRED_KEYS = {
+    "scope",
+    "autoissues",
+    "fixes",
+    "reuse",
+    "shared_library",
+    "complexity",
+    "tests",
+    "coverage",
+    "mutation",
+    "benchmark",
+    "edge_cases",
+    "issues",
+}
+BDD_PROOF_RE = re.compile(
+    r"\[BDD PROOF:\s*(?P<body>[^\]]+)\]",
+    re.IGNORECASE | re.DOTALL,
+)
+TDD_PROOF_RE = re.compile(
+    r"\[TDD PROOF:\s*(?P<body>[^\]]+)\]",
+    re.IGNORECASE | re.DOTALL,
+)
+LESSON_READ_RE = re.compile(
+    r"\[(?:RESOLVED HISTORY|AUTOISSUE LESSONS READ):\s*[^\]]+\]",
+    re.IGNORECASE,
+)
 COVERAGE_GAPS_RE = re.compile(
     r"\[COVERAGE GAPS READ:\s*(?:\d+\s+picked(?:\s*\+\s*\d+\s+(?:to file|filed))?|drought)[^\]]*\]",
     re.IGNORECASE,
@@ -291,6 +345,22 @@ def _staged_generated_build_files() -> list[str]:
     return [path for path in _staged_files() if _is_generated_build_file(path)]
 
 
+def _is_temporary_test_artifact(path: str) -> bool:
+    path_obj = Path(path)
+    parts = set(path_obj.parts)
+    if parts.intersection(TEMP_TEST_ARTIFACT_PARTS):
+        return True
+    if path_obj.name in TEMP_TEST_ARTIFACT_NAMES:
+        return True
+    if path_obj.suffix.lower() in TEMP_TEST_ARTIFACT_SUFFIXES:
+        return True
+    return False
+
+
+def _staged_temporary_test_artifacts() -> list[str]:
+    return [path for path in _staged_files() if _is_temporary_test_artifact(path)]
+
+
 def _unstaged_session_files() -> list[str]:
     paths = [path.relative_to(REPO_ROOT).as_posix() for path in SESSION_FILES]
     try:
@@ -338,6 +408,21 @@ def _validate_no_generated_build_files() -> int:
         "Generated build output or compiled binaries are staged. Build output "
         "must stay in Docker-managed artifact storage, not Git. Unstage these "
         f"files and keep only source, tests, config, and scripts: {listed}"
+    )
+
+
+def _validate_no_temporary_test_artifacts() -> int:
+    files = _staged_temporary_test_artifacts()
+    if not files:
+        return 0
+    listed = ", ".join(files[:8])
+    if len(files) > 8:
+        listed += f", and {len(files) - 8} more"
+    return _fail(
+        "Temporary test artefacts are staged. Keep failing TDD scratch files, "
+        "coverage output, mutation reports, and profile dumps in ignored "
+        "disposable paths. Commit only source, small permanent regression tests, "
+        f"and useful summaries. Staged temporary artefacts: {listed}"
     )
 
 
@@ -390,19 +475,19 @@ def _validate_marker(added: str) -> int:
     g = int(new_match.group("g"))
     p = int(new_match.group("p"))
     t = int(new_match.group("t"))
-    l = int(new_match.group("l"))
+    loki = int(new_match.group("l"))
     f = int(new_match.group("f"))
     m = int(new_match.group("m"))
     z = int(new_match.group("z"))
     c = int(new_match.group("c"))
     gh = int(new_match.group("gh"))
     n = int(new_match.group("n"))
-    total = a + g + p + t + l + f + m + z + c + gh
+    total = a + g + p + t + loki + f + m + z + c + gh
     if total != n:
         return _fail(
             f"Per-source counts in `[REGISTRY READ: ...]` do not sum to N: "
             f"{a} agent + {g} glitchtip + {p} pyroscope + {t} tempo + "
-            f"{l} loki + {f} faro + {m} mutation + {z} fuzz + {c} contract + "
+            f"{loki} loki + {f} faro + {m} mutation + {z} fuzz + {c} contract + "
             f"{gh} gh_ci = {total}, but the header says {n} open. "
             "Re-run `print_open_issues` and reconcile."
         )
@@ -608,6 +693,99 @@ def _validate_quality_gate_for_code(added: str, staged_code_files: list[str]) ->
     return 0
 
 
+def _validate_self_review_for_code(added: str, staged_code_files: list[str]) -> int:
+    if not staged_code_files:
+        return 0
+    match = SELF_REVIEW_RESULT_RE.search(added)
+    if not match:
+        return _fail(
+            "Code files are staged, but the handoff does not include the "
+            "`[SELF REVIEW RESULT: ...]` marker. Review the task scope, "
+            "log real findings as AutoIssues, fix safe in-scope issues, and "
+            "record the result before committing."
+        )
+    results = _parse_quality_result(match.group("body"))
+    missing = sorted(SELF_REVIEW_REQUIRED_KEYS - set(results))
+    if missing:
+        return _fail(
+            "The self-review marker is missing required fields: "
+            f"{', '.join(missing)}. Required fields are: "
+            f"{', '.join(sorted(SELF_REVIEW_REQUIRED_KEYS))}."
+        )
+    if results["issues"] not in {"fixed-or-none", "fixed", "none", "logged"}:
+        return _fail(
+            "The self-review marker must say whether issues were fixed, "
+            "logged, or not found. Use `issues=fixed-or-none`, `issues=fixed`, "
+            "`issues=logged`, or `issues=none`."
+        )
+    return 0
+
+
+def _validate_bdd_proof_for_code(added: str, staged_code_files: list[str]) -> int:
+    if not staged_code_files:
+        return 0
+    match = BDD_PROOF_RE.search(added)
+    if not match:
+        return _fail(
+            "Code files are staged, but the handoff does not include the "
+            "`[BDD PROOF: ...]` marker. Claude and Codex must communicate "
+            "plans and summaries in behavior terms before signing off."
+        )
+    body = match.group("body").lower()
+    missing = [word for word in ("given", "when", "then") if word not in body]
+    if missing:
+        return _fail(
+            "The BDD proof marker must include `Given`, `When`, and `Then`. "
+            f"Missing: {', '.join(missing)}."
+        )
+    return 0
+
+
+def _validate_tdd_proof_for_code(added: str, staged_code_files: list[str]) -> int:
+    if not staged_code_files:
+        return 0
+    match = TDD_PROOF_RE.search(added)
+    if not match:
+        return _fail(
+            "Code files are staged, but the handoff does not include the "
+            "`[TDD PROOF: ...]` marker. Claude and Codex must write or update "
+            "a focused test before or alongside code, run it, fix the code, "
+            "and rerun until it passes."
+        )
+    results = _parse_quality_result(match.group("body"))
+    missing = sorted({"before_or_alongside", "tests", "result"} - set(results))
+    if missing:
+        return _fail(
+            "The TDD proof marker is missing required fields: "
+            f"{', '.join(missing)}. Required fields are: "
+            "`before_or_alongside`, `tests`, and `result`."
+        )
+    if results["before_or_alongside"] not in {"yes", "true", "passed"}:
+        return _fail(
+            "The TDD proof marker must show the test was written or updated "
+            "before or alongside the code. Use `before_or_alongside=yes`."
+        )
+    if results["result"] != "passed":
+        return _fail(
+            "The TDD proof marker must show `result=passed`. Do not commit "
+            "code while the focused TDD test is failing, skipped, or not run."
+        )
+    return 0
+
+
+def _validate_lesson_read_for_code(added: str, staged_code_files: list[str]) -> int:
+    if not staged_code_files:
+        return 0
+    if LESSON_READ_RE.search(added):
+        return 0
+    return _fail(
+        "Code files are staged, but the handoff does not prove AutoIssue "
+        "lesson reading. Before writing tests or code, run "
+        "`manage.py search_resolved_issues --area <touched-path>` and record "
+        "`[RESOLVED HISTORY: ...]` or `[AUTOISSUE LESSONS READ: ...]`."
+    )
+
+
 def _validate_coverage_gaps(added: str) -> int:
     """FR-251 — the fifth required marker.
 
@@ -659,10 +837,19 @@ def _validate_coverage_summary(added: str) -> int:
     )
 
 
+def _first_failure(validators: list[Callable[[], int]]) -> int:
+    for validator in validators:
+        if (rc := validator()) != 0:
+            return rc
+    return 0
+
+
 def main() -> int:
-    if (rc := _validate_no_unstaged_session_files()) != 0:
-        return rc
-    if (rc := _validate_no_generated_build_files()) != 0:
+    if (rc := _first_failure([
+        _validate_no_unstaged_session_files,
+        _validate_no_generated_build_files,
+        _validate_no_temporary_test_artifacts,
+    ])) != 0:
         return rc
     staged_code_files = _staged_code_files()
     touches_handoff = _commit_touches_handoff()
@@ -675,19 +862,19 @@ def main() -> int:
     if not touches_handoff:
         return 0
     added = _staged_diff_for(HANDOFF)
-    if (rc := _validate_marker(added)) != 0:
-        return rc
-    if (rc := _validate_picks(added)) != 0:
-        return rc
-    if (rc := _validate_ci_failed_runs(added)) != 0:
-        return rc
-    if (rc := _validate_guidelines_read(added)) != 0:
-        return rc
-    if (rc := _validate_quality_gate_for_code(added, staged_code_files)) != 0:
-        return rc
-    if (rc := _validate_coverage_gaps(added)) != 0:
-        return rc
-    if (rc := _validate_coverage_summary(added)) != 0:
+    if (rc := _first_failure([
+        lambda: _validate_marker(added),
+        lambda: _validate_picks(added),
+        lambda: _validate_ci_failed_runs(added),
+        lambda: _validate_guidelines_read(added),
+        lambda: _validate_quality_gate_for_code(added, staged_code_files),
+        lambda: _validate_self_review_for_code(added, staged_code_files),
+        lambda: _validate_bdd_proof_for_code(added, staged_code_files),
+        lambda: _validate_tdd_proof_for_code(added, staged_code_files),
+        lambda: _validate_lesson_read_for_code(added, staged_code_files),
+        lambda: _validate_coverage_gaps(added),
+        lambda: _validate_coverage_summary(added),
+    ])) != 0:
         return rc
     return _verify_autoissue_quota(added)
 

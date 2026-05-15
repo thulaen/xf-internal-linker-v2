@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
 from apps.audit.models import ErrorLog
@@ -22,7 +22,7 @@ from apps.auto_issues.services.fingerprinting import canonical_fingerprint
 from apps.auto_issues.services.internal_picker import pick_internal_issues
 
 
-class CanonicalFingerprintTests(TestCase):
+class CanonicalFingerprintTests(SimpleTestCase):
     def test_same_title_same_culprit_same_hash(self):
         a = canonical_fingerprint("RuntimeError: db down", "apps.audit.tasks:sync")
         b = canonical_fingerprint("RuntimeError: db down", "apps.audit.tasks:sync")

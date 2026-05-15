@@ -2,6 +2,8 @@
 
 from django.apps import AppConfig
 
+from apps.core.services.management_commands import is_lightweight_management_command
+
 
 class SuggestionsConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
@@ -10,6 +12,11 @@ class SuggestionsConfig(AppConfig):
 
     def ready(self) -> None:  # noqa: D401
         """Register Phase SR real-time invalidation receivers."""
+        import sys
+
+        if is_lightweight_management_command(sys.argv):
+            return
+
         try:
             from .readiness_signals import register as _register_readiness
 

@@ -6,6 +6,18 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Get-RepoRoot
 
+$pruneSafety = Join-Path $PSScriptRoot "check-prune-safety.ps1"
+if (Test-Path $pruneSafety) {
+    & $pruneSafety
+}
+
+$protectedMap = Join-Path $repoRoot "config\protected-data-stores.json"
+if (Test-Path $protectedMap) {
+    $protected = Get-Content -LiteralPath $protectedMap -Raw | ConvertFrom-Json
+    Write-Host "Protected Docker volumes never pruned: $($protected.docker_volumes -join ', ')"
+    Write-Host "Protected host paths never pruned: $($protected.host_paths -join ', ')"
+}
+
 # Gemini guard — strip [extensions] worktreeConfig = true from .git/config if present.
 # This runs first so a broken Gemini session can recover as soon as the prune runs.
 $gitConfigGuard = Join-Path $PSScriptRoot "ensure-git-config-clean.ps1"
@@ -69,15 +81,16 @@ if ($dockerAvailability.Status -eq "ok") {
     Write-Host "Skipping Docker prune. $(Get-DockerUnavailableMessage -Availability $dockerAvailability)"
 }
 
-# Attempt VHDX compaction so Windows actually reclaims the freed space.
-# The compact script auto-skips if any container is running, so this is safe to always call.
-$compactScript = Join-Path $PSScriptRoot "..\docker_compact_vhd.ps1"
-if (Test-Path $compactScript) {
-    Write-Host "Attempting VHDX compaction (auto-skips if containers are running)..."
+# Attempt Windows-space reclaim without stopping the app.
+# Full virtual-disk compaction is intentionally skipped here because it
+# requires stopping Docker or WSL.
+$reclaimScript = Join-Path $PSScriptRoot "reclaim-docker-windows-space.ps1"
+if (Test-Path $reclaimScript) {
+    Write-Host "Attempting Docker Windows-space reclaim without stopping the app..."
     try {
-        & powershell -ExecutionPolicy Bypass -File $compactScript
+        & powershell -ExecutionPolicy Bypass -File $reclaimScript
     } catch {
-        Write-Host "VHDX compaction step reported an error (non-fatal): $_"
+        Write-Host "Docker Windows-space reclaim reported an error (non-fatal): $_"
     }
 }
 

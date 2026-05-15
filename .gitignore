@@ -51,6 +51,7 @@ node_modules/
 frontend/dist/
 frontend/.angular/
 frontend/coverage/
+frontend/reports/
 frontend/playwright-report/
 frontend/test-results/
 
@@ -84,6 +85,7 @@ htmlcov/
 .coverage.*
 coverage-html/
 backend/coverage-html/
+backend/reports/
 
 # Celery
 celerybeat-schedule
@@ -106,6 +108,9 @@ secrets/
 
 # ruff cache
 .ruff_cache/
+
+# hypothesis test database (property-based test cache)
+.hypothesis/
 
 # Angular build cache
 frontend/.angular/

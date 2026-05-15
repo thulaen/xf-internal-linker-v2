@@ -28,6 +28,7 @@ If you add a new Django model that stores anything keyed by content (vector, ske
 | `Sentence.embedding` | `Post.content_hash` cascade | `sentence_model_version` | overwrite-in-place | tied to parent |
 | `OPQCodebook` | `corpus_signature` | `version` | older rows kept inactive for rollback | manual GC |
 | `EmbeddingCostLedger` | `(job_id, provider)` upsert | n/a | accumulator | tied to job retention |
+| `QualityRawSnippet` | `raw_report_hash` | `quality-evidence-v1` | update `reference_count` and `last_seen` in place | 12 weekly snapshots, unless active evidence still references the row |
 
 ## Process Gates
 

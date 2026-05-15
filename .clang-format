@@ -1,13 +1,2 @@
 ---
 BasedOnStyle: Google
-IndentWidth: 4
-ColumnLimit: 100
-AllowShortFunctionsOnASingleLine: Inline
-AllowShortIfStatementsOnASingleLine: Never
-AllowShortLoopsOnASingleLine: false
-BreakBeforeBraces: Attach
-SpaceBeforeParens: ControlStatements
-PointerAlignment: Left
-ReferenceAlignment: Left
-IncludeBlocks: Regroup
-SortIncludes: CaseSensitive

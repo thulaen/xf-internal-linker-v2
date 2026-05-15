@@ -68,7 +68,9 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 
 ### Currently pending
 
-_None as of 2026-04-27._
+- [ ] Add alert routing for local monitoring so important Grafana, Loki, Tempo, Pyroscope, GlitchTip, and app-health alerts reach an operator-approved destination instead of only sitting in dashboards. Source: Codex 2026-05-14 observability review; AutoIssue #258.
+- [ ] Add backup freshness and restore monitoring so PostgreSQL backups are checked for age, non-empty size, and restore-readiness without touching live data. Source: Codex 2026-05-14 Docker recovery; AutoIssue #259.
+- [ ] Add GPU metrics and profiling for embedding workloads using NVIDIA DCGM Exporter for live GPU metrics, PyTorch Profiler for model-level timing, and NVIDIA Nsight Systems for one-off deep CUDA investigations. Source: Codex 2026-05-14 GPU observability recommendation; AutoIssue #260.
 
 The original 8-item FR-099–FR-105 follow-up list in `AGENT-HANDOFF.md:474-489` (2026-04-24) was reconciled during this session's audit. 6 of 8 items shipped between 2026-04-24 and 2026-04-27:
 

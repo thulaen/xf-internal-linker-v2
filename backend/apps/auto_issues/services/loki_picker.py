@@ -145,7 +145,11 @@ def _normalize_line(line: str) -> str:
 
 def _stable_fingerprint(prefix: str, normalized: str) -> str:
     raw = f"{prefix}::{normalized}"
-    return f"{prefix}::{hashlib.sha1(raw.encode()).hexdigest()[:16]}"
+    return f"{prefix}::{hashlib.sha1(raw.encode(), usedforsecurity=False).hexdigest()[:16]}"
+
+
+def _is_stack_container(container_name: str) -> bool:
+    return container_name.startswith("xf_linker_")
 
 
 def _fetch_loki_lines(
@@ -202,6 +206,8 @@ def _gather_hot_patterns(
     # Group by normalized fingerprint -> (count, sample_line, container).
     grouped: dict[str, dict[str, Any]] = {}
     for container, line in rows:
+        if not _is_stack_container(container):
+            continue
         normalized = _normalize_line(line)
         if not normalized:
             continue
@@ -293,6 +299,8 @@ def _gather_warn_bursts(
 ) -> list[LokiCandidate]:
     out: list[LokiCandidate] = []
     for container in _list_active_containers(api_url):
+        if not _is_stack_container(container):
+            continue
         last_hour = _container_count_over_time(
             api_url, container=container, range_s=3600
         )

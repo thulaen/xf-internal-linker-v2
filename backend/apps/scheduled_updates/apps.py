@@ -1,6 +1,10 @@
-"""Django AppConfig for the Scheduled Updates orchestrator."""
+"""Django app configuration for scheduled updates."""
+
+import sys
 
 from django.apps import AppConfig
+
+from apps.core.services.management_commands import is_lightweight_management_command
 
 
 class ScheduledUpdatesConfig(AppConfig):
@@ -9,11 +13,9 @@ class ScheduledUpdatesConfig(AppConfig):
     verbose_name = "Scheduled Updates"
 
     def ready(self) -> None:
-        """Import the ``jobs`` module so every ``@scheduled_job`` decorator
-        runs at Django startup and fills ``JOB_REGISTRY``. Without this,
-        the runner wakes up with an empty registry and does nothing.
-        """
-        # Late import — AppConfig.ready fires after models are loaded, which
-        # some entrypoints need.
+        """Import scheduled jobs unless this is a lightweight command."""
+        if is_lightweight_management_command(sys.argv):
+            return
+
         from . import jobs  # noqa: F401
         from . import tasks  # noqa: F401

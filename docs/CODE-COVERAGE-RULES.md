@@ -5,7 +5,7 @@
 This file is the complete coverage contract for the project. It defines:
 
 - The **coverage levels** (A / B / C / D) and what each one requires.
-- The **per-language minimum targets** (backend 90%, API 90%, Celery 90%, Angular 75%, C++ 100% branch + mutation).
+- The **per-language minimum targets** (backend 90%, API 90%, Celery 90%, Angular components/services 95% line + 85% branch + 95% mutation, C++ 100% branch + 100% mutation).
 - The **Level A areas** that require MC/DC + property tests + golden fixtures + mutation testing.
 - The **property-test invariant menus** for text cleaning, sentence splitting, scoring, idempotency, state transitions.
 - The **drought clause** when fewer than 10 coverage-gap AutoIssues are open.
@@ -38,7 +38,7 @@ For first-class code paths that don't yet warrant Level A.
 - Line coverage at the documented per-language minimum.
 - Branch coverage at the documented per-language minimum.
 - Tests for happy path + invalid input + empty input + boundary values.
-- Mutation testing is **encouraged** via the Stryker / mutmut scope ratchet; not yet a hard gate at this level.
+- Mutation testing is mandatory for configured code targets. Angular components and services require a 95% mutation score. Backend Python and C++ targets require a 100% mutation score.
 
 ### Level C — Smoke
 
@@ -64,18 +64,31 @@ These are **floors**. The strictest target wins when a task touches multiple are
 | API endpoints (`backend/apps/api/`, `backend/apps/*/views*.py`) | **90%** line + 85% branch |
 | Celery tasks (`backend/apps/*/tasks*.py`) | **90%** line + 85% branch |
 | Backend domain modules (`backend/apps/*/models.py`, `backend/apps/*/services/dedup.py`, etc.) | **90%** line + 85% branch |
-| C++ extensions (`backend/extensions/*.cpp`) | **100%** branch coverage + scoped Mull pilot only when the target stays small and time-bounded |
-| Angular components (`frontend/src/app/**/*.component.ts`) | **75%** line + 60% branch |
-| Angular services (`frontend/src/app/**/*.service.ts`) | **75%** line + 60% branch |
+| C++ extensions (`backend/extensions/*.cpp`) | **100%** branch coverage + **100%** Mull mutation score |
+| Angular components (`frontend/src/app/**/*.component.ts`) | **95%** line + 85% branch + **95%** Stryker mutation score |
+| Angular services (`frontend/src/app/**/*.service.ts`) | **95%** line + 85% branch + **95%** Stryker mutation score |
 | Critical review-page workflows | **90%** + at least 1 Playwright E2E spec |
 | External integrations (GSC, GA4, Matomo, WP, XF, OpenAI, Gemini, webhooks) | **90%** + Pact contract + at least 1 integration smoke (mocked or sandboxed) |
 | Go modules (`**/go.mod`) | **95%** line coverage + blocking Go mutation testing |
 
+## Realistic commit policy
+
+Normal commits use a ratchet. A ratchet means coverage may rise, but it may not fall.
+
+- New Angular components and services must meet 95.0% line coverage, 85.0% branch coverage, and 95.0% mutation score.
+- Changed Angular components and services must not reduce coverage. If they are below target, they must improve above the stored baseline in `.coverage-baseline.json`.
+- New backend code must meet the full backend coverage and mutation target.
+- Changed backend code must run mutation testing for the changed module or closest test target. If the installed tool cannot scope the run, the check fails and records evidence instead of silently running the wrong target.
+- C++ and Go checks stay Docker-managed and mandatory for touched modules. New modules must meet the full target. Existing modules use the ratchet until they reach target.
+- Full global coverage and mutation are quality-debt checks until the repo reaches the target. They create evidence and AutoIssues, but they do not block unrelated commits.
+
+Backend currently means Python backend plus C++ backend extensions. It also includes Go modules once they are added.
+
 The current per-language floor is enforced by:
 
 - Backend: `--cov-fail-under=68` in `backend/pytest.ini` (ratchet; raises only).
-- Frontend: thresholds block in `frontend/karma.conf.cjs` (statements 30 / branches 25 / functions 30 / lines 30 — also a ratchet; raises only).
-- C++: GoogleTest line/branch coverage instrumented in `cpp-clang-tidy` build (followup PR plumbs `lcov` output).
+- Frontend: `scripts/run-angular-quality.sh` reads the Karma coverage report, records full-app coverage as quality debt, and blocks only new or changed Angular component/service targets that violate the ratchet policy.
+- C++: GoogleTest line/branch coverage is instrumented through Docker-managed coverage scripts and must fail below 100% branch coverage.
 - Go: `go-quality` in `.github/workflows/ci.yml` and `.githooks/pre-push` run Go tests with `-coverprofile=cover.out`, fail below 95% total coverage, and run Go mutation testing when a Go module exists.
 
 **The floor only goes up.** Lowering it without a documented incident is a protocol violation.
@@ -160,9 +173,9 @@ When implementing or reviewing the areas below, the property-test suite **must**
 
 ## Mutation-testing contract
 
-Every Level A change must run mutmut / Stryker on the touched module (changed-files scope in pre-push; full scope in CI nightly). Surviving mutants are non-zero exit.
+Every Level A change must run mutation testing on the touched module. Backend Python uses mutmut and must reach 100%. Angular components and services use Stryker and must reach 95%. C++ extensions use Mull and must reach 100%. Surviving mutants are a non-zero exit.
 
-Tooling reference: `docs/MUTATION-TESTING.md`. Initial scope (one module per language) is documented there; expansion is one module per PR via the AutoIssue ratchet.
+Tooling reference: `docs/MUTATION-TESTING.md`. Missing tools, missing reports, tool crashes, and surviving mutants all fail the local hook and the GitHub check.
 
 ---
 
@@ -225,4 +238,4 @@ Honesty is mandatory. Claiming `met` when the suite is failing is a protocol vio
 
 ## Plain-English wrap-up
 
-These rules say: **tests must cover what they claim to cover, and the bar is high for anything that touches your data or your business rules.** Backend code that ships features needs 90% coverage minimum. C++ kernels need 100% branch coverage and must pass scoped native tests, sanitizers, fuzz tests, and benchmarks. Mutation testing is allowed only for small time-bounded Mull pilots. Angular components are looser at 75%. Anything in the "Level A" list — scoring, parsing, state machines, money — gets the full property-test + mutation-test + end-to-end-test treatment. Every session picks 10 coverage gaps from the backlog and chips away at them. Every task ends with a coverage summary that is honest.
+These rules say: **tests must cover what they claim to cover, and the bar is high for anything that touches your data or your business rules.** Backend code that ships features needs 90% coverage minimum and 100% mutation score for configured targets. C++ kernels need 100% branch coverage and 100% mutation score, and must pass native tests, sanitizers, fuzz tests, and benchmarks. Angular components and services require 95% line coverage, 85% branch coverage, and 95% mutation score. Anything in the "Level A" list — scoring, parsing, state machines, money — gets the full property-test + mutation-test + end-to-end-test treatment. Every session picks 10 coverage gaps from the backlog and reduces them. Every task ends with a coverage summary that is honest.

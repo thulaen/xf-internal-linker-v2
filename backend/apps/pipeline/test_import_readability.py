@@ -9,10 +9,13 @@ word bodies persist 0.0 grades without raising.
 
 from __future__ import annotations
 
+import pytest
 from django.test import TestCase
 
 from apps.content.models import ContentItem, Post, ScopeItem
 from apps.pipeline.tasks_import_helpers import _persist_content_body
+
+pytestmark = pytest.mark.django_db
 
 
 class ReadabilityImportWiringTests(TestCase):

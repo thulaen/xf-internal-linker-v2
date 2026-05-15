@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import timedelta
 from unittest import mock
 
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
 from apps.auto_issues.models import AutoIssue
@@ -31,7 +31,7 @@ from apps.auto_issues.services.slo_probe_picker import (
 from apps.auto_issues.services.slow_query_picker import _is_app_query
 
 
-class SlowQueryNoiseFilterTests(TestCase):
+class SlowQueryNoiseFilterTests(SimpleTestCase):
     def test_postgres_exporter_query_is_filtered(self):
         q = "SELECT current_database() datname, schemaname, relname, ..."
         self.assertFalse(_is_app_query(q))
@@ -48,7 +48,7 @@ class SlowQueryNoiseFilterTests(TestCase):
         self.assertFalse(_is_app_query("SELECT * FROM information_schema.tables"))
 
 
-class DiskPressureThresholdTests(TestCase):
+class DiskPressureThresholdTests(SimpleTestCase):
     def test_below_warn_returns_none(self):
         target = _DiskCheck("test", "/tmp", warn_pct=80.0, crit_pct=90.0)
         self.assertIsNone(_disk_severity(50.0, target))
@@ -62,7 +62,7 @@ class DiskPressureThresholdTests(TestCase):
         self.assertEqual(_disk_severity(95.0, target), AutoIssue.SEVERITY_HIGH)
 
 
-class SLOClassifyTests(TestCase):
+class SLOClassifyTests(SimpleTestCase):
     _PROBE = _Probe("p", "http://x/", "GET", (200,), 1000.0)
 
     def test_healthy_returns_none(self):
@@ -84,7 +84,7 @@ class SLOClassifyTests(TestCase):
         self.assertIn("latency", reason)
 
 
-class DeployCheckParserTests(TestCase):
+class DeployCheckParserTests(SimpleTestCase):
     _SAMPLE_OUTPUT = """\
 ?: (security.W018) You should not have DEBUG set to True in deployment.
 ?: (security.W004) You have not set a value for the SECURE_HSTS_SECONDS setting.
@@ -148,7 +148,7 @@ class MissedRunsPickerTests(TestCase):
         self.assertEqual(pick_missed_runs()["alerts"], 0)
 
 
-class OutputQualityResolveTests(TestCase):
+class OutputQualityResolveTests(SimpleTestCase):
     """Module-level callables exist + resolve via the picker's importer."""
 
     def test_resolve_callable_for_real_metric(self):

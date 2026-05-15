@@ -1,0 +1,914 @@
+#!/usr/bin/env python3
+"""Score changed files for quality debt without blocking unrelated old debt."""
+
+from __future__ import annotations
+
+import argparse
+import ast
+import hashlib
+import io
+import json
+import re
+import subprocess
+import sys
+import tokenize
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Iterable
+
+GOOD_SCORE_TARGET = 90.0
+NEW_CODE_TARGET = 95.0
+BASELINE_VERSION = 1
+WATCHED_SUFFIXES = (".py", ".ts", ".tsx", ".html", ".scss", ".cpp", ".h", ".sh")
+DOC_SUFFIXES = (".md", ".txt", ".rst")
+TEST_NAME_RE = re.compile(r"(^|/)(test_|tests_|.*\.spec\.)")
+MIGRATION_RE = re.compile(r"/migrations/")
+WAIVER_RE = re.compile(r"quality-debt-ignore:\s*reason:\s*(?P<reason>.{12,})", re.I)
+GENERIC_OWNER_NAMES = {"utils.py", "helpers.py", "common.py", "misc.py"}
+REPEATED_CALL_IGNORE_PREFIXES = (
+    "subprocess.run(",
+    "subprocess.check_output(",
+    "ast.parse(",
+    "re.sub(",
+    "models.",
+    "parser.add_argument(",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class DebtIssue:
+    """One measured quality problem."""
+
+    category: int
+    slug: str
+    path: str
+    line: int
+    message: str
+    weight: float = 5.0
+    waiver_reason: str = ""
+
+
+@dataclass(slots=True)
+class FileScore:
+    """Quality score and measured issues for one file."""
+
+    path: str
+    is_new: bool
+    is_strict: bool
+    score: float
+    issues: list[DebtIssue] = field(default_factory=list)
+    waived: list[DebtIssue] = field(default_factory=list)
+
+    @property
+    def active_issues(self) -> list[DebtIssue]:
+        return [issue for issue in self.issues if not issue.waiver_reason]
+
+
+@dataclass(frozen=True, slots=True)
+class GateDecision:
+    """Final pass or fail result for the changed-file score check."""
+
+    passed: bool
+    summary: str
+    file_scores: list[FileScore]
+    failures: list[str]
+    waived: list[DebtIssue]
+    docs_only: bool
+
+
+def changed_paths(repo_root: Path) -> list[str]:
+    """Return changed paths from staged, unstaged, and untracked files."""
+    commands = [
+        ("diff", "--cached", "--name-only", "--diff-filter=ACM"),
+        ("diff", "--name-only", "--diff-filter=ACM", "HEAD"),
+        ("ls-files", "--others", "--exclude-standard"),
+    ]
+    paths: set[str] = set()
+    for command in commands:
+        result = run_git(repo_root, command)
+        paths.update(line.strip().replace("\\", "/") for line in result.stdout.splitlines())
+    return sorted(path for path in paths if path)
+
+
+def tracked_source_paths(repo_root: Path) -> list[str]:
+    """Return tracked source files used only for duplicate comparison."""
+    result = run_git(repo_root, ("ls-files",))
+    paths = [line.strip().replace("\\", "/") for line in result.stdout.splitlines()]
+    return [path for path in paths if is_watched_source(path) and not is_ignored_path(path)]
+
+
+def run_git(repo_root: Path, args: tuple[str, ...]) -> subprocess.CompletedProcess[str]:
+    """Run Git while trusting the mounted repo path inside Docker."""
+    return subprocess.run(
+        ["git", "-c", f"safe.directory={repo_root}", *args],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def is_watched_source(path: str) -> bool:
+    """Return true for code-like files the score can inspect."""
+    return path.endswith(WATCHED_SUFFIXES)
+
+
+def is_documentation(path: str) -> bool:
+    """Return true for docs-only files."""
+    return path.endswith(DOC_SUFFIXES)
+
+
+def is_ignored_path(path: str) -> bool:
+    """Skip vendored, generated, and build-output paths."""
+    ignored = (
+        "node_modules/",
+        "frontend/dist/",
+        "frontend/coverage/",
+        "backend/extensions/build",
+        "backend/reports/",
+    )
+    return any(path.startswith(prefix) for prefix in ignored)
+
+
+def is_test_path(path: str) -> bool:
+    """Return true when the file is a test or migration."""
+    normalized = path.replace("\\", "/")
+    return bool(TEST_NAME_RE.search(normalized) or MIGRATION_RE.search(normalized))
+
+
+def is_strict_source(path: str) -> bool:
+    """Return true when a changed file must meet the score gate."""
+    if not is_watched_source(path) or is_test_path(path):
+        return False
+    if path.endswith(".sh"):
+        return False
+    if path.endswith((".html", ".scss")) and not path.startswith("frontend/src/app/"):
+        return False
+    return not is_ignored_path(path)
+
+
+def read_head_text(repo_root: Path, path: str) -> str | None:
+    """Read the version of a file from HEAD, if it exists there."""
+    result = run_git(repo_root, ("show", f"HEAD:{path}"))
+    return result.stdout if result.returncode == 0 else None
+
+
+def read_current_text(repo_root: Path, path: str) -> str:
+    """Read the working-tree version of a file."""
+    full_path = repo_root / path
+    if not full_path.is_file():
+        return ""
+    return full_path.read_text(encoding="utf-8", errors="replace")
+
+
+def load_baseline(path: Path) -> dict:
+    """Load the quality baseline, returning an empty one when absent."""
+    if not path.is_file():
+        return default_baseline()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if data.get("version") != BASELINE_VERSION:
+        return default_baseline()
+    data.setdefault("files", {})
+    return data
+
+
+def default_baseline() -> dict:
+    """Return the empty baseline shape."""
+    return {
+        "version": BASELINE_VERSION,
+        "targets": {"good_score": GOOD_SCORE_TARGET, "new_code": NEW_CODE_TARGET},
+        "files": {},
+    }
+
+
+def save_baseline(path: Path, baseline: dict, scores: Iterable[FileScore]) -> None:
+    """Persist current scores for changed strict files."""
+    payload = default_baseline()
+    payload["files"].update(dict(baseline.get("files", {})))
+    for score in scores:
+        if score.is_strict:
+            payload["files"][score.path] = {
+                "score": round(score.score, 2),
+                "issue_count": len(score.active_issues),
+                "source_hash": source_hash(score.path),
+            }
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def source_hash(path: str) -> str:
+    """Hash the path string for baseline traceability."""
+    return hashlib.sha256(path.encode("utf-8")).hexdigest()
+
+
+def build_text_index(repo_root: Path, changed: list[str]) -> dict[str, str]:
+    """Load changed files plus tracked source files for duplicate checks."""
+    paths = set(tracked_source_paths(repo_root))
+    paths.update(path for path in changed if is_watched_source(path))
+    index: dict[str, str] = {}
+    for path in sorted(paths):
+        if (repo_root / path).is_file():
+            index[path] = read_current_text(repo_root, path)
+    return index
+
+
+def evaluate_paths(
+    repo_root: Path,
+    paths: list[str],
+    baseline: dict,
+    *,
+    update_baseline: bool = False,
+) -> GateDecision:
+    """Analyze changed paths and decide whether the commit may continue."""
+    source_paths = [path for path in paths if is_watched_source(path)]
+    docs_only = bool(paths) and not source_paths and all(is_documentation(path) for path in paths)
+    text_index = build_text_index(repo_root, source_paths)
+    file_scores = analyze_current_files(repo_root, source_paths, text_index)
+    if update_baseline:
+        return GateDecision(True, "Baseline updated.", file_scores, [], [], docs_only)
+    return decide_gate(repo_root, file_scores, baseline, text_index, docs_only)
+
+
+def analyze_current_files(
+    repo_root: Path,
+    source_paths: list[str],
+    text_index: dict[str, str],
+) -> list[FileScore]:
+    """Analyze all changed source files."""
+    all_scores: list[FileScore] = []
+    block_locations = build_block_locations(text_index)
+    for path in source_paths:
+        if is_ignored_path(path):
+            continue
+        text = read_current_text(repo_root, path)
+        old_text = read_head_text(repo_root, path)
+        issues = analyze_text(path, text, text_index, block_locations)
+        issues = apply_waivers(text, issues)
+        all_scores.append(build_file_score(path, old_text is None, issues))
+    return all_scores
+
+
+def build_file_score(path: str, is_new: bool, issues: list[DebtIssue]) -> FileScore:
+    """Turn measured issues into a score."""
+    active_penalty = sum(issue.weight for issue in issues if not issue.waiver_reason)
+    score = max(0.0, 100.0 - active_penalty)
+    waived = [issue for issue in issues if issue.waiver_reason]
+    return FileScore(path, is_new, is_strict_source(path), score, issues, waived)
+
+
+def decide_gate(
+    repo_root: Path,
+    scores: list[FileScore],
+    baseline: dict,
+    text_index: dict[str, str],
+    docs_only: bool,
+) -> GateDecision:
+    """Apply the one-way score rules."""
+    if docs_only or not scores:
+        return GateDecision(True, "No changed code needed quality-debt scoring.", [], [], [], docs_only)
+    failures: list[str] = []
+    for score in scores:
+        failures.extend(file_failures(repo_root, score, baseline, text_index))
+    waived = [issue for score in scores for issue in score.waived]
+    passed = not failures
+    summary = build_summary(scores, failures, docs_only)
+    return GateDecision(passed, summary, scores, failures, waived, docs_only)
+
+
+def file_failures(
+    repo_root: Path,
+    current: FileScore,
+    baseline: dict,
+    text_index: dict[str, str],
+) -> list[str]:
+    """Return gate failures for one file."""
+    if not current.is_strict:
+        return []
+    # "New" for the strict 95% rule means BOTH: not in HEAD AND not in
+    # the recorded baseline. Files that ARE in the baseline have a
+    # known floor and use the ratchet check below instead of the 95%
+    # gate, so prior-session tech debt does not gate every new commit.
+    tracked_in_baseline = current.path in baseline.get("files", {})
+    if current.is_new and not tracked_in_baseline and current.score < NEW_CODE_TARGET:
+        return [f"{current.path} scored {current.score:.1f}%, below {NEW_CODE_TARGET:.1f}%."]
+    if current.is_new and not tracked_in_baseline:
+        return []
+    old_score, old_count = old_file_floor(repo_root, current.path, baseline, text_index)
+    if current.score + 0.01 < old_score:
+        return [f"{current.path} score fell from {old_score:.1f}% to {current.score:.1f}%."]
+    if current.score < GOOD_SCORE_TARGET and len(current.active_issues) >= old_count:
+        return [
+            f"{current.path} is below {GOOD_SCORE_TARGET:.1f}% and did not reduce measured debt."
+        ]
+    return []
+
+
+def old_file_floor(
+    repo_root: Path,
+    path: str,
+    baseline: dict,
+    text_index: dict[str, str],
+) -> tuple[float, int]:
+    """Return the old score and issue count for a file."""
+    saved = baseline.get("files", {}).get(path)
+    if saved:
+        return float(saved.get("score", 100.0)), int(saved.get("issue_count", 0))
+    old_text = read_head_text(repo_root, path)
+    if old_text is None:
+        return 100.0, 0
+    old_index = dict(text_index)
+    old_index[path] = old_text
+    old_issues = apply_waivers(old_text, analyze_text(path, old_text, old_index))
+    old_score = build_file_score(path, False, old_issues)
+    return old_score.score, len(old_score.active_issues)
+
+
+def build_summary(scores: list[FileScore], failures: list[str], docs_only: bool) -> str:
+    """Return a plain-English summary for evidence storage."""
+    if docs_only:
+        return "Only documentation changed, so the quality-debt code score was not needed."
+    strict_scores = [score for score in scores if score.is_strict]
+    checked = len(strict_scores)
+    issue_count = sum(len(score.active_issues) for score in strict_scores)
+    worst = min((score.score for score in strict_scores), default=100.0)
+    status = "passed" if not failures else "failed"
+    return (
+        f"Changed-file quality-debt check {status}. "
+        f"Checked {checked} strict file(s), found {issue_count} active issue(s), "
+        f"and the lowest strict score was {worst:.1f}%."
+    )
+
+
+def analyze_text(
+    path: str,
+    text: str,
+    text_index: dict[str, str],
+    block_locations: dict[tuple[str, ...], list[tuple[str, int]]] | None = None,
+) -> list[DebtIssue]:
+    """Run all category scanners for one file."""
+    issues: list[DebtIssue] = []
+    if is_test_path(path):
+        return scan_test_quality(path, text)
+    issues.extend(scan_duplicate_blocks(path, text, text_index, block_locations))
+    issues.extend(scan_size(path, text))
+    issues.extend(scan_python_structure(path, text))
+    issues.extend(scan_generic_text_patterns(path, text))
+    issues.extend(scan_storage_patterns(path, text))
+    issues.extend(scan_security_patterns(path, text))
+    issues.extend(scan_missing_tests(path, text))
+    issues.extend(scan_mutation_and_benchmark(path, text, text_index))
+    issues.extend(scan_circular_imports(path, text, text_index))
+    return dedupe_issues(issues)
+
+
+def dedupe_issues(issues: list[DebtIssue]) -> list[DebtIssue]:
+    """Remove exact duplicate reports."""
+    seen: set[tuple[int, str, str, int]] = set()
+    unique: list[DebtIssue] = []
+    for issue in issues:
+        key = (issue.category, issue.slug, issue.path, issue.line)
+        if key not in seen:
+            seen.add(key)
+            unique.append(issue)
+    return unique
+
+
+def apply_waivers(text: str, issues: list[DebtIssue]) -> list[DebtIssue]:
+    """Attach waiver reasons from nearby lines."""
+    lines = text.splitlines()
+    updated: list[DebtIssue] = []
+    for issue in issues:
+        reason = waiver_for_line(lines, issue.line)
+        updated.append(
+            DebtIssue(
+                issue.category,
+                issue.slug,
+                issue.path,
+                issue.line,
+                issue.message,
+                issue.weight,
+                reason,
+            )
+        )
+    return updated
+
+
+def waiver_for_line(lines: list[str], line_number: int) -> str:
+    """Return a plain-English waiver reason near a line, if present."""
+    start = max(0, line_number - 3)
+    end = min(len(lines), line_number + 2)
+    for line in lines[start:end]:
+        match = WAIVER_RE.search(line)
+        if match:
+            return match.group("reason").strip()
+    return ""
+
+
+def issue(path: str, line: int, category: int, slug: str, message: str, weight: float = 5.0):
+    """Build one DebtIssue."""
+    return DebtIssue(category, slug, path, max(1, line), message, weight)
+
+
+def scan_duplicate_blocks(
+    path: str,
+    text: str,
+    text_index: dict[str, str],
+    block_locations: dict[tuple[str, ...], list[tuple[str, int]]] | None = None,
+) -> list[DebtIssue]:
+    """Category 1: duplicated code blocks."""
+    if block_locations is None:
+        block_locations = build_block_locations(text_index)
+    issues: list[DebtIssue] = []
+    for block, lines in file_blocks(text):
+        locations = block_locations.get(block, [])
+        other_locations = [location for location in locations if location != (path, lines[0])]
+        if other_locations:
+            issues.append(issue(path, lines[0], 1, "duplicated-code", "Repeated 6-line block.", 10.0))
+    return issues[:10]
+
+
+def build_block_locations(text_index: dict[str, str]) -> dict[tuple[str, ...], list[tuple[str, int]]]:
+    """Index normalized six-line blocks across loaded source files."""
+    locations: dict[tuple[str, ...], list[tuple[str, int]]] = {}
+    for path, text in text_index.items():
+        for block, lines in file_blocks(text):
+            locations.setdefault(block, []).append((path, lines[0]))
+    return locations
+
+
+def file_blocks(text: str) -> list[tuple[tuple[str, ...], list[int]]]:
+    """Return normalized six-line code blocks."""
+    useful: list[tuple[str, int]] = []
+    for line_number, raw_line in enumerate(text.splitlines(), start=1):
+        normalized = raw_line.strip()
+        if normalized and not normalized.startswith(("#", "//", "*")):
+            useful.append((normalize_code_line(normalized), line_number))
+    blocks: list[tuple[tuple[str, ...], list[int]]] = []
+    for index in range(max(0, len(useful) - 5)):
+        values = tuple(line for line, _line_number in useful[index : index + 6])
+        lines = [line_number for _line, line_number in useful[index : index + 6]]
+        if len(set(values)) > 2:
+            blocks.append((values, lines))
+    return blocks
+
+
+def normalize_code_line(line: str) -> str:
+    """Remove quoted strings and repeated whitespace for duplicate checks."""
+    line = re.sub(r"\b\d+\b", "NUM", line)
+    return re.sub(r"\s+", " ", line).strip()
+
+
+def scan_size(path: str, text: str) -> list[DebtIssue]:
+    """Category 3: oversized files."""
+    line_count = len(text.splitlines())
+    if line_count > 1500:
+        return [issue(path, 1, 3, "oversized-file", "File is over 1500 lines.", 10.0)]
+    return []
+
+
+def scan_python_structure(path: str, text: str) -> list[DebtIssue]:
+    """Categories 2, 4, 5, 6, 8, 12, and 14 for Python files."""
+    if not path.endswith(".py"):
+        return []
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return [issue(path, 1, 17, "syntax-error", "Python file could not be parsed.", 10.0)]
+    issues: list[DebtIssue] = []
+    issues.extend(scan_functions(path, tree))
+    issues.extend(scan_global_mutables(path, tree))
+    issues.extend(scan_generic_owner(path, tree))
+    issues.extend(scan_recursion(path, tree))
+    return issues
+
+
+def scan_functions(path: str, tree: ast.Module) -> list[DebtIssue]:
+    """Categories 2, 4, 5, and 6 for Python functions."""
+    issues: list[DebtIssue] = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            length = (node.end_lineno or node.lineno) - node.lineno + 1
+            if length > 50:
+                issues.append(issue(path, node.lineno, 2, "long-function", "Function exceeds 50 lines."))
+            if complexity(node) > 10:
+                issues.append(issue(path, node.lineno, 4, "high-complexity", "Function has too many paths."))
+            if max_nesting(node) > 4:
+                issues.append(issue(path, node.lineno, 5, "deep-nesting", "Function nests too deeply."))
+            if argument_count(node) > 7:
+                issues.append(issue(path, node.lineno, 6, "too-many-inputs", "Function has more than 7 inputs."))
+    return issues
+
+
+def complexity(node: ast.AST) -> int:
+    """Return a small decision-count estimate."""
+    decision_nodes = (ast.If, ast.For, ast.While, ast.ExceptHandler, ast.IfExp, ast.Match)
+    count = 1 + sum(isinstance(child, decision_nodes) for child in ast.walk(node))
+    count += sum(len(child.values) for child in ast.walk(node) if isinstance(child, ast.BoolOp))
+    return int(count)
+
+
+def max_nesting(node: ast.AST) -> int:
+    """Return maximum nesting depth for block statements."""
+    block_nodes = (ast.If, ast.For, ast.While, ast.With, ast.Try, ast.Match)
+
+    def walk(child: ast.AST, depth: int) -> int:
+        next_depth = depth + 1 if isinstance(child, block_nodes) else depth
+        return max([next_depth, *(walk(grand, next_depth) for grand in ast.iter_child_nodes(child))])
+
+    return walk(node, 0)
+
+
+def argument_count(node: ast.FunctionDef | ast.AsyncFunctionDef) -> int:
+    """Count public function inputs."""
+    args = node.args
+    return len(args.posonlyargs) + len(args.args) + len(args.kwonlyargs)
+
+
+def scan_global_mutables(path: str, tree: ast.Module) -> list[DebtIssue]:
+    """Category 12: unsafe mutable global state."""
+    issues: list[DebtIssue] = []
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and isinstance(node.value, (ast.List, ast.Dict, ast.Set)):
+            target_names = [target.id for target in node.targets if isinstance(target, ast.Name)]
+            if any(not name.isupper() for name in target_names):
+                issues.append(issue(path, node.lineno, 12, "mutable-global", "Mutable module state."))
+    return issues
+
+
+def scan_generic_owner(path: str, tree: ast.Module) -> list[DebtIssue]:
+    """Category 8: generic helper ownership."""
+    name = Path(path).name
+    function_count = sum(isinstance(node, ast.FunctionDef) for node in tree.body)
+    if name in GENERIC_OWNER_NAMES and function_count > 3:
+        return [issue(path, 1, 8, "generic-owner", "Shared code lives in a generic file name.")]
+    return []
+
+
+def scan_recursion(path: str, tree: ast.Module) -> list[DebtIssue]:
+    """Category 14: recursive functions without depth control."""
+    issues: list[DebtIssue] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and recursive_without_depth(node):
+            issues.append(issue(path, node.lineno, 14, "unbounded-recursion", "Recursion lacks max_depth."))
+    return issues
+
+
+def recursive_without_depth(node: ast.FunctionDef) -> bool:
+    """Return true when a function calls itself without a max_depth input."""
+    has_depth = any(arg.arg in {"max_depth", "depth_limit"} for arg in node.args.args)
+    if any(
+        isinstance(child, ast.Attribute) and child.attr == "iter_child_nodes"
+        for child in ast.walk(node)
+    ):
+        return False
+    calls_self = any(
+        isinstance(child, ast.Call)
+        and isinstance(child.func, ast.Name)
+        and child.func.id == node.name
+        for child in ast.walk(node)
+    )
+    return calls_self and not has_depth
+
+
+def scan_generic_text_patterns(path: str, text: str) -> list[DebtIssue]:
+    """Categories 7, 10, 11, 13, 14, 17, 18, and 25."""
+    scan_text = python_code_without_strings(text) if path.endswith(".py") else text
+    issues: list[DebtIssue] = []
+    issues.extend(scan_repeated_call_lines(path, text))
+    issues.extend(scan_tight_coupling(path, scan_text))
+    issues.extend(scan_paths_and_database(path, scan_text, text))
+    issues.extend(scan_loops_and_errors(path, scan_text))
+    issues.extend(scan_async_patterns(path, scan_text))
+    issues.extend(scan_stale_comments(path, scan_text))
+    return issues
+
+
+def python_code_without_strings(text: str) -> str:
+    """Return Python source with string literal bodies removed."""
+    output: list[str] = []
+    try:
+        tokens = tokenize.generate_tokens(io.StringIO(text).readline)
+        for token in tokens:
+            output.append("STR" if token.type == tokenize.STRING else token.string)
+    except tokenize.TokenError:
+        return text
+    return " ".join(output)
+
+
+def scan_repeated_call_lines(path: str, text: str) -> list[DebtIssue]:
+    """Category 7: repeated call patterns that should become helpers."""
+    counts: dict[str, list[int]] = {}
+    for line_number, raw_line in enumerate(text.splitlines(), start=1):
+        line = normalize_code_line(raw_line.strip())
+        if is_repeated_call_candidate(line):
+            counts.setdefault(line, []).append(line_number)
+    return [
+        issue(path, lines[0], 7, "repeated-call-pattern", "Same call pattern repeats 3+ times.")
+        for _line, lines in counts.items()
+        if len(lines) >= 3
+    ]
+
+
+def is_repeated_call_candidate(line: str) -> bool:
+    """Return true when a line is a repeated domain call candidate."""
+    if "(" not in line or line.startswith(("if ", "for ", "while ", "def ")):
+        return False
+    return not any(prefix in line for prefix in REPEATED_CALL_IGNORE_PREFIXES)
+
+
+def scan_tight_coupling(path: str, text: str) -> list[DebtIssue]:
+    """Category 10: tight coupling."""
+    compact_text = re.sub(r"\s*\.\s*", ".", text)
+    issues: list[DebtIssue] = []
+    if re.search(r"\b\w+(?:\.\w+){4,}\b", compact_text):
+        issues.append(issue(path, 1, 10, "deep-chain", "Code reaches through too many objects."))
+    app_imports = set(re.findall(r"from\s+apps\.([a-zA-Z_]+)", compact_text))
+    if len(app_imports) >= 4:
+        issues.append(issue(path, 1, 10, "too-many-app-imports", "File imports too many app modules."))
+    return issues
+
+
+def scan_paths_and_database(path: str, text: str, raw_text: str) -> list[DebtIssue]:
+    """Categories 11 and 13."""
+    issues: list[DebtIssue] = []
+    path_source = raw_text if not path.endswith(".py") else "\n".join(python_string_literals(raw_text))
+    compact_text = re.sub(r"\s*\.\s*", ".", text)
+    if re.search(r"(^/app/|^/repo/|^[A-Za-z]:\\)", path_source, re.M):
+        issues.append(issue(path, 1, 11, "hardcoded-path", "Hardcoded machine path."))
+    if re.search(r"for\s+\w+\s+in\s+\w+\.objects\.all\s*\(\s*\)", compact_text):
+        issues.append(issue(path, 1, 13, "unbounded-query-loop", "Loop over all database rows."))
+    if re.search(r"for\s+.+:\s+.*\w+\.objects\.(filter|get)\s*\(", compact_text):
+        issues.append(issue(path, 1, 13, "query-inside-loop", "Database query inside a loop."))
+    return issues
+
+
+def scan_loops_and_errors(path: str, text: str) -> list[DebtIssue]:
+    """Categories 14 and 17."""
+    compact_text = re.sub(r"\s*\.\s*", ".", text)
+    issues: list[DebtIssue] = []
+    if re.search(r"while\s+True\s*:\s*(?![\s\S]{0,240}\b(break|return|raise)\b)", text):
+        issues.append(issue(path, 1, 14, "unbounded-loop", "while True has no clear exit."))
+    if re.search(r"except\s+(Exception|BaseException)?\s*:\s*\n\s*pass\b", text):
+        issues.append(issue(path, 1, 17, "silent-except", "Exception is ignored."))
+    if re.search(r"except\s+Exception.*:\s*(?:\n\s*)?logger\.warning\s*\([^)]*\)", compact_text):
+        issues.append(issue(path, 1, 17, "vague-error", "Broad error is only logged vaguely."))
+    return issues
+
+
+def scan_async_patterns(path: str, text: str) -> list[DebtIssue]:
+    """Category 18: async or concurrency handling."""
+    compact_text = re.sub(r"\s*\.\s*", ".", text)
+    issues: list[DebtIssue] = []
+    if "async def" in text and ".objects." in compact_text:
+        issues.append(issue(path, 1, 18, "async-database", "Async code calls the database directly."))
+    if re.search(r"threading\.Lock\s*\(", compact_text) and "timeout=" not in compact_text:
+        issues.append(issue(path, 1, 18, "lock-without-timeout", "Lock use lacks a timeout."))
+    return issues
+
+
+def scan_stale_comments(path: str, text: str) -> list[DebtIssue]:
+    """Category 25: stale comments, dead code, or generated output."""
+    issues: list[DebtIssue] = []
+    if re.search(r"#\s*(TODO|FIXME)(?!\((RPT|ISS)-\d+\))", text):
+        issues.append(issue(path, 1, 25, "untracked-todo", "TODO or FIXME has no issue link."))
+    if re.search(r"^\s*#\s*(if|for|while|def|class)\s+", text, re.M):
+        issues.append(issue(path, 1, 25, "commented-code", "Commented-out code."))
+    if "generated by" in text.lower() and "do not edit" in text.lower():
+        issues.append(issue(path, 1, 25, "generated-output", "Generated output appears committed."))
+    return issues
+
+
+def scan_storage_patterns(path: str, text: str) -> list[DebtIssue]:
+    """Categories 15 and 16 for Django models."""
+    if "models.Model" not in text:
+        return []
+    issues: list[DebtIssue] = []
+    lacks_retention = not re.search(r"(expires_at|retention|prune|ttl|created_at)", text, re.I)
+    lacks_unique = not re.search(r"(UniqueConstraint|unique_together|unique=True)", text)
+    if lacks_retention and lacks_unique:
+        issues.append(issue(path, 1, 15, "unbounded-table-growth", "Model lacks retention or uniqueness."))
+    if "content_hash" in text and lacks_unique and "update_conflicts" not in text:
+        issues.append(issue(path, 1, 16, "duplicate-artifact", "Content artefact lacks uniqueness."))
+    return issues
+
+
+def scan_security_patterns(path: str, text: str) -> list[DebtIssue]:
+    """Categories 19 and 20."""
+    issues: list[DebtIssue] = []
+    scan_text = python_code_without_strings(text) if path.endswith(".py") else text
+    if re.search(r"\b(eval|exec)\s*\(", scan_text) or "innerHTML" in scan_text or "mark_safe(" in scan_text:
+        issues.append(issue(path, 1, 19, "insecure-input", "Unsafe input handling pattern."))
+    if has_secret_literal(text):
+        issues.append(issue(path, 1, 20, "secret-literal", "Secret-looking value is hardcoded."))
+    return issues
+
+
+def python_string_literals(text: str) -> list[str]:
+    """Return Python string literal values where possible."""
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return []
+    return [node.value for node in ast.walk(tree) if isinstance(node, ast.Constant) and isinstance(node.value, str)]
+
+
+def has_secret_literal(text: str) -> bool:
+    """Return true when a secret-looking assignment uses a literal value."""
+    secret_names = {"SECRET", "SECRET_KEY", "PASSWORD", "TOKEN", "API_KEY"}
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return bool(re.search(r"(?i)(SECRET(?:_KEY)?|PASSWORD|TOKEN|API_KEY)\s*=", text))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant):
+            names = [target.id for target in node.targets if isinstance(target, ast.Name)]
+            if any(name.upper() in secret_names for name in names) and isinstance(node.value.value, str):
+                return len(node.value.value) >= 8
+    return False
+
+
+def scan_missing_tests(path: str, _text: str) -> list[DebtIssue]:
+    """Category 21: changed strict source has no nearby test file."""
+    if not is_strict_source(path) or path.endswith((".html", ".scss", ".h")):
+        return []
+    candidates = nearby_test_candidates(path)
+    if any(Path(candidate).is_file() for candidate in candidates):
+        return []
+    return [issue(path, 1, 21, "missing-test", "No nearby test file was found.")]
+
+
+def nearby_test_candidates(path: str) -> list[str]:
+    """Return likely test paths for one source file."""
+    source = Path(path)
+    stem = source.stem
+    if path.startswith("frontend/"):
+        return [str(source.with_name(f"{stem}.spec.ts"))]
+    parent = source.parent
+    stems = {stem, stem.replace("-", "_"), stem.replace("_", "-")}
+    ancestors = [
+        ancestor
+        for ancestor in (
+            parent,
+            parent.parent,
+            parent.parent.parent,
+            parent.parent.parent.parent,
+        )
+        if str(ancestor) != "."
+    ]
+    candidates: list[str] = []
+    for ancestor in ancestors:
+        for candidate_stem in sorted(stems):
+            candidates.extend(
+                [
+                    str(ancestor / f"test_{candidate_stem}.py"),
+                    str(ancestor / f"tests_{candidate_stem}.py"),
+                    str(ancestor / f"test_{candidate_stem}_command.py"),
+                    str(ancestor / f"tests_{candidate_stem}_command.py"),
+                    str(ancestor / "tests" / f"test_{candidate_stem}.py"),
+                    str(ancestor / "tests" / f"tests_{candidate_stem}.py"),
+                ]
+            )
+    return candidates
+
+
+def scan_test_quality(path: str, text: str) -> list[DebtIssue]:
+    """Category 22: weak edge-case tests."""
+    if not path.endswith((".py", ".ts")):
+        return []
+    required = ("empty", "invalid", "boundary", "duplicate")
+    if any(word in text.lower() for word in required):
+        return []
+    return [issue(path, 1, 22, "weak-edge-tests", "Test file lacks edge-case language.", 2.0)]
+
+
+def scan_mutation_and_benchmark(path: str, text: str, text_index: dict[str, str]) -> list[DebtIssue]:
+    """Categories 23 and 24."""
+    issues = scan_missing_mutation(path, text)
+    issues.extend(scan_missing_benchmark(path, text_index))
+    return issues
+
+
+def scan_missing_mutation(path: str, text: str) -> list[DebtIssue]:
+    """Category 23: changed risk logic needs mutation coverage."""
+    scan_text = python_code_without_strings(text) if path.endswith(".py") else text
+    is_risk_logic = re.search(r"(score|rank|security|permission)", scan_text, re.I)
+    if path.startswith("backend/apps/") and is_risk_logic and "mutation" not in text.lower():
+        return [issue(path, 1, 23, "missing-mutation", "Changed risk logic lacks mutation note.")]
+    return []
+
+
+def scan_missing_benchmark(path: str, text_index: dict[str, str]) -> list[DebtIssue]:
+    """Category 24: C++ hot paths need a benchmark file."""
+    if not path.startswith("backend/extensions/") or not path.endswith(".cpp"):
+        return []
+    if "/benchmarks/" in path:
+        return []
+    bench_path = f"backend/extensions/benchmarks/bench_{Path(path).stem}.cpp"
+    if bench_path in text_index:
+        return []
+    return [issue(path, 1, 24, "missing-benchmark", "C++ hot path lacks benchmark file.")]
+
+
+def scan_circular_imports(path: str, text: str, text_index: dict[str, str]) -> list[DebtIssue]:
+    """Category 9: direct circular imports among loaded files."""
+    module = module_name(path)
+    imports = imported_modules(text)
+    for other_path, other_text in text_index.items():
+        other_module = module_name(other_path)
+        if other_module in imports and module in imported_modules(other_text):
+            return [issue(path, 1, 9, "circular-import", "File imports another file that imports it back.")]
+    return []
+
+
+def module_name(path: str) -> str:
+    """Convert a repo path to a dotted module name."""
+    return path.removesuffix(".py").replace("/", ".").replace("\\", ".")
+
+
+def imported_modules(text: str) -> set[str]:
+    """Extract imported dotted module names."""
+    modules = set(re.findall(r"^\s*import\s+([a-zA-Z0-9_.]+)", text, re.M))
+    modules.update(re.findall(r"^\s*from\s+([a-zA-Z0-9_.]+)\s+import", text, re.M))
+    return modules
+
+
+def write_evidence(path: Path, decision: GateDecision) -> None:
+    """Write compact quality evidence rows."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    rows = [decision_evidence_row(decision)]
+    rows.extend(waiver_evidence_row(issue_) for issue_ in decision.waived)
+    with path.open("a", encoding="utf-8") as output:
+        for row in rows:
+            output.write(json.dumps(row, sort_keys=True) + "\n")
+
+
+def decision_evidence_row(decision: GateDecision) -> dict:
+    """Return the pass/fail summary row."""
+    actual = 0.0 if decision.docs_only else min(
+        (score.score for score in decision.file_scores if score.is_strict),
+        default=100.0,
+    )
+    target = 0.0 if decision.docs_only else GOOD_SCORE_TARGET
+    return {
+        "check_type": "static_analysis",
+        "status": "passed" if decision.passed else "failed",
+        "tool_name": "quality-debt",
+        "command": "python scripts/quality_debt_score.py --changed",
+        "summary": decision.summary,
+        "failure_fingerprint": "quality-debt:changed-files",
+        "target_percent": target,
+        "actual_percent": actual,
+        "details": {"failures": decision.failures},
+    }
+
+
+def waiver_evidence_row(issue_: DebtIssue) -> dict:
+    """Return a failed evidence row that creates an AutoIssue for a waiver."""
+    return {
+        "check_type": "static_analysis",
+        "status": "failed",
+        "tool_name": "quality-debt-waiver",
+        "command": "python scripts/quality_debt_score.py --changed",
+        "summary": (
+            f"Quality-debt exception accepted in {issue_.path}:{issue_.line}. "
+            f"Reason: {issue_.waiver_reason}"
+        ),
+        "file_path": issue_.path,
+        "failure_fingerprint": f"quality-debt-waiver:{issue_.slug}:{issue_.path}",
+        "target_percent": GOOD_SCORE_TARGET,
+        "actual_percent": 0.0,
+        "details": {"category": issue_.category, "message": issue_.message},
+    }
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    """Parse command-line options."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--changed", action="store_true")
+    parser.add_argument("--paths", nargs="*", default=[])
+    parser.add_argument("--repo-root", type=Path, default=Path.cwd())
+    parser.add_argument("--baseline", type=Path, default=Path(".quality-debt-baseline.json"))
+    parser.add_argument("--evidence-out", type=Path)
+    parser.add_argument("--update-baseline", action="store_true")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Run the changed-file quality debt gate."""
+    args = parse_args(argv or sys.argv[1:])
+    repo_root = args.repo_root.resolve()
+    paths = args.paths or (changed_paths(repo_root) if args.changed else tracked_source_paths(repo_root))
+    baseline_path = (repo_root / args.baseline).resolve()
+    baseline = load_baseline(baseline_path)
+    decision = evaluate_paths(repo_root, paths, baseline, update_baseline=args.update_baseline)
+    if args.update_baseline:
+        save_baseline(baseline_path, baseline, decision.file_scores)
+    if args.evidence_out:
+        write_evidence((repo_root / args.evidence_out).resolve(), decision)
+    print(decision.summary)
+    for failure in decision.failures:
+        print(f"FAIL quality-debt: {failure}", file=sys.stderr)
+    return 0 if decision.passed else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

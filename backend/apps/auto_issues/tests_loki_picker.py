@@ -18,6 +18,7 @@ from apps.auto_issues.models import AutoIssue
 from apps.auto_issues.services.loki_picker import (
     LokiCandidate,
     _gather_hot_patterns,
+    _is_stack_container,
     _normalize_line,
     _stable_fingerprint,
     pick_loki_hot_patterns,
@@ -84,6 +85,15 @@ class StableFingerprintTests(SimpleTestCase):
         self.assertNotEqual(a, b)
 
 
+class StackContainerTests(SimpleTestCase):
+    def test_accepts_compose_stack_containers(self):
+        self.assertTrue(_is_stack_container("xf_linker_backend"))
+
+    def test_rejects_unrelated_docker_names(self):
+        self.assertFalse(_is_stack_container("upbeat_thompson"))
+        self.assertFalse(_is_stack_container("unknown"))
+
+
 class LokiHotPatternIntegrationTests(TestCase):
     """End-to-end: mock Loki HTTP, assert AutoIssue rows materialize."""
 
@@ -121,12 +131,22 @@ class LokiHotPatternIntegrationTests(TestCase):
         # 12 of pattern A, 5 of pattern B -> only A promotes (default
         # threshold 10).
         mock_fetch.return_value = (
-            [("c", "ERROR pattern A occurred") for _ in range(12)]
-            + [("c", "WARN pattern B occurred") for _ in range(5)]
+            [("xf_linker_backend", "ERROR pattern A occurred") for _ in range(12)]
+            + [("xf_linker_backend", "WARN pattern B occurred") for _ in range(5)]
         )
         result = pick_loki_hot_patterns(limit=5)
         self.assertEqual(result["patterns_found"], 1)
         self.assertEqual(result["promoted"], 1)
+
+    @mock.patch("apps.auto_issues.services.loki_picker._fetch_loki_lines")
+    def test_ignores_non_stack_containers(self, mock_fetch):
+        mock_fetch.return_value = [
+            ("upbeat_thompson", "ERROR unrelated container")
+            for _ in range(12)
+        ]
+        result = pick_loki_hot_patterns(limit=5)
+        self.assertEqual(result["patterns_found"], 0)
+        self.assertEqual(result["promoted"], 0)
 
 
 class LokiWarnBurstIntegrationTests(TestCase):
@@ -166,6 +186,20 @@ class LokiWarnBurstIntegrationTests(TestCase):
         result = pick_loki_warn_bursts(limit=5)
         self.assertEqual(result["bursts_found"], 0)
         self.assertEqual(result["promoted"], 0)
+
+    @mock.patch(
+        "apps.auto_issues.services.loki_picker._container_count_over_time"
+    )
+    @mock.patch(
+        "apps.auto_issues.services.loki_picker._list_active_containers"
+    )
+    def test_warn_burst_ignores_non_stack_containers(self, mock_list, mock_count):
+        mock_list.return_value = ["upbeat_thompson"]
+        mock_count.return_value = 100
+        result = pick_loki_warn_bursts(limit=5)
+        self.assertEqual(result["bursts_found"], 0)
+        self.assertEqual(result["promoted"], 0)
+        mock_count.assert_not_called()
 
 
 class LokiPickerScheduleTests(SimpleTestCase):

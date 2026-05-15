@@ -1,8 +1,13 @@
 """Focused tests for the public import task wrapper."""
+# pylint: disable=no-value-for-parameter
+# Calls to pipeline_tasks.import_content(...) hit a Celery @shared_task(bind=True)
+# wrapper; Celery supplies `self` at call time, so pylint's "missing self"
+# error is a false positive for these test invocations.
 
 from unittest.mock import patch
 
 from django.test import TestCase
+from requests.exceptions import ReadTimeout
 
 from apps.pipeline import tasks as pipeline_tasks
 from apps.sync.models import SyncJob
@@ -102,3 +107,34 @@ class ImportTaskWrapperTests(TestCase):
         self.assertEqual(result["status"], "paused")
         self.assertEqual(job.status, "paused")
         self.assertIn("operator pause", job.message)
+
+    def test_import_content_marks_external_timeout_failed_without_reraising(self):
+        from apps.pipeline import tasks_import
+
+        with (
+            patch.object(
+                tasks_import,
+                "import_wordpress_content",
+                side_effect=ReadTimeout("wp timed out"),
+            ),
+            patch.object(pipeline_tasks, "_publish_progress"),
+            patch.object(pipeline_tasks.logger, "exception") as exception_log,
+            patch.object(pipeline_tasks.logger, "warning") as warning_log,
+            patch(
+                "apps.pipeline.services.task_lock.acquire_task_lock",
+                return_value=True,
+            ),
+            patch("apps.pipeline.services.task_lock.release_task_lock"),
+        ):
+            result = pipeline_tasks.import_content(
+                mode="full",
+                source="wp",
+                job_id="44444444-4444-4444-4444-444444444444",
+            )
+
+        job = SyncJob.objects.get(job_id=result["job_id"])
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(job.status, "failed")
+        self.assertIn("wp timed out", job.error_message)
+        warning_log.assert_called_once()
+        exception_log.assert_not_called()

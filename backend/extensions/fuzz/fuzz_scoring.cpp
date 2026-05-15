@@ -10,13 +10,13 @@
 #include <cstdint>
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
-    // Smallest possible smoke: just touch the bytes so the linker
-    // proves scoring.cpp compiles under fuzz flags. Replace with real
-    // scoring-kernel invocation when the next coverage-gap AutoIssue
-    // points here.
-    volatile uint32_t acc = 0;
-    for (size_t i = 0; i < size; ++i) {
-        acc = acc * 31u + static_cast<uint32_t>(data[i]);
-    }
-    return acc == 0xDEADBEEFu ? 1 : 0;
+  // Smallest possible smoke: just touch the bytes so the linker
+  // proves scoring.cpp compiles under fuzz flags. Replace with real
+  // scoring-kernel invocation when the next coverage-gap AutoIssue
+  // points here.
+  volatile uint32_t acc = 0;
+  for (size_t i = 0; i < size; ++i) {
+    acc = acc * 31u + static_cast<uint32_t>(data[i]);
+  }
+  return acc == 0xDEADBEEFu ? 1 : 0;
 }

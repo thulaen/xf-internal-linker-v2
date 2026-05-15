@@ -11,6 +11,74 @@ env:
 
 jobs:
 
+  docker-quality:
+    name: Docker-managed hard-blocking quality checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run tool-readiness
+        run: bash scripts/run-tool-readiness.sh
+      - name: Run Python quality checks
+        run: bash scripts/run-python-quality.sh
+      - name: Run Angular quality checks
+        run: bash scripts/run-angular-quality.sh
+      - name: Run C++ quality checks
+        run: bash scripts/run-cpp-quality.sh
+      - name: Run Go quality checks
+        run: bash scripts/run-go-quality.sh
+
+  quality-debt:
+    name: Whole-repo quality debt report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Record whole-repo coverage and mutation debt
+        env:
+          QUALITY_DEBT_RUN_FULL_MUTATION: "1"
+        run: bash scripts/run-quality-debt-report.sh
+
+  codeql:
+    name: CodeQL security scan
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, javascript-typescript, go, cpp]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+      - uses: github/codeql-action/autobuild@v4
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  infer-cpp:
+    name: Infer C++ static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build compiled-tools image
+        run: docker compose build compiled-tools
+      - name: Run Infer on C++ extensions
+        run: |
+          docker compose run --rm compiled-tools bash -lc '
+            cd /repo/backend/extensions
+            cmake -B /tmp/xf-build/infer -S . \
+              -DCMAKE_C_COMPILER=clang-19 \
+              -DCMAKE_CXX_COMPILER=clang++-19 \
+              -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+              -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+            infer run --fail-on-issue \
+              --compilation-database /tmp/xf-build/infer/compile_commands.json
+          '
+
   # ── 1. Django backend tests ──────────────────────────────────────
   backend-test:
     runs-on: ubuntu-latest
@@ -252,7 +320,7 @@ jobs:
         run: docker compose config
 
   # ── 12. Semgrep security scan (BLOCKING on ERROR-only — hardened 2026-05-10) ─
-  # Was `|| true` (informational only). Now fails CI on findings whose
+  # The scan fails CI on findings whose
   # severity is ERROR; WARNING/INFO ride through and upload as artifacts
   # for triage. See docs/CI-GATES.md.
   semgrep:
@@ -401,7 +469,7 @@ jobs:
   # Phase 3 of the test-hardening plan. Fails the build on the
   # WarningsAsErrors subset declared in .clang-tidy (bugprone-*, cert-*,
   # performance-unnecessary-copy-initialization, accidental moves, etc.).
-  # The full Checks: list runs but the rest stay advisory until each
+  # The full Checks list runs in the Docker-managed quality job while each
   # rule family is cleaned up — see backend/ruff.toml for the analogous
   # ratchet pattern on the Python side.
   cpp-clang-tidy:
@@ -455,10 +523,10 @@ jobs:
           mutmut run \
             --paths-to-mutate=apps/auto_issues/services/fingerprinting.py \
             --runner="python -m pytest apps/auto_issues -p randomly -x -q --no-cov" \
-            --processes=2 || true
+            --processes=2
           mutmut results
           # Fail the job if ANY mutant survived.
-          mutmut junitxml > reports/mutmut-fingerprinting.xml || true
+          mutmut junitxml > reports/mutmut-fingerprinting.xml
           grep -q 'failures="0"' reports/mutmut-fingerprinting.xml || (
             echo "FAIL: surviving mutants found — see report above";
             cat reports/mutmut-fingerprinting.xml;
@@ -474,9 +542,9 @@ jobs:
           mutmut run \
             --paths-to-mutate=apps/pipeline/services/field_aware_relevance.py \
             --runner="python -m pytest apps/pipeline/tests.py::FieldAwareRelevanceServiceTests -p randomly -x -q --no-cov" \
-            --processes=2 || true
+            --processes=2
           mutmut results
-          mutmut junitxml > reports/mutmut-field-aware-relevance.xml || true
+          mutmut junitxml > reports/mutmut-field-aware-relevance.xml
           grep -q 'failures="0"' reports/mutmut-field-aware-relevance.xml || (
             echo "FAIL: surviving Python mutants found in field_aware_relevance.py";
             cat reports/mutmut-field-aware-relevance.xml;
@@ -485,14 +553,10 @@ jobs:
       - name: Mutation-score ratchet (FR-251 Gap #4)
         if: always()
         run: |
-          if [ -f backend/reports/mutmut.json ]; then
-            python .githooks/check-mutation-score.py \
-              --tool mutmut \
-              --target apps/auto_issues/services/fingerprinting.py \
-              --report backend/reports/mutmut.json
-          else
-            echo "check-mutation-score: mutmut.json absent; skipping"
-          fi
+          test -f backend/reports/mutmut-fingerprinting.xml
+          test -f backend/reports/mutmut-field-aware-relevance.xml
+          grep -q 'failures="0"' backend/reports/mutmut-fingerprinting.xml
+          grep -q 'failures="0"' backend/reports/mutmut-field-aware-relevance.xml
       - name: Upload mutmut report
         if: always()
         uses: actions/upload-artifact@v5
@@ -522,14 +586,11 @@ jobs:
       - name: Mutation-score ratchet (FR-251 Gap #4)
         if: always()
         run: |
-          if [ -f frontend/reports/stryker.json ]; then
-            python .githooks/check-mutation-score.py \
-              --tool stryker \
-              --target src/app/core/services/a11y-prefs.service.ts \
-              --report frontend/reports/stryker.json
-          else
-            echo "check-mutation-score: stryker.json absent; skipping"
-          fi
+          test -f frontend/reports/stryker.json
+          python .githooks/check-mutation-score.py \
+            --tool stryker \
+            --target src/app \
+            --report frontend/reports/stryker.json
       - name: Upload Stryker report
         if: always()
         uses: actions/upload-artifact@v5
@@ -667,12 +728,12 @@ jobs:
           ctest --output-on-failure --schedule-random -j 2 \
             -R '^(test_simsearch|test_scoring|test_passagesim)\.'
 
-  # ── 19. ThreadSanitizer (advisory — see docs/CI-GATES.md) ────────
+  # ── 19. ThreadSanitizer (blocking) ───────────────────────────────
   # GATE-DOWNGRADE-JUSTIFICATION: TBB false-positive noise; suppression
   # file requires Linux TSAN run before flipping blocking. Plan-to-flip
   # documented in docs/CI-GATES.md under "Advisory Gate Justifications".
   cpp-tsan:
-    name: C++ ThreadSanitizer (advisory)
+    name: C++ ThreadSanitizer
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -688,18 +749,15 @@ jobs:
       - name: Build
         working-directory: backend/extensions
         run: cmake --build build_tsan --parallel
-      - name: Test (advisory — see GATE-DOWNGRADE-JUSTIFICATION above)
+      - name: Test
         working-directory: backend/extensions/build_tsan
         # --schedule-random + GTEST_SHUFFLE (from CMakeLists.txt) help
         # surface order-dependent TSan races. -j 2 caps parallel exec.
-        run: ctest --output-on-failure --schedule-random -j 2 || true
+        run: ctest --output-on-failure --schedule-random -j 2
 
-  # ── 17f. C++ coverage report (advisory — FR-251 Gap #3) ──────────
-  # GATE-DOWNGRADE-JUSTIFICATION: baseline not yet seeded — the first
-  # CI run captures the per-file line / branch %. Flips to blocking
-  # after one seed run.
+  # ── 17f. C++ coverage report (blocking) ──────────────────────────
   cpp-coverage:
-    name: C++ coverage (lcov, advisory)
+    name: C++ coverage (lcov)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -713,7 +771,7 @@ jobs:
         run: cmake --build build_cov --parallel 2
       - name: Run tests under coverage
         working-directory: backend/extensions/build_cov
-        run: ctest --output-on-failure --schedule-random -j 2 || true
+        run: ctest --output-on-failure --schedule-random -j 2
       - name: Generate lcov report
         working-directory: backend/extensions
         run: |
@@ -722,6 +780,8 @@ jobs:
             --output-file build_cov/coverage.filtered.info
           lcov --list build_cov/coverage.filtered.info > build_cov/coverage.txt
           cat build_cov/coverage.txt
+          lcov --summary build_cov/coverage.filtered.info | tee build_cov/coverage-summary.txt
+          grep -q "branches.*100.0%" build_cov/coverage-summary.txt
       - name: Upload C++ coverage report
         if: always()
         uses: actions/upload-artifact@v5

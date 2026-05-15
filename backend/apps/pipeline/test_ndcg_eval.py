@@ -93,6 +93,7 @@ class _Fixture:
                     if i % int(round(1 / approved_ratio)) == 0
                     else "rejected"
                 )
+            anchor_phrase = f"anchor-{i}"
             rows.append(
                 Suggestion(
                     pipeline_run=run,
@@ -101,9 +102,9 @@ class _Fixture:
                     host_sentence=host_sentence,
                     destination_title=f"dest-{i}",
                     host_sentence_text="A host sentence.",
-                    anchor_phrase="anchor",
+                    anchor_phrase=anchor_phrase,
                     anchor_start=0,
-                    anchor_end=6,
+                    anchor_end=len(anchor_phrase),
                     anchor_confidence="strong",
                     score_final=score,
                     status=status,

@@ -1,11 +1,15 @@
 [tool.mutmut]
 paths_to_mutate = [
-  "apps/auto_issues/services/fingerprinting.py",
-  "apps/pipeline/services/field_aware_relevance.py",
+  "apps",
 ]
 also_copy = ["apps", "config"]
+do_not_mutate = [
+  "*/migrations/*",
+  "*/test_*.py",
+  "*/tests.py",
+  "*/tests/*",
+]
 pytest_add_cli_args = ["-o", "addopts="]
 pytest_add_cli_args_test_selection = [
-  "apps/auto_issues/tests_fingerprinting_golden.py",
-  "apps/pipeline/test_field_aware_relevance.py",
+  "apps",
 ]

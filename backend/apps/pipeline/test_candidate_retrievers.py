@@ -67,9 +67,9 @@ class _BoomRetriever:
 class DefaultRegistryTests(SimpleTestCase):
     def test_default_retrievers_contains_semantic(self) -> None:
         regs = default_retrievers()
-        self.assertEqual(len(regs), 1)
-        self.assertEqual(regs[0].name, "semantic")
-        self.assertIsInstance(regs[0], SemanticRetriever)
+        semantic = [retriever for retriever in regs if retriever.name == "semantic"]
+        self.assertEqual(len(semantic), 1)
+        self.assertIsInstance(semantic[0], SemanticRetriever)
 
 
 class RunRetrieversTests(SimpleTestCase):

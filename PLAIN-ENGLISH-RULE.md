@@ -62,11 +62,15 @@ Every sentence must say what it means directly. Replace every figure of speech w
 
 Every response should hit these scores when measured by a standard readability tool:
 
-- **Flesch Reading Ease: 60 or higher.** Below 60 the text is in the "fairly difficult" band.
-- **Flesch-Kincaid Grade Level: 9 or lower.** A 9th grader should be able to read it.
-- **Passive sentences: 10 percent or lower.** Active voice is shorter and clearer.
+- **Flesch Reading Ease: 60 or higher where practical.** Below 60 the text is in the "fairly difficult" band.
+- **Flesch-Kincaid Grade Level: 8.9 or lower.** A 9th grader should be able to read it.
+- **Passive sentences: 5.2 percent or lower.** Active voice is shorter and clearer.
 
 The agent does not need to run a tool on every response. The targets are the standard the writing must aim at. Common drift to watch for: long sentences with multiple clauses, passive voice ("was caught by"), and dependent-clause stacking.
+
+### Rule 2a - BDD for plans and summaries
+
+BDD means behavior-driven description. When Claude or Codex writes a plan, summary, or handoff that describes behavior, use `Given / When / Then`. The words must describe what the user can expect, not internal code trivia. Code-changing handoff entries must include `[BDD PROOF: Given ... When ... Then ...]`.
 
 ### Rule 3 — Coverage summary must use percentages
 
@@ -112,6 +116,10 @@ When you must mention a technical concept, use the plain-English version from th
 | a Dockerfile line that sets the folder future commands run from | WORKDIR |
 | a Dockerfile line that sets the default command for the container | CMD |
 | the repo rule file that explains how Docker builds and stores compiled-language outputs | COMPILED-LANGUAGE-RULES |
+| storing compiled files by their exact file fingerprint so identical outputs use one saved copy instead of piling up | content-addressed compiled artifact store |
+| a 64-character file fingerprint used to prove two files have exactly the same bytes | SHA-256 hash |
+| the active compiled files the app imports or runs after they have passed a verification check | active compiled artifacts |
+| temporary compiler work folders that can be deleted and rebuilt later | compiled scratch folders |
 | the container setting that tells Python where to look for importable modules | PYTHONPATH |
 | a GitHub Actions job or CMake target group that runs a repeatable project check | WORKFLOW |
 | a CMake built-in variable that names the current operating system inside the build script | SYSTEM |
@@ -128,10 +136,14 @@ When you must mention a technical concept, use the plain-English version from th
 | the website's navigation menu | sidenav |
 | a test that runs without needing the full app running | unit test |
 | a test that boots the full app | integration test |
+| a behavior plan written as `Given`, `When`, and `Then` so the user sees the expected outcome first | BDD / behavior-driven description |
+| writing or updating a small test before or alongside the code, then rerunning it until it passes | TDD / test-driven development |
 | the standard way modern AI agents call external tools | MCP / Model Context Protocol |
 | Anthropic's local AI coding agent that runs in your terminal | Claude Code |
 | OpenAI's local AI coding agent that runs in your terminal | Codex / Codex CLI |
+| Google's local AI coding agent that runs in your terminal | Gemini CLI |
 | Google's local AI coding agent that runs in your terminal | Antigravity |
+| a Chrome tool server that lets an AI agent open a browser, inspect console errors, check network requests, take screenshots, and run performance checks | Chrome DevTools MCP / chrome-devtools-mcp |
 | Anthropic's monthly subscription that includes Claude Code | Max 5x |
 | a long string the app uses to prove it's allowed to call its own backend | Django Token |
 | running an AI agent without a chat window — give it one prompt, take its answer | headless mode |
@@ -183,6 +195,8 @@ When you must mention a technical concept, use the plain-English version from th
 | sorting rows into buckets by a column (e.g. by suggestion ID) and then adding up the values inside each bucket — the standard way to roll up raw events into per-thing totals | groupby / aggregate |
 | a small, fast file format for tabular data — stores columns separately so reading just one column is much quicker than CSV; used by Polars and pyarrow for weekly model snapshots on disk | Parquet |
 | a measure of statistical spread that shrugs off outliers — equals the median of the absolute differences from the median; the project uses it to decide which anchor texts are unusually rare or unusually common | MAD / median absolute deviation |
+| a single percentage that says whether changed files became easier to maintain, based on duplicate code, long functions, missing tests, unsafe patterns, and similar issues | quality-debt score |
+| a shared compiled file that the app loads when it runs, so one tested copy can be reused instead of copying the same fast code into several places | dynamic library / shared library |
 | classic search-engine word-importance score — rare words across the whole corpus get a higher weight than common ones; combined with term frequency it gives the standard TF-IDF ranking number | IDF / inverse document frequency |
 | classic topic-modelling algorithm that groups words into latent topics — each document becomes a soft mixture of K topics; the project uses gensim's implementation for a weekly topic-refresh job | LDA / Latent Dirichlet Allocation |
 | the cross-platform Unix-family filesystem standard — `os.replace()` is atomic on POSIX systems and on Windows, which is why the Parquet writer uses it to swap a `.tmp` file onto the live snapshot path without ever leaving a half-written file | POSIX |
@@ -200,6 +214,7 @@ When you must mention a technical concept, use the plain-English version from th
 | the modern way Django talks to the web server — supports both regular HTTP requests and long-running websocket connections; the project's `uvicorn` process runs the ASGI app | ASGI / Async Server Gateway Interface |
 | the older way Python web apps talked to a web server — synchronous request/response only, no websockets; superseded by ASGI but still common | WSGI / Web Server Gateway Interface |
 | a connection string — a single line that tells the Sentry/GlitchTip SDK where to send error events (project ID + auth key + host); kept in `.env` as `GLITCHTIP_DSN` | DSN / Data Source Name |
+| observability hostname check — a startup check that confirms optional monitoring service names, such as `glitchtip` or `otel-collector`, exist before the backend starts sending data to them | observability endpoint check |
 | an industry framework for running an IT department — defines vocabulary like "incident", "problem", "change request" the way a hospital defines "triage"; the C++ daily picker spec borrows ITIL severity levels | ITIL / IT Infrastructure Library |
 | the public ID for a known security flaw — looks like `CVE-2024-12345`; `pip-audit` checks the project's installed packages against this database every night | CVE / Common Vulnerabilities and Exposures |
 | the 0–10 score that says how bad a CVE is — 0 trivial, 10 game-over; the auto-issues priority formula multiplies CVSS by recency and blast-radius | CVSS / Common Vulnerability Scoring System |
@@ -213,6 +228,22 @@ When you must mention a technical concept, use the plain-English version from th
 | the standard file format for translation work — an XML file with one entry per source string and a `<target>` slot the translator fills in; produced by `ng extract-i18n` and consumed by `ng build --localize` | XLF / XLIFF / XML Localization Interchange File Format |
 | the old session-start rule that required three AutoIssue fixes before new work; this wording is historical only and is forbidden in new handoff entries because the current rule requires 30 real AutoIssue fixes | auto-fix-3 / auto-fix-3 satisfier / fix three before any new task |
 | a database row that records one bug, test failure, missing check, or code-quality problem for agents to fix later | AutoIssue / AUTOISSUE |
+| a reusable database category for AutoIssues, such as security, performance, correctness, or observability; agents should use these rows instead of inventing one-off issue shapes | AutoIssueCategory |
+| the command agents run after their scoped code review when they find a bad practice; it records the finding in the AutoIssue table and can mark it fixed with a lesson when the same task already repaired it | log_self_review_issue |
+| the required marker before code starts; it states the coverage target, test commands, mutation and benchmark needs, reuse check, shared-library choice, and 10x / 100x scaling result | STANDARDS READY marker |
+| the required marker before the final summary; it states what code was reviewed, which AutoIssues were logged, which fixes were applied, and whether tests and coverage passed | SELF REVIEW RESULT marker |
+| the required marker proving Claude or Codex explained the work as a user-facing behavior scenario using `Given`, `When`, and `Then` | BDD PROOF marker |
+| the required marker proving Claude or Codex wrote or updated a focused test before or alongside code and reran it until it passed | TDD PROOF marker |
+| a compact database record that stores the useful result of a test, coverage, mutation, security, or quality check without keeping huge report folders | QualityEvidence |
+| a deduped compressed piece of a raw quality report that is kept for weekly agent memory without saving the full report folder | QualityRawSnippet |
+| one saved weekly sample of raw quality-report text, kept only once per week and deduped by content | weekly raw snippet |
+| a coverage rule for existing files: the required minimum for that file may stay the same or increase, but it must not decrease; new files still have to meet the full target immediately | ratchet policy / coverage ratchet |
+| a recorded full-repo quality gap that agents must pay down later; it is tracked with evidence and AutoIssues, but it does not block an unrelated normal commit while the repo is still below the target | quality debt |
+| a JSON file that lists Docker volumes and host folders self-pruning must never delete | protected-data map |
+| the minimum disk space that must stay free for app data, embeddings, backups, and database growth | protected reserve |
+| the free-space number where the app starts safe cleanup before storage becomes dangerous | cleanup watermark |
+| the rule that keeps disposable tool caches for 3 days normally, tightens to 2 days under disk pressure, and never deletes app data or embeddings | tool cache policy |
+| shared Docker volumes used by many tool containers so package downloads are stored once instead of copied into each container | deduped tool-cache volumes |
 | the required number of issues an agent must fix before its handoff can be accepted | quota / QUOTA |
 | the marker line every AI agent puts in its first response proving it read the open auto-issues + Report Registry — looks like `[REGISTRY READ: 5 open auto-issues, 12 open registry findings — picked: #ISS-101, #ISS-102, #ISS-103]`; required by the ABSOLUTE rule in CLAUDE.md / AGENTS.md / CODEX.md / GEMINI.md | REGISTRY READ marker |
 | the backend command that checks the AutoIssue database before a handoff commit is accepted; it proves the 30 picked issue IDs are resolved, have a resolve time, have lessons written down, and were resolved after the previous handoff | verify_autoissue_quota |
@@ -231,8 +262,8 @@ When you must mention a technical concept, use the plain-English version from th
 | pre-commit hook script at `.githooks/check-frontend-routes.py` that scans every `HttpClient.get/post/put/patch/delete('/api/...')` call in staged frontend TypeScript files and verifies the URL resolves to a real `path('...')` declaration in `backend/apps/**/urls.py`; prevents stale frontend → backend URL drift | check-frontend-routes |
 | pre-commit hook script at `.githooks/check-missing-tests.py` that blocks commits which add a new `*.component.ts`, `*.service.ts`, or `backend/apps/*/services/*.py` file without a matching test file (sibling `.spec.ts` for frontend, `test_<base>.py` in same/parent/tests dir for backend) | check-missing-tests |
 | AddressSanitizer — a Clang/GCC compiler instrumentation that catches memory-corruption bugs (use-after-free, out-of-bounds reads/writes, double-free, leaks) at runtime; the project runs the C++ extensions under it in CI to catch native-code bugs the unit tests would miss | ASAN / AddressSanitizer |
-| ThreadSanitizer — sister to ASAN that catches data races and thread-safety bugs at runtime; the project's CI build runs C++ tests under TSAN but the gate is currently advisory because TBB produces false positives that need a curated suppression file | TSAN / ThreadSanitizer |
-| Intel Threading Building Blocks — the C++ task-stealing scheduler the project's hot-path C++ kernels use for parallel work; TBB internals trigger false-positive TSAN warnings under its work-stealing scheduler, which is why TSAN stays advisory until a suppression file is curated | TBB |
+| ThreadSanitizer — sister to ASAN that catches data races and thread-safety bugs at runtime; the project's CI build runs C++ tests under TSAN as a blocking check | TSAN / ThreadSanitizer |
+| Intel Threading Building Blocks — the C++ task scheduler the project's hot-path C++ kernels use for parallel work | TBB |
 | log database — stores every container's stdout line, queryable like a search engine; runs default-on alongside GlitchTip and Pyroscope; reachable at `localhost:3100`; 30-day retention | Loki |
 | log shipper — a small agent that watches every running container's stdout and forwards each new line to Loki; runs default-on as the `alloy` service; replaces Promtail (which Grafana retired in March 2026) | Grafana Alloy / Alloy |
 | log query language — the search syntax for Loki; example: `rate({container_name="xf_linker_backend"} \|~ "(?i)error" [5m])` says "errors per second in the backend container over the last 5 minutes" | LogQL |
@@ -240,7 +271,7 @@ When you must mention a technical concept, use the plain-English version from th
 | retired log shipper — Grafana's original Loki agent; entered maintenance-only mode 2026-03-02; this project never adopted it, jumping straight to Alloy | Promtail |
 | OpenTelemetry collector container — the OTel pipeline hub the project still uses for traces and metrics (Alloy lacks the Sentry-format exporter that GlitchTip needs, so otel-collector stays); reads OTLP from the backend + Celery, fans out to GlitchTip + Prometheus + stdout | otel-collector |
 | OpenTelemetry Protocol — the wire format every modern tracing/metrics tool speaks; the backend pushes OTLP over HTTP at port 4318 to otel-collector | OTLP |
-| auto-issues table — the Django table at `apps.auto_issues.AutoIssue` where every automated finding lands so agents can read them at session start via `manage.py print_open_issues`; sources are `agent`, `glitchtip`, `pyroscope`, `loki` | AutoIssue |
+| auto-issues table — the Django table at `apps.auto_issues.AutoIssue` where every automated finding lands so agents can read them at session start via `manage.py print_open_issues`; current sources are `agent`, `glitchtip`, `pyroscope`, `tempo`, `loki`, `faro`, `mutation`, `fuzz`, `contract`, and `gh_ci` | AutoIssue |
 | same-day CPU bottleneck check — Pyroscope picker that ranks functions by self-time over the last hour and files an AutoIssue for any function above a percentage threshold; works from day one (no week-of-history required) | hotspot detector / pyroscope hotspot |
 | repeated-warning detector — Loki picker that groups WARN/ERROR lines by normalized fingerprint (timestamps, PIDs, hex addresses stripped) and files an AutoIssue when one pattern occurs many times in 24 h | hot pattern detector / loki hot pattern |
 | short-window WARN/ERROR rate spike — Loki picker that compares the last hour's WARN/ERROR count to the 24-hour average and files an AutoIssue when the multiple is high | warn burst / loki warn_burst |
@@ -266,9 +297,19 @@ When you must mention a technical concept, use the plain-English version from th
 | CTest flag (`ctest --schedule-random`) that randomises the order CTest invokes its registered test executables across runs; complements GTEST_SHUFFLE which handles within-binary order | --schedule-random / ctest --schedule-random |
 | the project's two hardware-aware concurrency caps (defined in Phase 2 — `backend/apps/pipeline/services/hardware_profile.py`): `MAX_JOBS_FAST` for fast unit tests (tier-aware 2–8) and `MAX_JOBS_HEAVY` for slow tools like mutation/fuzz/sanitizers (capped at 2 or 3 regardless of tier) so heavy tools cannot oversubscribe the machine | MAX_JOBS_FAST / MAX_JOBS_HEAVY |
 | testing the tests — a tool deliberately edits ("mutates") the code (e.g. swaps `==` for `!=`, drops a function call) then runs the test suite; if the tests still pass, the test suite is too weak to catch that regression, the mutant "survived", and CI fails. The discipline is the partner to randomised order: randomisation catches order-dependent tests; mutation catches tests-that-don't-actually-assert. | mutation testing / surviving mutant / mutant survived |
-| the Python mutation-testing tool used by this project (scope: `apps/auto_issues/services/fingerprinting.py`). Invoked via `mutmut run --paths-to-mutate=<path> --runner=<test cmd>`; `mutmut results` exits non-zero if any mutant survived | mutmut |
-| the TypeScript / Angular mutation-testing tool used by this project (scope: `frontend/src/app/core/services/a11y-prefs.service.ts`). Reads `frontend/stryker.config.json`; integrates with Karma so the existing test runner mutates each file in turn | Stryker / Stryker Mutator |
-| the C++ mutation-testing tool used by this project (scaffold only — needs a Mull-compatible Clang toolchain). Reads `mull.yml`; injects mutations at the LLVM IR level which is orders of magnitude faster than source-level mutation for C++ | Mull |
+| the Python mutation-testing tool used by this project across backend app code. Invoked via `mutmut run --paths-to-mutate=<path> --runner=<test cmd>`; `mutmut results` exits non-zero if any mutant survived | mutmut |
+| the TypeScript / Angular mutation-testing tool used by this project across Angular components and services. Reads `frontend/stryker.config.json`; integrates with Karma so the existing test runner mutates each file in turn | Stryker / Stryker Mutator |
+| a C++ checker that finds common bugs, memory risks, and unsafe patterns before the code runs | cppcheck |
+| a C++ checker that uses the compiler's understanding of the code to find bugs and enforce project rules | clang-tidy |
+| a C++ include checker that reports headers the file does not need and headers the file forgot to include directly | Include-What-You-Use / IWYU |
+| an all-in-one Go checker that runs many Go bug, style, and safety checks from one command | golangci-lint |
+| a Go security checker that searches Go code for common unsafe patterns | gosec |
+| GitHub's security scanner that builds a code database and searches for known unsafe patterns | CodeQL |
+| Meta's static analyzer that checks C, C++, Java, and Objective-C for bugs such as null pointer use, leaks, and concurrency errors | Infer |
+| a Python checker that finds risky code patterns such as hard-coded secrets and unsafe function calls | Bandit |
+| a Python checker that reports code errors and risky patterns; this project runs the errors-only mode in Docker | PyLint |
+| a Python dependency checker that reports installed packages with known security problems | Safety |
+| the C++ mutation-testing tool used by this project through the Docker-managed Clang toolchain. Reads the C++ test build and fails when any configured mutant survives | Mull |
 | one specific edit rule a mutation tool can apply (e.g. `cxx_relational_replacement` swaps `<` and `>`; `arithmetic_replacement` swaps `+` and `-`). The mutation tool walks the source once per mutator and tries each rule at every applicable location | mutator (mutation-testing sense) |
 | LLVM is an open-source compiler infrastructure project that the Clang C/C++ compiler is built on; tools like Mull, libFuzzer, ASan/TSan/MSan, and clang-tidy all ship as LLVM components. When the docs say "Mull works at the LLVM IR level," they mean it edits the intermediate code Clang produces before machine-code emission | LLVM |
 | coverage-guided random-input fuzz tool that ships with LLVM/Clang — feeds randomly-mutated byte arrays at thousands per second into a `LLVMFuzzerTestOneInput(uint8_t*, size_t)` function and watches whether the code crashes, leaks memory, or trips a sanitizer. Paired with `-fsanitize=fuzzer,address` so every interesting bug becomes a non-zero exit. Starter targets in `backend/extensions/fuzz/`; authoring guide in `AUTHORING.md` | libFuzzer |
@@ -285,12 +326,12 @@ When you must mention a technical concept, use the plain-English version from th
 | the third required ritual marker line (Phase 7) — proves the agent ran `gh run list --status failure --limit 10` at session start and reviewed the 10 latest failed GitHub Actions workflow runs. Two valid forms: `[CI FAILED RUNS READ: <N> latest — picked: #<id>, ...]` (populated) or `[CI FAILED RUNS READ: skipped — gh unavailable]` (when the gh CLI isn't installed). `.githooks/check-registry-read.py` enforces presence. | CI FAILED RUNS READ marker |
 | the PARAMOUNT rule added 2026-05-12 — after writing any code, every agent must run the relevant random-order test suite, read failure output, fix the cause, and re-run until the exit code is zero. Applies to pytest / ng test / ctest invocations equally; the pre-push hook running mutmut / Stryker / libFuzzer / clang-tidy on changed files only counts under the same rule. Silently moving on is a protocol violation | auto-iterate after writing code |
 | the project's comprehensive coding rules file at `AI-CODING-GUIDELINES.md` (repo root). Every agent reads it at session start, before every task; it defines the prime directive, source-of-truth order, no-hallucination rules, work loop, code-smell + long-function + bug-fix + test-requirement + property-based + evidence-based + business-logic + state-transition + idempotency + database + error + logging + security + external-service + performance + paid-API + naming + dependency + formatting + type-safety + UI + accessibility + concurrency + refactoring + generated-code + file-editing + test-running rules + Definition of Done + the per-task coverage target table | AI-CODING-GUIDELINES.md / coding guidelines |
-| the strict coverage rules file at `docs/CODE-COVERAGE-RULES.md`. Defines Level A/B/C/D, the 14 Level A areas (import normalization / text cleaning / sentence splitting / embedding lifecycle / index build/search / scoring / meta-algo / business logic / near-dup removal / existing-link detection / broken-link detection / approval transitions / permissions / analytics import + Celery idempotency + DB integrity), per-language floors (backend 90%, API 90%, Celery 90%, Angular 75%, C++ 100% branch + Mull ≥70%), property-test invariant menus, drought clause | docs/CODE-COVERAGE-RULES.md / coverage rules |
+| the strict coverage rules file at `docs/CODE-COVERAGE-RULES.md`. Defines Level A/B/C/D, the 14 Level A areas (import normalization / text cleaning / sentence splitting / embedding lifecycle / index build/search / scoring / meta-algo / business logic / near-dup removal / existing-link detection / broken-link detection / approval transitions / permissions / analytics import + Celery idempotency + DB integrity), per-language targets (backend mutation 100%, Angular 95% line + 85% branch + 95% mutation, C++ 100% branch + 100% mutation), property-test invariant menus, drought clause | docs/CODE-COVERAGE-RULES.md / coverage rules |
 | the strictest coverage tier in `docs/CODE-COVERAGE-RULES.md` — Modified Condition/Decision Coverage (MC/DC), 100% line + branch coverage, property-based tests, mutation testing, golden-fixture regression tests, end-to-end review-workflow tests, traceability of each test to a rule / FR / invariant. Applied to anything touching business logic, scoring, parsing, security, or financial decisions | Level A / MC/DC coverage |
 | Modified Condition/Decision Coverage — DO-178C / NASA NPR 7150.2D structural coverage tier where every Boolean condition in every decision is independently exercised showing it can affect the outcome. The strongest commonly-used coverage criterion; required for Class A / safety-critical software | MC/DC / Modified Condition Decision Coverage |
 | an AutoIssue row that flags a missing or insufficient test for a specific Level A area or per-language target. Title begins with `[coverage-gap]`. Source = `agent`. Drained at 10 per session via the standard opening ritual; backlog seeded by FR-251 | coverage-gap AutoIssue |
 | the fourth required ritual marker (FR-251) — proves the agent read both `AI-CODING-GUIDELINES.md` and `docs/CODE-COVERAGE-RULES.md` at session start. Exact form: `[GUIDELINES READ: AI-CODING-GUIDELINES.md + docs/CODE-COVERAGE-RULES.md]`. `.githooks/check-registry-read.py` enforces presence | GUIDELINES READ marker |
-| the fifth required ritual marker (FR-251) — proves the agent picked 10 coverage-gap AutoIssues to drain this session alongside the standard 18 auto-issue picks and 10 latest failed CI runs. Two valid forms: `[COVERAGE GAPS READ: 10 picked — #..., ...]` (populated) or `[COVERAGE GAPS READ: <K> picked + <10-K> to file — #..., (drought; ...)]` (drought) | COVERAGE GAPS READ marker |
+| the fifth required ritual marker (FR-251) — proves the agent picked 10 coverage-gap AutoIssues to drain this session alongside the standard 30 auto-issue picks and 10 latest failed CI runs. Two valid forms: `[COVERAGE GAPS READ: 10 picked — #..., ...]` (populated) or `[COVERAGE GAPS READ: <K> picked + <10-K> to file — #..., (drought; ...)]` (drought) | COVERAGE GAPS READ marker |
 | the end-of-slice / end-of-task / end-of-session honesty marker (FR-251) — `[COVERAGE SUMMARY: target=<X>% actual=<Y>% — met / not met — <reason if not met>]`. Honesty is mandatory; claiming "met" when the suite is red is a protocol violation | COVERAGE SUMMARY marker |
 | FR-251 — the FR spec governing the strict code-coverage program shipped 2026-05-12. Sets the rules in `AI-CODING-GUIDELINES.md` + `docs/CODE-COVERAGE-RULES.md`; the actual work to achieve the targets lives in ~23 coverage-gap AutoIssues drained 10-per-session. See `docs/specs/fr251-code-coverage-program.md` | FR-251 / code-coverage program |
 | a fuzz-coverage-gap AutoIssue — one per public C++ module in `backend/extensions/` without a matching `fuzz_<name>.cpp` target. Emitted by `apps.auto_issues.services.fuzz.pick_fuzz_coverage_gaps`. The libFuzzer ratchet — as fuzz targets are added per the AutoIssue queue, these gap rows resolve | fuzz-coverage-gap |

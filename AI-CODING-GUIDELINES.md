@@ -4,6 +4,8 @@
 
 This file is the single source of truth for how to write code in this repository. Other rule documents (`CLAUDE.md`, `AGENTS.md`, `AI-CONTEXT.md`, `PLAIN-ENGLISH-RULE.md`, `ONGOING-CODE-QUALITY.md`, `docs/CODE-COVERAGE-RULES.md`) reference and reinforce what is written here; if any of them ever drift apart, **this file wins**.
 
+5. **Apply the realistic quality gate.** New code must meet the full target. Existing changed code uses the ratchet policy in `docs/CODE-COVERAGE-RULES.md`: do not reduce coverage, and improve touched code that is below target.
+
 ---
 
 ## How to use this file
@@ -12,6 +14,12 @@ This file is the single source of truth for how to write code in this repository
 2. **Pick the right coverage target for the task.** Find the task type in the [Per-task coverage targets](#per-task-coverage-targets) table below. Note the target. Plan the change to meet it.
 3. **End every slice, task, and session with a coverage summary.** Output `[COVERAGE SUMMARY: target=<X>% actual=<Y>% — met / not met — <one-line reason if not met>]`. Honesty is mandatory; the auto-iterate rule (see `CLAUDE.md`) requires you to chase the gap to zero, not paper over it.
 4. **Drain the coverage backlog every session.** Alongside the 30 auto-issues from the standard quota (3 per source × 10 sources) and the 10 latest failed CI runs, pick **10 coverage-gap AutoIssues** (source='agent', kind='coverage-gap'). Marker `[COVERAGE GAPS READ: 10 picked — #..., ...]`.
+5. **Open every coding task with the standards marker.** Before writing code, emit `[STANDARDS READY: coverage=<X>% tests=<commands> mutation=<required or not required with reason> benchmark=<required or not required with reason> reuse=<existing shared code found or none> shared_library=<existing dynamic/shared library, new dynamic library, or not applicable> scaling=<10x and 100x result>]`.
+6. **Use BDD when talking to the user.** In this repository, "agents" means Claude and Codex. BDD means behavior-driven description. Plans, summaries, and handoffs must use `Given / When / Then` when they describe expected behavior. Code-changing handoffs must include `[BDD PROOF: Given ... When ... Then ...]`.
+7. **Use TDD when writing code.** TDD means test-driven development. Read open AutoIssues and resolved lessons for the touched area first. Then write or update the smallest useful test before or alongside the code, run it, fix the code, and rerun until it passes. Code-changing handoffs must include `[TDD PROOF: before_or_alongside=yes tests=<commands> result=passed]`.
+8. **Close every coding task with the scoped self-review marker.** Before any summary, review only the task scope, log every bad practice you find with `manage.py log_self_review_issue`, fix every in-scope issue that can be fixed without behaviour change, then emit `[SELF REVIEW RESULT: scope=<files reviewed> autoissues=<ids-or-none> fixes=<applied-or-none> reuse=passed shared_library=passed complexity=passed tests=passed coverage=met mutation=passed-or-not-required benchmark=passed-or-not-required edge_cases=covered issues=fixed-or-none]`.
+9. **Keep temporary TDD artefacts disposable.** Temporary failing tests, generated fixtures, coverage files, mutation reports, and profile dumps must stay in ignored paths. If the temporary test proves a real behavior rule, convert it into a small permanent regression test. If it only helped investigation, delete it before commit and store the lesson in AutoIssues.
+10. **Keep the test tools future-ready.** If a task adds code in a new language, folder, framework, build target, or generated runtime path, the same change must register how the existing Docker-managed test, coverage, mutation, fuzz, lint, or benchmark tools will check that code. New code is not done if the current tools cannot see it.
 
 ---
 
@@ -82,11 +90,14 @@ For every task, follow this loop in order. Do not jump to step 5 before step 4.
 2. **Inspect relevant files.** Glob, Grep, Read. Note existing patterns.
 3. **Identify source of truth.** Pick the highest-priority source you can find for the area being changed.
 4. **Locate affected code paths.** Map call sites, imports, tests, migrations.
-5. **Make the smallest correct change.** Surgical, not architectural — unless the task demands architecture work.
-6. **Add or update tests.** Per the [Per-task coverage targets](#per-task-coverage-targets) and [Code-coverage rules](docs/CODE-COVERAGE-RULES.md).
-7. **Run relevant checks.** Lint, type-check, the new tests, the random-order suite. If a check is skipped, say so.
-8. **Summarize what changed.** Per PLAIN-ENGLISH-RULE.md — what's doing, what was accomplished, what has issues.
-9. **Emit the coverage summary marker.** `[COVERAGE SUMMARY: ...]` — see the format above.
+5. **Open with the standards marker.** State the coverage target, exact checks, mutation or benchmark need, reuse search result, shared-library decision, and 10x / 100x scaling result.
+6. **Make the smallest correct change.** Surgical, not architectural — unless the task demands architecture work.
+7. **Add or update tests.** Per the [Per-task coverage targets](#per-task-coverage-targets) and [Code-coverage rules](docs/CODE-COVERAGE-RULES.md).
+8. **Run relevant checks.** Lint, type-check, the new tests, the random-order suite. If a required check cannot run, fix the tool or command before finishing.
+9. **Confirm tool coverage for new code.** Prove that the relevant test tools include the new files or targets. If they do not, update the tool config or add the missing Docker-managed command before summarizing.
+10. **Run the strict scoped self-review.** Re-read only the assigned task scope: the files you changed, direct helpers you used, and the tests that prove the task. Check for bugs, long functions, duplication, over-engineered code, code smells, weak separation of concerns, weak tests, unsafe input handling, slow paths, missing shared-library reuse, and stale comments. Log every bad practice you find with `manage.py log_self_review_issue`. Fix every in-scope issue that can be fixed without behaviour change before you summarize.
+11. **Summarize what changed.** Per PLAIN-ENGLISH-RULE.md — what's doing, what was accomplished, what has issues.
+12. **Emit the coverage summary marker.** `[COVERAGE SUMMARY: ...]` — see the format above.
 
 ---
 
@@ -137,6 +148,102 @@ Two principles modulate the [Code-smell policy](#code-smell-policy) above. Apply
   - You needed to read the abstraction's source to know what it does; the inline copy was self-explanatory.
 
 When in doubt, leave the duplication and revisit when a real third caller appears.
+
+## Shared-library first rule
+
+Every agent must prefer reuse before creating a custom library, helper, service, or wrapper.
+
+- Search existing modules and package files before writing a new helper or library.
+- Reuse or extend an existing shared module when it already owns the job.
+- Do not copy a helper into a second location to avoid an import. Fix the import path or move the helper to the correct shared module.
+- For compiled code, a new custom library must be a dynamic library, which means a shared compiled file loaded by the app at runtime. Use `.so` on Linux containers, `.dll` on Windows-only tooling, or the platform equivalent.
+- Store compiled runtime outputs through the Docker-managed compiled-artifact path in `COMPILED-LANGUAGE-RULES.md`. Do not commit generated binaries.
+- Static linking or a one-off private compiled helper needs a written exception in the standards marker and in the handoff entry, with the reason and the follow-up owner.
+- If the shared library would become too broad, stop and ask before creating a large cross-cutting module.
+
+## Future-ready test tool rule
+
+Every new code path must be visible to the current or newly registered test tools.
+
+- New Python code must be covered by the Docker backend test, lint, coverage, and configured mutation path.
+- New TypeScript, Angular, HTML, or SCSS code must be covered by the Docker-managed frontend lint, unit test, coverage, and configured mutation path.
+- New C++, Go, or other compiled code must be covered by Docker-managed tests, coverage, mutation or fuzz testing where supported, and benchmarks for hot paths.
+- New folders, package roots, generated runtime paths, or build targets must update the relevant tool discovery pattern in the same change.
+- If a future language or framework is added, the first change must add its Docker-managed test command, coverage command, lint or static-analysis command, mutation or fuzz command when supported, and readiness check.
+- A new tool is not allowed to depend on a developer's host machine. It must run through Docker or another documented project-managed runtime.
+- Tool caches must use shared Docker volumes or another documented shared store, not repo folders or per-run duplicate folders. Add new cache volumes to `config/protected-data-stores.json`.
+- If a tool cannot support the new code after repair attempts, stop before committing and log an AutoIssue explaining the missing tool coverage.
+
+## AutoIssue test split
+
+AutoIssue tests must be fast where they can be, and database-backed where they prove database behavior.
+
+- Pure math, parsing, scoring, and fingerprint tests use in-process fake data.
+- Tests that prove AutoIssue storage, deduplication, issue resolution, `lessons_learned`, QualityEvidence, categories, or Claude/Codex learning must stay database-backed.
+- Do not convert a database contract test to an in-memory test just to make the suite faster. First ask what behavior the test proves.
+- Temporary TDD artefacts belong in ignored disposable paths. Permanent lessons belong in AutoIssues, not in large report files.
+
+## Task-scoped self-review and AutoIssue logging
+
+The final review is mandatory, but it is not a full-repo audit.
+
+- Review the assigned task scope only: the changed files, direct helper functions, direct call sites when needed, and the tests that prove the task.
+- Do not sweep the whole codebase during this review.
+- Do not invent findings. A self-review finding needs concrete evidence from the diff, a touched file, a direct call site, a test, or tool output.
+- Do not expand the review because a checklist item exists. If a checklist item does not apply to the task, mark it not applicable in your own notes and move on.
+- If you notice a real issue outside the task while doing the work, log it as an AutoIssue, but do not turn the task review into a broad audit.
+- Log every bad practice found in that scope with `python manage.py log_self_review_issue --category <category>`.
+- Bad practices include bugs, long functions, duplicated logic, over-engineered abstractions, weak separation of concerns, vague errors, unsafe input handling, missing tests, missing benchmark coverage for hot paths, stale comments, and committed generated output.
+- If you fix the issue in the same task, log it with `--fixed` and a `--lessons-learned` note so future agents can search the lesson.
+- If you cannot fix it without a risky or broad refactor, leave the AutoIssue open and explain why in the final summary.
+- Refactors done during self-review must preserve behaviour. They need tests that prove there was no regression.
+- If the review finds nothing to fix, the final summary must say that the scoped review found nothing to fix.
+- File findings in the relevant existing place. For AutoIssues, use the existing `AutoIssueCategory` rows. Do not create new database fields, tables, or category-specific schemas during review unless the task itself requires a deliberate schema change.
+- Before any schema change, write the reason, the smallest table or field shape, the migration and rollback behavior, and the tests that prove it. If a category row is enough, use the category row and do not add schema.
+
+Mandatory checklist for the scoped review:
+
+- **Security:** no sensitive data in logs or commits, inputs are validated and cleaned, no hard-coded secrets, and framework security rules are followed.
+- **Performance and scaling:** no obvious slow paths, expensive loops and database queries are bounded or optimized, caching or lazy loading is used when useful, and memory use matches the data size.
+- **Modularity:** functions and classes are small, single-purpose, and modular; shared utilities are reused; separation of concerns is clear.
+- **Readability:** names are meaningful, comments explain only non-obvious logic, dead code and commented-out code are gone, and formatting is consistent.
+- **Correctness and edge cases:** the code does what was requested, tests pass, edge cases are covered, logic is understandable, and no exception is swallowed silently.
+- **Errors and fallbacks:** expected failures are handled with meaningful messages, logging has useful context without sensitive data, and retries or fallbacks exist where they are appropriate.
+- **Concurrency:** shared resources are synchronized, async work is awaited or handled, and there are no obvious race conditions, deadlocks, or unsafe shared structures.
+- **Contracts:** public endpoints, method signatures, return shapes, and validation remain backward-compatible unless the user approved a breaking change.
+- **Architecture:** modules stay decoupled, circular imports are avoided, third-party library use is justified, and unnecessary global state or singletons are avoided.
+- **Resources:** files, database connections, network sockets, and buffers are closed or released; cache invalidation is clear; no memory leak or resource contention is introduced.
+- **Tech debt:** TODO and FIXME comments are removed or tracked, magic numbers become named constants or enums, and any future refactor is logged instead of hidden.
+- **Observability:** critical flows have metrics or counters when needed, logs include useful request or trace context, and monitoring hooks exist for risky paths.
+- **Internationalization and accessibility:** user-facing strings are ready for translation, time zones and formats are handled correctly, and user interface changes meet accessibility expectations, including multi-language and right-to-left layout needs when applicable.
+
+Extra gaps to watch during the same scoped review, capped at 25:
+
+1. AutoIssues have the right category and are not filed as generic when a specific category exists.
+2. AutoIssues include the exact affected files, not only a broad folder.
+3. AutoIssue titles state the concrete problem, not a vague label.
+4. AutoIssue descriptions include enough evidence for the next agent to reproduce or inspect.
+5. Resolved AutoIssues include lessons learned with both the trap and the fix shape.
+6. New AutoIssues dedupe through the existing fingerprint path instead of creating repeats.
+7. The review summary names whether bad practices were fixed, logged, or not found.
+8. Test evidence matches the files changed and is not copied from an unrelated task.
+9. Coverage claims use measured percentages when code changed.
+10. Data migrations are reversible or have a written reason when reversal is impossible.
+11. Database changes avoid unbounded table growth and include indexes for new query paths.
+12. Query changes avoid hidden N+1 database queries.
+13. Background jobs are idempotent, so retries do not duplicate work.
+14. New settings have safe defaults and clear plain-English names.
+15. Environment assumptions work in Docker and do not depend on a single developer machine.
+16. Generated files and build outputs are not committed unless explicitly intended.
+17. Public error messages do not expose stack traces, secrets, paths, or private data.
+18. Internal logs include enough context to debug without logging sensitive data.
+19. Time-based logic uses timezone-aware values.
+20. File paths are normalized and guarded before reading or writing outside expected folders.
+21. Third-party dependency additions have a real need and are not duplicating standard-library or existing project behavior.
+22. UI changes preserve keyboard access, focus order, and screen-reader labels.
+23. Async cancellation, timeout, or retry behavior is explicit where external calls are used.
+24. Caches have a clear invalidation path and a bounded size or lifetime.
+25. Any “not applicable” checklist item is ignored without inventing a finding.
 
 ---
 
@@ -701,7 +808,7 @@ A task is done **only when**:
 - Requested behaviour is implemented.
 - Change follows existing architecture.
 - Relevant tests exist.
-- Relevant checks pass (or skipped checks are disclosed).
+- Relevant checks pass.
 - No unrelated rewrites were made.
 - No fake APIs were introduced.
 - Error handling is appropriate.
@@ -749,10 +856,10 @@ The coverage target for a task is determined by what the task touches. If a task
 | Backend service modules (`backend/apps/*/services/**`) | Level A | **90%** |
 | API endpoints (`backend/apps/api/`, `backend/apps/*/views*.py`) | Level A | **90%** |
 | Celery tasks (`backend/apps/*/tasks*.py`) | Level A | **90%** |
-| C++ extensions (`backend/extensions/*.cpp`) | Level A (MC/DC) | **100% branch + mutation** |
+| C++ extensions (`backend/extensions/*.cpp`) | Level A (MC/DC) | **100% branch + 100% mutation** |
 | Go modules (`**/go.mod`) | Level B + mutation | **95% line + blocking Go mutation testing** |
-| Angular components (`frontend/src/app/**/*.component.ts`) | Level B | **75%** |
-| Angular services (`frontend/src/app/**/*.service.ts`) | Level B | **75%** |
+| Angular components (`frontend/src/app/**/*.component.ts`) | Level B + mutation | **95% line + 85% branch + 95% mutation** |
+| Angular services (`frontend/src/app/**/*.service.ts`) | Level B + mutation | **95% line + 85% branch + 95% mutation** |
 | Critical review-page workflows | Level A + E2E | **90% + Playwright spec** |
 | External integrations (GSC, GA4, Matomo, WP, XF, OpenAI, Gemini) | Level A + Contract | **90% + Pact spec + 1 integration smoke** |
 | Migrations | Level C | Smoke test that runs forward + backward |
@@ -760,7 +867,7 @@ The coverage target for a task is determined by what the task touches. If a task
 
 **Level A** — Modified Condition/Decision Coverage (MC/DC), formal structural coverage with traceability, 100% code coverage, property-based tests, full branch coverage, mutation testing, golden-fixture regression tests, end-to-end review-workflow tests where applicable. See `docs/CODE-COVERAGE-RULES.md`.
 
-**Level B** — Standard line + branch coverage at the documented threshold. Mutation testing optional but encouraged via the Stryker / mutmut scope ratchet.
+**Level B** — Standard line + branch coverage at the documented threshold. Mutation testing is mandatory for configured code targets.
 
 **Level C** — Smoke-level only. The change must be runnable; the migration must be reversible.
 

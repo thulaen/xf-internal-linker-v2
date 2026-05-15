@@ -16,7 +16,7 @@ Public surface
 - ``require_free_disk(estimated_bytes, *, safety_margin_gb=5)`` — the
   pre-flight guard called by every multi-GB writer. Hardware-aware: the
   default ``safety_margin_gb`` scales with the host tier (low-tier 2 GB,
-  high-tier 5 GB) to match the watermarks in DISK-PRESSURE-RULES.md.
+  high-tier 5 GB) while the global watermarks protect a 48 GB reserve.
 - ``current_state()`` — returns ``"GREEN" | "YELLOW" | "RED" | "CRITICAL"``
   read from the Django cache. Refreshed every 60 s by the
   ``refresh_disk_pressure_state`` Celery beat task.
@@ -56,9 +56,9 @@ _LAST_ALERT_KEY = "disk_pressure_last_alerted_state"
 _ALERT_DEDUP_TTL_SECONDS = 300
 
 # Watermarks from `DISK-PRESSURE-RULES.md` § "The Watermarks". Free GB.
-_GREEN_FLOOR_GB = 10.0
-_YELLOW_FLOOR_GB = 5.0
-_RED_FLOOR_GB = 1.0
+_GREEN_FLOOR_GB = 64.0
+_YELLOW_FLOOR_GB = 48.0
+_CRITICAL_FLOOR_GB = 1.0
 
 # Per-tier safety margin defaults. Low-tier hosts have less headroom so we
 # accept a smaller margin; high-tier hosts get the full 5 GB margin from
@@ -113,7 +113,7 @@ def _measure(path: Path | None = None) -> _DiskUsage:
 
 
 def _classify(free_gb: float) -> State:
-    if free_gb < _RED_FLOOR_GB:
+    if free_gb < _CRITICAL_FLOOR_GB:
         return "CRITICAL"
     if free_gb < _YELLOW_FLOOR_GB:
         return "RED"

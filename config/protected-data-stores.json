@@ -1,0 +1,85 @@
+{
+  "docker_volumes": [
+    "pgdata",
+    "redis-data",
+    "media_files",
+    "staticfiles",
+    "frontend_dist",
+    "compiled_artifacts",
+    "compiled_tool_cache",
+    "frontend_tool_cache",
+    "go_tool_mod_cache",
+    "nginx_logs",
+    "pyroscope_data",
+    "loki_data",
+    "alloy_data",
+    "tempo_data",
+    "grafana_data",
+    "questdb_data",
+    "sqlite_registry_data"
+  ],
+  "host_paths": [
+    "backups",
+    "backend/backups",
+    "media",
+    "backend/data",
+    "data",
+    "backend/secrets",
+    "secrets",
+    ".env",
+    "nginx/certs",
+    "Inspiration-Temp",
+    "grafana",
+    "tempo",
+    "postgres",
+    "frontend/src/assets",
+    "backend/registry/data",
+    "backend/registry/backups",
+    "backend/telemetry/data",
+    "backend/telemetry/backups"
+  ],
+  "future_data_stores": [
+    {
+      "name": "sqlite-agent-registry",
+      "required_storage": "sqlite_registry_data or backend/registry/data",
+      "protected_by": "docker_volumes.sqlite_registry_data and host_paths.backend/registry/data"
+    },
+    {
+      "name": "questdb_data",
+      "required_storage": "questdb_data",
+      "protected_by": "docker_volumes.questdb_data"
+    },
+    {
+      "name": "apache-age",
+      "required_storage": "pgdata",
+      "protected_by": "docker_volumes.pgdata"
+    }
+  ],
+  "tool_cache_policy": {
+    "normal_retention_days": 3,
+    "pressure_retention_days": 2,
+    "cleanup_watermark_gb": 64,
+    "protected_reserve_gb": 48,
+    "deduped_cache_volumes": [
+      "compiled_tool_cache",
+      "frontend_tool_cache",
+      "go_tool_mod_cache"
+    ],
+    "rules": [
+      "Tool caches are disposable and must use shared Docker volumes instead of per-container copies.",
+      "Do normal cleanup for stale disposable cache entries older than 3 days.",
+      "When free disk is below 64 GB, tighten cleanup to stale disposable cache entries older than 2 days.",
+      "Never delete protected app data, embeddings, database volumes, media, or backups as cache cleanup.",
+      "When free disk is below 48 GB, stop bulky verification work until safe cleanup restores space."
+    ]
+  },
+  "policy": {
+    "new_vital_data_rule": "Any new app data, database, index, registry, graph, uploaded media, or long-lived observability store must be added here before cleanup code may touch it.",
+    "forbidden_commands": [
+      "docker volume prune",
+      "docker volume rm",
+      "docker compose down -v",
+      "docker-compose down -v"
+    ]
+  }
+}

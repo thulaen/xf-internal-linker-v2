@@ -10,6 +10,30 @@
         "python",
         "/app/backend/mcp_server.py"
       ]
+    },
+    "chrome-devtools": {
+      "command": "C:\\Users\\goldm\\AppData\\Local\\Programs\\nodejs\\npx.cmd",
+      "args": [
+        "chrome-devtools-mcp@latest"
+      ]
+    },
+    "windows-mcp": {
+      "command": "C:\\Program Files\\PyManager\\py.exe",
+      "args": [
+        "-m",
+        "uv",
+        "tool",
+        "run",
+        "windows-mcp",
+        "serve",
+        "--transport",
+        "stdio"
+      ],
+      "env": {
+        "ANONYMIZED_TELEMETRY": "false",
+        "WINDOWS_MCP_SCREENSHOT_BACKEND": "auto",
+        "WINDOWS_MCP_DEBUG": "false"
+      }
     }
   }
 }

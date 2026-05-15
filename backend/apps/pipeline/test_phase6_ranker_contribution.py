@@ -495,6 +495,15 @@ class DispatcherCacheTests(SimpleTestCase):
 
 
 class FastTextBatchTests(SimpleTestCase):
+    def setUp(self) -> None:
+        # An earlier test (e.g. FilterContentRecordsTests.test_disabled_toggle_returns_input_verbatim)
+        # may have left runtime_flag:fasttext_langid.candidate_filter.enabled=False
+        # in the process-wide Django cache. Clear it so `is_enabled`
+        # re-reads from the DB (which is rolled back to default=True).
+        from django.core.cache import cache
+
+        cache.clear()
+
     """Audit bug A5 — predict_batch must be called once per filter
     invocation, not once per record."""
 

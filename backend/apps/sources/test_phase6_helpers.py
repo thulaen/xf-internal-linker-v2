@@ -9,6 +9,7 @@ the cold-start path (always works) and the real-call path (gated on
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
@@ -33,7 +34,8 @@ class VaderSentimentTests(SimpleTestCase):
 
     @unittest.skipUnless(vader_sentiment.HAS_VADER, "vaderSentiment not installed")
     def test_positive_text_has_positive_compound(self) -> None:
-        result = vader_sentiment.score("This is a wonderful, amazing, fantastic day!")
+        with patch("apps.core.runtime_flags.is_enabled", return_value=True):
+            result = vader_sentiment.score("This is a wonderful, amazing, fantastic day!")
         self.assertGreater(result.compound, 0.5)
         self.assertFalse(result.is_neutral)
 

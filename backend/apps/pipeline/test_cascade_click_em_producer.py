@@ -7,6 +7,7 @@ realistic-data round-trip.
 
 from __future__ import annotations
 
+import pytest
 from django.test import TestCase
 
 from apps.content.models import ContentItem, Post, ScopeItem, Sentence
@@ -23,6 +24,8 @@ from apps.pipeline.services.cascade_click_em_producer import (
     relevance_for,
 )
 from apps.pipeline.services.cascade_click_model import prior_mean
+
+pytestmark = pytest.mark.django_db
 
 
 class _Fixture:

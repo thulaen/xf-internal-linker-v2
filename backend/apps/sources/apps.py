@@ -4,6 +4,8 @@ import logging
 
 from django.apps import AppConfig
 
+from apps.core.services.management_commands import is_lightweight_management_command
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,6 +24,11 @@ class SourcesConfig(AppConfig):
         cold worker boot (or a Django web restart) reseeds with full
         capacity — the safe-after-restart behaviour we want.
         """
+        import sys
+
+        if is_lightweight_management_command(sys.argv):
+            return
+
         try:
             from .api_rate_limiter import register_defaults
 
