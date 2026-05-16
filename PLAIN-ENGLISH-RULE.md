@@ -12,6 +12,8 @@ Every word you send to the user must be understandable by someone who has never 
 
 ## PARAMOUNT — Plain-English Communication Rule
 
+- **Commit-scope** — the files in the commit plus direct helper files needed to check those files, such as nearby tests or benchmark files.
+
 Every response, commit message, error report, status update, and user-facing surface MUST be written in plain English the user can understand. The user is a vibe coder — they use AI exclusively and don't write code.
 
 **Every substantive response must contain all three of these parts:**
@@ -112,9 +114,22 @@ When you must mention a technical concept, use the plain-English version from th
 | the framework that builds the visual interface | Angular |
 | the framework that handles data storage and business logic | Django |
 | a packaging system that makes the app run the same everywhere | Docker |
+| profile data that shows where code spends time or memory while the app runs | OpenTelemetry Profiles |
+| the local service that stores and searches profile data | Pyroscope |
+| the OpenTelemetry data format used to send traces, metrics, logs, and profiles between services | OTLP |
+| a collector setting that turns on a not-yet-default capability | feature gate |
+| a short written plan with sources that proves why a speed or profiling change is designed that way | performance spec |
+| a software design document that states how a code change should be built and checked | SDD / software design document |
+| a product requirements document that states what a user-facing change must do | PRD / product requirements document |
+| a commit proof marker that lists the current source-backed specs checked before code was written | SPEC PROOF marker |
+| a spec marker that records when a spec was reviewed and when it must be reviewed again | SPEC FRESHNESS marker |
+| a commit proof marker that says the agent compared the code to the written spec before commit | SPEC CODE REVIEW marker |
 | a Dockerfile line that sets a value the container can read while it runs | ENV |
 | a Dockerfile line that sets the folder future commands run from | WORKDIR |
 | a Dockerfile line that sets the default command for the container | CMD |
+| the new Go service that receives live events and lets other parts of the app read them back in order | streamd |
+| a service that stores short messages and hands them to other app parts in order | message broker |
+| a short repeat-detection code made from an event's source, type, and payload | dedupe key |
 | the repo rule file that explains how Docker builds and stores compiled-language outputs | COMPILED-LANGUAGE-RULES |
 | storing compiled files by their exact file fingerprint so identical outputs use one saved copy instead of piling up | content-addressed compiled artifact store |
 | a 64-character file fingerprint used to prove two files have exactly the same bytes | SHA-256 hash |
@@ -256,6 +271,14 @@ When you must mention a technical concept, use the plain-English version from th
 | Video memory — the dedicated RAM that lives on the graphics card; used to hold model weights and embedding tensors during GPU computation; separate from main system RAM | VRAM |
 | NVIDIA's line of graphics cards that support fast AI computation (e.g., RTX 3050, RTX 4090) | RTX |
 | Industry-standard tracing/metrics framework used to record what every backend request and Celery task does, where time is spent, and whether errors happened; the project sends OpenTelemetry data to GlitchTip's Performance tab | OpenTelemetry / OTEL |
+| OpenTelemetry's profile data — repeated samples of where code spends CPU time, memory, and waiting time; this is separate from traces and metrics and must be checked before source changes | OpenTelemetry Profiles |
+| handoff marker proving the agent inspected Pyroscope and OpenTelemetry Profiles before coding; it names the service, touched scope, hotspot count, baseline command, and decision | profiling proof |
+| 95th-percentile latency — the response time that 95 out of 100 requests are at or below; the slowest 5 requests out of 100 are worse than this number | p95 latency |
+| 99th-percentile latency — the response time that 99 out of 100 requests are at or below; the slowest 1 request out of 100 is worse than this number | p99 latency |
+| moving one proven slow component to C++, Go, or another faster low-level language after measured proof shows normal fixes cannot hit the target | native rewrite |
+| a language built for high-speed low-level work, such as C++, Rust, or Go, where the program has more direct control over CPU work, memory use, and concurrency | systems language |
+| the one implementation that the repo treats as the main source of truth; old versions either call it, are clearly deprecated, or are removed | canonical implementation |
+| Remote Procedure Call — one service calls a function that runs in another process or service; used when code crosses a process boundary instead of calling a local function | RPC |
 | Foreign Function Interface — the boundary where Python calls into C++ (via pybind11) or vice-versa; used in the project's hot-path rerankers so the slow Python ranking math is replaced by fast C++ kernels | FFI |
 | Near-Real-Time — describes scoring or retrieval that happens within seconds of an event (vs. batch jobs that run nightly); the project's NRT signals power live confidence-meter updates and the autotuner's short-window feedback loop | NRT || pre-commit hook script at `.githooks/check-file-size.py` that blocks commits adding a file over 1,500 lines (the cap from CLAUDE.md), and prevents grandfathered files (listed in `.githooks/file-size-grandfather.txt`) from growing past their recorded baseline | check-file-size / file-size-grandfather |
 | pre-commit hook script at `.githooks/check-no-downgraded-gates.py` that blocks any commit which silently flips a CI gate from blocking to warning-only (`\|\| true`, `continue-on-error: true`, `exit-code: '0'`, `::warning::`) unless the same diff also adds a `# GATE-DOWNGRADE-JUSTIFICATION:` comment with a real reason | check-no-downgraded-gates / GATE-DOWNGRADE-JUSTIFICATION |

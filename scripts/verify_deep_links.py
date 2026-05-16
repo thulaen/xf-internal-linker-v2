@@ -34,6 +34,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
@@ -126,10 +127,10 @@ def _should_skip(path: Path) -> bool:
     return any(pat.search(s) for pat in SKIP_FILE_PATTERNS)
 
 
-def find_template_tab_labels(root: Path) -> list[tuple[str, int, str]]:
+def find_template_tab_labels(root: Path, paths: list[str] | None = None) -> list[tuple[str, int, str]]:
     """Return [(file, line_no, label), ...] for every literal mat-tab label."""
     out: list[tuple[str, int, str]] = []
-    for html in root.rglob("*.html"):
+    for html in template_files(root, paths):
         if _should_skip(html):
             continue
         try:
@@ -142,10 +143,10 @@ def find_template_tab_labels(root: Path) -> list[tuple[str, int, str]]:
     return out
 
 
-def find_dialog_open_calls(root: Path) -> list[tuple[str, int, str]]:
+def find_dialog_open_calls(root: Path, paths: list[str] | None = None) -> list[tuple[str, int, str]]:
     """Return [(file, line_no, component_name), ...] for dialog.open() sites."""
     out: list[tuple[str, int, str]] = []
-    for ts in root.rglob("*.ts"):
+    for ts in script_files(root, paths):
         if _should_skip(ts):
             continue
         try:
@@ -158,51 +159,78 @@ def find_dialog_open_calls(root: Path) -> list[tuple[str, int, str]]:
     return out
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument(
-        "--quiet",
-        action="store_true",
-        help="suppress success message; still print warnings + failures",
-    )
-    parser.add_argument(
-        "--no-warn",
-        action="store_true",
-        help="skip the informational tab + dialog warning scan",
-    )
-    args = parser.parse_args()
+def template_files(root: Path, paths: list[str] | None) -> list[Path]:
+    """Return template files for full or scoped warning scans."""
+    if paths is None:
+        return sorted(root.rglob("*.html"))
+    return [REPO_ROOT / path for path in paths if path.endswith(".html")]
 
-    app_routes = parse_routes(ROUTES_PATH)
-    catalog_routes = parse_catalog_routes(CATALOG_PATH)
-    needed = app_routes - ROUTES_EXEMPT_FROM_CATALOG
-    missing_routes = sorted(needed - catalog_routes)
+
+def script_files(root: Path, paths: list[str] | None) -> list[Path]:
+    """Return script files for full or scoped warning scans."""
+    if paths is None:
+        return sorted(root.rglob("*.ts"))
+    return [REPO_ROOT / path for path in paths if path.endswith(".ts")]
+
+
+def scoped_paths(args: argparse.Namespace) -> list[str]:
+    """Return paths supplied by commit tools."""
+    paths = list(args.paths)
+    if args.paths_env:
+        paths.extend(os.environ.get(args.paths_env, "").splitlines())
+    return [path.strip().replace("\\", "/") for path in paths if path.strip()]
+
+
+def should_skip_for_scope(paths: list[str]) -> bool:
+    """Return true when scoped paths cannot affect deep links."""
+    return bool(paths) and not any(path.startswith("frontend/src/app/") for path in paths)
+
+
+def needs_route_check(paths: list[str]) -> bool:
+    """Return true when changed files can affect route catalog correctness."""
+    route_files = {
+        "frontend/src/app/app.routes.ts",
+        "frontend/src/app/core/routing/deep-link-catalog.ts",
+    }
+    return not paths or any(path in route_files for path in paths)
+
+
+def warning_scope_paths(paths: list[str]) -> list[str]:
+    """Return changed frontend files used for tab and dialog warnings."""
+    return [
+        path
+        for path in paths
+        if path.startswith("frontend/src/app/")
+        and path.endswith((".html", ".ts"))
+        and not path.endswith(".spec.ts")
+    ]
+
+
+def main() -> int:
+    args = parse_args()
+    paths = scoped_paths(args)
+
+    if should_skip_for_scope(paths):
+        if not args.quiet:
+            sys.stdout.write("OK verify_deep_links: no changed frontend app files to check.\n")
+        return 0
+
+    route_result = route_check_result(paths)
 
     # Strict scope: missing routes fail the gate.
-    if missing_routes:
-        sys.stderr.write(
-            "\nFAIL verify_deep_links: routes registered in app.routes.ts but missing\n"
-            "from the deep-link catalog. Per CLAUDE.md PARAMOUNT — Deep-linking\n"
-            "catalog rule, every route MUST have an entry.\n\n"
-        )
-        for route in missing_routes:
-            sys.stderr.write(f"  /{route}\n")
-        sys.stderr.write(
-            "\nFix: add a DeepLinkEntry for each missing route in\n"
-            "frontend/src/app/core/routing/deep-link-catalog.ts. See the\n"
-            "shape documented at the top of that file (key, label,\n"
-            "subtitle, route, searchTerms).\n"
-        )
+    if route_result["missing"]:
+        write_missing_routes(route_result["missing"])
         return 1
 
     # Informational scope: tab + dialog gaps are reported but don't fail.
     warnings_emitted = 0
     if not args.no_warn:
-        warnings_emitted = _emit_tab_and_dialog_warnings()
+        warnings_emitted = _emit_tab_and_dialog_warnings(warning_scope_paths(paths) or None)
 
     if not args.quiet:
         sys.stdout.write(
-            f"OK verify_deep_links: {len(catalog_routes)} catalog entries cover "
-            f"{len(needed)} app routes."
+            f"OK verify_deep_links: {len(route_result['catalog'])} catalog entries cover "
+            f"{len(route_result['needed'])} app routes."
         )
         if warnings_emitted:
             sys.stdout.write(
@@ -214,26 +242,68 @@ def main() -> int:
     return 0
 
 
-def _emit_tab_and_dialog_warnings() -> int:
+def parse_args() -> argparse.Namespace:
+    """Parse command-line options."""
+    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="suppress success message; still print warnings + failures",
+    )
+    parser.add_argument(
+        "--no-warn",
+        action="store_true",
+        help="skip the informational tab + dialog warning scan",
+    )
+    parser.add_argument("--paths", nargs="*", default=[])
+    parser.add_argument("--paths-env", default="")
+    return parser.parse_args()
+
+
+def route_check_result(paths: list[str]) -> dict[str, set[str] | list[str]]:
+    """Return route coverage data for strict deep-link checks."""
+    if not needs_route_check(paths):
+        return {"catalog": set(), "needed": set(), "missing": []}
+    app_routes = parse_routes(ROUTES_PATH)
+    catalog_routes = parse_catalog_routes(CATALOG_PATH)
+    needed = app_routes - ROUTES_EXEMPT_FROM_CATALOG
+    return {
+        "catalog": catalog_routes,
+        "needed": needed,
+        "missing": sorted(needed - catalog_routes),
+    }
+
+
+def write_missing_routes(missing_routes: list[str]) -> None:
+    """Print the strict route-catalog failure."""
+    sys.stderr.write(
+        "\nFAIL verify_deep_links: routes registered in app.routes.ts but missing\n"
+        "from the deep-link catalog. Per CLAUDE.md PARAMOUNT - Deep-linking\n"
+        "catalog rule, every route MUST have an entry.\n\n"
+    )
+    for route in missing_routes:
+        sys.stderr.write(f"  /{route}\n")
+    sys.stderr.write(
+        "\nFix: add a DeepLinkEntry for each missing route in\n"
+        "frontend/src/app/core/routing/deep-link-catalog.ts. See the\n"
+        "shape documented at the top of that file (key, label,\n"
+        "subtitle, route, searchTerms).\n"
+    )
+
+
+def _emit_tab_and_dialog_warnings(paths: list[str] | None = None) -> int:
     """Print warnings for unregistered MatTabGroup labels + MatDialog.open call-sites.
 
     Returns the number of unique gaps reported.
     """
     catalog_tabs = parse_catalog_tabs(CATALOG_PATH)
     catalog_dialogs = parse_catalog_dialogs(CATALOG_PATH)
-    tabs = find_template_tab_labels(TEMPLATES_ROOT)
-    dialogs = find_dialog_open_calls(TS_ROOT)
+    tabs = find_template_tab_labels(TEMPLATES_ROOT, paths)
+    dialogs = find_dialog_open_calls(TS_ROOT, paths)
 
     # Dedup by name so we report each gap once even if it appears in many places.
-    missing_tabs: dict[str, tuple[str, int]] = {}
-    for file, line_no, label in tabs:
-        if label not in catalog_tabs and label not in missing_tabs:
-            missing_tabs[label] = (file, line_no)
-
-    missing_dialogs: dict[str, tuple[str, int]] = {}
-    for file, line_no, component in dialogs:
-        if component not in catalog_dialogs and component not in missing_dialogs:
-            missing_dialogs[component] = (file, line_no)
+    missing_tabs = missing_named_items(tabs, catalog_tabs)
+    missing_dialogs = missing_named_items(dialogs, catalog_dialogs)
 
     if not missing_tabs and not missing_dialogs:
         return 0
@@ -257,6 +327,18 @@ def _emit_tab_and_dialog_warnings() -> int:
             sys.stderr.write(f"    {component:30s}  {file}:{line_no}\n")
     sys.stderr.write("\n")
     return len(missing_tabs) + len(missing_dialogs)
+
+
+def missing_named_items(
+    found: list[tuple[str, int, str]],
+    catalog_items: set[str],
+) -> dict[str, tuple[str, int]]:
+    """Return unique tab or dialog names missing from the catalog."""
+    missing: dict[str, tuple[str, int]] = {}
+    for file, line_no, name in found:
+        if name not in catalog_items and name not in missing:
+            missing[name] = (file, line_no)
+    return missing
 
 
 if __name__ == "__main__":

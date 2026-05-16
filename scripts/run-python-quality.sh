@@ -14,11 +14,8 @@ quality_evidence_init "$evidence_file"
 trap 'quality_evidence_finalize "$?" "$evidence_file" "$evidence_container"' EXIT
 
 mapfile -t changed_python < <(
-  {
-    git diff --cached --name-only --diff-filter=ACM
-    git diff --name-only --diff-filter=ACM HEAD
-    git ls-files --others --exclude-standard
-  } | sort -u | grep -E "^backend/(apps|config)/.*\.py$" || true
+  python scripts/commit_scope.py paths --mode "${COMMIT_SCOPE_MODE:-staged}" |
+    grep -E "^backend/(apps|config)/.*\.py$" || true
 )
 
 if [[ "${#changed_python[@]}" -eq 0 ]]; then
@@ -88,9 +85,7 @@ bandit_targets="$(
 )"
 dependency_changed=0
 if {
-  git diff --cached --name-only --diff-filter=ACM
-  git diff --name-only --diff-filter=ACM HEAD
-  git ls-files --others --exclude-standard
+  python scripts/commit_scope.py paths --mode "${COMMIT_SCOPE_MODE:-staged}"
 } | grep -Eq "^backend/requirements(-dev)?\.txt$"; then
   dependency_changed=1
 fi

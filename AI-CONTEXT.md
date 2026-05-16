@@ -2,6 +2,37 @@
 
 This is the first continuity file every AI session must read.
 
+## Current Session Note - 2026-05-16 06:30 Codex GPT-5
+
+- Added the golden SDD/PRD/spec rule to the session gate. SDD means software
+  design document. PRD means product requirements document. Every code commit
+  now needs a current source-backed spec, BDD plan proof, TDD proof, and spec
+  code-review proof.
+- Extended `.githooks/check-spec-citation.py` so code changes fail when staged
+  handoff proof is missing, stale, not source-backed, or not reviewed against
+  the named spec. New specs also need `[SPEC FRESHNESS: ...]`.
+- Added `docs/specs/spec-governance-golden-rule.md` with source markers for
+  ISO/IEC/IEEE 42010, ISO/IEC/IEEE 29148, Cucumber Gherkin, and Kent Beck's
+  TDD book. Added freshness markers to the Go stream and OpenTelemetry specs.
+- OpenTelemetry Profiles now return `[PROFILING PROOF: ...]` from
+  `manage.py inspect_profiles` instead of a pipeline-gap marker. AutoIssues
+  #356 through #363 were resolved with lessons learned.
+- Commit remains blocked by the existing AutoIssue and Paper Trail quota rules.
+  Do not use `--no-verify`.
+
+## Current Session Note - 2026-05-16 02:35 Codex GPT-5
+
+- Moved the staged Go stream-engine work from the isolated worktree `C:\tmp\xf-streamd-worktree` onto the real `master` worktree after Claude finished. The temporary branch is still present and must not be deleted until a normal commit and merge cleanup finish.
+- Did not use `git commit --no-verify`. The user asked for it, but the repo rule forbids bypassing commit blockers even with in-chat permission.
+- The first normal commit attempt in the temporary worktree failed because `scripts/write_quality_evidence.py` was missing there. Restoring it from `master` fixed that setup issue.
+- The next normal commit attempt in the temporary worktree failed because Docker Compose in that worktree tried to create containers with fixed names already used by the running main stack, such as `xf_linker_compiled_tools` and `xf_linker_redis`.
+- To avoid stopping or removing running containers, the staged Go code/spec/glossary patch was applied to the clean main `master` worktree instead. Newer Claude handoff/context files were not overwritten.
+- Staged on `master`: `PLAIN-ENGLISH-RULE.md`, `docs/specs/go-streamd-broker.md`, and the new `services/streamd` Go module. `services/streamd/report.json` is not staged.
+- Latest known Go evidence from the master hook: Go quality reached mutation testing and printed score 0.731518 before the changed-file quality-debt gate stopped on one Python baseline script.
+- Fixed the quality-debt blockers by refactoring `python_schema_baseline.py` and `python_timeflow_baseline.py` into small named functions with input checks and explicit entry points. Added `test_python_timeflow_baseline.py` so the timeflow baseline has boundary and invalid-input coverage. Removed the regenerated `services/streamd/report.json` artifact again.
+- Added the commit-scope lesson requested by the user as AutoIssue #355. Trap: commit-scope helper changes can lower quality scores through repeated empty-set returns and overgrown functions. Fix shape: split route and score decisions into small named helpers, remove repeated empty-set returns, and run the changed-file quality scorer before committing.
+- Next safe step: run the normal commit from `C:\Users\goldm\Dev\xf-internal-linker-v2` on `master`. If it fails, fix the real blocker. Do not bypass hooks.
+
 ## Current Session Note - 2026-05-15 15:56 Claude Opus 4.7
 
 - Fixed the long-running C++ mutation-testing tooling gap. Before today, `scripts/run-cpp-mutation.sh` ran Mull against the binaries without the Mull IR pass plugin, so `mull-runner-19` always reported "No mutants found" and the gate was vacuously passing. Added a `MULL_BUILD` CMake option in `backend/extensions/CMakeLists.txt` that wires `/usr/lib/mull-ir-frontend-19` plus `-O0 -g` via `add_compile_options(...)`. Extended the script to loop over all seven GTest binaries with per-binary report directories.
@@ -89,6 +120,27 @@ Execution order and FR IDs are decoupled.
 ## Session Gate — Every AI, Every Session
 
 This is the single source of truth for what every AI must read, update, and check. CLAUDE.md and AGENTS.md point here. Do not duplicate these rules elsewhere.
+
+### ABSOLUTE — Golden SDD/PRD/spec rule before any code
+
+Before planning or writing code, every agent MUST check the related software
+design document, product requirements document, or technical spec. SDD means
+software design document. PRD means product requirements document. The spec must
+cite a source of truth from patents, academic papers, formal standards, official
+technical docs, or respected technical literature. The spec must include
+`[SPEC FRESHNESS: reviewed_at=<YYYY-MM-DD> next_review=<YYYY-MM-DD>]`, and
+`reviewed_at` must be in the current calendar month.
+
+If no current source-backed spec exists, the agent must write or update the spec
+before code. Plans must use BDD, which means behavior-driven description in
+`Given / When / Then` form. Code must use TDD, which means adding or updating a
+focused test before or alongside the code. Before commit, the agent must review
+the code against the spec and stage `[SPEC PROOF: specs=<paths>
+source_types=<patent|academic_paper|technical_literature|technical_doc>
+checked_at=<YYYY-MM-DD> status=<current|updated>]`, `[BDD PROOF: Given ...
+When ... Then ...]`, `[TDD PROOF: before_or_alongside=yes tests=<commands>
+result=passed]`, and `[SPEC CODE REVIEW: specs=<paths> result=<matched|updated>]`.
+`.githooks/check-spec-citation.py` stops code commits when any part is missing.
 
 ### PARAMOUNT — Plain-English Communication Rule (all agents)
 

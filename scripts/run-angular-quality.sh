@@ -13,20 +13,9 @@ evidence_container="$(quality_evidence_container_path angular)"
 quality_evidence_init "$evidence_file"
 trap 'quality_evidence_finalize "$?" "$evidence_file" "$evidence_container"' EXIT
 
-changed_files="$(
-  {
-    git diff --cached --name-only --diff-filter=ACM
-    git diff --name-only --diff-filter=ACM HEAD
-    git ls-files --others --exclude-standard
-  } | sort -u
-)"
-new_files="$(
-  {
-    git diff --cached --name-only --diff-filter=A
-    git diff --name-only --diff-filter=A HEAD
-    git ls-files --others --exclude-standard
-  } | sort -u
-)"
+scope_mode="${COMMIT_SCOPE_MODE:-staged}"
+changed_files="$(python scripts/commit_scope.py paths --mode "$scope_mode")"
+new_files="$(python scripts/commit_scope.py new --mode "$scope_mode")"
 
 docker compose run --rm -T --no-deps \
   -e QUALITY_CHANGED_FILES="$changed_files" \

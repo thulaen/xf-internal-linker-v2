@@ -13,6 +13,21 @@ evidence_container="$(quality_evidence_container_path cpp)"
 quality_evidence_init "$evidence_file"
 trap 'quality_evidence_finalize "$?" "$evidence_file" "$evidence_container"' EXIT
 
+scope_mode="${COMMIT_SCOPE_MODE:-staged}"
+cpp_files="$(python scripts/commit_scope.py paths --mode "$scope_mode" | grep -E '^backend/extensions/.*\.(cpp|h)$' || true)"
+if [[ -z "$cpp_files" ]]; then
+  quality_evidence_write \
+    --out "$evidence_file" \
+    --check-type normal_test \
+    --status passed \
+    --tool-name cpp-quality \
+    --command "bash scripts/run-cpp-quality.sh" \
+    --summary "No changed C++ file needed scoped C++ quality checks." \
+    --failure-fingerprint "cpp-quality:no-changed-targets"
+  exit 0
+fi
+export QUALITY_CPP_CHANGED_FILES="$cpp_files"
+
 run_cpp_step() {
   local check_type="$1"
   local tool_name="$2"
@@ -40,7 +55,7 @@ run_cpp_step() {
   return "$status_code"
 }
 
-run_cpp_step static_analysis cpp-static "docker compose run --rm -T compiled-tools bash /repo/scripts/run-cpp-static.sh --clean"
+run_cpp_step static_analysis cpp-static "docker compose run --rm -T -e QUALITY_CPP_CHANGED_FILES compiled-tools bash /repo/scripts/run-cpp-static.sh --clean"
 run_cpp_step static_analysis cpp-infer "docker compose run --rm -T compiled-tools bash /repo/scripts/run-cpp-infer.sh --clean"
 run_cpp_step normal_test cpp-tests "docker compose run --rm -T compiled-tools bash /repo/scripts/run-cpp-tests.sh --clean"
 run_cpp_step coverage cpp-coverage "docker compose run --rm -T compiled-tools bash /repo/scripts/run-cpp-coverage.sh --clean"

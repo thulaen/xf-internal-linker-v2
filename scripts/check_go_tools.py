@@ -33,6 +33,32 @@ def _go_modules() -> list[Path]:
     return sorted(modules)
 
 
+def _module_for_path(path: str) -> Path | None:
+    """Return the Go module owning one repo-relative path."""
+    candidate = (REPO_ROOT / path).resolve()
+    if candidate.is_file():
+        candidate = candidate.parent
+    while candidate != REPO_ROOT.parent:
+        if (candidate / "go.mod").is_file():
+            return candidate
+        if candidate == REPO_ROOT:
+            return None
+        candidate = candidate.parent
+    return None
+
+
+def _go_modules_for_paths(paths: list[str]) -> list[Path]:
+    """Return Go modules touched by scoped commit paths."""
+    modules = {
+        module
+        for path in paths
+        if path.endswith((".go", "go.mod", "go.sum"))
+        for module in [_module_for_path(path)]
+        if module is not None
+    }
+    return sorted(modules)
+
+
 def _module_report_stem(module_dir: Path) -> str:
     relative = module_dir.relative_to(REPO_ROOT).as_posix() or "root"
     digest = hashlib.sha256(relative.encode("utf-8")).hexdigest()[:12]
@@ -129,13 +155,14 @@ def _check_tools() -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--mutation-only", action="store_true")
+    parser.add_argument("--paths", nargs="*", default=[])
     args = parser.parse_args()
     BUILD_ROOT.mkdir(parents=True, exist_ok=True)
     REPORT_ROOT.mkdir(parents=True, exist_ok=True)
     _check_tools()
-    modules = _go_modules()
+    modules = _go_modules_for_paths(args.paths) if args.paths else _go_modules()
     if not modules:
-        print("No go.mod found. Go and go-mutesting are installed in Docker.")
+        print("No scoped Go module found. Go and go-mutesting are installed in Docker.")
         return 0
     for module_dir in modules:
         print(f"Checking Go module: {module_dir}")

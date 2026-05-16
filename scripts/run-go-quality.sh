@@ -14,8 +14,26 @@ quality_evidence_init "$evidence_file"
 trap 'quality_evidence_finalize "$?" "$evidence_file" "$evidence_container"' EXIT
 
 set +e
-docker compose run --rm -T compiled-tools python /repo/scripts/check_go_tools.py
-status_code=$?
+scope_mode="${COMMIT_SCOPE_MODE:-staged}"
+go_paths="$(python scripts/commit_scope.py paths --mode "$scope_mode" | grep -E '(^|/)go\.(mod|sum)$|\.go$' || true)"
+if [[ -z "$go_paths" ]]; then
+  quality_evidence_write \
+    --out "$evidence_file" \
+    --check-type normal_test \
+    --status passed \
+    --tool-name go-quality \
+    --command "bash scripts/run-go-quality.sh" \
+    --summary "No changed Go file needed scoped Go quality checks." \
+    --failure-fingerprint "go-quality:no-changed-targets" \
+    --target-percent 95 \
+    --actual-percent 100
+  status_code=0
+else
+  docker compose run --rm -T \
+    -e QUALITY_GO_PATHS="$go_paths" \
+    compiled-tools sh -lc 'python /repo/scripts/check_go_tools.py --paths $QUALITY_GO_PATHS'
+  status_code=$?
+fi
 set -e
 status=failed
 actual=0

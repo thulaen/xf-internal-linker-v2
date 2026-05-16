@@ -183,9 +183,7 @@ services:
       - .:/repo:ro
       - compiled_artifacts:/opt/xf/compiled
       # 90-day Pyroscope retention cleanup (auto_issues.run_retention_cleanup)
-      # walks this volume and deletes blocks older than 90 days. Pyroscope OSS
-      # 1.9 doesn't expose a `retention_period` config knob, so the cleanup
-      # path mounts the volume here read-write and uses pathlib instead.
+      # walks this volume and deletes blocks older than 90 days.
       - pyroscope_data:/pyroscope-data
     healthcheck:
       # Healthcheck rewrite (ISS-101 durable fix 2026-05-09): the old
@@ -246,9 +244,7 @@ services:
       - .:/repo:ro
       - compiled_artifacts:/opt/xf/compiled
       # 90-day Pyroscope retention cleanup (auto_issues.run_retention_cleanup)
-      # walks this volume and deletes blocks older than 90 days. Pyroscope OSS
-      # 1.9 doesn't expose a `retention_period` config knob, so the cleanup
-      # path mounts the volume here read-write and uses pathlib instead.
+      # walks this volume and deletes blocks older than 90 days.
       - pyroscope_data:/pyroscope-data
     healthcheck:
       # Healthcheck rewrite (ISS-101 durable fix 2026-05-09): the old
@@ -556,7 +552,7 @@ services:
     # week-over-week regressions (needs 7-day history, ready 2026-05-16)
     # and same-day hotspots (added 2026-05-10, works from day one — see
     # `apps.auto_issues.services.pyroscope_picker.pick_pyroscope_hotspots`).
-    image: grafana/pyroscope:1.9.0
+    image: grafana/pyroscope:1.18.1
     container_name: xf_linker_pyroscope
     restart: always
     mem_limit: 512m
@@ -595,21 +591,24 @@ services:
       - "127.0.0.1:9187:9187"
 
   # ─────────────────────────────────────────────
-  # OpenTelemetry Collector — vendor-neutral tracing/metrics/logs hub.
+  # OpenTelemetry Collector — vendor-neutral traces, metrics, logs, and profiles hub.
   # Receives OTLP (HTTP, port 4318) from the Python OTel SDK in the
   # backend + Celery workers. Fans out:
   #  - Traces → GlitchTip's OTLP endpoint (so they show up in the same
   #    Performance UI as the Sentry-SDK transactions).
   #  - Metrics → Prometheus scrape endpoint at 8889 (host-bound).
   #  - Logs   → stdout (visible via `docker compose logs otel-collector`).
+  #  - Profiles → Pyroscope on port 4040 through OTLP gRPC.
   # Default-on alongside GlitchTip + Pyroscope. Localhost-only.
   # ─────────────────────────────────────────────
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.106.1
+    image: otel/opentelemetry-collector-contrib:0.112.0
     container_name: xf_linker_otel_collector
     restart: always
     mem_limit: 256m
-    command: ["--config=/etc/otelcol/config.yaml"]
+    command:
+      - "--config=/etc/otelcol/config.yaml"
+      - "--feature-gates=service.profilesSupport"
     configs:
       - source: otelcol_config
         target: /etc/otelcol/config.yaml

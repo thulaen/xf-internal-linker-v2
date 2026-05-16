@@ -14,26 +14,19 @@ quality_evidence_init "$evidence_file"
 trap 'quality_evidence_finalize "$?" "$evidence_file" "$evidence_container"' EXIT
 
 if [[ "${1:-}" == "--changed" ]]; then
-  # Tool-scope contract: at pre-commit time the gate evaluates ONLY
-  # the staged set, not the full worktree-dirty set. Untracked or
-  # unstaged file changes are someone else's commit, not ours.
-  staged="$(git diff --cached --name-only --diff-filter=ACM)"
-  if [[ -z "$staged" ]]; then
+  scope_mode="${COMMIT_SCOPE_MODE:-staged}"
+  scoped_paths="$(python scripts/commit_scope.py paths --mode "$scope_mode")"
+  if [[ -z "$scoped_paths" ]]; then
     echo "No staged files for quality-debt scoring."
     exit 0
   fi
-  staged_args=()
-  while IFS= read -r path; do
-    [[ -n "$path" ]] && staged_args+=("$path")
-  done <<< "$staged"
   docker compose run --rm -T --no-deps \
-    -e QUALITY_DEBT_PATHS="${staged_args[*]}" \
+    -e QUALITY_DEBT_PATHS="$scoped_paths" \
     backend sh -lc '
     set -eu
     cd /repo
-    # shellcheck disable=SC2086
     python scripts/quality_debt_score.py \
-      --paths $QUALITY_DEBT_PATHS \
+      --paths-env QUALITY_DEBT_PATHS \
       --baseline .quality-debt-baseline.json \
       --evidence-out backend/reports/quality-evidence/quality-debt.jsonl
   '

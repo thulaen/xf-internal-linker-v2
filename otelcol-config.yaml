@@ -1,7 +1,7 @@
 # OpenTelemetry Collector — receives OTLP from the Python SDK + Celery
-# workers, fans out to GlitchTip OTLP / Prometheus / stdout. Default-on
-# alongside Pyroscope and GlitchTip. See docker-compose.yml service
-# `otel-collector` and `docs/OBSERVABILITY-OPTIONS.md`.
+# workers, fans out to GlitchTip OTLP / Tempo / Pyroscope / Prometheus /
+# stdout. Default-on alongside Pyroscope and GlitchTip. See
+# docker-compose.yml service `otel-collector`.
 
 receivers:
   otlp:
@@ -98,6 +98,13 @@ exporters:
     tls:
       insecure: true
 
+  # Profiles -> Pyroscope via OTLP gRPC. Pyroscope listens on 4040 inside
+  # the Docker network.
+  otlp/pyroscope:
+    endpoint: pyroscope:4040
+    tls:
+      insecure: true
+
   # Metrics → Prometheus scrape endpoint (host port 8889). Pull-based:
   # `curl http://localhost:8889/metrics` returns the current snapshot.
   # Grafana's Prometheus data source points at otel-collector:8889.
@@ -131,6 +138,9 @@ service:
       receivers: [otlp, filelog/nginx]
       processors: [memory_limiter, attributes/scrub, batch]
       exporters: [debug]
+    profiles:
+      receivers: [otlp]
+      exporters: [otlp/pyroscope]
   telemetry:
     logs:
       level: info

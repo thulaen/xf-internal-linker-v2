@@ -1,3 +1,164 @@
+# 2026-05-16 06:30 - Codex GPT-5 - Added source-backed spec proof hard block
+
+[HANDOFF READ: 2026-05-16 05:58 by Codex GPT-5 - added hard-block profiling proof and native-rewrite escalation checks]
+[REGISTRY READ: 50 open (48 agent / 1 glitchtip / 1 pyroscope / 0 tempo / 0 loki / 0 faro / 0 mutation / 0 fuzz / 0 contract / 0 gh_ci), showing top 10 after resolving profiling pipeline AutoIssues #356-#363]
+[CI FAILED RUNS READ: skipped - gh unavailable]
+[COVERAGE GAPS READ: 10 picked - #185, #184, #183, #182, #181, #176, #175, #174, #173, #172]
+[GUIDELINES READ: AI-CODING-GUIDELINES.md + docs/CODE-COVERAGE-RULES.md]
+[QUALITY GATE READ: self-written code must pass guidelines, tests, coverage, mutation tests, and required check setup before commit]
+[RESOLVED HISTORY: 1 prior fix read in docs/specs; 4 prior fixes read in CLAUDE.md; 6 prior fixes read in .githooks]
+[STANDARDS READY: coverage=90% tests=spec hook tests plus profiling hook tests plus focused backend profile tests mutation=not-run benchmark=not-needed reuse=existing check-spec-citation hook extended shared_library=not-needed scaling=10x and 100x stays bounded because the hook reads staged filenames, staged handoff text, and named spec files only]
+[SPEC PROOF: specs=docs/specs/spec-governance-golden-rule.md,docs/specs/opentelemetry-profiles-pyroscope.md,docs/specs/go-streamd-broker.md source_types=technical_literature,technical_doc,academic_paper,patent checked_at=2026-05-16 status=updated]
+[PERFORMANCE SPEC: sources=docs/specs/opentelemetry-profiles-pyroscope.md source_types=technical_doc,academic_paper tdd=yes tests="python .githooks/test_check_profiling_proof.py; docker compose exec backend pytest profile tests"]
+[PROFILING PROOF: service=xf-linker-backend scope=.githooks/check-spec-citation.py,docs/specs/spec-governance-golden-rule.md,AGENTS.md,CLAUDE.md,AI-CONTEXT.md source=pyroscope+otel_profiles hotspots=5 baseline="docker compose exec -T backend python manage.py inspect_profiles" decision=not-relevant]
+[BDD PROOF: Given agents change code When the commit checks run Then current source-backed specs, TDD proof, and spec review proof are required]
+[TDD PROOF: before_or_alongside=yes tests="python .githooks/test_check_spec_citation.py; python -m coverage run --data-file C:\tmp\.coverage-spec .githooks\test_check_spec_citation.py; python -m coverage report --data-file C:\tmp\.coverage-spec --include=.githooks/check-spec-citation.py --fail-under=90; docker compose exec backend pytest profile tests" result=passed]
+[SPEC CODE REVIEW: specs=docs/specs/spec-governance-golden-rule.md,docs/specs/opentelemetry-profiles-pyroscope.md,docs/specs/go-streamd-broker.md result=matched]
+[AUTOISSUES RESOLVED: 8 - #356, #357, #358, #359, #360, #361, #362, #363]
+[SELF REVIEW RESULT: scope=source-backed-spec-hard-block-and-otel-profile-connection autoissues=resolved-#356-#363 fixes=applied reuse=passed shared_library=not-needed complexity=passed tests=passed coverage=97.00% mutation=not-run benchmark=not-needed edge_cases=covered issues=commit-remains-blocked-by-existing-AutoIssue-and-Paper-Trail-quotas]
+[COVERAGE SUMMARY: target=90% actual=97.00% - met]
+[QUALITY GATE RESULT: guidelines=passed tests=passed coverage=met mutation=not-run check_setup=passed]
+
+What I did:
+I added the repo-wide rule the user requested: code now needs a current SDD, PRD, or technical spec before commit. SDD means software design document. PRD means product requirements document. The spec must cite patents, academic papers, formal standards, official technical docs, or respected technical literature. Plans must use BDD, which means Given / When / Then behavior wording. Code must use TDD, which means tests before or alongside the code.
+
+What now works that did not before:
+`.githooks/check-spec-citation.py` now checks staged code changes for `[SPEC PROOF]`, `[BDD PROOF]`, `[TDD PROOF]`, and `[SPEC CODE REVIEW]`. It also rejects new specs without `[SPEC FRESHNESS]`. `docs/specs/spec-governance-golden-rule.md` records the source-backed rule, and the Go stream plus OpenTelemetry specs now have monthly freshness markers. OpenTelemetry Profiles are connected to Pyroscope and `inspect_profiles` returns profiling proof.
+
+What has issues or errors:
+No commit was made. The normal commit remains blocked by the existing 30-AutoIssue and Paper Trail quota rules. The first hook coverage command used the wrong Python module form for `.githooks`; I reran it with the file path form and coverage passed at 97.00%. Mutation testing was not run for this hook-rule slice.
+
+Verification:
+`python .githooks/test_check_spec_citation.py` passed with 17 tests.
+`python -m coverage report --data-file C:\tmp\.coverage-spec --include=".githooks/check-spec-citation.py" --fail-under=90 --show-missing` passed at 97.00%.
+`python .githooks/test_check_profiling_proof.py` passed with 22 tests.
+`python .githooks/test_check_perf_proof.py` passed with 5 tests.
+`docker compose exec -T backend bash -lc "cd /repo/backend && python -m pytest --override-ini addopts='' -q apps/audit/tests_glitchtip_compose_integrity.py apps/auto_issues/tests_inspect_profiles_command.py --ds=config.settings.test --no-cov"` passed with 19 tests.
+`python scripts\quality_debt_score.py --paths ...` passed with 100.0% strict score.
+`python -m py_compile .githooks\check-spec-citation.py .githooks\test_check_spec_citation.py` passed.
+`docker compose exec -T backend python manage.py inspect_profiles --service xf-linker-backend --scope ...` returned `[PROFILING PROOF: ...]`.
+
+Tech-debt delta: Reused the existing spec-citation hook instead of adding a duplicate rule runner, added focused coverage for stale specs, missing spec proof, missing BDD, missing TDD, missing spec review, bad source types, stale review dates, and missing spec files, and removed the repeated failure-call pattern reported by the quality scorer.
+---
+
+# 2026-05-16 05:58 - Codex GPT-5 - Added hard-block profiling proof and native-rewrite escalation checks
+
+[HANDOFF READ: 2026-05-16 04:52 by Codex GPT-5 - commit hard checks were made harder to skip, but the normal commit is still blocked until the real issue quotas are resolved]
+[REGISTRY READ: 50 open (48 agent / 1 glitchtip / 1 pyroscope / 0 tempo / 0 loki / 0 faro / 0 mutation / 0 fuzz / 0 contract / 0 gh_ci), 0 open registry findings - picked: #355, #354, #353 | g: #186 | p: #201 | t: 0 found + 3 from agent: #352, #351, #350 (drought logged: pending) | l: 0 found + 3 from agent: #349, #348, #347 (drought logged: pending) | f: 0 found + 3 from agent: #346, #345, #344 (drought logged: pending) | m: 0 found + 3 from agent: #343, #342, #341 (drought logged: pending) | z: 0 found + 3 from agent: #340, #339, #338 (drought logged: pending) | c: 0 found + 3 from agent: #337, #336, #335 (drought logged: pending) | gh: 0 found + 3 from agent: #334, #333, #332 (drought logged: pending)]
+[CI FAILED RUNS READ: skipped - gh unavailable]
+[COVERAGE GAPS READ: 10 picked - #185, #184, #183, #182, #181, #176, #175, #174, #173, #172]
+[GUIDELINES READ: AI-CODING-GUIDELINES.md + docs/CODE-COVERAGE-RULES.md]
+[QUALITY GATE READ: self-written code must pass guidelines, tests, coverage, mutation tests, and required check setup before commit]
+[STANDARDS READY: coverage=90% tests=profiling hook tests + backend command pytest + precommit wrapper tests mutation=not-run benchmark=not-needed reuse=passed shared_library=backend shared constants used by hook and Docker command scaling=10x/100x fine because staged-file checks read only changed file names and staged handoff text]
+[RESOLVED HISTORY: 6 prior fixes read in .githooks; 4 prior fixes read in scripts; 6 prior fixes read in backend/apps/auto_issues; 0 prior fixes read in AGENTS.md; 4 prior fixes read in CLAUDE.md]
+Historical profiling gap at 05:58: AutoIssues #356 through #363 were filed for the missing OpenTelemetry Profiles connection. The 06:30 entry records the repair and resolution.
+[BDD PROOF: Given production source changes must prove profile inspection before coding, When this session added a new profiling hook and Docker-managed inspection command, Then commits that touch production source now require Pyroscope plus OpenTelemetry Profiles proof before the existing performance proof gate runs]
+[TDD PROOF: before_or_alongside=yes tests=`python .githooks/test_check_profiling_proof.py`; `python .githooks/test_check_perf_proof.py`; `docker compose exec -T backend bash -lc "cd /repo/backend && python -m pytest --override-ini addopts='' -q apps/auto_issues/tests_profiling_proof_shared.py apps/auto_issues/tests_inspect_profiles_command.py --ds=config.settings.test --cov=apps.auto_issues.profiling_proof_shared --cov=apps.auto_issues.management.commands.inspect_profiles --cov-report=term-missing --cov-fail-under=90"`; `docker compose exec -T backend bash -lc "cd /repo && python -m pytest --override-ini addopts='' -q scripts/test_precommit_docker.py --no-cov"` result=passed]
+[SELF REVIEW RESULT: scope=profiling-proof-hard-block autoissues=filed-profile-pipeline-gap-#356-#363 fixes=applied reuse=passed shared_library=backend-shared-constants complexity=passed tests=passed coverage=100.00% mutation=not-run benchmark=not-needed edge_cases=covered issues=normal-commit-still-blocked-by-existing-30-AutoIssue-and-paper-trail-quotas]
+[COVERAGE SUMMARY: target=90% actual=100.00% - met]
+[QUALITY GATE RESULT: guidelines=passed tests=passed coverage=met mutation=not-run check_setup=passed]
+
+What I did:
+I added `.githooks/check-profiling-proof.py` and wired it into `scripts/precommit-docker.sh` before the existing performance proof check. I added `manage.py inspect_profiles`, which queries Pyroscope, checks whether OpenTelemetry Profiles are connected, and files deduped AutoIssues when the profiling pipeline is missing. I also added the native rewrite rule: if an agent says a hotspot cannot meet the speed target in the current language, the handoff must include measured proof, shared-library reuse checks, canonical implementation choice, default path, optimized Python fallback, risk, rollback, and a `performance-native-rewrite` AutoIssue.
+
+What now works that did not before:
+Production source commits now need a staged profiling marker with service, scope, source, hotspot count, baseline, and decision fields. Missing OpenTelemetry Profiles creates one deduped AutoIssue per required repair category: collector, backend, versions, permissions, sampling, retention, dashboards, and trace-profile-correlation. The native rewrite marker now blocks casual C++ or Go rewrite proposals unless the agent proves the current language path is the real bottleneck and documents how reuse, testing, deployment, and fallback will work.
+
+What has issues or errors:
+No commit was made. At 05:58, OpenTelemetry Profiles were not connected to Pyroscope. The 06:30 entry records the later repair and AutoIssue resolution. The existing 30-AutoIssue and Paper Trail quotas are also still unresolved. Mutation testing was not run for this profiling-gate slice, so this handoff is not a claim that the full commit is ready.
+
+Verification:
+`python .githooks/test_check_profiling_proof.py` passed with 18 tests.
+`python .githooks/test_check_perf_proof.py` passed with 5 tests.
+`docker compose exec -T backend bash -lc "cd /repo/backend && python -m pytest --override-ini addopts='' -q apps/auto_issues/tests_profiling_proof_shared.py apps/auto_issues/tests_inspect_profiles_command.py --ds=config.settings.test --cov=apps.auto_issues.profiling_proof_shared --cov=apps.auto_issues.management.commands.inspect_profiles --cov-report=term-missing --cov-fail-under=90"` passed with 8 tests and 100.00% coverage.
+`docker compose exec -T backend bash -lc "cd /repo && python -m pytest --override-ini addopts='' -q scripts/test_precommit_docker.py --no-cov"` passed with 2 tests.
+`python scripts\quality_debt_score.py --paths ...` passed with 0 active issues and 100.0% lowest strict score.
+`python -m py_compile ...` passed.
+`docker compose run --rm -T --no-deps backend bash -lc "cd /repo && bash -n scripts/precommit-docker.sh"` passed.
+`docker compose exec -T backend python manage.py inspect_profiles --service xf-linker-backend --scope .githooks,scripts,backend/apps/auto_issues` printed the profiling pipeline gap marker for AutoIssues #356 through #363.
+`git diff --check` passed; it printed only existing CRLF warnings.
+
+Tech-debt delta: Added a focused profiling hard gate, a Docker-managed inspection command, shared marker constants, and tests that cover the new command at 100.00%. Removed the repeated category-list and repeated failure-call patterns found by the quality score.
+---
+
+# 2026-05-16 04:52 - Codex GPT-5 - Made commit hard gates non-skippable and duplicate-safe
+
+[HANDOFF READ: 2026-05-16 02:35 by Codex GPT-5 - Go stream-engine work was moved onto master, but the normal commit has not succeeded yet]
+[REGISTRY READ: already read this session - 50 open AutoIssues were inspected before this hard-gate repair; the quota is still not resolved and must block commit]
+[CI FAILED RUNS READ: skipped - gh unavailable]
+[COVERAGE GAPS READ: already read this session - no coverage-gap quota was resolved in this repair]
+[GUIDELINES READ: AI-CODING-GUIDELINES.md + docs/CODE-COVERAGE-RULES.md]
+[QUALITY GATE READ: self-written code must pass guidelines, tests, coverage, mutation tests, and required check setup before commit]
+[STANDARDS READY: coverage=90% tests=focused backend pytest + hook unit tests + precommit wrapper tests mutation=not-run benchmark=not-needed reuse=passed shared_library=not-needed scaling=10x/100x unchanged because this is commit tooling, not runtime data flow]
+[RESOLVED HISTORY: 9 prior fixes read in backend/apps/paper_trail; 6 prior fixes read in backend/apps/auto_issues; 6 prior fixes read in .githooks; 4 prior fixes read in scripts]
+[BDD PROOF: Given agents could skip AutoIssue, Paper Trail, or code-review proof when an earlier commit tool failed, When this session made hard gates run as a collected group before slower language tests and made any staged commit require handoff proof, Then a normal commit attempt now reports skipped AutoIssue quota, skipped Paper Trail quota, skipped code-review lessons, skipped self-review, and other proof gaps as hard failures instead of hiding them behind the first failure]
+[TDD PROOF: before_or_alongside=yes tests=`python .githooks/test_check_registry_read.py`; `python .githooks/test_check_paper_trail_read.py`; `python .githooks/test_check_code_review_lessons.py`; `python .githooks/test_check_per_module_coverage.py`; `docker compose exec -T backend bash -lc "cd /repo/backend && python -m pytest --override-ini addopts='' -p randomly -q apps/paper_trail/tests_print_open_paper_trail_command.py apps/paper_trail/tests_verify_quota_command.py apps/auto_issues/tests_verify_autoissue_quota.py apps/auto_issues/tests_print_open_issues_command.py apps/auto_issues/tests_measure_coverage_command.py --ds=config.settings.test --no-cov"`; `docker compose exec -T backend bash -lc "cd /repo && python -m pytest --override-ini addopts='' -q scripts/test_precommit_docker.py --no-cov"` result=passed]
+[SELF REVIEW RESULT: scope=commit-hard-gates-and-scoped-coverage autoissues=not-resolved fixes=applied reuse=passed shared_library=not-needed complexity=passed tests=passed coverage=97.40% mutation=not-run benchmark=not-needed edge_cases=covered issues=commit-still-blocked-until-30-AutoIssues-and-10-Paper-Trail-items-are-resolved]
+[COVERAGE SUMMARY: target=90% actual=97.40% - met]
+[QUALITY GATE RESULT: guidelines=passed tests=passed coverage=met mutation=not-run check_setup=passed]
+
+What I did:
+I made the normal commit path stricter in the places that were being skipped. AutoIssue quota now fails for any staged commit that lacks a staged handoff. Paper Trail now fails for any staged commit that lacks Paper Trail proof. Code review now gives a hard warning that names the required review: bugs, silent errors, correctness, tech debt, maintainability, duplication, and long functions.
+
+What now works that did not before:
+`scripts/precommit-docker.sh` now runs the hard gates as a group before slower language tests, so one failed gate cannot hide the rest. AutoIssue and Paper Trail pickers and verifiers reject duplicate work. Scoped coverage runs now pass `--override-ini addopts=` so a file-level coverage check cannot accidentally measure the whole backend.
+
+What has issues or errors:
+No commit was made. The master commit is still blocked until the real 30 AutoIssues and 10 Paper Trail items are resolved with lessons and proof markers. Mutation was not run for this hard-gate repair, so this handoff is intentionally not commit-ready.
+
+Verification:
+Focused backend behavior tests passed: 45 tests.
+Hook tests passed: registry 79 tests, Paper Trail 13 tests, code-review 6 tests, per-module coverage 1 test.
+Precommit wrapper tests passed: 2 tests.
+Scoped coverage over the touched backend files passed at 97.40%.
+Python syntax, Docker shell syntax, and `git diff --check` passed.
+
+Tech-debt delta: Reduced commit-tool debt by making AutoIssue, Paper Trail, code-review, self-review, and proof gates harder to skip. Added focused tests for the no-skip behavior and for scoped coverage so future sessions do not repeat the same failure mode.
+---
+
+# 2026-05-16 02:35 - Codex GPT-5 - Moved Go stream engine changes onto master without bypassing hooks
+
+[HANDOFF READ: 2026-05-16 02:15 by Claude Opus 4.7 - Paper Trail integrity rule added 5 new statuses, 4 new fields, 2 helper commands, docs, and 101 passing paper-trail tests]
+[REGISTRY READ: inherited from current session context; no new AutoIssues resolved in this handoff-only merge-prep step]
+[CI FAILED RUNS READ: skipped - gh unavailable in earlier session]
+[COVERAGE GAPS READ: inherited from current session context]
+[GUIDELINES READ: AI-CODING-GUIDELINES.md + docs/CODE-COVERAGE-RULES.md]
+[QUALITY GATE READ: self-written code must pass guidelines, tests, coverage, mutation tests, and required check setup before commit]
+[STANDARDS READY: coverage=95% tests=normal commit hook plus prior Go quality evidence mutation=prior mutation-only score 0.725681 benchmark=prior replay benchmark showed about 10.1x faster high-offset replay reuse=passed shared_library=not-applicable scaling=10x high-offset replay skips old events 100x still requires capped disk segments before production cutover]
+[RESOLVED HISTORY: 0 prior fixes read in services; 0 prior fixes read in services/streamd]
+[SCOPED LESSONS READ: 3 lessons in scripts; 6 lessons in .githooks]
+[CODE REVIEW LESSONS: 1 logged from 2 files; deduped 0 against prior]
+[CODE REVIEW LESSON LOGGED: AutoIssue=#355 title="Commit-scope quality refactor lesson" abstract_words=51]
+[PAPER TRAIL READ: 61 open (9 autoissue_deferral / 6 cve_upgrade / 7 coverage_gap / 3 infrastructure / 1 ruff_sweep / 6 mutation_survivor / 1 debt_reduction / 0 feature_decision / 4 tooling_gap / 1 documentation / 0 dependency_upgrade / 0 refactor / 3 performance / 0 security / 1 accessibility / 19 other) - picked: #538, #537, #536, #535, #534, #533, #532, #531, #541, #332]
+[BDD PROOF: Given the Go stream engine work was staged in an isolated branch and Claude had finished master work When the user asked to move it to master Then the code/spec/glossary patch was applied to the clean master worktree without overwriting newer Claude handoff files and without using no-verify]
+[TDD PROOF: before_or_alongside=yes tests=prior Docker-managed Go checks passed in isolated worktree; normal master commit hook rerun exposed gofmt and quality-debt blockers; Docker-managed gofmt applied; Python baseline scripts refactored; `python -m pytest -q services/streamd/internal/timeflow/testdata/test_python_timeflow_baseline.py` passed; `go test ./internal/schema ./internal/timeflow` passed result=pending normal commit hook on master]
+[SELF REVIEW RESULT: scope=merge-prep for Go stream engine files and Python baseline cleanup autoissues=none-resolved fixes=applied reuse=passed shared_library=not-applicable complexity=passed tests=prior-passed coverage=prior-met mutation=prior-improved benchmark=prior-passed issues=normal commit still must run on master; no hook bypass used]
+[COVERAGE SUMMARY: target=95% actual=96.2% - met in prior Go quality run]
+[QUALITY GATE RESULT: guidelines=passed tests=prior-passed coverage=prior-met mutation=prior-improved check_setup=pending-normal-master-commit]
+
+What I did:
+I refused to use `git commit --no-verify` because this repo forbids bypassing commit blockers even with in-chat permission. I copied the missing `scripts/write_quality_evidence.py` into the temporary worktree and retried a normal commit there. That failed because Docker Compose in the temporary worktree tried to create containers whose fixed names already belong to the running main stack. I did not stop or remove any running containers. I then applied the staged Go code, spec, and glossary patch onto the clean real `master` worktree, leaving Claude's newer handoff/context files intact.
+
+What now works that did not before:
+The Go stream-engine files are staged on `master` instead of being only staged in the isolated worktree. The generated `services/streamd/report.json` file is not staged. The latest master hook run passed Go quality far enough to print mutation score 0.731518 before the changed-file quality-debt gate stopped on one Python baseline script. That script now has a nearby Python test and no direct quality-debt analyzer issues.
+
+Learned lesson added this session:
+Trap: adding commit-scope support can quietly lower quality scores when helper code repeats empty set returns and when main functions grow past the size and complexity limits. Fix shape: split route and score decisions into small named helpers, remove repeated empty-set return patterns, and rerun the changed-file quality scorer before committing. Stored as AutoIssue #355.
+
+What has issues or errors:
+No commit has succeeded yet in this step. The next action is a normal commit from `C:\Users\goldm\Dev\xf-internal-linker-v2` on `master` after the baseline cleanup is staged; if the hook fails again, fix the real blocker. Do not use `--no-verify`. Do not delete `C:\tmp\xf-streamd-worktree` or branch `codex/go-streamd` until the master commit is safely made and checked.
+
+Verification:
+`git -C C:\Users\goldm\Dev\xf-internal-linker-v2 branch --show-current` printed `master`.
+`git -C C:\Users\goldm\Dev\xf-internal-linker-v2 status --short` was clean before applying the Go patch.
+`git -C C:\Users\goldm\Dev\xf-internal-linker-v2 apply --index C:\tmp\go-streamd-code.patch` succeeded.
+`docker compose run --rm -T compiled-tools bash -lc "cd /repo/services/streamd && gofmt -w internal/*/*.go"` passed.
+`docker compose run --rm -T --no-deps backend bash -lc "cd /repo && python -m pytest -q services/streamd/internal/timeflow/testdata/test_python_timeflow_baseline.py"` passed with 3 tests.
+`docker compose run --rm -T compiled-tools bash -lc "cd /repo/services/streamd && go test ./internal/schema ./internal/timeflow"` passed.
+
+Tech-debt delta: +0 AutoIssues resolved. Reduced merge risk by moving only the Go code/spec/glossary patch to master, preserving newer handoff/context history, and fixing two low-scoring baseline scripts instead of bypassing the hook.
+---
+
 # 2026-05-16 02:15 - Claude Opus 4.7 - Paper Trail integrity rule: 5 new statuses (blocked/deferred/stale/superseded/rejected) + 4 new fields (risk_on_inaction now required, acceptance_criteria, evidence_level, superseded_by) + 2 new helper commands (mark_paper_trail_stale, link_paper_trail_supersedes) + defer_work integrity scan + ABSOLUTE rule with must-add/must-not-add/duplicate-stale-conflict checks/BDD reporting format + 101 paper-trail tests pass + live smoke-tests for all new paths
 
 [HANDOFF READ: 2026-05-16 01:20 by Claude Opus 4.7 — New ABSOLUTE rule: every deferral must be filed in the paper trail before the session ends + check-deferral-filed.py HARD-BLOCK hook + 12-test TDD suite + docs/PAPER-TRAIL.md verb list + spam-filter follow-up filed as #543]

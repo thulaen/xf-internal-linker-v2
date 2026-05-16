@@ -53,6 +53,7 @@ def _resolve_repo_root() -> Path:
 REPO_ROOT = _resolve_repo_root()
 COMPOSE_PATH = REPO_ROOT / "docker-compose.yml"
 ENV_EXAMPLE_PATH = REPO_ROOT / ".env.example"
+OTEL_CONFIG_PATH = REPO_ROOT / "otelcol-config.yaml"
 
 REQUIRED_SERVICES = (
     "glitchtip-init",
@@ -78,6 +79,8 @@ class GlitchtipComposeIntegrityTests(SimpleTestCase):
         super().setUpClass()
         with COMPOSE_PATH.open("r", encoding="utf-8") as fh:
             cls.compose = yaml.safe_load(fh)
+        with OTEL_CONFIG_PATH.open("r", encoding="utf-8") as fh:
+            cls.otel_config = yaml.safe_load(fh)
         cls.env_example_text = ENV_EXAMPLE_PATH.read_text(encoding="utf-8")
 
     def test_compose_file_exists_and_parses(self):
@@ -133,6 +136,27 @@ class GlitchtipComposeIntegrityTests(SimpleTestCase):
                 f"Got: {ports!r}"
             ),
         )
+
+    def test_otel_collector_enables_profile_signal_support(self):
+        col = self.compose["services"]["otel-collector"]
+        command = " ".join(str(part) for part in (col.get("command") or []))
+        self.assertIn("service.profilesSupport", command)
+
+    def test_otel_and_pyroscope_versions_support_profiles(self):
+        collector_image = self.compose["services"]["otel-collector"]["image"]
+        pyroscope_image = self.compose["services"]["pyroscope"]["image"]
+        self.assertNotIn(":0.106.", collector_image)
+        self.assertNotIn(":1.9.", pyroscope_image)
+
+    def test_otel_profiles_pipeline_exports_to_pyroscope(self):
+        exporters = self.otel_config.get("exporters") or {}
+        service = self.otel_config.get("service") or {}
+        profiles = (service.get("pipelines") or {}).get("profiles") or {}
+
+        self.assertEqual(exporters["otlp/pyroscope"]["endpoint"], "pyroscope:4040")
+        self.assertTrue(exporters["otlp/pyroscope"]["tls"]["insecure"])
+        self.assertIn("otlp", profiles.get("receivers") or [])
+        self.assertIn("otlp/pyroscope", profiles.get("exporters") or [])
 
     def test_glitchtip_depends_on_migrate(self):
         glitchtip = self.compose["services"]["glitchtip"]

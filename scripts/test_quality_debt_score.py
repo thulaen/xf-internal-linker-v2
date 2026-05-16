@@ -231,6 +231,38 @@ def test_save_baseline_and_build_text_index(tmp_path: Path, monkeypatch: pytest.
     assert qds.source_hash("scripts/a.py")
 
 
+def test_explicit_paths_do_not_load_all_tracked_sources(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "scripts" / "a.py"
+    source.parent.mkdir()
+    source.write_text("def ok():\n    return 1\n", encoding="utf-8")
+    monkeypatch.setattr(
+        qds,
+        "tracked_source_paths",
+        lambda _repo: (_ for _ in ()).throw(AssertionError("unrelated scan")),
+    )
+    monkeypatch.setattr(qds, "read_head_text", lambda _repo, _path: None)
+
+    decision = qds.evaluate_paths(tmp_path, ["scripts/a.py"], qds.default_baseline())
+
+    assert decision.file_scores[0].path == "scripts/a.py"
+
+
+def test_text_index_includes_direct_cpp_benchmark_support(tmp_path: Path) -> None:
+    source = tmp_path / "backend" / "extensions" / "newkernel.cpp"
+    benchmark = tmp_path / "backend" / "extensions" / "benchmarks" / "bench_newkernel.cpp"
+    source.parent.mkdir(parents=True)
+    benchmark.parent.mkdir()
+    source.write_text("int score(){ return 1; }\n", encoding="utf-8")
+    benchmark.write_text("void bench_newkernel() {}\n", encoding="utf-8")
+
+    index = qds.build_text_index(tmp_path, ["backend/extensions/newkernel.cpp"])
+
+    assert "backend/extensions/benchmarks/bench_newkernel.cpp" in index
+
+
 def test_gate_decision_branches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     source = tmp_path / "scripts/a.py"
     source.parent.mkdir()

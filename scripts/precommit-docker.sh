@@ -11,16 +11,19 @@ cd "$repo_root"
 
 bash scripts/run-tool-readiness.sh
 
-staged="$(git diff --cached --name-only --diff-filter=ACM || true)"
+staged="$(python scripts/commit_scope.py paths --mode staged || true)"
 if [[ -z "$staged" ]]; then
   echo "No staged files found."
   exit 0
 fi
 
-docker compose run --rm -T --no-deps backend sh -lc '
+printf "%s\n" "$staged" | xargs python .githooks/check-glossary.py
+
+docker compose run --rm -T --no-deps \
+  -e COMMIT_SCOPE_PATHS="$staged" \
+  backend sh -lc '
   cd /repo
-  python .githooks/check-glossary.py $(git diff --cached --name-only --diff-filter=ACM)
-  python scripts/verify_deep_links.py
+  python scripts/verify_deep_links.py --paths-env COMMIT_SCOPE_PATHS
 '
 
 if grep -E '^frontend/.*\.(ts|html|scss)$' <<<"$staged" >/dev/null; then

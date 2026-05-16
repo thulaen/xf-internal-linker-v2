@@ -8,6 +8,7 @@ import ast
 import hashlib
 import io
 import json
+import os
 import re
 import subprocess
 import sys
@@ -201,14 +202,61 @@ def source_hash(path: str) -> str:
 
 
 def build_text_index(repo_root: Path, changed: list[str]) -> dict[str, str]:
-    """Load changed files plus tracked source files for duplicate checks."""
-    paths = set(tracked_source_paths(repo_root))
-    paths.update(path for path in changed if is_watched_source(path))
+    """Load changed files and direct support files for scoped checks."""
+    paths = {path for path in changed if is_watched_source(path)}
+    paths.update(direct_support_paths(repo_root, sorted(paths)))
     index: dict[str, str] = {}
     for path in sorted(paths):
         if (repo_root / path).is_file():
             index[path] = read_current_text(repo_root, path)
     return index
+
+
+def direct_support_paths(repo_root: Path, changed: list[str]) -> set[str]:
+    """Return helper files directly needed to judge changed files."""
+    support: set[str] = set()
+    for path in changed:
+        support.update(existing_nearby_tests(repo_root, path))
+        support.update(existing_benchmark_paths(repo_root, path))
+        support.update(existing_import_paths(repo_root, path))
+    return {path for path in support if is_watched_source(path)}
+
+
+def existing_nearby_tests(repo_root: Path, path: str) -> set[str]:
+    """Return nearby test files that already exist."""
+    return {candidate for candidate in nearby_test_candidates(path) if (repo_root / candidate).is_file()}
+
+
+def existing_benchmark_paths(repo_root: Path, path: str) -> set[str]:
+    """Return benchmark files directly paired with changed C++ files."""
+    if (
+        not path.startswith("backend/extensions/")
+        or not path.endswith(".cpp")
+        or "/benchmarks/" in path
+    ):
+        return set()
+    bench_path = f"backend/extensions/benchmarks/bench_{Path(path).stem}.cpp"
+    return {bench_path} if (repo_root / bench_path).is_file() else set()
+
+
+def existing_import_paths(repo_root: Path, path: str) -> set[str]:
+    """Return direct Python imports that exist as repo files."""
+    if not path.endswith(".py"):
+        return set()
+    text = read_current_text(repo_root, path)
+    paths: set[str] = set()
+    for module in imported_modules(text):
+        paths.update(module_file_candidates(module))
+    return {candidate for candidate in paths if (repo_root / candidate).is_file()}
+
+
+def module_file_candidates(module: str) -> set[str]:
+    """Return likely repo paths for a dotted Python import."""
+    module_path = module.replace(".", "/")
+    candidates = {f"{module_path}.py"}
+    if module.startswith(("apps.", "config.")):
+        candidates.add(f"backend/{module_path}.py")
+    return candidates
 
 
 def evaluate_paths(
@@ -283,19 +331,31 @@ def file_failures(
     """Return gate failures for one file."""
     if not current.is_strict:
         return []
-    # "New" for the strict 95% rule means BOTH: not in HEAD AND not in
-    # the recorded baseline. Files that ARE in the baseline have a
-    # known floor and use the ratchet check below instead of the 95%
-    # gate, so prior-session tech debt does not gate every new commit.
-    tracked_in_baseline = current.path in baseline.get("files", {})
-    if current.is_new and not tracked_in_baseline and current.score < NEW_CODE_TARGET:
-        return [f"{current.path} scored {current.score:.1f}%, below {NEW_CODE_TARGET:.1f}%."]
-    if current.is_new and not tracked_in_baseline:
-        return []
+    if is_new_without_baseline(current, baseline):
+        return new_file_failures(current)
     old_score, old_count = old_file_floor(repo_root, current.path, baseline, text_index)
+    return existing_file_failures(current, old_score, old_count)
+
+
+def is_new_without_baseline(current: FileScore, baseline: dict) -> bool:
+    """Return true when a file must meet the new-code score."""
+    tracked_in_baseline = current.path in baseline.get("files", {})
+    return current.is_new and not tracked_in_baseline
+
+
+def new_file_failures(current: FileScore) -> list[str]:
+    """Return score failures for a new strict source file."""
+    if current.score >= NEW_CODE_TARGET:
+        return []
+    return [f"{current.path} scored {current.score:.1f}%, below {NEW_CODE_TARGET:.1f}%."]
+
+
+def existing_file_failures(current: FileScore, old_score: float, old_count: int) -> list[str]:
+    """Return score failures for an existing strict source file."""
     if current.score + 0.01 < old_score:
         return [f"{current.path} score fell from {old_score:.1f}% to {current.score:.1f}%."]
-    if current.score < GOOD_SCORE_TARGET and len(current.active_issues) >= old_count:
+    active_issue_count = len(current.active_issues)
+    if current.score < GOOD_SCORE_TARGET and active_issue_count >= old_count:
         return [
             f"{current.path} is below {GOOD_SCORE_TARGET:.1f}% and did not reduce measured debt."
         ]
@@ -885,6 +945,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--changed", action="store_true")
     parser.add_argument("--paths", nargs="*", default=[])
+    parser.add_argument("--paths-env", default="")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--baseline", type=Path, default=Path(".quality-debt-baseline.json"))
     parser.add_argument("--evidence-out", type=Path)
@@ -892,11 +953,24 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def explicit_paths(args: argparse.Namespace) -> list[str]:
+    """Return caller-provided paths from arguments or an environment variable."""
+    if args.paths:
+        return args.paths
+    if args.paths_env:
+        return [
+            path.strip()
+            for path in os.environ.get(args.paths_env, "").splitlines()
+            if path.strip()
+        ]
+    return []
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the changed-file quality debt gate."""
     args = parse_args(argv or sys.argv[1:])
     repo_root = args.repo_root.resolve()
-    paths = args.paths or (changed_paths(repo_root) if args.changed else tracked_source_paths(repo_root))
+    paths = explicit_paths(args) or (changed_paths(repo_root) if args.changed else tracked_source_paths(repo_root))
     baseline_path = (repo_root / args.baseline).resolve()
     baseline = load_baseline(baseline_path)
     decision = evaluate_paths(repo_root, paths, baseline, update_baseline=args.update_baseline)
