@@ -25,6 +25,7 @@ for unit tests so the test suite never needs the real services/ tree.
 
 from __future__ import annotations
 
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -59,50 +60,115 @@ def _list_service_folders(base: Path) -> list[Path]:
     return folders
 
 
+def _rel(folder: Path, path: Path) -> Path:
+    """Return path relative to REPO_ROOT when possible, else absolute."""
+    if path.is_absolute():
+        try:
+            return path.relative_to(REPO_ROOT)
+        except ValueError:
+            return path
+    return path
+
+
+def _has_compose_entry(name: str) -> bool:
+    """Return True if docker-compose.yml has a top-level service block for `name`."""
+    compose = REPO_ROOT / "docker-compose.yml"
+    if not compose.is_file():
+        return False
+    text = compose.read_text(encoding="utf-8", errors="replace")
+    pattern = re.compile(rf"^\s{{2}}{re.escape(name)}:\s*$", re.MULTILINE)
+    return bool(pattern.search(text))
+
+
+def _has_generated_stubs(folder: Path) -> bool:
+    """Return True if api/gen/*.pb.go exists for a service publishing api.proto.
+
+    A service publishing api.http.md (HTTP+JSON) does not need generated
+    Go stubs - that path is exempt from this check.
+    """
+    if not (folder / "api.proto").is_file():
+        return True  # HTTP+JSON contract - no stubs to generate.
+    gen_dir = folder / "api" / "gen"
+    if not gen_dir.is_dir():
+        return False
+    return any(gen_dir.glob("*.pb.go"))
+
+
 def scan_service_folder(folder: Path) -> list[Violation]:
-    """Return all contract / binary violations for one service folder."""
+    """Return all lifecycle violations for one service folder (Rule K).
+
+    Checks the six lifecycle items together:
+      1. go.mod (already required by _list_service_folders filter)
+      2. api.proto OR api.http.md (the public RPC contract)
+      3. cmd/<name>/main.go (the binary entry point)
+      4. Dockerfile (multi-stage scratch build)
+      5. Generated stubs in api/gen/ (only when api.proto exists)
+      6. docker-compose.yml service block (so the sidecar actually runs)
+    """
     violations: list[Violation] = []
     name = folder.name
-    rel = folder
-    if folder.is_absolute():
-        try:
-            rel = folder.relative_to(REPO_ROOT)
-        except ValueError:
-            # Test fixtures live outside REPO_ROOT — keep the absolute display.
-            rel = folder
+    rel = _rel(folder, folder)
+    # Item 1 - go.mod is the filter the caller already applied via
+    # _list_service_folders. We still defensively re-check.
+    if not (folder / "go.mod").is_file():
+        violations.append(Violation(
+            service=name, kind="go-mod",
+            message=f"{rel}/go.mod is missing - every services/<name>/ folder needs a Go module.",
+        ))
+    # Item 2 - contract.
     contract_paths = [folder / cf for cf in _CONTRACT_FILES]
     if not any(p.is_file() for p in contract_paths):
-        violations.append(
-            Violation(
-                service=name,
-                kind="contract",
-                message=(
-                    f"{rel}/ is missing both api.proto and api.http.md — every "
-                    f"Go service must publish ONE of api.proto (gRPC, preferred) "
-                    f"or api.http.md (HTTP+JSON) as its public RPC contract."
-                ),
-            )
-        )
+        violations.append(Violation(
+            service=name, kind="contract",
+            message=(
+                f"{rel}/ is missing both api.proto and api.http.md - every "
+                f"Go service must publish ONE of api.proto (gRPC, preferred) "
+                f"or api.http.md (HTTP+JSON) as its public RPC contract."
+            ),
+        ))
+    # Item 3 - binary entry point.
     binary_path = folder / _BINARY_ENTRY_TEMPLATE.format(name=name)
     if not binary_path.is_file():
-        rel_binary = binary_path
-        if binary_path.is_absolute():
-            try:
-                rel_binary = binary_path.relative_to(REPO_ROOT)
-            except ValueError:
-                rel_binary = binary_path
-        violations.append(
-            Violation(
-                service=name,
-                kind="binary",
-                message=(
-                    f"{rel_binary} is missing — library-only Go modules under "
-                    f"services/ are forbidden. Add a cmd/{name}/main.go binary "
-                    f"entry point so the service runs as a real sidecar, not "
-                    f"as a Python-loaded library."
-                ),
-            )
-        )
+        violations.append(Violation(
+            service=name, kind="binary",
+            message=(
+                f"{_rel(folder, binary_path)} is missing - library-only Go modules under "
+                f"services/ are forbidden. Add a cmd/{name}/main.go binary "
+                f"entry point so the service runs as a real sidecar, not "
+                f"as a Python-loaded library."
+            ),
+        ))
+    # Item 4 - Dockerfile.
+    dockerfile = folder / "Dockerfile"
+    if not dockerfile.is_file():
+        violations.append(Violation(
+            service=name, kind="dockerfile",
+            message=(
+                f"{_rel(folder, dockerfile)} is missing - every Go service ships a "
+                f"multi-stage scratch Dockerfile so the sidecar deploys as a small "
+                f"static binary. See services/streamd/Dockerfile for the template."
+            ),
+        ))
+    # Item 5 - generated stubs (only when api.proto exists).
+    if (folder / "api.proto").is_file() and not _has_generated_stubs(folder):
+        violations.append(Violation(
+            service=name, kind="stubs",
+            message=(
+                f"{rel}/api/gen/*.pb.go is missing - api.proto exists but no Go "
+                f"stubs have been generated. Run `make -C {rel} proto` inside "
+                f"the compiled-tools container and commit the generated stubs."
+            ),
+        ))
+    # Item 6 - docker-compose service block.
+    if not _has_compose_entry(name):
+        violations.append(Violation(
+            service=name, kind="compose",
+            message=(
+                f"docker-compose.yml has no `{name}:` service block - the sidecar "
+                f"binary exists but nothing schedules it. Add a service entry that "
+                f"builds {rel}/Dockerfile and mounts the {name}_sock named volume."
+            ),
+        ))
     return violations
 
 

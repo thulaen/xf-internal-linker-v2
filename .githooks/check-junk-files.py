@@ -41,6 +41,15 @@ _JUNK_PATTERNS = (
     re.compile(r"\.swp$"), re.compile(r"\.swo$"),
     re.compile(r"(^|/)tmp/"),
     re.compile(r"(^|/)docker-compose\.override\.yml$"),
+    # Rule L (2026-05-16) - build/test artefacts that pile up in
+    # services/<name>/ folders. report.json is go-mutesting output;
+    # *.cover.out is per-module coverage output; bench.txt is per-module
+    # benchmark output. All should live in /tmp paths or backend/reports/,
+    # never directly inside services/.
+    re.compile(r"(^|/)services/[^/]+/report\.json$"),
+    re.compile(r"(^|/)([^/]*\.)?cover\.out$"),
+    re.compile(r"(^|/)bench\.txt$"),
+    re.compile(r"(^|/)\.compile\.lock$"),
 )
 
 

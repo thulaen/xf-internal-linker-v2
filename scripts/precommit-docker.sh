@@ -50,6 +50,11 @@ run_hard_gate python .githooks/check-junk-files.py
 # Slice 1.5 — Go services tier boundary + contract enforcement.
 run_hard_gate python .githooks/check-no-cross-language-import.py
 run_hard_gate python .githooks/check-go-service-contract.py
+# Rules J + L (2026-05-16) — C++ kernel lifecycle invariant + stubs only
+# move when the contract moves. Both fire only when relevant paths are in
+# the staged diff so they cost nothing on unrelated commits.
+run_hard_gate python .githooks/check-cpp-lifecycle.py
+run_hard_gate python .githooks/check-stubs-not-regenerated.py
 
 if grep -E '^backend/.*\.py$|^scripts/.*\.py$' <<<"$staged" >/dev/null; then
   run_hard_gate python .githooks/check-mutable-defaults.py

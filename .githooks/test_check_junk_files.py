@@ -26,6 +26,34 @@ class CheckJunkFilesTests(unittest.TestCase):
     def setUpClass(cls):
         cls.hook = _load_hook()
 
+    def test_services_report_json_is_blocked(self):
+        """Rule L - go-mutesting writes services/<name>/report.json which
+        is a build artefact, not source."""
+        with mock.patch.object(self.hook, "_staged_files",
+                               return_value=["services/streamd/report.json"]), \
+             mock.patch.object(sys, "stderr", StringIO()) as err:
+            self.assertEqual(self.hook.main(), 2)
+            self.assertIn("services/streamd/report.json", err.getvalue())
+
+    def test_cover_out_files_are_blocked(self):
+        with mock.patch.object(self.hook, "_staged_files",
+                               return_value=["services/streamd/internal/broker/cover.out"]), \
+             mock.patch.object(sys, "stderr", StringIO()):
+            self.assertEqual(self.hook.main(), 2)
+
+    def test_bench_txt_is_blocked(self):
+        with mock.patch.object(self.hook, "_staged_files",
+                               return_value=["services/streamd/bench.txt"]), \
+             mock.patch.object(sys, "stderr", StringIO()):
+            self.assertEqual(self.hook.main(), 2)
+
+    def test_compile_lock_is_blocked(self):
+        """The /opt/xf/compiled/.compile.lock file should never reach git."""
+        with mock.patch.object(self.hook, "_staged_files",
+                               return_value=[".compile.lock"]), \
+             mock.patch.object(sys, "stderr", StringIO()):
+            self.assertEqual(self.hook.main(), 2)
+
     def test_clean_passes(self):
         with mock.patch.object(self.hook, "_staged_files",
                                return_value=["backend/apps/x.py"]):

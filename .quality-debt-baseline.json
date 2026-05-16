@@ -5,6 +5,11 @@
       "score": 95.0,
       "source_hash": "71fc20e26cd2bb7d26169e9a8361389d9a0253f08da86f622f7ab8bc4dff0eac"
     },
+    ".githooks/_hook_helpers.py": {
+      "issue_count": 1,
+      "score": 95.0,
+      "source_hash": "ce63b02f20fc2f1930c5f7481fa38ffa122fa2fe25d3f12f29743569e3768691"
+    },
     ".githooks/_modular_monolith_constants.py": {
       "issue_count": 1,
       "score": 95.0,
@@ -29,6 +34,11 @@
       "issue_count": 6,
       "score": 55.0,
       "source_hash": "4efddfb0d475686e289d564238ccab8c6285846e1d6fa414c76b0e132c43703b"
+    },
+    ".githooks/check-cpp-lifecycle.py": {
+      "issue_count": 4,
+      "score": 60.0,
+      "source_hash": "33f4a5b53805c34486d406fb0e3c4683fd2fc6b68033c013313ac09973e1c48c"
     },
     ".githooks/check-debug-code.py": {
       "issue_count": 10,
@@ -81,8 +91,8 @@
       "source_hash": "42bf3a286da357f31c4877512fa53070cc9fbadd6e223a35b4612cd41dc2fa4d"
     },
     ".githooks/check-go-service-contract.py": {
-      "issue_count": 1,
-      "score": 90.0,
+      "issue_count": 4,
+      "score": 75.0,
       "source_hash": "c969a8b2c4ea03aa3ae0bb2d7bd5dd36bb27f94d5c3d352ce4735f4e7302d5a5"
     },
     ".githooks/check-junk-files.py": {
@@ -169,6 +179,11 @@
       "issue_count": 3,
       "score": 70.0,
       "source_hash": "06f9ed2f97b24cc44f7cf51f14a5d81eb5f6f4e19aeb93c89f23568bc3bbff92"
+    },
+    ".githooks/check-stubs-not-regenerated.py": {
+      "issue_count": 4,
+      "score": 60.0,
+      "source_hash": "9116e914604d0537bcdca0860c9fb64a7c4bc8a977bfe36c19d2528f1ea995ef"
     },
     ".githooks/check-tdd-cycle.py": {
       "issue_count": 10,
@@ -2541,8 +2556,8 @@
       "source_hash": "f3d28172eeadf21c8bbc8ee90b5b7e645245b7ceff9daab26d9df74f59864820"
     },
     "backend/apps/realtime/_streamd_client.py": {
-      "issue_count": 11,
-      "score": 5.0,
+      "issue_count": 9,
+      "score": 15.0,
       "source_hash": "5a53ec8bb345f870a96c04115a03d4ea0e8526d86f2ed31c99a8ff6e063addb0"
     },
     "backend/apps/realtime/_streamd_pb2/__init__.py": {
