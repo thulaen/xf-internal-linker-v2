@@ -176,6 +176,8 @@ A local-first application that suggests highly contextual internal links for Xen
 
 8. **Designed for growth.** The architecture supports upgrading to Elasticsearch and multi-user access. Large LLM support (Phase 24) is deferred due to significant hardware and storage requirements.
 
+9. **Internal style: modular monolith with `api.py` boundaries.** The runtime stays as one Django container plus its Celery workers (see the System Diagram above). Inside that one runtime, the Python code under `backend/` is split into nine named modules — `platform`, `content`, `sources`, `pipeline`, `suggestions`, `analytics`, `graph`, `operations`, `governance` — each exposing a single `api.py` as its public surface. Cross-module Python imports go through `api.py` only; imports flow downward across three layers; cross-module Postgres foreign keys remain allowed. No event bus is introduced this round. The full architecture description, the dependency direction, the slice ledger, and the five Architecture Decision Records live in [`docs/MODULAR-MONOLITH.md`](MODULAR-MONOLITH.md) and [`docs/specs/fr-modular-monolith.md`](specs/fr-modular-monolith.md).
+
 ---
 
 ## 4. Tech Stack

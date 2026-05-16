@@ -162,6 +162,14 @@ This rule is **non-negotiable** and applies to every response, commit message, P
 
 See [`PLAIN-ENGLISH-RULE.md`](PLAIN-ENGLISH-RULE.md) for the full glossary of plain-English substitutes for common technical terms.
 
+### Modular Monolith
+
+The Django backend is one deployable unit split internally into nine named modules — `platform`, `content`, `sources`, `pipeline`, `suggestions`, `analytics`, `graph`, `operations`, `governance`. Every module declares its public surface in a single `api.py` at its root. Cross-module Python imports go through `api.py` only; reaching into private files is forbidden. Imports flow downward only — Layer 1 (`platform`, `content`, `sources`) → Layer 2 (`pipeline`, `suggestions`, `analytics`, `graph`) → Layer 3 (`operations`, `governance`).
+
+Before changing any backend code, read [`docs/MODULAR-MONOLITH.md`](docs/MODULAR-MONOLITH.md) for the module map, the public-interface convention, the boundary rule, the dependency direction, the test plan, and the slice ledger. The source-backed spec lives at [`docs/specs/fr-modular-monolith.md`](docs/specs/fr-modular-monolith.md). The five Architecture Decision Records (modular-monolith style, `api.py` convention, cross-module FK rule, no event bus yet, shims removed in slice 10) live under [`docs/adr/`](docs/adr/).
+
+The rollout happens across ten slices. Slice 1 (this one) lands the foundation documents. Slice 2 wires `import-linter` as the dependency-direction enforcer. Slices 3-9 move one module at a time into the `api.py` shape. Slice 10 deletes the shims. Every code-changing slice carries `[SPEC PROOF]`, `[BDD PROOF]`, `[TDD PROOF]`, `[SPEC CODE REVIEW]` referencing `docs/specs/fr-modular-monolith.md`.
+
 ### MUST TELL THE USER IN CHAT at session start
 
 Before any other work — before reading further files, before writing code, before answering the user's actual request — every AI must post this 4-part **Session Start Snapshot** in chat, in plain English. This applies to Claude, Codex, Gemini, and any future agent.

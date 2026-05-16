@@ -373,6 +373,23 @@ When you must mention a technical concept, use the plain-English version from th
 | the required handoff marker for code-changing sessions; it records that guidelines, tests, coverage, mutation tests, and check setup all passed before commit | QUALITY GATE RESULT marker |
 | the quality-result field that says the required local tools, commands, containers, and test setup all ran correctly | check_setup |
 
+| one deployable backend split internally into named modules with explicit public interfaces; the runtime stays as one process / one database / one deploy, but the Python code inside is grouped by job so each group has a clear public surface and a clear import rule. See `docs/MODULAR-MONOLITH.md` | modular monolith |
+| a named folder under `backend/apps/<module>/` whose insides are private; other modules reach into it only through the single `api.py` file at the module root. Renamed concept — not the same as a Python module / `import` target | module |
+| the single `api.py` file every module exposes; it re-exports the public records and verbs; cross-module imports go through `api.py` and nothing else | public interface |
+| the rule "no cross-module Python import except through `api.py`" — slice 2 enforces it via `import-linter` in the pre-commit hook | boundary rule |
+| the allowed flow of imports between modules — Layer 1 (`platform`, `content`, `sources`) → Layer 2 (`pipeline`, `suggestions`, `analytics`, `graph`) → Layer 3 (`operations`, `governance`); imports go downward only, never upward and never sideways within a layer | dependency direction |
+| Architecture Decision Record — a short Markdown file at `docs/adr/<NNNN>-<slug>.md` that captures one decision, its context, its alternatives, its consequences, and its references. Nygard's template. See `docs/adr/0001-modular-monolith.md` for the first example | ADR |
+| a patent / DOI / RFC / stable URL listed in a spec to back a default value or algorithm choice; required by `CITATION-RULE.md`. Registered through `manage.py cite_spec` so `CitationCache` resolves it in sub-millisecond | citation |
+| a small declaration file inside a module that lists what the module owns (later slices) — schema, public records, tables, dependencies, open questions. Today the per-module stubs at `docs/modules/<name>.md` play this role | manifest |
+| a thin temporary file kept during a refactor so old import paths keep working until the planned removal slice; every shim file in this project carries the comment `# xf-shim: removed-in-slice-10 -- see ADR 0005` and is deleted in slice 10 | shim |
+| marking a public API as scheduled for removal, with a date or slice number; the removal target is named in the deprecation notice so the schedule is visible | deprecation |
+| a test that locks in known-good output by comparing against a saved snapshot — the snapshot is the "gold" reference; later runs compare current output against the snapshot and fail when the diff is unexpected | golden test |
+| a runnable check that proves an architecture rule still holds — examples: "no module reaches into another module's private files," "no Python file exceeds 1500 lines," "every public function has a type signature." The slice-2 `import-linter` check is the first fitness function in this codebase | fitness function |
+| a translation layer between two modules so neither leaks its internal model into the other — the layer's job is to convert between the two sides' shapes and absorb the difference, preventing a change on one side from forcing a change on the other | anti-corruption layer |
+| a small standalone program written in Go that runs alongside the Django app and handles a workload Go is faster at (mostly concurrent network I/O, long-running daemons, CLI binaries with cold-start sensitivity); it is a peer module to the nine Django modules, not a microservice | Go service |
+| a process that runs next to the main app and shares its deployment; not a separate product, not a separate codebase split, not a microservice; the Go services in this project are sidecars | sidecar |
+| the way Python code talks to a Go service — either a gRPC contract file (`api.proto`) or a documented HTTP+JSON contract (`api.http.md`); the only legal way the two languages communicate in this project; direct cross-language imports are forbidden | cross-language RPC boundary |
+
 If a term you need is not in this table, define it yourself in parentheses the first time you use it.
 
 ---
