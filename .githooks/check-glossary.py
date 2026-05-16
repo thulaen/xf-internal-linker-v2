@@ -336,6 +336,7 @@ SKIP_FILE_PATTERNS = (
     re.compile(r"^backend/.*/migrations/"),
     re.compile(r"^docs/specs/"),  # specs have their own citation rule
     re.compile(r"^docs/reports/"),  # report registry handles its own jargon
+    re.compile(r"^docs/CPP-ROADMAP\.md$"),  # parked-kernel namespace: OPT-XX / META-XX / FR-XX IDs are kernel codenames, not new acronyms for the glossary; each parked tuple links back to a spec entry where the real citation lives
     re.compile(r"^GLOSSARY-RULE\.md$"),  # the rule doc itself uses acronyms as examples
     re.compile(r"^PLAIN-ENGLISH-RULE\.md$"),  # the glossary itself
     re.compile(r"^AGENT-HANDOFF\.md$"),  # session-log artifact, not user-facing prose; bundle content hashes (e.g. main-LKCJGWJN.js) and ALL-CAPS narrative emphasis would otherwise force per-session allowlist churn

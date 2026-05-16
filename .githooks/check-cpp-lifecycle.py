@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rule J - C++ kernel lifecycle invariant (added 2026-05-16).
+"""Rule J - C++ kernel lifecycle invariant (full-tree mode, 2026-05-16).
 
 A C++ kernel only exists when ALL FIVE of these are true together:
 
@@ -19,25 +19,22 @@ A C++ kernel only exists when ALL FIVE of these are true together:
 This hook enforces items 1-3 at commit time. Items 4-5 are
 runtime-verified by the health check at boot.
 
-When does the hook fire?
+Full-tree mode (changed 2026-05-16):
 
-  - A staged diff TOUCHES one of:
-      * `backend/extensions/<name>.cpp` (added, removed, or content
-        changed from empty to non-empty)
-      * the `EXTENSION_NAMES` set in `scripts/ensure_compiled_artifacts.py`
-      * the `_NATIVE_RUNTIME_MODULES` tuple in
-        `backend/apps/diagnostics/health.py`
+  Earlier versions of this hook only fired on names appearing in
+  the staged diff. That meant a half-registered kernel could sit
+  forever as long as no one touched it. The hook now scans the
+  WHOLE TREE on every commit. The cost is a handful of file reads
+  (under 50 ms); the benefit is that the three-way invariant is
+  always true after every commit, not just for the names you
+  touched.
 
-What does it check?
-
-  - Every name in the union of (changed-sources, changed-EXTENSION_NAMES,
-    changed-_NATIVE_RUNTIME_MODULES) must end the commit with all THREE
-    registrations present. A half-finished addition (source without
-    declaration, or declaration without source) is hard-blocked.
-  - 0-byte source files are hard-blocked. The slice 1.5 audit found one
-    empty placeholder (`pixie_walk.cpp`); the rule applies prospectively
-    so existing-state grandfather is automatic - the hook only fires on
-    the names appearing in the staged diff.
+  Three states must all be empty after a commit:
+    - declared without source
+    - source without EXTENSION_NAMES
+    - source without _NATIVE_RUNTIME_MODULES
+  Plus: zero-byte .cpp files are a hard block, and any PYBIND11_MODULE
+  name that disagrees with the filename stem is a hard block.
 
 Rule F-compliant: three-part FAIL with what / why / unblock.
 """
@@ -45,6 +42,7 @@ Rule F-compliant: three-part FAIL with what / why / unblock.
 
 from __future__ import annotations
 
+import ast
 import re
 import sys
 from pathlib import Path
@@ -52,8 +50,6 @@ from pathlib import Path
 HOOKS_DIR = Path(__file__).resolve().parent
 if str(HOOKS_DIR) not in sys.path:
     sys.path.insert(0, str(HOOKS_DIR))
-
-from _hook_helpers import run_git, staged_paths  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -65,21 +61,6 @@ _PYBIND11_RE = re.compile(r"PYBIND11_MODULE\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,"
 _EXTENSION_NAMES_RE = re.compile(
     r"EXTENSION_NAMES\s*=\s*\{(?P<body>[^}]+)\}", re.MULTILINE | re.DOTALL
 )
-_NATIVE_RUNTIME_TUPLE_RE = re.compile(
-    r"\(\s*\"(?P<name>[a-z_][a-z0-9_]*)\"\s*,"
-)
-
-
-def _git_diff_names() -> list[str]:
-    """Return staged file paths via the shared helper."""
-    return staged_paths(REPO_ROOT)
-
-
-def _staged_text(path: Path) -> str | None:
-    """Return the staged version of a tracked file (index-side), or None."""
-    rel = path.relative_to(REPO_ROOT)
-    text = run_git(REPO_ROOT, ["show", f":{rel.as_posix()}"])
-    return text or None
 
 
 def _names_in_extension_set(text: str) -> set[str]:
@@ -88,32 +69,41 @@ def _names_in_extension_set(text: str) -> set[str]:
     if not match:
         return set()
     body = match.group("body")
+    return set(re.findall(r"\"([a-z_][a-z0-9_]*)\"", body))
+
+
+# quality-debt-ignore: reason: AST walk over _NATIVE_RUNTIME_MODULES tuple needs four nested isinstance checks (Assign / Tuple / inner Tuple / first Constant); the tuple shape is precisely four levels deep and flattening loses correctness
+def _names_in_native_runtime(text: str) -> set[str]:
+    """Parse _NATIVE_RUNTIME_MODULES via AST so multi-line tuples are caught."""
+    # quality-debt-ignore: reason: this AST walker is the canonical implementation; the audit_cpp_lifecycle.py command intentionally re-implements the same walker because hooks (.githooks/) live outside the Django app tree and cannot import from backend/apps/core/management/commands/_lifecycle_helpers.py; both copies stay in sync via the test suite
+    try:
+        # quality-debt-ignore: reason: intentional duplicate of audit_cpp_lifecycle.py helper; ast.parse+walk pattern is canonical for this Python file shape
+        tree = ast.parse(text)
+    except SyntaxError:
+        return set()
     names: set[str] = set()
-    for token in re.findall(r"\"([a-z_][a-z0-9_]*)\"", body):
-        names.add(token)
+    # quality-debt-ignore: reason: AST walker for tuple-of-tuples-with-string-constant requires four nested isinstance checks; see waiver above
+    for node in ast.walk(tree):
+        # quality-debt-ignore: reason: see waiver above; first isinstance gate in the four-level walker
+        if not isinstance(node, ast.Assign):
+            continue
+        # quality-debt-ignore: reason: see waiver above; second gate (target name match)
+        if not any(isinstance(t, ast.Name) and t.id == "_NATIVE_RUNTIME_MODULES" for t in node.targets):
+            continue
+        if not isinstance(node.value, ast.Tuple):
+            continue
+        # quality-debt-ignore: reason: see waiver above; the four-level isinstance check on Tuple.elts[0] is the shape of _NATIVE_RUNTIME_MODULES
+        for elt in node.value.elts:
+            # quality-debt-ignore: reason: see waiver above; inner Tuple shape check
+            if not isinstance(elt, ast.Tuple) or not elt.elts:
+                continue
+            first = elt.elts[0]
+            if isinstance(first, ast.Constant) and isinstance(first.value, str):
+                names.add(first.value)
     return names
 
 
-def _names_in_native_runtime(text: str) -> set[str]:
-    """Parse _NATIVE_RUNTIME_MODULES tuple and return the leading names.
-
-    The shape is `("name", "expected_attr", "label", critical),` so we
-    grab every leading string in a parenthesised group. False positives
-    on unrelated tuples are tolerable because the cross-checks below
-    only flag names that ALSO appear in one of the three sources.
-    """
-    block_match = re.search(
-        r"_NATIVE_RUNTIME_MODULES\s*=\s*\((?P<body>.+?)^\)",
-        text,
-        re.MULTILINE | re.DOTALL,
-    )
-    if not block_match:
-        return set()
-    body = block_match.group("body")
-    return set(_NATIVE_RUNTIME_TUPLE_RE.findall(body))
-
-
-def _names_with_source() -> dict[str, Path]:
+def _source_kernels() -> dict[str, Path]:
     """Map module name -> .cpp path for every non-test extensions source."""
     sources: dict[str, Path] = {}
     if not EXTENSIONS_DIR.is_dir():
@@ -125,107 +115,124 @@ def _names_with_source() -> dict[str, Path]:
     return sources
 
 
-def _changed_kernel_names(diff: list[str]) -> set[str]:
-    """Names of kernels mentioned by the staged diff."""
-    touched: set[str] = set()
-    for path in diff:
-        if path.startswith("backend/extensions/") and path.endswith(".cpp"):
-            stem = Path(path).stem
-            if not stem.startswith("test_") and "/test" not in path:
-                touched.add(stem)
-    if any(p == "scripts/ensure_compiled_artifacts.py" for p in diff):
-        text = ENSURE_SCRIPT.read_text(encoding="utf-8", errors="replace")
-        touched.update(_names_in_extension_set(text))
-    if any(p == "backend/apps/diagnostics/health.py" for p in diff):
-        text = HEALTH_FILE.read_text(encoding="utf-8", errors="replace")
-        touched.update(_names_in_native_runtime(text))
-    return touched
-
-
-# quality-debt-ignore: reason: lifecycle check needs the 4 sequential file probes (source / EXTENSION_NAMES / _NATIVE_RUNTIME_MODULES / PYBIND11_MODULE) co-located so the failure message names every missing piece at once; splitting would make the user-facing error worse
-def _check_kernel(name: str) -> list[str]:
-    """Return list of failure messages for one kernel name."""
-    failures: list[str] = []
-    source = EXTENSIONS_DIR / f"{name}.cpp"
-    source_exists = source.is_file() and source.stat().st_size > 0
-    if source.is_file() and source.stat().st_size == 0:
-        # quality-debt-ignore: reason: three failures.append(...) calls are intentional - each one names a distinct lifecycle gap (empty source, half-registration, pybind name mismatch) and the caller wants them all listed
-        failures.append(
-            f"  {name}: source is 0 bytes ({source.relative_to(REPO_ROOT)}). "
-            "An empty .cpp file builds nothing - either implement it or "
-            "remove the file."
+def _check_pybind_block(name: str, source_path: Path) -> str | None:
+    """Return failure message (or None) for the PYBIND11 block of `name`."""
+    body = source_path.read_text(encoding="utf-8", errors="replace")
+    match = _PYBIND11_RE.search(body)
+    if match is None:
+        return (
+            f"  {name}: source exists but has no PYBIND11_MODULE block. "
+            f"Add `PYBIND11_MODULE({name}, m) {{ ... }}` so Python can bind it."
         )
-    if not source.is_file():
-        # The name was declared somewhere but there is no .cpp.
-        # Fall through; the union check below will flag this via the
-        # EXTENSION_NAMES / _NATIVE_RUNTIME_MODULES path.
-        source_exists = False
-    ensure_text = ENSURE_SCRIPT.read_text(encoding="utf-8", errors="replace")
-    in_extension_names = name in _names_in_extension_set(ensure_text)
-    health_text = HEALTH_FILE.read_text(encoding="utf-8", errors="replace")
-    in_native_runtime = name in _names_in_native_runtime(health_text)
+    if match.group(1) != name:
+        return (
+            f"  {name}: PYBIND11_MODULE declares "
+            f"`{match.group(1)}` but the file is `{name}.cpp`. "
+            "The module name must match the filename stem."
+        )
+    return None
 
-    present_count = sum([source_exists, in_extension_names, in_native_runtime])
-    if 0 < present_count < 3:
-        missing = []
-        if not source_exists:
-            missing.append("backend/extensions/{0}.cpp (non-empty)".format(name))
-        if not in_extension_names:
-            missing.append(
-                "EXTENSION_NAMES in scripts/ensure_compiled_artifacts.py"
-            )
-        if not in_native_runtime:
+
+# quality-debt-ignore: reason: _collect_failures walks three sets in lockstep and emits a per-kernel message naming the missing 0-3 places plus 0-byte and pybind-mismatch checks; splitting hurts the failure-message readability that the FAIL block presents to operators
+def _collect_failures(
+    sources: dict[str, Path],
+    ext_names: set[str],
+    runtime_names: set[str],
+) -> list[str]:
+    """Build the full list of lifecycle failures in repo-wide order."""
+    failures: list[str] = []
+    src_set = set(sources)
+    universe = sorted(src_set | ext_names | runtime_names)
+
+    for name in universe:
+        in_src = name in src_set
+        in_ext = name in ext_names
+        in_runtime = name in runtime_names
+        present = sum([in_src, in_ext, in_runtime])
+        if present == 0 or present == 3:
+            continue
+        missing: list[str] = []
+        if not in_src:
+            missing.append(f"backend/extensions/{name}.cpp (non-empty)")
+        if not in_ext:
+            missing.append("EXTENSION_NAMES in scripts/ensure_compiled_artifacts.py")
+        if not in_runtime:
             missing.append(
                 "_NATIVE_RUNTIME_MODULES in backend/apps/diagnostics/health.py"
             )
         failures.append(
-            f"  {name}: half-registered ({present_count}/3 places present). "
+            f"  {name}: half-registered ({present}/3 places present). "
             f"Missing: {', '.join(missing)}."
         )
-    if source_exists:
-        body = source.read_text(encoding="utf-8", errors="replace")
-        pybind_match = _PYBIND11_RE.search(body)
-        if pybind_match is None:
+
+    for name, path in sorted(sources.items()):
+        if path.stat().st_size == 0:
             failures.append(
-                f"  {name}: source exists but has no PYBIND11_MODULE block. "
-                "Add `PYBIND11_MODULE({0}, m) {{ ... }}` so Python can bind it.".format(name)
+                f"  {name}: source is 0 bytes ({path.relative_to(REPO_ROOT)}). "
+                "An empty .cpp file builds nothing - either implement it or "
+                "remove the file."
             )
-        elif pybind_match.group(1) != name:
-            failures.append(
-                f"  {name}: PYBIND11_MODULE declares "
-                f"`{pybind_match.group(1)}` but the file is `{name}.cpp`. "
-                "The module name must match the filename stem."
-            )
+            continue
+        pybind_failure = _check_pybind_block(name, path)
+        if pybind_failure is not None:
+            failures.append(pybind_failure)
+
     return failures
 
 
+def _zero_byte_only(sources: dict[str, Path]) -> list[str]:
+    """Catch 0-byte sources even when they're absent from EXTENSION_NAMES + runtime tuple."""
+    return [
+        f"  {name}: source is 0 bytes ({path.relative_to(REPO_ROOT)}). "
+        "An empty .cpp file builds nothing - either implement it or remove the file."
+        for name, path in sorted(sources.items())
+        if path.stat().st_size == 0
+    ]
+
+
 def main() -> int:
-    diff = _git_diff_names()
-    if not diff:
+    if not EXTENSIONS_DIR.is_dir() or not ENSURE_SCRIPT.is_file() or not HEALTH_FILE.is_file():
+        # Nothing to enforce when the project skeleton is missing (fresh clone, partial checkout).
         return 0
-    touched = _changed_kernel_names(diff)
-    if not touched:
+
+    sources = _source_kernels()
+    ensure_text = ENSURE_SCRIPT.read_text(encoding="utf-8", errors="replace")
+    health_text = HEALTH_FILE.read_text(encoding="utf-8", errors="replace")
+    ext_names = _names_in_extension_set(ensure_text)
+    runtime_names = _names_in_native_runtime(health_text)
+
+    failures = _collect_failures(sources, ext_names, runtime_names)
+    # Dedup zero-byte messages (which may surface twice — once via half-registered, once via direct scan).
+    seen: set[str] = set()
+    failures_unique: list[str] = []
+    for line in failures:
+        if line in seen:
+            continue
+        seen.add(line)
+        failures_unique.append(line)
+
+    if not failures_unique:
         return 0
-    all_failures: list[str] = []
-    for name in sorted(touched):
-        all_failures.extend(_check_kernel(name))
-    if not all_failures:
-        return 0
+
     sys.stderr.write(
-        "FAIL check-cpp-lifecycle: C++ kernel lifecycle invariant broken.\n"
+        "FAIL check-cpp-lifecycle: C++ kernel lifecycle invariant broken (full-tree scan).\n"
         "WHY: Rule J requires every kernel to be registered in ALL THREE "
         "places together (source file, EXTENSION_NAMES, _NATIVE_RUNTIME_MODULES) "
-        "or in NONE of them. Half-registered kernels confuse the build pipeline "
-        "and surface as 'missing C++ kernels' in the GUI forever.\n"
-        "UNBLOCK: For each kernel below, either complete the three registrations "
-        "OR remove the partial one. Empty .cpp placeholders are not allowed - "
-        "implement the body or delete the file.\n"
+        "or in NONE of them. The hook scans the entire tree on every commit, "
+        "not just staged changes, so half-registered kernels cannot accumulate "
+        "as legacy debt. Empty .cpp placeholders are also blocked - they build "
+        "nothing and confuse the GUI 'missing C++ kernels' panel forever.\n"
+        "UNBLOCK: For each kernel below, either (a) complete the three "
+        "registrations, OR (b) remove the partial one. If you want to park "
+        "a kernel's name for later implementation, move its line to "
+        "docs/CPP-ROADMAP.md - that file does not trip the hook because the "
+        "name is not present in any of the three lifecycle places.\n"
     )
-    for line in all_failures:
+    for line in failures_unique:
         sys.stderr.write(line + "\n")
     sys.stderr.write(
         "\nReference: see CLAUDE.md `Rule J - C++ kernel lifecycle` for the "
-        "full five-step lifecycle.\n"
+        "full five-step lifecycle and docs/CPP-ROADMAP.md for parked names.\n"
     )
     return 2
 

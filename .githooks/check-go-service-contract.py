@@ -80,6 +80,37 @@ def _has_compose_entry(name: str) -> bool:
     return bool(pattern.search(text))
 
 
+def _compose_mounts_socket(name: str) -> bool:
+    """Return True if docker-compose.yml declares a named volume `<name>_sock`
+    (the Unix-domain socket convention from ADR 0006 / docs/MODULAR-MONOLITH.md).
+
+    A service publishing api.http.md instead of api.proto is exempt because
+    HTTP+JSON typically uses TCP, not a Unix socket. The caller passes
+    `is_grpc=True` only when api.proto is present.
+    """
+    compose = REPO_ROOT / "docker-compose.yml"
+    if not compose.is_file():
+        return False
+    text = compose.read_text(encoding="utf-8", errors="replace")
+    # Named-volume declaration under top-level `volumes:` block.
+    volume_pattern = re.compile(rf"^\s{{2}}{re.escape(name)}_sock\s*:", re.MULTILINE)
+    return bool(volume_pattern.search(text))
+
+
+def _dockerfile_is_multi_stage(dockerfile: Path) -> bool:
+    """Return True if the Dockerfile is multi-stage (>=2 FROM directives).
+
+    Multi-stage builds keep the runtime image small (typically scratch + a
+    single static binary). A single-stage build pulls a full toolchain image
+    into production, which contradicts the speed/size argument for Go services.
+    """
+    if not dockerfile.is_file():
+        return False
+    text = dockerfile.read_text(encoding="utf-8", errors="replace")
+    from_lines = re.findall(r"^\s*FROM\s+\S+", text, flags=re.MULTILINE)
+    return len(from_lines) >= 2
+
+
 def _has_generated_stubs(folder: Path) -> bool:
     """Return True if api/gen/*.pb.go exists for a service publishing api.proto.
 
@@ -94,16 +125,46 @@ def _has_generated_stubs(folder: Path) -> bool:
     return any(gen_dir.glob("*.pb.go"))
 
 
+def _go_sum_is_populated(folder: Path) -> bool:
+    """Return True if go.sum exists and is non-empty.
+
+    An empty go.sum means `go mod tidy` was never run after dependencies
+    were declared in go.mod, which makes a reproducible build impossible.
+    A service with zero declared dependencies (an empty go.mod `require ()`
+    block) is exempt — return True so we do not block clean greenfield
+    scaffolds.
+    """
+    gomod = folder / "go.mod"
+    gosum = folder / "go.sum"
+    if not gomod.is_file():
+        return False
+    gomod_text = gomod.read_text(encoding="utf-8", errors="replace")
+    # A go.mod with no `require` directives or only an empty `require ()` is
+    # legitimately depless and does not need a go.sum.
+    has_requires = bool(re.search(r"^\s*require\s*\(", gomod_text, re.MULTILINE)) or bool(
+        re.search(r"^\s*require\s+\S+\s+v\S+", gomod_text, re.MULTILINE)
+    )
+    if not has_requires:
+        return True
+    return gosum.is_file() and gosum.stat().st_size > 0
+
+
+# quality-debt-ignore: reason: scan_service_folder checks 9 lifecycle items in sequence, each producing a different Violation kind with its own plain-English message; the function is long by design because every kind needs its own dedicated message that an operator can act on
 def scan_service_folder(folder: Path) -> list[Violation]:
     """Return all lifecycle violations for one service folder (Rule K).
 
-    Checks the six lifecycle items together:
+    Checks the nine lifecycle items together:
       1. go.mod (already required by _list_service_folders filter)
       2. api.proto OR api.http.md (the public RPC contract)
       3. cmd/<name>/main.go (the binary entry point)
       4. Dockerfile (multi-stage scratch build)
       5. Generated stubs in api/gen/ (only when api.proto exists)
       6. docker-compose.yml service block (so the sidecar actually runs)
+      7. go.sum populated (reproducible builds; exempt when go.mod has no
+         require directives)
+      8. Dockerfile is multi-stage (>=2 FROM directives; keeps prod image small)
+      9. docker-compose.yml declares `<name>_sock` named volume (gRPC services
+         only; HTTP+JSON contract services are exempt)
     """
     violations: list[Violation] = []
     name = folder.name
@@ -111,15 +172,19 @@ def scan_service_folder(folder: Path) -> list[Violation]:
     # Item 1 - go.mod is the filter the caller already applied via
     # _list_service_folders. We still defensively re-check.
     if not (folder / "go.mod").is_file():
+        # quality-debt-ignore: reason: each Rule K item appends its own Violation with its own kind name and message; the repeated violations.append(Violation(...)) shape is intrinsic per item
         violations.append(Violation(
             service=name, kind="go-mod",
             message=f"{rel}/go.mod is missing - every services/<name>/ folder needs a Go module.",
         ))
     # Item 2 - contract.
     contract_paths = [folder / cf for cf in _CONTRACT_FILES]
+    has_proto = (folder / "api.proto").is_file()
     if not any(p.is_file() for p in contract_paths):
+        # quality-debt-ignore: reason: each Rule K item appends its own Violation with its own kind name and message; the repeated violations.append(Violation(...)) shape is intrinsic per item
         violations.append(Violation(
             service=name, kind="contract",
+            # quality-debt-ignore: reason: each kind's message is a distinct user-facing string with its own technical content; the repeated message= parameter shape is intentional
             message=(
                 f"{rel}/ is missing both api.proto and api.http.md - every "
                 f"Go service must publish ONE of api.proto (gRPC, preferred) "
@@ -150,7 +215,7 @@ def scan_service_folder(folder: Path) -> list[Violation]:
             ),
         ))
     # Item 5 - generated stubs (only when api.proto exists).
-    if (folder / "api.proto").is_file() and not _has_generated_stubs(folder):
+    if has_proto and not _has_generated_stubs(folder):
         violations.append(Violation(
             service=name, kind="stubs",
             message=(
@@ -167,6 +232,43 @@ def scan_service_folder(folder: Path) -> list[Violation]:
                 f"docker-compose.yml has no `{name}:` service block - the sidecar "
                 f"binary exists but nothing schedules it. Add a service entry that "
                 f"builds {rel}/Dockerfile and mounts the {name}_sock named volume."
+            ),
+        ))
+    # Item 7 - go.sum populated when go.mod has require directives.
+    if (folder / "go.mod").is_file() and not _go_sum_is_populated(folder):
+        violations.append(Violation(
+            service=name, kind="go-sum",
+            message=(
+                f"{rel}/go.sum is missing or empty even though go.mod declares "
+                f"dependencies. Run `go mod tidy` (inside the compiled-tools "
+                f"container) and commit the resulting go.sum so the build is "
+                f"reproducible."
+            ),
+        ))
+    # Item 8 - multi-stage Dockerfile.
+    if dockerfile.is_file() and not _dockerfile_is_multi_stage(dockerfile):
+        violations.append(Violation(
+            service=name, kind="dockerfile-shape",
+            message=(
+                f"{_rel(folder, dockerfile)} is single-stage. Every Go service must "
+                f"use a multi-stage Dockerfile (>=2 FROM directives) so the runtime "
+                f"image is small (scratch + static binary). A single-stage build "
+                f"ships the full toolchain to production and defeats the speed "
+                f"argument for Go services. See services/streamd/Dockerfile."
+            ),
+        ))
+    # Item 9 - named-volume mount (gRPC services only).
+    if has_proto and not _compose_mounts_socket(name):
+        violations.append(Violation(
+            service=name, kind="compose-volume",
+            message=(
+                f"docker-compose.yml has no `{name}_sock:` named volume. Every "
+                f"gRPC Go service is expected to expose its server over a "
+                f"Unix-domain socket carried by a `{name}_sock` named volume "
+                f"that both the service and its Python client mount. See the "
+                f"`streamd_sock` block in docker-compose.yml for the template. "
+                f"Services that publish api.http.md (HTTP+JSON) instead of "
+                f"api.proto are exempt."
             ),
         ))
     return violations
