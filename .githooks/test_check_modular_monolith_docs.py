@@ -4,6 +4,9 @@ Asserts the canonical architecture document, the 9 module stubs, the 5
 Architecture Decision Records, the source-backed spec, the 14 new glossary
 terms, and the strict per-agent rule are all in place. Slice 2 will turn this
 test into a pre-commit hook; slice 1 keeps it as a focused regression test.
+
+Constants were promoted to .githooks/_modular_monolith_constants.py in slice
+1.5 so the new Go services-tier hooks and tests share them.
 """
 
 from __future__ import annotations
@@ -13,74 +16,28 @@ import re
 from pathlib import Path
 from unittest import TestCase
 
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
-
-MODULAR_MONOLITH_DOC = REPO_ROOT / "docs" / "MODULAR-MONOLITH.md"
-MODULE_DIR = REPO_ROOT / "docs" / "modules"
-ADR_DIR = REPO_ROOT / "docs" / "adr"
-SPEC_FILE = REPO_ROOT / "docs" / "specs" / "fr-modular-monolith.md"
-PLAIN_ENGLISH_FILE = REPO_ROOT / "PLAIN-ENGLISH-RULE.md"
-AGENTS_FILE = REPO_ROOT / "AGENTS.md"
-CLAUDE_FILE = REPO_ROOT / "CLAUDE.md"
-CODEX_FILE = REPO_ROOT / "CODEX.md"
-GEMINI_FILE = REPO_ROOT / "GEMINI.md"
-AI_CONTEXT_FILE = REPO_ROOT / "AI-CONTEXT.md"
-
-MODULE_NAMES = (
-    "platform",
-    "content",
-    "sources",
-    "pipeline",
-    "suggestions",
-    "analytics",
-    "graph",
-    "operations",
-    "governance",
-    "services",
-)
-
-ADR_NUMBERS = (1, 2, 3, 4, 5, 6)
-
-REQUIRED_DOC_PHRASES = (
-    "module map",
-    "public interface",
-    "boundary rule",
-    "dependency direction",
-    "test plan",
-    "stop condition",
-)
-
-REQUIRED_ADR_HEADINGS = ("Context", "Decision", "Consequences")
-
-RULE_FILES = (AGENTS_FILE, CLAUDE_FILE, CODEX_FILE, GEMINI_FILE)
-
-NEW_GLOSSARY_TERMS = (
-    "modular monolith",
-    "public interface",
-    "boundary rule",
-    "dependency direction",
-    "ADR",
-    "citation",
-    "manifest",
-    "shim",
-    "deprecation",
-    "golden test",
-    "fitness function",
-    "anti-corruption layer",
-)
-
-GLOSSARY_TERMS_REQUIRING_WORD_BOUNDARY = ("module",)
-
-RULE_HEADER_RE = re.compile(
-    r"^\*\*ABSOLUTE\s+[—-]\s+Modular Monolith", re.MULTILINE
-)
-SPEC_FRESHNESS_RE = re.compile(
-    r"\[SPEC FRESHNESS:\s*reviewed_at=(\d{4}-\d{2}-\d{2})\s+"
-    r"next_review=(\d{4}-\d{2}-\d{2})\]"
-)
-SPEC_CITED_RE = re.compile(
-    r"\[SPEC CITED:\s*feature=([^\s]+)\s+kind=(\w+)\s+id=(\S+)\s+verified_at=([^\]]+)\]"
+from _modular_monolith_constants import (
+    ADR_DIR,
+    ADR_NUMBERS,
+    AGENTS_FILE,
+    AI_CONTEXT_FILE,
+    CLAUDE_FILE,
+    CODEX_FILE,
+    GEMINI_FILE,
+    GLOSSARY_TERMS_REQUIRING_WORD_BOUNDARY,
+    MODULAR_MONOLITH_DOC,
+    MODULE_DIR,
+    MODULE_NAMES,
+    NEW_GLOSSARY_TERMS,
+    PLAIN_ENGLISH_FILE,
+    REPO_ROOT,
+    REQUIRED_ADR_HEADINGS,
+    REQUIRED_DOC_PHRASES,
+    RULE_FILES,
+    RULE_HEADER_RE,
+    SPEC_CITED_RE,
+    SPEC_FILE,
+    SPEC_FRESHNESS_RE,
 )
 
 

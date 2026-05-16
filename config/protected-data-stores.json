@@ -16,7 +16,8 @@
     "tempo_data",
     "grafana_data",
     "questdb_data",
-    "sqlite_registry_data"
+    "sqlite_registry_data",
+    "streamd_sock"
   ],
   "host_paths": [
     "backups",

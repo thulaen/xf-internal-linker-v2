@@ -4,4 +4,16 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
+# Patch C (2026-05-16) - capture the pre-push stdin (one line per pushed
+# ref) into a temp file so both consumers can read it. git only feeds stdin
+# once; without buffering, the second consumer sees EOF.
+push_refs="$(mktemp)"
+trap 'rm -f "$push_refs"' EXIT
+cat > "$push_refs"
+
+# Patch C - catch `git commit --no-verify` bypasses before any slow
+# language tooling runs. The hook refuses commits that touched production
+# source without also touching AGENT-HANDOFF.md.
+python .githooks/check-no-verify-bypass.py < "$push_refs"
+
 bash scripts/prepush-docker.sh

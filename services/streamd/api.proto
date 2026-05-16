@@ -1,0 +1,159 @@
+// services/streamd/api.proto
+//
+// Slice 1.5 — the published gRPC contract for the streamd Go sidecar.
+//
+// Field shapes mirror services/streamd/internal/broker/broker.go:
+//   Event{Topic, Offset, Payload, ReceivedAt}
+//   Bounds{MaxTopics, MaxBufferedEventsPerTopic}  (server-side, not RPC)
+//
+// Four RPCs are published:
+//   Publish    unary             — publish one event, returns assigned offset
+//   Subscribe  server-streaming  — stream events; from_offset > 0 replays first,
+//                                  then live fan-out (the gRPC server keeps an
+//                                  in-process channel per subscriber so the
+//                                  broker library stays untouched)
+//   Manage     bidi-streaming    — admin: ack consumer offset, read consumer
+//                                  offset, snapshot topic stats
+//   Health     unary             — liveness probe used by the
+//                                  streamd-healthcheck binary
+//
+// All RPCs return canonical gRPC status codes (INVALID_ARGUMENT, NOT_FOUND,
+// RESOURCE_EXHAUSTED) so the Python client can map cleanly to its own errors.
+//
+// References:
+//   - Donovan & Kernighan 2015 §8 — Go concurrency
+//   - gRPC Go documentation (https://grpc.io/docs/languages/go/)
+//   - man 7 unix — AF_UNIX socket semantics
+//   - services/streamd/internal/broker/broker.go — the wrapped library
+
+syntax = "proto3";
+
+package xf.streamd.v1;
+
+// Slice 1.5 — Timestamps are int64 nanoseconds since Unix epoch instead of
+// google.protobuf.Timestamp. The Ubuntu 24.04 protobuf-compiler package does
+// not ship the well-known types; vendoring them adds an extra include path
+// for every consumer. int64 epoch nanos is the standard alternative and is
+// what the broker.Event.ReceivedAt already stores via time.Time.UnixNano().
+
+option go_package = "xf-internal-linker-v2/services/streamd/api/gen;streamdv1";
+
+// Service is the only published gRPC service. Internal packages stay under
+// services/streamd/internal/ and are unreachable through this contract.
+service Streamd {
+  // Publish appends one event to the topic. Returns the assigned offset.
+  // INVALID_ARGUMENT on empty topic, RESOURCE_EXHAUSTED on topic full /
+  // topic-limit reached.
+  rpc Publish(PublishRequest) returns (PublishResponse);
+
+  // Subscribe streams events for the topic. When `from_offset > 0`, replays
+  // any buffered events from that offset (up to the server's replay limit)
+  // and then streams every live event published thereafter. The stream ends
+  // when the client cancels the context or the connection closes.
+  rpc Subscribe(SubscribeRequest) returns (stream Event);
+
+  // Manage is a bidi-streaming admin channel. The client sends one request
+  // per command (ack, get_consumer_offset, topic_stats), the server returns
+  // one response per command. Kept bidi so a long-lived admin session can
+  // pipeline multiple commands without re-establishing the connection.
+  rpc Manage(stream ManageRequest) returns (stream ManageResponse);
+
+  // Health is the standard liveness probe. The streamd-healthcheck binary
+  // dials this RPC over the Unix socket and exits 0 on SERVING.
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+// Event mirrors broker.Event{Topic, Offset, Payload, ReceivedAt}.
+message Event {
+  string topic = 1;
+  uint64 offset = 2;
+  bytes payload = 3;
+  // Unix epoch nanoseconds (broker.Event.ReceivedAt.UnixNano()).
+  int64 received_at_unix_nanos = 4;
+}
+
+message PublishRequest {
+  string topic = 1;
+  bytes payload = 2;
+}
+
+message PublishResponse {
+  uint64 offset = 1;
+  // Unix epoch nanoseconds.
+  int64 received_at_unix_nanos = 2;
+}
+
+message SubscribeRequest {
+  string topic = 1;
+  // 0 means start at the first live event (no replay).
+  uint64 from_offset = 2;
+  // Optional consumer identity; recorded via Manage.AckOffset so the broker
+  // remembers where this consumer is.
+  string consumer_id = 3;
+}
+
+message ManageRequest {
+  oneof command {
+    AckOffsetCommand ack = 1;
+    GetConsumerOffsetCommand get_offset = 2;
+    TopicStatsCommand topic_stats = 3;
+  }
+}
+
+message ManageResponse {
+  oneof result {
+    AckOffsetResult ack = 1;
+    GetConsumerOffsetResult get_offset = 2;
+    TopicStatsResult topic_stats = 3;
+    ManageError error = 4;
+  }
+}
+
+message AckOffsetCommand {
+  string topic = 1;
+  string consumer_id = 2;
+  uint64 offset = 3;
+}
+
+message AckOffsetResult {
+  bool accepted = 1;
+}
+
+message GetConsumerOffsetCommand {
+  string topic = 1;
+  string consumer_id = 2;
+}
+
+message GetConsumerOffsetResult {
+  uint64 offset = 1;
+  bool present = 2;
+}
+
+message TopicStatsCommand {
+  string topic = 1;
+}
+
+message TopicStatsResult {
+  string topic = 1;
+  uint64 next_offset = 2;
+  uint64 buffered_event_count = 3;
+  uint32 consumer_count = 4;
+}
+
+message ManageError {
+  string code = 1;
+  string message = 2;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  enum ServingStatus {
+    UNKNOWN = 0;
+    SERVING = 1;
+    NOT_SERVING = 2;
+  }
+  ServingStatus status = 1;
+  // RFC 3339 string of the binary's start time, for liveness-watchdog scripts.
+  string started_at = 2;
+}

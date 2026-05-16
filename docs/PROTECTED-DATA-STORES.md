@@ -19,6 +19,7 @@ This file lists data that self-pruning must never delete.
 - `grafana_data` stores Grafana state.
 - `questdb_data` is reserved for future QuestDB time-series data.
 - `sqlite_registry_data` is reserved for the future SQLite agent-memory registry.
+- `streamd_sock` holds the Unix-domain socket file (`/var/run/xf/streamd.sock`) shared between the `backend` container (Python) and the `streamd` Go sidecar. The socket itself is ephemeral but the volume must survive `docker compose down` (without `-v`) so Python callers keep the same dial path after a stop/start. Added in slice 1.5 — see ADR 0006 and `docs/MODULAR-MONOLITH.md` § Streamd reference shape.
 
 ## Protected Host Paths
 

@@ -389,6 +389,14 @@ When you must mention a technical concept, use the plain-English version from th
 | a small standalone program written in Go that runs alongside the Django app and handles a workload Go is faster at (mostly concurrent network I/O, long-running daemons, CLI binaries with cold-start sensitivity); it is a peer module to the nine Django modules, not a microservice | Go service |
 | a process that runs next to the main app and shares its deployment; not a separate product, not a separate codebase split, not a microservice; the Go services in this project are sidecars | sidecar |
 | the way Python code talks to a Go service — either a gRPC contract file (`api.proto`) or a documented HTTP+JSON contract (`api.http.md`); the only legal way the two languages communicate in this project; direct cross-language imports are forbidden | cross-language RPC boundary |
+| Go's built-in test runner; `go test -race` adds a data-race detector that catches two goroutines reading and writing the same memory; `-shuffle=on` randomises the order so tests cannot depend on each other | go test |
+| Go's strictest static-analysis linter — finds dead code, misuse of standard library, suspicious nil checks; honours a per-module `staticcheck.conf` for narrowly silenced findings | staticcheck |
+| a kind of network socket that lives as a file on the local filesystem (e.g. `/var/run/xf/streamd.sock`) and lets two processes on the same machine talk to each other without going through the network stack; round-trip latency is roughly 30-80 microseconds versus 100-200 microseconds for TCP loopback | Unix-domain socket / AF_UNIX |
+| the project's preferred transport between Python and Go on the same host — gRPC traffic runs over a Unix-domain socket file shared between containers via a Docker named volume; faster than TCP loopback and cuts JSON serialisation cost | gRPC over Unix-domain socket |
+| the template every future Go service follows — a binary entry point at `cmd/<name>/main.go`, a published gRPC contract at `api.proto`, transport over a Unix-domain socket, internal packages under `internal/`, multi-stage scratch Dockerfile under 25 MB, and a speed benchmark that proves the speed claim | streamd reference shape |
+| Go's built-in profiler — exposed as a small HTTP server on a localhost-only port (default 127.0.0.1:6060) so the OpenTelemetry profile collector can scrape it | pprof |
+| the Go standard-library function that binds SIGTERM / SIGINT to a context cancellation, so a service shuts down gracefully when Docker stops the container | signal.NotifyContext |
+| a protobuf linter and breaking-change detector — checks `api.proto` files for style problems and stops a developer from accidentally breaking the published contract | buf |
 
 If a term you need is not in this table, define it yourself in parentheses the first time you use it.
 

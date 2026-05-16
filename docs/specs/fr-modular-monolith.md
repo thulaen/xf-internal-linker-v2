@@ -99,7 +99,7 @@ The services tier is the dedicated home for Go sidecar programs that run alongsi
 
 Today the tier contains one member: `services/streamd` (the stream-engine broker). Future members arrive only after the native-rewrite escalation proves Python cannot meet the target, per [ADR 0006](../adr/0006-go-services-tier.md) § Decision.
 
-The cross-language boundary is RPC. Python never imports Go and Go never embeds Python. The slice-2 hook `.githooks/check-no-cross-language-import.py` enforces this at commit time. Quality tooling (`scripts/run-go-quality.sh`) lands in the same slice.
+The cross-language boundary is RPC. Python never imports Go and Go never embeds Python. The slice-1.5 hook `.githooks/check-no-cross-language-import.py` enforces this at commit time; the sibling slice-1.5 hook `.githooks/check-go-service-contract.py` enforces the contract + binary presence shape. Quality tooling (`scripts/run-go-quality.sh` + nine per-stage sub-scripts) lands in the same slice. The streamd binary promotion (`services/streamd/cmd/streamd/main.go` + `services/streamd/api.proto`) lands in slice 1.5 as the reference shape every future Go service follows.
 
 The services tier does not change the nine-module dependency direction. Go services are sidecars, not a layer.
 
@@ -110,6 +110,8 @@ Slice 1 verification:
 - `python -m pytest -p randomly -q .githooks/test_check_modular_monolith_docs.py` passes (7 tests).
 - `python -m pytest -p randomly -q .githooks/test_check_spec_citation.py` still passes (regression).
 - `python -m coverage run --data-file C:/tmp/.cov-slice1 -m pytest .githooks/test_check_modular_monolith_docs.py` then `python -m coverage report --data-file C:/tmp/.cov-slice1 --include=".githooks/test_check_modular_monolith_docs.py" --fail-under=95` succeeds.
+
+Slice 1.5 verification (when slice 1.5 lands): `bash scripts/run-go-quality.sh` runs the nine Go quality stages against `services/streamd` and exits 0. `.githooks/check-no-cross-language-import.py` and `.githooks/check-go-service-contract.py` are wired into `scripts/precommit-docker.sh` as hard-block gates. `services/streamd/cmd/streamd/main.go` builds, runs, and answers Publish / Subscribe / Manage / Health RPCs over the `streamd_sock` Unix socket. The speed benchmark either confirms p99 < 1 ms / throughput > 50,000 msg/s or files a `[PERFORMANCE EXEMPTION: ...]` marker with measured numbers.
 
 Slice 2 verification (when slice 2 lands): `import-linter` runs from the pre-commit hook and reports its baseline ratchet.
 

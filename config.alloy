@@ -23,8 +23,21 @@ discovery.docker "containers" {
 // 2. Re-label so Loki sees readable labels, not raw __meta_docker_*.
 //    The leading `/` on container names is stripped because it makes
 //    LogQL filters awkward (`{container_name="/xf_linker_backend"}`).
+//
+//    Patch D (2026-05-16): drop short-lived `docker compose run --rm`
+//    containers (oneoff=True). These are spawned during the pre-commit /
+//    pre-push chain and exit within seconds. Alloy used to keep tailing
+//    them after exit and emitted "container not found" errors every
+//    refresh tick. The keep/drop rule below filters them at discovery
+//    time so they never enter the loki.source.docker target set.
 discovery.relabel "containers" {
   targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_oneoff"]
+    regex         = "True"
+    action        = "drop"
+  }
 
   rule {
     source_labels = ["__meta_docker_container_name"]

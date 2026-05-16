@@ -30,9 +30,10 @@ The contract file is the public surface. Everything else inside the Go module �
 
 1. **No Postgres ownership.** Go services never own database tables. All persistent reads and writes go through the relevant Django `apps.<module>.api` via RPC.
 2. **No direct cross-language import.** Python may not import Go code. Go may not embed Python code. The only legal channel is the RPC contract.
-3. **Boundary check (slice 2).** `.githooks/check-no-cross-language-import.py` enforces rule 2 at commit time. The check lands in slice 2 alongside the Python and Angular boundary checks.
-4. **Quality tooling (slice 2).** `scripts/run-go-quality.sh` runs `go test -race -coverprofile`, `go-mutesting`, `staticcheck`, and `golangci-lint`. The script lands in slice 2 alongside the Python and C++ quality chains.
-5. **Escalation gate.** A new Go service requires the full native-rewrite escalation proof: profiling, source-backed spec, 20× speedup or `[PERFORMANCE EXEMPTION: ...]`, C++-first check, `[NATIVE REWRITE REVIEW: ...]` marker, and an AutoIssue labelled `performance-native-rewrite`.
+3. **Boundary check (slice 1.5).** `.githooks/check-no-cross-language-import.py` enforces rule 2 at commit time. The check lands in slice 1.5 alongside the Python and Angular boundary checks.
+4. **Contract + binary presence check (slice 1.5).** `.githooks/check-go-service-contract.py` enforces that every `services/<name>/` folder publishes BOTH a contract file (`api.proto` or `api.http.md`) AND a binary entry point at `cmd/<name>/main.go`. Library-only Go modules under `services/` are forbidden.
+5. **Quality tooling (slice 1.5).** `scripts/run-go-quality.sh` is a stage-by-stage orchestrator that mirrors `scripts/run-cpp-quality.sh`. It calls nine sub-scripts: `run-go-format.sh`, `run-go-vet.sh`, `run-go-staticcheck.sh`, `run-go-lint.sh`, `run-go-gosec.sh`, `run-buf-lint.sh`, `run-go-tests.sh` (race + coverage), `run-go-mutation.sh` (kill-rate ≥ 70%), and `run-go-bench.sh`. The chain lands in slice 1.5 alongside the Python and C++ quality chains.
+6. **Escalation gate.** A new Go service requires the full native-rewrite escalation proof: profiling, source-backed spec, 20× speedup or `[PERFORMANCE EXEMPTION: ...]`, C++-first check, `[NATIVE REWRITE REVIEW: ...]` marker, and an AutoIssue labelled `performance-native-rewrite`.
 
 ## Allowed dependencies
 
@@ -43,15 +44,15 @@ Go services do not depend on each other directly except through their RPC contra
 ## Test command
 
 ```powershell
-docker compose exec -T compiled-tools bash -lc "cd /repo/services/<name> && go test -race ./..."
+bash scripts/run-go-quality.sh
 ```
 
-Per-service coverage and mutation targets live in `docs/CODE-COVERAGE-RULES.md`. The Go test command runs through the Docker-managed compiled-tools image so the host does not need a local Go toolchain.
+The orchestrator detects the Go modules in scope from the staged commit, then runs all nine stages inside the `compiled-tools` Docker image so the host never needs a local Go toolchain. Per-service coverage and mutation targets live in `docs/CODE-COVERAGE-RULES.md`.
 
 ## Open questions
 
-- The `compiled-tools` Docker service is not yet in `docker-compose.yml`. Slice 2 confirms whether the Go test runner uses the existing backend image (which already carries Go 1.25 for `go-mutesting`) or a new dedicated image.
-- The `services/streamd` service today has no `api.proto` or `api.http.md` file. Slice 2 backfills the contract file for the existing service before adding new sidecars.
+- _(Closed in slice 1.5)_ The `compiled-tools` Docker service exists in `docker-compose.yml` and carries `go`, `golangci-lint`, `gosec`, `gofmt`, `go-mutesting`, plus the slice-1.5 additions (`staticcheck`, `buf`, `protoc`, `protoc-gen-go`, `protoc-gen-go-grpc`). The Go quality chain runs there.
+- _(Closed in slice 1.5)_ `services/streamd/api.proto` publishes the gRPC contract (Publish / Subscribe / Manage / Health). Future Go services backfill their contract alongside their first slice.
 
 ## Citations
 

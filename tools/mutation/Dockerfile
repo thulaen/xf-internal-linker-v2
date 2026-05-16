@@ -1,8 +1,20 @@
 FROM golang:1.25-bookworm AS go-tools
 
+# Slice 1.5 — added staticcheck, buf, protoc-gen-go, and protoc-gen-go-grpc
+# alongside the existing go-mutesting / golangci-lint / gosec install so the
+# Go quality chain (scripts/run-go-*.sh) and the streamd binary promotion
+# (services/streamd/cmd/streamd/main.go) both have what they need.
+#
+# protoc-gen-go and protoc-gen-go-grpc are version-pinned because generated
+# protobuf code is committed to the repo; bumping the generator requires a
+# stub-regeneration step that must be reviewed.
 RUN go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest && \
     go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 && \
-    go install github.com/securego/gosec/v2/cmd/gosec@latest
+    go install github.com/securego/gosec/v2/cmd/gosec@latest && \
+    go install honnef.co/go/tools/cmd/staticcheck@latest && \
+    go install github.com/bufbuild/buf/cmd/buf@latest && \
+    go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.2 && \
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
 
 FROM ubuntu:24.04
 
@@ -13,6 +25,11 @@ COPY --from=go-tools /usr/local/go /usr/local/go
 COPY --from=go-tools /go/bin/go-mutesting /usr/local/bin/go-mutesting
 COPY --from=go-tools /go/bin/golangci-lint /usr/local/bin/golangci-lint
 COPY --from=go-tools /go/bin/gosec /usr/local/bin/gosec
+# Slice 1.5 — copy the four new Go binaries from the build stage.
+COPY --from=go-tools /go/bin/staticcheck /usr/local/bin/staticcheck
+COPY --from=go-tools /go/bin/buf /usr/local/bin/buf
+COPY --from=go-tools /go/bin/protoc-gen-go /usr/local/bin/protoc-gen-go
+COPY --from=go-tools /go/bin/protoc-gen-go-grpc /usr/local/bin/protoc-gen-go-grpc
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -31,6 +48,8 @@ RUN apt-get update && \
       iwyu \
       lcov \
       xz-utils \
+      bc \
+      protobuf-compiler \
       python3 \
       python3-dev \
       python3-pip \
@@ -46,4 +65,4 @@ RUN apt-get update && \
 
 WORKDIR /repo
 
-CMD ["bash", "-lc", "mutmut --version && mull-runner-19 --version && go version && command -v go-mutesting >/dev/null && golangci-lint --version && gosec -version && cmake --version && clang++-19 --version && clang-tidy-19 --version && cppcheck --version && include-what-you-use --version && infer --version && semgrep --version && echo 'compiled tools ready'"]
+CMD ["bash", "-lc", "mutmut --version && mull-runner-19 --version && go version && command -v go-mutesting >/dev/null && golangci-lint --version && gosec -version && staticcheck -version && buf --version && protoc --version && protoc-gen-go --version && cmake --version && clang++-19 --version && clang-tidy-19 --version && cppcheck --version && include-what-you-use --version && infer --version && semgrep --version && echo 'compiled tools ready'"]

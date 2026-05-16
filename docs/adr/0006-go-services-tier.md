@@ -42,7 +42,7 @@ Add a tenth module type — the **services tier** — for Go services that run a
 **Negative:**
 
 - One extra Docker compose entry per Go service. Acceptable; user-approved.
-- Two languages to maintain quality tooling for. Mitigated by `scripts/run-go-quality.sh` (added in slice 2) mirroring the Python and C++ chains.
+- Two languages to maintain quality tooling for. Mitigated by `scripts/run-go-quality.sh` (added in slice 1.5) mirroring the Python and C++ chains.
 
 **Trade-offs accepted:**
 

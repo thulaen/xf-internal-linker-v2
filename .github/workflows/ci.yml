@@ -642,8 +642,8 @@ jobs:
       - uses: actions/checkout@v5
       - name: Build compiled-tools image
         run: docker compose build compiled-tools
-      - name: Run Docker-managed Go tests, coverage, and mutation
-        run: docker compose run --rm compiled-tools python /repo/scripts/check_go_tools.py
+      - name: Run Docker-managed Go quality chain (slice 1.5 stage-by-stage)
+        run: bash scripts/run-go-quality.sh
 
   # ── 17e+. libFuzzer smoke (blocking, 60s per target) ─────────────
   # Phase 4b — runs each starter fuzz target for 60 s under

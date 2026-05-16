@@ -175,6 +175,26 @@ def upsert_dedup(**kwargs) -> tuple[AutoIssue, str]:
         .exclude(status=AutoIssue.STATUS_RESOLVED)
         .first()
     )
-    if existing is None:
-        return _create_new_canonical_row(obs, new_obs, now), "created"
-    return _merge_into_existing(existing, obs, new_obs, now)
+    if existing is not None:
+        return _merge_into_existing(existing, obs, new_obs, now)
+    # Slice 1.5 - if a resolved row already owns this exact (source, external_id),
+    # merge into it so the unique constraint does not raise IntegrityError when
+    # the quality-evidence ingester re-runs. We do NOT merge when the resolved
+    # row uses a different external_id (that is the "fresh ticket for same
+    # canonical" regression path tested by
+    # CrossSourceDedupTests.test_resolved_row_does_not_block_new_observation).
+    resolved_same_id = (
+        AutoIssue.objects
+        .filter(
+            canonical_fingerprint=obs.canonical,
+            status=AutoIssue.STATUS_RESOLVED,
+            source=obs.source,
+            external_id=obs.external_id,
+        )
+        .order_by("-resolved_at")
+        .first()
+    )
+    if resolved_same_id is not None:
+        resolved_same_id, _ = _merge_into_existing(resolved_same_id, obs, new_obs, now)
+        return resolved_same_id, "merged-resolved"
+    return _create_new_canonical_row(obs, new_obs, now), "created"

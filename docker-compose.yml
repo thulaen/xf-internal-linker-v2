@@ -113,6 +113,9 @@ services:
       - compiled_artifacts:/opt/xf/compiled
       - media_files:/app/media
       - staticfiles:/app/staticfiles
+      # Slice 1.5 — streamd Unix-domain socket. Read-write so the private
+      # Python client (apps/realtime/_streamd_client.py) can dial it.
+      - streamd_sock:/var/run/xf:rw
     ports:
       - "8000:8000"
     healthcheck:
@@ -370,6 +373,36 @@ services:
       timeout: 20s
       retries: 3
       start_period: 20s
+
+  # ─────────────────────────────────────────────
+  # Streamd — Go stream-engine broker sidecar (slice 1.5).
+  # Publishes 4 gRPC RPCs (Publish / Subscribe / Manage / Health) over the
+  # streamd_sock Unix-domain socket. Python callers route through the private
+  # client at backend/apps/realtime/_streamd_client.py — never via direct
+  # import. ADR 0006 + docs/MODULAR-MONOLITH.md § Services tier own the rules.
+  # ─────────────────────────────────────────────
+  streamd:
+    build:
+      context: ./services/streamd
+    image: xf-linker-streamd:latest
+    container_name: xf_linker_streamd
+    restart: always
+    # Slice 1.5 — scratch-based image with only two static binaries inside;
+    # running as root is acceptable because there is no shell, package
+    # manager, or writeable filesystem to compromise. read_only would block
+    # the Unix-socket bind on /var/run/xf so it's off. user: 1000:1000 was
+    # tried but Docker named volumes are root-owned by default which made
+    # the socket bind fail with EACCES.
+    volumes:
+      - streamd_sock:/var/run/xf
+    environment:
+      XF_STREAMD_SOCKET: /var/run/xf/streamd.sock
+      XF_STREAMD_LOG_LEVEL: info
+    healthcheck:
+      test: ["CMD", "/streamd-healthcheck"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
 
   # ─────────────────────────────────────────────
   # Nginx — serves the Angular prod bundle + proxies /api/ and /ws/
@@ -800,6 +833,12 @@ volumes:
   go_tool_mod_cache:
     driver: local
   staticfiles:
+    driver: local
+  # Slice 1.5 — Unix-domain socket transport between backend (Python) and the
+  # streamd Go sidecar. Protected by docs/PROTECTED-DATA-STORES.md — the socket
+  # file is ephemeral, but the volume holding it must survive `docker compose
+  # down` so callers keep the same path after a stop/start.
+  streamd_sock:
     driver: local
   nginx_logs:
     driver: local

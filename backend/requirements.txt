@@ -19,6 +19,17 @@ django-filter==24.3                  # DRF filtering support
 channels==4.2.0
 channels-redis==4.2.1
 
+# ── Slice 1.5 — Cross-language gRPC (Python → Go services tier) ───
+# grpcio and grpcio-tools ship prebuilt manylinux wheels, so no host
+# C/C++ compiler is required. Used by the private streamd client at
+# backend/apps/realtime/_streamd_client.py to dial the Go sidecar over
+# the streamd_sock Unix-domain socket. grpcio-tools provides
+# `python -m grpc_tools.protoc` so the Python stubs in
+# backend/apps/realtime/_streamd_pb2/ can be regenerated from
+# services/streamd/api.proto. See docs/specs/fr-go-services-tooling.md.
+grpcio>=1.62,<1.63
+grpcio-tools>=1.62,<1.63
+
 # ── Celery (background ML jobs) ───────────────────────────────────
 celery==5.4.0
 django-celery-beat==2.8.1            # Scheduled tasks; supports Django 5.2

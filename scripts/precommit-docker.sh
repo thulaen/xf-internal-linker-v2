@@ -47,6 +47,9 @@ run_hard_gate python .githooks/check-spec-citation.py
 run_hard_gate python .githooks/check-scoped-lessons.py
 run_hard_gate python .githooks/check-debug-code.py
 run_hard_gate python .githooks/check-junk-files.py
+# Slice 1.5 — Go services tier boundary + contract enforcement.
+run_hard_gate python .githooks/check-no-cross-language-import.py
+run_hard_gate python .githooks/check-go-service-contract.py
 
 if grep -E '^backend/.*\.py$|^scripts/.*\.py$' <<<"$staged" >/dev/null; then
   run_hard_gate python .githooks/check-mutable-defaults.py

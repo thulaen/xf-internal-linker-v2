@@ -51,12 +51,42 @@ Future Go services arrive only after the native-rewrite escalation proves Python
 
 **Rules for the services tier:**
 
-1. Each Go service has its own folder under `services/<name>/`, its own contract file (`api.proto` for gRPC or `api.http.md` for HTTP+JSON), and its own [`docs/modules/services.md`](modules/services.md) (or a per-service stub once there is more than one).
+1. Each Go service has its own folder under `services/<name>/`, its own contract file (`api.proto` for gRPC or `api.http.md` for HTTP+JSON), its own binary entry point at `services/<name>/cmd/<name>/main.go`, and its own [`docs/modules/services.md`](modules/services.md) (or a per-service stub once there is more than one). Library-only Go modules under `services/` are forbidden — the slice-1.5 hook `.githooks/check-go-service-contract.py` hard-blocks the loophole.
 2. Go services do **not** own Postgres tables. Persistent reads and writes go through the relevant Django module's `api.py` via RPC.
-3. Python may not import Go code. Go may not embed Python code. The only legal channel is the RPC contract. The slice-2 hook `.githooks/check-no-cross-language-import.py` enforces this at commit time.
+3. Python may not import Go code. Go may not embed Python code. The only legal channel is the RPC contract. The slice-1.5 hook `.githooks/check-no-cross-language-import.py` enforces this at commit time.
 4. The nine-module dependency direction is unchanged. Go services are sidecars, not a layer.
 
-The services-tier quality tooling (`scripts/run-go-quality.sh`) lands in slice 2 alongside the Python and C++ quality chains.
+The services-tier quality tooling (`scripts/run-go-quality.sh` + nine per-stage sub-scripts) lands in slice 1.5 alongside the Python and C++ quality chains.
+
+### Go tooling
+
+The Go quality chain mirrors C++ (`scripts/run-cpp-quality.sh`) one-for-one. Each stage writes one `quality_evidence` row so per-stage failures are visible in the quality dashboard.
+
+| Stage | Sub-script | Tool | Notes |
+|---|---|---|---|
+| Format | `scripts/run-go-format.sh` | `gofmt -l` | Hard-fail on any flagged file. |
+| Vet | `scripts/run-go-vet.sh` | `go vet ./...` | Catches the bugs the compiler ignores. |
+| Static analysis | `scripts/run-go-staticcheck.sh` | `staticcheck ./...` | Honours `services/<name>/staticcheck.conf` for narrow silences. |
+| Lint | `scripts/run-go-lint.sh` | `golangci-lint run ./...` | Honours `services/<name>/.golangci.yml`. |
+| Security | `scripts/run-go-gosec.sh` | `gosec ./...` | Catches command-injection-shaped exec.Command calls. |
+| Contract lint | `scripts/run-buf-lint.sh` | `buf lint api.proto` | Skipped per service when no .proto contract is present. |
+| Tests + race + coverage | `scripts/run-go-tests.sh` | `go test -race -shuffle=on -count=1 -coverprofile` | 80% baseline for streamd, 95% for greenfield Go. |
+| Mutation | `scripts/run-go-mutation.sh` | `go-mutesting ./...` | Kill-rate gate ≥ 70%. |
+| Benchmark | `scripts/run-go-bench.sh` | `go test -bench=. -benchmem -count=1 -run='^$' ./...` | Runs only when bench files are in scope. |
+
+All stages run inside the `compiled-tools` Docker image so the host never needs a local Go toolchain.
+
+### Streamd reference shape
+
+Streamd is the template every future Go service follows:
+
+- **Binary entry point** at `services/streamd/cmd/streamd/main.go`. No library-only Go modules under `services/`.
+- **gRPC over a Unix-domain socket** at `/var/run/xf/streamd.sock` (named volume `streamd_sock`, mounted read-write into the backend container). gRPC over Unix socket cuts round-trip latency to roughly 30–80 µs versus 100–200 µs for TCP loopback.
+- **Single contract file** `services/streamd/api.proto` publishing four RPCs: `Publish`, `Subscribe`, `Manage`, `Health`.
+- **Internal packages stay private** under `services/streamd/internal/`. Generated stubs live at `services/streamd/api/gen/` and are committed so the build does not depend on a fresh `protoc` run.
+- **Multi-stage scratch Dockerfile**. Final image under 25 MB.
+- **Speed benchmark** at `services/streamd/test/bench_publish_subscribe_test.go` proving p99 round-trip latency < 1 ms and throughput > 50,000 messages per second. A miss after 5 tuning iterations files a `performance-native-rewrite` AutoIssue plus a `[PERFORMANCE EXEMPTION: ...]` marker — honest failure is preferred to silent slow numbers.
+- **Python callers** route through the private client at `backend/apps/realtime/_streamd_client.py`. Public surface is the owning Django module's `api.py`. No caller imports the gRPC stubs directly.
 
 ## Public interface convention
 

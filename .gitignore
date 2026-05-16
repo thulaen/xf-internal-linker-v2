@@ -3,6 +3,14 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+
+# Slice 1.5 — Go binaries built outside the Docker multi-stage scratch image.
+# Local `go build` runs land binaries next to go.mod; they should not be
+# committed. The Docker image is the canonical artefact.
+/services/*/cmd/*/__debug_bin*
+/services/*/streamd
+/services/*/streamd-healthcheck
+/services/streamd/report.json
 *.egg-info/
 dist/
 build/
