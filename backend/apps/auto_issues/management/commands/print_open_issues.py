@@ -24,11 +24,13 @@ from django.core.management.base import BaseCommand
 from apps.auto_issues.models import AutoIssue
 
 
+_OPEN_STATUSES = (AutoIssue.STATUS_OPEN, AutoIssue.STATUS_PICKED)
+
+
 class Command(BaseCommand):
     help = "Print open AutoIssue rows in priority order. Used at session start."
 
     _DEFAULT_LIMIT = 10
-    _OPEN_STATUSES = (AutoIssue.STATUS_OPEN, AutoIssue.STATUS_PICKED)
 
     # Ordered the same way the 10-source [REGISTRY READ] marker prints the
     # per-source breakdown (agent / glitchtip / pyroscope / tempo / loki /
@@ -65,24 +67,22 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **opts):
-        qs = AutoIssue.objects.filter(status__in=self._OPEN_STATUSES)
-        if opts["source"]:
-            qs = qs.filter(source=opts["source"])
-        qs = qs.order_by("-priority_score", "spam_score", "-last_seen")[: opts["limit"]]
-
-        rows = list(qs)
+        rows = _pick_unique_open_issues(
+            limit=opts["limit"],
+            source=opts["source"],
+        )
         if not rows:
             self.stdout.write("[REGISTRY READ: 0 open auto-issues]")
             return
 
-        total = AutoIssue.objects.filter(status__in=self._OPEN_STATUSES).count()
+        total = AutoIssue.objects.filter(status__in=_OPEN_STATUSES).count()
         # All-source view also prints a one-line per-source breakdown so
         # an agent can copy it into the [REGISTRY READ ...] marker
         # without running --source six times.
         if not opts["source"]:
             counts = {
                 s: AutoIssue.objects.filter(
-                    status__in=self._OPEN_STATUSES, source=s,
+                    status__in=_OPEN_STATUSES, source=s,
                 ).count()
                 for s in self._SOURCE_ORDER
             }
@@ -180,11 +180,11 @@ class Command(BaseCommand):
         for missing Level A areas (see docs/CODE-COVERAGE-RULES.md).
         """
         qs = AutoIssue.objects.filter(
-            status__in=self._OPEN_STATUSES,
+            status__in=_OPEN_STATUSES,
             source=AutoIssue.SOURCE_AGENT,
             title__startswith="[coverage-gap]",
-        ).order_by("-priority_score", "spam_score", "-last_seen")[:10]
-        rows = list(qs)
+        ).order_by("-priority_score", "spam_score", "-last_seen")
+        rows = _unique_issue_rows(qs, 10)
         if not rows:
             self.stdout.write(
                 "[COVERAGE GAPS READ: 0 picked + 10 to file — drought; file new "
@@ -204,3 +204,35 @@ class Command(BaseCommand):
             self.stdout.write(
                 f"  #{r.id} [agent/{r.severity}] {r.title[:90]}"
             )
+
+
+def _pick_unique_open_issues(
+    *,
+    limit: int,
+    source: str | None,
+) -> list[AutoIssue]:
+    qs = AutoIssue.objects.filter(status__in=_OPEN_STATUSES)
+    if source:
+        qs = qs.filter(source=source)
+    return _unique_issue_rows(
+        qs.order_by("-priority_score", "spam_score", "-last_seen"),
+        limit,
+    )
+
+
+def _unique_issue_rows(queryset, limit: int) -> list[AutoIssue]:
+    rows: list[AutoIssue] = []
+    seen_keys: set[str] = set()
+    for issue in queryset.iterator():
+        key = _issue_dedupe_key(issue)
+        if key in seen_keys:
+            continue
+        rows.append(issue)
+        seen_keys.add(key)
+        if len(rows) == limit:
+            break
+    return rows
+
+
+def _issue_dedupe_key(issue: AutoIssue) -> str:
+    return issue.canonical_fingerprint or f"{issue.source}:{issue.external_id}"

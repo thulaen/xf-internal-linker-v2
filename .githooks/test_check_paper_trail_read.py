@@ -7,8 +7,11 @@ Run from repo root: `python .githooks/test_check_paper_trail_read.py`.
 from __future__ import annotations
 
 import importlib.util
+import sys
 import unittest
+from io import StringIO
 from pathlib import Path
+from unittest import mock
 
 
 def _load_hook():
@@ -66,6 +69,16 @@ class MarkerValidationTests(unittest.TestCase):
         code, ids = self.hook._validate_marker("Some commit body with no marker.")
         self.assertEqual(code, 2)
 
+    def test_any_staged_file_without_handoff_fails(self):
+        with (
+            mock.patch.object(self.hook, "_read_staged_handoff_diff", return_value=""),
+            mock.patch.object(self.hook, "_code_changing_commit", return_value=False),
+            mock.patch.object(self.hook, "_commit_has_staged_files", return_value=True, create=True),
+            mock.patch.object(sys, "stderr", StringIO()) as err,
+        ):
+            self.assertEqual(self.hook.main(), 2)
+        self.assertIn("Paper Trail", err.getvalue())
+
     def test_wrong_breakdown_sum_rejected(self):
         marker = (
             "[PAPER TRAIL READ: 100 open ("
@@ -82,6 +95,11 @@ class MarkerValidationTests(unittest.TestCase):
     def test_nine_picks_rejected_without_drought(self):
         nine = ", ".join(f"#{i}" for i in range(1, 10))
         marker = _full_marker(n=10, picks=nine)
+        code, _ids = self.hook._validate_marker(marker)
+        self.assertEqual(code, 2)
+
+    def test_duplicate_picked_id_rejected(self):
+        marker = _full_marker(n=10, picks="#1, #1, #3, #4, #5, #6, #7, #8, #9, #10")
         code, _ids = self.hook._validate_marker(marker)
         self.assertEqual(code, 2)
 

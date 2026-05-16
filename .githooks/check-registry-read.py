@@ -510,23 +510,23 @@ def _validate_picks(added: str) -> int:
             "Satisfier phrases are no longer accepted."
         )
     picks_blob = picks_match.group("picks")
-    ids = ID_TOKEN_RE.findall(picks_blob)
-    # Drought-substitution form may include the drought-AutoIssue id; we
-    # don't require it to count toward 30, but we DO require the phrase.
+    pick_tokens = _picked_id_tokens(picks_blob)
     has_drought_phrase = bool(DROUGHT_PHRASE_RE.search(picks_blob))
-    drought_id_count = len(DROUGHT_PHRASE_RE.findall(picks_blob))
     has_substitution_form = bool(re.search(r"\bfrom\s+agent\b", picks_blob, re.IGNORECASE))
-    effective_picks = len(ids) - drought_id_count
-    if effective_picks != 30:
+    if len(pick_tokens) != 30:
         return _fail(
             f"Expected exactly 30 picked issue IDs in the `picked: ...` segment "
-            f"(3 per source × 10 sources). Found {effective_picks} "
-            f"(raw # tokens = {len(ids)}, drought log refs = {drought_id_count}).\n"
+            f"(3 per source × 10 sources). Found {len(pick_tokens)}.\n"
             "  If a per-source bucket was empty at session-start, use the "
             "substitution form: `m: 0 found + 3 from agent: #..., #..., #... "
             "(drought logged: #<id>)` — and file an "
             "`AutoIssue(kind='picker_drought', source='agent')` for that source so the next agent "
             "investigates."
+        )
+    if len(set(pick_tokens)) != len(pick_tokens):
+        return _fail(
+            "Duplicate picked AutoIssue IDs are not allowed in the "
+            "`[REGISTRY READ: ...]` marker. Pick 30 different issue IDs."
         )
     if has_substitution_form and not has_drought_phrase:
         return _fail(
@@ -536,6 +536,14 @@ def _validate_picks(added: str) -> int:
             "source and reference its id in the marker."
         )
     return 0
+
+
+def _picked_id_tokens(picks_blob: str) -> list[str]:
+    without_drought_refs = DROUGHT_PHRASE_RE.sub("", picks_blob)
+    return [
+        token.removeprefix("#")
+        for token in ID_TOKEN_RE.findall(without_drought_refs)
+    ]
 
 
 def _previous_handoff_stamp(path: Path = HANDOFF) -> str | None:
@@ -702,7 +710,10 @@ def _validate_self_review_for_code(added: str, staged_code_files: list[str]) -> 
             "Code files are staged, but the handoff does not include the "
             "`[SELF REVIEW RESULT: ...]` marker. Review the task scope, "
             "log real findings as AutoIssues, fix safe in-scope issues, and "
-            "record the result before committing."
+            "record the result before committing. This hard block means the "
+            "agent must review its own code for bugs, silent errors, "
+            "correctness, tech debt, maintainability, duplication, and long "
+            "functions before commit."
         )
     results = _parse_quality_result(match.group("body"))
     missing = sorted(SELF_REVIEW_REQUIRED_KEYS - set(results))
@@ -851,13 +862,16 @@ def main() -> int:
         _validate_no_temporary_test_artifacts,
     ])) != 0:
         return rc
+    staged_files = _staged_files()
     staged_code_files = _staged_code_files()
     touches_handoff = _commit_touches_handoff()
-    if staged_code_files and not touches_handoff:
+    if staged_files and not touches_handoff:
         return _fail(
-            "Code files are staged but `AGENT-HANDOFF.md` is not staged. "
-            "Stage a handoff entry with the quality gate read and result "
-            "markers before committing code."
+            "Staged files are present but `AGENT-HANDOFF.md` is not staged. "
+            "Every commit must include the handoff entry with 30 picked "
+            "AutoIssue IDs, the quota proof, and the required quality "
+            "markers. Do not skip the AutoIssue quota, even for docs or "
+            "tooling-only commits."
         )
     if not touches_handoff:
         return 0

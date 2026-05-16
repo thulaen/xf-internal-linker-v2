@@ -147,7 +147,7 @@ docker compose run --rm -T \
     python /repo/scripts/run_quality_step.py --evidence-out "$evidence" --check-type security --tool-name pip-audit --command "pip-audit" --pass-summary "Python dependency audit passed." --fail-summary "Python dependency audit found existing dependency debt." || true
     python /repo/scripts/run_quality_step.py --evidence-out "$evidence" --check-type security --tool-name safety --command "safety check --full-report" --pass-summary "Safety dependency check passed." --fail-summary "Safety found existing dependency debt." || true
   fi
-  python /repo/scripts/run_quality_step.py --evidence-out "$evidence" --check-type normal_test --tool-name pytest --command "cd /repo/backend && python -m pytest -p randomly -q --maxfail=1 --reuse-db --no-cov $test_targets" --pass-summary "Changed backend pytest targets passed." --fail-summary "Changed backend pytest targets failed."
+  python /repo/scripts/run_quality_step.py --evidence-out "$evidence" --check-type normal_test --tool-name pytest --command "cd /repo/backend && python -m pytest --override-ini addopts= -p randomly -q --maxfail=1 --reuse-db --no-cov $test_targets" --pass-summary "Changed backend pytest targets passed." --fail-summary "Changed backend pytest targets failed."
   if test -z "$mutation_targets"; then
     python /repo/scripts/write_quality_evidence.py \
       --out "$evidence" \
@@ -185,6 +185,8 @@ pytest_args = [
     "no:unraisableexception",
     "-p",
     "no:threadexception",
+    "--override-ini",
+    "addopts=",
     "-q",
     "--maxfail=5",
     "--reuse-db",

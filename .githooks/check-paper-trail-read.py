@@ -5,13 +5,13 @@ Validates that the newly staged AGENT-HANDOFF.md entry contains:
   - a [PAPER TRAIL READ: ...] marker with the 16-category breakdown
   - the breakdown numbers sum to N (the declared open count)
   - exactly 10 picked ids (or a drought-substitution form)
-  - a [PAPER TRAIL QUOTA VERIFIED: 10 resolved] marker for code-changing
-    commits, plus shells out to manage.py verify_paper_trail_quota to
-    confirm the 10 ids are really resolved with two-part lessons.
+  - a [PAPER TRAIL QUOTA VERIFIED: 10 resolved] marker, plus shells out
+    to manage.py verify_paper_trail_quota to confirm the 10 ids are
+    really resolved with two-part lessons.
 
 Exit codes:
-  0 — pass (or no AGENT-HANDOFF.md change in this commit)
-  1 — pass-but-warn (skip-able edge cases like missing Docker)
+  0 — pass (or no staged files)
+  1 — reserved for old pass-but-warn behavior
   2 — hard fail (commit blocked)
 """
 
@@ -96,6 +96,11 @@ def _read_staged_handoff_diff() -> str:
 
 
 def _code_changing_commit() -> bool:
+    files = _staged_files()
+    return any(f.startswith(_CODE_PREFIXES) for f in files)
+
+
+def _staged_files() -> list[str]:
     try:
         result = subprocess.run(
             ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
@@ -106,9 +111,12 @@ def _code_changing_commit() -> bool:
             timeout=10,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):
-        return False
-    files = (result.stdout or "").splitlines()
-    return any(f.startswith(_CODE_PREFIXES) for f in files)
+        return []
+    return [line.strip() for line in (result.stdout or "").splitlines() if line.strip()]
+
+
+def _commit_has_staged_files() -> bool:
+    return bool(_staged_files())
 
 
 def _validate_marker(added: str) -> tuple[int, list[int]]:
@@ -163,6 +171,12 @@ def _validate_marker(added: str) -> tuple[int, list[int]]:
             f"(or drought-substitution form); got {len(ids)}.\n"
         )
         return 2, []
+    if len(set(ids)) != len(ids):
+        sys.stderr.write(
+            "FAIL check-paper-trail-read: duplicate Paper Trail picked IDs "
+            "are not allowed. Pick different paper-trail entries.\n"
+        )
+        return 2, []
 
     return 0, ids
 
@@ -173,16 +187,16 @@ def _verify_quota(ids: list[int]) -> int:
     HARD-BLOCK semantics (matches .githooks/check-registry-read.py): the
     quota check MUST run and MUST pass. There is no "skipped" exit code:
     if Docker is unavailable, if the command times out, or if drought form
-    is used on a code-changing commit, the commit FAILS so that the
-    backlog never grows silently. Returns 0 on pass, 2 on any failure.
+    is used on a staged commit, the commit FAILS so that the backlog never
+    grows silently. Returns 0 on pass, 2 on any failure.
     """
     if len(ids) != 10:
-        # Drought form on a code-changing commit is a HARD FAIL — file
+        # Drought form on a staged commit is a HARD FAIL — file
         # new paper-trail entries via `manage.py defer_work` until the
         # picker has 10 to choose from, then resolve those 10.
         sys.stderr.write(
             "FAIL check-paper-trail-read: drought-substitution form is not "
-            "allowed on a code-changing commit. The paper-trail picker found "
+            "allowed on a staged commit. The paper-trail picker found "
             f"only {len(ids)} entr(y/ies); you must file new entries via "
             "`manage.py defer_work --title ... --category ... --abstract ... "
             "--deferred-by ...` until the queue has 10, then resolve those 10 "
@@ -229,14 +243,14 @@ def _verify_quota(ids: list[int]) -> int:
 def main() -> int:
     added = _read_staged_handoff_diff()
     if not added:
-        # AGENT-HANDOFF.md was not staged. If this is a code-changing
-        # commit, require it.
-        if _code_changing_commit():
+        # AGENT-HANDOFF.md was not staged. Any staged commit requires
+        # Paper Trail proof so docs/tooling commits cannot skip it.
+        if _commit_has_staged_files():
             sys.stderr.write(
-                "FAIL check-paper-trail-read: this commit modifies code but "
+                "FAIL check-paper-trail-read: this commit has staged files but "
                 "does not update AGENT-HANDOFF.md with a [PAPER TRAIL READ: ...] "
                 "marker.\n"
-                "WHY: Rule (Paper Trail) requires every code-changing commit "
+                "WHY: Rule (Paper Trail) requires every commit "
                 "to surface the picked 10 paper-trail entries up front so "
                 "future agents see what's open.\n"
                 "UNBLOCK: Run `manage.py print_open_paper_trail` and paste "
@@ -250,17 +264,16 @@ def main() -> int:
     if exit_code != 0:
         return exit_code
 
-    if _code_changing_commit() and not _QUOTA_VERIFIED_RE.search(added):
+    if _commit_has_staged_files() and not _QUOTA_VERIFIED_RE.search(added):
         sys.stderr.write(
-            "FAIL check-paper-trail-read: code-changing commit is missing the "
+            "FAIL check-paper-trail-read: commit is missing the "
             "[PAPER TRAIL QUOTA VERIFIED: 10 resolved] marker. Run "
             "`manage.py verify_paper_trail_quota --ids <10 ids> "
             "--resolved-after <prev handoff timestamp>` and paste the result.\n"
         )
         return 2
 
-    if not _code_changing_commit():
-        # Docs-only commit. Marker validated above; no DB check needed.
+    if not _commit_has_staged_files():
         return 0
 
     return _verify_quota(ids)

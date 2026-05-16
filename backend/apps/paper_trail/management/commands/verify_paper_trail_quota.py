@@ -49,6 +49,10 @@ class Command(BaseCommand):
                 f"PaperTrailEntry not found: {', '.join(f'#{i}' for i in missing)}"
             )
 
+        duplicate_work = _duplicate_work_errors(ids, rows)
+        if duplicate_work:
+            raise CommandError("\n".join(duplicate_work))
+
         unresolved = [
             i for i in ids if rows[i].status != PaperTrailEntry.STATUS_RESOLVED
         ]
@@ -90,3 +94,21 @@ class Command(BaseCommand):
             )
 
         self.stdout.write(f"[PAPER TRAIL QUOTA VERIFIED: {_REQUIRED_QUOTA} resolved]")
+
+
+def _duplicate_work_errors(
+    ids: list[int],
+    rows: dict[int, PaperTrailEntry],
+) -> list[str]:
+    by_key: dict[str, list[int]] = {}
+    for entry_id in ids:
+        entry = rows.get(entry_id)
+        if entry is None or not entry.canonical_fingerprint:
+            continue
+        by_key.setdefault(entry.canonical_fingerprint, []).append(entry_id)
+    return [
+        "Duplicate Paper Trail work is not allowed in one quota: "
+        + ", ".join(f"#{entry_id}" for entry_id in entry_ids)
+        for entry_ids in by_key.values()
+        if len(entry_ids) > 1
+    ]

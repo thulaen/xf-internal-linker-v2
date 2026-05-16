@@ -206,8 +206,8 @@ def warning_scope_paths(paths: list[str]) -> list[str]:
     ]
 
 
-def main() -> int:
-    args = parse_args()
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
     paths = scoped_paths(args)
 
     if should_skip_for_scope(paths):
@@ -242,7 +242,7 @@ def main() -> int:
     return 0
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse command-line options."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument(
@@ -257,7 +257,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--paths", nargs="*", default=[])
     parser.add_argument("--paths-env", default="")
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def route_check_result(paths: list[str]) -> dict[str, set[str] | list[str]]:

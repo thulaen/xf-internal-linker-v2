@@ -41,6 +41,16 @@ class CodeReviewLessonsTests(unittest.TestCase):
             self.assertIn("FAIL", msg)
             self.assertIn("WHY", msg)
             self.assertIn("UNBLOCK", msg)
+            for required in (
+                "bugs",
+                "silent errors",
+                "correctness",
+                "tech debt",
+                "maintainability",
+                "duplication",
+                "long functions",
+            ):
+                self.assertIn(required, msg)
 
     def test_summary_marker_with_too_few_files_fails(self):
         marker = "[CODE REVIEW LESSONS: 1 logged from 1 files; deduped 0 against prior]"

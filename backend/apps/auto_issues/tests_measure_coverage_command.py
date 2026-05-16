@@ -111,3 +111,24 @@ class MeasureCoverageCommandTests(SimpleTestCase):
                 "measure_coverage", "--app", "apps.auto_issues", stdout=out,
             )
         self.assertIn("target=apps/auto_issues", out.getvalue())
+
+    def test_scoped_run_ignores_repo_wide_pytest_coverage_defaults(self) -> None:
+        report = "TOTAL  20  2  90.0%\n"
+        calls: list[list[str]] = []
+
+        def fake_run(cmd, **_kwargs):
+            calls.append(cmd)
+            return self._mock_runs(report)(cmd)
+
+        out = StringIO()
+        with patch(
+            "apps.auto_issues.management.commands.measure_coverage.subprocess.run",
+            side_effect=fake_run,
+        ):
+            call_command("measure_coverage", "--module", "apps/x.py", stdout=out)
+
+        coverage_run = next(cmd for cmd in calls if cmd[:2] == ["coverage", "run"])
+        self.assertIn("--override-ini", coverage_run)
+        self.assertIn("addopts=", coverage_run)
+        self.assertNotIn("--cov=apps", coverage_run)
+        self.assertNotIn("--cov=config", coverage_run)

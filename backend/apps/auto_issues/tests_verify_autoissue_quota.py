@@ -33,6 +33,14 @@ class VerifyAutoIssueQuotaCommandTests(TestCase):
         with self.assertRaisesMessage(CommandError, "Duplicate picked AutoIssue IDs"):
             call_command("verify_autoissue_quota", ids=issue_ids)
 
+    def test_duplicate_canonical_work_fails(self) -> None:
+        issue_ids = _create_resolved_issues(30)
+        AutoIssue.objects.filter(id__in=issue_ids[:2]).update(
+            canonical_fingerprint="same-autoissue-root"
+        )
+        with self.assertRaisesMessage(CommandError, "Duplicate picked AutoIssue work"):
+            call_command("verify_autoissue_quota", ids=issue_ids)
+
     def test_open_issue_fails(self) -> None:
         issue_ids = _create_resolved_issues(29)
         open_issue = _create_issue(status=AutoIssue.STATUS_OPEN)
@@ -70,6 +78,21 @@ class VerifyAutoIssueQuotaCommandTests(TestCase):
     def test_non_numeric_id_fails(self) -> None:
         with self.assertRaisesMessage(CommandError, "must be a number"):
             call_command("verify_autoissue_quota", ids=["abc"])
+
+    def test_invalid_resolved_after_fails(self) -> None:
+        issue_ids = _create_resolved_issues(30)
+        with self.assertRaisesMessage(CommandError, "YYYY-MM-DD HH:MM"):
+            call_command(
+                "verify_autoissue_quota",
+                ids=issue_ids,
+                resolved_after="not-a-date",
+            )
+
+    def test_missing_issue_id_fails(self) -> None:
+        issue_ids = _create_resolved_issues(29)
+        issue_ids.append("999999")
+        with self.assertRaisesMessage(CommandError, "do not exist"):
+            call_command("verify_autoissue_quota", ids=issue_ids)
 
 
 def _create_resolved_issues(count: int) -> list[str]:

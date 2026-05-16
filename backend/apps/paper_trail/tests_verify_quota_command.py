@@ -66,6 +66,19 @@ class VerifyQuotaTests(TestCase):
                 stdout=StringIO(),
             )
 
+    def test_fails_on_duplicate_canonical_work(self) -> None:
+        now = timezone.now()
+        entries = [_resolved(f"t{i}", resolved_at=now) for i in range(10)]
+        PaperTrailEntry.objects.filter(pk__in=[entries[0].pk, entries[1].pk]).update(
+            canonical_fingerprint="same-paper-work"
+        )
+        with self.assertRaisesMessage(CommandError, "Duplicate Paper Trail work"):
+            call_command(
+                "verify_paper_trail_quota",
+                "--ids", *[str(entry.pk) for entry in entries],
+                stdout=StringIO(),
+            )
+
     def test_fails_when_resolved_before_cutoff(self) -> None:
         old = timezone.now() - timedelta(days=3)
         ids = [_resolved(f"t{i}", resolved_at=old).pk for i in range(10)]
@@ -91,6 +104,52 @@ class VerifyQuotaTests(TestCase):
             resolution_lessons="Trap: only — no fix-shape part"
         )
         with self.assertRaises(CommandError):
+            call_command(
+                "verify_paper_trail_quota",
+                "--ids", *[str(i) for i in ids],
+                stdout=StringIO(),
+            )
+
+    def test_invalid_resolved_after_fails_plainly(self) -> None:
+        now = timezone.now()
+        ids = [_resolved(f"t{i}", resolved_at=now).pk for i in range(10)]
+        with self.assertRaisesMessage(CommandError, "Could not parse"):
+            call_command(
+                "verify_paper_trail_quota",
+                "--ids", *[str(i) for i in ids],
+                "--resolved-after", "not-a-date",
+                stdout=StringIO(),
+            )
+
+    def test_missing_entry_fails(self) -> None:
+        now = timezone.now()
+        ids = [_resolved(f"t{i}", resolved_at=now).pk for i in range(9)]
+        ids.append(999_999)
+        with self.assertRaisesMessage(CommandError, "PaperTrailEntry not found"):
+            call_command(
+                "verify_paper_trail_quota",
+                "--ids", *[str(i) for i in ids],
+                stdout=StringIO(),
+            )
+
+    def test_unresolved_entry_fails(self) -> None:
+        now = timezone.now()
+        ids = [_resolved(f"t{i}", resolved_at=now).pk for i in range(10)]
+        PaperTrailEntry.objects.filter(pk=ids[0]).update(
+            status=PaperTrailEntry.STATUS_OPEN
+        )
+        with self.assertRaisesMessage(CommandError, "Not resolved"):
+            call_command(
+                "verify_paper_trail_quota",
+                "--ids", *[str(i) for i in ids],
+                stdout=StringIO(),
+            )
+
+    def test_missing_resolved_timestamp_fails(self) -> None:
+        now = timezone.now()
+        ids = [_resolved(f"t{i}", resolved_at=now).pk for i in range(10)]
+        PaperTrailEntry.objects.filter(pk=ids[0]).update(resolved_at=None)
+        with self.assertRaisesMessage(CommandError, "Missing resolved_at"):
             call_command(
                 "verify_paper_trail_quota",
                 "--ids", *[str(i) for i in ids],

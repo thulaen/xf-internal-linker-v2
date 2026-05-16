@@ -8,6 +8,7 @@ from django.core.management import call_command
 from django.test import TestCase
 
 from apps.paper_trail.models import PaperTrailEntry
+from apps.paper_trail.services import picker
 
 
 def _make(**overrides) -> PaperTrailEntry:
@@ -51,8 +52,47 @@ class PrintOpenPaperTrailTests(TestCase):
         for cat, _label in PaperTrailEntry.CATEGORY_CHOICES:
             self.assertIn(cat, out.getvalue())
 
+    def test_count_by_category_keeps_unknown_database_values_visible(self) -> None:
+        entry = _make()
+        PaperTrailEntry.objects.filter(pk=entry.pk).update(category="unexpected")
+
+        counts = picker.count_by_category()
+
+        self.assertEqual(counts["unexpected"], 1)
+
     def test_drought_form_when_under_10(self) -> None:
         _make(title="only one entry")
         out = StringIO()
         call_command("print_open_paper_trail", stdout=out)
         self.assertIn("drought", out.getvalue())
+
+    def test_picker_never_returns_same_canonical_work_twice(self) -> None:
+        first = _make(title="Duplicate quota work", priority_score=50)
+        duplicate = _make(
+            category=PaperTrailEntry.CATEGORY_TOOLING_GAP,
+            title="Duplicate quota work",
+            priority_score=40,
+        )
+        unique = _make(title="Unique quota work", priority_score=30)
+
+        picked = picker.pick_top_n(2)
+
+        self.assertEqual([entry.pk for entry in picked], [first.pk, unique.pk])
+
+    def test_picker_skips_open_copy_of_already_closed_work(self) -> None:
+        closed = _make(title="Already handled quota work", priority_score=60)
+        closed.status = PaperTrailEntry.STATUS_RESOLVED
+        closed.resolved_at = closed.deferred_at
+        closed.resolved_by = "test"
+        closed.resolution_lessons = "Trap: duplicate closed work. Fix shape: skip it."
+        closed.save()
+        reopened_duplicate = _make(
+            title="Already handled quota work",
+            priority_score=50,
+        )
+        unique = _make(title="Fresh quota work", priority_score=40)
+
+        picked = picker.pick_top_n(2)
+
+        self.assertEqual([entry.pk for entry in picked], [unique.pk])
+        self.assertNotIn(reopened_duplicate.pk, [entry.pk for entry in picked])

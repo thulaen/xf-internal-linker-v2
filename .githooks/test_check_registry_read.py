@@ -14,8 +14,10 @@ session must pick 30 real issue IDs.
 from __future__ import annotations
 
 import importlib.util
+import sys
 import tempfile
 import unittest
+from io import StringIO
 from subprocess import CalledProcessError, CompletedProcess
 from pathlib import Path
 from unittest import mock
@@ -217,6 +219,10 @@ class CheckRegistryReadHookTests(unittest.TestCase):
         added = _valid_ten_source_marker(picks_gh=2)
         self.assertEqual(self.hook._validate_picks(added), 1)
 
+    def test_duplicate_picked_id_rejected(self):
+        added = _valid_numeric_ten_source_marker().replace("#2", "#1", 1)
+        self.assertEqual(self.hook._validate_picks(added), 1)
+
     def test_all_satisfier_phrases_rejected(self):
         phrases = (
             "auto-fix-30 satisfier",
@@ -360,13 +366,25 @@ class CheckRegistryReadHookTests(unittest.TestCase):
         self.assertEqual(self.hook._validate_quality_gate_for_code(added, []), 0)
 
     def test_code_commit_without_self_review_marker_fails(self):
-        self.assertEqual(
-            self.hook._validate_self_review_for_code(
-                "no self review",
-                ["backend/apps/core/foo.py"],
-            ),
-            1,
-        )
+        with mock.patch.object(sys, "stderr", StringIO()) as err:
+            self.assertEqual(
+                self.hook._validate_self_review_for_code(
+                    "no self review",
+                    ["backend/apps/core/foo.py"],
+                ),
+                1,
+            )
+        msg = err.getvalue()
+        for required in (
+            "bugs",
+            "silent errors",
+            "correctness",
+            "tech debt",
+            "maintainability",
+            "duplication",
+            "long functions",
+        ):
+            self.assertIn(required, msg)
 
     def test_self_review_marker_with_missing_fields_fails(self):
         added = "[SELF REVIEW RESULT: scope=task-files issues=none]"
@@ -804,6 +822,31 @@ class CheckRegistryReadHookTests(unittest.TestCase):
         ):
             self.assertEqual(self.hook.main(), 1)
 
+    def test_main_rejects_any_staged_file_without_handoff(self):
+        with (
+            mock.patch.object(
+                self.hook,
+                "_validate_no_unstaged_session_files",
+                return_value=0,
+            ),
+            mock.patch.object(
+                self.hook,
+                "_validate_no_generated_build_files",
+                return_value=0,
+            ),
+            mock.patch.object(
+                self.hook,
+                "_validate_no_temporary_test_artifacts",
+                return_value=0,
+            ),
+            mock.patch.object(self.hook, "_staged_files", return_value=["docs/specs/x.md"]),
+            mock.patch.object(self.hook, "_staged_code_files", return_value=[]),
+            mock.patch.object(self.hook, "_commit_touches_handoff", return_value=False),
+            mock.patch.object(sys, "stderr", StringIO()) as err,
+        ):
+            self.assertEqual(self.hook.main(), 1)
+        self.assertIn("30 picked AutoIssue", err.getvalue())
+
     def test_main_skips_when_handoff_unchanged(self):
         with (
             mock.patch.object(
@@ -821,6 +864,7 @@ class CheckRegistryReadHookTests(unittest.TestCase):
                 "_validate_no_temporary_test_artifacts",
                 return_value=0,
             ),
+            mock.patch.object(self.hook, "_staged_files", return_value=[]),
             mock.patch.object(self.hook, "_staged_code_files", return_value=[]),
             mock.patch.object(self.hook, "_commit_touches_handoff", return_value=False),
         ):

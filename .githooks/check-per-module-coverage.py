@@ -80,6 +80,7 @@ def _measure(target: str) -> float | None:
                 "coverage", "run",
                 "--source", rel,
                 "-m", "pytest", rel,
+                "--override-ini", "addopts=",
                 "-p", "randomly", "-q", "--no-cov", "--maxfail=5",
             ],
             cwd=backend, capture_output=True, text=True, check=False,

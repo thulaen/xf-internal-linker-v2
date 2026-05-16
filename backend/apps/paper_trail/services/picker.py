@@ -6,12 +6,26 @@ from apps.paper_trail.models import PaperTrailEntry
 
 
 def pick_top_n(n: int = 10) -> list[PaperTrailEntry]:
-    """Return up to `n` active entries ordered by priority then recency."""
-    return list(
-        PaperTrailEntry.objects.filter(
-            status__in=PaperTrailEntry._ACTIVE_STATUSES,
-        )
-        .order_by("-priority_score", "-last_seen")[:n]
+    """Return up to `n` unique active entries ordered by priority then recency."""
+    closed_keys = _closed_canonical_keys()
+    picked: list[PaperTrailEntry] = []
+    seen_keys: set[str] = set()
+    for entry in _ordered_active_entries():
+        key = _dedupe_key(entry)
+        if key in closed_keys or key in seen_keys:
+            continue
+        picked.append(entry)
+        seen_keys.add(key)
+        if len(picked) == n:
+            break
+    return picked
+
+
+def _ordered_active_entries():
+    return (
+        PaperTrailEntry.objects.filter(status__in=PaperTrailEntry._ACTIVE_STATUSES)
+        .order_by("-priority_score", "-last_seen")
+        .iterator()
     )
 
 
@@ -45,3 +59,16 @@ def resolved_this_session_count(since) -> int:
         status=PaperTrailEntry.STATUS_RESOLVED,
         resolved_at__gte=since,
     ).count()
+
+
+def _closed_canonical_keys() -> set[str]:
+    return set(
+        PaperTrailEntry.objects.filter(status__in=PaperTrailEntry._TERMINAL_STATUSES)
+        .exclude(canonical_fingerprint="")
+        .values_list("canonical_fingerprint", flat=True)
+        .distinct()
+    )
+
+
+def _dedupe_key(entry: PaperTrailEntry) -> str:
+    return entry.canonical_fingerprint or f"paper-trail:{entry.pk}"

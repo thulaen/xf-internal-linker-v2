@@ -69,6 +69,7 @@ def _quota_errors(issue_ids: list[int], resolved_after: datetime | None) -> list
         return errors
     issues = {issue.id: issue for issue in AutoIssue.objects.filter(id__in=issue_ids)}
     errors.extend(_missing_issue_errors(issue_ids, issues))
+    errors.extend(_duplicate_work_errors(issue_ids, issues))
     errors.extend(_issue_state_errors(issue_ids, issues, resolved_after))
     return errors
 
@@ -92,6 +93,23 @@ def _missing_issue_errors(
     if not missing:
         return []
     return [f"Picked AutoIssue IDs do not exist: {_render_ids(missing)}."]
+
+
+def _duplicate_work_errors(
+    issue_ids: list[int],
+    issues: dict[int, AutoIssue],
+) -> list[str]:
+    by_key: dict[str, list[int]] = {}
+    for issue_id in issue_ids:
+        issue = issues.get(issue_id)
+        if issue is None or not issue.canonical_fingerprint:
+            continue
+        by_key.setdefault(issue.canonical_fingerprint, []).append(issue_id)
+    duplicate_groups = [ids for ids in by_key.values() if len(ids) > 1]
+    if not duplicate_groups:
+        return []
+    rendered = "; ".join(_render_ids(ids) for ids in duplicate_groups)
+    return [f"Duplicate picked AutoIssue work is not allowed: {rendered}."]
 
 
 def _issue_state_errors(

@@ -109,6 +109,7 @@ class Command(BaseCommand):
                 "--source", target,
                 *branch_flag,
                 "-m", "pytest", target,
+                "--override-ini", "addopts=",
                 "-p", "randomly", "-q", "--no-cov",
                 "--maxfail=5",
             ],
