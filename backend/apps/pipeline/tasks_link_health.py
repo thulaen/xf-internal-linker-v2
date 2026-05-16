@@ -126,8 +126,10 @@ def _run_suggestion_verifications(client, suggestions, total: int, job_id: str) 
     for index, suggestion in enumerate(suggestions):
         _publish_progress(job_id, "running", index / total, f"Checking suggestion {str(suggestion.suggestion_id)[:8]}...")
         result = _verify_one_suggestion(client, suggestion)
-        if result == "verified": verified += 1
-        elif result == "stale": stale += 1
+        if result == "verified":
+            verified += 1
+        elif result == "stale":
+            stale += 1
     return verified, stale
 
 def _verify_one_suggestion(client, suggestion) -> str:

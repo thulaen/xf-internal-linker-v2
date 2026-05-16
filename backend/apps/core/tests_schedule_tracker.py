@@ -6,6 +6,8 @@ Covers:
 - `find_missed_runs` returns slots with no row in the lookback window
 - `recover_missed_runs` fires the callable + writes a 'pending' row
 - The unique constraint on the model rejects duplicate (task_name, slot)
+- `_is_schema_work_command` blocks schedule recovery during migrations
+  (AutoIssue #272 regression)
 """
 
 from __future__ import annotations
@@ -13,10 +15,46 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from django.db import IntegrityError
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
+from apps.core.apps import _is_schema_work_command
 from apps.core.models import ScheduledTaskRun
 from apps.core.services import schedule_tracker
+
+
+class SchemaWorkGuardTests(SimpleTestCase):
+    """Regression for AutoIssue #272 — schedule recovery must skip
+    when the user is running schema work (migrate / makemigrations /
+    sqlmigrate / showmigrations / squashmigrations).
+    """
+
+    def test_migrate_command_is_schema_work(self) -> None:
+        self.assertTrue(_is_schema_work_command(["manage.py", "migrate"]))
+
+    def test_migrate_with_app_is_schema_work(self) -> None:
+        self.assertTrue(
+            _is_schema_work_command(["manage.py", "migrate", "auto_issues"])
+        )
+
+    def test_makemigrations_is_schema_work(self) -> None:
+        self.assertTrue(_is_schema_work_command(["manage.py", "makemigrations"]))
+
+    def test_sqlmigrate_is_schema_work(self) -> None:
+        self.assertTrue(
+            _is_schema_work_command(["manage.py", "sqlmigrate", "auto_issues", "0001"])
+        )
+
+    def test_runserver_is_not_schema_work(self) -> None:
+        self.assertFalse(_is_schema_work_command(["manage.py", "runserver"]))
+
+    def test_test_is_not_schema_work(self) -> None:
+        # The existing test-detection path handles 'test'; the new guard
+        # must not double-trigger on it.
+        self.assertFalse(_is_schema_work_command(["manage.py", "test"]))
+
+    def test_empty_argv_is_not_schema_work(self) -> None:
+        self.assertFalse(_is_schema_work_command([]))
+        self.assertFalse(_is_schema_work_command(["manage.py"]))
 
 
 def _noop_fire(slot: datetime) -> None:

@@ -50,8 +50,8 @@ def _load_baseline() -> dict[str, float | None]:
 
 def _read_report(path: Path) -> Any:
     if not path.is_file():
-        print(f"check-mutation-score: report {path} not found; skipping")
-        sys.exit(0)
+        sys.stderr.write(f"check-mutation-score: report {path} not found\n")
+        sys.exit(1)
     try:
         with path.open("r", encoding="utf-8") as f:
             return json.load(f)
@@ -84,11 +84,26 @@ def _stryker_score(data: Any) -> float | None:
 
 
 def _mull_score(data: Any) -> float | None:
-    """Mull JSON: list of mutants with status."""
-    items = data if isinstance(data, list) else data.get("mutants", [])
+    """Mull Elements JSON: either a top-level mutationScore int, or a
+    files-keyed dict whose entries each carry a mutants list with status.
+    """
+    if isinstance(data, dict) and isinstance(data.get("mutationScore"), (int, float)):
+        return float(data["mutationScore"])
+    items: list = []
+    if isinstance(data, list):
+        items = data
+    elif isinstance(data, dict):
+        if isinstance(data.get("mutants"), list):
+            items = data["mutants"]
+        else:
+            for file_info in data.get("files", {}).values():
+                if isinstance(file_info, dict) and isinstance(file_info.get("mutants"), list):
+                    items.extend(file_info["mutants"])
     if not items:
         return None
-    killed = sum(1 for m in items if m.get("status") == "Killed")
+    killed = sum(
+        1 for m in items if isinstance(m, dict) and m.get("status") in ("Killed", "Timeout")
+    )
     return 100.0 * killed / len(items)
 
 
@@ -118,8 +133,8 @@ def main() -> int:
     data = _read_report(opts.report)
     score = _PARSERS[opts.tool](data)
     if score is None:
-        print(f"check-mutation-score: could not compute score for {key}; skipping")
-        return 0
+        sys.stderr.write(f"check-mutation-score: could not compute score for {key}\n")
+        return 1
 
     if floor is None:
         if opts.seed_if_empty:

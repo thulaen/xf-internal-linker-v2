@@ -12,8 +12,8 @@ Two complementary detectors:
    per plan ``does-adding-qodana-make-swift-wall.md`` Stream 2).
 
 Both write AutoIssue rows with ``source='pyroscope'`` and a priority
-score from ``services.scoring``. The ``kind`` column distinguishes them
-(``regression`` vs ``hotspot``).
+score from ``services.scoring``. Regression and hotspot rows use separate
+fingerprint prefixes so they do not collide in the AutoIssue table.
 
 Design decisions (from SPEC § Open design decisions):
   - (d) We query 24h chunks instead of 7-day windows so a single API
@@ -68,7 +68,7 @@ class PyroscopeCandidate:
 
 def _stable_fingerprint(function_name: str, file_hint: str) -> str:
     raw = f"pyroscope::{function_name}::{file_hint}"
-    return hashlib.sha1(raw.encode()).hexdigest()[:16]
+    return hashlib.sha1(raw.encode(), usedforsecurity=False).hexdigest()[:16]
 
 
 def _query_pyroscope_diff(
@@ -296,6 +296,11 @@ def pick_pyroscope_regressions(
 
 _HOTSPOT_PCT_DEFAULT = 5.0
 _HOTSPOT_WINDOW_DEFAULT_S = 3600
+_PROFILER_TOOLING_EXACT_NAMES = frozenset({"Runner.run", "sleep"})
+_PROFILER_TOOLING_FRAGMENTS = (
+    "Scheduler.make_sampler.<locals>._sample_stack",
+    "encode_metrics",
+)
 
 
 def _read_hotspot_settings() -> tuple[float, int]:
@@ -386,6 +391,26 @@ def _select_hotspots(
     return candidates
 
 
+def _is_profiler_tooling_hotspot(pc: PyroscopeCandidate) -> bool:
+    name = pc.function_name
+    if name in _PROFILER_TOOLING_EXACT_NAMES:
+        return True
+    return any(fragment in name for fragment in _PROFILER_TOOLING_FRAGMENTS)
+
+
+def _split_profiler_tooling_hotspots(
+    cands: list[PyroscopeCandidate],
+) -> tuple[list[PyroscopeCandidate], list[PyroscopeCandidate]]:
+    app_cands: list[PyroscopeCandidate] = []
+    tooling_cands: list[PyroscopeCandidate] = []
+    for pc in cands:
+        if _is_profiler_tooling_hotspot(pc):
+            tooling_cands.append(pc)
+        else:
+            app_cands.append(pc)
+    return app_cands, tooling_cands
+
+
 def _gather_hotspots(
     server: str,
     applications: tuple[str, ...],
@@ -439,10 +464,50 @@ def _upsert_hotspot_row(score: float, pc: PyroscopeCandidate) -> str:
     return outcome
 
 
+def _format_tooling_hotspot(pc: PyroscopeCandidate) -> str:
+    share_pct = pc.right_self_ns * 100.0 / max(pc.right_total_ns, 1.0)
+    return f"{pc.function_name} ({share_pct:.1f}%)"
+
+
+def _upsert_profiler_tooling_row(cands: list[PyroscopeCandidate]) -> str:
+    max_blast = max(c.right_self_ns for c in cands)
+    score = max(
+        score_candidate(_candidate_for_score(pc, max_blast)) for pc in cands
+    )
+    total_self_ns = sum(c.right_self_ns for c in cands)
+    observed = ", ".join(_format_tooling_hotspot(pc) for pc in cands[:6])
+    fingerprint = _stable_fingerprint(
+        "hotspot::profiler-tooling-overhead", "pyroscope"
+    )
+    title = "Pyroscope: profiler-tooling overhead is above threshold"
+    description = (
+        "Pyroscope reported profiler or framework overhead above the hotspot "
+        f"threshold: {observed}. The picker grouped these functions into one "
+        "tooling issue so sampler, sleep, and metrics overhead do not create "
+        "separate app-performance issues."
+    )
+    _, outcome = upsert_dedup(
+        canonical=canonical_fingerprint(title, "pyroscope"),
+        source=AutoIssue.SOURCE_PYROSCOPE,
+        external_id=fingerprint,
+        fingerprint=fingerprint,
+        title=title,
+        description=description,
+        affected_files=[],
+        severity=AutoIssue.SEVERITY_MEDIUM,
+        priority_score=float(score),
+        occurrence_count=max(1, int(total_self_ns / 1e6)),
+        category_key="tooling",
+    )
+    return outcome
+
+
 def _score_and_upsert_hotspots(
     cands: list[PyroscopeCandidate], *, limit: int
 ) -> int:
     """Score candidates, sort, upsert top-K. Returns count promoted."""
+    if not cands:
+        return 0
     max_blast = max(c.right_self_ns for c in cands)
     scored = [
         (score_candidate(_candidate_for_score(pc, max_blast)), pc)
@@ -480,21 +545,36 @@ def pick_pyroscope_hotspots(
         return {"status": "skipped", "reason": "missing_pyroscope_server"}
     threshold_pct, window_s = _read_hotspot_settings()
     cands = _gather_hotspots(
-        server, applications,
-        threshold_pct=threshold_pct, window_s=window_s,
+        server,
+        applications,
+        threshold_pct=threshold_pct,
+        window_s=window_s,
     )
     if not cands:
         return {"status": "ok", "hotspots_found": 0, "promoted": 0}
-    promoted = _score_and_upsert_hotspots(cands, limit=limit)
+    app_cands, tooling_cands = _split_profiler_tooling_hotspots(cands)
+    promoted = _score_and_upsert_hotspots(app_cands, limit=limit)
+    tooling_promoted = 0
+    if tooling_cands:
+        _upsert_profiler_tooling_row(tooling_cands)
+        tooling_promoted = 1
     logger.info(
-        "[auto_issues.pyroscope_picker.hotspots] found=%d promoted=%d "
-        "threshold_pct=%.1f window_s=%d",
-        len(cands), promoted, threshold_pct, window_s,
+        "[auto_issues.pyroscope_picker.hotspots] found=%d app=%d "
+        "tooling=%d promoted=%d threshold_pct=%.1f window_s=%d",
+        len(cands),
+        len(app_cands),
+        len(tooling_cands),
+        promoted + tooling_promoted,
+        threshold_pct,
+        window_s,
     )
     return {
         "status": "ok",
         "hotspots_found": len(cands),
-        "promoted": promoted,
+        "app_hotspots_found": len(app_cands),
+        "profiler_tooling_found": len(tooling_cands),
+        "promoted": promoted + tooling_promoted,
+        "profiler_tooling_promoted": tooling_promoted,
         "threshold_pct": threshold_pct,
         "window_seconds": window_s,
     }

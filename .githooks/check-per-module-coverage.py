@@ -20,9 +20,6 @@ Exit codes:
     1 — at least one touched file dropped below its baseline.
     2 — couldn't measure coverage (test failure upstream; surface honestly).
 
-The check is best-effort: when `coverage` isn't on PATH OR the project
-isn't reachable, the hook prints a skip line and returns 0. CI catches
-what local skips.
 """
 
 from __future__ import annotations
@@ -106,11 +103,6 @@ def main() -> int:
         default="origin/master",
         help="Git ref to diff against. Use 'STAGED' for pre-commit.",
     )
-    parser.add_argument(
-        "--skip-when-missing",
-        action="store_true",
-        help="Return 0 silently when coverage tooling is unavailable.",
-    )
     opts = parser.parse_args()
 
     baseline = _load_baseline()
@@ -123,7 +115,7 @@ def main() -> int:
         return 0
 
     failures: list[tuple[str, float, float]] = []
-    skipped: list[str] = []
+    unmeasured: list[str] = []
 
     for path in touched:
         rel = path.removeprefix("backend/")
@@ -133,17 +125,19 @@ def main() -> int:
 
         current = _measure(path)
         if current is None:
-            skipped.append(path)
+            unmeasured.append(path)
             continue
 
         if current + 0.01 < floor:  # 0.01 fudge for float roundtrip
             failures.append((path, floor, current))
 
-    if skipped and not opts.skip_when_missing:
+    if unmeasured:
         sys.stderr.write(
-            "check-per-module-coverage: SKIPPED " + ", ".join(skipped) +
-            " (coverage tooling unavailable or test failure upstream)\n"
+            "FAIL check-per-module-coverage: coverage could not be measured for "
+            + ", ".join(unmeasured)
+            + " (coverage tooling is unavailable or tests failed)\n"
         )
+        return 2
 
     if failures:
         sys.stderr.write("\nFAIL check-per-module-coverage: regressions detected\n\n")

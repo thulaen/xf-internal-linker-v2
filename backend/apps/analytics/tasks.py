@@ -11,6 +11,7 @@ from apps.api.query_params import coerce_int
 from apps.core.helpers import HelperConstraint
 from django.db import connection
 
+from .external_errors import is_google_api_client_error
 from .models import AnalyticsSyncRun
 from .sync import run_ga4_sync, run_matomo_sync, run_gsc_sync
 
@@ -36,6 +37,19 @@ def _queue_scheduled_sync(
     }
 
 
+def _mark_sync_failed(sync_run: AnalyticsSyncRun, exc: Exception) -> None:
+    sync_run.status = "failed"
+    sync_run.error_message = str(exc)
+    sync_run.completed_at = timezone.now()
+    sync_run.save(
+        update_fields=["status", "error_message", "completed_at"]
+    )
+
+
+def _failed_sync_result(sync_run_id: int, exc: Exception) -> dict[str, int | str]:
+    return {"sync_run_id": sync_run_id, "status": "failed", "error": str(exc)}
+
+
 @shared_task(
     bind=True,
     name="analytics.sync_matomo_telemetry",
@@ -56,17 +70,12 @@ def sync_matomo_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
     sync_run = _load_sync_run(sync_run_id)
     sync_run.status = "running"
     sync_run.error_message = ""
-    sync_run.save(update_fields=["status", "error_message", "updated_at"])
+    sync_run.save(update_fields=["status", "error_message"])
 
     try:
         stats = run_matomo_sync(sync_run)
     except Exception as exc:
-        sync_run.status = "failed"
-        sync_run.error_message = str(exc)
-        sync_run.completed_at = timezone.now()
-        sync_run.save(
-            update_fields=["status", "error_message", "completed_at", "updated_at"]
-        )
+        _mark_sync_failed(sync_run, exc)
         raise
 
     sync_run.status = "completed"
@@ -81,7 +90,6 @@ def sync_matomo_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
             "rows_read",
             "rows_written",
             "rows_updated",
-            "updated_at",
         ]
     )
     return {"sync_run_id": sync_run_id, **stats}
@@ -104,17 +112,14 @@ def sync_ga4_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
     sync_run = _load_sync_run(sync_run_id)
     sync_run.status = "running"
     sync_run.error_message = ""
-    sync_run.save(update_fields=["status", "error_message", "updated_at"])
+    sync_run.save(update_fields=["status", "error_message"])
 
     try:
         stats = run_ga4_sync(sync_run)
     except Exception as exc:
-        sync_run.status = "failed"
-        sync_run.error_message = str(exc)
-        sync_run.completed_at = timezone.now()
-        sync_run.save(
-            update_fields=["status", "error_message", "completed_at", "updated_at"]
-        )
+        _mark_sync_failed(sync_run, exc)
+        if is_google_api_client_error(exc):
+            return _failed_sync_result(sync_run_id, exc)
         raise
 
     sync_run.status = "completed"
@@ -129,7 +134,6 @@ def sync_ga4_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
             "rows_read",
             "rows_written",
             "rows_updated",
-            "updated_at",
         ]
     )
     return {"sync_run_id": sync_run_id, **stats}
@@ -155,17 +159,14 @@ def sync_gsc_performance(self, sync_run_id: int) -> dict[str, int | str]:
     sync_run = _load_sync_run(sync_run_id)
     sync_run.status = "running"
     sync_run.error_message = ""
-    sync_run.save(update_fields=["status", "error_message", "updated_at"])
+    sync_run.save(update_fields=["status", "error_message"])
 
     try:
         stats = run_gsc_sync(sync_run)
     except Exception as exc:
-        sync_run.status = "failed"
-        sync_run.error_message = str(exc)
-        sync_run.completed_at = timezone.now()
-        sync_run.save(
-            update_fields=["status", "error_message", "completed_at", "updated_at"]
-        )
+        _mark_sync_failed(sync_run, exc)
+        if is_google_api_client_error(exc):
+            return _failed_sync_result(sync_run_id, exc)
         raise
 
     sync_run.status = "completed"
@@ -188,7 +189,6 @@ def sync_gsc_performance(self, sync_run_id: int) -> dict[str, int | str]:
             "rows_read",
             "rows_written",
             "rows_updated",
-            "updated_at",
         ]
     )
     return {"sync_run_id": sync_run_id, **stats}

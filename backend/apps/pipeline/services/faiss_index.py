@@ -163,12 +163,12 @@ def build_faiss_index() -> None:
 
     if not vectors:
         msg = "FAISS index build: no embeddings found in DB"
-        logger.warning(msg)
+        logger.info(msg)
         emit(
             "faiss.build_empty",
             msg,
             source="faiss",
-            severity="warning",
+            severity="info",
         )
         return
 
@@ -176,7 +176,7 @@ def build_faiss_index() -> None:
     dim = matrix.shape[1]
 
     index_cpu = faiss.IndexFlatIP(dim)
-    index_cpu.add(matrix)
+    index_cpu.add(matrix)  # pylint: disable=no-value-for-parameter
 
     if faiss.get_num_gpus() > 0 and performance_mode == PERFORMANCE_MODE_HIGH:
         res = faiss.StandardGpuResources()

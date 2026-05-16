@@ -224,6 +224,15 @@ def ingest_error(
         severity=severity,
     )
     try:
+        from apps.core.services.async_context import in_async_context
+
+        if in_async_context():
+            logger.debug(
+                "ingest_error skipped in async context for job_type=%s step=%s",
+                job_type,
+                step,
+            )
+            return None
         fp, node_id, node_role, ctx = _gather_context(job_type, step, error_message)
         row = _dedup_or_create(
             fp=fp, node_id=node_id, node_role=node_role, ctx=ctx, payload=payload

@@ -1,17 +1,11 @@
-"""Top-N picker for the paper-trail opening ritual.
-
-The default N was lowered from 10 to 3 on 2026-05-16. The new rule:
-every commit (not only code-changing) must resolve 3 picked entries.
-The lower count makes the per-session resolution feasible (~15 min)
-while still draining the backlog steadily.
-"""
+"""Top-10 picker for the paper-trail opening ritual."""
 
 from __future__ import annotations
 
 from apps.paper_trail.models import PaperTrailEntry
 
 
-def pick_top_n(n: int = 3) -> list[PaperTrailEntry]:
+def pick_top_n(n: int = 10) -> list[PaperTrailEntry]:
     """Return up to `n` active entries ordered by priority then recency."""
     return list(
         PaperTrailEntry.objects.filter(

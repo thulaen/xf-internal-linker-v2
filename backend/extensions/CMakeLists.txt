@@ -49,6 +49,22 @@ if (COVERAGE)
     add_compile_options(--coverage -O0 -g)
     add_link_options(--coverage)
 endif()
+
+# Mull mutation-testing build (FR-251 Gap #4 — and resolution of the
+# pre-2026-05-15 `mull-runner reports "No mutants found"` tooling gap).
+# Enable with `-DMULL_BUILD=ON`. Adds the Mull IR pass plugin to every
+# compile so mull-runner-19 can find mutation points in the resulting
+# binary. Combined with -O0 to keep optimisations from elidng the
+# instrumented branches.
+option(MULL_BUILD "Build with Mull IR pass for mutation testing" OFF)
+if (MULL_BUILD)
+    message(STATUS "Mull build enabled; adding mull-ir-frontend pass + -O0 -g")
+    add_compile_options(
+        -fpass-plugin=/usr/lib/mull-ir-frontend-19
+        -O0
+        -g
+    )
+endif()
 add_executable(test_simsearch tests/test_simsearch.cpp simsearch.cpp)
 target_include_directories(test_simsearch PRIVATE include)
 if (TBB_FOUND)
@@ -79,6 +95,14 @@ add_executable(test_streaming_sketches tests/test_streaming_sketches.cpp)
 target_include_directories(test_streaming_sketches PRIVATE include)
 target_link_libraries(test_streaming_sketches GTest::gtest_main)
 
+add_executable(test_papertrail_dedup tests/test_papertrail_dedup.cpp papertrail_dedup.cpp)
+target_include_directories(test_papertrail_dedup PRIVATE include)
+target_link_libraries(test_papertrail_dedup GTest::gtest_main)
+
+add_executable(test_lesson_index tests/test_lesson_index.cpp lesson_index.cpp)
+target_include_directories(test_lesson_index PRIVATE include)
+target_link_libraries(test_lesson_index GTest::gtest_main)
+
 enable_testing()
 set(XF_GTEST_TARGETS
     test_simsearch
@@ -88,6 +112,8 @@ set(XF_GTEST_TARGETS
     test_quantemb
     test_ivf_index
     test_streaming_sketches
+    test_papertrail_dedup
+    test_lesson_index
 )
 foreach(test_target IN LISTS XF_GTEST_TARGETS)
     add_test(NAME ${test_target} COMMAND $<TARGET_FILE:${test_target}>)

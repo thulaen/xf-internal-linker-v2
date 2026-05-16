@@ -411,7 +411,8 @@ def pick_daily_internal_issues():
 )
 def close_stale_issues():
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Auto-defer rows idle ≥30 days under 0.3 priority score.
 

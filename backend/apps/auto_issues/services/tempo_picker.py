@@ -25,6 +25,15 @@ canonical row via ``source_observations``.
 
 Added 2026-05-11 per plan
 ``~/.claude/plans/objective-deploy-and-integrate-zany-bee.md`` Stream 6.
+
+Drought note (AutoIssue #116, 2026-05-15 investigation):
+the Tempo source frequently surfaces fewer than 3 open AutoIssues
+because a single-developer local instance produces very few slow or
+error spans. The picker functions correctly when the result set is
+empty (see ``tests_tempo_picker.py::test_no_traces_no_ops``). A
+"picker drought" log filed by the session-start ritual is therefore
+expected for this source and is NOT a bug; the registry-read ritual
+fills the gap by substituting from the agent queue.
 """
 
 from __future__ import annotations
@@ -100,7 +109,9 @@ def _safe_int(raw, fallback: int) -> int:
 
 
 def _stable_fingerprint(prefix: str, payload: str) -> str:
-    return f"{prefix}::{hashlib.sha1(payload.encode()).hexdigest()[:16]}"
+    # SHA1 is non-security here (deduplication fingerprint, not auth/auth)
+    digest = hashlib.sha1(payload.encode(), usedforsecurity=False).hexdigest()
+    return f"{prefix}::{digest[:16]}"
 
 
 def _tempo_search(

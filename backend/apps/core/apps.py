@@ -24,6 +24,12 @@ def _is_test_runner() -> bool:
     return any("pytest" in arg.lower() for arg in argv[:2])
 
 
+def _is_lightweight_management_command() -> bool:
+    from apps.core.services.management_commands import is_lightweight_management_command
+
+    return is_lightweight_management_command(sys.argv)
+
+
 def _configure_polars_threads() -> None:
     """Cap the Polars query-engine thread pool at half of detected CPU cores.
 
@@ -155,6 +161,9 @@ class CoreConfig(AppConfig):
     verbose_name = "Core"
 
     def ready(self):
+        if _is_lightweight_management_command():
+            return
+
         # Size the Polars thread pool. Skipped under the Django test runner
         # because detect_profile() runs before the test database is created;
         # the read-from-AppSetting it performs forces the connection to wake
@@ -446,6 +455,21 @@ def _register_existing_celery_schedules() -> None:
             )
 
 
+_SCHEMA_WORK_COMMANDS = frozenset(
+    {"migrate", "makemigrations", "sqlmigrate", "showmigrations", "squashmigrations"}
+)
+
+
+def _is_schema_work_command(argv: list[str]) -> bool:
+    """Return True when the current invocation is schema work.
+
+    AutoIssue #272: running `manage.py migrate <app>` fires post_migrate,
+    which used to dispatch every missed scheduled run (81 in the
+    incident). Schema-work commands must not enqueue heavy app work.
+    """
+    return any(arg in _SCHEMA_WORK_COMMANDS for arg in argv[1:3])
+
+
 def _run_schedule_recovery(sender, **kwargs):
     """Fire any missed scheduled runs once the DB is ready.
 
@@ -458,6 +482,16 @@ def _run_schedule_recovery(sender, **kwargs):
     import sys
 
     if any(arg == "test" for arg in sys.argv[1:3]):
+        return
+    # AutoIssue #272: don't dispatch missed scheduled runs while the
+    # operator is applying migrations, recording schema changes, or
+    # logging review findings. Those commands run post_migrate as a
+    # side effect, not as a "Django booted" signal.
+    if _is_schema_work_command(sys.argv):
+        logger.debug(
+            "schedule_tracker: skipped on schema-work command argv=%r",
+            sys.argv[1:3],
+        )
         return
     using = kwargs.get("using", "default")
     try:

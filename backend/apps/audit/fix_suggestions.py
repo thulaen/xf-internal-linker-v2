@@ -62,8 +62,8 @@ _RULES: list[tuple[re.Pattern[str], str]] = [
     ),
     (
         re.compile(r"disk.*full|No space left|ENOSPC", re.I),
-        "Disk is full. Run `docker system prune -af && docker volume prune -f`. "
-        "Use the Safe Prune card on /health for a guided cleanup.",
+        "Disk is full. Run `scripts/prune-verification-artifacts.ps1`, then "
+        "`scripts/reclaim-docker-windows-space.ps1`. Never prune Docker volumes.",
     ),
     (
         re.compile(r"permission denied|EACCES", re.I),
@@ -85,7 +85,7 @@ _RULES.extend(
             ),
             "Disk pressure circuit-breaker tripped. Run "
             "`scripts/prune-verification-artifacts.ps1` to free Docker cache, "
-            "then `docker_compact_vhd.ps1` to return space to Windows.",
+            "then `scripts/reclaim-docker-windows-space.ps1` to return space to Windows.",
         ),
         (
             re.compile(

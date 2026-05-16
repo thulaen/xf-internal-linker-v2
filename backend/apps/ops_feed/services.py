@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from datetime import timedelta
 from typing import Mapping
 
 from django.db import transaction
@@ -80,6 +79,11 @@ def emit(
     collapse onto one counter bump instead of racing.
     """
     try:
+        from apps.core.services.async_context import in_async_context
+
+        if in_async_context():
+            logger.debug("[ops_feed.emit] skipped in async context")
+            return
         from .models import OperationEvent
 
         dedup_key = _make_dedup_key(

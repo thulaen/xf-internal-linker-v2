@@ -22,6 +22,16 @@ row via ``source_observations``.
 
 Added 2026-05-11 per plan
 ``~/.claude/plans/objective-deploy-and-integrate-zany-bee.md`` Stream 5.
+
+Drought note (AutoIssue #117, 2026-05-15 investigation):
+the Faro source frequently surfaces fewer than 3 open AutoIssues
+because a single-developer local instance produces very few browser
+errors and Web Vitals breaches. The picker functions correctly when
+the result set is empty (see ``tests_faro_picker.py::
+TestFaroErrorClusters::test_no_data_no_ops``). A "picker drought"
+log filed by the session-start ritual is therefore expected for this
+source and is NOT a bug; the registry-read ritual fills the gap by
+substituting from the agent queue.
 """
 
 from __future__ import annotations
@@ -135,7 +145,9 @@ def _normalize_line(line: str) -> str:
 
 
 def _stable_fingerprint(prefix: str, payload: str) -> str:
-    return f"{prefix}::{hashlib.sha1(payload.encode()).hexdigest()[:16]}"
+    # SHA1 is non-security here (deduplication fingerprint, not auth/auth)
+    digest = hashlib.sha1(payload.encode(), usedforsecurity=False).hexdigest()
+    return f"{prefix}::{digest[:16]}"
 
 
 def _fetch_faro_lines(

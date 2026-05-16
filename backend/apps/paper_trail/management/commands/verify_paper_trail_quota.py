@@ -8,9 +8,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from apps.paper_trail.models import PaperTrailEntry
 
-# Lowered from 10 to 3 on 2026-05-16. The quota also now fires on every
-# commit (not just code-changing commits) — see check-paper-trail-read.py.
-_REQUIRED_QUOTA = 3
+_REQUIRED_QUOTA = 10
 
 
 def _parse_resolved_after(raw: str | None) -> datetime | None:
@@ -29,7 +27,7 @@ def _parse_resolved_after(raw: str | None) -> datetime | None:
 
 
 class Command(BaseCommand):
-    help = "Verify the 3 paper-trail picks are resolved with two-part lessons."
+    help = "Verify the 10 paper-trail picks are resolved with two-part lessons."
 
     def add_arguments(self, parser):
         parser.add_argument("--ids", nargs="+", type=int, required=True)

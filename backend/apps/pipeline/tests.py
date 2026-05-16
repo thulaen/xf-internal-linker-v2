@@ -2474,11 +2474,22 @@ class RareTermRankerIntegrationTests(TestCase):
 
 class FieldAwareRelevanceServiceTests(TestCase):
     def test_field_aware_relevance_matches_title_body_and_scope_separately(self):
+        # The body-score field is computed on tokens AFTER position
+        # `INTRO_WINDOW_TOKENS` (80) of `distilled_text`. A short body
+        # like "Safe editor workflow for internal links." leaves the
+        # body region empty and body.score = 0.0. We pad the intro
+        # window with neutral filler so the meaningful editor/workflow/
+        # internal/links tokens land in the body region and the body
+        # subscore can fire.
+        _BODY_FILLER = " ".join(["intro"] * 80)
         destination = ContentRecord(
             content_id=501,
             content_type="thread",
             title="Internal Linking Guide",
-            distilled_text="Safe editor workflow for internal links.",
+            distilled_text=(
+                _BODY_FILLER
+                + " Safe editor workflow for internal links and editor handbooks."
+            ),
             scope_id=10,
             scope_type="node",
             parent_id=100,

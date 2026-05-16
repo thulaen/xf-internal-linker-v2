@@ -712,6 +712,19 @@ def nightly_data_retention(progress_callback=None):
     return results
 
 
+@shared_task(name="pipeline.prune_stale_data", time_limit=1800, soft_time_limit=1740)
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=512,
+    expected_seconds_p50=300,
+)
+def prune_stale_data(progress_callback=None):
+    """Backward-compatible Celery name for the retention prune task."""
+    return nightly_data_retention(progress_callback=progress_callback)
+
+
 def _run_standard_purges(now, results: dict[str, int]) -> None:
     """Execute the 8 plain age-based purge blocks via the spec table."""
     from apps.audit.models import ErrorLog
@@ -1254,7 +1267,11 @@ def import_content(
         _pause_import_job(job, exc)
         _publish_progress(job_id, "paused", 0.0, f"Import paused: {exc}")
         return _import_result(job, status="paused")
-    except (DatabaseError, TimeoutError, MemoryError, ValueError, SoftTimeLimitExceeded) as exc:
+    except (RequestException, URLError, TimeoutError) as exc:
+        _fail_import_job(job, exc, expected=True)
+        _publish_progress(job_id, "failed", 0.0, f"Content import failed: {exc}")
+        return _import_result(job, status="failed")
+    except (DatabaseError, MemoryError, ValueError, SoftTimeLimitExceeded) as exc:
         _fail_import_job(job, exc)
         _publish_progress(job_id, "failed", 0.0, f"Content import failed: {exc}")
         raise
@@ -1380,10 +1397,13 @@ def _finish_import_job(job, state) -> None:
     )
 
 
-def _fail_import_job(job, exc: Exception) -> None:
+def _fail_import_job(job, exc: Exception, *, expected: bool = False) -> None:
     from django.utils import timezone
 
-    logger.exception("Content import %s failed", job.job_id)
+    if expected:
+        logger.warning("Content import %s failed: %s", job.job_id, exc)
+    else:
+        logger.exception("Content import %s failed", job.job_id)
     job.status = "failed"
     job.completed_at = timezone.now()
     job.error_message = str(exc)

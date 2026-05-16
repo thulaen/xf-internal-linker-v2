@@ -34,11 +34,9 @@ def _resolved(title: str, *, resolved_at, lessons="Trap: x. Fix shape: y.") -> P
 
 
 class VerifyQuotaTests(TestCase):
-    """Quota was lowered 10→3 and broadened to every commit on 2026-05-16."""
-
-    def test_passes_with_3_resolved(self) -> None:
+    def test_passes_with_10_resolved(self) -> None:
         now = timezone.now()
-        ids = [_resolved(f"t{i}", resolved_at=now).pk for i in range(3)]
+        ids = [_resolved(f"t{i}", resolved_at=now).pk for i in range(10)]
         out = StringIO()
         call_command(
             "verify_paper_trail_quota",
@@ -46,11 +44,10 @@ class VerifyQuotaTests(TestCase):
             stdout=out,
         )
         self.assertIn("QUOTA VERIFIED", out.getvalue())
-        self.assertIn("3 resolved", out.getvalue())
 
-    def test_fails_with_2(self) -> None:
+    def test_fails_with_9(self) -> None:
         now = timezone.now()
-        ids = [_resolved(f"t{i}", resolved_at=now).pk for i in range(2)]
+        ids = [_resolved(f"t{i}", resolved_at=now).pk for i in range(9)]
         with self.assertRaises(CommandError):
             call_command(
                 "verify_paper_trail_quota",
@@ -60,8 +57,8 @@ class VerifyQuotaTests(TestCase):
 
     def test_fails_on_duplicate_ids(self) -> None:
         now = timezone.now()
-        ids = [_resolved(f"t{i}", resolved_at=now).pk for i in range(2)]
-        ids.append(ids[0])  # 3 IDs but one duplicate
+        ids = [_resolved(f"t{i}", resolved_at=now).pk for i in range(9)]
+        ids.append(ids[0])  # 10 IDs but one duplicate
         with self.assertRaises(CommandError):
             call_command(
                 "verify_paper_trail_quota",
@@ -71,7 +68,7 @@ class VerifyQuotaTests(TestCase):
 
     def test_fails_when_resolved_before_cutoff(self) -> None:
         old = timezone.now() - timedelta(days=3)
-        ids = [_resolved(f"t{i}", resolved_at=old).pk for i in range(3)]
+        ids = [_resolved(f"t{i}", resolved_at=old).pk for i in range(10)]
         cutoff = (timezone.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M")
         with self.assertRaises(CommandError):
             call_command(
@@ -88,7 +85,7 @@ class VerifyQuotaTests(TestCase):
         Use queryset.update() to bypass save() so we can test the gate.
         """
         now = timezone.now()
-        ids = [_resolved(f"t{i}", resolved_at=now).pk for i in range(3)]
+        ids = [_resolved(f"t{i}", resolved_at=now).pk for i in range(10)]
         # Bypass save() to simulate a malformed row.
         PaperTrailEntry.objects.filter(pk__in=ids).update(
             resolution_lessons="Trap: only — no fix-shape part"

@@ -10,14 +10,10 @@ from apps.paper_trail.services.priority import refresh_priority_scores
 
 
 class Command(BaseCommand):
-    help = (
-        "Print the open paper-trail summary + top-3 marker for the opening "
-        "ritual. (Quota lowered from 10 to 3 on 2026-05-16 and now applies "
-        "to every commit, not only code-changing commits.)"
-    )
+    help = "Print the open paper-trail summary + top-10 marker for the opening ritual."
 
     def add_arguments(self, parser):
-        parser.add_argument("--limit", type=int, default=3)
+        parser.add_argument("--limit", type=int, default=10)
         parser.add_argument("--no-refresh-scores", action="store_true")
 
     def handle(self, *args, **opts):

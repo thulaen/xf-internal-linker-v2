@@ -49,4 +49,4 @@ def canonical_fingerprint(title: str, culprit: str | None = None) -> str:
     """
     culprit_text = "" if culprit is None else culprit
     norm = f"{_normalise(title)}|{_normalise(culprit_text)}"
-    return hashlib.sha1(norm.encode()).hexdigest()[:16]
+    return hashlib.sha1(norm.encode(), usedforsecurity=False).hexdigest()[:16]

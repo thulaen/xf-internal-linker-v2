@@ -85,6 +85,13 @@ LOCAL_APPS = [
     # writes here. Read by every agent at session start via
     # `manage.py print_open_issues`.
     "apps.auto_issues",
+    # 2026-05-15 — Paper trail. Separate table that captures every
+    # deliberately-deferred work item with a high-detail abstract.
+    # Distinct from auto_issues (which tracks discovered problems).
+    # Read by every agent at session start via
+    # `manage.py print_open_paper_trail`. Dedup is backed by the C++
+    # extension `papertrail_dedup` (MinHash + LSH).
+    "apps.paper_trail",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -555,7 +562,38 @@ HOST_SCAN_WORD_LIMIT = min(env.int("HOST_SCAN_WORD_LIMIT", default=1200), 2000)
 _TRACKING_DSN = env("ERROR_TRACKING_DSN", default="") or env(
     "GLITCHTIP_DSN", default=""
 )
-if _TRACKING_DSN:
+
+
+def _observability_host_resolves(raw_url: str) -> bool:
+    """Return true when an optional observability endpoint is reachable."""
+
+    if env("OBSERVABILITY_SKIP_UNRESOLVED_ENDPOINTS", default="1") == "0":
+        return True
+    if not raw_url:
+        return False
+
+    import socket
+    from urllib.parse import urlparse
+
+    parsed = urlparse(raw_url)
+    host = parsed.hostname
+    if not host:
+        return True
+    if host in {"localhost", "127.0.0.1", "::1"}:
+        return True
+
+    port = parsed.port
+    if port is None:
+        port = 443 if parsed.scheme == "https" else 80
+
+    try:
+        with socket.create_connection((host, port), timeout=0.25):
+            return True
+    except OSError:
+        return False
+
+
+if _TRACKING_DSN and _observability_host_resolves(_TRACKING_DSN):
     import socket as _socket
 
     import sentry_sdk
@@ -598,7 +636,11 @@ if _TRACKING_DSN:
 # functional need via GlitchTip's Profiles tab.
 _PYROSCOPE_ADDR = env("PYROSCOPE_SERVER_ADDRESS", default="")
 _PYROSCOPE_ENABLED = env("PYROSCOPE_ENABLED", default="1") != "0"
-if _PYROSCOPE_ADDR and _PYROSCOPE_ENABLED:
+if (
+    _PYROSCOPE_ADDR
+    and _PYROSCOPE_ENABLED
+    and _observability_host_resolves(_PYROSCOPE_ADDR)
+):
     try:
         import pyroscope  # type: ignore[import-not-found]
 
@@ -638,7 +680,11 @@ _OTEL_ENDPOINT = env("OTEL_EXPORTER_OTLP_ENDPOINT", default="")
 import sys as _sys
 
 _IS_TEST_RUN = "test" in _sys.argv or env("DJANGO_TEST_RUN", default="0") == "1"
-if _OTEL_ENDPOINT and not _IS_TEST_RUN:
+if (
+    _OTEL_ENDPOINT
+    and not _IS_TEST_RUN
+    and _observability_host_resolves(_OTEL_ENDPOINT)
+):
     try:
         from opentelemetry import trace as _otel_trace
         from opentelemetry.exporter.otlp.proto.http.trace_exporter import (

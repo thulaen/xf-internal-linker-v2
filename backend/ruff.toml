@@ -105,7 +105,6 @@ ignore = [
     "TRY300", "TRY400",  # try-except quality nits
     "N801", "N802", "N803", "N805", "N806", "N811", "N814", "N818",  # naming
     "PT019",    # pytest-fixture-param-without-value
-    "E701",     # multiple-statements-on-one-line-colon
     "NPY002",   # numpy-legacy-random — sweep when np.random.Generator lands
     "S110", "S112",  # try-except-pass/continue — review per-case
     "B905",     # zip-without-strict — Python 3.10+ idiom

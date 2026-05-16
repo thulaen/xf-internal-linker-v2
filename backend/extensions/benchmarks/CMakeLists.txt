@@ -83,6 +83,8 @@ add_bench(ivf_index       "${EXT_ROOT}/ivf_index.cpp")
 add_bench(anchor_garbage)
 add_bench(streaming_sketches)
 add_bench(api_rate_limiter)
+add_bench(papertrail_dedup ${EXT_ROOT}/papertrail_dedup.cpp)
+add_bench(lesson_index ${EXT_ROOT}/lesson_index.cpp)
 
 function(add_edge_test NAME)
     set(SOURCES ${ARGN})

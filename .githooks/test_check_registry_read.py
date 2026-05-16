@@ -180,6 +180,19 @@ class CheckRegistryReadHookTests(unittest.TestCase):
         )
         self.assertEqual(self.hook._validate_marker(added), 1)
 
+    def test_six_source_pre_phase_6_marker_rejected(self):
+        """AutoIssue #205 — the pre-Phase-6 6-source marker must be
+        rejected because Live total cannot equal the bucket sum after
+        Phase 6 added mutation/fuzz/contract/gh_ci sources.
+        """
+        added = (
+            "[REGISTRY READ: 18 open (3 agent / 3 glitchtip / 3 pyroscope / "
+            "3 tempo / 3 loki / 3 faro), 0 registry - picked: "
+            "#1, #2, #3 | g: #4, #5, #6 | p: #7, #8, #9 | t: #10, #11, #12 "
+            "| l: #13, #14, #15 | f: #16, #17, #18]"
+        )
+        self.assertEqual(self.hook._validate_marker(added), 1)
+
     def test_ten_source_marker_with_correct_sum_accepted(self):
         added = _valid_ten_source_marker(g=4, t=2, gh=5)
         self.assertEqual(self.hook._validate_marker(added), 0)

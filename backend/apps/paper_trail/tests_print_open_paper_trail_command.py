@@ -51,8 +51,7 @@ class PrintOpenPaperTrailTests(TestCase):
         for cat, _label in PaperTrailEntry.CATEGORY_CHOICES:
             self.assertIn(cat, out.getvalue())
 
-    def test_drought_form_when_under_3(self) -> None:
-        """Quota was lowered from 10 to 3 on 2026-05-16."""
+    def test_drought_form_when_under_10(self) -> None:
         _make(title="only one entry")
         out = StringIO()
         call_command("print_open_paper_trail", stdout=out)

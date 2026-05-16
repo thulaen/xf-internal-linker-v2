@@ -127,7 +127,9 @@ def _severity_for(q: SlowQuery) -> str:
 
 
 def _stable_external_id(q: SlowQuery) -> str:
-    return hashlib.sha1(f"pg::{q.queryid}".encode()).hexdigest()[:16]
+    # SHA1 is non-security here (deduplication fingerprint, not auth/auth)
+    raw = f"pg::{q.queryid}".encode()
+    return hashlib.sha1(raw, usedforsecurity=False).hexdigest()[:16]
 
 
 def _format_title(q: SlowQuery) -> str:

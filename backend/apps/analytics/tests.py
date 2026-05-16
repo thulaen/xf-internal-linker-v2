@@ -1,11 +1,13 @@
 """Test suite for the analytics app."""
 
 from datetime import date, timedelta
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 from django_celery_beat.models import PeriodicTask
+from googleapiclient.errors import HttpError
 from rest_framework.test import APITestCase
 
 from apps.analytics.models import (
@@ -15,9 +17,42 @@ from apps.analytics.models import (
 )
 from apps.analytics.gsc_client import fetch_gsc_performance_data
 from apps.analytics.sync import MATOMO_EXCLUDED_SEGMENT, run_ga4_sync, run_matomo_sync
+from apps.analytics.tasks import sync_ga4_telemetry
 from apps.core.models import AppSetting
 from apps.content.models import ContentItem, Post, ScopeItem, Sentence, SiloGroup
 from apps.suggestions.models import PipelineRun, Suggestion
+
+
+def _google_http_error() -> HttpError:
+    response = SimpleNamespace(status=400, reason="Bad Request")
+    return HttpError(response, b'{"error": {"message": "bad property"}}')
+
+
+class AnalyticsSyncTaskFailureTests(TestCase):
+    def test_ga4_success_marks_completed(self):
+        sync_run = AnalyticsSyncRun.objects.create(source="ga4")
+        stats = {"rows_read": 3, "rows_written": 2, "rows_updated": 1}
+
+        with patch("apps.analytics.tasks.run_ga4_sync", return_value=stats):
+            result = sync_ga4_telemetry.run(sync_run.pk)
+
+        sync_run.refresh_from_db()
+        self.assertEqual(result["rows_read"], 3)
+        self.assertEqual(sync_run.status, "completed")
+        self.assertEqual(sync_run.rows_read, 3)
+        self.assertEqual(sync_run.rows_written, 2)
+        self.assertEqual(sync_run.rows_updated, 1)
+
+    def test_ga4_google_http_error_marks_failed_without_reraising(self):
+        sync_run = AnalyticsSyncRun.objects.create(source="ga4")
+
+        with patch("apps.analytics.tasks.run_ga4_sync", side_effect=_google_http_error()):
+            result = sync_ga4_telemetry.run(sync_run.pk)
+
+        sync_run.refresh_from_db()
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(sync_run.status, "failed")
+        self.assertIn("bad property", sync_run.error_message)
 
 
 class AnalyticsTelemetrySettingsApiTests(APITestCase):

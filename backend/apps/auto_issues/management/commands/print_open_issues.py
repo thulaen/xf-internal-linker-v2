@@ -68,7 +68,7 @@ class Command(BaseCommand):
         qs = AutoIssue.objects.filter(status__in=self._OPEN_STATUSES)
         if opts["source"]:
             qs = qs.filter(source=opts["source"])
-        qs = qs.order_by("-priority_score", "-last_seen")[: opts["limit"]]
+        qs = qs.order_by("-priority_score", "spam_score", "-last_seen")[: opts["limit"]]
 
         rows = list(qs)
         if not rows:
@@ -183,7 +183,7 @@ class Command(BaseCommand):
             status__in=self._OPEN_STATUSES,
             source=AutoIssue.SOURCE_AGENT,
             title__startswith="[coverage-gap]",
-        ).order_by("-priority_score", "-last_seen")[:10]
+        ).order_by("-priority_score", "spam_score", "-last_seen")[:10]
         rows = list(qs)
         if not rows:
             self.stdout.write(

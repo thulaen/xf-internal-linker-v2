@@ -8,7 +8,7 @@ break if it stays open.
 
 This is separate from **AutoIssues** (which track discovered problems).
 A paper-trail entry MAY link to an AutoIssue via `linked_autoissue_id`,
-but the table, the dedup logic, and the 3-per-commit quota are
+but the table, the dedup logic, and the 10-per-session quota are
 independent.
 
 The paper trail exists because, before 2026-05-15, agents wrote deferral
@@ -141,23 +141,21 @@ It emits a marker line you MUST paste into chat verbatim:
 [PAPER TRAIL READ: <N> open (<a> autoissue_deferral / <b> cve_upgrade / <c> coverage_gap / <d> infrastructure / <e> ruff_sweep / <f> mutation_survivor / <g> debt_reduction / <h> feature_decision / <i> tooling_gap / <j> documentation / <k> dependency_upgrade / <l> refactor / <m> performance / <n> security / <o> accessibility / <p> other) — picked: #..., ..., #...]
 ```
 
-The picks are **3 items** ranked by `priority_score` (severity × age × occurrence count).
-(The count was lowered from 10 on 2026-05-16; see "The 3-per-commit
-quota" below for the rationale.)
-If fewer than 3 entries are open the marker uses a drought form:
+The picks are 10 items ranked by `priority_score` (severity × age × occurrence count).
+If fewer than 10 entries are open the marker uses a drought form:
 
 ```
 ... — picked: #1, #2 (drought; file the remainder per docs/PAPER-TRAIL.md)]
 ```
 
 In the drought case you MUST file new entries via `manage.py defer_work`
-before the session is allowed to commit anything (code OR docs).
+before the session is allowed to commit code.
 
-### The 3-per-commit quota (HARD-BLOCK on EVERY commit)
+### The 10-per-session quota (HARD-BLOCK at commit)
 
-Before **any** commit lands — code-changing or docs-only, including a
-single-line typo fix — all 3 picked entries MUST be resolved with
-two-part lessons:
+Before any **code-changing commit** (anything under `backend/`,
+`frontend/`, `scripts/`, `.githooks/`, `backend/extensions/`), all 10
+picked entries MUST be resolved with two-part lessons:
 
 ```
 docker compose exec -T backend python manage.py resolve_paper_trail \
@@ -169,29 +167,15 @@ docker compose exec -T backend python manage.py resolve_paper_trail \
 `resolve_paper_trail` validates the lesson contains both `Trap:` and
 `Fix shape:`. Empty or one-part lessons are rejected.
 
-**Why 3, not 10:** 10 was too steep for a per-commit gate, especially
-for small docs-only commits where the cost felt disproportionate. 3
-keeps the per-commit work to ~15 minutes (5 min/entry) while still
-draining ~3 entries per commit, which matches typical commit cadence
-and keeps the backlog roughly flat at 60 open entries instead of
-growing.
-
-**Why every commit, not just code-changing:** the earlier code-changing
-gate let docs-only commits skip the quota, but those are still commits
-that benefit from clearing real work. Forcing every commit to drain 3
-items makes the rule predictable and removes the "is this a code
-commit?" ambiguity.
-
 The pre-commit hook `.githooks/check-paper-trail-read.py` enforces the
 quota as a **HARD BLOCK** — every failure mode exits non-zero, there is
 no "skip" path. This matches the discipline of the 30-AutoIssue quota:
 
 | Situation | Hook exit | What you must do |
 |---|---|---|
-| AGENT-HANDOFF.md not staged on any commit | FAIL | Append a new entry with the marker; stage and re-commit |
 | Marker missing from staged handoff | FAIL | Run `print_open_paper_trail`, paste the marker |
-| Fewer than 3 ids picked (drought form) | FAIL | File new entries via `defer_work` until the queue has 3, then resolve those 3 |
-| `[PAPER TRAIL QUOTA VERIFIED: 3 resolved]` marker missing | FAIL | Run `verify_paper_trail_quota` and paste the success line |
+| Fewer than 10 ids picked (drought form) | FAIL | File new entries via `defer_work` until the queue has 10, then resolve those 10 |
+| `[PAPER TRAIL QUOTA VERIFIED: 10 resolved]` marker missing | FAIL | Run `verify_paper_trail_quota` and paste the success line |
 | Docker not on PATH | FAIL | Start Docker Desktop and re-run the commit |
 | `verify_paper_trail_quota` timeout (60 s) | FAIL | Wait for the backend stack to become healthy and re-run |
 | `verify_paper_trail_quota` non-zero exit | FAIL | Fix the underlying issue per the command's error output (any pick unresolved / pre-handoff `resolved_at` / missing two-part lesson / count mismatch) |

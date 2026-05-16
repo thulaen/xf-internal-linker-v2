@@ -26,6 +26,33 @@ Plain-English rationale:
 from django.apps import AppConfig
 
 
+_FAISS_WORKER_QUEUES = {"pipeline", "embeddings"}
+
+
+def _parse_celery_queues(argv: list[str]) -> set[str]:
+    queues: set[str] = set()
+    for index, arg in enumerate(argv):
+        if arg in {"-Q", "--queues"} and index + 1 < len(argv):
+            queues.update(_split_queue_arg(argv[index + 1]))
+        elif arg.startswith("-Q") and len(arg) > 2:
+            queues.update(_split_queue_arg(arg[2:]))
+        elif arg.startswith("--queues="):
+            queues.update(_split_queue_arg(arg.split("=", 1)[1]))
+    return queues
+
+
+def _split_queue_arg(raw: str) -> set[str]:
+    return {queue.strip() for queue in raw.split(",") if queue.strip()}
+
+
+def _should_assert_faiss_single_worker(argv: list[str]) -> bool:
+    lowered = [arg.lower() for arg in argv]
+    if "celery" not in lowered or "worker" not in lowered:
+        return False
+    queues = _parse_celery_queues(argv)
+    return not queues or bool(queues & _FAISS_WORKER_QUEUES)
+
+
 class PipelineConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.pipeline"
@@ -40,6 +67,16 @@ class PipelineConfig(AppConfig):
         if os.environ.get("FAISS_INDEX_SKIP_BUILD"):
             return
 
+        from apps.core.services.management_commands import is_lightweight_management_command
+
+        if is_lightweight_management_command(sys.argv):
+            return
+
+        settings_module = os.environ.get("DJANGO_SETTINGS_MODULE", "").lower()
+        quiet_commands = {"makemigrations", "migrate", "showmigrations", "sqlmigrate"}
+        if settings_module.endswith(".test") or any(arg in quiet_commands for arg in sys.argv):
+            return
+
         # Skip the audit-logging side-effects under `manage.py test`.
         # The single-worker check still runs (and emits its log line)
         # but no ErrorLog row gets written into the per-test DB, which
@@ -48,19 +85,16 @@ class PipelineConfig(AppConfig):
         if any(arg == "test" for arg in sys.argv[1:3]):
             return
 
-        # Group B.2 — single-worker assertion. Does NOT build the index
-        # any more; just inspects the env and warns + audit-logs on
-        # misconfiguration. Wrapped in a generic try/except so any
-        # failure routes to /error-log instead of crashing startup.
-        try:
-            from .services.faiss_index import _assert_single_worker
+        if _should_assert_faiss_single_worker(sys.argv):
+            try:
+                from .services.faiss_index import _assert_single_worker
 
-            _assert_single_worker()
-        except Exception as exc:  # noqa: BLE001  # Pipeline ready() must never crash startup — funnel every failure to the audit log via _record_startup_failure.
-            self._record_startup_failure(
-                step="single_worker_assertion",
-                exc=exc,
-            )
+                _assert_single_worker()
+            except Exception as exc:  # noqa: BLE001  # Pipeline ready() must never crash startup — funnel every failure to the audit log via _record_startup_failure.
+                self._record_startup_failure(
+                    step="single_worker_assertion",
+                    exc=exc,
+                )
 
         # Sentient-schedules — register the monthly top-50 job so the tracker
         # detects missed runs (e.g. laptop off on the 1st at 09:00) and fires
@@ -84,6 +118,7 @@ class PipelineConfig(AppConfig):
             from . import tasks_embedding_audit  # noqa: F401
             from . import tasks_embedding_bakeoff  # noqa: F401
             from . import tasks_import  # noqa: F401
+            from . import tasks_internal_health  # noqa: F401
             from . import tasks_monthly  # noqa: F401
             from . import tasks_tuning  # noqa: F401
             from . import tasks_embeddings  # noqa: F401

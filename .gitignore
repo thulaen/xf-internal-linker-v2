@@ -45,6 +45,8 @@ backend/backups/
 *.swp
 *.swo
 *~
+# Gemini CLI / Antigravity local MCP config (per-developer, not shared)
+.gemini/
 
 # Node.js / Angular
 node_modules/

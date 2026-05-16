@@ -67,7 +67,8 @@ logger = logging.getLogger(__name__)
 
 def get_silo_settings() -> dict[str, float | str]:
     mode = _get_app_setting_value("silo.mode", DEFAULT_SILO_SETTINGS["mode"]) or DEFAULT_SILO_SETTINGS["mode"]
-    if mode not in {"disabled", "prefer_same_silo", "strict_same_silo"}: mode = DEFAULT_SILO_SETTINGS["mode"]
+    if mode not in {"disabled", "prefer_same_silo", "strict_same_silo"}:
+        mode = DEFAULT_SILO_SETTINGS["mode"]
     return {
         "mode": mode,
         "same_silo_boost": read_app_setting_float("silo.same_silo_boost", DEFAULT_SILO_SETTINGS["same_silo_boost"], require_finite=False),
@@ -96,7 +97,8 @@ def get_wordpress_settings() -> dict[str, object]:
     }
 
 def get_wordpress_runtime_config() -> dict[str, str]:
-    def _read_wp(k, df): return (_get_app_setting_value(k, df) or "").strip()
+    def _read_wp(k, df):
+        return (_get_app_setting_value(k, df) or "").strip()
     return {
         "base_url": _read_wp("wordpress.base_url", django_settings.WORDPRESS_BASE_URL).rstrip("/"),
         "username": _read_wp("wordpress.username", django_settings.WORDPRESS_USERNAME),
@@ -122,52 +124,71 @@ def _sync_wordpress_periodic_task(config: dict[str, object]) -> None:
 # ── Feature Accessors (Pattern: Read -> Validate -> Default) ───────
 
 def get_weighted_authority_settings() -> dict[str, float]:
-    try: return _validate_weighted_authority_settings(_read_weighted_authority_settings(), current=dict(DEFAULT_WEIGHTED_AUTHORITY_SETTINGS))
-    except ValueError: return dict(DEFAULT_WEIGHTED_AUTHORITY_SETTINGS)
+    try:
+        return _validate_weighted_authority_settings(_read_weighted_authority_settings(), current=dict(DEFAULT_WEIGHTED_AUTHORITY_SETTINGS))
+    except ValueError:
+        return dict(DEFAULT_WEIGHTED_AUTHORITY_SETTINGS)
 
 def get_link_freshness_settings() -> dict[str, float | int]:
-    try: return _validate_link_freshness_settings(_read_link_freshness_settings(), current=dict(DEFAULT_LINK_FRESHNESS_SETTINGS))
-    except ValueError: return dict(DEFAULT_LINK_FRESHNESS_SETTINGS)
+    try:
+        return _validate_link_freshness_settings(_read_link_freshness_settings(), current=dict(DEFAULT_LINK_FRESHNESS_SETTINGS))
+    except ValueError:
+        return dict(DEFAULT_LINK_FRESHNESS_SETTINGS)
 
 def get_phrase_matching_settings() -> dict[str, float | int | bool]:
-    try: return _validate_phrase_matching_settings(_read_phrase_matching_settings(), current=dict(DEFAULT_PHRASE_MATCHING_SETTINGS))
-    except ValueError: return dict(DEFAULT_PHRASE_MATCHING_SETTINGS)
+    try:
+        return _validate_phrase_matching_settings(_read_phrase_matching_settings(), current=dict(DEFAULT_PHRASE_MATCHING_SETTINGS))
+    except ValueError:
+        return dict(DEFAULT_PHRASE_MATCHING_SETTINGS)
 
 def get_learned_anchor_settings() -> dict[str, float | int | bool]:
-    try: return _validate_learned_anchor_settings(_read_learned_anchor_settings(), current=dict(DEFAULT_LEARNED_ANCHOR_SETTINGS))
-    except ValueError: return dict(DEFAULT_LEARNED_ANCHOR_SETTINGS)
+    try:
+        return _validate_learned_anchor_settings(_read_learned_anchor_settings(), current=dict(DEFAULT_LEARNED_ANCHOR_SETTINGS))
+    except ValueError:
+        return dict(DEFAULT_LEARNED_ANCHOR_SETTINGS)
 
 def get_rare_term_propagation_settings() -> dict[str, float | int | bool]:
-    try: return _validate_rare_term_propagation_settings(_read_rare_term_propagation_settings(), current=dict(DEFAULT_RARE_TERM_PROPAGATION_SETTINGS))
-    except ValueError: return dict(DEFAULT_RARE_TERM_PROPAGATION_SETTINGS)
+    try:
+        return _validate_rare_term_propagation_settings(_read_rare_term_propagation_settings(), current=dict(DEFAULT_RARE_TERM_PROPAGATION_SETTINGS))
+    except ValueError:
+        return dict(DEFAULT_RARE_TERM_PROPAGATION_SETTINGS)
 
 def get_field_aware_relevance_settings() -> dict[str, float]:
-    try: return _validate_field_aware_relevance_settings(_read_field_aware_relevance_settings(), current=dict(DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS))
-    except ValueError: return dict(DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS)
+    try:
+        return _validate_field_aware_relevance_settings(_read_field_aware_relevance_settings(), current=dict(DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS))
+    except ValueError:
+        return dict(DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS)
 
 def get_click_distance_settings() -> dict[str, float]:
-    try: return _validate_click_distance_settings(_read_click_distance_settings(), current=dict(DEFAULT_CLICK_DISTANCE_SETTINGS))
-    except ValueError: return dict(DEFAULT_CLICK_DISTANCE_SETTINGS)
+    try:
+        return _validate_click_distance_settings(_read_click_distance_settings(), current=dict(DEFAULT_CLICK_DISTANCE_SETTINGS))
+    except ValueError:
+        return dict(DEFAULT_CLICK_DISTANCE_SETTINGS)
 
 def get_feedback_rerank_settings() -> dict[str, float | bool]:
-    try: return _validate_feedback_rerank_settings(_read_feedback_rerank_settings(), current=dict(DEFAULT_FEEDBACK_RERANK_SETTINGS))
-    except ValueError: return dict(DEFAULT_FEEDBACK_RERANK_SETTINGS)
+    try:
+        return _validate_feedback_rerank_settings(_read_feedback_rerank_settings(), current=dict(DEFAULT_FEEDBACK_RERANK_SETTINGS))
+    except ValueError:
+        return dict(DEFAULT_FEEDBACK_RERANK_SETTINGS)
 
 def get_clustering_settings() -> dict[str, float | bool]:
-    try: return _validate_clustering_settings(_read_clustering_settings(), current=dict(DEFAULT_CLUSTERING_SETTINGS))
+    try:
+        return _validate_clustering_settings(_read_clustering_settings(), current=dict(DEFAULT_CLUSTERING_SETTINGS))
     except Exception:
         logger.exception("Failed to read clustering settings")
         return dict(DEFAULT_CLUSTERING_SETTINGS)
 
 def get_slate_diversity_settings() -> dict:
-    try: return _read_slate_diversity_settings()
+    try:
+        return _read_slate_diversity_settings()
     except Exception:
         logger.exception("Failed to read slate diversity settings")
         return dict(DEFAULT_SLATE_DIVERSITY_SETTINGS)
 
 def get_ga4_gsc_settings() -> dict[str, object]:
     settings = _read_ga4_gsc_settings()
-    if not isinstance(settings.get("ranking_weight"), (float, int)): settings["ranking_weight"] = DEFAULT_GA4_GSC_SETTINGS["ranking_weight"]
+    if not isinstance(settings.get("ranking_weight"), (float, int)):
+        settings["ranking_weight"] = DEFAULT_GA4_GSC_SETTINGS["ranking_weight"]
     from apps.health.services import get_service_health_status
     settings["ga4_health"] = get_service_health_status("ga4")
     settings["gsc_health"] = get_service_health_status("gsc")
@@ -177,14 +198,16 @@ def get_graph_candidate_settings() -> dict[str, float | int | bool]:
     # Import logic was lazy-import in settings_helpers; preserving that or moving it here.
     # Actually, views_ml_settings imports from this module, so we must be careful.
     from apps.core.services.settings_validators import _validate_graph_candidate_settings
-    try: return _validate_graph_candidate_settings(_read_graph_candidate_settings(), current=dict(DEFAULT_GRAPH_CANDIDATE_SETTINGS))
+    try:
+        return _validate_graph_candidate_settings(_read_graph_candidate_settings(), current=dict(DEFAULT_GRAPH_CANDIDATE_SETTINGS))
     except Exception:
         logger.exception("Failed to read graph candidate settings")
         return dict(DEFAULT_GRAPH_CANDIDATE_SETTINGS)
 
 def get_value_model_settings() -> dict[str, float | int | bool]:
     from apps.core.services.settings_validators import _validate_value_model_settings
-    try: return _validate_value_model_settings(_read_value_model_settings(), current=dict(DEFAULT_VALUE_MODEL_SETTINGS))
+    try:
+        return _validate_value_model_settings(_read_value_model_settings(), current=dict(DEFAULT_VALUE_MODEL_SETTINGS))
     except Exception:
         logger.exception("Failed to read value model settings")
         return dict(DEFAULT_VALUE_MODEL_SETTINGS)

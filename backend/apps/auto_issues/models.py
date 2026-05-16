@@ -171,6 +171,18 @@ class AutoIssue(models.Model):
         default=0.0,
         help_text="Set by the daily picker (spec: docs/CPP-DAILY-ISSUE-PICKER-SPEC.md). Higher = more important. Used to surface the top 10 each day.",
     )
+    spam_score = models.FloatField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "Bayesian spam score in [0, 1] from `extensions.autoissue_spam_filter` "
+            "(Sahami et al. 1998). 0=definitely ham, 1=definitely spam. NULL "
+            "until first classification. Score-only — never auto-changes status; "
+            "session-start pickers sort by (priority_score - spam_score) so noisy "
+            "rows surface last. Rule H, added 2026-05-15."
+        ),
+    )
 
     occurrence_count = models.PositiveIntegerField(default=1)
     first_seen = models.DateTimeField(auto_now_add=True)

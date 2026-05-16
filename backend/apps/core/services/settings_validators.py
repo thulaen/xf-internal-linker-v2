@@ -52,8 +52,10 @@ def _validate_silo_settings(payload: dict) -> dict[str, float | str]:
         raise ValueError("mode must be one of disabled, prefer_same_silo, strict_same_silo.")
     same_silo_boost = coerce_setting_float(payload, DEFAULT_SILO_SETTINGS, "same_silo_boost", require_finite=False)
     cross_silo_penalty = coerce_setting_float(payload, DEFAULT_SILO_SETTINGS, "cross_silo_penalty", require_finite=False)
-    if same_silo_boost < 0: raise ValueError("same_silo_boost must be >= 0.")
-    if cross_silo_penalty < 0: raise ValueError("cross_silo_penalty must be >= 0.")
+    if same_silo_boost < 0:
+        raise ValueError("same_silo_boost must be >= 0.")
+    if cross_silo_penalty < 0:
+        raise ValueError("cross_silo_penalty must be >= 0.")
     return {"mode": mode, "same_silo_boost": same_silo_boost, "cross_silo_penalty": cross_silo_penalty}
 
 # ── Weighted Authority ─────────────────────────────────────────────
@@ -93,7 +95,8 @@ def _read_link_freshness_settings() -> dict[str, float | int]:
 def _validate_link_freshness_settings(payload: dict, *, current: dict[str, float | int] | None = None) -> dict[str, float | int]:
     current = current or _read_link_freshness_settings()
     validated = {key: coerce_setting_float(payload, current, key) for key in _LINK_FRESHNESS_FLOAT_KEYS}
-    for key in _LINK_FRESHNESS_INT_KEYS: validated[key] = coerce_setting_int(payload, current, key)
+    for key in _LINK_FRESHNESS_INT_KEYS:
+        validated[key] = coerce_setting_int(payload, current, key)
     enforce_bounds(validated, _LINK_FRESHNESS_BOUNDS)
     weight_total = sum(float(validated[k]) for k in ("w_recent", "w_growth", "w_cohort", "w_loss"))
     if not math.isclose(weight_total, 1.0, abs_tol=1e-6):
@@ -309,11 +312,14 @@ def _validate_ga4_gsc_settings(payload: dict, *, current: dict[str, object] | No
         "sync_enabled": _coerce_bool_strict(payload.get("sync_enabled", current["sync_enabled"]), key="sync_enabled"),
         "sync_lookback_days": _coerce_int_strict(payload.get("sync_lookback_days", current["sync_lookback_days"]), key="sync_lookback_days", minimum=1, maximum=30),
     }
-    if validated["ranking_weight"] < 0.0 or validated["ranking_weight"] > 1.0: raise ValueError("ranking_weight must be between 0.0 and 1.0.")
+    if validated["ranking_weight"] < 0.0 or validated["ranking_weight"] > 1.0:
+        raise ValueError("ranking_weight must be between 0.0 and 1.0.")
     if validated["property_url"]:
         parsed = urlparse(validated["property_url"])
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc: raise ValueError("property_url must be a valid http(s) URL.")
-    if validated["service_account_email"] and "@" not in validated["service_account_email"]: raise ValueError("service_account_email must look like an email address.")
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("property_url must be a valid http(s) URL.")
+    if validated["service_account_email"] and "@" not in validated["service_account_email"]:
+        raise ValueError("service_account_email must look like an email address.")
     
     private_key_provided = "private_key" in payload
     private_key = str(payload.get("private_key", "")).strip() if private_key_provided else None
@@ -390,8 +396,10 @@ _VALUE_MODEL_BOOL_KEYS = ("enabled", "engagement_signal_enabled", "hot_decay_ena
 
 def _validate_value_model_settings(payload: dict, current: dict) -> dict:
     validated = {key: coerce_lenient_bool(payload, current, key) for key in _VALUE_MODEL_BOOL_KEYS}
-    for key, (lo, hi) in _VALUE_MODEL_FLOAT_BOUNDS.items(): validated[key] = coerce_clamp_float(payload, current, key, lo, hi)
-    for key, (lo_i, hi_i) in _VALUE_MODEL_INT_BOUNDS.items(): validated[key] = coerce_clamp_int(payload, current, key, lo_i, hi_i)
+    for key, (lo, hi) in _VALUE_MODEL_FLOAT_BOUNDS.items():
+        validated[key] = coerce_clamp_float(payload, current, key, lo, hi)
+    for key, (lo_i, hi_i) in _VALUE_MODEL_INT_BOUNDS.items():
+        validated[key] = coerce_clamp_int(payload, current, key, lo_i, hi_i)
     return validated
 
 # ── WordPress ─────────────────────────────────────────────────────
@@ -424,19 +432,22 @@ def _validate_wordpress_settings(payload: dict) -> dict[str, object]:
     username = str(payload.get("username", current["username"])).strip()
     if base_url:
         parsed = urlparse(base_url)
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc: raise ValueError("base_url must be a valid http(s) URL.")
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("base_url must be a valid http(s) URL.")
     
     app_password_provided = "app_password" in payload
     app_password = str(payload.get("app_password", "")).strip() if app_password_provided else None
     effective_has_password = bool(current["app_password_configured"])
-    if app_password_provided: effective_has_password = bool(app_password)
+    if app_password_provided:
+        effective_has_password = bool(app_password)
     
     sync_enabled = coerce_bool(payload.get("sync_enabled"), default=bool(current["sync_enabled"]))
     validated_sync = {"sync_hour": coerce_setting_int(payload, current, "sync_hour"), "sync_minute": coerce_setting_int(payload, current, "sync_minute")}
     enforce_bounds(validated_sync, {"sync_hour": (0, 23), "sync_minute": (0, 59)})
     
     _validate_wp_credentials_consistency(username, effective_has_password)
-    if sync_enabled and not base_url: raise ValueError("base_url is required when scheduled WordPress sync is enabled.")
+    if sync_enabled and not base_url:
+        raise ValueError("base_url is required when scheduled WordPress sync is enabled.")
     
     return {"base_url": base_url, "username": username, "app_password": app_password, "app_password_provided": app_password_provided, "app_password_configured": effective_has_password, "sync_enabled": sync_enabled, **validated_sync}
 
@@ -446,6 +457,8 @@ def _validate_spam_guard_settings(payload: dict, current: dict) -> dict[str, int
     from apps.core.services.settings_defaults import DEFAULT_SPAM_GUARD_SETTINGS
     def _get_int(key: str, lo: int, hi: int) -> int:
         val = payload.get(key, current.get(key))
-        try: return max(lo, min(hi, int(val)))
-        except (TypeError, ValueError): return current.get(key, DEFAULT_SPAM_GUARD_SETTINGS[key])
+        try:
+            return max(lo, min(hi, int(val)))
+        except (TypeError, ValueError):
+            return current.get(key, DEFAULT_SPAM_GUARD_SETTINGS[key])
     return {k: _get_int(k, 1, 20 if k == "max_existing_links_per_host" else 10) for k in ("max_existing_links_per_host", "max_anchor_words", "paragraph_window")}

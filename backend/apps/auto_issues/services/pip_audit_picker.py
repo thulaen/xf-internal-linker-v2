@@ -88,8 +88,9 @@ def _severity_for(cve: CVEFinding) -> str:
 
 
 def _stable_external_id(cve: CVEFinding) -> str:
+    # SHA1 is non-security here (deduplication fingerprint, not auth/auth)
     raw = f"pip-audit::{cve.package}::{cve.cve_id}"
-    return hashlib.sha1(raw.encode()).hexdigest()[:16]
+    return hashlib.sha1(raw.encode(), usedforsecurity=False).hexdigest()[:16]
 
 
 def _format_title(cve: CVEFinding) -> str:

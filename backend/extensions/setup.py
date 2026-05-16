@@ -175,6 +175,27 @@ ext_modules = [
         if sys.platform != "win32"
         else ["/O2", "/std:c++17"],
     ),
+    # Paper-trail dedup — MinHash + LSH near-duplicate detection. Spec
+    # in plan you-will-finish-every-cryptic-sphinx.md + sources of truth
+    # Broder 1997, Indyk-Motwani 1998, MMDS Ch.3.
+    Pybind11Extension(
+        "papertrail_dedup",
+        ["papertrail_dedup.cpp"],
+        extra_compile_args=["-O3", "-std=c++17"]
+        if sys.platform != "win32"
+        else ["/O2", "/std:c++17"],
+    ),
+    # lesson_index — three-sub-index in-process cache (ScopedLessonIndex,
+    # PerfBaselineCache, CitationCache). Sources of truth: Leis 2013 (ART),
+    # Pagh-Rodler 2001 (Cuckoo), Celis-Larson-Munro 1985 (Robin Hood),
+    # RFC 3309 (CRC-32C). Spec in docs/specs/lesson-index.md.
+    Pybind11Extension(
+        "lesson_index",
+        ["lesson_index.cpp"],
+        extra_compile_args=["-O3", "-std=c++17"]
+        if sys.platform != "win32"
+        else ["/O2", "/std:c++17"],
+    ),
 ]
 
 

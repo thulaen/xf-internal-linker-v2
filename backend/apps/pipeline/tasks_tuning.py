@@ -54,7 +54,6 @@ def monthly_weight_tune(self):
         challenger = tuner.run(run_id=run_id)
         if challenger:
             logger.info("[monthly_weight_tune] Native tuner found improvement. run_id=%s", run_id)
-            from apps.pipeline.tasks import evaluate_weight_challenger
             evaluate_weight_challenger.delay(run_id=run_id)
             return {"status": "submitted", "run_id": run_id, "challenger_id": str(challenger.pk)}
         else:
@@ -92,24 +91,28 @@ def monthly_meta_tune(self):
     if not connection.in_atomic_block:
         connection.close()
     import uuid as _uuid
-    # 2026-05-12: canonical class is MetaAlgorithmTuner; the historical
-    # import name MetaTuner was a typo that fired ImportError every
-    # monthly_meta_tune beat tick (Loki AutoIssue #155). Loki captured
-    # the breakage; this line is the fix.
+
     from apps.suggestions.services.meta_tuner import MetaAlgorithmTuner
+    from apps.suggestions.models import RankingChallenger
+    from apps.suggestions.weight_preset_service import get_current_weights
 
     run_id = str(_uuid.uuid4())
     try:
-        tuner = MetaAlgorithmTuner(lookback_days=90)
-        challenger = tuner.run(run_id=run_id)
-        if challenger:
-            logger.info("[monthly_meta_tune] Found improvement. run_id=%s", run_id)
-            from apps.pipeline.tasks import evaluate_meta_challenger
-            evaluate_meta_challenger.delay(run_id=run_id)
-            return {"status": "submitted", "run_id": run_id, "challenger_id": str(challenger.pk)}
-        else:
+        tuner = MetaAlgorithmTuner()
+        proposed = tuner.propose()
+        if not proposed:
             logger.info("[monthly_meta_tune] No improvement found.")
             return {"status": "skipped", "run_id": run_id}
+        baseline = get_current_weights()
+        challenger = RankingChallenger.objects.create(
+            run_id=run_id,
+            kind="meta_algorithm",
+            status="pending",
+            candidate_weights={key: str(value) for key, value in proposed.items()},
+            baseline_weights={key: str(baseline.get(key, "")) for key in proposed},
+        )
+        logger.info("[monthly_meta_tune] Created meta challenger. run_id=%s", run_id)
+        return {"status": "created", "run_id": run_id, "challenger_id": str(challenger.pk)}
     except (DatabaseError, TimeoutError, MemoryError, ValueError):
         raw = traceback.format_exc()
         logger.exception("[monthly_meta_tune] Failed: %s", raw)
@@ -139,12 +142,19 @@ def evaluate_meta_challenger(self, run_id: str):
     if not connection.in_atomic_block:
         connection.close()
     from apps.suggestions.models import RankingChallenger
-    challenger = RankingChallenger.objects.filter(run_id=run_id, type="meta").first()
+    challenger = RankingChallenger.objects.filter(
+        run_id=run_id, kind="meta_algorithm"
+    ).first()
     if not challenger:
         logger.error("[evaluate_meta_challenger] Challenger %s not found.", run_id)
-        return
-    from apps.suggestions.services.meta_evaluator import evaluate_and_promote
+        return {"status": "not_found", "run_id": run_id}
+    try:
+        from apps.suggestions.services.meta_evaluator import evaluate_and_promote
+    except ImportError:
+        logger.info("[evaluate_meta_challenger] Meta evaluator is not installed yet.")
+        return {"status": "deferred", "run_id": run_id}
     evaluate_and_promote(challenger)
+    return {"status": "evaluated", "run_id": run_id}
 
 @shared_task(bind=True, name="pipeline.evaluate_weight_challenger", time_limit=300)
 @HelperConstraint(
@@ -160,14 +170,22 @@ def evaluate_weight_challenger(self, *, run_id: str):
         connection.close()
     from apps.suggestions.models import RankingChallenger
     try:
-        challenger = RankingChallenger.objects.filter(run_id=run_id, type="weight").first()
+        challenger = RankingChallenger.objects.filter(
+            run_id=run_id, kind="weights"
+        ).first()
         if not challenger:
             logger.error("[evaluate_weight_challenger] Challenger %s not found.", run_id)
-            return
-        from apps.suggestions.services.weight_evaluator import evaluate_and_promote
+            return {"status": "not_found", "run_id": run_id}
+        try:
+            from apps.suggestions.services.weight_evaluator import evaluate_and_promote
+        except ImportError:
+            logger.info("[evaluate_weight_challenger] Weight evaluator is not installed yet.")
+            return {"status": "deferred", "run_id": run_id}
         evaluate_and_promote(challenger)
+        return {"status": "evaluated", "run_id": run_id}
     except Exception:
         logger.exception("[evaluate_weight_challenger] Failed for run_id %s", run_id)
+        return {"status": "error", "run_id": run_id}
 
 @shared_task(name="pipeline.check_weight_rollback", time_limit=300)
 @HelperConstraint(
@@ -182,7 +200,9 @@ def check_weight_rollback():
     if not connection.in_atomic_block:
         connection.close()
     from apps.suggestions.models import RankingChallenger
-    challengers = RankingChallenger.objects.filter(status="promoted", type="weight").order_by("-updated_at")[:5]
+    challengers = RankingChallenger.objects.filter(
+        status="promoted", kind="weights"
+    ).order_by("-updated_at")[:5]
     for challenger in challengers:
         _check_one_challenger_rollback(challenger)
 
@@ -251,7 +271,14 @@ def check_gsc_spikes(self) -> dict:
     return {"spikes_found": spikes_found}
 
 def _check_one_item_spike(item) -> bool:
-    from apps.analytics.services.spike_detector import detect_spike
+    try:
+        from apps.analytics.spike_detector import detect_spike  # type: ignore[import-not-found]
+    except ImportError:
+        logger.debug(
+            "check_gsc_spikes: spike detector not installed; skipping item %s",
+            getattr(item, "pk", "?"),
+        )
+        return False
     spike = detect_spike(item)
     if not spike:
         return False

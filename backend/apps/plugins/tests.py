@@ -31,6 +31,14 @@ class PluginStartupGuardTests(SimpleTestCase):
             )
         )
 
+    def test_skip_plugin_loading_for_uvicorn_async_server(self):
+        self.assertTrue(
+            _should_skip_plugin_loading(
+                argv=["python", "-m", "uvicorn", "config.asgi:application"],
+                settings_module="config.settings.production",
+            )
+        )
+
 
 class RequiredSchemaRouteTests(SimpleTestCase):
     def test_schema_route_is_registered(self):

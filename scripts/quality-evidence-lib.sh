@@ -53,14 +53,30 @@ quality_evidence_write() {
 }
 
 quality_artifact_safe_prune_host() {
+  local rc=0
   if command -v powershell >/dev/null 2>&1; then
-    powershell -ExecutionPolicy Bypass -File scripts/prune-verification-artifacts.ps1
-    return
+    powershell -ExecutionPolicy Bypass -File scripts/prune-verification-artifacts.ps1 || rc=$?
+  elif command -v pwsh >/dev/null 2>&1; then
+    pwsh -ExecutionPolicy Bypass -File scripts/prune-verification-artifacts.ps1 || rc=$?
+  else
+    echo "PowerShell is unavailable; required verification-artifact pruning cannot run." >&2
+    return 1
   fi
-  if command -v pwsh >/dev/null 2>&1; then
-    pwsh -ExecutionPolicy Bypass -File scripts/prune-verification-artifacts.ps1
-    return
+
+  # Paper-trail safe-prune extension. Only acts on directories whose
+  # files reference paths from a *resolved* PaperTrailEntry whose
+  # `resolution_lessons` is populated. Dry-run by default; the trace
+  # output goes to stdout so the operator can review.
+  if command -v docker >/dev/null 2>&1; then
+    docker compose exec -T backend python -c "
+from pathlib import Path
+from apps.paper_trail.services.safe_prune import paper_trail_eligible_dirs
+import tempfile
+root = Path(tempfile.gettempdir())
+for d in paper_trail_eligible_dirs(root):
+    print(f'[paper-trail safe-prune candidate] {d}')
+" 2>/dev/null || true
   fi
-  echo "PowerShell is unavailable; required verification-artifact pruning cannot run." >&2
-  return 1
+
+  return "$rc"
 }

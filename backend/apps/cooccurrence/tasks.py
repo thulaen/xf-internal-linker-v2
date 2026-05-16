@@ -9,6 +9,7 @@ from celery import shared_task
 
 from apps.core.helpers import HelperConstraint
 from apps.pipeline.decorators import with_weight_lock
+from apps.analytics.external_errors import is_google_api_client_error
 from django.db import connection
 
 logger = logging.getLogger(__name__)
@@ -236,7 +237,10 @@ def compute_session_cooccurrence(self) -> dict:
             )
         )
     except Exception as exc:
-        logger.exception("Co-occurrence pipeline failed: %s", exc)
+        if is_google_api_client_error(exc):
+            logger.warning("Co-occurrence Google API request failed: %s", exc)
+        else:
+            logger.exception("Co-occurrence pipeline failed: %s", exc)
         return _finalize_failed_run(run, exc)
 
     return _finalize_completed_run(

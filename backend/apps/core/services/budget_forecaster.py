@@ -13,7 +13,7 @@ Pattern:
        at last 100 runs per task — calibration improves the next
        forecast without unbounded growth.
     3. Operator-tunable safety margin (default 20% headroom).
-    4. Hard-stop verdict when projected free disk < 5 GB after the
+    4. Hard-stop verdict when projected free disk < 48 GB after the
        job lands.
 
 Storage discipline: forecast / calibration row stored as ONE
@@ -36,12 +36,12 @@ from typing import Callable
 logger = logging.getLogger(__name__)
 
 
-# Minimum free-after-job (bytes) below which the verdict turns "red".
-# Matches DISK-PRESSURE-RULES.md hard watermark (5 GB).
-_FREE_AFTER_RED_BYTES = 5 * 1024 * 1024 * 1024
-# Minimum free-after-job below which the verdict turns "yellow"
-# (10 GB matches DISK-PRESSURE-RULES.md soft watermark).
-_FREE_AFTER_YELLOW_BYTES = 10 * 1024 * 1024 * 1024
+# Minimum free-after-job below which the verdict turns "red".
+# Matches DISK-PRESSURE-RULES.md protected app-data reserve (48 GB).
+_FREE_AFTER_RED_BYTES = 48 * 1024 * 1024 * 1024
+# Minimum free-after-job below which the verdict turns "yellow".
+# Cleanup starts below 64 GB per DISK-PRESSURE-RULES.md.
+_FREE_AFTER_YELLOW_BYTES = 64 * 1024 * 1024 * 1024
 # Default operator-tunable headroom (20% of estimate added on top).
 _DEFAULT_SAFETY_MARGIN_PCT = 20
 # Calibration ring buffer: how many past runs to keep per task.
@@ -227,13 +227,13 @@ def _verdict_for(free_after_bytes: int, projected_total: int) -> tuple[str, str]
         gb_after = free_after_bytes / (1024**3)
         return "red", (
             f"After this job you would have only {gb_after:.1f} GB free — "
-            "below the 5 GB hard watermark. Free up space first or skip the job."
+            "below the 48 GB protected reserve. Free up space first or skip the job."
         )
     if free_after_bytes < _FREE_AFTER_YELLOW_BYTES:
         gb_after = free_after_bytes / (1024**3)
         return "yellow", (
             f"After this job you would have {gb_after:.1f} GB free — "
-            "below the 10 GB soft watermark. Consider running the prune script first."
+            "below the 64 GB cleanup watermark. Run safe cleanup before bulky work."
         )
     gb_after = free_after_bytes / (1024**3)
     return "safe", f"After this job you would have {gb_after:.1f} GB free."

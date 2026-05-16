@@ -20,7 +20,7 @@ allocation captured during the recording window.
 
 from __future__ import annotations
 
-import os
+import subprocess
 import time
 from pathlib import Path
 
@@ -75,8 +75,14 @@ class Command(BaseCommand):
             time.sleep(duration)
 
         self.stdout.write(f"Recording done. Generating flamegraph → {html_path}")
-        rc = os.system(f'memray flamegraph "{bin_path}" -o "{html_path}"')
-        if rc != 0:
+        # subprocess.run with a list arg (no shell=True) avoids shell-injection
+        # via filesystem paths that may contain unusual characters. Bandit
+        # B605 specifically asks for this pattern.
+        completed = subprocess.run(
+            ["memray", "flamegraph", str(bin_path), "-o", str(html_path)],
+            check=False,
+        )
+        if completed.returncode != 0:
             self.stderr.write(
                 "memray flamegraph subcommand failed. The .bin file is "
                 f"still at {bin_path} — run `memray flamegraph {bin_path}` "

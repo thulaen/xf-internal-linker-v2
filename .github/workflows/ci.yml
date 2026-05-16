@@ -599,32 +599,39 @@ jobs:
           path: frontend/reports/
           retention-days: 30
 
-  cpp-mull-fieldrel:
-    name: C++ Mutation (Mull, scoped field-aware relevance)
+  cpp-mull:
+    name: C++ Mutation (Mull, all 7 GTest binaries)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - name: Build compiled-tools image
         run: docker compose build compiled-tools
-      - name: Run Docker-managed scoped Mull pilot
+      - name: Run Docker-managed Mull across all 7 GTest binaries
         run: docker compose run --rm compiled-tools bash /repo/scripts/run-cpp-mutation.sh --clean
-      - name: Mutation-score ratchet for C++
+      - name: Mutation-score ratchet for each C++ binary
         if: always()
         run: |
-          if [ -f backend/extensions/reports/mull/mutants.json ]; then
-            python .githooks/check-mutation-score.py \
-              --tool mull \
-              --target test_fieldrel \
-              --report backend/extensions/reports/mull/mutants.json
-          else
-            echo "FAIL: Mull report is absent"
-            exit 1
-          fi
+          set -e
+          failed=0
+          for target in test_fieldrel test_scoring test_passagesim test_simsearch test_quantemb test_ivf_index test_streaming_sketches test_papertrail_dedup test_lesson_index; do
+            report="backend/extensions/reports/mull/${target}/mutants.json"
+            if [ -f "$report" ]; then
+              python .githooks/check-mutation-score.py \
+                --tool mull \
+                --target "$target" \
+                --report "$report" \
+                --seed-if-empty || failed=1
+            else
+              echo "FAIL: Mull report is absent for $target ($report)"
+              failed=1
+            fi
+          done
+          exit "$failed"
       - name: Upload Mull report
         if: always()
         uses: actions/upload-artifact@v5
         with:
-          name: mull-fieldrel-report
+          name: mull-report
           path: backend/extensions/reports/mull/
           retention-days: 30
 
