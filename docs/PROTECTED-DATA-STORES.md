@@ -20,6 +20,7 @@ This file lists data that self-pruning must never delete.
 - `questdb_data` is reserved for future QuestDB time-series data.
 - `sqlite_registry_data` is reserved for the future SQLite agent-memory registry.
 - `streamd_sock` holds the Unix-domain socket file (`/var/run/xf/streamd.sock`) shared between the `backend` container (Python) and the `streamd` Go sidecar. The socket itself is ephemeral but the volume must survive `docker compose down` (without `-v`) so Python callers keep the same dial path after a stop/start. Added in slice 1.5 — see ADR 0006 and `docs/MODULAR-MONOLITH.md` § Streamd reference shape.
+- `hf_cache` stores shared Hugging Face model downloads for the Celery workers at `/tmp/.cache`, so model files are kept once in a Docker volume instead of copied into each worker's writable layer.
 - `sidecars_sock` holds the single Unix-domain socket file (`/var/run/xf-sidecars/sidecars.sock`) shared between the `backend` container (Python) and the `sidecars` Go binary, which co-hosts 40 Apache-pattern internal services in one runtime. Same volume-survival rule as `streamd_sock`. Added in slice 1.6 — see `services/sidecars/README.md` and `docs/specs/fr-sidecars-host.md`.
 - `sidecars_data` holds the persistent state for the 40 sidecar services under `/var/lib/xf/sidecars/<service>/`. The pruner enforces a 1 GB total cap and 7-day retention; pinned snapshotd files survive the age sweep but still count toward the cap. Operators MUST NOT manually wipe this volume — it carries snapshot evidence linked to open AutoIssues. Added in slice 1.6.
 

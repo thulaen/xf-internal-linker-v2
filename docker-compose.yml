@@ -185,6 +185,7 @@ services:
       - ./backend:/app
       - .:/repo:ro
       - compiled_artifacts:/opt/xf/compiled
+      - hf_cache:/tmp/.cache
       # 90-day Pyroscope retention cleanup (auto_issues.run_retention_cleanup)
       # walks this volume and deletes blocks older than 90 days.
       - pyroscope_data:/pyroscope-data
@@ -246,6 +247,7 @@ services:
       - ./backend:/app
       - .:/repo:ro
       - compiled_artifacts:/opt/xf/compiled
+      - hf_cache:/tmp/.cache
       # 90-day Pyroscope retention cleanup (auto_issues.run_retention_cleanup)
       # walks this volume and deletes blocks older than 90 days.
       - pyroscope_data:/pyroscope-data
@@ -299,6 +301,7 @@ services:
       - ./backend:/app
       - .:/repo:ro
       - compiled_artifacts:/opt/xf/compiled
+      - hf_cache:/tmp/.cache
     healthcheck:
       test: ["CMD-SHELL", "grep -q beat /proc/1/cmdline || exit 1"]
       interval: 60s
@@ -839,6 +842,8 @@ volumes:
   # file is ephemeral, but the volume holding it must survive `docker compose
   # down` so callers keep the same path after a stop/start.
   streamd_sock:
+    driver: local
+  hf_cache:
     driver: local
   nginx_logs:
     driver: local
