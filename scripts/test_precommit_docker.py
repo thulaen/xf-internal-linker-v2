@@ -188,3 +188,11 @@ def test_python_quality_coverage_targets_changed_sources_only() -> None:
     assert "QUALITY_PYTHON_COVERAGE_TARGETS" in text
     assert "coverage_args" in text
     assert "--cov=apps --cov=config" not in text
+
+
+def test_pytest_default_does_not_measure_unrelated_backend_modules() -> None:
+    pytest_ini = _read_script("backend/pytest.ini")
+
+    assert "--cov=apps" not in pytest_ini
+    assert "--cov=config" not in pytest_ini
+    assert "Coverage is added by scoped quality wrappers" in pytest_ini
