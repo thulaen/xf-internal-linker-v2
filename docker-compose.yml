@@ -159,6 +159,7 @@ services:
     container_name: xf_linker_celery_worker_default
     restart: always
     mem_limit: 1536m
+    user: "0:0"
     env_file: .env
     deploy:
       resources:
@@ -208,10 +209,12 @@ services:
       redis:
         condition: service_healthy
     command: >
-      sh -c "python /repo/scripts/ensure_compiled_artifacts.py &&
-             python -c 'import drf_spectacular' &&
+      sh -c "mkdir -p /tmp/.cache/huggingface &&
+             chown -R appuser:appuser /tmp/.cache &&
+             su -m appuser -c 'python /repo/scripts/ensure_compiled_artifacts.py &&
+             python -c \"import drf_spectacular\" &&
              DEFAULT_QUEUE_CONCURRENCY=$$(python manage.py print_default_queue_concurrency) &&
-             celery -A config.celery worker --loglevel=warning --concurrency=$${DEFAULT_QUEUE_CONCURRENCY:-2} --prefetch-multiplier 1 --max-tasks-per-child=1000 -Q default"
+             celery -A config.celery worker --loglevel=warning --concurrency=$${DEFAULT_QUEUE_CONCURRENCY:-2} --prefetch-multiplier 1 --max-tasks-per-child=1000 -Q default'"
 
   # Celery worker - pipeline + embeddings queues only
   # Handles: heavy serial work that must stay single-process for FAISS correctness
@@ -220,6 +223,7 @@ services:
     container_name: xf_linker_celery_worker_pipeline
     restart: always
     mem_limit: 2g
+    user: "0:0"
     env_file: .env
     deploy:
       resources:
@@ -270,9 +274,11 @@ services:
       redis:
         condition: service_healthy
     command: >
-      sh -c "python /repo/scripts/ensure_compiled_artifacts.py &&
-             python -c 'import drf_spectacular' &&
-             celery -A config.celery worker --loglevel=warning --pool=solo --concurrency=1 --prefetch-multiplier 1 -Q pipeline,embeddings"
+      sh -c "mkdir -p /tmp/.cache/huggingface &&
+             chown -R appuser:appuser /tmp/.cache &&
+             su -m appuser -c 'python /repo/scripts/ensure_compiled_artifacts.py &&
+             python -c \"import drf_spectacular\" &&
+             celery -A config.celery worker --loglevel=warning --pool=solo --concurrency=1 --prefetch-multiplier 1 -Q pipeline,embeddings'"
 
   # ─────────────────────────────────────────────
   # Celery Beat — scheduled tasks (auto-resync, etc.)
@@ -282,6 +288,7 @@ services:
     container_name: xf_linker_celery_beat
     restart: always
     mem_limit: 256m
+    user: "0:0"
     env_file: .env
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
@@ -314,8 +321,10 @@ services:
       redis:
         condition: service_healthy
     command: >
-      sh -c "python /repo/scripts/ensure_compiled_artifacts.py &&
-             celery -A config.celery beat --loglevel=warning --scheduler django_celery_beat.schedulers:DatabaseScheduler"
+      sh -c "mkdir -p /tmp/.cache/huggingface &&
+             chown -R appuser:appuser /tmp/.cache &&
+             su -m appuser -c 'python /repo/scripts/ensure_compiled_artifacts.py &&
+             celery -A config.celery beat --loglevel=warning --scheduler django_celery_beat.schedulers:DatabaseScheduler'"
 
   # ─────────────────────────────────────────────
   # Angular prod bundle build — runs once, publishes to volume, exits

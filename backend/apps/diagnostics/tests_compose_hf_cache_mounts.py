@@ -53,3 +53,13 @@ class HuggingFaceCacheComposeTests(SimpleTestCase):
             backend.get("volumes") or [],
             msg="The backend service stays out of the first hf_cache slice.",
         )
+
+    def test_celery_services_repair_cache_ownership_before_start(self):
+        for name in CELERY_SERVICES:
+            service = self.compose["services"][name]
+            command = service.get("command") or ""
+
+            self.assertEqual(service.get("user"), "0:0", msg=f"`{name}` must start as root to fix volume ownership.")
+            self.assertIn("mkdir -p /tmp/.cache/huggingface", command)
+            self.assertIn("chown -R appuser:appuser /tmp/.cache", command)
+            self.assertIn("su -m appuser -c", command)
