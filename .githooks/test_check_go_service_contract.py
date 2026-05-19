@@ -291,6 +291,133 @@ class ContractPresenceHookTests(TestCase):
             hook.SERVICES_DIR = original  # type: ignore[assignment]
 
 
+class MultiServiceFolderTests(TestCase):
+    """Slice 1.6 — Rule K accepts a multi-service folder (services.manifest.yaml
+    + api/*.proto) as a substitute for the single top-level api.proto."""
+
+    def _make_multi_service(
+        self,
+        base: Path,
+        name: str = "sidecars",
+        *,
+        with_manifest: bool = True,
+        with_api_dir: bool = True,
+        with_proto_files: bool = True,
+        with_stubs: bool = True,
+        with_binary: bool = True,
+        with_dockerfile: bool = True,
+        with_compose: bool = True,
+        with_compose_volume: bool = True,
+        with_go_sum: bool = True,
+    ) -> Path:
+        folder = base / "services" / name
+        folder.mkdir(parents=True, exist_ok=True)
+        # go.mod with deps
+        (folder / "go.mod").write_text(
+            f"module xf-internal-linker-v2/services/{name}\n\n"
+            "go 1.25\n\n"
+            "require (\n"
+            "    google.golang.org/grpc v1.66.0\n"
+            ")\n"
+        )
+        if with_go_sum:
+            (folder / "go.sum").write_text("google.golang.org/grpc v1.66.0 h1:abcd\n")
+        if with_manifest:
+            (folder / "services.manifest.yaml").write_text(
+                "host:\n  total_memory_mb: 512\n  total_storage_mb: 1024\n  retention_hours: 168\n"
+                "  socket_path: /var/run/x/x.sock\n  storage_path: /var/lib/x\n"
+                "services:\n"
+                "  - name: foo\n    apache: Test\n    owning_module: platform\n    priority: high\n"
+                "    rpcs:\n      - {name: Ping, in: Empty, out: Ack, streaming: none}\n"
+            )
+        if with_api_dir:
+            api_dir = folder / "api"
+            api_dir.mkdir(exist_ok=True)
+            if with_proto_files:
+                (api_dir / "foo.proto").write_text('syntax = "proto3";\npackage x;\n')
+                (api_dir / "shared.proto").write_text('syntax = "proto3";\npackage x;\n')
+            if with_stubs:
+                gen = api_dir / "gen"
+                gen.mkdir(exist_ok=True)
+                (gen / "foo.pb.go").write_text("package gen\n")
+                (gen / "shared.pb.go").write_text("package gen\n")
+        if with_binary:
+            cmd = folder / "cmd" / name
+            cmd.mkdir(parents=True, exist_ok=True)
+            (cmd / "main.go").write_text("package main\nfunc main() {}\n")
+        if with_dockerfile:
+            (folder / "Dockerfile").write_text(_MULTI_STAGE_DOCKERFILE)
+        # docker-compose snippet
+        compose_blocks: list[str] = []
+        if with_compose:
+            compose_blocks.append(f"  {name}:\n    image: {name}:latest\n")
+        if with_compose_volume:
+            compose_blocks.append(f"  {name}_sock:\n    driver: local\n")
+        (base / "docker-compose.yml").write_text("services:\n" + "".join(compose_blocks) + "\nvolumes:\n")
+        return folder
+
+    def test_multi_service_folder_with_everything_passes(self) -> None:
+        original_root = hook.REPO_ROOT
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                base = Path(tmp)
+                self._make_multi_service(base)
+                hook.REPO_ROOT = base  # type: ignore[assignment]
+                violations = hook.scan_base_dir(base)
+                self.assertEqual(violations, [], f"expected zero violations, got {violations}")
+        finally:
+            hook.REPO_ROOT = original_root  # type: ignore[assignment]
+
+    def test_multi_service_missing_stub_files_fails(self) -> None:
+        original_root = hook.REPO_ROOT
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                base = Path(tmp)
+                self._make_multi_service(base, with_stubs=False)
+                hook.REPO_ROOT = base  # type: ignore[assignment]
+                violations = hook.scan_base_dir(base)
+                kinds = [v.kind for v in violations]
+                self.assertIn("multi-service-stubs", kinds)
+        finally:
+            hook.REPO_ROOT = original_root  # type: ignore[assignment]
+
+    def test_multi_service_missing_binary_fails(self) -> None:
+        original_root = hook.REPO_ROOT
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                base = Path(tmp)
+                self._make_multi_service(base, with_binary=False)
+                hook.REPO_ROOT = base  # type: ignore[assignment]
+                violations = hook.scan_base_dir(base)
+                kinds = [v.kind for v in violations]
+                self.assertIn("binary", kinds)
+        finally:
+            hook.REPO_ROOT = original_root  # type: ignore[assignment]
+
+    def test_multi_service_still_requires_compose_named_volume(self) -> None:
+        original_root = hook.REPO_ROOT
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                base = Path(tmp)
+                self._make_multi_service(base, with_compose_volume=False)
+                hook.REPO_ROOT = base  # type: ignore[assignment]
+                violations = hook.scan_base_dir(base)
+                kinds = [v.kind for v in violations]
+                self.assertIn("compose-volume", kinds)
+        finally:
+            hook.REPO_ROOT = original_root  # type: ignore[assignment]
+
+    def test_is_multi_service_detector(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            ms = self._make_multi_service(base)
+            self.assertTrue(hook._is_multi_service_folder(ms))
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            ms = self._make_multi_service(base, with_manifest=False)
+            self.assertFalse(hook._is_multi_service_folder(ms))
+
+
 if __name__ == "__main__":
     import unittest
 

@@ -23,11 +23,25 @@ export MSYS2_ARG_CONV_EXCL="*"
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
+# Phase H: shared concurrency + 5-min cap + named-container cleanup.
+. scripts/_quality_concurrency.sh
+quality_install_cleanup_trap
+quality_acquire_meta_lock
+quality_acquire_tool_lock go-quality
+
 . scripts/quality-evidence-lib.sh
 evidence_file="$(quality_evidence_path go)"
 evidence_container="$(quality_evidence_container_path go)"
 quality_evidence_init "$evidence_file"
-trap 'quality_evidence_finalize "$?" "$evidence_file" "$evidence_container"' EXIT
+_run_go_quality_combined_cleanup() {
+  local rc=$?
+  quality_evidence_finalize "$rc" "$evidence_file" "$evidence_container"
+  quality_cleanup
+  return "$rc"
+}
+trap _run_go_quality_combined_cleanup EXIT
+trap '_run_go_quality_combined_cleanup; exit 130' INT
+trap '_run_go_quality_combined_cleanup; exit 143' TERM
 
 scope_mode="${COMMIT_SCOPE_MODE:-staged}"
 go_paths="$(python scripts/commit_scope.py paths --mode "$scope_mode" | grep -E '(^|/)go\.(mod|sum)$|\.go$|\.proto$' || true)"
@@ -49,7 +63,14 @@ run_go_step() {
   local tool_name="$2"
   local command="$3"
   set +e
-  eval "$command"
+  # Phase H: 5-min cap on every Go step + stable container name so
+  # cleanup trap can force-remove the docker container on signal.
+  local container_name
+  container_name="$(quality_docker_container_name "go-$tool_name")"
+  local prefixed_command
+  prefixed_command="docker rm -f $container_name >/dev/null 2>&1 || true; ${command/docker compose run/docker compose run --name $container_name}"
+  quality_register_container "$container_name"
+  quality_timeout 300 bash -c "$prefixed_command"
   local status_code=$?
   set -e
   local status=failed
@@ -79,4 +100,28 @@ run_go_step static_analysis gosec        "docker compose run --rm -T -e QUALITY_
 run_go_step static_analysis buf-lint     "docker compose run --rm -T -e QUALITY_GO_PATHS compiled-tools bash /repo/scripts/run-buf-lint.sh"
 run_go_step coverage        go-tests     "docker compose run --rm -T -e QUALITY_GO_PATHS compiled-tools bash /repo/scripts/run-go-tests.sh"
 run_go_step mutation        go-mutesting "docker compose run --rm -T -e QUALITY_GO_PATHS compiled-tools bash /repo/scripts/run-go-mutation.sh"
+
+# Phase I: file surviving go-mutesting mutants per module. The script
+# writes <module>/report.json. Soft-block locally; CI's score-ratchet
+# keeps the original hard test.
+go_modules_for_survivors="$(python "$repo_root/scripts/go_modules.py" --paths-env QUALITY_GO_PATHS 2>/dev/null || true)"
+if [ -n "$go_modules_for_survivors" ]; then
+  while IFS= read -r mod; do
+    [ -z "$mod" ] && continue
+    report="$mod/report.json"
+    [ -f "$report" ] || continue
+    mod_safe="${mod//\//-}"
+    QUALITY_FILE_MUTANTS_CONTAINER="$(quality_docker_container_name "file-mutants-gomut-$mod_safe")"
+    quality_register_container "$QUALITY_FILE_MUTANTS_CONTAINER"
+    docker compose run --rm -T --no-deps --name "$QUALITY_FILE_MUTANTS_CONTAINER" \
+      -e XF_QUALITY_ENV="${XF_QUALITY_ENV:-local}" \
+      backend sh -lc "
+      cd /repo/backend
+      python manage.py file_mutation_survivors \
+        --tool go-mutesting \
+        --report /repo/$report \
+        --agent claude
+    " || echo "WARN: file_mutation_survivors go-mutesting/$mod step failed (non-blocking)"
+  done <<<"$go_modules_for_survivors"
+fi
 run_go_step normal_test     go-bench     "docker compose run --rm -T -e QUALITY_GO_PATHS compiled-tools bash /repo/scripts/run-go-bench.sh"

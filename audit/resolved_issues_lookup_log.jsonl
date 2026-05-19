@@ -308,3 +308,83 @@
 {"file_path": "scripts/select_python_test_targets.py", "lookup_at": "2026-05-19T12:53:17Z", "task_id": "742e9788-865b-40c4-837c-3f9045d5be07", "agent": "claude", "result_count": 0, "result_ids": []}
 {"file_path": "scripts/test_select_python_test_targets.py", "lookup_at": "2026-05-19T12:53:17Z", "task_id": "742e9788-865b-40c4-837c-3f9045d5be07", "agent": "claude", "result_count": 0, "result_ids": []}
 {"file_path": "backend/apps/auto_issues/tests_print_open_snapshots_command.py", "lookup_at": "2026-05-19T12:53:17Z", "task_id": "742e9788-865b-40c4-837c-3f9045d5be07", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks", "lookup_at": "2026-05-19T13:20:06Z", "task_id": "742e9788-865b-40c4-837c-3f9045d5be07", "agent": "claude", "result_count": 2, "result_ids": [108, 107]}
+{"file_path": "backend/apps/resolved_search_windows", "lookup_at": "2026-05-19T13:20:34Z", "task_id": "742e9788-865b-40c4-837c-3f9045d5be07", "agent": "claude", "result_count": 1, "result_ids": [636]}
+{"file_path": "backend/apps/resolved_search_audit", "lookup_at": "2026-05-19T13:20:34Z", "task_id": "742e9788-865b-40c4-837c-3f9045d5be07", "agent": "claude", "result_count": 1, "result_ids": [637]}
+{"file_path": "backend/apps/resolved_search_batch_audit", "lookup_at": "2026-05-19T13:20:34Z", "task_id": "742e9788-865b-40c4-837c-3f9045d5be07", "agent": "claude", "result_count": 1, "result_ids": [639]}
+{"file_path": "backend/apps/resolved_search_batch_pipeline", "lookup_at": "2026-05-19T13:20:34Z", "task_id": "742e9788-865b-40c4-837c-3f9045d5be07", "agent": "claude", "result_count": 1, "result_ids": [640]}
+{"file_path": "backend/apps/resolved_search_limited", "lookup_at": "2026-05-19T13:20:34Z", "task_id": "742e9788-865b-40c4-837c-3f9045d5be07", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/_hook_helpers.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-code-review-lessons.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-commit-failures-lookup.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-coverage-erosion.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-decision-point.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-deferral-filed.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-glossary.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-go-service-contract.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-go-service-resource-budget.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-junk-files.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-lessons-read-at-session-start.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-mutable-defaults.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-mutation-score.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-no-parallel-quality.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 3, "result_ids": [852, 847, 846]}
+{"file_path": ".githooks/check-no-verify-bypass.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-paper-trail-evidence.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-paper-trail-read.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-perf-proof.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-profiling-proof.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-recommended-preset-coverage.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-registry-read.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-resolved-history.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-scoped-lessons.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-session-close.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-snapshotd-ritual.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-spec-citation.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-stubs-not-regenerated.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-tdd-preflight.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/check-tdd-strict.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 1, "result_ids": [791]}
+{"file_path": ".githooks/check-test-case-mandate.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 1, "result_ids": [791]}
+{"file_path": ".githooks/post-commit", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/test__hook_helpers.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/test_check_code_review_lessons.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/test_check_commit_failures_lookup.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/test_check_decision_point.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/test_check_go_service_contract.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/test_check_go_service_resource_budget.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/test_check_lessons_read_at_session_start.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/test_check_no_parallel_quality.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 1, "result_ids": [847]}
+{"file_path": ".githooks/test_check_paper_trail_evidence.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/test_check_resolved_history.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/test_check_session_close.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/test_check_snapshotd_ritual.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/test_check_spec_citation.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/test_check_tdd_preflight.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/test_check_tdd_strict.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/test_check_test_case_mandate.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks/test_post_commit.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/_gh_helper.sh", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/_quality_concurrency_whitelist.txt", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/check_quality_policy.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/cpp_mutation_targets.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/detect_changed_modules.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/ensure_compiled_artifacts.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/go_modules.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/precommit-docker.sh", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 2, "result_ids": [852, 846]}
+{"file_path": "scripts/run-angular-quality.sh", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 2, "result_ids": [852, 846]}
+{"file_path": "scripts/run-cpp-coverage.sh", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/run-cpp-mutation.sh", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 2, "result_ids": [859, 856]}
+{"file_path": "scripts/run-cpp-quality.sh", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 2, "result_ids": [852, 846]}
+{"file_path": "scripts/run-cpp-sanitizers.sh", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/run-cpp-tests.sh", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/run-go-mutation.sh", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/run-go-quality.sh", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 2, "result_ids": [852, 846]}
+{"file_path": "scripts/run-python-quality.sh", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 4, "result_ids": [852, 846, 844, 803]}
+{"file_path": "scripts/run-tool-readiness.sh", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/start.ps1", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/test_cpp_mutation_targets.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/test_detect_changed_modules.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/test_precommit_docker.py", "lookup_at": "2026-05-19T13:28:39Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 4, "result_ids": [859, 857, 854, 850]}
+{"file_path": ".githooks/test_check_registry_read.py", "lookup_at": "2026-05-19T13:36:21Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/_quality_concurrency.sh", "lookup_at": "2026-05-19T14:19:20Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 9, "result_ids": [1140, 1107, 1106, 1104, 857, 856, 854, 853, 846]}
+{"file_path": "scripts/quality-evidence-lib.sh", "lookup_at": "2026-05-19T14:19:20Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 3, "result_ids": [1140, 1118, 1114]}
+{"file_path": "scripts/test_quality_evidence_lib.sh", "lookup_at": "2026-05-19T14:19:20Z", "task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "claude", "result_count": 3, "result_ids": [1140, 1118, 1114]}

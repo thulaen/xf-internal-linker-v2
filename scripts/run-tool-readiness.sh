@@ -120,6 +120,8 @@ docker compose exec -T compiled-tools bash -lc '
   clang++-19 --version
   clang-format-19 --version
   clang-tidy-19 --version
+  llvm-cov-19 --version
+  llvm-profdata-19 --version
   cppcheck --version
   include-what-you-use --version
   infer --version

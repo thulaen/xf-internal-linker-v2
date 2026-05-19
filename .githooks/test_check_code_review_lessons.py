@@ -72,21 +72,80 @@ class CodeReviewLessonsTests(unittest.TestCase):
              mock.patch.object(sys, "stderr", StringIO()):
             self.assertEqual(self.hook.main(), 2)
 
-    def test_valid_marker_passes(self):
+    def test_summary_without_agent_proof_fails(self):
         marker = "[CODE REVIEW LESSONS: 2 logged from 2 files; deduped 0 against prior]"
         with mock.patch.object(self.hook, "_staged_code_files",
                                return_value=["backend/apps/a.py",
                                               "backend/apps/b.py"]), \
-             mock.patch.object(self.hook, "_staged_handoff_diff", return_value=marker):
+             mock.patch.object(self.hook, "_staged_handoff_diff", return_value=marker), \
+             mock.patch.object(sys, "stderr", StringIO()) as err:
+            self.assertEqual(self.hook.main(), 2)
+            self.assertIn("[CODE REVIEW AGENTS:", err.getvalue())
+
+    def test_done_agent_without_logged_ids_fails(self):
+        marker = "\n".join([
+            "[CODE REVIEW LESSONS: 1 logged from 1 files; deduped 0 against prior]",
+            "[CODE REVIEW AGENTS: codex=done claude=optional gemini=optional]",
+        ])
+        with mock.patch.object(self.hook, "_staged_code_files",
+                               return_value=["backend/apps/a.py"]), \
+             mock.patch.object(self.hook, "_staged_handoff_diff", return_value=marker), \
+             mock.patch.object(sys, "stderr", StringIO()) as err:
+            self.assertEqual(self.hook.main(), 2)
+            self.assertIn("no logged AutoIssue ids", err.getvalue())
+
+    def test_unknown_review_agent_fails(self):
+        marker = "\n".join([
+            "[CODE REVIEW LESSONS: 1 logged from 1 files; deduped 0 against prior]",
+            "[CODE REVIEW AGENTS: bard=done logged=#123]",
+        ])
+        with mock.patch.object(self.hook, "_staged_code_files",
+                               return_value=["backend/apps/a.py"]), \
+             mock.patch.object(self.hook, "_staged_handoff_diff", return_value=marker), \
+             mock.patch.object(sys, "stderr", StringIO()) as err:
+            self.assertEqual(self.hook.main(), 2)
+            self.assertIn("unknown reviewer", err.getvalue())
+
+    def test_unverified_logged_review_id_fails(self):
+        marker = "\n".join([
+            "[CODE REVIEW LESSONS: 1 logged from 1 files; deduped 0 against prior]",
+            "[CODE REVIEW AGENTS: codex=done logged=#404]",
+        ])
+        with mock.patch.object(self.hook, "_staged_code_files",
+                               return_value=["backend/apps/a.py"]), \
+             mock.patch.object(self.hook, "_staged_handoff_diff", return_value=marker), \
+             mock.patch.object(self.hook, "_verify_logged_review_ids",
+                               return_value=False, create=True), \
+             mock.patch.object(sys, "stderr", StringIO()) as err:
+            self.assertEqual(self.hook.main(), 2)
+            self.assertIn("did not verify", err.getvalue())
+
+    def test_valid_marker_passes(self):
+        marker = "\n".join([
+            "[CODE REVIEW LESSONS: 2 logged from 2 files; deduped 0 against prior]",
+            "[CODE REVIEW AGENTS: codex=done logged=#123,#124 "
+            "claude=optional-extra-review-not-run gemini=optional-extra-review-not-run]",
+        ])
+        with mock.patch.object(self.hook, "_staged_code_files",
+                               return_value=["backend/apps/a.py",
+                                              "backend/apps/b.py"]), \
+             mock.patch.object(self.hook, "_staged_handoff_diff", return_value=marker), \
+             mock.patch.object(self.hook, "_verify_logged_review_ids",
+                               return_value=True, create=True):
             self.assertEqual(self.hook.main(), 0)
 
     def test_dedup_only_passes(self):
         # All files were deduped; N+K (0+2) covers M (2).
-        marker = "[CODE REVIEW LESSONS: 0 logged from 2 files; deduped 2 against prior]"
+        marker = "\n".join([
+            "[CODE REVIEW LESSONS: 0 logged from 2 files; deduped 2 against prior]",
+            "[CODE REVIEW AGENTS: gemini=done logged=#321]",
+        ])
         with mock.patch.object(self.hook, "_staged_code_files",
                                return_value=["backend/apps/a.py",
                                               "backend/apps/b.py"]), \
-             mock.patch.object(self.hook, "_staged_handoff_diff", return_value=marker):
+             mock.patch.object(self.hook, "_staged_handoff_diff", return_value=marker), \
+             mock.patch.object(self.hook, "_verify_logged_review_ids",
+                               return_value=True, create=True):
             self.assertEqual(self.hook.main(), 0)
 
 

@@ -411,8 +411,15 @@ def _build_go_modules(modules: list[Path], manifest: dict[str, Any]) -> list[dic
 
 
 def _build_go_module(module_root: Path, manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    # `-buildvcs=false` keeps the call working inside containers where the
+    # /repo bind-mount has a .git folder whose ownership does not match the
+    # current uid (Go's default VCS stamping shells `git status` and treats
+    # the resulting "dubious ownership" exit-128 as fatal). The artifact
+    # store is content-addressed off the source hash, not VCS metadata, so
+    # disabling VCS stamping does not change reproducibility.
     package_lines = _run_capture(
-        ["go", "list", "-f", "{{if eq .Name \"main\"}}{{.ImportPath}}{{end}}", "./..."],
+        ["go", "list", "-buildvcs=false", "-f",
+         "{{if eq .Name \"main\"}}{{.ImportPath}}{{end}}", "./..."],
         cwd=module_root,
     ).splitlines()
     main_packages = [line for line in package_lines if line.strip()]
@@ -420,7 +427,10 @@ def _build_go_module(module_root: Path, manifest: dict[str, Any]) -> list[dict[s
     for import_path in main_packages:
         output_name = import_path.replace("/", "_").replace("\\", "_")
         scratch_output = BUILD_ROOT / "go-runtime" / output_name
-        _run(["go", "build", "-o", str(scratch_output), import_path], cwd=module_root)
+        _run(
+            ["go", "build", "-buildvcs=false", "-o", str(scratch_output), import_path],
+            cwd=module_root,
+        )
         stored = _store_artifact(scratch_output, manifest)
         active_path = ACTIVE_GO_ROOT / output_name
         _link_or_copy(Path(stored["store_path"]), active_path)

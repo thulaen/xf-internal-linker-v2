@@ -125,6 +125,45 @@ def _has_generated_stubs(folder: Path) -> bool:
     return any(gen_dir.glob("*.pb.go"))
 
 
+def _is_multi_service_folder(folder: Path) -> bool:
+    """Return True if folder is a multi-service binary (slice 1.6 sidecars shape).
+
+    A multi-service folder has:
+      - services.manifest.yaml declaring 1..N internal services
+      - api/<name>.proto files (one per declared service) + api/shared.proto
+      - cmd/<binary>/main.go that registers all of them on one gRPC server
+
+    The contract surface is the MANIFEST + the api/*.proto files together,
+    not a single top-level api.proto. This is a deliberate exception to
+    Rule K's per-folder single-contract rule and only applies when
+    services.manifest.yaml is present.
+    """
+    if not (folder / "services.manifest.yaml").is_file():
+        return False
+    api_dir = folder / "api"
+    if not api_dir.is_dir():
+        return False
+    return any(api_dir.glob("*.proto"))
+
+
+def _multi_service_stubs_exist(folder: Path) -> bool:
+    """Return True if every api/<name>.proto has a matching api/gen/<name>.pb.go.
+
+    Multi-service folders ship generated stubs the same way single-service
+    folders do (committed under api/gen/), but the check is per-proto-file
+    instead of just "any .pb.go exists".
+    """
+    api_dir = folder / "api"
+    gen_dir = api_dir / "gen"
+    if not gen_dir.is_dir():
+        return False
+    for proto in api_dir.glob("*.proto"):
+        stem = proto.stem
+        if not (gen_dir / f"{stem}.pb.go").is_file():
+            return False
+    return True
+
+
 def _go_sum_is_populated(folder: Path) -> bool:
     """Return True if go.sum exists and is non-empty.
 
@@ -177,6 +216,24 @@ def scan_service_folder(folder: Path) -> list[Violation]:
             service=name, kind="go-mod",
             message=f"{rel}/go.mod is missing - every services/<name>/ folder needs a Go module.",
         ))
+    # Multi-service exception (slice 1.6): a folder with services.manifest.yaml
+    # + api/*.proto publishes its contract as the manifest + per-service .proto
+    # files instead of a single top-level api.proto. For these folders Items 2,
+    # 5, and 9 use multi-service rules; the other items stay identical.
+    is_multi = _is_multi_service_folder(folder)
+    if is_multi:
+        # Multi-service Item 2: stubs must exist for every declared proto.
+        if not _multi_service_stubs_exist(folder):
+            violations.append(Violation(
+                service=name, kind="multi-service-stubs",
+                message=(
+                    f"{rel}/api/gen/ is missing one or more *.pb.go files - "
+                    f"multi-service folders ship one generated stub per "
+                    f"api/<name>.proto. Run `make -C {rel} proto` inside the "
+                    f"compiled-tools container and commit the generated stubs."
+                ),
+            ))
+        return _multi_service_remaining_checks(folder, violations, name, rel)
     # Item 2 - contract.
     contract_paths = [folder / cf for cf in _CONTRACT_FILES]
     has_proto = (folder / "api.proto").is_file()
@@ -269,6 +326,70 @@ def scan_service_folder(folder: Path) -> list[Violation]:
                 f"`streamd_sock` block in docker-compose.yml for the template. "
                 f"Services that publish api.http.md (HTTP+JSON) instead of "
                 f"api.proto are exempt."
+            ),
+        ))
+    return violations
+
+
+def _multi_service_remaining_checks(
+    folder: Path,
+    violations: list[Violation],
+    name: str,
+    rel: Path,
+) -> list[Violation]:
+    """Apply Items 3/4/6/7/8 for a multi-service folder.
+
+    Skipped relative to single-service:
+      - Item 2 (contract) handled by the multi-service-stubs path.
+      - Item 5 (per-folder stub check) replaced by _multi_service_stubs_exist.
+      - Item 9 (named-volume) — multi-service folders still mount a
+        `<name>_sock` volume, so the check stays.
+    """
+    # Item 3 - binary entry point.
+    binary_path = folder / _BINARY_ENTRY_TEMPLATE.format(name=name)
+    if not binary_path.is_file():
+        violations.append(Violation(
+            service=name, kind="binary",
+            message=(
+                f"{_rel(folder, binary_path)} is missing - even multi-service "
+                f"folders need cmd/{name}/main.go as the single entry point that "
+                f"registers every internal service against one gRPC server."
+            ),
+        ))
+    # Item 4 - Dockerfile.
+    dockerfile = folder / "Dockerfile"
+    if not dockerfile.is_file():
+        violations.append(Violation(
+            service=name, kind="dockerfile",
+            message=f"{_rel(folder, dockerfile)} is missing - multi-service folders ship a multi-stage scratch Dockerfile.",
+        ))
+    # Item 6 - docker-compose service block.
+    if not _has_compose_entry(name):
+        violations.append(Violation(
+            service=name, kind="compose",
+            message=f"docker-compose.yml has no `{name}:` service block - the multi-service binary exists but nothing schedules it.",
+        ))
+    # Item 7 - go.sum populated when go.mod has require directives.
+    if (folder / "go.mod").is_file() and not _go_sum_is_populated(folder):
+        violations.append(Violation(
+            service=name, kind="go-sum",
+            message=f"{rel}/go.sum is missing or empty even though go.mod declares dependencies.",
+        ))
+    # Item 8 - multi-stage Dockerfile.
+    if dockerfile.is_file() and not _dockerfile_is_multi_stage(dockerfile):
+        violations.append(Violation(
+            service=name, kind="dockerfile-shape",
+            message=f"{_rel(folder, dockerfile)} is single-stage - multi-service folders also need a multi-stage build.",
+        ))
+    # Item 9 - named-volume mount. Even a multi-service binary uses a single
+    # `<name>_sock` volume for its one shared Unix-domain socket.
+    if not _compose_mounts_socket(name):
+        violations.append(Violation(
+            service=name, kind="compose-volume",
+            message=(
+                f"docker-compose.yml has no `{name}_sock:` named volume. The "
+                f"multi-service binary still binds one Unix-domain socket and "
+                f"the named volume is how it reaches the backend container."
             ),
         ))
     return violations

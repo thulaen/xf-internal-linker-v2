@@ -8,6 +8,35 @@
 # kill rate is tracked via a paper-trail `mutation_survivor` entry.
 set -euo pipefail
 
+# Phase H: this script normally runs inside the compiled-tools docker
+# container (invoked from run-go-quality.sh). When that outer wrapper
+# fires it, the concurrency helper already locked + trapped. If the
+# script is run directly on the host, source the helper here too so
+# the same protections apply.
+if [ -z "${XF_QUALITY_INSIDE_CONTAINER:-}" ] && [ -f /.dockerenv ]; then
+  export XF_QUALITY_INSIDE_CONTAINER=1
+fi
+if [ -z "${XF_QUALITY_INSIDE_CONTAINER:-}" ] && [ -f "$(dirname "$0")/_quality_concurrency.sh" ]; then
+  . "$(dirname "$0")/_quality_concurrency.sh"
+  quality_install_cleanup_trap
+  quality_acquire_meta_lock
+  quality_acquire_tool_lock go-mutation
+fi
+
+# Phase H: 5-min cap on the whole mutation loop. Each module runs
+# go-mutesting sequentially; the outer cap limits total wall-clock.
+# GOMAXPROCS cap honours the user worker-count policy (default 4,
+# max 6 plugged-in).
+export GOMAXPROCS="${XF_QUALITY_CORES:-${GOMAXPROCS:-4}}"
+_go_in_cap() {
+  if [ "${XF_QUALITY_ENV:-local}" = "ci" ]; then "$@"; return $?; fi
+  if command -v timeout >/dev/null 2>&1; then
+    timeout --signal=TERM --kill-after=15 "$@"
+  else
+    "$@"
+  fi
+}
+
 repo_root="${REPO_ROOT:-/repo}"
 modules=$(python "$repo_root/scripts/go_modules.py" --paths-env QUALITY_GO_PATHS)
 if [[ -z "$modules" ]]; then
@@ -30,8 +59,8 @@ status=0
 while IFS= read -r module; do
   [[ -z "$module" ]] && continue
   report="$module/report.json"
-  echo "+ go-mutesting ./... in $module (threshold $threshold)"
-  if ! (cd "$module" && go-mutesting ./...); then
+  echo "+ go-mutesting ./... in $module (threshold $threshold, 5-min cap)"
+  if ! _go_in_cap 300 bash -c "cd '$module' && go-mutesting ./..."; then
     status=1
     continue
   fi

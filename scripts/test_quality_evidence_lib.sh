@@ -1,11 +1,52 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export MSYS_NO_PATHCONV=1
+export MSYS2_ARG_CONV_EXCL="*"
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
 # shellcheck source=scripts/quality-evidence-lib.sh
 . scripts/quality-evidence-lib.sh
+
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+
+fake_backend="$tmp_dir/backend"
+mkdir -p "$fake_backend"
+cat > "$fake_backend/manage.py" <<'PY'
+import os
+import sys
+from pathlib import Path
+
+Path(os.environ["QUALITY_EVIDENCE_RECORD"]).write_text(
+    " ".join(sys.argv[1:]),
+    encoding="utf-8",
+)
+PY
+
+export QUALITY_EVIDENCE_BACKEND_DIR="$fake_backend"
+export QUALITY_EVIDENCE_FORCE_DIRECT=1
+import_record="$tmp_dir/import-record.txt"
+QUALITY_EVIDENCE_RECORD="$(cygpath -w "$import_record" 2>/dev/null || printf "%s" "$import_record")"
+export QUALITY_EVIDENCE_RECORD
+quality_evidence_import "/repo/backend/reports/quality-evidence/python.jsonl"
+if ! grep -q "ingest_quality_evidence --path /repo/backend/reports/quality-evidence/python.jsonl --capture-raw-if-due" "$import_record"; then
+  echo "expected direct container import to call manage.py ingest_quality_evidence" >&2
+  cat "$import_record" >&2
+  exit 1
+fi
+
+prune_record="$tmp_dir/prune-record.txt"
+QUALITY_EVIDENCE_RECORD="$(cygpath -w "$prune_record" 2>/dev/null || printf "%s" "$prune_record")"
+export QUALITY_EVIDENCE_RECORD
+quality_artifact_prune
+if ! grep -q "prune_quality_artifacts --root /tmp --apply --prune-old-raw-snippets" "$prune_record"; then
+  echo "expected direct container prune to call manage.py prune_quality_artifacts" >&2
+  cat "$prune_record" >&2
+  exit 1
+fi
+unset QUALITY_EVIDENCE_FORCE_DIRECT
 
 quality_evidence_import() {
   echo "imported $1"
@@ -15,8 +56,6 @@ quality_artifact_prune() {
   echo "pruned"
 }
 
-tmp_dir="$(mktemp -d)"
-trap 'rm -rf "$tmp_dir"' EXIT
 evidence_file="$tmp_dir/evidence.jsonl"
 stderr_file="$tmp_dir/stderr.txt"
 printf '{"status":"failed"}\n' > "$evidence_file"

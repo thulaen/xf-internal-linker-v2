@@ -22,6 +22,7 @@ _SPEC_PROOF_RE = re.compile(r"\[SPEC PROOF:\s*(?P<body>[^\]]+)\]")
 _BDD_PROOF_RE = re.compile(r"\[BDD PROOF:\s*Given .+ When .+ Then .+\]")
 _TDD_PROOF_RE = re.compile(r"\[TDD PROOF:\s*(?P<body>[^\]]+)\]")
 _SPEC_REVIEW_RE = re.compile(r"\[SPEC CODE REVIEW:\s*(?P<body>[^\]]+)\]")
+_SPEC_RESEARCH_RE = re.compile(r"\[SPEC RESEARCH GATE:\s*(?P<body>[^\]]+)\]")
 _FIELD_RE = re.compile(r"([a-z_]+)=(\"[^\"]*\"|[^\s\]]+)")
 
 _CODE_PREFIXES = (".githooks/", "backend/", "frontend/", "scripts/", "services/")
@@ -45,10 +46,16 @@ _CODE_SUFFIXES = (
 )
 _CODE_CONFIGS = {"docker-compose.yml", "otelcol-config.yaml"}
 _SPEC_ROOTS = ("docs/specs/", "docs/prds/", "docs/sdds/")
+# 2026-05-17 — paper-trail #586 Phase F warning #5. Rule-introduction
+# docs at top-level docs/ follow the *-RULE.md naming convention and
+# carry the same SPEC FRESHNESS marker + source citations as
+# docs/specs/. Accept them as a valid spec path.
+_RULE_DOC_PATTERN = re.compile(r"^docs/[A-Z][A-Z0-9-]*-RULE\.md$")
 _SOURCE_KINDS = {"patent", "academic_paper", "technical_literature", "technical_doc"}
 _SPEC_PROOF_FIELDS = {"specs", "source_types", "checked_at", "status"}
 _TDD_FIELDS = {"before_or_alongside", "tests", "result"}
 _REVIEW_FIELDS = {"specs", "result"}
+_RESEARCH_FIELDS = {"scope", "specs", "coverage", "gaps", "research"}
 
 
 def _staged_new_specs() -> list[str]:
@@ -81,6 +88,8 @@ def _git_output(args: list[str]) -> subprocess.CompletedProcess[str]:
             cwd=str(REPO_ROOT),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
             check=False,
         )
@@ -98,7 +107,16 @@ def _normalize_path(path: str) -> str:
 
 def _is_spec_path(path: str) -> bool:
     normalized = _normalize_path(path)
-    return normalized.endswith(".md") and normalized.startswith(_SPEC_ROOTS)
+    if not normalized.endswith(".md"):
+        return False
+    if normalized.startswith(_SPEC_ROOTS):
+        return True
+    # 2026-05-17 — paper-trail #586 Phase F warning #5. Top-level
+    # docs/X-RULE.md is the established naming pattern for PARAMOUNT
+    # rule docs (TDD-STRICT-RULE, TEST-CASE-FIRST-RULE,
+    # PAPER-TRAIL-EVIDENCE-RULE, etc.). They carry the same SPEC
+    # FRESHNESS marker + source citations as docs/specs/.
+    return bool(_RULE_DOC_PATTERN.match(normalized))
 
 
 def _is_code_path(path: str) -> bool:
@@ -256,6 +274,9 @@ def _validate_proof_specs(handoff: str, proof_fields: dict[str, str]) -> int | N
     review_problem = _review_problem(handoff, specs)
     if review_problem:
         return _code_gate_failure(review_problem)
+    research_problem = _research_problem(handoff, specs)
+    if research_problem:
+        return _code_gate_failure(research_problem)
     spec_problem = _first_spec_problem(specs)
     if spec_problem:
         return _code_gate_failure(spec_problem)
@@ -272,6 +293,33 @@ def _review_problem(handoff: str, proof_specs: list[str]) -> str | None:
         return "SPEC CODE REVIEW result must be matched or updated"
     if not set(proof_specs).issubset(set(_split_csv(fields["specs"]))):
         return "SPEC CODE REVIEW must cover every spec in SPEC PROOF"
+    return None
+
+
+def _research_problem(handoff: str, proof_specs: list[str]) -> str | None:
+    research = _SPEC_RESEARCH_RE.search(handoff)
+    if not research:
+        return "SPEC RESEARCH GATE is required before code changes"
+    fields = _parse_fields(research.group("body"))
+    missing = _RESEARCH_FIELDS.difference(fields)
+    if missing:
+        return "SPEC RESEARCH GATE missing field(s): " + ", ".join(sorted(missing))
+    if fields["coverage"] not in {"full", "updated"}:
+        return "SPEC RESEARCH GATE coverage must be full or updated"
+    if fields["gaps"] not in {"none", "filled"}:
+        return "SPEC RESEARCH GATE gaps must be none or filled"
+    if not set(proof_specs).issubset(set(_split_csv(fields["specs"]))):
+        return "SPEC RESEARCH GATE must cover every spec in SPEC PROOF"
+    if (fields["coverage"] == "updated" or fields["gaps"] == "filled") and (
+        fields["research"] == "none"
+    ):
+        return (
+            "SPEC RESEARCH GATE research must cite the overall feature, module, "
+            "system architecture, rule, ranking weight, algorithm, pipeline, "
+            "frontend design, security model, code-review policy, "
+            "error-tracking integration, or scalability and regression-risk "
+            "plan when gaps were filled"
+        )
     return None
 
 

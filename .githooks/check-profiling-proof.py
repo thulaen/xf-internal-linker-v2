@@ -68,12 +68,16 @@ def _parse_fields(body: str) -> dict[str, str]:
 
 
 def _git_output(args: list[str]) -> str:
+    """UTF-8 with replace fallback so Windows locale codec does not choke
+    on em-dashes / arrows / curly quotes that appear in handoff entries."""
     try:
         completed = subprocess.run(
             ["git", *args],
             cwd=str(REPO_ROOT),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
             check=False,
         )

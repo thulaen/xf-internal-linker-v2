@@ -69,6 +69,8 @@ def _staged_files() -> list[Path]:
         check=True,
         capture_output=True,
         text=True,
+            encoding="utf-8",
+            errors="replace",
         cwd=REPO_ROOT,
     ).stdout.splitlines()
     return [REPO_ROOT / p for p in out if p]
@@ -81,6 +83,8 @@ def _staged_diff_for(path: Path) -> str:
         check=False,
         capture_output=True,
         text=True,
+            encoding="utf-8",
+            errors="replace",
         cwd=REPO_ROOT,
     ).stdout
     return "\n".join(

@@ -150,14 +150,37 @@ def main() -> int:
         return 0
 
     if score + 0.01 < floor:
-        sys.stderr.write(
-            f"\nFAIL check-mutation-score: {key} dropped from {floor:.1f}% to {score:.1f}% "
-            f"(drop of {floor - score:.1f}pp)\n\n"
-            "The mutation-score ratchet only goes UP. Add tests that kill the "
-            "newly-surviving mutants, or (rarely) lower the floor in a separate "
-            "commit with an explicit reason.\n"
+        import os
+        is_ci = os.environ.get("XF_QUALITY_ENV", "local") == "ci"
+        drop_msg = (
+            f"\ncheck-mutation-score: {key} dropped from {floor:.1f}% to {score:.1f}% "
+            f"(drop of {floor - score:.1f}pp)\n"
         )
-        return 1
+        if is_ci:
+            # Phase I: CI keeps the hard-block. On the server, mutation
+            # regression is a real failure.
+            sys.stderr.write(
+                "FAIL " + drop_msg.lstrip("\n") +
+                "\nThe mutation-score ratchet only goes UP. Add tests that kill the "
+                "newly-surviving mutants, or (rarely) lower the floor in a separate "
+                "commit with an explicit reason.\n"
+            )
+            return 1
+        # Phase I: local commits get a soft-block. The
+        # file_mutation_survivors command writes per-mutant AutoIssues
+        # into the 'mutation' picker bucket; resolving them within the
+        # 30-pick session quota closes the loop. The chain still emits
+        # an evidence row indicating the regression so the operator
+        # sees it; exit 0 lets the commit land.
+        sys.stderr.write(
+            "WARN " + drop_msg.lstrip("\n") +
+            "\nLOCAL SOFT-BLOCK: surviving mutants will be filed as AutoIssue "
+            "rows by `manage.py file_mutation_survivors` (category="
+            "'mutation_survivor', source='mutation'). The 30-pick session "
+            "quota then surfaces them ordered by the existing C++ priority "
+            "algorithm. To hard-block locally too, set XF_QUALITY_ENV=ci.\n"
+        )
+        return 0
 
     print(f"check-mutation-score: {key}={score:.1f}% (floor={floor:.1f}%) OK")
     return 0

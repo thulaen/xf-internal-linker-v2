@@ -62,6 +62,16 @@ def _angular_targets(files: list[str]) -> list[str]:
 
 
 def _coverage_key(repo_path: str) -> str:
+    # 2026-05-17 — the Angular tests now run from /repo/frontend (host-
+    # mounted, not the stale image-built /app) so the coverage-summary.json
+    # keys are /repo/frontend/src/... rather than /app/src/.... Return the
+    # new form here. The legacy /app/... key is also returned as a fallback
+    # via _metric() so old baseline files keep working during the migration.
+    return "/repo/frontend/" + repo_path.removeprefix("frontend/")
+
+
+def _legacy_coverage_key(repo_path: str) -> str:
+    """Legacy key shape used when tests ran from the image-built /app."""
     return "/app/" + repo_path.removeprefix("frontend/")
 
 
@@ -81,10 +91,14 @@ def _baseline_metric(baseline: dict[str, Any], path: str, metric: str) -> float 
 
 
 def _metric(report: dict[str, Any], path: str, metric: str) -> float:
-    value = report.get(_coverage_key(path), {}).get(metric, {}).get("pct")
-    if value is None:
-        raise RuntimeError(f"Missing Angular coverage data for {path}")
-    return float(value)
+    # Try new key first (/repo/frontend/...), then fall back to legacy
+    # (/app/...) for any old coverage report still using the image-built
+    # working directory.
+    for key_fn in (_coverage_key, _legacy_coverage_key):
+        value = report.get(key_fn(path), {}).get(metric, {}).get("pct")
+        if value is not None:
+            return float(value)
+    raise RuntimeError(f"Missing Angular coverage data for {path}")
 
 
 def _source_hash(path: str) -> str:

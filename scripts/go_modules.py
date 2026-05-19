@@ -9,7 +9,7 @@ Usage inside the compiled-tools container:
 
     python /repo/scripts/go_modules.py --paths-env QUALITY_GO_PATHS
     python /repo/scripts/go_modules.py services/streamd/cmd/streamd/main.go
-    python /repo/scripts/go_modules.py            # lists every go.mod in /repo
+    python /repo/scripts/go_modules.py --all      # lists every go.mod in /repo
 
 This file replaces the module-discovery half of the deleted
 `scripts/check_go_tools.py`; the per-stage tool invocations (gofmt, vet,
@@ -23,7 +23,7 @@ import os
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(os.environ.get("REPO_ROOT", "/repo"))
+REPO_ROOT = Path(os.environ.get("REPO_ROOT", Path(__file__).resolve().parents[1]))
 IGNORED_DIRS = {".git", "vendor", "node_modules", "build", "build_tests", "dist"}
 GO_EXTENSIONS = (".go",)
 GO_MOD_FILES = ("go.mod", "go.sum")
@@ -77,6 +77,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Read newline-separated paths from this env var.",
     )
     parser.add_argument(
+        "--all",
+        action="store_true",
+        help="List every Go module owned by the repository.",
+    )
+    parser.add_argument(
         "paths",
         nargs="*",
         help="Repo-relative file paths.",
@@ -91,8 +96,10 @@ def main(argv: list[str] | None = None) -> int:
             )
     if paths:
         modules = _modules_for_paths(paths)
-    else:
+    elif args.all:
         modules = _all_modules()
+    else:
+        modules = []
     for module in modules:
         print(module)
     return 0

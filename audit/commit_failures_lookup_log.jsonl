@@ -15,3 +15,5 @@
 {"task_id": "51e2f5c6-7853-4549-94e2-79c260f0c12a", "agent": "claude", "looked_up_at": "2026-05-19T04:53:22Z", "result_count": 10, "source": "db-fallback"}
 {"task_id": "9a6e704c-a486-42b5-8b2a-af790dc779d7", "agent": "claude", "looked_up_at": "2026-05-19T04:55:15Z", "result_count": 10, "source": "db-fallback"}
 {"task_id": "742e9788-865b-40c4-837c-3f9045d5be07", "agent": "claude", "looked_up_at": "2026-05-19T05:34:15Z", "result_count": 10, "source": "db-fallback"}
+{"task_id": "742e9788-865b-40c4-837c-3f9045d5be07", "agent": "claude", "looked_up_at": "2026-05-19T13:25:22Z", "result_count": 10, "source": "db-fallback"}
+{"task_id": "a8936071-d12f-4ef2-be94-ef07ffcbc639", "agent": "codex", "looked_up_at": "2026-05-19T13:31:00Z", "result_count": 10, "source": "db-fallback"}

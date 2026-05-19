@@ -73,26 +73,15 @@ _CODE_PREFIXES = (
 )
 
 
+# _read_staged_handoff_diff() lives in _hook_helpers.py per paper-trail
+# #585 / test_case #703. The shared helper already filters to added
+# lines and uses utf-8/errors=replace.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _hook_helpers import get_staged_handoff_diff  # noqa: E402
+
+
 def _read_staged_handoff_diff() -> str:
-    """Return the added lines from the staged diff of AGENT-HANDOFF.md."""
-    try:
-        result = subprocess.run(
-            ["git", "diff", "--cached", "--unified=0", "--", "AGENT-HANDOFF.md"],
-            cwd=str(REPO_ROOT),
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=10,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return ""
-    if result.returncode != 0:
-        return ""
-    return "\n".join(
-        line[1:]
-        for line in (result.stdout or "").splitlines()
-        if line.startswith("+") and not line.startswith("+++")
-    )
+    return get_staged_handoff_diff(REPO_ROOT)
 
 
 def _code_changing_commit() -> bool:

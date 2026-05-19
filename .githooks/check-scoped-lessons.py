@@ -43,11 +43,13 @@ def _staged_code_files() -> list[str]:
 
 
 def _staged_handoff_diff() -> str:
+    """UTF-8 with replace fallback for Windows locale codec resistance."""
     try:
         out = subprocess.run(
             ["git", "diff", "--cached", "--unified=0", "--",
              "AGENT-HANDOFF.md"],
             cwd=str(REPO_ROOT), capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
             timeout=10, check=False,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):

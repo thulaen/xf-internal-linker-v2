@@ -13,6 +13,38 @@
 
 Write-Host "Starting XF Internal Linker..." -ForegroundColor Cyan
 
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$pgdataVolume = "xf-internal-linker-v2_pgdata"
+$backupDirs = @(
+    (Join-Path $repoRoot "backups"),
+    (Join-Path $repoRoot "backend\backups")
+)
+
+& docker volume inspect $pgdataVolume *> $null
+if ($LASTEXITCODE -ne 0) {
+    $hasBackups = $false
+    foreach ($dir in $backupDirs) {
+        if (Test-Path -LiteralPath $dir) {
+            $hasBackups = $hasBackups -or [bool](
+                Get-ChildItem -LiteralPath $dir -Filter "*.dump" -File -ErrorAction SilentlyContinue
+            )
+        }
+    }
+
+    if ($hasBackups) {
+        Write-Host "Refusing to start a blank database." -ForegroundColor Red
+        Write-Host "The protected pgdata volume is missing, but database backups exist." -ForegroundColor Red
+        Write-Host "Ask Codex or Claude to restore the backup before starting the app." -ForegroundColor Yellow
+        exit 2
+    }
+
+    & docker volume create --name $pgdataVolume --label xf.protected=true --label xf.data=postgres | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Could not create the protected pgdata volume." -ForegroundColor Red
+        exit 2
+    }
+}
+
 & "$PSScriptRoot\docker-safe.ps1" -DockerArgs @("compose", "up", "-d")
 
 if ($LASTEXITCODE -eq 0) {

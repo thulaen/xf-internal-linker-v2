@@ -500,7 +500,14 @@ def _validate_picks(added: str) -> int:
             "30 real picked issue IDs are required. "
             "Satisfier phrases are no longer accepted."
         )
-    picks_match = PICKS_SEGMENT_RE.search(added)
+    # The `picked:` segment must be scoped to inside the REGISTRY READ
+    # block — otherwise an unrelated `picked:` from a neighbouring marker
+    # (e.g. [PAPER TRAIL READ: ... picked: ...] or [CI FAILED RUNS READ:
+    # ... picked: ...]) would be matched first and the picks count would
+    # be wrong.
+    new_match = NEW_MARKER_RE.search(added)
+    search_window = added[new_match.start():] if new_match else added
+    picks_match = PICKS_SEGMENT_RE.search(search_window)
     if not picks_match:
         return _fail(
             "The `[REGISTRY READ: ...]` marker is present but does not include a "
@@ -561,6 +568,53 @@ def _previous_handoff_stamp(path: Path = HANDOFF) -> str | None:
     return headings[1]
 
 
+def _last_commit_before_previous_handoff() -> str | None:
+    """Return the timestamp of the most recent commit that landed BEFORE the
+    previous handoff entry was written, formatted as 'YYYY-MM-DD HH:MM'.
+
+    Returns None when git is unavailable or there is no such commit. Falls
+    back to None so callers drop the --resolved-after argument entirely
+    (the verifier still enforces resolved-status + two-part lessons).
+
+    2026-05-17 — paper-trail #586 Quick win #4. The old behaviour passed
+    the previous handoff heading timestamp as --resolved-after; this
+    invalidated picks reused across sessions because the picks were
+    resolved BEFORE the previous handoff was written (sessions resolve
+    picks during their work and then write the handoff at session end).
+    Multi-session work with no intervening commit could not reuse picks
+    even though they were correctly resolved with two-part lessons. The
+    new behaviour uses the most recent commit before the previous
+    handoff as the cutoff, so picks resolved during in-flight
+    multi-session work remain valid until a commit lands.
+    """
+    prev_stamp = _previous_handoff_stamp()
+    if not prev_stamp:
+        return None
+    try:
+        # Find the latest commit BEFORE the previous handoff entry was
+        # written. If no commit exists before that date, return None
+        # and the caller drops --resolved-after.
+        result = subprocess.run(
+            [
+                "git", "log", "-1",
+                f"--before={prev_stamp}",
+                "--format=%cd",
+                "--date=format:%Y-%m-%d %H:%M",
+            ],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+            check=False,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        return None
+    stamp = (result.stdout or "").strip()
+    return stamp or None
+
+
 def _verify_autoissue_quota(added: str) -> int:
     issue_ids = _extract_picked_issue_ids(added)
     if not issue_ids:
@@ -579,9 +633,14 @@ def _verify_autoissue_quota(added: str) -> int:
         "--ids",
         *issue_ids,
     ]
-    previous_stamp = _previous_handoff_stamp()
-    if previous_stamp:
-        cmd.extend(["--resolved-after", previous_stamp])
+    # 2026-05-17 — Quick win #4: use the most recent commit BEFORE the
+    # previous handoff as the cutoff, not the previous handoff entry
+    # timestamp itself. Multi-session work resolves picks across multiple
+    # sessions; the old behaviour invalidated picks reused across the
+    # boundary even when correctly resolved with two-part lessons.
+    cutoff_stamp = _last_commit_before_previous_handoff()
+    if cutoff_stamp:
+        cmd.extend(["--resolved-after", cutoff_stamp])
     try:
         result = subprocess.run(
             cmd,

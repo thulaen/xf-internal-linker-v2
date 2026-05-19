@@ -24,8 +24,19 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+# Public template files that document required env vars for new contributors.
+# These are intentionally committable; the `.env*` junk pattern below excludes
+# them via the negative-lookahead group at the start of the regex.
+_ENV_TEMPLATE_ALLOWLIST = ("example", "sample", "template")
+
 _JUNK_PATTERNS = (
-    re.compile(r"(^|/)\.env(\..*)?$"),
+    # Block `.env`, `.env.local`, etc. but NOT `.env.example` / `.env.sample`
+    # / `.env.template` (public template files agents legitimately edit).
+    re.compile(
+        r"(^|/)\.env(\.(?!(?:"
+        + "|".join(re.escape(n) for n in _ENV_TEMPLATE_ALLOWLIST)
+        + r")\b).+)?$"
+    ),
     re.compile(r"(^|/).*credentials.*\.json$", re.IGNORECASE),
     re.compile(r"(^|/).*service_account.*\.json$", re.IGNORECASE),
     re.compile(r"(^|/).*token.*\.json$", re.IGNORECASE),

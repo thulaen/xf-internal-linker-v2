@@ -20,18 +20,49 @@ quality_evidence_init() {
 
 quality_evidence_import() {
   local container_path="$1"
-  docker compose run --rm -T backend \
-    python manage.py ingest_quality_evidence \
+  if [[ "${QUALITY_EVIDENCE_FORCE_DIRECT:-0}" != "1" ]] && command -v docker >/dev/null 2>&1; then
+    docker compose run --rm -T backend \
+      python manage.py ingest_quality_evidence \
+        --path "$container_path" \
+        --capture-raw-if-due
+    return
+  fi
+  local backend_dir="${QUALITY_EVIDENCE_BACKEND_DIR:-/repo/backend}"
+  if [[ -f "$backend_dir/manage.py" ]]; then
+    (
+      cd "$backend_dir"
+      python manage.py ingest_quality_evidence \
       --path "$container_path" \
       --capture-raw-if-due
+    )
+    return
+  fi
+  echo "Quality evidence import needs either Docker on PATH or ${backend_dir}/manage.py." >&2
+  return 127
 }
 
 quality_artifact_prune() {
-  docker compose run --rm -T backend \
-    python manage.py prune_quality_artifacts \
+  if [[ "${QUALITY_EVIDENCE_FORCE_DIRECT:-0}" != "1" ]] && command -v docker >/dev/null 2>&1; then
+    docker compose run --rm -T backend \
+      python manage.py prune_quality_artifacts \
+        --root /tmp \
+        --apply \
+        --prune-old-raw-snippets
+    return
+  fi
+  local backend_dir="${QUALITY_EVIDENCE_BACKEND_DIR:-/repo/backend}"
+  if [[ -f "$backend_dir/manage.py" ]]; then
+    (
+      cd "$backend_dir"
+      python manage.py prune_quality_artifacts \
       --root /tmp \
       --apply \
       --prune-old-raw-snippets
+    )
+    return
+  fi
+  echo "Quality artifact pruning needs either Docker on PATH or ${backend_dir}/manage.py." >&2
+  return 127
 }
 
 quality_evidence_finalize() {

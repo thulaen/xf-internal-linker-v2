@@ -818,6 +818,11 @@ class CheckRegistryReadHookTests(unittest.TestCase):
                 "_staged_code_files",
                 return_value=[".githooks/check-registry-read.py"],
             ),
+            mock.patch.object(
+                self.hook,
+                "_staged_files",
+                return_value=[".githooks/check-registry-read.py"],
+            ),
             mock.patch.object(self.hook, "_commit_touches_handoff", return_value=False),
         ):
             self.assertEqual(self.hook.main(), 1)

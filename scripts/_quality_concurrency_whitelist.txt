@@ -1,0 +1,20 @@
+# Phase K5: wrapper-function whitelist for check-no-parallel-quality.py.
+#
+# Each line is the name of a shell function that wraps `docker compose
+# run` with the helper's named-container + cleanup-trap discipline.
+# When the hook scans `docker compose run` lines, it accepts the line
+# as safe if it's a string argument to one of these wrappers (the
+# wrapper rewrites the command at runtime to add --name and register
+# the container for cleanup).
+#
+# Add a new wrapper:
+#   1. Define the function in scripts/_quality_concurrency.sh (or a
+#      tool-specific runner) that injects --name and calls
+#      quality_register_container.
+#   2. Append the function name to this file on its own line.
+#
+# Comments (lines starting with #) and blank lines are ignored.
+
+quality_docker_compose_run
+run_cpp_step
+run_go_step

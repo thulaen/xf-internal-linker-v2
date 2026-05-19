@@ -51,6 +51,13 @@
 
 set -u
 
+# Docker-only: Git 2.35+ rejects bind-mounted repos owned by a
+# different host UID unless the exact path is marked safe. Keep this
+# scoped to /repo and do not alter host Git config.
+if [ -f /.dockerenv ]; then
+  git config --global --add safe.directory /repo 2>/dev/null || true
+fi
+
 # ---------------------------------------------------------------------------
 # Configuration (env-overridable).
 # ---------------------------------------------------------------------------

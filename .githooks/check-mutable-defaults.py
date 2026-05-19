@@ -31,25 +31,36 @@ def _staged_py_files() -> list[str]:
     ]
 
 
+def _ruff_command(files: list[str]) -> list[str]:
+    """Return the best-available ruff invocation.
+
+    Tries the `ruff` binary on PATH first (fast), falls back to
+    `python -m ruff` when ruff is pip-installed under a user/site path that
+    isn't exported to PATH (common on Windows). Both forms invoke the
+    same Python module, so semantics match.
+    """
+    return ["python", "-m", "ruff", "check", "--select=B006", "--no-fix", *files]
+
+
 def main() -> int:
     files = _staged_py_files()
     if not files:
         return 0
     try:
         result = subprocess.run(
-            ["ruff", "check", "--select=B006", "--no-fix", *files],
+            _ruff_command(files),
             cwd=str(REPO_ROOT), capture_output=True, text=True,
             timeout=30, check=False,
         )
     except FileNotFoundError:
         sys.stderr.write(
-            "FAIL check-mutable-defaults: `ruff` is not installed on PATH.\n"
+            "FAIL check-mutable-defaults: `python -m ruff` is not available.\n"
             "WHY: Rule H.H4 delegates to ruff's B006 rule "
             "(mutable-argument-default) to catch `def func(items=[])` style "
             "bugs that share state across calls.\n"
-            "UNBLOCK: `pip install ruff` or run the check from inside the "
-            "compiled-tools / backend container where ruff is already "
-            "installed.\n"
+            "UNBLOCK: `pip install ruff` (host Python) or run the check from "
+            "inside the compiled-tools / backend container where ruff is "
+            "already installed.\n"
         )
         return 2
     except subprocess.TimeoutExpired:
@@ -58,6 +69,17 @@ def main() -> int:
             "WHY: The check needs to run to completion to be reliable.\n"
             "UNBLOCK: Investigate the slow file; usually means an "
             "extremely large file. Split or simplify it.\n"
+        )
+        return 2
+
+    # `python -m ruff` returns non-zero when ruff itself is not importable
+    # (no module). Distinguish "ruff missing" from "ruff found bugs".
+    if result.returncode != 0 and "No module named ruff" in (result.stderr or ""):
+        sys.stderr.write(
+            "FAIL check-mutable-defaults: ruff is not installed in this "
+            "Python environment.\n"
+            "WHY: same as above.\n"
+            "UNBLOCK: `pip install ruff`.\n"
         )
         return 2
 

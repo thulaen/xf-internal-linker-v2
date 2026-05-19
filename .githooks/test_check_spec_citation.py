@@ -20,7 +20,13 @@ VALID_SPEC_PROOF = (
 VALID_BDD = "[BDD PROOF: Given code changes When commit runs Then specs are checked]"
 VALID_TDD = "[TDD PROOF: before_or_alongside=yes tests=spec-hook-tests result=passed]"
 VALID_REVIEW = "[SPEC CODE REVIEW: specs=docs/specs/example.md result=matched]"
-VALID_HANDOFF = "\n".join((VALID_SPEC_PROOF, VALID_BDD, VALID_TDD, VALID_REVIEW))
+VALID_RESEARCH = (
+    "[SPEC RESEARCH GATE: scope=spec-hook specs=docs/specs/example.md "
+    "coverage=full gaps=none research=none]"
+)
+VALID_HANDOFF = "\n".join(
+    (VALID_SPEC_PROOF, VALID_BDD, VALID_TDD, VALID_REVIEW, VALID_RESEARCH)
+)
 VALID_SPEC_TEXT = "\n".join(
     (
         "# Example",
@@ -141,10 +147,44 @@ class SpecCitationTests(unittest.TestCase):
         self.assertIn("TDD PROOF", err)
 
     def test_code_change_requires_spec_code_review(self):
-        handoff = "\n".join((VALID_SPEC_PROOF, VALID_BDD, VALID_TDD))
+        handoff = "\n".join((VALID_SPEC_PROOF, VALID_BDD, VALID_TDD, VALID_RESEARCH))
         code, err = self._run_code_gate(["services/example.go"], handoff)
         self.assertEqual(code, 2)
         self.assertIn("SPEC CODE REVIEW", err)
+
+    def test_code_change_requires_spec_research_gate(self):
+        handoff = "\n".join((VALID_SPEC_PROOF, VALID_BDD, VALID_TDD, VALID_REVIEW))
+        code, err = self._run_code_gate(["backend/apps/core/example.py"], handoff)
+        self.assertEqual(code, 2)
+        self.assertIn("SPEC RESEARCH GATE", err)
+
+    def test_code_change_rejects_invalid_spec_research_gate_values(self):
+        invalid_cases = (
+            (
+                VALID_HANDOFF.replace("coverage=full", "coverage=missing"),
+                "coverage",
+            ),
+            (
+                VALID_HANDOFF.replace("gaps=none", "gaps=open"),
+                "gaps",
+            ),
+            (
+                VALID_HANDOFF.replace("gaps=none", "gaps=filled"),
+                "research",
+            ),
+            (
+                VALID_HANDOFF.replace(
+                    "SPEC RESEARCH GATE: scope=spec-hook specs=docs/specs/example.md",
+                    "SPEC RESEARCH GATE: scope=spec-hook specs=docs/specs/other.md",
+                ),
+                "cover every spec",
+            ),
+        )
+        for handoff, expected in invalid_cases:
+            with self.subTest(expected=expected):
+                code, err = self._run_code_gate(["backend/apps/core/example.py"], handoff)
+                self.assertEqual(code, 2)
+                self.assertIn(expected, err)
 
     def test_code_change_rejects_incomplete_spec_proof_fields(self):
         code, err = self._run_code_gate(

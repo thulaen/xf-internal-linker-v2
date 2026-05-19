@@ -61,12 +61,32 @@ def _services_with_stub_diffs(paths: list[str]) -> set[str]:
 
 
 def _service_contract_in_diff(paths: list[str], service: str) -> bool:
-    """True when the api.proto or api.http.md for `service` is also staged."""
-    contract_paths = (
+    """True when a contract source for `service` is also staged.
+
+    Single-service folders (the streamd shape) carry exactly one of:
+      - services/<svc>/api.proto
+      - services/<svc>/api.http.md
+
+    Multi-service folders (the sidecars shape — 40 services in one binary)
+    split the contract across `services/<svc>/api/*.proto` files (one per
+    sub-service). The hook accepts EITHER shape: if any contract file for
+    the service is in the diff, the regen is justified.
+    """
+    contract_paths = {
         f"services/{service}/api.proto",
         f"services/{service}/api.http.md",
-    )
-    return any(p in contract_paths for p in paths)
+    }
+    if any(p in contract_paths for p in paths):
+        return True
+    # Multi-service folder: any *.proto under services/<svc>/api/ counts as
+    # a contract change. Exclude the api/gen/ directory which holds derived
+    # output, not source.
+    multi_prefix = f"services/{service}/api/"
+    gen_prefix = f"services/{service}/api/gen/"
+    for p in paths:
+        if p.startswith(multi_prefix) and not p.startswith(gen_prefix) and p.endswith(".proto"):
+            return True
+    return False
 
 
 def main() -> int:

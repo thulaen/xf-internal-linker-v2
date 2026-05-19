@@ -49,6 +49,8 @@ def _git(args: list[str]) -> str:
             cwd=str(REPO_ROOT),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
             check=False,
         )

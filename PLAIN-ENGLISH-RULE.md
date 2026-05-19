@@ -139,6 +139,8 @@ When you must mention a technical concept, use the plain-English version from th
 | a short repeat-detection code made from an event's source, type, and payload | dedupe key |
 | the repo rule file that explains how Docker builds and stores compiled-language outputs | COMPILED-LANGUAGE-RULES |
 | a set of common Linux command-line tools used by many scripts | GNU |
+| a book reference for an agile testing source | ISBN-978-0321534460 |
+| the Go setting that controls how many CPU threads Go can run at once | GOMAXPROCS |
 | a setting or path that is meant to run only on a remote service, not on the local computer | REMOTE-ONLY |
 | a short example name for an environment variable in tests and scripts | VAR |
 | storing compiled files by their exact file fingerprint so identical outputs use one saved copy instead of piling up | content-addressed compiled artifact store |

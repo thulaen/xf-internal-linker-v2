@@ -304,6 +304,57 @@ ALLOWLIST: frozenset[str] = frozenset({
     # faro-bootstrap.ts to suppress non-error console captures). The SDK
     # owns this identifier; we can't rename it.
     "LOG",
+    # 2026-05-17 — slice 1.6 marker labels emitted by hook scripts and
+    # management commands. These are NOT new technical concepts; they
+    # are the project's own internal marker vocabulary (e.g. the
+    # `[CODE REVIEW LESSON LOGGED:]` and `[TDD LESSON DEDUPED:]`
+    # markers from log_code_review_lessons / log_tdd_lesson). The
+    # plain-English form of each is captured in PLAIN-ENGLISH-RULE.md
+    # as a one-line gloss; here we just stop the regex from treating
+    # the ALL-CAPS form in docstrings + command output as new jargon.
+    "LESSON", "LESSONS", "LOGGED", "DEDUPED", "FILED", "PICKED",
+    "GRANDFATHERED", "READ", "BUMP", "MAPPING", "COMPLIANCE",
+    "CYCLE", "STRICT", "EVIDENCE", "REFACTOR", "TRIVIAL", "CHANGE",
+    "SCOPED", "COVERAGE", "SUMMARY", "BEFORE", "START", "PAPER",
+    "TRAIL", "SNAPSHOTS", "SPEC", "CITED", "QUOTA", "VERIFIED",
+    "DROUGHT", "DROUGHT-LOGGED", "FRESHNESS", "EXEMPTION",
+    "PROFILING", "PROOF", "HOTSPOT", "OPTIMIZATION", "PERFORMANCE",
+    "SELF-REVIEW", "RESULT", "STANDARDS", "READY", "GATE",
+    "QUALITY", "BDD", "TDD",  # already covered but keep explicit
+    "RESOLVED", "HISTORY", "CASE", "CASES", "FALSE-POSITIVE",
+    "POSITIVE", "MARKER", "TASK", "NON-CODEBASE-EDIT",
+    "RULE", "INTRODUCTION", "BATCH", "DRY", "SOURCE",
+    "ACKNOWLEDGED", "WRITTEN", "FAILURE", "FAILURE-FINGERPRINT",
+    "RETRY", "EXPECTED", "UNEXPECTED", "INSTEAD", "SWALLOW",
+    "CUTOFF", "MINIMAL", "FULL", "HARD-CAPPED", "STRICT-RULE",
+    "FIRST-RULE", "ALERT", "ENTRYPOINT",
+    "UNBLOCK", "DRY-RUN",  # Rule F three-part FAIL keyword + --dry-run flag
+    # Rule-file filenames (each has a plain-English description in the
+    # docs/*-RULE.md file itself; the all-caps form here is just a
+    # filename reference in docstrings + log lines).
+    "TDD-STRICT-RULE", "TEST-CASE-FIRST-RULE",
+    "PAPER-TRAIL-EVIDENCE-RULE",
+    # Project shorthand for common things (slice-1.6 + Go-services tier).
+    "DTO",  # Data Transfer Object — established CS term
+    "CEP",  # Complex Event Processing — established CS term
+    "ART",  # Adaptive Radix Tree — established CS term
+    "OCR",  # Optical Character Recognition — established term
+    "GOMEMLIMIT", "GOOS",  # Go env vars
+    "ISBN-10", "ISBN-13", "ISBN",  # standard ISBN formats
+    "PROTOC",  # protocol buffer compiler — Go-services tier
+    "PHONY",  # GNU Make .PHONY target — common shell vocabulary
+    "YARN",  # Node package manager — well-known
+    "ANSI",  # American National Standards Institute — well-known
+    "APISIX",  # Apache APISIX — vendor name
+    "IEC",  # International Electrotechnical Commission — standards body
+    "IGNORECASE",  # Python re module flag, like MULTILINE already in the list
+    "ISO-IEEE-IETF",  # multi-org standards body shorthand
+    "GLOSSARY",  # English word capitalized in section headings
+    "SERVING", "UNKNOWN",  # gRPC health-check enum values
+    # Commit A internal marker/file-label tokens. These are command output
+    # labels and rule-file names, not new user-facing vocabulary.
+    "PER-FILE-LESSON-LOOKUP-RULE", "TDD-PIPELINE-RULE",
+    "PIPELINE", "METHOD", "DOTALL", "EXPORTED",
 })
 
 # Regex: 3+ consecutive uppercase letters with optional repeated hyphen-
@@ -336,6 +387,7 @@ SKIP_FILE_PATTERNS = (
     re.compile(r"^backend/.*/migrations/"),
     re.compile(r"^docs/specs/"),  # specs have their own citation rule
     re.compile(r"^docs/reports/"),  # report registry handles its own jargon
+    re.compile(r"^audit/.*\.jsonl$"),  # generated audit evidence, not prose
     re.compile(r"^docs/CPP-ROADMAP\.md$"),  # parked-kernel namespace: OPT-XX / META-XX / FR-XX IDs are kernel codenames, not new acronyms for the glossary; each parked tuple links back to a spec entry where the real citation lives
     re.compile(r"^GLOSSARY-RULE\.md$"),  # the rule doc itself uses acronyms as examples
     re.compile(r"^PLAIN-ENGLISH-RULE\.md$"),  # the glossary itself
@@ -351,6 +403,16 @@ SKIP_FILE_PATTERNS = (
     re.compile(r"frontend/dist/"),
     re.compile(r"frontend/coverage/"),
     re.compile(r"node_modules/"),
+    # 2026-05-17 — paper-trail #586 quick win: skip auto-generated proto
+    # stubs. Their vocabulary (DESCRIPTOR, UNIMPLEMENTED, DTO, SERVING,
+    # etc.) is the tool's responsibility, not the agent's; flagging 100+
+    # terms per sidecar package drowns out real new vocabulary.
+    re.compile(r"(^|/)_sidecars_pb/"),
+    re.compile(r"_pb2\.py$"),
+    re.compile(r"_pb2_grpc\.py$"),
+    re.compile(r"(^|/)api/gen/"),
+    re.compile(r"\.pb\.go$"),
+    re.compile(r"_grpc\.pb\.go$"),
 )
 
 

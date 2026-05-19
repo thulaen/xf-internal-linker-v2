@@ -7,11 +7,29 @@ export MSYS2_ARG_CONV_EXCL="*"
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
+# Phase H: shared concurrency + 5-min cap + named-container cleanup.
+# Per the local test resource policy: every quality tool runs
+# sequentially, with a 5-min wall-clock cap. The cleanup trap force-
+# removes the docker container on EXIT/INT/TERM so orphans cannot
+# survive a TaskStop or Ctrl-C.
+. scripts/_quality_concurrency.sh
+quality_install_cleanup_trap
+quality_acquire_meta_lock
+quality_acquire_tool_lock python-quality
+
 . scripts/quality-evidence-lib.sh
 evidence_file="$(quality_evidence_path python)"
 evidence_container="$(quality_evidence_container_path python)"
 quality_evidence_init "$evidence_file"
-trap 'quality_evidence_finalize "$?" "$evidence_file" "$evidence_container"' EXIT
+_run_python_quality_combined_cleanup() {
+  local rc=$?
+  quality_evidence_finalize "$rc" "$evidence_file" "$evidence_container"
+  quality_cleanup
+  return "$rc"
+}
+trap _run_python_quality_combined_cleanup EXIT
+trap '_run_python_quality_combined_cleanup; exit 130' INT
+trap '_run_python_quality_combined_cleanup; exit 143' TERM
 
 mapfile -t changed_python < <(
   python scripts/commit_scope.py paths --mode "${COMMIT_SCOPE_MODE:-staged}" |
@@ -32,6 +50,11 @@ fi
 
 python_targets="$(
   printf "%s\n" "${changed_python[@]}" | sed "s#^backend/##" | tr -d "\r" | tr "\n" " "
+)"
+coverage_targets="$(
+  printf "%s\n" "${changed_python[@]}" |
+    grep -Ev "/(tests?|migrations)/|(^|/)test.*\.py$|(^|/)tests.*\.py$|_test\.py$" |
+    sed "s#^backend/##" | tr -d "\r" | tr "\n" " " || true
 )"
 mutation_targets_raw="$(
   printf "%s\n" "${changed_python[@]}" |
@@ -107,21 +130,34 @@ if ! python scripts/select_python_test_targets.py \
 fi
 python_test_targets="$(tr -d "\r" < "$test_target_file" | tr "\n" " ")"
 
-docker compose run --rm -T \
+# Phase H: stable container name + register for cleanup trap.
+QUALITY_CONTAINER="$(quality_docker_container_name python-quality)"
+quality_register_container "$QUALITY_CONTAINER"
+docker compose run --rm -T --name "$QUALITY_CONTAINER" \
   -e QUALITY_PYTHON_TARGETS="$python_targets" \
   -e QUALITY_PYTHON_TEST_TARGETS="$python_test_targets" \
+  -e QUALITY_PYTHON_COVERAGE_TARGETS="$coverage_targets" \
   -e QUALITY_PYTHON_BANDIT_TARGETS="$bandit_targets" \
   -e QUALITY_PYTHON_DEPENDENCY_CHANGED="$dependency_changed" \
   -e QUALITY_PYTHON_MUTATION_TARGETS="$mutation_targets" \
   -e QUALITY_PYTHON_MUTATION_TEST_TARGETS="$mutation_test_targets" \
+  -e XF_QUALITY_ENV="${XF_QUALITY_ENV:-local}" \
+  -e XF_QUALITY_CORES="$(quality_cores)" \
   backend sh -lc '
   set -eu
   export DJANGO_SETTINGS_MODULE=config.settings.test
   export DJANGO_SECRET_KEY=ci-fake-secret-key
+  export XF_USE_POSTGRES_TEST_DB=1
   evidence=/repo/backend/reports/quality-evidence/python.jsonl
   cd /repo/backend
+  # Phase H in-container 5-min cap helper. CI runs uncapped via env.
+  in_cap() {
+    if [ "${XF_QUALITY_ENV:-local}" = "ci" ]; then "$@"; return $?; fi
+    timeout --signal=TERM --kill-after=30 300 "$@"
+  }
   targets="$QUALITY_PYTHON_TARGETS"
   test_targets="$QUALITY_PYTHON_TEST_TARGETS"
+  coverage_targets="${QUALITY_PYTHON_COVERAGE_TARGETS:-}"
   bandit_targets="${QUALITY_PYTHON_BANDIT_TARGETS:-}"
   dependency_changed="${QUALITY_PYTHON_DEPENDENCY_CHANGED:-0}"
   mutation_targets="$(printf "%s" "${QUALITY_PYTHON_MUTATION_TARGETS:-}" | tr "\n" " ")"
@@ -153,7 +189,21 @@ docker compose run --rm -T \
     python /repo/scripts/run_quality_step.py --evidence-out "$evidence" --check-type security --tool-name pip-audit --command "pip-audit" --pass-summary "Python dependency audit passed." --fail-summary "Python dependency audit found existing dependency debt." || true
     python /repo/scripts/run_quality_step.py --evidence-out "$evidence" --check-type security --tool-name safety --command "safety check --full-report" --pass-summary "Safety dependency check passed." --fail-summary "Safety found existing dependency debt." || true
   fi
-  python /repo/scripts/run_quality_step.py --evidence-out "$evidence" --check-type normal_test --tool-name pytest --command "cd /repo/backend && python -m pytest --override-ini addopts= -p randomly -q --maxfail=1 --reuse-db --no-cov $test_targets" --pass-summary "Changed backend pytest targets passed." --fail-summary "Changed backend pytest targets failed."
+  coverage_args=""
+  for target in $coverage_targets; do
+    coverage_args="$coverage_args --cov=$target"
+  done
+  if test -z "$coverage_args"; then
+    coverage_args="--no-cov"
+  else
+    coverage_args="$coverage_args --cov-report=json:/repo/backend/reports/coverage.json --cov-report=term"
+  fi
+  # 2026-05-19 — coverage is scoped to changed backend source files.
+  # The old full-backend coverage command measured unrelated code and hid
+  # the actual changed-file signal behind the full monolith.
+  # Phase H: 5-min cap on pytest. Targets are already scoped to changed
+  # backend files via select_python_test_targets.py.
+  in_cap python /repo/scripts/run_quality_step.py --evidence-out "$evidence" --check-type normal_test --tool-name pytest --command "cd /repo/backend && python -m pytest --override-ini addopts= -p randomly -q --maxfail=1 --reuse-db $coverage_args $test_targets" --pass-summary "Changed backend pytest targets passed." --fail-summary "Changed backend pytest targets failed."
   if test -z "$mutation_targets"; then
     python /repo/scripts/write_quality_evidence.py \
       --out "$evidence" \
@@ -211,7 +261,11 @@ PY
   cd "$workdir"
   rm -rf .mutmut-cache mutants
   set +e
-  mutmut run --max-children 2 > reports/mutmut-run.txt 2>&1
+  # Phase H: 5-min cap on mutmut. Worker count comes from
+  # quality_cores (default 4, max 6 plugged-in, env-overridable).
+  # Phase I (next commit) will read the mutmut report and file
+  # surviving-mutant AutoIssues instead of hard-blocking on score.
+  in_cap mutmut run --max-children "${XF_QUALITY_CORES:-2}" > reports/mutmut-run.txt 2>&1
   mutmut_status=$?
   mutmut results --all true > reports/mutmut-results.txt
   results_status=$?
@@ -285,8 +339,36 @@ PY
     --target-percent 100 \
     --actual-percent "$mutation_actual" \
     --raw-report-file reports/mutmut-report.txt
-  test "$mutmut_status" -eq 0
-  test "$results_status" -eq 0
-  test "$report_status" -eq 0
-  test "$mutation_status" = "passed"
+  # Phase I: stash mutmut exit status for the host-level survivor-file
+  # step. Local commits are soft-block; CI keeps the original hard test.
+  echo "$mutmut_status" > /tmp/xf-mutmut-scope/reports/mutmut-exit-status.txt
+  if [ "${XF_QUALITY_ENV:-local}" = "ci" ]; then
+    test "$mutmut_status" -eq 0
+    test "$results_status" -eq 0
+    test "$report_status" -eq 0
+    test "$mutation_status" = "passed"
+  else
+    # Local: never exit non-zero on mutation regression. The
+    # AutoIssue queue captures the gap.
+    true
+  fi
 '
+
+# Phase I: file surviving mutmut mutants. mutmut's
+# export-cicd-stats writes mutants/mutmut-cicd-stats.json (inside
+# /tmp/xf-mutmut-scope on the host bind). Soft-block only; non-zero
+# exit here is non-blocking.
+if [ -d /tmp/xf-mutmut-scope/mutants ] && [ -f /tmp/xf-mutmut-scope/mutants/mutmut-cicd-stats.json ]; then
+  QUALITY_FILE_MUTANTS_CONTAINER="$(quality_docker_container_name file-mutants-mutmut)"
+  quality_register_container "$QUALITY_FILE_MUTANTS_CONTAINER"
+  docker compose run --rm -T --no-deps --name "$QUALITY_FILE_MUTANTS_CONTAINER" \
+    -e XF_QUALITY_ENV="${XF_QUALITY_ENV:-local}" \
+    -v /tmp/xf-mutmut-scope:/mutmut-scope:ro \
+    backend sh -lc '
+    cd /repo/backend
+    python manage.py file_mutation_survivors \
+      --tool mutmut \
+      --report /mutmut-scope/mutants/mutmut-cicd-stats.json \
+      --agent claude
+  ' || echo "WARN: file_mutation_survivors mutmut step failed (non-blocking)"
+fi
