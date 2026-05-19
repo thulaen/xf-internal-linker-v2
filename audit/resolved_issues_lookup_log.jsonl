@@ -656,3 +656,6 @@
 {"file_path": "services/streamd/cmd/streamd/main.go", "lookup_at": "2026-05-19T14:42:05Z", "task_id": "ec943f4c-8b4e-464d-916e-a80b7a5805cf", "agent": "claude", "result_count": 0, "result_ids": []}
 {"file_path": "scripts/test_precommit_docker.py", "lookup_at": "2026-05-19T14:49:22Z", "task_id": "ec943f4c-8b4e-464d-916e-a80b7a5805cf", "agent": "claude", "result_count": 4, "result_ids": [859, 857, 854, 850]}
 {"file_path": "backend/pytest.ini", "lookup_at": "2026-05-19T14:49:22Z", "task_id": "ec943f4c-8b4e-464d-916e-a80b7a5805cf", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/lookup_disk_index.py", "lookup_at": "2026-05-19T15:54:56Z", "task_id": "51e2f5c6-7853-4549-94e2-79c260f0c12a", "agent": "codex", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/lookup_disk_index.py", "lookup_at": "2026-05-19T15:55:07Z", "task_id": "51e2f5c6-7853-4549-94e2-79c260f0c12a", "agent": "codex", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/test_lookup_disk_index.py", "lookup_at": "2026-05-19T15:55:07Z", "task_id": "51e2f5c6-7853-4549-94e2-79c260f0c12a", "agent": "codex", "result_count": 0, "result_ids": []}
