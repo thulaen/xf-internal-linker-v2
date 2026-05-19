@@ -79,11 +79,12 @@ class InspectProfilesCommandTests(TestCase):
     )
     def test_dry_run_does_not_create_autoissues(self, _hotspots, _pipeline_ready) -> None:
         out = StringIO()
+        before = AutoIssue.objects.count()
 
         call_command("inspect_profiles", "--scope", ".githooks", "--dry-run", stdout=out)
 
         self.assertIn("[PROFILING PIPELINE GAP DRY RUN:", out.getvalue())
-        self.assertEqual(AutoIssue.objects.count(), 0)
+        self.assertEqual(AutoIssue.objects.count(), before)
 
     @mock.patch.object(inspect_profiles, "_extract_function_totals")
     @mock.patch.object(inspect_profiles, "_query_pyroscope_render")

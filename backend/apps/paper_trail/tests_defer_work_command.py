@@ -7,6 +7,7 @@ from io import StringIO
 from django.core.management import CommandError, call_command
 from django.test import TestCase
 
+from apps.auto_issues.models import AutoIssue, AutoIssueCategory
 from apps.paper_trail.models import PaperTrailEntry
 from apps.paper_trail.services import dedup as dedup_service
 
@@ -22,12 +23,54 @@ _REQUIRED_FIELDS = (
 )
 
 
+def _make_test_case() -> AutoIssue:
+    category, _ = AutoIssueCategory.objects.get_or_create(
+        key="test_case",
+        defaults={
+            "label": "Test case spec",
+            "description": "Test-only full BDD contract.",
+            "sort_order": 215,
+        },
+    )
+    index = AutoIssue.objects.filter(category=category).count() + 1
+    return AutoIssue.objects.create(
+        source=AutoIssue.SOURCE_AGENT,
+        external_id=f"defer-work-test-case-{index}",
+        fingerprint=f"defer-work-test-case-{index}",
+        canonical_fingerprint=f"defer-work-test-case-{index}",
+        title=f"Defer work test case {index}",
+        description="Test-only defer_work evidence contract.",
+        affected_files=["backend/apps/paper_trail/management/commands/defer_work.py"],
+        severity=AutoIssue.SEVERITY_LOW,
+        category=category,
+        status=AutoIssue.STATUS_OPEN,
+        lessons_learned=(
+            "Given a deferral command needs a complete contract\n"
+            "When defer_work validates the paper-trail evidence rule\n"
+            "Then the command can link the row to a real test case\n"
+            "Edge cases: duplicate and superseded entries still keep evidence\n"
+            "Failure cases: missing citation or missing test case fails\n"
+            "Security: citation values are stable public references\n"
+            "Usability: the error message explains the missing proof\n"
+            "Scalability: one linked row keeps lookup bounded\n"
+            "Maintainability: tests build evidence through one helper\n"
+            "Regression risks: old command calls without proof must fail"
+        ),
+    )
+
+
+def _evidence_args() -> tuple[str, ...]:
+    test_case = _make_test_case()
+    return ("--test-case-autoissue", str(test_case.pk), "--citation", "RFC 9110")
+
+
 class DeferWorkTests(TestCase):
     def setUp(self) -> None:
         dedup_service.reset_index_for_tests()
 
     def test_creates_new_entry(self) -> None:
         out = StringIO()
+        before_count = PaperTrailEntry.objects.count()
         call_command(
             "defer_work",
             "--title", "Test deferral title",
@@ -35,12 +78,14 @@ class DeferWorkTests(TestCase):
             "--abstract", _BDD_ABSTRACT,
             "--deferred-by", "claude",
             *_REQUIRED_FIELDS,
+            *_evidence_args(),
             stdout=out,
         )
         self.assertIn("PAPER TRAIL FILED:", out.getvalue())
-        self.assertEqual(PaperTrailEntry.objects.count(), 1)
+        self.assertEqual(PaperTrailEntry.objects.count(), before_count + 1)
 
     def test_duplicate_call_bumps_occurrence(self) -> None:
+        before_count = PaperTrailEntry.objects.count()
         call_command(
             "defer_work",
             "--title", "Same title for dupe test",
@@ -48,6 +93,7 @@ class DeferWorkTests(TestCase):
             "--abstract", _BDD_ABSTRACT,
             "--deferred-by", "claude",
             *_REQUIRED_FIELDS,
+            *_evidence_args(),
             stdout=StringIO(),
         )
         out = StringIO()
@@ -58,11 +104,12 @@ class DeferWorkTests(TestCase):
             "--abstract", _BDD_ABSTRACT,
             "--deferred-by", "claude",
             *_REQUIRED_FIELDS,
+            *_evidence_args(),
             stdout=out,
         )
         self.assertIn("PAPER TRAIL DUPED:", out.getvalue())
-        self.assertEqual(PaperTrailEntry.objects.count(), 1)
-        entry = PaperTrailEntry.objects.first()
+        self.assertEqual(PaperTrailEntry.objects.count(), before_count + 1)
+        entry = PaperTrailEntry.objects.get(title="Same title for dupe test")
         self.assertEqual(entry.occurrence_count, 2)
 
     def test_rejects_long_abstract(self) -> None:
@@ -131,6 +178,7 @@ class DeferWorkTests(TestCase):
             "--deferred-by", "claude",
             "--similarity-threshold", "0.99",
             *_REQUIRED_FIELDS,
+            *_evidence_args(),
             stdout=StringIO(),
         )
         old = PaperTrailEntry.objects.first()
@@ -144,6 +192,7 @@ class DeferWorkTests(TestCase):
             "--supersedes", str(old.pk),
             "--similarity-threshold", "0.99",
             *_REQUIRED_FIELDS,
+            *_evidence_args(),
             stdout=out,
         )
         old.refresh_from_db()
@@ -163,8 +212,36 @@ class DeferWorkTests(TestCase):
             "--deferred-by", "claude",
             "--linked-autoissue", "252",
             *_REQUIRED_FIELDS,
+            *_evidence_args(),
             stdout=StringIO(),
         )
-        entry = PaperTrailEntry.objects.first()
+        entry = PaperTrailEntry.objects.get(title="Linked-autoissue deferral")
         self.assertEqual(entry.linked_autoissue_id, 252)
         self.assertEqual(entry.category, "autoissue_deferral")
+
+    def test_rejects_missing_test_case_autoissue(self) -> None:
+        with self.assertRaisesMessage(CommandError, "--test-case-autoissue is required"):
+            call_command(
+                "defer_work",
+                "--title", "Missing test case proof",
+                "--category", "other",
+                "--abstract", _BDD_ABSTRACT,
+                "--deferred-by", "claude",
+                *_REQUIRED_FIELDS,
+                "--citation", "RFC 9110",
+                stdout=StringIO(),
+            )
+
+    def test_rejects_missing_citation(self) -> None:
+        test_case = _make_test_case()
+        with self.assertRaisesMessage(CommandError, "--citation is required"):
+            call_command(
+                "defer_work",
+                "--title", "Missing citation proof",
+                "--category", "other",
+                "--abstract", _BDD_ABSTRACT,
+                "--deferred-by", "claude",
+                *_REQUIRED_FIELDS,
+                "--test-case-autoissue", str(test_case.pk),
+                stdout=StringIO(),
+            )

@@ -71,6 +71,13 @@ def _stable_fingerprint(function_name: str, file_hint: str) -> str:
     return hashlib.sha1(raw.encode(), usedforsecurity=False).hexdigest()[:16]
 
 
+def _pyroscope_cpu_query(application: str) -> str:
+    return (
+        "process_cpu:cpu:nanoseconds:cpu:nanoseconds"
+        f"{{service_name=\"{application}\"}}"
+    )
+
+
 def _query_pyroscope_diff(
     server: str,
     application: str,
@@ -91,7 +98,8 @@ def _query_pyroscope_diff(
         "until": until * 1000,
         "leftFrom": (until - span_seconds - week_seconds) * 1000,
         "leftUntil": (until - week_seconds) * 1000,
-        "query": f"process_cpu:cpu:nanoseconds:cpu:nanoseconds{{service_name=\"{application}\"}}",
+        "leftQuery": _pyroscope_cpu_query(application),
+        "rightQuery": _pyroscope_cpu_query(application),
         "format": "json",
     }
     try:
@@ -347,10 +355,7 @@ def _query_pyroscope_render(
     params = {
         "from": (until - span_seconds) * 1000,
         "until": until * 1000,
-        "query": (
-            "process_cpu:cpu:nanoseconds:cpu:nanoseconds"
-            f"{{service_name=\"{application}\"}}"
-        ),
+        "query": _pyroscope_cpu_query(application),
         "format": "json",
     }
     try:

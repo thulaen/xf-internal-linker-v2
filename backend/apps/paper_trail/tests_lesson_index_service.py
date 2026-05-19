@@ -16,6 +16,7 @@ from django.utils import timezone
 
 from apps.paper_trail.models import PaperTrailEntry
 from apps.paper_trail.services import lesson_index as svc
+from apps.paper_trail.tests_helpers import valid_paper_trail_defaults
 
 
 class ExtensionAvailableTests(SimpleTestCase):
@@ -118,21 +119,20 @@ class RebuildFromDBTests(TestCase):
         # The rebuild path pulls every resolved PaperTrailEntry into the
         # ScopedLessonIndex (since they're the lessons agents have logged).
         PaperTrailEntry.objects.create(
-            category=PaperTrailEntry.CATEGORY_OTHER,
-            title="rebuild source",
-            abstract=(
+            **valid_paper_trail_defaults(
+                category=PaperTrailEntry.CATEGORY_OTHER,
+                title="rebuild source",
+                abstract=(
                 "Given the rebuild_scoped_from_resolved_autoissues test "
                 "needs a resolved row, "
                 "When the test creates one, "
                 "Then it passes BDD validation and shows up in scope queries."
             ),
-            deferred_by="test",
-            affected_files=["backend/apps/audit/x.py"],
-            status=PaperTrailEntry.STATUS_RESOLVED,
-            resolved_at=timezone.now(),
-            resolution_lessons="Trap: x. Fix shape: y.",
-            risk_on_inaction="Test only.",
-            acceptance_criteria="Test passes.",
+                affected_files=["backend/apps/audit/x.py"],
+                status=PaperTrailEntry.STATUS_RESOLVED,
+                resolved_at=timezone.now(),
+                resolution_lessons="Trap: x. Fix shape: y.",
+            )
         )
         count = svc.rebuild_scoped_from_db()
         self.assertGreaterEqual(count, 1)

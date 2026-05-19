@@ -37,10 +37,16 @@ def pick_daily_glitchtip_issues():
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
     connection.close()
 
-    """Read the audit_errorlog mirror, score top-K, write to auto_issues."""
+    """Refresh the GlitchTip mirror, then promote top rows to auto_issues."""
+    from apps.audit.tasks import sync_glitchtip_issues
     from apps.auto_issues.services.glitchtip_picker import pick_glitchtip_issues
 
-    return pick_glitchtip_issues()
+    sync_result = sync_glitchtip_issues()
+    pick_result = pick_glitchtip_issues()
+    return {
+        "glitchtip_sync": sync_result,
+        "glitchtip_picker": pick_result,
+    }
 
 
 @shared_task(name="auto_issues.pick_daily_pyroscope_regressions")

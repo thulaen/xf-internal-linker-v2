@@ -1,8 +1,9 @@
 """
 Test settings for XF Internal Linker V2.
 
-These settings keep the runtime local and self-contained so the Django test
-suite can run without Docker, PostgreSQL, or Redis.
+These settings keep the runtime local and self-contained by default. The
+Docker-managed quality path sets XF_USE_POSTGRES_TEST_DB=1 so tests run
+against PostgreSQL when Postgres-only fields or migrations are present.
 """
 
 from .base import *  # noqa: F401, F403
@@ -14,12 +15,21 @@ SECRET_KEY = locals().get("SECRET_KEY", "test-secret-key")
 
 ALLOWED_HOSTS = ["testserver", "localhost", "127.0.0.1"]
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "test.sqlite3",  # noqa: F405
+if env.bool("XF_USE_POSTGRES_TEST_DB", default=False):  # noqa: F405
+    DATABASES["default"] = {  # noqa: F405
+        **DATABASES["default"],  # noqa: F405
+        "NAME": env("POSTGRES_TEST_DB", default="test_xf_linker"),  # noqa: F405
+        "TEST": {"NAME": env("POSTGRES_TEST_DB", default="test_xf_linker")},  # noqa: F405
+        "CONN_MAX_AGE": 0,
+        "OPTIONS": {"connect_timeout": 10},
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "test.sqlite3",  # noqa: F405
+        }
+    }
 
 CACHES = {
     "default": {

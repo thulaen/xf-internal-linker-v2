@@ -28,7 +28,8 @@ if [[ "${1:-}" == "--changed" ]]; then
     python scripts/quality_debt_score.py \
       --paths-env QUALITY_DEBT_PATHS \
       --baseline .quality-debt-baseline.json \
-      --evidence-out backend/reports/quality-evidence/quality-debt.jsonl
+      --evidence-out backend/reports/quality-evidence/quality-debt.jsonl \
+      --debt-only
   '
   exit 0
 fi

@@ -10,20 +10,20 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.paper_trail.models import PaperTrailEntry
+from apps.paper_trail.tests_helpers import valid_paper_trail_defaults
 
 
 def _resolved(title: str, *, resolved_at, lessons="Trap: x. Fix shape: y.") -> PaperTrailEntry:
     entry = PaperTrailEntry.objects.create(
-        category=PaperTrailEntry.CATEGORY_OTHER,
-        title=title,
-        abstract=(
+        **valid_paper_trail_defaults(
+            category=PaperTrailEntry.CATEGORY_OTHER,
+            title=title,
+            abstract=(
             "Given the verify_quota tests need a paper-trail row, "
             "When _resolved() constructs one, "
             "Then it passes BDD validation."
         ),
-        deferred_by="test",
-        risk_on_inaction="Test only.",
-        acceptance_criteria="Test passes.",
+        )
     )
     entry.status = PaperTrailEntry.STATUS_RESOLVED
     entry.resolved_at = resolved_at

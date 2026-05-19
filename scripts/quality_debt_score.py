@@ -957,6 +957,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--baseline", type=Path, default=Path(".quality-debt-baseline.json"))
     parser.add_argument("--evidence-out", type=Path)
     parser.add_argument("--update-baseline", action="store_true")
+    parser.add_argument("--debt-only", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -965,11 +966,9 @@ def explicit_paths(args: argparse.Namespace) -> list[str]:
     if args.paths:
         return args.paths
     if args.paths_env:
-        return [
-            path.strip()
-            for path in os.environ.get(args.paths_env, "").splitlines()
-            if path.strip()
-        ]
+        raw = os.environ.get(args.paths_env, "")
+        chunks = raw.splitlines() if "\n" in raw or "\r" in raw else raw.split()
+        return [path.strip() for path in chunks if path.strip()]
     return []
 
 
@@ -988,6 +987,9 @@ def main(argv: list[str] | None = None) -> int:
     print(decision.summary)
     for failure in decision.failures:
         print(f"FAIL quality-debt: {failure}", file=sys.stderr)
+    if args.debt_only and not decision.passed:
+        print("Recorded as quality debt; this does not block the normal commit gate.")
+        return 0
     return 0 if decision.passed else 1
 
 

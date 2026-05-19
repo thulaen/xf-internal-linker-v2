@@ -14,6 +14,7 @@ from __future__ import annotations
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
+from apps.auto_issues.concept_tags import collect_and_validate_tags, merge_tags
 from apps.auto_issues.models import AutoIssue, AutoIssueCategory
 from apps.auto_issues.services.fingerprinting import canonical_fingerprint
 
@@ -49,6 +50,93 @@ _SEVERITY_MAP = {
 }
 
 
+def _build_observation(*, canonical: str, first_seen, now, count: int, abstract: str, agent: str) -> dict:
+    return {
+        "source": "code_review",
+        "external_id": f"code_review::{canonical}",
+        "first_seen": first_seen.isoformat() if first_seen else now.isoformat(),
+        "last_seen": now.isoformat(),
+        "occurrence_count": count,
+        "abstract_excerpt": abstract[:200],
+        "agent": agent,
+    }
+
+
+def _lessons_for_review(*, abstract: str, agent: str, now) -> str:
+    is_clean = abstract.lower().startswith("no issues")
+    lessons = abstract if is_clean else (
+        f"Trap: {abstract[:300]}\n"
+        f"Fix shape: agent self-review at {timezone.now().isoformat()}; "
+        f"see affected_files for the touched paths."
+    )
+    if "Trap:" in lessons and "Fix shape:" in lessons:
+        return lessons
+    return (
+        f"Trap: agents may not realise this area was reviewed and "
+        f"found clean by {agent} on {now.date().isoformat()}.\n"
+        f"Fix shape: {abstract}"
+    )
+
+
+def _merge_existing_review(*, existing: AutoIssue, files: list[str], abstract: str,
+                           canonical: str, agent: str, concept_tags: list[str],
+                           now) -> int:
+    existing.occurrence_count += 1
+    existing.last_seen = now
+    existing.source_observations = [
+        *(existing.source_observations or []),
+        _build_observation(
+            canonical=canonical,
+            first_seen=existing.first_seen,
+            now=now,
+            count=existing.occurrence_count,
+            abstract=abstract,
+            agent=agent,
+        ),
+    ]
+    existing.affected_files = list(
+        dict.fromkeys((existing.affected_files or []) + files)
+    )
+    existing.concept_tags = merge_tags(existing.concept_tags, concept_tags)
+    existing.save()
+    return int(existing.pk)
+
+
+def _create_review(*, title: str, abstract: str, files: list[str],
+                   canonical: str, category: AutoIssueCategory, agent: str,
+                   severity: str, concept_tags: list[str], now) -> int:
+    ext_id = f"code_review::{canonical}"
+    ai = AutoIssue.objects.create(
+        source=AutoIssue.SOURCE_AGENT,
+        external_id=ext_id,
+        fingerprint=ext_id[:64],
+        canonical_fingerprint=canonical,
+        title=title[:512],
+        description=abstract[:4000],
+        affected_files=files,
+        severity=severity,
+        category=category,
+        status=AutoIssue.STATUS_RESOLVED,
+        resolved_at=now,
+        resolved_by=agent,
+        lessons_learned=_lessons_for_review(abstract=abstract, agent=agent, now=now),
+        concept_tags=concept_tags,
+        occurrence_count=1,
+        last_seen=now,
+        source_observations=[
+            _build_observation(
+                canonical=canonical,
+                first_seen=now,
+                now=now,
+                count=1,
+                abstract=abstract,
+                agent=agent,
+            )
+        ],
+    )
+    return int(ai.pk)
+
+
 class Command(BaseCommand):
     help = "Log a code-review lesson as an AutoIssue (Rule G)."
 
@@ -64,7 +152,22 @@ class Command(BaseCommand):
                             choices=sorted(_SEVERITY_MAP.keys()))
         parser.add_argument("--autoissue-id", type=int, default=None,
                             help="Optional: link to an AutoIssue being resolved.")
+        parser.add_argument("--concept-tag", action="append", default=[],
+                            help="Approved concept tag; repeat for more than one.")
         parser.add_argument("--agent", default="claude")
+        parser.add_argument(
+            "--bulk-per-file",
+            action="store_true",
+            help=(
+                "When several --file values are supplied, print one logged "
+                "or deduped marker per file without restarting Django."
+            ),
+        )
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Show what would change without applying.",
+        )
 
     def handle(self, *args, **opts):
         title = (opts["title"] or "").strip()
@@ -98,7 +201,32 @@ class Command(BaseCommand):
                 "for the long-form details."
             )
 
+        if opts["bulk_per_file"]:
+            for file_path in files:
+                self._write_review_marker(
+                    title=title,
+                    abstract=abstract,
+                    files=[file_path],
+                    opts=opts,
+                )
+            return
+
+        self._write_review_marker(
+            title=title,
+            abstract=abstract,
+            files=files,
+            opts=opts,
+        )
+
+    def _write_review_marker(self, *, title: str, abstract: str, files: list[str], opts):
+        word_count = len(abstract.split())
         canonical = canonical_fingerprint(title)
+        if opts["dry_run"]:
+            self.stdout.write(
+                f"[CODE REVIEW LESSON DRY-RUN: title=\"{title[:60]}\" "
+                f"files={len(files)} abstract_words={word_count}]"
+            )
+            return
         category = _get_or_create_category()
         # Cheap SQL exact-match dedup: same canonical_fingerprint and
         # category collapse into the same row.
@@ -108,80 +236,36 @@ class Command(BaseCommand):
         ).first()
         agent = opts["agent"][:64]
         severity = _SEVERITY_MAP[opts["severity"]]
+        concept_tags = collect_and_validate_tags(opts)
         now = timezone.now()
 
         if existing is not None:
-            existing.occurrence_count += 1
-            existing.last_seen = now
-            # Append a source-observation so the audit trail is complete.
-            obs = {
-                "source": "code_review",
-                "external_id": f"code_review::{canonical}",
-                "first_seen": existing.first_seen.isoformat()
-                if existing.first_seen else now.isoformat(),
-                "last_seen": now.isoformat(),
-                "occurrence_count": existing.occurrence_count,
-                "abstract_excerpt": abstract[:200],
-                "agent": agent,
-            }
-            existing.source_observations = [
-                *(existing.source_observations or []),
-                obs,
-            ]
-            # Merge affected_files (unique).
-            merged = list(dict.fromkeys((existing.affected_files or []) + files))
-            existing.affected_files = merged
-            existing.save()
+            issue_id = _merge_existing_review(
+                existing=existing,
+                files=files,
+                abstract=abstract,
+                canonical=canonical,
+                agent=agent,
+                concept_tags=concept_tags,
+                now=now,
+            )
             self.stdout.write(
-                f"[CODE REVIEW LESSON DEDUPED: matched AutoIssue=#{existing.pk}]"
+                f"[CODE REVIEW LESSON DEDUPED: matched AutoIssue=#{issue_id}]"
             )
             return
 
-        ext_id = f"code_review::{canonical}"
-        is_clean = abstract.lower().startswith("no issues")
-        lessons = abstract if is_clean else (
-            f"Trap: {abstract[:300]}\n"
-            f"Fix shape: agent self-review at {timezone.now().isoformat()}; "
-            f"see affected_files for the touched paths."
-        )
-        # Ensure both halves are present per the resolved-AutoIssue rule.
-        if "Trap:" not in lessons or "Fix shape:" not in lessons:
-            # Augment a clean review with the required two-part shape.
-            lessons = (
-                f"Trap: agents may not realise this area was reviewed and "
-                f"found clean by {agent} on {now.date().isoformat()}.\n"
-                f"Fix shape: {abstract}"
-            )
-
-        ai = AutoIssue.objects.create(
-            source=AutoIssue.SOURCE_AGENT,
-            external_id=ext_id,
-            fingerprint=ext_id[:64],
-            canonical_fingerprint=canonical,
-            title=title[:512],
-            description=abstract[:4000],
-            affected_files=files,
-            severity=severity,
+        issue_id = _create_review(
+            title=title,
+            abstract=abstract,
+            files=files,
+            canonical=canonical,
             category=category,
-            status=AutoIssue.STATUS_RESOLVED,
-            resolved_at=now,
-            resolved_by=agent,
-            lessons_learned=lessons,
-            occurrence_count=1,
-            last_seen=now,
-            source_observations=[
-                {
-                    "source": "code_review",
-                    "external_id": ext_id,
-                    "first_seen": now.isoformat(),
-                    "last_seen": now.isoformat(),
-                    "occurrence_count": 1,
-                    "abstract_excerpt": abstract[:200],
-                    "agent": agent,
-                }
-            ],
+            agent=agent,
+            severity=severity,
+            concept_tags=concept_tags,
+            now=now,
         )
         self.stdout.write(
-            f"[CODE REVIEW LESSON LOGGED: AutoIssue=#{ai.pk} "
+            f"[CODE REVIEW LESSON LOGGED: AutoIssue=#{issue_id} "
             f"title=\"{title[:60]}\" abstract_words={word_count}]"
         )

@@ -17,10 +17,48 @@ from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.utils import timezone
 
+from apps.auto_issues.models import AutoIssue, AutoIssueCategory
 from apps.paper_trail.models import PaperTrailEntry
 
 
+def _make_test_case() -> AutoIssue:
+    category, _ = AutoIssueCategory.objects.get_or_create(
+        key="test_case",
+        defaults={
+            "label": "Test case spec",
+            "description": "Test-only full BDD contract.",
+            "sort_order": 215,
+        },
+    )
+    index = AutoIssue.objects.filter(category=category).count() + 1
+    return AutoIssue.objects.create(
+        source=AutoIssue.SOURCE_AGENT,
+        external_id=f"paper-model-test-case-{index}",
+        fingerprint=f"paper-model-test-case-{index}",
+        canonical_fingerprint=f"paper-model-test-case-{index}",
+        title=f"Paper model test case {index}",
+        description="Test-only paper-trail evidence contract.",
+        affected_files=["backend/apps/paper_trail/models.py"],
+        severity=AutoIssue.SEVERITY_LOW,
+        category=category,
+        status=AutoIssue.STATUS_OPEN,
+        lessons_learned=(
+            "Given a paper-trail row needs a complete contract\n"
+            "When the row is filed or verified\n"
+            "Then the evidence rule can prove the next agent has a spec\n"
+            "Edge cases: missing citation and missing link fail\n"
+            "Failure cases: wrong AutoIssue category fails\n"
+            "Security: citations do not contain secrets\n"
+            "Usability: errors tell the operator how to unblock\n"
+            "Scalability: one row check stays bounded\n"
+            "Maintainability: helper centralizes valid evidence fields\n"
+            "Regression risks: older tests must not omit evidence"
+        ),
+    )
+
+
 def _make_minimal(**overrides) -> PaperTrailEntry:
+    test_case = _make_test_case()
     defaults = {
         "category": PaperTrailEntry.CATEGORY_OTHER,
         "title": "Test deferral",
@@ -32,6 +70,8 @@ def _make_minimal(**overrides) -> PaperTrailEntry:
         "deferred_by": "test-agent",
         "risk_on_inaction": "Test-only entry; no real risk.",
         "acceptance_criteria": "Test passes when the row is saved.",
+        "test_case_autoissue_id": test_case.pk,
+        "citations": ["RFC 9110"],
     }
     defaults.update(overrides)
     return PaperTrailEntry.objects.create(**defaults)
@@ -213,6 +253,8 @@ class UniqueConstraintTests(TestCase):
                     deferred_by="test-agent",
                     risk_on_inaction="Test only.",
                     acceptance_criteria="Test passes.",
+                    test_case_autoissue_id=_make_test_case().pk,
+                    citations=["RFC 9110"],
                 )
 
     def test_resolved_does_not_block_new_active(self) -> None:
@@ -270,6 +312,18 @@ class RequiredFieldTests(TestCase):
         entry.refresh_from_db()
         entry.status = PaperTrailEntry.STATUS_IN_PROGRESS
         entry.save()  # would raise if required-field check re-fired
+
+
+class EvidenceFieldTests(TestCase):
+    def test_missing_test_case_autoissue_rejected_on_new(self) -> None:
+        with self.assertRaises(ValidationError) as cm:
+            _make_minimal(test_case_autoissue_id=None)
+        self.assertIn("test_case_autoissue_id", str(cm.exception))
+
+    def test_missing_citations_rejected_on_new(self) -> None:
+        with self.assertRaises(ValidationError) as cm:
+            _make_minimal(citations=[])
+        self.assertIn("citations", str(cm.exception))
 
 
 class NewStatusTests(TestCase):

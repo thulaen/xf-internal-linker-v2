@@ -5,6 +5,7 @@ from __future__ import annotations
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
+from apps.auto_issues.concept_tags import collect_and_validate_tags, merge_tags
 from apps.auto_issues.models import AutoIssue
 from apps.auto_issues.services.categories import normalize_category_key
 from apps.auto_issues.services.dedup import upsert_dedup
@@ -53,15 +54,30 @@ class Command(BaseCommand):
         )
         parser.add_argument("--fixed", action="store_true")
         parser.add_argument("--lessons-learned", default="")
+        parser.add_argument("--concept-tag", action="append", default=[],
+                            help="Approved concept tag; repeat for more than one.")
         parser.add_argument("--agent", default="codex")
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Show what would change without applying.",
+        )
 
     def handle(self, *args, **options):
         lessons = options["lessons_learned"].strip()
         if options["fixed"] and not lessons:
             raise CommandError("--lessons-learned is required when --fixed is used.")
 
+        concept_tags = collect_and_validate_tags(options)
         category_key = _parse_category(options["category"])
         canonical = canonical_fingerprint(options["title"], f"self-review:{category_key}")
+        if options["dry_run"]:
+            files = [path for path in options["files"] if path]
+            self.stdout.write(
+                f"[SELF REVIEW ISSUE DRY-RUN: title=\"{options['title'][:60]}\" "
+                f"category={category_key} files={len(files)}]"
+            )
+            return
         issue, outcome = upsert_dedup(
             canonical=canonical,
             source=AutoIssue.SOURCE_AGENT,
@@ -75,6 +91,8 @@ class Command(BaseCommand):
             priority_score=_SEVERITY_SCORE[options["severity"]],
             occurrence_count=1,
         )
+        issue.concept_tags = merge_tags(issue.concept_tags, concept_tags)
+        issue.save(update_fields=["concept_tags"])
         if options["fixed"]:
             _mark_resolved(issue, options["agent"], lessons)
             outcome = f"{outcome}, resolved"

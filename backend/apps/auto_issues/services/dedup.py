@@ -152,6 +152,29 @@ def _merge_into_existing(
     return existing, "updated" if seen_before else "merged"
 
 
+def _same_source_external_row(obs: IssueObservation):
+    """Find the row protected by the database unique key, if it exists."""
+    return (
+        AutoIssue.objects
+        .filter(source=obs.source, external_id=obs.external_id)
+        .exclude(status=AutoIssue.STATUS_RESOLVED)
+        .first()
+    )
+
+
+def _resolved_same_source_external_row(obs: IssueObservation):
+    return (
+        AutoIssue.objects
+        .filter(
+            source=obs.source,
+            external_id=obs.external_id,
+            status=AutoIssue.STATUS_RESOLVED,
+        )
+        .order_by("-resolved_at")
+        .first()
+    )
+
+
 def upsert_dedup(**kwargs) -> tuple[AutoIssue, str]:
     """Single entry-point for pickers — returns (row, outcome_string).
 
@@ -177,23 +200,16 @@ def upsert_dedup(**kwargs) -> tuple[AutoIssue, str]:
     )
     if existing is not None:
         return _merge_into_existing(existing, obs, new_obs, now)
+    same_source_external = _same_source_external_row(obs)
+    if same_source_external is not None:
+        return _merge_into_existing(same_source_external, obs, new_obs, now)
     # Slice 1.5 - if a resolved row already owns this exact (source, external_id),
     # merge into it so the unique constraint does not raise IntegrityError when
     # the quality-evidence ingester re-runs. We do NOT merge when the resolved
     # row uses a different external_id (that is the "fresh ticket for same
     # canonical" regression path tested by
     # CrossSourceDedupTests.test_resolved_row_does_not_block_new_observation).
-    resolved_same_id = (
-        AutoIssue.objects
-        .filter(
-            canonical_fingerprint=obs.canonical,
-            status=AutoIssue.STATUS_RESOLVED,
-            source=obs.source,
-            external_id=obs.external_id,
-        )
-        .order_by("-resolved_at")
-        .first()
-    )
+    resolved_same_id = _resolved_same_source_external_row(obs)
     if resolved_same_id is not None:
         resolved_same_id, _ = _merge_into_existing(resolved_same_id, obs, new_obs, now)
         return resolved_same_id, "merged-resolved"

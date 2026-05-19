@@ -45,6 +45,9 @@ quality_evidence_finalize() {
     fi
     quality_artifact_prune
   fi
+  if [[ "$status" -ne 0 ]]; then
+    echo "Quality evidence finalized with failing status $status. Evidence was imported from ${container_path#/repo/}; inspect the imported quality evidence or rerun the tool command named in that evidence row." >&2
+  fi
   exit "$status"
 }
 

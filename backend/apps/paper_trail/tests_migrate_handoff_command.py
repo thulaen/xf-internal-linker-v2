@@ -72,6 +72,13 @@ class MigrateHandoffTests(TestCase):
         self.assertIn(PaperTrailEntry.CATEGORY_CVE_UPGRADE, cats)
         self.assertIn(PaperTrailEntry.CATEGORY_RUFF_SWEEP, cats)
         self.assertIn(PaperTrailEntry.CATEGORY_INFRASTRUCTURE, cats)
+        self.assertEqual(
+            PaperTrailEntry.objects.filter(
+                test_case_autoissue_id__isnull=False,
+                citations__contains=["RFC 9110"],
+            ).count(),
+            3,
+        )
 
     def test_idempotent_via_dedup(self) -> None:
         call_command(

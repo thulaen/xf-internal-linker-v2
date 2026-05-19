@@ -10,6 +10,7 @@ from django.test import SimpleTestCase, TestCase
 
 from apps.paper_trail.models import PaperTrailEntry
 from apps.paper_trail.services import dedup as dedup_service
+from apps.paper_trail.tests_helpers import valid_paper_trail_defaults
 
 
 class DedupIndexAvailabilityTests(SimpleTestCase):
@@ -90,28 +91,26 @@ class DedupRebuildFromDBTests(TestCase):
 
     def test_rebuild_from_db_populates_index(self) -> None:
         PaperTrailEntry.objects.create(
-            category=PaperTrailEntry.CATEGORY_OTHER,
-            title="Rebuild source A",
-            abstract=(
+            **valid_paper_trail_defaults(
+                category=PaperTrailEntry.CATEGORY_OTHER,
+                title="Rebuild source A",
+                abstract=(
                 "Given the rebuild_from_db test needs row A, "
                 "When the test creates it, "
                 "Then the abstract is long enough for shingling."
             ),
-            deferred_by="test",
-            risk_on_inaction="Test only.",
-            acceptance_criteria="Test passes.",
+            )
         )
         PaperTrailEntry.objects.create(
-            category=PaperTrailEntry.CATEGORY_OTHER,
-            title="Rebuild source B",
-            abstract=(
+            **valid_paper_trail_defaults(
+                category=PaperTrailEntry.CATEGORY_OTHER,
+                title="Rebuild source B",
+                abstract=(
                 "Given the rebuild_from_db test needs row B, "
                 "When the test creates it, "
                 "Then the abstract is long enough for shingling work."
             ),
-            deferred_by="test",
-            risk_on_inaction="Test only.",
-            acceptance_criteria="Test passes.",
+            )
         )
         dedup_service.rebuild_from_db()
         self.assertEqual(dedup_service.size(), 2)

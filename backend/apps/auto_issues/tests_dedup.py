@@ -59,6 +59,9 @@ class CrossSourceDedupTests(TestCase):
 
     _CANONICAL = "abc123def4567890"
 
+    def setUp(self):
+        AutoIssue.objects.all().delete()
+
     def _upsert(self, *, source, external_id, severity="medium", score=0.5, count=1):
         return upsert_dedup(
             canonical=self._CANONICAL,
@@ -103,6 +106,26 @@ class CrossSourceDedupTests(TestCase):
         self.assertEqual(len(row.source_observations), 1)
         self.assertEqual(row.source_observations[0]["occurrence_count"], 8)
 
+    def test_same_source_external_id_updates_when_canonical_changes(self):
+        self._upsert(source="loki", external_id="loki:hot::abc", count=5)
+
+        row, outcome = upsert_dedup(
+            canonical="different-canonical-after-log-sample-changed",
+            source="loki",
+            external_id="loki:hot::abc",
+            fingerprint="loki-fp",
+            title="Same Loki fingerprint with a new sample title",
+            description="desc",
+            affected_files=[],
+            severity="medium",
+            priority_score=0.8,
+            occurrence_count=12,
+        )
+
+        self.assertEqual(outcome, "updated")
+        self.assertEqual(AutoIssue.objects.count(), 1)
+        self.assertEqual(row.source_observations[0]["occurrence_count"], 12)
+
     def test_severity_escalates_on_merge(self):
         self._upsert(source="glitchtip", external_id="gt-1", severity="medium")
         row, _ = self._upsert(
@@ -128,6 +151,10 @@ class CrossSourceDedupTests(TestCase):
 
 
 class InternalPickerTests(TestCase):
+    def setUp(self):
+        AutoIssue.objects.all().delete()
+        ErrorLog.objects.filter(source=ErrorLog.SOURCE_INTERNAL).delete()
+
     def test_no_internal_rows_returns_zero_promoted(self):
         result = pick_internal_issues()
         self.assertEqual(

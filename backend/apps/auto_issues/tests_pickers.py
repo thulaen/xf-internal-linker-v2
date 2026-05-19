@@ -12,6 +12,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from unittest import mock
 
+import requests
 from django.test import SimpleTestCase, TestCase
 from django.utils import timezone as dj_timezone
 
@@ -23,13 +24,19 @@ from apps.auto_issues.services.pyroscope_picker import (
     PyroscopeCandidate,
     _compare_sides,
     _extract_function_totals,
+    _gather_regressions,
+    _query_pyroscope_render,
+    _query_pyroscope_diff,
+    _score_regressions,
     _select_hotspots,
+    _severity_for,
     _split_profiler_tooling_hotspots,
     _stable_fingerprint,
+    _upsert_pyroscope_row,
     pick_pyroscope_hotspots,
     pick_pyroscope_regressions,
 )
-from apps.auto_issues.tasks import close_stale_issues
+from apps.auto_issues.tasks import close_stale_issues, pick_daily_glitchtip_issues
 
 
 class ScoringFactorTests(SimpleTestCase):
@@ -171,6 +178,28 @@ class GlitchtipPickerTests(TestCase):
         )
 
 
+class GlitchtipTaskTests(SimpleTestCase):
+    @mock.patch("apps.auto_issues.services.glitchtip_picker.pick_glitchtip_issues")
+    @mock.patch("apps.audit.tasks.sync_glitchtip_issues")
+    def test_daily_task_syncs_mirror_before_picking(
+        self,
+        mock_sync,
+        mock_pick,
+    ):
+        calls = []
+        mock_sync.side_effect = lambda: calls.append("sync") or {"status": "ok"}
+        mock_pick.side_effect = lambda: calls.append("pick") or {
+            "status": "ok",
+            "promoted": 1,
+        }
+
+        result = pick_daily_glitchtip_issues()
+
+        self.assertEqual(calls, ["sync", "pick"])
+        self.assertEqual(result["glitchtip_sync"]["status"], "ok")
+        self.assertEqual(result["glitchtip_picker"]["promoted"], 1)
+
+
 class PyroscopeFlamegraphParserTests(SimpleTestCase):
     """Pure-function tests on the diff response parser. No live HTTP."""
 
@@ -187,6 +216,15 @@ class PyroscopeFlamegraphParserTests(SimpleTestCase):
         totals = _extract_function_totals(side)
         self.assertEqual(totals.get("func_a"), 60.0)
         self.assertEqual(totals.get("func_b"), 40.0)
+
+    def test_extract_function_totals_skips_malformed_nodes(self):
+        side = {
+            "flamebearer": {
+                "names": ["root", "valid"],
+                "levels": [[0, 100], [0, 10, "bad", 1, 0, 20, 20, 1]],
+            }
+        }
+        self.assertEqual(_extract_function_totals(side), {"valid": 20.0})
 
     def test_compare_sides_flags_2x_regression_above_5pct(self):
         left = {"hot_func": 1_000_000_000, "cold": 100}
@@ -212,6 +250,25 @@ class PyroscopeFlamegraphParserTests(SimpleTestCase):
         cands = _compare_sides(left, right)
         self.assertEqual(cands, [])
 
+    def test_compare_sides_skips_growth_below_ratio_threshold(self):
+        left = {"steady": 1_000_000_000}
+        right = {"steady": 1_500_000_000}
+        self.assertEqual(_compare_sides(left, right), [])
+
+    def test_compare_sides_extracts_file_hint(self):
+        left = {"apps/pipeline/scoring.py:20 score": 1_000_000_000}
+        right = {"apps/pipeline/scoring.py:20 score": 3_000_000_000}
+        cands = _compare_sides(left, right)
+        self.assertEqual(cands[0].file_hint, "apps/pipeline/scoring.py")
+
+    def test_severity_for_regression_ratio(self):
+        low = PyroscopeCandidate("fn", "", 10.0, 11.0, 11.0)
+        medium = PyroscopeCandidate("fn", "", 10.0, 25.0, 25.0)
+        high = PyroscopeCandidate("fn", "", 10.0, 60.0, 60.0)
+        self.assertEqual(_severity_for(low), AutoIssue.SEVERITY_LOW)
+        self.assertEqual(_severity_for(medium), AutoIssue.SEVERITY_MEDIUM)
+        self.assertEqual(_severity_for(high), AutoIssue.SEVERITY_HIGH)
+
     def test_stable_fingerprint_is_deterministic(self):
         a = _stable_fingerprint("foo.bar", "/app/foo.py")
         b = _stable_fingerprint("foo.bar", "/app/foo.py")
@@ -232,6 +289,115 @@ class PyroscopePickerTopLevelTests(SimpleTestCase):
         result = pick_pyroscope_regressions(server="http://test:4040")
         self.assertEqual(result["regressions_found"], 0)
         self.assertEqual(result["promoted"], 0)
+
+    @mock.patch("apps.auto_issues.services.pyroscope_picker.requests.get")
+    def test_diff_request_uses_left_and_right_queries(self, mock_get):
+        response = mock.Mock()
+        response.json.return_value = {"flamebearer": {"names": [], "levels": []}}
+        response.raise_for_status.return_value = None
+        mock_get.return_value = response
+
+        _query_pyroscope_diff(
+            "http://pyroscope:4040",
+            "xf-linker-backend",
+            until=1_779_098_400,
+        )
+
+        params = mock_get.call_args.kwargs["params"]
+        self.assertIn("leftQuery", params)
+        self.assertIn("rightQuery", params)
+        self.assertNotIn("query", params)
+        self.assertEqual(params["leftQuery"], params["rightQuery"])
+
+    @mock.patch("apps.auto_issues.services.pyroscope_picker.requests.get")
+    def test_render_request_keeps_single_query_field(self, mock_get):
+        response = mock.Mock()
+        response.json.return_value = {"flamebearer": {"names": [], "levels": []}}
+        response.raise_for_status.return_value = None
+        mock_get.return_value = response
+
+        _query_pyroscope_render(
+            "http://pyroscope:4040",
+            "xf-linker-backend",
+            until=1_779_098_400,
+            span_seconds=3600,
+        )
+
+        params = mock_get.call_args.kwargs["params"]
+        self.assertIn("query", params)
+        self.assertNotIn("leftQuery", params)
+        self.assertNotIn("rightQuery", params)
+
+    @mock.patch("apps.auto_issues.services.pyroscope_picker.requests.get")
+    def test_diff_request_failure_returns_empty_dict(self, mock_get):
+        mock_get.side_effect = requests.RequestException("boom")
+        result = _query_pyroscope_diff(
+            "http://pyroscope:4040",
+            "xf-linker-backend",
+            until=1_779_098_400,
+        )
+        self.assertEqual(result, {})
+
+    @mock.patch("apps.auto_issues.services.pyroscope_picker._query_pyroscope_diff")
+    def test_gather_regressions_skips_empty_diff(self, mock_diff):
+        mock_diff.side_effect = [
+            {},
+            {
+                "left": {"flamebearer": {"names": ["root"], "levels": []}},
+                "right": {"flamebearer": {"names": ["root"], "levels": []}},
+            },
+        ]
+        self.assertEqual(
+            _gather_regressions("http://pyroscope:4040", ("a", "b")),
+            [],
+        )
+
+
+class PyroscopeRegressionUpsertTests(TestCase):
+    def setUp(self):
+        AutoIssue.objects.filter(source=AutoIssue.SOURCE_PYROSCOPE).delete()
+
+    def test_upsert_pyroscope_row_creates_autoissue(self):
+        candidate = PyroscopeCandidate(
+            function_name="apps/pipeline/scoring.py:20 score",
+            file_hint="apps/pipeline/scoring.py",
+            left_self_ns=1_000_000_000,
+            right_self_ns=3_000_000_000,
+            right_total_ns=6_000_000_000,
+        )
+
+        outcome = _upsert_pyroscope_row(0.75, candidate, dj_timezone.now())
+
+        self.assertEqual(outcome, "created")
+        row = AutoIssue.objects.get(source=AutoIssue.SOURCE_PYROSCOPE)
+        self.assertIn("regressed 3.0x", row.title)
+        self.assertEqual(row.affected_files, ["apps/pipeline/scoring.py"])
+
+    def test_score_regressions_sorts_descending(self):
+        low = PyroscopeCandidate("low", "", 1_000_000_000, 2_100_000_000, 10)
+        high = PyroscopeCandidate("high", "", 1_000_000_000, 5_500_000_000, 10)
+        scored = _score_regressions([low, high])
+        self.assertEqual(scored[0][1].function_name, "high")
+
+    @mock.patch("apps.auto_issues.services.pyroscope_picker._gather_regressions")
+    def test_pick_pyroscope_regressions_promotes_candidates(self, mock_gather):
+        mock_gather.return_value = [
+            PyroscopeCandidate("hot", "", 1_000_000_000, 3_000_000_000, 3_000_000_000)
+        ]
+
+        result = pick_pyroscope_regressions(
+            server="http://pyroscope:4040",
+            applications=("xf-linker-backend",),
+            limit=1,
+        )
+
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["regressions_found"], 1)
+        self.assertEqual(result["promoted"], 1)
+        self.assertEqual(
+            AutoIssue.objects.filter(source=AutoIssue.SOURCE_PYROSCOPE).count(),
+            1,
+        )
 
 
 class CloseStaleIssuesTaskTests(TestCase):

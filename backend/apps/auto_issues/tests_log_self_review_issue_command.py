@@ -12,6 +12,22 @@ from apps.auto_issues.models import AutoIssue
 
 
 class LogSelfReviewIssueCommandTests(TestCase):
+    def test_dry_run_reports_without_writing_issue(self) -> None:
+        out = StringIO()
+
+        call_command(
+            "log_self_review_issue",
+            "--title", "Dry-run self review",
+            "--description", "Preview the finding without writing a row.",
+            "--file", "backend/apps/example.py",
+            "--category", "maintainability",
+            "--dry-run",
+            stdout=out,
+        )
+
+        self.assertEqual(AutoIssue.objects.count(), 0)
+        self.assertIn("[SELF REVIEW ISSUE DRY-RUN:", out.getvalue())
+
     def test_creates_open_agent_issue(self) -> None:
         out = StringIO()
         call_command(

@@ -16,17 +16,17 @@ class SearchResolvedIssuesCommandTests(TestCase):
     def test_area_search_matches_path_prefix(self) -> None:
         matching = _create_issue(
             title="Audit retry fix",
-            affected_files=["backend/apps/audit/tasks.py"],
+            affected_files=["backend/apps/resolved_search_audit/tasks.py"],
         )
         _create_issue(
             title="Pipeline fix",
-            affected_files=["backend/apps/pipeline/tasks.py"],
+            affected_files=["backend/apps/resolved_search_pipeline/tasks.py"],
         )
         output = StringIO()
 
         call_command(
             "search_resolved_issues",
-            area="backend/apps/audit",
+            area="backend/apps/resolved_search_audit",
             limit=5,
             stdout=output,
         )
@@ -39,13 +39,13 @@ class SearchResolvedIssuesCommandTests(TestCase):
     def test_area_search_accepts_windows_separators(self) -> None:
         matching = _create_issue(
             title="Windows path fix",
-            affected_files=["backend/apps/audit/tasks.py"],
+            affected_files=["backend/apps/resolved_search_windows/tasks.py"],
         )
         output = StringIO()
 
         call_command(
             "search_resolved_issues",
-            area=r"backend\apps\audit",
+            area=r"backend\apps\resolved_search_windows",
             stdout=output,
         )
 
@@ -54,42 +54,45 @@ class SearchResolvedIssuesCommandTests(TestCase):
     def test_multiple_area_searches_run_in_one_command(self) -> None:
         audit = _create_issue(
             title="Audit path fix",
-            affected_files=["backend/apps/audit/tasks.py"],
+            affected_files=["backend/apps/resolved_search_batch_audit/tasks.py"],
         )
         pipeline = _create_issue(
             title="Pipeline path fix",
-            affected_files=["backend/apps/pipeline/tasks.py"],
+            affected_files=["backend/apps/resolved_search_batch_pipeline/tasks.py"],
         )
         output = StringIO()
 
         call_command(
             "search_resolved_issues",
-            area=["backend/apps/audit", "backend/apps/pipeline"],
+            area=[
+                "backend/apps/resolved_search_batch_audit",
+                "backend/apps/resolved_search_batch_pipeline",
+            ],
             stdout=output,
         )
 
         text = output.getvalue()
-        self.assertIn("backend/apps/audit: 1 prior fix", text)
+        self.assertIn("backend/apps/resolved_search_batch_audit: 1 prior fix", text)
         self.assertIn(f"#{audit.id}", text)
-        self.assertIn("backend/apps/pipeline: 1 prior fix", text)
+        self.assertIn("backend/apps/resolved_search_batch_pipeline: 1 prior fix", text)
         self.assertIn(f"#{pipeline.id}", text)
 
     def test_area_search_is_limited(self) -> None:
         _create_issue(
             title="Older match outside scan limit",
-            affected_files=["backend/apps/audit/tasks.py"],
+            affected_files=["backend/apps/resolved_search_limited/tasks.py"],
             resolved_at=timezone.now() - timedelta(days=3),
         )
         _create_issue(
             title="Newest non-match",
-            affected_files=["backend/apps/pipeline/tasks.py"],
+            affected_files=["backend/apps/resolved_search_other/tasks.py"],
             resolved_at=timezone.now(),
         )
         output = StringIO()
 
         call_command(
             "search_resolved_issues",
-            area="backend/apps/audit",
+            area="backend/apps/resolved_search_limited",
             scan_limit=1,
             stdout=output,
         )

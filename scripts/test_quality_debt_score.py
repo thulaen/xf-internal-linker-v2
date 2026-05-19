@@ -250,6 +250,15 @@ def test_explicit_paths_do_not_load_all_tracked_sources(
     assert decision.file_scores[0].path == "scripts/a.py"
 
 
+def test_explicit_paths_env_accepts_space_separated_staged_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("QUALITY_DEBT_PATHS", "scripts/a.py scripts/b.py")
+    args = SimpleNamespace(paths=[], paths_env="QUALITY_DEBT_PATHS")
+
+    assert qds.explicit_paths(args) == ["scripts/a.py", "scripts/b.py"]
+
+
 def test_text_index_includes_direct_cpp_benchmark_support(tmp_path: Path) -> None:
     source = tmp_path / "backend" / "extensions" / "newkernel.cpp"
     benchmark = tmp_path / "backend" / "extensions" / "benchmarks" / "bench_newkernel.cpp"
@@ -266,7 +275,12 @@ def test_text_index_includes_direct_cpp_benchmark_support(tmp_path: Path) -> Non
 def test_gate_decision_branches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     source = tmp_path / "scripts/a.py"
     source.parent.mkdir()
-    source.write_text("def f(a,b,c,d,e,f,g,h):\n    return a\n", encoding="utf-8")
+    source.write_text(
+        "def f(a,b,c,d,e,f,g,h):\n"
+        + "\n".join("    value = 1" for _ in range(51))
+        + "\n    return a\n",
+        encoding="utf-8",
+    )
     monkeypatch.setattr(qds, "tracked_source_paths", lambda _repo: [])
     monkeypatch.setattr(qds, "read_head_text", lambda _repo, _path: "def f(a):\n    return a\n")
 
@@ -388,3 +402,36 @@ def test_main_writes_evidence_and_baseline(tmp_path: Path, monkeypatch: pytest.M
     assert status == 0
     assert evidence.exists()
     assert baseline.exists()
+
+
+def test_main_debt_only_records_failure_without_blocking(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "scripts" / "quality_debt_score.py"
+    source.parent.mkdir()
+    source.write_text(
+        "def f(a,b,c,d,e,f,g,h):\n"
+        + "\n".join("    value = 1" for _ in range(51))
+        + "\n    return a\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(qds, "tracked_source_paths", lambda _repo: [])
+    monkeypatch.setattr(qds, "read_head_text", lambda _repo, _path: None)
+    evidence = tmp_path / "evidence.jsonl"
+
+    status = qds.main(
+        [
+            "--paths",
+            "scripts/quality_debt_score.py",
+            "--repo-root",
+            str(tmp_path),
+            "--evidence-out",
+            str(evidence),
+            "--debt-only",
+        ]
+    )
+
+    rows = [json.loads(line) for line in evidence.read_text(encoding="utf-8").splitlines()]
+    assert status == 0
+    assert rows[0]["status"] == "failed"

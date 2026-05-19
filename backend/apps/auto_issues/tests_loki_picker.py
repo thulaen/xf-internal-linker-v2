@@ -97,6 +97,9 @@ class StackContainerTests(SimpleTestCase):
 class LokiHotPatternIntegrationTests(TestCase):
     """End-to-end: mock Loki HTTP, assert AutoIssue rows materialize."""
 
+    def setUp(self):
+        AutoIssue.objects.filter(source=AutoIssue.SOURCE_LOKI).delete()
+
     @mock.patch("apps.auto_issues.services.loki_picker._fetch_loki_lines")
     def test_pick_loki_hot_patterns_promotes_to_autoissue(self, mock_fetch):
         # 12 occurrences of one normalized pattern, container = backend.
@@ -150,6 +153,9 @@ class LokiHotPatternIntegrationTests(TestCase):
 
 
 class LokiWarnBurstIntegrationTests(TestCase):
+    def setUp(self):
+        AutoIssue.objects.filter(source=AutoIssue.SOURCE_LOKI).delete()
+
     @mock.patch(
         "apps.auto_issues.services.loki_picker._container_count_over_time"
     )

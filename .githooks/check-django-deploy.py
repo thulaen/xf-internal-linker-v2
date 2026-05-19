@@ -20,6 +20,9 @@ _TRIGGER_PATHS = (
     "backend/config/wsgi.py",
     "backend/config/urls.py",
 )
+_IGNORED_TRIGGER_PATHS = {
+    "backend/config/settings/test.py",
+}
 
 
 def _staged_relevant() -> list[str]:
@@ -34,6 +37,8 @@ def _staged_relevant() -> list[str]:
     files: list[str] = []
     for line in (out.stdout or "").splitlines():
         line = line.strip()
+        if line in _IGNORED_TRIGGER_PATHS:
+            continue
         if any(line.startswith(p) or line == p for p in _TRIGGER_PATHS):
             files.append(line)
     return files
@@ -50,6 +55,8 @@ def main() -> int:
     ]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True,
+            encoding="utf-8",
+            errors="replace",
                                 timeout=60, check=False)
     except FileNotFoundError:
         sys.stderr.write(

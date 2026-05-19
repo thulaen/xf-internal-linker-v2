@@ -10,6 +10,7 @@ from django.utils import timezone
 
 from apps.paper_trail.models import PaperTrailEntry
 from apps.paper_trail.services import safe_prune
+from apps.paper_trail.tests_helpers import valid_paper_trail_defaults
 
 
 class SafePruneTests(TestCase):
@@ -22,17 +23,16 @@ class SafePruneTests(TestCase):
 
     def _make_resolved(self, *, affected_files: list[str]) -> PaperTrailEntry:
         entry = PaperTrailEntry.objects.create(
-            category=PaperTrailEntry.CATEGORY_OTHER,
-            title="resolved entry for safe prune",
-            abstract=(
+            **valid_paper_trail_defaults(
+                category=PaperTrailEntry.CATEGORY_OTHER,
+                title="resolved entry for safe prune",
+                abstract=(
                 "Given the safe-prune tests need a resolved entry, "
                 "When _make_resolved() constructs one, "
                 "Then it passes BDD validation."
             ),
-            deferred_by="test",
-            affected_files=affected_files,
-            risk_on_inaction="Test only.",
-            acceptance_criteria="Test passes.",
+                affected_files=affected_files,
+            )
         )
         entry.status = PaperTrailEntry.STATUS_RESOLVED
         entry.resolved_at = timezone.now()

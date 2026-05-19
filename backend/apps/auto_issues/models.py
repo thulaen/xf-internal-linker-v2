@@ -25,6 +25,7 @@ Status flow: ``open`` → ``picked`` (an agent committed to fix) →
 
 from __future__ import annotations
 
+from django.contrib.postgres.fields import ArrayField
 from django.db import models
 
 
@@ -144,6 +145,13 @@ class AutoIssue(models.Model):
         default=list,
         blank=True,
         help_text="List of {source, external_id, first_seen, last_seen, occurrence_count} entries — one per source that has observed this root cause.",
+    )
+    concept_tags = ArrayField(
+        models.CharField(max_length=64),
+        default=list,
+        blank=True,
+        db_index=True,
+        help_text="Approved concept tags used to find lessons across repo paths.",
     )
 
     title = models.CharField(max_length=512)

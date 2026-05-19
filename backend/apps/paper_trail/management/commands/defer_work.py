@@ -12,6 +12,11 @@ from django.utils import timezone
 
 from apps.paper_trail.models import PaperTrailEntry
 from apps.paper_trail.services import dedup as dedup_service
+from apps.paper_trail.services.evidence import (
+    REQUIRED_BDD_FIELDS,
+    validate_citation,
+    validate_test_case_completeness,
+)
 from apps.paper_trail.services.priority import compute_priority_score
 
 
@@ -74,6 +79,38 @@ class Command(BaseCommand):
                 "Can be repeated. The old rows will be marked status=superseded."
             ),
         )
+        # Paper Trail Evidence Rule (2026-05-17). Required on every new
+        # entry from the cutoff onward. See docs/PAPER-TRAIL-EVIDENCE-RULE.md.
+        parser.add_argument(
+            "--test-case-autoissue",
+            type=int,
+            default=None,
+            help=(
+                "PK of the AutoIssue(category='test_case') row whose "
+                "lessons_learned carries the FULL 10-field BDD contract "
+                "(Given + When + Then + edge_cases + failure_cases + "
+                "security + usability + scalability + maintainability + "
+                "regression_risks). Required on entries from 2026-05-17 "
+                "onward per docs/PAPER-TRAIL-EVIDENCE-RULE.md."
+            ),
+        )
+        parser.add_argument(
+            "--citation",
+            action="append",
+            dest="citations",
+            default=[],
+            help=(
+                "Stable identifier for a patent, DOI, arXiv, ISO/IEEE/IETF "
+                "standard, RFC, ISBN, or URL on the official-vendor "
+                "allowlist. Repeatable. Required (>= 1) on entries from "
+                "2026-05-17 onward."
+            ),
+        )
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Validate all inputs without writing the paper-trail row.",
+        )
 
     def handle(self, *args, **opts):
         abstract = opts["abstract"].strip()
@@ -134,6 +171,109 @@ class Command(BaseCommand):
                 "green at >68%% coverage."
             )
 
+        # Paper Trail Evidence Rule (2026-05-17). Validate citations + the
+        # linked test_case AutoIssue BEFORE the dedup check so an entry
+        # with bad evidence never reaches the dedup index.
+        test_case_id = opts.get("test_case_autoissue")
+        citations_raw = [c.strip() for c in (opts.get("citations") or []) if c.strip()]
+        if test_case_id is None:
+            raise CommandError(
+                "FAIL defer_work: --test-case-autoissue is required.\n"
+                "WHY: every new paper-trail entry from 2026-05-17 onward "
+                "MUST link to an AutoIssue(category='test_case') row whose "
+                "lessons_learned carries the FULL 10-field BDD contract "
+                "(Given + When + Then + edge_cases + failure_cases + "
+                "security + usability + scalability + maintainability + "
+                "regression_risks). Without that link the next agent has "
+                "no spec for this deferred work.\n"
+                "UNBLOCK: file the test case first via "
+                "`docker compose exec -T backend python manage.py "
+                "log_test_case --file <p> --title \"...\" "
+                "--given \"...\" --when \"...\" --then \"...\" "
+                "--edge-cases \"...\" --failure-cases \"...\" "
+                "--security \"...\" --usability \"...\" "
+                "--scalability \"...\" --maintainability \"...\" "
+                "--regression-risks \"...\"` and pass the returned "
+                "AutoIssue id to --test-case-autoissue."
+            )
+        if not citations_raw:
+            raise CommandError(
+                "FAIL defer_work: --citation is required (at least one).\n"
+                "WHY: paper-trail entries must be grounded in evidence — "
+                "patents, academic papers (DOI / arXiv), ISO/IEEE/IETF "
+                "standards, RFCs, ISBN books, or URLs on the official-"
+                "vendor allowlist. Free-prose abstracts without a stable "
+                "identifier rot fast.\n"
+                "UNBLOCK: pass one or more --citation <id> per "
+                "docs/PAPER-TRAIL-EVIDENCE-RULE.md § \"Citation forms "
+                "accepted\"."
+            )
+        bad_citations: list[tuple[str, str]] = []
+        for c in citations_raw:
+            ok, _kind = validate_citation(c)
+            if not ok:
+                bad_citations.append((c, "matched no accepted citation regex"))
+        if bad_citations:
+            bad_list = "\n".join(f"  - {raw}: {why}" for raw, why in bad_citations[:5])
+            raise CommandError(
+                "FAIL defer_work: one or more --citation value(s) did not "
+                "match any accepted citation form.\n"
+                f"{bad_list}\n"
+                "WHY: the rule requires citations to be machine-validatable "
+                "stable identifiers so the next agent can resolve them.\n"
+                "UNBLOCK: rewrite each failing citation per "
+                "docs/PAPER-TRAIL-EVIDENCE-RULE.md § \"Citation forms "
+                "accepted\" (DOI / arXiv / patent / ISO-IEEE-IETF / RFC / "
+                "ISBN / official-vendor URL)."
+            )
+
+        # Verify the linked test_case AutoIssue exists, is the right
+        # category, and carries all 10 required BDD fields.
+        from apps.auto_issues.models import AutoIssue  # local import to avoid cycle
+        try:
+            tc = AutoIssue.objects.select_related("category").get(pk=test_case_id)
+        except AutoIssue.DoesNotExist as exc:
+            raise CommandError(
+                f"FAIL defer_work: --test-case-autoissue #{test_case_id} "
+                f"does not exist.\n"
+                f"WHY: the referenced AutoIssue must be a real test_case "
+                f"row written via manage.py log_test_case.\n"
+                f"UNBLOCK: file the test case first and pass the printed "
+                f"#N to --test-case-autoissue."
+            ) from exc
+        cat_key = getattr(tc.category, "key", None) if tc.category else None
+        if cat_key != "test_case":
+            raise CommandError(
+                f"FAIL defer_work: AutoIssue #{test_case_id} has category "
+                f"{cat_key!r}, not 'test_case'.\n"
+                f"WHY: only rows filed via manage.py log_test_case satisfy "
+                f"the test-case requirement. Cross-category references "
+                f"hide the wrong shape behind a real-looking ID.\n"
+                f"UNBLOCK: file a fresh test case via "
+                f"`manage.py log_test_case ...` and pass its #N."
+            )
+        missing_fields = validate_test_case_completeness(tc)
+        if missing_fields:
+            raise CommandError(
+                f"FAIL defer_work: AutoIssue #{test_case_id} is in the "
+                f"test_case category but is missing required BDD "
+                f"section(s): {', '.join(missing_fields)}.\n"
+                f"WHY: paper-trail entries require a FULL test case (all "
+                f"10 fields: {', '.join(REQUIRED_BDD_FIELDS)}). Casual "
+                f"test cases with only the BDD triple satisfy the Test "
+                f"Case First rule for code mapping but NOT this rule for "
+                f"paper-trail entries.\n"
+                f"UNBLOCK: re-file the test case with the missing field(s) "
+                f"populated:\n"
+                f"  manage.py log_test_case ... "
+                + " ".join(
+                    f"--{name.lower().replace(' ', '-')} \"...\""
+                    for name in missing_fields if name not in ("Given", "When", "Then")
+                )
+                + (" --given \"...\" --when \"...\" --then \"...\""
+                   if any(f in missing_fields for f in ("Given", "When", "Then")) else "")
+            )
+
         # C++ dedup check FIRST — if a near-duplicate exists, bump it.
         threshold = float(opts["similarity_threshold"])
         hits = dedup_service.find_similar(abstract, threshold=threshold)
@@ -192,6 +332,22 @@ class Command(BaseCommand):
             else "no overlap found"
         )
 
+        # Auto-bump evidence_level to 'cited' when citations are supplied
+        # AND the agent did not explicitly request a different level. This
+        # closes the "I have citations but evidence_level=low" loophole so
+        # the entry's grouping classifier matches its underlying evidence.
+        evidence_level = opts["evidence_level"]
+        if citations_raw and evidence_level == PaperTrailEntry.EVIDENCE_LOW:
+            evidence_level = PaperTrailEntry.EVIDENCE_CITED
+
+        if opts.get("dry_run"):
+            self.stdout.write(
+                f"[PAPER TRAIL DRY-RUN: would file category={opts['category']} "
+                f"title={opts['title'][:60]!r} test_case={test_case_id} "
+                f"citations={len(citations_raw)} evidence_level={evidence_level}]"
+            )
+            return
+
         # No dupe — create a new entry.
         try:
             entry = PaperTrailEntry.objects.create(
@@ -213,8 +369,10 @@ class Command(BaseCommand):
                 risk_on_inaction=risk,
                 resolution_criteria=opts["resolution_criteria"],
                 acceptance_criteria=acceptance,
-                evidence_level=opts["evidence_level"],
+                evidence_level=evidence_level,
                 integrity_check_result=integrity_check_result,
+                test_case_autoissue_id=test_case_id,
+                citations=citations_raw,
             )
         except ValidationError as exc:
             raise CommandError(str(exc)) from exc

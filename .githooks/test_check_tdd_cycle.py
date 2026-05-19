@@ -93,6 +93,18 @@ class TDDCycleHookTests(TestCase):
         with patch.object(hook.subprocess, "run", side_effect=_make_fake_subprocess(name_only, handoff)):
             self.assertEqual(hook.main(), 0)
 
+    def test_strict_cycle_marker_covers_legacy_rule_b(self) -> None:
+        name_only = "backend/apps/realtime/client.py\n"
+        handoff = (
+            "+[TDD CYCLE STRICT: file=backend/apps/realtime/client.py "
+            "red=tests_client.py:43 red_run_at=2026-05-19T12:00:00Z "
+            "red_result=FAIL green=client.py:1 "
+            "green_run_at=2026-05-19T12:01:00Z green_result=PASS "
+            "refactor=\"x\" lesson_autoissue=#123]\n"
+        )
+        with patch.object(hook.subprocess, "run", side_effect=_make_fake_subprocess(name_only, handoff)):
+            self.assertEqual(hook.main(), 0)
+
     def test_partial_coverage_fails_and_names_uncovered_file(self) -> None:
         name_only = (
             "backend/apps/realtime/client.py\n"
@@ -176,6 +188,77 @@ class TDDCycleHookTests(TestCase):
         )
         with patch.object(hook.subprocess, "run", side_effect=_make_fake_subprocess(name_only, handoff)):
             self.assertEqual(hook.main(), 0)
+
+
+class BatchGrandfatherTests(TestCase):
+    """[RULE INTRODUCTION BATCH GRANDFATHERED:] form (paper-trail #586)."""
+
+    _MARKER = (
+        "[RULE INTRODUCTION BATCH GRANDFATHERED: paper_trail=#586 "
+        'reason="rule-introduction commit grandfathers many hook stubs '
+        'of the same shape under the spec gate" '
+        "files=.githooks/check-*.py]"
+    )
+
+    def test_batch_covers_glob_with_spec_staged(self) -> None:
+        source_files = [
+            ".githooks/check-foo.py",
+            ".githooks/check-bar.py",
+        ]
+        staged_all = source_files + ["docs/TDD-STRICT-RULE.md"]
+        covered, exit_code = hook._batch_grandfather_covered(
+            self._MARKER, staged_all, source_files,
+        )
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(covered, set(source_files))
+
+    def test_batch_rejected_without_spec(self) -> None:
+        source_files = [".githooks/check-foo.py"]
+        staged_all = source_files  # no docs/*-RULE.md
+        covered, exit_code = hook._batch_grandfather_covered(
+            self._MARKER, staged_all, source_files,
+        )
+        self.assertEqual(exit_code, 2)
+        self.assertEqual(covered, set())
+
+    def test_batch_rejected_for_short_reason(self) -> None:
+        marker = (
+            "[RULE INTRODUCTION BATCH GRANDFATHERED: paper_trail=#586 "
+            'reason="too short" files=.githooks/check-*.py]'
+        )
+        source_files = [".githooks/check-foo.py"]
+        staged_all = source_files + ["docs/TDD-STRICT-RULE.md"]
+        covered, exit_code = hook._batch_grandfather_covered(
+            marker, staged_all, source_files,
+        )
+        self.assertEqual(exit_code, 2)
+
+    def test_no_batch_marker_returns_empty(self) -> None:
+        covered, exit_code = hook._batch_grandfather_covered(
+            "no marker here", [], [],
+        )
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(covered, set())
+
+    def test_recursive_glob_pattern(self) -> None:
+        marker = (
+            "[RULE INTRODUCTION BATCH GRANDFATHERED: paper_trail=#586 "
+            'reason="recursive glob across many sidecar packages of the '
+            'same shape" files=services/sidecars/internal/**/server.go]'
+        )
+        source_files = [
+            "services/sidecars/internal/snapshotd/server.go",
+            "services/sidecars/internal/coordd/server.go",
+            "services/sidecars/internal/other.go",  # NOT covered
+        ]
+        staged_all = source_files + ["docs/TDD-STRICT-RULE.md"]
+        covered, exit_code = hook._batch_grandfather_covered(
+            marker, staged_all, source_files,
+        )
+        self.assertEqual(exit_code, 0)
+        self.assertIn("services/sidecars/internal/snapshotd/server.go", covered)
+        self.assertIn("services/sidecars/internal/coordd/server.go", covered)
+        self.assertNotIn("services/sidecars/internal/other.go", covered)
 
 
 if __name__ == "__main__":

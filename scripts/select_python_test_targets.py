@@ -55,6 +55,7 @@ def _existing_candidates(root: Path, backend_relative: Path) -> list[Path]:
     candidates.extend(
         [
             parent / f"test_{stem}.py",
+            parent / f"tests_{stem}.py",
             parent / f"{stem}_test.py",
             parent / "tests.py",
         ]
@@ -64,13 +65,101 @@ def _existing_candidates(root: Path, backend_relative: Path) -> list[Path]:
         candidates.extend(
             [
                 app_root / f"test_{stem}.py",
+                app_root / f"tests_{stem}.py",
+                app_root / "tests" / f"test_{stem}.py",
+                app_root / "tests" / f"tests_{stem}.py",
+                app_root / "tests" / f"{stem}_test.py",
                 app_root / "tests.py",
-                app_root / "tests",
             ]
         )
-        candidates.extend(_nearby_test_files(root, app_root))
     candidates.extend(_nearby_test_files(root, parent))
+    candidates.extend(_import_based_test_files(root, backend_relative))
+    candidates.extend(_management_command_test_files(root, backend_relative))
+    candidates.extend(_same_app_named_test_files(root, backend_relative))
     return [path for path in candidates if (root / "backend" / path).exists()]
+
+
+def _same_app_test_files(root: Path, backend_relative: Path) -> list[Path]:
+    app_root = _app_root(backend_relative)
+    if app_root is None:
+        return []
+    search_root = root / "backend" / app_root
+    if not search_root.is_dir():
+        return []
+    return sorted(
+        path.relative_to(root / "backend")
+        for path in search_root.rglob("*.py")
+        if _is_test_path(path.relative_to(root / "backend"))
+    )
+
+
+def _import_based_test_files(root: Path, backend_relative: Path) -> list[Path]:
+    if backend_relative.suffix != ".py" or _is_test_path(backend_relative):
+        return []
+    module = ".".join(backend_relative.with_suffix("").parts)
+    module_from_apps = f"apps.{module.removeprefix('apps.')}"
+    needles = {module, module_from_apps}
+    if "services" in backend_relative.parts:
+        needles.add(backend_relative.stem)
+    app_root = _app_root(backend_relative)
+    if app_root is None:
+        return []
+    search_root = root / "backend" / app_root
+    if not search_root.is_dir():
+        return []
+    matches: list[Path] = []
+    for test_path in search_root.rglob("*.py"):
+        rel = test_path.relative_to(root / "backend")
+        if not _is_test_path(rel):
+            continue
+        try:
+            text = test_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        if any(needle in text for needle in needles):
+            matches.append(rel)
+    return sorted(matches)
+
+
+def _management_command_name(path: Path) -> str | None:
+    parts = path.parts
+    if len(parts) < 4:
+        return None
+    if parts[-3:-1] != ("management", "commands"):
+        return None
+    return path.stem
+
+
+def _management_command_test_files(root: Path, backend_relative: Path) -> list[Path]:
+    command_name = _management_command_name(backend_relative)
+    if command_name is None:
+        return []
+    quoted_names = {
+        f"call_command('{command_name}'",
+        f'call_command("{command_name}"',
+        f"call_command(\n            '{command_name}'",
+        f'call_command(\n            "{command_name}"',
+    }
+    matches: list[Path] = []
+    for rel in _same_app_test_files(root, backend_relative):
+        try:
+            text = (root / "backend" / rel).read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        if any(name in text for name in quoted_names):
+            matches.append(rel)
+    return sorted(matches)
+
+
+def _same_app_named_test_files(root: Path, backend_relative: Path) -> list[Path]:
+    if backend_relative.suffix != ".py" or _is_test_path(backend_relative):
+        return []
+    stem = backend_relative.stem
+    return [
+        rel
+        for rel in _same_app_test_files(root, backend_relative)
+        if stem in rel.stem
+    ]
 
 
 def select_targets(root: Path, changed_paths: list[str]) -> tuple[list[str], list[str]]:
@@ -82,13 +171,10 @@ def select_targets(root: Path, changed_paths: list[str]) -> tuple[list[str], lis
             continue
         elif backend_relative.parts and backend_relative.parts[0] == "config":
             candidates = [Path("config") / "tests.py", Path("config") / "tests"]
-        elif app_root := _app_root(backend_relative):
-            if _has_tests(root, app_root):
-                targets.append(app_root.as_posix())
-                continue
-            candidates = [backend_relative] if _is_test_path(backend_relative) else []
         elif _is_test_path(backend_relative):
             candidates = [backend_relative]
+        elif app_root := _app_root(backend_relative):
+            candidates = _existing_candidates(root, backend_relative)
         else:
             candidates = _existing_candidates(root, backend_relative)
         existing = [path for path in candidates if (root / "backend" / path).exists()]

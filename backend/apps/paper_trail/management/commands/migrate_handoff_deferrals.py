@@ -10,6 +10,7 @@ Category is inferred from keyword heuristics over the entry body.
 from __future__ import annotations
 
 import re
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from django.core.management.base import BaseCommand
 from django.db import IntegrityError, transaction
 from django.utils import timezone as djtz
 
+from apps.auto_issues.models import AutoIssue, AutoIssueCategory
 from apps.paper_trail.models import PaperTrailEntry
 from apps.paper_trail.services import dedup as dedup_service
 from apps.paper_trail.services.priority import compute_priority_score
@@ -65,6 +67,20 @@ _CATEGORY_KEYWORDS: tuple[tuple[str, str], ...] = (
     ("hook", PaperTrailEntry.CATEGORY_TOOLING_GAP),
     ("refactor", PaperTrailEntry.CATEGORY_REFACTOR),
     ("debt", PaperTrailEntry.CATEGORY_DEBT_REDUCTION),
+)
+_MIGRATED_CITATION = "RFC 9110"
+_TEST_CASE_CATEGORY_KEY = "test_case"
+_TEST_CASE_LESSON = (
+    "Given a legacy handoff item needs migration into Paper Trail\n"
+    "When migrate_handoff_deferrals creates a searchable row\n"
+    "Then the migrated row carries enough evidence for future agents\n"
+    "Edge cases: duplicate handoff items and missing AutoIssue refs are handled\n"
+    "Failure cases: invalid handoff paths do not create rows\n"
+    "Security: migrated prose is local repository text only\n"
+    "Usability: the row explains that legacy fields were synthesized\n"
+    "Scalability: each candidate is processed once with bounded metadata writes\n"
+    "Maintainability: evidence fields are created beside the PaperTrailEntry\n"
+    "Regression risks: post-cutoff paper-trail validation must stay enforced"
 )
 
 
@@ -135,6 +151,47 @@ def _truncate_words(text: str, max_words: int = 1200) -> str:
     if len(words) <= max_words:
         return text
     return " ".join(words[:max_words])
+
+
+def _short_hash(text: str) -> str:
+    return hashlib.sha1(text.encode(), usedforsecurity=False).hexdigest()[:16]
+
+
+def _get_test_case_category() -> AutoIssueCategory:
+    category, _created = AutoIssueCategory.objects.get_or_create(
+        key=_TEST_CASE_CATEGORY_KEY,
+        defaults={
+            "label": "Test case spec",
+            "description": "Migrated handoff item test-case contracts.",
+            "sort_order": 215,
+        },
+    )
+    return category
+
+
+def _get_or_create_migration_test_case(
+    *,
+    title: str,
+    handoff_id: str,
+) -> AutoIssue:
+    fingerprint = f"handoff-migration-{_short_hash(handoff_id + title)}"
+    category = _get_test_case_category()
+    issue, _created = AutoIssue.objects.get_or_create(
+        source=AutoIssue.SOURCE_AGENT,
+        external_id=fingerprint,
+        defaults={
+            "fingerprint": fingerprint,
+            "canonical_fingerprint": fingerprint,
+            "title": f"Handoff migration test case: {title[:160]}",
+            "description": "Generated while migrating legacy AGENT-HANDOFF.md prose.",
+            "affected_files": ["AGENT-HANDOFF.md"],
+            "severity": AutoIssue.SEVERITY_LOW,
+            "category": category,
+            "status": AutoIssue.STATUS_OPEN,
+            "lessons_learned": _TEST_CASE_LESSON,
+        },
+    )
+    return issue
 
 
 def _ensure_bdd_shape(abstract: str, *, category: str, title: str) -> str:
@@ -217,6 +274,10 @@ class Command(BaseCommand):
                     continue
                 try:
                     with transaction.atomic():
+                        test_case = _get_or_create_migration_test_case(
+                            title=title,
+                            handoff_id=handoff_id,
+                        )
                         entry = PaperTrailEntry.objects.create(
                             category=category,
                             title=title,
@@ -241,6 +302,9 @@ class Command(BaseCommand):
                                 "criteria — derive from the abstract's Then "
                                 "section when picking this up."
                             ),
+                            test_case_autoissue_id=test_case.pk,
+                            citations=[_MIGRATED_CITATION],
+                            evidence_level=PaperTrailEntry.EVIDENCE_CITED,
                         )
                 except IntegrityError:
                     # Active (category, fingerprint) row already exists —

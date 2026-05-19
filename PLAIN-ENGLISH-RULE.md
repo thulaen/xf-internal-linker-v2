@@ -113,6 +113,8 @@ When you must mention a technical concept, use the plain-English version from th
 | the background task runner | celery worker |
 | the framework that builds the visual interface | Angular |
 | the framework that handles data storage and business logic | Django |
+| the Django setting that lists the app's database connections | DATABASES |
+| the Django setting value that selects which database type Django should use | ENGINE |
 | a packaging system that makes the app run the same everywhere | Docker |
 | profile data that shows where code spends time or memory while the app runs | OpenTelemetry Profiles |
 | the local service that stores and searches profile data | Pyroscope |
@@ -136,6 +138,9 @@ When you must mention a technical concept, use the plain-English version from th
 | a service that stores short messages and hands them to other app parts in order | message broker |
 | a short repeat-detection code made from an event's source, type, and payload | dedupe key |
 | the repo rule file that explains how Docker builds and stores compiled-language outputs | COMPILED-LANGUAGE-RULES |
+| a set of common Linux command-line tools used by many scripts | GNU |
+| a setting or path that is meant to run only on a remote service, not on the local computer | REMOTE-ONLY |
+| a short example name for an environment variable in tests and scripts | VAR |
 | storing compiled files by their exact file fingerprint so identical outputs use one saved copy instead of piling up | content-addressed compiled artifact store |
 | a 64-character file fingerprint used to prove two files have exactly the same bytes | SHA-256 hash |
 | the active compiled files the app imports or runs after they have passed a verification check | active compiled artifacts |
@@ -177,7 +182,13 @@ When you must mention a technical concept, use the plain-English version from th
 | running an AI agent without a chat window — give it one prompt, take its answer | headless mode |
 | a single number that combines several scoring factors into one final ranking number | composite score |
 | a Go test tool that makes small deliberate code changes and checks that the tests catch them | go-mutesting |
+| a Python test tool that makes small deliberate code changes and checks whether the tests catch them | mutmut / MUTMUT |
+| test changes that were not caught by the test suite | mutation survivors / MUTATION SURVIVORS |
+| the textbook Mining of Massive Datasets, used as a source for scoring and data-processing ideas | MMDS |
 | a tag we put on a link suggestion to mark it as picked but not yet applied | proposed |
+| a small support command used by another tool | helper / HELPER |
+| a tracked problem or follow-up item in the app's work queue | issue / ISSUE / ISSUES |
+| saved in the database or audit log | recorded / RECORDED |
 | Windows' built-in tool that runs a script at a specific time and date | Windows Task Scheduler |
 | a way an AI agent talks to a tool by exchanging text on standard input/output | stdio |
 | the shell setting that tells a script where to split text while reading it | IFS / Internal Field Separator |

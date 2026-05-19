@@ -296,6 +296,23 @@ class PaperTrailEntry(models.Model):
         ),
     )
 
+    # ── Paper Trail Evidence Rule (2026-05-17) ────────────────────
+    # PK of the AutoIssue(category='test_case') row whose lessons_learned
+    # carries the full 10-field BDD contract (Given/When/Then + 7 extended
+    # fields). Required on entries deferred_at >= 2026-05-17. Pre-cutoff
+    # entries grandfathered via _state.adding + deferred_at comparison.
+    test_case_autoissue_id = models.IntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "PK of the AutoIssue(category='test_case') row whose "
+            "lessons_learned carries the full 10-field BDD contract "
+            "for this entry. Required on entries deferred_at >= "
+            "2026-05-17 per docs/PAPER-TRAIL-EVIDENCE-RULE.md."
+        ),
+    )
+
     class Meta:
         constraints = [
             # Active statuses (open, picked, in_progress, blocked, deferred)
@@ -320,11 +337,13 @@ class PaperTrailEntry(models.Model):
 
     # ── Public API ────────────────────────────────────────────────
     def __str__(self) -> str:
-        return f"PaperTrail #{self.pk} [{self.category}/{self.severity}] {self.title[:60]}"
+        title = str(self.title or "")
+        return f"PaperTrail #{self.pk} [{self.category}/{self.severity}] {title[:60]}"
 
     def compute_fingerprints(self) -> tuple[str, str]:
         """Compute (fingerprint, canonical_fingerprint) without saving."""
-        canonical_source = _normalise(self.title)
+        title = str(self.title or "")
+        canonical_source = _normalise(title)
         canonical = _short_sha1(canonical_source)
         link_key = "" if self.linked_autoissue_id is None else str(self.linked_autoissue_id)
         exact_source = f"{self.category}|{canonical_source}|{link_key}"
@@ -368,8 +387,27 @@ class PaperTrailEntry(models.Model):
                     "what breaks if this is ignored and what 'done' looks "
                     "like."
                 )
+        # Paper Trail Evidence Rule (2026-05-17). Applies to all NEW rows
+        # filed on or after the cutoff. The model layer enforces presence;
+        # the detailed regex + test-case-completeness check lives in
+        # manage.py defer_work + manage.py verify_paper_trail_evidence so
+        # the error message can point at the specific failing input.
+        if self._state.adding:
+            evidence_problems: list[str] = []
+            if self.test_case_autoissue_id is None:
+                evidence_problems.append("test_case_autoissue_id (link to AutoIssue(category='test_case'))")
+            if not (self.citations or []):
+                evidence_problems.append("citations (>= 1 patent / DOI / arXiv / standard / RFC / ISBN / official URL)")
+            if evidence_problems:
+                raise ValidationError(
+                    "NEW paper-trail entries from 2026-05-17 onward MUST carry: "
+                    + ", ".join(evidence_problems)
+                    + ". Use manage.py defer_work with --test-case-autoissue <N> "
+                    "and --citation <id> (repeatable) per "
+                    "docs/PAPER-TRAIL-EVIDENCE-RULE.md."
+                )
         if self.status == self.STATUS_RESOLVED:
-            lessons = self.resolution_lessons or ""
+            lessons = str(self.resolution_lessons or "")
             if "Trap:" not in lessons or "Fix shape:" not in lessons:
                 raise ValidationError(
                     "resolution_lessons must include both 'Trap:' and "

@@ -9,21 +9,19 @@ from django.test import TestCase
 
 from apps.paper_trail.models import PaperTrailEntry
 from apps.paper_trail.services import picker
+from apps.paper_trail.tests_helpers import valid_paper_trail_defaults
 
 
 def _make(**overrides) -> PaperTrailEntry:
-    defaults = {
-        "category": PaperTrailEntry.CATEGORY_OTHER,
-        "title": "to be printed",
-        "abstract": (
+    defaults = valid_paper_trail_defaults(
+        category=PaperTrailEntry.CATEGORY_OTHER,
+        title="to be printed",
+        abstract=(
             "Given the print_open_paper_trail tests need a row, "
             "When _make() constructs one, "
             "Then it passes BDD validation."
         ),
-        "deferred_by": "test",
-        "risk_on_inaction": "Test only.",
-        "acceptance_criteria": "Test passes.",
-    }
+    )
     defaults.update(overrides)
     return PaperTrailEntry.objects.create(**defaults)
 
