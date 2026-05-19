@@ -55,6 +55,30 @@ class DjangoDeployHookScopeTests(unittest.TestCase):
 
         run.assert_called_once()
 
+    def test_deploy_check_uses_production_security_scope(self) -> None:
+        hook = _load_hook()
+        completed = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout="System check identified no issues",
+            stderr="",
+        )
+
+        with (
+            patch.object(
+                hook,
+                "_staged_relevant",
+                return_value=["backend/config/settings/base.py"],
+            ),
+            patch.object(hook.subprocess, "run", return_value=completed) as run,
+        ):
+            self.assertEqual(hook.main(), 0)
+
+        cmd = run.call_args.args[0]
+        self.assertIn("DJANGO_SETTINGS_MODULE=config.settings.production", cmd)
+        self.assertIn("--tag", cmd)
+        self.assertIn("security", cmd)
+
 
 if __name__ == "__main__":
     unittest.main()

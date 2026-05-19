@@ -7,6 +7,7 @@ All shared settings live here. Environment-specific settings
 Never import from this file directly — always use development.py or production.py.
 """
 
+import logging
 from pathlib import Path
 
 import environ
@@ -17,6 +18,51 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 # Read environment variables from .env file
 env = environ.Env()
 environ.Env.read_env(BASE_DIR.parent / ".env")
+
+
+class _GracefulTelemetryExporter:
+    """Convert telemetry send failures into normal failed-export results."""
+
+    def __init__(self, exporter, *, failure_result):
+        self._exporter = exporter
+        self._failure_result = failure_result
+        self._logger = logging.getLogger("config.telemetry")
+
+    def export(self, payload, *args, **kwargs):
+        try:
+            return self._exporter.export(payload, *args, **kwargs)
+        except Exception as exc:  # noqa: BLE001 - telemetry must not break app work.
+            self._logger.debug("Telemetry export skipped after exporter failure: %s", exc)
+            return self._failure_result
+
+    def force_flush(self, *args, timeout_millis=30_000, **kwargs):
+        try:
+            return self._exporter.force_flush(
+                *args,
+                timeout_millis=timeout_millis,
+                **kwargs,
+            )
+        except Exception as exc:  # noqa: BLE001 - shutdown flush must stay graceful.
+            self._logger.debug("Telemetry flush skipped after exporter failure: %s", exc)
+            return False
+
+    def shutdown(self, *args, **kwargs):
+        try:
+            return self._exporter.shutdown(*args, **kwargs)
+        except Exception as exc:  # noqa: BLE001 - shutdown must never mask command exit.
+            self._logger.debug("Telemetry shutdown skipped after exporter failure: %s", exc)
+            return None
+
+    def __getattr__(self, name):
+        return getattr(self._exporter, name)
+
+
+def _env_float(name: str, *, default: float, minimum: float) -> float:
+    try:
+        value = float(env(name, default=str(default)))
+    except (TypeError, ValueError):
+        return default
+    return max(minimum, value)
 
 
 # ── Django Core ──────────────────────────────────────────────────
@@ -673,13 +719,23 @@ if (
 # Sample rate matches the Sentry tracing config — 0.3 in dev — set via
 # OTEL_TRACES_SAMPLER + OTEL_TRACES_SAMPLER_ARG in compose.
 _OTEL_ENDPOINT = env("OTEL_EXPORTER_OTLP_ENDPOINT", default="")
+_OTEL_EXPORT_TIMEOUT_SECONDS = _env_float(
+    "OTEL_EXPORTER_OTLP_TIMEOUT",
+    default=2.0,
+    minimum=0.1,
+)
 # Skip OTel auto-instrumentation during `manage.py test` runs — the
 # psycopg span recorder adds ~5 ms per query, which combined with the
 # test DB's `statement_timeout` makes some long-running tests trip the
 # limit. Tests already mock external behaviour and don't need traces.
 import sys as _sys
 
-_IS_TEST_RUN = "test" in _sys.argv or env("DJANGO_TEST_RUN", default="0") == "1"
+_TEST_RUN_ARGS = {"test", "pytest"}
+_IS_TEST_RUN = (
+    any(Path(arg).name in _TEST_RUN_ARGS for arg in _sys.argv)
+    or "pytest" in _sys.modules
+    or env("DJANGO_TEST_RUN", default="0") == "1"
+)
 if (
     _OTEL_ENDPOINT
     and not _IS_TEST_RUN
@@ -699,7 +755,7 @@ if (
         from opentelemetry.instrumentation.requests import RequestsInstrumentor
         from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
-        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExportResult
 
         _otel_resource = Resource.create(
             {
@@ -715,7 +771,13 @@ if (
         _otel_provider = TracerProvider(resource=_otel_resource)
         _otel_provider.add_span_processor(
             BatchSpanProcessor(
-                OTLPSpanExporter(endpoint=f"{_OTEL_ENDPOINT}/v1/traces")
+                _GracefulTelemetryExporter(
+                    OTLPSpanExporter(
+                        endpoint=f"{_OTEL_ENDPOINT}/v1/traces",
+                        timeout=_OTEL_EXPORT_TIMEOUT_SECONDS,
+                    ),
+                    failure_result=SpanExportResult.FAILURE,
+                )
             )
         )
         _otel_trace.set_tracer_provider(_otel_provider)
@@ -742,13 +804,18 @@ if (
             )
             from opentelemetry.sdk.metrics import MeterProvider
             from opentelemetry.sdk.metrics.export import (
+                MetricExportResult,
                 PeriodicExportingMetricReader,
             )
             from opentelemetry import metrics as _otel_metrics
 
             _metric_reader = PeriodicExportingMetricReader(
-                OTLPMetricExporter(
-                    endpoint=f"{_OTEL_ENDPOINT}/v1/metrics"
+                _GracefulTelemetryExporter(
+                    OTLPMetricExporter(
+                        endpoint=f"{_OTEL_ENDPOINT}/v1/metrics",
+                        timeout=_OTEL_EXPORT_TIMEOUT_SECONDS,
+                    ),
+                    failure_result=MetricExportResult.FAILURE,
                 ),
                 export_interval_millis=30_000,
             )

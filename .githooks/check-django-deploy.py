@@ -49,8 +49,15 @@ def main() -> int:
     if not relevant:
         return 0
     cmd = [
-        "docker", "compose", "exec", "-T", "backend",
+        "docker", "compose", "exec", "-T",
+        "-e", "DJANGO_SETTINGS_MODULE=config.settings.production",
+        "-e", "DJANGO_SECRET_KEY=deploy-check-secret-key-with-more-than-fifty-unique-characters-2026",
+        "-e", "DJANGO_SECURE_SSL_REDIRECT=1",
+        "-e", "DJANGO_SESSION_COOKIE_SECURE=1",
+        "-e", "DJANGO_CSRF_COOKIE_SECURE=1",
+        "backend",
         "python", "manage.py", "check", "--deploy",
+        "--tag", "security",
         "--fail-level", "WARNING",
     ]
     try:
