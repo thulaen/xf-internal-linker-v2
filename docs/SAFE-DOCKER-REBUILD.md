@@ -49,9 +49,17 @@ You won't if you use the script. But if you're reading this because you already 
    ```
    Your old admin row comes back with the password it had at snapshot time.
 
+## Why pgdata now has a fixed external name
+
+`docker-compose.yml` maps the app's `pgdata` volume to the fixed external Docker volume `xf-internal-linker-v2_pgdata`. This means a project folder rename or a Compose project-name change no longer creates a second empty database volume.
+
+It also means `docker compose down -v` no longer removes the main database volume through Compose. Docker Desktop factory resets and direct Docker volume deletion can still remove the volume, but startup now stops when backups exist and the protected volume is missing. That prevents the app from silently booting into a blank database.
+
+Fresh checkouts with no backups are still allowed: `scripts/start.ps1` creates the fixed protected volume once, then starts the stack.
+
 ## Why we never use `down -v`
 
-The `-v` flag tells Docker to delete every named volume the compose file declares. For us that's `pgdata`, `redis-data`, `media_files`, `frontend_dist`, and `staticfiles`. Wiping `pgdata` is what creates the "I can't log in" symptom — the user table comes back empty and the frontend's first-operator wizard fires (or fails silently and shows "Invalid username or password"). Wiping `redis-data` clears Celery results and the rate-limit counters. Wiping `media_files` deletes uploaded assets. **There is no scenario where we need `-v`.** If you genuinely need to start over, delete the volumes by name with explicit confirmation, never with `down -v`.
+The `-v` flag tells Docker to delete every named volume Compose owns. The main `pgdata` database volume is now external, so Compose should not delete it, but the flag can still remove other app volumes such as `redis-data`, `media_files`, `frontend_dist`, and `staticfiles`. Wiping Redis clears Celery results and the rate-limit counters. Wiping media deletes uploaded assets. **There is no scenario where we need `-v`.** If you genuinely need to start over, delete the volumes by name with explicit confirmation, never with `down -v`.
 
 ## Same credentials, two surfaces
 

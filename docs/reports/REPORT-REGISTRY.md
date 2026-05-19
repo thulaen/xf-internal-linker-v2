@@ -20,6 +20,99 @@ This file is the single index of all audit reports and individual issues found b
 
 ## Open Reports
 
+### RPT-012 - Resolved-issue search tests collided with restored database lessons (2026-05-19)
+
+- **Found by:** auto_issues_append_registry, from AutoIssue #358 (source `agent`).
+- **AutoIssue:** #358.
+- **Status:** OPEN.
+- **Severity:** LOW.
+- **Area:** `backend/apps/auto_issues/tests_search_resolved_issues.py`.
+- **canonical_fingerprint:** `da8565b8659d441c`.
+- **What is wrong in plain English:** Self-review category: tooling
+
+The focused Python quality group failed because tests_search_resolved_issues.py expected exactly one match for backend/apps/audit and backend/apps/pipeline, but the restored database already contains real resolved lessons under those paths. The tests now use unique test-only path prefixes so they prove batching without colliding with inherited data.
+- **Why it matters:** the AutoIssue picker that surfaced this is part of the test-hardening or coverage program — leaving it open means a real failure signal goes uninvestigated.
+- **Fix shape:** see AutoIssue #358 for the full picker description; the next agent picks this up during the standard 18-pick or 10-coverage-gap drain.
+
+---
+
+### RPT-011 - Quality wrappers ran broad unrelated tests for changed-file commits (2026-05-19)
+
+- **Found by:** auto_issues_append_registry, from AutoIssue #348 (source `agent`).
+- **AutoIssue:** #348.
+- **Status:** OPEN.
+- **Severity:** LOW.
+- **Area:** `scripts/run-angular-quality.sh`, `scripts/run-cpp-tests.sh`, `scripts/run-cpp-coverage.sh`, `scripts/run-cpp-sanitizers.sh`.
+- **canonical_fingerprint:** `48595e4c2deab1be`.
+- **What is wrong in plain English:** Self-review category: tooling
+
+Frontend quality ran full lint and full Karma tests for any frontend app file, and C++ test, coverage, and sanitizer wrappers ran every CTest binary. Changed-mode now passes focused Angular spec includes and uses the existing C++ changed-binary mapper for test, coverage, and sanitizer runs.
+- **Why it matters:** the AutoIssue picker that surfaced this is part of the test-hardening or coverage program — leaving it open means a real failure signal goes uninvestigated.
+- **Fix shape:** see AutoIssue #348 for the full picker description; the next agent picks this up during the standard 18-pick or 10-coverage-gap drain.
+
+---
+
+### RPT-010 - Python quality selector uses whole app target for focused Commit A files (2026-05-19)
+
+- **Found by:** auto_issues_append_registry, from AutoIssue #343 (source `agent`).
+- **AutoIssue:** #343.
+- **Status:** OPEN.
+- **Severity:** LOW.
+- **Area:** `scripts/select_python_test_targets.py`.
+- **canonical_fingerprint:** `33411a9a7c049fff`.
+- **What is wrong in plain English:** Self-review category: tooling
+
+The Python quality target selector returned apps/auto_issues for focused management-command and helper changes. That pulled unrelated Loki and session-close tests into the Commit A hook run, causing moving full-chain-only failures. The selector now prefers exact nearby tests and only uses a whole-app fallback when an app has no focused target at all.
+- **Why it matters:** the AutoIssue picker that surfaced this is part of the test-hardening or coverage program — leaving it open means a real failure signal goes uninvestigated.
+- **Fix shape:** see AutoIssue #343 for the full picker description; the next agent picks this up during the standard 18-pick or 10-coverage-gap drain.
+
+---
+
+### RPT-009 - Commit chain Loki picker target fails in full hook run but passes alone (2026-05-19)
+
+- **Found by:** auto_issues_append_registry, from AutoIssue #342 (source `agent`).
+- **AutoIssue:** #342.
+- **Status:** OPEN.
+- **Severity:** LOW.
+- **Area:** `apps/auto_issues/tests_loki_picker.py`.
+- **canonical_fingerprint:** `27787c19ac44ebac`.
+- **What is wrong in plain English:** Self-review category: tooling
+
+The normal Commit A hook chain reported an error in apps/auto_issues/tests_loki_picker.py::LokiHotPatternIntegrationTests::test_ignores_non_stack_containers, while the exact pytest target passed when rerun alone. This points to shared test state, test database residue, or order coupling during the Docker-managed quality run.
+- **Why it matters:** the AutoIssue picker that surfaced this is part of the test-hardening or coverage program — leaving it open means a real failure signal goes uninvestigated.
+- **Fix shape:** see AutoIssue #342 for the full picker description; the next agent picks this up during the standard 18-pick or 10-coverage-gap drain.
+
+---
+
+### RPT-008 - Commit chain session_close target fails in full hook run but passes alone (2026-05-19)
+
+- **Found by:** auto_issues_append_registry, from AutoIssue #341 (source `agent`).
+- **AutoIssue:** #341.
+- **Status:** OPEN.
+- **Severity:** LOW.
+- **Area:** `apps/auto_issues/tests/test_session_close.py`.
+- **canonical_fingerprint:** `ba973a8dd679c8c9`.
+- **What is wrong in plain English:** Self-review category: tooling
+
+The normal Commit A hook chain reported an error in apps/auto_issues/tests/test_session_close.py::SessionCloseMarkerTests::test_marker_is_emitted, while the exact pytest target passed when rerun alone. This points to shared test state, stale database state, or test-order coupling in the quality chain. Future agents should clear test database state and rerun the …
+- **Why it matters:** the AutoIssue picker that surfaced this is part of the test-hardening or coverage program — leaving it open means a real failure signal goes uninvestigated.
+- **Fix shape:** see AutoIssue #341 for the full picker description; the next agent picks this up during the standard 18-pick or 10-coverage-gap drain.
+
+---
+
+### ISS-130 - TDD lesson logger dedupes different repo paths (2026-05-18)
+
+- **Found by:** Codex while logging lessons for the restored-backup schema repair command.
+- **AutoIssue:** #260.
+- **Status:** OPEN.
+- **Severity:** MEDIUM.
+- **Area:** `backend/apps/auto_issues/management/commands/log_tdd_lesson.py`, `backend/apps/auto_issues/services/fingerprinting.py`.
+- **What is wrong in plain English:** two different test-driven-development lesson logs for two different files collapsed into the same AutoIssue row because the shared fingerprint helper turns slash-separated repo paths into the same placeholder.
+- **Why it matters:** the next agent can lose one of the lessons that explains why a file changed, and commit hooks may see weaker proof than the session actually produced.
+- **Fix shape:** give the TDD lesson logger a path-safe fingerprint input or a dedicated exact-hash path so file and test names stay distinct while normal cross-source error dedupe keeps its current behavior.
+
+---
+
 ### ISS-129 - Management commands dispatch missed scheduled runs during schema work (2026-05-15)
 
 - **Found by:** Codex during the AutoIssue category migration and self-review logging work.

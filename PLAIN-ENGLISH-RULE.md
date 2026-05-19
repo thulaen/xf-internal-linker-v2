@@ -121,9 +121,14 @@ When you must mention a technical concept, use the plain-English version from th
 | a short written plan with sources that proves why a speed or profiling change is designed that way | performance spec |
 | a software design document that states how a code change should be built and checked | SDD / software design document |
 | a product requirements document that states what a user-facing change must do | PRD / product requirements document |
+| approved lesson labels that let agents find the same trap across different folders | concept tags / controlled vocabulary |
 | a commit proof marker that lists the current source-backed specs checked before code was written | SPEC PROOF marker |
+| a commit proof marker that names the code area, the spec read, whether the spec covered the change, and which sources filled any missing requirement | SPEC RESEARCH GATE marker / specification and research gate |
 | a spec marker that records when a spec was reviewed and when it must be reviewed again | SPEC FRESHNESS marker |
 | a commit proof marker that says the agent compared the code to the written spec before commit | SPEC CODE REVIEW marker |
+| the cleanup step a shell script runs when it finishes normally | EXIT shell signal |
+| the interruption signal sent when a person stops a shell script | INT shell signal |
+| the stop signal Docker sends when it asks a shell script or container to shut down | TERM shell signal |
 | a Dockerfile line that sets a value the container can read while it runs | ENV |
 | a Dockerfile line that sets the folder future commands run from | WORKDIR |
 | a Dockerfile line that sets the default command for the container | CMD |
@@ -153,6 +158,14 @@ When you must mention a technical concept, use the plain-English version from th
 | a test that boots the full app | integration test |
 | a behavior plan written as `Given`, `When`, and `Then` so the user sees the expected outcome first | BDD / behavior-driven description |
 | writing or updating a small test before or alongside the code, then rerunning it until it passes | TDD / test-driven development |
+| Kent Beck's book identifier for the test-first programming source used by the rule docs | ISBN-978-0321146533 |
+| the international test-documentation standard cited by the rule docs | ISO-IEC-IEEE-29119-3-2021 |
+| the official web protocol standard cited by the evidence rule docs | RFC-9110 |
+| the commit marker that records whether the agent found problems before continuing | DECISION |
+| the second word in the decision-point marker name | POINT |
+| the commit marker that records the end of a work session | SESSION |
+| the second word in the session-close marker name | CLOSE |
+| a follow-up marker word meaning the later agent or later step must continue the work | NEXT |
 | the standard way modern AI agents call external tools | MCP / Model Context Protocol |
 | Anthropic's local AI coding agent that runs in your terminal | Claude Code |
 | OpenAI's local AI coding agent that runs in your terminal | Codex / Codex CLI |
@@ -372,6 +385,7 @@ When you must mention a technical concept, use the plain-English version from th
 | the required opening marker that says the agent knows its own code must pass the coding rules, required tests, coverage target, mutation tests, and local check setup before commit | QUALITY GATE READ marker |
 | the required handoff marker for code-changing sessions; it records that guidelines, tests, coverage, mutation tests, and check setup all passed before commit | QUALITY GATE RESULT marker |
 | the quality-result field that says the required local tools, commands, containers, and test setup all ran correctly | check_setup |
+| the setup checks that run before a task or commit begins, such as reading lessons, arming the test pipeline, and checking for known failures | PREFLIGHT |
 
 | one deployable backend split internally into named modules with explicit public interfaces; the runtime stays as one process / one database / one deploy, but the Python code inside is grouped by job so each group has a clear public surface and a clear import rule. See `docs/MODULAR-MONOLITH.md` | modular monolith |
 | a named folder under `backend/apps/<module>/` whose insides are private; other modules reach into it only through the single `api.py` file at the module root. Renamed concept — not the same as a Python module / `import` target | module |
@@ -397,6 +411,9 @@ When you must mention a technical concept, use the plain-English version from th
 | Go's built-in profiler — exposed as a small HTTP server on a localhost-only port (default 127.0.0.1:6060) so the OpenTelemetry profile collector can scrape it | pprof |
 | the Go standard-library function that binds SIGTERM / SIGINT to a context cancellation, so a service shuts down gracefully when Docker stops the container | signal.NotifyContext |
 | a protobuf linter and breaking-change detector — checks `api.proto` files for style problems and stops a developer from accidentally breaking the published contract | buf |
+| an agent-readable implementation contract written before code is edited; lists what the code must do, expected behaviour, edge cases, failure modes, security, usability, and regression risks; the next agent reads it as a working spec; different from an "automated test" which is the runnable proof the contract is satisfied | test case |
+| a row in the deferred-work table that records something the team chose not to do this session; from 17 May 2026 onward every new entry must link to a full test case (all 10 BDD fields) AND carry at least one citation (patent / DOI / arXiv / standard / RFC / ISBN / official-vendor URL); the database rejects entries that miss either piece | paper trail entry |
+| a stable identifier that points at a piece of original evidence — a patent number, a paper DOI like `10.1145/361598.361623`, an arXiv ID like `arXiv:2106.12345`, an ISO / IEEE / IETF standard number, an RFC number, an ISBN for a book, or a URL on the official-vendor allowlist; required on every new paper-trail entry so the next agent can resolve the source without guessing | citation |
 
 If a term you need is not in this table, define it yourself in parentheses the first time you use it.
 

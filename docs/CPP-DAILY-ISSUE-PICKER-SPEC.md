@@ -2,7 +2,8 @@
 
 **Status:** SPEC ONLY — no code yet. Implementation depends on user approval.
 **Owner:** future agent session
-**Last updated:** 2026-05-09
+**Last updated:** 2026-05-18
+[SPEC FRESHNESS: reviewed_at=2026-05-18 next_review=2026-06-18]
 
 ---
 
@@ -171,6 +172,21 @@ The user's explicit concern was registry bloat. Three guarantees in this spec:
 2. **Auto-close after 30 days idle.** A separate Celery beat task `auto_issues.close_stale` runs daily and closes (`status='deferred'`, with `resolved_by='auto-stale'`) any `open` issue whose `last_seen` is more than 30 days ago AND whose `priority_score` is below 0.3. If it's still firing it'll get re-picked. Stops zombie rows piling up.
 3. **No duplicate inserts.** Unique constraint on `(source, external_id)` is already in the model. The picker's INSERT is `ON CONFLICT DO UPDATE` semantics — it bumps `occurrence_count`, refreshes `last_seen`, recomputes `priority_score`, never creates a duplicate.
 
+## Path-title separator for TDD lessons (AutoIssue #260)
+
+The general `canonical_fingerprint(title, culprit=None)` helper is intentionally lossy for cross-source error grouping: it replaces variable path-like text with `<path>` so the same crash from GlitchTip, Pyroscope, and internal error logs can land on one AutoIssue row.
+
+TDD lesson rows need a stricter rule. A TDD lesson's identity is the exact production source path plus the exact test title. For that path-title use case:
+
+1. Normalize backslashes to forward slashes so Windows-style and POSIX-style paths describe the same logical file.
+2. Preserve the forward slash directory boundaries. Do not replace the path with `<path>` and do not strip slashes out of the hash input.
+3. Strip leading and trailing slashes only, trim and lowercase the title, then hash `normalized_path::normalized_title`.
+4. Keep the `::` separator so a long path cannot accidentally collide with a short path plus a long title.
+
+This contract is checked by `backend/apps/auto_issues/tests/test_canonical_fingerprint_path_distinct.py`.
+
+[SPEC CITED: Beck 2002 `ISBN 978-0321146533` — test-first regression coverage for a previously observed defect.]
+
 ## File layout
 
 ```
@@ -226,6 +242,7 @@ These need user input before code is written:
 
 - Akaike 1974 — IEEE Trans. Automatic Control. DOI `10.1109/TAC.1974.1100705`. Information criterion penalty for model complexity.
 - Bloom 1970 — Communications of the ACM 13(7):422-426. DOI `10.1145/362686.362692`. Bloom filter foundational paper.
+- Beck 2002 — *Test Driven Development: By Example*. ISBN `978-0321146533`. Regression-test discipline for AutoIssue #260.
 - Carnegie Mellon SEI 2003 — Tech Report CMU/SEI-2003-TR-002. Triage matrix.
 - Hoare 1961 — Communications of the ACM 4(7):321-322. DOI `10.1145/366622.366647`. Quickselect for top-K.
 - Howard & LeBlanc 2003 — *Writing Secure Code* 2nd ed., Microsoft Press, ISBN 0-7356-1722-8. STRIDE prioritisation.

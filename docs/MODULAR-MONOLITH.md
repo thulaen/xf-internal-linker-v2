@@ -88,6 +88,21 @@ Streamd is the template every future Go service follows:
 - **Speed benchmark** at `services/streamd/test/bench_publish_subscribe_test.go` proving p99 round-trip latency < 1 ms and throughput > 50,000 messages per second. A miss after 5 tuning iterations files a `performance-native-rewrite` AutoIssue plus a `[PERFORMANCE EXEMPTION: ...]` marker — honest failure is preferred to silent slow numbers.
 - **Python callers** route through the private client at `backend/apps/realtime/_streamd_client.py`. Public surface is the owning Django module's `api.py`. No caller imports the gRPC stubs directly.
 
+### Sidecars reference shape (slice 1.6)
+
+The sidecars binary is the second member of the services tier and the template every future **multi-service** Go binary follows. Where streamd hosts one service per binary, sidecars hosts 40 Apache-pattern internal services under one runtime — they share the 512 MB RAM / 1 GB storage / 7-day retention budget and one Unix-domain socket.
+
+- **Single binary entry point** at `services/sidecars/cmd/sidecars/main.go` registers all 40 internal services against one gRPC server. No second `cmd/<other>/main.go` (besides the healthcheck binary). Per-internal-service code lives under `services/sidecars/internal/<name>/`.
+- **One contract per internal service** at `services/sidecars/api/<name>.proto`. The shared types (Empty, Ack, HealthReply) live in `services/sidecars/api/shared.proto`. Generated stubs are committed under `services/sidecars/api/gen/`.
+- **One Unix-domain socket** at `/var/run/xf-sidecars/sidecars.sock` (named volume `sidecars_sock`). Different gRPC service names route to different internal handlers off the same listener.
+- **Shared infrastructure** under `services/sidecars/internal/shared/`: `budget` (debug.SetMemoryLimit + OnPressure), `pruner` (60 s storage sweep), `pool` (sync.Pool buffers), `idle` (per-service idle detector + priority release), `store` (scoped bbolt.DB factory), `socket`, `otel`, `manifest`.
+- **Single source of truth** at `services/sidecars/services.manifest.yaml` declaring 1..40 internal services with their RPCs, owning Django module, priority, and nominal RAM/storage shares.
+- **Resource budget** declared in `services/sidecars/budget.yaml` and enforced both at boot (main.go) and at commit (`.githooks/check-go-service-resource-budget.py`).
+- **Hard constraints**: 512 MB RAM, 1 GB storage, 7-day retention, no Postgres ownership, one socket, scratch image ≤ 35 MB. Full list and rationale in [`docs/specs/fr-sidecars-host.md`](specs/fr-sidecars-host.md).
+- **Python callers** route through one private client per internal service under `backend/apps/<owning>/_sidecars/<name>_client.py`. The shared `backend/apps/_sidecars/client_base.py` provides the `sidecars_channel(service_name)` context manager. Public surface stays the owning Django module's `api.py`.
+
+The 9-item Rule K hook recognises multi-service folders via a `services.manifest.yaml` + `api/*.proto` pair; Items 2 and 5 are then validated against the manifest + per-proto stubs instead of a single top-level api.proto.
+
 ## Public interface convention
 
 Every module declares its public surface in **one file**: `api.py`, at the module root.

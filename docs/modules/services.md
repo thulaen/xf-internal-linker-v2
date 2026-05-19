@@ -2,7 +2,7 @@
 
 **Tier:** Services tier — peer to the nine Django modules.
 **Status:** Stub — full detail lands alongside each Go service's slice.
-**Maps to today:** `services/streamd/` (stream-engine broker).
+**Maps to today:** `services/streamd/` (stream-engine broker, slice 1.5) + `services/sidecars/` (40 Apache-pattern services in one binary, slice 1.6).
 **Decision of record:** [`docs/adr/0006-go-services-tier.md`](../adr/0006-go-services-tier.md).
 
 ## Plain-English summary
@@ -13,9 +13,20 @@ A Go service is a peer module to the nine Django modules but lives under `servic
 
 ## Current members
 
-- `services/streamd` — stream-engine broker. The existing Go service captured by [ADR 0006](../adr/0006-go-services-tier.md).
+- `services/streamd` — stream-engine broker. The existing Go service captured by [ADR 0006](../adr/0006-go-services-tier.md). One service per binary; high-throughput streaming workload justifies process isolation.
+- `services/sidecars` — 40 Apache-pattern internal services co-hosted in one Go binary. Coordination, evidence, routing, and metadata workers that individually do not justify their own process; the shared 512 MB RAM / 1 GB storage / 7-day retention budget forces them to co-host. Source-backed spec at [`docs/specs/fr-sidecars-host.md`](../specs/fr-sidecars-host.md). Reference shape doc at [`services/sidecars/README.md`](../../services/sidecars/README.md). Slice 1.6 status: 6 services implemented (snapshotd, bullboard, attrouted, schemard, coordd, errord) + 34 skeleton (return `codes.Unimplemented` from RPC methods other than Health).
 
-Future members arrive only after the native-rewrite escalation proves Python cannot meet the target (see Rules below).
+| Inner service | Apache reference | Owning Django module | Slice 1.6 status |
+|---|---|---|---|
+| snapshotd | Parquet + Iceberg manifest | governance | implemented |
+| bullboard | NiFi bulletin board | operations | implemented |
+| attrouted | NiFi route-on-attribute | sources | implemented |
+| schemard | Avro | governance | implemented |
+| coordd | ZooKeeper + Curator | platform | implemented (Watch + Elect streams in follow-up) |
+| errord | Camel exception handler | operations | implemented |
+| topicd, provd, pressured, extractd, dagd, ruled, retentd, timetravd, gatewayd, arrowd, catalogd, aclsd, pluginhotd, mesh, smd, tieredd, qsched, gremlind, tsd, hintd, viewd, cepd, xcomd, purged, delayd, flumed, politenessd, fnd, drilld, anomalyd, txd, lookupd, dedupd, compactd | various Apache patterns | various | skeleton (Health only; other RPCs return `codes.Unimplemented`; tracked under `sidecars_followup` in the paper trail) |
+
+Future single-purpose binaries (parallel to streamd) arrive only after the native-rewrite escalation proves Python cannot meet the target (see Rules below). Future inner services added to the sidecars binary only need to fit under the shared budget and follow the manifest convention.
 
 ## Public interface
 
