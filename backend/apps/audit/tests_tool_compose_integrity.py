@@ -12,6 +12,8 @@ from apps.audit.tests_glitchtip_compose_integrity import COMPOSE_PATH
 
 TOOL_SERVICES = ("compiled-tools", "frontend-mutation-tools")
 PROTECTED_DATA_STORES_PATH = COMPOSE_PATH.parent / "config" / "protected-data-stores.json"
+START_SCRIPT_PATH = COMPOSE_PATH.parent / "scripts" / "start.ps1"
+SAFE_REBUILD_SCRIPT_PATH = COMPOSE_PATH.parent / "scripts" / "safe-rebuild.ps1"
 
 
 class DockerToolComposeIntegrityTests(SimpleTestCase):
@@ -72,3 +74,19 @@ class DockerToolComposeIntegrityTests(SimpleTestCase):
         self.assertIn("--pool=solo", command)
         self.assertIn("--concurrency=1", command)
         self.assertIn("-Q pipeline,embeddings", command)
+
+    def test_postgres_volume_has_fixed_external_name(self):
+        with COMPOSE_PATH.open("r", encoding="utf-8") as fh:
+            compose = yaml.safe_load(fh)
+
+        pgdata = compose["volumes"]["pgdata"]
+        self.assertTrue(pgdata["external"])
+        self.assertEqual(pgdata["name"], "xf-internal-linker-v2_pgdata")
+
+    def test_start_and_rebuild_guard_fixed_pgdata_volume(self):
+        start_script = START_SCRIPT_PATH.read_text(encoding="utf-8")
+        safe_rebuild_script = SAFE_REBUILD_SCRIPT_PATH.read_text(encoding="utf-8")
+
+        self.assertIn('$pgdataVolume = "xf-internal-linker-v2_pgdata"', start_script)
+        self.assertIn('$pgdataVolume = "xf-internal-linker-v2_pgdata"', safe_rebuild_script)
+        self.assertIn("Refusing to start a blank database", start_script)

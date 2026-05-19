@@ -11,6 +11,7 @@ LIGHTWEIGHT_MANAGEMENT_COMMANDS = frozenset(
         "ingest_quality_evidence",
         "log_code_review_lessons",
         "log_self_review_issue",
+        "repair_restored_backup_schema",
         "report_hook_false_positive",
         "measure_coverage",
         "print_open_issues",

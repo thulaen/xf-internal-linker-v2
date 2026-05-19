@@ -827,7 +827,11 @@ services:
 
 volumes:
   pgdata:
-    driver: local
+    # Fixed external name protects the main database from project-name drift
+    # and from `docker compose down -v`. The start script creates it only for
+    # fresh checkouts with no backups; otherwise startup refuses a blank DB.
+    name: xf-internal-linker-v2_pgdata
+    external: true
   pyroscope_data:
     driver: local
   redis-data:

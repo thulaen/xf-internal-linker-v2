@@ -38,6 +38,11 @@ class LightweightManagementCommandTests(SimpleTestCase):
             with self.subTest(command=command):
                 self.assertTrue(is_lightweight_management_command(["manage.py", command]))
 
+    def test_restore_repair_command_is_lightweight(self) -> None:
+        self.assertTrue(
+            is_lightweight_management_command(["manage.py", "repair_restored_backup_schema"])
+        )
+
     def test_regular_command_is_not_lightweight(self) -> None:
         argv = ["manage.py", "runserver", "0.0.0.0:8000"]
 
