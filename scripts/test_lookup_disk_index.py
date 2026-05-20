@@ -97,7 +97,23 @@ class AuditLogTests(unittest.TestCase):
 
             self.assertEqual(
                 _MOD.current_task_id(handoff),
-                "22222222-2222-2222-2222-222222222222",
+                "11111111-1111-1111-1111-111111111111",
+            )
+
+    def test_task_id_uses_top_handoff_entry_when_entries_are_prepended(self) -> None:
+        text = (
+            "# newest entry\n"
+            "[TDD PREFLIGHT: session_id=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa]\n"
+            "# older entry\n"
+            "[TDD PREFLIGHT: session_id=bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb]\n"
+        )
+        with tempfile.TemporaryDirectory() as raw_dir:
+            handoff = Path(raw_dir) / "AGENT-HANDOFF.md"
+            handoff.write_text(text, encoding="utf-8")
+
+            self.assertEqual(
+                _MOD.current_task_id(handoff),
+                "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
             )
 
     def test_task_id_falls_back_when_marker_missing(self) -> None:

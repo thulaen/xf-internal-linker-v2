@@ -130,6 +130,45 @@ class SelectPythonTestTargetsTests(unittest.TestCase):
         self.assertEqual(missing, [])
         self.assertEqual(targets, ["apps/paper_trail/tests_defer_work_command.py"])
 
+    def test_finds_multiline_call_command_tests(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            command = root / "backend/apps/audit/management/commands/migrate_audit_to_sqlite.py"
+            focused_test = root / "backend/apps/audit/tests_audit_sqlite_lookup.py"
+            for path in (command, focused_test):
+                path.parent.mkdir(parents=True, exist_ok=True)
+            command.write_text("# command fixture\n", encoding="utf-8")
+            focused_test.write_text(
+                "from django.core.management import call_command\n"
+                "call_command(\n"
+                "    \"migrate_audit_to_sqlite\",\n"
+                ")\n",
+                encoding="utf-8",
+            )
+
+            targets, missing = select_targets(
+                root,
+                ["backend/apps/audit/management/commands/migrate_audit_to_sqlite.py"],
+            )
+
+        self.assertEqual(missing, [])
+        self.assertEqual(targets, ["apps/audit/tests_audit_sqlite_lookup.py"])
+
+    def test_package_markers_do_not_require_pytest_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            package = root / "backend/apps/audit/management/__init__.py"
+            package.parent.mkdir(parents=True, exist_ok=True)
+            package.write_text("", encoding="utf-8")
+
+            targets, missing = select_targets(
+                root,
+                ["backend/apps/audit/management/__init__.py"],
+            )
+
+        self.assertEqual(targets, [])
+        self.assertEqual(missing, [])
+
 
 if __name__ == "__main__":
     unittest.main()

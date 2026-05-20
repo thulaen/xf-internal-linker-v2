@@ -683,3 +683,23 @@
 {"file_path": "frontend/.dockerignore", "lookup_at": "2026-05-20T00:18:19Z", "task_id": "ec943f4c-8b4e-464d-916e-a80b7a5805cf", "agent": "claude", "result_count": 0, "result_ids": []}
 {"file_path": "backend/apps/core/tests_dependency_security_pins.py", "lookup_at": "2026-05-20T00:29:33Z", "task_id": "ec943f4c-8b4e-464d-916e-a80b7a5805cf", "agent": "claude", "result_count": 0, "result_ids": []}
 {"file_path": "frontend/package-lock.json", "lookup_at": "2026-05-20T00:29:33Z", "task_id": "ec943f4c-8b4e-464d-916e-a80b7a5805cf", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/lookup_disk_index.py", "lookup_at": "2026-05-20T01:27:04Z", "task_id": "manual-http-smoke", "agent": "codex", "result_count": 2, "result_ids": [1153, 1151]}
+{"file_path": "scripts/lookup_disk_index.py", "lookup_at": "2026-05-20T01:27:14Z", "task_id": "51e2f5c6-7853-4549-94e2-79c260f0c12a", "agent": "codex", "result_count": 2, "result_ids": [1153, 1151]}
+{"file_path": "scripts/lookup_disk_index.py", "lookup_at": "2026-05-20T01:28:12Z", "task_id": "51e2f5c6-7853-4549-94e2-79c260f0c12a", "agent": "codex", "result_count": 2, "result_ids": [1153, 1151]}
+{"file_path": "scripts/lookup_disk_index.py", "lookup_at": "2026-05-20T01:28:27Z", "task_id": "manual-warm-smoke", "agent": "codex", "result_count": 2, "result_ids": [1153, 1151]}
+{"file_path": "backend/apps/audit/services/audit_lookup.py", "lookup_at": "2026-05-20T01:40:29Z", "task_id": "7baab6d0-2f31-48c2-86bf-f536136e8072", "agent": "codex", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/audit/views.py", "lookup_at": "2026-05-20T01:40:29Z", "task_id": "7baab6d0-2f31-48c2-86bf-f536136e8072", "agent": "codex", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/audit/urls.py", "lookup_at": "2026-05-20T01:40:29Z", "task_id": "7baab6d0-2f31-48c2-86bf-f536136e8072", "agent": "codex", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/audit/management/commands/migrate_audit_to_sqlite.py", "lookup_at": "2026-05-20T01:40:29Z", "task_id": "7baab6d0-2f31-48c2-86bf-f536136e8072", "agent": "codex", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/audit/management/__init__.py", "lookup_at": "2026-05-20T01:40:29Z", "task_id": "7baab6d0-2f31-48c2-86bf-f536136e8072", "agent": "codex", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/audit/management/commands/__init__.py", "lookup_at": "2026-05-20T01:40:29Z", "task_id": "7baab6d0-2f31-48c2-86bf-f536136e8072", "agent": "codex", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/audit/tests_audit_sqlite_lookup.py", "lookup_at": "2026-05-20T01:40:29Z", "task_id": "7baab6d0-2f31-48c2-86bf-f536136e8072", "agent": "codex", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/lookup_remote_or_local.py", "lookup_at": "2026-05-20T01:40:29Z", "task_id": "7baab6d0-2f31-48c2-86bf-f536136e8072", "agent": "codex", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/test_lookup_remote_or_local.py", "lookup_at": "2026-05-20T01:40:29Z", "task_id": "7baab6d0-2f31-48c2-86bf-f536136e8072", "agent": "codex", "result_count": 0, "result_ids": []}
+{"file_path": "scripts/lookup_disk_index.py", "lookup_at": "2026-05-20T01:40:29Z", "task_id": "7baab6d0-2f31-48c2-86bf-f536136e8072", "agent": "codex", "result_count": 2, "result_ids": [1153, 1151]}
+{"file_path": "scripts/test_lookup_disk_index.py", "lookup_at": "2026-05-20T01:40:29Z", "task_id": "7baab6d0-2f31-48c2-86bf-f536136e8072", "agent": "codex", "result_count": 2, "result_ids": [1155, 1151]}
+{"file_path": "scripts/precommit-docker.sh", "lookup_at": "2026-05-20T01:40:29Z", "task_id": "7baab6d0-2f31-48c2-86bf-f536136e8072", "agent": "codex", "result_count": 2, "result_ids": [852, 846]}
+{"file_path": "scripts/run-python-quality.sh", "lookup_at": "2026-05-20T03:21:14Z", "task_id": "7baab6d0-2f31-48c2-86bf-f536136e8072", "agent": "codex", "result_count": 4, "result_ids": [852, 846, 844, 803]}
+{"file_path": "scripts/select_python_test_targets.py", "lookup_at": "2026-05-20T03:25:23Z", "task_id": "7baab6d0-2f31-48c2-86bf-f536136e8072", "agent": "codex", "result_count": 2, "result_ids": [1124, 1121]}
+{"file_path": "scripts/test_select_python_test_targets.py", "lookup_at": "2026-05-20T03:25:23Z", "task_id": "7baab6d0-2f31-48c2-86bf-f536136e8072", "agent": "codex", "result_count": 2, "result_ids": [1124, 1121]}
+{"file_path": "backend/apps/audit/tests_audit_sqlite_lookup.py", "lookup_at": "2026-05-20T03:25:23Z", "task_id": "7baab6d0-2f31-48c2-86bf-f536136e8072", "agent": "codex", "result_count": 0, "result_ids": []}

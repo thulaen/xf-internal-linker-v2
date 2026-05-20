@@ -146,7 +146,10 @@ def _management_command_test_files(root: Path, backend_relative: Path) -> list[P
             text = (root / "backend" / rel).read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
-        if any(name in text for name in quoted_names):
+        quoted_command = f"'{command_name}'" in text or f'"{command_name}"' in text
+        if any(name in text for name in quoted_names) or (
+            "call_command" in text and quoted_command
+        ):
             matches.append(rel)
     return sorted(matches)
 
@@ -167,6 +170,8 @@ def select_targets(root: Path, changed_paths: list[str]) -> tuple[list[str], lis
     missing: list[str] = []
     for item in changed_paths:
         backend_relative = _backend_relative(Path(item))
+        if backend_relative.name == "__init__.py":
+            continue
         if "migrations" in backend_relative.parts:
             continue
         elif backend_relative.parts and backend_relative.parts[0] == "config":

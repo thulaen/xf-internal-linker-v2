@@ -65,12 +65,11 @@ def current_task_id(handoff_path: Path) -> str:
 
 
 def _latest_session_id(text: str) -> str:
-    found = ""
     for line in text.splitlines():
         if "[TDD PREFLIGHT:" not in line or _SESSION_KEY not in line:
             continue
-        found = line.split(_SESSION_KEY, 1)[1].split()[0].strip("]")
-    return found
+        return line.split(_SESSION_KEY, 1)[1].split()[0].strip("]")
+    return ""
 
 
 def _read_text(path: Path) -> str:

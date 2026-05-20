@@ -7,6 +7,7 @@ from .views import (
     AuditEntryViewSet,
     ClientErrorLogView,
     FeatureRequestViewSet,
+    InternalAuditLookupView,
     ReviewerScorecardViewSet,
     SiloLeakageView,
     UndoRestoreView,
@@ -24,6 +25,7 @@ router.register(r"feature-requests", FeatureRequestViewSet, basename="feature-re
 
 urlpatterns = [
     path("", include(router.urls)),
+    path("internal/audit/lookup/", InternalAuditLookupView.as_view(), name="audit-lookup"),
     path("graph/silo-leakage/", SiloLeakageView.as_view(), name="graph-silo-leakage"),
     # Phase U1 / Gap 26 — frontend GlobalErrorHandler POSTs here.
     path(

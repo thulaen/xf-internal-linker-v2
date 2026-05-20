@@ -5,7 +5,9 @@ Audit views — audit trail, reviewer scorecards, and silo leakage.
 from __future__ import annotations
 
 from collections import defaultdict
+from pathlib import Path
 
+from django.conf import settings
 from django.db.models import Count
 from django.db.models.functions import TruncDate
 from rest_framework import status, viewsets
@@ -16,6 +18,12 @@ from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework.views import APIView
 
 from apps.api.query_params import coerce_int
+from apps.audit.services.audit_lookup import (
+    DEFAULT_AUDIT_LOG_PATH,
+    DEFAULT_JSONL_PATH,
+    DEFAULT_SQLITE_PATH,
+    lookup_resolved_issues,
+)
 
 from .models import (
     AuditEvent,
@@ -32,6 +40,54 @@ from .serializers import (
     ReviewerScorecardSerializer,
     WebVitalSerializer,
 )
+
+
+_LOCAL_PEERS = {"127.0.0.1", "::1", "localhost"}
+
+
+class InternalAuditLookupView(APIView):
+    """Local-only resolved-issue lookup endpoint for commit hooks."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        peer = request.META.get("REMOTE_ADDR", "")
+        if not _is_local_peer(peer):
+            return Response({"detail": "local requests only"}, status=403)
+        file_paths = request.data.get("file_paths")
+        if not isinstance(file_paths, list) or not all(
+            isinstance(item, str) and item.strip() for item in file_paths
+        ):
+            return Response(
+                {"detail": "file_paths must be a non-empty list of strings"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        task_id = str(request.data.get("task_id") or "http-lookup")
+        agent = str(request.data.get("agent") or "codex")
+        result = lookup_resolved_issues(
+            sqlite_path=Path(
+                getattr(settings, "AUDIT_SQLITE_INDEX_PATH", DEFAULT_SQLITE_PATH)
+            ),
+            jsonl_path=Path(
+                getattr(settings, "AUDIT_RESOLVED_ISSUES_INDEX_PATH", DEFAULT_JSONL_PATH)
+            ),
+            file_paths=file_paths,
+            task_id=task_id,
+            agent=agent,
+            legacy_audit_log_path=Path(
+                getattr(
+                    settings,
+                    "AUDIT_RESOLVED_ISSUES_LOOKUP_LOG_PATH",
+                    DEFAULT_AUDIT_LOG_PATH,
+                )
+            ),
+        )
+        return Response(result)
+
+
+def _is_local_peer(peer: str) -> bool:
+    return peer in _LOCAL_PEERS or peer.startswith(("127.", "172."))
 
 
 class AuditEntryViewSet(viewsets.ReadOnlyModelViewSet):

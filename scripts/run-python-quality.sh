@@ -4,6 +4,9 @@ export PATH="/usr/bin:/bin:${PATH:-}"
 export MSYS_NO_PATHCONV=1
 export MSYS2_ARG_CONV_EXCL="*"
 
+if [[ -f /.dockerenv ]]; then
+  git config --global --add safe.directory /repo 2>/dev/null || true
+fi
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 

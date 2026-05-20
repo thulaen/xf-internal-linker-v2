@@ -51,7 +51,10 @@ run_hard_gate python .githooks/check-test-case-mandate.py
 run_hard_gate python .githooks/check-lessons-read-at-session-start.py
 run_hard_gate python .githooks/check-snapshotd-ritual.py
 run_hard_gate python .githooks/check-code-review-lessons.py
-# 2026-05-18 — Per-file search_resolved_issues hard mandate. Refuses any
+# 2026-05-20 — Per-file resolved-issue lookup hard mandate. Agents should run
+# `python scripts/lookup_remote_or_local.py --area <exact file>` for each
+# staged production file; it uses the backend SQLite endpoint when available
+# and falls back to the native disk helper when the backend is down. Refuses any
 # commit whose staged production source files lack a disk-backed audit
 # entry in audit/resolved_issues_lookup_log.jsonl under the current task.
 run_hard_gate python .githooks/check-resolved-history.py
