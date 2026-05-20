@@ -190,6 +190,13 @@ def test_python_quality_coverage_targets_changed_sources_only() -> None:
     assert "--cov=apps --cov=config" not in text
 
 
+def test_python_quality_excludes_generated_sidecar_protobuf_stubs() -> None:
+    text = _read_script("scripts/run-python-quality.sh")
+
+    assert "_sidecars_pb/.+_pb2(_grpc)?\\.py" in text
+    assert "generated sidecar protobuf stubs are covered by the shared contract test" in text
+
+
 def test_pytest_default_does_not_measure_unrelated_backend_modules() -> None:
     pytest_ini = _read_script("backend/pytest.ini")
 

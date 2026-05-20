@@ -48,6 +48,32 @@ if ! grep -q "prune_quality_artifacts --root /tmp --apply --prune-old-raw-snippe
 fi
 unset QUALITY_EVIDENCE_FORCE_DIRECT
 
+docker_record="$tmp_dir/docker-record.txt"
+docker() {
+  {
+    printf "MSYS_NO_PATHCONV=%s\n" "${MSYS_NO_PATHCONV:-}"
+    printf "MSYS2_ARG_CONV_EXCL=%s\n" "${MSYS2_ARG_CONV_EXCL:-}"
+    printf "args=%s\n" "$*"
+  } > "$docker_record"
+}
+
+(
+  unset MSYS_NO_PATHCONV MSYS2_ARG_CONV_EXCL
+  quality_evidence_import "/repo/backend/reports/quality-evidence/python.jsonl"
+)
+
+if ! grep -q "MSYS_NO_PATHCONV=1" "$docker_record"; then
+  echo "expected docker import to disable Git Bash path conversion" >&2
+  cat "$docker_record" >&2
+  exit 1
+fi
+if ! grep -q "MSYS2_ARG_CONV_EXCL=*" "$docker_record"; then
+  echo "expected docker import to exclude all MSYS2 argument conversion" >&2
+  cat "$docker_record" >&2
+  exit 1
+fi
+unset -f docker
+
 quality_evidence_import() {
   echo "imported $1"
 }

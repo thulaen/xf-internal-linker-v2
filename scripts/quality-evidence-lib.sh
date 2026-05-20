@@ -21,7 +21,7 @@ quality_evidence_init() {
 quality_evidence_import() {
   local container_path="$1"
   if [[ "${QUALITY_EVIDENCE_FORCE_DIRECT:-0}" != "1" ]] && command -v docker >/dev/null 2>&1; then
-    docker compose run --rm -T backend \
+    MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL="*" docker compose run --rm -T backend \
       python manage.py ingest_quality_evidence \
         --path "$container_path" \
         --capture-raw-if-due
@@ -43,7 +43,7 @@ quality_evidence_import() {
 
 quality_artifact_prune() {
   if [[ "${QUALITY_EVIDENCE_FORCE_DIRECT:-0}" != "1" ]] && command -v docker >/dev/null 2>&1; then
-    docker compose run --rm -T backend \
+    MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL="*" docker compose run --rm -T backend \
       python manage.py prune_quality_artifacts \
         --root /tmp \
         --apply \
@@ -72,14 +72,14 @@ quality_evidence_finalize() {
   if [[ -s "$host_path" ]]; then
     if ! quality_evidence_import "$container_path"; then
       echo "Quality evidence import failed. Keeping full reports for inspection." >&2
-      exit 1
+      return 1
     fi
     quality_artifact_prune
   fi
   if [[ "$status" -ne 0 ]]; then
     echo "Quality evidence finalized with failing status $status. Evidence was imported from ${container_path#/repo/}; inspect the imported quality evidence or rerun the tool command named in that evidence row." >&2
   fi
-  exit "$status"
+  return "$status"
 }
 
 quality_evidence_write() {

@@ -2,6 +2,27 @@
 
 This is the first continuity file every AI session must read.
 
+## Current Session Note - 2026-05-20 05:36 Codex GPT-5
+
+- Continued on `master` after commit `a1064d63`. The SQLite HTTP audit lookup path was not changed and Redis was not added.
+- Ran the required startup checks: `preflight_tdd`, `print_open_issues`, `print_open_paper_trail`, `print_open_snapshots`, `search_commit_failures`, resolved-history lookup, scoped lessons, and sidecars profile inspection.
+- Verified the first sidecars backend slice. Focused Go tests passed, the backend snapshot-sidecar test passed, backend sidecar client imports passed, the sidecars image rebuilt at 30.7 MB, the sidecars container reached healthy, and `manage.py check` passed.
+- Fixed one in-scope quality issue: several sidecars Go files were not formatted. Ran `gofmt` through the Docker-managed compiled-tools container, reran focused tests, and logged the fixed lesson as AutoIssue #1304 plus registry entry ISS-132.
+- Filed drought tracker issues #1305 through #1309 for dry or short picker buckets. The 30 picked AutoIssues themselves are still unresolved, so a normal commit should not be attempted yet.
+- First-slice files are staged only. The staged sidecar slice contains 241 paths and 114 production-source paths, so the next normal commit needs valid per-file TDD and test-case proof before hooks can pass.
+- I accidentally ran a few startup Docker/database checks in parallel before noticing the user's sequential-command instruction. After that point, Docker/database/quality commands were run sequentially.
+- Commit status: not committed. Do not use `--no-verify`.
+
+## Current Session Note - 2026-05-20 05:12 Codex GPT-5
+
+- Continued after commit `a1064d63` on `master` and kept the SQLite HTTP audit lookup slice Redis-free.
+- Ran the required session-start checks once: `preflight_tdd`, `print_open_issues`, `print_open_paper_trail`, `search_commit_failures`, and scoped lessons.
+- Verified the sidecars backend slice. The Go tests passed in Docker, the backend sidecar client imports passed, `print_open_snapshots` reported zero attached snapshots, and `manage.py check` passed.
+- Found and fixed one real sidecars blocker: the healthcheck imported generated gRPC clients, which pushed the Docker image to 42.9 MB. It now checks the shared Unix socket directly, the focused red/green Go test is logged, and the rebuilt image is 30.7 MB.
+- Logged the blocker as AutoIssue #1299 and added registry entry ISS-131.
+- No commit was made. The session-level 30-AutoIssue quota was not completed, so a normal commit should not be attempted until the current 30-pick quota and drought substitutions are handled. Do not use `--no-verify`.
+- Dirty files from startup rituals remain: `audit/commit_failures_lookup_log.jsonl` and `audit/resolved_issues_lookup_log.jsonl`.
+
 ## Current Session Note - 2026-05-16 06:30 Codex GPT-5
 
 - Added the golden SDD/PRD/spec rule to the session gate. SDD means software

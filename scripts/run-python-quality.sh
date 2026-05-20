@@ -36,7 +36,9 @@ trap '_run_python_quality_combined_cleanup; exit 143' TERM
 
 mapfile -t changed_python < <(
   python scripts/commit_scope.py paths --mode "${COMMIT_SCOPE_MODE:-staged}" |
-    grep -E "^backend/(apps|config)/.*\.py$" || true
+    grep -E "^backend/(apps|config)/.*\.py$" |
+    # generated sidecar protobuf stubs are covered by the shared contract test.
+    grep -Ev "^backend/apps/_sidecars_pb/.+_pb2(_grpc)?\.py$" || true
 )
 
 if [[ "${#changed_python[@]}" -eq 0 ]]; then

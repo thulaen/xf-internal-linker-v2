@@ -165,6 +165,19 @@ def _same_app_named_test_files(root: Path, backend_relative: Path) -> list[Path]
     ]
 
 
+def _generated_sidecar_contract_tests(root: Path, backend_relative: Path) -> list[Path]:
+    if backend_relative.suffix != ".py":
+        return []
+    if len(backend_relative.parts) < 3:
+        return []
+    if backend_relative.parts[:2] != ("apps", "_sidecars_pb"):
+        return []
+    contract = Path("apps") / "_sidecars_shared" / "tests_sidecar_contract.py"
+    if (root / "backend" / contract).exists():
+        return [contract]
+    return []
+
+
 def select_targets(root: Path, changed_paths: list[str]) -> tuple[list[str], list[str]]:
     targets: list[str] = []
     missing: list[str] = []
@@ -178,6 +191,11 @@ def select_targets(root: Path, changed_paths: list[str]) -> tuple[list[str], lis
             candidates = [Path("config") / "tests.py", Path("config") / "tests"]
         elif _is_test_path(backend_relative):
             candidates = [backend_relative]
+        elif generated_sidecar_tests := _generated_sidecar_contract_tests(
+            root,
+            backend_relative,
+        ):
+            candidates = generated_sidecar_tests
         elif app_root := _app_root(backend_relative):
             candidates = _existing_candidates(root, backend_relative)
         else:
