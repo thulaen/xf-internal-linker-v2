@@ -6,7 +6,7 @@
 # ═══════════════════════════════════════════════════════════════════
 
 # ── Django Core ──────────────────────────────────────────────────
-Django==5.2.13                       # LTS until April 2028
+Django==5.2.14                       # LTS until April 2028
 djangorestframework==3.15.2          # REST API
 django-cors-headers==4.6.0           # Angular ↔ Django CORS
 django-environ==0.11.2               # .env file management
@@ -27,8 +27,9 @@ channels-redis==4.2.1
 # `python -m grpc_tools.protoc` so the Python stubs in
 # backend/apps/realtime/_streamd_pb2/ can be regenerated from
 # services/streamd/api.proto. See docs/specs/fr-go-services-tooling.md.
-grpcio>=1.62,<1.63
-grpcio-tools>=1.62,<1.63
+grpcio==1.73.1
+grpcio-tools==1.73.1
+protobuf==6.33.5                     # Patches CVE-2026-0994; aligned with grpcio-tools 1.73.x
 
 # ── Celery (background ML jobs) ───────────────────────────────────
 celery==5.4.0
@@ -59,7 +60,7 @@ peft==0.13.2                         # FR-242 LoRA adapter on top of frozen BGE-
                                      # Hu et al. 2021 LoRA arXiv:2106.09685; loaded
                                      # by apps.pipeline.services.domain_adapter.
                                      # Vanilla pass-through if the file isn't on disk.
-nltk==3.9.1                          # FR-243 WordNet sense-count lookup. WordNet
+nltk==3.9.4                          # FR-243 WordNet sense-count lookup. WordNet
                                      # corpus downloaded at image-build time —
                                      # see backend/Dockerfile RUN nltk.download.
 networkx==3.4.2                      # Graph algorithms (FR-012)
@@ -79,25 +80,23 @@ pyroscope-io==1.0.6                  # Continuous profiling agent → Pyroscope 
 # OpenTelemetry — vendor-neutral traces / metrics / logs to the
 # `otel-collector` service (compose), which fans out to GlitchTip OTLP
 # endpoint (traces) + Prometheus scrape (metrics) + stdout (logs).
-opentelemetry-api==1.27.0
-opentelemetry-sdk==1.27.0
-opentelemetry-exporter-otlp-proto-http==1.27.0
-opentelemetry-instrumentation-django==0.48b0
-opentelemetry-instrumentation-celery==0.48b0
-opentelemetry-instrumentation-psycopg==0.48b0      # Postgres queries
-opentelemetry-instrumentation-redis==0.48b0        # Redis ops (broker + cache)
-opentelemetry-instrumentation-requests==0.48b0     # HTTP client (sync GlitchTip / Matomo / GSC)
-opentelemetry-instrumentation-httpx==0.48b0        # HTTP client (async)
-opentelemetry-instrumentation-logging==0.48b0      # Log records get trace_id correlation
-opentelemetry-instrumentation-asgi==0.48b0         # Full request spans on uvicorn/ASGI
-opentelemetry-instrumentation-system-metrics==0.48b0  # CPU/RAM/IO via OTel
-# OTel instrumentations import `pkg_resources` from setuptools — that
-# module was deprecated and removed in setuptools 70+, so we pin to <70.
-# When OTel ships a release that uses `importlib.metadata` instead, this
-# can be unpinned.
-setuptools<70
+opentelemetry-api==1.41.0
+opentelemetry-sdk==1.41.0
+opentelemetry-exporter-otlp-proto-http==1.41.0
+opentelemetry-instrumentation-django==0.62b0
+opentelemetry-instrumentation-celery==0.62b0
+opentelemetry-instrumentation-psycopg==0.62b0      # Postgres queries
+opentelemetry-instrumentation-redis==0.62b0        # Redis ops (broker + cache)
+opentelemetry-instrumentation-requests==0.62b0     # HTTP client (sync GlitchTip / Matomo / GSC)
+opentelemetry-instrumentation-httpx==0.62b0        # HTTP client (async)
+opentelemetry-instrumentation-logging==0.62b0      # Log records get trace_id correlation
+opentelemetry-instrumentation-asgi==0.62b0         # Full request spans on uvicorn/ASGI
+opentelemetry-instrumentation-system-metrics==0.62b0  # CPU/RAM/IO via OTel
+# OpenTelemetry 1.41.0 / 0.62b0 resolves without the old setuptools cap
+# workaround and lets us use the patched protobuf 6.x line.
+setuptools==78.1.1
 pip-audit==2.7.3                     # Dependency CVE scanner (Celery weekly → AutoIssue)
-memray==1.14.0                       # Ad-hoc memory profiler — see manage.py memray_report
+memray==1.19.2                       # Ad-hoc memory profiler — see manage.py memray_report
 
 httpx[http2]==0.28.1                 # Async HTTP client
 scipy==1.13.1                        # L-BFGS optimizer.
@@ -110,7 +109,7 @@ lxml==6.1.0                          # High-performance HTML parser back-end —
 
 # ── Utilities ────────────────────────────────────────────────────
 Pillow==12.2.0                       # Image handling — 12.2.0 patches CVE-2026-40192
-paramiko==3.5.0                      # SSH sync
+paramiko==4.0.0                      # SSH sync
 django-redis==5.4.0                  # Django cache backend for Redis
 whitenoise==6.8.2                    # Static file serving in production
 requests==2.33.0                     # HTTP client (XenForo/WP API calls)
@@ -255,7 +254,7 @@ implicit==0.7.2
 # Tiny lib (~50 KB), zero transitive deps, pure Python — no security
 # concerns since the markdown comes from this repo's own static files
 # (allow-listed in apps.core.views_docs).
-markdown==3.7
+markdown==3.8.1
 
 # ── Sentient schedules + MCP server ──────────────────────────────
 # croniter parses cron strings like "0 9 1 * *" so the schedule_tracker
@@ -268,4 +267,4 @@ croniter==2.0.7
 # backend/mcp_server.py to expose linker tools (get_top_candidates,
 # mark_proposed, list_orphans, ...) to Claude Code, Codex, etc.
 # See backend/mcp_server.py and the project-scope .mcp.json at repo root.
-mcp==1.1.2
+mcp==1.23.0

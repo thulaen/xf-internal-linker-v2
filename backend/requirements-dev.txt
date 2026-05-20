@@ -9,9 +9,9 @@
 -r requirements.txt
 
 # ── Testing ──────────────────────────────────────────────────────
-pytest==8.3.4
+pytest==9.0.3
 pytest-django==4.9.0
-pytest-asyncio==0.25.0
+pytest-asyncio==1.3.0
 pytest-cov==6.0.0
 pytest-mock==3.14.0                  # Mocker fixture (wraps unittest.mock)
 pytest-xdist==3.6.1                  # Parallel test execution (-n auto)

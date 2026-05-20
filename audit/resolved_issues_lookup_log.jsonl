@@ -665,3 +665,21 @@
 {"file_path": ".githooks/test_check_django_deploy.py", "lookup_at": "2026-05-19T16:22:58Z", "task_id": "51e2f5c6-7853-4549-94e2-79c260f0c12a", "agent": "codex", "result_count": 2, "result_ids": [843, 803]}
 {"file_path": ".githooks/check-django-deploy.py", "lookup_at": "2026-05-19T16:31:00Z", "task_id": "ec943f4c-8b4e-464d-916e-a80b7a5805cf", "agent": "claude", "result_count": 5, "result_ids": [1162, 1160, 842, 843, 803]}
 {"file_path": ".githooks/test_check_django_deploy.py", "lookup_at": "2026-05-19T16:31:00Z", "task_id": "ec943f4c-8b4e-464d-916e-a80b7a5805cf", "agent": "claude", "result_count": 4, "result_ids": [1162, 1160, 843, 803]}
+{"file_path": "docker-compose.yml", "lookup_at": "2026-05-19T16:48:05Z", "task_id": "ec943f4c-8b4e-464d-916e-a80b7a5805cf", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "config/protected-data-stores.json", "lookup_at": "2026-05-19T16:48:05Z", "task_id": "ec943f4c-8b4e-464d-916e-a80b7a5805cf", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "docs/PROTECTED-DATA-STORES.md", "lookup_at": "2026-05-19T16:48:05Z", "task_id": "ec943f4c-8b4e-464d-916e-a80b7a5805cf", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "docs/specs/fr-hf-cache-shared-volume.md", "lookup_at": "2026-05-19T16:48:05Z", "task_id": "ec943f4c-8b4e-464d-916e-a80b7a5805cf", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/diagnostics/tests_compose_hf_cache_mounts.py", "lookup_at": "2026-05-19T16:48:05Z", "task_id": "ec943f4c-8b4e-464d-916e-a80b7a5805cf", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/diagnostics/tests_protected_volumes.py", "lookup_at": "2026-05-19T16:48:05Z", "task_id": "ec943f4c-8b4e-464d-916e-a80b7a5805cf", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/core/management/commands/repair_restored_backup_schema.py", "lookup_at": "2026-05-19T18:45:54Z", "task_id": "51e2f5c6-7853-4549-94e2-79c260f0c12a", "agent": "codex", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/core/services/management_commands.py", "lookup_at": "2026-05-19T18:45:54Z", "task_id": "51e2f5c6-7853-4549-94e2-79c260f0c12a", "agent": "codex", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/core/tests_management_commands.py", "lookup_at": "2026-05-19T18:45:54Z", "task_id": "51e2f5c6-7853-4549-94e2-79c260f0c12a", "agent": "codex", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/audit/tests_tool_compose_integrity.py", "lookup_at": "2026-05-19T18:45:54Z", "task_id": "51e2f5c6-7853-4549-94e2-79c260f0c12a", "agent": "codex", "result_count": 0, "result_ids": []}
+{"file_path": "docker-compose.yml", "lookup_at": "2026-05-19T18:45:54Z", "task_id": "51e2f5c6-7853-4549-94e2-79c260f0c12a", "agent": "codex", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/core/tests_repair_restored_backup_schema_command.py", "lookup_at": "2026-05-19T19:08:25Z", "task_id": "ec943f4c-8b4e-464d-916e-a80b7a5805cf", "agent": "claude", "result_count": 1, "result_ids": [1186]}
+{"file_path": "backend/requirements.txt", "lookup_at": "2026-05-19T19:17:31Z", "task_id": "ec943f4c-8b4e-464d-916e-a80b7a5805cf", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/requirements-dev.txt", "lookup_at": "2026-05-19T19:17:31Z", "task_id": "ec943f4c-8b4e-464d-916e-a80b7a5805cf", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/Dockerfile", "lookup_at": "2026-05-20T00:18:19Z", "task_id": "ec943f4c-8b4e-464d-916e-a80b7a5805cf", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "frontend/.dockerignore", "lookup_at": "2026-05-20T00:18:19Z", "task_id": "ec943f4c-8b4e-464d-916e-a80b7a5805cf", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/core/tests_dependency_security_pins.py", "lookup_at": "2026-05-20T00:29:33Z", "task_id": "ec943f4c-8b4e-464d-916e-a80b7a5805cf", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "frontend/package-lock.json", "lookup_at": "2026-05-20T00:29:33Z", "task_id": "ec943f4c-8b4e-464d-916e-a80b7a5805cf", "agent": "claude", "result_count": 0, "result_ids": []}

@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     git \
     curl \
+    ca-certificates \
     libtbb-dev \
     cmake \
     libboost-all-dev \
@@ -32,6 +33,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     liblzma-dev \
     zlib1g-dev \
     postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# GitHub CLI (`gh`) — the `print_open_issues` management command shells
+# `gh run list --status failure --limit 10` to emit
+# `[CI FAILED RUNS READ: ...]` (one of the mandatory session-opening
+# ritual markers in CLAUDE.md). Without `gh` the marker falls back to
+# `[CI FAILED RUNS READ: skipped — gh unavailable]`, which keeps commits
+# unblocked but means the `gh_ci` source bucket is permanently dry and
+# every session substitutes 3 picks from the agent queue.
+#
+# Installing via the official Debian APT repo per
+# https://cli.github.com/packages/ so the binary stays in sync with
+# stable Debian package updates. The actual authentication token is
+# passed in via the GH_TOKEN environment variable in docker-compose.yml
+# (sourced from .env). Without a token, `gh` is installed but every
+# `gh run list` call exits non-zero and the fallback marker is emitted.
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+        | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+        > /etc/apt/sources.list.d/github-cli.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
 # Mutation tools that should be present after a fresh backend Docker build.
@@ -93,10 +117,10 @@ RUN pip install --no-cache-dir \
       safety==3.6.2 \
       pylint==3.3.8 \
       coverage==7.6.10 \
-      pytest==8.3.4 \
+      pytest==9.0.3 \
       pytest-cov==6.0.0 \
       pytest-django==4.9.0 \
-      pytest-asyncio==0.25.0 \
+      pytest-asyncio==1.3.0 \
       pytest-randomly==3.15.0 \
       pytest-benchmark==5.1.0 \
       hypothesis==6.115.5 && \

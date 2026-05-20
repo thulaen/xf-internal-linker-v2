@@ -83,6 +83,7 @@
     "@types/node": "^22.0.0",
     "angular-eslint": "^21.3.1",
     "eslint": "^10.2.0",
+    "eslint-plugin-boundaries": "^6.0.2",
     "jasmine-core": "~5.5.0",
     "karma": "~6.4.0",
     "karma-chrome-launcher": "~3.2.0",
@@ -98,5 +99,9 @@
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.58.0",
     "zone.js": "~0.15.0"
+  },
+  "overrides": {
+    "webpack-dev-server": "5.2.4",
+    "ws": "8.20.1"
   }
 }

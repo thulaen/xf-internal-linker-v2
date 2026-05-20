@@ -1,6 +1,9 @@
 node_modules
 dist
 .angular
+.stryker-tmp
+coverage
+.nyc_output
 .git
 .gitignore
 README.md
