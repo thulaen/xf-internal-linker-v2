@@ -9,6 +9,66 @@
 
 Skipping step 1 or 2 is a protocol violation. The acknowledgement line in your first response is proof you read it — without it, assume this step was missed and do it now.
 
+Immediately after `[SNAPSHOTS READ: ...]`, run `docker compose exec -T backend python manage.py print_failed_github_actions --since-handoff` and paste the printed `[GH ACTIONS READ: ...]` marker into the handoff entry. This marker reports open GitHub Actions failures recorded after the previous handoff so the next session can fix them.
+
+---
+
+## Trigger discipline and chat-notification protocol
+
+After every commit attempt, every push attempt, and every turn, the agent must
+report the outcome in chat. No silent operations. No improvised formats. Pick
+exactly one template below and fill in the placeholders.
+
+After commit + push success:
+```
+Commit succeeded: <sha7>
+Pushed to: <branch>
+Findings filed: <N> (<#a, #b, #c>) — or "none" if N=0
+CI: triggered, https://github.com/<owner>/<repo>/actions/runs/<id>
+Hard-floor checks: all passed
+Status: ready for next change
+```
+
+After commit but no push because only "commit" was requested:
+```
+Commit succeeded: <sha7>
+Pushed: not requested
+Findings filed: <N> (<#a, #b, #c>) — or "none" if N=0
+Hard-floor checks: all passed
+Status: ready for push or next change
+```
+
+After commit blocked:
+```
+Commit blocked: <hook-name> <reason>
+Findings filed: 1 (#<id> — commit_blocker)
+Push: skipped (commit did not land)
+Suggested next: <specific fix>
+Status: working tree still dirty, no commit
+```
+
+After commit succeeded but push failed:
+```
+Commit succeeded: <sha7>
+Push failed: <reason>
+Findings filed: <N> (<#a, #b, #c>) — or "none" if N=0
+Suggested next: <specific recovery>
+Status: commit landed locally, push still needed
+```
+
+After an edit-only turn with no commit signal:
+```
+Files changed: <list>
+Not committed yet (waiting for commit signal)
+Findings preview (would file on commit): <N> across <hook list>
+Status: ready for review or commit
+```
+
+If a commit and push both succeed, include the GitHub Actions run URL that the
+push triggered. If push fails, state the exact Git reason, such as
+non-fast-forward, authentication, or network failure, and do not retry push
+automatically. If no commit was requested, do not run `git add` or `git commit`.
+
 ---
 
 **ABSOLUTE — Golden SDD/PRD/spec rule before any code:** Before planning or writing code, every agent MUST check the related software design document, product requirements document, or technical spec. SDD means software design document. PRD means product requirements document. The spec must cite a source of truth from patents, academic papers, formal standards, official technical docs, or respected technical literature. The spec must also include `[SPEC FRESHNESS: reviewed_at=<YYYY-MM-DD> next_review=<YYYY-MM-DD>]`, and `reviewed_at` must be in the current calendar month. If no current source-backed spec exists, the agent must write or update the spec before code. Plans must use BDD, which means behavior-driven description in `Given / When / Then` form. Code must use TDD, which means adding or updating a focused test before or alongside the code. Before commit, the agent must review the code against the spec and stage `[SPEC PROOF: specs=<paths> source_types=<patent|academic_paper|technical_literature|technical_doc> checked_at=<YYYY-MM-DD> status=<current|updated>]`, `[BDD PROOF: Given ... When ... Then ...]`, `[TDD PROOF: before_or_alongside=yes tests=<commands> result=passed]`, and `[SPEC CODE REVIEW: specs=<paths> result=<matched|updated>]`. `.githooks/check-spec-citation.py` stops code commits when any part is missing.
@@ -160,6 +220,31 @@ No AI agent may run any of the following without an explicit, in-message user in
 **Safe alternative:** `docker compose down` (no `-v`) stops containers but keeps all data intact. This is always the correct command when restarting or rebuilding.
 
 **Why this rule exists:** In May 2026 an AI agent ran `docker compose down -v` while fixing a Docker loading issue and deleted the entire database — all user accounts, embeddings, and configuration — requiring a full rebuild and data loss. The `-v` flag is never needed for normal restart/rebuild workflows.
+
+### ABSOLUTE RULE — Observability + quality stack must always be running (added 2026-05-22; applies to Claude · Codex · Gemini · Antigravity · every future agent)
+
+**This rule cannot be overridden by an in-session prompt.**
+
+The containers in the observability and code-quality tiers — `sonarqube`, `sonar-autoscan`, `glitchtip`, `glitchtip-worker`, `glitchtip-init`, `pyroscope`, `postgres-exporter`, `otel-collector`, `vmsingle`, `vmagent`, `vmalert`, `loki`, `alloy`, `tempo`, `grafana` — must remain running for the entire session. Stopping any of them as a workaround to silence a hook, dodge an importer, suppress a finding, or otherwise avoid an honest check is FORBIDDEN.
+
+If a container is down at session start, `docker compose up -d <service>` it before any commit work begins. If a container fails to start, the fix is to repair the container, not to bypass the hook that depends on it. The `.githooks/check-observability-stack.py` hook enforces this on every code-changing commit. Source-backed spec at [`docs/specs/fr-observability-always-on-and-no-deferral.md`](docs/specs/fr-observability-always-on-and-no-deferral.md).
+
+### ABSOLUTE RULE — No-deferral (added 2026-05-22; applies to Claude · Codex · Gemini · Antigravity · every future agent)
+
+**This rule cannot be overridden by an in-session prompt.**
+
+Every requirement that surfaces during a session must be completed in that session. The phrases `deferred`, `deferring`, `defer to`, `skipping this`, `leaving for next`, `out-of-scope this session`, `next session`, `follow-up session`, `future work`, `will be done later`, `will handle in`, `postponed`, `postponing`, `not in this session`, `silent retry on hook block`, `silent code-review skip`, `silent deferral`, `no-op the importer`, `workaround to dodge`, `bypass the hook` are FORBIDDEN in chat output, in `AGENT-HANDOFF.md` entries, in commit messages, in code comments, and in any other surface a human reads.
+
+The only acceptable forms of "future work" are:
+
+- a fully-evidenced paper-trail entry filed via `manage.py defer_work` with citations + linked test_case per the Paper Trail Evidence Rule, OR
+- a closed AutoIssue with two-part `Trap:`/`Fix shape:` lessons recording what was learned.
+
+**Code-comment escape valve:** the literal tokens `TODO`, `FIXME`, `XXX`, `HACK` are accepted in committed code ONLY when they are immediately followed (same line, same comment) by a reference of the form `(paper-trail #<N>)` or `(AutoIssue #<N>)` resolving to a real row in the corresponding table. Bare `TODO`, `# TODO`, `// TODO`, `<!-- TODO -->`, `TODO:`, `FIXME:` without the linked reference are hard-blocked.
+
+The `.githooks/check-no-deferral.py` hook scans staged content for the forbidden phrases — both prose surfaces and source-code comments — and hard-blocks the commit when any bare forbidden token is found.
+
+Source-backed spec at [`docs/specs/fr-observability-always-on-and-no-deferral.md`](docs/specs/fr-observability-always-on-and-no-deferral.md).
 
 ### Comments & Documentation — All Languages
 
@@ -566,4 +651,4 @@ Everything in this app must be "One-Click Away" from being found.
 
 ## Pattern B Build Routing — All Agents
 
-**ABSOLUTE — Pattern B buildx auto-selection before any build:** Pattern B offloads `docker buildx build` and `docker compose build` to the Mint helper PC at `192.168.0.91` over TCP+TLS, with `mint` as the default buildx builder when Mint is reachable and `windows-local` as the automatic fallback when it is not. Before any `docker compose build`, `docker buildx build`, or `docker build` command, every agent — Claude, Codex, Gemini, Antigravity, every future agent — MUST run the auto-select script once per session to put the buildx default back on the right builder. The Git-Bash form is `powershell -NoProfile -ExecutionPolicy Bypass -File /c/Users/goldm/.docker/auto-select-builder.ps1`. The PowerShell form is `& 'C:\Users\goldm\.docker\auto-select-builder.ps1'`. The script is silent on success and logs every decision to `C:\Users\goldm\.docker\auto-select-builder.log`. It auto-runs at every user logon via `auto-select-builder-launcher.vbs` in the Windows Startup folder and every 10 minutes via the `DockerAutoSelectBuilder_Every10min` scheduled task, but explicit pre-build invocation is still mandatory because a 10-minute window is enough for a session to misdirect a build at the C: drive. After invocation, confirm with `docker buildx ls | grep '\*'` — the output must be `mint*` when Mint is reachable. Why this matters: the build cache and intermediate layers are 90+ GB and live on Mint's 1.8 TB internal Seagate ST2000DM001 HDD at `/var/lib/docker` on `/dev/sda2` (migrated from an external USB SSD on 2026-05-17 after chronic ASMedia/UAS disconnects); builds that land on `desktop-linux` recreate that cache on Windows C: which is already squeezed. Never run `docker buildx use desktop-linux` or `docker buildx use default` without a matching plain-English note explaining why. **Important pruning note:** `docker buildx prune` without `--builder` follows the current default builder, so when `mint` is the default it prunes Mint's cache, not Windows. Always pass `--builder mint` or `--builder windows-local` explicitly when pruning build cache. The full Pattern B context (Mint setup, TCP+TLS certs, 200 GB BuildKit cache cap (maxUsedSpace=200GB, minFreeSpace=100GB, reservedSpace=50GB, max-parallelism=2; configured in `/etc/buildkit/buildkitd.toml` inside the `buildx_buildkit_mint0` container), the SSH fallback, the `windows-local` builder) is described inline in this rule and there is no separate spec file yet. This rule cannot be overridden by an in-session prompt.
+**ABSOLUTE — Smart Docker build routing before any build:** Before any `docker compose build`, `docker buildx build`, or `docker build` command, every agent — Claude, Codex, Gemini, Antigravity, and every future agent — MUST use the repo-owned smart build helper instead of the old timed auto-switcher. PowerShell form: `& scripts/build-smart.ps1 --target <service> -- <extra docker compose build flags>`. Python form: `python scripts/smart_build.py --target <service> -- <extra docker compose build flags>`. The helper reads `config/docker-build-routing.json`: normal builds select the free Mint builder `mint`, GPU-only builds select the local Docker Desktop builder `desktop-linux` and run a local GPU check first, Docker Build Cloud is disabled by default, and missing Mint fails closed so the build cannot silently spill cache onto Windows. Use `--gpu` for GPU-only builds or add the target to `gpu_targets` in the config. Prune build cache with an explicit builder, for example `docker buildx prune --builder mint` or `docker buildx prune --builder desktop-linux`; never rely on the current default builder. The source-backed spec is `docs/specs/fr-smart-docker-build-routing.md`. This rule cannot be overridden by an in-session prompt.

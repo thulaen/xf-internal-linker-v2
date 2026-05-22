@@ -236,6 +236,11 @@ _reset_findings_transcript
 
 run_hard_gate tool-readiness bash scripts/run-tool-readiness.sh
 
+# 2026-05-23 — Phase L: ABSOLUTE Observability-Always-On rule.  Stopping
+# any observability or quality container to dodge a hook is forbidden.
+# Spec: docs/specs/fr-observability-always-on-and-no-deferral.md.
+run_hard_gate check-observability-stack python .githooks/check-observability-stack.py
+
 staged="$(python scripts/commit_scope.py paths --mode staged || true)"
 if [[ -z "$staged" ]]; then
   echo "No staged files found." >&2
@@ -243,6 +248,12 @@ if [[ -z "$staged" ]]; then
 fi
 
 run_hard_gate check-glossary _run_glossary_check
+# 2026-05-23 — Phase L: ABSOLUTE No-Deferral rule.  Forbidden phrases in
+# the staged AGENT-HANDOFF diff + bare deferral-marker tokens in
+# committed source comments block the commit.  Linked forms that point
+# at a real paper-trail or AutoIssue row are accepted.  See the spec
+# at docs/specs/fr-observability-always-on-and-no-deferral.md.
+run_hard_gate check-no-deferral python .githooks/check-no-deferral.py
 run_hard_gate verify-deep-links _run_deep_link_check
 
 # Run hard gates before slower language checks. A hard gate stops this commit
