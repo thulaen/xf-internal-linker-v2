@@ -7,6 +7,9 @@ against PostgreSQL when Postgres-only fields or migrations are present.
 """
 
 from .base import *  # noqa: F401, F403
+# Wildcard import is safe here because base.py declares ``__all__`` at the
+# bottom of the file. SonarSource's ``python:S2208`` documented exception
+# clause does not raise when the source module declares ``__all__``.
 
 DEBUG = False
 TESTING = True
@@ -15,7 +18,7 @@ SECRET_KEY = locals().get("SECRET_KEY", "test-secret-key")
 
 ALLOWED_HOSTS = ["testserver", "localhost", "127.0.0.1"]
 
-if env.bool("XF_USE_POSTGRES_TEST_DB", default=False):  # noqa: F405
+if env.bool("XF_USE_POSTGRES_TEST_DB", default=True):  # noqa: F405
     DATABASES["default"] = {  # noqa: F405
         **DATABASES["default"],  # noqa: F405
         "NAME": env("POSTGRES_TEST_DB", default="test_xf_linker"),  # noqa: F405

@@ -74,6 +74,63 @@ function parseRetryAfter(error: HttpErrorResponse): number {
   return FALLBACK_SECONDS;
 }
 
+/**
+ * SonarSource ``typescript:S3776`` refactor — the original
+ * ``errorInterceptor`` body interleaved retry policy, status routing,
+ * 429 dedup and server-message extraction.  Each concern is now its
+ * own helper so the interceptor body stays under the cognitive-
+ * complexity ceiling.  Behaviour is unchanged.
+ */
+
+/** Decide whether to wait 1s and retry, or surface the error to the
+ *  catchError below.  Telemetry never retries (would double-spam the
+ *  limiter); only idempotent 5xx requests retry. */
+function _retryDelayStrategy(
+  error: HttpErrorResponse,
+  method: string,
+  isTelemetry: boolean,
+) {
+  if (isTelemetry) return throwError(() => error);
+  const isIdempotent = ['GET', 'HEAD', 'OPTIONS'].includes(method);
+  const isRetryable = error?.status >= 500 && isIdempotent;
+  return isRetryable ? timer(1000) : throwError(() => error);
+}
+
+/** Open the rate-limit countdown snackbar (once) when a 429 lands.
+ *  Dedupes against a module-level singleton ref so a burst doesn't
+ *  stack multiple snackbars. */
+function _showRateLimitSnackbar(error: HttpErrorResponse, snack: MatSnackBar): void {
+  const rawSeconds = parseRetryAfter(error);
+  const seconds = Math.min(rawSeconds, MAX_VISIBLE_RETRY_SECONDS);
+  if (activeRateLimitSnackbar) return;
+
+  activeRateLimitSnackbar = snack.openFromComponent<
+    RateLimitSnackbarComponent,
+    RateLimitSnackbarData
+  >(RateLimitSnackbarComponent, {
+    duration: (seconds + 1) * 1000,
+    data: { seconds },
+    panelClass: ['rate-limit-snackbar'],
+  });
+  activeRateLimitSnackbar.afterDismissed().subscribe(() => {
+    activeRateLimitSnackbar = null;
+  });
+}
+
+/** Pick a plain-English fallback message for network errors / known
+ *  status codes.  Server-supplied messages overlay this later. */
+function _messageForNetworkOrStatus(error: HttpErrorResponse, status: number): string {
+  if (status === 0) {
+    const errorMsg = error?.message?.toLowerCase() ?? '';
+    return errorMsg.includes('cors')
+      ? 'Cross-origin request blocked — contact support'
+      : 'Network error — check your connection';
+  }
+  if (status === 404) return 'Resource not found';
+  if (status >= 500) return 'Server error — please try again later';
+  return 'An unexpected error occurred';
+}
+
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const snack = inject(MatSnackBar);
 
@@ -89,88 +146,28 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
     // Telemetry is excluded entirely so we don't double-spam the limiter.
     retry({
       count: 1,
-      delay: (error) => {
-        if (isTelemetry) {
-          return throwError(() => error);
-        }
-        const isRetryable = error?.status >= 500 && ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
-        if (isRetryable) {
-          return timer(1000);
-        }
-        return throwError(() => error);
-      },
+      delay: (error) => _retryDelayStrategy(error, req.method, isTelemetry),
     }),
     catchError((error: HttpErrorResponse) => {
-      // Telemetry: silently swallow EVERY failure (429, 5xx, 0/network).
-      if (isTelemetry) {
-        return throwError(() => error);
-      }
-
       const status = error?.status;
-
-      // Auth interceptor handles 401/403 — don't show duplicate toasts
-      if (status === 401 || status === 403) {
+      // Telemetry: silently swallow EVERY failure (429, 5xx, 0/network).
+      // Auth interceptor handles 401/403 — don't show duplicate toasts.
+      if (isTelemetry || status === 401 || status === 403) {
         return throwError(() => error);
       }
-
       // Gap 43 — 429 gets a live countdown snackbar instead of a flat toast.
       if (status === 429) {
-        const rawSeconds = parseRetryAfter(error);
-        const seconds = Math.min(rawSeconds, MAX_VISIBLE_RETRY_SECONDS);
-
-        // Dedupe: if a rate-limit toast is already up, don't stack. A
-        // single burst (forkJoin of 27 settings) can emit N 429s at once
-        // — stacking N snackbars would bury real UI for minutes.
-        if (!activeRateLimitSnackbar) {
-          activeRateLimitSnackbar = snack.openFromComponent<
-            RateLimitSnackbarComponent,
-            RateLimitSnackbarData
-          >(
-            RateLimitSnackbarComponent,
-            {
-              duration: (seconds + 1) * 1000,
-              data: { seconds },
-              panelClass: ['rate-limit-snackbar'],
-            },
-          );
-          activeRateLimitSnackbar.afterDismissed().subscribe(() => {
-            activeRateLimitSnackbar = null;
-          });
-        }
+        _showRateLimitSnackbar(error, snack);
         return throwError(() => error);
       }
 
-      let message = 'An unexpected error occurred';
-
-      if (status === 0) {
-        // Distinguish network error causes
-        const errorMsg = error?.message?.toLowerCase() ?? '';
-        if (errorMsg.includes('cors')) {
-          message = 'Cross-origin request blocked — contact support';
-        } else {
-          message = 'Network error — check your connection';
-        }
-      } else if (status === 404) {
-        message = 'Resource not found';
-      } else if (status >= 500) {
-        message = 'Server error — please try again later';
-      }
-
-      // Prefer the server-supplied error detail when DRF returned one.
-      // Django REST Framework error responses typically look like:
-      //   { "detail": "Quota exceeded for GA4 — wait 60 seconds" }
-      //   { "detail": ["Field is required."] }
-      //   { "field_name": ["This value is invalid."] }
-      // Surfacing the server's own copy gives operators an actionable
-      // hint instead of the generic "An unexpected error occurred".
-      const serverMessage = extractServerErrorMessage(error);
-      if (serverMessage) {
-        message = serverMessage;
-      }
-
+      // Prefer the server-supplied error detail when DRF returned one;
+      // fall back to the network/status mapping.
+      const message =
+        extractServerErrorMessage(error) ?? _messageForNetworkOrStatus(error, status);
       snack.open(message, 'Dismiss', { duration: 5000 });
       return throwError(() => error);
-    })
+    }),
   );
 };
 
@@ -179,6 +176,10 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
  * when nothing usable is present so the caller falls back to the
  * status-derived default. Caps the result at 240 chars so an overly
  * verbose backend traceback can't overflow the snackbar.
+ *
+ * SonarSource ``typescript:S3776`` second-round refactor (2026-05-22):
+ * the body-parsing logic is split into three named helpers so this
+ * dispatcher stays well under the cognitive-complexity ceiling (15).
  */
 function extractServerErrorMessage(error: HttpErrorResponse): string | null {
   const body = error?.error;
@@ -187,21 +188,52 @@ function extractServerErrorMessage(error: HttpErrorResponse): string | null {
     return clampMessage(body.trim());
   }
   if (typeof body !== 'object') return null;
+  const record = body as Record<string, unknown>;
+  return (
+    _extractDetailString(record) ??
+    _extractMessageString(record) ??
+    _findFirstStringInBody(record)
+  );
+}
 
-  const detail = (body as Record<string, unknown>)['detail'];
-  if (typeof detail === 'string' && detail.trim()) return clampMessage(detail.trim());
-  if (Array.isArray(detail) && typeof detail[0] === 'string') return clampMessage(detail[0]);
+/** Pull the DRF `detail` field — either a string or a string array. */
+function _extractDetailString(body: Record<string, unknown>): string | null {
+  const detail = body['detail'];
+  if (typeof detail === 'string' && detail.trim()) {
+    return clampMessage(detail.trim());
+  }
+  if (Array.isArray(detail) && typeof detail[0] === 'string') {
+    return clampMessage(detail[0]);
+  }
+  return null;
+}
 
-  const messageField = (body as Record<string, unknown>)['message'];
-  if (typeof messageField === 'string' && messageField.trim()) return clampMessage(messageField.trim());
+/** Pull a generic `message` field. */
+function _extractMessageString(body: Record<string, unknown>): string | null {
+  const messageField = body['message'];
+  if (typeof messageField === 'string' && messageField.trim()) {
+    return clampMessage(messageField.trim());
+  }
+  return null;
+}
 
-  // Field-level errors: { username: ["already taken"] }. Pick the first
-  // string we find so the user sees the most-relevant validation hint.
-  for (const value of Object.values(body as Record<string, unknown>)) {
-    if (Array.isArray(value) && typeof value[0] === 'string' && value[0].trim()) {
-      return clampMessage(value[0]);
-    }
-    if (typeof value === 'string' && value.trim()) return clampMessage(value.trim());
+/** Field-level errors: `{ username: ["already taken"] }`. Pick the first
+ *  string found so the user sees the most-relevant validation hint. */
+function _findFirstStringInBody(body: Record<string, unknown>): string | null {
+  for (const value of Object.values(body)) {
+    const candidate = _valueAsString(value);
+    if (candidate !== null) return candidate;
+  }
+  return null;
+}
+
+/** Coerce a single field-level value to its first usable string, or null. */
+function _valueAsString(value: unknown): string | null {
+  if (Array.isArray(value) && typeof value[0] === 'string' && value[0].trim()) {
+    return clampMessage(value[0]);
+  }
+  if (typeof value === 'string' && value.trim()) {
+    return clampMessage(value.trim());
   }
   return null;
 }

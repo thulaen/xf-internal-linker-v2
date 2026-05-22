@@ -2,6 +2,131 @@
 
 This is the first continuity file every AI session must read.
 
+## Current Session Note - 2026-05-21 02:48 Codex GPT-5
+
+- Continued on `master`; no branch was created, no files were staged, and no commit was made.
+- User asked to handle 10 open Paper Trail items with test-first work and source-backed specs when missing. The live Paper Trail command first reported 0 open rows, so I repaired the handoff migration path that should have populated them.
+- Added `docs/specs/fr-paper-trail-handoff-migration.md` with current freshness and citations from academic papers, a patent, and `docs/PAPER-TRAIL.md`.
+- Fixed `backend/apps/paper_trail/management/commands/migrate_handoff_deferrals.py` so it recognises `What still has issues or errors` headings and imports useful unbulleted paragraphs. Added the focused regression test in `backend/apps/paper_trail/tests_migrate_handoff_command.py`.
+- Verification passed: red focused test failed with 0 Paper Trail rows before the fix, then passed. Full focused migration tests passed 5 tests. Ruff passed the touched Paper Trail Python files. Focused whitespace check passed. Paper Trail evidence verification passed for the remaining picked rows.
+- Ran the repaired migration against recent handoffs. It created 14 Paper Trail rows, skipped 8 duplicates, then cleaned up clear migrated noise: marked #1478 and #1472 stale, and marked #1468, #1473, and #1474 superseded.
+- Logged the TDD test case as AutoIssue #5100, the TDD lesson as AutoIssue #5134, and the fixed self-review issue as AutoIssue #5135. Added report-registry entry ISS-135.
+- Known issues: 10 real Paper Trail entries were not resolved. The remaining open rows need secrets, login credentials, broad quota work, frontend build-warning work, or a separate Django startup-warning fix. `verify_paper_trail_quota --hard --since-handoff` still fails with 0 of 10 resolved. Docker-backed commands still print the existing empty-`auth_user` warning while backups exist.
+
+## Current Session Note - 2026-05-21 02:27 Codex GPT-5
+
+- Continued on `master`; no branch was created, no files were staged, and no commit was made.
+- Treated the user's Slice 9 request as the AutoIssue reliability completion pass because the local tree already had the prior quota, finding-buffer, GitHub Actions, and commit-blocker slice files present but uncommitted.
+- Fixed one hook-helper silent-error path. When the backend filing command returns a failing status, `.githooks/_hook_helpers.py` now writes a `BackendCommandFailed` record to `audit/helper_failures.jsonl`, prints a warning, and still keeps the existing `audit/findings_buffer.jsonl` fallback.
+- Fixed one GitHub Actions failed-run picker silent-error path. `backend/apps/auto_issues/services/ci_failed_runs.py` now logs the setting key, default value, and underlying error when an `AppSetting` read fails, instead of silently returning the default.
+- Updated `docs/specs/fr-hook-finding-autoissue.md` so both visible-failure rules are in the source-backed spec. Added tests in `.githooks/test__hook_helpers.py` and `backend/apps/auto_issues/tests_ci_failed_runs.py`.
+- Verification passed: helper red test failed before implementation, then passed. Picker red test failed before implementation, then passed. Final checks passed: `python .githooks/test__hook_helpers.py` (43 tests), Docker backend focused AutoIssue reliability tests (36 tests), focused hook tests (44 tests), ruff on touched Python files, whitespace check, and the quota-bypass wording scan.
+- Live quota hook was run once. It imported 1000 SonarQube rows into AutoIssues (990 created, 10 merged) and then correctly refused because this session has not resolved 30 cross-source AutoIssues, 10 SonarQube AutoIssues, or 10 paper-trail entries after the previous handoff.
+- TDD lessons logged as AutoIssues #4882 and #4883. Fixed self-review findings logged and resolved as AutoIssues #4884 and #4885.
+- Known issues: no commit was requested or made. Full measured coverage, mutation testing, full pre-commit, the end-to-end smoke plan, and the required quota drains were not completed. Docker-backed Django commands still print the existing startup warning about an empty `auth_user` table while backups exist.
+
+## Current Session Note - 2026-05-21 02:03 Codex GPT-5
+
+- Continued on `master`; no branch was created, no files were staged, and no commit was made.
+- Fixed the Slice 8 review finding in the lesson-writing path. `file_hook_finding` now accepts optional explicit `lessons_learned` text and uses it when creating or updating a row. Normal hook findings without explicit lessons keep the old default lesson text.
+- `scripts/precommit-docker.sh` now passes `Trap: <reason>` and `Fix shape: <unblock>` as explicit lessons when filing `commit_blocker` AutoIssues, so the saved row no longer contains the placeholder `<UNBLOCK section>`.
+- Tightened `backend/apps/auto_issues/tests/test_scope_cap_autoissue.py` to call the Django command path through `call_command`, not only the helper function. That caught and fixed a second bug: the command was forwarding Django control options such as `verbosity` into the helper. The command now passes only its own named fields.
+- Verification passed: red backend test first failed on missing `lessons_learned` support, then the command-path test failed on `verbosity`; both are now green. Final focused checks passed: backend explicit-lesson tests 4 passed, pre-commit driver tests 28 passed, backend ruff passed, script-test ruff passed, Git Bash syntax passed, and whitespace check passed.
+- Test case logged as AutoIssue #3230. Backend TDD lesson logged as AutoIssue #3237. The script lesson reused AutoIssue #3228. Fixed review issue logged as AutoIssue #3245.
+- Known issues: full measured coverage, mutation testing, full pre-commit, and a real staged bad-commit test were not run. Docker-backed commands still print the existing startup warnings.
+
+## Current Session Note - 2026-05-21 01:50 Codex GPT-5
+
+- Continued on `master`; no branch was created, no files were staged, and no commit was made.
+- Implemented Slice 8 for local hard-floor commit failures. `scripts/precommit-docker.sh` now captures a hard hook failure, files or dedupes one high-severity `commit_blocker` AutoIssue through the existing hook-finding command, and prints the AutoIssue id in the `[COMMIT BLOCKED: ...]` marker before stopping the commit.
+- The repeat key uses the hook name plus the plain failure detail, reason, and unblock suggestion, so retrying the same blocked commit updates the existing row instead of creating duplicate rows. Soft local checks still follow the normal soft-finding path and do not file `commit_blocker` rows.
+- Updated `scripts/test_precommit_docker.py` with the three requested Slice 8 tests for hard filing, repeat deduplication, and soft-only behavior. Updated `docs/specs/fr-hook-finding-autoissue.md` so the source-backed hook spec includes commit-blocker behavior. Updated `PLAIN-ENGLISH-RULE.md` with a plain-English glossary row for `commit_blocker`.
+- Verification passed: the red focused test run failed the three new tests before implementation. The green focused run passed 28 tests. Ruff passed `scripts/test_precommit_docker.py`. Git Bash syntax check passed `scripts/precommit-docker.sh`. Whitespace check passed for the touched files with an existing line-ending warning on `PLAIN-ENGLISH-RULE.md`.
+- TDD test case logged as AutoIssue #3227. TDD lesson logged as AutoIssue #3228. A fixed self-review issue for an over-long shell helper was logged and resolved as AutoIssue #3229.
+- Known issues: full measured coverage, mutation testing, the full pre-commit chain, and a real deliberately-bad staged `.env` commit attempt were not run. I avoided staging a fake bad file because this shared worktree is already very dirty. Docker-backed Django commands still print the existing startup warning about database access during app initialization and the existing empty-user-table backup warning.
+
+## Current Session Note - 2026-05-21 00:56 Codex GPT-5
+
+- Continued on `master`; no branch was created, no files were staged, and no commit was made.
+- Implemented Slice 6 for GitHub Actions failures to AutoIssues. A new workflow reacts after `CI` or `Scoped Mutation (CI)` finishes with failure, reads failed jobs with the GitHub command-line tool, and calls a new backend command for each failed job.
+- Reviewed the slice with test-driven development. The review found that the first workflow version ran on GitHub's hosted runner and would write AutoIssue rows into a temporary runner database. Added a red test for that bug, then fixed the workflow to run on the self-hosted app runner and call `docker compose exec -T backend`. A second review found the workflow step needed `shell: bash` because the self-hosted runner may be Windows.
+- Added `backend/apps/auto_issues/management/commands/file_ci_failure.py`. It creates or updates one `source="gh_ci"` AutoIssue with category `ci_job_failure`, a GitHub run link, lesson text, repeat count updates, and workflow/job tags.
+- Added `scripts/enumerate_failed_jobs.py`. It reads the GitHub job list with a 30-second timeout, handles paged job results, finds failed steps, and prints JSON argument arrays for the backend command.
+- Added `.github/workflows/ci-failure-to-autoissue.yml` and `.github/workflows/test_ci_failure_workflow.yml.test`; updated `docs/specs/fr-hook-finding-autoissue.md`, `docs/CI-GATES.md`, and `PLAIN-ENGLISH-RULE.md`.
+- Verification passed: red focused tests failed before implementation and before both review fixes; green focused tests passed 17 tests; ruff passed for the new Python files; Python compile passed; whitespace check passed with existing line-ending warnings only.
+- TDD lessons logged as AutoIssues #3144, #3145, #3157, and #3177. Test cases logged as AutoIssues #3119 and #3120. Review findings logged and resolved as AutoIssues #3156 and #3176 plus registry entries ISS-133 and ISS-134.
+- Known issues: the GitHub workflow now requires a self-hosted app runner with Docker Compose and GitHub CLI available. The workflow has not been proven with a deliberately broken remote push, so the within-10-minutes acceptance item is still unverified. Docker-backed Django commands still print the existing database-access-during-startup warning and the existing empty-user-table backup warning. Full coverage, mutation testing, full pre-commit, and the required 30-AutoIssue quota were not completed, so do not commit yet.
+
+## Current Session Note - 2026-05-21 00:32 Codex GPT-5
+
+- Continued on `master`; no branch was created, no files were staged, and no commit was made.
+- Implemented the whole-repo timeout sweep requested by the user. Repo-owned command wrappers, quality helpers, Git-scope helpers, compiled artifact checks, and frontend browser tests now avoid unbounded external waits in the touched areas.
+- Added `docs/specs/fr-bounded-waits-timeout-sweep.md` with current freshness and official timeout/deadline sources for Python subprocess, Requests, Playwright waits, GNU timeout, and gRPC deadlines.
+- Added focused timeout tests in `scripts/test_run_quality_step.py`, `tests/test_bounded_waits.py`, and `tests/test_frontend_wait_patterns.py`; extended `scripts/test_commit_scope.py`.
+- Updated `scripts/run_quality_step.py` to accept `--timeout-seconds`, return `124` on timeout, and still write a timeout report with captured output.
+- Updated `scripts/run-python-quality.sh`, `scripts/commit_scope.py`, `scripts/check_quality_policy.py`, and `scripts/ensure_compiled_artifacts.py` so local tools, Git reads, and compiled artifact checks pass explicit timeouts.
+- Replaced frontend `waitForLoadState('networkidle')` waits in the touched tests with bounded page-load or visible-element waits.
+- Verification passed: red timeout tests failed before the implementation; green focused tests passed 39 tests; ruff passed for touched Python files; `git diff --check` passed for the touched files.
+- Known issues: full Docker-managed coverage, mutation, and the full pre-commit chain were not run. The required 30-AutoIssue quota is still unresolved, so do not commit yet.
+
+## Current Session Note - 2026-05-20 23:12 Codex GPT-5
+
+- Continued on `master`; no branch was created, no files were staged, and no commit was made.
+- User redirected the turn from Slice 5 trigger-phrase work to a quick timeout sweep after `print_open_snapshots` timed out during startup.
+- Fixed the timeout-prone snapshot startup command. `print_open_snapshots` now has a 20-second local elapsed-time budget, uses a one-second snapshotd call deadline, scans higher-priority open AutoIssues first, and still prints the accepted `[SNAPSHOTS READ: ...]` marker when the budget is spent.
+- Updated `docs/specs/fr-sidecars-host.md` with the bounded startup-read rule, current freshness date, and gRPC deadline citation.
+- Added a focused test in `backend/apps/auto_issues/tests_print_open_snapshots_command.py` proving the collector stops when the time budget is spent.
+- Verification passed: red run failed because `_collect_snapshot_rows` did not exist; green run passed 2 focused tests; ruff passed for the touched Python files; whitespace check passed; the live command returned within the tool timeout using both a 2-second budget and the default 20-second budget.
+- TDD lesson logged as AutoIssue #3117. Code-review lesson logged as AutoIssue #3118. Test case logged as AutoIssue #3116.
+- Known issues: Docker-backed Django commands still print the existing database-access-during-app-startup warning. The broader issue quota remains unresolved, so do not commit yet.
+
+## Current Session Note - 2026-05-20 23:00 Codex GPT-5
+
+- Continued on `master`; no branch was created and no commit was made.
+- Later in the same hour, Slice 3 Batch A was completed for the requested scope. Batch A hook `main()` paths for `check-tdd-preflight`, `check-tdd-strict`, `check-test-case-mandate`, `check-snapshotd-ritual`, and `check-lessons-read-at-session-start` now route local failures through the shared hook-finding helper. `check-tdd-strict` and `check-test-case-mandate` first check `verify_chain_batch --health` before filing.
+- Added focused Batch A tests for local soft filing, continuous-integration hard stop, existing detection, and the reliability health check. Red proof failed 9 tests. Green proof passed 168 focused hook tests. Python compile checks passed. `git diff --check` passed with line-ending warnings only. Batch A-only grep for bare `return 2` returned no hits.
+- Important limit: no commit was made. Full-tree grep still shows later-batch hooks and hard hooks with `return 2`, which is expected because only Batch A was converted here.
+- Implemented Slice 2.5b hard quota checking at commit and push. The new `.githooks/check-autoissue-quota.py` refreshes SonarQube AutoIssues through the existing importer, then runs both database verifiers with `--hard --since-handoff`.
+- Added `docs/specs/autoissue-quota-hard-block.md`, `backend/apps/auto_issues/services/session_boundary.py`, focused quota tests, and the new hook. Updated `verify_autoissue_quota`, `verify_paper_trail_quota`, `scripts/precommit-docker.sh`, and `scripts/prepush-docker.sh`.
+- The AutoIssue verifier now counts resolved rows by source after the previous handoff. The SonarQube 10 is independent and cannot be replaced by other sources. Failure text names the short bucket counts and the next open issue IDs selected by the database.
+- The paper-trail verifier now supports the same hard session mode and names the count shortfall plus next open paper-trail IDs.
+- Focused verification passed: local hook/spec tests passed 8 tests; backend hard quota and existing verifier tests passed 29 tests; existing nearby hook tests passed 119 tests; affected registry/hook/spec tests passed 87 tests; local and backend ruff checks passed; touched-file whitespace check passed; forbidden quota wording scan returned no matches.
+- Live hook verification ran once. It imported 1000 SonarQube findings into AutoIssues (990 created, 10 merged), then correctly refused because the current session has not resolved the required 30 cross-source AutoIssues, 10 SonarQube AutoIssues, or 10 paper-trail entries since the previous handoff.
+- Known issues: no commit was made. The live quota is intentionally short. Docker-backed commands still print the existing Django warning about database access during app startup.
+
+## Current Session Note - 2026-05-20 22:00 Codex GPT-5
+
+- Continued on `master`; no branch was created and no commit was made.
+- Implemented Slice 2.5 scope discipline for local quality tools. The wrappers now log run, skip, or refused scope decisions to `audit/scope_decisions.jsonl`; local caps refuse over-broad runs; scope-cap AutoIssues dedupe by wrapper plus tool.
+- Added `docs/specs/fr-quality-scope-discipline.md`, `scripts/scope_cap.py`, `scripts/test_scope_cap.py`, `scripts/test_scope_audit.py`, `audit/scope_decisions.jsonl`, `backend/apps/auto_issues/management/commands/rotate_scope_log.py`, and `backend/apps/auto_issues/tests/test_scope_cap_autoissue.py`.
+- Updated the existing selectors and wrapper tests so empty scope stays empty, docs-only changes do not expand to all files, renamed files use the new path, and deleted files are excluded.
+- Focused verification passed: `python -m pytest -q scripts/test_scope_cap.py scripts/test_scope_audit.py scripts/test_detect_changed_modules.py scripts/test_select_python_test_targets.py scripts/test_cpp_mutation_targets.py` passed 58 tests; `docker compose exec -T backend python -m pytest -p randomly -q --reuse-db --nomigrations apps/auto_issues/tests/test_scope_cap_autoissue.py` passed 2 tests; touched Python ruff passed; Git Bash syntax check passed; broad-scope grep returned no matches; the scope-decision helper wrote valid JSON to a temp file.
+- Known issues: the normal backend pytest command failed during test-database setup because `paper_trail_papertrailentry` already existed; rerunning with `--nomigrations` passed. Full coverage, mutation testing, and a normal commit were not run. The 30-AutoIssue quota is still not complete, so do not commit yet.
+
+## Current Session Note - 2026-05-20 20:28 Codex GPT-5
+
+- Continued on `master`; no branch was created and no commit was made.
+- Implemented Slice 2 for hook findings: `scripts/precommit-docker.sh` now resets a per-repository findings transcript, runs hard checks through a wrapper that stops on the first hard failure, runs the changed quality-debt report as a soft local check, collects `[HOOK FINDING FILED: AutoIssue=#N]` and `[FINDING FILED: ... autoissue=#N]` lines, and prints one final summary line.
+- Added `.githooks/findings-transcript.sh` so pre-commit and `prepare-commit-msg` compute the same temporary transcript path. The test suite can override this path with `XF_FINDINGS_TRANSCRIPT`.
+- Added `.githooks/prepare-commit-msg`; it appends `[FINDINGS FILED: N AutoIssues created — #a, #b, ...]` only when the transcript has findings, preserves the existing commit message body, and removes the transcript after reading it.
+- Updated `docs/specs/fr-hook-finding-autoissue.md` with the transcript and prepare-message behavior plus the official Git hooks documentation source.
+- Added focused tests in `scripts/test_precommit_docker.py` and `.githooks/test_prepare_commit_msg.py`. Red proof failed first, then green proof passed: `python -m pytest -q scripts/test_precommit_docker.py .githooks/test_prepare_commit_msg.py` passed 30 tests.
+- Extra verification passed: Git Bash syntax checks for `scripts/precommit-docker.sh`, `.githooks/prepare-commit-msg`, and `.githooks/findings-transcript.sh`; `python -m ruff check scripts/test_precommit_docker.py .githooks/test_prepare_commit_msg.py`; tracked-file whitespace check; new-file trailing-whitespace check.
+- TDD lessons were logged as AutoIssues #4217, #4218, and #4219.
+- Known issues: full pre-commit, full coverage, mutation testing, and a real `git commit` dry run were not run. Startup commands still warn that `auth_user` is empty while backups exist. `print_open_issues` printed only `[REGISTRY READ: 0 open auto-issues]` and did not emit the detailed 30-pick or failed-run ritual lines.
+
+- Stayed on `master`; no branch was created and no commit was made.
+- Read the required handoff, open AutoIssue list, paper trail list, snapshot list, resolved-history lessons, scoped lessons, coding rules, frontend rules, modular-monolith rules, and the SonarQube spec before editing.
+- Connected to local SonarQube directly. The unauthenticated issues API returned 401, then the backend container's configured token worked. SonarQube reported 2,210 open findings before the fix.
+- Fixed 30 direct SonarQube findings in `frontend/src/app/settings/settings-constants.ts` by rewriting values such as `2.0` and `0.10` as `2` and `0.1`. This changes spelling only, not numeric value.
+- Added a focused regression test in `backend/apps/auto_issues/tests_sonarqube_direct_findings.py`. It failed red with exactly 30 zero-fraction numbers, then passed after the constants were rewritten.
+- Ran SonarScanner through Docker. SonarQube processed the report successfully, and the exact 30 issue keys returned `status=CLOSED` and `resolution=FIXED`.
+- Resolved the 20 local AutoIssue rows that existed for those 30 scanner keys: #4145 through #4164. The other 10 scanner keys were not separate local rows because the importer had already merged some repeat findings.
+- Added `docs/specs/fr-hook-finding-autoissue.md`, `.githooks/_hook_helpers.py::file_finding_as_autoissue`, `manage.py file_hook_finding`, and `manage.py drain_findings_buffer`.
+- Added empty `audit/findings_buffer.jsonl` and `audit/helper_failures.jsonl`. Ran the new drain command once against the empty buffer; it printed `[FINDINGS DRAINED: filed=0 deduped=0 total=0]`.
+- Focused verification passed: `python .githooks/test__hook_helpers.py` (42 tests), `docker compose exec -T backend python -m pytest -p randomly -q --reuse-db apps/auto_issues/tests/test_drain_findings_buffer.py apps/auto_issues/tests_sonarqube_direct_findings.py` (10 tests and 5 subtests), direct SonarQube key check, `git diff --check`, and Python compile checks.
+- Known issue: the helper's real Docker command path was not benchmarked under the requested 100 ms target. Full mutation, full coverage, and full pre-commit were not run. The repo still has many unrelated dirty files from earlier sessions.
+
 ## Current Session Note - 2026-05-20 05:36 Codex GPT-5
 
 - Continued on `master` after commit `a1064d63`. The SQLite HTTP audit lookup path was not changed and Redis was not added.

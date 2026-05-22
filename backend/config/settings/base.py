@@ -890,3 +890,96 @@ LOGGING = {
 WEBAUTHN_RP_ID = env("WEBAUTHN_RP_ID", default="localhost")
 WEBAUTHN_RP_NAME = env("WEBAUTHN_RP_NAME", default="XF Internal Linker")
 WEBAUTHN_RP_ORIGIN = env("WEBAUTHN_RP_ORIGIN", default="http://localhost")
+
+
+# ``__all__`` declares the public surface of this module.  Downstream
+# settings files (development.py / production.py / test.py / ci.py) do
+# ``from .base import *`` to inherit every shared setting.  Defining
+# ``__all__`` here satisfies SonarSource's ``python:S2208`` documented
+# exception clause: the rule does not raise when the imported module
+# declares ``__all__`` (see https://rules.sonarsource.com/python/RSPEC-2208).
+# Written as an explicit static list of strings because SonarSource's
+# Python analyzer recognises a literal collection but does not honour
+# a dynamically-computed ``__all__``.  When a new public setting is
+# added to this file, append its name below; the regression test at
+# ``backend/config/tests/test_settings_no_wildcard.py`` keeps the
+# inherited contract honest.
+__all__ = [
+    "ASGI_APPLICATION",
+    "AUTH_PASSWORD_VALIDATORS",
+    "BASE_DIR",
+    "CACHES",
+    "CACHE_TTL_GSC",
+    "CACHE_TTL_PAGERANK",
+    "CACHE_TTL_PIPELINE",
+    "CACHE_TTL_XENFORO_API",
+    "CELERY_ACCEPT_CONTENT",
+    "CELERY_BEAT_RUNTIME_ENABLED",
+    "CELERY_BEAT_SCHEDULE",
+    "CELERY_BEAT_SCHEDULER",
+    "CELERY_BROKER_URL",
+    "CELERY_CACHE_BACKEND",
+    "CELERY_RESULT_BACKEND",
+    "CELERY_RESULT_SERIALIZER",
+    "CELERY_TASK_ROUTES",
+    "CELERY_TASK_SERIALIZER",
+    "CELERY_TIMEZONE",
+    "CELERY_WORKER_CONCURRENCY",
+    "CHANNEL_LAYERS",
+    "CORS_ALLOWED_ORIGINS",
+    "CORS_ALLOW_CREDENTIALS",
+    "CSRF_COOKIE_SAMESITE",
+    "CSRF_TRUSTED_ORIGINS",
+    "CUDA_MEMORY_FRACTION_HIGH",
+    "CUDA_MEMORY_FRACTION_SAFE",
+    "DATABASES",
+    "DEFAULT_AUTO_FIELD",
+    "DJANGO_APPS",
+    "EMBEDDING_BATCH_SIZE",
+    "EMBEDDING_MODEL",
+    "GPU_TEMP_CEILING_C",
+    "GPU_TEMP_RESUME_C",
+    "HOST_SCAN_WORD_LIMIT",
+    "INSTALLED_APPS",
+    "LANGUAGE_CODE",
+    "LOCAL_APPS",
+    "LOCAL_VERIFICATION_BOOTSTRAP_ENABLED",
+    "LOGGING",
+    "MAX_LINKS_PER_HOST_THREAD",
+    "MEDIA_ROOT",
+    "MEDIA_URL",
+    "MIDDLEWARE",
+    "ML_PERFORMANCE_MODE",
+    "PRUNE_INTERVAL_DAYS",
+    "REDIS_URL",
+    "REST_FRAMEWORK",
+    "ROOT_URLCONF",
+    "RUNTIME_PROGRESS_STREAM_BLOCK_MS",
+    "RUNTIME_PROGRESS_STREAM_PREFIX",
+    "SCHEDULER_CONTROL_TOKEN",
+    "SECRET_KEY",
+    "SESSION_COOKIE_SAMESITE",
+    "SPACY_MODEL",
+    "SPECTACULAR_SETTINGS",
+    "STATICFILES_DIRS",
+    "STATIC_ROOT",
+    "STATIC_URL",
+    "TEMPLATES",
+    "THIRD_PARTY_APPS",
+    "TIME_ZONE",
+    "UNFOLD",
+    "USE_I18N",
+    "USE_NATIVE_EXTENSIONS",
+    "USE_TZ",
+    "WEBAUTHN_RP_ID",
+    "WEBAUTHN_RP_NAME",
+    "WEBAUTHN_RP_ORIGIN",
+    "WORDPRESS_APP_PASSWORD",
+    "WORDPRESS_BASE_URL",
+    "WORDPRESS_USERNAME",
+    "WSGI_APPLICATION",
+    "XENFORO_API_KEY",
+    "XENFORO_BASE_URL",
+    "XENFORO_WEBHOOK_SECRET",
+    "env",
+]

@@ -1,13 +1,23 @@
 """
 Development settings for XF Internal Linker V2.
 
-Used when running locally via Docker Compose.
-DEBUG=True, relaxed security, verbose logging, no HTTPS required.
+Used when running locally via Docker Compose. Enables debug mode by
+default (override via the DJANGO_DEBUG env var), relaxes security, turns
+on verbose logging, and does not require HTTPS.
 """
 
 from .base import *  # noqa: F401, F403
+# Wildcard import is safe here because base.py declares ``__all__`` at the
+# bottom of the file. SonarSource's ``python:S2208`` documented exception
+# clause does not raise when the source module declares ``__all__``.
+# ``backend/config/tests/test_settings_no_wildcard.py`` pins the contract.
 
-DEBUG = True
+import os
+
+# Env-driven so an operator can opt out of debug mode in a dev container
+# without editing this file. Defaults to enabled because this file IS the
+# development settings module.
+DEBUG = os.environ.get("DJANGO_DEBUG", "1") != "0"
 
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "backend", "*"]
 

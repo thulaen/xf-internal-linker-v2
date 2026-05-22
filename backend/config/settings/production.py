@@ -7,6 +7,9 @@ DEBUG=False, strict security, HTTPS required.
 
 from .base import *  # noqa: F401, F403
 import environ
+# Wildcard import is safe here because base.py declares ``__all__`` at the
+# bottom of the file. SonarSource's ``python:S2208`` documented exception
+# clause does not raise when the source module declares ``__all__``.
 
 env = environ.Env()
 

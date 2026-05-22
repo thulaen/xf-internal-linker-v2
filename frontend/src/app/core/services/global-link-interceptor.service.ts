@@ -77,12 +77,14 @@ export class GlobalLinkInterceptorService implements OnDestroy {
       const tabKey = this.findTabKeyForScrollTarget(fragment);
       const currentTab = tree.queryParams['tab'];
       if (tabKey && currentTab !== tabKey) {
-        void this.router.navigate([], {
-          fragment,
-          queryParams: { tab: tabKey },
-          queryParamsHandling: 'merge',
-          replaceUrl: true,
-        });
+        this.router
+          .navigate([], {
+            fragment,
+            queryParams: { tab: tabKey },
+            queryParamsHandling: 'merge',
+            replaceUrl: true,
+          })
+          .catch((err) => console.warn('[DeepLink] tab-fragment navigation failed', err));
         return;
       }
 
@@ -126,12 +128,14 @@ export class GlobalLinkInterceptorService implements OnDestroy {
     const queryParams: Record<string, string | null> = { dl: null };
     if (entry.tab) queryParams['tab'] = entry.tab;
 
-    void this.router.navigate([entry.route], {
-      fragment: entry.scrollTarget,
-      queryParams,
-      queryParamsHandling: 'merge',
-      replaceUrl: true,
-    });
+    this.router
+      .navigate([entry.route], {
+        fragment: entry.scrollTarget,
+        queryParams,
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      })
+      .catch((err) => console.warn('[DeepLink] resolveDeepLinkParam navigation failed', err));
     return true;
   }
 

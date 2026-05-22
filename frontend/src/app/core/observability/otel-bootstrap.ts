@@ -21,7 +21,6 @@
  * never breaks app bootstrap. Errors land in console.warn so they're
  * debuggable without a hard crash.
  */
-import { context, trace } from '@opentelemetry/api';
 import { ZoneContextManager } from '@opentelemetry/context-zone';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { registerInstrumentations } from '@opentelemetry/instrumentation';
@@ -102,10 +101,6 @@ export function initOtelBrowser(options: OtelBootstrapOptions): void {
     });
 
     _initialized = true;
-    // Suppress lint: the references below ensure tree-shakers don't drop
-    // the imports — the SDK auto-registers via side effects.
-    void trace.getTracerProvider();
-    void context.active();
   } catch (err) {
     console.warn('[otel-browser] init failed', err);
   }

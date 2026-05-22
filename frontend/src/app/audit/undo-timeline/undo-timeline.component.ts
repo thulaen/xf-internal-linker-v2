@@ -114,7 +114,10 @@ export class UndoTimelineComponent implements OnInit {
   readonly availableSubjectTypes = computed<string[]>(() => {
     const set = new Set<string>();
     for (const e of this.entries()) set.add(e.subject_type);
-    return Array.from(set).sort();
+    // Explicit compareFunction satisfies SonarSource typescript:S2871 — even
+    // for string arrays the rule wants the comparator to be explicit so the
+    // intent is unambiguous (locale-aware vs. UTF-16 code-unit ordering).
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
   });
 
   readonly displayedColumns = ['created_at', 'subject', 'diff', 'actor', 'actions'];

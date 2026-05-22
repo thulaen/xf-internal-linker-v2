@@ -85,36 +85,88 @@ export class ParseWorkerService {
 
   private async fallback(req: { kind: 'json' | 'csv'; text: string; hasHeader?: boolean }): Promise<unknown> {
     if (req.kind === 'json') return JSON.parse(req.text);
-    // Minimal main-thread CSV fallback — duplicates the worker logic
-    // but only runs in the rare no-Worker case.
-    const rows: string[][] = [];
-    let row: string[] = [];
-    let cell = '';
-    let inQuotes = false;
-    for (let i = 0; i < req.text.length; i++) {
-      const c = req.text[i];
-      if (inQuotes) {
-        if (c === '"' && req.text[i + 1] === '"') { cell += '"'; i++; continue; }
-        if (c === '"') { inQuotes = false; continue; }
-        cell += c; continue;
-      }
-      if (c === '"' && cell === '') { inQuotes = true; continue; }
-      if (c === ',') { row.push(cell); cell = ''; continue; }
-      if (c === '\r' || c === '\n') {
-        if (c === '\r' && req.text[i + 1] === '\n') i++;
-        row.push(cell); rows.push(row); row = []; cell = '';
-        continue;
-      }
-      cell += c;
-    }
-    if (cell.length > 0 || row.length > 0) { row.push(cell); rows.push(row); }
-    if (!(req.hasHeader ?? true)) return rows;
-    if (rows.length === 0) return [];
-    const header = rows[0];
-    return rows.slice(1).map((r) => {
-      const o: Record<string, string> = {};
-      for (let j = 0; j < header.length; j++) o[header[j]] = r[j] ?? '';
-      return o;
-    });
+    const rows = _tokeniseCsv(req.text);
+    return _shapeCsvRows(rows, req.hasHeader ?? true);
   }
+}
+
+// SonarSource ``typescript:S3776`` refactor — the original ``fallback``
+// merged CSV tokenisation, header shaping, and JSON handling into one
+// 35-line state machine.  The two helpers below isolate the
+// state-machine arithmetic from the consumer-friendly shape so each
+// piece stays under the cognitive-complexity ceiling.  Behaviour is
+// unchanged from the original main-thread fallback path.
+
+/** Split CSV text into a list of rows, honouring RFC 4180 quoting. */
+function _tokeniseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let inQuotes = false;
+  let i = 0;
+  while (i < text.length) {
+    const c = text[i];
+    if (inQuotes) {
+      const consumed = _consumeQuotedChar(c, text, i, cell);
+      cell = consumed.cell;
+      inQuotes = consumed.inQuotes;
+      i = consumed.nextIndex;
+      continue;
+    }
+    if (c === '"' && cell === '') {
+      inQuotes = true;
+      i++;
+      continue;
+    }
+    if (c === ',') {
+      row.push(cell);
+      cell = '';
+      i++;
+      continue;
+    }
+    if (c === '\r' || c === '\n') {
+      const isCrlf = c === '\r' && text[i + 1] === '\n';
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = '';
+      i += isCrlf ? 2 : 1;
+      continue;
+    }
+    cell += c;
+    i++;
+  }
+  if (cell.length > 0 || row.length > 0) {
+    row.push(cell);
+    rows.push(row);
+  }
+  return rows;
+}
+
+/** Advance one character while inside a quoted CSV cell. */
+function _consumeQuotedChar(
+  c: string,
+  text: string,
+  i: number,
+  cell: string,
+): { cell: string; inQuotes: boolean; nextIndex: number } {
+  if (c === '"' && text[i + 1] === '"') {
+    return { cell: cell + '"', inQuotes: true, nextIndex: i + 2 };
+  }
+  if (c === '"') {
+    return { cell, inQuotes: false, nextIndex: i + 1 };
+  }
+  return { cell: cell + c, inQuotes: true, nextIndex: i + 1 };
+}
+
+/** Optionally promote the first CSV row to header keys. */
+function _shapeCsvRows(rows: string[][], hasHeader: boolean): unknown {
+  if (!hasHeader) return rows;
+  if (rows.length === 0) return [];
+  const header = rows[0];
+  return rows.slice(1).map((r) => {
+    const o: Record<string, string> = {};
+    for (let j = 0; j < header.length; j++) o[header[j]] = r[j] ?? '';
+    return o;
+  });
 }
