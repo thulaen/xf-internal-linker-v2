@@ -1,0 +1,74 @@
+name: ci-language-quality
+
+# Phase J.6 — heavy per-language quality runners.
+#
+# These gates were previously hard-blocking pre-commit checks running
+# on developer workstations. Each runner is 10-30 minutes inside Docker
+# (ng test + eslint + stylelint + Stryker for Angular; pytest + ruff +
+# mypy + mutmut for Python; clang-format + clang-tidy + cppcheck +
+# ctest for C++; gofmt + go vet + golangci-lint + go test for Go).
+# That cost on every commit was the wrong trade-off: developers ran
+# them sequentially, sometimes for half an hour, while the same checks
+# would have run in CI anyway. Phase J.6 moved them out of the local
+# pre-commit chain (now `run_soft_gate` — see
+# scripts/precommit-docker.sh) and into this workflow.
+#
+# Running each runner with XF_QUALITY_ENV=ci promotes the soft gate
+# back to hard-block (see scripts/precommit-docker.sh:203 — the soft-
+# mode early-return only fires when XF_QUALITY_ENV != "ci").
+#
+# Sources:
+#   - GitHub Actions documentation, "Workflow syntax", official docs.
+#   - Beck, K. 2002. Test-Driven Development by Example. Addison-Wesley.
+#     ISBN 978-0321146533 (rationale for fast pre-commit, full CI).
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+jobs:
+  angular:
+    name: Angular quality
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'frontend') || github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Angular quality gate
+        env:
+          XF_QUALITY_ENV: ci
+        run: bash scripts/run-angular-quality.sh
+
+  python:
+    name: Python quality
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'backend') || github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Python quality gate
+        env:
+          XF_QUALITY_ENV: ci
+        run: bash scripts/run-python-quality.sh
+
+  cpp:
+    name: C++ quality
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'cpp') || github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run C++ quality gate
+        env:
+          XF_QUALITY_ENV: ci
+        run: bash scripts/run-cpp-quality.sh
+
+  go:
+    name: Go quality
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'go') || github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Go quality gate
+        env:
+          XF_QUALITY_ENV: ci
+        run: bash scripts/run-go-quality.sh

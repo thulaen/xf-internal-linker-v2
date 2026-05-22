@@ -156,6 +156,21 @@ ALLOWLIST: frozenset[str] = frozenset({
     # ("OPEN REGISTRY FINDINGS", "TWO recent items"). Plain prose,
     # not jargon.
     "FINDINGS", "TWO",
+    # Pre-commit chain infrastructure nouns (added 2026-05-22). These
+    # words appear in legitimate prose inside scripts/precommit-docker.sh,
+    # check-* hooks, and similar files describing the commit gate flow.
+    # Without exempting them here, any edit that shifts the lines they
+    # appear on trips the "new technical jargon" detector on a false
+    # positive. See backend/config/tests/test_typescript_sonarqube_rules.py
+    # for the parallel pattern. The terms are real English nouns / past
+    # participles in this context (a "hook" is the pre-commit script, a
+    # "finding" is a logged AutoIssue, "blocked" describes the commit
+    # state when a hook hard-blocks).
+    "HOOK", "FINDING", "BLOCKED",
+    # mktemp(1) template placeholder — the X's are replaced with random
+    # characters by mktemp itself ("xf-hook-output.XXXXXX"). Standard
+    # POSIX shell idiom, not a new technical term.
+    "XXXXXX",
     # Project-specific section labels printed by the banner script.
     # The lowercase forms (`AGENT-HANDOFF.md`, `auto_issues` app) are
     # already documented; the all-caps headings are just visual labels.

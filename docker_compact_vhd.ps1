@@ -32,12 +32,39 @@ if ([string]::IsNullOrEmpty($dockerVhdPath)) {
 }
 Write-Log "Found Docker VHD at $dockerVhdPath."
 
+# GUARD (added 2026-05-22): never shut down WSL while the XF Linker
+# observability + quality stack is running. The previous version of this
+# script had a hole: when `docker-safe.ps1 version` could not reach
+# Docker (transient probe failure, WSL restart in progress, etc.) the
+# script set `$dockerIsReachable=$false` and SKIPPED the running-
+# container check — then proceeded to `wsl --shutdown` unconditionally,
+# killing sonarqube, glitchtip, vmalert, and the rest of the observability
+# tier. The fix is to query the Docker Desktop context directly for any
+# container named `xf_linker_*` and refuse to compact while ANY are up.
+
+Write-Log "Checking Docker Desktop for XF Linker containers..."
+$xfRunningIds = @()
+try {
+    $xfRunningIds = @(docker --context desktop-linux ps -q --filter "name=xf_linker_" 2>$null | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+} catch {
+    Write-Log "XF Linker container probe failed against context=desktop-linux: $($_.Exception.Message)"
+}
+if ($xfRunningIds.Count -gt 0) {
+    Write-Log "Skipping compaction because $($xfRunningIds.Count) XF Linker container(s) are running. The observability + quality stack stays up."
+    exit 0
+}
+
 $dockerIsReachable = $false
 if (Test-Path $dockerSafe) {
     try {
         & $dockerSafe version *> $null
     } catch {
-        # Docker is offline — that is fine, proceed to compaction
+        # Docker is offline — that is fine, but we still must NOT proceed
+        # to `wsl --shutdown` without confirming no XF Linker containers
+        # exist. The xfRunningIds probe above already did that work via
+        # the desktop-linux context. If it succeeded (empty result) we
+        # know it is safe to compact; if it threw, fall through to the
+        # log + exit-0 path below.
     }
     $dockerIsReachable = ($LASTEXITCODE -eq 0)
 }
@@ -52,6 +79,8 @@ if ($dockerIsReachable) {
     Write-Log "Stopping idle Docker Desktop before compaction..."
     docker desktop stop *> $null
     Start-Sleep -Seconds 10
+} else {
+    Write-Log "Docker docker-safe probe failed; the XF Linker container probe above already cleared the way (0 containers). Proceeding to compaction."
 }
 
 Write-Log "Shutting down WSL before compaction..."

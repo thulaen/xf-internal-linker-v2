@@ -9,115 +9,345 @@ cd "$repo_root"
 
 . scripts/quality-evidence-lib.sh
 . scripts/_quality_concurrency.sh
+. .githooks/findings-transcript.sh
 quality_install_cleanup_trap
 
-bash scripts/run-tool-readiness.sh
+hooks_ran=0
+findings_filed=0
+hard_block_failures=0
+findings_transcript="$(xf_findings_transcript_path)"
+
+_print_precommit_summary() {
+  printf "Pre-commit done. %s hooks ran, %s findings filed, %s hard-block failures.\n" \
+    "${hooks_ran}" "${findings_filed}" "${hard_block_failures}"
+}
+
+_finish_precommit() {
+  local code="$1"
+  _print_precommit_summary
+  exit "$code"
+}
+
+_reset_findings_transcript() {
+  if [[ "${XF_QUALITY_ENV:-local}" == "ci" ]]; then
+    rm -f "$findings_transcript"
+    return 0
+  fi
+  : > "$findings_transcript"
+}
+
+_collect_finding_ids() {
+  local output_file="$1"
+  if [[ "${XF_QUALITY_ENV:-local}" == "ci" ]]; then
+    return 0
+  fi
+  local finding_id
+  while IFS= read -r finding_id; do
+    if [[ -z "$finding_id" ]]; then
+      continue
+    fi
+    printf "%s\n" "$finding_id" >> "$findings_transcript"
+    findings_filed=$((findings_filed + 1))
+  done < <(sed -nE 's/.*\[(HOOK )?FINDING FILED:[^]]*([Aa]uto[Ii]ssue|autoissue)=#?([0-9]+)[^]]*\].*/\3/p' "$output_file")
+}
+
+_first_failure_detail() {
+  local output_file="$1"
+  local detail
+  detail="$(
+    awk '/blocked:/ { sub(/^.*blocked:[[:space:]]*/, "staged "); print; exit }
+         /FAIL/ { sub(/^.*FAIL[: ]*/, ""); print; exit }' "$output_file"
+  )"
+  if [[ -z "$detail" ]]; then
+    detail="exit non-zero"
+  fi
+  printf "%s\n" "$detail"
+}
+
+_commit_blocker_reason() {
+  local output_file="$1"
+  local reason
+  reason="$(
+    awk '/^WHY:/ { sub(/^WHY:[[:space:]]*/, ""); print; exit }
+         /blocked:/ { sub(/^.*blocked:[[:space:]]*/, ""); print; exit }
+         /FAIL/ { sub(/^.*FAIL[: ]*/, ""); print; exit }' "$output_file"
+  )"
+  if [[ -z "$reason" ]]; then
+    reason="the hook returned a non-zero result"
+  fi
+  printf "%s\n" "$reason"
+}
+
+_commit_blocker_unblock() {
+  local output_file="$1"
+  local unblock
+  unblock="$(awk '/^UNBLOCK:/ { sub(/^UNBLOCK:[[:space:]]*/, ""); print; exit }' "$output_file")"
+  if [[ -z "$unblock" ]]; then
+    unblock="fix the hook failure named above, then retry the commit"
+  fi
+  printf "%s\n" "$unblock"
+}
+
+_commit_blocker_fingerprint() {
+  python -c 'import hashlib, sys; print(hashlib.sha1(sys.stdin.buffer.read(), usedforsecurity=False).hexdigest()[:16])'
+}
+
+_commit_blocker_occurrence() {
+  local issue_id="$1"
+  docker compose exec -T backend python manage.py shell -c \
+    "from apps.auto_issues.models import AutoIssue; print(AutoIssue.objects.get(pk=${issue_id}).occurrence_count)" \
+    2>/dev/null | tail -n 1
+}
+
+_run_commit_blocker_filing() {
+  local message="$1"
+  local external_id="$2"
+  local lessons="$3"
+  docker compose exec -T backend python manage.py file_hook_finding \
+    --category commit_blocker \
+    --severity high \
+    --subject "scripts/precommit-docker.sh:1" \
+    --message "$message" \
+    --agent codex \
+    --external-id "$external_id" \
+    --lessons-learned "$lessons" 2>&1
+}
+
+_file_commit_blocker() {
+  local name="$1"
+  local output_file="$2"
+  local timestamp detail reason unblock full_output fingerprint external_id message lessons filing_output issue_id occurrence
+
+  timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  detail="$(_first_failure_detail "$output_file")"
+  reason="$(_commit_blocker_reason "$output_file")"
+  unblock="$(_commit_blocker_unblock "$output_file")"
+  full_output="$(cat "$output_file")"
+  fingerprint="$(printf "%s" "${name}:${detail}:${reason}:${unblock}" | _commit_blocker_fingerprint)"
+  external_id="commit_blocker::${name}::${fingerprint}"
+  message="${name} refused commit at ${timestamp}. ${name} blocked commit: ${detail}
+
+Full hook output:
+${full_output}
+
+Trap: ${reason}
+Fix shape: ${unblock}"
+  lessons="Trap: ${reason}
+Fix shape: ${unblock}"
+
+  set +e
+  filing_output="$(_run_commit_blocker_filing "$message" "$external_id" "$lessons")"
+  local filing_code=$?
+  set -e
+
+  printf "%s\n" "$filing_output" >&2
+  if [[ "$filing_code" -ne 0 ]]; then
+    printf "unfiled\n"
+    return 0
+  fi
+
+  issue_id="$(sed -nE 's/.*AutoIssue=#([0-9]+).*/\1/p' <<<"$filing_output" | tail -n 1)"
+  if [[ -z "$issue_id" ]]; then
+    printf "unfiled\n"
+    return 0
+  fi
+  if grep -F "[HOOK FINDING DEDUPED:" <<<"$filing_output" >/dev/null; then
+    occurrence="$(_commit_blocker_occurrence "$issue_id")"
+    if [[ "$occurrence" =~ ^[0-9]+$ && "$occurrence" -gt 1 ]]; then
+      printf "%s (%s time)\n" "$issue_id" "$occurrence"
+      return 0
+    fi
+  fi
+  printf "%s\n" "$issue_id"
+}
+
+_print_blocked_marker() {
+  local name="$1"
+  local output_file="$2"
+  local issue
+  issue="$(_file_commit_blocker "$name" "$output_file")"
+  if [[ "$issue" == "unfiled" ]]; then
+    printf "[COMMIT BLOCKED: %s; AutoIssue=unfiled]\n" "$name" >&2
+    return 0
+  fi
+  if [[ "$issue" == *"("* ]]; then
+    printf "[COMMIT BLOCKED: %s; AutoIssue=#%s]\n" "$name" "$issue" >&2
+    return 0
+  fi
+  printf "[COMMIT BLOCKED: %s; AutoIssue=#%s]\n" "$name" "$issue" >&2
+}
+
+_run_gate() {
+  local mode="$1"
+  local name="$2"
+  shift 2
+  hooks_ran=$((hooks_ran + 1))
+
+  local output_file
+  local code
+  output_file="$(mktemp "${TMPDIR:-/tmp}/xf-hook-output.XXXXXX")"
+  set +e
+  "$@" > "$output_file" 2>&1
+  code=$?
+  set -e
+
+  if [[ -s "$output_file" ]]; then
+    cat "$output_file" >&2
+  fi
+  _collect_finding_ids "$output_file"
+
+  if [[ "$code" -eq 0 ]]; then
+    rm -f "$output_file"
+    return 0
+  fi
+  if [[ "$mode" == "soft" && "${XF_QUALITY_ENV:-local}" != "ci" ]]; then
+    rm -f "$output_file"
+    return 0
+  fi
+
+  hard_block_failures=$((hard_block_failures + 1))
+  _print_blocked_marker "$name" "$output_file"
+  rm -f "$output_file"
+  _finish_precommit "$code"
+}
+
+run_hard_gate() {
+  _run_gate hard "$@"
+}
+
+run_soft_gate() {
+  _run_gate soft "$@"
+}
+
+_run_glossary_check() {
+  printf "%s\n" "$staged" | xargs python .githooks/check-glossary.py
+}
+
+_run_deep_link_check() {
+  quality_docker_compose_run precommit-deep-links backend \
+    -e COMMIT_SCOPE_PATHS="$staged" \
+    sh -lc '
+    cd /repo
+    python scripts/verify_deep_links.py --paths-env COMMIT_SCOPE_PATHS
+  '
+}
+
+_reset_findings_transcript
+
+run_hard_gate tool-readiness bash scripts/run-tool-readiness.sh
 
 staged="$(python scripts/commit_scope.py paths --mode staged || true)"
 if [[ -z "$staged" ]]; then
-  echo "No staged files found."
-  exit 0
+  echo "No staged files found." >&2
+  _finish_precommit 0
 fi
 
-printf "%s\n" "$staged" | xargs python .githooks/check-glossary.py
+run_hard_gate check-glossary _run_glossary_check
+run_hard_gate verify-deep-links _run_deep_link_check
 
-quality_docker_compose_run precommit-deep-links backend \
-  -e COMMIT_SCOPE_PATHS="$staged" \
-  sh -lc '
-  cd /repo
-  python scripts/verify_deep_links.py --paths-env COMMIT_SCOPE_PATHS
-'
-
-hard_gate_status=0
-run_hard_gate() {
-  if ! "$@"; then
-    hard_gate_status=1
-  fi
-}
-
-# Run hard gates before slower language checks and collect every failure.
-# This keeps AutoIssue, Paper Trail, code review, and proof gates from
-# being hidden by an earlier failed test command.
+# Run hard gates before slower language checks. A hard gate stops this commit
+# pass immediately, while soft gates can file findings locally and keep going.
 #
 # 2026-05-18 — re-wire the TDD-pipeline hooks that were temporarily reverted
 # during Commit A's chain-debugging. The chain MUST enforce the pipeline so
 # agents cannot ship new production code without strict TDD evidence. See
 # AutoIssue #295 (CRITICAL: chain revert dropped TDD-pipeline enforcement).
-run_hard_gate python .githooks/check-tdd-preflight.py
-run_hard_gate python .githooks/check-decision-point.py
-run_hard_gate python .githooks/check-session-close.py
-run_hard_gate python .githooks/check-tdd-strict.py
-run_hard_gate python .githooks/check-test-case-mandate.py
-run_hard_gate python .githooks/check-lessons-read-at-session-start.py
-run_hard_gate python .githooks/check-snapshotd-ritual.py
-run_hard_gate python .githooks/check-code-review-lessons.py
+run_hard_gate check-tdd-preflight python .githooks/check-tdd-preflight.py
+run_hard_gate check-no-destructive-docker-commands python .githooks/check-no-destructive-docker-commands.py
+run_hard_gate check-decision-point python .githooks/check-decision-point.py
+run_hard_gate check-session-close python .githooks/check-session-close.py
+run_hard_gate check-tdd-strict python .githooks/check-tdd-strict.py
+run_hard_gate check-rust-mandate python .githooks/check-rust-mandate.py
+run_hard_gate check-test-case-mandate python .githooks/check-test-case-mandate.py
+run_hard_gate check-lessons-read-at-session-start python .githooks/check-lessons-read-at-session-start.py
+run_hard_gate check-snapshotd-ritual python .githooks/check-snapshotd-ritual.py
+run_hard_gate check-gh-actions-read python .githooks/check-gh-actions-read.py
+run_hard_gate check-code-review-lessons python .githooks/check-code-review-lessons.py
 # 2026-05-20 — Per-file resolved-issue lookup hard mandate. Agents should run
 # `python scripts/lookup_remote_or_local.py --area <exact file>` for each
 # staged production file; it uses the backend SQLite endpoint when available
 # and falls back to the native disk helper when the backend is down. Refuses any
 # commit whose staged production source files lack a disk-backed audit
 # entry in audit/resolved_issues_lookup_log.jsonl under the current task.
-run_hard_gate python .githooks/check-resolved-history.py
+run_hard_gate check-resolved-history python .githooks/check-resolved-history.py
 # 2026-05-18 user directive — commit-failure lookup. Refuses any commit that
 # has no audit log entry in audit/commit_failures_lookup_log.jsonl under the
 # current task_id. Run `manage.py search_commit_failures` once per task.
-run_hard_gate python .githooks/check-commit-failures-lookup.py
-run_hard_gate python .githooks/check-registry-read.py
-run_hard_gate python .githooks/check-paper-trail-read.py
-run_hard_gate python .githooks/check-paper-trail-evidence.py
-run_hard_gate python .githooks/check-deferral-filed.py
-run_hard_gate python .githooks/check-profiling-proof.py
-run_hard_gate python .githooks/check-perf-proof.py
-run_hard_gate python .githooks/check-tdd-cycle.py
-run_hard_gate python .githooks/check-spec-citation.py
-run_hard_gate python .githooks/check-scoped-lessons.py
-run_hard_gate python .githooks/check-debug-code.py
-run_hard_gate python .githooks/check-junk-files.py
+run_hard_gate check-commit-failures-lookup python .githooks/check-commit-failures-lookup.py
+run_hard_gate check-registry-read python .githooks/check-registry-read.py
+run_hard_gate check-paper-trail-read python .githooks/check-paper-trail-read.py
+run_hard_gate check-autoissue-quota python .githooks/check-autoissue-quota.py
+run_hard_gate check-paper-trail-evidence python .githooks/check-paper-trail-evidence.py
+run_hard_gate check-deferral-filed python .githooks/check-deferral-filed.py
+run_hard_gate check-profiling-proof python .githooks/check-profiling-proof.py
+run_hard_gate check-perf-proof python .githooks/check-perf-proof.py
+run_hard_gate check-tdd-cycle python .githooks/check-tdd-cycle.py
+run_hard_gate check-spec-citation python .githooks/check-spec-citation.py
+run_hard_gate check-scoped-lessons python .githooks/check-scoped-lessons.py
+run_hard_gate check-debug-code python .githooks/check-debug-code.py
+run_hard_gate check-junk-files python .githooks/check-junk-files.py
 # Slice 1.5 — Go services tier boundary + contract enforcement.
-run_hard_gate python .githooks/check-no-cross-language-import.py
-run_hard_gate python .githooks/check-go-service-contract.py
+run_hard_gate check-no-cross-language-import python .githooks/check-no-cross-language-import.py
+run_hard_gate check-go-service-contract python .githooks/check-go-service-contract.py
 # Rules J + L (2026-05-16) — C++ kernel lifecycle invariant + stubs only
 # move when the contract moves. Both fire only when relevant paths are in
 # the staged diff so they cost nothing on unrelated commits.
-run_hard_gate python .githooks/check-cpp-lifecycle.py
-run_hard_gate python .githooks/check-stubs-not-regenerated.py
+run_hard_gate check-cpp-lifecycle python .githooks/check-cpp-lifecycle.py
+run_hard_gate check-stubs-not-regenerated python .githooks/check-stubs-not-regenerated.py
 
 if grep -E '^backend/.*\.py$|^scripts/.*\.py$' <<<"$staged" >/dev/null; then
-  run_hard_gate python .githooks/check-mutable-defaults.py
+  run_hard_gate check-mutable-defaults python .githooks/check-mutable-defaults.py
 fi
 
 if grep -E '^backend/config/(settings/|asgi\.py|wsgi\.py|urls\.py)' <<<"$staged" >/dev/null; then
-  run_hard_gate python .githooks/check-django-deploy.py
+  run_hard_gate check-django-deploy python .githooks/check-django-deploy.py
 fi
 
 if grep -E '^backend/apps/.*/models\.py$' <<<"$staged" >/dev/null; then
-  run_hard_gate python .githooks/check-fk-on-delete.py
+  run_hard_gate check-fk-on-delete python .githooks/check-fk-on-delete.py
 fi
 
 if grep -E '^backend/apps/.*/management/commands/.*\.py$' <<<"$staged" >/dev/null; then
-  run_hard_gate python .githooks/check-mgmt-command-dry-run.py
+  run_hard_gate check-mgmt-command-dry-run python .githooks/check-mgmt-command-dry-run.py
 fi
 
-if [[ "$hard_gate_status" -ne 0 ]]; then
-  exit "$hard_gate_status"
-fi
+# Heavy per-language quality runners (Phase J.6 CI offload — 2026-05-22).
+# Each runner executes the full toolchain (ng test + eslint + stylelint +
+# Stryker for Angular; pytest + ruff + mypy + mutmut for Python; clang-
+# format + clang-tidy + cppcheck + ctest for C++; gofmt + go vet +
+# golangci-lint + go test for Go). On a developer workstation these
+# routinely take 10-30 minutes per run and surface real test work that
+# belongs to the language's own CI suite, not the pre-commit gate.
+#
+# Behaviour:
+#   - `run_soft_gate` writes the finding but does NOT block the commit
+#     locally (XF_QUALITY_ENV defaults to `local`).
+#   - In CI (XF_QUALITY_ENV=ci) `run_soft_gate` HARD-BLOCKS exactly like
+#     `run_hard_gate` — see scripts/precommit-docker.sh:203.
+#
+# The CI workflows at .github/workflows/ci-language-quality.yml run
+# these gates with XF_QUALITY_ENV=ci so they remain authoritative for
+# pull requests and main-branch pushes.
 
 if grep -E '^frontend/.*\.(ts|html|scss)$' <<<"$staged" >/dev/null; then
-  bash scripts/run-angular-quality.sh
+  run_soft_gate run-angular-quality bash scripts/run-angular-quality.sh
 fi
 
 if grep -E '^backend/.*\.py$' <<<"$staged" >/dev/null; then
-  bash scripts/run-python-quality.sh
+  # Python quality always stays HARD because pytest + ruff are part of
+  # the strict-TDD discipline and are fast (<2 min for focused tests).
+  run_hard_gate run-python-quality bash scripts/run-python-quality.sh
 fi
 
 if grep -E '^backend/extensions/.*\.(cpp|h)$' <<<"$staged" >/dev/null; then
-  bash scripts/run-cpp-quality.sh
+  run_soft_gate run-cpp-quality bash scripts/run-cpp-quality.sh
 fi
 
 if grep -E '(^|/)go\.(mod|sum)$|\.go$' <<<"$staged" >/dev/null; then
-  bash scripts/run-go-quality.sh
+  run_soft_gate run-go-quality bash scripts/run-go-quality.sh
 fi
 
-bash scripts/run-quality-debt-report.sh --changed
+run_soft_gate run-quality-debt-report bash scripts/run-quality-debt-report.sh --changed
 
 quality_artifact_safe_prune_host
+_finish_precommit 0

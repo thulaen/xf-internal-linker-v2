@@ -17,8 +17,18 @@
     "grafana_data",
     "questdb_data",
     "sqlite_registry_data",
+    "sonarqube_data",
+    "sonarqube_extensions",
+    "sonarqube_logs",
+    "sonar_scanner_cache",
     "streamd_sock",
-    "hf_cache"
+    "hf_cache",
+    "sidecars_sock",
+    "sidecars_data",
+    "findbugs_model_runtime",
+    "frontend_dev_node_modules",
+    "vm-data",
+    "vmagent-data"
   ],
   "host_paths": [
     "backups",
@@ -55,6 +65,11 @@
       "name": "apache-age",
       "required_storage": "pgdata",
       "protected_by": "docker_volumes.pgdata"
+    },
+    {
+      "name": "sonarqube",
+      "required_storage": "sonarqube_data, sonarqube_extensions, sonarqube_logs",
+      "protected_by": "docker_volumes.sonarqube_data, docker_volumes.sonarqube_extensions, and docker_volumes.sonarqube_logs"
     }
   ],
   "tool_cache_policy": {
