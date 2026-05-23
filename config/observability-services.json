@@ -1,0 +1,19 @@
+{
+  "comment": "Single source of truth for the observability + quality tier (Phase K.4, 2026-05-23). Aligned with the Observability-Always-On ABSOLUTE rule in CLAUDE.md and the spec at docs/specs/fr-observability-always-on-and-no-deferral.md. The .githooks/check-observability-stack.py pre-commit hook and the backend/apps/observability/management/commands/check_observability_health.py session-start ritual both read this file so the list never drifts between the two enforcement points. glitchtip-init is intentionally excluded because it is an init job that exits after running.",
+  "services": [
+    "alloy",
+    "glitchtip",
+    "glitchtip-worker",
+    "grafana",
+    "loki",
+    "otel-collector",
+    "postgres-exporter",
+    "pyroscope",
+    "sonar-autoscan",
+    "sonarqube",
+    "tempo",
+    "vmagent",
+    "vmalert",
+    "vmsingle"
+  ]
+}

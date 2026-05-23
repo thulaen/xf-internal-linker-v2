@@ -29,30 +29,27 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# The observability + quality tier.  Keep alphabetised by service name
-# so additions are easy to merge.  Aligned with the rule paragraph in
-# CLAUDE.md and the spec at
+# 2026-05-23 — Phase K.4 DRY refactor: the observability + quality tier
+# list now lives in ``config/observability-services.json`` as a single
+# source of truth.  ``backend/apps/observability/management/commands/
+# check_observability_health.py`` reads the same JSON so the
+# session-start ritual and this pre-commit gate never drift.
+# ``glitchtip-init`` is intentionally excluded in the JSON because it
+# is an init job that exits after running. See
 # docs/specs/fr-observability-always-on-and-no-deferral.md.
-OBSERVABILITY_SERVICES: tuple[str, ...] = (
-    "alloy",
-    "glitchtip",
-    # `glitchtip-init` is an init job that exits after running; it is
-    # intentionally NOT in this list because the hook would otherwise
-    # block on its (normal) absence between runs.  See
-    # docs/specs/fr-observability-always-on-and-no-deferral.md.
-    "glitchtip-worker",
-    "grafana",
-    "loki",
-    "otel-collector",
-    "postgres-exporter",
-    "pyroscope",
-    "sonar-autoscan",
-    "sonarqube",
-    "tempo",
-    "vmagent",
-    "vmalert",
-    "vmsingle",
-)
+_SERVICES_CONFIG = REPO_ROOT / "config" / "observability-services.json"
+
+
+def _load_observability_services() -> tuple[str, ...]:
+    try:
+        payload = json.loads(_SERVICES_CONFIG.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return ()
+    services = payload.get("services") or []
+    return tuple(str(name) for name in services if isinstance(name, str))
+
+
+OBSERVABILITY_SERVICES: tuple[str, ...] = _load_observability_services()
 
 # Healthcheck states the hook accepts.  An empty Health string is
 # accepted because not every observability container declares a
