@@ -1,0 +1,15 @@
+{
+  "builders": {
+    "general": "mint",
+    "gpu_local": "desktop-linux"
+  },
+  "fallback_policy": "fail_closed",
+  "gpu_targets": [
+    "backend-gpu",
+    "findbugs-gpu",
+    "llama-gpu"
+  ],
+  "disabled_builders": [
+    "cloud"
+  ]
+}

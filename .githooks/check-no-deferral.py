@@ -82,10 +82,14 @@ _FORBIDDEN_RE: tuple[re.Pattern[str], ...] = tuple(
 
 # TODO / FIXME / XXX / HACK token detection.  A bare match blocks
 # unless immediately followed by `(paper-trail #N)` or `(AutoIssue #N)`
-# on the same line, same comment.  The `(?! ... )` is a negative
-# look-ahead that allows the linked form to pass.
+# on the same line, same comment.  The `(?<! ... )` is a negative
+# look-behind that lets identifier suffix patterns like FR-XXX,
+# RPT-XXX, ISS-XXX, IPv6-style XX:XX prefixes, etc. pass without
+# tripping the deferral scan -- those XXX strings are placeholders for
+# ticket numbers or hex digits, not deferral markers.  The `(?! ... )`
+# is a negative look-ahead that allows the linked form to pass.
 TODO_TOKEN_RE = re.compile(
-    r"\b(TODO|FIXME|XXX|HACK)\b"
+    r"(?<![A-Z0-9_]-)\b(TODO|FIXME|XXX|HACK)\b"
     r"(?!\s*\((?:paper-trail|AutoIssue)\s*#\d+\))",
     re.IGNORECASE,
 )

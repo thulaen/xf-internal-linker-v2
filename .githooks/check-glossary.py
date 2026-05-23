@@ -171,6 +171,12 @@ ALLOWLIST: frozenset[str] = frozenset({
     # characters by mktemp itself ("xf-hook-output.XXXXXX"). Standard
     # POSIX shell idiom, not a new technical term.
     "XXXXXX",
+    # Python module-level constants in scripts/smart_build.py + its
+    # test (added 2026-05-23 as part of Phase M.1). `ROOT` is the repo
+    # root Path; `REMAINDER` is argparse.REMAINDER, the standard
+    # library sentinel for "consume all remaining argv". Real English
+    # nouns, not new technical jargon.
+    "ROOT", "REMAINDER",
     # Project-specific section labels printed by the banner script.
     # The lowercase forms (`AGENT-HANDOFF.md`, `auto_issues` app) are
     # already documented; the all-caps headings are just visual labels.
