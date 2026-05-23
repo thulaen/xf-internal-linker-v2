@@ -58,6 +58,7 @@ class PaperTrailEntry(models.Model):
     STATUS_DUPLICATE = "duplicate"
     STATUS_STALE = "stale"               # 2026-05-16: no longer relevant
     STATUS_SUPERSEDED = "superseded"     # 2026-05-16: replaced by another entry
+    STATUS_STICKY = "sticky"             # 2026-05-23: standing-orders sticky, ever-evolving between sessions, frozen mid-session
     STATUS_CHOICES = (
         (STATUS_OPEN, "Open"),
         (STATUS_PICKED, "Picked"),
@@ -70,6 +71,7 @@ class PaperTrailEntry(models.Model):
         (STATUS_DUPLICATE, "Duplicate"),
         (STATUS_STALE, "Stale"),
         (STATUS_SUPERSEDED, "Superseded"),
+        (STATUS_STICKY, "Sticky"),
     )
     _ACTIVE_STATUSES = (
         STATUS_OPEN,
@@ -86,6 +88,13 @@ class PaperTrailEntry(models.Model):
         STATUS_STALE,
         STATUS_SUPERSEDED,
     )
+    # Sticky entries are out-of-band: not active (they don't participate
+    # in the 10-pick quota or the `(category, fingerprint)` uniqueness
+    # constraint) and not terminal (they never auto-resolve or age out).
+    # They exist outside the deferral lifecycle entirely.
+    _STICKY_STATUSES = (STATUS_STICKY,)
+    _STICKY_ABSTRACT_WORD_CAP = 10_000
+    _DEFAULT_ABSTRACT_WORD_CAP = 1_200
 
     # ── Severity choices ──────────────────────────────────────────
     SEVERITY_CRITICAL = "critical"
@@ -354,12 +363,34 @@ class PaperTrailEntry(models.Model):
         return len(self.abstract.split())
 
     def _validate(self) -> None:
-        if self._word_count() > 1200:
+        # Sticky entries are out-of-band standing-orders documents (added
+        # 2026-05-23). They allow an abstract up to 10,000 words because
+        # the policy text genuinely needs that room; they skip the BDD
+        # Given/When/Then requirement, the risk_on_inaction + acceptance_
+        # criteria requirement, and the test_case_autoissue + citations
+        # evidence rule because none of those apply to a standing-orders
+        # document. They also bypass the resolved / wontfix / rejected /
+        # blocked / stale / superseded status branches below because a
+        # sticky entry never enters those lifecycles.
+        is_sticky = self.status == self.STATUS_STICKY
+        max_words = (
+            self._STICKY_ABSTRACT_WORD_CAP
+            if is_sticky
+            else self._DEFAULT_ABSTRACT_WORD_CAP
+        )
+        if self._word_count() > max_words:
             raise ValidationError(
-                "abstract exceeds 1200 words "
+                f"abstract exceeds {max_words} words "
                 f"(got {self._word_count()}). Trim the abstract first; "
-                "move long-form detail into a docs/specs/ file."
+                "move long-form detail into a docs/specs/ file or, for "
+                "sticky entries, into linked specs under docs/specs/ or "
+                "ADRs under docs/adr/ referenced from the sticky body."
             )
+        if is_sticky:
+            # Sticky entries never run through the BDD / required-fields /
+            # evidence-rule / status-specific branches; they are exempt by
+            # design.
+            return
         # BDD-format requirement applies to NEW rows only. Existing rows
         # being status-changed or re-saved keep their grandfathered text.
         if self._state.adding and self._missing_bdd_parts():

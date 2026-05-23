@@ -287,6 +287,11 @@ run_hard_gate check-resolved-history python .githooks/check-resolved-history.py
 run_hard_gate check-commit-failures-lookup python .githooks/check-commit-failures-lookup.py
 run_hard_gate check-registry-read python .githooks/check-registry-read.py
 run_hard_gate check-paper-trail-read python .githooks/check-paper-trail-read.py
+# 2026-05-23 — Phase K.1: ABSOLUTE Sticky #1 Read Rule. Code-changing
+# commits must carry a [STICKY 1 READ: ...] marker whose SHA-256 prefix
+# matches the live sticky body. Spec at
+# docs/specs/fr-sticky-1-read-rule.md.
+run_hard_gate check-sticky-1-read python .githooks/check-sticky-1-read.py
 run_hard_gate check-autoissue-quota python .githooks/check-autoissue-quota.py
 run_hard_gate check-paper-trail-evidence python .githooks/check-paper-trail-evidence.py
 run_hard_gate check-deferral-filed python .githooks/check-deferral-filed.py
