@@ -297,6 +297,15 @@ run_hard_gate check-sticky-1-read python .githooks/check-sticky-1-read.py
 # [REWRITE QUOTA EXEMPTION:] evidence marker. Spec at
 # docs/specs/fr-rewrite-quota-and-exemption.md.
 run_hard_gate check-rewrite-quota python .githooks/check-rewrite-quota.py
+# 2026-05-23 — Phase K.3: Native Inspection Window (7 days). Edits to
+# settled native-language artifacts (Haskell / Rust / Go / C++) need a
+# documented reopen marker. Spec at
+# docs/specs/fr-native-inspection-and-spec-windows.md.
+run_hard_gate check-native-inspection-window python .githooks/check-native-inspection-window.py
+# 2026-05-23 — Phase K.3: Settled-Spec Window (14 days). Edits to
+# settled docs/specs/*.md need a documented reopen marker (user
+# request, citation drift, or KPI drift).
+run_hard_gate check-spec-window python .githooks/check-spec-window.py
 run_hard_gate check-autoissue-quota python .githooks/check-autoissue-quota.py
 run_hard_gate check-paper-trail-evidence python .githooks/check-paper-trail-evidence.py
 run_hard_gate check-deferral-filed python .githooks/check-deferral-filed.py

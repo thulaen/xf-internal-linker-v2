@@ -31,19 +31,13 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# Code-staging surfaces that the Sticky #1 read rule applies to. Pure-
-# docs commits touching only .md / .txt / .json files outside these
-# prefixes are exempt because they cannot introduce structural drift
-# the sticky governs.
-_CODE_PREFIXES = (
-    "backend/",
-    "frontend/",
-    "scripts/",
-    ".githooks/",
-    "services/",
-    "docs/specs/",
-    "docs/adr/",
-)
+# 2026-05-23 — Phase K.3 DRY refactor: CODE_PREFIXES and
+# staged_code_files were duplicated literally between this hook and
+# check-rewrite-quota.py. The shared module owns both now so a future
+# code-bearing path under backend/, services/, etc. lands in one
+# location and every Sticky-aware hook picks it up automatically.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _hook_helpers  # noqa: E402
 
 _STICKY_READ_RE = re.compile(
     r"\[STICKY\s+1\s+READ:\s*"
@@ -70,53 +64,13 @@ def _fail(message: str) -> int:
 
 
 def _staged_code_files() -> list[str]:
-    """Return the staged-files list filtered to code-staging surfaces."""
-    try:
-        result = subprocess.run(
-            ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
-            cwd=str(REPO_ROOT),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=10,
-            check=False,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return []
-    lines = [line.strip() for line in (result.stdout or "").splitlines() if line.strip()]
-    return [path for path in lines if any(path.startswith(p) for p in _CODE_PREFIXES)]
+    """Thin adapter so the in-module function name stays stable for tests."""
+    return _hook_helpers.staged_code_files(REPO_ROOT)
 
 
 def _staged_handoff_diff() -> str:
-    """Return the added-only lines of the staged AGENT-HANDOFF.md diff."""
-    try:
-        result = subprocess.run(
-            [
-                "git",
-                "diff",
-                "--cached",
-                "--unified=0",
-                "--",
-                "AGENT-HANDOFF.md",
-            ],
-            cwd=str(REPO_ROOT),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=10,
-            check=False,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return ""
-    added_lines: list[str] = []
-    for line in (result.stdout or "").splitlines():
-        if line.startswith("+++"):
-            continue
-        if line.startswith("+"):
-            added_lines.append(line[1:])
-    return "\n".join(added_lines)
+    """Thin adapter so the in-module function name stays stable for tests."""
+    return _hook_helpers.get_staged_handoff_diff(REPO_ROOT)
 
 
 def _live_sticky_sha() -> str | None:
