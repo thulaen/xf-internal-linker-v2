@@ -1,9 +1,18 @@
+# pylint: disable=undefined-variable
 """
 Development settings for XF Internal Linker V2.
 
 Used when running locally via Docker Compose. Enables debug mode by
 default (override via the DJANGO_DEBUG env var), relaxes security, turns
 on verbose logging, and does not require HTTPS.
+
+The file-level ``# pylint: disable=undefined-variable`` directive on
+line 1 acknowledges that names like ``LOGGING``, ``MIDDLEWARE``, and
+``ALLOWED_HOSTS`` are re-exported from ``config.settings.base`` via the
+``from .base import *`` star-import. PyLint cannot follow the star-import
++ ``__all__`` re-export idiom statically, so the only correct shape is
+a documented file-level disable; the runtime contract is pinned by
+``backend/config/tests/test_settings_no_wildcard.py``.
 """
 
 from .base import *  # noqa: F401, F403

@@ -1,9 +1,19 @@
+# pylint: disable=undefined-variable,used-before-assignment
 """
 Test settings for XF Internal Linker V2.
 
 These settings keep the runtime local and self-contained by default. The
 Docker-managed quality path sets XF_USE_POSTGRES_TEST_DB=1 so tests run
 against PostgreSQL when Postgres-only fields or migrations are present.
+
+The file-level ``# pylint: disable=undefined-variable,used-before-assignment``
+directive on line 1 acknowledges that names like ``env``, ``BASE_DIR``,
+``DATABASES``, and ``LOGGING`` are re-exported from
+``config.settings.base`` via the ``from .base import *`` star-import.
+PyLint cannot follow the star-import + ``__all__`` re-export idiom
+statically, so the only correct shape is a documented file-level
+disable; the runtime contract is pinned by
+``backend/config/tests/test_settings_no_wildcard.py``.
 """
 
 from .base import *  # noqa: F401, F403

@@ -1,8 +1,17 @@
+# pylint: disable=undefined-variable
 """
 Production settings for XF Internal Linker V2.
 
 Used when deploying to a web server.
 DEBUG=False, strict security, HTTPS required.
+
+The file-level ``# pylint: disable=undefined-variable`` directive on
+line 1 acknowledges that names like ``MIDDLEWARE`` are re-exported from
+``config.settings.base`` via the ``from .base import *`` star-import.
+PyLint cannot follow the star-import + ``__all__`` re-export idiom
+statically, so the only correct shape is a documented file-level
+disable; the runtime contract is pinned by
+``backend/config/tests/test_settings_no_wildcard.py``.
 """
 
 from .base import *  # noqa: F401, F403

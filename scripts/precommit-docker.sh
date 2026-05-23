@@ -292,6 +292,11 @@ run_hard_gate check-paper-trail-read python .githooks/check-paper-trail-read.py
 # matches the live sticky body. Spec at
 # docs/specs/fr-sticky-1-read-rule.md.
 run_hard_gate check-sticky-1-read python .githooks/check-sticky-1-read.py
+# 2026-05-23 — Phase K.2: Rewrite Quota rule. Code-changing commits
+# must produce >= 3 rewrites/refactorings or carry a verified
+# [REWRITE QUOTA EXEMPTION:] evidence marker. Spec at
+# docs/specs/fr-rewrite-quota-and-exemption.md.
+run_hard_gate check-rewrite-quota python .githooks/check-rewrite-quota.py
 run_hard_gate check-autoissue-quota python .githooks/check-autoissue-quota.py
 run_hard_gate check-paper-trail-evidence python .githooks/check-paper-trail-evidence.py
 run_hard_gate check-deferral-filed python .githooks/check-deferral-filed.py
