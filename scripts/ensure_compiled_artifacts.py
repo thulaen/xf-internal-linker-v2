@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -30,9 +31,16 @@ STORE_ROOT = ARTIFACT_ROOT / "store"
 ACTIVE_ROOT = ARTIFACT_ROOT / "active"
 ACTIVE_EXTENSIONS_ROOT = ACTIVE_ROOT / "extensions"
 ACTIVE_GO_ROOT = ACTIVE_ROOT / "go"
+ACTIVE_SPECCHECK_PATH = ACTIVE_ROOT / "speccheck"
 ROLLBACK_ROOT = ARTIFACT_ROOT / "rollback"
 MANIFEST_SCHEMA_VERSION = 2
 STORE_RETENTION_DAYS = 7
+COMPILED_BUILD_TIMEOUT_SECONDS = int(
+    os.environ.get("XF_COMPILED_BUILD_TIMEOUT_SECONDS", "1800")
+)
+COMPILED_IMPORT_TIMEOUT_SECONDS = int(
+    os.environ.get("XF_COMPILED_IMPORT_TIMEOUT_SECONDS", "60")
+)
 EXTENSION_NAMES = {
     "anchor_descriptiveness",
     "anchor_diversity",
@@ -144,6 +152,25 @@ def _go_files_in_modules(modules: list[Path]) -> list[Path]:
     return sorted(files)
 
 
+def _rust_speccheck_root(repo_root: Path) -> Path:
+    return repo_root / "services" / "speccheck"
+
+
+def _rust_speccheck_files(workspace: Path) -> list[Path]:
+    if not (workspace / "Cargo.toml").exists():
+        return []
+    ignored = _ignored_walk_dirs() | {"target", "mutants.out", "mutants.out.old"}
+    files: list[Path] = []
+    for current, dirs, filenames in os.walk(workspace):
+        dirs[:] = [name for name in dirs if name not in ignored]
+        current_path = Path(current)
+        for filename in filenames:
+            path = current_path / filename
+            if filename in {"Cargo.toml", "Cargo.lock"} or path.suffix == ".rs":
+                files.append(path)
+    return sorted(files)
+
+
 def _ignored_walk_dirs() -> set[str]:
     return {
         ".angular",
@@ -195,12 +222,19 @@ def _write_manifest(manifest: dict[str, Any]) -> None:
 
 def _run(command: list[str], cwd: Path) -> None:
     print("+ " + " ".join(command), flush=True)
-    subprocess.run(command, cwd=cwd, check=True)
+    subprocess.run(command, cwd=cwd, timeout=COMPILED_BUILD_TIMEOUT_SECONDS, check=True)
 
 
 def _run_capture(command: list[str], cwd: Path) -> str:
     print("+ " + " ".join(command), flush=True)
-    result = subprocess.run(command, cwd=cwd, check=True, text=True, capture_output=True)
+    result = subprocess.run(
+        command,
+        cwd=cwd,
+        check=True,
+        text=True,
+        capture_output=True,
+        timeout=COMPILED_BUILD_TIMEOUT_SECONDS,
+    )
     return result.stdout.strip()
 
 
@@ -272,21 +306,94 @@ def _stage_artifacts(records: list[dict[str, Any]], stage_dir: Path) -> None:
 def _activate_staged_runtime(stage_dir: Path) -> None:
     _verify_runtime_imports(stage_dir)
     ACTIVE_ROOT.mkdir(parents=True, exist_ok=True)
-    previous = None
     if ACTIVE_EXTENSIONS_ROOT.exists():
-        ROLLBACK_ROOT.mkdir(parents=True, exist_ok=True)
-        previous = ROLLBACK_ROOT / f"extensions-{int(time.time())}"
-        shutil.move(str(ACTIVE_EXTENSIONS_ROOT), previous)
+        try:
+            _activate_via_rollback_move(stage_dir)
+        except PermissionError as exc:
+            # 2026-05-23 — Phase K.5 fallback: the rollback-move dance
+            # fails when ACTIVE_EXTENSIONS_ROOT (or any file inside it)
+            # was created by a different user (typically root from a
+            # previous container-run-as-root build).  The cure used to
+            # be a privileged `chown` outside the script; that broke
+            # automation under a non-root agent.  We now fall back to a
+            # per-file atomic replacement that only needs write access
+            # to the files we own and the parent dir, never permission
+            # to unlink the directory itself.
+            print(
+                "ensure_compiled_artifacts: rollback-move blocked by "
+                f"PermissionError ({exc}); falling back to per-file "
+                "atomic replacement so the build can complete without "
+                "shared-infrastructure root permissions.",
+                flush=True,
+            )
+            _activate_via_file_replacement(stage_dir)
+    else:
+        try:
+            shutil.move(str(stage_dir / "extensions"), ACTIVE_EXTENSIONS_ROOT)
+            _ensure_legacy_extension_link()
+        finally:
+            shutil.rmtree(stage_dir, ignore_errors=True)
+    _prune_rollback_sets(keep=1)
+
+
+def _activate_via_rollback_move(stage_dir: Path) -> None:
+    """Original full-dir rollback-then-replace activation path."""
+    ROLLBACK_ROOT.mkdir(parents=True, exist_ok=True)
+    previous = ROLLBACK_ROOT / f"extensions-{int(time.time())}"
+    shutil.move(str(ACTIVE_EXTENSIONS_ROOT), previous)
     try:
         shutil.move(str(stage_dir / "extensions"), ACTIVE_EXTENSIONS_ROOT)
         _ensure_legacy_extension_link()
     except Exception:
-        if previous is not None and previous.exists() and not ACTIVE_EXTENSIONS_ROOT.exists():
+        if previous.exists() and not ACTIVE_EXTENSIONS_ROOT.exists():
             shutil.move(str(previous), ACTIVE_EXTENSIONS_ROOT)
         raise
     finally:
         shutil.rmtree(stage_dir, ignore_errors=True)
-    _prune_rollback_sets(keep=1)
+
+
+def _activate_via_file_replacement(stage_dir: Path) -> None:
+    """Per-file atomic replacement fallback when the directory move fails.
+
+    Writes each file from ``stage_dir/extensions/`` into the existing
+    ``ACTIVE_EXTENSIONS_ROOT`` via an ``os.replace`` rename of a
+    sibling temp file.  Atomic per file.  Leaves the directory itself
+    untouched, so the only permissions needed are write access to the
+    individual files we own and write access to the parent directory
+    (both held by the build user once the artifact is appuser-owned).
+    """
+    staged_extensions = stage_dir / "extensions"
+    if not staged_extensions.is_dir():
+        raise RuntimeError(
+            f"stage directory {stage_dir} has no extensions subtree to activate"
+        )
+    ACTIVE_EXTENSIONS_ROOT.mkdir(parents=True, exist_ok=True)
+    try:
+        replaced: list[str] = []
+        for source in staged_extensions.iterdir():
+            if not source.is_file():
+                continue
+            target = ACTIVE_EXTENSIONS_ROOT / source.name
+            temp = ACTIVE_EXTENSIONS_ROOT / f".activate-{source.name}.{int(time.time())}"
+            shutil.copy2(source, temp)
+            try:
+                os.replace(temp, target)
+            except OSError:
+                # Cleanup the temp file before re-raising so the active
+                # dir is not left littered with .activate-* fragments.
+                with contextlib.suppress(OSError):
+                    temp.unlink()
+                raise
+            replaced.append(source.name)
+        _ensure_legacy_extension_link()
+        print(
+            "ensure_compiled_artifacts: per-file replacement updated "
+            f"{len(replaced)} extension(s) in {ACTIVE_EXTENSIONS_ROOT} "
+            "without touching directory ownership.",
+            flush=True,
+        )
+    finally:
+        shutil.rmtree(stage_dir, ignore_errors=True)
 
 
 def _build_cpp_runtime(
@@ -374,6 +481,104 @@ def _record_go_state(repo_root: Path, manifest: dict[str, Any]) -> None:
     manifest["go_artifact_path"] = str(ACTIVE_GO_ROOT)
     _write_manifest(manifest)
     print("Go runtime artifact state is recorded and deduped.", flush=True)
+
+
+def _record_rust_speccheck_state(
+    repo_root: Path,
+    manifest: dict[str, Any],
+    *,
+    force: bool = False,
+) -> None:
+    workspace = _rust_speccheck_root(repo_root)
+    files = _rust_speccheck_files(workspace)
+    if not files:
+        _record_no_rust_speccheck(manifest, "no-rust-speccheck")
+        return
+    source_hash = _hash_files(files)
+    rust_entry = manifest["active"].get("rust_speccheck", {})
+    if not force and rust_entry.get("source_hash") == source_hash and _rust_speccheck_present(rust_entry):
+        print("Rust speccheck binary is current.", flush=True)
+        return
+    if shutil.which("cargo") is None:
+        if _rust_speccheck_present(rust_entry):
+            print("Rust speccheck binary is active; Cargo is not installed in this container.", flush=True)
+            return
+        raise RuntimeError(
+            "Rust speccheck build requires the Docker-managed compiled-tools container with cargo."
+        )
+    record = _build_rust_speccheck(workspace, source_hash, manifest)
+    manifest["active"]["rust_speccheck"] = _rust_speccheck_manifest_entry(source_hash, record)
+    manifest["rust_speccheck_hash"] = source_hash
+    manifest["rust_speccheck_path"] = str(ACTIVE_SPECCHECK_PATH)
+    _write_manifest(manifest)
+    print("Rust speccheck binary was rebuilt and deduped.", flush=True)
+
+
+def _record_no_rust_speccheck(manifest: dict[str, Any], source_hash: str) -> None:
+    manifest["active"]["rust_speccheck"] = {
+        "language": "rust",
+        "source_hash": source_hash,
+        "status": "no-rust-speccheck",
+        "last_verified_at": _now(),
+    }
+    manifest["rust_speccheck_path"] = str(ACTIVE_SPECCHECK_PATH)
+    _write_manifest(manifest)
+    print("No Rust speccheck workspace found; no fake Rust artifact was created.", flush=True)
+
+
+def _rust_speccheck_present(entry: dict[str, Any]) -> bool:
+    active_path = entry.get("active_path") or str(ACTIVE_SPECCHECK_PATH)
+    return Path(active_path).exists()
+
+
+def _build_rust_speccheck(
+    workspace: Path,
+    source_hash: str,
+    manifest: dict[str, Any],
+) -> dict[str, Any]:
+    build_id = f"rust-speccheck-{source_hash[:12]}-{int(time.time())}"
+    build_dir = BUILD_ROOT / build_id
+    target_dir = build_dir / "target"
+    _clean_dir(build_dir)
+    _run(
+        [
+            "cargo",
+            "build",
+            "--release",
+            "--locked",
+            "--bin",
+            "speccheck",
+            "--target-dir",
+            str(target_dir),
+        ],
+        cwd=workspace,
+    )
+    binary = target_dir / "release" / "speccheck"
+    if not binary.exists():
+        raise RuntimeError(f"Rust build did not produce speccheck binary: {binary}")
+    stored = _store_artifact(binary, manifest)
+    _link_or_copy(Path(stored["store_path"]), ACTIVE_SPECCHECK_PATH)
+    ACTIVE_SPECCHECK_PATH.chmod(0o755)
+    _run([str(ACTIVE_SPECCHECK_PATH)], cwd=workspace)
+    return {
+        "filename": "speccheck",
+        "module": "speccheck",
+        "active_path": str(ACTIVE_SPECCHECK_PATH),
+        **stored,
+    }
+
+
+def _rust_speccheck_manifest_entry(source_hash: str, record: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "language": "rust",
+        "module": "services/speccheck",
+        "source_hash": source_hash,
+        "status": "built",
+        "active_path": str(ACTIVE_SPECCHECK_PATH),
+        "build_command": "cargo build --release --locked --bin speccheck",
+        "last_verified_at": _now(),
+        "artifacts": [record],
+    }
 
 
 def _record_no_go_modules(manifest: dict[str, Any], source_hash: str) -> None:
@@ -469,7 +674,12 @@ def _verify_runtime_imports(active_root: Path = ACTIVE_ROOT) -> None:
     pythonpath = os.pathsep.join([str(active_root), str(BACKEND_ROOT), os.environ.get("PYTHONPATH", "")])
     env = {**os.environ, "PYTHONPATH": pythonpath}
     code = "import extensions.scoring, extensions.simsearch, extensions.texttok"
-    subprocess.run([sys.executable, "-c", code], check=True, env=env)
+    subprocess.run(
+        [sys.executable, "-c", code],
+        check=True,
+        env=env,
+        timeout=COMPILED_IMPORT_TIMEOUT_SECONDS,
+    )
     print("Compiled runtime imports are ready.", flush=True)
 
 
@@ -557,6 +767,7 @@ def manifest_status() -> dict[str, Any]:
         "artifact_root": str(ARTIFACT_ROOT),
         "build_root": str(BUILD_ROOT),
         "active_cpp_artifacts_present": _cpp_artifacts_present(),
+        "active_speccheck_present": ACTIVE_SPECCHECK_PATH.exists(),
         "manifest": manifest,
     }
 
@@ -593,14 +804,40 @@ def ensure_artifacts(*, force: bool = False) -> int:
         manifest = _load_manifest()
         cpp_digest = _hash_files(_runtime_cpp_files(extensions_root))
         _build_cpp_runtime(backend_root, cpp_digest, manifest, force=force)
-        _record_go_state(REPO_ROOT, _load_manifest())
+        manifest = _load_manifest()
+        _record_go_state(REPO_ROOT, manifest)
+        manifest = _load_manifest()
+        _record_rust_speccheck_state(REPO_ROOT, manifest, force=force)
         _verify_runtime_imports()
+    return 0
+
+
+def check_artifacts() -> int:
+    missing: list[str] = []
+    if not _cpp_artifacts_present():
+        missing.append("compiled C++ extension runtime")
+    if not ACTIVE_SPECCHECK_PATH.exists():
+        missing.append("Rust speccheck binary")
+    if missing:
+        print(
+            "Missing Docker-managed compiled artifact(s): " + ", ".join(missing),
+            file=sys.stderr,
+            flush=True,
+        )
+        print(
+            "Run the compiled-tools service to build them before starting app containers.",
+            file=sys.stderr,
+            flush=True,
+        )
+        return 1
+    _verify_runtime_imports()
+    print("Docker-managed compiled artifacts are ready.", flush=True)
     return 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--check", action="store_true", help="Build if stale, then exit.")
+    parser.add_argument("--check", action="store_true", help="Verify active artifacts, then exit.")
     parser.add_argument("--json", action="store_true", help="Print manifest status as JSON.")
     parser.add_argument("--prune-stale", action="store_true", help="Delete stale store and scratch files.")
     parser.add_argument("--dry-run", action="store_true", help="Show prune results without deleting.")
@@ -614,6 +851,8 @@ def main() -> int:
         result = prune_stale(retention_days=args.retention_days, dry_run=args.dry_run)
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
+    if args.check:
+        return check_artifacts()
     return ensure_artifacts(force=args.force)
 
 
