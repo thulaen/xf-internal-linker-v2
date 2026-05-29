@@ -9,6 +9,10 @@ cd "$repo_root"
 
 . scripts/quality-evidence-lib.sh
 
+# Defense in depth: enforce the AutoIssue + paper-trail quotas at push too, so a
+# commit that somehow skipped the pre-commit chain still cannot reach the remote
+# without the quotas met. Must run before the quality/tool-readiness step.
+python .githooks/check-autoissue-quota.py
 bash scripts/run-tool-readiness.sh
 docker compose config >/dev/null
 export COMMIT_SCOPE_MODE="${COMMIT_SCOPE_MODE:-push}"
