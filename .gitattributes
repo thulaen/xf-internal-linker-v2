@@ -1,0 +1,25 @@
+# Normalise all text files to LF in the repo; check out as LF everywhere
+# except PowerShell scripts which Windows tools expect to have CRLF.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.psm1 text eol=crlf
+*.psd1 text eol=crlf
+
+# Binary files — do not touch line endings.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary
+*.eot  binary
+*.zip  binary
+*.tar.gz binary
+*.pyd  binary
+*.so   binary
+*.dll  binary
+*.exe  binary
+*.a    binary

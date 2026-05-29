@@ -1,0 +1,183 @@
+# Phase K2 (extends Phase A of the per-module coverage plan).
+# Modular monolith — glob to module + tier mapping.
+#
+# The 9 modules + cross-language tiers are conceptual today: each glob
+# points at the EXISTING backend/apps/<name>/ layout. Slice 2+ moves
+# code into backend/apps/<module>/api.py; this yaml updates with the
+# code, the hook stays the same.
+#
+# Tier thresholds: line / branch / mutation (percent).
+#   tier1 — Level A: business logic, scoring, state transitions, security
+#   tier2 — Standard production code
+#   tier3 — Orchestration, platform, ops
+#   cpp / go / angular / smoke — language- or stage-specific
+#
+# The strictest tier wins when globs overlap.
+
+version: 1
+
+tiers:
+  tier1:
+    line: 95
+    branch: 90
+    mutation: 100
+  tier2:
+    line: 90
+    branch: 85
+    mutation: 100
+  tier3:
+    line: 80
+    branch: 75
+    mutation: 80
+  cpp:
+    line: 100
+    branch: 100
+    mutation: 100
+  go_sidecar:
+    line: 80
+    branch: 75
+    mutation: 70
+  go_streamd:
+    line: 80
+    branch: 75
+    mutation: 70
+  angular_component:
+    line: 95
+    branch: 85
+    mutation: 95
+  angular_service:
+    line: 95
+    branch: 85
+    mutation: 95
+  smoke:
+    line: 0
+    branch: 0
+    mutation: 0
+    smoke_test_required: true
+
+modules:
+  pipeline:
+    tier: tier1
+    globs:
+      - "backend/apps/*/services/scoring.py"
+      - "backend/apps/*/services/ranking.py"
+      - "backend/apps/*/services/text_clean*.py"
+      - "backend/apps/*/services/sentence_split*.py"
+      - "backend/apps/*/services/embedding*.py"
+      - "backend/apps/*/services/index_build*.py"
+      - "backend/apps/*/services/candidate_*.py"
+      - "backend/apps/*/services/rrf*.py"
+      - "backend/apps/*/services/mmr*.py"
+      - "backend/apps/*/services/dedup*.py"
+      - "backend/apps/*/services/near_duplicate*.py"
+
+  suggestions:
+    tier: tier1
+    globs:
+      - "backend/apps/*/services/suggestion*.py"
+      - "backend/apps/*/services/state_transitions.py"
+      - "backend/apps/*/services/review_queue.py"
+      - "backend/apps/*/services/anchor_policy.py"
+      - "backend/apps/*/services/existing_link*.py"
+      - "backend/apps/*/services/broken_link*.py"
+
+  governance:
+    tier: tier1
+    globs:
+      - "backend/apps/audit/**/*.py"
+      - "backend/apps/paper_trail/**/*.py"
+      - "backend/apps/auto_issues/services/**/*.py"
+      - "backend/apps/*/services/permissions.py"
+      - "backend/apps/*/services/policy*.py"
+
+  content:
+    tier: tier2
+    globs:
+      - "backend/apps/posts/**/*.py"
+      - "backend/apps/pages/**/*.py"
+      - "backend/apps/anchors/**/*.py"
+      - "backend/apps/distilled/**/*.py"
+
+  sources:
+    tier: tier2
+    globs:
+      - "backend/apps/xenforo/**/*.py"
+      - "backend/apps/wordpress/**/*.py"
+      - "backend/apps/sources/**/*.py"
+      - "backend/apps/crawler/**/*.py"
+
+  analytics:
+    tier: tier2
+    globs:
+      - "backend/apps/analytics/**/*.py"
+      - "backend/apps/gsc/**/*.py"
+      - "backend/apps/ga4/**/*.py"
+      - "backend/apps/matomo/**/*.py"
+
+  graph:
+    tier: tier2
+    globs:
+      - "backend/apps/graph/**/*.py"
+      - "backend/apps/pagerank/**/*.py"
+
+  platform:
+    tier: tier3
+    globs:
+      - "backend/apps/core/**/*.py"
+      - "backend/apps/diagnostics/**/*.py"
+      - "backend/apps/pipeline/services/hardware_profile.py"
+      - "backend/apps/audit/services/disk_pressure.py"
+      - "backend/config/**/*.py"
+
+  operations:
+    tier: tier3
+    globs:
+      - "backend/apps/ops_feed/**/*.py"
+      - "backend/apps/realtime/**/*.py"
+      - "backend/apps/*/tasks*.py"
+      - "backend/apps/*/celery*.py"
+
+  cpp_extensions:
+    tier: cpp
+    globs:
+      - "backend/extensions/*.cpp"
+      - "backend/extensions/*.h"
+
+  streamd:
+    tier: go_streamd
+    globs:
+      - "services/streamd/**/*.go"
+    exclude:
+      - "**/*_test.go"
+      - "**/api/gen/**"
+
+  sidecars:
+    tier: go_sidecar
+    globs:
+      - "services/sidecars/**/*.go"
+    exclude:
+      - "**/*_test.go"
+      - "**/api/gen/**"
+
+  angular_components:
+    tier: angular_component
+    globs:
+      - "frontend/src/app/**/*.component.ts"
+    exclude:
+      - "**/*.spec.ts"
+
+  angular_services:
+    tier: angular_service
+    globs:
+      - "frontend/src/app/**/*.service.ts"
+    exclude:
+      - "**/*.spec.ts"
+
+  scaffolding:
+    tier: smoke
+    globs:
+      - "backend/apps/*/migrations/*.py"
+      - "scripts/**/*.py"
+      - ".githooks/check-*.py"
+
+default_tier: tier3

@@ -64,10 +64,16 @@ frontend/coverage/
 frontend/reports/
 frontend/playwright-report/
 frontend/test-results/
+frontend/.stryker-tmp/
 
 # Docker
 docker-compose.override.yml
 tmp/docker-config/
+.tmp/
+tmp/free-code-review/
+tmp/codeql/
+reports/codeql/
+reports/codeql-ci/
 
 # OS
 .DS_Store
@@ -96,6 +102,7 @@ htmlcov/
 coverage-html/
 backend/coverage-html/
 backend/reports/
+backend/.mutmut-cache/
 
 # Celery
 celerybeat-schedule
@@ -180,3 +187,57 @@ nul
 
 # mkcert localhost TLS certificates � never commit private keys
 nginx/certs/*.pem
+
+# Session gate state (written at session start, contains HMAC token)
+audit/session_gate_state.json
+
+# Auto-generated mutation-test output directories (mutmut, cargo-mutants, etc.)
+**/mutants.out/
+**/mutants/
+backend/mutants/
+
+# Rust build output (speccheck and any future Rust services)
+services/speccheck/target/
+services/*/target/
+
+# Haskell build output (findbugs-haskell and any future Haskell services)
+services/findbugs-haskell/dist-newstyle/
+services/*/dist-newstyle/
+services/*/.stack-work/
+
+# Miscellaneous Go and C++ test/bench artefacts that don't belong in the repo
+**/cover.out
+**/bench.txt
+**/.compile.lock
+**/pprof.out
+services/*/report.json
+
+# Transcript and audit log artefacts (agent session logs — gitignored, not committed)
+audit/resolved_issues_lookup_log.jsonl
+audit/*.jsonl
+
+# Accidental / disposable scratch artefacts that have crept into the repo root.
+# These are byproducts of tools and malformed commands, never source:
+#   nul            — Windows redirect artefact (`> nul` creating a real file)
+#   cookies.txt    — curl cookie jar
+#   frontend;C     — malformed `--prefix frontend;C:\...` path turned into a dir
+#   tmp.txt, patch.diff, *.orig, *.rej — scratch / merge leftovers
+#   luacov.stats.out — Lua coverage output
+#   test_dry_perf*.py — throwaway perf experiments (real tests live under tests/)
+#   findbugs-*.png — local screenshots
+#   tmp/           — disposable scratch dir (prompt drafts, sync staging)
+/nul
+/cookies.txt
+/frontend;C
+/tmp.txt
+/patch.diff
+*.orig
+*.rej
+luacov.stats.out
+/test_dry_perf*.py
+/findbugs-*.png
+/tmp/
+# Disposable scratch dirs and intermediate build files anywhere in the tree.
+# *.tmp covers protoc/buf intermediates like main.go.tmp and api/gen/*.tmp.
+backend/tmp/
+**/*.tmp

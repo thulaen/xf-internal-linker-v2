@@ -1,9 +1,18 @@
 # AI-CONTEXT.md
 
+**ABSOLUTE — Fast session-start payload is the default for every agent.** At session start, run `python scripts/session_start_payload.py` as the single first startup command. Do not run `docker compose exec -T backend python manage.py refresh_session_start_payload` during normal chat startup. Do not read `audit/session_start_payload.jsonl` to reconstruct markers. Only run live startup commands when the user explicitly asks for live startup debugging.
+
+
+**ABSOLUTE — Turbo quality model is mandatory for every agent and every language check.** Turbo quality model means the repo's split-run verification path that assigns about 65 percent of eligible work to Windows and about 35 percent to the Mint helper machine, then gathers the results back into one report. Every agent — Codex, Claude, Gemini, Antigravity, and every future agent — MUST use the turbo path for Python, Go, C++, Haskell, and Rust quality work whenever a repo-owned turbo runner or shard planner exists. This applies to normal tests, coverage, lint or static checks, mutation tests, fuzz tests, benchmarks, and build verification. It is NOT mutation-only. A single-container, one-machine, or low-core run is allowed only as a small diagnostic after a turbo run has failed, or when the agent records a plain-English blocker that proves the turbo runner or Mint helper is unavailable. Do not call a half-sized scoped run "complete" when turbo was available. Handoff entries and final summaries must state `turbo=used` or `turbo=blocked:<plain reason>` for every quality command group.
+
 This is the first continuity file every AI session must read.
 
-## Current Session Note - 2026-05-21 02:48 Codex GPT-5
+## Current Session Note - 2026-05-27 09:37 Antigravity
 
+- Implemented the report-only Agent Guard checker (`scripts/agent_guard.py`) to verify TDD, KISS, and DRY rules post-invocation.
+- Wrote tests in `scripts/test_agent_guard.py` to ensure it never edits or reverts working tree files.
+- Updated `backend/requirements-dev.txt` with `watchdog` (which is no longer used but was added previously).
+- Updated `AGENTS.md` and `PLAIN-ENGLISH-RULE.md` to document the checker's behavior.
 - Continued on `master`; no branch was created, no files were staged, and no commit was made.
 - User asked to handle 10 open Paper Trail items with test-first work and source-backed specs when missing. The live Paper Trail command first reported 0 open rows, so I repaired the handoff migration path that should have populated them.
 - Added `docs/specs/fr-paper-trail-handoff-migration.md` with current freshness and citations from academic papers, a patent, and `docs/PAPER-TRAIL.md`.
