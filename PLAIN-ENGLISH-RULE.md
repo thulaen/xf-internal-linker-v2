@@ -113,11 +113,19 @@ When you must mention a technical concept, use the plain-English version from th
 | the background task runner | celery worker |
 | the framework that builds the visual interface | Angular |
 | the framework that handles data storage and business logic | Django |
+| a background checker that physically blocks saves if coding rules (like writing tests first) are skipped | Agent Guard Daemon |
 | the Django setting that lists the app's database connections | DATABASES |
 | the Django setting value that selects which database type Django should use | ENGINE |
 | a packaging system that makes the app run the same everywhere | Docker |
 | profile data that shows where code spends time or memory while the app runs | OpenTelemetry Profiles |
 | the local service that stores and searches profile data | Pyroscope |
+| a tool that records a timeline of what native (C++/Rust/Go) code is doing so slow spots become visible | Perfetto |
+| a memory-safety watchdog that samples native code while it runs and flags use-after-free or buffer-overflow bugs | GWP-ASan |
+| grouping near-duplicate issues together so one fix closes the whole family | root-cause clustering |
+| the background service that groups near-duplicate issues by their underlying cause | clusterd |
+| a fast way to estimate how similar two sets of words are without comparing every element | MinHash |
+| a fast way to find likely-similar items without comparing every possible pair | LSH / locality-sensitive hashing |
+| an automatic tuner that searches for the best settings by trying many combinations and keeping the best | Optuna |
 | the OpenTelemetry data format used to send traces, metrics, logs, and profiles between services | OTLP |
 | a collector setting that turns on a not-yet-default capability | feature gate |
 | a short written plan with sources that proves why a speed or profiling change is designed that way | performance spec |
@@ -237,6 +245,7 @@ When you must mention a technical concept, use the plain-English version from th
 | a small, fast file format for tabular data — stores columns separately so reading just one column is much quicker than CSV; used by Polars and pyarrow for weekly model snapshots on disk | Parquet |
 | a measure of statistical spread that shrugs off outliers — equals the median of the absolute differences from the median; the project uses it to decide which anchor texts are unusually rare or unusually common | MAD / median absolute deviation |
 | a single percentage that says whether changed files became easier to maintain, based on duplicate code, long functions, missing tests, unsafe patterns, and similar issues | quality-debt score |
+| the required fast verification mode that splits eligible checks about 65 percent to Windows and 35 percent to the Mint helper machine, then gathers one final result | turbo quality model |
 | a shared compiled file that the app loads when it runs, so one tested copy can be reused instead of copying the same fast code into several places | dynamic library / shared library |
 | classic search-engine word-importance score — rare words across the whole corpus get a higher weight than common ones; combined with term frequency it gives the standard TF-IDF ranking number | IDF / inverse document frequency |
 | classic topic-modelling algorithm that groups words into latent topics — each document becomes a soft mixture of K topics; the project uses gensim's implementation for a weekly topic-refresh job | LDA / Latent Dirichlet Allocation |
@@ -325,7 +334,11 @@ When you must mention a technical concept, use the plain-English version from th
 | repeated-warning detector — Loki picker that groups WARN/ERROR lines by normalized fingerprint (timestamps, PIDs, hex addresses stripped) and files an AutoIssue when one pattern occurs many times in 24 h | hot pattern detector / loki hot pattern |
 | short-window WARN/ERROR rate spike — Loki picker that compares the last hour's WARN/ERROR count to the 24-hour average and files an AutoIssue when the multiple is high | warn burst / loki warn_burst |
 | placeholder AutoIssue filed when an automated source produced fewer findings than the session-start ritual expects (e.g. Loki has only 2 hot patterns instead of 4); the next agent investigates why the source was empty | picker_drought |
-| structured-analysis output format — the standard JSON file every code-quality / security scanner writes (Static Analysis Results Interchange Format); the project does not currently emit SARIF but it would be the wire format if a Qodana / Semgrep importer is ever added | SARIF |
+| structured-analysis output format — the standard JSON file every code-quality or security scanner writes; the project uses it for Super-Linter and CodeQL reports | SARIF |
+| GitHub's code security scanner that finds likely security bugs and writes one report per supported programming language | CodeQL |
+| fast lossless compression that stores the full CodeQL evidence in fewer database bytes while allowing exact restore later | LZ4 |
+| the smart build helper's rule that sends about 65 percent of ordinary compile jobs to Mint and 35 percent to Windows, chosen by a stable hash so the same target always goes to the same side | 65/35 build split / turbo split |
+| an AutoIssue created when a compiler or Docker build fails; the short issue row points to full LZ4-compressed terminal output stored separately | build-failure AutoIssue |
 | Grafana's frontend telemetry SDK — runs in the browser and ships JS errors, Web Vitals, and session events to the Alloy `faro.receiver` block; the `faro_picker` reads those streams from Loki and files an AutoIssue when a JS error or Web Vital breach repeats; added 2026-05-11 | Faro / Grafana Faro / @grafana/faro-web-sdk |
 | Grafana's distributed-trace backend — stores spans organised by traceID so a single trace tree (browser → backend → DB → C++) is queryable end-to-end; runs default-on at `localhost:3200`; otel-collector fans traces out to BOTH GlitchTip AND Tempo so the same trace lives in two stores; added 2026-05-11 | Tempo / Grafana Tempo |
 | visualisation UI for Tempo, Loki, Pyroscope, and Prometheus — runs default-on at `localhost:3000`; data sources are pre-provisioned from `grafana/provisioning/datasources/datasources.yaml`; admin password lives in `.env`; added 2026-05-11 | Grafana / Grafana OSS |
@@ -353,7 +366,6 @@ When you must mention a technical concept, use the plain-English version from th
 | a C++ include checker that reports headers the file does not need and headers the file forgot to include directly | Include-What-You-Use / IWYU |
 | an all-in-one Go checker that runs many Go bug, style, and safety checks from one command | golangci-lint |
 | a Go security checker that searches Go code for common unsafe patterns | gosec |
-| GitHub's security scanner that builds a code database and searches for known unsafe patterns | CodeQL |
 | Meta's static analyzer that checks C, C++, Java, and Objective-C for bugs such as null pointer use, leaks, and concurrency errors | Infer |
 | a Python checker that finds risky code patterns such as hard-coded secrets and unsafe function calls | Bandit |
 | a Python checker that reports code errors and risky patterns; this project runs the errors-only mode in Docker | PyLint |
@@ -427,6 +439,13 @@ When you must mention a technical concept, use the plain-English version from th
 | an agent-readable implementation contract written before code is edited; lists what the code must do, expected behaviour, edge cases, failure modes, security, usability, and regression risks; the next agent reads it as a working spec; different from an "automated test" which is the runnable proof the contract is satisfied | test case |
 | a row in the deferred-work table that records something the team chose not to do this session; from 17 May 2026 onward every new entry must link to a full test case (all 10 BDD fields) AND carry at least one citation (patent / DOI / arXiv / standard / RFC / ISBN / official-vendor URL); the database rejects entries that miss either piece | paper trail entry |
 | a stable identifier that points at a piece of original evidence — a patent number, a paper DOI like `10.1145/361598.361623`, an arXiv ID like `arXiv:2106.12345`, an ISO / IEEE / IETF standard number, an RFC number, an ISBN for a book, or a URL on the official-vendor allowlist; required on every new paper-trail entry so the next agent can resolve the source without guessing | citation |
+| re-run hub COMPUTE — recalculate which pages belong to each visitor-path hub and what their scores are | COMPUTE |
+| a visitor-path hub — a page where many visitor journeys converge before they move on | HUB |
+| Short Message Service — text-message notification channel | SMS |
+| a saved bundle of ranking weights that can be applied in one click | SET |
+| the number of times something has occurred | COUNT |
+| Monthly Recurring Revenue — how much subscription income the site earns each month | MRR |
+| add on top of — used in pricing tiers to mean "everything in the lower tier, and also these extras" | PLUS |
 
 If a term you need is not in this table, define it yourself in parentheses the first time you use it.
 

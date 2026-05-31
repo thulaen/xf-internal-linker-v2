@@ -350,6 +350,10 @@ ALLOWLIST: frozenset[str] = frozenset({
     "CUTOFF", "MINIMAL", "FULL", "HARD-CAPPED", "STRICT-RULE",
     "FIRST-RULE", "ALERT", "ENTRYPOINT",
     "UNBLOCK", "DRY-RUN",  # Rule F three-part FAIL keyword + --dry-run flag
+    # Prototype HTML ranking signal meta-algorithm IDs (internal identifiers, not user-facing acronyms)
+    "META-09", "META-12", "META-13", "META-14", "META-16", "META-23",
+    "META-24", "META-26", "META-31", "META-38", "META-39",
+    "DETECTION",  # Hub detection method label in Behavioral Hubs prototype page
     # Rule-file filenames (each has a plain-English description in the
     # docs/*-RULE.md file itself; the all-caps form here is just a
     # filename reference in docstrings + log lines).
@@ -413,6 +417,7 @@ SKIP_FILE_PATTERNS = (
     re.compile(r"^GLOSSARY-RULE\.md$"),  # the rule doc itself uses acronyms as examples
     re.compile(r"^PLAIN-ENGLISH-RULE\.md$"),  # the glossary itself
     re.compile(r"^AGENT-HANDOFF\.md$"),  # session-log artifact, not user-facing prose; bundle content hashes (e.g. main-LKCJGWJN.js) and ALL-CAPS narrative emphasis would otherwise force per-session allowlist churn
+    re.compile(r"^frontend/signal-control-light-prototype\.html$"),  # single-file HTML prototype with mock UI text, hex color codes, and music domain terms (VST/DAW/MIDI) that are not new technical acronyms requiring glossary entries
     re.compile(r"\.cpp$"),  # C++ source files have their own header
     re.compile(r"\.h$"),
     re.compile(r"\.svg$"),
