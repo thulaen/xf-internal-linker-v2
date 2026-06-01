@@ -380,6 +380,30 @@ ALLOWLIST: frozenset[str] = frozenset({
     # labels and rule-file names, not new user-facing vocabulary.
     "PER-FILE-LESSON-LOOKUP-RULE", "TDD-PIPELINE-RULE",
     "PIPELINE", "METHOD", "DOTALL", "EXPORTED",
+    # Plain English verbs / nouns used ALL-CAPS for emphasis in test
+    # docstrings (scripts/test_machine_routing.py and similar). Not
+    # technical jargon — "INJECTED" means a fake was substituted,
+    # "RAISE" means the function throws an exception, "SSH" is the
+    # well-known Secure Shell protocol already covered in the glossary's
+    # one-liner.
+    "SSH", "INJECTED", "RAISE",
+    # Plain English words used ALL-CAPS in code comments and docstrings
+    # (added 2026-06-01, pgexporter + machine_routing session).
+    # WOULD / PASSES / UNLESS / DIRECTLY / ZERO — everyday English used
+    # for emphasis in docstrings and inline comments, not new technical terms.
+    # ALWAYS-ON — project compound noun for the "always-on fix quota" gate
+    # (lowercase form "always-on quota" is already explained in CLAUDE.md).
+    # PGEXPORTER — shorthand for the postgres_exporter monitoring sidecar;
+    # the full name is used in file names (pgexporter_picker.py) so this
+    # is a filename-stem reference, not a new concept requiring a glossary row.
+    # NCPU — Docker Go-template field `{{.NCPU}}` (number of CPUs returned by
+    # `docker info`); it is a well-known Docker API field, not project jargon.
+    "WOULD", "PASSES", "UNLESS", "DIRECTLY", "ZERO",
+    "ALWAYS-ON", "PGEXPORTER", "NCPU",
+    # INTERVAL — plain English noun for "time between events", used as a shell
+    # variable name in the sonar-autoscan loop (SONAR_AUTOSCAN_INTERVAL_SECONDS).
+    # Not a new technical concept; the word "interval" is already in any dictionary.
+    "INTERVAL",
 })
 
 # Regex: 3+ consecutive uppercase letters with optional repeated hyphen-

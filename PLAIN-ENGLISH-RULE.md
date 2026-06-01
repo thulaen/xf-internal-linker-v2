@@ -245,7 +245,9 @@ When you must mention a technical concept, use the plain-English version from th
 | a small, fast file format for tabular data — stores columns separately so reading just one column is much quicker than CSV; used by Polars and pyarrow for weekly model snapshots on disk | Parquet |
 | a measure of statistical spread that shrugs off outliers — equals the median of the absolute differences from the median; the project uses it to decide which anchor texts are unusually rare or unusually common | MAD / median absolute deviation |
 | a single percentage that says whether changed files became easier to maintain, based on duplicate code, long functions, missing tests, unsafe patterns, and similar issues | quality-debt score |
-| the required fast verification mode that splits eligible checks about 65 percent to Windows and 35 percent to the Mint helper machine, then gathers one final result | turbo quality model |
+| the required fast verification mode that splits eligible checks across every reachable helper machine by weight (the Dell helper up to 60 percent, Windows 30 percent, the Mint helper 10 percent), runs them at the same time, then gathers one final result; a machine that is switched off is skipped and its share is handed to the machines that answer | turbo quality model |
+| the rule that shares the slow mutation-testing work across three machines by weight (the Dell helper up to a 60 percent ceiling, the Windows laptop 30 percent, the Mint helper 10 percent) and runs them in parallel so the wait is shorter; any machine that is powered off is dropped before work starts and its share is spread over the machines still reachable, so a switched-off box never blocks a commit | weighted machine split / fail-open redistribution |
+| the faster second helper PC (20 CPU cores) reached over a secure remote-shell connection; it takes up to 60 percent of the slow mutation work when it is switched on, and is simply skipped when it is off | Dell runner |
 | a shared compiled file that the app loads when it runs, so one tested copy can be reused instead of copying the same fast code into several places | dynamic library / shared library |
 | classic search-engine word-importance score — rare words across the whole corpus get a higher weight than common ones; combined with term frequency it gives the standard TF-IDF ranking number | IDF / inverse document frequency |
 | classic topic-modelling algorithm that groups words into latent topics — each document becomes a soft mixture of K topics; the project uses gensim's implementation for a weekly topic-refresh job | LDA / Latent Dirichlet Allocation |
@@ -337,7 +339,7 @@ When you must mention a technical concept, use the plain-English version from th
 | structured-analysis output format — the standard JSON file every code-quality or security scanner writes; the project uses it for Super-Linter and CodeQL reports | SARIF |
 | GitHub's code security scanner that finds likely security bugs and writes one report per supported programming language | CodeQL |
 | fast lossless compression that stores the full CodeQL evidence in fewer database bytes while allowing exact restore later | LZ4 |
-| the smart build helper's rule that sends about 65 percent of ordinary compile jobs to Mint and 35 percent to Windows, chosen by a stable hash so the same target always goes to the same side | 65/35 build split / turbo split |
+| the smart **build** helper's rule that sends about 65 percent of ordinary compile jobs to Mint and 35 percent to Windows, chosen by a stable hash so the same target always goes to the same side (this is the Docker-build split — not the mutation-test split, which is the weighted machine split above) | 65/35 build split |
 | an AutoIssue created when a compiler or Docker build fails; the short issue row points to full LZ4-compressed terminal output stored separately | build-failure AutoIssue |
 | Grafana's frontend telemetry SDK — runs in the browser and ships JS errors, Web Vitals, and session events to the Alloy `faro.receiver` block; the `faro_picker` reads those streams from Loki and files an AutoIssue when a JS error or Web Vital breach repeats; added 2026-05-11 | Faro / Grafana Faro / @grafana/faro-web-sdk |
 | Grafana's distributed-trace backend — stores spans organised by traceID so a single trace tree (browser → backend → DB → C++) is queryable end-to-end; runs default-on at `localhost:3200`; otel-collector fans traces out to BOTH GlitchTip AND Tempo so the same trace lives in two stores; added 2026-05-11 | Tempo / Grafana Tempo |
@@ -446,6 +448,9 @@ When you must mention a technical concept, use the plain-English version from th
 | the number of times something has occurred | COUNT |
 | Monthly Recurring Revenue — how much subscription income the site earns each month | MRR |
 | add on top of — used in pricing tiers to mean "everything in the lower tier, and also these extras" | PLUS |
+| splits Python unit tests across 3 machines so they run at the same time instead of one after another | turbo test runner |
+| splitting a test suite into groups that run at the same time on different machines | test sharding |
+| Docker named volume holding synced source code on Mint/Dell during distributed test runs | xf_test_repo |
 
 If a term you need is not in this table, define it yourself in parentheses the first time you use it.
 

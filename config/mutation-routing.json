@@ -1,0 +1,83 @@
+{
+  "version": "1.1",
+  "machines": [
+    { "name": "dell",    "transport": "docker_context", "context": "dell",    "weight": 0.60, "max_weight": 0.60 },
+    { "name": "windows", "transport": "docker_local",                       "weight": 0.30, "max_weight": 1.0 },
+    { "name": "mint",    "transport": "docker_context", "context": "mint",  "weight": 0.10, "max_weight": 1.0 }
+  ],
+  "split": {
+    "local_pct": 0.65,
+    "remote_pct": 0.35,
+    "remote_context": "mint"
+  },
+  "languages": {
+    "python": {
+      "tool": "mutmut",
+      "container": "backend",
+      "context": "local",
+      "split": true,
+      "report_container": "/tmp/mutmut-survivors.json",
+      "report_host": ".tmp/mutmut-survivors.json",
+      "targets_env": "XF_MUTMUT_PATHS"
+    },
+    "cpp": {
+      "tool": "mull",
+      "container": "compiled-tools",
+      "split": true,
+      "report_dir_container": "/tmp/mull-reports",
+      "report_dir_host": ".tmp/mull-reports",
+      "binaries": [
+        "test_fieldrel",
+        "test_scoring",
+        "test_passagesim",
+        "test_simsearch",
+        "test_quantemb",
+        "test_ivf_index",
+        "test_streaming_sketches",
+        "test_papertrail_dedup",
+        "test_lesson_index"
+      ]
+    },
+    "go": {
+      "tool": "go-mutesting",
+      "container": "compiled-tools",
+      "split": true,
+      "workspace": "/repo/services",
+      "report_container": "/tmp/go-mutesting-report.json",
+      "report_host": ".tmp/go-mutesting-report.json"
+    },
+    "typescript": {
+      "tool": "stryker",
+      "container": "xf_linker_compiled_tools",
+      "context": "local",
+      "split": true,
+      "workspace": "/repo/frontend",
+      "report_container": "/repo/frontend/reports/stryker.json",
+      "report_host": "frontend/reports/stryker.json"
+    },
+    "rust": {
+      "tool": "cargo-mutants",
+      "container": "compiled-tools",
+      "split": true,
+      "workspace": "/repo/services/speccheck",
+      "report_container": "/tmp/mutants.out/outcomes.json",
+      "report_host": ".tmp/rust-outcomes.json"
+    },
+    "haskell": {
+      "tool": "mucheck",
+      "container": "compiled-tools",
+      "split": true,
+      "workspace": "/repo/services/findbugs-haskell",
+      "report_container": "/tmp/mucheck-report.json",
+      "report_host": ".tmp/mucheck-report.json"
+    }
+  },
+  "kill_rate_gates": {
+    "python": 0.90,
+    "cpp": 0.80,
+    "go": 0.45,
+    "typescript": 0.70,
+    "rust": 0.75,
+    "haskell": 0.70
+  }
+}

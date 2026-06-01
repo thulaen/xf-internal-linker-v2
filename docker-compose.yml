@@ -61,6 +61,114 @@ services:
       retries: 5
 
   # ─────────────────────────────────────────────
+  # SonarQube — code-quality server. Runs on the Mint helper, NOT Windows.
+  # Gated behind the `mint-quality` profile so a default `docker compose up`
+  # on Windows does not start it (see docs/specs/fr-mint-quality-tool-placement.md
+  # and config/docker-stack-health.json). Mint starts it via
+  # scripts/start-mint-quality-tools.ps1 (`docker compose --profile mint-quality up`).
+  # Windows reaches it over the network through SONAR_HOST_URL=http://10.10.10.91:9000.
+  # ─────────────────────────────────────────────
+  sonarqube:
+    image: sonarqube:community
+    container_name: xf_linker_sonarqube
+    profiles: ["mint-quality"]
+    restart: unless-stopped
+    # 1.5g is comfortable for the Community edition with ES bootstrap checks
+    # disabled; trimmed from 2g to leave headroom on a 16 GB host.
+    mem_limit: 1536m
+    environment:
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    ports:
+      - "127.0.0.1:9000:9000"
+
+  # ─────────────────────────────────────────────
+  # Manual one-shot Sonar scanner. Lives in the mint-quality profile so it
+  # does NOT pull onto Windows; run it on the Mint helper alongside the
+  # SonarQube server:
+  #   docker compose --profile mint-quality run --rm sonar-scanner
+  # (Day-to-day, sonar-autoscan on Mint scans continuously, so this manual
+  # one-shot is rarely needed.)
+  # ─────────────────────────────────────────────
+  sonar-scanner:
+    image: sonarsource/sonar-scanner-cli:latest
+    profiles: ["mint-quality"]
+    # No depends_on: SonarQube runs on Mint behind the mint-quality profile.
+    # On Mint it reaches the server via the in-network name; from Windows it
+    # would use SONAR_HOST_URL (http://10.10.10.91:9000 in .env).
+    environment:
+      SONAR_HOST_URL: ${SONAR_HOST_URL:-http://sonarqube:9000}
+      SONAR_TOKEN: ${SONAR_TOKEN:-}
+      SONAR_SCANNER_OPTS: ${SONAR_SCANNER_OPTS:--Xmx768m}
+    volumes:
+      - .:/repo:ro
+      - sonar_scanner_cache:/opt/sonar-scanner/.sonar/cache
+    entrypoint: ["/bin/sh", "-lc"]
+    command:
+      - >
+        rm -rf /tmp/sonar-src &&
+        mkdir -p /tmp/sonar-src/backend /tmp/sonar-src/frontend &&
+        cp -a /repo/backend/. /tmp/sonar-src/backend/ &&
+        cp -a /repo/frontend/. /tmp/sonar-src/frontend/ &&
+        cd /tmp/sonar-src &&
+        sonar-scanner
+        -Dsonar.host.url="$${SONAR_HOST_URL}"
+        -Dsonar.token="$${SONAR_TOKEN}"
+
+  # ─────────────────────────────────────────────
+  # Sonar autoscan loop — keeps SonarQube warm without user action.
+  # Runs on Mint alongside sonarqube (same mint-quality profile), NOT on
+  # Windows. On Mint it reaches sonarqube via the compose-network name
+  # `sonarqube` (its SONAR_HOST_URL default below); Windows never starts it.
+  # ─────────────────────────────────────────────
+  sonar-autoscan:
+    image: sonarsource/sonar-scanner-cli:latest
+    container_name: xf_linker_sonar_autoscan
+    profiles: ["mint-quality"]
+    restart: unless-stopped
+    # Cap the scanner so its JVM (-Xmx768m) plus overhead can't exceed ~1g.
+    mem_limit: 1g
+    depends_on:
+      sonarqube:
+        condition: service_started
+    environment:
+      SONAR_HOST_URL: ${SONAR_HOST_URL:-http://sonarqube:9000}
+      SONAR_TOKEN: ${SONAR_TOKEN:-}
+      SONAR_AUTOSCAN_INTERVAL_SECONDS: ${SONAR_AUTOSCAN_INTERVAL_SECONDS:-1800}
+      SONAR_SCANNER_OPTS: ${SONAR_SCANNER_OPTS:--Xmx768m}
+    volumes:
+      - .:/repo:ro
+      - sonar_scanner_cache:/opt/sonar-scanner/.sonar/cache
+    entrypoint: ["/bin/sh", "-lc"]
+    command:
+      - >
+        while true; do
+          INTERVAL="$${SONAR_AUTOSCAN_INTERVAL_SECONDS:-1800}";
+          if [ "$${INTERVAL}" = "0" ]; then
+            echo "auto-scan disabled";
+            sleep 3600;
+            continue;
+          fi;
+          until curl -fsS "$${SONAR_HOST_URL}/api/system/status" >/dev/null; do
+            echo "waiting for sonarqube";
+            sleep 10;
+          done;
+          rm -rf /tmp/sonar-src;
+          mkdir -p /tmp/sonar-src/backend /tmp/sonar-src/frontend;
+          cp -a /repo/backend/. /tmp/sonar-src/backend/;
+          cp -a /repo/frontend/. /tmp/sonar-src/frontend/;
+          cd /tmp/sonar-src;
+          sonar-scanner
+            -Dsonar.host.url="$${SONAR_HOST_URL}"
+            -Dsonar.token="$${SONAR_TOKEN}" ||
+            echo "scan failed, will retry next cycle";
+          sleep "$${INTERVAL}";
+        done
+
+  # ─────────────────────────────────────────────
   # Django 5.2 LTS backend — production settings + Daphne/uvicorn ASGI
   # No --reload (per-request overhead), 4 workers.
   # ─────────────────────────────────────────────
@@ -68,18 +176,12 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    image: xf-linker-backend:latest
+      target: runtime
+    image: xf-linker-backend-runtime:latest
     container_name: xf_linker_backend
     restart: always
     mem_limit: 2560m
     env_file: .env
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
       DJANGO_DEBUG: "False"
@@ -102,7 +204,7 @@ services:
       XF_COMPILED_BUILD_ROOT: /tmp/xf-build
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
       REPO_ROOT: /repo
-      PYROSCOPE_SERVER_ADDRESS: http://pyroscope:4040
+      PYROSCOPE_SERVER_ADDRESS: http://10.10.10.91:4040
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_TRACES_SAMPLER: parentbased_traceidratio
       OTEL_TRACES_SAMPLER_ARG: "1.0"
@@ -116,6 +218,10 @@ services:
       # Slice 1.5 — streamd Unix-domain socket. Read-write so the private
       # Python client (apps/realtime/_streamd_client.py) can dial it.
       - streamd_sock:/var/run/xf:rw
+      # clusterd Unix-domain socket — read-write so the private client
+      # (apps/auto_issues/_clusterd_client.py) can connect (a unix-socket
+      # connect needs write access on the socket inode), matching streamd_sock.
+      - clusterd_sock:/var/run/xf-clusterd:rw
     ports:
       - "8000:8000"
     healthcheck:
@@ -151,23 +257,61 @@ services:
              python -m uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --workers 4"
 
   # ─────────────────────────────────────────────
+  # Agent Guard Daemon
+  # Physically enforces TDD, KISS, and DRY rules
+  # ─────────────────────────────────────────────
+  agent-guard:
+    image: xf-linker-backend-runtime:latest
+    container_name: xf_linker_agent_guard
+    restart: always
+    mem_limit: 256m  # file-watcher daemon; uses ~178MB — cap prevents it inheriting the 8GB WSL ceiling
+    volumes:
+      - ./backend:/app
+      - .:/repo
+    working_dir: /repo
+    environment:
+      PYTHONPATH: /repo
+    command: sh -c "pip install watchdog==6.0.0 && python scripts/agent_guard_daemon.py"
+
+  # ─────────────────────────────────────────────
+  # Backend quality image — lint, type, coverage, and mutation tools.
+  # Manual profile only; runtime services use the lean runtime image.
+  # ─────────────────────────────────────────────
+  backend-quality:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: quality
+    image: xf-linker-backend-quality:latest
+    profiles: ["quality"]
+    env_file: .env
+    working_dir: /repo/backend
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.test
+      PYTHONPATH: /opt/xf/compiled/active:/opt/xf/compiled:/app
+      REPO_ROOT: /repo
+    volumes:
+      - ./backend:/app
+      - .:/repo
+      - compiled_artifacts:/opt/xf/compiled
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["python", "--version"]
+
+  # ─────────────────────────────────────────────
   # Celery worker - default queue only
   # Handles: light background jobs that are safe to parallelise
   # ─────────────────────────────────────────────
   celery-worker-default:
-    image: xf-linker-backend:latest
+    image: xf-linker-backend-runtime:latest
     container_name: xf_linker_celery_worker_default
     restart: always
     mem_limit: 1536m
     user: "0:0"
     env_file: .env
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
       DJANGO_DEBUG: "False"
@@ -177,7 +321,7 @@ services:
       XF_COMPILED_BUILD_ROOT: /tmp/xf-build
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
       REPO_ROOT: /repo
-      PYROSCOPE_SERVER_ADDRESS: http://pyroscope:4040
+      PYROSCOPE_SERVER_ADDRESS: http://10.10.10.91:4040
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_TRACES_SAMPLER: parentbased_traceidratio
       OTEL_TRACES_SAMPLER_ARG: "1.0"
@@ -214,24 +358,17 @@ services:
              su -m appuser -c 'python /repo/scripts/ensure_compiled_artifacts.py &&
              python -c \"import drf_spectacular\" &&
              DEFAULT_QUEUE_CONCURRENCY=$$(python manage.py print_default_queue_concurrency) &&
-             celery -A config.celery worker --loglevel=warning --concurrency=$${DEFAULT_QUEUE_CONCURRENCY:-2} --prefetch-multiplier 1 --max-tasks-per-child=1000 -Q default'"
+             celery -A config.celery worker --loglevel=warning --concurrency=$${DEFAULT_QUEUE_CONCURRENCY:-2} --prefetch-multiplier 1 --max-tasks-per-child=10000 -Q default'"
 
   # Celery worker - pipeline + embeddings queues only
   # Handles: heavy serial work that must stay single-process for FAISS correctness
   celery-worker-pipeline:
-    image: xf-linker-backend:latest
+    image: xf-linker-backend-runtime:latest
     container_name: xf_linker_celery_worker_pipeline
     restart: always
     mem_limit: 2g
     user: "0:0"
     env_file: .env
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
       DJANGO_DEBUG: "False"
@@ -241,7 +378,7 @@ services:
       XF_COMPILED_BUILD_ROOT: /tmp/xf-build
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
       REPO_ROOT: /repo
-      PYROSCOPE_SERVER_ADDRESS: http://pyroscope:4040
+      PYROSCOPE_SERVER_ADDRESS: http://10.10.10.91:4040
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_TRACES_SAMPLER: parentbased_traceidratio
       OTEL_TRACES_SAMPLER_ARG: "1.0"
@@ -284,10 +421,10 @@ services:
   # Celery Beat — scheduled tasks (auto-resync, etc.)
   # ─────────────────────────────────────────────
   celery-beat:
-    image: xf-linker-backend:latest
+    image: xf-linker-backend-runtime:latest
     container_name: xf_linker_celery_beat
     restart: always
-    mem_limit: 256m
+    mem_limit: 512m  # ran at 92% of 256m (236MiB) — raised to avoid OOM-kill of the scheduler
     user: "0:0"
     env_file: .env
     environment:
@@ -299,7 +436,7 @@ services:
       XF_COMPILED_BUILD_ROOT: /tmp/xf-build
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
       REPO_ROOT: /repo
-      PYROSCOPE_SERVER_ADDRESS: http://pyroscope:4040
+      PYROSCOPE_SERVER_ADDRESS: http://10.10.10.91:4040
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_TRACES_SAMPLER: parentbased_traceidratio
       OTEL_TRACES_SAMPLER_ARG: "1.0"
@@ -343,6 +480,27 @@ services:
     volumes:
       - frontend_dist:/dist
 
+  frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    image: xf-linker-frontend-dev:latest
+    container_name: xf_linker_frontend_dev
+    profiles: ["dev"]
+    restart: unless-stopped
+    mem_limit: 4g
+    environment:
+      CHROME_BIN: /usr/bin/chromium
+      CI: "true"
+      NODE_OPTIONS: --max-old-space-size=4096
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - frontend_tool_cache:/root/.npm
+    ports:
+      - "4200:4200"
+    command: ["sh", "-lc", "npm install && npm run start"]
+
   frontend-mutation-tools:
     build:
       context: ./frontend
@@ -370,6 +528,14 @@ services:
       dockerfile: tools/mutation/Dockerfile
     image: xf-linker-compiled-tools:latest
     container_name: xf_linker_compiled_tools
+    # Heavy compiled-language quality toolchain (C++/Go/Haskell/Rust mutation,
+    # lint, static analysis). Per docs/specs/fr-mint-quality-tool-placement.md
+    # this runs on the Mint helper, not Windows — so the Windows 65/35 split
+    # sends compiled-language work to Mint's 35% share. Gated so a default
+    # Windows `docker compose up` skips it; Mint starts it via
+    # scripts/start-mint-quality-tools.ps1. run-tool-readiness.sh verifies the
+    # toolchain on Mint via the `mint` Docker context.
+    profiles: ["mint-quality"]
     restart: unless-stopped
     mem_limit: 2g
     working_dir: /repo
@@ -405,16 +571,152 @@ services:
     # the Unix-socket bind on /var/run/xf so it's off. user: 1000:1000 was
     # tried but Docker named volumes are root-owned by default which made
     # the socket bind fail with EACCES.
+    # Tiny static Go broker — cap it so it can never balloon on a 16 GB host.
+    # GOMEMLIMIT keeps the Go heap well under the container ceiling.
+    mem_limit: 192m
     volumes:
       - streamd_sock:/var/run/xf
     environment:
       XF_STREAMD_SOCKET: /var/run/xf/streamd.sock
       XF_STREAMD_LOG_LEVEL: info
+      GOMEMLIMIT: 160MiB
     healthcheck:
       test: ["CMD", "/streamd-healthcheck"]
       interval: 10s
       timeout: 2s
       retries: 3
+
+  # ─────────────────────────────────────────────
+  # clusterd — root-cause clustering sidecar (gRPC over Unix socket).
+  # Bundles three language tiers in one image: Rust cluster-sig (speed),
+  # Haskell findbugs-cluster (logic), Go clusterd (plumbing). Python callers
+  # route through backend/apps/auto_issues/_clusterd_client.py — never direct.
+  # Rule K: go.mod + api.proto + cmd/clusterd/server.go + Dockerfile +
+  #         api/gen/*.pb.go + this block + go.sum + multi-stage Dockerfile +
+  #         clusterd_sock named volume. Build context is the repo root so the
+  #         Rust/Haskell/Go service trees are all reachable.
+  # ─────────────────────────────────────────────
+  clusterd:
+    build:
+      context: ./services
+      dockerfile: clusterd/Dockerfile
+    image: xf-linker-clusterd:latest
+    container_name: xf_linker_clusterd
+    restart: always
+    mem_limit: 512m
+    volumes:
+      - clusterd_sock:/var/run/xf-clusterd
+    environment:
+      XF_CLUSTERD_SOCKET: /var/run/xf-clusterd/clusterd.sock
+    healthcheck:
+      test: ["CMD", "/clusterd-healthcheck"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
+
+  # ─────────────────────────────────────────────
+  # startupd — lean session-start gateway (port 8765).
+  # Proxies to Django /api/session-gate/ for DB-backed markers,
+  # signs the response with HMAC-SHA256, writes audit/session_gate_state.json
+  # (bind-mounted so the pre-commit hooks on the host can read the token).
+  # Rule K: go.mod + api.http.md + cmd/startupd/main.go + Dockerfile
+  #         + docker-compose block (this entry). No gRPC → no _sock volume.
+  # ─────────────────────────────────────────────
+  startupd:
+    build:
+      context: ./services/startupd
+    image: xf-linker-startupd:latest
+    container_name: xf_linker_startupd
+    restart: always
+    # Lean session gateway — small ceiling; it only proxies + signs.
+    mem_limit: 192m
+    ports:
+      - "8765:8765"
+    environment:
+      XF_STARTUPD_ADDR: ":8765"
+      XF_GATE_DJANGO_URL: "http://backend:8000"
+      SESSION_GATE_SECRET: "${SESSION_GATE_SECRET:-}"
+      GOMEMLIMIT: 160MiB
+      XF_STARTUP_PAYLOAD_PATH: "/repo/audit/session_start_payload.jsonl"
+      XF_GATE_STATE_PATH: "/repo/audit/session_gate_state.json"
+    volumes:
+      # Bind-mount the host audit/ dir so session_gate_state.json is
+      # written directly to the repo tree where the pre-commit hooks can
+      # read it at commit time without Docker.
+      - ./audit:/repo/audit
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/startupd-healthcheck"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # ─────────────────────────────────────────────
+  # Sidecars — 40 Apache-pattern internal gRPC services co-hosted in one
+  # Go binary under a shared 512 MB RAM / 1 GB storage budget.
+  # Rule K: go.mod + api.proto files + cmd/sidecars/main.go + Dockerfile
+  #         (multi-stage scratch) + docker-compose block (this entry)
+  #         + sidecars_sock named volume (gRPC service).
+  # Exposes metrics on port 6061 (internal only — not published to host).
+  # Socket path: /var/run/xf-sidecars/sidecars.sock (via sidecars_sock volume).
+  # Storage path: /var/lib/xf/sidecars (via sidecars_data volume).
+  # ─────────────────────────────────────────────
+  sidecars:
+    build:
+      context: ./services/sidecars
+    image: xf-linker-sidecars:latest
+    container_name: xf_linker_sidecars
+    restart: always
+    # Run as root (image default) — same rationale as streamd: Docker named
+    # volumes (sidecars_sock, sidecars_data) are root-owned, so a non-root
+    # uid cannot bind the Unix socket or create the storage dir (EACCES). The
+    # scratch image has no shell, package manager, or writable FS to attack,
+    # so root is acceptable here. GOMEMLIMIT still bounds the Go heap.
+    # Container ceiling sits above GOMEMLIMIT (512 MiB Go heap) to leave room
+    # for the Bleve (searchd) memory-mapped index page cache, which lives
+    # OUTSIDE the Go heap. 768m total keeps the 40 services + Avro + Bleve
+    # comfortable without bloating a 16 GB host.
+    mem_limit: 768m
+    environment:
+      XF_SIDECARS_SOCKET: "/var/run/xf-sidecars/sidecars.sock"
+      XF_SIDECARS_STORAGE: "/var/lib/xf/sidecars"
+      XF_SIDECARS_METRICS_PORT: "6061"
+      XF_SIDECARS_MANIFEST: "/etc/xf/services.manifest.yaml"
+      GOMEMLIMIT: "512MiB"
+    volumes:
+      # Unix-domain socket dir — shared with backend container so Python
+      # gRPC stubs can reach the 40 co-hosted services without a TCP hop.
+      - sidecars_sock:/var/run/xf-sidecars
+      # Persistent storage for Parquet manifests, bulletin-board data, etc.
+      - sidecars_data:/var/lib/xf/sidecars
+      # The scratch image carries the manifest at /services.manifest.yaml, but
+      # bind-mounting the live file lets manifest edits take effect on a simple
+      # `docker compose up -d sidecars` without an image rebuild.
+      - ./services/sidecars/services.manifest.yaml:/etc/xf/services.manifest.yaml:ro
+    expose:
+      - "6061"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/sidecars-healthcheck"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
 
   # ─────────────────────────────────────────────
   # Nginx — serves the Angular prod bundle + proxies /api/ and /ws/
@@ -467,6 +769,22 @@ services:
         condition: service_healthy
       frontend-build:
         condition: service_completed_successfully
+
+  nginx-dev:
+    image: nginx:1.27-alpine
+    container_name: xf_linker_nginx_dev
+    profiles: ["dev"]
+    restart: unless-stopped
+    mem_limit: 128m
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend-dev:
+        condition: service_started
 
   # ─────────────────────────────────────────────
   # GlitchTip — self-hosted error tracking (default-on, see CLAUDE.md
@@ -522,7 +840,7 @@ services:
     image: glitchtip/glitchtip:latest
     container_name: xf_linker_glitchtip
     restart: always
-    mem_limit: 256m
+    mem_limit: 384m  # ran at 83% of 256m (213MiB) — raised for headroom (protected by absolute rule)
     # NOTE: do NOT add `env_file: .env` here. The project .env sets
     # DJANGO_SETTINGS_MODULE for the backend, which would collide with
     # GlitchTip's own Django settings and crash it with
@@ -555,7 +873,7 @@ services:
     image: glitchtip/glitchtip:latest
     container_name: xf_linker_glitchtip_worker
     restart: always
-    mem_limit: 256m
+    mem_limit: 384m  # ran at 73% of 256m (187MiB) — raised for headroom
     command: ./bin/run-celery-with-beat.sh
     # Same env_file caveat as glitchtip above — keep this isolated from
     # the linker .env. Uses the same `/glitchtip` DB.
@@ -599,6 +917,12 @@ services:
     # `apps.auto_issues.services.pyroscope_picker.pick_pyroscope_hotspots`).
     image: grafana/pyroscope:1.18.1
     container_name: xf_linker_pyroscope
+    # Runs on the Mint helper, not Windows (config/docker-stack-health.json
+    # mint-quality-plane). Gated so a default Windows `docker compose up` skips
+    # it; Mint starts it via scripts/start-mint-quality-tools.ps1. The Windows
+    # backend, Celery workers, OTel collector and Grafana reach it over the LAN
+    # at http://10.10.10.91:4040.
+    profiles: ["mint-quality"]
     restart: always
     mem_limit: 512m
     volumes:
@@ -627,6 +951,7 @@ services:
     environment:
       DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-xf_linker_user}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/${POSTGRES_DB:-xf_linker}?sslmode=disable"
       PG_EXPORTER_AUTO_DISCOVER_DATABASES: "true"
+      PG_EXPORTER_EXCLUDE_DATABASES: "template0,template1,postgres,test_xf_linker"
     depends_on:
       postgres:
         condition: service_healthy
@@ -822,8 +1147,9 @@ services:
         condition: service_started
       loki:
         condition: service_started
-      pyroscope:
-        condition: service_started
+      # pyroscope moved to the Mint helper (mint-quality profile); Grafana's
+      # Pyroscope datasource points at http://10.10.10.91:4040, so no local
+      # depends_on (a default `docker compose up` no longer starts pyroscope here).
 
 volumes:
   pgdata:
@@ -856,6 +1182,8 @@ volumes:
   # down` so callers keep the same path after a stop/start.
   streamd_sock:
     driver: local
+  clusterd_sock:
+    driver: local
   hf_cache:
     driver: local
   nginx_logs:
@@ -871,6 +1199,24 @@ volumes:
   questdb_data:
     driver: local
   sqlite_registry_data:
+    driver: local
+  sonarqube_data:
+    driver: local
+  sonarqube_extensions:
+    driver: local
+  sonarqube_logs:
+    driver: local
+  sonar_scanner_cache:
+    driver: local
+  # Slice 1.6 — sidecars Unix-domain socket directory and persistent storage.
+  # sidecars_sock is ephemeral by design (the socket is recreated on each
+  # sidecars start) but the volume keeps the path stable across stop/start so
+  # Python gRPC stubs don't need path reconfiguration.
+  # sidecars_data holds Parquet manifest files, bulletin-board state, etc.
+  # Both survive `docker compose down` (no -v) per docs/PROTECTED-DATA-STORES.md.
+  sidecars_sock:
+    driver: local
+  sidecars_data:
     driver: local
 
 configs:

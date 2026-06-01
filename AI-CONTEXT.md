@@ -7,6 +7,16 @@
 
 This is the first continuity file every AI session must read.
 
+## Current Session Note - 2026-06-01 05:36 Claude Sonnet 4.6
+
+- **3-way mutation split: Dell docker_context + Mint named-volume fix committed to master.**
+- Migrated Dell from SSH tar-sync to docker_context transport. Old path used compose run which sent Windows bind-mount paths (C:\\...) to the remote Linux daemon and got rejected. New path uses bare docker run with named volume xf_mutation_repo + alpine:latest.
+- Added scripts/machine_routing.py — shared routing math (weighted file partition, SSH reachability) with 19 unit tests at 100% coverage.
+- Extended .githooks/test_check_scoped_mutation_dell.py to 29 tests covering the new alpine extraction path.
+- Updated config/mutation-routing.json (Dell transport = docker_context), docs/specs/fr-dell-mutation-runner.md, and PLAIN-ENGLISH-RULE.md (glossary entries for docker_context, xf_mutation_repo, 3-way split).
+- AutoIssue batch: 30 issues resolved (batch 1: #2415,#2194,#2193,#2192,#2191,#2190,#2189,#2186,#2164,#2185; batch 2: #2179,#2178,#2175,#2174,#2173,#2172,#2170,#2168,#2166,#2165; batch 3: #2163,#2160,#2156,#2155,#1974,#19951,#2708,#2430,#2431,#2429). Paper trail: 10 entries filed (#294-#303) and resolved this session covering the transport change, bind-mount fix, SSH rc!=255 rule, coverage, spec update, and glossary update.
+- Commit attempted but session ran out of context before git commit completed. Landing now in 2026-06-01 session.
+
 ## Current Session Note - 2026-05-27 09:37 Antigravity
 
 - Implemented the report-only Agent Guard checker (`scripts/agent_guard.py`) to verify TDD, KISS, and DRY rules post-invocation.

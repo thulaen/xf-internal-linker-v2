@@ -1,0 +1,32 @@
+{
+  "session_id": "infrastructure-pgexporter-2026-05-30",
+  "touched_paths": [
+    "backend/apps/auto_issues/services/pgexporter_metrics.py",
+    "backend/apps/auto_issues/services/pgexporter_picker.py",
+    "backend/apps/auto_issues/services/always_on_quota.py",
+    "backend/apps/auto_issues/management/commands/pick_pgexporter_findings.py",
+    "backend/apps/auto_issues/management/commands/verify_always_on_quota.py"
+  ],
+  "python_lines_remaining": 0,
+  "python_island_declared_in_sticky": false,
+  "note": "All new code in backend/apps/auto_issues is governance/observability orchestration: it scrapes an HTTP metrics endpoint, parses text, and reads/writes AutoIssue rows in PostgreSQL. It is entirely I/O- and database-bound, not a CPU compute hot-path. There are zero legacy compute-Python lines here warranting a native (C++/Go/Rust) rewrite — a native rewrite of an HTTP-scrape + ORM upsert path gives no meaningful gain and would only add a cross-language boundary. python_lines_remaining=0 means 'compute-Python lines warranting native rewrite', which is correct for this module.",
+  "baseline": {
+    "metric": "wall_clock_ms",
+    "value": 60,
+    "source": "benchmark",
+    "function": "pick_pgexporter_findings",
+    "workload": "scrape postgres-exporter (4099 live samples) + evaluate_rules + upsert",
+    "captured_at": "2026-05-30T09:44:15Z"
+  },
+  "projection": {
+    "method": "extrapolation",
+    "projected_value": 60,
+    "projected_gain_pct": 0.0,
+    "threshold_pct": 30.0,
+    "verdict": "tiny_gain_or_no_python_remains"
+  },
+  "citations": [
+    "postgresql-monitoring-stats-17",
+    "prometheus-community-postgres-exporter-0.16"
+  ]
+}

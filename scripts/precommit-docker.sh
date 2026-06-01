@@ -240,6 +240,10 @@ run_hard_gate tool-readiness bash scripts/run-tool-readiness.sh
 # any observability or quality container to dodge a hook is forbidden.
 # Spec: docs/specs/fr-observability-always-on-and-no-deferral.md.
 run_hard_gate check-observability-stack python .githooks/check-observability-stack.py
+# After confirming the stack is running, safely prune Docker (no volumes) and
+# confirm the pipeline is actually feeding AutoIssues. Silent sources warn;
+# only an unreachable backend blocks.
+run_hard_gate check-observability-pipeline python .githooks/check-observability-pipeline.py
 
 staged="$(python scripts/commit_scope.py paths --mode staged || true)"
 if [[ -z "$staged" ]]; then
@@ -265,6 +269,7 @@ run_hard_gate verify-deep-links _run_deep_link_check
 # AutoIssue #295 (CRITICAL: chain revert dropped TDD-pipeline enforcement).
 run_hard_gate check-tdd-preflight python .githooks/check-tdd-preflight.py
 run_hard_gate check-no-destructive-docker-commands python .githooks/check-no-destructive-docker-commands.py
+run_hard_gate check-mint-first-build python .githooks/check-mint-first-build.py
 run_hard_gate check-decision-point python .githooks/check-decision-point.py
 run_hard_gate check-session-close python .githooks/check-session-close.py
 run_hard_gate check-tdd-strict python .githooks/check-tdd-strict.py
@@ -307,6 +312,16 @@ run_hard_gate check-native-inspection-window python .githooks/check-native-inspe
 # request, citation drift, or KPI drift).
 run_hard_gate check-spec-window python .githooks/check-spec-window.py
 run_hard_gate check-autoissue-quota python .githooks/check-autoissue-quota.py
+# Always-on, drought-aware per-source quotas (pgexporter health now; Phase B
+# adds compiler warnings). Blocks while a source has >= threshold open
+# findings unless threshold were resolved this session; 0 open never blocks.
+run_hard_gate check-always-on-quota python .githooks/check-always-on-quota.py
+run_hard_gate check-codeql-autoissues python .githooks/check-codeql-autoissues.py
+# Per-source observability gates — same family as CodeQL: block while any
+# unresolved finding for that source remains open. GWP-ASan = C++ heap
+# corruption; Perfetto = measured performance regressions.
+run_hard_gate check-gwp-asan python .githooks/check-gwp-asan.py
+run_hard_gate check-perfetto python .githooks/check-perfetto.py
 run_hard_gate check-paper-trail-evidence python .githooks/check-paper-trail-evidence.py
 run_hard_gate check-deferral-filed python .githooks/check-deferral-filed.py
 run_hard_gate check-profiling-proof python .githooks/check-profiling-proof.py
@@ -318,6 +333,11 @@ run_hard_gate check-debug-code python .githooks/check-debug-code.py
 run_hard_gate check-junk-files python .githooks/check-junk-files.py
 # Slice 1.5 — Go services tier boundary + contract enforcement.
 run_hard_gate check-no-cross-language-import python .githooks/check-no-cross-language-import.py
+# Wrong-language IMPLEMENTATIONS (distinct from the import boundary above):
+# MinHash/LSH in Python (belongs in C++), HTTP servers in Python (belongs in
+# Go), domain-invariant classifiers in Python services (belongs in Haskell),
+# Postgres-owning Go services (belongs in Django).
+run_hard_gate check-language-ownership python .githooks/check-language-ownership.py
 run_hard_gate check-go-service-contract python .githooks/check-go-service-contract.py
 # Rules J + L (2026-05-16) — C++ kernel lifecycle invariant + stubs only
 # move when the contract moves. Both fire only when relevant paths are in
@@ -339,6 +359,24 @@ fi
 
 if grep -E '^backend/apps/.*/management/commands/.*\.py$' <<<"$staged" >/dev/null; then
   run_hard_gate check-mgmt-command-dry-run python .githooks/check-mgmt-command-dry-run.py
+fi
+
+# Per-staged-file coverage floor (measures only the Python files you touched,
+# not the whole codebase) and scoped mutation testing (mutates only the
+# changed files). Both fire only when backend/scripts Python is staged.
+if grep -E '^backend/.*\.py$|^scripts/.*\.py$' <<<"$staged" >/dev/null; then
+  run_hard_gate check-per-file-coverage python .githooks/check-per-file-coverage.py
+fi
+
+if grep -E '^backend/apps/.*\.py$' <<<"$staged" >/dev/null; then
+  run_hard_gate check-scoped-mutation python .githooks/check-scoped-mutation.py
+fi
+
+# Compiled code must build AND run. Fires only when a compiled-language file
+# is staged. Runs a fast build+test of the affected target before the heavy
+# per-language quality runners below, so a non-compiling change fails early.
+if grep -E '\.(go|cpp|h|rs|hs)$' <<<"$staged" >/dev/null; then
+  run_hard_gate check-compiled-build python .githooks/check-compiled-build.py
 fi
 
 # Heavy per-language quality runners (Phase J.6 CI offload — 2026-05-22).
@@ -364,6 +402,7 @@ if grep -E '^frontend/.*\.(ts|html|scss)$' <<<"$staged" >/dev/null; then
 fi
 
 if grep -E '^backend/.*\.py$' <<<"$staged" >/dev/null; then
+  run_hard_gate run-python-repo-mutation bash scripts/run-python-repo-mutation.sh
   # Python quality always stays HARD because pytest + ruff are part of
   # the strict-TDD discipline and are fast (<2 min for focused tests).
   run_hard_gate run-python-quality bash scripts/run-python-quality.sh
@@ -377,7 +416,37 @@ if grep -E '(^|/)go\.(mod|sum)$|\.go$' <<<"$staged" >/dev/null; then
   run_soft_gate run-go-quality bash scripts/run-go-quality.sh
 fi
 
+run_soft_gate run-rust-quality    bash scripts/run-rust-quality.sh
+run_soft_gate run-haskell-quality bash scripts/run-haskell-quality.sh
+
 run_soft_gate run-quality-debt-report bash scripts/run-quality-debt-report.sh --changed
+run_soft_gate agent-guard docker compose exec -T backend python /repo/scripts/agent_guard.py $staged
+
+# Turbo mutation mode: when XF_TURBO_MUTATION=1, run the 65/35 split
+# coordinator for each staged language after all other quality gates.
+# The individual language quality scripts skip their embedded mutation
+# step (checked via XF_TURBO_MUTATION inside each script) and turbo
+# runs both machines simultaneously for maximum speed.
+if [[ "${XF_TURBO_MUTATION:-0}" == "1" ]]; then
+  if grep -qE '^backend/.*\.py$' <<<"$staged"; then
+    run_soft_gate turbo-mutation-python python scripts/turbo_mutation.py --language python
+  fi
+  if grep -qE '^backend/extensions/.*\.(cpp|h)$' <<<"$staged"; then
+    run_soft_gate turbo-mutation-cpp python scripts/turbo_mutation.py --language cpp
+  fi
+  if grep -qE '(^|/)go\.(mod|sum)$|\.go$' <<<"$staged"; then
+    run_soft_gate turbo-mutation-go python scripts/turbo_mutation.py --language go
+  fi
+  if grep -qE '\.rs$|Cargo\.(toml|lock)' <<<"$staged"; then
+    run_soft_gate turbo-mutation-rust python scripts/turbo_mutation.py --language rust
+  fi
+  if grep -qE '\.hs$|\.cabal$' <<<"$staged"; then
+    run_soft_gate turbo-mutation-haskell python scripts/turbo_mutation.py --language haskell
+  fi
+  if grep -qE '^frontend/.*\.(ts|html|scss)$' <<<"$staged"; then
+    run_soft_gate turbo-mutation-typescript python scripts/turbo_mutation.py --language typescript
+  fi
+fi
 
 quality_artifact_safe_prune_host
 _finish_precommit 0
