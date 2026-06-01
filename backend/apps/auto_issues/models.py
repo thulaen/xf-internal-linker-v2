@@ -75,6 +75,7 @@ class AutoIssue(models.Model):
     SOURCE_FUZZ = "fuzz"             # libFuzzer crashes / coverage gaps
     SOURCE_CONTRACT = "contract"     # Pact provider-verification drift
     SOURCE_GH_CI = "gh_ci"           # gh run list --status failure
+    SOURCE_PROMETHEUS = "prometheus"  # postgres-exporter DB health breaches
     SOURCE_CHOICES = [
         (SOURCE_GLITCHTIP, "GlitchTip"),
         (SOURCE_PYROSCOPE, "Pyroscope"),
