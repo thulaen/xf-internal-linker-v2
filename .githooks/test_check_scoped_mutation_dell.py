@@ -150,7 +150,7 @@ class RunMutmutOnMintTests(unittest.TestCase):
         self.assertIn("xf_mutation_repo", src, "must use named volume xf_mutation_repo")
 
     def test_mutation_run_uses_named_volume_and_network(self):
-        """_run_mutmut_on_mint must use named volume + compose network, not compose run."""
+        """The context runner must use named volume + compose network, not compose run."""
         import importlib.util
         from pathlib import Path
         spec = importlib.util.spec_from_file_location(
@@ -159,7 +159,7 @@ class RunMutmutOnMintTests(unittest.TestCase):
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         import inspect
-        src = inspect.getsource(mod._run_mutmut_on_mint)
+        src = inspect.getsource(mod._run_mutmut_on_context)
         self.assertIn("xf_mutation_repo", src, "must use named volume")
         self.assertIn("xf-internal-linker-v2_default", src, "must connect to compose network")
         self.assertNotIn("compose run", src, "must NOT use compose run")
@@ -218,7 +218,7 @@ class RunSliceOnMachineTests(unittest.TestCase):
         token_by_rel, tests_map = self._ctx()
         with (
             patch.object(mod, "_local_run", return_value=(["L"], "DONE")) as ml,
-            patch.object(mod, "_run_mutmut_on_mint") as mm,
+            patch.object(mod, "_run_mutmut_on_context") as mm,
         ):
             machine = {"name": "windows", "transport": "docker_local"}
             live, raw = mod._run_slice_on_machine(machine, ["apps/x.py"], token_by_rel, tests_map)
@@ -226,29 +226,31 @@ class RunSliceOnMachineTests(unittest.TestCase):
         mm.assert_not_called()
         self.assertEqual(live, ["L"])
 
-    def test_docker_context_dell_routes_through_mint_runner(self):
-        # Dell is now docker_context, so _run_slice_on_machine calls _run_mutmut_on_mint
-        # (the shared docker_context runner) — not a separate Dell-specific function.
+    def test_docker_context_dell_routes_with_dell_context(self):
+        # Dell is docker_context: _run_slice_on_machine must call the context-aware
+        # runner with context="dell" (NOT the hardcoded-mint wrapper).
         token_by_rel, tests_map = self._ctx()
         with (
             patch.object(mod, "_local_run") as ml,
-            patch.object(mod, "_run_mutmut_on_mint", return_value=(["D"], "DONE")) as mm,
+            patch.object(mod, "_run_mutmut_on_context", return_value=(["D"], "DONE")) as mm,
         ):
             machine = {"name": "dell", "transport": "docker_context", "context": "dell"}
             live, raw = mod._run_slice_on_machine(machine, ["apps/x.py"], token_by_rel, tests_map)
         mm.assert_called_once()
+        self.assertEqual(mm.call_args[0][2], "dell")  # third positional arg is the context
         ml.assert_not_called()
         self.assertEqual(live, ["D"])
 
-    def test_docker_context_mint_calls_mint_runner(self):
+    def test_docker_context_mint_passes_mint_context(self):
         token_by_rel, tests_map = self._ctx()
         with (
             patch.object(mod, "_local_run") as ml,
-            patch.object(mod, "_run_mutmut_on_mint", return_value=(["M"], "DONE")) as mm,
+            patch.object(mod, "_run_mutmut_on_context", return_value=(["M"], "DONE")) as mm,
         ):
             machine = {"name": "mint", "transport": "docker_context", "context": "mint"}
             live, raw = mod._run_slice_on_machine(machine, ["apps/x.py"], token_by_rel, tests_map)
         mm.assert_called_once()
+        self.assertEqual(mm.call_args[0][2], "mint")
         ml.assert_not_called()
 
 
@@ -496,6 +498,95 @@ class BackwardCompatTests(unittest.TestCase):
         ):
             live, raw = mod._run_mutmut(rel_paths, tokens)
         msplit.assert_called_once()
+
+
+# ── Dell becomes a true docker-context worker (TASK #9) ────────────────────────
+
+class RunMutmutOnContextTests(unittest.TestCase):
+    def test_dell_context_runs_docker_context_dell_not_mint(self):
+        """A context="dell" slice must build `docker --context dell run`."""
+        fake = subprocess.CompletedProcess(
+            args=["docker"], returncode=0,
+            stdout="LIVE apps/x.py:1 (mutant 2)\nDONE", stderr="",
+        )
+        with (
+            patch.object(mod, "_sync_source_to_mint", return_value=None),
+            patch.object(mod, "_verify_snapshot", return_value=True),
+            patch.object(mod.subprocess, "run", return_value=fake) as mock_run,
+        ):
+            live, raw = mod._run_mutmut_on_context(["helper", "arg"], ["apps/x.py"], "dell")
+        self.assertIn("apps/x.py:1 (mutant 2)", live)
+        cmd = mock_run.call_args[0][0]
+        # The built docker command must target the dell context, never mint.
+        self.assertIn("--context", cmd)
+        self.assertEqual(cmd[cmd.index("--context") + 1], "dell")
+        self.assertNotIn("mint", cmd)
+        # Container name + label must carry the real context so it is sweepable.
+        self.assertTrue(any("xf-mutation-dell-" in str(a) for a in cmd))
+        self.assertIn(mod._MUTATION_LABEL, cmd)
+
+    def test_dell_context_sync_targets_dell(self):
+        """The source push for a dell slice must use the dell context."""
+        captured = {}
+
+        def fake_sync(context, env):
+            captured["context"] = context
+            return "stop here"  # short-circuit before any docker run
+
+        with patch.object(mod, "_sync_source_to_mint", side_effect=fake_sync):
+            live, raw = mod._run_mutmut_on_context(["helper"], ["apps/x.py"], "dell")
+        self.assertIsNone(live)
+        self.assertEqual(captured["context"], "dell")
+
+    def test_mint_wrapper_still_forwards_to_context_runner(self):
+        """Back-compat: _run_mutmut_on_mint forwards to the context runner with mint."""
+        with patch.object(mod, "_run_mutmut_on_context", return_value=([], "DONE")) as mc:
+            mod._run_mutmut_on_mint(["helper"], ["apps/x.py"])
+        mc.assert_called_once()
+        self.assertEqual(mc.call_args[0][2], "mint")
+
+
+class ConfiguredSweepContextsTests(unittest.TestCase):
+    def test_sweep_contexts_include_dell_from_config(self):
+        contexts = mod._configured_sweep_contexts()
+        self.assertIn("local", contexts)
+        self.assertIn("dell", contexts)
+        self.assertIn("mint", contexts)
+
+    def test_sweep_contexts_fall_back_when_config_unreadable(self):
+        with patch.object(mod, "_load_routing_config", side_effect=OSError("boom")):
+            contexts = mod._configured_sweep_contexts()
+        self.assertEqual(contexts, ["local", "mint", "dell"])
+
+    def test_orphan_sweep_removes_containers_on_dell_context(self):
+        """_sweep_orphan_containers must issue a docker --context dell removal."""
+        calls = []
+
+        def fake_check_output(cmd, *a, **k):
+            calls.append(cmd)
+            if "--context" in cmd and cmd[cmd.index("--context") + 1] == "dell":
+                return "dellcid\n"
+            return ""
+
+        removed = []
+
+        def fake_run(cmd, *a, **k):
+            removed.append(cmd)
+            return subprocess.CompletedProcess(args=cmd, returncode=0)
+
+        with (
+            patch.object(mod.subprocess, "check_output", side_effect=fake_check_output),
+            patch.object(mod.subprocess, "run", side_effect=fake_run),
+        ):
+            mod._sweep_orphan_containers()
+
+        # A removal command that targets the dell context with the found id exists.
+        dell_removals = [
+            c for c in removed
+            if "--context" in c and c[c.index("--context") + 1] == "dell"
+            and "dellcid" in c
+        ]
+        self.assertTrue(dell_removals, "orphan sweep must remove dell-context containers")
 
 
 if __name__ == "__main__":

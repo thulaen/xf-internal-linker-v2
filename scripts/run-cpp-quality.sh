@@ -12,13 +12,22 @@ cd "$repo_root"
 quality_install_cleanup_trap
 quality_acquire_meta_lock
 quality_acquire_tool_lock cpp-quality
+wrapper_name="scripts/run-cpp-quality.sh"
+MAX_SCOPE_FILES_ctest=10
 
 . scripts/quality-evidence-lib.sh
+. scripts/_compiler_warnings_lib.sh
+compiler_warnings_init cpp
+cpp_warning_log="$(compiler_warnings_log_path cpp)"
 evidence_file="$(quality_evidence_path cpp)"
 evidence_container="$(quality_evidence_container_path cpp)"
 quality_evidence_init "$evidence_file"
 _run_cpp_quality_combined_cleanup() {
   local rc=$?
+  # Ingest captured clang/gcc/clang-tidy diagnostics into deduped AutoIssues.
+  # Runs in the EXIT trap so warnings are filed even when a tool step aborts
+  # the run under set -e. Non-fatal: never changes the run's exit status.
+  compiler_warnings_ingest cpp || true
   quality_evidence_finalize "$rc" "$evidence_file" "$evidence_container"
   quality_cleanup
   return "$rc"
@@ -28,8 +37,13 @@ trap '_run_cpp_quality_combined_cleanup; exit 130' INT
 trap '_run_cpp_quality_combined_cleanup; exit 143' TERM
 
 scope_mode="${COMMIT_SCOPE_MODE:-staged}"
-cpp_files="$(python scripts/commit_scope.py paths --mode "$scope_mode" | grep -E '^backend/extensions/.*\.(cpp|h)$' || true)"
+if [[ "${QUALITY_SCOPE_FROM_MANIFEST:-0}" == "1" ]]; then
+  cpp_files="$QUALITY_CPP_CHANGED_FILES"
+else
+  cpp_files="$(python scripts/commit_scope.py paths --mode "$scope_mode" | grep -E '^backend/extensions/.*\.(cpp|h)$' || true)"
+fi
 if [[ -z "$cpp_files" ]]; then
+  quality_log_scope_skip "$wrapper_name" ctest "$MAX_SCOPE_FILES_ctest"
   quality_evidence_write \
     --out "$evidence_file" \
     --check-type normal_test \
@@ -41,6 +55,12 @@ if [[ -z "$cpp_files" ]]; then
   exit 0
 fi
 export QUALITY_CPP_CHANGED_FILES="$cpp_files"
+
+cpp_infer_scope_files="$(
+  printf "%s\n" "$cpp_files" |
+    grep -E '^backend/extensions/[^/]+\.(cpp|h)$|^backend/extensions/include/.*\.h$' |
+    grep -Ev '^backend/extensions/bench_helpers\.cpp$|^backend/extensions/include/perfetto\.h$' || true
+)"
 
 run_cpp_step() {
   local check_type="$1"
@@ -57,8 +77,12 @@ run_cpp_step() {
   local prefixed_command
   prefixed_command="docker rm -f $container_name >/dev/null 2>&1 || true; ${command/docker compose run/docker compose run --name $container_name}"
   quality_register_container "$container_name"
-  quality_timeout 300 bash -c "$prefixed_command"
-  local status_code=$?
+  # Tee the tool's combined stdout+stderr into the compiler-warning log so the
+  # ingester can parse clang/gcc/clang-tidy diagnostics. pipefail+PIPESTATUS[0]
+  # preserves the tool's real exit code (tee always succeeds).
+  set -o pipefail
+  quality_timeout 300 bash -c "$prefixed_command" 2>&1 | tee -a "$cpp_warning_log"
+  local status_code="${PIPESTATUS[0]}"
   set -e
   local status=failed
   local actual=0
@@ -80,19 +104,38 @@ run_cpp_step() {
 }
 
 run_cpp_step static_analysis cpp-static "docker compose run --rm -T -e QUALITY_CPP_CHANGED_FILES compiled-tools bash /repo/scripts/run-cpp-static.sh --clean"
-run_cpp_step static_analysis cpp-infer "docker compose run --rm -T compiled-tools bash /repo/scripts/run-cpp-infer.sh --clean"
-run_cpp_step normal_test cpp-tests "docker compose run --rm -T compiled-tools bash /repo/scripts/run-cpp-tests.sh --clean"
+if [[ -n "$cpp_infer_scope_files" ]]; then
+  run_cpp_step static_analysis cpp-infer "docker compose run --rm -T compiled-tools bash /repo/scripts/run-cpp-infer.sh --clean"
+else
+  quality_evidence_write \
+    --out "$evidence_file" \
+    --check-type static_analysis \
+    --status passed \
+    --tool-name cpp-infer \
+    --command "bash scripts/run-cpp-quality.sh" \
+    --summary "C++ Infer skipped because the scoped files are helper, fuzz, or stub files covered by format, unit, fuzz, or sanitizer checks." \
+    --failure-fingerprint "cpp:infer:scope-skipped" \
+    --target-percent 100 \
+    --actual-percent 100
+fi
+run_cpp_step normal_test cpp-tests "docker compose run --rm -T -e ICECC_SCHEDULER=\"${ICECC_SCHEDULER:-}\" compiled-tools bash /repo/scripts/run-cpp-tests.sh --clean"
 run_cpp_step coverage cpp-coverage "docker compose run --rm -T compiled-tools bash /repo/scripts/run-cpp-coverage.sh --clean"
 run_cpp_step fuzz cpp-fuzz "docker compose run --rm -T compiled-tools bash /repo/scripts/run-cpp-fuzz-smoke.sh --clean"
 run_cpp_step sanitizer cpp-sanitizers "docker compose run --rm -T compiled-tools bash /repo/scripts/run-cpp-sanitizers.sh --clean"
-run_cpp_step mutation mull "docker compose run --rm -T compiled-tools bash /repo/scripts/run-cpp-mutation.sh --clean"
+if [[ "${XF_TURBO_MUTATION:-0}" == "1" ]]; then
+  echo "[run-cpp-quality] XF_TURBO_MUTATION=1: C++ mutation delegated to turbo coordinator (65/35 split via turbo_mutation.py)"
+else
+  run_cpp_step mutation mull "docker compose run --rm -T compiled-tools bash /repo/scripts/run-cpp-mutation.sh --clean"
+fi
 
 # Phase I: file surviving Mull mutants per binary. Mull writes one
 # report per binary under backend/extensions/reports/mull/<binary>/
 # mutants.json. Soft-block locally; CI's check-mutation-score keeps the
 # original hard test.
 mull_report_root="backend/extensions/reports/mull"
-if [ -d "$mull_report_root" ]; then
+if [[ "${QUALITY_EVIDENCE_SKIP_IMPORT:-0}" == "1" ]]; then
+  echo "Skipping Mull survivor filing on remote compute shard."
+elif [ -d "$mull_report_root" ]; then
   for binary_dir in "$mull_report_root"/*/; do
     [ -d "$binary_dir" ] || continue
     binary=$(basename "$binary_dir")

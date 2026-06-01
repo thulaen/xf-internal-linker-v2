@@ -221,14 +221,34 @@ def _read_lock_pid() -> int | None:
         return None
 
 
+def _configured_sweep_contexts() -> list[str]:
+    """Every docker context to sweep: local + each machine's configured context.
+
+    Reads the machines' "context" fields from config/mutation-routing.json so any
+    docker_context machine's orphans (Dell as well as Mint) are swept, not just
+    Mint. Falls back to ["local", "mint", "dell"] when the config cannot be read.
+    """
+    contexts = ["local"]
+    try:
+        cfg = _load_routing_config()
+    except (OSError, ValueError):
+        return ["local", "mint", "dell"]
+    for machine in cfg.get("machines", []):
+        ctx = machine.get("context")
+        if ctx and ctx != "local" and ctx not in contexts:
+            contexts.append(ctx)
+    return contexts if len(contexts) > 1 else ["local", "mint", "dell"]
+
+
 def _sweep_orphan_containers() -> None:
     """Force-remove every mutation container left behind by a crashed run.
 
     Finds containers by the `xf.mutation=scoped` label only — no ids are kept
-    on disk — and removes them locally AND on any reachable docker context so a
-    daemon-side orphan can never keep mutating after the hook process dies.
+    on disk — and removes them locally AND on every configured docker context
+    (Dell + Mint, read from config/mutation-routing.json) so a daemon-side
+    orphan can never keep mutating after the hook process dies.
     """
-    contexts = ["local", os.environ.get("MINT_CONTEXT", "mint")]
+    contexts = _configured_sweep_contexts()
     for ctx in contexts:
         prefix = [] if ctx == "local" else ["--context", ctx]
         try:
@@ -486,23 +506,24 @@ def _mint_run_remote(context: str, env: dict) -> Callable[[list[str]], tuple[int
     return run_remote
 
 
-def _run_mutmut_on_mint(
-    helper: list[str], rel_slice: list[str]
+def _run_mutmut_on_context(
+    helper: list[str], rel_slice: list[str], context: str
 ) -> tuple[list[str] | None, str]:
-    """Run one slice's helper on Mint AFTER a verified full-source push.
+    """Run one slice's helper on a named docker context AFTER a verified push.
 
-    Order is strict: full tar push → remote sha256 manifest must match the host
-    → only then run the helper. Any sync or verify failure returns
-    (None, error) so the caller re-runs the slice on the trusted local runner;
-    Mint results are never trusted on an unverified copy.
+    `context` is the machine's OWN docker context (e.g. "dell" or "mint"), so a
+    Dell-owned slice runs on Dell and a Mint-owned slice runs on Mint — the gate
+    no longer hardcodes one remote. Order is strict: full tar push → remote
+    sha256 manifest must match the host → only then run the helper. Any sync or
+    verify failure returns (None, error) so the caller re-runs the slice on the
+    trusted local runner; remote results are never trusted on an unverified copy.
     """
-    context = os.environ.get("MINT_CONTEXT", "mint")
     env = {**os.environ, "MSYS_NO_PATHCONV": "1"}
     sync_problem = _sync_source_to_mint(context, env)
     if sync_problem is not None:
         return None, sync_problem
     if not _verify_snapshot(_mint_run_remote(context, env), rel_slice, _host_hashes(rel_slice)):
-        return None, "Mint snapshot manifest did not match the host; slice not trusted."
+        return None, f"{context} snapshot manifest did not match the host; slice not trusted."
     name = f"xf-mutation-{context}-{os.getpid()}"
     cmd = [
         "docker", "--context", context, "run", "--rm",
@@ -529,6 +550,17 @@ def _run_mutmut_on_mint(
         return None, f"{context.title()} mutation run exceeded 60 minutes and was stopped."
     raw = proc.stdout + proc.stderr
     return _parse_live(raw), raw
+
+
+def _run_mutmut_on_mint(
+    helper: list[str], rel_slice: list[str]
+) -> tuple[list[str] | None, str]:
+    """Back-compat wrapper: run the slice on the Mint docker context.
+
+    Kept so existing call sites and tests that name the Mint runner still work;
+    it just forwards to the context-aware runner with the Mint context.
+    """
+    return _run_mutmut_on_context(helper, rel_slice, os.environ.get("MINT_CONTEXT", "mint"))
 
 
 def _local_run(
@@ -614,7 +646,8 @@ def _run_slice_on_machine(
         return _local_run(files, tokens, slice_map)
     helper = _helper_argv(files, test_paths, tokens, slice_map)
     if transport == "docker_context":
-        return _run_mutmut_on_mint(helper, files)
+        context = machine.get("context", "mint")
+        return _run_mutmut_on_context(helper, files, context)
     return None, f"Unknown transport '{transport}' for machine {machine['name']}."
 
 
