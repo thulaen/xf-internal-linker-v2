@@ -28,10 +28,12 @@ Exit codes:
 
 from __future__ import annotations
 
+import atexit
 import hashlib
 import importlib.util
 import os
 import re
+import signal
 import subprocess
 import sys
 import threading
@@ -42,6 +44,22 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Cap how many files one commit mutates so the hook can't run for an hour.
 _MAX_FILES = 15
+
+# Crash-safety layer (TASK #10) ───────────────────────────────────────────────
+# A killed commit (Windows has no process-group SIGKILL propagation) used to
+# leave orphan mutmut containers mutating staged files in place; the final
+# _restore never ran, stranding mutants in the working tree. The lockfile +
+# orphan-container sweep + index-restore backstop below close that hole.
+_LOCK_PATH = REPO_ROOT / ".git" / "xf-scoped-mutation.lock"
+
+# Every mutation container carries this label so a crash sweep can find + kill
+# them by label alone, with no record of their ids on disk.
+_MUTATION_LABEL = "xf.mutation=scoped"
+
+# Files this process restores from the git index at exit / on a crash sweep.
+# Populated once the staged file list is known so the signal/atexit handlers,
+# which take no arguments, know what to roll back.
+_GUARDED_REL_PATHS: list[str] = []
 
 # The ONE tar exclude recipe shared by every remote source push (Dell + Mint).
 # The remote re-hash must hash the SAME bytes, so this list lives in one place.
@@ -165,6 +183,144 @@ def _restore(snap: dict[Path, bytes]) -> None:
                 p.write_bytes(data)
         except OSError:
             pass
+
+
+# ── crash-safety layer (TASK #10) ──────────────────────────────────────────────
+
+def _pid_is_live(pid: int) -> bool:
+    """True if a process with `pid` is still running (Windows + POSIX)."""
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        try:
+            out = subprocess.check_output(
+                ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+                text=True, encoding="utf-8", errors="replace",
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+            return False
+        return str(pid) in out
+    try:
+        os.kill(pid, 0)  # signal 0 only checks existence, sends nothing
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True  # exists but owned by another user
+    return True
+
+
+def _read_lock_pid() -> int | None:
+    """PID recorded in the lockfile, or None if absent/unreadable/garbage."""
+    try:
+        text = _LOCK_PATH.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    try:
+        return int(text)
+    except ValueError:
+        return None
+
+
+def _sweep_orphan_containers() -> None:
+    """Force-remove every mutation container left behind by a crashed run.
+
+    Finds containers by the `xf.mutation=scoped` label only — no ids are kept
+    on disk — and removes them locally AND on any reachable docker context so a
+    daemon-side orphan can never keep mutating after the hook process dies.
+    """
+    contexts = ["local", os.environ.get("MINT_CONTEXT", "mint")]
+    for ctx in contexts:
+        prefix = [] if ctx == "local" else ["--context", ctx]
+        try:
+            out = subprocess.check_output(
+                ["docker", *prefix, "ps", "-aq", "--filter", f"label={_MUTATION_LABEL}"],
+                text=True, encoding="utf-8", errors="replace", timeout=60,
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError, OSError,
+                subprocess.TimeoutExpired):
+            continue
+        ids = [cid for cid in out.split() if cid]
+        if not ids:
+            continue
+        try:
+            subprocess.run(
+                ["docker", *prefix, "rm", "-f", *ids],
+                check=False, timeout=120, capture_output=True,
+            )
+        except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+            continue
+
+
+def _restore_from_index(rel_paths: list[str]) -> None:
+    """Drop any stranded mutant by restoring each staged file from the index.
+
+    The git INDEX is the source of truth here, not a Python snapshot: a crashed
+    previous run never recorded a snapshot, so `git checkout -- <path>` is the
+    only backstop that returns the staged source to exactly what was committed.
+    """
+    for rel in rel_paths:
+        path = f"backend/{rel}" if not rel.startswith("backend/") else rel
+        try:
+            subprocess.run(
+                ["git", "checkout", "--", path],
+                cwd=REPO_ROOT, check=False, timeout=60, capture_output=True,
+            )
+        except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+            continue
+
+
+def _crash_cleanup() -> None:
+    """atexit / signal backstop: restore staged files, drop lock, sweep orphans."""
+    _restore_from_index(_GUARDED_REL_PATHS)
+    _sweep_orphan_containers()
+    try:
+        _LOCK_PATH.unlink()
+    except OSError:
+        pass
+
+
+def _signal_cleanup(signum, _frame) -> None:
+    """Run the crash backstop then re-raise the default action for `signum`."""
+    _crash_cleanup()
+    signal.signal(signum, signal.SIG_DFL)
+    os.kill(os.getpid(), signum)
+
+
+def _acquire_lock_or_heal(rel_paths: list[str]) -> int:
+    """Acquire the run lock; self-heal a stale lock; abort on a live lock.
+
+    Returns 0 when the lock is held and handlers are armed, or 2 (Rule-F abort)
+    when another live run owns the lock. A stale lock means the previous run
+    crashed: sweep orphan containers, restore staged files from the index, then
+    take the lock and continue.
+    """
+    existing = _read_lock_pid()
+    if existing is not None and _pid_is_live(existing):
+        sys.stderr.write(
+            "\nFAIL check-scoped-mutation: another mutation run is already in "
+            f"progress (pid {existing}).\n"
+            "WHY: two mutation runs at once would mutate the same staged files "
+            "in place and corrupt each other's source.\n"
+            "UNBLOCK: wait for the other commit to finish, or if it is dead "
+            f"delete the stale lock at {_LOCK_PATH} and re-stage.\n"
+        )
+        return 2
+    if existing is not None:
+        _sweep_orphan_containers()
+        _restore_from_index(rel_paths)
+    _GUARDED_REL_PATHS[:] = rel_paths
+    try:
+        _LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _LOCK_PATH.write_text(str(os.getpid()), encoding="utf-8")
+    except OSError:
+        pass
+    atexit.register(_crash_cleanup)
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            signal.signal(sig, _signal_cleanup)
+        except (ValueError, OSError):
+            pass  # not on the main thread / unsupported platform signal
+    return 0
 
 
 def _changed_token(rel: str, lines: set[int] | None) -> str | None:
@@ -347,8 +503,10 @@ def _run_mutmut_on_mint(
         return None, sync_problem
     if not _verify_snapshot(_mint_run_remote(context, env), rel_slice, _host_hashes(rel_slice)):
         return None, "Mint snapshot manifest did not match the host; slice not trusted."
+    name = f"xf-mutation-{context}-{os.getpid()}"
     cmd = [
         "docker", "--context", context, "run", "--rm",
+        "--name", name, "--label", _MUTATION_LABEL,
         "-v", "xf_mutation_repo:/repo",
         "-v", "compiled_artifacts:/opt/xf/compiled",
         "--network", "xf-internal-linker-v2_default",
@@ -367,6 +525,7 @@ def _run_mutmut_on_mint(
     except FileNotFoundError:
         return None, f"Docker context '{context}' not available for mutation."
     except subprocess.TimeoutExpired:
+        _force_remove_container(name, context)
         return None, f"{context.title()} mutation run exceeded 60 minutes and was stopped."
     raw = proc.stdout + proc.stderr
     return _parse_live(raw), raw
@@ -388,8 +547,10 @@ def _local_run(
     if not test_paths:
         return None, "No test file found for the local slice; cannot run mutation."
     helper = _helper_argv(rel_paths, test_paths, tokens, tests_map)
+    name = f"xf-mutation-{os.getpid()}"
     cmd = [
-        "docker", "compose", "run", "--rm", "-T", "-w", "/repo/backend",
+        "docker", "compose", "run", "--rm", "-T", "--name", name,
+        "--label", _MUTATION_LABEL, "-w", "/repo/backend",
         "backend-quality", *helper,
     ]
     abs_targets = [REPO_ROOT / "backend" / r for r in rel_paths]
@@ -403,11 +564,29 @@ def _local_run(
     except FileNotFoundError:
         return None, "Docker is not available; mutation could not run."
     except subprocess.TimeoutExpired:
+        _force_remove_container(name)
         return None, "Mutation run exceeded 60 minutes and was stopped."
     finally:
         _restore(snap)
     raw = proc.stdout + proc.stderr
     return _parse_live(raw), raw
+
+
+def _force_remove_container(name: str, context: str | None = None) -> None:
+    """Kill a daemon-side mutation container that outlived its subprocess.
+
+    subprocess.run timing out only kills the local `docker` client; the
+    container keeps running (and keeps mutating staged files) until removed by
+    name on the daemon. This is the timeout backstop for that orphan.
+    """
+    prefix = ["--context", context] if context else []
+    try:
+        subprocess.run(
+            ["docker", *prefix, "rm", "-f", name],
+            check=False, timeout=60, capture_output=True,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        pass
 
 
 def _slice_tokens(files: list[str], token_by_rel: dict[str, str]) -> list[str]:
@@ -591,6 +770,10 @@ def main() -> int:
             any_changed = True
     if not any_changed:
         return 0  # only comments / blank / deleted lines — nothing to mutate-check
+
+    lock_rc = _acquire_lock_or_heal(rel_paths)
+    if lock_rc != 0:
+        return lock_rc
 
     live, raw = _run_mutmut(rel_paths, changed_tokens)
     if live is None:

@@ -1,5 +1,7 @@
 {
   "version": "1.1",
+  "k8s_defer_to_coordinator": true,
+  "_routing_note": "When k8s_defer_to_coordinator is true and a K3s coordinator is active, the K8S.20 distribute_tests formula owns the actual per-machine shard split and these static machine weights are IGNORED. The static machines[] weights (dell 0.60 / windows 0.30 / mint 0.10) apply ONLY to the Docker-context fallback path used when the cluster is unavailable. The per-machine max_weight values remain a hard ceiling the coordinator formula must respect.",
   "machines": [
     { "name": "dell",    "transport": "docker_context", "context": "dell",    "weight": 0.60, "max_weight": 0.60 },
     { "name": "windows", "transport": "docker_local",                       "weight": 0.30, "max_weight": 1.0 },
@@ -10,6 +12,11 @@
     "remote_pct": 0.35,
     "remote_context": "mint"
   },
+  "_coverage_routing_note": "Used ONLY by .githooks/check-per-file-coverage.py for the per-commit diff-coverage gate. Two-machine split: Dell measures 80% of staged production files, Windows measures 20%. Same docker_context transport + named-volume (xf_coverage_repo) sync pattern as check-scoped-mutation.py. Fail-open: if Dell is unreachable the gate runs ALL files locally on Windows backend-quality (today's behaviour). The pass/fail semantics are unchanged — only WHERE each file's coverage is measured.",
+  "coverage_machines": [
+    { "name": "dell",    "transport": "docker_context", "context": "dell", "weight": 0.80, "max_weight": 0.80 },
+    { "name": "windows", "transport": "docker_local",                     "weight": 0.20, "max_weight": 1.0 }
+  ],
   "languages": {
     "python": {
       "tool": "mutmut",
@@ -72,6 +79,7 @@
       "report_host": ".tmp/mucheck-report.json"
     }
   },
+  "_kill_rate_gates_note": "Mirror of docs/MUTATION-THRESHOLDS.md (authoritative). Keep in sync.",
   "kill_rate_gates": {
     "python": 0.90,
     "cpp": 0.80,
