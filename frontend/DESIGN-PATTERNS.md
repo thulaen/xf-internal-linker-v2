@@ -15,7 +15,7 @@ These values were extracted from `analytics.google.com` on 2026-04-20 via `getCo
 
 | Token | Hex | Measured value | Use |
 |---|---|---|---|
-| `--color-primary` | `#1a73e8` | `rgb(26, 115, 232)` | Brand blue — buttons, links, active states |
+| `--color-primary` | `#4285f4` | `rgb(66, 133, 244)` | Brand blue (GSC, user-corrected 2026-05-30; was `#0b57d0` / GA4 `#1a73e8`) — buttons, links, active states |
 | `--color-blue-50` | `#e8f0fe` | `rgb(232, 240, 254)` | Active surface tint — active nav, active mode-button |
 | `--color-bg-page` | `#fafafa` | `rgb(250, 250, 250)` | Page background |
 | `--color-bg-white` | `#ffffff` | `rgb(255, 255, 255)` | Card surface |
@@ -42,7 +42,7 @@ These values were extracted from `analytics.google.com` on 2026-04-20 via `getCo
 | Property | Value | Source |
 |---|---|---|
 | Border | `0.8px solid #dadce0` | Measured on `xap-card` |
-| Border-radius | `8px` | Measured on `xap-card` |
+| Border-radius | `12px` | GSC-measured 2026-05-30 (was 8px) |
 | Box-shadow at rest | `none` | Measured on `xap-card` |
 | Box-shadow on hover | `var(--shadow-hover)` = `0 1px 3px rgba(60,64,67,0.15)` | Extracted from shadow tokens |
 | Background | `#ffffff` | Measured on `xap-card` |
@@ -64,7 +64,7 @@ These values were extracted from `analytics.google.com` on 2026-04-20 via `getCo
 | Height | `36px` | Measured on GA4 stroked buttons |
 | Border at rest | `0.8px solid #dadce0` | Measured |
 | Border-radius | `4px` (GA4 M2) | Measured — our M3 uses `var(--mdc-outlined-button-container-shape)` |
-| Text colour | `#1a73e8` | Measured |
+| Text colour | `#4285f4` | GSC (user-corrected; was `#0b57d0` / `#1a73e8`) |
 | Font size | `14px` | Measured |
 | Font weight | `500` | Measured |
 | Padding | `0px 23px` | Measured |

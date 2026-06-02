@@ -1,5 +1,7 @@
 # Frontend Visual Quality Rules
 
+**ACTIVE REDESIGN (2026-05-30): Read `GSC-DESIGN-SYSTEM.md` (sibling of this file) FIRST before touching any dashboard, navigation, card, layout, or theme. It records the user-approved Google Search Console look, the reusable `app-gsc-*` primitives to compose from, the dashboard-declutter rule, and a do-not-revert checklist. Skipping it risks undoing in-progress work.**
+
 **Read `src/styles/_theme-vars.scss` before writing any SCSS. It is the single source of truth.**
 **Read `DESIGN-PATTERNS.md` (sibling of this file) before touching any component — it is the authoritative GA4 design language reference (extracted 2026-04-20). Covers card anatomy, co-location rules, button sizing, spacing tokens, and the 11 anti-patterns that contaminate layouts. `_theme-vars.scss` is the token file; `DESIGN-PATTERNS.md` is the pattern file.**
 

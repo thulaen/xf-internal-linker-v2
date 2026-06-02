@@ -67,6 +67,19 @@ and exit; treating an exited init job as a failure would block every
 commit after the first start. The rule still applies to the rest of
 the stack.
 
+**Host split (2026-05-29).** `sonarqube`, `sonar-autoscan`, and `pyroscope`
+were moved off Windows onto the Mint helper (the `mint-quality` Compose
+profile; see `config/docker-stack-health.json` and
+`docs/specs/fr-mint-quality-tool-placement.md`). They remain always-on, but
+on Mint. The hook no longer expects them in the local `docker compose ps`
+output; instead `config/observability-services.json` lists them under
+`remote_services`, and `.githooks/check-observability-stack.py` verifies each
+over the network via its `health_url` (SonarQube `/api/system/status`,
+Pyroscope `/ready`). The deep verifier is `scripts/check-mint-quality-tools.ps1`.
+Restart these three with `scripts/start-mint-quality-tools.ps1`, never a local
+`docker compose up`. The 11 remaining containers stay on Windows and are still
+checked locally.
+
 The hook PASSES when every container is in `State=running` AND
 `Health` is either `starting`, `healthy`, or empty (no healthcheck
 declared). The hook FAILS when any container reports `State` other

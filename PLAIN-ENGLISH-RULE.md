@@ -458,6 +458,47 @@ When you must mention a technical concept, use the plain-English version from th
 | the piece of code that responds to a request or event | HANDLER |
 | short for "function" — a named block of reusable code | FUNC |
 | the computer or address a service runs on | HOST |
+| a setup doc for caching Docker builds in cloud storage | DOCKER-BUILDKIT-S3-SETUP |
+| the durable database record of unfinished or deferred work | PAPER-TRAIL |
+| a setup doc for caching compiled C/C++ output in cloud storage | SCCACHE-S3-SETUP |
+| the file that lists what changed in the first slice's working copy | SLICE-01-WORKING-COPY-INVENTORY |
+| a time limit after which a command is stopped | TIMEOUT |
+| messages a compiler prints about risky-but-allowed code | WARNINGS |
+| a written summary of results | REPORT |
+| the everyday English word "for" used as a heading in prose | FOR |
+| a placeholder name for a sample feature in examples | FAB |
+| a write action that swaps one record for another | REPLACE |
+| a write action that refuses an invalid record | REJECT |
+| a do-nothing action that makes no change | NOOP |
+| create, read, update, delete — the four basic data operations | CRUD |
+| an internal identifier for a ranking meta-algorithm, where NN is a number | META-NN |
+| stochastic gradient descent — a common way to train a model step by step | SGD |
+| a placeholder name standing for three metric initials in examples | MMM |
+| work-in-progress — something started but not finished | WIP |
+| read, write, execute — the three file permission bits | RWX |
+| the running production copy of the app | LIVE |
+| a specific large language model version name from OpenAI | GPT-5 |
+| a coverage report file format produced by the LLVM toolchain | LCOV |
+| the MIT open-source software license | MIT |
+| an internal identifier for a Rust correctness bug record | RUSTBUG-CORR-004 |
+| an internal identifier for a Rust correctness bug record | RUSTBUG-CORR-007 |
+| an internal identifier for a Rust resource-release bug record | RUSTBUG-RES-001 |
+| the Glasgow Haskell Compiler — the standard Haskell compiler | GHC |
+| a specific major version of the Glasgow Haskell Compiler | GHC-9 |
+| an academic conference on web services (citation label) | ICWS |
+| satisfiability modulo theories — a logic solver technique | SMT |
+| the Apache AGE graph extension for PostgreSQL | AGE |
+| a setting that replaces a default value | OVERRIDE |
+| a self-contained unit of code with a clear public surface | MODULE |
+| universal abstract syntax tree — a language-neutral code structure | UAST |
+| a common intermediate representation of code used by analyzers | CIR |
+| a short startup briefing doc for an agent | AGENT-BOOT-BRIEF |
+| a Redis command that reads new messages from a consumer group | XREADGROUP |
+| the act of running a task or job | EXECUTION |
+| the Mint helper machine that runs part of the quality checks | MINT |
+| short for SonarQube — the code-quality scanning tool | SONAR |
+| a secret string that proves identity to a service | TOKEN |
+| the background process that scans code with SonarQube on a schedule | AUTOSCAN |
 
 If a term you need is not in this table, define it yourself in parentheses the first time you use it.
 

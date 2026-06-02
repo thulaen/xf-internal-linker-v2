@@ -48,6 +48,7 @@ read this file to understand WHY each gate is where it is.
 | 26 | `cpp-libfuzzer-smoke` (libFuzzer 60s/target — Phase 4b) | Block | Three starter targets (fuzz_simsearch / fuzz_scoring / fuzz_passagesim) with `-fsanitize=fuzzer,address,undefined`. Crash reproducers upload as `libfuzzer-crashes` artefact. |
 | 27 | `cpp-msan` (MemorySanitizer project-only — Phase 4c) | Block | `-fsanitize-blacklist=msan-ignore.txt` excludes Faiss/Eigen/ICU/TBB/pybind11. Runs only `test_simsearch + test_scoring + test_passagesim`. `MSAN_OPTIONS=halt_on_error=1`. |
 | 28 | `super-linter` (Hadolint + GH Actions YAML + Markdown + Bash + Gitleaks — Phase 5) | Block | `super-linter/super-linter@v7` with `ENV_FILE=.github/super-linter.env`. Disables Ruff/ESLint/Stylelint which run as dedicated jobs. |
+| 29 | `CodeQL` (per-language security analysis) | Block | Dynamic language detection scans only supported tracked languages, writes one SARIF artifact per language, and files CodeQL-backed AutoIssues through the self-hosted AutoIssue ingest job. |
 
 ## Advisory Gate Justifications
 

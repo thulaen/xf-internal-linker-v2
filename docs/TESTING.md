@@ -127,9 +127,9 @@ When a skip is removed, also delete the surrounding `TODO(testing)` / `TODO(a11y
 
 | What you want to test | Command |
 |---|---|
-| All backend tests | `docker compose --env-file .env exec backend pytest` |
-| Backend with coverage report | `docker compose --env-file .env exec backend pytest --cov-report=html` then open `backend/coverage-html/index.html` |
-| Backend benchmarks only | `docker compose --env-file .env exec backend pytest backend/benchmarks/` |
+| All backend tests | `docker compose --env-file .env run --rm backend-quality pytest` |
+| Backend with coverage report | `docker compose --env-file .env run --rm backend-quality pytest --cov-report=html` then open `backend/coverage-html/index.html` |
+| Backend benchmarks only | `docker compose --env-file .env run --rm backend-quality pytest backend/benchmarks/` |
 | Frontend unit tests (watch) | `cd frontend && npm run test` |
 | Frontend unit tests (headless, like CI) | `cd frontend && npm run test:ci` |
 | Frontend ESLint | `cd frontend && npx ng lint` |

@@ -1,15 +1,18 @@
 # Smart Docker Build Routing
 
-[SPEC FRESHNESS: reviewed_at=2026-05-23 next_review=2026-08-23]
+[SPEC FRESHNESS: reviewed_at=2026-05-28 next_review=2026-08-28]
 
 [SPEC CITED: feature=smart-docker-build-routing kind=technical_doc id=docker-buildx-builders verified_at=2026-05-23]
 [SPEC CITED: feature=smart-docker-build-routing kind=technical_doc id=docker-compose-build-cli verified_at=2026-05-23]
 [SPEC CITED: feature=smart-docker-build-routing kind=technical_doc id=docker-desktop-gpu-wsl2 verified_at=2026-05-23]
 [SPEC CITED: feature=smart-docker-build-routing kind=technical_doc id=docker-buildkit-cdi verified_at=2026-05-23]
+[SPEC CITED: feature=smart-docker-build-routing kind=technical_doc id=lz4-frame-format verified_at=2026-05-28]
 
 ## Purpose
 
-Docker builds must not silently fill the Windows drive. General builds use the Mint helper builder. GPU builds use the local Windows/WSL builder because GPU runtime access must be proven on the machine that owns the GPU. Docker Build Cloud is not used by default because it can create paid usage.
+Docker builds must not silently fill the Windows drive, but Windows should still help compile so the Mint helper is not the only worker. Ordinary compilation uses a deterministic 65 percent Mint / 35 percent Windows split. GPU-only builds still use the local Windows/WSL builder because GPU runtime access must be proven on the machine that owns the GPU. Docker Build Cloud is not used by default because it can create paid usage.
+
+Compilation failures must enter the normal AutoIssue repair loop. The full terminal evidence is stored once as an LZ4-compressed database row linked from the AutoIssue. The AutoIssue row stays short and deduped so the same compiler mistake updates the existing row instead of creating clones.
 
 ## Sources Of Truth
 
@@ -17,31 +20,39 @@ Docker builds must not silently fill the Windows drive. General builds use the M
 - Docker Compose build command: https://docs.docker.com/reference/cli/docker/compose/build/
 - Docker Desktop GPU support on Windows with WSL2: https://docs.docker.com/desktop/features/gpu/
 - Docker BuildKit Container Device Interface for GPU-aware builders: https://docs.docker.com/build/building/cdi/
+- LZ4 frame format: https://github.com/lz4/lz4/blob/dev/doc/lz4_Frame_format.md
 
 ## Behavior
 
-Given a build target is not marked as GPU-only, when the smart build helper runs, then it selects the `mint` builder before running `docker compose build`.
+Given a build target is not marked as GPU-only, when the smart build helper runs, then it hashes the target name with the configured salt and routes the target to `mint` for 65 percent of buckets and `desktop-linux` for 35 percent of buckets.
+
+Given several ordinary build targets are passed in one command, when they land in different buckets, then the helper runs one `docker compose build` command per selected builder group.
 
 Given a build target is marked as GPU-only, when the smart build helper runs, then it selects the local `desktop-linux` builder and checks local GPU access before running the build.
 
-Given the Mint builder is unavailable for a non-GPU build, when the smart build helper runs, then it fails with a plain-English message and does not fall back to Windows or Docker Build Cloud.
+Given a selected builder is unavailable, when the smart build helper runs, then it fails with a plain-English message and does not fall back to another builder or Docker Build Cloud.
+
+Given a selected build command exits non-zero, when AutoIssue reporting is enabled, then the helper calls `manage.py ingest_build_failure_autoissue` and sends a capped JSON payload containing the builder, target list, command, exit code, stdout, and stderr.
+
+Given the same compiler failure happens again, when the ingester computes the stable failure fingerprint, then it updates the existing AutoIssue and LZ4 evidence row instead of creating a duplicate issue.
 
 Given a future agent reads the build rules, when they look for the old timed auto-switcher, then the docs point to the repo-owned smart build helper instead of `auto-select-builder.ps1`.
 
 ## Routing Defaults
 
-- General builder: `mint`
+- Ordinary compilation split: 65 percent `mint`, 35 percent `desktop-linux`
 - GPU builder: `desktop-linux`
 - Fallback policy: fail closed
 - Docker Build Cloud: disabled by default
+- Build-failure evidence: LZ4-compressed `BuildFailureEvidence` row linked from the AutoIssue
 
 ## Verification
 
-The regression tests exercise routing without running a real build. The live build command is still a normal Docker command, but the builder choice happens first and is visible in the helper output.
+The regression tests exercise routing without running a real build. The live build command is still a normal Docker command, but the builder choice happens first and is visible in the helper output. Failure-ingest tests verify that compiler output is deduped and compressed with LZ4 before it lands in the database.
 
 ## Global Docker context stays `desktop-linux` (Phase H)
 
-`scripts/smart_build.py` uses `docker --context <builder>` per call. This routes a single docker invocation to the named engine without mutating global `docker context use` state. The global Docker context stays whatever it was before the helper ran.
+`scripts/smart_build.py` uses `docker --context <builder>` per call. This routes each docker invocation to the named engine without mutating global `docker context use` state. The global Docker context stays whatever it was before the helper ran.
 
 The intended global context is `desktop-linux`. WSL2 on Windows exposes the local NVIDIA GPU through the Docker Desktop Linux engine; switching the global context to `mint` would hide the GPU from any non-helper command that runs against the default context.
 
@@ -57,4 +68,4 @@ The `DOCKER_CONTEXT` environment variable takes precedence over the `currentCont
 
 ## Agents-must-use-smart_build rule (Phase M.1)
 
-Every agent (Claude, Codex, Gemini, Antigravity, and every future agent) MUST invoke `scripts/build-smart.ps1` (PowerShell) or `python scripts/smart_build.py` (Python) rather than running `docker compose build` / `docker buildx build` / `docker build` directly. The rule is mirrored in `CLAUDE.md` / `AGENTS.md` / `CODEX.md` / `GEMINI.md` under the "Pattern B Build Routing" section. Running plain `docker compose build` bypasses the routing and risks building heavy images on the Windows local disk.
+Every agent (Claude, Codex, Gemini, Antigravity, and every future agent) MUST invoke `scripts/build-smart.ps1` (PowerShell) or `python scripts/smart_build.py` (Python) rather than running `docker compose build` / `docker buildx build` / `docker build` directly. The rule is mirrored in `CLAUDE.md` / `AGENTS.md` / `CODEX.md` / `GEMINI.md` under the "Pattern B Build Routing" section. Running plain `docker compose build` bypasses the 65/35 split and skips the build-failure AutoIssue recorder.
