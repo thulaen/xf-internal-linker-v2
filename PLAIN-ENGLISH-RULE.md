@@ -286,6 +286,7 @@ When you must mention a technical concept, use the plain-English version from th
 | the required marker before the final summary; it states what code was reviewed, which AutoIssues were logged, which fixes were applied, and whether tests and coverage passed | SELF REVIEW RESULT marker |
 | the required marker proving Claude or Codex explained the work as a user-facing behavior scenario using `Given`, `When`, and `Then` | BDD PROOF marker |
 | the required marker proving Claude or Codex wrote or updated a focused test before or alongside code and reran it until it passed | TDD PROOF marker |
+| the session-start marker proving the agent read the always-on "sticky note" policy (Sticky #1, the spec-driven gradual rewrite rule) before writing code; the all-caps form `STICKY` is the marker name, not a new concept | STICKY 1 READ marker / STICKY |
 | a compact database record that stores the useful result of a test, coverage, mutation, security, or quality check without keeping huge report folders | QualityEvidence |
 | a deduped compressed piece of a raw quality report that is kept for weekly agent memory without saving the full report folder | QualityRawSnippet |
 | one saved weekly sample of raw quality-report text, kept only once per week and deduped by content | weekly raw snippet |
