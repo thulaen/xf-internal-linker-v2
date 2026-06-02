@@ -62,6 +62,8 @@ def monthly_weight_tune(self):
     except (DatabaseError, TimeoutError, MemoryError, ValueError):
         raw = traceback.format_exc()
         logger.exception("[monthly_weight_tune] Failed: %s", raw)
+        if not connection.in_atomic_block:
+            connection.close()
         ErrorLog.objects.create(
             job_type="auto_tune_weights",
             step="monthly_weight_tune",
@@ -116,6 +118,8 @@ def monthly_meta_tune(self):
     except (DatabaseError, TimeoutError, MemoryError, ValueError):
         raw = traceback.format_exc()
         logger.exception("[monthly_meta_tune] Failed: %s", raw)
+        if not connection.in_atomic_block:
+            connection.close()
         _record_meta_tune_failure(raw)
         return {"status": "error"}
 

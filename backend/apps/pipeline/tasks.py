@@ -571,6 +571,10 @@ def _purge_aged_rows(  # noqa  # forbidden-pattern too-many-args  # justificatio
     except (DatabaseError, IntegrityError):
         raw = traceback.format_exc()
         logger.exception("[nightly_data_retention] %s purge failed.", label)
+        # Close the broken connection so the next purge step gets a fresh one
+        # from the pool instead of reusing the stale psycopg3 connection.
+        if not connection.in_atomic_block:
+            connection.close()
         ErrorLog.objects.create(
             job_type="data_retention",
             step=step,
@@ -623,6 +627,8 @@ def _purge_with_bitmap_preview(  # noqa  # forbidden-pattern too-many-args  # ju
     except (DatabaseError, IntegrityError):
         raw = traceback.format_exc()
         logger.exception("[nightly_data_retention] %s purge failed.", label)
+        if not connection.in_atomic_block:
+            connection.close()
         ErrorLog.objects.create(
             job_type="data_retention",
             step=step,
