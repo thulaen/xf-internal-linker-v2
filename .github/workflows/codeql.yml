@@ -1,0 +1,122 @@
+name: CodeQL
+
+"on":
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  detect-languages:
+    name: Detect CodeQL languages
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.detect.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: detect
+        name: Build CodeQL language matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          matrix="$(python scripts/codeql_language_inventory.py --format github-matrix)"
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+          echo "${matrix}"
+
+  analyze:
+    name: CodeQL ${{ matrix.language }}
+    needs: detect-languages
+    if: ${{ needs.detect-languages.outputs.matrix != '{"include":[]}' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-languages.outputs.matrix) }}
+    env:
+      CODEQL_THREADS: "2"
+      CODEQL_RAM_MB: "6144"
+      CODEQL_BUILD_JOBS: "2"
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install C++ build dependencies
+        if: ${{ matrix.language == 'c-cpp' }}
+        run: sudo apt-get update && sudo apt-get install -y cmake libtbb-dev
+
+      - name: Set up Go
+        if: ${{ matrix.language == 'go' }}
+        uses: actions/setup-go@v6
+        with:
+          go-version: "stable"
+          cache: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          config-file: ./.github/codeql/codeql-config.yml
+          queries: security-and-quality
+
+      - name: Build C/C++ precisely
+        if: ${{ matrix.language == 'c-cpp' }}
+        run: bash scripts/codeql-build-cpp.sh
+
+      - name: Build Go precisely
+        if: ${{ matrix.language == 'go' }}
+        run: bash scripts/codeql-build-go.sh
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
+          output: reports/codeql/${{ matrix.language }}
+          upload: true
+
+      - name: Upload language SARIF
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: codeql-${{ matrix.language }}-sarif
+          path: reports/codeql/${{ matrix.language }}/
+          retention-days: 30
+          if-no-files-found: ignore
+
+  autoissue-ingest:
+    name: File CodeQL AutoIssues
+    needs: analyze
+    if: ${{ always() && needs.analyze.result != 'skipped' && needs.analyze.result != 'cancelled' }}
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download CodeQL SARIF artifacts
+        uses: actions/download-artifact@v5
+        with:
+          pattern: codeql-*-sarif
+          path: reports/codeql-ci
+          merge-multiple: false
+
+      - name: Import SARIF into AutoIssues
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob globstar
+          for file in reports/codeql-ci/**/*.sarif; do
+            language="$(basename "$(dirname "$file")")"
+            language="${language#codeql-}"
+            language="${language%-sarif}"
+            docker compose exec -T backend python manage.py ingest_codeql_sarif \
+              --language "$language" \
+              --path "/repo/$file" \
+              --max-open 10
+          done
+          docker compose exec -T backend python manage.py verify_codeql_autoissues \
+            --max-open 10 \
+            --block-open

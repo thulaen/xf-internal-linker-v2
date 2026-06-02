@@ -1,0 +1,17 @@
+rules:
+  - id: no-context-background-in-handler
+    languages: [go]
+    severity: WARNING
+    message: "Use the request context (r.Context()) not context.Background() in handlers. (XF rule)"
+    patterns:
+      - pattern: context.Background()
+      - pattern-inside: |
+          func $HANDLER($W http.ResponseWriter, $R *http.Request) {
+            ...
+          }
+
+  - id: no-ignored-close-error
+    languages: [go]
+    severity: WARNING
+    message: "defer x.Close() discards the error. Capture it: defer func() { _ = x.Close() }(). (XF rule)"
+    pattern: defer $X.Close()

@@ -1,0 +1,8 @@
+luajit 2.1.0-beta3
+luarocks 3.11.1
+busted 2.2.0-1
+luacheck 1.2.0-1
+luacov 0.16.0-1
+luacov-cobertura 0.2-1
+lua-quickcheck 0.2-4
+luabench 0.1-0

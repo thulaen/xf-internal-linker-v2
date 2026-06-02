@@ -37,28 +37,6 @@ jobs:
           QUALITY_DEBT_RUN_FULL_MUTATION: "1"
         run: bash scripts/run-quality-debt-report.sh
 
-  codeql:
-    name: CodeQL security scan
-    runs-on: ubuntu-latest
-    permissions:
-      security-events: write
-      packages: read
-      actions: read
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        language: [python, javascript-typescript, go, cpp]
-    steps:
-      - uses: actions/checkout@v5
-      - uses: github/codeql-action/init@v4
-        with:
-          languages: ${{ matrix.language }}
-      - uses: github/codeql-action/autobuild@v4
-      - uses: github/codeql-action/analyze@v4
-        with:
-          category: "/language:${{ matrix.language }}"
-
   infer-cpp:
     name: Infer C++ static analysis
     runs-on: ubuntu-latest
@@ -520,10 +498,16 @@ jobs:
           DJANGO_SECRET_KEY: ci-fake-secret-key
         run: |
           mkdir -p reports
-          mutmut run \
-            --paths-to-mutate=apps/auto_issues/services/fingerprinting.py \
-            --runner="python -m pytest apps/auto_issues -p randomly -x -q --no-cov" \
-            --processes=2
+          python - <<'PY'
+          from pathlib import Path
+          Path("pyproject.toml").write_text(
+              "[tool.mutmut]\n"
+              "paths_to_mutate = ['apps/auto_issues/services/fingerprinting.py']\n"
+              "pytest_add_cli_args = ['apps/auto_issues', '-p', 'randomly', '-x', '-q', '--no-cov']\n",
+              encoding="utf-8",
+          )
+          PY
+          mutmut run --max-children=2
           mutmut results
           # Fail the job if ANY mutant survived.
           mutmut junitxml > reports/mutmut-fingerprinting.xml
@@ -539,10 +523,16 @@ jobs:
           DJANGO_SECRET_KEY: ci-fake-secret-key
         run: |
           rm -rf .mutmut-cache
-          mutmut run \
-            --paths-to-mutate=apps/pipeline/services/field_aware_relevance.py \
-            --runner="python -m pytest apps/pipeline/tests.py::FieldAwareRelevanceServiceTests -p randomly -x -q --no-cov" \
-            --processes=2
+          python - <<'PY'
+          from pathlib import Path
+          Path("pyproject.toml").write_text(
+              "[tool.mutmut]\n"
+              "paths_to_mutate = ['apps/pipeline/services/field_aware_relevance.py']\n"
+              "pytest_add_cli_args = ['apps/pipeline/tests.py::FieldAwareRelevanceServiceTests', '-p', 'randomly', '-x', '-q', '--no-cov']\n",
+              encoding="utf-8",
+          )
+          PY
+          mutmut run --max-children=2
           mutmut results
           mutmut junitxml > reports/mutmut-field-aware-relevance.xml
           grep -q 'failures="0"' reports/mutmut-field-aware-relevance.xml || (

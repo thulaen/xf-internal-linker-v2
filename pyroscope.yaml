@@ -19,11 +19,14 @@ storage:
   filesystem:
     dir: /data
 
-# Profile retention — Pyroscope OSS 1.9 doesn't expose a top-level
-# retention key in either `limits` or `compactor`. Defaults retain
-# forever. If volume usage grows past ~1 GB, add a `tracker.retention`
-# block via the deeper `block-storage` config (see Grafana docs).
-# Two safe per-query caps:
+# Profile retention. Pyroscope now runs on the Mint helper (mint-quality
+# profile), where the old Windows-side Celery file-cleanup
+# (apps.auto_issues.services.retention_cleanup) no longer reaches the data.
+# So retention is enforced by Pyroscope itself: the compactor drops blocks
+# older than 30 days, which keeps Mint's /data volume bounded without any
+# external job. (Takes effect after Mint pulls this config and restarts the
+# pyroscope container.)
 limits:
+  compactor_blocks_retention_period: 30d
   max_query_lookback: 30d
   max_query_length: 7d

@@ -1,0 +1,20 @@
+rules:
+  - id: no-panic-in-ffi-export
+    languages: [rust]
+    severity: ERROR
+    message: "panic! / unwrap() in a C ABI export crosses the boundary unsafely. Use error codes. (XF rule)"
+    patterns:
+      - pattern: |
+          #[no_mangle]
+          pub extern "C" fn $FUNC(...) {
+            ...
+            panic!(...)
+            ...
+          }
+      - pattern: |
+          #[no_mangle]
+          pub extern "C" fn $FUNC(...) {
+            ...
+            $X.unwrap()
+            ...
+          }

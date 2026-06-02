@@ -1,0 +1,23 @@
+rules:
+  - id: perfetto-missing-source-field
+    languages: [python]
+    severity: ERROR
+    message: 'Perfetto AutoIssue dict must include "source": "perfetto". (XF rule)'
+    patterns:
+      - pattern: AutoIssue(source=$S, ...)
+      - pattern-not: AutoIssue(source="perfetto", ...)
+    paths:
+      include:
+        - "backend/apps/pipeline/services/perfetto*"
+        - "backend/apps/diagnostics/**"
+
+  - id: gwp-asan-missing-error-type
+    languages: [python]
+    severity: ERROR
+    message: "GWP-ASan crash dict must include error_type field. (XF rule)"
+    patterns:
+      - pattern: "{..., 'gwp_asan': {...}, ...}"
+      - pattern-not: "{..., 'error_type': $V, ...}"
+    paths:
+      include:
+        - "backend/apps/diagnostics/**"

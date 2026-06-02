@@ -1,0 +1,56 @@
+{
+  "targets": [
+    {
+      "name": "windows-control-plane",
+      "kind": "docker-context",
+      "context": "desktop-linux",
+      "description": "Windows Docker Desktop keeps the app control plane and Windows-owned tool containers running.",
+      "containers": [
+        { "name": "xf_linker_postgres", "health": "healthy" },
+        { "name": "xf_linker_redis", "health": "healthy" },
+        { "name": "xf_linker_backend", "health": "healthy" },
+        { "name": "xf_linker_celery_worker_default", "health": "healthy" },
+        { "name": "xf_linker_celery_worker_pipeline", "health": "healthy" },
+        { "name": "xf_linker_celery_beat", "health": "healthy" },
+        { "name": "xf_linker_nginx", "health": "healthy" },
+        { "name": "xf_linker_frontend_mutation_tools", "health": "healthy" },
+        { "name": "xf_linker_lua_quality_tools", "health": "healthy" },
+        { "name": "xf_linker_streamd", "health": "healthy" },
+        { "name": "xf_linker_sidecars", "health": "healthy" },
+        { "name": "xf_linker_grafana" },
+        { "name": "xf_linker_alloy" },
+        { "name": "xf_linker_otel_collector" },
+        { "name": "xf_linker_postgres_exporter" },
+        { "name": "xf_linker_loki" },
+        { "name": "xf_linker_tempo", "health": "healthy" }
+      ]
+    },
+    {
+      "name": "mint-quality-plane",
+      "kind": "ssh",
+      "host": "mint",
+      "description": "Mint keeps the heavy quality, profiling, scanner, and error-tracking containers running.",
+      "containers": [
+        { "name": "xf_linker_compiled_tools", "health": "healthy" },
+        { "name": "xf_linker_sonarqube" },
+        { "name": "xf_linker_sonar_autoscan" },
+        { "name": "xf_linker_pyroscope" },
+        { "name": "xf_linker_pyroscope_ebpf_profiler" },
+        { "name": "xf_linker_multi_lang_observability_picker" },
+        { "name": "xf_linker_glitchtip" },
+        { "name": "xf_linker_glitchtip_worker" },
+        { "name": "xf_linker_vmsingle" },
+        { "name": "xf_linker_vmagent" },
+        { "name": "xf_linker_vmalert" }
+      ]
+    },
+    {
+      "name": "third-pc-template",
+      "enabled": false,
+      "kind": "ssh",
+      "host": "third-pc",
+      "description": "Disabled template for the next helper PC. Enable it and list that PC's required Docker containers when it arrives.",
+      "containers": []
+    }
+  ]
+}

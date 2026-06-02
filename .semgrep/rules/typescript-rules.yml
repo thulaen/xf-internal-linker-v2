@@ -1,0 +1,26 @@
+rules:
+  - id: no-hardcoded-api-url
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: "Hard-coded URL must live in environment/ config files, not inline. (XF rule)"
+    pattern-either:
+      - pattern: '"http://$HOST/$..."'
+      - pattern: '"https://$HOST/$..."'
+    paths:
+      exclude:
+        - "frontend/src/environments/**"
+        - "**/*.spec.ts"
+        - "**/*.test.ts"
+
+  - id: no-direct-localstorage
+    languages: [typescript, javascript]
+    severity: WARNING
+    message: "Use the approved StorageService instead of direct localStorage. (XF rule)"
+    pattern-either:
+      - pattern: localStorage.setItem(...)
+      - pattern: localStorage.getItem(...)
+      - pattern: sessionStorage.setItem(...)
+    paths:
+      exclude:
+        - "**/storage.service.ts"
+        - "**/storage-helper.ts"

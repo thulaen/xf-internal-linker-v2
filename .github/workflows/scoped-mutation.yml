@@ -1,0 +1,239 @@
+name: Scoped Mutation (CI)
+
+# Phase J: per-language scoped mutation testing on the server.
+#
+# Per the user policy (2026-05-18):
+#   - GitHub PR CI runs scoped mutation only for changed modules.
+#   - CI runs uncapped (no 5-min wall-clock cap; XF_QUALITY_ENV=ci).
+#   - CI hard-blocks the PR on mutation-score thresholds (Stryker 95%,
+#     mutmut 100%, Mull 100%, go-mutesting 70%).
+#
+# Local commits use the same scripts with XF_QUALITY_ENV=local; that
+# path is soft-block (surviving mutants become AutoIssues via
+# file_mutation_survivors).
+#
+# Trigger matrix: both `push` (any branch) AND `pull_request` events
+# per the user's choice.
+
+on:
+  push:
+  pull_request:
+
+env:
+  XF_QUALITY_ENV: ci
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+
+  detect:
+    name: Detect changed modules
+    runs-on: ubuntu-latest
+    outputs:
+      angular: ${{ steps.classify.outputs.angular }}
+      python: ${{ steps.classify.outputs.python }}
+      go: ${{ steps.classify.outputs.go }}
+      cpp: ${{ steps.classify.outputs.cpp }}
+      any: ${{ steps.classify.outputs.any }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Determine diff base
+        id: base
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "base=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            # push event: diff against the immediate parent.
+            echo "base=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Classify changed files
+        id: classify
+        run: |
+          set -e
+          payload="$(python scripts/detect_changed_modules.py --base ${{ steps.base.outputs.base }} --format json)"
+          echo "$payload"
+          echo "angular=$(echo "$payload" | jq -c '.angular')" >> "$GITHUB_OUTPUT"
+          echo "python=$(echo "$payload" | jq -c '.python')" >> "$GITHUB_OUTPUT"
+          echo "go=$(echo "$payload" | jq -c '.go')" >> "$GITHUB_OUTPUT"
+          echo "cpp=$(echo "$payload" | jq -c '.cpp')" >> "$GITHUB_OUTPUT"
+          echo "any=$(echo "$payload" | jq -r '.any_mutation_targets')" >> "$GITHUB_OUTPUT"
+
+  angular-mutation:
+    name: Stryker (changed Angular files)
+    needs: detect
+    if: needs.detect.outputs.any == 'true' && needs.detect.outputs.angular != '[]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+      - name: Run Stryker on changed files only
+        working-directory: frontend
+        env:
+          XF_QUALITY_ENV: ci
+          XF_CHANGED_ANGULAR: ${{ needs.detect.outputs.angular }}
+        run: |
+          set -e
+          changed=$(echo "$XF_CHANGED_ANGULAR" | jq -r '.[] | sub("^frontend/"; "")' | tr '\n' ' ')
+          echo "Mutating: $changed"
+          # Rewrite stryker.config.json with only the changed targets.
+          python3 -c "
+          import json
+          from pathlib import Path
+          cfg = json.loads(Path('stryker.config.json').read_text())
+          cfg['mutate'] = '''$changed'''.split()
+          Path('/tmp/stryker.changed.config.json').write_text(json.dumps(cfg, indent=2))
+          "
+          # CI: uncapped. Hard-block on score regression.
+          npx stryker run /tmp/stryker.changed.config.json
+
+  python-mutation:
+    name: mutmut (changed Python files)
+    needs: detect
+    if: needs.detect.outputs.any == 'true' && needs.detect.outputs.python != '[]'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install backend deps
+        working-directory: backend
+        run: |
+          pip install -r requirements.txt
+          pip install mutmut pytest pytest-django pytest-randomly
+      - name: Run mutmut on changed files only
+        working-directory: backend
+        env:
+          XF_QUALITY_ENV: ci
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+          XF_CHANGED_PYTHON: ${{ needs.detect.outputs.python }}
+        run: |
+          set -e
+          changed=$(echo "$XF_CHANGED_PYTHON" | jq -r '.[] | sub("^backend/"; "")' | tr '\n' ' ')
+          echo "Mutating: $changed"
+          python - "$changed" <<'PY'
+          from pathlib import Path
+          import sys
+
+          paths = [path for path in sys.argv[1].split() if path]
+          Path("pyproject.toml").write_text(
+              "[tool.mutmut]\n"
+              f"paths_to_mutate = {paths!r}\n"
+              "pytest_add_cli_args = ['-p', 'randomly', '-x', '-q', '--no-cov']\n",
+              encoding="utf-8",
+          )
+          PY
+          # CI: uncapped.
+          mutmut run --max-children 2
+          mutmut export-cicd-stats
+
+  go-mutation:
+    name: go-mutesting (changed Go modules)
+    needs: detect
+    if: needs.detect.outputs.any == 'true' && needs.detect.outputs.go != '[]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Install go-mutesting
+        run: go install github.com/zimmski/go-mutesting/cmd/go-mutesting@latest
+      - name: Run go-mutesting on changed modules
+        env:
+          XF_QUALITY_ENV: ci
+          XF_CHANGED_GO: ${{ needs.detect.outputs.go }}
+        run: |
+          set -e
+          # Resolve modules from changed file paths.
+          modules=$(echo "$XF_CHANGED_GO" | jq -r '.[] | split("/") | "services/" + .[1]' | sort -u)
+          for mod in $modules; do
+            echo "Mutating module: $mod"
+            (cd "$mod" && go-mutesting ./...)
+          done
+
+  cpp-mutation:
+    name: Mull (changed C++ extensions, scoped)
+    needs: detect
+    if: needs.detect.outputs.any == 'true' && needs.detect.outputs.cpp != '[]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # K3: route via the existing compiled-tools docker image. It has
+      # LLVM 19 + Mull baked in (Dockerfile pinned at
+      # backend/extensions/compiled-tools/Dockerfile). Mirrors the
+      # cpp-mull job in .github/workflows/ci.yml verbatim — only
+      # difference is we run scripts/cpp_mutation_targets.py first to
+      # scope to changed binaries only.
+      - name: Build compiled-tools image
+        run: docker compose build compiled-tools
+      - name: Run scoped Mull mutation via Docker
+        env:
+          XF_QUALITY_ENV: ci
+        run: |
+          # The container's run-cpp-mutation.sh already calls
+          # scripts/cpp_mutation_targets.py (K1) to narrow the binary
+          # list to changed C++ files. CI runs uncapped per the
+          # XF_QUALITY_ENV=ci gate.
+          docker compose run --rm \
+            -e XF_QUALITY_ENV=ci \
+            compiled-tools bash /repo/scripts/run-cpp-mutation.sh --clean
+      - name: Mutation-score ratchet per binary
+        if: always()
+        run: |
+          set -e
+          failed=0
+          # Read the scoped binary list from the same source the script
+          # used (the script narrows to changed binaries; ratchet only
+          # checks those).
+          while IFS= read -r target; do
+            [ -z "$target" ] && continue
+            case "$target" in '#'*) continue ;; esac
+            report="backend/extensions/reports/mull/${target}/mutants.json"
+            if [ -f "$report" ]; then
+              python .githooks/check-mutation-score.py \
+                --tool mull --target "$target" --report "$report" --seed-if-empty \
+                || failed=1
+            fi
+          done < <(python scripts/cpp_mutation_targets.py)
+          exit "$failed"
+      - name: Upload Mull reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mull-reports-scoped
+          path: backend/extensions/reports/mull/
+          retention-days: 30
+
+  remote-only-evidence:
+    name: Record CI completion evidence
+    needs: [detect, angular-mutation, python-mutation, go-mutation, cpp-mutation]
+    if: always() && needs.detect.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Summary
+        run: |
+          echo "Scoped mutation workflow finished."
+          echo "Angular: ${{ needs.angular-mutation.result }}"
+          echo "Python:  ${{ needs.python-mutation.result }}"
+          echo "Go:      ${{ needs.go-mutation.result }}"
+          echo "C++:     ${{ needs.cpp-mutation.result }}"

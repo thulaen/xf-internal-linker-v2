@@ -452,6 +452,12 @@ When you must mention a technical concept, use the plain-English version from th
 | splits Python unit tests across 3 machines so they run at the same time instead of one after another | turbo test runner |
 | splitting a test suite into groups that run at the same time on different machines | test sharding |
 | Docker named volume holding synced source code on Mint/Dell during distributed test runs | xf_test_repo |
+| at the same time — a linter setting that runs checks side by side instead of one after another | PARALLEL |
+| turn off — a config setting that switches a feature off | DISABLE |
+| turn on — a config setting that switches a feature on | ENABLE |
+| the piece of code that responds to a request or event | HANDLER |
+| short for "function" — a named block of reusable code | FUNC |
+| the computer or address a service runs on | HOST |
 
 If a term you need is not in this table, define it yourself in parentheses the first time you use it.
 

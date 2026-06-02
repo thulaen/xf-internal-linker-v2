@@ -1,0 +1,6 @@
+rules:
+  - id: no-pybind11-include
+    languages: [cpp]
+    severity: ERROR
+    message: "PyBind11 is forbidden for new native boundaries. Use the C ABI standard. (XF rule)"
+    pattern: '#include <pybind11/$...>'

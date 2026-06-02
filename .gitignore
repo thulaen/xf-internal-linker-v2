@@ -102,7 +102,9 @@ htmlcov/
 coverage-html/
 backend/coverage-html/
 backend/reports/
+backend/.mutmut-cache
 backend/.mutmut-cache/
+backend/**/.mutmut-cache
 
 # Celery
 celerybeat-schedule

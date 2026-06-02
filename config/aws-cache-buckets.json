@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "region": "eu-north-1",
+  "retention_days": 14,
+  "lifecycle_rule_id": "xf-cache-expire-after-14-days",
+  "buckets": [
+    {
+      "name": "xf-internal-linker-sccache",
+      "purpose": "compiler object cache"
+    },
+    {
+      "name": "xf-internal-linker-buildkit-cache",
+      "purpose": "Docker BuildKit layer cache"
+    }
+  ]
+}

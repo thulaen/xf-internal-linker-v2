@@ -1,0 +1,44 @@
+rules:
+  - id: no-http-without-timeout
+    languages: [python]
+    severity: ERROR
+    message: "HTTP request is missing timeout=. Add timeout=5 or higher. (XF rule)"
+    pattern-either:
+      - pattern: requests.get($URL, ...)
+      - pattern: requests.post($URL, ...)
+      - pattern: requests.put($URL, ...)
+      - pattern: requests.delete($URL, ...)
+    pattern-not:
+      - pattern: requests.get($URL, ..., timeout=..., ...)
+      - pattern: requests.post($URL, ..., timeout=..., ...)
+      - pattern: requests.put($URL, ..., timeout=..., ...)
+      - pattern: requests.delete($URL, ..., timeout=..., ...)
+    # ok: no-http-without-timeout
+    # requests.get(url, timeout=5)
+    # ruleid: no-http-without-timeout
+    # requests.get(url)
+
+  - id: no-broad-except-swallowed
+    languages: [python]
+    severity: WARNING
+    message: "Swallowed broad exception hides bugs. Log the error or re-raise. (XF rule)"
+    pattern-either:
+      - pattern: |
+          try:
+            ...
+          except Exception:
+            pass
+      - pattern: |
+          try:
+            ...
+          except:
+            pass
+
+  - id: no-subprocess-shell-true
+    languages: [python]
+    severity: ERROR
+    message: "shell=True is a command injection risk. Use a list of args instead. (XF rule)"
+    pattern-either:
+      - pattern: subprocess.run(..., shell=True, ...)
+      - pattern: subprocess.call(..., shell=True, ...)
+      - pattern: subprocess.Popen(..., shell=True, ...)

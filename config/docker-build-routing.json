@@ -1,14 +1,21 @@
 {
   "builders": {
-    "general": "mint",
-    "gpu_local": "desktop-linux"
+    "mint": "mint",
+    "windows": "desktop-linux",
+    "general": "mint"
+  },
+  "compilation_split": {
+    "mint_percent": 100,
+    "windows_percent": 0,
+    "salt": "xf-internal-linker-v2-build-split-v1"
   },
   "fallback_policy": "fail_closed",
-  "gpu_targets": [
-    "backend-gpu",
-    "findbugs-gpu",
-    "llama-gpu"
-  ],
+  "load_remote_images": true,
+  "failure_autoissues": {
+    "enabled": true,
+    "compression": "lz4",
+    "max_output_chars": 12000
+  },
   "disabled_builders": [
     "cloud"
   ]

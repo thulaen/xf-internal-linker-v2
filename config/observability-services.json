@@ -1,5 +1,5 @@
 {
-  "comment": "Single source of truth for the observability + quality tier (Phase K.4, 2026-05-23). Aligned with the Observability-Always-On ABSOLUTE rule in CLAUDE.md and the spec at docs/specs/fr-observability-always-on-and-no-deferral.md. The .githooks/check-observability-stack.py pre-commit hook and the backend/apps/observability/management/commands/check_observability_health.py session-start ritual both read this file so the list never drifts between the two enforcement points. glitchtip-init is intentionally excluded because it is an init job that exits after running.",
+  "comment": "Single source of truth for the observability + quality tier (Phase K.4, 2026-05-23; SonarQube moved to Mint 2026-05-29). 'services' are checked on the active (Windows) Docker context by .githooks/check-observability-stack.py and the backend/apps/observability/management/commands/check_observability_health.py session-start ritual. 'remote_services' run on the Mint helper behind the mint-quality Compose profile (docs/specs/fr-mint-quality-tool-placement.md, config/docker-stack-health.json); the pre-commit hook verifies them over the network via their health_url so the Observability-Always-On rule still holds, just on Mint instead of Windows. The dedicated verifier is scripts/check-mint-quality-tools.ps1. glitchtip-init is intentionally excluded because it is an init job that exits after running. See docs/specs/fr-observability-always-on-and-no-deferral.md.",
   "services": [
     "alloy",
     "glitchtip",
@@ -8,12 +8,30 @@
     "loki",
     "otel-collector",
     "postgres-exporter",
-    "pyroscope",
-    "sonar-autoscan",
-    "sonarqube",
-    "tempo",
-    "vmagent",
-    "vmalert",
-    "vmsingle"
+    "tempo"
+  ],
+  "remote_services": [
+    {
+      "label": "sonarqube",
+      "host": "mint",
+      "context": "mint",
+      "container": "xf_linker_sonarqube",
+      "health_url": "http://10.10.10.91:9000/api/system/status",
+      "health_ok_contains": "\"status\":\"UP\""
+    },
+    {
+      "label": "sonar-autoscan",
+      "host": "mint",
+      "context": "mint",
+      "container": "xf_linker_sonar_autoscan"
+    },
+    {
+      "label": "pyroscope",
+      "host": "mint",
+      "context": "mint",
+      "container": "xf_linker_pyroscope",
+      "health_url": "http://10.10.10.91:4040/ready",
+      "health_ok_contains": "ready"
+    }
   ]
 }

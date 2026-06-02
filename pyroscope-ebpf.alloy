@@ -1,0 +1,82 @@
+// Pyroscope eBPF profiler for Mint-owned quality and build workloads.
+//
+// This samples Docker containers at 250 samples per second and forwards
+// profiles to the local Pyroscope service. eBPF covers native binaries
+// such as C, C++, Haskell, Rust, and Go, plus Node/V8 TypeScript work.
+
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+discovery.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "30s"
+}
+
+discovery.relabel "pyroscope_targets" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_oneoff"]
+    regex         = "True"
+    action        = "drop"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    regex         = "(.+)"
+    target_label  = "service_name"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container_name"
+  }
+
+  rule {
+    target_label = "language_c"
+    replacement  = "enabled"
+  }
+
+  rule {
+    target_label = "language_cpp"
+    replacement  = "enabled"
+  }
+
+  rule {
+    target_label = "language_haskell"
+    replacement  = "enabled"
+  }
+
+  rule {
+    target_label = "language_rust"
+    replacement  = "enabled"
+  }
+
+  rule {
+    target_label = "language_go"
+    replacement  = "enabled"
+  }
+
+  rule {
+    target_label = "language_typescript"
+    replacement  = "enabled"
+  }
+}
+
+pyroscope.write "mint" {
+  endpoint {
+    url = "http://pyroscope:4040"
+  }
+  external_labels = {
+    host = "mint",
+  }
+}
+
+pyroscope.ebpf "docker" {
+  targets     = discovery.relabel.pyroscope_targets.output
+  forward_to  = [pyroscope.write.mint.receiver]
+  sample_rate = 250
+}
