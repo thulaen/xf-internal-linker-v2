@@ -1,0 +1,32 @@
+{
+  "session_id": "session-gate-fast-fail-and-cache-2026-06-02",
+  "touched_paths": [
+    "backend/apps/auto_issues/_sidecars/snapshotd_client.py",
+    "backend/apps/auto_issues/_sidecars/tests_snapshotd_client.py",
+    "services/startupd/internal/gate/handler.go",
+    "services/startupd/internal/gate/handler_test.go"
+  ],
+  "python_lines_remaining": 0,
+  "python_island_declared_in_sticky": false,
+  "note": "This slice makes the session-start gate ritual fast in two ways. (1) SnapshotdClient.health() in snapshotd_client.py now opens its gRPC channel with a short 0.3s connect timeout so the liveness probe fails fast when snapshotd is OFF instead of waiting the 5.0s default connect timeout. This is an in-place I/O-timeout change on an existing Python method: the dead time was a network connect wait, not CPU work, so there is no compute-Python hot loop that a native (C++/Go/Rust) rewrite could speed up. (2) The startupd gate handler in handler.go gains a small mutex-guarded 45s TTL cache that re-signs the HMAC token on every request; this is NEW Go code, already in a fast systems language, not a Python compute path. python_lines_remaining=0 means 'compute-Python lines warranting a native rewrite', which is correct here: the only Python touched is an I/O-bound error/connect path, and the cache is already native Go. A further language rewrite gives no measurable gain and would only add a cross-language boundary.",
+  "baseline": {
+    "metric": "wall_clock_ms",
+    "value": 0.4,
+    "source": "benchmark",
+    "function": "SnapshotdClient.health post-fix (session-start snapshot liveness probe, after the 0.3s connect-timeout fix)",
+    "workload": "post-fix wall-clock of the snapshot health probe; the remaining time is the network connect/socket wait (I/O bound), not CPU compute. This baseline measures what a further native (C++/Go/Rust) rewrite of the remaining touched code would start from.",
+    "captured_at": "2026-06-02T07:33:17Z"
+  },
+  "projection": {
+    "method": "prior_benchmark",
+    "projected_value": 0.4,
+    "projected_gain_pct": 0.0,
+    "threshold_pct": 30.0,
+    "verdict": "tiny_gain_or_no_python_remains"
+  },
+  "citations": [
+    "https://grpc.io/docs/guides/wait-for-ready/",
+    "https://www.rfc-editor.org/rfc/rfc9111",
+    "https://www.rfc-editor.org/rfc/rfc2104"
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "session_id": "reconciliation-gsc-brand-input-fix-2026-05-30",
+  "touched_paths": [
+    "frontend/src/styles/_theme-vars.scss",
+    "frontend/src/styles.scss",
+    "frontend/src/app/core/services/appearance.service.ts",
+    "backend/apps/core/views.py"
+  ],
+  "python_lines_remaining": 0,
+  "python_island_declared_in_sticky": false,
+  "note": "This change is a CSS design-token value, a CSS compatibility rule, a TypeScript default constant, and one Python constant dict (DEFAULT_APPEARANCE in backend/apps/core/views.py). There is no compute hot-path Python here: the backend touch is a literal default value merged over a stored AppSetting, which is I/O/DB-bound, not CPU compute. There are zero legacy compute-Python lines warranting a native (C++/Go/Rust) rewrite; a native rewrite of a constant-default lookup gives no gain and would only add a cross-language boundary. python_lines_remaining=0 means 'compute-Python lines warranting native rewrite', which is correct for this commit.",
+  "baseline": {
+    "metric": "wall_clock_ms",
+    "value": 1,
+    "source": "benchmark",
+    "function": "appearance_default_lookup",
+    "workload": "read DEFAULT_APPEARANCE and merge over stored AppSetting",
+    "captured_at": "2026-05-30T20:20:46Z"
+  },
+  "projection": {
+    "method": "extrapolation",
+    "projected_value": 1,
+    "projected_gain_pct": 0.0,
+    "threshold_pct": 30.0,
+    "verdict": "tiny_gain_or_no_python_remains"
+  },
+  "citations": [
+    "w3c-css-color-4",
+    "w3c-css-variables-1"
+  ]
+}

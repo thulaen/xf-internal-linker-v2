@@ -1,3 +1,45 @@
+# 2026-06-03 03:08 - Claude Opus 4.8 (1M context) - docs: agent-instruction files (cross-agent progress rule), rules-sync manifest, C ABI template, rewrite-evidence
+
+[HANDOFF READ: 2026-06-02 16:25 by Claude Opus 4.8 — atomic-safe connection guards + crawler 60s limit + plugin async guard landed as 0124016a]
+[TDD PREFLIGHT: pipeline=SPEC→TEST_CASE→TDD→CODE→CODE_REVIEW→LESSON spec_citation=on test_case_mandate=on tdd_red_green_refactor=on 5_layer_coverage=on code_review_logging=on lesson_logging=on decision_point=on artefact_pruning=on no_bypass=on per_file_lookup=on commit_failure_lookup=on session_id=915ea8ac-33bc-45ea-9577-64a6b011f884 armed_at=2026-06-03T03:30:14Z]
+[GH ACTIONS READ: 118 failures since last handoff — picked: #200, #100, #123456]
+[STICKY 1 READ: timestamp=2026-06-03T03:30:13Z sha256=7b8d04510bf49e49 agent=startupd]
+[REGISTRY READ: 605 open (339 agent / 96 glitchtip / 7 pyroscope / 2 tempo / 71 loki / 0 faro / 90 mutation / 0 fuzz / 0 contract / 0 gh_ci) — picked: #20259, #19964, #20316 | g: #20217, #20218, #20220 | p: #20181, #2074, #2618 | t: 0 found + 3 from agent: #2498, #2616, #20235 (drought logged: #20317) | l: #20208, #20184, #20206 | f: 0 found + 3 from agent: #19984, #20313, #1706 (drought logged: #20028) | m: #19075, #19074, #19073 | z: 0 found + 3 from agent: #19940, #19923, #1868 (drought logged: #19917) | c: 0 found + 3 from agent: #20312, #20311, #20292 (drought logged: #19918) | gh: 0 found + 3 from agent: #20291, #20290, #20289 (drought logged: #19919)]
+[CI FAILED RUNS READ: skipped — gh unavailable]
+[COVERAGE GAPS READ: 0 picked + 10 to file — drought; no open coverage-gap rows this session]
+[GUIDELINES READ: AI-CODING-GUIDELINES.md + docs/CODE-COVERAGE-RULES.md]
+[PAPER TRAIL READ: 0 open (0 autoissue_deferral / 0 cve_upgrade / 0 coverage_gap / 0 infrastructure / 0 ruff_sweep / 0 mutation_survivor / 0 debt_reduction / 0 feature_decision / 0 tooling_gap / 0 documentation / 0 dependency_upgrade / 0 refactor / 0 performance / 0 security / 0 accessibility / 0 other) — picked: #326, #327, #328]
+[SNAPSHOTS READ: skipped — snapshotd unavailable]
+[LESSONS BEFORE START: 0 resolved-lesson rows reviewed in docs (<no-prior-fixes-in-touched-area>)]
+[SCOPED LESSONS READ: 0 lessons in docs]
+[SESSION GATE SOURCE: startupd token=d212bbd5a62b9393 ts=29674290]
+[SESSION TYPE: docs]
+[AUTOISSUE QUOTA VERIFIED: docs — no quota required]
+[PAPER TRAIL QUOTA VERIFIED: docs — no quota required]
+[NON-CODEBASE-EDIT TASK: reason="docs-only commit: agent-instruction markdown (AGENTS/CLAUDE/CODEX/GEMINI.md) carrying the cross-agent progress-pulse rule, the agent-rules sync manifest, a C interface template under docs/architecture, and rewrite-evidence JSON. No executable production source changed."]
+[TEST CASE COMMIT COMPLIANCE: pass mapping=0 grandfathered=0 non_codebase=yes agent=claude]
+[COVERAGE SUMMARY: target=0% actual=0% — met (docs-only commit, no executable code)]
+
+**What I did, in plain English:** Landed the agent-instruction documentation that carries the new
+cross-agent progress rule — the one that tells every agent (Claude, Codex, Gemini, Antigravity) to
+show a progress line on every reply and flag anything that is stuck. Also landed a rules-sync
+manifest, a C interface template used by the architecture documentation, and rewrite-evidence records
+from earlier sessions. No running code changed — these are documentation and instruction files only.
+
+**What was accomplished:** The cross-agent progress rule now lives in the shared AGENTS.md plus each
+agent's own instruction file, so a fresh session of any agent reads it at startup. Files: AGENTS.md,
+CLAUDE.md, CODEX.md, GEMINI.md, docs/agent-rules-sync-manifest.yml, docs/architecture/c-abi-template.h,
+and four docs/rewrite-evidence JSON files.
+
+**What has issues or errors:** Nothing broke — this is a documentation-only change.
+docs/specs/fr-dell-mutation-runner.md is committed separately in the specs bundle, where it carries
+the spec-citation markers it needs.
+
+**Tech-debt delta:** +1 enforced cross-agent progress convention documented across all four agent
+instruction files; +4 rewrite-evidence records captured.
+
+---
+
 # 2026-06-02 16:25 - Claude Opus 4.8 (1M context) - chore(backend): land small-module edits (analytics, content, crawler, notifications, plugins, cooccurrence, benchmarks)
 
 [HANDOFF READ: 2026-06-02 13:00 by Claude Opus 4.8 — specs, ADRs, and project documentation landed on master]

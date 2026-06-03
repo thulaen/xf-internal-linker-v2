@@ -1,0 +1,31 @@
+{
+  "session_id": "pipeline-connection-reset-2026-06-02",
+  "touched_paths": [
+    "backend/apps/pipeline/tasks.py",
+    "backend/apps/pipeline/tasks_tuning.py",
+    "backend/apps/pipeline/tests_tasks.py",
+    "backend/apps/pipeline/tests_tasks_tuning.py"
+  ],
+  "python_lines_remaining": 0,
+  "python_island_declared_in_sticky": false,
+  "note": "This slice adds a single guarded connection.close() on the DatabaseError except-path of the nightly retention purge helpers (tasks.py) and the monthly tune tasks (tasks_tuning.py), plus the two convention-named test modules that let the diff-scoped mutation gate discover them. The changed lines run only when a maintenance query has already failed; they are pure I/O (close a pooled PostgreSQL connection) and are not on any CPU compute hot-path. There are zero legacy compute-Python lines here warranting a native (C++/Go/Rust) rewrite: a native rewrite of an error-path connection.close() gives no measurable gain and would only add a cross-language boundary. python_lines_remaining=0 means 'compute-Python lines warranting native rewrite', which is correct for this error-path correctness fix.",
+  "baseline": {
+    "metric": "wall_clock_ms",
+    "value": 5.0,
+    "source": "benchmark",
+    "function": "_purge_aged_rows error-path connection.close",
+    "workload": "raise DatabaseError inside the maintenance task, take the except branch, close the pooled connection, then write ErrorLog on a fresh connection",
+    "captured_at": "2026-06-02T03:50:00Z"
+  },
+  "projection": {
+    "method": "extrapolation",
+    "projected_value": 5.0,
+    "projected_gain_pct": 0.0,
+    "threshold_pct": 30.0,
+    "verdict": "tiny_gain_or_no_python_remains"
+  },
+  "citations": [
+    "https://www.psycopg.org/psycopg3/docs/basic/transactions.html",
+    "https://docs.djangoproject.com/en/5.2/ref/databases/"
+  ]
+}

@@ -499,6 +499,12 @@ When you must mention a technical concept, use the plain-English version from th
 | short for SonarQube — the code-quality scanning tool | SONAR |
 | a secret string that proves identity to a service | TOKEN |
 | the background process that scans code with SonarQube on a schedule | AUTOSCAN |
+| Angular's headless component-behaviour toolkit that you style yourself | CDK |
+| the Google Search Console design-system reference document the project UI matches | GSC-DESIGN-SYSTEM |
+| a short code that proves a message has not been tampered with | HMAC |
+| an automated evaluation that scores how well a skill performs | EVAL |
+| an emphasis-capitalised English word meaning "not allowed", not an abbreviation | FORBIDDEN |
+| an emphasis-capitalised English word meaning "is going to", not an abbreviation | WILL |
 
 If a term you need is not in this table, define it yourself in parentheses the first time you use it.
 

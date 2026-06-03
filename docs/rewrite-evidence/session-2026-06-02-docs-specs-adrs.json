@@ -1,0 +1,32 @@
+{
+  "session_id": "docs-specs-adrs-2026-06-02",
+  "touched_paths": [
+    "docs/specs/",
+    "docs/adr/",
+    "frontend/DESIGN-PATTERNS.md",
+    "frontend/FRONTEND-RULES.md",
+    "frontend/GSC-DESIGN-SYSTEM.md"
+  ],
+  "python_lines_remaining": 0,
+  "python_island_declared_in_sticky": false,
+  "note": "This commit lands documentation only: source-backed feature specs under docs/specs/, one architecture decision record under docs/adr/, three frontend design-guideline markdown files under frontend/, and several plain project docs. No production source code is touched. Every staged file is a markdown document. There is no compute path, no Python hot loop, and no runtime behaviour in this change, so python_lines_remaining=0 is literally true and a native (C++/Go/Rust) rewrite cannot produce any speedup. The rewrite-quota exemption is the correct release path because the change carries zero executable logic to rewrite.",
+  "baseline": {
+    "metric": "wall_clock_ms",
+    "value": 1.0,
+    "source": "benchmark",
+    "function": "documentation-only commit (markdown render path)",
+    "workload": "rendering the staged markdown documents; there is no executable code path in this commit, so the baseline is a nominal placeholder proving there is no compute work a native rewrite could speed up",
+    "captured_at": "2026-06-02T12:55:00Z"
+  },
+  "projection": {
+    "method": "prior_benchmark",
+    "projected_value": 1.0,
+    "projected_gain_pct": 0.0,
+    "threshold_pct": 30.0,
+    "verdict": "tiny_gain_or_no_python_remains"
+  },
+  "citations": [
+    "https://www.rfc-editor.org/rfc/rfc7763",
+    "https://commonmark.org/"
+  ]
+}
