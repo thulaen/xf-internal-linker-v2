@@ -40,13 +40,13 @@ ensure_image() {
     return 0
   fi
   set +e
-  docker compose build "$service"
+  python scripts/smart_build.py --target "$service"
   local status=$?
   set -e
   if [[ "$status" -eq 0 ]]; then
-    record_readiness passed "${service}-build" "docker compose build ${service}" "Docker image built successfully."
+    record_readiness passed "${service}-build" "python scripts/smart_build.py --target ${service}" "Docker image built successfully."
   else
-    record_readiness failed "${service}-build" "docker compose build ${service}" "Docker image build failed."
+    record_readiness failed "${service}-build" "python scripts/smart_build.py --target ${service}" "Docker image build failed."
     exit "$status"
   fi
 }
@@ -87,30 +87,38 @@ ensure_volume() {
   return 1
 }
 
-ensure_image backend xf-linker-backend:latest
-ensure_image compiled-tools xf-linker-compiled-tools:latest
+# The Windows backend service runs the `runtime` Dockerfile stage
+# (image xf-linker-backend-runtime:latest). The old single `xf-linker-backend:latest`
+# tag predates the runtime/quality stage split and is no longer used on Windows
+# (only docker-compose-helper.yml on the Mint helper still names it). Check the
+# real runtime image so this gate never rebuilds the retired tag.
+ensure_image backend xf-linker-backend-runtime:latest
+# compiled-tools now runs on the Mint helper (mint-quality profile); Windows
+# neither builds nor starts it. Its toolchain is verified on Mint further down
+# via the `mint` Docker context, matching the 65/35 split where compiled-language
+# quality is Mint's share (docs/specs/fr-mint-quality-tool-placement.md).
 ensure_image frontend-mutation-tools xf-linker-frontend-mutation-tools:latest
 
 set +e
-docker compose up -d --no-deps compiled-tools frontend-mutation-tools
+docker compose up -d --no-deps frontend-mutation-tools
 autostart_status=$?
 set -e
 if [[ "$autostart_status" -eq 0 ]]; then
-  record_readiness passed docker-tools-autostart "docker compose up -d --no-deps compiled-tools frontend-mutation-tools" "Docker-managed quality tool containers started."
+  record_readiness passed docker-tools-autostart "docker compose up -d --no-deps frontend-mutation-tools" "Docker-managed quality tool container started."
 else
-  record_readiness failed docker-tools-autostart "docker compose up -d --no-deps compiled-tools frontend-mutation-tools" "Docker-managed quality tool containers could not start."
+  record_readiness failed docker-tools-autostart "docker compose up -d --no-deps frontend-mutation-tools" "Docker-managed quality tool container could not start."
   exit "$autostart_status"
 fi
 
-wait_for_service compiled-tools compiled-tools
 wait_for_service frontend-mutation-tools frontend-tools
-ensure_volume compiled_tool_cache
 ensure_volume frontend_tool_cache
-ensure_volume go_tool_mod_cache
 
+# Verify the compiled-language toolchain on the Mint helper (not Windows).
+# Mint runs the `compiled-tools` container as xf_linker_compiled_tools; we reach
+# it through the `mint` Docker context (TLS) the same way the build router does.
 set +e
-docker compose exec -T compiled-tools bash -lc '
-  mutmut --version
+docker --context mint exec xf_linker_compiled_tools bash -lc '
+  command -v mutmut >/dev/null  # mutmut 2.x has no --version flag; just verify it is installed
   mull-runner-19 --version
   go version
   command -v go-mutesting >/dev/null
@@ -130,9 +138,9 @@ docker compose exec -T compiled-tools bash -lc '
 compiled_status=$?
 set -e
 if [[ "$compiled_status" -eq 0 ]]; then
-  record_readiness passed compiled-tools "docker compose exec compiled-tools tool version checks" "Compiled-language quality tools are installed in the running container."
+  record_readiness passed compiled-tools "docker --context mint exec xf_linker_compiled_tools tool version checks" "Compiled-language quality tools are installed in the Mint compiled-tools container."
 else
-  record_readiness failed compiled-tools "docker compose exec compiled-tools tool version checks" "A compiled-language quality tool is missing or broken."
+  record_readiness failed compiled-tools "docker --context mint exec xf_linker_compiled_tools tool version checks" "Mint compiled-tools is unreachable or a compiled-language tool is missing. Start Mint quality tools with scripts/start-mint-quality-tools.ps1 and verify with scripts/check-mint-quality-tools.ps1."
   exit "$compiled_status"
 fi
 
@@ -154,22 +162,27 @@ else
   exit "$frontend_status"
 fi
 
+# The Python quality tools (ruff, pylint, bandit, pip-audit, safety, coverage,
+# mutmut) live ONLY in the `quality` Dockerfile stage (image
+# xf-linker-backend-quality:latest), which the `backend-quality` compose
+# service runs. The production `backend` service runs the lean `runtime` stage
+# and intentionally does NOT carry these tools, so check the quality image.
 set +e
-docker compose run --rm -T --no-deps backend sh -lc '
+docker compose run --rm -T --no-deps backend-quality sh -lc '
   ruff --version
   pylint --version
   bandit --version
   pip-audit --version
   safety --version
   coverage --version
-  mutmut --version
+  command -v mutmut >/dev/null  # mutmut 2.x has no --version flag; just verify it is installed
 '
 backend_status=$?
 set -e
 if [[ "$backend_status" -eq 0 ]]; then
-  record_readiness passed backend-tools "docker compose run --rm backend tool version checks" "Backend quality tools are installed."
+  record_readiness passed backend-tools "docker compose run --rm backend-quality tool version checks" "Backend quality tools are installed."
 else
-  record_readiness failed backend-tools "docker compose run --rm backend tool version checks" "A backend quality tool is missing or broken."
+  record_readiness failed backend-tools "docker compose run --rm backend-quality tool version checks" "A backend quality tool is missing or broken."
   exit "$backend_status"
 fi
 

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$script_dir/_quality_concurrency.sh"
 
 build_dir=/tmp/xf-build/cpp-fuzz
 
@@ -38,6 +40,8 @@ targets=(
   fuzz_pagerank
   fuzz_phrasematch
 )
+
+quality_log_scope_decision "scripts/run-cpp-fuzz-smoke.sh" libFuzzer "runs the fixed smoke binary list for changed native-code safety checks"
 
 for target in "${targets[@]}"; do
   echo "Running ${target}..."

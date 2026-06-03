@@ -57,4 +57,41 @@ assert_last_line "compose run --rm -T --no-deps --name xf-quality-tool-d -e VAR=
 quality_docker_compose_run tool-e backend python -u script.py
 assert_last_line "compose run --rm -T --no-deps --name xf-quality-tool-e backend python -u script.py"
 
+export XF_QUALITY_NO_BUILD=1
+quality_docker_compose_run tool-f backend python -u script.py
+assert_last_line "compose run --rm -T --no-deps --name xf-quality-tool-f --pull never backend python -u script.py"
+unset XF_QUALITY_NO_BUILD
+
 echo "quality_docker_compose_run wrapper tests passed"
+
+# Test that quality_acquire_meta_lock no longer enforces mutual exclusion
+test_lock_dir="$tmp_dir/meta_locks"
+mkdir -p "$test_lock_dir"
+export QUALITY_LOCK_DIR="$test_lock_dir"
+
+# Hold the lock in the background
+if command -v flock >/dev/null 2>&1; then
+  (
+    eval "exec 9>'$QUALITY_LOCK_DIR/meta.lock'"
+    flock -n 9
+    sleep 2
+  ) &
+  bg_pid=$!
+else
+  mkdir -p "$QUALITY_LOCK_DIR/meta.lock.d"
+  (
+    sleep 2
+    rmdir "$QUALITY_LOCK_DIR/meta.lock.d"
+  ) &
+  bg_pid=$!
+fi
+sleep 0.2
+
+# This should succeed now because meta_lock is a no-op, but would fail previously
+if ! quality_acquire_meta_lock 2>/dev/null; then
+  echo "FAIL quality_acquire_meta_lock blocked on held lock" >&2
+  kill "$bg_pid" 2>/dev/null || true
+  exit 1
+fi
+kill "$bg_pid" 2>/dev/null || true
+echo "quality_acquire_meta_lock no-op test passed"

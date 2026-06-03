@@ -422,11 +422,12 @@ run_soft_gate run-haskell-quality bash scripts/run-haskell-quality.sh
 run_soft_gate run-quality-debt-report bash scripts/run-quality-debt-report.sh --changed
 run_soft_gate agent-guard docker compose exec -T backend python /repo/scripts/agent_guard.py $staged
 
-# Turbo mutation mode: when XF_TURBO_MUTATION=1, run the 65/35 split
-# coordinator for each staged language after all other quality gates.
+# Turbo mutation mode: when XF_TURBO_MUTATION=1, run the weighted N-way split
+# coordinator for each staged language after all other quality gates
+# (Dell up to 60% / Windows 30% / Mint 10%; an offline machine redistributes).
 # The individual language quality scripts skip their embedded mutation
 # step (checked via XF_TURBO_MUTATION inside each script) and turbo
-# runs both machines simultaneously for maximum speed.
+# runs every reachable machine simultaneously for maximum speed.
 if [[ "${XF_TURBO_MUTATION:-0}" == "1" ]]; then
   if grep -qE '^backend/.*\.py$' <<<"$staged"; then
     run_soft_gate turbo-mutation-python python scripts/turbo_mutation.py --language python
@@ -445,6 +446,43 @@ if [[ "${XF_TURBO_MUTATION:-0}" == "1" ]]; then
   fi
   if grep -qE '^frontend/.*\.(ts|html|scss)$' <<<"$staged"; then
     run_soft_gate turbo-mutation-typescript python scripts/turbo_mutation.py --language typescript
+  fi
+fi
+
+# Turbo test mode (XF_TURBO_TESTS=1)
+if [[ "${XF_TURBO_TESTS:-0}" == "1" ]]; then
+  log "info" "Turbo test mode: distributing pytest shards across Dell/Windows/Mint"
+  run_hard_gate turbo-tests python /repo/scripts/turbo_tests.py --language python
+fi
+
+# Run compiled-language quality shards on Mint and Dell in parallel.
+# Both shards run the same toolchain (clang-tidy, ctest, go test, cargo test,
+# hlint, etc.) against the same source tree.  Firing them simultaneously halves
+# wall-clock time for C++/Go/Rust/Haskell quality when both machines are online.
+# An offline machine is non-fatal: its shard exits non-zero and the combined
+# check fails, which prompts the agent to bring the machine back online.
+if grep -qE '^backend/extensions/.*\.(cpp|h)$|(^|/)go\.(mod|sum)$|\.go$|\.rs$|Cargo\.(toml|lock)|\.hs$|\.cabal$' <<<"$staged"; then
+  manifest_json="$(python scripts/plan-scoped-quality-shards.py --mode "${COMMIT_SCOPE_MODE:-push}" 2>/dev/null || echo '{}')"
+
+  # Mint shard — via SSH (Mint is a Linux helper machine)
+  (printf "%s" "$manifest_json" | \
+    bash scripts/run-mint-quality-shard.sh) &
+  MINT_PID=$!
+
+  # Dell shard — via docker --context dell (Dell is a remote Docker host)
+  (printf "%s" "$manifest_json" | \
+    bash scripts/run-dell-quality-shard.sh) &
+  DELL_PID=$!
+
+  wait $MINT_PID; MINT_RC=$?
+  wait $DELL_PID; DELL_RC=$?
+
+  if [[ $MINT_RC -ne 0 || $DELL_RC -ne 0 ]]; then
+    printf "FAIL compiled-quality-shards: Mint exit=%s Dell exit=%s\n" \
+      "$MINT_RC" "$DELL_RC" >&2
+    printf "WHY: one or both remote quality shards reported a failure in the compiled-language checks.\n" >&2
+    printf "UNBLOCK: check Mint and Dell docker context connectivity, then rerun the commit.\n" >&2
+    _finish_precommit 1
   fi
 fi
 

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$script_dir/_quality_concurrency.sh"
 
 build_dir=/tmp/xf-build/cpp-coverage
 report_file="$build_dir/coverage.filtered.info"
@@ -14,6 +16,7 @@ mkdir -p "$build_dir"
 mkdir -p "$report_dir"
 mapfile -t targets < <(python /repo/scripts/cpp_mutation_targets.py | grep -v '^#' || true)
 if [[ "${#targets[@]}" -eq 0 ]]; then
+  quality_log_scope_skip "scripts/run-cpp-coverage.sh" coverage 100
   echo "No changed C++ test binary needed coverage."
   exit 0
 fi

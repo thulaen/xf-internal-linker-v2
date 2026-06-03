@@ -4,8 +4,15 @@
 #
 # Usage (host PowerShell): pwsh ./scripts/session-start-banner.ps1
 # Auto-runs from .githooks/_session-start.sh on shell init when present.
+# The Python wrapper may start refresh_session_start_payload in the background.
 
 $ErrorActionPreference = 'SilentlyContinue'
+
+$payload = python scripts/session_start_payload.py 2>$null
+if ($LASTEXITCODE -eq 0 -and $payload) {
+    $payload
+    exit 0
+}
 
 Write-Host "=== HANDOFF (top entry) ===" -ForegroundColor Cyan
 Get-Content -Path 'AGENT-HANDOFF.md' -TotalCount 3

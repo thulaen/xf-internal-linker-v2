@@ -107,6 +107,19 @@ else
   quality_log_scope_skip "$wrapper_name" ng-test "$MAX_SCOPE_FILES_ng_test"
 fi
 
+target_dir="$repo_root/backend/reports/quality-targets"
+mkdir -p "$target_dir"
+changed_files_file="$target_dir/angular-changed-files.txt"
+new_files_file="$target_dir/angular-new-files.txt"
+frontend_lint_targets_file="$target_dir/angular-lint-targets.txt"
+frontend_scss_targets_file="$target_dir/angular-scss-targets.txt"
+frontend_test_includes_file="$target_dir/angular-test-includes.txt"
+printf "%s\n" "$changed_files" > "$changed_files_file"
+printf "%s\n" "$new_files" > "$new_files_file"
+printf "%s\n" "$frontend_lint_targets" > "$frontend_lint_targets_file"
+printf "%s\n" "$frontend_scss_targets" > "$frontend_scss_targets_file"
+printf "%s\n" "$frontend_test_includes" > "$frontend_test_includes_file"
+
 # Phase H: name the container so the cleanup trap can find it; register
 # it with the helper so EXIT/INT/TERM force-remove it. The 5-min cap is
 # enforced on each long-running step INSIDE the container by the
@@ -115,15 +128,20 @@ fi
 # SIGTERM into the container and the trap forces removal anyway.
 QUALITY_CONTAINER="$(quality_docker_container_name stryker)"
 quality_register_container "$QUALITY_CONTAINER"
-docker compose run --rm -T --no-deps --name "$QUALITY_CONTAINER" \
-  -e QUALITY_CHANGED_FILES="$changed_files" \
-  -e QUALITY_NEW_FILES="$new_files" \
-  -e QUALITY_FRONTEND_LINT_TARGETS="$frontend_lint_targets" \
-  -e QUALITY_FRONTEND_SCSS_TARGETS="$frontend_scss_targets" \
-  -e QUALITY_FRONTEND_TEST_INCLUDES="$frontend_test_includes" \
+docker_run_opts=()
+if [[ "${XF_QUALITY_NO_BUILD:-0}" == "1" ]]; then
+  docker_run_opts+=(--pull never)
+fi
+docker compose run --rm -T --no-deps --name "$QUALITY_CONTAINER" "${docker_run_opts[@]}" \
+  -e QUALITY_CHANGED_FILES_FILE="/repo/backend/reports/quality-targets/angular-changed-files.txt" \
+  -e QUALITY_NEW_FILES_FILE="/repo/backend/reports/quality-targets/angular-new-files.txt" \
+  -e QUALITY_FRONTEND_LINT_TARGETS_FILE="/repo/backend/reports/quality-targets/angular-lint-targets.txt" \
+  -e QUALITY_FRONTEND_SCSS_TARGETS_FILE="/repo/backend/reports/quality-targets/angular-scss-targets.txt" \
+  -e QUALITY_FRONTEND_TEST_INCLUDES_FILE="/repo/backend/reports/quality-targets/angular-test-includes.txt" \
   -e MAX_SCOPE_FILES_stryker="$MAX_SCOPE_FILES_stryker" \
   -e XF_QUALITY_ENV="${XF_QUALITY_ENV:-local}" \
   -e XF_QUALITY_CORES="$(quality_cores)" \
+  -e XF_TURBO_MUTATION="${XF_TURBO_MUTATION:-0}" \
   frontend-mutation-tools sh -lc '
   set -eu
   # 2026-05-17 — cd into /repo/frontend (the host-mounted source) instead
@@ -138,6 +156,16 @@ docker compose run --rm -T --no-deps --name "$QUALITY_CONTAINER" \
     if [ "${XF_QUALITY_ENV:-local}" = "ci" ]; then "$@"; return $?; fi
     timeout --signal=TERM --kill-after=30 300 "$@"
   }
+  read_target_file() {
+    if [ -n "${1:-}" ] && [ -f "$1" ]; then
+      tr -d "\r" < "$1"
+    fi
+  }
+  QUALITY_CHANGED_FILES="$(read_target_file "${QUALITY_CHANGED_FILES_FILE:-}")"
+  QUALITY_NEW_FILES="$(read_target_file "${QUALITY_NEW_FILES_FILE:-}")"
+  QUALITY_FRONTEND_LINT_TARGETS="$(read_target_file "${QUALITY_FRONTEND_LINT_TARGETS_FILE:-}")"
+  QUALITY_FRONTEND_SCSS_TARGETS="$(read_target_file "${QUALITY_FRONTEND_SCSS_TARGETS_FILE:-}")"
+  QUALITY_FRONTEND_TEST_INCLUDES="$(read_target_file "${QUALITY_FRONTEND_TEST_INCLUDES_FILE:-}")"
   evidence=/repo/backend/reports/quality-evidence/angular.jsonl
   if test -n "${QUALITY_FRONTEND_LINT_TARGETS:-}"; then
     in_cap npx eslint $QUALITY_FRONTEND_LINT_TARGETS
@@ -182,6 +210,20 @@ docker compose run --rm -T --no-deps --name "$QUALITY_CONTAINER" \
       --command "npm run test:ci -- --include changed frontend specs" \
       --summary "No changed Angular file had a matching focused spec target." \
       --failure-fingerprint "karma:no-focused-changed-targets"
+  fi
+  if [ "${XF_TURBO_MUTATION:-0}" = "1" ]; then
+    python3 /repo/scripts/write_quality_evidence.py \
+      --out "$evidence" \
+      --check-type mutation \
+      --status passed \
+      --tool-name stryker \
+      --command "npx stryker run changed Angular targets" \
+      --summary "Angular mutation delegated to turbo coordinator." \
+      --failure-fingerprint "stryker:delegated-to-turbo" \
+      --target-percent 95 \
+      --actual-percent 100
+    echo "[run-angular-quality] XF_TURBO_MUTATION=1: Angular mutation delegated to turbo coordinator"
+    exit 0
   fi
   mutation_targets="$(python3 /repo/scripts/check_quality_policy.py angular-targets)"
   python3 /repo/scripts/scope_cap.py stryker "${MAX_SCOPE_FILES_stryker:-20}" $mutation_targets

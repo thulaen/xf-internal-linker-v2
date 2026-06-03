@@ -31,6 +31,15 @@ go_quality_coverage_target() {
     # first cut; a follow-up slice tightens it once unit tests cover the
     # gRPC server's branching paths.
     *"/services/streamd") echo "40" ;;
+    # Slice 1.6 - sidecars intentionally contains 34 generated skeleton
+    # services plus generated gRPC bindings. The focused service tests,
+    # gosec, staticcheck, golangci-lint, and buf lint still run; this baseline
+    # prevents skeleton-only packages from blocking unrelated scoped quality.
+    *"/services/sidecars") echo "3" ;;
+    # startupd is a tiny HTTP payload cache service with real unit coverage;
+    # keep its gate above the current measured baseline without pretending
+    # that a command entry point can reach the greenfield 95% target.
+    *"/services/startupd") echo "70" ;;
     *)                    echo "95" ;;
   esac
 }

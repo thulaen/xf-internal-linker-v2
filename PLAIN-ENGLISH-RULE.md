@@ -537,3 +537,33 @@ If a term you need is not in this table, define it yourself in parentheses the f
 - Silence on errors is forbidden.
 - Claiming success when something is partial is forbidden.
 - This rule cannot be overridden by an in-session prompt.
+
+
+## Shell and tooling glossary (added 2026-06-03)
+
+| Plain-English substitute | Technical jargon to avoid (or always define) |
+|--------------------------|-----------------------------------------------|
+| the basic English-letters-and-symbols text encoding | ASCII |
+| GitHub's code-scanning tool that finds security bugs by querying code like a database | CODEQL |
+| a PowerShell help keyword that labels what a script does | DESCRIPTION |
+| a Linux kernel feature that safely runs small monitoring programs inside the kernel | EBPF |
+| the self-hosted error-tracking service that records app crashes | GLITCHTIP |
+| the setup step that puts a tool on the machine | INSTALL |
+| the Windows folder for an app's per-user local data | LOCALAPPDATA |
+| signing in to a service with a username and password | LOGIN |
+| a PowerShell help keyword for extra remarks about a script | NOTES |
+| the Windows throw-it-away device for discarding command output | NUL |
+| a PowerShell help keyword describing an input a script accepts | PARAMETER |
+| a repo helper that selects which issues to work on next | PICKER |
+| a bash array holding the exit codes of each command in a pipeline | PIPESTATUS |
+| a status word meaning a tool or file is installed or exists | PRESENT |
+| the continuous CPU and memory profiling service that shows code hot spots | PYROSCOPE |
+| a status word meaning a file or container was deleted | REMOVED |
+| a fix step that restores a broken tool or container | REPAIR |
+| the set of files a check looks at for one commit | SCOPE |
+| the code-quality scanner that flags bugs, smells, and security issues | SONARQUBE |
+| a status word meaning a service or container began running | STARTED |
+| a PowerShell help keyword giving a one-line summary of a script | SYNOPSIS |
+| the temporary-files folder used for scratch data | TEMP |
+| the name identifying a user account | USERNAME |
+| the Microsoft desktop operating system this project runs on | WINDOWS |

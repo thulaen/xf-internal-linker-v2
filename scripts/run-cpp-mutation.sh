@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Phase H: this script normally runs INSIDE the compiled-tools docker
 # container (invoked from run-cpp-quality.sh). When the outer wrapper
@@ -9,8 +10,10 @@ set -euo pipefail
 if [ -z "${XF_QUALITY_INSIDE_CONTAINER:-}" ] && [ -f /.dockerenv ]; then
   export XF_QUALITY_INSIDE_CONTAINER=1
 fi
-if [ -z "${XF_QUALITY_INSIDE_CONTAINER:-}" ] && [ -f "$(dirname "$0")/_quality_concurrency.sh" ]; then
-  . "$(dirname "$0")/_quality_concurrency.sh"
+if [ -f "$script_dir/_quality_concurrency.sh" ]; then
+  . "$script_dir/_quality_concurrency.sh"
+fi
+if [ -z "${XF_QUALITY_INSIDE_CONTAINER:-}" ]; then
   quality_install_cleanup_trap
   quality_acquire_meta_lock
   quality_acquire_tool_lock cpp-mutation
@@ -79,6 +82,7 @@ if [ -x "$(command -v python)" ] && [ -f "$(dirname "$0")/cpp_mutation_targets.p
   done <<<"$scoped_output"
 fi
 if [ "${#targets[@]}" -eq 0 ]; then
+  quality_log_scope_skip "scripts/run-cpp-mutation.sh" mull 7
   echo "No changed C++ mutation target needed Mull mutation testing."
   exit 0
 fi

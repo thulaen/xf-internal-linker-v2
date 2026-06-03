@@ -112,30 +112,11 @@ _quality_fail_rule_f() {
 # ---------------------------------------------------------------------------
 
 quality_acquire_meta_lock() {
-  local lockfile="$QUALITY_LOCK_DIR/meta.lock"
-  if command -v flock >/dev/null 2>&1; then
-    local fd="$QUALITY_NEXT_FD"
-    QUALITY_NEXT_FD=$((QUALITY_NEXT_FD + 1))
-    # shellcheck disable=SC2093 # eval is the documented flock idiom
-    eval "exec $fd>'$lockfile'"
-    if ! flock -n "$fd"; then
-      _quality_fail_rule_f \
-        "another quality script is already running (meta-lock held)" \
-        "local test resource policy forbids running multiple quality tools in parallel; today (2026-05-17) two parallel Stryker runs ran for 1h17m" \
-        "wait for the running script to finish, then retry; or check 'ls $QUALITY_LOCK_DIR/' for stale locks"
-      exit 2
-    fi
-    QUALITY_LOCK_FDS+=("$fd")
-  else
-    # POSIX fallback: mkdir is atomic.
-    if ! mkdir "$lockfile.d" 2>/dev/null; then
-      _quality_fail_rule_f \
-        "meta-lock dir $lockfile.d already held" \
-        "another quality script is running" \
-        "wait for it to finish, or rmdir $lockfile.d if you know it's stale"
-      exit 2
-    fi
-  fi
+  # No-op: the sequential gate is replaced by the parallel orchestrator
+  # (scripts/run-scoped-static-quality.ps1). The per-tool lock
+  # (quality_acquire_tool_lock) still prevents two mutmut or two mull
+  # runs from colliding with each other.
+  return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -271,6 +252,31 @@ quality_timeout() {
 # Worker count. Local checks stay serial; CI may request more.
 # ---------------------------------------------------------------------------
 
+quality_check_scope_cap() {
+  local wrapper="$1"; shift
+  local tool="$1"; shift
+  local max_files="$1"; shift
+  local targets="${1:-}"
+  if [ -z "$targets" ]; then
+    return 0
+  fi
+  printf "%s\n" $targets | python scripts/scope_cap.py "$tool" "$max_files" --stdin
+}
+
+quality_log_scope_skip() {
+  local wrapper="$1"; shift
+  local tool="$1"; shift
+  local max_files="$1"; shift
+  echo "SKIP scope cap: $wrapper has no $tool targets (cap=$max_files)."
+}
+
+quality_log_scope_decision() {
+  local wrapper="$1"; shift
+  local tool="$1"; shift
+  local detail="$1"; shift
+  echo "SCOPE decision: $wrapper $tool $detail."
+}
+
 quality_cores() {
   local requested="${XF_QUALITY_CORES:-1}"
   local max_plugged=1
@@ -367,6 +373,9 @@ quality_docker_compose_run() {
   done
   local container
   container="$(quality_docker_container_name "$tool")"
+  if [[ "${XF_QUALITY_NO_BUILD:-0}" == "1" ]]; then
+    docker_opts=(--pull never "${docker_opts[@]}")
+  fi
   # If a container with this name already exists, fail fast — it
   # means an earlier run leaked. The cleanup trap should normally
   # prevent this, but defense in depth.

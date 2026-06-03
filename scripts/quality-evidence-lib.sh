@@ -12,6 +12,36 @@ quality_evidence_container_path() {
   echo "/repo/backend/reports/quality-evidence/${name}.jsonl"
 }
 
+quality_docker_run_opts() {
+  if [[ "${XF_QUALITY_NO_BUILD:-0}" == "1" ]]; then
+    printf "%s\n" "--pull" "never"
+  fi
+}
+
+quality_evidence_acquire_import_lock() {
+  local lock_dir="${QUALITY_LOCK_DIR:-/tmp/xf-quality-locks}"
+  local lock_file="$lock_dir/quality-evidence-import.lock"
+  mkdir -p "$lock_dir"
+  if command -v flock >/dev/null 2>&1; then
+    exec 200>"$lock_file"
+    flock 200
+    return
+  fi
+  while ! mkdir "$lock_file.d" 2>/dev/null; do
+    sleep 1
+  done
+}
+
+quality_evidence_release_import_lock() {
+  local lock_dir="${QUALITY_LOCK_DIR:-/tmp/xf-quality-locks}"
+  local lock_file="$lock_dir/quality-evidence-import.lock"
+  if command -v flock >/dev/null 2>&1; then
+    flock -u 200 2>/dev/null || true
+    return
+  fi
+  rmdir "$lock_file.d" 2>/dev/null || true
+}
+
 quality_evidence_init() {
   local path="$1"
   mkdir -p "$(dirname "$path")"
@@ -20,38 +50,67 @@ quality_evidence_init() {
 
 quality_evidence_import() {
   local container_path="$1"
+  if [[ "${QUALITY_EVIDENCE_SKIP_IMPORT:-0}" == "1" ]]; then
+    echo "Quality evidence import skipped for this remote compute shard. Language checks still decide pass or fail." >&2
+    return 0
+  fi
+  quality_evidence_acquire_import_lock
   if [[ "${QUALITY_EVIDENCE_FORCE_DIRECT:-0}" != "1" ]] && command -v docker >/dev/null 2>&1; then
-    MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL="*" docker compose run --rm -T backend \
+    local docker_run_opts=()
+    mapfile -t docker_run_opts < <(quality_docker_run_opts)
+    set +e
+    MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL="*" docker compose run \
+      --rm -T "${docker_run_opts[@]}" backend \
       python manage.py ingest_quality_evidence \
         --path "$container_path" \
         --capture-raw-if-due
-    return
+    local rc=$?
+    set -e
+    quality_evidence_release_import_lock
+    return "$rc"
   fi
   local backend_dir="${QUALITY_EVIDENCE_BACKEND_DIR:-/repo/backend}"
   if [[ -f "$backend_dir/manage.py" ]]; then
+    set +e
     (
       cd "$backend_dir"
       python manage.py ingest_quality_evidence \
       --path "$container_path" \
       --capture-raw-if-due
     )
-    return
+    local rc=$?
+    set -e
+    quality_evidence_release_import_lock
+    return "$rc"
   fi
   echo "Quality evidence import needs either Docker on PATH or ${backend_dir}/manage.py." >&2
+  quality_evidence_release_import_lock
   return 127
 }
 
 quality_artifact_prune() {
+  if [[ "${QUALITY_EVIDENCE_SKIP_IMPORT:-0}" == "1" ]]; then
+    return 0
+  fi
+  quality_evidence_acquire_import_lock
   if [[ "${QUALITY_EVIDENCE_FORCE_DIRECT:-0}" != "1" ]] && command -v docker >/dev/null 2>&1; then
-    MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL="*" docker compose run --rm -T backend \
+    local docker_run_opts=()
+    mapfile -t docker_run_opts < <(quality_docker_run_opts)
+    set +e
+    MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL="*" docker compose run \
+      --rm -T "${docker_run_opts[@]}" backend \
       python manage.py prune_quality_artifacts \
         --root /tmp \
         --apply \
         --prune-old-raw-snippets
-    return
+    local rc=$?
+    set -e
+    quality_evidence_release_import_lock
+    return "$rc"
   fi
   local backend_dir="${QUALITY_EVIDENCE_BACKEND_DIR:-/repo/backend}"
   if [[ -f "$backend_dir/manage.py" ]]; then
+    set +e
     (
       cd "$backend_dir"
       python manage.py prune_quality_artifacts \
@@ -59,9 +118,13 @@ quality_artifact_prune() {
       --apply \
       --prune-old-raw-snippets
     )
-    return
+    local rc=$?
+    set -e
+    quality_evidence_release_import_lock
+    return "$rc"
   fi
   echo "Quality artifact pruning needs either Docker on PATH or ${backend_dir}/manage.py." >&2
+  quality_evidence_release_import_lock
   return 127
 }
 
@@ -74,6 +137,7 @@ quality_evidence_finalize() {
       echo "Quality evidence import failed. Keeping full reports for inspection." >&2
       return 1
     fi
+    rm -f "$host_path"
     quality_artifact_prune
   fi
   if [[ "$status" -ne 0 ]]; then
