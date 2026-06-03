@@ -101,6 +101,14 @@ def calibrated_probability(
     return ez / (1.0 + ez)
 
 
+def train_calibration_sigmoid() -> None:
+    """
+    Stub for calibration fit deferred until enough feedback exists.
+    (FR-245 - training-pipeline wire-in is deferred)
+    """
+    logger.info("Skipping train_calibration_sigmoid: training-pipeline wire-in is deferred until >=1000 labeled pairs.")
+
+
 def fit_platt_sigmoid(
     scores: list[float],
     labels: list[int],

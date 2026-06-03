@@ -9,6 +9,11 @@ created: 2026-05-12
 
 # FR-251 — Code-Coverage Program
 
+[SPEC FRESHNESS: reviewed_at=2026-06-03 next_review=2026-09-03]
+
+[SPEC CITED: feature=FR-251 kind=technical_literature id=beck-tdd-2002 verified_at=2026-06-03]
+[SPEC CITED: feature=FR-251 kind=technical_literature id=crispin-gregory-agile-testing-2009 verified_at=2026-06-03]
+
 ## Why this FR exists
 
 Test suites that say "all green" but actually only exercise one of three branches are lying to you. The project has lots of business logic — scoring, ranking, parsing, state machines, idempotency — where a missed branch becomes a real bug in production. FR-251 establishes a strict, future-aware coverage program that:
