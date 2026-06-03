@@ -19,6 +19,8 @@ cd "$repo_root"
 quality_install_cleanup_trap
 quality_acquire_meta_lock
 quality_acquire_tool_lock python-quality
+wrapper_name="scripts/run-python-quality.sh"
+MAX_SCOPE_FILES_pytest=50
 
 . scripts/quality-evidence-lib.sh
 evidence_file="$(quality_evidence_path python)"
@@ -42,6 +44,7 @@ mapfile -t changed_python < <(
 )
 
 if [[ "${#changed_python[@]}" -eq 0 ]]; then
+  quality_log_scope_skip "$wrapper_name" pytest "$MAX_SCOPE_FILES_pytest"
   quality_evidence_write \
     --out "$evidence_file" \
     --check-type normal_test \
@@ -135,24 +138,82 @@ if ! python scripts/select_python_test_targets.py \
 fi
 python_test_targets="$(tr -d "\r" < "$test_target_file" | tr "\n" " ")"
 
+target_dir="$repo_root/backend/reports/quality-targets"
+mkdir -p "$target_dir"
+python_targets_file="$target_dir/python-targets.txt"
+python_test_targets_file="$target_dir/python-test-targets.txt"
+coverage_targets_file="$target_dir/python-coverage-targets.txt"
+bandit_targets_file="$target_dir/python-bandit-targets.txt"
+mutation_targets_file="$target_dir/python-mutation-targets.txt"
+mutation_test_targets_file="$target_dir/python-mutation-test-targets.txt"
+printf "%s" "$python_targets" > "$python_targets_file"
+printf "%s" "$python_test_targets" > "$python_test_targets_file"
+printf "%s" "$coverage_targets" > "$coverage_targets_file"
+printf "%s" "$bandit_targets" > "$bandit_targets_file"
+printf "%s" "$mutation_targets" > "$mutation_targets_file"
+printf "%s" "$mutation_test_targets" > "$mutation_test_targets_file"
+
+# ── Opt-in: shard lint + pytest to Dell, host-side (outside the container) ──
+# The split runners dispatch with `docker --context dell`, which only works from
+# the host — never from inside backend-quality. So an enabled split runs HERE,
+# the matching in-container step is skipped (SKIP_* env passed into the container
+# below), and each tool's merged pass/fail is recorded as the SAME
+# QualityEvidence row the in-container step writes (the runners take
+# --evidence-out). Both vars default OFF: unset = today's local-only behaviour.
+host_evidence="$repo_root/backend/reports/quality-evidence/python.jsonl"
+mkdir -p "$(dirname "$host_evidence")"
+lint_split_done=0
+pytest_split_done=0
+if [[ "${XF_LINT_SPLIT:-0}" == "1" ]]; then
+  echo "[LINT SPLIT: sharding ruff/pylint/mypy/bandit to Dell 88% (host-side)]"
+  python "$repo_root/scripts/run_lint_on_context.py" \
+    --files $python_targets --bandit-files $bandit_targets --evidence-out "$host_evidence"
+  lint_split_rc=$?
+  lint_split_done=1
+  if [[ $lint_split_rc -ne 0 ]]; then exit $lint_split_rc; fi
+fi
+if [[ "${XF_PYTEST_SPLIT:-0}" == "1" ]]; then
+  echo "[PYTEST SPLIT: sharding pytest to Dell 88% (own test DB, host-side)]"
+  python "$repo_root/scripts/run_pytest_on_context.py" \
+    --targets $python_test_targets --evidence-out "$host_evidence"
+  pytest_split_rc=$?
+  pytest_split_done=1
+  if [[ $pytest_split_rc -ne 0 ]]; then exit $pytest_split_rc; fi
+fi
+
 # Phase H: stable container name + register for cleanup trap.
 QUALITY_CONTAINER="$(quality_docker_container_name python-quality)"
 quality_register_container "$QUALITY_CONTAINER"
-docker compose run --rm -T --name "$QUALITY_CONTAINER" \
-  -e QUALITY_PYTHON_TARGETS="$python_targets" \
-  -e QUALITY_PYTHON_TEST_TARGETS="$python_test_targets" \
-  -e QUALITY_PYTHON_COVERAGE_TARGETS="$coverage_targets" \
-  -e QUALITY_PYTHON_BANDIT_TARGETS="$bandit_targets" \
+docker_run_opts=()
+if [[ "${XF_QUALITY_NO_BUILD:-0}" == "1" ]]; then
+  docker_run_opts+=(--pull never)
+fi
+docker compose run --rm -T --name "$QUALITY_CONTAINER" "${docker_run_opts[@]}" \
+  -e QUALITY_PYTHON_TARGETS_FILE="/repo/backend/reports/quality-targets/python-targets.txt" \
+  -e QUALITY_PYTHON_TEST_TARGETS_FILE="/repo/backend/reports/quality-targets/python-test-targets.txt" \
+  -e QUALITY_PYTHON_COVERAGE_TARGETS_FILE="/repo/backend/reports/quality-targets/python-coverage-targets.txt" \
+  -e QUALITY_PYTHON_BANDIT_TARGETS_FILE="/repo/backend/reports/quality-targets/python-bandit-targets.txt" \
   -e QUALITY_PYTHON_DEPENDENCY_CHANGED="$dependency_changed" \
-  -e QUALITY_PYTHON_MUTATION_TARGETS="$mutation_targets" \
-  -e QUALITY_PYTHON_MUTATION_TEST_TARGETS="$mutation_test_targets" \
+  -e QUALITY_PYTHON_MUTATION_TARGETS_FILE="/repo/backend/reports/quality-targets/python-mutation-targets.txt" \
+  -e QUALITY_PYTHON_MUTATION_TEST_TARGETS_FILE="/repo/backend/reports/quality-targets/python-mutation-test-targets.txt" \
   -e XF_QUALITY_ENV="${XF_QUALITY_ENV:-local}" \
   -e XF_QUALITY_CORES="$(quality_cores)" \
-  backend sh -lc '
+  -e XF_TURBO_MUTATION="${XF_TURBO_MUTATION:-0}" \
+  -e SKIP_LINT_IN_CONTAINER="$lint_split_done" \
+  -e SKIP_PYTEST_IN_CONTAINER="$pytest_split_done" \
+  backend-quality sh -lc '
   set -eu
   export DJANGO_SETTINGS_MODULE=config.settings.test
   export DJANGO_SECRET_KEY=ci-fake-secret-key
   export XF_USE_POSTGRES_TEST_DB=1
+  export XF_TEST_CACHE_ROOT="${XF_TEST_CACHE_ROOT:-/tmp/xf-test-cache}"
+  export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$XF_TEST_CACHE_ROOT/xdg}"
+  export PYTEST_ADDOPTS="${PYTEST_ADDOPTS:-} --cache-dir=/tmp/xf-test-cache/pytest"
+  export COVERAGE_FILE="${COVERAGE_FILE:-$XF_TEST_CACHE_ROOT/coverage/.coverage}"
+  export MYPY_CACHE_DIR="${MYPY_CACHE_DIR:-$XF_TEST_CACHE_ROOT/mypy}"
+  export RUFF_CACHE_DIR="${RUFF_CACHE_DIR:-$XF_TEST_CACHE_ROOT/ruff}"
+  export MUTMUT_CACHE_DIR="${MUTMUT_CACHE_DIR:-$XF_TEST_CACHE_ROOT/mutmut}"
+  mkdir -p "$XDG_CACHE_HOME" "$(dirname "$COVERAGE_FILE")" "$MYPY_CACHE_DIR" "$RUFF_CACHE_DIR" "$MUTMUT_CACHE_DIR" "$XF_TEST_CACHE_ROOT/pytest"
   evidence=/repo/backend/reports/quality-evidence/python.jsonl
   cd /repo/backend
   # Phase H in-container 5-min cap helper. CI runs uncapped via env.
@@ -160,15 +221,26 @@ docker compose run --rm -T --name "$QUALITY_CONTAINER" \
     if [ "${XF_QUALITY_ENV:-local}" = "ci" ]; then "$@"; return $?; fi
     timeout --signal=TERM --kill-after=30 300 "$@"
   }
-  targets="$QUALITY_PYTHON_TARGETS"
-  test_targets="$QUALITY_PYTHON_TEST_TARGETS"
-  coverage_targets="${QUALITY_PYTHON_COVERAGE_TARGETS:-}"
-  bandit_targets="${QUALITY_PYTHON_BANDIT_TARGETS:-}"
+  read_target_file() {
+    if [ -n "${1:-}" ] && [ -f "$1" ]; then
+      tr -d "\r" < "$1" | tr "\n" " "
+    fi
+  }
+  targets="$(read_target_file "${QUALITY_PYTHON_TARGETS_FILE:-}")"
+  test_targets="$(read_target_file "${QUALITY_PYTHON_TEST_TARGETS_FILE:-}")"
+  coverage_targets="$(read_target_file "${QUALITY_PYTHON_COVERAGE_TARGETS_FILE:-}")"
+  bandit_targets="$(read_target_file "${QUALITY_PYTHON_BANDIT_TARGETS_FILE:-}")"
   dependency_changed="${QUALITY_PYTHON_DEPENDENCY_CHANGED:-0}"
-  mutation_targets="$(printf "%s" "${QUALITY_PYTHON_MUTATION_TARGETS:-}" | tr "\n" " ")"
-  mutation_test_targets="$(printf "%s" "${QUALITY_PYTHON_MUTATION_TEST_TARGETS:-}" | tr "\n" " ")"
+  mutation_targets="$(read_target_file "${QUALITY_PYTHON_MUTATION_TARGETS_FILE:-}")"
+  mutation_test_targets="$(read_target_file "${QUALITY_PYTHON_MUTATION_TEST_TARGETS_FILE:-}")"
+  if [ "${SKIP_LINT_IN_CONTAINER:-0}" != "1" ]; then
   python /repo/scripts/run_quality_step.py --evidence-out "$evidence" --check-type static_analysis --tool-name ruff --command "ruff check $targets" --pass-summary "Ruff static check passed for changed backend files." --fail-summary "Ruff static check failed for changed backend files."
   python /repo/scripts/run_quality_step.py --evidence-out "$evidence" --check-type static_analysis --tool-name pylint --command "pylint --errors-only --disable=no-member $targets" --pass-summary "PyLint error-only check passed for changed backend files." --fail-summary "PyLint error-only check failed for changed backend files."
+  # mypy type-checking — uses backend/mypy.ini so Django stubs + per-module
+  # ignore_errors rules apply.  Running on the scoped $targets keeps it fast;
+  # cross-module errors are suppressed by [mypy-apps.*] ignore_errors = True
+  # until each module is brought into full type-check coverage incrementally.
+  python /repo/scripts/run_quality_step.py --evidence-out "$evidence" --check-type static_analysis --tool-name mypy --command "python -m mypy --config-file /repo/backend/mypy.ini $targets" --pass-summary "mypy type-check passed for changed backend files." --fail-summary "mypy type-check failed for changed backend files."
   if test -n "$bandit_targets"; then
     python /repo/scripts/run_quality_step.py --evidence-out "$evidence" --check-type security --tool-name bandit --command "bandit -q $bandit_targets" --pass-summary "Bandit security check passed for changed backend application files." --fail-summary "Bandit security check failed for changed backend application files."
   else
@@ -180,6 +252,7 @@ docker compose run --rm -T --name "$QUALITY_CONTAINER" \
       --command "bandit changed backend application files" \
       --summary "No changed backend application file needed Bandit security scanning." \
       --failure-fingerprint "bandit:no-changed-targets"
+  fi
   fi
   if test "$dependency_changed" = "1"; then
     # Slice 1.5 - even when requirements.txt is touched, surface pip-audit /
@@ -208,7 +281,20 @@ docker compose run --rm -T --name "$QUALITY_CONTAINER" \
   # the actual changed-file signal behind the full monolith.
   # Phase H: 5-min cap on pytest. Targets are already scoped to changed
   # backend files via select_python_test_targets.py.
-  in_cap python /repo/scripts/run_quality_step.py --evidence-out "$evidence" --check-type normal_test --tool-name pytest --command "cd /repo/backend && python -m pytest --override-ini addopts= -p randomly -q --maxfail=1 --reuse-db $coverage_args $test_targets" --pass-summary "Changed backend pytest targets passed." --fail-summary "Changed backend pytest targets failed."
+  if [[ "${XF_TURBO_TESTS:-0}" == "1" ]]; then
+    echo "[TURBO TESTS: distributing pytest shards via turbo_tests.py]"
+    python /repo/scripts/turbo_tests.py --language python
+    TURBO_RC=$?
+    if [[ $TURBO_RC -ne 0 ]]; then exit $TURBO_RC; fi
+    SKIP_LOCAL_PYTEST=1
+  fi
+  if [[ "${SKIP_LOCAL_PYTEST:-0}" != "1" && "${SKIP_PYTEST_IN_CONTAINER:-0}" != "1" ]]; then
+    in_cap python /repo/scripts/run_quality_step.py --evidence-out "$evidence" --check-type normal_test --tool-name pytest --command "cd /repo/backend && python -m pytest --override-ini addopts= -p randomly -q --maxfail=1 --reuse-db $coverage_args $test_targets" --pass-summary "Changed backend pytest targets passed." --fail-summary "Changed backend pytest targets failed."
+  fi
+  if [ "${XF_TURBO_MUTATION:-0}" = "1" ]; then
+    echo "[run-python-quality] XF_TURBO_MUTATION=1: mutation delegated to turbo coordinator (65/35 split via turbo_mutation.py)"
+    exit 0
+  fi
   if test -z "$mutation_targets"; then
     python /repo/scripts/write_quality_evidence.py \
       --out "$evidence" \

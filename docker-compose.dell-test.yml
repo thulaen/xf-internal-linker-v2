@@ -1,0 +1,89 @@
+# Dell test stack — an EMPTY Postgres + Redis pair that lives on the Dell
+# machine so the test/pytest workers Dell runs (88% of the suite) talk to a
+# database sitting right next to them instead of reaching back across the LAN
+# to the Windows machine.
+#
+# WHAT THIS IS NOT: this is NOT your live database. Your live data (admin login,
+# embeddings, GA4/GSC) stays in the `pgdata` volume on the Windows machine and is
+# never touched by anything here. These volumes (xf_dell_test_pgdata /
+# xf_dell_test_redisdata) are throwaway test scratch space on Dell.
+#
+# Bring it up (from the Windows machine, against Dell's docker context):
+#   docker --context dell compose --env-file .env -p xf-dell-test \
+#       -f docker-compose.dell-test.yml up -d
+# Verify:
+#   docker --context dell compose -p xf-dell-test -f docker-compose.dell-test.yml ps
+# Tear down (keeps the empty volumes for --reuse-db speed):
+#   docker --context dell compose -p xf-dell-test -f docker-compose.dell-test.yml down
+#
+# The services are named `postgres` and `redis` ON PURPOSE: Django's settings
+# connect to hosts named exactly that (POSTGRES_HOST=postgres, REDIS_URL=
+# redis://redis:6379), so a test container joined to the `xf_dell_test_net`
+# network resolves them with zero settings changes.
+#
+# No host bind-mounts appear here: a Windows path like ./postgres/postgresql.conf
+# cannot be resolved by Dell's remote Linux daemon, so Postgres tuning is passed
+# as `-c` command flags instead. The flags below (fsync/synchronous_commit/
+# full_page_writes off) are the standard test-database speed settings — durability
+# does not matter for a throwaway test DB, and turning them off is a large speed
+# win (PostgreSQL docs: "Non-Durable Settings").
+
+name: xf-dell-test
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: xf_dell_test_postgres
+    restart: unless-stopped
+    mem_limit: 1500m
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-xf_linker}
+      POSTGRES_USER: ${POSTGRES_USER:-xf_linker_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+    # Test-database speed flags (durability irrelevant for a throwaway test DB).
+    command: >
+      postgres
+      -c fsync=off
+      -c synchronous_commit=off
+      -c full_page_writes=off
+      -c shared_buffers=256MB
+      -c max_connections=100
+    volumes:
+      - xf_dell_test_pgdata:/var/lib/postgresql/data
+    networks:
+      - xf_dell_test_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-xf_linker_user} -d ${POSTGRES_DB:-xf_linker}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: xf_dell_test_redis
+    restart: unless-stopped
+    mem_limit: 320m
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --save ""
+    volumes:
+      - xf_dell_test_redisdata:/data
+    networks:
+      - xf_dell_test_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# Throwaway test scratch volumes on Dell. Safe to delete any time — they hold
+# only test fixtures, never live data.
+volumes:
+  xf_dell_test_pgdata:
+    name: xf_dell_test_pgdata
+  xf_dell_test_redisdata:
+    name: xf_dell_test_redisdata
+
+# Fixed network name so the pytest/test runner containers can join it
+# deterministically (`docker --context dell run --network xf_dell_test_net ...`).
+networks:
+  xf_dell_test_net:
+    name: xf_dell_test_net

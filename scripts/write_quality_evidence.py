@@ -32,6 +32,49 @@ def _source_hash(value: str, file_path: str) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def append_evidence_row(
+    out: Path,
+    *,
+    check_type: str,
+    status: str,
+    tool_name: str,
+    command: str,
+    summary: str,
+    failure_fingerprint: str = "",
+    tool_version: str = "",
+    source_hash: str = "",
+    file_path: str = "",
+    target_percent: str = "",
+    actual_percent: str = "",
+    raw_report_file: Path | None = None,
+    details: dict[str, str] | None = None,
+) -> None:
+    """Append one compact quality-evidence row to the JSON-lines file at ``out``.
+
+    Pure-Python (no Django / database), so it runs on the host as well as inside
+    a container. The sharded lint/pytest runners call this directly so a split
+    run records the SAME evidence row the in-container step would have written.
+    """
+    row = {
+        "check_type": check_type,
+        "status": status,
+        "tool_name": tool_name,
+        "tool_version": tool_version,
+        "command": command,
+        "summary": summary,
+        "source_hash": _source_hash(source_hash, file_path),
+        "file_path": file_path,
+        "failure_fingerprint": failure_fingerprint,
+        "target_percent": _optional_float(target_percent),
+        "actual_percent": _optional_float(actual_percent),
+        "details": dict(details or {}),
+        "raw_report_text": _raw_report_text(raw_report_file),
+    }
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("a", encoding="utf-8") as output:
+        output.write(json.dumps(row, sort_keys=True) + "\n")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", required=True, type=Path)
@@ -56,24 +99,22 @@ def main() -> int:
         if key:
             details[key] = value
 
-    row = {
-        "check_type": args.check_type,
-        "status": args.status,
-        "tool_name": args.tool_name,
-        "tool_version": args.tool_version,
-        "command": args.command,
-        "summary": args.summary,
-        "source_hash": _source_hash(args.source_hash, args.file_path),
-        "file_path": args.file_path,
-        "failure_fingerprint": args.failure_fingerprint,
-        "target_percent": _optional_float(args.target_percent),
-        "actual_percent": _optional_float(args.actual_percent),
-        "details": details,
-        "raw_report_text": _raw_report_text(args.raw_report_file),
-    }
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    with args.out.open("a", encoding="utf-8") as output:
-        output.write(json.dumps(row, sort_keys=True) + "\n")
+    append_evidence_row(
+        args.out,
+        check_type=args.check_type,
+        status=args.status,
+        tool_name=args.tool_name,
+        command=args.command,
+        summary=args.summary,
+        failure_fingerprint=args.failure_fingerprint,
+        tool_version=args.tool_version,
+        source_hash=args.source_hash,
+        file_path=args.file_path,
+        target_percent=args.target_percent,
+        actual_percent=args.actual_percent,
+        raw_report_file=args.raw_report_file,
+        details=details,
+    )
     return 0
 
 

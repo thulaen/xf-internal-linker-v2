@@ -2,11 +2,15 @@
   "builders": {
     "mint": "mint",
     "windows": "desktop-linux",
+    "dell": "dell",
     "general": "mint"
   },
   "compilation_split": {
-    "mint_percent": 100,
-    "windows_percent": 0,
+    "machines": [
+      {"key": "dell", "builder": "dell", "percent": 88},
+      {"key": "mint", "builder": "mint", "percent": 8},
+      {"key": "windows", "builder": "desktop-linux", "percent": 4}
+    ],
     "salt": "xf-internal-linker-v2-build-split-v1"
   },
   "fallback_policy": "fail_closed",

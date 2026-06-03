@@ -465,6 +465,45 @@ def _pipe_tar_into(extractor: list[str], env: dict, who: str) -> str | None:
     return None
 
 
+def _purge_remote_mutmut_cache(context: str, env: dict) -> None:
+    """Delete any `.mutmut-cache` left in the remote named volume by a prior run.
+
+    `xf_mutation_repo` is a PERSISTENT named volume on the remote machine. The
+    tar sync overwrites `backend/` source but never carries `.mutmut-cache`
+    (it is not part of the source), so a cache written by a PREVIOUS commit's
+    run survives in the volume. mutmut then reuses those stale verdicts against
+    freshly-synced source and silently reports different survivors than a clean
+    local run (observed: Dell disagreed with the host — K8S.26 §14). Purging the
+    cache right after extraction — before the manifest check and the run — makes
+    every remote run start clean, exactly like the local `--rm` container does.
+
+    `rm -rf` covers both cache shapes (mutmut 2.5.1 writes a file; some versions
+    write a directory). Best-effort: a purge failure is WARNED on stderr (never
+    swallowed) so a recurrence of the divergence is visible, but it does not
+    block — the manifest handshake still guards source integrity.
+    """
+    cleaner = [
+        "docker", "--context", context, "run", "--rm",
+        "-v", "xf_mutation_repo:/repo",
+        "alpine:latest", "sh", "-c", "rm -rf /repo/backend/.mutmut-cache",
+    ]
+    try:
+        proc = subprocess.run(
+            cleaner, cwd=REPO_ROOT, text=True, encoding="utf-8",
+            errors="replace", capture_output=True, timeout=60, env=env,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        print(f"WARN {context} .mutmut-cache purge could not run: {exc}", file=sys.stderr)
+        return
+    if proc.returncode != 0:
+        print(
+            f"WARN {context} .mutmut-cache purge exited {proc.returncode}: "
+            f"{(proc.stdout + proc.stderr).strip()}",
+            file=sys.stderr,
+        )
+
+
 def _sync_source_to_mint(context: str, env: dict) -> str | None:
     """Push a FULL source snapshot into a named volume on any docker_context machine.
 
@@ -475,13 +514,21 @@ def _sync_source_to_mint(context: str, env: dict) -> str | None:
     image is required at sync time; only the mutation run step needs it.
     The manifest handshake that follows proves the copy is byte-identical before
     any result is trusted.
+
+    After a successful extraction the stale `.mutmut-cache` from any prior run on
+    the persistent named volume is purged, so the remote run starts clean and its
+    survivors match a fresh local run.
     """
     extractor = [
         "docker", "--context", context, "run", "--rm", "-i",
         "-v", "xf_mutation_repo:/repo",
         "alpine:latest", "sh", "-c", "tar -xf - -C /repo",
     ]
-    return _pipe_tar_into(extractor, env, context)
+    sync_error = _pipe_tar_into(extractor, env, context)
+    if sync_error is not None:
+        return sync_error
+    _purge_remote_mutmut_cache(context, env)
+    return None
 
 
 def _mint_run_remote(context: str, env: dict) -> Callable[[list[str]], tuple[int, str]]:

@@ -1,6 +1,6 @@
 # Smart Docker Build Routing
 
-[SPEC FRESHNESS: reviewed_at=2026-05-28 next_review=2026-08-28]
+[SPEC FRESHNESS: reviewed_at=2026-06-03 next_review=2026-09-03]
 
 [SPEC CITED: feature=smart-docker-build-routing kind=technical_doc id=docker-buildx-builders verified_at=2026-05-23]
 [SPEC CITED: feature=smart-docker-build-routing kind=technical_doc id=docker-compose-build-cli verified_at=2026-05-23]
@@ -10,7 +10,7 @@
 
 ## Purpose
 
-Docker builds must not silently fill the Windows drive, but Windows should still help compile so the Mint helper is not the only worker. Ordinary compilation uses a deterministic 65 percent Mint / 35 percent Windows split. GPU-only builds still use the local Windows/WSL builder because GPU runtime access must be proven on the machine that owns the GPU. Docker Build Cloud is not used by default because it can create paid usage.
+Docker builds must not silently fill the Windows drive, and the heaviest worker should carry the most load so the small Windows machine is freed up. The split is N-ary (more than two machines): each build target is routed by a stable weighted hash across the configured machines. The current split is Dell 88 percent / Mint 8 percent / Windows 4 percent, because Dell is the fastest box (a 20-thread Intel i5-13500T) on the local network; the order of the `machines` list defines the cumulative hash ranges, and a legacy two-machine config (`mint_percent` / `windows_percent`) still routes correctly for backward compatibility. GPU-only builds still use the local Windows/WSL builder because GPU runtime access must be proven on the machine that owns the GPU. Docker Build Cloud is not used by default because it can create paid usage.
 
 Compilation failures must enter the normal AutoIssue repair loop. The full terminal evidence is stored once as an LZ4-compressed database row linked from the AutoIssue. The AutoIssue row stays short and deduped so the same compiler mistake updates the existing row instead of creating clones.
 
@@ -24,7 +24,7 @@ Compilation failures must enter the normal AutoIssue repair loop. The full termi
 
 ## Behavior
 
-Given a build target is not marked as GPU-only, when the smart build helper runs, then it hashes the target name with the configured salt and routes the target to `mint` for 65 percent of buckets and `desktop-linux` for 35 percent of buckets.
+Given a build target is not marked as GPU-only, when the smart build helper runs, then it hashes the target name with the configured salt into a 0-99 bucket and routes the target to the machine whose cumulative weighted range contains the bucket. With the Dell 88 / Mint 8 / Windows 4 split, buckets 0-87 route to `dell`, 88-95 to `mint`, and 96-99 to `desktop-linux`. An image built on a remote builder is streamed back into the local Docker so it is never left stranded.
 
 Given several ordinary build targets are passed in one command, when they land in different buckets, then the helper runs one `docker compose build` command per selected builder group.
 
