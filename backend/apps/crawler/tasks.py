@@ -25,8 +25,12 @@ _MS_PER_SEC = 1000.0  # millisecond conversion factor
 # ---------------------------------------------------------------------------
 @shared_task(
     name="crawler.pulse_heartbeat",
-    time_limit=30,
-    soft_time_limit=20,
+    # Issue #317: raised from 30 s to 60 s.  The task does Postgres probe +
+    # Redis probe + Celery inspect (timeout=2 s × N workers) + DB write +
+    # Redis PUBLISH.  With 4 workers, inspect alone can take 8 s; 30 s was
+    # too tight under normal load and hit TimeLimitExceeded regularly.
+    time_limit=60,
+    soft_time_limit=50,
     ignore_result=True,
 )
 @HelperConstraint(
@@ -36,15 +40,14 @@ _MS_PER_SEC = 1000.0  # millisecond conversion factor
     ram_peak_mb=256,
 )
 def pulse_heartbeat():
-    if not connection.in_atomic_block:
-        connection.close()
-
     """
     Lightweight liveness probe: ping all core services, record a pulse event,
     and push rolling stats to the C++ ring buffer.
 
     Runs every 60 s via Celery Beat.  Total execution <100 ms.
     """
+    if not connection.in_atomic_block:
+        connection.close()
     from apps.crawler.models import SystemEvent
 
     ts = time.time()
@@ -146,8 +149,9 @@ def pulse_heartbeat():
 # ---------------------------------------------------------------------------
 @shared_task(
     name="crawler.watchdog_check",
-    time_limit=30,
-    soft_time_limit=20,
+    # Issue #317: raised from 30 s to 60 s, same rationale as pulse_heartbeat.
+    time_limit=60,
+    soft_time_limit=50,
     ignore_result=True,
 )
 @HelperConstraint(
@@ -157,14 +161,13 @@ def pulse_heartbeat():
     ram_peak_mb=256,
 )
 def watchdog_check():
-    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    if not connection.in_atomic_block:
-        connection.close()
-
     """
     Check for stuck sync jobs and crawler sessions.
     Emits warnings for jobs with no progress in 30+ minutes.
     """
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    if not connection.in_atomic_block:
+        connection.close()
     from apps.sync.models import SyncJob
     from apps.crawler.models import CrawlSession, SystemEvent
     from apps.notifications.services import emit_operator_alert

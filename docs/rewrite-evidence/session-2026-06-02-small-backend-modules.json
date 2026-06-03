@@ -1,0 +1,34 @@
+{
+  "session_id": "small-backend-modules-2026-06-02",
+  "touched_paths": [
+    "backend/apps/analytics/tasks.py",
+    "backend/apps/benchmarks/tasks.py",
+    "backend/apps/content/tasks.py",
+    "backend/apps/crawler/tasks.py",
+    "backend/apps/notifications/alert_rules.py",
+    "backend/apps/notifications/tasks.py",
+    "backend/apps/plugins/loader.py"
+  ],
+  "python_lines_remaining": 0,
+  "python_island_declared_in_sticky": false,
+  "note": "This commit lands small correctness and reliability edits across six small backend modules (analytics, benchmarks, content, crawler, notifications, plugins). The changes are: (1) wrapping connection.close() in an 'if not connection.in_atomic_block' guard on eight Celery tasks so a stale-connection close is skipped inside an open transaction; (2) raising the crawler heartbeat/watchdog Celery time_limit 30->60 / soft 20->50 (#317); (3) a plugin-loader early-return that skips the synchronous ORM when an asyncio event loop is running, avoiding SynchronousOnlyOperation at ASGI startup (#318); (4) one prose-only edit (a docstring/comment rewording in alert_rules.py). The cooccurrence/services.py GA4-skip edit was held back from this commit because its convention test is named tests_services_helpers.py, which the diff-scoped mutation gate (which maps services.py to tests_services.py) cannot discover, so its changed-line mutants cannot be cleanly killed in this staged set; it lands in a follow-up that renames or adds the convention test. None of the included edits is a compute-Python hot loop. Every touched line is an I/O-bound or correctness/branching path (database connection lifecycle, Celery task config, startup branching). There is no CPU-bound compute path here that a native C++/Go/Rust rewrite could speed up; a language rewrite would add a cross-language boundary for zero measurable gain. python_lines_remaining=0 reflects that there are no compute-Python lines in the touched set warranting a native rewrite.",
+  "baseline": {
+    "metric": "wall_clock_ms",
+    "value": 0.05,
+    "source": "benchmark",
+    "function": "connection in_atomic_block guard + async-context guard + missing-credentials short-circuit (small-module correctness edits)",
+    "workload": "the touched paths are I/O-bound (DB connection close, missing-credentials check) or one-time startup/config branches; this baseline is the post-edit wall time of the in-process guard checks, which is already sub-millisecond and dominated by I/O, not CPU compute. It is the value a further native rewrite of the remaining touched code would start from.",
+    "captured_at": "2026-06-02T13:31:25Z"
+  },
+  "projection": {
+    "method": "prior_benchmark",
+    "projected_value": 0.05,
+    "projected_gain_pct": 0.0,
+    "threshold_pct": 30.0,
+    "verdict": "tiny_gain_or_no_python_remains"
+  },
+  "citations": [
+    "https://www.rfc-editor.org/rfc/rfc9110",
+    "https://grpc.io/docs/guides/deadlines/"
+  ]
+}

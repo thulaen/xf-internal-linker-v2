@@ -26,7 +26,8 @@ logger = logging.getLogger(__name__)
 def cluster_items(item_ids: list[int]) -> dict:
     """Trigger clustering logic for a batch of recently imported/updated items."""
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
     service = ClusteringService()
     count = 0
     failed_ids = []

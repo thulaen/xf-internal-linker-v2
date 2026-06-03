@@ -65,7 +65,8 @@ def _failed_sync_result(sync_run_id: int, exc: Exception) -> dict[str, int | str
 )
 def sync_matomo_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     sync_run = _load_sync_run(sync_run_id)
     sync_run.status = "running"
@@ -107,7 +108,8 @@ def sync_matomo_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
 )
 def sync_ga4_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     sync_run = _load_sync_run(sync_run_id)
     sync_run.status = "running"
@@ -154,7 +156,8 @@ def sync_ga4_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
 )
 def sync_gsc_performance(self, sync_run_id: int) -> dict[str, int | str]:
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     sync_run = _load_sync_run(sync_run_id)
     sync_run.status = "running"
@@ -203,7 +206,8 @@ def sync_gsc_performance(self, sync_run_id: int) -> dict[str, int | str]:
 )
 def schedule_ga4_telemetry_hourly() -> dict[str, int | str]:
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     return _queue_scheduled_sync(
         source="ga4",
@@ -221,7 +225,8 @@ def schedule_ga4_telemetry_hourly() -> dict[str, int | str]:
 )
 def schedule_ga4_telemetry_daily() -> dict[str, int | str]:
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     return _queue_scheduled_sync(
         source="ga4",
@@ -239,7 +244,8 @@ def schedule_ga4_telemetry_daily() -> dict[str, int | str]:
 )
 def schedule_matomo_telemetry_hourly() -> dict[str, int | str]:
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     return _queue_scheduled_sync(
         source="matomo",
@@ -257,7 +263,8 @@ def schedule_matomo_telemetry_hourly() -> dict[str, int | str]:
 )
 def schedule_matomo_telemetry_daily() -> dict[str, int | str]:
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     return _queue_scheduled_sync(
         source="matomo",
@@ -275,7 +282,8 @@ def schedule_matomo_telemetry_daily() -> dict[str, int | str]:
 )
 def schedule_gsc_performance_daily() -> dict[str, int | str]:
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     from .views import get_gsc_settings
 
@@ -313,7 +321,8 @@ def schedule_gsc_performance_daily() -> dict[str, int | str]:
 def refresh_gsc_query_tfidf(self, lookback_days: int = 90) -> dict[str, int]:
     """FR-105 RSQVA — recompute per-page GSC query TF-IDF vectors."""
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     from .gsc_query_vocab import refresh_gsc_query_tfidf as _impl
 
@@ -333,7 +342,8 @@ def refresh_gsc_query_tfidf(self, lookback_days: int = 90) -> dict[str, int]:
 def recompute_all_search_impact() -> dict[str, int]:
     """Recompute search impact for all applied suggestions."""
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     from apps.suggestions.models import Suggestion
     from .impact_engine import compute_search_impact
@@ -362,7 +372,8 @@ def detect_traffic_spikes() -> dict[str, int]:
     Alerts the dashboard when a page's daily traffic exceeds 3x its 7-day trailing average.
     """
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     from django.db.models import Avg, Sum
     from apps.notifications.services import emit_operator_alert

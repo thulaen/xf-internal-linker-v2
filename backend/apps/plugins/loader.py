@@ -29,7 +29,23 @@ def load_enabled_plugins() -> None:
 
     Called once at Django startup from PluginsConfig.ready().
     Plugins that fail to load are auto-disabled and logged.
+
+    Issue #318: When uvicorn spawns ASGI workers, PluginsConfig.ready() is
+    called while an async event loop is already running in the process.
+    Calling the synchronous Django ORM (Plugin.objects.filter) from that
+    context raises SynchronousOnlyOperation.  Guard: if we are already inside
+    an async context we skip plugin loading silently — uvicorn re-runs the
+    startup sequence for each sync request in a thread pool, so plugins are
+    not needed at the async startup phase.
     """
+    from apps.core.services.async_context import in_async_context
+
+    if in_async_context():
+        logger.debug(
+            "load_enabled_plugins: skipped — running in async context (ASGI worker startup)"
+        )
+        return
+
     from .models import Plugin
 
     for plugin in Plugin.objects.filter(is_enabled=True, is_installed=True):

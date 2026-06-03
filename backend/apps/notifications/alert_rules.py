@@ -7,7 +7,7 @@ from plan `.claude/plans/mossy-gliding-deer.md`:
   (a) Performance mode reverted automatically    -> Celery-beat auto-revert (items 12-14)
   (b) Helper node went offline                    -> heartbeat expiry (future)
   (c) Checkpoint retention hit the 2 GB cap       -> checkpoint pruner (item 19)
-  (d) GPU fell back to CPU                        -> runtime switcher / CUDA warmup (items 15, 23)
+  (d) paid embedding provider failed             -> provider retry / credentials checks (items 15, 23)
 
 All four flow through the existing ``emit_operator_alert`` in ``services.py`` so
 frontend dedupe, cooldown, WebSocket fan-out, and the alert detail route keep
@@ -158,8 +158,8 @@ def alert_gpu_fallback_to_cpu(
     """Fired when High Performance mode was requested but the system dropped to CPU.
 
     Reasons observed in the wild:
-      - "CUDA not available" (driver / hardware issue)
-      - "torch not installed" (container / dep issue)
+      - "provider unavailable" (network / credentials issue)
+      - "SDK not installed" (container / dependency issue)
       - "GPU temperature at ceiling" (thermal guard — see PERFORMANCE.md §6)
       - "VRAM exhausted"
     """

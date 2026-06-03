@@ -90,7 +90,8 @@ def _summarise_results(all_results):
 )
 def run_all_benchmarks(self, run_id: int | None = None, trigger: str = "scheduled"):
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Execute all benchmarks (C++ and Python) and store results."""
     from .models import BenchmarkResult, BenchmarkRun
