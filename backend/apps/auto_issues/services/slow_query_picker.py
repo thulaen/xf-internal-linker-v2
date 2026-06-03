@@ -39,6 +39,8 @@ _MAX_PER_RUN = 10
 # query picker's input. Add new patterns when a new noise source shows
 # up, but keep the list small + targeted; over-filtering hides real bugs.
 _NOISE_FRAGMENTS = (
+    "copy public.",
+    "issue_events_issue",
     "pg_stat_",
     "pg_database_size",
     "pg_relation_size",
@@ -152,7 +154,7 @@ def _upsert_slow_query(q: SlowQuery, priority: float) -> str:
     )
     _, outcome = upsert_dedup(
         canonical=canonical,
-        source=AutoIssue.SOURCE_AGENT,  # closest fit — it's a backend find
+        source=AutoIssue.SOURCE_PG_STAT,
         external_id=_stable_external_id(q),
         fingerprint=_stable_external_id(q),
         title=title,

@@ -189,6 +189,27 @@ class SelectPythonTestTargetsTests(unittest.TestCase):
         self.assertEqual(missing, [])
         self.assertEqual(targets, ["apps/_sidecars_shared/tests_sidecar_contract.py"])
 
+    def test_dirty_turbo_python_paths_have_focused_targets(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        paths = [
+            "backend/apps/auto_issues/_sidecars/schemard_client.py",
+            "backend/apps/auto_issues/_sidecars/snapshotd_client.py",
+            "backend/apps/auto_issues/management/commands/refresh_session_start_payload.py",
+            "backend/apps/auto_issues/management/commands/rotate_scope_log.py",
+            "backend/apps/work_queue/services/correlation.py",
+            "backend/apps/work_queue/services/gui_projection.py",
+            "backend/apps/work_queue/services/items.py",
+            "backend/apps/work_queue/services/remediation.py",
+        ]
+
+        targets, missing = select_targets(repo_root, paths)
+
+        self.assertEqual(missing, [])
+        self.assertIn("apps/auto_issues/tests/test_sidecar_clients.py", targets)
+        self.assertIn("apps/auto_issues/tests_session_start_payload.py", targets)
+        self.assertIn("apps/auto_issues/tests_rotate_scope_log.py", targets)
+        self.assertIn("apps/work_queue/tests_services.py", targets)
+
 
 if __name__ == "__main__":
     unittest.main()

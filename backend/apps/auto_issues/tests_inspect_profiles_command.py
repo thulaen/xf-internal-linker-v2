@@ -9,10 +9,31 @@ from tempfile import TemporaryDirectory
 from unittest import mock
 
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from apps.auto_issues.management.commands import inspect_profiles
 from apps.auto_issues.models import AutoIssue
+
+
+class PyroscopeExporterReadyTests(SimpleTestCase):
+    """No-DB convention tests pinning the dual-endpoint acceptance after the
+    Pyroscope move to the Mint helper (10.10.10.91:4040)."""
+
+    def test_accepts_mint_endpoint(self) -> None:
+        exporter = {"endpoint": "10.10.10.91:4040", "tls": {"insecure": True}}
+        self.assertTrue(inspect_profiles._pyroscope_exporter_ready(exporter))
+
+    def test_accepts_legacy_in_network_endpoint(self) -> None:
+        exporter = {"endpoint": "pyroscope:4040", "tls": {"insecure": True}}
+        self.assertTrue(inspect_profiles._pyroscope_exporter_ready(exporter))
+
+    def test_rejects_unknown_endpoint(self) -> None:
+        exporter = {"endpoint": "10.10.10.92:4040", "tls": {"insecure": True}}
+        self.assertFalse(inspect_profiles._pyroscope_exporter_ready(exporter))
+
+    def test_rejects_when_tls_not_insecure(self) -> None:
+        exporter = {"endpoint": "10.10.10.91:4040", "tls": {"insecure": False}}
+        self.assertFalse(inspect_profiles._pyroscope_exporter_ready(exporter))
 
 
 class InspectProfilesCommandTests(TestCase):

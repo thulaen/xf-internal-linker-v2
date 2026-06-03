@@ -14,8 +14,8 @@ class AutoIssuesConfig(AppConfig):
             return
 
         try:
-            from . import tasks  # noqa: F401
+            from . import signals, tasks  # noqa: F401
         except Exception:  # noqa: BLE001
             import logging
 
-            logging.getLogger(__name__).debug("auto_issues.ready: tasks import failed", exc_info=True)
+            logging.getLogger(__name__).debug("auto_issues.ready: signals/tasks import failed", exc_info=True)

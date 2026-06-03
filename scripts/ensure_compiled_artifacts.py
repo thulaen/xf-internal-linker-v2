@@ -475,6 +475,20 @@ def _record_go_state(repo_root: Path, manifest: dict[str, Any]) -> None:
     if go_entry.get("source_hash") == source_hash and _go_artifacts_present(go_entry):
         print("Go runtime artifact state is current.", flush=True)
         return
+    # The backend runtime container has no Go toolchain and never executes the
+    # Go binaries — streamd / startupd / sidecars run as their own containers
+    # and talk to the backend over gRPC/Unix sockets, so the backend does NOT
+    # load /opt/xf/compiled/go artifacts at runtime. When `go` is absent here,
+    # skip the rebuild unconditionally (warn only) so a Go-source change — e.g.
+    # adding a new sidecar service — can never crash the backend boot. The Go
+    # artifacts are (re)built in the compiled-tools container, which has Go.
+    if shutil.which("go") is None:
+        print(
+            "Go is not installed in this container and the backend does not run "
+            "Go binaries — skipping Go runtime build (build it in compiled-tools).",
+            flush=True,
+        )
+        return
     records = _build_go_modules(modules, manifest)
     manifest["active"]["go_runtime"] = _go_manifest_entry(source_hash, records)
     manifest["go_source_hash"] = source_hash

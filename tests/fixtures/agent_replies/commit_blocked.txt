@@ -1,0 +1,5 @@
+Commit blocked: check-registry-read missing session-start registry marker
+Findings filed: 1 (#500 — commit_blocker)
+Push: skipped (commit did not land)
+Suggested next: add the required registry marker to AGENT-HANDOFF.md, then rerun the commit
+Status: working tree still dirty, no commit

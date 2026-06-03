@@ -1,0 +1,62 @@
+<section class="error-generator-page">
+  <mat-card appearance="outlined" class="error-generator-card">
+    <mat-card-header>
+      <mat-card-title>Faro error generator</mat-card-title>
+      <mat-card-subtitle>Development-only checks for browser error collection.</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <div class="action-grid" aria-label="Faro smoke actions">
+        <button
+          mat-raised-button
+          color="primary"
+          type="button"
+          matTooltip="Throws a browser error so Faro can report uncaught failures."
+          (click)="triggerUncaught()">
+          <mat-icon>report</mat-icon>
+          Uncaught error
+        </button>
+
+        <button
+          mat-raised-button
+          color="primary"
+          type="button"
+          matTooltip="Rejects a browser promise so Faro can report async failures."
+          (click)="triggerRejection()">
+          <mat-icon>sync_problem</mat-icon>
+          Promise rejection
+        </button>
+
+        <button
+          mat-raised-button
+          color="primary"
+          type="button"
+          matTooltip="Calls a missing API URL so Faro can report failed network calls."
+          (click)="triggerNetwork()">
+          <mat-icon>cloud_off</mat-icon>
+          Network error
+        </button>
+
+        <button
+          mat-raised-button
+          color="primary"
+          type="button"
+          matTooltip="Writes a console error so Faro can report logged browser errors."
+          (click)="triggerConsole()">
+          <mat-icon>terminal</mat-icon>
+          Console error
+        </button>
+
+        <button
+          mat-raised-button
+          color="primary"
+          type="button"
+          matTooltip="Moves the page briefly so Faro can report a layout-shift breach."
+          (click)="triggerCls()">
+          <mat-icon>vertical_align_center</mat-icon>
+          Layout shift
+        </button>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</section>

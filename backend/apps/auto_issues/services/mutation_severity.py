@@ -105,6 +105,45 @@ _GOMUT_LOW = {
     "expression/swap",
 }
 
+# ----- cargo-mutants (Rust) replacement types -------------------------
+# Source: https://mutants.rs/mutant-types.html
+_CARGO_HIGH = {
+    "replace function body with Default::default()",
+    "replace function body with ()",
+    "replace binary operation with left operand",
+    "replace binary operation with right operand",
+    "replace == with !=",
+    "replace != with ==",
+    "replace < with >=",
+    "replace > with <=",
+    "replace <= with >",
+    "replace >= with <",
+    "replace && with ||",
+    "replace || with &&",
+    "replace + with -",
+    "replace - with +",
+    "replace * with /",
+    "replace / with *",
+}
+_CARGO_LOW = {
+    "replace += with -=",
+    "replace -= with +=",
+}
+
+# ----- mucheck (Haskell) mutator names --------------------------------
+# Source: https://hackage.haskell.org/package/MuCheck
+_MUCHECK_HIGH = {
+    "ReplaceOp",     # operator swap (+/-/*//)
+    "NegOp",         # negate conditional
+    "RemoveArg",     # remove function argument
+    "NullifyReturn", # return default value
+    "IfElseSwap",    # swap if/else branches
+}
+_MUCHECK_LOW = {
+    "LiteralSub",    # literal value substitution
+    "PatternSub",    # pattern match reordering
+}
+
 
 def _severity_for(tool: str, mutator: str) -> str:
     """Return AutoIssue.SEVERITY_* for the given (tool, mutator)."""
@@ -127,6 +166,18 @@ def _severity_for(tool: str, mutator: str) -> str:
         if mutator in _GOMUT_HIGH:
             return AutoIssue.SEVERITY_HIGH
         if mutator in _GOMUT_LOW:
+            return AutoIssue.SEVERITY_LOW
+    elif tool == "cargo-mutants":
+        for pattern in _CARGO_HIGH:
+            if pattern in mutator:
+                return AutoIssue.SEVERITY_HIGH
+        for pattern in _CARGO_LOW:
+            if pattern in mutator:
+                return AutoIssue.SEVERITY_LOW
+    elif tool == "mucheck":
+        if mutator in _MUCHECK_HIGH:
+            return AutoIssue.SEVERITY_HIGH
+        if mutator in _MUCHECK_LOW:
             return AutoIssue.SEVERITY_LOW
     # Default: medium for unmapped mutators (defensive).
     return AutoIssue.SEVERITY_MEDIUM

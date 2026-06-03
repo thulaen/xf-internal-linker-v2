@@ -16,7 +16,7 @@ pytest-cov==6.0.0
 pytest-mock==3.14.0                  # Mocker fixture (wraps unittest.mock)
 pytest-xdist==3.6.1                  # Parallel test execution (-n auto)
 pytest-randomly==3.15.0              # Randomize test order — fails order-dependent tests
-mutmut==3.5.0                        # Python mutation testing - active 2026 release line
+mutmut==2.5.1                        # Python mutation testing — pinned to 2.x: mutmut 3.x rewrites functions into trampolines that re-import mutmut.__main__ at runtime, re-triggering multiprocessing.set_start_method ("context has already been set") whenever a mutated function calls another in the same module (e.g. monthly_meta_tune -> _record_meta_tune_failure), so 3.x cannot baseline our code. 2.x mutates in place and avoids this.
 pact-python==2.3.1                   # Contract testing — Django provider verification (Phase 5)
 hypothesis==6.115.5                  # Property-based testing — Level A coverage requires this (FR-251)
 factory-boy==3.3.1                   # Test data factories
@@ -30,6 +30,7 @@ pytest-benchmark==5.1.0              # Microbenchmark harness for pytest
 ruff==0.8.6                          # Linting + formatting (replaces flake8/black)
 mypy==1.13.0                         # Type checking
 django-stubs==5.1.1                  # Django type stubs for mypy
+
 djangorestframework-stubs==3.15.1    # DRF type stubs
 
 # ── Security Scanning ────────────────────────────────────────────
@@ -40,3 +41,4 @@ pip-audit==2.7.3                     # Dependency vulnerability scanner
 ipython==8.31.0                      # Better Django shell
 django-extensions==3.2.3             # Extra management commands
 Werkzeug==3.1.3                      # Used by runserver_plus
+watchdog==6.0.0                      # Agent Guard Daemon filesystem watcher

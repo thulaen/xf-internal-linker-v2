@@ -62,6 +62,23 @@ class Finding:
     severity: str = AutoIssue.SEVERITY_LOW
 
 
+def _parse_diff_header(raw: str, out: dict) -> tuple[str | None, int]:
+    """Handle a `diff --git` line; register the new file and reset line counter."""
+    parts = raw.split()
+    if len(parts) >= 4:
+        b = parts[-1]
+        fname = b[2:] if b.startswith("b/") else b
+        out.setdefault(fname, [])
+        return fname, 0
+    return None, 0
+
+
+def _parse_hunk_start(raw: str, current_line_no: int) -> int:
+    """Return the starting line number from a `@@` hunk header."""
+    m = re.search(r"\+(\d+)", raw)
+    return int(m.group(1)) - 1 if m else current_line_no
+
+
 def _added_lines_by_file(diff: str) -> dict[str, list[tuple[int, str]]]:
     """Parse a unified diff into {file: [(line_no, content), ...]}."""
     out: dict[str, list[tuple[int, str]]] = {}
@@ -69,16 +86,9 @@ def _added_lines_by_file(diff: str) -> dict[str, list[tuple[int, str]]]:
     line_no = 0
     for raw in diff.splitlines():
         if raw.startswith("diff --git"):
-            parts = raw.split()
-            if len(parts) >= 4:
-                b = parts[-1]
-                current_file = b[2:] if b.startswith("b/") else b
-                out.setdefault(current_file, [])
-                line_no = 0
+            current_file, line_no = _parse_diff_header(raw, out)
         elif raw.startswith("@@"):
-            m = re.search(r"\+(\d+)", raw)
-            if m:
-                line_no = int(m.group(1)) - 1
+            line_no = _parse_hunk_start(raw, line_no)
         elif raw.startswith("+++") or raw.startswith("---"):
             continue
         elif raw.startswith("+"):
@@ -106,6 +116,13 @@ def _detect_warnings(by_file: dict[str, list[tuple[int, str]]]) -> list[Finding]
     return findings
 
 
+def _is_silent_except_exception(lines: list, i: int) -> bool:
+    """Return True when lines[i+1] is `pass` — the silent swallow pattern."""
+    if i + 1 >= len(lines):
+        return False
+    return bool(re.match(r"\s*pass\s*$", lines[i + 1][1]))
+
+
 def _detect_problems(by_file: dict[str, list[tuple[int, str]]]) -> list[Finding]:
     findings: list[Finding] = []
     for file, lines in by_file.items():
@@ -118,20 +135,41 @@ def _detect_problems(by_file: dict[str, list[tuple[int, str]]]) -> list[Finding]
                     detail="bare `except:` — catches everything including KeyboardInterrupt",
                     severity=AutoIssue.SEVERITY_MEDIUM,
                 ))
-                continue
-            if re.match(r"\s*except\s+Exception(\s+as\s+\w+)?\s*:\s*$", content):
-                # Look ahead to confirm `pass` body or empty body.
-                if i + 1 < len(lines):
-                    next_content = lines[i + 1][1]
-                    if re.match(r"\s*pass\s*$", next_content):
-                        findings.append(Finding(
-                            bucket="problems",
-                            file=file,
-                            line_hint=f"line {line_no}",
-                            detail="`except Exception: pass` — silently swallows errors",
-                            severity=AutoIssue.SEVERITY_MEDIUM,
-                        ))
+            elif (
+                re.match(r"\s*except\s+Exception(\s+as\s+\w+)?\s*:\s*$", content)
+                and _is_silent_except_exception(lines, i)
+            ):
+                findings.append(Finding(
+                    bucket="problems",
+                    file=file,
+                    line_hint=f"line {line_no}",
+                    detail="`except Exception: pass` — silently swallows errors",
+                    severity=AutoIssue.SEVERITY_MEDIUM,
+                ))
     return findings
+
+
+def _extract_function_name(content: str) -> str:
+    m = re.match(r"\s*(?:async\s+)?def\s+(\w+)", content)
+    return m.group(1) if m else "<unknown>"
+
+
+def _append_long_function_finding(
+    findings: list[Finding],
+    file: str,
+    function_name: str,
+    function_start: int,
+    consecutive: int,
+) -> None:
+    findings.append(Finding(
+        bucket="improvements",
+        file=file,
+        line_hint=f"function `{function_name}` starts at line {function_start}",
+        detail=(
+            f"function `{function_name}` is {consecutive + 1} lines "
+            f"(exceeds the 50-line cap in AGENTS.md)"
+        ),
+    ))
 
 
 def _detect_improvements(by_file: dict[str, list[tuple[int, str]]]) -> list[Finding]:
@@ -144,34 +182,21 @@ def _detect_improvements(by_file: dict[str, list[tuple[int, str]]]) -> list[Find
         consecutive = 0
         for line_no, content in lines:
             stripped = content.lstrip()
-            if stripped.startswith("def ") or stripped.startswith("async def "):
+            if stripped.startswith(("def ", "async def ")):
                 if in_function and consecutive > 50:
-                    findings.append(Finding(
-                        bucket="improvements",
-                        file=file,
-                        line_hint=f"function `{function_name}` starts at line {function_start}",
-                        detail=(
-                            f"function `{function_name}` is {consecutive + 1} lines "
-                            f"(exceeds the 50-line cap in AGENTS.md)"
-                        ),
-                    ))
+                    _append_long_function_finding(
+                        findings, file, function_name, function_start, consecutive
+                    )
                 in_function = True
-                m = re.match(r"\s*(?:async\s+)?def\s+(\w+)", content)
-                function_name = m.group(1) if m else "<unknown>"
+                function_name = _extract_function_name(content)
                 function_start = line_no
                 consecutive = 0
             elif in_function:
                 consecutive += 1
         if in_function and consecutive > 50:
-            findings.append(Finding(
-                bucket="improvements",
-                file=file,
-                line_hint=f"function `{function_name}` starts at line {function_start}",
-                detail=(
-                    f"function `{function_name}` is {consecutive + 1} lines "
-                    f"(exceeds the 50-line cap in AGENTS.md)"
-                ),
-            ))
+            _append_long_function_finding(
+                findings, file, function_name, function_start, consecutive
+            )
     return findings
 
 

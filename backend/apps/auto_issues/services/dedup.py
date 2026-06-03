@@ -24,6 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from django.db import transaction
 from django.utils import timezone
 
 from apps.auto_issues.models import AutoIssue
@@ -184,6 +185,11 @@ def upsert_dedup(**kwargs) -> tuple[AutoIssue, str]:
       'merged'  — existing row gained a new source observation.
       'updated' — existing row updated for the same (source, external_id).
     """
+    with transaction.atomic():
+        return _upsert_dedup_inner(**kwargs)
+
+
+def _upsert_dedup_inner(**kwargs) -> tuple[AutoIssue, str]:
     obs = IssueObservation(**kwargs)
     now = timezone.now()
     new_obs = _build_observation(
@@ -195,6 +201,7 @@ def upsert_dedup(**kwargs) -> tuple[AutoIssue, str]:
     existing = (
         AutoIssue.objects
         .filter(canonical_fingerprint=obs.canonical)
+        .select_for_update()
         .exclude(status=AutoIssue.STATUS_RESOLVED)
         .first()
     )

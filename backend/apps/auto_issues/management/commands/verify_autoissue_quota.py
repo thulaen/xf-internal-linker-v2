@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from datetime import datetime
 
 from django.core.management.base import BaseCommand, CommandError
@@ -11,6 +12,71 @@ from apps.auto_issues.models import AutoIssue
 
 
 REQUIRED_AUTOISSUE_FIXES = 30
+REQUIRED_SONARQUBE_FIXES = 10
+REQUIRED_RUST_DEFECT_FIXES = 10
+REQUIRED_PPROF_FIXES = 10
+REQUIRED_ALLOY_FIXES = 10
+REQUIRED_LOKI_HARD_FIXES = 7
+REQUIRED_PERFETTO_FIXES = 10
+REQUIRED_GWP_ASAN_FIXES = 10
+REQUIRED_LIGHTHOUSE_FIXES = 3
+REQUIRED_PG_STAT_FIXES = 3
+_CROSS_SOURCE_FIXES = 3
+_HARD_SOURCE_REQUIREMENTS = {
+    AutoIssue.SOURCE_SONARQUBE: REQUIRED_SONARQUBE_FIXES,
+    AutoIssue.SOURCE_RUST_DEFECT: REQUIRED_RUST_DEFECT_FIXES,
+    AutoIssue.SOURCE_PPROF: REQUIRED_PPROF_FIXES,
+    AutoIssue.SOURCE_ALLOY: REQUIRED_ALLOY_FIXES,
+    AutoIssue.SOURCE_LOKI: REQUIRED_LOKI_HARD_FIXES,
+    AutoIssue.SOURCE_PERFETTO: REQUIRED_PERFETTO_FIXES,
+    AutoIssue.SOURCE_GWP_ASAN: REQUIRED_GWP_ASAN_FIXES,
+    AutoIssue.SOURCE_LIGHTHOUSE: REQUIRED_LIGHTHOUSE_FIXES,
+    AutoIssue.SOURCE_PG_STAT: REQUIRED_PG_STAT_FIXES,
+}
+_CROSS_SOURCE_REQUIREMENTS = {
+    AutoIssue.SOURCE_AGENT: _CROSS_SOURCE_FIXES,
+    AutoIssue.SOURCE_GLITCHTIP: _CROSS_SOURCE_FIXES,
+    AutoIssue.SOURCE_PYROSCOPE: _CROSS_SOURCE_FIXES,
+    AutoIssue.SOURCE_TEMPO: _CROSS_SOURCE_FIXES,
+    AutoIssue.SOURCE_FARO: _CROSS_SOURCE_FIXES,
+    AutoIssue.SOURCE_MUTATION: _CROSS_SOURCE_FIXES,
+    AutoIssue.SOURCE_FUZZ: _CROSS_SOURCE_FIXES,
+    AutoIssue.SOURCE_CONTRACT: _CROSS_SOURCE_FIXES,
+    AutoIssue.SOURCE_GH_CI: _CROSS_SOURCE_FIXES,
+    AutoIssue.SOURCE_VMALERT: _CROSS_SOURCE_FIXES,
+}
+REQUIRED_HARD_FIXES = sum(_HARD_SOURCE_REQUIREMENTS.values()) + sum(
+    _CROSS_SOURCE_REQUIREMENTS.values()
+)
+
+
+_SESSION_TYPE_CHOICES = ("docs", "infrastructure", "reconciliation", "feature")
+
+
+def _scaled_requirements(
+    session_type: str,
+) -> tuple[dict[str, int], dict[str, int]]:
+    """Return (hard_source_reqs, cross_source_reqs) scaled for session_type.
+
+    reconciliation: hard buckets → 0, cross-source → 1 each (total 10).
+    infrastructure: hard buckets → 0, cross-source → 2 each (total 20).
+    docs:           both → 0 (gate passes immediately).
+    feature:        unchanged full quotas.
+    """
+    if session_type == "docs":
+        return {s: 0 for s in _HARD_SOURCE_REQUIREMENTS}, {
+            s: 1 for s in _CROSS_SOURCE_REQUIREMENTS
+        }
+    if session_type == "reconciliation":
+        return {s: 0 for s in _HARD_SOURCE_REQUIREMENTS}, {
+            s: 0 for s in _CROSS_SOURCE_REQUIREMENTS
+        }
+    if session_type == "infrastructure":
+        return {s: 0 for s in _HARD_SOURCE_REQUIREMENTS}, {
+            s: 2 for s in _CROSS_SOURCE_REQUIREMENTS
+        }
+    # Default: feature — full quotas.
+    return _HARD_SOURCE_REQUIREMENTS, _CROSS_SOURCE_REQUIREMENTS
 
 
 class Command(BaseCommand):
@@ -20,17 +86,55 @@ class Command(BaseCommand):
         parser.add_argument(
             "--ids",
             nargs="+",
-            required=True,
+            required=False,
             help="AutoIssue IDs from the [REGISTRY READ] marker, without drought-log IDs.",
         )
         parser.add_argument(
             "--resolved-after",
             help="Previous handoff timestamp, formatted as YYYY-MM-DD HH:MM.",
         )
+        parser.add_argument(
+            "--hard",
+            action="store_true",
+            help="Verify the hard per-source quota for this session.",
+        )
+        parser.add_argument(
+            "--session-type",
+            choices=_SESSION_TYPE_CHOICES,
+            default="feature",
+            help=(
+                "Session type scales the verify quota. "
+                "docs=0, reconciliation=10, infrastructure=20, feature=103 (default)."
+            ),
+        )
 
     def handle(self, *args, **opts) -> None:
-        issue_ids = _parse_issue_ids(opts["ids"])
         resolved_after = _parse_resolved_after(opts.get("resolved_after"))
+        session_type = opts.get("session_type") or "feature"
+
+        if opts.get("hard"):
+            hard_reqs, cross_reqs = _scaled_requirements(session_type)
+            if session_type == "docs":
+                self.stdout.write(
+                    self.style.SUCCESS("[AUTOISSUE QUOTA VERIFIED: docs — no quota required]")
+                )
+                return
+            errors = _hard_quota_errors_scaled(
+                _resolved_counts(resolved_after), hard_reqs, cross_reqs
+            )
+            if errors:
+                raise CommandError("\n".join(errors))
+            total = sum(hard_reqs.values()) + sum(cross_reqs.values())
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"[AUTOISSUE QUOTA VERIFIED: {total} resolved]"
+                )
+            )
+            return
+
+        if not opts.get("ids"):
+            raise CommandError("--ids is required unless --hard is used.")
+        issue_ids = _parse_issue_ids(opts["ids"])
         errors = _quota_errors(issue_ids, resolved_after)
         if errors:
             raise CommandError("\n".join(errors))
@@ -80,9 +184,82 @@ def _count_and_duplicate_errors(issue_ids: list[int]) -> list[str]:
         errors.append(
             f"Expected {REQUIRED_AUTOISSUE_FIXES} picked AutoIssues, found {len(issue_ids)}."
         )
-    duplicates = sorted({issue_id for issue_id in issue_ids if issue_ids.count(issue_id) > 1})
+    duplicates = sorted(
+        issue_id for issue_id, count in Counter(issue_ids).items() if count > 1
+    )
     if duplicates:
         errors.append(f"Duplicate picked AutoIssue IDs are not allowed: {_render_ids(duplicates)}.")
+    return errors
+
+
+def _resolved_counts(resolved_after: datetime | None) -> dict[str, int]:
+    queryset = AutoIssue.objects.filter(
+        status=AutoIssue.STATUS_RESOLVED,
+        lessons_learned__gt="",
+        resolved_at__isnull=False,
+    )
+    if resolved_after is not None:
+        queryset = queryset.filter(resolved_at__gt=resolved_after)
+    return dict(Counter(queryset.values_list("source", flat=True)))
+
+
+def _next_open_issue_ids(source: str, limit: int) -> list[int]:
+    return list(
+        AutoIssue.objects.filter(source=source, status=AutoIssue.STATUS_OPEN)
+        .order_by("-priority_score", "id")
+        .values_list("id", flat=True)[:limit]
+    )
+
+
+def _mandatory_hard_errors(count: int, source: str, required: int) -> list[str]:
+    if count >= required:
+        return []
+    short = required - count
+    if source == AutoIssue.SOURCE_SONARQUBE:
+        suffix = f"NON-SUBSTITUTABLE — UNBLOCK: resolve {short} more sonarqube AutoIssues"
+    else:
+        suffix = f"{short} short"
+    return [f"{source}: {count} of {required} resolved ({suffix})"]
+
+
+def _hard_quota_errors(counts: dict[str, int]) -> list[str]:
+    return _hard_quota_errors_scaled(
+        counts, _HARD_SOURCE_REQUIREMENTS, _CROSS_SOURCE_REQUIREMENTS
+    )
+
+
+def _hard_quota_errors_scaled(
+    counts: dict[str, int],
+    hard_reqs: dict[str, int],
+    cross_reqs: dict[str, int],
+) -> list[str]:
+    errors: list[str] = []
+    for source, required in hard_reqs.items():
+        if required > 0:
+            errors.extend(_mandatory_hard_errors(counts.get(source, 0), source, required))
+    for source, required in cross_reqs.items():
+        if required > 0:
+            count = counts.get(source, 0)
+            if count < required:
+                # Genuine-drought exemption: a cross-source bucket with NO open
+                # issues cannot be satisfied — you cannot resolve issues that do
+                # not exist. This mirrors the CLAUDE.md drought clause
+                # (substitute from agent + log a picker_drought row). Buckets
+                # that DO have open issues still require their resolutions.
+                if not _next_open_issue_ids(source, 1):
+                    continue
+                errors.append(
+                    f"{source}: {count} of {required} resolved ({required - count} short)"
+                )
+    if errors:
+        sonarqube_req = hard_reqs.get(AutoIssue.SOURCE_SONARQUBE, 0)
+        lighthouse_req = hard_reqs.get(AutoIssue.SOURCE_LIGHTHOUSE, 0)
+        pg_stat_req = hard_reqs.get(AutoIssue.SOURCE_PG_STAT, 0)
+        errors.append(
+            f"Hard quota required: {sonarqube_req} sonarqube, "
+            f"{lighthouse_req} lighthouse, {pg_stat_req} pg_stat, "
+            "and the configured source buckets."
+        )
     return errors
 
 

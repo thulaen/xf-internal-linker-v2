@@ -51,3 +51,31 @@ class ExportResolvedIssuesIndexCommandTests(TestCase):
         self.assertEqual(matches[0]["issue_title"], "Export focused lesson")
         for field in resolved_issue_index.REQUIRED_FIELDS:
             self.assertIn(field, matches[0])
+
+
+class ClassifyAffectedHelperTests(TestCase):
+    """Unit tests for _classify_affected extracted from _explode_rows (S3776 fix)."""
+
+    def test_test_file_goes_to_tests_list(self):
+        from apps.auto_issues.management.commands.export_resolved_issues_index import (
+            _classify_affected,
+        )
+        tests, related = _classify_affected(["backend/tests/test_foo.py", "backend/foo.py"])
+        self.assertIn("backend/tests/test_foo.py", tests)
+        self.assertIn("backend/foo.py", related)
+
+    def test_spec_ts_goes_to_tests_list(self):
+        from apps.auto_issues.management.commands.export_resolved_issues_index import (
+            _classify_affected,
+        )
+        tests, related = _classify_affected(["frontend/foo.spec.ts", "frontend/foo.ts"])
+        self.assertIn("frontend/foo.spec.ts", tests)
+        self.assertIn("frontend/foo.ts", related)
+
+    def test_empty_strings_are_skipped(self):
+        from apps.auto_issues.management.commands.export_resolved_issues_index import (
+            _classify_affected,
+        )
+        tests, related = _classify_affected(["", "  ", "backend/real.py"])
+        self.assertEqual(tests, [])
+        self.assertEqual(related, ["backend/real.py"])

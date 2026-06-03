@@ -15,6 +15,7 @@ so session-start sees fresh data; staggered :05/:35 (GT) and :10/:40
 from __future__ import annotations
 
 import logging
+import os
 
 from celery import shared_task
 from django.utils import timezone
@@ -35,7 +36,8 @@ logger = logging.getLogger(__name__)
 )
 def pick_daily_glitchtip_issues():
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Refresh the GlitchTip mirror, then promote top rows to auto_issues."""
     from apps.audit.tasks import sync_glitchtip_issues
@@ -59,7 +61,8 @@ def pick_daily_glitchtip_issues():
 )
 def pick_daily_pyroscope_regressions():
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Query Pyroscope for both week-over-week regressions and same-day
     hotspots; write both to auto_issues.
@@ -91,7 +94,8 @@ def pick_daily_pyroscope_regressions():
 )
 def pick_daily_loki_findings():
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Query Loki for hot patterns + WARN/ERROR rate bursts; write to auto_issues.
 
@@ -117,7 +121,8 @@ def pick_daily_loki_findings():
 )
 def pick_daily_faro_findings():
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Query Loki for Faro browser RUM events; promote JS error clusters
     and Web Vitals (LCP/INP/CLS) breaches to AutoIssue.
@@ -145,7 +150,8 @@ def pick_daily_faro_findings():
 )
 def pick_daily_tempo_findings():
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Query Tempo TraceQL for slow spans and error spans; promote both
     to AutoIssue.
@@ -163,6 +169,30 @@ def pick_daily_tempo_findings():
     return pick_tempo_findings()
 
 
+@shared_task(name="auto_issues.pgexporter_findings_refresh")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=128,
+    expected_seconds_p50=10,
+)
+def pgexporter_findings_refresh():
+    """Scrape postgres-exporter metrics and file/resolve health AutoIssues.
+
+    Reuses the same picker the operator runs on demand. Source =
+    SOURCE_PROMETHEUS; gated at commit by check-always-on-quota.
+    Spec: docs/specs/fr-pgexporter-autoissues.md.
+    """
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    if not connection.in_atomic_block:
+        connection.close()
+
+    from apps.auto_issues.services.pgexporter_picker import pick_pgexporter_findings
+
+    return pick_pgexporter_findings()
+
+
 # ── Phase 6 of the test-hardening plan (2026-05-12) ──
 # Five new pickers covering the new failure-signal sources.
 
@@ -177,8 +207,10 @@ def pick_daily_tempo_findings():
 )
 def pick_mutation_survivors():
     """Read mutmut + Stryker + Mull JSON reports; upsert each surviving mutant."""
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
     from apps.auto_issues.services.mutation import pick_mutation_survivors as _run
+
     return _run()
 
 
@@ -192,8 +224,10 @@ def pick_mutation_survivors():
 )
 def pick_fuzz_crashes():
     """Scan backend/extensions/fuzz/ for libFuzzer reproducers; upsert each."""
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
     from apps.auto_issues.services.fuzz import pick_fuzz_crashes as _run
+
     return _run()
 
 
@@ -207,8 +241,10 @@ def pick_fuzz_crashes():
 )
 def pick_lint_errors():
     """Read Super-Linter SARIF; upsert each finding above min severity."""
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
     from apps.auto_issues.services.lint_error import pick_lint_errors as _run
+
     return _run()
 
 
@@ -222,8 +258,10 @@ def pick_lint_errors():
 )
 def pick_contract_drift():
     """Read Pact provider-verification JSON; upsert each failed interaction."""
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
     from apps.auto_issues.services.contract_drift import pick_contract_drift as _run
+
     return _run()
 
 
@@ -237,49 +275,178 @@ def pick_contract_drift():
 )
 def pick_ci_failed_runs():
     """Shell `gh run list --status failure --limit 10`; upsert each run."""
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
     from apps.auto_issues.services.ci_failed_runs import pick_ci_failed_runs as _run
+
     return _run()
+
+
+@shared_task(name="auto_issues.ingest_sonarqube_findings")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=192,
+    expected_seconds_p50=30,
+)
+def ingest_sonarqube_findings():
+    """Fetch SonarQube findings and import them into AutoIssues."""
+    if not connection.in_atomic_block:
+        connection.close()
+    token = os.environ.get("SONAR_TOKEN", "")
+    if not token:
+        return {"status": "skipped", "reason": "SONAR_TOKEN is not configured"}
+
+    base_url = os.environ.get("SONAR_HOST_URL", "http://sonarqube:9000")
+    project_key = os.environ.get("SONAR_PROJECT_KEY", "xf-internal-linker-v2")
+    from apps.auto_issues.services import sonarqube
+
+    try:
+        issues = sonarqube.fetch_sonar_issues(
+            base_url=base_url,
+            project_key=project_key,
+            token=token,
+        )
+    except sonarqube.SonarQubeUnavailable as exc:
+        return {"status": "unavailable", "reason": str(exc)}
+
+    result = sonarqube.ingest_sonarqube_issues(
+        project_key,
+        issues,
+        base_url=base_url,
+    )
+    return {
+        "status": "ok",
+        "created": result.created,
+        "updated": result.updated,
+        "merged": result.merged,
+        "total": result.total,
+    }
+
+
+@shared_task(name="findbugs.run_scan")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+    expected_seconds_p50=60,
+)
+def run_findbugs_scan_task():
+    """Run the deterministic FindBugs scan and import its report."""
+    if not connection.in_atomic_block:
+        connection.close()
+    from apps.auto_issues.services.findbugs import run_findbugs_scan
+
+    return run_findbugs_scan()
+
+
+@shared_task(name="findbugs.prune_artifacts")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="filesystem",
+    ram_peak_mb=128,
+    expected_seconds_p50=10,
+)
+def prune_findbugs_artifacts_task():
+    """Prune old FindBugs artifacts so local reports stay bounded."""
+    if not connection.in_atomic_block:
+        connection.close()
+    from apps.auto_issues.services.findbugs import prune_findbugs_artifacts
+
+    return prune_findbugs_artifacts()
+
+
+@shared_task(name="findbugs.refresh_knowledge")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="filesystem",
+    ram_peak_mb=128,
+    expected_seconds_p50=10,
+)
+def refresh_findbugs_knowledge_task():
+    """Refresh the compressed FindBugs lesson artifact."""
+    if not connection.in_atomic_block:
+        connection.close()
+    from apps.auto_issues.services.findbugs import refresh_findbugs_knowledge
+
+    return refresh_findbugs_knowledge()
+
+
+@shared_task(name="findbugs.run_model_advisory")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="filesystem",
+    ram_peak_mb=64,
+    expected_seconds_p50=1,
+)
+def removed_findbugs_model_advisory_task():
+    """Accept stale queued model-advisory tasks after the model was removed."""
+    if not connection.in_atomic_block:
+        connection.close()
+    from apps.auto_issues.services.findbugs import run_smollm2_batch_advisory
+
+    return run_smollm2_batch_advisory(max_items=0)
 
 
 @shared_task(name="auto_issues.run_retention_cleanup")
 @HelperConstraint(
-    cpu_intensive=False, gpu_required=False,
-    storage_writes_to="postgres_main", ram_peak_mb=128, expected_seconds_p50=120,
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=128,
+    expected_seconds_p50=120,
 )
 def run_retention_cleanup():
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """90-day data retention across Pyroscope + audit_errorlog + auto_issues."""
-    from apps.auto_issues.services.retention_cleanup import run_retention_cleanup as _run
+    from apps.auto_issues.services.retention_cleanup import (
+        run_retention_cleanup as _run,
+    )
 
     return _run()
 
 
 @shared_task(name="auto_issues.pick_disk_pressure")
 @HelperConstraint(
-    cpu_intensive=False, gpu_required=False,
-    storage_writes_to="postgres_main", ram_peak_mb=64, expected_seconds_p50=2,
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=64,
+    expected_seconds_p50=2,
 )
 def pick_disk_pressure():
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Hourly disk-fill probe → AutoIssue."""
-    from apps.auto_issues.services.disk_pressure_picker import pick_disk_pressure as _pick
+    from apps.auto_issues.services.disk_pressure_picker import (
+        pick_disk_pressure as _pick,
+    )
 
     return _pick()
 
 
 @shared_task(name="auto_issues.pick_slo_probes")
 @HelperConstraint(
-    cpu_intensive=False, gpu_required=False,
-    storage_writes_to="postgres_main", ram_peak_mb=64, expected_seconds_p50=10,
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=64,
+    expected_seconds_p50=10,
 )
 def pick_slo_probes():
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Synthetic SLO probes → AutoIssue (15-min cadence)."""
     from apps.auto_issues.services.slo_probe_picker import pick_slo_probes as _pick
@@ -289,12 +456,16 @@ def pick_slo_probes():
 
 @shared_task(name="auto_issues.pick_missed_runs")
 @HelperConstraint(
-    cpu_intensive=False, gpu_required=False,
-    storage_writes_to="postgres_main", ram_peak_mb=128, expected_seconds_p50=5,
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=128,
+    expected_seconds_p50=5,
 )
 def pick_missed_runs():
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Schedule-tracker missed-runs → AutoIssue (daily)."""
     from apps.auto_issues.services.missed_runs_picker import pick_missed_runs as _pick
@@ -304,30 +475,42 @@ def pick_missed_runs():
 
 @shared_task(name="auto_issues.pick_deploy_check_findings")
 @HelperConstraint(
-    cpu_intensive=False, gpu_required=False,
-    storage_writes_to="postgres_main", ram_peak_mb=128, expected_seconds_p50=15,
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=128,
+    expected_seconds_p50=15,
 )
 def pick_deploy_check_findings():
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Django check --deploy → AutoIssue (weekly)."""
-    from apps.auto_issues.services.deploy_check_picker import pick_deploy_check_findings as _pick
+    from apps.auto_issues.services.deploy_check_picker import (
+        pick_deploy_check_findings as _pick,
+    )
 
     return _pick()
 
 
 @shared_task(name="auto_issues.pick_output_quality")
 @HelperConstraint(
-    cpu_intensive=False, gpu_required=False,
-    storage_writes_to="postgres_main", ram_peak_mb=256, expected_seconds_p50=30,
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=256,
+    expected_seconds_p50=30,
 )
 def pick_output_quality():
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Output-quality probes → AutoIssue (daily)."""
-    from apps.auto_issues.services.output_quality_picker import pick_output_quality as _pick
+    from apps.auto_issues.services.output_quality_picker import (
+        pick_output_quality as _pick,
+    )
 
     return _pick()
 
@@ -342,7 +525,8 @@ def pick_output_quality():
 )
 def pick_weekly_pip_audit_findings():
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Weekly dependency CVE scan via pip-audit → AutoIssue.
 
@@ -366,7 +550,8 @@ def pick_weekly_pip_audit_findings():
 )
 def pick_daily_slow_queries():
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Top-K slow queries from `pg_stat_statements` → auto_issues.
 
@@ -391,7 +576,8 @@ def pick_daily_slow_queries():
 )
 def pick_daily_internal_issues():
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     """Promote top in-app `audit_errorlog` (source='internal') rows into auto_issues.
 
@@ -405,6 +591,51 @@ def pick_daily_internal_issues():
     from apps.auto_issues.services.internal_picker import pick_internal_issues
 
     return pick_internal_issues()
+
+
+@shared_task(name="auto_issues.refresh_registry_read")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="none",
+    ram_peak_mb=128,
+    expected_seconds_p50=10,
+)
+def refresh_registry_read():
+    """Run the startup registry read so fresh issue counts stay cached."""
+    if not connection.in_atomic_block:
+        connection.close()
+    from io import StringIO
+
+    from django.core.management import call_command
+
+    out = StringIO()
+    call_command("print_open_issues", stdout=out)
+    lines = [line for line in out.getvalue().splitlines() if line.strip()]
+    return {"status": "ok", "line_count": len(lines)}
+
+
+@shared_task(name="auto_issues.refresh_session_start_payload")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="filesystem",
+    ram_peak_mb=128,
+    expected_seconds_p50=10,
+)
+def refresh_session_start_payload():
+    """Refresh the cached startup payload before the chat path needs it."""
+    if not connection.in_atomic_block:
+        connection.close()
+    from apps.auto_issues.services.session_start_payload import (
+        build_payload,
+        default_payload_path,
+        write_payload,
+    )
+
+    payload = build_payload()
+    write_payload(default_payload_path(), payload)
+    return {"status": "ok", "markers": len(payload.markers)}
 
 
 @shared_task(name="auto_issues.close_stale_issues")

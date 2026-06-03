@@ -1,0 +1,29 @@
+version: 0.2
+
+batch:
+  fast-fail: false
+  build-list:
+    - identifier: pytest_1
+      buildspec: .codebuild/test-backend.yml
+    - identifier: pytest_2
+      buildspec: .codebuild/test-backend.yml
+    - identifier: pytest_3
+      buildspec: .codebuild/test-backend.yml
+    - identifier: pytest_4
+      buildspec: .codebuild/test-backend.yml
+    - identifier: pytest_5
+      buildspec: .codebuild/test-backend.yml
+    - identifier: pytest_6
+      buildspec: .codebuild/test-backend.yml
+    - identifier: pytest_7
+      buildspec: .codebuild/test-backend.yml
+    - identifier: pytest_8
+      buildspec: .codebuild/test-backend.yml
+    - identifier: lua_tests
+      buildspec: .codebuild/test-backend.yml
+
+phases:
+  build:
+    commands:
+      - . scripts/quality_cores.sh
+      - bash scripts/run-lua-quality.sh

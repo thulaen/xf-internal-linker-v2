@@ -42,24 +42,9 @@ psycopg[binary,pool]==3.2.4          # PostgreSQL driver v3 + native connection 
 pgvector==0.3.6                      # pgvector Python client
 
 # ── ML / AI Layer ────────────────────────────────────────────────
-# NOTE: numpy must be 1.x — sentence-transformers not compatible with 2.x
 numpy==1.26.4
-torch==2.8.0                         # PyTorch GPU build (CUDA 12.8 wheel pulled by pip on Linux x86_64; falls back to CPU at runtime if no GPU)
-# Group C.1 — cuPy gives Python access to cuSPARSE/cuBLAS for the
-# CUDA random-walk path (PageRank / Personalized PageRank / HITS).
-# Wheel ships precompiled with the CUDA 12.x runtime libs so no
-# nvcc / CUDA toolkit install is needed. NVRTC is bundled in case
-# we later JIT a custom kernel. Falls back gracefully on CPU-only
-# hosts via ``apps.pipeline.services.pagerank_cuda.cuda_random_walk_available``.
-cupy-cuda12x==13.3.0
-sentence-transformers==5.4.0         # Semantic embeddings
 spacy==3.8.3                         # NLP / sentence splitting
 scikit-learn==1.5.2                  # PageRank, scoring utilities
-transformers==5.0.0                  # HuggingFace (sentence-transformers dep)
-peft==0.13.2                         # FR-242 LoRA adapter on top of frozen BGE-M3
-                                     # Hu et al. 2021 LoRA arXiv:2106.09685; loaded
-                                     # by apps.pipeline.services.domain_adapter.
-                                     # Vanilla pass-through if the file isn't on disk.
 nltk==3.9.4                          # FR-243 WordNet sense-count lookup. WordNet
                                      # corpus downloaded at image-build time —
                                      # see backend/Dockerfile RUN nltk.download.
@@ -103,7 +88,7 @@ scipy==1.13.1                        # L-BFGS optimizer.
                                      # Pinned to <1.14 because gensim 4.3.3 (LDA #18,
                                      # Node2Vec #37) requires scipy<1.14 in its
                                      # install_requires. statsmodels, scikit-learn,
-                                     # sentence-transformers, shap all support 1.13.x.
+                                     # shap all support 1.13.x.
 beautifulsoup4==4.12.3               # HTML parser for crawler
 lxml==6.1.0                          # High-performance HTML parser back-end — 6.1.0 patches CVE-2026-41066
 
@@ -113,6 +98,7 @@ paramiko==4.0.0                      # SSH sync
 django-redis==5.4.0                  # Django cache backend for Redis
 whitenoise==6.8.2                    # Static file serving in production
 requests==2.33.0                     # HTTP client (XenForo/WP API calls)
+lz4==4.4.5                           # LZ4 frame compression for CodeQL SARIF evidence payloads
  
 # ── Performance Layer ─────────────────────────────────────────────
 pyarrow==17.0.0
@@ -129,11 +115,10 @@ polars==1.18.0                       # Fast Rust-based DataFrame library — rep
                                      # imported anywhere in backend/.
 pyroaring==1.0.4
 pybind11==2.13.6
-faiss-gpu-cu12>=1.8.0               # FR-030: GPU vector search (Linux/CUDA 12 only)
+faiss-cpu>=1.8.0                    # CPU vector search
 
 # ── System Monitoring (noob-friendly live metrics) ────────────────
 psutil==6.1.1                        # CPU / RAM sampling for /api/system/metrics/
-pynvml==11.5.3                       # NVIDIA GPU sampling (VRAM, temp, utilization)
 
 # ── Explainability ────────────────────────────────────────────────
 # Kernel SHAP ("Why did the ranker give this suggestion score X?")
@@ -165,7 +150,7 @@ webauthn==2.5.2
 # ── Embedding Providers (plan Parts 1, 4) ─────────────────────────
 # Optional remote-provider SDKs. Imported lazily inside
 # apps/pipeline/services/embedding_providers/ so a missing package
-# only breaks that provider — the local BGE-M3 path keeps working.
+# only breaks that provider.
 openai==1.55.3                       # OpenAI text-embedding-3-small / -large
 tiktoken==0.8.0                      # Offline token counting for OpenAI cost pre-check
 google-genai==1.73.1                 # Gemini text-embedding-004 / gemini-embedding-exp-03-07 (1.73.1 drops the pillow<12 cap)

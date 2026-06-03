@@ -69,6 +69,22 @@ class Command(BaseCommand):
         )
 
 
+def _classify_affected(affected: list) -> tuple[list[str], list[str]]:
+    """Split affected file paths into (test_paths, source_paths)."""
+    tests: list[str] = []
+    related: list[str] = []
+    for f in affected:
+        f_str = str(f).strip()
+        if not f_str:
+            continue
+        lower = f_str.lower()
+        if "test" in lower or "_spec" in lower or "spec.ts" in lower:
+            tests.append(f_str)
+        else:
+            related.append(f_str)
+    return tests, related
+
+
 def _explode_rows(rows: Iterable[AutoIssue]) -> Iterable[dict[str, Any]]:
     """Yield one entry per (row, affected_file) pair."""
     for row in rows:
@@ -81,17 +97,7 @@ def _explode_rows(rows: Iterable[AutoIssue]) -> Iterable[dict[str, Any]]:
         fix = _first_group(_FIX_RE, body)
         refactor = _first_group(_REFACTOR_RE, body)
         coverage = _first_group(_COVERAGE_RE, body)
-        tests = []
-        related = []
-        for f in affected:
-            f_str = str(f).strip()
-            if not f_str:
-                continue
-            lower = f_str.lower()
-            if "test" in lower or "_spec" in lower or "spec.ts" in lower:
-                tests.append(f_str)
-            else:
-                related.append(f_str)
+        tests, related = _classify_affected(affected)
         for file_path in affected:
             file_path = str(file_path).strip()
             if not file_path:

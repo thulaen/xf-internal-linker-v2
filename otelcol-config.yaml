@@ -98,10 +98,10 @@ exporters:
     tls:
       insecure: true
 
-  # Profiles -> Pyroscope via OTLP gRPC. Pyroscope listens on 4040 inside
-  # the Docker network.
+  # Profiles -> Pyroscope via OTLP gRPC. Pyroscope now runs on the Mint
+  # helper (mint-quality profile), reachable over the LAN at 10.10.10.91:4040.
   otlp/pyroscope:
-    endpoint: pyroscope:4040
+    endpoint: 10.10.10.91:4040
     tls:
       insecure: true
 

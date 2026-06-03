@@ -1,0 +1,231 @@
+<section class="findbugs-page">
+  <header class="page-header">
+    <div>
+      <h1>FindBugs</h1>
+      <p>Deterministic bug patterns, health checks, and deduped AutoIssue rows.</p>
+    </div>
+    <div class="actions">
+      <button mat-stroked-button type="button" (click)="runNow()" [disabled]="busy">
+        <mat-icon>play_arrow</mat-icon>
+        Run now
+      </button>
+      <button mat-stroked-button type="button" (click)="importLatest()" [disabled]="busy">
+        <mat-icon>publish</mat-icon>
+        Import latest
+      </button>
+      <button mat-stroked-button type="button" (click)="pruneArtifacts()" [disabled]="busy">
+        <mat-icon>cleaning_services</mat-icon>
+        Prune artifacts
+      </button>
+      <button mat-stroked-button type="button" (click)="syncContext()" [disabled]="busy">
+        <mat-icon>sync</mat-icon>
+        Sync context
+      </button>
+      <button mat-stroked-button type="button" (click)="generateReport()" [disabled]="busy">
+        <mat-icon>summarize</mat-icon>
+        Generate report
+      </button>
+    </div>
+  </header>
+
+  <mat-card class="summary-card" *ngIf="summary as data">
+    <div class="summary-content">
+      <div>
+        <div class="summary-grid">
+          <div class="summary-metric">
+            <span class="metric-label">Open</span>
+            <strong>{{ data.counts.open }}</strong>
+          </div>
+          <div class="summary-metric">
+            <span class="metric-label">Closed</span>
+            <strong>{{ data.counts.closed }}</strong>
+          </div>
+          <div class="summary-metric">
+            <span class="metric-label">Level A</span>
+            <strong>{{ levelAStatement() }}%</strong>
+          </div>
+          <div class="summary-metric">
+            <span class="metric-label">Artifacts</span>
+            <strong>{{ artifactPercent() }}%</strong>
+          </div>
+        </div>
+        <div class="summary-metric model-metric">
+          <span class="metric-label">Model</span>
+          <strong>{{ modelLabel() }}</strong>
+          <span class="model-name">{{ modelName() }}</span>
+          <small>{{ modelDetail() }}</small>
+        </div>
+        <div class="batch-progress">
+          <span class="metric-label">Model batch</span>
+          <strong>{{ batchProgressLabel() }}</strong>
+          <mat-progress-bar mode="determinate" [value]="batchProgressValue()"></mat-progress-bar>
+        </div>
+        <mat-progress-bar mode="determinate" [value]="artifactPercent()"></mat-progress-bar>
+      </div>
+      <div class="chart-panel">
+        <span class="metric-label">Severity spread</span>
+        <svg #chart class="findbugs-chart" role="img" aria-label="FindBugs severity chart"></svg>
+      </div>
+    </div>
+  </mat-card>
+
+  <p class="error" *ngIf="error">{{ error }}</p>
+
+  <mat-card class="findings-card">
+    <div class="findings-toolbar">
+      <mat-form-field appearance="outline">
+        <mat-label>Search bugs</mat-label>
+        <input matInput [(ngModel)]="search" (ngModelChange)="loadFindings()" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Status</mat-label>
+        <mat-select [(ngModel)]="status" (selectionChange)="loadFindings()">
+          <mat-option *ngFor="let item of statuses" [value]="item">{{ item || 'all' }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Severity</mat-label>
+        <mat-select [(ngModel)]="severity" (selectionChange)="loadFindings()">
+          <mat-option *ngFor="let item of severities" [value]="item">{{ item || 'all' }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+    </div>
+    <div class="table-shell">
+      <table mat-table [dataSource]="findings" multiTemplateDataRows>
+      <ng-container matColumnDef="expand">
+        <th mat-header-cell *matHeaderCellDef></th>
+        <td mat-cell *matCellDef="let finding">
+          <button
+            mat-icon-button
+            type="button"
+            (click)="toggleExpanded(finding)"
+            [attr.aria-label]="isExpanded(finding) ? 'Collapse bug details' : 'Expand bug details'"
+            matTooltip="Problem details"
+          >
+            <mat-icon>{{ isExpanded(finding) ? 'expand_less' : 'expand_more' }}</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="pattern">
+        <th mat-header-cell *matHeaderCellDef>Pattern</th>
+        <td mat-cell *matCellDef="let finding">
+          <span>{{ pattern(finding) }}</span>
+          <span class="group-count" *ngIf="groupedCount(finding) > 1">
+            {{ groupedCount(finding) }} grouped
+          </span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="severity">
+        <th mat-header-cell *matHeaderCellDef>Severity</th>
+        <td mat-cell *matCellDef="let finding">
+          <mat-chip>{{ finding.severity }}</mat-chip>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="status">
+        <th mat-header-cell *matHeaderCellDef>Status</th>
+        <td mat-cell *matCellDef="let finding">{{ finding.status }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="file">
+        <th mat-header-cell *matHeaderCellDef>File</th>
+        <td mat-cell *matCellDef="let finding">{{ fileLine(finding) }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="confirmedBy">
+        <th mat-header-cell *matHeaderCellDef>Confirmed</th>
+        <td mat-cell *matCellDef="let finding">{{ finding.confirmed_by || 'rust' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef></th>
+        <td mat-cell *matCellDef="let finding">
+          <div class="row-actions">
+            <button mat-icon-button type="button" (click)="openInErrorLog(finding)" aria-label="Open in Error Log" matTooltip="Open in Error Log">
+            <mat-icon>open_in_new</mat-icon>
+          </button>
+            <button mat-icon-button type="button" [matMenuTriggerFor]="issueActions" aria-label="Issue actions" matTooltip="Issue actions">
+              <mat-icon>more_vert</mat-icon>
+            </button>
+          </div>
+          <mat-menu #issueActions="matMenu">
+            <button mat-menu-item type="button" (click)="evaluateWithAgents(finding)" aria-label="Evaluate with agents">
+              <mat-icon>groups</mat-icon>
+              <span>Evaluate with agents</span>
+            </button>
+            <button mat-menu-item type="button" (click)="reEvaluateIssue(finding)" aria-label="Re-evaluate issue">
+              <mat-icon>refresh</mat-icon>
+              <span>Re-evaluate issue</span>
+            </button>
+            <button mat-menu-item type="button" (click)="confirmRealBug(finding)" aria-label="Confirm real bug">
+              <mat-icon>task_alt</mat-icon>
+              <span>Confirm real bug</span>
+            </button>
+            <button mat-menu-item type="button" (click)="markFalsePositive(finding)" aria-label="Mark false positive">
+              <mat-icon>label_off</mat-icon>
+              <span>Mark false positive</span>
+            </button>
+            <button mat-menu-item type="button" (click)="markFalseNegative(finding)" aria-label="Mark false negative">
+              <mat-icon>new_releases</mat-icon>
+              <span>Mark false negative</span>
+            </button>
+            <button mat-menu-item type="button" (click)="createFixTask(finding)" aria-label="Create fix task">
+              <mat-icon>assignment_add</mat-icon>
+              <span>Create fix task</span>
+            </button>
+            <button mat-menu-item type="button" (click)="assignToAgent(finding)" aria-label="Assign to agent">
+              <mat-icon>support_agent</mat-icon>
+              <span>Assign to agent</span>
+            </button>
+            <button mat-menu-item type="button" (click)="runDuplicateCheck(finding)" aria-label="Run duplicate check">
+              <mat-icon>content_copy</mat-icon>
+              <span>Run duplicate check</span>
+            </button>
+            <button mat-menu-item type="button" (click)="runRegressionCheck(finding)" aria-label="Run regression check">
+              <mat-icon>history</mat-icon>
+              <span>Run regression check</span>
+            </button>
+            <button mat-menu-item type="button" (click)="approveLesson(finding)" aria-label="Approve lesson">
+              <mat-icon>verified</mat-icon>
+              <span>Approve lesson</span>
+            </button>
+          </mat-menu>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="expandedDetail">
+        <td mat-cell *matCellDef="let finding" [attr.colspan]="displayedColumns.length">
+          <section class="bug-detail" *ngIf="isExpanded(finding)">
+            <header>
+              <div>
+                <span class="metric-label">Problem details</span>
+                <strong>{{ pattern(finding) }}</strong>
+              </div>
+              <button
+                mat-stroked-button
+                type="button"
+                (click)="copyForAgents(finding)"
+                matTooltip="Copy this bug summary for another agent"
+              >
+                <mat-icon>content_copy</mat-icon>
+                Copy for agents
+              </button>
+            </header>
+            <pre>{{ agentProblemText(finding) }}</pre>
+            <div class="model-notes">
+              <span class="metric-label">Model notes</span>
+              <p>{{ modelNotesText(finding) }}</p>
+            </div>
+          </section>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row class="finding-row" *matRowDef="let row; columns: displayedColumns"></tr>
+      <tr mat-row class="detail-row" *matRowDef="let row; columns: ['expandedDetail']"></tr>
+      </table>
+    </div>
+  </mat-card>
+</section>

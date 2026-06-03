@@ -72,3 +72,68 @@ class MutationSeverityTests(SimpleTestCase):
         # `equalityoperator` is not in the map, so it falls to medium.
         self.assertEqual(severity_for("stryker", "equalityoperator"),
                          AutoIssue.SEVERITY_MEDIUM)
+
+    def test_go_mutesting_low_impact_mutator_gets_low(self):
+        self.assertEqual(
+            severity_for("go-mutesting", "expression/swap"),
+            AutoIssue.SEVERITY_LOW,
+        )
+
+    def test_gomutesting_alias_recognized(self):
+        self.assertEqual(
+            severity_for("gomutesting", "branch/if"),
+            AutoIssue.SEVERITY_HIGH,
+        )
+
+    def test_cargo_mutants_high_impact_patterns_get_high(self):
+        for mutator in (
+            "replace function body with Default::default()",
+            "replace == with !=",
+            "replace + with -",
+        ):
+            self.assertEqual(
+                severity_for("cargo-mutants", mutator),
+                AutoIssue.SEVERITY_HIGH,
+                msg=f"cargo-mutants {mutator} should be high",
+            )
+
+    def test_cargo_mutants_low_impact_patterns_get_low(self):
+        for mutator in ("replace += with -=", "replace -= with +="):
+            self.assertEqual(
+                severity_for("cargo-mutants", mutator),
+                AutoIssue.SEVERITY_LOW,
+                msg=f"cargo-mutants {mutator} should be low",
+            )
+
+    def test_cargo_mutants_unknown_pattern_defaults_to_medium(self):
+        self.assertEqual(
+            severity_for("cargo-mutants", "replace mystery thing"),
+            AutoIssue.SEVERITY_MEDIUM,
+        )
+
+    def test_mucheck_high_impact_mutators_get_high(self):
+        for mutator in ("ReplaceOp", "NegOp", "IfElseSwap"):
+            self.assertEqual(
+                severity_for("mucheck", mutator),
+                AutoIssue.SEVERITY_HIGH,
+                msg=f"mucheck {mutator} should be high",
+            )
+
+    def test_mucheck_low_impact_mutators_get_low(self):
+        for mutator in ("LiteralSub", "PatternSub"):
+            self.assertEqual(
+                severity_for("mucheck", mutator),
+                AutoIssue.SEVERITY_LOW,
+                msg=f"mucheck {mutator} should be low",
+            )
+
+    def test_mucheck_unknown_mutator_defaults_to_medium(self):
+        self.assertEqual(
+            severity_for("mucheck", "UnknownMutation"),
+            AutoIssue.SEVERITY_MEDIUM,
+        )
+
+    def test_severity_for_returns_string_not_none(self):
+        result = severity_for("totally-unknown-tool", "totally-unknown-mutator")
+        self.assertIsInstance(result, str)
+        self.assertEqual(result, AutoIssue.SEVERITY_MEDIUM)

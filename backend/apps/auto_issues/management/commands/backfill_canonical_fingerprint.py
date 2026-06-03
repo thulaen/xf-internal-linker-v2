@@ -16,6 +16,16 @@ from apps.auto_issues.models import AutoIssue
 from apps.auto_issues.services.fingerprinting import canonical_fingerprint
 
 
+def _build_source_observation(row: AutoIssue) -> dict:
+    return {
+        "source": row.source,
+        "external_id": row.external_id,
+        "first_seen": row.first_seen.isoformat() if row.first_seen else "",
+        "last_seen": row.last_seen.isoformat() if row.last_seen else "",
+        "occurrence_count": row.occurrence_count,
+    }
+
+
 class Command(BaseCommand):
     help = "Backfill canonical_fingerprint + source_observations on rows that pre-date migration 0003."
 
@@ -37,13 +47,7 @@ class Command(BaseCommand):
         for row in rows_to_fix:
             culprit = (row.affected_files or [""])[0] if row.affected_files else ""
             canonical = canonical_fingerprint(row.title or "", culprit)
-            obs = {
-                "source": row.source,
-                "external_id": row.external_id,
-                "first_seen": row.first_seen.isoformat() if row.first_seen else "",
-                "last_seen": row.last_seen.isoformat() if row.last_seen else "",
-                "occurrence_count": row.occurrence_count,
-            }
+            obs = _build_source_observation(row)
             self.stdout.write(
                 f"  #{row.id} [{row.source}] → canonical={canonical}"
             )

@@ -1,0 +1,44 @@
+<section class="observability-page">
+  <header class="page-header">
+    <div>
+      <h1 [peHelper]="'VictoriaMetrics'">Observability Stack</h1>
+      <p>
+        Stack health for metrics, charts, alerts, logs, traces, profiles,
+        browser signals, and code scans.
+      </p>
+    </div>
+  </header>
+
+  @if (error(); as msg) {
+    <mat-card class="notice-card">
+      <mat-icon>warning</mat-icon>
+      <span>{{ msg }}</span>
+    </mat-card>
+  }
+
+  @if (services().length === 0 && !error()) {
+    <div class="loading-row">
+      <mat-spinner diameter="24"></mat-spinner>
+      <span>Loading stack health...</span>
+    </div>
+  }
+
+  <div class="service-grid">
+    @for (service of services(); track service.service_name) {
+      <mat-card class="stack-card" [id]="cardId(service)">
+        <app-service-card [service]="service"></app-service-card>
+        @if (service.service_name === 'VictoriaMetrics') {
+          <mat-progress-bar
+            mode="determinate"
+            [attr.data-storage-used-percent]="storageUsedPercent(service)"
+            [value]="storageUsedPercent(service)"
+          ></mat-progress-bar>
+        }
+        <button mat-stroked-button type="button" (click)="openDashboard(service)">
+          <mat-icon>open_in_new</mat-icon>
+          Open dashboard
+        </button>
+      </mat-card>
+    }
+  </div>
+</section>

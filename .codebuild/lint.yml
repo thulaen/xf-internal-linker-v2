@@ -1,0 +1,12 @@
+version: 0.2
+
+phases:
+  build:
+    commands:
+      - . scripts/quality_cores.sh
+      - workers="$(quality_cores lua-lint)"
+      - find apps/ frontend/nginx-lua/ .githooks/lua/ services/ -name '*.lua' -print0 | xargs -0 -r -P "$workers" luacheck --config .luacheckrc
+      - find apps/ frontend/nginx-lua/ .githooks/lua/ services/ -name '*.lua' -print0 | xargs -0 -r -P "$workers" -n 1 luajit -bl >/dev/null
+      - python .githooks/check-lua-sandbox.py --all
+      - python .githooks/check-luajit-dialect.py --all
+      - bash scripts/run-lua-quality.sh

@@ -1,0 +1,4 @@
+Files changed: AGENTS.md, CLAUDE.md, CODEX.md, GEMINI.md, tests/test_agent_chat_format.py
+Not committed yet (waiting for commit signal)
+Findings preview (would file on commit): 0 across none
+Status: ready for review or commit

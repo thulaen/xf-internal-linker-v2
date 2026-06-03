@@ -155,8 +155,13 @@ def _child_list(parent: Mapping[str, object], key: str) -> list[object]:
 
 
 def _pyroscope_exporter_ready(exporter: dict[str, object]) -> bool:
+    # Pyroscope moved to the Mint helper (mint-quality profile); the OTel
+    # collector exports profiles to it over the LAN. Accept either the new
+    # Mint endpoint or the legacy in-network name for backward compatibility.
     tls = exporter.get("tls") or {}
-    return exporter.get("endpoint") == "pyroscope:4040" and tls.get("insecure") is True
+    endpoint = exporter.get("endpoint")
+    valid_endpoint = endpoint in ("10.10.10.91:4040", "pyroscope:4040")
+    return valid_endpoint and tls.get("insecure") is True
 
 
 def _collector_ready(service: dict[str, object]) -> bool:

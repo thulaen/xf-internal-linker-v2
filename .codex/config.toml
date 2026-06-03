@@ -1,0 +1,5 @@
+[hooks]
+
+[[hooks.pre_tool_use]]
+command = "python scripts/run-lua-pretooluse-advisor.py --agent codex"
+description = "Run advisory Lua workflow reminders before Codex tool use."

@@ -1,0 +1,7 @@
+{
+  "bytes": 4193481,
+  "captured_at": "2026-05-17",
+  "captured_in_slice": "1.6",
+  "captured_via": "docker compose run --rm frontend-mutation-tools sh -lc 'du -sb /app/dist/xf-internal-linker-frontend/browser/*.js | awk ...'",
+  "note": "First baseline. Includes slice 1.6 additions: 10 glossary terms, 2 deep-link entries, peHelper directive, 2 placeholder Errors-page tabs. Tolerance: ±10% per .githooks/check-bundle-size.py."
+}

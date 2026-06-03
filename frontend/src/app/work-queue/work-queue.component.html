@@ -1,0 +1,136 @@
+<section class="work-queue-page">
+  <header class="page-header">
+    <div>
+      <h1>Agent Work Queue</h1>
+      <p>
+        The repair control center for AutoIssues, Paper Trail, self-healing,
+        agent claims, and MCP repair tasks.
+      </p>
+    </div>
+    <a mat-stroked-button routerLink="/observability">
+      <mat-icon>insights</mat-icon>
+      Observability
+    </a>
+  </header>
+
+  @if (error(); as msg) {
+    <mat-card class="notice-card">
+      <mat-icon>warning</mat-icon>
+      <span>{{ msg }}</span>
+    </mat-card>
+  }
+
+  @if (!overview()) {
+    <div class="loading-row">
+      <mat-spinner diameter="24"></mat-spinner>
+      <span>Loading work queue...</span>
+    </div>
+  } @else {
+    @let data = overview()!;
+    <div class="section-grid">
+      <mat-card id="work-queue-now">
+        <mat-card-header>
+          <mat-card-title [peHelper]="'AutoIssue'">Now</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          @for (item of data.now; track item.key) {
+            <article class="queue-row">
+              <div>
+                <strong>{{ item.title }}</strong>
+                <p>{{ item.next_action }}</p>
+              </div>
+              <mat-chip>{{ item.source }}</mat-chip>
+            </article>
+          } @empty {
+            <p class="empty-state">No open work items right now.</p>
+          }
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card id="work-queue-blocked">
+        <mat-card-header>
+          <mat-card-title>Blocked</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          @for (item of data.blocked; track item.key) {
+            <article class="queue-row">
+              <div>
+                <strong>{{ item.title }}</strong>
+                <p>{{ item.business_impact }}</p>
+              </div>
+              <mat-chip color="warn">{{ item.status }}</mat-chip>
+            </article>
+          } @empty {
+            <p class="empty-state">No blocker is waiting on you.</p>
+          }
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card id="work-queue-self-healing">
+        <mat-card-header>
+          <mat-card-title [peHelper]="'Self-healing'">Self-Healing</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <dl class="status-grid">
+            <div><dt>Status</dt><dd>{{ data.self_healing['status'] }}</dd></div>
+            <div><dt>Backend</dt><dd>{{ data.self_healing['backend_health'] }}</dd></div>
+            <div><dt>Frontend</dt><dd>{{ data.self_healing['frontend_health'] }}</dd></div>
+          </dl>
+          <p>{{ data.self_healing['reason'] }}</p>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card id="work-queue-live-signals">
+        <mat-card-header>
+          <mat-card-title>Live Signals</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <dl class="status-grid">
+            <div><dt>Stale evidence</dt><dd>{{ data.live_signals.stale_evidence_count }}</dd></div>
+            <div><dt>Contradictions</dt><dd>{{ data.live_signals.contradiction_count }}</dd></div>
+            <div><dt>Refresh topics</dt><dd>{{ data.real_time_topics.length }}</dd></div>
+          </dl>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card id="work-queue-agent-claims">
+        <mat-card-header>
+          <mat-card-title [peHelper]="'MCP'">Agent Claims</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          @for (claim of data.agent_claims; track claim.id) {
+            <article class="queue-row">
+              <div>
+                <strong>{{ claim.agent }}</strong>
+                <p>{{ claim.item_key }} {{ claim.conflict_reason }}</p>
+              </div>
+              <mat-chip>{{ claim.status }}</mat-chip>
+            </article>
+          } @empty {
+            <p class="empty-state">No agent has claimed a repair task.</p>
+          }
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card id="work-queue-cause-graph">
+        <mat-card-header>
+          <mat-card-title>Cause Graph</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          @for (group of data.cause_groups; track group.fingerprint) {
+            <article class="queue-row">
+              <div>
+                <strong>{{ group.title }}</strong>
+                <p>{{ group.next_action }}</p>
+              </div>
+              <mat-chip>{{ group.source_count }} sources</mat-chip>
+            </article>
+          } @empty {
+            <p class="empty-state">No shared root cause groups yet.</p>
+          }
+        </mat-card-content>
+      </mat-card>
+    </div>
+  }
+</section>
+

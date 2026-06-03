@@ -7,7 +7,7 @@ FROM golang:1.25-bookworm AS go-tools
 
 RUN go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest
 
-FROM python:3.12-slim
+FROM python:3.12-slim AS runtime
 
 # Prevent Python from writing .pyc files and buffering stdout/stderr
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -58,15 +58,6 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
-# Mutation tools that should be present after a fresh backend Docker build.
-# Keep these scoped: mutmut runs focused Python files, and go-mutesting
-# must target explicit Go packages. Mull lives in the dedicated
-# mutation-tools image because its package repo targets Ubuntu, not this
-# Debian-based Python image.
-COPY --from=go-tools /usr/local/go /usr/local/go
-COPY --from=go-tools /go/bin/go-mutesting /usr/local/bin/go-mutesting
-ENV PATH="/usr/local/go/bin:${PATH}"
-
 # Why ``postgresql-client``:
 #   * Group L #91 (masterplan) — daily ``pg_dump`` snapshot to a local
 #     ``backups/`` directory. The Celery task at
@@ -109,23 +100,6 @@ RUN pip install --upgrade pip && \
     python -c "import drf_spectacular" && \
     pip cache purge
 
-RUN pip install --no-cache-dir \
-      mutmut==3.5.0 \
-      ruff==0.8.6 \
-      bandit==1.8.3 \
-      pip-audit==2.7.3 \
-      safety==3.6.2 \
-      pylint==3.3.8 \
-      coverage==7.6.10 \
-      pytest==9.0.3 \
-      pytest-cov==6.0.0 \
-      pytest-django==4.9.0 \
-      pytest-asyncio==1.3.0 \
-      pytest-randomly==3.15.0 \
-      pytest-benchmark==5.1.0 \
-      hypothesis==6.115.5 && \
-    pip cache purge
-
 # Download spaCy language model. ``spacy download`` shells out to pip
 # under the hood; ``--no-cache-dir`` here tells that inner call not
 # to populate ~/.cache/pip when fetching the model wheel.
@@ -166,3 +140,42 @@ RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app /opt/xf/compiled
 USER appuser
 
 EXPOSE 8000
+
+FROM runtime AS quality
+
+USER root
+
+# Mutation and static-quality tools stay out of the runtime image.
+COPY --from=go-tools /usr/local/go /usr/local/go
+COPY --from=go-tools /go/bin/go-mutesting /usr/local/bin/go-mutesting
+ENV PATH="/usr/local/go/bin:${PATH}"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    lua5.4 \
+    luarocks \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN luarocks install busted && \
+    luarocks install luacheck
+
+RUN pip install --no-cache-dir \
+      mutmut==2.5.1 \
+      ruff==0.8.6 \
+      bandit==1.8.3 \
+      pip-audit==2.7.3 \
+      safety==3.6.2 \
+      pylint==3.3.8 \
+      mypy==1.13.0 \
+      django-stubs==5.1.1 \
+      djangorestframework-stubs==3.15.1 \
+      coverage==7.6.10 \
+      pytest==9.0.3 \
+      pytest-cov==6.0.0 \
+      pytest-django==4.9.0 \
+      pytest-asyncio==1.3.0 \
+      pytest-randomly==3.15.0 \
+      pytest-benchmark==5.1.0 \
+      hypothesis==6.115.5 && \
+    pip cache purge
+
+USER appuser

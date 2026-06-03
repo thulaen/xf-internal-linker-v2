@@ -567,3 +567,7 @@ If a term you need is not in this table, define it yourself in parentheses the f
 | the temporary-files folder used for scratch data | TEMP |
 | the name identifying a user account | USERNAME |
 | the Microsoft desktop operating system this project runs on | WINDOWS |
+| the folder (directory) a file lives in | DIR |
+| a way for one computer to use another computer's files over a network | NFS |
+| the different situations a test checks | SCENARIOS |
+| a test result meaning the check succeeded | PASSED |

@@ -7,7 +7,7 @@ this module as a hot-path optimisation later; until then this is the
 production code path.
 
 Every function is pure, side-effect free, and tested in
-``backend/apps/auto_issues/tests_scoring.py``.
+``backend/apps/auto_issues/tests/test_scoring.py``.
 """
 
 from __future__ import annotations
@@ -19,6 +19,10 @@ from datetime import datetime, timedelta, timezone
 from apps.auto_issues.models import AutoIssue
 
 
+# Floating-point tolerance for weight totals. The spec requires a total of 1.0.
+_WEIGHT_SUM_TOLERANCE = 1e-6
+
+
 @dataclass(frozen=True)
 class ScoringWeights:
     """Weights summing to 1.0 — see SPEC § Recommended starting weights."""
@@ -28,6 +32,11 @@ class ScoringWeights:
     recurrence: float = 0.20
     blast: float = 0.15
     cost_inv: float = 0.10
+
+    def __post_init__(self) -> None:
+        total = self.severity + self.recency + self.recurrence + self.blast + self.cost_inv
+        if abs(total - 1.0) > _WEIGHT_SUM_TOLERANCE:
+            raise ValueError(f"ScoringWeights must sum to 1.0; got {total:.9f}")
 
 
 # Severity prior table (SPEC factor 1 — ITIL / CMU SEI 2003-TR-002).
@@ -49,10 +58,37 @@ _SEV_TABLE_AGENT = {
     AutoIssue.SEVERITY_MEDIUM: 0.40,
     AutoIssue.SEVERITY_LOW: 0.10,
 }
+# Conservative default used by all sources not calibrated with real incident data
+# (ITIL / CMU SEI 2003-TR-002 — same source as factor 1 in the spec).
+_SEV_TABLE_DEFAULT = {
+    AutoIssue.SEVERITY_CRITICAL: 0.90,
+    AutoIssue.SEVERITY_HIGH: 0.75,
+    AutoIssue.SEVERITY_MEDIUM: 0.50,
+    AutoIssue.SEVERITY_LOW: 0.15,
+}
 _SEV_TABLES = {
     AutoIssue.SOURCE_GLITCHTIP: _SEV_TABLE_GLITCHTIP,
     AutoIssue.SOURCE_PYROSCOPE: _SEV_TABLE_PYROSCOPE,
     AutoIssue.SOURCE_AGENT: _SEV_TABLE_AGENT,
+    # 18 sources that previously fell through to {}.get(severity, 0.0)
+    AutoIssue.SOURCE_SONARQUBE: _SEV_TABLE_DEFAULT,
+    AutoIssue.SOURCE_TEMPO: _SEV_TABLE_DEFAULT,
+    AutoIssue.SOURCE_LOKI: _SEV_TABLE_DEFAULT,
+    AutoIssue.SOURCE_FARO: _SEV_TABLE_DEFAULT,
+    AutoIssue.SOURCE_VMALERT: _SEV_TABLE_DEFAULT,
+    AutoIssue.SOURCE_RUST_DEFECT: _SEV_TABLE_DEFAULT,
+    AutoIssue.SOURCE_PPROF: _SEV_TABLE_DEFAULT,
+    AutoIssue.SOURCE_ALLOY: _SEV_TABLE_DEFAULT,
+    AutoIssue.SOURCE_PERFETTO: _SEV_TABLE_DEFAULT,
+    AutoIssue.SOURCE_GWP_ASAN: _SEV_TABLE_DEFAULT,
+    AutoIssue.SOURCE_PROMETHEUS: _SEV_TABLE_DEFAULT,
+    AutoIssue.SOURCE_PG_STAT: _SEV_TABLE_DEFAULT,
+    AutoIssue.SOURCE_LIGHTHOUSE: _SEV_TABLE_DEFAULT,
+    AutoIssue.SOURCE_TEST_FAILURE: _SEV_TABLE_DEFAULT,
+    AutoIssue.SOURCE_MUTATION: _SEV_TABLE_DEFAULT,
+    AutoIssue.SOURCE_FUZZ: _SEV_TABLE_DEFAULT,
+    AutoIssue.SOURCE_CONTRACT: _SEV_TABLE_DEFAULT,
+    AutoIssue.SOURCE_GH_CI: _SEV_TABLE_DEFAULT,
 }
 
 # Recency exponential decay (SPEC factor 2 — Newell & Rosenbloom 1981).
@@ -166,7 +202,7 @@ def score_candidate(
     )
     if reg == 1.0:
         return min(1.0, base * _REGRESSION_MULTIPLIER)
-    return base
+    return min(1.0, base)
 
 
 def top_k(candidates: list[Candidate], k: int = 10) -> list[Candidate]:
@@ -178,7 +214,7 @@ def top_k(candidates: list[Candidate], k: int = 10) -> list[Candidate]:
     runtime cost is dominated by the score function, not the sort.
     """
     if k <= 0:
-        return []
+        raise ValueError("k must be greater than 0")
     scored = [(score_candidate(c), c) for c in candidates]
     scored.sort(key=lambda pair: pair[0], reverse=True)
     return [c for _, c in scored[:k]]

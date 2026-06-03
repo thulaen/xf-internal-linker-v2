@@ -26,7 +26,9 @@ Status flow: ``open`` → ``picked`` (an agent committed to fix) →
 from __future__ import annotations
 
 from django.contrib.postgres.fields import ArrayField
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.utils import timezone
 
 
 class AutoIssueCategory(models.Model):
@@ -69,25 +71,48 @@ class AutoIssue(models.Model):
     SOURCE_TEMPO = "tempo"
     SOURCE_LOKI = "loki"
     SOURCE_FARO = "faro"
+    SOURCE_SONARQUBE = "sonarqube"
+    SOURCE_VMALERT = "vmalert"
+    SOURCE_RUST_DEFECT = "rust_defect"
+    SOURCE_PPROF = "pprof"
+    SOURCE_ALLOY = "alloy"
+    SOURCE_PERFETTO = "perfetto"
+    SOURCE_GWP_ASAN = "gwp_asan"
+    SOURCE_PROMETHEUS = "prometheus"
+    SOURCE_PG_STAT = "pg_stat"
+    SOURCE_LIGHTHOUSE = "lighthouse"
+    SOURCE_TEST_FAILURE = "test_failure"
     SOURCE_AGENT = "agent"
     # Phase 6 of the test-hardening plan (added 2026-05-12):
     SOURCE_MUTATION = "mutation"     # mutmut / Stryker / Mull surviving mutants
     SOURCE_FUZZ = "fuzz"             # libFuzzer crashes / coverage gaps
     SOURCE_CONTRACT = "contract"     # Pact provider-verification drift
     SOURCE_GH_CI = "gh_ci"           # gh run list --status failure
-    SOURCE_PROMETHEUS = "prometheus"  # postgres-exporter DB health breaches
-    SOURCE_COMPILER = "compiler"  # clang/gcc/go vet/clippy/GHC/hlint warnings
+    # Phase B of the test-hardening plan (added 2026-06-01):
+    SOURCE_COMPILER = "compiler"     # clang/gcc/go vet/golangci-lint/clippy/GHC/hlint warnings
     SOURCE_CHOICES = [
         (SOURCE_GLITCHTIP, "GlitchTip"),
         (SOURCE_PYROSCOPE, "Pyroscope"),
         (SOURCE_TEMPO, "Tempo"),
         (SOURCE_LOKI, "Loki"),
         (SOURCE_FARO, "Faro"),
+        (SOURCE_SONARQUBE, "SonarQube"),
+        (SOURCE_VMALERT, "vmalert"),
+        (SOURCE_RUST_DEFECT, "Rust defect"),
+        (SOURCE_PPROF, "pprof"),
+        (SOURCE_ALLOY, "Alloy"),
+        (SOURCE_PERFETTO, "Perfetto"),
+        (SOURCE_GWP_ASAN, "GWP-ASan"),
+        (SOURCE_PROMETHEUS, "Prometheus"),
+        (SOURCE_PG_STAT, "pg_stat"),
+        (SOURCE_LIGHTHOUSE, "Lighthouse"),
+        (SOURCE_TEST_FAILURE, "Test failure"),
         (SOURCE_AGENT, "Agent find"),
         (SOURCE_MUTATION, "Mutation testing"),
         (SOURCE_FUZZ, "Fuzz testing"),
         (SOURCE_CONTRACT, "Contract drift"),
         (SOURCE_GH_CI, "GH Actions CI failure"),
+        (SOURCE_COMPILER, "Compiler/linter warning"),
     ]
 
     STATUS_OPEN = "open"
@@ -155,6 +180,11 @@ class AutoIssue(models.Model):
         db_index=True,
         help_text="Approved concept tags used to find lessons across repo paths.",
     )
+    artifact_refs = models.JSONField(
+        blank=True,
+        default=list,
+        help_text="References to evidence blobs in the Mint blob store. No body content — SHA-256 + path only.",
+    )
 
     title = models.CharField(max_length=512)
     description = models.TextField(blank=True)
@@ -179,12 +209,14 @@ class AutoIssue(models.Model):
     )
     priority_score = models.FloatField(
         default=0.0,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
         help_text="Set by the daily picker (spec: docs/CPP-DAILY-ISSUE-PICKER-SPEC.md). Higher = more important. Used to surface the top 10 each day.",
     )
     spam_score = models.FloatField(
         null=True,
         blank=True,
         db_index=True,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
         help_text=(
             "Bayesian spam score in [0, 1] from `extensions.autoissue_spam_filter` "
             "(Sahami et al. 1998). 0=definitely ham, 1=definitely spam. NULL "
@@ -238,8 +270,124 @@ class AutoIssue(models.Model):
         ]
         ordering = ["-priority_score", "-last_seen"]
 
+    def save(self, *args, **kwargs):
+        if self.status == self.STATUS_RESOLVED and self.resolved_at is None:
+            self.resolved_at = timezone.now()
+            update_fields = kwargs.get("update_fields")
+            if update_fields is not None and "resolved_at" not in update_fields:
+                kwargs["update_fields"] = list(update_fields) + ["resolved_at"]
+        super().save(*args, **kwargs)
+
     def __str__(self) -> str:
-        return f"[{self.source}/{self.severity}] {str(self.title)[:60]}"
+        prefix = f"[{self.source}/{self.severity}] "
+        budget = 100 - len(prefix)
+        return f"{prefix}{str(self.title)[:budget]}"
+
+
+class CodeQLFindingEvidence(models.Model):
+    """Deduped LZ4-compressed evidence for one CodeQL finding."""
+
+    issue = models.OneToOneField(
+        AutoIssue,
+        on_delete=models.CASCADE,
+        related_name="codeql_evidence",
+    )
+    finding_fingerprint = models.CharField(max_length=64, unique=True)
+    language = models.CharField(max_length=32, db_index=True)
+    rule_id = models.CharField(max_length=128)
+    file_path = models.TextField()
+    line = models.PositiveIntegerField(default=1)
+    compression = models.CharField(max_length=16, default="lz4")
+    compressed_payload = models.BinaryField()
+    uncompressed_bytes = models.PositiveIntegerField(default=0)
+    compressed_bytes = models.PositiveIntegerField(default=0)
+    first_seen = models.DateTimeField(auto_now_add=True)
+    last_seen = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "auto_issues_codeqlfindingevidence"
+        indexes = [
+            models.Index(fields=["language", "rule_id"]),
+            models.Index(fields=["file_path"]),
+        ]
+        ordering = ["-last_seen"]
+
+    def __str__(self) -> str:
+        return f"[codeql/{self.language}] {self.rule_id} {self.file_path}:{self.line}"
+
+
+class BuildFailureEvidence(models.Model):
+    """Deduped LZ4-compressed terminal evidence for one compiler failure."""
+
+    issue = models.OneToOneField(
+        AutoIssue,
+        on_delete=models.CASCADE,
+        related_name="build_failure_evidence",
+    )
+    failure_fingerprint = models.CharField(max_length=64, unique=True)
+    builder = models.CharField(max_length=64, db_index=True)
+    targets = models.JSONField(default=list, blank=True)
+    command = models.JSONField(default=list, blank=True)
+    exit_code = models.PositiveIntegerField(default=1)
+    compression = models.CharField(max_length=16, default="lz4")
+    compressed_payload = models.BinaryField()
+    uncompressed_bytes = models.PositiveIntegerField(default=0)
+    compressed_bytes = models.PositiveIntegerField(default=0)
+    occurrence_count = models.PositiveIntegerField(default=1)
+    first_seen = models.DateTimeField(auto_now_add=True)
+    last_seen = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "auto_issues_buildfailureevidence"
+        indexes = [
+            models.Index(fields=["builder", "-last_seen"]),
+            models.Index(fields=["exit_code", "-last_seen"]),
+        ]
+        ordering = ["-last_seen"]
+
+    def __str__(self) -> str:
+        target = ",".join(self.targets or ["<all>"])
+        return f"[build/{self.builder}] {target} exit={self.exit_code}"
+
+
+class FindBugsLearnedLesson(models.Model):
+    """Deduped compressed lessons from FindBugs false calls and missed calls."""
+
+    CLASS_FALSE_POSITIVE = "false_positive"
+    CLASS_FALSE_NEGATIVE = "false_negative"
+    CLASS_CHOICES = [
+        (CLASS_FALSE_POSITIVE, "False positive"),
+        (CLASS_FALSE_NEGATIVE, "False negative"),
+    ]
+
+    source_issue = models.ForeignKey(
+        AutoIssue,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="findbugs_lessons",
+    )
+    classification = models.CharField(max_length=20, choices=CLASS_CHOICES, db_index=True)
+    lesson_fingerprint = models.CharField(max_length=64, unique=True)
+    compressed_payload = models.BinaryField()
+    uncompressed_bytes = models.PositiveIntegerField(default=0)
+    compressed_bytes = models.PositiveIntegerField(default=0)
+    occurrence_count = models.PositiveIntegerField(default=1)
+    approved = models.BooleanField(default=False)
+    created_by = models.CharField(max_length=64, blank=True)
+    first_seen = models.DateTimeField(auto_now_add=True)
+    last_seen = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "auto_issues_findbugslearnedlesson"
+        indexes = [
+            models.Index(fields=["classification", "-last_seen"]),
+            models.Index(fields=["approved", "-last_seen"]),
+        ]
+        ordering = ["-last_seen"]
+
+    def __str__(self) -> str:
+        return f"[findbugs-lesson/{self.classification}] {str(self.lesson_fingerprint)[:12]}"
 
 
 class QualityEvidence(models.Model):

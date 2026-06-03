@@ -28,8 +28,43 @@ FULL_SCOPE_EXACT = {
     "scripts/run-angular-quality.sh",
     "scripts/run-cpp-quality.sh",
     "scripts/run-go-quality.sh",
+    "scripts/run-haskell-quality.sh",
+    "scripts/run-mint-quality-shard.sh",
     "scripts/run-python-quality.sh",
     "scripts/run-quality-debt-report.sh",
+    "scripts/run-rust-quality.sh",
+    "scripts/run-scoped-static-quality.ps1",
+    "scripts/plan-scoped-quality-shards.py",
+    "scripts/tdd_write_guard.py",
+    "scripts/icecc_helper.sh",
+}
+
+GENERATED_SCOPE_PREFIXES = (
+    ".tmp/",
+    "backend/.mutmut-cache/",
+    "frontend/.stryker-tmp/",
+    "reports/lua/",
+    "reports/mutation/",
+    "services/findbugs-haskell/dist-newstyle/",
+    "services/sidecars/api/gen/",
+    "services/speccheck/mutants.out/",
+    "services/speccheck/mutants.out.old/",
+    "tmp/free-code-review/",
+)
+
+GENERATED_SCOPE_SUFFIXES = (
+    ".tmp",
+)
+
+GENERATED_SCOPE_EXACT = {
+    ".tmp",
+    "backend/.mutmut-cache",
+    "frontend/.stryker-tmp",
+    "luacov.stats.out",
+    "services/sidecars/sidecars",
+    "services/speccheck/mutants.out",
+    "services/speccheck/mutants.out.old",
+    "tmp/free-code-review",
 }
 
 
@@ -46,7 +81,18 @@ def run_git(repo_root: Path, args: tuple[str, ...]) -> subprocess.CompletedProce
 
 def normalize_paths(lines: str) -> list[str]:
     """Return stable repo-relative paths."""
-    paths = {line.strip().replace("\\", "/") for line in lines.splitlines() if line.strip()}
+    paths = {
+        line.strip().replace("\\", "/")
+        for line in lines.splitlines()
+        if line.strip()
+    }
+    paths = {
+        path
+        for path in paths
+        if path not in GENERATED_SCOPE_EXACT
+        and not path.startswith(GENERATED_SCOPE_PREFIXES)
+        and not path.endswith(GENERATED_SCOPE_SUFFIXES)
+    }
     return sorted(paths)
 
 

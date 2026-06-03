@@ -190,6 +190,55 @@ def _classify_by_module(files: list[str]) -> dict[str, list[str]]:
     return module_files
 
 
+def tier_for_path(path: str) -> str | None:
+    """Return the strictest matching tier name for one file.
+
+    Falls back to ``default_tier`` when the file matches no module glob, and
+    returns ``None`` only when the config itself is missing/unreadable. Shared
+    by the per-file coverage gate and the scoped mutation gate so all three
+    consumers (CI module detection, coverage, mutation) agree on tiers.
+    """
+    cfg = _load_module_config()
+    if cfg is None:
+        return None
+    modules_cfg = cfg.get("modules") or {}
+    best: tuple[str, int] | None = None
+    for _name, mdef in modules_cfg.items():
+        tier_name = mdef.get("tier") or cfg.get("default_tier", "tier3")
+        rank = _TIER_RANK.get(tier_name, 0)
+        globs = mdef.get("globs") or []
+        excludes = mdef.get("exclude") or []
+        if any(_match_glob(g, path) for g in globs) and not any(
+            _match_glob(e, path) for e in excludes
+        ):
+            if best is None or rank > best[1]:
+                best = (tier_name, rank)
+    return best[0] if best else cfg.get("default_tier", "tier3")
+
+
+def tier_thresholds(path: str) -> dict | None:
+    """Return the ``{line, branch, mutation, ...}`` dict for a file's tier."""
+    cfg = _load_module_config()
+    if cfg is None:
+        return None
+    tier = tier_for_path(path)
+    if tier is None:
+        return None
+    return (cfg.get("tiers") or {}).get(tier)
+
+
+def tier_line_floor(path: str) -> int | None:
+    """Return the minimum line-coverage percent for a file, or None."""
+    spec = tier_thresholds(path)
+    return None if spec is None else spec.get("line")
+
+
+def tier_mutation_floor(path: str) -> int | None:
+    """Return the minimum mutation-kill percent for a file, or None."""
+    spec = tier_thresholds(path)
+    return None if spec is None else spec.get("mutation")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base", default=os.environ.get("XF_DIFF_BASE", "origin/master"),

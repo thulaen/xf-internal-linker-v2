@@ -243,3 +243,13 @@ luacov.stats.out
 # *.tmp covers protoc/buf intermediates like main.go.tmp and api/gen/*.tmp.
 backend/tmp/
 **/*.tmp
+
+# Runtime / generated artefacts that must never be tracked (bulk-cleanup pass):
+# bandit virtualenv, generated coverage HTML + reports, the cross-agent progress
+# tool's runtime state, and autotuner-written cluster params.
+.venv-bandit/
+reports/
+backend/html/
+audit/agent_progress_latest.txt
+audit/agent_progress_state.json
+audit/cluster_tuned_params.json

@@ -168,6 +168,60 @@ class ListConceptTagsTests(TestCase):
         self.assertEqual(len(lines), 20)
 
 
+class ConceptTagUtilityTests(TestCase):
+    def test_build_tag_query_empty_list_returns_empty_q(self):
+        from django.db.models import Q
+
+        from apps.auto_issues.concept_tags import build_tag_query
+
+        q = build_tag_query([])
+        self.assertEqual(q, Q())
+
+    def test_build_tag_query_non_empty_returns_overlap_filter(self):
+        from apps.auto_issues.concept_tags import build_tag_query
+
+        q = build_tag_query(["python-subprocess"])
+        self.assertNotEqual(str(q), str(__import__("django.db.models", fromlist=["Q"]).Q()))
+
+    def test_merge_tags_with_none_existing_returns_new_tags(self):
+        from apps.auto_issues.concept_tags import merge_tags
+
+        result = merge_tags(None, ["python-subprocess"])
+        self.assertEqual(result, ["python-subprocess"])
+
+    def test_merge_tags_deduplicates_preserving_order(self):
+        from apps.auto_issues.concept_tags import merge_tags
+
+        result = merge_tags(["python-subprocess"], ["python-subprocess", "windows-encoding"])
+        self.assertEqual(result, ["python-subprocess", "windows-encoding"])
+
+    def test_merge_tags_empty_existing_appends_new(self):
+        from apps.auto_issues.concept_tags import merge_tags
+
+        result = merge_tags([], ["windows-encoding"])
+        self.assertEqual(result, ["windows-encoding"])
+
+    def test_collect_and_validate_tags_deduplicates(self):
+        from apps.auto_issues.concept_tags import collect_and_validate_tags
+
+        options = {"concept_tag": ["python-subprocess", "python-subprocess", "windows-encoding"]}
+        result = collect_and_validate_tags(options)
+        self.assertEqual(result, ["python-subprocess", "windows-encoding"])
+
+    def test_collect_and_validate_tags_empty_returns_empty(self):
+        from apps.auto_issues.concept_tags import collect_and_validate_tags
+
+        result = collect_and_validate_tags({})
+        self.assertEqual(result, [])
+
+    def test_collect_and_validate_tags_strips_whitespace(self):
+        from apps.auto_issues.concept_tags import collect_and_validate_tags
+
+        options = {"concept_tag": ["  python-subprocess  "]}
+        result = collect_and_validate_tags(options)
+        self.assertEqual(result, ["python-subprocess"])
+
+
 def _create_issue(
     *,
     title: str,

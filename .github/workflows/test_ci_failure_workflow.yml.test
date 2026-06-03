@@ -1,0 +1,5 @@
+workflow: ci-failure-to-autoissue.yml
+checks:
+  - workflow_run event parses
+  - failed conclusion gate is present
+  - failed jobs call file_ci_failure

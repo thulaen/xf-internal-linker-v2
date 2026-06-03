@@ -141,10 +141,18 @@ def _cleanup_auto_issues_resolved() -> dict:
 
 
 def run_retention_cleanup() -> dict:
-    """Run all three cleanups; aggregate the results."""
-    return {
-        "status": "ok",
-        "pyroscope": _cleanup_pyroscope_blocks(),
-        "audit_errorlog": _cleanup_audit_errorlog(),
-        "auto_issues": _cleanup_auto_issues_resolved(),
-    }
+    """Run all three cleanups independently; a single failure does not block the others."""
+    results: dict = {}
+    for key, fn in [
+        ("pyroscope", _cleanup_pyroscope_blocks),
+        ("audit_errorlog", _cleanup_audit_errorlog),
+        ("auto_issues", _cleanup_auto_issues_resolved),
+    ]:
+        try:
+            results[key] = fn()
+        except Exception as exc:
+            logger.error("[retention.%s] cleanup failed: %s", key, exc)
+            results[key] = {"status": "error", "error": str(exc)}
+    overall_ok = all(v.get("status") != "error" for v in results.values())
+    results["status"] = "ok" if overall_ok else "partial"
+    return results

@@ -1,0 +1,5 @@
+Commit succeeded: 9ab0cde
+Push failed: non-fast-forward; remote branch has commits this branch does not have
+Findings filed: 1 (#201)
+Suggested next: pull with rebase, resolve any conflicts, then push again
+Status: commit landed locally, push still needed

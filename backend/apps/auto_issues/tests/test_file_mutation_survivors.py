@@ -13,7 +13,7 @@ from io import StringIO
 from pathlib import Path
 
 from django.core.management import call_command
-from django.test import TransactionTestCase
+from django.test import SimpleTestCase, TestCase, TransactionTestCase
 
 from apps.auto_issues.models import AutoIssue
 
@@ -219,3 +219,98 @@ class FileMutationSurvivorsTests(TransactionTestCase):
             external_id__startswith="mutation::mutmut::"
         )
         self.assertEqual(rows.count(), 1)
+
+
+class CargoHelperFunctionTests(TestCase):
+    """Unit tests for the helpers extracted from _parse_cargo_mutants (S3776 fix)."""
+
+    def test_cargo_mutant_to_survivor_uses_file_and_line(self):
+        from apps.auto_issues.management.commands.file_mutation_survivors import (
+            _cargo_mutant_to_survivor,
+        )
+        mutant = {"file": "src/lib.rs", "line": 42, "replacement": "==", "type_": "BinaryOp"}
+        result = _cargo_mutant_to_survivor(mutant)
+        self.assertEqual(result["file"], "src/lib.rs")
+        self.assertEqual(result["line"], 42)
+        self.assertEqual(result["mutator"], "==")
+        self.assertEqual(result["id"], "")
+
+    def test_cargo_mutant_to_survivor_fallbacks_on_missing_fields(self):
+        from apps.auto_issues.management.commands.file_mutation_survivors import (
+            _cargo_mutant_to_survivor,
+        )
+        result = _cargo_mutant_to_survivor({})
+        self.assertEqual(result["file"], "unknown")
+        self.assertEqual(result["line"], 0)
+        self.assertEqual(result["mutator"], "unknown")
+
+    def test_cargo_missed_to_survivor_includes_id_with_package_function(self):
+        from apps.auto_issues.management.commands.file_mutation_survivors import (
+            _cargo_missed_to_survivor,
+        )
+        m = {
+            "file": "src/lib.rs", "line": 10,
+            "package": "mypkg", "function": "my_fn",
+            "replacement": "!=", "type_": "BinaryOp",
+        }
+        result = _cargo_missed_to_survivor(m)
+        self.assertEqual(result["file"], "src/lib.rs")
+        self.assertIn("mypkg", result["id"])
+        self.assertIn("my_fn", result["id"])
+
+
+class SupportedToolsAndMucheckTests(SimpleTestCase):
+    """No-DB convention tests pinning the new tool wiring (cargo-mutants + mucheck)."""
+
+    def test_supported_tools_set_has_exact_membership(self):
+        from apps.auto_issues.management.commands.file_mutation_survivors import (
+            _SUPPORTED_TOOLS,
+        )
+        self.assertEqual(
+            _SUPPORTED_TOOLS,
+            {"stryker", "mutmut", "mull", "go-mutesting", "cargo-mutants", "mucheck"},
+        )
+
+    def test_cargo_mutants_and_mucheck_have_registered_parsers(self):
+        from apps.auto_issues.management.commands.file_mutation_survivors import (
+            _PARSERS,
+            _parse_cargo_mutants,
+            _parse_mucheck,
+        )
+        self.assertIs(_PARSERS["cargo-mutants"], _parse_cargo_mutants)
+        self.assertIs(_PARSERS["mucheck"], _parse_mucheck)
+
+    def test_parse_mucheck_maps_each_survivor_field_exactly(self):
+        from apps.auto_issues.management.commands.file_mutation_survivors import (
+            _parse_mucheck,
+        )
+        survivors = _parse_mucheck({
+            "survivors": [
+                {"file": "src/a.hs", "line": 7, "mutator": "Flip", "replacement": "not", "id": "x1"},
+                {"file": "src/b.hs", "line": 99, "mutator": "Drop", "replacement": ""},
+            ]
+        })
+        self.assertEqual(len(survivors), 2)
+        self.assertEqual(survivors[0]["file"], "src/a.hs")
+        self.assertEqual(survivors[0]["line"], 7)
+        self.assertEqual(survivors[0]["mutator"], "Flip")
+        self.assertEqual(survivors[0]["replacement"], "not")
+        self.assertEqual(survivors[0]["id"], "x1")
+        # Missing fields fall back to safe defaults, never raising.
+        self.assertEqual(survivors[1]["line"], 99)
+        self.assertEqual(survivors[1]["id"], "")
+
+    def test_parse_mucheck_defaults_missing_keys(self):
+        from apps.auto_issues.management.commands.file_mutation_survivors import (
+            _parse_mucheck,
+        )
+        survivors = _parse_mucheck({"survivors": [{}]})
+        self.assertEqual(survivors[0]["file"], "unknown")
+        self.assertEqual(survivors[0]["line"], 0)
+        self.assertEqual(survivors[0]["mutator"], "unknown")
+
+    def test_parse_mucheck_empty_payload_returns_empty_list(self):
+        from apps.auto_issues.management.commands.file_mutation_survivors import (
+            _parse_mucheck,
+        )
+        self.assertEqual(_parse_mucheck({}), [])

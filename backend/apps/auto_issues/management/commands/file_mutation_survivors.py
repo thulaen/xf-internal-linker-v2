@@ -20,6 +20,13 @@ Tool report shapes supported:
   Survivors are entries in `mutators[]` where `result.passed == true`
   (mutated test still passed, i.e. test suite didn't catch the
   mutation).
+- **cargo-mutants** (`mutants.out/outcomes.json`): cargo-mutants v24+
+  report. Two accepted shapes: (a) object with a ``"missed"`` array
+  (`{"missed": [...], "caught": [...], ...}`), or (b) an array of
+  outcome objects where ``summary == "MissedMutant"``.
+- **mucheck** (wrapper-produced JSON): turbo_mutation.py converts
+  mucheck's stdout into ``{"survivors": [{file, line, mutator,
+  replacement}]}``. Survivors are all entries in the array.
 
 Severity is computed per the mutator-name map in
 `apps.auto_issues.services.mutation_severity`. Priority is then
@@ -58,7 +65,7 @@ from apps.auto_issues.services.mutation_severity import severity_for
 _CATEGORY_KEY = "mutation_survivor"
 _CATEGORY_LABEL = "Mutation survivor"
 
-_SUPPORTED_TOOLS = {"stryker", "mutmut", "mull", "go-mutesting"}
+_SUPPORTED_TOOLS = {"stryker", "mutmut", "mull", "go-mutesting", "cargo-mutants"}
 
 
 def _get_or_create_category() -> AutoIssueCategory:
@@ -178,11 +185,88 @@ def _parse_go_mutesting(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return survivors
 
 
+def _cargo_mutant_to_survivor(mutant: dict) -> dict[str, Any]:
+    """Convert a cargo-mutants Mutant object (shape A outcome or shape B) to a survivor row."""
+    return {
+        "file": _normalise_path(str(mutant.get("file") or "unknown")),
+        "line": int(mutant.get("line") or 0),
+        "mutator": str(mutant.get("replacement") or mutant.get("type_") or "unknown"),
+        "replacement": str(mutant.get("replacement") or ""),
+        "id": "",
+    }
+
+
+def _cargo_missed_to_survivor(m: dict) -> dict[str, Any]:
+    """Convert a cargo-mutants flat missed entry (shape A) to a survivor row."""
+    return {
+        "file": _normalise_path(str(m.get("file") or "unknown")),
+        "line": int(m.get("line") or 0),
+        "mutator": str(m.get("replacement") or m.get("type_") or "unknown"),
+        "replacement": str(m.get("replacement") or ""),
+        "id": f"{m.get('package', '')}::{m.get('function', '')}:{m.get('line', 0)}",
+    }
+
+
+def _parse_cargo_mutants_shape_a(payload: dict, survivors: list) -> None:
+    for m in payload.get("missed") or []:
+        survivors.append(_cargo_missed_to_survivor(m))
+    for outcome in payload.get("outcomes") or []:
+        if isinstance(outcome, dict) and outcome.get("summary") == "MissedMutant":
+            mutant = (outcome.get("scenario") or {}).get("Mutant") or {}
+            if mutant:
+                survivors.append(_cargo_mutant_to_survivor(mutant))
+
+
+def _parse_cargo_mutants_shape_b(payload: list, survivors: list) -> None:
+    for outcome in payload:
+        if not isinstance(outcome, dict) or outcome.get("summary") != "MissedMutant":
+            continue
+        scenario = outcome.get("scenario") or {}
+        mutant = scenario.get("Mutant") if isinstance(scenario, dict) else {}
+        if mutant:
+            survivors.append(_cargo_mutant_to_survivor(mutant))
+
+
+def _parse_cargo_mutants(payload: dict | list) -> list[dict[str, Any]]:
+    """cargo-mutants outcomes.json — two accepted shapes.
+
+    Shape A (object): ``{"missed": [...], "caught": [...], ...}``.
+    Shape B (array):  ``[{"scenario": {"Mutant": {...}}, "summary": "MissedMutant"}, ...]``.
+    In both shapes survivors are mutants the test suite did NOT catch.
+    """
+    survivors: list[dict[str, Any]] = []
+    if isinstance(payload, dict):
+        _parse_cargo_mutants_shape_a(payload, survivors)
+    elif isinstance(payload, list):
+        _parse_cargo_mutants_shape_b(payload, survivors)
+    return survivors
+
+
+def _parse_mucheck(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """mucheck wrapper JSON produced by turbo_mutation.py.
+
+    Schema: ``{"survivors": [{"file": str, "line": int, "mutator": str,
+    "replacement": str}]}``.
+    """
+    return [
+        {
+            "file": _normalise_path(str(s.get("file") or "unknown")),
+            "line": int(s.get("line") or 0),
+            "mutator": str(s.get("mutator") or "unknown"),
+            "replacement": str(s.get("replacement") or ""),
+            "id": str(s.get("id") or ""),
+        }
+        for s in (payload.get("survivors") or [])
+    ]
+
+
 _PARSERS = {
     "stryker": _parse_stryker,
     "mutmut": _parse_mutmut,
     "mull": _parse_mull,
     "go-mutesting": _parse_go_mutesting,
+    "cargo-mutants": _parse_cargo_mutants,
+    "mucheck": _parse_mucheck,
 }
 
 

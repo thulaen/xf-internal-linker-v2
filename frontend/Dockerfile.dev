@@ -1,0 +1,11 @@
+FROM node:22-bookworm
+
+ENV CHROME_BIN=/usr/bin/chromium \
+    CI=true \
+    NODE_OPTIONS=--max-old-space-size=4096
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends chromium python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app

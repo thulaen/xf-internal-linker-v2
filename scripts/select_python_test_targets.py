@@ -15,6 +15,10 @@ def _backend_relative(path: Path) -> Path:
     return path
 
 
+def _backend_root(root: Path) -> Path:
+    return root / "backend"
+
+
 def _is_test_path(path: Path) -> bool:
     name = path.name
     return (
@@ -26,11 +30,11 @@ def _is_test_path(path: Path) -> bool:
 
 
 def _nearby_test_files(root: Path, directory: Path) -> list[Path]:
-    host_dir = root / "backend" / directory
+    host_dir = _backend_root(root) / directory
     if not host_dir.is_dir():
         return []
     return sorted(
-        path.relative_to(root / "backend")
+        path.relative_to(_backend_root(root))
         for pattern in ("test*.py", "tests*.py")
         for path in host_dir.glob(pattern)
     )
@@ -80,42 +84,54 @@ def _existing_candidates(root: Path, backend_relative: Path) -> list[Path]:
 
 
 def _same_app_test_files(root: Path, backend_relative: Path) -> list[Path]:
-    app_root = _app_root(backend_relative)
-    if app_root is None:
-        return []
-    search_root = root / "backend" / app_root
-    if not search_root.is_dir():
+    search_root = _same_app_search_root(root, backend_relative)
+    if search_root is None:
         return []
     return sorted(
-        path.relative_to(root / "backend")
+        path.relative_to(_backend_root(root))
         for path in search_root.rglob("*.py")
-        if _is_test_path(path.relative_to(root / "backend"))
+        if _is_test_path(path.relative_to(_backend_root(root)))
     )
+
+
+def _same_app_search_root(root: Path, backend_relative: Path) -> Path | None:
+    app_root = _app_root(backend_relative)
+    if app_root is None:
+        return None
+    search_root = _backend_root(root) / app_root
+    if not search_root.is_dir():
+        return None
+    return search_root
+
+
+def _module_needles(backend_relative: Path) -> set[str]:
+    module = ".".join(backend_relative.with_suffix("").parts)
+    needles = {module, f"apps.{module.removeprefix('apps.')}"}
+    if "services" in backend_relative.parts:
+        needles.add(backend_relative.stem)
+    return needles
+
+
+def _read_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return ""
 
 
 def _import_based_test_files(root: Path, backend_relative: Path) -> list[Path]:
     if backend_relative.suffix != ".py" or _is_test_path(backend_relative):
         return []
-    module = ".".join(backend_relative.with_suffix("").parts)
-    module_from_apps = f"apps.{module.removeprefix('apps.')}"
-    needles = {module, module_from_apps}
-    if "services" in backend_relative.parts:
-        needles.add(backend_relative.stem)
-    app_root = _app_root(backend_relative)
-    if app_root is None:
-        return []
-    search_root = root / "backend" / app_root
-    if not search_root.is_dir():
+    needles = _module_needles(backend_relative)
+    search_root = _same_app_search_root(root, backend_relative)
+    if search_root is None:
         return []
     matches: list[Path] = []
     for test_path in search_root.rglob("*.py"):
-        rel = test_path.relative_to(root / "backend")
+        rel = test_path.relative_to(_backend_root(root))
         if not _is_test_path(rel):
             continue
-        try:
-            text = test_path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            continue
+        text = _read_text(test_path)
         if any(needle in text for needle in needles):
             matches.append(rel)
     return sorted(matches)
@@ -142,10 +158,7 @@ def _management_command_test_files(root: Path, backend_relative: Path) -> list[P
     }
     matches: list[Path] = []
     for rel in _same_app_test_files(root, backend_relative):
-        try:
-            text = (root / "backend" / rel).read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            continue
+        text = _read_text(_backend_root(root) / rel)
         quoted_command = f"'{command_name}'" in text or f'"{command_name}"' in text
         if any(name in text for name in quoted_names) or (
             "call_command" in text and quoted_command
@@ -178,6 +191,17 @@ def _generated_sidecar_contract_tests(root: Path, backend_relative: Path) -> lis
     return []
 
 
+def _candidate_tests_for_path(root: Path, backend_relative: Path) -> list[Path]:
+    if backend_relative.parts and backend_relative.parts[0] == "config":
+        return [Path("config") / "tests.py", Path("config") / "tests"]
+    if _is_test_path(backend_relative):
+        return [backend_relative]
+    generated_sidecar_tests = _generated_sidecar_contract_tests(root, backend_relative)
+    if generated_sidecar_tests:
+        return generated_sidecar_tests
+    return _existing_candidates(root, backend_relative)
+
+
 def select_targets(root: Path, changed_paths: list[str]) -> tuple[list[str], list[str]]:
     targets: list[str] = []
     missing: list[str] = []
@@ -187,20 +211,8 @@ def select_targets(root: Path, changed_paths: list[str]) -> tuple[list[str], lis
             continue
         if "migrations" in backend_relative.parts:
             continue
-        elif backend_relative.parts and backend_relative.parts[0] == "config":
-            candidates = [Path("config") / "tests.py", Path("config") / "tests"]
-        elif _is_test_path(backend_relative):
-            candidates = [backend_relative]
-        elif generated_sidecar_tests := _generated_sidecar_contract_tests(
-            root,
-            backend_relative,
-        ):
-            candidates = generated_sidecar_tests
-        elif app_root := _app_root(backend_relative):
-            candidates = _existing_candidates(root, backend_relative)
-        else:
-            candidates = _existing_candidates(root, backend_relative)
-        existing = [path for path in candidates if (root / "backend" / path).exists()]
+        candidates = _candidate_tests_for_path(root, backend_relative)
+        existing = [path for path in candidates if (_backend_root(root) / path).exists()]
         if existing:
             targets.extend(path.as_posix() for path in existing)
         elif not _is_test_path(backend_relative):

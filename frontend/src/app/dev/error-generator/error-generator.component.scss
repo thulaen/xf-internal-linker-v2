@@ -1,0 +1,37 @@
+.error-generator-page {
+  display: block;
+  padding: var(--spacing-page);
+}
+
+.error-generator-card {
+  max-width: 720px;
+}
+
+.action-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  padding-top: var(--space-md);
+}
+
+.action-grid button {
+  min-width: 180px;
+}
+
+.action-grid mat-icon {
+  margin-right: var(--space-sm);
+}
+
+@media (max-width: 720px) {
+  .error-generator-page {
+    padding: var(--space-lg);
+  }
+
+  .action-grid {
+    flex-direction: column;
+  }
+
+  .action-grid button {
+    width: 100%;
+  }
+}

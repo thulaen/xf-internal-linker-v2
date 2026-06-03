@@ -1,0 +1,75 @@
+.work-queue-page {
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.page-header h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.page-header p {
+  margin: 4px 0 0;
+  color: var(--color-text-secondary);
+}
+
+.section-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+mat-card {
+  border: 1px solid var(--card-border);
+}
+
+.queue-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.queue-row:last-child {
+  border-bottom: 0;
+}
+
+.queue-row p,
+.empty-state {
+  margin: 4px 0 0;
+  color: var(--color-text-secondary);
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.status-grid dt {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.status-grid dd {
+  margin: 4px 0 0;
+  font-weight: 600;
+}
+
+.loading-row,
+.notice-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+

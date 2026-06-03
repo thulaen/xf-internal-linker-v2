@@ -89,8 +89,16 @@ class Command(BaseCommand):
             breakdown = " / ".join(
                 f"{counts[s]} {s}" for s in self._SOURCE_ORDER
             )
+            # The [REGISTRY READ] marker's N is the SUM of the ten picker-source
+            # counts — exactly what .githooks/check-registry-read.py asserts
+            # (NEW_MARKER_RE: the ten numbers must sum to N). It is NOT the grand
+            # total of every AutoIssue: open rows in non-picker categories
+            # (code_review_lesson, tdd_lesson, hook_failure, test_case,
+            # observability, ...) are excluded from the 30-pick ritual, so the
+            # header must equal the bucket sum to stay self-consistent.
+            picker_total = sum(counts[s] for s in self._SOURCE_ORDER)
             self.stdout.write(
-                f"[REGISTRY READ: {total} open ({breakdown}), "
+                f"[REGISTRY READ: {picker_total} open ({breakdown}), "
                 f"showing top {len(rows)}]"
             )
         else:

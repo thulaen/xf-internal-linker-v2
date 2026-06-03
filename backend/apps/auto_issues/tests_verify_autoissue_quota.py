@@ -57,7 +57,8 @@ class VerifyAutoIssueQuotaCommandTests(TestCase):
 
     def test_missing_resolved_time_fails(self) -> None:
         issue_ids = _create_resolved_issues(29)
-        missing_time = _create_issue(resolved_at=None)
+        missing_time = _create_issue()
+        AutoIssue.objects.filter(id=missing_time.id).update(resolved_at=None)
         issue_ids.append(str(missing_time.id))
         with self.assertRaisesMessage(CommandError, "has no resolved_at time"):
             call_command("verify_autoissue_quota", ids=issue_ids)
@@ -93,6 +94,201 @@ class VerifyAutoIssueQuotaCommandTests(TestCase):
         issue_ids.append("999999")
         with self.assertRaisesMessage(CommandError, "do not exist"):
             call_command("verify_autoissue_quota", ids=issue_ids)
+
+
+class HardQuotaTests(TestCase):
+    """Tests for _hard_quota_errors() — Fixes 5, 6, and 7."""
+
+    def _counts(self, **overrides) -> dict:
+        """Build a counts dict that satisfies all hard requirements by default."""
+        from apps.auto_issues.management.commands.verify_autoissue_quota import (
+            REQUIRED_SONARQUBE_FIXES,
+            REQUIRED_RUST_DEFECT_FIXES,
+            REQUIRED_PPROF_FIXES,
+            REQUIRED_ALLOY_FIXES,
+            REQUIRED_LOKI_HARD_FIXES,
+            REQUIRED_PERFETTO_FIXES,
+            REQUIRED_GWP_ASAN_FIXES,
+            REQUIRED_LIGHTHOUSE_FIXES,
+            REQUIRED_PG_STAT_FIXES,
+        )
+        base = {
+            AutoIssue.SOURCE_SONARQUBE: REQUIRED_SONARQUBE_FIXES,
+            AutoIssue.SOURCE_RUST_DEFECT: REQUIRED_RUST_DEFECT_FIXES,
+            AutoIssue.SOURCE_PPROF: REQUIRED_PPROF_FIXES,
+            AutoIssue.SOURCE_ALLOY: REQUIRED_ALLOY_FIXES,
+            AutoIssue.SOURCE_LOKI: REQUIRED_LOKI_HARD_FIXES,
+            AutoIssue.SOURCE_PERFETTO: REQUIRED_PERFETTO_FIXES,
+            AutoIssue.SOURCE_GWP_ASAN: REQUIRED_GWP_ASAN_FIXES,
+            AutoIssue.SOURCE_LIGHTHOUSE: REQUIRED_LIGHTHOUSE_FIXES,
+            AutoIssue.SOURCE_PG_STAT: REQUIRED_PG_STAT_FIXES,
+            AutoIssue.SOURCE_AGENT: 3,
+            AutoIssue.SOURCE_GLITCHTIP: 3,
+            AutoIssue.SOURCE_PYROSCOPE: 3,
+            AutoIssue.SOURCE_TEMPO: 3,
+            AutoIssue.SOURCE_FARO: 3,
+            AutoIssue.SOURCE_MUTATION: 3,
+            AutoIssue.SOURCE_FUZZ: 3,
+            AutoIssue.SOURCE_CONTRACT: 3,
+            AutoIssue.SOURCE_GH_CI: 3,
+            AutoIssue.SOURCE_VMALERT: 3,
+        }
+        base.update(overrides)
+        return base
+
+    # ── Fix 5: lighthouse + pg_stat enforcement ────────────────────────
+
+    def test_hard_quota_fails_when_lighthouse_below_threshold(self):
+        """AutoIssue Fix 5: lighthouse was in REQUIRED_LIGHTHOUSE_FIXES but never enforced."""
+        from apps.auto_issues.management.commands.verify_autoissue_quota import (
+            _hard_quota_errors,
+        )
+        counts = self._counts(**{AutoIssue.SOURCE_LIGHTHOUSE: 0})
+        errors = _hard_quota_errors(counts)
+        self.assertTrue(
+            any("lighthouse" in e.lower() for e in errors),
+            f"Expected lighthouse in errors but got: {errors}",
+        )
+
+    def test_hard_quota_fails_when_pg_stat_below_threshold(self):
+        """AutoIssue Fix 5: pg_stat was in REQUIRED_PG_STAT_FIXES but never enforced."""
+        from apps.auto_issues.management.commands.verify_autoissue_quota import (
+            _hard_quota_errors,
+        )
+        counts = self._counts(**{AutoIssue.SOURCE_PG_STAT: 0})
+        errors = _hard_quota_errors(counts)
+        self.assertTrue(
+            any("pg_stat" in e.lower() for e in errors),
+            f"Expected pg_stat in errors but got: {errors}",
+        )
+
+    def test_hard_quota_passes_when_all_requirements_met(self):
+        """Sanity: meeting all requirements must produce no errors."""
+        from apps.auto_issues.management.commands.verify_autoissue_quota import (
+            _hard_quota_errors,
+        )
+        errors = _hard_quota_errors(self._counts())
+        self.assertEqual(errors, [], f"Unexpected errors: {errors}")
+
+    # ── Fix 6: remove unused resolved_after parameter ─────────────────
+
+    def test_hard_quota_errors_signature_accepts_counts_only(self):
+        """AutoIssue Fix 6: _hard_quota_errors takes only counts after the fix."""
+        import inspect
+        from apps.auto_issues.management.commands.verify_autoissue_quota import (
+            _hard_quota_errors,
+        )
+        sig = inspect.signature(_hard_quota_errors)
+        params = list(sig.parameters.keys())
+        self.assertNotIn(
+            "resolved_after",
+            params,
+            "_hard_quota_errors must not have a resolved_after parameter after Fix 6",
+        )
+        self.assertEqual(params, ["counts"], f"Expected only 'counts', got {params}")
+
+    # ── Fix 7: no triple sonarqube error messages ─────────────────────
+
+    def test_hard_quota_errors_sonarqube_shortfall_emits_exactly_two_messages(self):
+        """AutoIssue Fix 7: sonarqube shortfall must produce exactly 2 lines, not 3 or 4.
+
+        Before the fix: 4 lines (sonarqube per-source + CANNOT make up + UNBLOCK + summary).
+        After the fix: 2 lines (sonarqube per-source with embedded UNBLOCK + summary).
+        """
+        from apps.auto_issues.management.commands.verify_autoissue_quota import (
+            _hard_quota_errors,
+        )
+        # Only sonarqube is short; all other sources meet their requirements.
+        counts = self._counts(**{AutoIssue.SOURCE_SONARQUBE: 0})
+        errors = _hard_quota_errors(counts)
+        self.assertEqual(
+            len(errors),
+            2,
+            f"Expected exactly 2 error lines, got {len(errors)}: {errors}",
+        )
+        self.assertTrue(any("sonarqube" in e.lower() for e in errors))
+        self.assertTrue(any("UNBLOCK" in e for e in errors))
+
+
+class ScaledRequirementsTests(TestCase):
+    """Tests for _scaled_requirements — session-type quota scaling (Increment 0)."""
+
+    def _import(self):
+        from apps.auto_issues.management.commands.verify_autoissue_quota import (
+            _scaled_requirements,
+            _HARD_SOURCE_REQUIREMENTS,
+            _CROSS_SOURCE_REQUIREMENTS,
+        )
+        return _scaled_requirements, _HARD_SOURCE_REQUIREMENTS, _CROSS_SOURCE_REQUIREMENTS
+
+    def test_docs_returns_all_zero(self):
+        fn, hard, cross = self._import()
+        h, c = fn("docs")
+        self.assertEqual(sum(h.values()), 0, "docs: all hard reqs must be 0")
+        self.assertEqual(sum(c.values()), 0, "docs: all cross reqs must be 0")
+
+    def test_reconciliation_hard_all_zero(self):
+        fn, hard, cross = self._import()
+        h, c = fn("reconciliation")
+        self.assertEqual(sum(h.values()), 0, "reconciliation: hard buckets must be 0")
+
+    def test_reconciliation_cross_all_one(self):
+        fn, hard, cross = self._import()
+        h, c = fn("reconciliation")
+        for src, req in c.items():
+            self.assertEqual(req, 1, f"reconciliation: {src} cross-req must be 1, got {req}")
+
+    def test_reconciliation_total_ten(self):
+        fn, hard, cross = self._import()
+        h, c = fn("reconciliation")
+        self.assertEqual(sum(c.values()), 10, "reconciliation: total cross-source must be 10")
+
+    def test_infrastructure_hard_all_zero(self):
+        fn, hard, cross = self._import()
+        h, c = fn("infrastructure")
+        self.assertEqual(sum(h.values()), 0, "infrastructure: hard buckets must be 0")
+
+    def test_infrastructure_cross_all_two(self):
+        fn, hard, cross = self._import()
+        h, c = fn("infrastructure")
+        for src, req in c.items():
+            self.assertEqual(req, 2, f"infrastructure: {src} cross-req must be 2, got {req}")
+
+    def test_infrastructure_total_twenty(self):
+        fn, hard, cross = self._import()
+        h, c = fn("infrastructure")
+        self.assertEqual(sum(c.values()), 20, "infrastructure: total cross-source must be 20")
+
+    def test_feature_matches_full_quotas(self):
+        fn, hard, cross = self._import()
+        h, c = fn("feature")
+        self.assertEqual(h, hard, "feature: hard reqs must match full quota")
+        self.assertEqual(c, cross, "feature: cross reqs must match full quota")
+
+    def test_hard_flag_reconciliation_passes_with_ten_cross_source(self):
+        """verify_autoissue_quota --hard --session-type reconciliation accepts 1-per-cross-source."""
+        from apps.auto_issues.management.commands.verify_autoissue_quota import (
+            _hard_quota_errors_scaled,
+            _scaled_requirements,
+            _CROSS_SOURCE_REQUIREMENTS,
+        )
+        h, c = _scaled_requirements("reconciliation")
+        # One resolved issue per cross-source satisfies reconciliation requirements.
+        counts = {src: 1 for src in _CROSS_SOURCE_REQUIREMENTS}
+        errors = _hard_quota_errors_scaled(counts, h, c)
+        self.assertEqual(errors, [], f"Expected no errors, got: {errors}")
+
+    def test_hard_flag_reconciliation_fails_with_zero_cross_source(self):
+        """Reconciliation quota fails when cross-source count is 0."""
+        from apps.auto_issues.management.commands.verify_autoissue_quota import (
+            _hard_quota_errors_scaled,
+            _scaled_requirements,
+            _CROSS_SOURCE_REQUIREMENTS,
+        )
+        h, c = _scaled_requirements("reconciliation")
+        counts: dict = {}  # no resolved issues at all
+        errors = _hard_quota_errors_scaled(counts, h, c)
+        self.assertGreater(len(errors), 0, "Expected errors with zero resolved cross-source")
 
 
 def _create_resolved_issues(count: int) -> list[str]:
