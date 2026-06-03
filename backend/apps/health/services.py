@@ -613,7 +613,7 @@ _HELPER_STATES: dict[str, dict[str, object]] = {
         ),
         "fix": (
             "Open Settings > Helpers to register a helper node if you want "
-            "to offload RAM-heavy or GPU-heavy background work."
+            "to offload RAM-heavy background work."
         ),
         "success": True,
     },
@@ -730,91 +730,19 @@ def check_helper_nodes_health() -> ServiceHealthResult:
         )
 
 
-@HealthCheckRegistry.register(
-    "gpu_faiss",
-    name="GPU & FAISS Index",
-    description="CUDA GPU availability and persistent FAISS vector index for Stage 1 pipeline search.",
-)
-def _enrich_gpu_faiss_metadata_with_cuda(meta: dict, faiss_vram_mb: int) -> None:
-    """Mutate ``meta`` with CUDA GPU properties + VRAM usage."""
-    import torch
-
-    bytes_per_mb = 1024 * 1024
-    props = torch.cuda.get_device_properties(0)
-    total_vram_mb = props.total_memory // bytes_per_mb
-    used_vram_mb = (props.total_memory - torch.cuda.mem_get_info(0)[0]) // bytes_per_mb
-    meta["gpu_name"] = props.name
-    meta["vram_total_mb"] = total_vram_mb
-    meta["vram_used_mb"] = used_vram_mb
-    meta["faiss_vram_mb"] = faiss_vram_mb
-
-
-def _classify_faiss_cpu_fallback(
-    requested_mode: str,
-    runtime_resolution: dict,
-    faiss_vectors: int,
-) -> dict:
-    """Pick wording for the FAISS-on-CPU branch (with vs without High-mode mismatch)."""
-    fallback_reason = runtime_resolution.get("reason") or "GPU path not active"
-    if (
-        requested_mode == "high"
-        and runtime_resolution.get("effective_runtime_mode") == "cpu"
-    ):
-        issue = (
-            "FAISS index is loaded but still running on CPU. High mode is "
-            f"requested, but the live embedding runtime is still on CPU because {fallback_reason}."
-        )
-        fix = (
-            "Open Settings > Performance and keep High Performance selected. "
-            f"Then check the backend runtime for the CPU fallback reason: {fallback_reason}."
-        )
-    else:
-        issue = (
-            "FAISS index is loaded but running on CPU, not GPU. Stage 1 "
-            "search is faster than NumPy but not at full GPU speed."
-        )
-        fix = (
-            "Open Settings > Performance and switch to High Performance if "
-            "you want GPU acceleration for embeddings and FAISS."
-        )
-    return {
-        "status": ServiceHealthRecord.STATUS_WARNING,
-        "label": f"FAISS on CPU ({faiss_vectors:,} vectors).",
-        "issue": issue,
-        "fix": fix,
-        "success": True,
-    }
-
-
-def _build_gpu_faiss_metadata(
-    cuda_available: bool,
-    faiss_status: dict,
-    requested_mode: str,
-    runtime_resolution: dict,
-) -> dict:
-    """Pure function — flatten the GPU + FAISS state into a metadata dict."""
+def _build_faiss_metadata(faiss_status: dict) -> dict:
+    """Pure function — flatten the CPU vector-index state into metadata."""
     meta = {
-        "cuda_available": cuda_available,
         "faiss_active": faiss_status.get("active", False),
         "faiss_device": faiss_status.get("device", "none"),
         "faiss_vectors": faiss_status.get("vectors", 0),
-        "performance_mode": requested_mode,
-        "effective_runtime_mode": runtime_resolution.get("effective_runtime_mode"),
-        "effective_runtime_reason": runtime_resolution.get("reason", ""),
     }
-    if cuda_available:
-        _enrich_gpu_faiss_metadata_with_cuda(meta, faiss_status.get("vram_mb", 0))
     return meta
 
 
-def _classify_gpu_faiss_state(
-    meta: dict,
-    requested_mode: str,
-    runtime_resolution: dict,
-) -> dict:
-    """Pure function — pick wording for FAISS not-loaded / on-CPU / GPU-active."""
+def _classify_faiss_state(meta: dict) -> dict:
+    """Pure function — pick wording for FAISS not-loaded / active."""
     faiss_vectors = meta["faiss_vectors"]
-    faiss_vram_mb = meta.get("faiss_vram_mb", 0)
     faiss_device = meta["faiss_device"]
     if not meta["faiss_active"]:
         return {
@@ -830,13 +758,9 @@ def _classify_gpu_faiss_state(
             ),
             "success": False,
         }
-    if "GPU" not in faiss_device:
-        return _classify_faiss_cpu_fallback(
-            requested_mode, runtime_resolution, faiss_vectors
-        )
     return {
         "status": ServiceHealthRecord.STATUS_HEALTHY,
-        "label": f"FAISS-GPU active ({faiss_vectors:,} vectors, {faiss_vram_mb} MB VRAM).",
+        "label": f"FAISS active ({faiss_vectors:,} vectors).",
         "issue": (
             f"Persistent FAISS index is live on {faiss_device} with "
             f"{faiss_vectors:,} content embeddings."
@@ -846,30 +770,25 @@ def _classify_gpu_faiss_state(
     }
 
 
-def check_gpu_faiss_health() -> ServiceHealthResult:
+@HealthCheckRegistry.register(
+    "faiss_index",
+    name="FAISS Index",
+    description="Persistent CPU FAISS vector index for Stage 1 pipeline search.",
+)
+def check_faiss_index_health() -> ServiceHealthResult:
     try:
-        import torch
-        from apps.core.performance_mode import get_requested_performance_mode
-        from apps.pipeline.services.embeddings import get_effective_runtime_resolution
         from apps.pipeline.services.faiss_index import get_faiss_status
 
-        requested_mode = get_requested_performance_mode()
-        runtime_resolution = get_effective_runtime_resolution()
-        meta = _build_gpu_faiss_metadata(
-            torch.cuda.is_available(),
-            get_faiss_status(),
-            requested_mode,
-            runtime_resolution,
-        )
-        decision = _classify_gpu_faiss_state(meta, requested_mode, runtime_resolution)
-        return _make_health_result("gpu_faiss", metadata=meta, **decision)
+        meta = _build_faiss_metadata(get_faiss_status())
+        decision = _classify_faiss_state(meta)
+        return _make_health_result("faiss_index", metadata=meta, **decision)
     except Exception as e:
         logger.exception("health check raised; surfacing via _make_check_failed_result")
         return _make_check_failed_result(
-            "gpu_faiss",
+            "faiss_index",
             e,
-            label="GPU/FAISS check failed.",
-            fix="Ensure PyTorch and faiss-gpu-cu12 are installed in the backend container.",
+            label="FAISS check failed.",
+            fix="Ensure faiss-cpu is installed in the backend container.",
         )
 
 

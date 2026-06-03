@@ -255,7 +255,7 @@ class HelperNode(TimestampedModel):
     native_kernels_healthy = models.BooleanField(default=False)
     warmed_model_keys = models.JSONField(
         default=list,
-        help_text='["embedding:BAAI/bge-m3:fr020-v1"]',
+        help_text='["embedding:text-embedding-3-small:fr020-v1"]',
     )
 
     class Meta:

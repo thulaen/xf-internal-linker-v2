@@ -371,7 +371,7 @@ class ErrorLog(models.Model):
         blank=True,
         help_text=(
             "Snapshot produced by apps.audit.runtime_context.snapshot() — "
-            "GPU/CUDA/embedding/spaCy/python/node at the moment of failure."
+            "embedding/spaCy/python/node state at the moment of failure."
         ),
     )
 

@@ -107,18 +107,14 @@ def compute(
     csr = nx_digraph_to_csr(graph, normalize_per_source=False)
     n = csr.node_count
 
-    # Group C.3 — CUDA-first dispatcher. The cuPy/cuSPARSE path runs
-    # the same two SpMV operations (A · hub, Aᵀ · authority) on the
-    # GPU; falls back to the C++ kernel on CPU-only hosts or any
-    # CUDA failure.
+    # Run the same two SpMV operations (A · hub, A^T · authority)
+    # through the CPU native kernel.
     from extensions import pagerank as pagerank_kernel  # local import
-    from apps.pipeline.services.pagerank_cuda import hits_step_safe
 
     authority = np.full(n, 1.0 / n, dtype=np.float64)
     hub = np.full(n, 1.0 / n, dtype=np.float64)
     for _iteration in range(max_iterations):
-        next_authority, next_hub = hits_step_safe(
-            fallback_cpu_fn=pagerank_kernel.hits_step,
+        next_authority, next_hub = pagerank_kernel.hits_step(
             indptr=csr.indptr,
             indices=csr.indices,
             data=csr.data,

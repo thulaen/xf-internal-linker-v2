@@ -128,7 +128,13 @@ def split_sentence_spans(text: str) -> list[SentenceSpan]:
         else:
             raw_spans = _regex_split_with_offsets(text)
 
-    return _to_sentence_spans(raw_spans)
+    spans = _to_sentence_spans(raw_spans)
+    from apps.observability.instruments import observe_sentence_split
+
+    observe_sentence_split(
+        len(spans), bad_sentences=max(len(raw_spans) - len(spans), 0)
+    )
+    return spans
 
 
 def split_sentence_spans_with_doc(text: str):
@@ -178,7 +184,13 @@ def split_sentence_spans_with_doc(text: str):
         else:
             raw_spans = _regex_split_with_offsets(text)
 
-    return _to_sentence_spans(raw_spans), doc
+    spans = _to_sentence_spans(raw_spans)
+    from apps.observability.instruments import observe_sentence_split
+
+    observe_sentence_split(
+        len(spans), bad_sentences=max(len(raw_spans) - len(spans), 0)
+    )
+    return spans, doc
 
 
 def _to_sentence_spans(

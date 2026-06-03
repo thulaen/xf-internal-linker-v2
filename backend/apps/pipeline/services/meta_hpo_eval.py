@@ -70,7 +70,8 @@ def load_reservoir_items() -> list[_ReservoirItem]:
         or "[]"
     )
     try:
-        ids: list[int] = [int(i) for i in json.loads(raw)]
+        decoded_ids = json.loads(raw)
+        ids: list[int] = [int(i) for i in decoded_ids]
     except (ValueError, TypeError):
         logger.warning(
             "meta_hpo_eval: reservoir_sample_ids is malformed; returning empty eval set"

@@ -3,50 +3,49 @@
 from django.db import migrations
 
 
-OLD_VALUES = {
-    "silo.mode": "disabled",
-    "ga4_gsc.ranking_weight": "0.00",
-    "explore_exploit.enabled": "false",
-    "explore_exploit.ranking_weight": "0.10",
-    "explore_exploit.exploration_rate": "1.0",
-}
+SETTING_ROWS = (
+    (
+        "silo.mode",
+        "disabled",
+        "prefer_same_silo",
+        "str",
+        "Topical silo enforcement mode.",
+    ),
+    (
+        "ga4_gsc.ranking_weight",
+        "0.00",
+        "0.05",
+        "float",
+        "Ranking weight for the GA4/GSC content-value signal.",
+    ),
+    (
+        "explore_exploit.enabled",
+        "false",
+        "true",
+        "bool",
+        "Whether feedback-driven explore/exploit reranking is active.",
+    ),
+    (
+        "explore_exploit.ranking_weight",
+        "0.10",
+        "0.08",
+        "float",
+        "Multiplier weight for the feedback-driven score component.",
+    ),
+    (
+        "explore_exploit.exploration_rate",
+        "1.0",
+        "1.41421356237",
+        "float",
+        "UCB1 exploration-rate constant adapted to this implementation.",
+    ),
+)
 
-
-NEW_VALUES = {
-    "silo.mode": "prefer_same_silo",
-    "ga4_gsc.ranking_weight": "0.05",
-    "explore_exploit.enabled": "true",
-    "explore_exploit.ranking_weight": "0.08",
-    "explore_exploit.exploration_rate": "1.41421356237",
-}
-
-
+OLD_VALUES = {key: old_value for key, old_value, *_ in SETTING_ROWS}
+NEW_VALUES = {key: new_value for key, _old, new_value, *_ in SETTING_ROWS}
 SETTING_META = {
-    "silo.mode": {
-        "value_type": "str",
-        "category": "ml",
-        "description": "Topical silo enforcement mode.",
-    },
-    "ga4_gsc.ranking_weight": {
-        "value_type": "float",
-        "category": "ml",
-        "description": "Ranking weight for the GA4/GSC content-value signal.",
-    },
-    "explore_exploit.enabled": {
-        "value_type": "bool",
-        "category": "ml",
-        "description": "Whether feedback-driven explore/exploit reranking is active.",
-    },
-    "explore_exploit.ranking_weight": {
-        "value_type": "float",
-        "category": "ml",
-        "description": "Multiplier weight for the feedback-driven score component.",
-    },
-    "explore_exploit.exploration_rate": {
-        "value_type": "float",
-        "category": "ml",
-        "description": "UCB1 exploration-rate constant adapted to this implementation.",
-    },
+    key: {"value_type": value_type, "category": "ml", "description": description}
+    for key, _old, _new, value_type, description in SETTING_ROWS
 }
 
 

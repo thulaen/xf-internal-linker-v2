@@ -211,7 +211,11 @@ def clean_import_text(raw_text: str) -> str:
     text = unescape(strip_tags(text))
     text = _remove_noise_lines(text)
     text = _strip_inline_noise_phrases(text)
-    return _nfkc(_MULTI_WS_RE.sub(" ", text).strip())
+    cleaned = _nfkc(_MULTI_WS_RE.sub(" ", text).strip())
+    from apps.observability.instruments import observe_cleaning_result
+
+    observe_cleaning_result(raw_text, cleaned)
+    return cleaned
 
 
 def strip_markup(value: str, replace_with: str = "") -> str:

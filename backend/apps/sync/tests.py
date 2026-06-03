@@ -11,6 +11,23 @@ from requests.auth import HTTPBasicAuth
 from apps.sync.models import SyncJob
 from apps.sync.serializers import SyncJobSerializer
 from apps.sync.services.wordpress_api import WordPressAPIClient
+from apps.sync.services.xenforo_api import XenForoAPIClient
+import requests
+
+class XenForoApiClientTests(SimpleTestCase):
+    @patch('apps.sync.services.xenforo_api.requests.get')
+    @patch('apps.sync.services.xenforo_api.logger.warning')
+    def test_api_client_retries_and_raises(self, mock_warning, mock_get):
+        client = XenForoAPIClient(base_url="https://example.com", api_key="test-key")
+        mock_get.side_effect = requests.exceptions.ConnectionError("Mocked failure")
+        
+        with self.assertRaises(requests.exceptions.ConnectionError):
+            client._get("test/")
+            
+        # Should attempt 3 times (the initial plus 2 retries)
+        self.assertEqual(mock_get.call_count, 3)
+        # Should log a warning (not error) for the failures
+        self.assertEqual(mock_warning.call_count, 3)
 
 
 class WordPressApiClientTests(SimpleTestCase):
@@ -39,6 +56,46 @@ class WordPressApiClientTests(SimpleTestCase):
         self.assertEqual(total_pages, 3)
         self.assertEqual(records[0]["id"], 1)
         client.session.get.assert_called_once()
+
+
+class WordPressVerifyCredentialsTests(SimpleTestCase):
+    """Issue #2027: verify_credentials must not raise JSONDecodeError on empty body."""
+
+    def _make_client(self):
+        return WordPressAPIClient(
+            base_url="https://blog.example.com",
+            username="editor",
+            app_password="app-pass",
+        )
+
+    def test_verify_credentials_returns_ok_false_on_empty_body(self):
+        """Empty response body must not raise JSONDecodeError (issue #2027)."""
+        client = self._make_client()
+        resp = Mock()
+        resp.status_code = 200
+        resp.text = ""
+        resp.content = b""
+        resp.raise_for_status.return_value = None
+        resp.json.side_effect = ValueError("No JSON")
+        client.session.get = Mock(return_value=resp)
+        with patch("apps.sources.api_rate_limiter.rate_limited"):
+            result = client.verify_credentials()
+        self.assertFalse(result["ok"])
+
+    def test_verify_credentials_returns_ok_true_on_valid_json(self):
+        """Normal 200 with valid JSON still works."""
+        client = self._make_client()
+        resp = Mock()
+        resp.status_code = 200
+        resp.text = '{"name": "Alice"}'
+        resp.content = b'{"name": "Alice"}'
+        resp.raise_for_status.return_value = None
+        resp.json.return_value = {"name": "Alice"}
+        client.session.get = Mock(return_value=resp)
+        with patch("apps.sources.api_rate_limiter.rate_limited"):
+            result = client.verify_credentials()
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["display_name"], "Alice")
 
 
 class SyncJobResumeApiTests(APITestCase):

@@ -21,7 +21,13 @@ from apps.core.pause_contract import JobPaused
 from apps.core.helpers import HelperConstraint
 from apps.core.helpers.resource_aware_retry import resource_aware_retry
 from requests import RequestException
-from django.db import DatabaseError, IntegrityError, connection
+from django.db import (
+    DatabaseError,
+    IntegrityError,
+    InterfaceError,
+    OperationalError,
+    connection,
+)
 from urllib.error import URLError
 
 logger = logging.getLogger(__name__) # fixed
@@ -88,6 +94,13 @@ def _content_item_id_set(scope: dict[str, Any] | None) -> set[int] | None:
     name="pipeline.run_pipeline",
     time_limit=7200,
     soft_time_limit=6900,
+    # AutoIssue #20219: a connection dropped MID-run (Postgres restart, idle
+    # timeout, network blip during a 2-hour run) must re-queue the task; the
+    # start-of-task connection.close() guard then hands the retry a fresh
+    # connection. Bounded at 3 retries with backoff so we never retry-storm.
+    autoretry_for=(DatabaseError, InterfaceError, OperationalError),
+    max_retries=3,
+    retry_backoff=60,
 )
 @HelperConstraint(
     cpu_intensive=True,
@@ -319,6 +332,11 @@ def _save_checkpoint(
     name="pipeline.recalculate_click_distance",
     time_limit=1800,
     soft_time_limit=1740,
+    # AutoIssue #20219: re-queue on a mid-task DB connection drop so the
+    # start-of-task close guard can hand the retry a fresh connection.
+    autoretry_for=(DatabaseError, InterfaceError, OperationalError),
+    max_retries=3,
+    retry_backoff=60,
 )
 @HelperConstraint(
     cpu_intensive=True,
@@ -659,7 +677,14 @@ def _retention_progress_reporter(progress_callback):
 
 
 @shared_task(
-    name="pipeline.nightly_data_retention", time_limit=1800, soft_time_limit=1740
+    name="pipeline.nightly_data_retention",
+    time_limit=1800,
+    soft_time_limit=1740,
+    # AutoIssue #20219: bulk Postgres deletes run for minutes; a mid-run
+    # connection drop must re-queue rather than abort the nightly cleanup.
+    autoretry_for=(DatabaseError, InterfaceError, OperationalError),
+    max_retries=3,
+    retry_backoff=60,
 )
 @HelperConstraint(
     cpu_intensive=False,  # bulk Postgres deletes; mostly DB-bound
@@ -1220,6 +1245,12 @@ def sync_single_wp_item(post_id: int, content_type: str = "post") -> dict:
     name="pipeline.import_content",
     time_limit=7200,
     soft_time_limit=6900,
+    # AutoIssue #20219: imports run up to 2 hours; a mid-run DB connection
+    # drop must re-queue so the start-of-task close guard restores a fresh
+    # connection on retry. Bounded at 3 retries with backoff.
+    autoretry_for=(DatabaseError, InterfaceError, OperationalError),
+    max_retries=3,
+    retry_backoff=60,
 )
 @with_weight_lock("heavy")
 @HelperConstraint(

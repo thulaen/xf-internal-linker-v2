@@ -19,7 +19,6 @@ from django.test import SimpleTestCase, TestCase
 from rest_framework.test import APIClient
 
 from apps.core.views import (
-    _apply_heartbeat_gpu_metrics,
     _apply_heartbeat_identity,
     _apply_heartbeat_load_metrics,
     _apply_heartbeat_network_health,
@@ -553,23 +552,7 @@ class ApplyHeartbeatLoadMetricsTests(SimpleTestCase):
         self.assertEqual(node.cpu_pct, 42.5)
 
 
-class ApplyHeartbeatGpuMetricsTests(SimpleTestCase):
-    def test_empty_string_clears_field(self) -> None:
-        node = _FakeHelperNode()
-        node.gpu_util_pct = 42.0
-        _apply_heartbeat_gpu_metrics(node, {"gpu_util_pct": ""})
-        self.assertIsNone(node.gpu_util_pct)
 
-    def test_none_clears_field(self) -> None:
-        node = _FakeHelperNode()
-        node.gpu_util_pct = 42.0
-        _apply_heartbeat_gpu_metrics(node, {"gpu_util_pct": None})
-        self.assertIsNone(node.gpu_util_pct)
-
-    def test_valid_value_applied(self) -> None:
-        node = _FakeHelperNode()
-        _apply_heartbeat_gpu_metrics(node, {"gpu_vram_used_mb": 4096})
-        self.assertEqual(node.gpu_vram_used_mb, 4096)
 
 
 class ApplyHeartbeatNetworkHealthTests(SimpleTestCase):
@@ -1187,34 +1170,6 @@ class SampleCpuRamMetricsTests(SimpleTestCase):
                 value is None or isinstance(value, (int, float)),
                 msg=f"{key}={value!r} must be int|float|None",
             )
-
-
-class SampleGpuMetricsTests(SimpleTestCase):
-    """Verify the GPU sampler returns the documented shape and fail-soft semantics."""
-
-    def test_keys_always_present(self):
-        from apps.core.views import _sample_gpu_metrics
-
-        result = _sample_gpu_metrics()
-        self.assertEqual(
-            set(result.keys()),
-            {
-                "available",
-                "temp_c",
-                "vram_used_mb",
-                "vram_total_mb",
-                "vram_percent",
-                "utilization_pct",
-            },
-        )
-
-    def test_returns_unavailable_when_pynvml_missing(self):
-        from apps.core.views import _sample_gpu_metrics
-
-        # Test container has no GPU — must return available=False, not raise.
-        result = _sample_gpu_metrics()
-        self.assertIn("available", result)
-        # available=False on the test box; just verify the contract field exists.
 
 
 class XfResolveCredentialsTests(TestCase):

@@ -34,14 +34,6 @@
                 <span class="pill-value"><ng-container i18n="@@performance.hardware.gb">{{ runtime.hardware.ram_gb }} GB</ng-container></span>
               </div>
               <div class="hardware-pill">
-                <span class="pill-label" i18n="@@performance.hardware.gpu">GPU</span>
-                <span class="pill-value">{{ runtime.hardware.gpu_name || ('CPU-only' | titlecase) }}</span>
-              </div>
-              <div class="hardware-pill">
-                <span class="pill-label" i18n="@@performance.hardware.vram">VRAM</span>
-                <span class="pill-value"><ng-container i18n="@@performance.hardware.gb">{{ runtime.hardware.gpu_vram_gb || 0 }} GB</ng-container></span>
-              </div>
-              <div class="hardware-pill">
                 <span class="pill-label" i18n="@@performance.hardware.diskFree">Disk free</span>
                 <span class="pill-value"><ng-container i18n="@@performance.hardware.gb">{{ runtime.hardware.disk_free_gb }} GB</ng-container></span>
               </div>
@@ -181,7 +173,6 @@
                 <mat-label i18n="@@performance.register.device">Device</mat-label>
                 <mat-select [(ngModel)]="registration.device_target">
                   <mat-option value="cpu" i18n="@@performance.register.deviceCpu">CPU</mat-option>
-                  <mat-option value="cuda" i18n="@@performance.register.deviceCuda">CUDA</mat-option>
                 </mat-select>
               </mat-form-field>
               <mat-form-field appearance="outline">
@@ -280,39 +271,13 @@
             <div class="tunable-item">
               <div class="tunable-copy">
                 <strong i18n="@@performance.tunables.batchSize">Embedding batch size</strong>
-                <p i18n="@@performance.tunables.batchSizeDesc">Higher values improve throughput but use more VRAM/RAM. Suggested: 32 or 64.</p>
+                <p i18n="@@performance.tunables.batchSizeDesc">Higher values improve throughput but use more RAM. Suggested: 32 or 64.</p>
               </div>
               <div class="tunable-control">
                 <mat-slider [min]="batchMin()" [max]="batchMax()" step="8" discrete>
                   <input matSliderThumb [ngModel]="batchSize()" (ngModelChange)="batchSize.set($event)">
                 </mat-slider>
                 <span class="tunable-value">{{ batchSize() }}</span>
-              </div>
-            </div>
-
-            <div class="tunable-item">
-              <div class="tunable-copy">
-                <strong i18n="@@performance.tunables.gpuBudget">GPU memory budget %</strong>
-                <p i18n="@@performance.tunables.gpuBudgetDesc">Cap on how much VRAM the embedding models can claim. Prevents OOM crashes.</p>
-              </div>
-              <div class="tunable-control">
-                <mat-slider [min]="gpuBudgetMin()" [max]="gpuBudgetMax()" step="5" discrete>
-                  <input matSliderThumb [ngModel]="gpuMemoryBudget()" (ngModelChange)="gpuMemoryBudget.set($event)">
-                </mat-slider>
-                <span class="tunable-value">{{ gpuMemoryBudget() }}%</span>
-              </div>
-            </div>
-
-            <div class="tunable-item">
-              <div class="tunable-copy">
-                <strong i18n="@@performance.tunables.gpuTemp">GPU temp pause threshold</strong>
-                <p i18n="@@performance.tunables.gpuTempDesc">Pause work if GPU exceeds this temperature (Celsius) to prevent throttling.</p>
-              </div>
-              <div class="tunable-control">
-                <mat-slider [min]="gpuTempMin()" [max]="gpuTempMax()" step="1" discrete>
-                  <input matSliderThumb [ngModel]="gpuTempPause()" (ngModelChange)="gpuTempPause.set($event)">
-                </mat-slider>
-                <span class="tunable-value">{{ gpuTempPause() }}°C</span>
               </div>
             </div>
 

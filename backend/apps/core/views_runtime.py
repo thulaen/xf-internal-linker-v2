@@ -27,9 +27,8 @@ Helpers that remain in views.py (e.g. the ``_today_view_*``,
 view families that did not move out, so they stay where they are.
 This file only owns the helpers used solely by the runtime/system
 view classes — and the few module-level constants (the runtime keys
-tuple, performance-mode + expiry choice tuples, the bytes/percent
-conversion constants, the GPU null payload) that are exclusive to
-this layer.
+tuple, performance-mode + expiry choice tuples, and byte conversion
+constants) that are exclusive to this layer.
 """
 
 from __future__ import annotations
@@ -71,12 +70,7 @@ def _runtime_settings_snapshot() -> dict[str, object]:
         "performance_mode_expiry": "none",
         "performance_mode_expires_at": "",
         "master_pause": False,
-        # Hardware-tier gate (added 2026-05-09 per AutoIssue #16). The
-        # frontend uses these to disable the High button when the user's
-        # machine can't run high-mode (no GPU, low VRAM). Without the
-        # gate the user could pick High and silently fall back to CPU.
         "hardware_tier": "low",
-        "high_performance_capable": False,
         "hardware_summary": "",
     }
     try:
@@ -103,18 +97,15 @@ def _runtime_settings_snapshot() -> dict[str, object]:
         or "",
         "master_pause": (rows.get("system.master_pause") or "false").lower() == "true",
         "hardware_tier": hw["tier"],
-        "high_performance_capable": hw["high_performance_capable"],
         "hardware_summary": hw["summary"],
     }
 
 
 def _hardware_capability_snapshot() -> dict[str, object]:
-    """Detect hardware tier + whether High Performance can actually run.
+    """Detect hardware tier for CPU/RAM sizing.
 
     Defensive: hardware_profile may be unavailable in test bootstrap or
-    during early app init. Falls back to a CPU-only "low" tier so the
-    frontend renders a disabled button instead of a misleading enabled
-    one.
+    during early app init. Falls back to a "low" tier.
     """
     try:
         from apps.pipeline.services.hardware_profile import detect_profile
@@ -123,15 +114,10 @@ def _hardware_capability_snapshot() -> dict[str, object]:
     except Exception:  # noqa: BLE001 — hardware probe is best-effort.
         return {
             "tier": "low",
-            "high_performance_capable": False,
             "summary": "Hardware probe unavailable",
         }
-    # High Performance requires CUDA + ≥4 GB VRAM (per
-    # `apps.pipeline.services.embeddings._get_effective_runtime_resolution`).
-    capable = bool(profile.has_cuda and profile.vram_gb >= 4.0)
     return {
         "tier": profile.tier,
-        "high_performance_capable": capable,
         "summary": profile.describe(),
     }
 
@@ -224,7 +210,7 @@ def _read_effective_runtime_mode() -> str:
         )
 
         return get_effective_runtime_resolution()["effective_runtime_mode"]
-    except Exception:  # noqa: BLE001 — runtime resolution falls back to CPU on any failure (no GPU detected, embeddings module unavailable, etc.); logger keeps a paper trail.
+    except Exception:  # noqa: BLE001 — runtime resolution falls back to CPU on any failure; logger keeps a paper trail.
         logger.debug(
             "Effective runtime resolution failed; defaulting to cpu",
             exc_info=True,
@@ -285,7 +271,7 @@ class RuntimeSwitchRunView(APIView):
     """POST /api/settings/runtime/switch-runtime/ — drain-and-resume runtime switch (plan item 23).
 
     Request body:
-        {"target": "cpu" | "gpu", "wait_for_drain": true}
+        {"target": "cpu", "wait_for_drain": true}
 
     Response mirrors ``runtime_switcher.switch_runtime`` so the UI can show
     exactly what happened (previous mode, drain seconds, warmup result).
@@ -298,9 +284,9 @@ class RuntimeSwitchRunView(APIView):
 
         target = (request.data or {}).get("target", "").lower()
         wait = bool((request.data or {}).get("wait_for_drain", True))
-        if target not in ("cpu", "gpu"):
+        if target != "cpu":
             return Response(
-                {"ok": False, "error": "target must be 'cpu' or 'gpu'"}, status=400
+                {"ok": False, "error": "target must be 'cpu'"}, status=400
             )
         try:
             result = switch_runtime(target=target, wait_for_drain=wait)
@@ -531,15 +517,6 @@ class RuntimeActivityResumedView(APIView):
 
 
 _BYTES_PER_MEGABYTE = 1024 * 1024
-_FRACTION_TO_PERCENT = 100.0
-_GPU_NULL_PAYLOAD: dict[str, object] = {
-    "available": False,
-    "temp_c": None,
-    "vram_used_mb": None,
-    "vram_total_mb": None,
-    "vram_percent": None,
-    "utilization_pct": None,
-}
 
 
 def _sample_cpu_ram_metrics() -> dict[str, object]:
@@ -564,50 +541,18 @@ def _sample_cpu_ram_metrics() -> dict[str, object]:
     }
 
 
-def _sample_gpu_metrics() -> dict[str, object]:
-    """Snapshot GPU temp + VRAM + utilisation via pynvml; fail-soft to ``available=False``."""
-    try:
-        import pynvml
-
-        pynvml.nvmlInit()
-        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-        temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
-        mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
-        util = pynvml.nvmlDeviceGetUtilizationRates(handle)
-        pynvml.nvmlShutdown()
-    except Exception:
-        logger.debug("pynvml unavailable or GPU missing; returning available=False")
-        return dict(_GPU_NULL_PAYLOAD)
-    vram_total_mb = round(mem_info.total / _BYTES_PER_MEGABYTE)
-    vram_used_mb = round(mem_info.used / _BYTES_PER_MEGABYTE)
-    return {
-        "available": True,
-        "temp_c": temp,
-        "vram_used_mb": vram_used_mb,
-        "vram_total_mb": vram_total_mb,
-        "vram_percent": (
-            round(_FRACTION_TO_PERCENT * vram_used_mb / vram_total_mb, 1)
-            if vram_total_mb
-            else None
-        ),
-        "utilization_pct": util.gpu,
-    }
-
-
 class SystemMetricsView(APIView):
-    """GET /api/system/metrics/ — live CPU, RAM, and GPU sampling for the dashboard.
+    """GET /api/system/metrics/ — live CPU and RAM sampling for the dashboard.
 
-    Combines psutil (CPU + RAM) and pynvml (GPU) into one lightweight call so
-    the frontend can poll a single endpoint every 10 seconds. All fields are
-    fail-soft: if a sampler is unavailable, the field is null rather than
-    raising an error.
+    The frontend can poll a single endpoint every 10 seconds. All fields are
+    fail-soft: if psutil is unavailable, the field is null rather than raising
+    an error.
     """
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        cpu_ram = _sample_cpu_ram_metrics()
-        return Response({**cpu_ram, "gpu": _sample_gpu_metrics()})
+        return Response(_sample_cpu_ram_metrics())
 
 
 class RuntimeConfigView(APIView):
@@ -617,10 +562,6 @@ class RuntimeConfigView(APIView):
 
     BATCH_SIZE_MIN = 8
     BATCH_SIZE_MAX = 128
-    GPU_MEMORY_BUDGET_MIN = 25
-    GPU_MEMORY_BUDGET_MAX = 80
-    GPU_TEMP_PAUSE_MIN = 75
-    GPU_TEMP_PAUSE_MAX = 95
     DEFAULT_QUEUE_CONCURRENCY_MIN = 1
     DEFAULT_QUEUE_CONCURRENCY_MAX = 6
     CPU_THREAD_DEFAULT = 4
@@ -630,14 +571,6 @@ class RuntimeConfigView(APIView):
         "system.embedding_batch_size": {
             "value_type": "int",
             "description": "Embedding batch size used by the pipeline runtime.",
-        },
-        "system.gpu_memory_budget_pct": {
-            "value_type": "int",
-            "description": "Maximum GPU memory budget percentage for embeddings.",
-        },
-        "system.gpu_temp_pause_c": {
-            "value_type": "int",
-            "description": "GPU temperature threshold that pauses embedding work.",
         },
         "system.cpu_encode_threads": {
             "value_type": "int",
@@ -713,16 +646,6 @@ class RuntimeConfigView(APIView):
         logical_processors = os.cpu_count() or self.CPU_THREAD_DEFAULT
         return max(1, logical_processors - 2)
 
-    def _default_gpu_memory_budget_pct(self, django_conf):
-        from apps.core.performance_mode import get_requested_performance_mode
-
-        mode = get_requested_performance_mode()
-        if mode == "high":
-            fraction = getattr(django_conf, "CUDA_MEMORY_FRACTION_HIGH", 0.80)
-        else:
-            fraction = getattr(django_conf, "CUDA_MEMORY_FRACTION_SAFE", 0.25)
-        return int(round(fraction * 100))
-
     def _default_queue_concurrency(self, django_conf):
         legacy = self._read_int("system.celery_concurrency", None)
         if legacy is not None:
@@ -744,8 +667,6 @@ class RuntimeConfigView(APIView):
         default_queue_concurrency = self._default_queue_concurrency(django_conf)
         cpu_thread_cap = self._cpu_thread_cap()
         default_cpu_threads = min(self.CPU_THREAD_DEFAULT, cpu_thread_cap)
-        default_gpu_budget = self._default_gpu_memory_budget_pct(django_conf)
-        default_gpu_pause = int(getattr(django_conf, "GPU_TEMP_CEILING_C", 90) or 90)
         queue_concurrency = self._read_int(
             "system.default_queue_concurrency",
             default_queue_concurrency,
@@ -758,12 +679,6 @@ class RuntimeConfigView(APIView):
             "embedding_batch_size": self._read_int(
                 "system.embedding_batch_size", default_batch
             ),
-            "gpu_memory_budget_pct": self._read_int(
-                "system.gpu_memory_budget_pct", default_gpu_budget
-            ),
-            "gpu_temp_pause_c": self._read_int(
-                "system.gpu_temp_pause_c", default_gpu_pause
-            ),
             "cpu_encode_threads": self._read_int(
                 "system.cpu_encode_threads", default_cpu_threads
             ),
@@ -773,14 +688,6 @@ class RuntimeConfigView(APIView):
                 "system.aggressive_oom_backoff", True
             ),
             "embedding_batch_size_range": [self.BATCH_SIZE_MIN, self.BATCH_SIZE_MAX],
-            "gpu_memory_budget_pct_range": [
-                self.GPU_MEMORY_BUDGET_MIN,
-                self.GPU_MEMORY_BUDGET_MAX,
-            ],
-            "gpu_temp_pause_c_range": [
-                self.GPU_TEMP_PAUSE_MIN,
-                self.GPU_TEMP_PAUSE_MAX,
-            ],
             "cpu_encode_threads_range": [1, cpu_thread_cap],
             "default_queue_concurrency_range": qc_range,
             "celery_concurrency_range": qc_range,
@@ -867,18 +774,6 @@ class RuntimeConfigView(APIView):
                 "db_key": "system.embedding_batch_size",
                 "lo": self.BATCH_SIZE_MIN,
                 "hi": self.BATCH_SIZE_MAX,
-            },
-            {
-                "field": "gpu_memory_budget_pct",
-                "db_key": "system.gpu_memory_budget_pct",
-                "lo": self.GPU_MEMORY_BUDGET_MIN,
-                "hi": self.GPU_MEMORY_BUDGET_MAX,
-            },
-            {
-                "field": "gpu_temp_pause_c",
-                "db_key": "system.gpu_temp_pause_c",
-                "lo": self.GPU_TEMP_PAUSE_MIN,
-                "hi": self.GPU_TEMP_PAUSE_MAX,
             },
             {
                 "field": "cpu_encode_threads",

@@ -492,7 +492,7 @@ class PipelineLoaderTests(TestCase):
             end_char=15,
             word_position=5,
             embedding=[0.25] * 1024,
-            embedding_model_version="BAAI/bge-m3:1024",
+            embedding_model_version="text-embedding-3-small:1024",
         )
         Sentence.objects.create(
             content_item=content,
@@ -504,7 +504,7 @@ class PipelineLoaderTests(TestCase):
             end_char=41,
             word_position=50,
             embedding=[0.75] * 1024,
-            embedding_model_version="BAAI/bge-m3:1024",
+            embedding_model_version="text-embedding-3-small:1024",
         )
 
         content_keys = {(content.pk, content.content_type)}
@@ -4214,26 +4214,25 @@ class EmbeddingRuntimeSafetyTests(TestCase):
 
         items = self._create_content_items(17)
         job = SyncJob.objects.create(source="api", mode="full", status="running")
-        fake_model = MagicMock()
-        fake_model.get_sentence_embedding_dimension.return_value = 1024
         encode_calls: list[tuple[int, int]] = []
 
-        def _encode(texts, batch_size, show_progress_bar, convert_to_numpy):
+        def _encode(*, batch_texts, batch_size, **_kwargs):
+            texts = batch_texts
             encode_calls.append((len(texts), batch_size))
             if batch_size == 16 and len(encode_calls) == 1:
-                raise RuntimeError("CUDA out of memory while allocating tensor")
+                raise RuntimeError("out of memory while allocating provider response")
             return np.ones((len(texts), 1024), dtype=np.float32)
-
-        fake_model.encode.side_effect = _encode
 
         with (
             patch.object(
-                embeddings_service, "_get_model_name", return_value="BAAI/bge-m3"
+                embeddings_service, "_try_get_active_provider",
+                return_value=MagicMock(
+                    model_name="text-embedding-3-small",
+                    signature="openai:text-embedding-3-small:1024",
+                ),
             ),
-            patch.object(embeddings_service, "_load_model", return_value=fake_model),
+            patch.object(embeddings_service, "_encode_batch_via_provider", side_effect=_encode),
             patch.object(embeddings_service, "_get_batch_size", return_value=16),
-            patch.object(embeddings_service, "_thermal_guard_before_gpu_batch"),
-            patch.object(embeddings_service, "_emit_model_alert"),
             patch.object(
                 embeddings_service, "_clear_embedding_runtime_memory"
             ) as clear_runtime_memory,
@@ -4265,22 +4264,22 @@ class EmbeddingRuntimeSafetyTests(TestCase):
 
         items = self._create_content_items(3)
         job = SyncJob.objects.create(source="api", mode="full", status="running")
-        fake_model = MagicMock()
-        fake_model.get_sentence_embedding_dimension.return_value = 1024
-        fake_model.encode.side_effect = (
-            lambda texts, batch_size, show_progress_bar, convert_to_numpy: np.ones(
-                (len(texts), 1024), dtype=np.float32
-            )
-        )
-
         with (
             patch.object(
-                embeddings_service, "_get_model_name", return_value="BAAI/bge-m3"
+                embeddings_service, "_try_get_active_provider",
+                return_value=MagicMock(
+                    model_name="text-embedding-3-small",
+                    signature="openai:text-embedding-3-small:1024",
+                ),
             ),
-            patch.object(embeddings_service, "_load_model", return_value=fake_model),
+            patch.object(
+                embeddings_service,
+                "_encode_batch_via_provider",
+                side_effect=lambda *, batch_texts, **_kwargs: np.ones(
+                    (len(batch_texts), 1024), dtype=np.float32
+                ),
+            ),
             patch.object(embeddings_service, "_get_batch_size", return_value=1),
-            patch.object(embeddings_service, "_thermal_guard_before_gpu_batch"),
-            patch.object(embeddings_service, "_emit_model_alert"),
             patch.object(
                 embeddings_service,
                 "_get_embedding_pause_reason",

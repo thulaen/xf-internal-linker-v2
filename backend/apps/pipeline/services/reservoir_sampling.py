@@ -39,6 +39,7 @@ passed in so tests get deterministic sampling without patching
 from __future__ import annotations
 
 import random
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Hashable, Iterable, Iterator, TypeVar
 
@@ -111,7 +112,16 @@ def sample(
     ValueError
         If ``k`` <= 0.
     """
-    reservoir = Reservoir(k=k, _rng=rng or random.Random())
+    if k <= 0:
+        raise ValueError("k must be > 0")
+    local_rng = rng or random.Random()
+    if isinstance(stream, Sequence):
+        stream_size = len(stream)
+        if stream_size <= k:
+            return list(stream)
+        return list(local_rng.sample(stream, k))
+
+    reservoir = Reservoir(k=k, _rng=local_rng)
     reservoir.extend(stream)
     return reservoir.snapshot()
 

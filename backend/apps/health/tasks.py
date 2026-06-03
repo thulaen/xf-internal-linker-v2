@@ -28,9 +28,6 @@ logger = logging.getLogger(__name__)
     ram_peak_mb=256,
 )
 def run_all_health_checks():
-    if not connection.in_atomic_block:
-        connection.close()
-
     """
     Run all registered health checks from the registry.
 
@@ -40,7 +37,15 @@ def run_all_health_checks():
 
     Returns a structured dict so monitoring tools can detect failures
     without having to parse log strings.
+
+    Issues #1338 and #423: close the DB connection before starting so a
+    Celery retry (triggered by autoretry_for) begins with a fresh connection
+    rather than one left in a failed/aborted transaction state.  After each
+    individual check failure, close again so the next check is not poisoned.
     """
+    if not connection.in_atomic_block:
+        connection.close()
+
     logger.info("Starting system-wide health checks via Registry.")
     checkers = HealthCheckRegistry.get_checkers()
     check_results: dict[str, str] = {}
@@ -52,13 +57,22 @@ def run_all_health_checks():
             check_results[service_key] = record.status
         except Exception as e:
             logger.error(
-                f"Health check failed for {service_key}: {str(e)}", exc_info=True
+                "Health check failed for %s: %s", service_key, e, exc_info=True
             )
             check_results[service_key] = "FAILED_EXECUTION"
             had_failure = True
+            # Reset the DB connection so a failed check (e.g. check_database_health
+            # opening a cursor that errors) does not leave the connection in an
+            # aborted transaction state and poison the next check with
+            # psycopg.errors.InFailedSqlTransaction (issues #1338, #423).
+            if not connection.in_atomic_block:
+                try:
+                    connection.close()
+                except Exception:  # noqa: BLE001
+                    pass
 
     summary = ", ".join(f"{k}: {v}" for k, v in check_results.items())
-    logger.info(f"Registry-scale health checks completed: {summary}")
+    logger.info("Registry-scale health checks completed: %s", summary)
 
     return {"ok": not had_failure, "checks": check_results}
 

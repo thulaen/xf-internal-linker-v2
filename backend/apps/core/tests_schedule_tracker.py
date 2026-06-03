@@ -44,6 +44,11 @@ class SchemaWorkGuardTests(SimpleTestCase):
             _is_schema_work_command(["manage.py", "sqlmigrate", "auto_issues", "0001"])
         )
 
+    def test_review_logging_command_is_schema_work(self) -> None:
+        self.assertTrue(
+            _is_schema_work_command(["manage.py", "log_self_review_issue"])
+        )
+
     def test_runserver_is_not_schema_work(self) -> None:
         self.assertFalse(_is_schema_work_command(["manage.py", "runserver"]))
 

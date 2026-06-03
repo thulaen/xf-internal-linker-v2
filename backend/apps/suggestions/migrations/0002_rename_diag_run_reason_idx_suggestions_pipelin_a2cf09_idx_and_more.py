@@ -4,6 +4,9 @@ import django.db.models.deletion
 from django.db import migrations, models
 
 
+CONTENT_ITEM_MODEL = "content.contentitem"
+
+
 class Migration(migrations.Migration):
     dependencies = [
         (
@@ -53,7 +56,7 @@ class Migration(migrations.Migration):
                 help_text="The destination content item that was skipped.",
                 on_delete=django.db.models.deletion.CASCADE,
                 related_name="pipeline_diagnostics",
-                to="content.contentitem",
+                to=CONTENT_ITEM_MODEL,
             ),
         ),
         migrations.AlterField(
@@ -278,7 +281,7 @@ class Migration(migrations.Migration):
                 help_text="The content item that will receive an incoming link.",
                 on_delete=django.db.models.deletion.CASCADE,
                 related_name="destination_suggestions",
-                to="content.contentitem",
+                to=CONTENT_ITEM_MODEL,
             ),
         ),
         migrations.AlterField(
@@ -297,7 +300,7 @@ class Migration(migrations.Migration):
                 help_text="The content item whose post will contain the new link.",
                 on_delete=django.db.models.deletion.CASCADE,
                 related_name="host_suggestions",
-                to="content.contentitem",
+                to=CONTENT_ITEM_MODEL,
             ),
         ),
         migrations.AlterField(

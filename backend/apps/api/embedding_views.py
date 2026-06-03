@@ -39,7 +39,6 @@ _PROVIDER_CONFIG_KEYS = [
     "embedding.gate_quality_delta_threshold",
     "embedding.gate_noop_cosine_threshold",
     "embedding.gate_stability_threshold",
-    "performance.profile_override",
 ]
 _SECRET_KEYS = {"embedding.api_key"}
 
@@ -74,8 +73,8 @@ def embedding_status(request: Request) -> Response:
         recommended_batch_size,
     )
 
-    provider_name = _get_setting("embedding.provider") or "local"
-    fallback = _get_setting("embedding.fallback_provider") or "local"
+    provider_name = _get_setting("embedding.provider") or "openai"
+    fallback = _get_setting("embedding.fallback_provider") or "openai"
 
     try:
         from apps.pipeline.services.embedding_providers import get_provider
@@ -134,8 +133,6 @@ def embedding_status(request: Request) -> Response:
                 "tier": profile.tier,
                 "ram_gb": round(profile.ram_gb, 2),
                 "cpu_cores": profile.cpu_cores,
-                "vram_gb": round(profile.vram_gb, 2),
-                "has_cuda": profile.has_cuda,
                 "recommended_batch_size": batch_size,
             },
             "coverage": {
@@ -175,8 +172,6 @@ def embedding_hardware_profile(request: Request) -> Response:
             "tier": profile.tier,
             "ram_gb": round(profile.ram_gb, 2),
             "cpu_cores": profile.cpu_cores,
-            "vram_gb": round(profile.vram_gb, 2),
-            "has_cuda": profile.has_cuda,
             "batch_sizes": batch_sizes,
         }
     )
@@ -189,13 +184,13 @@ def embedding_provider(request: Request) -> Response:
     if request.method == "GET":
         return Response(
             {
-                "active": _get_setting("embedding.provider") or "local",
-                "fallback": _get_setting("embedding.fallback_provider") or "local",
-                "available": ["local", "openai", "gemini"],
+                "active": _get_setting("embedding.provider") or "openai",
+                "fallback": _get_setting("embedding.fallback_provider") or "openai",
+                "available": ["openai", "gemini"],
             }
         )
     name = str(request.data.get("name") or "").strip().lower()
-    if name not in ("local", "openai", "gemini"):
+    if name not in ("openai", "gemini"):
         return Response(
             {"detail": "invalid provider"}, status=status.HTTP_400_BAD_REQUEST
         )
@@ -243,13 +238,13 @@ def embedding_settings(request: Request) -> Response:
 @permission_classes([IsAuthenticated])
 def embedding_test_connection(request: Request) -> Response:
     """Verify the given provider's credentials via a one-token ``healthcheck``."""
-    name = str(request.data.get("provider") or "").strip().lower() or "local"
+    name = str(request.data.get("provider") or "").strip().lower() or "openai"
     from apps.pipeline.services.embedding_providers import get_provider
 
     # Temporarily swap the AppSetting so get_provider resolves to the tested one.
     from apps.core.models import AppSetting
 
-    previous = _get_setting("embedding.provider") or "local"
+    previous = _get_setting("embedding.provider") or "openai"
     try:
         AppSetting.objects.update_or_create(
             key="embedding.provider", defaults={"value": name}

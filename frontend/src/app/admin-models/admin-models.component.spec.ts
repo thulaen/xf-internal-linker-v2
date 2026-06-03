@@ -35,10 +35,10 @@ const populatedSummary: RuntimeModelsSummary = {
   active_model: {
     id: 1,
     task_type: 'embedding',
-    model_name: 'BAAI/bge-m3',
-    model_family: 'sentence-transformers',
+    model_name: 'text-embedding-3-small',
+    model_family: 'paid-api',
     dimension: 1024,
-    device_target: 'cuda',
+    device_target: 'api',
     batch_size: 32,
     memory_profile: {},
     role: 'champion',
@@ -86,7 +86,7 @@ describe('AdminModelsComponent', () => {
 
     const text = fixture.nativeElement.textContent;
     expect(text).toContain('Champion');
-    expect(text).toContain('BAAI/bge-m3');
+    expect(text).toContain('text-embedding-3-small');
     expect(text).toContain('Pause');
     expect(text).toContain('Resume');
     expect(text).toContain('Drain');

@@ -4,12 +4,12 @@ Powers the ``/api/helpers/`` endpoint, the Confidence Meter contributor
 (Section 4.6.10), and the future Group Q.19 ``/diagnostics`` "Connected
 helpers" card. Reads from the existing ``HelperNode`` model (no new
 storage) and decorates with a couple of derived fields the operator
-cares about (heartbeat age, free-disk fraction, GPU presence).
+cares about (heartbeat age and free-disk fraction).
 
 Plain-English: returns a list of "right now, this is the helper roster"
 records. Each record says what the helper can do, what it's currently
-doing, how long since it last spoke, and whether it has a GPU. Cached
-60 s in Redis so dashboards / Confidence Meter calls are cheap.
+doing, and how long since it last spoke. Cached 60 s in Redis so
+dashboards / Confidence Meter calls are cheap.
 """
 
 from __future__ import annotations
@@ -36,7 +36,6 @@ class HelperSummary:
     status: str  # online | busy | unhealthy | offline
     accepting_work: bool
     heartbeat_age_seconds: int | None
-    has_gpu: bool
     cpu_pct: float
     ram_pct: float
     active_jobs: int
@@ -109,14 +108,12 @@ def _node_to_summary(node, now) -> HelperSummary:
         heartbeat_age = int((now - node.last_heartbeat).total_seconds())
 
     caps = node.capabilities or {}
-    has_gpu = bool(caps.get("gpu_vram_gb", 0) and float(caps.get("gpu_vram_gb", 0)) > 0)
     return HelperSummary(
         name=node.name,
         role=node.role,
         status=node.status,
         accepting_work=node.accepting_work,
         heartbeat_age_seconds=heartbeat_age,
-        has_gpu=has_gpu,
         cpu_pct=float(node.cpu_pct or 0.0),
         ram_pct=float(node.ram_pct or 0.0),
         active_jobs=int(node.active_jobs or 0),

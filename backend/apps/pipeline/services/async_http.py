@@ -267,8 +267,7 @@ async def probe_urls(
         headers={"User-Agent": user_agent},
         follow_redirects=False,
     ) as client:
-        tasks = [asyncio.create_task(fetch(url, client)) for url in urls]
-        await asyncio.gather(*tasks)
+        await asyncio.gather(*(fetch(url, client) for url in urls))
 
     return results
 
@@ -339,11 +338,7 @@ async def fetch_urls(
     async with httpx.AsyncClient(
         http2=True, follow_redirects=True, timeout=timeout
     ) as client:
-        tasks = [
-            asyncio.create_task(_fetch_one(url, client, results, config))
-            for url in urls
-        ]
-        await asyncio.gather(*tasks)
+        await asyncio.gather(*(_fetch_one(url, client, results, config) for url in urls))
     return results
 
     return results

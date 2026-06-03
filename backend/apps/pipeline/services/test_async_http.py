@@ -80,9 +80,9 @@ class AsyncHttpTests(unittest.IsolatedAsyncioTestCase):
         # test runner — the test harness's event loop implementation
         # adds ~100x per-task overhead vs plain asyncio. 200 URLs is the
         # sweet spot: still exercises the 50-concurrency bound (4 full
-        # batches), keeps wall-clock under a few seconds even on loaded
-        # CI, and makes the max_active invariant the meaningful check
-        # rather than a flaky wall-clock race.
+        # batches). The max_active assertion is the meaningful proof; the
+        # wall-clock assertion is only a broad hang detector because turbo
+        # runs this alongside many other dirty-tree tests.
         active_requests = 0
         max_active = 0
 
@@ -112,6 +112,29 @@ class AsyncHttpTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(len(results), 200)
             self.assertLessEqual(max_active, 50)
-            self.assertLess(duration, 10.0)
+            self.assertLess(duration, 30.0)
         finally:
+            amod.httpx.AsyncHTTPTransport = original_transport_class
+
+    async def test_probe_urls_completes_without_explicit_task_creation(self):
+        def handler(request: httpx.Request):
+            return httpx.Response(200)
+
+        transport = httpx.MockTransport(handler)
+
+        import apps.pipeline.services.async_http as amod
+
+        original_transport_class = amod.httpx.AsyncHTTPTransport
+        original_create_task = amod.asyncio.create_task
+        amod.httpx.AsyncHTTPTransport = lambda retries: transport
+
+        def fail_create_task(*_args, **_kwargs):
+            raise AssertionError("probe_urls should gather coroutines directly")
+
+        amod.asyncio.create_task = fail_create_task
+        try:
+            results = await probe_urls(["https://example.com/one"])
+            self.assertEqual(results["https://example.com/one"], (200, ""))
+        finally:
+            amod.asyncio.create_task = original_create_task
             amod.httpx.AsyncHTTPTransport = original_transport_class

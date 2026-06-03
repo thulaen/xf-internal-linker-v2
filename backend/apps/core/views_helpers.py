@@ -89,9 +89,6 @@ class HelperNodeDetailView(APIView):
             "queued_jobs",
             "cpu_pct",
             "ram_pct",
-            "gpu_util_pct",
-            "gpu_vram_used_mb",
-            "gpu_vram_total_mb",
             "network_rtt_ms",
             "native_kernels_healthy",
         ):
@@ -133,9 +130,6 @@ _HEARTBEAT_UPDATE_FIELDS = (
     "queued_jobs",
     "cpu_pct",
     "ram_pct",
-    "gpu_util_pct",
-    "gpu_vram_used_mb",
-    "gpu_vram_total_mb",
     "network_rtt_ms",
     "native_kernels_healthy",
     "warmed_model_keys",
@@ -192,40 +186,6 @@ def _apply_heartbeat_load_metrics(node, data: dict) -> None:
         )
 
 
-def _apply_heartbeat_gpu_metrics(node, data: dict) -> None:
-    """Apply GPU utilisation + VRAM metrics."""
-    if "gpu_util_pct" in data:
-        gpu_util = data["gpu_util_pct"]
-        node.gpu_util_pct = (
-            None
-            if gpu_util in ("", None)
-            else coerce_float(
-                gpu_util,
-                default=node.gpu_util_pct or 0.0,
-                min_value=0.0,
-                max_value=100.0,
-            )
-        )
-    if "gpu_vram_used_mb" in data:
-        gpu_vram_used = data["gpu_vram_used_mb"]
-        node.gpu_vram_used_mb = (
-            None
-            if gpu_vram_used in ("", None)
-            else coerce_int(
-                gpu_vram_used, default=node.gpu_vram_used_mb or 0, min_value=0
-            )
-        )
-    if "gpu_vram_total_mb" in data:
-        gpu_vram_total = data["gpu_vram_total_mb"]
-        node.gpu_vram_total_mb = (
-            None
-            if gpu_vram_total in ("", None)
-            else coerce_int(
-                gpu_vram_total, default=node.gpu_vram_total_mb or 0, min_value=0
-            )
-        )
-
-
 def _apply_heartbeat_network_health(node, data: dict) -> None:
     """Apply network RTT + kernel health + warmed-model-keys list."""
     if "network_rtt_ms" in data:
@@ -258,7 +218,6 @@ class HelperNodeHeartbeatView(APIView):
         node.last_snapshot_at = timezone.now()
         _apply_heartbeat_identity(node, request.data)
         _apply_heartbeat_load_metrics(node, request.data)
-        _apply_heartbeat_gpu_metrics(node, request.data)
         _apply_heartbeat_network_health(node, request.data)
         node.save(update_fields=_HEARTBEAT_UPDATE_FIELDS)
         return Response(status=204)

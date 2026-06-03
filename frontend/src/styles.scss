@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 @use './styles/default-theme';
+@use './styles/utilities';
 @use './styles/scroll-highlight';
 @use './styles/attention';
 @use './styles/themes/icons';
@@ -21,6 +22,53 @@
 // Phase E2 / Gap 47 — print-only rules. Must come last so they
 // override earlier screen-oriented styles when @media print fires.
 @use './styles/print';
+
+// ── Tailwind (SPIKE) ────────────────────────────────────────────────
+// Utilities for the CDK+Tailwind A/B spike. Preflight (global reset) is
+// disabled in tailwind.config.js so these coexist with Angular Material.
+// Placed AFTER the @use block (SCSS requires @use first).
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+// Preflight (Tailwind's global reset) is OFF, but its `border-*` width
+// utilities still need a default `border-width: 0` + `border-style: solid` to
+// render (otherwise `border` sets a width on a `none` style → nothing shows,
+// and setting only `solid` would give every element a 3px default border).
+// Restore just that one piece. Component rules with higher specificity keep
+// their own borders untouched.
+*,
+::before,
+::after {
+  border-width: 0;
+  border-style: solid;
+  border-color: var(--color-border);
+}
+
+// ── Material outlined-field compat (remove with the Material→CDK migration) ──
+// The border reset above gives every element `border-style: solid` so Tailwind's
+// `border` utility renders while preflight is off. Angular Material draws an
+// outlined field as three pieces — leading | notch | trailing. The NOTCH is the
+// gap the floating label sits in and must have NO left/right border; Material
+// leaves those sides unset, relying on the UA default of "no border". Our `solid`
+// reset turns them into visible vertical lines slicing through every input
+// (worse on focus, where Material widens all four sides to 2px). Force the
+// notch's side borders off. Leading/trailing already set their unused side to
+// `none`, so they are unaffected. `!important` is needed to beat Material's
+// focused `border-width: 2px` shorthand.
+.mat-mdc-notch-piece.mdc-notched-outline__notch {
+  border-left-width: 0 !important;
+  border-right-width: 0 !important;
+}
+
+// Elements focused programmatically for screen-reader route announcements
+// (tabindex="-1" headings / skip targets) must not show a visual focus ring.
+// They are not in the keyboard tab order, so a ring serves no navigation
+// purpose — it only reads as a stray box around a heading. Genuinely
+// interactive controls keep their focus ring (they are not tabindex="-1").
+[tabindex='-1']:focus {
+  outline: none;
+}
 
 // ── Reset / Base ───────────────────────────────────────────────────
 *,

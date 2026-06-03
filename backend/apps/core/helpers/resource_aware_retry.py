@@ -1,7 +1,7 @@
 """Phase 4.10 — Resource-Aware Retry decorator.
 
 Plain-English: when a Celery task fails because the system is out of
-memory / out of disk / the GPU is hot / the GPU is OOM, blindly retrying
+memory / out of disk / the host is too hot, blindly retrying
 makes things worse. This decorator classifies the failure reason and
 picks the right recovery: smaller batch size for OOM, defer-to-off-peak
 for disk pressure, wait-for-cooldown for thermal, exponential-backoff
@@ -68,9 +68,7 @@ _DEFAULTS = {
 _FAILURE_CLASSIFIERS = {
     # Generic OOM
     "MemoryError": "oom",
-    # PyTorch CUDA OOM
     "OutOfMemoryError": "oom",
-    "CudaOutOfMemoryError": "oom",
     # Transient network / DB
     "ConnectionError": "transient",
     "TimeoutError": "transient",
@@ -78,7 +76,7 @@ _FAILURE_CLASSIFIERS = {
     "OperationalError": "transient",
     # Disk pressure (custom from DISK-PRESSURE-RULES)
     "DiskPressureError": "disk_pressure",
-    # Thermal throttle (custom; raised by GPU thermal guard)
+    # Thermal throttle (custom; raised by host thermal guard)
     "ThermalThrottleError": "thermal",
 }
 
@@ -99,7 +97,7 @@ def classify_failure(exc: BaseException) -> str:
             return _FAILURE_CLASSIFIERS[parent.__name__]
     # Heuristic fallback: search the exception message for OOM signatures.
     msg = str(exc).lower()
-    if "out of memory" in msg or "oom" in msg or "cuda" in msg and "memory" in msg:
+    if "out of memory" in msg or "oom" in msg:
         return "oom"
     if "no space left" in msg or "disk full" in msg:
         return "disk_pressure"

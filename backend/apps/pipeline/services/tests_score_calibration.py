@@ -13,7 +13,8 @@ from apps.pipeline.services.score_calibration import (
     train_calibration_sigmoid,
 )
 
-class _StopAfterGuard(Exception): pass
+class _StopAfterGuard(Exception):
+    pass
 
 class ScoreCalibrationTests(SimpleTestCase):
     def test_calibrated_probability_default(self):
@@ -96,7 +97,8 @@ class ScoreCalibrationTests(SimpleTestCase):
         mock_qs_a = MagicMock()
         mock_qs_b = MagicMock()
         def filter_side_effect(key):
-            if key == "pipeline.calibration_platt_a": return mock_qs_a
+            if key == "pipeline.calibration_platt_a":
+                return mock_qs_a
             return mock_qs_b
         mock_filter.side_effect = filter_side_effect
         mock_qs_a.values_list.return_value.first.return_value = "1.5"

@@ -1,12 +1,13 @@
 """Test runtime model pause summary module for the core app."""
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from apps.core.models import AppSetting
 from apps.core.runtime_models import RuntimeModelRegistry
 
 
+@override_settings(ALLOWED_HOSTS=["testserver"])
 class RuntimeModelPauseSummaryTests(TestCase):
     def setUp(self) -> None:
         self.user = get_user_model().objects.create_user(
@@ -16,8 +17,8 @@ class RuntimeModelPauseSummaryTests(TestCase):
         self.client.force_login(self.user)
         self.model = RuntimeModelRegistry.objects.create(
             task_type="embedding",
-            model_name="BAAI/bge-m3",
-            model_family="sentence-transformers",
+            model_name="text-embedding-3-small",
+            model_family="paid-api",
             dimension=1024,
             role="champion",
             status="ready",

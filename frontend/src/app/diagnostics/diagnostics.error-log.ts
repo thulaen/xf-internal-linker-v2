@@ -138,8 +138,7 @@ export function buildAIPromptForError(e: ErrorLogEntry): string {
   if (e.why) lines.push(`**Why:** ${e.why}`);
   if (e.how_to_fix) lines.push(`**Suggested fix:** ${e.how_to_fix}`);
   lines.push(
-    `**Runtime at time of error:** GPU=${ctx.gpu_available ? 'yes' : 'no'} · ` +
-      `embedding=${ctx.embedding_model ?? 'unknown'} · ` +
+    `**Runtime at time of error:** embedding=${ctx.embedding_model ?? 'unknown'} · ` +
       `spaCy=${ctx.spacy_model ?? 'missing'} · ` +
       `python=${ctx.python_version ?? 'unknown'}`,
   );

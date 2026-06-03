@@ -84,6 +84,11 @@ import { SkeletonComponent } from '../shared/skeleton/skeleton.component';
 import { QuickControlsComponent } from './quick-controls/quick-controls.component';
 // Phase 4.3 — Confidence Meter "Ready to Rock" chip + drill-down.
 import { ConfidenceMeterComponent } from './confidence-meter/confidence-meter.component';
+// GSC redesign — the "start here" attention banner (Part 5). See
+// frontend/GSC-DESIGN-SYSTEM.md. Reusable primitive, composed not reinvented.
+import { GscSummaryCardComponent } from '../shared/gsc/gsc-summary-card/gsc-summary-card.component';
+import { GscMetricTilesComponent, GscTile } from '../shared/gsc/gsc-metric-tiles/gsc-metric-tiles.component';
+import { SpikeInsightCardComponent } from '../shared/gsc/spike/spike-insight-card.component';
 
 @Component({
   selector: 'app-dashboard',
@@ -157,6 +162,9 @@ import { ConfidenceMeterComponent } from './confidence-meter/confidence-meter.co
     SkeletonComponent,
     QuickControlsComponent,
     ConfidenceMeterComponent,
+    GscSummaryCardComponent,
+    GscMetricTilesComponent,
+    SpikeInsightCardComponent,
   ],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss'],
@@ -205,6 +213,98 @@ export class DashboardComponent implements OnInit {
     'run_id', 'run_state', 'suggestions_created',
     'destinations_processed', 'duration_display', 'created_at',
   ];
+
+  // GSC metric-tile rows for the dashboard summary cards (Part 5). Typed so the
+  // colour tones map to the gsc-metric-tiles tone classes.
+  get reviewTiles(): GscTile[] {
+    const c = this.data?.suggestion_counts;
+    return c ? [
+      { label: 'Pending', value: c.pending, tone: 'blue' },
+      { label: 'Approved', value: c.approved, tone: 'green' },
+      { label: 'Applied live', value: c.applied, tone: 'purple' },
+      { label: 'Total', value: c.total, tone: 'grey' },
+    ] : [];
+  }
+
+  get contentTiles(): GscTile[] {
+    const d = this.data;
+    return d ? [
+      { label: 'Content items', value: d.content_count, tone: 'blue' },
+      { label: 'Open broken links', value: d.open_broken_links, tone: 'amber' },
+      { label: 'Last sync items', value: d.last_sync?.items_synced ?? 0, tone: 'green' },
+    ] : [];
+  }
+
+  get healthTiles(): GscTile[] {
+    const h = this.data?.system_health;
+    return h ? [
+      { label: 'Status', value: h.status, tone: h.status === 'healthy' ? 'green' : 'amber' },
+      { label: 'Monitored services', value: h.total_monitored, tone: 'grey' },
+    ] : [];
+  }
+
+  get pipelineTiles(): GscTile[] {
+    const r = this.data?.pipeline_runs?.[0];
+    return r ? [
+      { label: 'Suggestions created', value: r.suggestions_created, tone: 'blue' },
+      { label: 'Destinations processed', value: r.destinations_processed, tone: 'purple' },
+    ] : [];
+  }
+
+  /**
+   * The single most important thing needing attention right now, as one
+   * coherent banner: headline, detail, tone, and action ALL describe the same
+   * issue and the button routes to the page that fixes it. Priority order:
+   * system health → broken links → pending reviews → all clear.
+   */
+  get attention(): {
+    tone: 'info' | 'warning' | 'success';
+    headline: string;
+    detail: string;
+    actionLabel: string | null;
+    actionLink: string | null;
+  } {
+    const d = this.data;
+    if (!d) {
+      return { tone: 'info', headline: '', detail: '', actionLabel: null, actionLink: null };
+    }
+    if (d.system_health.status !== 'healthy') {
+      return {
+        tone: 'warning',
+        headline: 'System health needs attention',
+        detail: 'Some services are degraded — check them before the next pipeline run.',
+        actionLabel: 'View system health',
+        actionLink: '/health',
+      };
+    }
+    if (d.open_broken_links > 0) {
+      const n = d.open_broken_links;
+      return {
+        tone: 'warning',
+        headline: `${n} broken ${n === 1 ? 'link' : 'links'} to fix`,
+        detail: 'Broken internal links hurt navigation and search ranking.',
+        actionLabel: 'Fix link health',
+        actionLink: '/link-health',
+      };
+    }
+    if (d.suggestion_counts.pending > 0) {
+      const n = d.suggestion_counts.pending;
+      return {
+        tone: 'info',
+        headline: `${n} ${n === 1 ? 'suggestion' : 'suggestions'} waiting for review`,
+        detail: 'Approve or reject pending link suggestions to keep them flowing.',
+        actionLabel: 'Review now',
+        actionLink: '/review',
+      };
+    }
+    return {
+      tone: 'success',
+      headline: 'Everything looks healthy',
+      detail: 'No issues need your attention right now.',
+      actionLabel: null,
+      actionLink: null,
+    };
+  }
 
   ngOnInit(): void {
     this.load();

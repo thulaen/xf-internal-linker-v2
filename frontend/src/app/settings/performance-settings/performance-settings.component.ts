@@ -65,17 +65,11 @@ export class PerformanceSettingsComponent implements OnInit {
   private destroyRef = inject(DestroyRef);
 
   readonly batchSize = signal<number>(32);
-  readonly gpuMemoryBudget = signal<number>(60);
-  readonly gpuTempPause = signal<number>(90);
   readonly cpuEncodeThreads = signal<number>(4);
   readonly defaultQueueConcurrency = signal<number>(2);
   readonly aggressiveOomBackoff = signal<boolean>(true);
   readonly batchMin = signal<number>(8);
   readonly batchMax = signal<number>(128);
-  readonly gpuBudgetMin = signal<number>(25);
-  readonly gpuBudgetMax = signal<number>(80);
-  readonly gpuTempMin = signal<number>(75);
-  readonly gpuTempMax = signal<number>(95);
   readonly cpuThreadsMin = signal<number>(1);
   readonly cpuThreadsMax = signal<number>(10);
   readonly queueConcMin = signal<number>(1);
@@ -90,7 +84,7 @@ export class PerformanceSettingsComponent implements OnInit {
 
   registration: RuntimeRegistrationForm = {
     model_name: '',
-    model_family: 'sentence-transformers',
+    model_family: 'paid-api',
     dimension: 1024,
     device_target: 'cpu',
     batch_size: 32,
@@ -100,8 +94,6 @@ export class PerformanceSettingsComponent implements OnInit {
   };
 
   private initialBatch = 32;
-  private initialGpuMemoryBudget = 60;
-  private initialGpuTempPause = 90;
   private initialCpuEncodeThreads = 4;
   private initialDefaultQueueConcurrency = 2;
   private initialAggressiveOomBackoff = true;
@@ -121,23 +113,15 @@ export class PerformanceSettingsComponent implements OnInit {
       .subscribe((cfg) => {
         if (!cfg) return;
         this.batchSize.set(cfg.embedding_batch_size);
-        this.gpuMemoryBudget.set(cfg.gpu_memory_budget_pct);
-        this.gpuTempPause.set(cfg.gpu_temp_pause_c);
         this.cpuEncodeThreads.set(cfg.cpu_encode_threads);
         this.defaultQueueConcurrency.set(cfg.default_queue_concurrency);
         this.aggressiveOomBackoff.set(cfg.aggressive_oom_backoff);
         this.initialBatch = cfg.embedding_batch_size;
-        this.initialGpuMemoryBudget = cfg.gpu_memory_budget_pct;
-        this.initialGpuTempPause = cfg.gpu_temp_pause_c;
         this.initialCpuEncodeThreads = cfg.cpu_encode_threads;
         this.initialDefaultQueueConcurrency = cfg.default_queue_concurrency;
         this.initialAggressiveOomBackoff = cfg.aggressive_oom_backoff;
         this.batchMin.set(cfg.embedding_batch_size_range[0]);
         this.batchMax.set(cfg.embedding_batch_size_range[1]);
-        this.gpuBudgetMin.set(cfg.gpu_memory_budget_pct_range[0]);
-        this.gpuBudgetMax.set(cfg.gpu_memory_budget_pct_range[1]);
-        this.gpuTempMin.set(cfg.gpu_temp_pause_c_range[0]);
-        this.gpuTempMax.set(cfg.gpu_temp_pause_c_range[1]);
         this.cpuThreadsMin.set(cfg.cpu_encode_threads_range[0]);
         this.cpuThreadsMax.set(cfg.cpu_encode_threads_range[1]);
         this.queueConcMin.set(cfg.default_queue_concurrency_range[0]);
@@ -159,7 +143,7 @@ export class PerformanceSettingsComponent implements OnInit {
       .subscribe((runtime) => {
         this.runtimeSummary.set(runtime);
         const suggestedDevice = runtime.model_runtime.active_model?.device_target
-          || (runtime.hardware.gpu_name ? 'cuda' : 'cpu');
+          || 'cpu';
         this.registration.device_target = suggestedDevice;
         this.registration.batch_size = runtime.recommended_profile.suggested_batch_size;
       });
@@ -258,8 +242,6 @@ export class PerformanceSettingsComponent implements OnInit {
     this.saving.set(true);
     this.siloSettings.updateRuntimeConfig({
       embedding_batch_size: this.batchSize(),
-      gpu_memory_budget_pct: this.gpuMemoryBudget(),
-      gpu_temp_pause_c: this.gpuTempPause(),
       cpu_encode_threads: this.cpuEncodeThreads(),
       default_queue_concurrency: this.defaultQueueConcurrency(),
       aggressive_oom_backoff: this.aggressiveOomBackoff(),
@@ -275,8 +257,6 @@ export class PerformanceSettingsComponent implements OnInit {
       .subscribe(() => {
         this.saving.set(false);
         this.initialBatch = this.batchSize();
-        this.initialGpuMemoryBudget = this.gpuMemoryBudget();
-        this.initialGpuTempPause = this.gpuTempPause();
         this.initialCpuEncodeThreads = this.cpuEncodeThreads();
         this.initialDefaultQueueConcurrency = this.defaultQueueConcurrency();
         this.initialAggressiveOomBackoff = this.aggressiveOomBackoff();
@@ -286,8 +266,6 @@ export class PerformanceSettingsComponent implements OnInit {
 
   reset(): void {
     this.batchSize.set(this.initialBatch);
-    this.gpuMemoryBudget.set(this.initialGpuMemoryBudget);
-    this.gpuTempPause.set(this.initialGpuTempPause);
     this.cpuEncodeThreads.set(this.initialCpuEncodeThreads);
     this.defaultQueueConcurrency.set(this.initialDefaultQueueConcurrency);
     this.aggressiveOomBackoff.set(this.initialAggressiveOomBackoff);

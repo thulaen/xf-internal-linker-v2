@@ -407,7 +407,7 @@ class GlitchtipEventsView(views.APIView):
 
 class RuntimeContextView(views.APIView):
     """
-    Snapshot of the current runtime — GPU / CUDA / embedding / spaCy /
+    Snapshot of the current runtime — embedding / spaCy /
     node. Consumed by the Live Runtime Health strip at the top of the
     Diagnostics Error Log.
     """
@@ -585,12 +585,12 @@ class PipelineGateView(views.APIView):
     def get(self, request):
         from apps.health.services import (
             check_celery_health,
-            check_gpu_faiss_health,
+            check_faiss_index_health,
             check_ml_models_health,
         )
 
         checks = (
-            ("GPU (FAISS)", check_gpu_faiss_health),
+            ("FAISS index", check_faiss_index_health),
             ("ML models", check_ml_models_health),
             ("Celery worker", check_celery_health),
         )

@@ -53,17 +53,12 @@
                 <mat-card-content>
                   <mat-chip-set>
                     <mat-chip highlighted>{{ s.hardware.tier }}</mat-chip>
-                    @if (s.hardware.has_cuda) {
-                      <mat-chip>CUDA</mat-chip>
-                    }
                   </mat-chip-set>
                   <dl class="kv">
                     <dt>RAM</dt>
                     <dd>{{ s.hardware.ram_gb }} GB</dd>
                     <dt>CPU cores</dt>
                     <dd>{{ s.hardware.cpu_cores }}</dd>
-                    <dt>VRAM</dt>
-                    <dd>{{ s.hardware.vram_gb }} GB</dd>
                     <dt>Recommended batch size</dt>
                     <dd>{{ s.hardware.recommended_batch_size }}</dd>
                   </dl>
@@ -128,10 +123,6 @@
                 [(ngModel)]="pendingProvider"
                 class="provider-radio"
                 aria-label="Select embedding provider">
-                <mat-radio-button value="local">
-                  <span class="provider-label">Local (BGE-M3)</span>
-                  <span class="provider-hint">On-device; free; GPU if available</span>
-                </mat-radio-button>
                 <mat-radio-button value="openai">
                   <span class="provider-label">OpenAI</span>
                   <span class="provider-hint">text-embedding-3 — paid, high-quality</span>
@@ -160,19 +151,6 @@
               </div>
 
               <div class="test-buttons">
-                <button
-                  mat-stroked-button
-                  [disabled]="testingProvider() === 'local'"
-                  (click)="testConnection('local')">
-                  @if (testingProvider() === 'local') {
-                    <span role="status" aria-live="polite" aria-label="Testing local connection">
-                      <mat-spinner diameter="18"></mat-spinner>
-                    </span>
-                  } @else {
-                    <mat-icon aria-hidden="true">verified</mat-icon>
-                  }
-                  <span i18n="@@embeddings.action.test-local">Test local</span>
-                </button>
                 <button
                   mat-stroked-button
                   [disabled]="testingProvider() === 'openai'"

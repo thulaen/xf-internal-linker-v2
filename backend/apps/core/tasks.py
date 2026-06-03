@@ -193,7 +193,8 @@ def prune_stale_checkpoints() -> dict:
     from apps.sync.models import SyncJob
 
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     now = timezone.now()
     completed_cutoff = now - timedelta(hours=24)
@@ -275,7 +276,8 @@ def prune_superseded_embeddings() -> dict:
     from apps.content.supersede import prune_verified_rows
 
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     try:
         return prune_verified_rows()
@@ -313,7 +315,8 @@ def resume_after_wake() -> dict:
     from apps.core.models import AppSetting
 
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     try:
         enabled = (
@@ -378,7 +381,8 @@ def activity_resumed_revert() -> dict:
     from apps.core.models import AppSetting
 
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
+    if not connection.in_atomic_block:
+        connection.close()
 
     result: dict = {"reverted": False, "reason": ""}
     try:
@@ -408,7 +412,6 @@ from . import tasks_backups  # noqa: F401
 from . import tasks_compression_audit  # noqa: F401
 from . import tasks_cpp_fallback  # noqa: F401
 from . import tasks_dashboard  # noqa: F401
-from . import tasks_gpu_cleanup  # noqa: F401
 from . import tasks_passkey_cleanup  # noqa: F401
 from . import tasks_performance_cert  # noqa: F401
 from . import tasks_schedule_recovery  # noqa: F401

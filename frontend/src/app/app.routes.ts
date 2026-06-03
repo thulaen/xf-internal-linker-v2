@@ -116,6 +116,34 @@ export const routes: Routes = [
     title: 'Technical Diagnostics — XF Internal Linker',
     canActivate: [authGuard],
   },
+  // Previously-built pages that had no route and no nav link (orphaned).
+  // Wired here under the Diagnostics group. Flat paths match the existing
+  // convention; registering `/observability` also fixes the broken link in
+  // work-queue.component.html that pointed at it.
+  {
+    path: 'find-bugs',
+    loadComponent: () =>
+      import('./find-bugs/find-bugs.component').then((m) => m.FindBugsComponent),
+    title: 'Find Bugs — XF Internal Linker',
+    canActivate: [authGuard],
+    data: { breadcrumb: 'Find Bugs' },
+  },
+  {
+    path: 'observability',
+    loadComponent: () =>
+      import('./observability/observability.component').then((m) => m.ObservabilityComponent),
+    title: 'Observability — XF Internal Linker',
+    canActivate: [authGuard],
+    data: { breadcrumb: 'Observability' },
+  },
+  {
+    path: 'work-queue',
+    loadComponent: () =>
+      import('./work-queue/work-queue.component').then((m) => m.WorkQueueComponent),
+    title: 'Agent Work Queue — XF Internal Linker',
+    canActivate: [authGuard],
+    data: { breadcrumb: 'Work Queue' },
+  },
   {
     path: 'alerts',
     loadComponent: () =>

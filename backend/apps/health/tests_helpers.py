@@ -20,7 +20,6 @@ from apps.health.services import (
     _classify_celery_queue_depth,
     _classify_crawler_session_state,
     _classify_disk_space,
-    _classify_gpu_faiss_state,
     _classify_helper_nodes_state,
     _classify_pipeline_state,
     _make_check_failed_result,
@@ -174,6 +173,16 @@ class ClassifyHelperNodesStateTests(SimpleTestCase):
     def test_no_helpers_registered(self):
         decision = _classify_helper_nodes_state(0, 0, 0, 0, 0.0)
         self.assertEqual(decision["status"], ServiceHealthRecord.STATUS_NOT_CONFIGURED)
+        self.assertEqual(decision["label"], "No helper nodes configured.")
+        # Exact fix copy after GPU/CUDA removal — pins the string mutmut would
+        # otherwise wrap (the line dropped "or GPU-heavy" on this diff).
+        self.assertEqual(
+            decision["fix"],
+            "Open Settings > Helpers to register a helper node if you want "
+            "to offload RAM-heavy background work.",
+        )
+        self.assertNotIn("GPU", decision["fix"])
+        self.assertTrue(decision["success"])
 
     def test_all_offline(self):
         decision = _classify_helper_nodes_state(0, 0, 0, 5, 0.0)
@@ -368,38 +377,7 @@ class ClassifyCrawlerSessionStateTests(SimpleTestCase):
         self.assertEqual(decision["status"], ServiceHealthRecord.STATUS_HEALTHY)
 
 
-class ClassifyGpuFaissStateTests(SimpleTestCase):
-    """Verify GPU/FAISS wording for the three loadable states."""
 
-    def test_faiss_not_loaded(self):
-        meta = {
-            "faiss_active": False,
-            "faiss_device": "none",
-            "faiss_vectors": 0,
-        }
-        decision = _classify_gpu_faiss_state(meta, "high", {})
-        self.assertEqual(decision["status"], ServiceHealthRecord.STATUS_WARNING)
-        self.assertIn("not loaded", decision["label"])
-
-    def test_faiss_on_cpu(self):
-        meta = {
-            "faiss_active": True,
-            "faiss_device": "CPU",
-            "faiss_vectors": 1000,
-        }
-        decision = _classify_gpu_faiss_state(meta, "balanced", {})
-        self.assertEqual(decision["status"], ServiceHealthRecord.STATUS_WARNING)
-        self.assertIn("CPU", decision["label"])
-
-    def test_faiss_on_gpu(self):
-        meta = {
-            "faiss_active": True,
-            "faiss_device": "GPU",
-            "faiss_vectors": 5000,
-            "faiss_vram_mb": 256,
-        }
-        decision = _classify_gpu_faiss_state(meta, "high", {})
-        self.assertEqual(decision["status"], ServiceHealthRecord.STATUS_HEALTHY)
 
 
 class SearchMetricCheckConfigTests(SimpleTestCase):

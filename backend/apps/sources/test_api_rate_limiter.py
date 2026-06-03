@@ -98,6 +98,13 @@ class RateLimiterRegistryTests(SimpleTestCase):
             with rate_limited("dt", max_wait_s=0.05):
                 pass
 
+    def test_rate_limited_retries_until_token_is_acquired(self) -> None:
+        REGISTRY.register_bucket("retry", capacity=1.0, rate_per_sec=1000.0)
+        self.assertTrue(REGISTRY.try_acquire("retry", 1.0))
+        with rate_limited("retry", max_wait_s=1.0):
+            pass
+        self.assertLess(REGISTRY.available("retry"), 1.0)
+
 
 class BackendIdentityTests(SimpleTestCase):
     """Confirm we know which backend we're running on (helps debug failures)."""

@@ -163,20 +163,29 @@ def _build_bpr_v3_rows(
     The result feeds straight into ``pl.DataFrame(...)`` with the long-form
     Parquet schema (entity_kind, entity_id, idx, vector).
     """
-    kinds: list[str] = ["meta"]
-    ids: list[str] = ["factors"]
-    idxs: list[int] = [0]
-    vecs: list[list[float]] = [[float(factors)]]
-    for user_id, idx in user_index.items():
-        kinds.append("user")
-        ids.append(str(user_id))
-        idxs.append(int(idx))
-        vecs.append([float(x) for x in user_factors[idx]])
-    for item_id, idx in item_index.items():
-        kinds.append("item")
-        ids.append(str(item_id))
-        idxs.append(int(idx))
-        vecs.append([float(x) for x in item_factors[idx]])
+    user_rows = [
+        (
+            "user",
+            str(user_id),
+            int(idx),
+            np.asarray(user_factors[idx], dtype=np.float32).astype(float).tolist(),
+        )
+        for user_id, idx in user_index.items()
+    ]
+    item_rows = [
+        (
+            "item",
+            str(item_id),
+            int(idx),
+            np.asarray(item_factors[idx], dtype=np.float32).astype(float).tolist(),
+        )
+        for item_id, idx in item_index.items()
+    ]
+    rows = [("meta", "factors", 0, [float(factors)]), *user_rows, *item_rows]
+    kinds = [row[0] for row in rows]
+    ids = [row[1] for row in rows]
+    idxs = [row[2] for row in rows]
+    vecs = [row[3] for row in rows]
     return {"entity_kind": kinds, "entity_id": ids, "idx": idxs, "vector": vecs}
 
 

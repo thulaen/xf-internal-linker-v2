@@ -376,6 +376,27 @@ export class AppComponent implements OnInit {
           route: '/performance',
           tooltip: $localize`:@@nav.performance.tooltip:Benchmark results for C++ and Python hot paths`,
         },
+        // Previously-built pages that were never linked in the menu. Wired
+        // here so they are reachable; the full Diagnostics regrouping happens
+        // in the GSC navigation pass.
+        {
+          label: $localize`:@@nav.findBugs.label:Find Bugs`,
+          icon: 'pest_control',
+          route: '/find-bugs',
+          tooltip: $localize`:@@nav.findBugs.tooltip:Automated bug-pattern findings with confirm / triage actions`,
+        },
+        {
+          label: $localize`:@@nav.observability.label:Observability`,
+          icon: 'insights',
+          route: '/observability',
+          tooltip: $localize`:@@nav.observability.tooltip:Live health of the monitoring and quality stack (metrics, logs, traces)`,
+        },
+        {
+          label: $localize`:@@nav.workQueue.label:Work Queue`,
+          icon: 'assignment',
+          route: '/work-queue',
+          tooltip: $localize`:@@nav.workQueue.tooltip:Repair control center for AutoIssues, Paper Trail, and agent tasks`,
+        },
         // Phase OF — Operations Feed (ambient narration stream).
         {
           label: $localize`:@@nav.operationsFeed.label:Operations Feed`,

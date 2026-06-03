@@ -9,7 +9,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from apps.diagnostics.views import GlitchtipEventsView
-from apps.health.views import HealthStatusViewSet, HealthDiskView, HealthGpuView
+from apps.health.views import HealthStatusViewSet, HealthDiskView
 from apps.content.views import ContentItemViewSet, ScopeItemViewSet, SiloGroupViewSet
 from apps.core.views import (
     AppearanceSettingsView,
@@ -169,7 +169,22 @@ class _CsrfFreeObtainAuthToken(ObtainAuthToken):
 
 obtain_auth_token = _CsrfFreeObtainAuthToken.as_view()
 
+from apps.api.embedding_views import (
+    embedding_audit_run,
+    embedding_bakeoff_results,
+    embedding_bakeoff_run,
+    embedding_gate_decisions,
+    embedding_hardware_profile,
+    embedding_provider,
+    embedding_settings,
+    embedding_status,
+    embedding_test_connection,
+)
 from apps.api.ml_views import MLDistillView, MLEmbedView
+from apps.api.passage_relevance_views import PassageRelevanceSettingsView
+from apps.api.session_gate_view import session_gate
+from apps.core.views_preview import SyncPreviewView
+from apps.core.views_prune import SafePruneView
 
 router = DefaultRouter()
 
@@ -259,12 +274,12 @@ urlpatterns = [
     path("analytics/", include("apps.analytics.urls")),
     path("", include("apps.audit.urls")),
     path("", include("apps.auto_issues.urls")),
+    path("observability/", include("apps.observability.urls")),
     path("", include("apps.plugins.urls")),
     path("suggestions/", include("apps.suggestions.urls")),
     # Keep these ahead of the health viewset routes so "disk" and "gpu"
     # are not mistaken for service-key detail lookups.
     path("health/disk/", HealthDiskView.as_view(), name="health-disk"),
-    path("health/gpu/", HealthGpuView.as_view(), name="health-gpu"),
     # Phase SR / Phase MS — these share the `suggestions/` + `meta-algorithms/`
     # URL prefixes with DRF router ViewSets below. Must come BEFORE the
     # router include or DRF treats "readiness" and "<id>/toggle" as pk
@@ -298,6 +313,7 @@ urlpatterns = [
     ),
     path("", include(router.urls)),
     path("import/upload/", ImportUploadView.as_view(), name="import-upload"),
+    path("session-gate/", session_gate, name="session-gate"),
     path("ml/distill/", MLDistillView.as_view(), name="ml-distill"),
     path("ml/embed/", MLEmbedView.as_view(), name="ml-embed"),
     path(
@@ -311,17 +327,13 @@ urlpatterns = [
     # Plan item 24 — 3-minute dry-run sync preview.
     path(
         "sync/preview/",
-        __import__(
-            "apps.core.views_preview", fromlist=["SyncPreviewView"]
-        ).SyncPreviewView.as_view(),
+        SyncPreviewView.as_view(),
         name="sync-preview",
     ),
     # Plan item 26 — safe prune (GET allowed targets; POST dry-run / commit).
     path(
         "prune/safe/",
-        __import__(
-            "apps.core.views_prune", fromlist=["SafePruneView"]
-        ).SafePruneView.as_view(),
+        SafePruneView.as_view(),
         name="prune-safe",
     ),
     path(
@@ -454,10 +466,7 @@ urlpatterns = [
     path("settings/graph/rebuild/", GraphRebuildView.as_view(), name="graph-rebuild"),
     path(
         "settings/passage-relevance/",
-        __import__(
-            "apps.api.passage_relevance_views",
-            fromlist=["PassageRelevanceSettingsView"],
-        ).PassageRelevanceSettingsView.as_view(),
+        PassageRelevanceSettingsView.as_view(),
         name="passage-relevance-settings",
     ),
     path(
@@ -540,73 +549,20 @@ urlpatterns = [
     path("benchmarks/", include("apps.benchmarks.urls")),
     # Phase OF — /api/operations/events/ hydrates the feed on reload.
     path("operations/", include("apps.ops_feed.urls")),
+    path("work-queue/", include("apps.work_queue.urls")),
     # PR-B — Scheduled Updates REST surface (jobs / alerts / window status).
     path(
         "scheduled-updates/",
         include("apps.scheduled_updates.urls", namespace="scheduled_updates"),
     ),
     # Embeddings page (plan Part 8c, FR-235).
-    path(
-        "embedding/status/",
-        __import__(
-            "apps.api.embedding_views", fromlist=["embedding_status"]
-        ).embedding_status,
-        name="embedding-status",
-    ),
-    path(
-        "embedding/provider/",
-        __import__(
-            "apps.api.embedding_views", fromlist=["embedding_provider"]
-        ).embedding_provider,
-        name="embedding-provider",
-    ),
-    path(
-        "embedding/settings/",
-        __import__(
-            "apps.api.embedding_views", fromlist=["embedding_settings"]
-        ).embedding_settings,
-        name="embedding-settings",
-    ),
-    path(
-        "embedding/test-connection/",
-        __import__(
-            "apps.api.embedding_views", fromlist=["embedding_test_connection"]
-        ).embedding_test_connection,
-        name="embedding-test-connection",
-    ),
-    path(
-        "embedding/bakeoff/",
-        __import__(
-            "apps.api.embedding_views", fromlist=["embedding_bakeoff_results"]
-        ).embedding_bakeoff_results,
-        name="embedding-bakeoff-results",
-    ),
-    path(
-        "embedding/bakeoff/run/",
-        __import__(
-            "apps.api.embedding_views", fromlist=["embedding_bakeoff_run"]
-        ).embedding_bakeoff_run,
-        name="embedding-bakeoff-run",
-    ),
-    path(
-        "embedding/audit/run/",
-        __import__(
-            "apps.api.embedding_views", fromlist=["embedding_audit_run"]
-        ).embedding_audit_run,
-        name="embedding-audit-run",
-    ),
-    path(
-        "embedding/gate-decisions/",
-        __import__(
-            "apps.api.embedding_views", fromlist=["embedding_gate_decisions"]
-        ).embedding_gate_decisions,
-        name="embedding-gate-decisions",
-    ),
-    path(
-        "embedding/hardware-profile/",
-        __import__(
-            "apps.api.embedding_views", fromlist=["embedding_hardware_profile"]
-        ).embedding_hardware_profile,
-        name="embedding-hardware-profile",
-    ),
+    path("embedding/status/", embedding_status, name="embedding-status"),
+    path("embedding/provider/", embedding_provider, name="embedding-provider"),
+    path("embedding/settings/", embedding_settings, name="embedding-settings"),
+    path("embedding/test-connection/", embedding_test_connection, name="embedding-test-connection"),
+    path("embedding/bakeoff/", embedding_bakeoff_results, name="embedding-bakeoff-results"),
+    path("embedding/bakeoff/run/", embedding_bakeoff_run, name="embedding-bakeoff-run"),
+    path("embedding/audit/run/", embedding_audit_run, name="embedding-audit-run"),
+    path("embedding/gate-decisions/", embedding_gate_decisions, name="embedding-gate-decisions"),
+    path("embedding/hardware-profile/", embedding_hardware_profile, name="embedding-hardware-profile"),
 ]

@@ -1,19 +1,109 @@
 """Test suite for the health app."""
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 from unittest import mock
-from types import SimpleNamespace
+from unittest.mock import MagicMock, patch, call
 
 from apps.health.models import ServiceHealthRecord
 from apps.health.services import (
-    check_gpu_faiss_health,
     perform_health_check,
     HealthCheckRegistry,
     ServiceHealthResult,
 )
+
+
+class HealthTaskConnectionGuardTests(SimpleTestCase):
+    """Issues #1338 and #423: run_all_health_checks must reset a failed DB connection.
+
+    When a health check causes a DB error (e.g., check_database_health runs
+    cursor() which fails), the Postgres connection ends up in an aborted
+    transaction state.  The NEXT perform_health_check call then tries to do
+    get_or_create on the same connection and raises InFailedSqlTransaction.
+
+    Fix: after each individual check raises, close+reset the connection before
+    continuing so subsequent checks start with a clean state.
+    """
+
+    def test_run_all_health_checks_closes_connection_before_work(self):
+        """connection.close() must be called at startup when not in_atomic_block (issue #1338)."""
+        from apps.health.tasks import run_all_health_checks
+
+        mock_conn = MagicMock()
+        mock_conn.in_atomic_block = False
+
+        mock_checkers = {"test_svc": MagicMock(return_value=MagicMock(status="healthy"))}
+
+        with (
+            patch("apps.health.tasks.connection", mock_conn),
+            patch("apps.health.tasks.HealthCheckRegistry") as mock_reg,
+            # Patch perform_health_check so checkers work without DB
+            patch("apps.health.tasks.perform_health_check") as mock_phc,
+        ):
+            mock_reg.get_checkers.return_value = mock_checkers
+            mock_phc.return_value = MagicMock(status="healthy")
+            run_all_health_checks()
+
+        # At minimum one close() call at startup.
+        mock_conn.close.assert_called()
+
+    def test_run_all_health_checks_does_not_close_inside_atomic_block(self):
+        """Must not call connection.close() when already in a transaction."""
+        from apps.health.tasks import run_all_health_checks
+
+        mock_conn = MagicMock()
+        mock_conn.in_atomic_block = True
+
+        mock_checkers = {"test_svc": MagicMock(return_value=MagicMock(status="healthy"))}
+
+        with (
+            patch("apps.health.tasks.connection", mock_conn),
+            patch("apps.health.tasks.HealthCheckRegistry") as mock_reg,
+        ):
+            mock_reg.get_checkers.return_value = mock_checkers
+            run_all_health_checks()
+
+        mock_conn.close.assert_not_called()
+
+    def test_run_all_health_checks_resets_connection_after_check_exception(self):
+        """After a checker raises, close the connection so the next check starts clean.
+
+        This prevents psycopg.errors.InFailedSqlTransaction propagating across
+        successive health checks (issues #1338 and #423).
+        """
+        from apps.health.tasks import run_all_health_checks
+
+        mock_conn = MagicMock()
+        mock_conn.in_atomic_block = False
+
+        close_calls = []
+
+        def _track_close():
+            close_calls.append(1)
+
+        mock_conn.close.side_effect = _track_close
+
+        def _failing_checker():
+            raise RuntimeError("DB unavailable")
+
+        mock_checkers = {
+            "failing_svc": _failing_checker,
+            "healthy_svc": MagicMock(return_value=MagicMock(status="healthy")),
+        }
+
+        with (
+            patch("apps.health.tasks.connection", mock_conn),
+            patch("apps.health.tasks.HealthCheckRegistry") as mock_reg,
+            patch("apps.health.tasks.perform_health_check", side_effect=RuntimeError("DB unavailable")),
+        ):
+            mock_reg.get_checkers.return_value = mock_checkers
+            result = run_all_health_checks()
+
+        # Must have closed the connection at startup and again after the failure.
+        self.assertGreaterEqual(len(close_calls), 2)
+        self.assertFalse(result["ok"])
 
 
 class HealthCheckTests(TestCase):
@@ -76,52 +166,3 @@ class HealthApiRouteTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("db_size_mb", response.data)
         self.assertIn("embeddings_size_mb", response.data)
-
-    def test_gpu_endpoint_is_not_shadowed_by_viewset_lookup(self):
-        response = self.client.get("/api/health/gpu/")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("available", response.data)
-
-
-class GpuFaissHealthTests(TestCase):
-    @mock.patch("apps.pipeline.services.faiss_index.get_faiss_status")
-    @mock.patch("apps.pipeline.services.embeddings.get_effective_runtime_resolution")
-    @mock.patch("apps.core.performance_mode.get_requested_performance_mode")
-    def test_high_mode_cpu_fallback_message_uses_db_backed_reason(
-        self,
-        requested_mode,
-        runtime_resolution,
-        faiss_status,
-    ):
-        requested_mode.return_value = "high"
-        runtime_resolution.return_value = {
-            "performance_mode": "high",
-            "effective_runtime_mode": "cpu",
-            "device": "cpu",
-            "reason": "CUDA warmup failed",
-        }
-        faiss_status.return_value = {
-            "active": True,
-            "vectors": 7,
-            "device": "CPU",
-            "vram_mb": 0,
-        }
-        fake_torch = SimpleNamespace(
-            cuda=SimpleNamespace(
-                is_available=lambda: True,
-                get_device_properties=lambda *_args, **_kwargs: mock.Mock(
-                    total_memory=6 * 1024 * 1024 * 1024,
-                    name="RTX 3050",
-                ),
-                mem_get_info=lambda *_args, **_kwargs: (1024 * 1024 * 1024, 0),
-            )
-        )
-
-        with mock.patch.dict("sys.modules", {"torch": fake_torch}):
-            result = check_gpu_faiss_health()
-
-        self.assertEqual(result.status, ServiceHealthRecord.STATUS_WARNING)
-        self.assertIn("High mode is requested", result.issue_description)
-        self.assertIn("CUDA warmup failed", result.issue_description)
-        self.assertIn("Settings > Performance", result.suggested_fix)

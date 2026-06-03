@@ -107,3 +107,40 @@ class TokenBucketWiringTests(SimpleTestCase):
         self.assertEqual(results[0]["status_code"], 0)
         self.assertEqual(results[0]["error"], "rate_limited")
         self.assertEqual(results[0]["content"], "")
+
+    def test_fetch_urls_completes_without_explicit_task_creation(self) -> None:
+        """fetch_urls should gather per-URL coroutines without detached tasks."""
+        with patch.object(async_http, "httpx") as httpx_mod:
+            httpx_mod.TimeoutException = Exception
+            httpx_mod.RequestError = Exception
+
+            class _Client:
+                async def __aenter__(self):
+                    return self
+
+                async def __aexit__(self, *exc):
+                    return None
+
+                async def request(self, method, url, **kw):
+                    response = type("Response", (), {})()
+                    response.status_code = 304
+                    response.content = b""
+                    response.headers = {}
+                    response.text = ""
+                    return response
+
+            httpx_mod.AsyncClient.return_value = _Client()
+
+            with patch.object(
+                async_http.asyncio,
+                "create_task",
+                side_effect=AssertionError("fetch_urls should gather coroutines directly"),
+            ):
+                results = asyncio.run(
+                    async_http.fetch_urls(
+                        ["https://example.invalid/a"],
+                        max_concurrency=1,
+                    )
+                )
+
+        self.assertEqual(results[0]["status_code"], 304)

@@ -17,7 +17,7 @@ tasks, pipeline failures, slave-node forwards — goes through
    operator sees the regression instead of a silent new duplicate row.
 4. `how_to_fix` is populated from `fix_suggestions.suggest()` so every
    row has a plain-English fix hint.
-5. `runtime_context` captures GPU / CUDA / embedding / spaCy state at
+5. `runtime_context` captures embedding / spaCy state at
    crash time for post-mortem correlation.
 
 `ingest_error()` never raises — producing an ErrorLog must not be able

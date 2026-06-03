@@ -28,25 +28,6 @@ describe('RuntimeModeComponent', () => {
     expect(chip.classList).toContain('mode-cpu');
   });
 
-  it('should display GPU Active when mode is gpu', () => {
-    fixture.componentRef.setInput('mode', 'gpu');
-    fixture.detectChanges();
-    const chip = fixture.nativeElement.querySelector('.mode-chip');
-    expect(chip.textContent).toContain('GPU Active');
-    expect(chip.classList).toContain('mode-gpu');
-  });
-
-  it('should display warming hint when mode is warming', () => {
-    fixture.componentRef.setInput('mode', 'warming');
-    fixture.detectChanges();
-    const chip = fixture.nativeElement.querySelector('.mode-chip');
-    expect(chip.textContent).toContain('GPU Warming Up');
-    expect(chip.classList).toContain('mode-warming');
-    const hint = fixture.nativeElement.querySelector('.warming-hint');
-    expect(hint).toBeTruthy();
-    expect(hint.textContent).toContain('GPU is warming up');
-  });
-
   it('should have a link to performance mode', () => {
     const btn = fixture.nativeElement.querySelector('.runtime-adjust-btn');
     expect(btn).toBeTruthy();

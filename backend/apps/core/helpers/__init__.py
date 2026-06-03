@@ -29,8 +29,8 @@ Citations: pattern derived from Celery distributed routing docs +
 ``apps/core/helper_router.py:select_best_helper_node`` (Stage 8/10).
 """
 
-from .constraint import HelperConstraint
+from .constraint import HelperConstraint, get_constraint
 from .archive import HelperArchive
 from .roster import roster
 
-__all__ = ["HelperConstraint", "HelperArchive", "roster"]
+__all__ = ["HelperConstraint", "HelperArchive", "roster", "get_constraint"]

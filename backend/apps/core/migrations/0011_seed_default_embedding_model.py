@@ -4,13 +4,13 @@ from django.db import migrations
 
 
 DEFAULT_EMBEDDING_MODEL_ROW = {
-    "key": "embedding_model",
-    "value": "BAAI/bge-m3",
+    "key": "embedding.model",
+    "value": "text-embedding-3-small",
     "value_type": "str",
     "category": "ml",
     "description": (
-        "Default sentence-transformers embedding model used across Balanced and "
-        "High Performance modes unless the operator promotes a different champion."
+        "Default paid embedding model used unless the operator promotes a "
+        "different champion."
     ),
 }
 

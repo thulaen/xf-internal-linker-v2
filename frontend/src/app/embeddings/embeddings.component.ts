@@ -2,7 +2,7 @@
  * Embeddings page (plan Part 8c, FR-235).
  *
  * Angular Material mat-tabs: Overview | Providers | Run Control | Bake-off | Audit.
- * Hot-switches providers (local / OpenAI / Gemini), shows live status, triggers
+ * Hot-switches providers (OpenAI / Gemini), shows live status, triggers
  * bake-off + audit, and manages all provider settings (API keys, model names,
  * budgets, gate thresholds).
  *
@@ -53,8 +53,6 @@ interface EmbeddingStatus {
     tier: string;
     ram_gb: number;
     cpu_cores: number;
-    vram_gb: number;
-    has_cuda: boolean;
     recommended_batch_size: number;
   };
   coverage: { total: number; embedded: number; pct: number };
@@ -159,7 +157,6 @@ export class EmbeddingsComponent implements OnInit {
     'embedding.gate_quality_delta_threshold': 'Gate quality-delta threshold',
     'embedding.gate_noop_cosine_threshold': 'Gate NOOP cosine threshold',
     'embedding.gate_stability_threshold': 'Gate stability threshold',
-    'performance.profile_override': 'Hardware tier override',
   };
 
   // Which settings are editable in the Providers tab.
@@ -180,7 +177,6 @@ export class EmbeddingsComponent implements OnInit {
     'embedding.gate_quality_delta_threshold',
     'embedding.gate_noop_cosine_threshold',
     'embedding.gate_stability_threshold',
-    'performance.profile_override',
   ];
 
   // Numeric fields for light client-side validation + type hints.

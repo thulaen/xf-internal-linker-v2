@@ -11,6 +11,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 from django.views.generic import RedirectView
+from apps.observability.views import MetricsView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 # Angular dev server — extract port so the magic-number linter stays green.
@@ -24,6 +25,7 @@ admin.site.index_title = "Administration"
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("metrics/", MetricsView.as_view(), name="metrics"),
     path("api/", include("apps.api.urls")),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(

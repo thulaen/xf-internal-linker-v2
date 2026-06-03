@@ -5,6 +5,8 @@ Serializers for PipelineRun, Suggestion, and PipelineDiagnostic.
 The SuggestionReviewSerializer supports partial updates for approve/reject actions.
 """
 
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.pipeline.services.link_freshness import (
@@ -432,9 +434,11 @@ class SuggestionDetailSerializer(
             "updated_at",
         ]
 
+    @extend_schema_field(OpenApiTypes.OBJECT)
     def get_link_freshness_diagnostics(self, obj: Suggestion) -> dict[str, object]:
         return get_destination_link_freshness_diagnostics(obj.destination_id).as_dict()
 
+    @extend_schema_field(OpenApiTypes.OBJECT)
     def get_telemetry_instrumentation(self, obj: Suggestion) -> dict[str, object]:
         return build_suggestion_telemetry_payload(obj)
 

@@ -2,7 +2,7 @@
 
 Covers four shapes:
 
-1. All 15 services healthy -> marker emits ``status=healthy
+1. All local services healthy -> marker emits ``status=healthy
    failing_signals=none`` and no AutoIssue is filed.
 2. Single service degraded -> marker emits ``status=degraded`` naming
    the service; a single AutoIssue is filed with the deduping
@@ -37,6 +37,7 @@ def _healthy_rows() -> list[dict]:
 
 class HappyPathTests(TestCase):
     def test_all_healthy_emits_clean_marker(self) -> None:
+        before = AutoIssue.objects.count()
         out = StringIO()
         with patch(
             "apps.observability.management.commands.check_observability_health._docker_compose_ps_json",
@@ -46,9 +47,10 @@ class HappyPathTests(TestCase):
         output = out.getvalue()
         self.assertIn("[OBSERVABILITY HEALTH: status=healthy", output)
         self.assertIn("failing_signals=none", output)
-        self.assertEqual(AutoIssue.objects.count(), 0)
+        self.assertEqual(AutoIssue.objects.count(), before)
 
     def test_starting_health_treated_as_ok(self) -> None:
+        before = AutoIssue.objects.count()
         rows = _healthy_rows()
         rows[0]["Health"] = "starting"
         out = StringIO()
@@ -58,12 +60,15 @@ class HappyPathTests(TestCase):
         ):
             call_command("check_observability_health", stdout=out)
         self.assertIn("status=healthy", out.getvalue())
-        self.assertEqual(AutoIssue.objects.count(), 0)
+        self.assertEqual(AutoIssue.objects.count(), before)
 
 
 class SingleFailureTests(TestCase):
     def test_absent_service_files_autoissue(self) -> None:
-        rows = [r for r in _healthy_rows() if r["Service"] != "sonarqube"]
+        # grafana is a local (Windows-context) service; sonarqube moved to
+        # Mint (see config/observability-services.json remote_services) and
+        # is no longer in the local OBSERVABILITY_SERVICES list.
+        rows = [r for r in _healthy_rows() if r["Service"] != "grafana"]
         out = StringIO()
         with patch(
             "apps.observability.management.commands.check_observability_health._docker_compose_ps_json",
@@ -72,9 +77,9 @@ class SingleFailureTests(TestCase):
             call_command("check_observability_health", stdout=out)
         output = out.getvalue()
         self.assertIn("status=degraded", output)
-        self.assertIn("sonarqube", output)
+        self.assertIn("grafana", output)
         autoissues = AutoIssue.objects.filter(
-            canonical_fingerprint__startswith="observability:sonarqube:absent"
+            canonical_fingerprint__startswith="observability:grafana:absent"
         )
         self.assertEqual(autoissues.count(), 1)
         self.assertEqual(autoissues.first().severity, AutoIssue.SEVERITY_HIGH)
@@ -133,7 +138,11 @@ class MultiFailureTests(TestCase):
 
 class DedupTests(TestCase):
     def test_repeat_invocation_bumps_occurrence_count(self) -> None:
-        rows = [r for r in _healthy_rows() if r["Service"] != "pyroscope"]
+        # alloy is a local service; pyroscope moved to Mint (remote_services).
+        AutoIssue.objects.filter(
+            canonical_fingerprint__startswith="observability:alloy:absent"
+        ).delete()
+        rows = [r for r in _healthy_rows() if r["Service"] != "alloy"]
         with patch(
             "apps.observability.management.commands.check_observability_health._docker_compose_ps_json",
             return_value=rows,
@@ -142,7 +151,7 @@ class DedupTests(TestCase):
             call_command("check_observability_health", stdout=StringIO())
             call_command("check_observability_health", stdout=StringIO())
         autoissues = AutoIssue.objects.filter(
-            canonical_fingerprint__startswith="observability:pyroscope:absent"
+            canonical_fingerprint__startswith="observability:alloy:absent"
         )
         self.assertEqual(autoissues.count(), 1)
         self.assertEqual(autoissues.first().occurrence_count, 3)
@@ -150,7 +159,8 @@ class DedupTests(TestCase):
 
 class DryRunTests(TestCase):
     def test_dry_run_does_not_file(self) -> None:
-        rows = [r for r in _healthy_rows() if r["Service"] != "vmsingle"]
+        before = AutoIssue.objects.count()
+        rows = [r for r in _healthy_rows() if r["Service"] != "tempo"]
         out = StringIO()
         with patch(
             "apps.observability.management.commands.check_observability_health._docker_compose_ps_json",
@@ -158,4 +168,5 @@ class DryRunTests(TestCase):
         ):
             call_command("check_observability_health", "--dry-run", stdout=out)
         self.assertIn("status=degraded", out.getvalue())
-        self.assertEqual(AutoIssue.objects.count(), 0)
+        self.assertIn("tempo", out.getvalue())
+        self.assertEqual(AutoIssue.objects.count(), before)

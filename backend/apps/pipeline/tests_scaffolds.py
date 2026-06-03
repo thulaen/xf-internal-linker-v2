@@ -7,21 +7,11 @@ weights file, no DB). Sources of truth are inline in each module.
 
 from __future__ import annotations
 
-import os
 from unittest import mock
 
 import numpy as np
 from django.test import SimpleTestCase
 
-from apps.pipeline.services.domain_adapter import (
-    GPL_MIN_CORPUS_SIZE,
-    LORA_ALPHA_DEFAULT,
-    LORA_RANK_DEFAULT,
-    get_adapter_status,
-    get_adapter_weights_path,
-    load_adapted_model,
-    should_train_adapter,
-)
 from apps.pipeline.services.nrt_delta_index import (
     DELTA_FLUSH_THRESHOLD_DEFAULT,
     DELTA_MAX_SIZE_DEFAULT,
@@ -44,67 +34,6 @@ from apps.pipeline.services.score_calibration import (
     fit_platt_sigmoid,
     passes_calibrated_threshold,
 )
-
-
-# ─────────────────────────────────────────────────────────────────────
-# FR-242 — Domain adapter
-# ─────────────────────────────────────────────────────────────────────
-
-
-class DomainAdapterTests(SimpleTestCase):
-    """Wang et al. 2022 GPL §4 minimum-data threshold + cold-start fallback."""
-
-    def test_constants_locked_to_paper_defaults(self):
-        # Wang 2022 GPL §4 minimum corpus, Hu 2021 LoRA §4.1 rank/alpha.
-        self.assertEqual(GPL_MIN_CORPUS_SIZE, 10_000)
-        self.assertEqual(LORA_RANK_DEFAULT, 8)
-        self.assertEqual(LORA_ALPHA_DEFAULT, 16)
-
-    def test_should_train_adapter_below_minimum_returns_false(self):
-        # Wang 2022 §4 — below 10K docs, GPL collapses to noise.
-        self.assertFalse(should_train_adapter(0))
-        self.assertFalse(should_train_adapter(9_999))
-
-    def test_should_train_adapter_at_minimum_returns_true(self):
-        self.assertTrue(should_train_adapter(10_000))
-        self.assertTrue(should_train_adapter(1_000_000))
-
-    def test_no_trained_adapter_returns_vanilla_unchanged(self):
-        # Cold-start happy path: no LoRA weights on disk → vanilla
-        # passes through unchanged.
-        sentinel = object()
-        with mock.patch(
-            "apps.pipeline.services.domain_adapter.has_trained_adapter",
-            return_value=False,
-        ):
-            out = load_adapted_model(sentinel)
-        self.assertIs(out, sentinel)
-
-    def test_adapter_load_failure_falls_back_to_vanilla(self):
-        # Adversarial: adapter file present but loader stub raises
-        # NotImplementedError. Documented behaviour: catch + log +
-        # fall back to vanilla. Pipeline must not crash.
-        sentinel = object()
-        with mock.patch(
-            "apps.pipeline.services.domain_adapter.has_trained_adapter",
-            return_value=True,
-        ):
-            out = load_adapted_model(sentinel)
-        self.assertIs(out, sentinel)
-
-    def test_status_helper_returns_expected_shape(self):
-        status = get_adapter_status()
-        self.assertIn("available", status)
-        self.assertIn("path", status)
-        self.assertIn("weights_path", status)
-
-    def test_weights_path_respects_env_override(self):
-        with mock.patch.dict(
-            os.environ,
-            {"EMBEDDING_DOMAIN_ADAPTER_PATH": "/custom/path"},
-            clear=False,
-        ):
-            self.assertEqual(get_adapter_weights_path(), "/custom/path")
 
 
 # ─────────────────────────────────────────────────────────────────────

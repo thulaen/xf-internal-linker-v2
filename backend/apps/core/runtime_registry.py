@@ -13,7 +13,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Default embedding-vector dimension for the seeded BGE-M3 champion.
+# Default embedding-vector dimension for the seeded paid embedding provider.
 # Used when seeding a new RuntimeModelRegistry row for the embedding task.
 _EMBEDDING_DIM_DEFAULT = 1024
 
@@ -25,9 +25,6 @@ _AUDIT_LOG_RETAIN_ROWS = 1000
 # Minimum gap between two primary hardware snapshots. Below this, the
 # existing snapshot is returned instead of recomputing.
 _SNAPSHOT_REFRESH_WINDOW_SECONDS = 3600
-
-# Percent-to-fraction conversion for gpu_util_pct etc.
-_PCT_TO_FRACTION = 0.01
 
 from django.conf import settings as django_settings
 from django.db.models import Max
@@ -47,6 +44,16 @@ ACTIVE_HELPER_STATUSES = {"online", "busy", "stale"}
 MODEL_TASK_EMBEDDING = "embedding"
 
 
+def _safe_int_setting(raw, default: int) -> int:
+    """Convert a raw DB value to int, returning default on None / empty / non-numeric."""
+    if raw in (None, ""):
+        return default
+    try:
+        return int(float(raw))
+    except (ValueError, TypeError):
+        return default
+
+
 @dataclass(frozen=True)
 class RuntimeProfileRecommendation:
     profile: str
@@ -56,49 +63,46 @@ class RuntimeProfileRecommendation:
 
 
 def get_current_embedding_model_name() -> str:
-    setting = AppSetting.objects.filter(key="embedding_model").first()
+    setting = AppSetting.objects.filter(key="embedding.model").first()
     if setting and setting.value.strip():
         return setting.value.strip()
-    return getattr(django_settings, "EMBEDDING_MODEL", "BAAI/bge-m3")
+    return getattr(django_settings, "EMBEDDING_MODEL", "text-embedding-3-small")
 
 
 def get_current_embedding_device() -> str:
-    try:
-        import torch
-
-        return "cuda" if torch.cuda.is_available() else "cpu"
-    except Exception:  # noqa: BLE001  # torch is optional at runtime; on CPU-only installs the import itself can raise. Fall back to "cpu" — matches the actual hardware.
-        return "cpu"
+    return "api"
 
 
 def get_active_runtime_model(
     task_type: str = MODEL_TASK_EMBEDDING,
 ) -> RuntimeModelRegistry | None:
+    model_name = get_current_embedding_model_name()
     champion = (
         RuntimeModelRegistry.objects.filter(task_type=task_type, role="champion")
         .exclude(status="deleted")
         .order_by("-promoted_at", "-updated_at")
         .first()
     )
-    if champion:
+    if champion and (
+        task_type != MODEL_TASK_EMBEDDING or champion.model_name == model_name
+    ):
         return champion
 
-    model_name = get_current_embedding_model_name()
     registry, _ = RuntimeModelRegistry.objects.get_or_create(
         task_type=task_type,
         model_name=model_name,
         algorithm_version="fr020-v1",
         defaults={
-            "model_family": "sentence-transformers",
+            "model_family": "paid-api",
             "dimension": _EMBEDDING_DIM_DEFAULT
             if task_type == MODEL_TASK_EMBEDDING
             else None,
             "device_target": get_current_embedding_device(),
-            "batch_size": int(
+            "batch_size": _safe_int_setting(
                 AppSetting.objects.filter(key="system.embedding_batch_size")
                 .values_list("value", flat=True)
-                .first()
-                or 32
+                .first(),
+                32,
             ),
             "role": "champion",
             "status": "ready",
@@ -344,17 +348,7 @@ def helper_effective_load(node: HelperNode) -> float:
     )
     cpu_pressure = float(node.cpu_pct or 0.0) / max(float(node.cpu_cap_pct or 1), 1.0)
     ram_pressure = float(node.ram_pct or 0.0) / max(float(node.ram_cap_pct or 1), 1.0)
-    gpu_pressure = 0.0
-    if node.gpu_util_pct is not None:
-        gpu_pressure = max(
-            gpu_pressure, float(node.gpu_util_pct or 0.0) * _PCT_TO_FRACTION
-        )
-    if node.gpu_vram_used_mb and node.gpu_vram_total_mb:
-        gpu_pressure = max(
-            gpu_pressure,
-            float(node.gpu_vram_used_mb) / max(float(node.gpu_vram_total_mb), 1.0),
-        )
-    return min(1.0, max(slot_pressure, cpu_pressure, ram_pressure, gpu_pressure))
+    return min(1.0, max(slot_pressure, cpu_pressure, ram_pressure))
 
 
 def capture_primary_hardware_snapshot(
@@ -377,8 +371,6 @@ def capture_primary_hardware_snapshot(
 
     cpu_cores = os.cpu_count() or 0
     ram_gb = 0.0
-    gpu_name = ""
-    gpu_vram_gb = 0.0
     native_kernels_healthy = False
     disk_free_gb = 0.0
     snapshot: dict[str, Any] = {"cpu_cores": cpu_cores}
@@ -399,18 +391,6 @@ def capture_primary_hardware_snapshot(
         logger.debug("shutil.disk_usage failed for hardware snapshot: %s", exc)
 
     try:
-        import torch
-
-        if torch.cuda.is_available():
-            props = torch.cuda.get_device_properties(0)
-            gpu_name = props.name
-            gpu_vram_gb = round(props.total_memory / (1024**3), 2)
-            snapshot["gpu_name"] = gpu_name
-            snapshot["gpu_vram_gb"] = gpu_vram_gb
-    except Exception as exc:  # noqa: BLE001
-        logger.debug("torch/CUDA probe failed for hardware snapshot: %s", exc)
-
-    try:
         from apps.diagnostics.health import _native_module_runtime_status
 
         native_kernels_healthy = all(
@@ -423,17 +403,16 @@ def capture_primary_hardware_snapshot(
     detected_upgrade = False
     if previous:
         detected_upgrade = bool(
-            cpu_cores > previous.cpu_cores
-            or ram_gb > previous.ram_gb
-            or gpu_vram_gb > previous.gpu_vram_gb
+            cpu_cores != previous.cpu_cores
+            or ram_gb != previous.ram_gb
         )
 
     snapshot_row = HardwareCapabilitySnapshot.objects.create(
         node_kind="primary",
         cpu_cores=cpu_cores,
         ram_gb=ram_gb,
-        gpu_name=gpu_name,
-        gpu_vram_gb=gpu_vram_gb,
+        gpu_name="",
+        gpu_vram_gb=0.0,
         disk_free_gb=disk_free_gb,
         native_kernels_healthy=native_kernels_healthy,
         snapshot=snapshot,
@@ -465,17 +444,17 @@ def recommend_runtime_profile(
     snapshot: HardwareCapabilitySnapshot | None = None,
 ) -> RuntimeProfileRecommendation:
     snapshot = snapshot or get_latest_primary_hardware_snapshot()
-    if snapshot.gpu_vram_gb >= 10 or snapshot.ram_gb >= 32:
+    if snapshot.ram_gb >= 32:
         return RuntimeProfileRecommendation(
             profile="high",
-            reason="This machine has enough RAM or VRAM headroom to run larger batches safely.",
+            reason="This machine has enough RAM headroom to run larger batches safely.",
             suggested_batch_size=64,
             suggested_concurrency=4,
         )
     if snapshot.ram_gb >= 16:
         return RuntimeProfileRecommendation(
             profile="balanced",
-            reason="This machine can handle the default BGE-M3 setup with safe headroom.",
+            reason="This machine can handle the default paid embedding setup with safe headroom.",
             suggested_batch_size=32,
             suggested_concurrency=2,
         )
@@ -496,8 +475,6 @@ def runtime_summary_payload() -> dict[str, Any]:
         "hardware": {
             "cpu_cores": snapshot.cpu_cores,
             "ram_gb": snapshot.ram_gb,
-            "gpu_name": snapshot.gpu_name,
-            "gpu_vram_gb": snapshot.gpu_vram_gb,
             "disk_free_gb": snapshot.disk_free_gb,
             "native_kernels_healthy": snapshot.native_kernels_healthy,
             "detected_upgrade": snapshot.detected_upgrade,

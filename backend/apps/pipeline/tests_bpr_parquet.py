@@ -207,3 +207,19 @@ class BprParquetParityTests(SimpleTestCase):
             self.assertEqual(snap.user_index, {})
             self.assertEqual(snap.item_index, {})
             self.assertEqual(snap.factors, 2)
+
+    def test_build_v3_rows_keeps_vectors_in_index_order(self):
+        user_factors = np.array([[1.5, 2.5], [3.5, 4.5]], dtype=np.float32)
+        item_factors = np.array([[5.5, 6.5]], dtype=np.float32)
+        rows = bpr_ranking._build_bpr_v3_rows(
+            user_factors=user_factors,
+            item_factors=item_factors,
+            user_index={"u1": 1, "u0": 0},
+            item_index={"i0": 0},
+            factors=2,
+        )
+
+        self.assertEqual(rows["entity_kind"], ["meta", "user", "user", "item"])
+        self.assertEqual(rows["idx"], [0, 1, 0, 0])
+        self.assertEqual(rows["vector"][1], [3.5, 4.5])
+        self.assertEqual(rows["vector"][2], [1.5, 2.5])

@@ -37,7 +37,7 @@ export const AVOIDS: readonly ContentSnippet[] = [
 
 export const PITFALLS: readonly ContentSnippet[] = [
   { id: 'pf-1', text: "If broken-link counts spike right after a sync, the source's CDN may be returning 503s — wait 10 minutes before re-scanning." },
-  { id: 'pf-2', text: 'Pipeline runs that hang for >2h are usually waiting on the GPU to free — check Health → AI Models.' },
+  { id: 'pf-2', text: 'Pipeline runs that hang for >2h are usually waiting on provider limits or queue pressure — check Health → AI Models.' },
   { id: 'pf-3', text: 'Suggestion approval rates that drop overnight often mean a new content batch landed with bad anchors — sample one before approving en masse.' },
   { id: 'pf-4', text: "Embeddings stop refreshing if disk space drops below 10% — the dashboard's Health Score will go amber before this becomes red." },
   { id: 'pf-5', text: 'GA4 / GSC sync failures with auth errors usually mean the service-account key file expired or moved — check Settings → Connections.' },

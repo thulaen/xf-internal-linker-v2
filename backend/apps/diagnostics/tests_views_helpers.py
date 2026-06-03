@@ -13,6 +13,7 @@ from unittest import mock
 from django.test import SimpleTestCase
 
 from apps.diagnostics.views import (
+    PipelineGateView,
     _apply_root_cause_dedup,
     _build_embeddings_label,
     _classify_anti_spam,
@@ -328,6 +329,44 @@ class ResolveSignalCppStatusTests(SimpleTestCase):
         )
         self.assertFalse(active)
         self.assertEqual(label, "Degraded (Python Fallback)")
+
+
+class PipelineGateViewChecksTests(SimpleTestCase):
+    """``PipelineGateView.get`` runs three named health checks.
+
+    Pins the exact ``"FAISS index"`` check label and the
+    ``check_faiss_index_health`` function binding on the changed lines so
+    the diff-scoped mutation gate cannot keep a survivor: a mutated label
+    string or a swapped function reference changes the blocker payload and
+    fails these exact-equality assertions.
+    """
+
+    def _run_get(self, faiss_status: str):
+        """Call the view with patched health checks; FAISS returns ``faiss_status``."""
+        faiss = mock.Mock(return_value={"status": faiss_status, "explanation": "e", "next_action_step": "n"})
+        ok = mock.Mock(return_value={"status": "healthy"})
+        with mock.patch.multiple(
+            "apps.health.services",
+            check_faiss_index_health=faiss,
+            check_ml_models_health=ok,
+            check_celery_health=ok,
+        ):
+            resp = PipelineGateView().get(mock.Mock())
+        return resp.data, faiss
+
+    def test_faiss_failure_produces_blocker_with_exact_label(self):
+        data, faiss = self._run_get("failed")
+        # The FAISS check function was the one invoked for the FAISS slot.
+        self.assertEqual(faiss.call_count, 1)
+        self.assertEqual(data["can_run"], False)
+        self.assertEqual(len(data["blockers"]), 1)
+        self.assertEqual(data["blockers"][0]["check"], "FAISS index")
+        self.assertEqual(data["blockers"][0]["state"], "failed")
+
+    def test_all_healthy_can_run_true_no_blockers(self):
+        data, _ = self._run_get("healthy")
+        self.assertEqual(data["can_run"], True)
+        self.assertEqual(data["blockers"], [])
 
 
 class CountSignalErrorsTests(SimpleTestCase):

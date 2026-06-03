@@ -31,12 +31,10 @@ class EmbedResult:
         vectors: ``np.ndarray`` of shape ``(n, dim)`` dtype ``float32``.
                  L2-normalised iff ``normalised=True``.
         tokens_input: Total input tokens consumed (for cost / rate-limit).
-                      ``0`` for local providers.
-        cost_usd: Incremental spend. ``0.0`` for local providers.
+        cost_usd: Incremental spend.
         provider_signature: Model-version string to store in
                             ``embedding_model_version``. Format:
-                            ``"{provider}:{model}:{dim}"`` for remote providers,
-                            ``"{model}:{dim}"`` for the local backward-compat path.
+                            ``"{provider}:{model}:{dim}"``.
         normalised: True iff ``vectors`` are already unit-norm.
     """
 
@@ -55,7 +53,7 @@ class EmbeddingProvider(Protocol):
     lifetime of a single call (changing mid-call would cause dim mismatches).
     """
 
-    name: str  # "local" | "openai" | "gemini"
+    name: str  # "openai" | "gemini"
     signature: str  # matches embedding_model_version
     dimension: int  # vector length
     max_tokens: int  # model context limit
@@ -99,13 +97,7 @@ class EmbeddingProvider(Protocol):
 
 def compute_signature(provider_name: str, model_name: str, dimension: int) -> str:
     """Return the canonical signature string stored in ``embedding_model_version``.
-
-    Backward-compatible format for the local provider preserves existing
-    signatures: ``"{model}:{dim}"`` (no provider prefix). API providers include
-    the provider name so switching backends invalidates old signatures cleanly.
     """
-    if provider_name == "local":
-        return f"{model_name}:{dimension}"
     return f"{provider_name}:{model_name}:{dimension}"
 
 

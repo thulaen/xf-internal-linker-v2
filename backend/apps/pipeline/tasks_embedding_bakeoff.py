@@ -1,7 +1,7 @@
 """Celery task: automated provider bake-off (plan Part 4, FR-232).
 
-Runs on the ``pipeline`` queue. Iterates every configured provider (local +
-optionally openai + gemini), scores them against the user's approved /
+Runs on the ``pipeline`` queue. Iterates every configured paid provider,
+scores them against the user's approved /
 rejected Suggestion history, and writes an ``EmbeddingBakeoffResult`` row per
 provider. Updates ``embedding.provider_ranking_json`` so the quality gate
 (Part 9) can consume it immediately.
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
     max_retries=0,
 )
 @HelperConstraint(
-    gpu_required=True,
+    gpu_required=False,
     storage_writes_to="postgres_main",
     ram_peak_mb=4000,
     expected_seconds_p50=1800,

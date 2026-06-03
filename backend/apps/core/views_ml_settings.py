@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import uuid
 
+from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -24,9 +25,14 @@ from apps.core.services.settings_helpers import (
     coerce_lenient_bool,
     read_app_setting_int,
 )
-from apps.core.views_settings import _format_setting_value
 
 logger = logging.getLogger(__name__)
+
+
+class FeedbackRerankSettingsSerializer(serializers.Serializer):
+    enabled = serializers.BooleanField()
+    ranking_weight = serializers.FloatField()
+    exploration_rate = serializers.FloatField()
 
 
 class ClickDistanceSettingsView(APIView):
@@ -72,6 +78,7 @@ class FeedbackRerankSettingsView(APIView):
     """GET/PUT /api/settings/explore-exploit/"""
 
     permission_classes = [IsAuthenticated]
+    serializer_class = FeedbackRerankSettingsSerializer
 
     def get(self, request):
         from apps.core.services.settings_helpers import get_feedback_rerank_settings
@@ -348,6 +355,8 @@ _GRAPH_CANDIDATE_ROW_SPEC: tuple[tuple[str, str, str, str], ...] = (
 
 
 def _build_graph_candidate_rows(validated: dict) -> dict[str, dict]:
+    from apps.core.views_settings import _format_setting_value
+
     return {
         setting_key: {
             "value": _format_setting_value(validated[validated_key], value_type),
@@ -697,6 +706,8 @@ _SPAM_GUARD_ROW_SPEC: tuple[tuple[str, str, str, str], ...] = (
 
 
 def _build_spam_guard_rows(validated: dict) -> dict[str, dict]:
+    from apps.core.views_settings import _format_setting_value
+
     return {
         setting_key: {
             "value": _format_setting_value(validated[validated_key], value_type),

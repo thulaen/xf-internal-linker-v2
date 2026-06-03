@@ -7,9 +7,8 @@ time, returning a cached provider instance. All providers implement the
 and receives an ``EmbedResult`` regardless of backend.
 
 Supported providers:
-    local   -> LocalBGEProvider    (sentence-transformers, GPU/CPU)
     openai  -> OpenAIProvider      (text-embedding-3-small/large via API)
-    gemini  -> GeminiProvider      (text-embedding-004 via google-genai)
+    gemini  -> GeminiProvider      (Gemini embedding API)
 """
 
 from __future__ import annotations
@@ -36,7 +35,7 @@ _cache_lock = threading.Lock()
 
 
 def _read_provider_name() -> str:
-    """Resolve the active provider name from AppSetting; default ``local``."""
+    """Resolve the active provider name from AppSetting; default ``openai``."""
     try:
         from apps.core.models import AppSetting
 
@@ -45,9 +44,9 @@ def _read_provider_name() -> str:
             return str(setting.value).strip().lower()
     except Exception:
         logger.debug(
-            "AppSetting unavailable; using default provider 'local'", exc_info=True
+            "AppSetting unavailable; using default provider 'openai'", exc_info=True
         )
-    return "local"
+    return "openai"
 
 
 def get_provider(force_refresh: bool = False) -> EmbeddingProvider:
@@ -81,12 +80,10 @@ def _instantiate(name: str) -> EmbeddingProvider:
         from .gemini_provider import GeminiProvider
 
         return GeminiProvider()
-    # default + unknown names fall back to local so a typo does not cost money
-    if name != "local":
-        logger.warning("Unknown embedding.provider=%r; falling back to local", name)
-    from .local_bge import LocalBGEProvider
-
-    return LocalBGEProvider()
+    raise ProviderError(
+        f"Unknown embedding.provider={name!r}; choose one of: openai, gemini",
+        reason="invalid_provider",
+    )
 
 
 def clear_cache() -> None:

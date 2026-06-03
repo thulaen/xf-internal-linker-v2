@@ -205,9 +205,6 @@ export interface RuntimeContext {
   node_hostname: string;
   python_version: string;
   embedding_model: string;
-  gpu_available: boolean;
-  cuda_version: string | null;
-  gpu_name: string | null;
   spacy_model: string | null;
 }
 

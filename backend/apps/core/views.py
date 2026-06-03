@@ -59,8 +59,11 @@ def _safe_confidence_snapshot() -> dict | None:
 
 
 DEFAULT_APPEARANCE = {
-    "primaryColor": "#1a73e8",
-    "accentColor": "#f4b400",
+    # GSC brand blue (#4285f4, per user correction 2026-05-30). Must match the
+    # frontend DEFAULT_CONFIG so AppearanceService treats "value == default" as
+    # "not customised" and lets the SCSS design token own the colour.
+    "primaryColor": "#4285f4",
+    "accentColor": "#4285f4",
     "fontSize": "medium",
     "layoutWidth": "standard",
     "sidebarWidth": "standard",
@@ -253,7 +256,6 @@ from .views_runtime import (  # noqa: E402, F401
     _resolve_performance_expiry_choice,
     _runtime_settings_snapshot,
     _sample_cpu_ram_metrics,
-    _sample_gpu_metrics,
 )
 
 # 2026-05-10 turn 3 — dashboard / today-actions / what-changed /
@@ -326,7 +328,6 @@ from .views_helpers import (  # noqa: E402, F401
     HelperNodeListView,
     HelpersRosterView,
     _HEARTBEAT_UPDATE_FIELDS,
-    _apply_heartbeat_gpu_metrics,
     _apply_heartbeat_identity,
     _apply_heartbeat_load_metrics,
     _apply_heartbeat_network_health,

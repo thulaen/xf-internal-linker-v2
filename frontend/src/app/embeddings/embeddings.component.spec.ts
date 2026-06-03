@@ -9,16 +9,16 @@ import { EmbeddingsComponent } from './embeddings.component';
 import { VisibilityGateService } from '../core/util/visibility-gate.service';
 
 const STATUS = {
-  active_provider: 'local',
-  fallback_provider: 'local',
-  model_name: 'bge-m3',
+  active_provider: 'openai',
+  fallback_provider: 'openai',
+  model_name: 'text-embedding-3-small',
   signature: 'sig-1',
-  dimension: 384,
+  dimension: 1024,
   max_tokens: 512,
-  hardware: { tier: 'mid', ram_gb: 16, cpu_cores: 8, vram_gb: 0, has_cuda: false, recommended_batch_size: 16 },
+  hardware: { tier: 'mid', ram_gb: 16, cpu_cores: 8, recommended_batch_size: 16 },
   coverage: { total: 100, embedded: 50, pct: 0.5 },
   spend_this_month: [],
-  recommended_provider: 'local',
+  recommended_provider: 'openai',
 };
 
 describe('EmbeddingsComponent', () => {
@@ -28,7 +28,7 @@ describe('EmbeddingsComponent', () => {
 
   function flushInitial(): void {
     httpMock.expectOne('/api/embedding/status/').flush(STATUS);
-    httpMock.expectOne('/api/embedding/settings/').flush({ 'embedding.model': 'bge-m3' });
+    httpMock.expectOne('/api/embedding/settings/').flush({ 'embedding.model': 'text-embedding-3-small' });
     httpMock.expectOne('/api/embedding/bakeoff/').flush([]);
     httpMock.expectOne('/api/embedding/gate-decisions/').flush([]);
   }
@@ -58,19 +58,23 @@ describe('EmbeddingsComponent', () => {
     fixture.detectChanges();
     flushInitial();
     expect(component).toBeTruthy();
-    expect(component.status()?.active_provider).toBe('local');
-    expect(component.settings()['embedding.model']).toBe('bge-m3');
+    expect(component.status()?.active_provider).toBe('openai');
+    expect(component.settings()['embedding.model']).toBe('text-embedding-3-small');
   });
 
   it('applyProviderChange POSTs to provider endpoint and reloads status', () => {
     fixture.detectChanges();
     flushInitial();
-    component.pendingProvider = 'openai';
+    // The active provider seeded from STATUS is 'openai'; switching to a
+    // DIFFERENT provider is what actually fires the POST. Selecting the same
+    // provider is a deliberate no-op (the early-return guard in
+    // applyProviderChange), so the test must pick another provider.
+    component.pendingProvider = 'gemini';
     component.applyProviderChange();
 
     const post = httpMock.expectOne('/api/embedding/provider/');
     expect(post.request.method).toBe('POST');
-    expect(post.request.body).toEqual({ name: 'openai' });
+    expect(post.request.body).toEqual({ name: 'gemini' });
     post.flush({ ok: true });
 
     httpMock.expectOne('/api/embedding/status/').flush(STATUS);

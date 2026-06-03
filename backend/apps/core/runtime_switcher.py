@@ -1,8 +1,7 @@
 """
-Drain-and-resume runtime switcher (plan item 23).
+Drain-and-resume runtime switcher.
 
-Switches the effective compute runtime (CPU ↔ GPU) without orphaning in-flight
-work. The flow:
+Confirms the CPU runtime without orphaning in-flight work. The flow:
 
   1. Record the switch intent in ``system.runtime_switch_pending`` so workers
      picking up a new batch know to wait.
@@ -10,10 +9,8 @@ work. The flow:
      complete normally and save their checkpoints (plan item 8/12/19 reused).
   3. Wait up to ``MAX_DRAIN_SECONDS`` for active ``JobLease`` rows to expire
      or be released.
-  4. Warm the target runtime — for GPU, call the existing
-     ``_cuda_warmup_ok`` probe (plan item 15 reused).
-  5. Write the new ``system.runtime_mode`` and clear the pause + pending flags.
-  6. Workers poll ``system.master_pause`` on their main loop and resume
+  4. Write the CPU runtime and clear the pause + pending flags.
+  5. Workers poll ``system.master_pause`` on their main loop and resume
      normally when it flips back to ``"false"``.
 
 Everything this module does is idempotent — re-running the switcher while a
@@ -49,21 +46,19 @@ def switch_runtime(
     """Request a drain-and-resume switch to ``target`` runtime.
 
     Arguments:
-        target: "cpu" or "gpu".
+        target: "cpu".
         wait_for_drain: if True, block until active leases drain or
             ``MAX_DRAIN_SECONDS`` elapses. If False, return immediately after
             flipping the pause flag — useful for async workflows.
-        warmup: optional callable returning True when the new runtime is ready.
-            When ``target == "gpu"`` and ``warmup`` is not given, the real
-            ``_cuda_warmup_ok`` from embeddings.py is used.
+        warmup: ignored compatibility hook for older callers.
 
     Returns:
         { ok, target, drain_waited_s, warmed, previous }.
     """
     from apps.core.models import AppSetting
 
-    if target not in ("cpu", "gpu"):
-        return {"ok": False, "error": "target must be 'cpu' or 'gpu'"}
+    if target != "cpu":
+        return {"ok": False, "error": "target must be 'cpu'"}
 
     previous = _read(AppSetting, KEY_RUNTIME_MODE, "cpu")
 
@@ -88,39 +83,12 @@ def switch_runtime(
     drain_waited = _wait_for_drain() if wait_for_drain else 0
     warmed = _run_warmup(target, warmup)
 
-    if target == "gpu" and not warmed:
-        return _rollback_failed_warmup(AppSetting, target, previous, drain_waited)
-
     return _commit_switch(AppSetting, target, previous, drain_waited, warmed)
 
 
 def _run_warmup(target: str, warmup: Callable | None) -> bool:
-    """Run the warmup callable for a GPU switch. Returns True on success."""
-    if target != "gpu":
-        return True
-    warmup_fn = warmup or _default_gpu_warmup
-    try:
-        return bool(warmup_fn())
-    except Exception:
-        logger.exception("runtime_switcher: warmup raised; treating as cold")
-        return False
-
-
-def _rollback_failed_warmup(
-    AppSetting, target: str, previous: str, drain_waited: int
-) -> dict:
-    """Failed warmup — keep the old mode, clear pending, unpause workers."""
-    _write(AppSetting, KEY_SWITCH_PENDING, "")
-    _write(AppSetting, KEY_MASTER_PAUSE, "false")
-    _emit_fallback_alert("CUDA warmup failed during runtime switch")
-    return {
-        "ok": False,
-        "target": target,
-        "previous": previous,
-        "drain_waited_s": drain_waited,
-        "warmed": False,
-        "error": "warmup_failed",
-    }
+    """CPU runtime has no warmup step."""
+    return True
 
 
 def _commit_switch(
@@ -185,26 +153,6 @@ def _wait_for_drain() -> int:
         now = timezone.now()
 
     return int(time.monotonic() - start)
-
-
-def _default_gpu_warmup() -> bool:
-    """Use the real CUDA warmup probe from embeddings.py when available."""
-    try:
-        from apps.pipeline.services.embeddings import _cuda_warmup_ok
-
-        return _cuda_warmup_ok()
-    except Exception:
-        logger.debug("runtime_switcher: _cuda_warmup_ok unavailable", exc_info=True)
-        return False
-
-
-def _emit_fallback_alert(reason: str) -> None:
-    try:
-        from apps.notifications.alert_rules import alert_gpu_fallback_to_cpu
-
-        alert_gpu_fallback_to_cpu(reason=reason)
-    except Exception:
-        logger.debug("runtime_switcher: failed to emit fallback alert", exc_info=True)
 
 
 def _read(AppSetting, key: str, default: str) -> str:

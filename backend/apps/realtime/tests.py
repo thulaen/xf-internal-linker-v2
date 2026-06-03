@@ -92,6 +92,24 @@ class BroadcastTests(TestCase):
         # broadcast() doesn't raise for a valid layer + exotic topic.
         broadcast("valid.topic-ok_1", "entity.updated", {"ok": True})
 
+    def test_broadcast_swallows_slow_redis_timeout(self):
+        """Issue #2479: broadcast must not block when Redis is slow or stalls.
+
+        The PUBLISH span hit 57 760 ms peak because async_to_sync wrapped a
+        Redis command with no timeout.  Simulate a slow layer and verify
+        broadcast() returns quickly (catches the error) rather than hanging.
+        """
+        from unittest.mock import AsyncMock, MagicMock, patch
+        import asyncio
+
+        slow_layer = MagicMock()
+        # Simulate a slow group_send that raises asyncio.TimeoutError
+        slow_layer.group_send = AsyncMock(side_effect=asyncio.TimeoutError("simulated slow Redis"))
+
+        with patch("apps.realtime.services.get_channel_layer", return_value=slow_layer):
+            # Must not raise; must swallow the TimeoutError.
+            broadcast("system.pulse", "heartbeat", {"ok": True})
+
 
 # ── Async consumer integration tests ────────────────────────────────
 #

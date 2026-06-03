@@ -21,11 +21,16 @@ import pytest
 
 
 def _random_paragraph(rng: random.Random, words: int) -> str:
-    vocab = [
-        "".join(rng.choices(string.ascii_lowercase, k=rng.randint(3, 10)))
-        for _ in range(2000)
-    ]
-    return " ".join(rng.choices(vocab, k=words))
+    try:
+        import extensions.bench_helpers as bench_helpers
+        seed = rng.randint(0, 2**31 - 1)
+        return bench_helpers.random_paragraph(seed, words)
+    except ImportError:
+        vocab = [
+            "".join(rng.choices(string.ascii_lowercase, k=rng.randint(3, 10)))
+            for _ in range(2000)
+        ]
+        return " ".join(rng.choices(vocab, k=words))
 
 
 # ── NFKC (#13) ─────────────────────────────────────────────────────

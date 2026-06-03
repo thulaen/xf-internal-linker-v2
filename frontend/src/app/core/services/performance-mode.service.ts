@@ -22,11 +22,10 @@ export interface RuntimeSettingsResponse {
   performance_mode_expiry?: PerformanceExpiry;
   performance_mode_expires_at?: string;
   // Hardware capability gate (added 2026-05-09 per AutoIssue #16). The
-  // backend's `_runtime_settings_snapshot()` now includes the detected
-  // hardware tier + a flag saying whether the machine can actually run
-  // High Performance (CUDA + ≥4 GB VRAM). The card reads these to
-  // disable the High button on CPU-only / low-VRAM machines instead of
-  // letting the user pick High and silently fall back at runtime.
+  // backend's `_runtime_settings_snapshot()` includes the detected
+  // hardware tier plus a flag saying whether the machine can safely run
+  // High Performance. The card reads these to disable the High button
+  // on low-resource machines instead of silently falling back at runtime.
   hardware_tier?: 'low' | 'medium' | 'high' | 'workstation';
   high_performance_capable?: boolean;
   hardware_summary?: string;

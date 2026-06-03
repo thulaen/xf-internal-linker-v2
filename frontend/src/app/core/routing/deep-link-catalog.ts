@@ -190,6 +190,27 @@ export const DEEP_LINK_CATALOG: readonly DeepLinkEntry[] = [
     searchTerms: ['diagnostics', 'errors', 'pipeline gate', 'runtime'],
   },
   {
+    key: 'find-bugs.main',
+    label: 'Find Bugs',
+    subtitle: 'Automated bug-pattern findings with confirm and triage actions.',
+    route: '/find-bugs',
+    searchTerms: ['find bugs', 'findbugs', 'bug patterns', 'static analysis', 'findings'],
+  },
+  {
+    key: 'observability.main',
+    label: 'Observability',
+    subtitle: 'Live health of the monitoring and quality stack (metrics, logs, traces).',
+    route: '/observability',
+    searchTerms: ['observability', 'stack health', 'metrics', 'logs', 'traces', 'monitoring'],
+  },
+  {
+    key: 'work-queue.main',
+    label: 'Work Queue',
+    subtitle: 'Repair control center for AutoIssues, Paper Trail, and agent tasks.',
+    route: '/work-queue',
+    searchTerms: ['work queue', 'agent queue', 'autoissues', 'paper trail', 'repair tasks'],
+  },
+  {
     key: 'mcp.main',
     label: 'AI Agents (MCP)',
     subtitle:

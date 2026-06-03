@@ -1,29 +1,24 @@
 # print-allowed: __main__ JSON CLI consumed by .githooks/lib-hwprofile.sh (Phase 2)
 """Hardware-aware dynamic batch sizing (plan Part 8a, FR-233).
 
-Detects RAM / CPU / VRAM at module import time (cheap; cached) and recommends
+Detects RAM / CPU at module import time (cheap; cached) and recommends
 an embedding batch size scaled to the machine and the target vector dimension.
 
 Research grounding (docstring only — full citations in FR-233 spec):
   * Smith et al. 2018 — "Don't decay the learning rate, increase the batch
     size" (ICLR 2018). Dynamic batch sizing based on available memory.
-  * Micikevicius et al. 2018 — "Mixed Precision Training" (ICLR 2018). FP16
-    halves memory cost; our GPU path already uses fp16 for local models.
-  * NVIDIA Triton Inference Server — public prior art for memory-scaled batching.
-
 Performance contract:
-  * Detection costs one ``psutil.virtual_memory()`` call + one
-    ``torch.cuda.mem_get_info()`` when CUDA is available. Both are ~microseconds.
+  * Detection costs one ``psutil.virtual_memory()`` call.
   * Results cached per-process; a single ``_HardwareProfileCache`` object holds
     them, invalidated only by explicit ``refresh()``.
   * ``recommended_batch_size()`` is pure arithmetic — no I/O, no allocation.
 
 Tier table (auto-detected; overridable via ``AppSetting("performance.profile_override")``):
 
-    Low         <8 GB RAM, no GPU
-    Medium      8–16 GB RAM or integrated GPU
-    High        16–32 GB RAM, dGPU >=4 GB VRAM
-    Workstation 32+ GB RAM, dGPU >=8 GB VRAM
+    Low         <8 GB RAM
+    Medium      8–16 GB RAM
+    High        16–32 GB RAM
+    Workstation 32+ GB RAM
 
 High-dimension models (OpenAI 3-large = 3072 dim) get smaller batches so peak
 memory stays under ~15% of host RAM — the budget envelope defined in
@@ -58,13 +53,10 @@ _RAM_BATCH_FRACTION = 0.15
 class HardwareProfile:
     ram_gb: float
     cpu_cores: int
-    vram_gb: float  # 0.0 if no CUDA device
-    has_cuda: bool
     tier: Tier
 
     def describe(self) -> str:
-        gpu_part = f"{self.vram_gb:.1f} GB VRAM" if self.has_cuda else "no GPU"
-        return f"tier={self.tier} ram={self.ram_gb:.1f}GB cores={self.cpu_cores} {gpu_part}"
+        return f"tier={self.tier} ram={self.ram_gb:.1f}GB cores={self.cpu_cores}"
 
 
 _cached_profile: HardwareProfile | None = None
@@ -78,8 +70,7 @@ def detect_profile(*, force_refresh: bool = False) -> HardwareProfile:
 
     ram_gb = _detect_ram_gb()
     cpu_cores = _detect_cpu_cores()
-    has_cuda, vram_gb = _detect_gpu()
-    tier = _classify_tier(ram_gb=ram_gb, has_cuda=has_cuda, vram_gb=vram_gb)
+    tier = _classify_tier(ram_gb=ram_gb)
 
     # AppSetting override (e.g. "low" to test low-end behaviour on a workstation).
     override = _read_setting_override()
@@ -89,8 +80,6 @@ def detect_profile(*, force_refresh: bool = False) -> HardwareProfile:
     profile = HardwareProfile(
         ram_gb=ram_gb,
         cpu_cores=cpu_cores,
-        vram_gb=vram_gb,
-        has_cuda=has_cuda,
         tier=tier,
     )
     _cached_profile = profile
@@ -164,40 +153,14 @@ def _detect_cpu_cores() -> int:
     return os.cpu_count() or 1
 
 
-def _detect_gpu() -> tuple[bool, float]:
-    """Return (has_cuda, vram_gb)."""
-    try:
-        import torch
-    except ImportError:
-        return False, 0.0
-    try:
-        if not torch.cuda.is_available():
-            return False, 0.0
-        # Use the primary device; multi-GPU hosts pick card 0.
-        free, total = torch.cuda.mem_get_info()
-        return True, float(total) / 1e9
-    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
-        return False, 0.0
-
-
-def _classify_tier(*, ram_gb: float, has_cuda: bool, vram_gb: float) -> Tier:
+def _classify_tier(*, ram_gb: float) -> Tier:
     if ram_gb < 8:
         return "low"
     if ram_gb < 16:
-        # Medium if no discrete GPU; still medium if only integrated GPU reported.
-        if has_cuda and vram_gb >= 4:
-            return "high"
         return "medium"
     if ram_gb < 32:
-        if has_cuda and vram_gb >= 4:
-            return "high"
-        return "medium"
-    # 32+ GB RAM
-    if has_cuda and vram_gb >= 8:
-        return "workstation"
-    if has_cuda and vram_gb >= 4:
         return "high"
-    return "high"
+    return "workstation"
 
 
 def _tier_cap(tier: Tier) -> int:
@@ -276,8 +239,6 @@ def _emit_json(profile: HardwareProfile) -> str:
             "tier": profile.tier,
             "cpu_cores": profile.cpu_cores,
             "ram_gb": round(profile.ram_gb, 2),
-            "has_cuda": profile.has_cuda,
-            "vram_gb": round(profile.vram_gb, 2),
             "max_jobs_fast": max_jobs_fast(profile),
             "max_jobs_heavy": max_jobs_heavy(profile),
         }

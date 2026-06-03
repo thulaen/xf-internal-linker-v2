@@ -9,21 +9,11 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { catchError, of, switchMap, timer } from 'rxjs';
 import { VisibilityGateService } from '../../core/util/visibility-gate.service';
 
-interface GpuMetrics {
-  available: boolean;
-  temp_c: number | null;
-  vram_used_mb: number | null;
-  vram_total_mb: number | null;
-  vram_percent: number | null;
-  utilization_pct: number | null;
-}
-
 interface SystemMetrics {
   cpu_percent: number | null;
   ram_used_mb: number | null;
   ram_total_mb: number | null;
   ram_percent: number | null;
-  gpu: GpuMetrics;
 }
 
 /**
@@ -33,7 +23,7 @@ interface SystemMetrics {
  * is under pressure. Colour changes from green → amber → red as usage climbs
  * so the user can decide to drop to Safe Mode or close apps.
  *
- * Data source: GET /api/system/metrics/ (combined psutil + pynvml).
+ * Data source: GET /api/system/metrics/ (CPU + RAM from psutil).
  */
 @Component({
   selector: 'app-system-metrics',
@@ -81,39 +71,6 @@ interface SystemMetrics {
           </span>
         </div>
 
-        @if (metrics()?.gpu?.available) {
-          <div class="meter-row" [matTooltip]="gpuTooltip()">
-            <div class="meter-head">
-              <mat-icon class="meter-icon">bolt</mat-icon>
-              <span class="meter-label">GPU memory (VRAM)</span>
-              <span class="meter-value" [class]="tintClass(metrics()?.gpu?.vram_percent)">
-                {{ (metrics()?.gpu?.vram_percent ?? null) === null ? '—' : (metrics()!.gpu!.vram_percent! | number:'1.0-0') + '%' }}
-              </span>
-            </div>
-            <mat-progress-bar
-              [value]="metrics()?.gpu?.vram_percent ?? 0"
-              [color]="barColor(metrics()?.gpu?.vram_percent)"
-              mode="determinate"
-            ></mat-progress-bar>
-            <span class="meter-sub">
-              {{ metrics()?.gpu?.vram_used_mb ?? 0 | number:'1.0-0' }} MB of
-              {{ metrics()?.gpu?.vram_total_mb ?? 0 | number:'1.0-0' }} MB
-              · GPU temp
-              <strong [class.temp-hot]="(metrics()?.gpu?.temp_c ?? 0) >= 86">
-                {{ (metrics()?.gpu?.temp_c ?? null) === null ? '—' : metrics()!.gpu!.temp_c + '°C' }}
-              </strong>
-              @if ((metrics()?.gpu?.temp_c ?? 0) >= 86) {
-                <mat-icon class="warn-inline" matTooltip="GPU is at or above the 86°C ceiling — heavy tasks will pause automatically">warning</mat-icon>
-              }
-            </span>
-          </div>
-        } @else {
-          <div class="gpu-unavailable">
-            <mat-icon>info</mat-icon>
-            <span>No GPU detected. CPU-only mode is active.</span>
-          </div>
-        }
-
         @if (tip()) {
           <div class="suggestion-tip" [matTooltip]="'Advice based on current usage'">
             <mat-icon>lightbulb</mat-icon>
@@ -146,22 +103,6 @@ interface SystemMetrics {
       font-size: 11px;
       color: var(--color-text-muted);
     }
-    .temp-hot { color: var(--color-error, #c5221f); }
-    .warn-inline {
-      font-size: 14px; width: 14px; height: 14px;
-      color: var(--color-error, #c5221f);
-      vertical-align: middle;
-      margin-left: 4px;
-    }
-    .gpu-unavailable {
-      display: flex; align-items: center; gap: var(--space-xs);
-      padding: var(--space-sm);
-      border-radius: var(--radius-md, 8px);
-      background: var(--color-bg-faint);
-      font-size: 12px;
-      color: var(--color-text-muted);
-    }
-    .gpu-unavailable mat-icon { font-size: 16px; width: 16px; height: 16px; }
     .suggestion-tip {
       margin-top: var(--space-md);
       display: flex; align-items: flex-start; gap: var(--space-xs);
@@ -187,23 +128,11 @@ export class SystemMetricsComponent implements OnInit {
     return `Main memory: ${m.ram_used_mb} MB of ${m.ram_total_mb} MB in use`;
   });
 
-  readonly gpuTooltip = computed(() => {
-    const g = this.metrics()?.gpu;
-    if (!g || !g.available) return 'No GPU detected';
-    return `GPU memory: ${g.vram_used_mb} MB of ${g.vram_total_mb} MB in use · temperature ${g.temp_c}°C`;
-  });
-
   readonly tip = computed(() => {
     const m = this.metrics();
     if (!m) return '';
-    if ((m.gpu?.temp_c ?? 0) >= 86) {
-      return 'GPU is very hot. Heavy tasks will pause until it cools down. Switch to Safe Mode if you need the GPU for something else.';
-    }
     if ((m.ram_percent ?? 0) >= 90) {
       return 'Memory is almost full. Close some Chrome tabs or switch to Safe Mode.';
-    }
-    if ((m.gpu?.vram_percent ?? 0) >= 80) {
-      return 'GPU memory is running low. Consider Safe Mode to free some up for other apps.';
     }
     if ((m.cpu_percent ?? 0) >= 85) {
       return 'CPU is near full. Background work is happening now — results should be fast.';

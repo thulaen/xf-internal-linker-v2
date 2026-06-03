@@ -78,8 +78,13 @@ class WordPressAPIClient:
         if resp.status_code == 401:
             return {"ok": False, "display_name": ""}
         resp.raise_for_status()
-        data = resp.json()
-        return {"ok": True, "display_name": data.get("name", "")}
+        # Guard against empty or non-JSON responses (issue #2027: JSONDecodeError
+        # when WordPress returns an empty body on a transient error).
+        try:
+            data = resp.json()
+        except Exception:  # noqa: BLE001 -- Exception already covers ValueError/JSONDecodeError
+            return {"ok": False, "display_name": ""}
+        return {"ok": True, "display_name": data.get("name", "") if isinstance(data, dict) else ""}
 
     def get_posts(
         self, page: int = 1, *, status: str = "publish", after: str | None = None

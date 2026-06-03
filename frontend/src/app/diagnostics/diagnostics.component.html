@@ -75,19 +75,8 @@
         <!-- GT-G9: Live Runtime Health strip — current node -->
         @if (runtimeCtx(); as rc) {
           <div class="runtime-strip" role="group" aria-label="Current runtime state">
-            <span class="runtime-chip"
-                  [class.tone-good]="rc.gpu_available"
-                  [class.tone-bad]="!rc.gpu_available">
-              <mat-icon>memory</mat-icon>
-              GPU: {{ rc.gpu_available ? (rc.gpu_name || 'Available') : 'Not detected' }}
-            </span>
-            <span class="runtime-chip"
-                  [class.tone-good]="rc.cuda_version"
-                  [class.tone-warn]="!rc.cuda_version">
-              CUDA: {{ rc.cuda_version || 'N/A' }}
-            </span>
             <span class="runtime-chip tone-good"
-                  [matTooltip]="'sentence-transformers embedding model'">
+                  [matTooltip]="'Paid embedding provider model'">
               Embedding: {{ rc.embedding_model || 'unknown' }}
             </span>
             <span class="runtime-chip"
@@ -275,13 +264,6 @@
                 <div class="runtime-context-panel" role="region" aria-label="Runtime state at time of error">
                   <strong>Runtime when this error happened:</strong>
                   <ul>
-                    <li>
-                      GPU:
-                      {{ e.runtime_context.gpu_available
-                          ? (e.runtime_context.gpu_name || 'yes')
-                          : 'no' }}
-                    </li>
-                    <li>CUDA: {{ e.runtime_context.cuda_version || 'N/A' }}</li>
                     <li>Embedding model: {{ e.runtime_context.embedding_model || 'unknown' }}</li>
                     <li>spaCy model: {{ e.runtime_context.spacy_model || 'missing' }}</li>
                     <li>

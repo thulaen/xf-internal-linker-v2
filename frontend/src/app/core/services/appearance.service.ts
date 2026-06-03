@@ -25,8 +25,10 @@ export interface AppearanceConfig {
 }
 
 export const DEFAULT_CONFIG: AppearanceConfig = {
-  primaryColor: '#1a73e8',
-  accentColor: '#1a73e8',
+  // GSC brand blue (#4285f4, per user correction 2026-05-30). Must match the
+  // SCSS token + backend default so the token governs unless the user customises.
+  primaryColor: '#4285f4',
+  accentColor: '#4285f4',
   fontSize: 'small',
   layoutWidth: 'wide',
   sidebarWidth: 'standard',
@@ -254,18 +256,34 @@ export class AppearanceService {
       });
   }
 
+  /**
+   * Apply an inline colour override ONLY when the user actually customised it
+   * (value differs from the default). Otherwise clear any inline value so the
+   * SCSS design token (`_theme-vars.scss`) stays the source of truth. This
+   * stops the runtime theme from silently overriding the brand token.
+   */
+  private applyColorOverride(
+    root: HTMLElement,
+    prop: string,
+    value: string,
+    defaultValue: string,
+  ): void {
+    if (this.isHexColor(value) && value.toLowerCase() !== defaultValue.toLowerCase()) {
+      root.style.setProperty(prop, value);
+    } else {
+      root.style.removeProperty(prop);
+    }
+  }
+
   private applyToDom(cfg: AppearanceConfig): void {
     const root = document.documentElement;
 
-    // Color properties — validate hex format before applying to prevent
-    // malformed values from producing unexpected CSS output.
-    if (this.isHexColor(cfg.primaryColor)) {
-      root.style.setProperty('--color-primary', cfg.primaryColor);
-      root.style.setProperty('--color-primary-medium', cfg.primaryColor);
-    }
-    if (this.isHexColor(cfg.accentColor)) {
-      root.style.setProperty('--color-accent', cfg.accentColor);
-    }
+    // Brand colours: the design token owns these. Only override inline when the
+    // user has customised away from the default (validated hex), else the token
+    // governs — never silently shadow the brand colour.
+    this.applyColorOverride(root, '--color-primary', cfg.primaryColor, DEFAULT_CONFIG.primaryColor);
+    this.applyColorOverride(root, '--color-primary-medium', cfg.primaryColor, DEFAULT_CONFIG.primaryColor);
+    this.applyColorOverride(root, '--color-accent', cfg.accentColor, DEFAULT_CONFIG.accentColor);
     if (this.isHexColor(cfg.headerBg)) {
       root.style.setProperty('--toolbar-bg', cfg.headerBg);
     }

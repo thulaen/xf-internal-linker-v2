@@ -454,18 +454,18 @@ def _retrieve_stage1_candidates(
     legible. ``internal_host_scores`` is always populated.
     """
     from .faiss_index import (
-        is_faiss_gpu_active,
+        is_faiss_index_active,
         faiss_search,
         build_faiss_index,
         HAS_FAISS,
     )
 
     host_pk_set = {pk for pk, _ in host_keys}
-    use_faiss = is_faiss_gpu_active()
+    use_faiss = is_faiss_index_active()
     if not use_faiss and HAS_FAISS:
         logger.info("FAISS index not active — building just-in-time for Stage 1")
         build_faiss_index()
-        use_faiss = is_faiss_gpu_active()
+        use_faiss = is_faiss_index_active()
     if use_faiss:
         return _run_faiss_block_search(
             dest_embeddings,

@@ -75,7 +75,7 @@ class XenForoAPIClient:
                     )
                     time.sleep(wait)
 
-        logger.error(
+        logger.warning(
             "XenForo API request failed after %d attempts: %s (URL: %s)",
             max_retries,
             last_exc,

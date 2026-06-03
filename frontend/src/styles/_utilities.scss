@@ -1,0 +1,82 @@
+// ═══════════════════════════════════════════════════════════════════
+// Shared layout helper classes
+// ═══════════════════════════════════════════════════════════════════
+// Small, named structural helpers built ONLY from existing spacing
+// tokens. These replace the flex/spacing patterns that were being
+// copy-pasted as inline style="..." attributes across components
+// (e.g. the "row with space between, vertically centred" pattern that
+// appeared 4+ times in connect-sync-tab alone).
+//
+// Rules:
+//   - No arbitrary values — every value is a design token.
+//   - These are structural helpers, NOT a utility framework. Keep the
+//     list short and semantic. If you need a one-off, put it in the
+//     component's own .scss, not here.
+//   - Imported once from styles.scss.
+
+// ── Flex layout ──────────────────────────────────────────────────
+.u-flex-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.u-flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.u-flex-wrap {
+  flex-wrap: wrap;
+}
+
+.u-flex-fill {
+  flex: 1;
+}
+
+.u-flex-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+// KPI row — multiple KPI cells side by side with generous breathing room,
+// wrapping on narrow widths. The shared home for the "metrics in a summary
+// card" pattern so no component re-invents the spacing.
+.u-kpi-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xl);   // 32px between KPI columns
+}
+
+// ── Common one-line spacing helpers ──────────────────────────────
+// Replaces inline style="margin:16px 0" on <mat-divider> and similar.
+.u-divider-gap {
+  margin: var(--space-md) 0;
+}
+
+.u-gap-md {
+  gap: var(--space-md);
+}
+
+// ── Icon sizing ──────────────────────────────────────────────────
+// Replaces inline style="font-size:18px; width:18px; height:18px" on
+// <mat-icon>. Keeps the three GA4/GSC icon sizes consistent.
+.u-icon-sm {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+.u-icon-md {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.u-icon-lg {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}

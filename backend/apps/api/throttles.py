@@ -8,12 +8,14 @@ does not consume their general 1000/hour allowance.
 
 from rest_framework.throttling import UserRateThrottle
 
+_RATE_6_PER_HOUR = "6/hour"
+
 
 class GraphRebuildThrottle(UserRateThrottle):
     """Graph rebuild triggers PageRank recomputation — limit to 6/hour."""
 
     scope = "graph_rebuild"
-    rate = "6/hour"
+    rate = _RATE_6_PER_HOUR
 
 
 class WeightRecalcThrottle(UserRateThrottle):
@@ -27,7 +29,7 @@ class CoOccurrenceComputeThrottle(UserRateThrottle):
     """Full session-matrix computation — heavy CPU work."""
 
     scope = "cooccurrence_compute"
-    rate = "6/hour"
+    rate = _RATE_6_PER_HOUR
 
 
 class ImportTriggerThrottle(UserRateThrottle):
@@ -89,4 +91,4 @@ class PerformanceCertRunThrottle(UserRateThrottle):
     """
 
     scope = "performance_cert_run"
-    rate = "6/hour"
+    rate = _RATE_6_PER_HOUR

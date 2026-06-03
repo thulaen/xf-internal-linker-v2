@@ -5,7 +5,9 @@ Extracted from base.py to keep file length under the 500-line lint limit.
 Imported by base.py via: from .celery_schedules import CELERY_BEAT_SCHEDULE
 """
 
-from celery.schedules import crontab
+from datetime import timedelta
+
+from celery.schedules import crontab, schedule
 
 CELERY_BEAT_SCHEDULE = {
     # ── Embedding health & quality (plan Parts 3 + 4) ─────────────────
@@ -217,6 +219,13 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour="11-23", minute="25,55"),
         "options": {"queue": "default", "expires": 1500},
     },
+    # postgres-exporter health → AutoIssues (source=prometheus), gated at
+    # commit by check-always-on-quota. Hourly at :40, off the picker chain.
+    "auto-issues-pgexporter-pick": {
+        "task": "auto_issues.pgexporter_findings_refresh",
+        "schedule": crontab(minute=40),
+        "options": {"queue": "default", "expires": 1500},
+    },
     # ── Phase 6 of the test-hardening plan (2026-05-12) ──
     # Five new pickers. Times chosen so they DON'T overlap with the
     # existing :05/:10/:15/:20/:25 chain. Each runs at the bottom of
@@ -256,6 +265,31 @@ CELERY_BEAT_SCHEDULE = {
         "task": "auto_issues.pick_ci_failed_runs",
         "schedule": crontab(hour="11-23", minute="10,40"),
         "options": {"queue": "default", "expires": 1500},
+    },
+    "auto-issues-registry-read-refresh": {
+        "task": "auto_issues.refresh_registry_read",
+        "schedule": 1800.0,
+        "options": {"queue": "default", "expires": 1700},
+    },
+    "auto-issues-session-start-payload-refresh": {
+        "task": "auto_issues.refresh_session_start_payload",
+        "schedule": schedule(run_every=timedelta(seconds=120)),
+        "options": {"queue": "default", "expires": 90},
+    },
+    "findbugs-run-scan": {
+        "task": "findbugs.run_scan",
+        "schedule": crontab(hour="11-23", minute=50),
+        "options": {"queue": "default", "expires": 900},
+    },
+    "findbugs-prune-artifacts": {
+        "task": "findbugs.prune_artifacts",
+        "schedule": crontab(hour=12, minute=10),
+        "options": {"queue": "default", "expires": 600},
+    },
+    "findbugs-refresh-knowledge": {
+        "task": "findbugs.refresh_knowledge",
+        "schedule": crontab(hour=12, minute=20),
+        "options": {"queue": "default", "expires": 600},
     },
     "auto-issues-internal-pick": {
         "task": "auto_issues.pick_daily_internal_issues",
@@ -361,7 +395,7 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": 1800.0,
         "options": {"queue": "pipeline"},
     },
-    # FR-030 — FAISS-GPU index refresh: every 15 minutes.
+    # FR-030 — FAISS index refresh: every 15 minutes.
     "refresh-faiss-index": {
         "task": "pipeline.refresh_faiss_index",
         "schedule": crontab(minute="*/15"),

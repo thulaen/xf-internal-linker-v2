@@ -18,16 +18,6 @@ import re
 # patterns like "step=spacy.load" can trigger without touching the message.
 _RULES: list[tuple[re.Pattern[str], str]] = [
     (
-        re.compile(r"CUDA.*out of memory|OOM", re.I),
-        "GPU ran out of VRAM. Lower batch size in Settings → Pipeline, or "
-        "restart the embeddings worker: `docker compose restart celery`.",
-    ),
-    (
-        re.compile(r"torch\.cuda|nvidia-smi|no CUDA", re.I),
-        "GPU not detected. Run `nvidia-smi` on the host; if it fails, "
-        "reinstall NVIDIA drivers. The app will fall back to CPU automatically.",
-    ),
-    (
         re.compile(r"spacy.*not.*found|Can't find model|en_core_web_sm", re.I),
         "spaCy model is missing. Run "
         "`docker compose exec backend python -m spacy download en_core_web_sm`.",
@@ -89,11 +79,11 @@ _RULES.extend(
         ),
         (
             re.compile(
-                r"ThermalThrottleError|GPU.*temperature.*\d{2}.*°C|thermal", re.I
+                r"ThermalThrottleError|host.*temperature.*\d{2}.*°C|thermal", re.I
             ),
-            "GPU is throttling above 85 °C. Pause heavy work for ~5 minutes "
+            "The host is throttling above 85 °C. Pause heavy work for ~5 minutes "
             "via the Quick-Controls panel, or improve case airflow. The job "
-            "auto-resumes when the GPU cools below 75 °C.",
+            "auto-resumes when the host cools below 75 °C.",
         ),
         (
             re.compile(r"FAISS.*single.*worker|_assert_single_worker", re.I),
@@ -249,13 +239,8 @@ _ACTION_CHIPS: list[tuple[re.Pattern[str], list[dict[str, str]]]] = [
         ],
     ),
     (
-        re.compile(r"CUDA.*out of memory|OOM|MemoryError", re.I),
+        re.compile(r"OOM|MemoryError", re.I),
         [
-            {
-                "label": "Reclaim GPU cache",
-                "action_url": "/api/diagnostics/gpu-memory-cleanup/",
-                "tooltip": "Clears unused VRAM PyTorch is hoarding.",
-            },
             {
                 "label": "Lower batch size",
                 "action_url": "/settings/passage-relevance",
@@ -299,7 +284,7 @@ _ACTION_CHIPS: list[tuple[re.Pattern[str], list[dict[str, str]]]] = [
             {
                 "label": "Wait for cooldown",
                 "action_url": "",
-                "tooltip": "GPU is above 85 °C. Job auto-resumes when it cools below 75 °C.",
+                "tooltip": "Host temperature is high. Job auto-resumes when it cools.",
             },
         ],
     ),

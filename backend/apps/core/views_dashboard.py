@@ -281,7 +281,7 @@ def _dashboard_last_analytics_completed_at():
 
 
 def _dashboard_runtime_mode_display() -> str:
-    """Live effective device (CPU / GPU) — uppercase for the dashboard chip."""
+    """Live effective runtime — uppercase for the dashboard chip."""
     try:
         from apps.pipeline.services.embeddings import (
             get_effective_runtime_resolution,

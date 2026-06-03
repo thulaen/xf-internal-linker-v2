@@ -5,10 +5,12 @@
 
 :root {
   // ── Functional Mapping (GA4 Identity) ───────────────────────────
-  --color-primary:        #1a73e8;
-  --color-primary-rgb:    26, 115, 232;
-  --color-primary-dark:   #1558b0;
-  --color-accent:         #1a73e8;
+  // GSC brand blue (#4285f4), per user correction 2026-05-30 (was #0b57d0 /
+  // legacy GA4 #1a73e8). This is THE primary used across the whole app.
+  --color-primary:        #4285f4;
+  --color-primary-rgb:    66, 133, 244;
+  --color-primary-dark:   #3367d6;
+  --color-accent:         #4285f4;
 
   --mdc-theme-primary:            var(--color-primary);
   --mdc-button-label-text-color:  var(--color-primary);
@@ -16,7 +18,7 @@
 
   --color-blue-50:  #e8f0fe;  // GA4 active surface tint — extracted 2026-04-20
   --color-blue-100: #c5d9f9;
-  --color-blue-200: #1a73e8;
+  --color-blue-200: #4285f4;
 
   --color-success:         #228747;
   --color-success-light:   #e3f8eb;
@@ -83,7 +85,7 @@
 
   // ── Card system ───────────────────────────────────────────────
   --card-border:       0.8px solid #dadce0;
-  --card-border-radius: 8px;
+  --card-border-radius: 12px;  // GSC-measured card corner radius (was 8px)
   --card-shadow:       none;
 
   // ── Active nav ────────────────────────────────────────────────
@@ -119,6 +121,13 @@
   --font-family:      system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
   --font-mono:        ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
   --font-size-base:   13px;
+  // Font-size scale (matches the real sizes already used across components,
+  // so migrating hardcoded px is a find-and-replace, not a redesign).
+  --font-size-xs:   11px;
+  --font-size-sm:   12px;
+  --font-size-md:   13px;  // = base
+  --font-size-lg:   14px;
+  --font-size-xl:   16px;
   --line-height-base: 1.5;
   --page-title-size:   22px;
   --page-title-weight: 500;
@@ -140,6 +149,30 @@
   --spotlight-ring-color: rgba(26, 115, 232, 0.5);
   --drag-over-border-color: var(--color-primary);
   --drag-over-bg: rgba(26, 115, 232, 0.04);
+
+  // ── GSC parity tokens (captured from live Google Search Console) ──
+  // Series colours for metric tiles, charts, and series-coloured table
+  // numbers. Values read off the live GSC Performance + Page-indexing tiles.
+  --series-clicks:       #4285f4;  // blue   (GSC "Total clicks")
+  --series-impressions:  #5e35b1;  // purple (GSC "Total impressions")
+  --series-indexed:      #00897b;  // green for cards/tiles (corrected value, was #188038)
+  --series-not-indexed:  #80868b;  // grey   (GSC "Not indexed")
+  // GSC shell metrics.
+  --gsc-search-bg:     #f1f3f4;  // centred top-bar search pill
+  --gsc-search-height: 46px;     // measured: top-bar search field height
+  --gsc-topbar-height: 64px;
+  --gsc-nav-width:     280px;    // GSC nav is wider than the legacy 256px
+
+  // Exact computed values measured from live GSC (2026-05-30) via DevTools —
+  // the single source for GSC-faithful sizing. Use these, do not eyeball.
+  --gsc-link-blue:         #4285f4;  // GSC link / brand blue
+  --gsc-card-radius:       12px;     // summary-card corner radius
+  --gsc-card-stack-gap:    24px;     // vertical gap between stacked cards
+  --gsc-card-title-size:   24px;     // summary-card heading size
+  --gsc-card-title-lh:     32px;     // heading line-height
+  --gsc-card-title-color:  #474747;  // heading colour (soft charcoal)
+  --gsc-metric-value-size: 32px;     // metric-tile big number
+  --gsc-metric-tile-min-w: 180px;    // metric-tile min width
 }
 
 // ── Deep-link spotlight animation (used by DeepLinkSpotlightDirective) ──

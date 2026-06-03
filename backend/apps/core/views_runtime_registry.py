@@ -23,6 +23,22 @@ from apps.core.runtime_registry import (
 )
 
 
+def _apply_registry_updates(registry, data: dict) -> list[str]:
+    """Set mutable fields from ``data`` onto ``registry``; return changed field names."""
+    changed: list[str] = []
+    for field in ("model_family", "dimension", "device_target", "batch_size"):
+        if field in data:
+            setattr(registry, field, data[field])
+            changed.append(field)
+    if "memory_profile" in data:
+        registry.memory_profile = data["memory_profile"] or {}
+        changed.append("memory_profile")
+    if "role" in data:
+        registry.role = str(data["role"] or registry.role)
+        changed.append("role")
+    return changed
+
+
 def serialize_helper_node(node: HelperNode) -> dict[str, object]:
     return {
         "id": node.id,
@@ -42,9 +58,6 @@ def serialize_helper_node(node: HelperNode) -> dict[str, object]:
         "queued_jobs": node.queued_jobs,
         "cpu_pct": node.cpu_pct,
         "ram_pct": node.ram_pct,
-        "gpu_util_pct": node.gpu_util_pct,
-        "gpu_vram_used_mb": node.gpu_vram_used_mb,
-        "gpu_vram_total_mb": node.gpu_vram_total_mb,
         "network_rtt_ms": node.network_rtt_ms,
         "native_kernels_healthy": node.native_kernels_healthy,
         "warmed_model_keys": node.warmed_model_keys,
@@ -81,9 +94,7 @@ class RuntimeModelsView(APIView):
             model_name=model_name,
             algorithm_version=str(data.get("algorithm_version") or "fr020-v1"),
             defaults={
-                "model_family": str(
-                    data.get("model_family") or "sentence-transformers"
-                ),
+                "model_family": str(data.get("model_family") or "paid-api"),
                 "dimension": data.get("dimension"),
                 "device_target": str(data.get("device_target") or "cpu"),
                 "batch_size": int(data.get("batch_size") or 32),
@@ -94,14 +105,9 @@ class RuntimeModelsView(APIView):
             },
         )
         if not created:
-            for field in ("model_family", "dimension", "device_target", "batch_size"):
-                if field in data:
-                    setattr(registry, field, data[field])
-            if "memory_profile" in data:
-                registry.memory_profile = data["memory_profile"] or {}
-            if "role" in data:
-                registry.role = str(data["role"] or registry.role)
-            registry.save()
+            changed = _apply_registry_updates(registry, data)
+            if changed:
+                registry.save(update_fields=changed + ["updated_at"])
 
         executor_type = str(data.get("executor_type") or "primary")
         helper = None

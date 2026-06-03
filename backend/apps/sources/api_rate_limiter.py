@@ -246,9 +246,11 @@ def rate_limited(name: str, *, cost: float = 1.0, max_wait_s: float = 30.0):
     rather than hanging the worker.
     """
     deadline = time.monotonic() + max_wait_s
-    while True:
+    acquired = False
+    while not acquired:
         if REGISTRY.try_acquire(name, cost):
-            break
+            acquired = True
+            continue
         wait_s = REGISTRY.wait_seconds(name, cost)
         if time.monotonic() + wait_s > deadline:
             raise TimeoutError(

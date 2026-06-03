@@ -11,7 +11,7 @@ class TestTasksEmbeddingBakeoff(SimpleTestCase):
         from apps.pipeline.tasks_embedding_bakeoff import embedding_provider_bakeoff
         
         with self.assertRaises(Exception) as ctx:
-            embedding_provider_bakeoff()
+            embedding_provider_bakeoff()  # pylint: disable=no-value-for-parameter
             
         self.assertEqual(str(ctx.exception), "Sentinel")
         mock_connection.close.assert_called_once()

@@ -212,8 +212,8 @@ class WeightTuner:
                     w_key,
                 )
                 continue
-            weight_keys.append(w_key)
-            feature_keys.append(feature)
+            weight_keys += [w_key]
+            feature_keys += [feature]
         return weight_keys, feature_keys
 
     # Backwards-compatible alias kept for any caller that grepped this
@@ -261,17 +261,21 @@ class WeightTuner:
             )
             return None
 
-        X = []
-        y = []
-        score_finals = []
-        for s in samples:
-            X.append([float(s[k] or 0) for k in self.feature_keys])
-            y.append(1 if s["status"] == "approved" else 0)
-            score_finals.append(float(s["score_final"] or 0))
-
-        X = np.array(X)
-        y = np.array(y)
-        score_finals = np.array(score_finals)
+        X = np.asarray(
+            [
+                tuple(float(s[k] or 0) for k in self.feature_keys)
+                for s in samples
+            ],
+            dtype=np.float64,
+        )
+        y = np.asarray(
+            [1 if s["status"] == "approved" else 0 for s in samples],
+            dtype=np.float64,
+        )
+        score_finals = np.asarray(
+            [float(s["score_final"] or 0) for s in samples],
+            dtype=np.float64,
+        )
 
         # 2. Get Current Weights
         curr_vals = get_current_weights()

@@ -11,7 +11,7 @@ from apps.core.helpers import HelperConstraint
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# FR-30 — FAISS-GPU index refresh
+# FR-30 — FAISS index refresh
 # ---------------------------------------------------------------------------
 
 @shared_task(name="pipeline.refresh_faiss_index", time_limit=3600, soft_time_limit=3540)
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
     expected_seconds_p50=300,
 )
 def refresh_faiss_index():
-    """FR-30 — Rebuild FAISS-GPU index to pick up newly generated embeddings."""
+    """FR-30 — Rebuild the FAISS index to pick up newly generated embeddings."""
     if not connection.in_atomic_block:
         connection.close()
 
@@ -92,7 +92,7 @@ def nrt_delta_flush():
 @shared_task(bind=True, name="pipeline.backfill_long_tail_embeddings", time_limit=3600)
 @HelperConstraint(
     cpu_intensive=False,
-    gpu_required=True,
+    gpu_required=False,
     storage_writes_to="postgres_main",
     ram_peak_mb=4096,
     expected_seconds_p50=180,
@@ -107,7 +107,7 @@ def backfill_long_tail_embeddings(self, *, body_to_distilled_ratio: float = 0.3,
 @shared_task(bind=True, name="pipeline.reembed_null_embeddings", time_limit=3600)
 @HelperConstraint(
     cpu_intensive=False,
-    gpu_required=True,
+    gpu_required=False,
     storage_writes_to="postgres_main",
     ram_peak_mb=4096,
     expected_seconds_p50=120,
@@ -122,7 +122,7 @@ def reembed_null_embeddings(self, *, max_items: int = 1000) -> dict:
 @shared_task(bind=True, name="pipeline.refresh_passage_embeddings", time_limit=3600)
 @HelperConstraint(
     cpu_intensive=False,
-    gpu_required=True,
+    gpu_required=False,
     storage_writes_to="postgres_main",
     ram_peak_mb=4096,
     expected_seconds_p50=120,

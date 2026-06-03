@@ -24,9 +24,6 @@ import { MatTooltipModule } from '@angular/material/tooltip';
               <mat-icon matChipAvatar>{{ modeIcon }}</mat-icon>
               {{ modeLabel }}
             </mat-chip>
-            @if (mode === 'warming') {
-              <span class="warming-hint">GPU is warming up. This usually takes a minute or two.</span>
-            }
           </div>
           <a mat-stroked-button
              class="runtime-adjust-btn"
@@ -66,14 +63,6 @@ import { MatTooltipModule } from '@angular/material/tooltip';
       --mdc-chip-elevated-container-color: var(--color-blue-50);
       --mdc-chip-label-text-color: var(--color-primary);
     }
-    .mode-gpu {
-      --mdc-chip-elevated-container-color: var(--color-success-light);
-      --mdc-chip-label-text-color: var(--color-success-dark);
-    }
-    .mode-warming {
-      --mdc-chip-elevated-container-color: var(--color-warning-light);
-      --mdc-chip-label-text-color: var(--color-warning-dark);
-    }
     .warming-hint { font-size: 12px; color: var(--color-text-muted); }
     /* Keep the action label on one line even in narrow cards — no awkward mid-word wrap. */
     .runtime-adjust-btn {
@@ -91,14 +80,10 @@ export class RuntimeModeComponent {
   @Input() mode = 'cpu';
 
   get modeIcon(): string {
-    if (this.mode === 'gpu') return 'developer_board';
-    if (this.mode === 'warming') return 'hourglass_top';
     return 'memory';
   }
 
   get modeLabel(): string {
-    if (this.mode === 'gpu') return 'GPU Active';
-    if (this.mode === 'warming') return 'GPU Warming Up';
     return 'CPU Mode';
   }
 }

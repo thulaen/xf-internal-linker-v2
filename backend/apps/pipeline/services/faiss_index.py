@@ -1,4 +1,4 @@
-"""FR-030 — Persistent FAISS-GPU index for Stage 1 vector search.
+"""Persistent CPU FAISS index for Stage 1 vector search.
 
 ⚠  ARCHITECTURE WARNING — SINGLE-WORKER REQUIREMENT
 The FAISS index is stored in process-local globals protected by a
@@ -26,14 +26,10 @@ import threading
 import numpy as np
 
 from apps.ops_feed.services import emit
-from apps.core.performance_mode import (
-    PERFORMANCE_MODE_HIGH,
-    get_requested_performance_mode,
-)
 from apps.pipeline.services.embeddings import (
-    get_current_embedding_dimension,
     get_current_embedding_filter,
 )
+from apps.observability.instruments import observe_duration
 
 try:
     import faiss
@@ -125,7 +121,7 @@ def build_faiss_index() -> None:
     global _faiss_index, _faiss_id_map, _faiss_content_type_map
 
     if not HAS_FAISS:
-        msg = "faiss not installed — FAISS-GPU path disabled"
+        msg = "faiss not installed — CPU vector index disabled"
         logger.warning(msg)
         emit(
             "faiss.dependency_missing",
@@ -137,8 +133,6 @@ def build_faiss_index() -> None:
 
     from apps.content.models import ContentItem
     from apps.pipeline.services.pipeline import _coerce_embedding_vector
-
-    performance_mode = get_requested_performance_mode()
 
     # Group A.6 — keep cross-source duplicates out of the FAISS index.
     # Otherwise a single piece of content would surface twice in the
@@ -175,19 +169,9 @@ def build_faiss_index() -> None:
     matrix = np.vstack(vectors).astype(np.float32)
     dim = matrix.shape[1]
 
-    index_cpu = faiss.IndexFlatIP(dim)
-    index_cpu.add(matrix)  # pylint: disable=no-value-for-parameter
-
-    if faiss.get_num_gpus() > 0 and performance_mode == PERFORMANCE_MODE_HIGH:
-        res = faiss.StandardGpuResources()
-        # Cap FAISS GPU temp memory to 512 MB to leave headroom for
-        # embedding model + Chrome.  See docs/PERFORMANCE.md §6.
-        res.setTempMemory(512 * 1024 * 1024)
-        index = faiss.index_cpu_to_gpu(res, 0, index_cpu)
-        device = "GPU"
-    else:
-        index = index_cpu
-        device = "CPU"
+    index = faiss.IndexFlatIP(dim)
+    index.add(matrix)  # pylint: disable=no-value-for-parameter
+    device = "CPU"
 
     with _index_lock:
         _faiss_index = index
@@ -241,33 +225,34 @@ def faiss_search(
     propagation. ``score`` is FAISS ``IndexFlatIP`` inner product, ==
     cosine for L2-unit vectors (FR-237 enforces).
     """
-    with _index_lock:
-        index = _faiss_index
-        id_map = list(_faiss_id_map)
-        ct_map = list(_faiss_content_type_map)
+    with observe_duration("xf_index_search_seconds"):
+        with _index_lock:
+            index = _faiss_index
+            id_map = list(_faiss_id_map)
+            ct_map = list(_faiss_content_type_map)
 
-    if index is None:
-        return [[] for _ in range(len(query_vectors))]
+        if index is None:
+            return [[] for _ in range(len(query_vectors))]
 
-    query = np.ascontiguousarray(query_vectors, dtype=np.float32)
-    search_k = min(k * 2, len(id_map))  # over-fetch to allow filtering
-    scores, indices = index.search(query, search_k)
+        query = np.ascontiguousarray(query_vectors, dtype=np.float32)
+        search_k = min(k * 2, len(id_map))  # over-fetch to allow filtering
+        scores, indices = index.search(query, search_k)
 
-    return [
-        _filter_faiss_row(
-            row_scores,
-            row_indices,
-            id_map=id_map,
-            ct_map=ct_map,
-            host_pk_set=host_pk_set,
-            k=k,
-        )
-        for row_scores, row_indices in zip(scores, indices)
-    ]
+        return [
+            _filter_faiss_row(
+                row_scores,
+                row_indices,
+                id_map=id_map,
+                ct_map=ct_map,
+                host_pk_set=host_pk_set,
+                k=k,
+            )
+            for row_scores, row_indices in zip(scores, indices)
+        ]
 
 
-def is_faiss_gpu_active() -> bool:
-    """Return True when the index is loaded (GPU or CPU FAISS)."""
+def is_faiss_index_active() -> bool:
+    """Return True when the CPU vector index is loaded."""
     with _index_lock:
         return _faiss_index is not None
 
@@ -279,22 +264,10 @@ def get_faiss_status() -> dict:
         n = len(_faiss_id_map)
 
     if not HAS_FAISS or index is None:
-        return {"active": False, "vectors": 0, "device": "none", "vram_mb": 0}
-
-    try:
-        on_gpu = hasattr(index, "getDevice")
-        device = f"GPU:{index.getDevice()}" if on_gpu else "CPU"
-    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
-        device = "unknown"
-        on_gpu = False
-
-    vram_mb = (
-        round(n * get_current_embedding_dimension() * 4 / (1024**2)) if on_gpu else 0
-    )
+        return {"active": False, "vectors": 0, "device": "none"}
 
     return {
         "active": True,
         "vectors": n,
-        "device": device,
-        "vram_mb": vram_mb,
+        "device": "CPU",
     }

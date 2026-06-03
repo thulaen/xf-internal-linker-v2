@@ -17,7 +17,7 @@ recall loss — Jégou et al. Table 2.
 
 Wrapper choices:
 
-- **FAISS is already pinned** (``faiss-gpu-cu12>=1.8.0``). No new
+- **FAISS is already pinned** (``faiss-cpu>=1.8.0``). No new
   dep — the duplication audit confirmed this.
 - **Lazy import of faiss.** ``import faiss`` at module load would
   force every Django worker to pay the cost of FAISS's native

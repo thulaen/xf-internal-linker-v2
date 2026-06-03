@@ -91,7 +91,7 @@ def detect_polysemous_terms(
     Bevilacqua 2021 §2.1 — surface forms with multiple WordNet senses
     are the operative definition of polysemy. Tokens not in WordNet
     (proper nouns, neologisms, brand names) return 0 senses and are
-    excluded — they're handled by FR-242 domain adapter, not here.
+    excluded from this lightweight WordNet-only check.
 
     ``wordnet_module`` is an optional injected module for tests. When
     omitted, the function tries to import NLTK's WordNet at call time;

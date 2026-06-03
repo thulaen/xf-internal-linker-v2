@@ -3,7 +3,7 @@
 Given a task that's running slower than its expected p50 latency,
 samples live system state and returns a one-word verdict from:
 
-    cpu_bound · gpu_bound · disk_bound · db_bound · network_bound
+    cpu_bound · disk_bound · db_bound · network_bound
     lock_waiting · thermal_throttled · unknown
 
 Plus a one-sentence why-string and a confidence in [0, 1].
@@ -43,10 +43,7 @@ _MEMORY_PRESSURE_FREE_FRACTION: float = 0.10
 #: Disk-wait percentage above this flags I/O saturation.
 _DISK_WAIT_THRESHOLD_PCT: float = 25.0
 
-#: GPU utilisation above this flags GPU saturation.
-_GPU_UTIL_THRESHOLD_PCT: float = 85.0
-
-#: GPU temp above this flags thermal throttling. Intel + NVIDIA both
+#: Host temp above this flags thermal throttling. Common hardware
 #: typically begin throttling around 90 °C; we trigger early at 85 °C.
 _THERMAL_THROTTLE_TEMP_C: float = 85.0
 
@@ -71,12 +68,12 @@ class SlownessVerdict:
 def analyze_slowness(*, task_name: str = "") -> SlownessVerdict:
     """Sample live system state and return a bottleneck verdict.
 
-    Plain-English: this looks at right-now CPU / RAM / disk / GPU /
+    Plain-English: this looks at right-now CPU / RAM / disk /
     Postgres-locks and decides which of those is the most likely cause
     of the current slowdown. Returns the verdict + a why-string the
     operator can read out loud.
 
-    Cheap: ~50 ms per call (the GPU + DB queries dominate). Safe to call
+    Cheap: ~50 ms per call. Safe to call
     from a UI button-handler. Does not write anywhere unless the caller
     chooses to log the result.
     """
@@ -95,20 +92,8 @@ def analyze_slowness(*, task_name: str = "") -> SlownessVerdict:
         candidates.append(
             (
                 "thermal_throttled",
-                f"GPU temperature is {signals['thermal_c']:.0f}°C — clocks may be throttled.",
+                f"Host temperature is {signals['thermal_c']:.0f}°C — clocks may be throttled.",
                 0.9,
-            )
-        )
-
-    if (
-        signals.get("gpu_util_pct")
-        and signals["gpu_util_pct"] >= _GPU_UTIL_THRESHOLD_PCT
-    ):
-        candidates.append(
-            (
-                "gpu_bound",
-                f"GPU is at {signals['gpu_util_pct']:.0f}% utilisation — the kernel is saturating the device.",
-                0.85,
             )
         )
 
@@ -195,7 +180,6 @@ def _sample_all_signals() -> dict[str, float | int]:
     out: dict[str, float | int] = {}
     out.update(_sample_cpu_mem())
     out.update(_sample_disk())
-    out.update(_sample_gpu())
     out.update(_sample_postgres_locks())
     return out
 
@@ -270,57 +254,6 @@ def _sample_disk() -> dict[str, float]:
         out["disk_wait_pct"] = 0.0
     except Exception:
         logger.debug("slowness_analyzer: disk_wait sample failed", exc_info=True)
-    return out
-
-
-def _sample_gpu() -> dict[str, float]:
-    """GPU utilisation % + temperature °C via torch.cuda + nvidia-smi.
-
-    torch.cuda doesn't expose utilisation directly; we estimate via
-    ``torch.cuda.utilization()`` (available on torch ≥ 2.0) which calls
-    nvidia-smi under the hood. Skips entirely on CPU-only hosts.
-    """
-    out: dict[str, float] = {}
-    try:
-        import torch
-
-        if not torch.cuda.is_available():
-            return out
-
-        try:
-            out["gpu_util_pct"] = float(torch.cuda.utilization())
-        except Exception:  # noqa: forbidden-pattern silent-except — torch.cuda.utilization is unavailable on torch <2.0; sample skip is the intended fallback.
-            pass
-
-        try:
-            # ``torch.cuda.temperature`` is not in stable API; use
-            # nvidia-smi parse via subprocess as the fallback.
-            import subprocess
-
-            # nvidia-smi is a standard NVIDIA driver utility invoked by name
-            # on hosts that have it. Absolute path varies (Linux /usr/bin,
-            # Windows C:\Windows\System32). Args are static, no user input.
-            result = subprocess.run(  # nosec B603 B607
-                [
-                    "nvidia-smi",
-                    "--query-gpu=temperature.gpu",
-                    "--format=csv,noheader,nounits",
-                ],
-                capture_output=True,
-                text=True,
-                timeout=2,
-                check=False,
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                out["thermal_c"] = float(result.stdout.strip().splitlines()[0])
-        except Exception:
-            logger.debug(
-                "slowness_analyzer: nvidia-smi temp probe failed", exc_info=True
-            )
-    except ImportError:
-        return out
-    except Exception:
-        logger.debug("slowness_analyzer: gpu sample failed", exc_info=True)
     return out
 
 

@@ -5,6 +5,11 @@ import django.db.models.deletion
 from django.db import migrations, models
 
 
+CREATED_AT_HELP = "Timestamp when this record was created."
+UPDATED_AT_HELP = "Timestamp when this record was last modified."
+CONTENT_ITEM_MODEL = "content.contentitem"
+
+
 class Migration(migrations.Migration):
     initial = True
 
@@ -29,14 +34,14 @@ class Migration(migrations.Migration):
                     "created_at",
                     models.DateTimeField(
                         auto_now_add=True,
-                        help_text="Timestamp when this record was created.",
+                        help_text=CREATED_AT_HELP,
                     ),
                 ),
                 (
                     "updated_at",
                     models.DateTimeField(
                         auto_now=True,
-                        help_text="Timestamp when this record was last modified.",
+                        help_text=UPDATED_AT_HELP,
                     ),
                 ),
                 (
@@ -82,14 +87,14 @@ class Migration(migrations.Migration):
                     "created_at",
                     models.DateTimeField(
                         auto_now_add=True,
-                        help_text="Timestamp when this record was created.",
+                        help_text=CREATED_AT_HELP,
                     ),
                 ),
                 (
                     "updated_at",
                     models.DateTimeField(
                         auto_now=True,
-                        help_text="Timestamp when this record was last modified.",
+                        help_text=UPDATED_AT_HELP,
                     ),
                 ),
                 (
@@ -203,14 +208,14 @@ class Migration(migrations.Migration):
                     "created_at",
                     models.DateTimeField(
                         auto_now_add=True,
-                        help_text="Timestamp when this record was created.",
+                        help_text=CREATED_AT_HELP,
                     ),
                 ),
                 (
                     "updated_at",
                     models.DateTimeField(
                         auto_now=True,
-                        help_text="Timestamp when this record was last modified.",
+                        help_text=UPDATED_AT_HELP,
                     ),
                 ),
                 (
@@ -392,7 +397,7 @@ class Migration(migrations.Migration):
                         help_text="The content item being linked to.",
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name="destination_suggestions",
-                        to="content.contentitem",
+                        to=CONTENT_ITEM_MODEL,
                     ),
                 ),
                 (
@@ -401,7 +406,7 @@ class Migration(migrations.Migration):
                         help_text="The content item whose post will contain the link.",
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name="host_suggestions",
-                        to="content.contentitem",
+                        to=CONTENT_ITEM_MODEL,
                     ),
                 ),
                 (
@@ -508,7 +513,7 @@ class Migration(migrations.Migration):
                         help_text="The destination that was skipped.",
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name="pipeline_diagnostics",
-                        to="content.contentitem",
+                        to=CONTENT_ITEM_MODEL,
                     ),
                 ),
                 (

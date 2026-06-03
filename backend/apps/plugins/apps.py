@@ -7,6 +7,7 @@ from django.apps import AppConfig
 
 
 _PLUGIN_SKIP_COMMANDS = {
+    "celery",
     "daphne",
     "makemigrations",
     "migrate",

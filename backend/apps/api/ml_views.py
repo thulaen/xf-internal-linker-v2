@@ -17,10 +17,9 @@ from apps.api.query_params import coerce_int
 from apps.api.throttles import MLEmbedThrottle as _MLEmbedThrottle
 from apps.pipeline.services.distiller import distill_body
 from apps.pipeline.services.embeddings import (
-    _load_model,
-    _get_model_name,
     _get_batch_size,
     _l2_normalize,
+    _encode_batch_via_provider,
 )
 
 
@@ -84,15 +83,12 @@ class MLEmbedView(APIView):
             return Response({"embeddings": []})
 
         try:
-            model_name = _get_model_name()
-            model = _load_model(model_name)
             batch_size = _get_batch_size()
-
-            raw_vectors = model.encode(
-                texts,
+            raw_vectors = _encode_batch_via_provider(
+                batch_texts=texts,
+                model=None,
                 batch_size=batch_size,
-                show_progress_bar=False,
-                convert_to_numpy=True,
+                job_id=None,
             )
 
             # Normalize for cosine similarity operations

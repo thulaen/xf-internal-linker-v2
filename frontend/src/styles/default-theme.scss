@@ -45,7 +45,7 @@ html {
 // semantic tokens here so the colour never drifts from the GA4 spec.
 // DO NOT remove these overrides — they are the brand lock-in.
 html {
-  --mat-sys-primary:              var(--color-primary);       // #1a73e8
+  --mat-sys-primary:              var(--color-primary);       // #0b57d0 (GSC)
   --mat-sys-on-primary:           #ffffff;
   --mat-sys-primary-container:    var(--color-blue-50);       // #e8f0fe
   --mat-sys-on-primary-container: var(--color-primary-dark);  // #1558b0
@@ -81,4 +81,23 @@ html {
   .mdc-tooltip__surface {
     padding: 14px 16px !important;
   }
+}
+
+// ── Global element normalisations — define ONCE, every component inherits ──
+// Fix recurring Angular Material quirks HERE in the source of truth, never per
+// component, so adding a new component can never re-introduce a local icon or
+// layout workaround (the exact mess this design system exists to prevent).
+// See frontend/GSC-DESIGN-SYSTEM.md.
+
+// Icons: one consistent box with a centred glyph, app-wide. Angular Material's
+// mat-icon is an inline-block 24px box whose ligature is NOT reliably centred,
+// so icons drift in flex rows (and needed per-component size/alignment fixes).
+// Centre the glyph once here. Components must NOT set a per-component
+// font-size on mat-icon — size variants come from the .u-icon-* utilities.
+// `mat-icon.mat-icon` out-specifies Material's default without !important.
+mat-icon.mat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
 }

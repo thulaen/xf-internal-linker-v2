@@ -173,6 +173,47 @@ class WeightTunerRunTests(TestCase):
             )
             self.assertLessEqual(drift, 0.0501)
 
+    def test_sample_matrix_uses_numeric_numpy_arrays(self) -> None:
+        """The optimiser receives dense numeric arrays built from every sample."""
+        samples = _synthetic_samples()
+        captured: dict[str, object] = {}
+
+        class _Result:
+            success = True
+            message = "ok"
+
+            def __init__(self, x):
+                self.x = x
+
+        def fake_minimize(objective, w_init, *, args, method, bounds):
+            captured["X"], captured["y"], captured["remainders"] = args
+            captured["method"] = method
+            captured["bounds"] = bounds
+            return _Result(w_init)
+
+        with (
+            patch(
+                "apps.suggestions.services.weight_tuner.get_current_weights",
+                return_value=self._current_weights,
+            ),
+            patch(
+                "apps.suggestions.services.weight_tuner.Suggestion.objects.filter",
+            ) as filter_mock,
+            patch("apps.suggestions.services.weight_tuner.minimize", fake_minimize),
+        ):
+            filter_mock.return_value.values.return_value = samples
+            WeightTuner(lookback_days=90).run(run_id="matrix-proof")
+
+        import numpy as np
+
+        X = captured["X"]
+        y = captured["y"]
+        self.assertIsInstance(X, np.ndarray)
+        self.assertIsInstance(y, np.ndarray)
+        self.assertEqual(X.dtype, np.float64)
+        self.assertEqual(y.dtype, np.float64)
+        self.assertEqual(X.shape, (len(samples), len(self._current_weights)))
+
 
 class WeightFloorTests(TestCase):
     """Per DEFAULT-ON-RULE.md: the autotuner must never zero a weight.

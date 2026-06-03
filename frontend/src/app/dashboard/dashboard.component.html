@@ -3,6 +3,68 @@
      GA4 where global search is always reachable without scrolling. -->
 <app-quick-search-bar class="d3-block" />
 
+<!-- ── GSC attention banner (GSC redesign, Part 5 — see GSC-DESIGN-SYSTEM.md).
+     The "start here" card: surfaces the single most important thing to act on
+     and routes straight to it. First card of the decluttered dashboard;
+     composed from the reusable app-gsc-insight-card primitive. -->
+@if (data) {
+  <!-- Attention banner — CDK + Tailwind, Material-free (chosen stack). -->
+  <app-spike-insight-card
+    class="d3-block"
+    [tone]="attention.tone"
+    [headline]="attention.headline"
+    [detail]="attention.detail"
+    [actionLabel]="attention.actionLabel"
+    [actionLink]="attention.actionLink"
+  />
+
+  <!-- GSC summary card: Review queue. Composed from the gsc-summary-card +
+       gsc-kpi primitives, bound to live suggestion counts. First of the ~6
+       calm summary cards that replace the widget wall (Part 5). -->
+  <app-gsc-summary-card
+    class="d3-block"
+    title="Review queue"
+    icon="rate_review"
+    reportLink="/review"
+  >
+    <app-gsc-metric-tiles [tiles]="reviewTiles" />
+  </app-gsc-summary-card>
+
+  <!-- GSC summary card: Content & sync. -->
+  <app-gsc-summary-card
+    class="d3-block"
+    title="Content &amp; sync"
+    icon="sync"
+    reportLink="/link-health"
+  >
+    <app-gsc-metric-tiles [tiles]="contentTiles" />
+  </app-gsc-summary-card>
+
+  <!-- GSC summary card: System health — ONE card replacing the 5 duplicate
+       health widgets. (A status gauge is a later refinement.) -->
+  <app-gsc-summary-card
+    class="d3-block"
+    title="System health"
+    icon="health_and_safety"
+    reportLink="/health"
+  >
+    <app-gsc-metric-tiles [tiles]="healthTiles" />
+  </app-gsc-summary-card>
+
+  <!-- GSC summary card: Latest pipeline run. Only shown when runs exist, so
+       there's never an empty card; links to Jobs where the runs live. -->
+  @if (data.pipeline_runs.length) {
+    <app-gsc-summary-card
+      class="d3-block"
+      title="Latest pipeline run"
+      icon="bolt"
+      reportLink="/jobs"
+    >
+      <app-gsc-metric-tiles [tiles]="pipelineTiles" />
+    </app-gsc-summary-card>
+  }
+}
+
 <!-- ── Phase D3 / Gaps 152-187 — Top-of-dashboard noob strip ──────
      Moved above system metrics and Mission Critical so the user sees
      personal context and the page title BEFORE raw infrastructure

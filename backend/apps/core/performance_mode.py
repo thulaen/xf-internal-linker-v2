@@ -6,6 +6,7 @@ import logging
 import os
 
 from django.conf import settings as django_settings
+from django.db import OperationalError, ProgrammingError
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,7 @@ def get_requested_performance_mode() -> str:
         )
         if db_mode not in (None, ""):
             return normalize_performance_mode(str(db_mode))
-    except Exception:
+    except (OperationalError, ProgrammingError):
         logger.debug(
             "AppSetting unavailable while resolving performance mode",
             exc_info=True,
@@ -65,5 +66,5 @@ def get_requested_performance_mode() -> str:
 
 
 def is_high_performance_mode() -> bool:
-    """Return True when the canonical requested mode is GPU-eligible."""
+    """Return True when the canonical requested mode is the high tier."""
     return get_requested_performance_mode() == PERFORMANCE_MODE_HIGH

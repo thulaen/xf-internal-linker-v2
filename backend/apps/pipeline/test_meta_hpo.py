@@ -11,6 +11,7 @@ from apps.pipeline.services.meta_hpo_eval import (
     DEFAULT_K,
     _ReservoirItem,
     evaluate_ndcg_at_k,
+    load_reservoir_items,
     ndcg_at_k,
 )
 from apps.pipeline.services.meta_hpo_safety import (
@@ -112,6 +113,22 @@ class EvaluateNdcgTests(SimpleTestCase):
         ]
         score = evaluate_ndcg_at_k({}, items=items)
         self.assertAlmostEqual(score, 1.0)
+
+    def test_load_reservoir_items_parses_ids_once_before_querying(self) -> None:
+        with (
+            patch("apps.pipeline.services.meta_hpo_eval.json.loads", return_value=["1"]),
+            patch("apps.core.models.AppSetting.objects.filter") as setting_filter,
+            patch("apps.suggestions.models.Suggestion.objects.filter") as suggestion_filter,
+        ):
+            setting_filter.return_value.values_list.return_value.first.return_value = "[1]"
+            suggestion_filter.return_value.values.return_value = [
+                {"pk": 1, "score": 0.8, "status": "approved"}
+            ]
+
+            items = load_reservoir_items()
+
+        self.assertEqual(items, [_ReservoirItem(suggestion_id=1, score=0.8, label=1.0)])
+        suggestion_filter.assert_called_once_with(pk__in=[1])
 
 
 # ── Safety rails ───────────────────────────────────────────────────

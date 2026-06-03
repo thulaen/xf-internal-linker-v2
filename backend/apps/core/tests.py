@@ -893,7 +893,10 @@ class ValueModelEngagementSettingsTests(APITestCase):
         self.assertEqual(response.json()["engagement_lookback_days"], 1)
 
 
-@override_settings(EMBEDDING_MODEL="BAAI/bge-m3")
+@override_settings(
+    ALLOWED_HOSTS=["testserver"],
+    EMBEDDING_MODEL="text-embedding-3-small",
+)
 class EmbeddingModelDefaultTests(APITestCase):
     def setUp(self):
         user = get_user_model().objects.create_user(
@@ -901,10 +904,10 @@ class EmbeddingModelDefaultTests(APITestCase):
         )
         self.client.force_authenticate(user=user)
 
-    def test_runtime_registry_defaults_to_bge_m3_when_setting_missing_in_balanced_mode(
+    def test_runtime_registry_defaults_to_paid_model_when_setting_missing_in_balanced_mode(
         self,
     ):
-        AppSetting.objects.filter(key="embedding_model").delete()
+        AppSetting.objects.filter(key="embedding.model").delete()
         AppSetting.objects.update_or_create(
             key="system.performance_mode",
             defaults={
@@ -917,12 +920,12 @@ class EmbeddingModelDefaultTests(APITestCase):
 
         from apps.core.runtime_registry import get_current_embedding_model_name
 
-        self.assertEqual(get_current_embedding_model_name(), "BAAI/bge-m3")
+        self.assertEqual(get_current_embedding_model_name(), "text-embedding-3-small")
 
-    def test_runtime_registry_defaults_to_bge_m3_when_setting_missing_in_high_mode(
+    def test_runtime_registry_defaults_to_paid_model_when_setting_missing_in_high_mode(
         self,
     ):
-        AppSetting.objects.filter(key="embedding_model").delete()
+        AppSetting.objects.filter(key="embedding.model").delete()
         AppSetting.objects.update_or_create(
             key="system.performance_mode",
             defaults={
@@ -936,18 +939,20 @@ class EmbeddingModelDefaultTests(APITestCase):
         from apps.core.runtime_registry import summarize_model_registry
 
         summary = summarize_model_registry()
-        self.assertEqual(summary["active_model"]["model_name"], "BAAI/bge-m3")
+        self.assertEqual(
+            summary["active_model"]["model_name"], "text-embedding-3-small"
+        )
 
     def test_seed_default_embedding_model_migration_creates_missing_setting(self):
-        AppSetting.objects.filter(key="embedding_model").delete()
+        AppSetting.objects.filter(key="embedding.model").delete()
         migration = importlib.import_module(
             "apps.core.migrations.0011_seed_default_embedding_model"
         )
 
         migration.seed_default_embedding_model(apps=None, schema_editor=None)
 
-        setting = AppSetting.objects.get(key="embedding_model")
-        self.assertEqual(setting.value, "BAAI/bge-m3")
+        setting = AppSetting.objects.get(key="embedding.model")
+        self.assertEqual(setting.value, "text-embedding-3-small")
         self.assertEqual(setting.value_type, "str")
         self.assertEqual(setting.category, "ml")
 
@@ -955,9 +960,9 @@ class EmbeddingModelDefaultTests(APITestCase):
         self,
     ):
         AppSetting.objects.update_or_create(
-            key="embedding_model",
+            key="embedding.model",
             defaults={
-                "value": "custom/local-model",
+                "value": "custom/paid-model",
                 "value_type": "str",
                 "category": "ml",
                 "description": "Operator-selected embedding model",
@@ -970,14 +975,14 @@ class EmbeddingModelDefaultTests(APITestCase):
         migration.seed_default_embedding_model(apps=None, schema_editor=None)
 
         self.assertEqual(
-            AppSetting.objects.get(key="embedding_model").value, "custom/local-model"
+            AppSetting.objects.get(key="embedding.model").value, "custom/paid-model"
         )
 
     def test_runtime_switch_does_not_mutate_embedding_model(self):
         AppSetting.objects.update_or_create(
-            key="embedding_model",
+            key="embedding.model",
             defaults={
-                "value": "custom/local-model",
+                "value": "custom/paid-model",
                 "value_type": "str",
                 "category": "ml",
                 "description": "Operator-selected embedding model",
@@ -991,7 +996,7 @@ class EmbeddingModelDefaultTests(APITestCase):
         )
         self.assertEqual(high_response.status_code, 200)
         self.assertEqual(
-            AppSetting.objects.get(key="embedding_model").value, "custom/local-model"
+            AppSetting.objects.get(key="embedding.model").value, "custom/paid-model"
         )
 
         balanced_response = self.client.post(
@@ -1001,7 +1006,7 @@ class EmbeddingModelDefaultTests(APITestCase):
         )
         self.assertEqual(balanced_response.status_code, 200)
         self.assertEqual(
-            AppSetting.objects.get(key="embedding_model").value, "custom/local-model"
+            AppSetting.objects.get(key="embedding.model").value, "custom/paid-model"
         )
 
 

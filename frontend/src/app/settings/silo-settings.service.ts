@@ -515,8 +515,6 @@ export interface HelperNodesRuntimeSummary {
 export interface HardwareCapabilitySummary {
   cpu_cores: number;
   ram_gb: number;
-  gpu_name: string;
-  gpu_vram_gb: number;
   disk_free_gb: number;
   native_kernels_healthy: boolean;
   detected_upgrade: boolean;
@@ -539,15 +537,11 @@ export interface RuntimeSummaryPayload {
 
 export interface RuntimeConfig {
   embedding_batch_size: number;
-  gpu_memory_budget_pct: number;
-  gpu_temp_pause_c: number;
   cpu_encode_threads: number;
   default_queue_concurrency: number;
   celery_concurrency: number;
   aggressive_oom_backoff: boolean;
   embedding_batch_size_range: [number, number];
-  gpu_memory_budget_pct_range: [number, number];
-  gpu_temp_pause_c_range: [number, number];
   cpu_encode_threads_range: [number, number];
   default_queue_concurrency_range: [number, number];
   celery_concurrency_range: [number, number];
@@ -557,8 +551,6 @@ export interface RuntimeConfig {
 
 export type RuntimeConfigUpdate = Partial<{
   embedding_batch_size: number;
-  gpu_memory_budget_pct: number;
-  gpu_temp_pause_c: number;
   cpu_encode_threads: number;
   default_queue_concurrency: number;
   celery_concurrency: number;
@@ -605,9 +597,6 @@ export interface HelperNodeSettingsRecord {
   queued_jobs: number;
   cpu_pct: number;
   ram_pct: number;
-  gpu_util_pct: number | null;
-  gpu_vram_used_mb: number | null;
-  gpu_vram_total_mb: number | null;
   network_rtt_ms: number | null;
   native_kernels_healthy: boolean;
   warmed_model_keys: string[];

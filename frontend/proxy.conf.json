@@ -1,0 +1,29 @@
+{
+  "_comment": "Dev-server API proxy for `npm start` (ng serve on :4200). Routes the app's relative /api calls (and static/media/admin/ws) to the running prod stack, which serves HTTPS on localhost (nginx -> Django). secure:false accepts the stack's self-signed cert. Session cookies are host-scoped (localhost), so login on :4200 carries to the proxied backend. HOST dev-tooling only; does NOT add a frontend service to docker-compose.",
+  "/api": {
+    "target": "https://localhost",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/static": {
+    "target": "https://localhost",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/media": {
+    "target": "https://localhost",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/admin": {
+    "target": "https://localhost",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/ws": {
+    "target": "wss://localhost",
+    "secure": false,
+    "ws": true,
+    "changeOrigin": true
+  }
+}

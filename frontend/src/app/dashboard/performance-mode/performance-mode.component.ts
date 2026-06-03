@@ -27,7 +27,7 @@ const MODES: PerformanceOption[] = [
     label: $localize`@@performanceMode.safeLabelShort:Safe While I Work`,
     icon: 'shield',
     description: $localize`@@performanceMode.safeDescShort:Quietest. Keep working.`,
-    tooltip: $localize`@@performanceMode.safeTooltip:Quietest mode. Uses about 25% of GPU memory so you can keep using your computer while the linker runs in the background.`,
+    tooltip: $localize`@@performanceMode.safeTooltip:Quietest mode. Uses conservative CPU and memory limits so you can keep using your computer while the linker runs in the background.`,
   },
   {
     key: 'balanced',
@@ -40,8 +40,8 @@ const MODES: PerformanceOption[] = [
     key: 'high',
     label: $localize`@@performanceMode.highLabelShort:High Performance Now`,
     icon: 'speed',
-    description: $localize`@@performanceMode.highDescShort:Fastest. Heavy GPU use.`,
-    tooltip: $localize`@@performanceMode.highTooltip:Fastest mode. Uses up to 80% of GPU memory (~4.8 GB on your RTX 3050). Close Chrome tabs first or the browser may slow down.`,
+    description: $localize`@@performanceMode.highDescShort:Fastest CPU work.`,
+    tooltip: $localize`@@performanceMode.highTooltip:Fastest mode. Uses higher CPU and memory limits. Close heavy apps first or the browser may slow down.`,
   },
 ];
 
@@ -148,25 +148,17 @@ const MODES: PerformanceOption[] = [
           </mat-expansion-panel-header>
           <dl class="glossary">
             <dt i18n="@@performanceMode.safeLabel">Safe While I Work</dt>
-            <dd i18n="@@performanceMode.safeDesc">Uses about 25% of your graphics card memory. You can keep browsing and working while the linker runs quietly in the background.</dd>
+            <dd i18n="@@performanceMode.safeDesc">Uses conservative CPU and memory limits. You can keep browsing and working while the linker runs quietly in the background.</dd>
 
             <dt i18n="@@performanceMode.balancedLabel">Balanced (default)</dt>
             <dd i18n="@@performanceMode.balancedDesc">Good speed without hogging your computer. Mostly uses the CPU; a smart choice most of the time.</dd>
 
             <dt i18n="@@performanceMode.highLabel">High Performance</dt>
-            <dd i18n="@@performanceMode.highDesc">Goes full throttle. Uses up to 80% of your graphics card memory (around 4.8 GB on your RTX 3050). Close Chrome tabs before switching.</dd>
-
-            <dt i18n="@@performanceMode.cpuVsGpuLabel">CPU vs GPU</dt>
-            <dd i18n="@@performanceMode.cpuVsGpuDesc">The CPU (processor) is the general-purpose brain; the GPU (graphics card) is a specialist that is much faster at the kind of number-crunching the linker does. GPU mode is faster, but needs memory.</dd>
-
-            <dt i18n="@@performanceMode.vramLabel">VRAM</dt>
-            <dd i18n="@@performanceMode.vramDesc">The graphics card's own memory. Separate from your main RAM. Measured here in megabytes (MB).</dd>
+            <dd i18n="@@performanceMode.highDesc">Goes full throttle on CPU-backed work. Close Chrome tabs before switching.</dd>
 
             <dt i18n="@@performanceMode.batchSizeLabel">Batch size</dt>
             <dd i18n="@@performanceMode.batchSizeDesc">How many paragraphs the linker processes at the same time. Bigger batch = faster, but uses more memory. Adjustable in Settings → Performance.</dd>
 
-            <dt i18n="@@performanceMode.gpuTempLabel">GPU temperature</dt>
-            <dd i18n="@@performanceMode.gpuTempDesc">If your graphics card hits 86°C, the linker automatically pauses heavy work until it cools back down to 78°C. This protects the hardware.</dd>
 
             <dt i18n="@@performanceMode.workerLabel">Worker</dt>
             <dd i18n="@@performanceMode.workerDesc">A helper process that runs background jobs (imports, scoring, etc). More workers = more things in parallel, but also more memory used. Changes need a restart to apply.</dd>
@@ -364,10 +356,9 @@ export class PerformanceModeComponent implements OnInit {
   /**
    * Hardware-capability gate (added 2026-05-09 per AutoIssue #16). The
    * backend's `_runtime_settings_snapshot()` reports whether the host
-   * has a CUDA-capable GPU with ≥4 GB VRAM. When false, the "High
-   * Performance" button renders disabled with a tooltip explaining why
-   * — instead of letting the user pick High and silently fall back to
-   * CPU at runtime (the prior UX bug).
+   * can safely run the highest local workload tier. When false, the
+   * "High Performance" button renders disabled with a tooltip explaining
+   * why, instead of letting the user pick High and silently falling back.
    */
   readonly highCapable = this.perfMode.highPerformanceCapable;
   readonly hardwareTier = this.perfMode.hardwareTier;
@@ -376,9 +367,9 @@ export class PerformanceModeComponent implements OnInit {
     const summary = this.hardwareSummary();
     const tier = this.hardwareTier();
     if (summary) {
-      return $localize`@@performanceMode.unavailableTooltipSummary:High Performance is unavailable on this hardware (${summary}:summary:). Needs a CUDA GPU with at least 4 GB of VRAM.`;
+      return $localize`@@performanceMode.unavailableTooltipSummary:High Performance is unavailable on this hardware (${summary}:summary:).`;
     }
-    return $localize`@@performanceMode.unavailableTooltipTier:High Performance is unavailable on this hardware (tier=${tier}:tier:). Needs a CUDA GPU with at least 4 GB of VRAM.`;
+    return $localize`@@performanceMode.unavailableTooltipTier:High Performance is unavailable on this hardware (tier=${tier}:tier:).`;
   };
 
   readonly safeBootLabel = () => {
@@ -498,11 +489,11 @@ export class PerformanceModeComponent implements OnInit {
     </h2>
     <mat-dialog-content>
       <p i18n="@@confirmHighPerformance.memoryWarning">
-        This mode uses up to <strong>80% of GPU memory</strong> (about 4.8 GB on your RTX 3050).
+        This mode raises CPU and memory limits for local work.
       </p>
       <p i18n="@@confirmHighPerformance.performanceWarning">
-        If your browser or other apps need the GPU at the same time, they may slow down or stutter.
-        It is best to close most Chrome tabs before switching.
+        If your browser or other apps need the same CPU and RAM, they may slow down or stutter.
+        It is best to close heavy apps before switching.
       </p>
       <p i18n="@@confirmHighPerformance.continuePrompt">Continue?</p>
     </mat-dialog-content>

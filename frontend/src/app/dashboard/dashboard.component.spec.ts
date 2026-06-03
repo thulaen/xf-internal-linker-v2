@@ -107,4 +107,83 @@ describe('DashboardComponent', () => {
     httpMock.match(() => true).forEach((req) => req.flush({}));
     expect(component.loading).toBeFalse();
   });
+
+  // GSC summary tile getters (Part 5). They read `component.data` only, so we
+  // set it directly and assert the tile rows + tone mapping. Empty data yields
+  // empty rows so the cards collapse rather than showing zeros for nothing.
+  describe('summary tile getters', () => {
+    it('return empty arrays when there is no data', () => {
+      component.data = null as unknown as DashboardData;
+      expect(component.reviewTiles).toEqual([]);
+      expect(component.contentTiles).toEqual([]);
+      expect(component.healthTiles).toEqual([]);
+      expect(component.pipelineTiles).toEqual([]);
+    });
+
+    it('reviewTiles map the four suggestion counts with their tones', () => {
+      component.data = {
+        ...EMPTY_DATA,
+        suggestion_counts: { pending: 3, approved: 2, rejected: 1, applied: 4, total: 10 },
+      } as DashboardData;
+      expect(component.reviewTiles).toEqual([
+        { label: 'Pending', value: 3, tone: 'blue' },
+        { label: 'Approved', value: 2, tone: 'green' },
+        { label: 'Applied live', value: 4, tone: 'purple' },
+        { label: 'Total', value: 10, tone: 'grey' },
+      ]);
+    });
+
+    it('healthTiles tint the status tone green only when healthy', () => {
+      component.data = { ...EMPTY_DATA, system_health: { status: 'healthy', summary: {}, total_monitored: 7 } } as DashboardData;
+      expect(component.healthTiles[0]).toEqual({ label: 'Status', value: 'healthy', tone: 'green' });
+      component.data = { ...EMPTY_DATA, system_health: { status: 'warning', summary: {}, total_monitored: 7 } } as DashboardData;
+      expect(component.healthTiles[0]).toEqual({ label: 'Status', value: 'warning', tone: 'amber' });
+    });
+  });
+
+  // The single "attention" banner. Priority order: system health → broken
+  // links → pending reviews → all clear. Each branch must own headline, tone,
+  // and the action link to the page that fixes that exact issue.
+  describe('attention banner', () => {
+    it('is empty info when there is no data', () => {
+      component.data = null as unknown as DashboardData;
+      expect(component.attention).toEqual({
+        tone: 'info', headline: '', detail: '', actionLabel: null, actionLink: null,
+      });
+    });
+
+    it('prioritises unhealthy system health over everything else', () => {
+      component.data = {
+        ...EMPTY_DATA,
+        system_health: { status: 'warning', summary: {}, total_monitored: 1 },
+        open_broken_links: 5,
+        suggestion_counts: { pending: 9, approved: 0, rejected: 0, applied: 0, total: 9 },
+      } as DashboardData;
+      const a = component.attention;
+      expect(a.tone).toBe('warning');
+      expect(a.actionLink).toBe('/health');
+    });
+
+    it('flags broken links with correct singular/plural wording', () => {
+      component.data = { ...EMPTY_DATA, open_broken_links: 1 } as DashboardData;
+      expect(component.attention.headline).toBe('1 broken link to fix');
+      expect(component.attention.actionLink).toBe('/link-health');
+      component.data = { ...EMPTY_DATA, open_broken_links: 3 } as DashboardData;
+      expect(component.attention.headline).toBe('3 broken links to fix');
+    });
+
+    it('falls back to pending reviews, then to the all-clear state', () => {
+      component.data = {
+        ...EMPTY_DATA,
+        suggestion_counts: { pending: 2, approved: 0, rejected: 0, applied: 0, total: 2 },
+      } as DashboardData;
+      expect(component.attention.actionLink).toBe('/review');
+      expect(component.attention.headline).toBe('2 suggestions waiting for review');
+
+      component.data = { ...EMPTY_DATA } as DashboardData;
+      const clear = component.attention;
+      expect(clear.tone).toBe('success');
+      expect(clear.actionLabel).toBeNull();
+    });
+  });
 });

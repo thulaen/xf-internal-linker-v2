@@ -1,7 +1,7 @@
 # ruff: noqa
-# Generated migration: data-protection triggers + dependency pin to
-# paper_trail.0004 to break the __latest__ inconsistency cycle that
-# would otherwise fire when paper_trail.0005 lands.
+# Generated migration: data-protection triggers + dependency pins to
+# auto_issues.0018 and paper_trail.0004 to break the __latest__
+# inconsistency cycle that would otherwise fire when later migrations land.
 from django.db import migrations
 
 
@@ -95,7 +95,11 @@ class Migration(migrations.Migration):
     dependencies = [
         ("core", "0020_scheduledtaskrun"),
         ("auth", "__latest__"),
-        ("auto_issues", "__latest__"),
+        # Pinned to 0018 (the latest auto_issues migration applied before
+        # this already-applied core migration). Using __latest__ here makes
+        # future auto_issues migrations look like they needed to run before
+        # core.0021, which breaks existing databases.
+        ("auto_issues", "0018_add_test_failure_source"),
         # Pinned to 0004 (the latest paper_trail migration at the time
         # core.0021 was authored). Using __latest__ here creates an
         # InconsistentMigrationHistory error when later paper_trail

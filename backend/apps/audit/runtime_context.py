@@ -2,10 +2,8 @@
 Runtime context snapshot captured at error-ingestion time.
 
 Phase GT Step 5. Every ErrorLog row saves what the runtime looked like
-at the moment the error happened — GPU / CUDA / embedding model / spaCy /
-python / node — so the operator can correlate "this error only happens
-on CPU fallback" or "only on slave-01". Reuses the detectors in
-apps.health.services (no duplicate GPU / spaCy code).
+at the moment the error happened — embedding model / spaCy / python /
+node — so the operator can correlate failures with the active runtime.
 
 Fast path: this function runs on every error, so each check is guarded
 to stay under a few ms. No network calls, no shell-outs. The health
@@ -55,20 +53,6 @@ def snapshot() -> dict[str, Any]:
         "python_version": sys.version.split()[0],
         "embedding_model": getattr(settings, "EMBEDDING_MODEL", "unknown"),
     }
-
-    # GPU — lightweight torch-only probe. No pynvml calls (those can block
-    # waiting for the driver) and no NVIDIA-SMI subprocess spawn.
-    try:  # noqa: SIM105 — explicit imports for readability
-        import torch
-
-        gpu_available = bool(torch.cuda.is_available())
-        ctx["gpu_available"] = gpu_available
-        ctx["cuda_version"] = torch.version.cuda if gpu_available else None
-        ctx["gpu_name"] = torch.cuda.get_device_name(0) if gpu_available else None
-    except Exception:  # noqa: BLE001 — probe must never fail the caller
-        ctx["gpu_available"] = False
-        ctx["cuda_version"] = None
-        ctx["gpu_name"] = None
 
     # spaCy — check package presence only, do not load a model (loading
     # would cost ~200ms per error).

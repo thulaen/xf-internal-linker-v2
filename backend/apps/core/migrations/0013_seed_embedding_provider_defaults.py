@@ -12,7 +12,7 @@ Keys seeded here are consumed by:
   * apps/pipeline/services/embedding_audit.py  (Part 3)
   * apps/pipeline/services/embedding_bakeoff.py  (Part 4)
   * apps/pipeline/services/hardware_profile.py  (Part 8a)
-  * apps/pipeline/services/embeddings.py  (graceful fallback, Part 8b)
+  * apps/pipeline/services/embeddings.py  (paid-provider routing, Part 8b)
 """
 
 from __future__ import annotations
@@ -25,15 +25,15 @@ _DEFAULT_ROWS: list[tuple[str, str, str, str, str, bool]] = [
     # Provider routing
     (
         "embedding.provider",
-        "local",
+        "openai",
         "str",
         "ml",
-        "Active embedding provider: 'local', 'openai', or 'gemini'. Switch via the Embeddings page.",
+        "Active embedding provider: 'openai' or 'gemini'. Switch via the Embeddings page.",
         False,
     ),
     (
         "embedding.fallback_provider",
-        "local",
+        "openai",
         "str",
         "ml",
         "Provider to switch to when the active provider returns auth/rate-limit/budget errors.",
@@ -50,10 +50,10 @@ _DEFAULT_ROWS: list[tuple[str, str, str, str, str, bool]] = [
     # Provider configuration
     (
         "embedding.model",
-        "BAAI/bge-m3",
+        "text-embedding-3-small",
         "str",
         "ml",
-        "Model name for the active provider. Examples: 'BAAI/bge-m3' (local), 'text-embedding-3-small' (openai), 'text-embedding-004' (gemini).",
+        "Model name for the active provider. Examples: 'text-embedding-3-small' (openai), 'text-embedding-004' (gemini).",
         False,
     ),
     (
@@ -101,7 +101,7 @@ _DEFAULT_ROWS: list[tuple[str, str, str, str, str, bool]] = [
         "50.0",
         "float",
         "performance",
-        "Monthly spend cap across all API embedding calls. Exceeding this raises BudgetExceededError, which triggers the graceful fallback to local.",
+        "Monthly spend cap across all API embedding calls. Exceeding this raises BudgetExceededError.",
         False,
     ),
     (

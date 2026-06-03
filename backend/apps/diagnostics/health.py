@@ -975,6 +975,31 @@ def get_resource_usage():
     return metrics
 
 
+def _write_service_snapshot(
+    *,
+    service: str,
+    state: str,
+    explanation: str,
+    next_step: str,
+    metadata: dict,
+    checked_at,
+) -> None:
+    """Persist a service health snapshot, updating only the columns that changed."""
+    snapshot, _ = ServiceStatusSnapshot.objects.get_or_create(service_name=service)
+    snapshot.state = state
+    snapshot.explanation = explanation
+    snapshot.next_action_step = next_step
+    snapshot.metadata = metadata
+    update_fields = ["state", "explanation", "next_action_step", "metadata", "updated_at"]
+    if state == "healthy":
+        snapshot.last_success = checked_at
+        update_fields.append("last_success")
+    elif state == "failed":
+        snapshot.last_failure = checked_at
+        update_fields.append("last_failure")
+    snapshot.save(update_fields=update_fields)
+
+
 def run_health_checks():
     checks = {
         "django": check_django,
@@ -997,16 +1022,14 @@ def run_health_checks():
     checked_at = timezone.now()
     for service, check_fn in checks.items():
         state, explanation, next_step, metadata = check_fn()
-        snapshot, _ = ServiceStatusSnapshot.objects.get_or_create(service_name=service)
-        snapshot.state = state
-        snapshot.explanation = explanation
-        snapshot.next_action_step = next_step
-        snapshot.metadata = metadata
-        if state == "healthy":
-            snapshot.last_success = checked_at
-        elif state == "failed":
-            snapshot.last_failure = checked_at
-        snapshot.save()
+        _write_service_snapshot(
+            service=service,
+            state=state,
+            explanation=explanation,
+            next_step=next_step,
+            metadata=metadata,
+            checked_at=checked_at,
+        )
         results[service] = {
             "state": state,
             "explanation": explanation,

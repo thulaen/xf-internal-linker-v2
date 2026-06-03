@@ -11,7 +11,7 @@ class TestTasksEmbeddingAudit(SimpleTestCase):
         from apps.pipeline.tasks_embedding_audit import embedding_accuracy_audit
         
         with self.assertRaises(Exception) as ctx:
-            embedding_accuracy_audit(fortnightly=True, force=False)
+            embedding_accuracy_audit(fortnightly=True, force=False)  # pylint: disable=no-value-for-parameter
             
         self.assertEqual(str(ctx.exception), "Sentinel")
         mock_connection.close.assert_called_once()
@@ -24,5 +24,5 @@ class TestTasksEmbeddingAudit(SimpleTestCase):
         
         from apps.pipeline.tasks_embedding_audit import embedding_accuracy_audit
         
-        res = embedding_accuracy_audit(fortnightly=True, force=False)
+        res = embedding_accuracy_audit(fortnightly=True, force=False)  # pylint: disable=no-value-for-parameter
         self.assertEqual(res, {"skipped": "disabled"})

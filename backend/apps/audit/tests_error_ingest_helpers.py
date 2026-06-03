@@ -287,9 +287,20 @@ class CreateNewTests(TestCase):
         self.assertEqual(len(row.error_message), 4000)
 
     def test_persists_fix_suggestion_from_suggest(self):
-        payload = _make_payload(error_message="CUDA out of memory")
+        # GPU rules were removed, so use a still-live rule (Redis-down) and
+        # assert the EXACT stored hint matches suggest()'s output so the
+        # XX-wrapped string mutant dies.
+        from apps.audit import fix_suggestions
+
+        payload = _make_payload(error_message="ConnectionError: redis refused")
         row = _create_new("c" * 40, "node-A", "primary", {}, payload)
-        self.assertIn("VRAM", row.how_to_fix)
+        self.assertEqual(
+            row.how_to_fix,
+            fix_suggestions.suggest("ConnectionError: redis refused", "", ""),
+        )
+        self.assertEqual(
+            row.how_to_fix, "Redis is down. Run `docker compose restart redis`."
+        )
 
 
 class DedupOrCreateTests(TestCase):

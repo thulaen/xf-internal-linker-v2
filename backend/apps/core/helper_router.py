@@ -1,9 +1,9 @@
 """Helper-node routing engine.
 
 Picks the best HelperNode for a given job based on:
-  - capability match (queues, job types, time policy, GPU / RAM / kernels)
+  - capability match (queues, job types, time policy, RAM / kernels)
   - recent heartbeat and maintenance mode
-  - current multi-resource load (CPU, RAM, GPU/VRAM, active slots)
+  - current multi-resource load (CPU, RAM, active slots)
 
 Returns ``None`` when no suitable helper is available so the caller can stay on
 the primary coordinator. This module stays pure Python + Django ORM so it can
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 HEARTBEAT_FRESH_SECONDS = 120
 
 # Percent-to-fraction conversion used when turning cpu_cap_pct /
-# ram_cap_pct / gpu_util_pct into usable-resource multipliers.
+# ram_cap_pct into usable-resource multipliers.
 _PCT_TO_FRACTION = 0.01
 
 
@@ -45,15 +45,13 @@ def select_best_helper_node(
             node's ``allowed_queues``.
         required_capabilities: optional dict of ``{capability_key: min_value}``
             pairs that must be satisfied. Supported keys today:
-              - "gpu_vram_gb" (numeric >=)
               - "cpu_cores" (numeric >=)
               - "ram_gb" (numeric >=)
               - "network_quality" (string equality)
               - "max_network_rtt_ms" (numeric <=)
-              - "gpu_required" (boolean)
               - "native_kernels_healthy" (boolean equality)
               - "warmed_model_key" (membership test)
-              - "demand_cpu" / "demand_ram_gb" / "demand_gpu_vram_gb"
+              - "demand_cpu" / "demand_ram_gb"
                 (routing-only demand hints)
         now: injectable for tests; defaults to ``timezone.now()``.
     """
@@ -131,18 +129,12 @@ def _time_policy_ok(policy: str, now) -> bool:
 # helper must satisfy. ``_capabilities_ok`` skips these so the caller can
 # use the same dict for both capability matching and load projection.
 _DEMAND_KEYS: frozenset[str] = frozenset(
-    {"demand_cpu", "demand_ram_gb", "demand_gpu_vram_gb"}
+    {"demand_cpu", "demand_ram_gb"}
 )
 
 
 def _check_warmed_model_key(have: dict[str, Any], required: Any) -> bool:
     return required in have["warmed_model_keys"]
-
-
-def _check_gpu_required(have: dict[str, Any], required: Any) -> bool:
-    if not bool(required):
-        return True
-    return bool(have.get("gpu_vram_gb"))
 
 
 def _check_native_kernels_healthy(have: dict[str, Any], required: Any) -> bool:
@@ -165,7 +157,6 @@ def _check_max_network_rtt_ms(have: dict[str, Any], required: Any) -> bool:
 # row here; keeping the dispatcher flat keeps the main function cheap.
 _CAPABILITY_HANDLERS: dict[str, Any] = {
     "warmed_model_key": _check_warmed_model_key,
-    "gpu_required": _check_gpu_required,
     "native_kernels_healthy": _check_native_kernels_healthy,
     "max_network_rtt_ms": _check_max_network_rtt_ms,
 }
@@ -221,12 +212,11 @@ def _projected_routing_score(
 
     Ghodsi et al. (NSDI 2011) define dominant-resource fairness in terms of a
     task's largest normalized resource share. We combine that dominant-share
-    estimate with the helper's live slot/CPU/RAM/GPU pressure and pick the
+    estimate with the helper's live slot/CPU/RAM pressure and pick the
     lowest projected maximum.
     """
     demand_cpu = _float_or(required_capabilities.get("demand_cpu"), 1.0)
     demand_ram = _float_or(required_capabilities.get("demand_ram_gb"), 1.0)
-    demand_gpu = _float_or(required_capabilities.get("demand_gpu_vram_gb"), 0.0)
 
     caps = node.capabilities or {}
     usable_cpu = _float_or(caps.get("cpu_cores"), 0.0) * (
@@ -235,31 +225,19 @@ def _projected_routing_score(
     usable_ram = _float_or(caps.get("ram_gb"), 0.0) * (
         max(float(node.ram_cap_pct or 0), 0.0) * _PCT_TO_FRACTION
     )
-    usable_gpu = _float_or(caps.get("gpu_vram_gb"), 0.0)
 
     cpu_share = demand_cpu / max(usable_cpu, 1e-6)
     ram_share = demand_ram / max(usable_ram, 1e-6)
-    gpu_share = demand_gpu / max(usable_gpu, 1e-6) if demand_gpu > 0 else 0.0
-    dominant_share = max(cpu_share, ram_share, gpu_share)
+    dominant_share = max(cpu_share, ram_share)
 
     slot_pressure = float(node.active_jobs or 0) / max(
         int(node.max_concurrency or 1), 1
     )
     cpu_pressure = float(node.cpu_pct or 0.0) / max(float(node.cpu_cap_pct or 1), 1.0)
     ram_pressure = float(node.ram_pct or 0.0) / max(float(node.ram_cap_pct or 1), 1.0)
-    gpu_pressure = 0.0
-    if node.gpu_util_pct is not None:
-        gpu_pressure = max(
-            gpu_pressure, float(node.gpu_util_pct or 0.0) * _PCT_TO_FRACTION
-        )
-    if node.gpu_vram_used_mb and node.gpu_vram_total_mb:
-        gpu_pressure = max(
-            gpu_pressure,
-            float(node.gpu_vram_used_mb) / max(float(node.gpu_vram_total_mb), 1.0),
-        )
 
     effective_load = min(
-        1.0, max(slot_pressure, cpu_pressure, ram_pressure, gpu_pressure)
+        1.0, max(slot_pressure, cpu_pressure, ram_pressure)
     )
     return max(dominant_share, effective_load)
 
@@ -294,8 +272,6 @@ def route_task(
     back to the main coordinator.
 
     Constraint → capability mapping:
-        * ``gpu_required=True``    → ``gpu_required: True`` (router rejects
-                                     helpers without a GPU)
         * ``ram_peak_mb``          → ``ram_gb`` floor (peak / 1024)
         * ``requires_warmed_models`` → ``warmed_model_key`` for each entry
         * ``cpu_intensive``        → ``demand_cpu: True`` (load-projection
@@ -332,7 +308,7 @@ def route_task(
         required["gpu_required"] = True
     if constraint.ram_peak_mb > 0:
         required["ram_gb"] = constraint.ram_peak_mb / 1024.0
-    for key in constraint.requires_warmed_models:
+    for key in (constraint.requires_warmed_models or []):
         required["warmed_model_key"] = (
             key  # router's existing handler matches a single key per call
         )

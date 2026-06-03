@@ -19,8 +19,9 @@ class OpsFeedEmitTests(TestCase):
             related_entity_type="item",
             related_entity_id="123",
         )
-        self.assertEqual(OperationEvent.objects.count(), 1)
-        event = OperationEvent.objects.first()
+        rows = OperationEvent.objects.filter(event_type="test_event", source="test_source")
+        self.assertEqual(rows.count(), 1)
+        event = rows.get()
         self.assertEqual(event.occurrence_count, 1)
         self.assertEqual(event.plain_english, "First message")
 
@@ -32,7 +33,7 @@ class OpsFeedEmitTests(TestCase):
             related_entity_type="item",
             related_entity_id="123",
         )
-        self.assertEqual(OperationEvent.objects.count(), 1)
+        self.assertEqual(rows.count(), 1)
         event.refresh_from_db()
         self.assertEqual(event.occurrence_count, 2)
         self.assertEqual(event.plain_english, "Second message")

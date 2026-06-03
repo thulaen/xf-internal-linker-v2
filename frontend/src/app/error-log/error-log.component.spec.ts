@@ -232,4 +232,40 @@ describe('ErrorLogComponent', () => {
     expect(link).toBeTruthy();
     expect(link.getAttribute('href')).toBe('http://glitchtip.local/issues/10/');
   });
+
+  // Kills the surviving Stryker mutants on severityLabel()/sourceLabel()
+  // (AutoIssues #19072 toLowerCase, #19074 ternary-condition-true, plus the
+  // #19071 arithmetic, #19073 block-empty, #19075 equality mutants): these
+  // assert the exact rendered label text, which the prior GlitchTip
+  // href-only test never read. Each block builds its own component because
+  // the surrounding `it()` blocks each scope `fixture` locally — there is no
+  // shared module-level fixture to borrow.
+  const buildComponent = async (): Promise<ErrorLogComponent> => {
+    diagnosticsServiceStub.getErrors.and.returnValue(of([]));
+    glitchtipServiceStub.getRecentEvents.and.returnValue(of([]));
+    await TestBed.configureTestingModule({
+      imports: [ErrorLogComponent, NoopAnimationsModule],
+      providers: [
+        provideHttpClient(),
+        provideRouter([]),
+        { provide: DiagnosticsService, useValue: diagnosticsServiceStub },
+        { provide: GlitchtipService, useValue: glitchtipServiceStub },
+        { provide: VisibilityGateService, useValue: visibilityGateStub },
+      ],
+    }).compileComponents();
+    return TestBed.createComponent(ErrorLogComponent).componentInstance;
+  };
+
+  it('severityLabel capitalises the first letter exactly', async () => {
+    const c = await buildComponent();
+    expect(c.severityLabel(makeError({ severity: 'high' }))).toBe('High');
+    expect(c.severityLabel(makeError({ severity: 'medium' }))).toBe('Medium');
+    expect(c.severityLabel(makeError({ severity: undefined }))).toBe('Medium');
+  });
+
+  it('sourceLabel maps both branches to exact text', async () => {
+    const c = await buildComponent();
+    expect(c.sourceLabel(makeError({ source: 'glitchtip' }))).toBe('GlitchTip');
+    expect(c.sourceLabel(makeError({ source: 'internal' }))).toBe('Internal');
+  });
 });

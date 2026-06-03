@@ -16,7 +16,6 @@ describe('SystemMetricsComponent', () => {
     ram_percent: 60,
     ram_used_mb: 8192,
     ram_total_mb: 16384,
-    gpu: { available: true, vram_used_mb: 4096, vram_total_mb: 8192, temp_c: 70, vram_percent: 50, utilization_pct: 30 }
   };
 
   beforeEach(async () => {
@@ -63,29 +62,6 @@ describe('SystemMetricsComponent', () => {
     
     expect(component.metrics()).toEqual(mockMetrics);
     expect(fixture.nativeElement.querySelector('.meter-value').textContent).toContain('50%');
-    discardPeriodicTasks();
-  }));
-
-  it('should show GPU section if available', fakeAsync(() => {
-    fixture.detectChanges();
-    tick();
-    const req = httpMock.expectOne('/api/system/metrics/');
-    req.flush(mockMetrics);
-    fixture.detectChanges();
-    
-    expect(fixture.nativeElement.querySelector('.meter-row:nth-child(3)')).toBeTruthy();
-    expect(fixture.nativeElement.textContent).toContain('GPU memory');
-    discardPeriodicTasks();
-  }));
-
-  it('should show info if GPU is unavailable', fakeAsync(() => {
-    fixture.detectChanges();
-    tick();
-    const req = httpMock.expectOne('/api/system/metrics/');
-    req.flush({ ...mockMetrics, gpu: { available: false } });
-    fixture.detectChanges();
-    
-    expect(fixture.nativeElement.querySelector('.gpu-unavailable')).toBeTruthy();
     discardPeriodicTasks();
   }));
 

@@ -48,7 +48,7 @@ import {
           <div>
             <h2 class="helpers-title" i18n="@@helpers.title">Helper nodes</h2>
             <p class="helpers-subtitle" i18n="@@helpers.subtitle">
-              Secondary machines can contribute CPU, RAM, and optional GPU work. Intake pause,
+              Secondary machines can contribute CPU and RAM work. Intake pause,
               liveness, warmed models, and live pressure all come from the existing helper registry.
             </p>
           </div>
@@ -105,7 +105,6 @@ import {
               <mat-label i18n="@@helpers.register.role">Role</mat-label>
               <mat-select [(ngModel)]="draft.role">
                 <mat-option value="worker" i18n="@@helpers.register.roleWorker">Worker</mat-option>
-                <mat-option value="gpu" i18n="@@helpers.register.roleGpu">GPU worker</mat-option>
                 <mat-option value="crawler" i18n="@@helpers.register.roleCrawler">Crawler</mat-option>
               </mat-select>
             </mat-form-field>
@@ -155,7 +154,7 @@ import {
           icon="device_hub"
           heading="No helper nodes registered"
           i18n-heading="@@helpers.empty.title"
-          body="The main machine is handling everything solo. Register a helper here if you want to offload RAM-heavy or GPU-heavy background work."
+          body="The main machine is handling everything solo. Register a helper here if you want to offload RAM-heavy background work."
           i18n-body="@@helpers.empty.subtitle"
         />
       } @else {
@@ -205,16 +204,6 @@ import {
                   <span class="metric-pill__label" i18n="@@helpers.metrics.ram">RAM</span>
                   <span class="metric-pill__value">
                     <ng-container i18n="@@helpers.metrics.ramUsage">{{ node.ram_pct || 0 }}% of {{ node.ram_cap_pct }}%</ng-container>
-                  </span>
-                </div>
-                <div class="metric-pill" *ngIf="node.gpu_util_pct !== null || node.gpu_vram_total_mb !== null">
-                  <span class="metric-pill__label" i18n="@@helpers.metrics.gpu">GPU</span>
-                  <span class="metric-pill__value">
-                    <ng-container i18n="@@helpers.metrics.gpuSummary">
-                      {{ node.gpu_util_pct ?? 0 }}% util
-                      <span class="meta-sep"> • </span>
-                      {{ node.gpu_vram_used_mb ?? 0 }}/{{ node.gpu_vram_total_mb ?? 0 }} MB
-                    </ng-container>
                   </span>
                 </div>
                 <div class="metric-pill">
@@ -607,12 +596,8 @@ export class HelpersSettingsComponent implements OnInit {
     const parts: string[] = [];
     const cpuCores = caps['cpu_cores'];
     const ramGb = caps['ram_gb'];
-    const gpuVramGb = caps['gpu_vram_gb'];
-    const gpuName = caps['gpu_name'];
     if (cpuCores != null) parts.push($localize`:@@helpers.meta.cpuCores:${cpuCores} CPU cores`);
     if (ramGb != null) parts.push($localize`:@@helpers.meta.ramGb:${ramGb} GB RAM`);
-    if (gpuName) parts.push(String(gpuName));
-    if (gpuVramGb != null) parts.push($localize`:@@helpers.meta.gpuVramGb:${gpuVramGb} GB VRAM`);
     return parts.length > 0 ? parts.join(' • ') : $localize`:@@helpers.meta.notReported:Not reported`;
   }
 

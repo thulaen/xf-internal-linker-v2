@@ -2,13 +2,8 @@
 
 V2 change from V1: eliminates .npy file artifacts entirely.
 Embeddings are stored directly in pgvector VectorField columns on
-ContentItem and Sentence models. The sentence-transformers model is
-loaded once and cached in process.
-
-Performance mode is controlled by the canonical performance-mode resolver:
-  balanced (default) — CPU only, batch_size=32
-  high               — GPU if CUDA available, batch_size starts at 128
-                       and backs off automatically if memory pressure is hit
+ContentItem and Sentence models. Embedding vectors are generated through the
+active paid provider from ``apps.pipeline.services.embedding_providers``.
 """
 
 from __future__ import annotations
@@ -23,10 +18,7 @@ import numpy as np
 from django.conf import settings
 
 from apps.ops_feed.services import emit
-from apps.core.performance_mode import (
-    PERFORMANCE_MODE_HIGH,
-    get_requested_performance_mode,
-)
+from apps.core.performance_mode import get_requested_performance_mode
 
 try:
     from extensions import l2norm
@@ -37,31 +29,25 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL_NAME = "BAAI/bge-m3"
+DEFAULT_MODEL_NAME = "text-embedding-3-small"
 EMBEDDING_DIM = 1024
 STORAGE_VECTOR_MAX_DIM = 16_000
 
-#: Hard cap on the character count we feed BGE-M3 per ContentItem
+#: Hard cap on the character count we feed the paid provider per ContentItem
 #: embedding. Bumped to 1,000,000 chars (~250,000 tokens) per LEDGER
-#: L5 so massive forum threads aren't truncated. BGE-M3's native
-#: sequence length is 8,192 tokens; anything past that is folded into
-#: a single document vector by the model's internal pooling. The cap
-#: only exists to prevent extreme-edge-case OOM (a 100 MB single
+#: L5 so massive forum threads aren't truncated. The cap only exists to
+#: prevent extreme-edge-case memory and token-cost spikes (a 100 MB single
 #: post would otherwise pull 100 MB through the tokenizer). For 99.9 %
 #: of forum posts this is effectively "no truncation". Late-paragraph
 #: recall on truly massive threads is handled by the FR-053 passage
 #: retrieval pipeline (masterplan Group E).
 _MAX_EMBED_CHARS: int = 1_000_000
 
-_model_cache: dict[str, Any] = {}
 _CPU_THREAD_HEADROOM = 2
-_GPU_RESUME_DELTA_C = 10
-_GPU_TEMP_RESUME_FLOOR_C = 50
-_PERCENT_TO_FRACTION = 100.0
 
 
 def _compute_embed_text_hash(text: str) -> str:
-    """Group D.2 — SHA-256 hex digest of the exact text we feed BGE-M3.
+    """Group D.2 — SHA-256 hex digest of the exact text we embed.
 
     Stored on ``ContentItem.embedding_text_hash`` so a future re-embed
     can skip rows whose text hasn't changed since the last embedding.
@@ -106,61 +92,8 @@ def _truncate_at_sentence(text: str, max_chars: int) -> str:
 
 
 def _resolve_device() -> str:
-    """Return 'cuda' or 'cpu' based on the canonical performance mode.
-
-    When CUDA is selected, applies mode-dependent VRAM fraction limits
-    as documented in docs/PERFORMANCE.md §6 (GPU Self-Limiting) AND runs a
-    tiny warmup op (plan item 15). A driver can report CUDA available but
-    fail on the first real op (bad VRAM state, thermal throttle at boot,
-    etc.); warmup catches those silent failures so we fall back to CPU
-    with a loud alert instead of crashing mid-pipeline.
-
-    If the user asked for High Performance but GPU is unavailable, emit the
-    named operator-alert rule from notifications/alert_rules.py so they know
-    the system silently dropped to CPU (plan item 10, rule d).
-    """
-    return _get_effective_runtime_resolution(
-        apply_vram_cap=True,
-        emit_alerts=True,
-    )["device"]
-
-
-def _cuda_warmup_ok() -> bool:
-    """Run a tiny GPU op to confirm CUDA actually works, not just reports-available.
-
-    Returns True if a 1x1 tensor allocation + multiplication succeeds.  Any
-    exception (OOM, driver fault, thermal pause) returns False and the caller
-    falls back to CPU.  Logged at warning level so the failure is visible in
-    container logs.
-    """
-    try:
-        import torch
-
-        t = torch.ones(1, device="cuda")
-        _ = (t * 2).sum().item()
-        torch.cuda.synchronize()
-        return True
-    except Exception as exc:  # broad on purpose — any CUDA failure must fall back
-        msg = f"CUDA warmup failed: {exc}"
-        logger.warning(msg)
-        emit(
-            "gpu.warmup_failed",
-            msg,
-            source="embeddings",
-            severity="warning",
-            runtime_context={"error": str(exc)},
-        )
-        return False
-
-
-def _emit_gpu_fallback_alert(reason: str) -> None:
-    """Best-effort alert emit. Never raises — embeddings must keep working."""
-    try:
-        from apps.notifications.alert_rules import alert_gpu_fallback_to_cpu
-
-        alert_gpu_fallback_to_cpu(reason=reason)
-    except Exception:
-        logger.debug("Failed to emit gpu-fallback alert", exc_info=True)
+    """Return the provider-backed runtime device label."""
+    return "api"
 
 
 def _read_performance_setting(key: str) -> str | None:
@@ -212,63 +145,20 @@ def _get_performance_mode() -> str:
     return get_requested_performance_mode()
 
 
-def _get_effective_runtime_resolution(
-    *,
-    apply_vram_cap: bool = False,
-    emit_alerts: bool = False,
-) -> dict[str, str]:
-    """Resolve the actual runtime that embeddings would use right now."""
+def _get_effective_runtime_resolution() -> dict[str, str]:
+    """Resolve the actual runtime that embeddings use right now."""
     mode = _get_performance_mode()
-    resolution = {
+    return {
         "performance_mode": mode,
-        "effective_runtime_mode": "cpu",
-        "device": "cpu",
-        "reason": "High mode not requested",
+        "effective_runtime_mode": "api",
+        "device": "api",
+        "reason": "paid embedding provider",
     }
-
-    if mode != PERFORMANCE_MODE_HIGH:
-        return resolution
-
-    try:
-        import torch
-    except ImportError:
-        logger.debug("torch not installed, falling back to CPU")
-        if emit_alerts:
-            _emit_gpu_fallback_alert("torch not installed")
-        resolution["reason"] = "torch not installed"
-        return resolution
-
-    if not torch.cuda.is_available():
-        if emit_alerts:
-            _emit_gpu_fallback_alert("CUDA unavailable")
-        resolution["reason"] = "CUDA unavailable"
-        return resolution
-
-    if not _cuda_warmup_ok():
-        if emit_alerts:
-            _emit_gpu_fallback_alert("CUDA warmup failed")
-        resolution["reason"] = "CUDA warmup failed"
-        return resolution
-
-    if apply_vram_cap:
-        _apply_vram_fraction()
-
-    resolution.update(
-        {
-            "effective_runtime_mode": "gpu",
-            "device": "cuda",
-            "reason": "",
-        }
-    )
-    return resolution
 
 
 def get_effective_runtime_resolution() -> dict[str, str]:
     """Public read-only view of the current embedding runtime choice."""
-    return _get_effective_runtime_resolution(
-        apply_vram_cap=False,
-        emit_alerts=False,
-    )
+    return _get_effective_runtime_resolution()
 
 
 def _get_cpu_thread_cap() -> int:
@@ -285,110 +175,8 @@ def _get_cpu_encode_threads() -> int:
     )
 
 
-def _get_gpu_memory_budget_fraction() -> float:
-    raw_budget_pct = _read_performance_int(
-        "system.gpu_memory_budget_pct",
-        default=0,
-        minimum=25,
-        maximum=80,
-    )
-    if raw_budget_pct:
-        return raw_budget_pct / _PERCENT_TO_FRACTION
-    if _get_performance_mode() == PERFORMANCE_MODE_HIGH:
-        return getattr(settings, "CUDA_MEMORY_FRACTION_HIGH", 0.60)
-    return getattr(settings, "CUDA_MEMORY_FRACTION_SAFE", 0.25)
-
-
-def _get_gpu_temp_pause_c() -> int:
-    return _read_performance_int(
-        "system.gpu_temp_pause_c",
-        default=getattr(settings, "GPU_TEMP_CEILING_C", 90),
-        minimum=75,
-        maximum=95,
-    )
-
-
-def _get_gpu_temp_resume_c() -> int:
-    configured_pause = _read_performance_int(
-        "system.gpu_temp_pause_c",
-        default=0,
-        minimum=75,
-        maximum=95,
-    )
-    if not configured_pause:
-        return getattr(settings, "GPU_TEMP_RESUME_C", 80)
-    return max(_GPU_TEMP_RESUME_FLOOR_C, configured_pause - _GPU_RESUME_DELTA_C)
-
-
 def _aggressive_oom_backoff_enabled() -> bool:
     return _read_performance_bool("system.aggressive_oom_backoff", True)
-
-
-def _apply_vram_fraction() -> None:
-    """Set per-process VRAM cap based on current performance mode.
-
-    Safe/Balanced = 25% (1.5 GB on RTX 3050 6 GB).
-    High Performance = 80% (4.8 GB on RTX 3050 6 GB).
-
-    These percentages are relative to detected VRAM — they scale
-    automatically with GPU upgrades.  See docs/PERFORMANCE.md §6.
-    """
-    try:
-        import torch
-
-        perf_mode = _get_performance_mode()
-        fraction = _get_gpu_memory_budget_fraction()
-
-        torch.cuda.set_per_process_memory_fraction(fraction)
-        logger.info(
-            "GPU VRAM fraction set to %.0f%% (mode=%s)", fraction * 100, perf_mode
-        )
-    except Exception:
-        logger.warning("Failed to set VRAM fraction", exc_info=True)
-
-
-def _check_gpu_temperature() -> bool:
-    """Check GPU temperature against the hard ceiling.
-
-    Returns True if safe to proceed, False if too hot.
-    Temperature ceiling is configurable via GPU_TEMP_CEILING_C
-    (default 90°C).  See docs/PERFORMANCE.md §6.
-    """
-    try:
-        import pynvml
-
-        pynvml.nvmlInit()
-        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-        temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
-        pynvml.nvmlShutdown()
-
-        ceiling = _get_gpu_temp_pause_c()
-
-        if temp >= ceiling:
-            msg = f"GPU temperature {temp}°C >= {ceiling}°C ceiling — pausing GPU work"
-            logger.warning(msg)
-            emit(
-                "gpu.thermal_pause",
-                msg,
-                source="embeddings",
-                severity="warning",
-                runtime_context={"temperature": temp, "ceiling": ceiling},
-            )
-            return False
-        return True
-    except Exception:  # noqa: BLE001 — pynvml unavailable / unrecognised driver: assume CPU-safe.
-        return True
-
-
-def _thermal_guard_before_gpu_batch() -> None:
-    """Pause GPU work if the chip is at or above the temperature ceiling.
-
-    No-op on CPU-only environments (pynvml ImportError is swallowed
-    by ``_check_gpu_temperature``). Extracted so the encode loops stay
-    under the McCabe complexity cap (see ``lint-all.ps1`` check 16).
-    """
-    if not _check_gpu_temperature():
-        _wait_for_gpu_cooldown()
 
 
 def _model_supports_field(model_class: type, field_name: str) -> bool:
@@ -642,36 +430,6 @@ def _bulk_update_embeddings(  # noqa: forbidden-pattern too-many-args  # justifi
     )
 
 
-def _wait_for_gpu_cooldown() -> None:
-    """Block until GPU temperature drops below the resume threshold.
-
-    Resume threshold: 80°C (configurable via GPU_TEMP_RESUME_C).
-    """
-    import time
-
-    resume_temp = _get_gpu_temp_resume_c()
-    max_wait = 300  # 5 minutes max wait
-
-    for _ in range(max_wait // 5):
-        try:
-            import pynvml
-
-            pynvml.nvmlInit()
-            handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-            temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
-            pynvml.nvmlShutdown()
-
-            if temp <= resume_temp:
-                logger.info("GPU cooled to %d°C — resuming", temp)
-                return
-        except Exception:  # noqa: BLE001 — pynvml unavailable mid-wait: stop waiting.
-            return
-
-        time.sleep(5)
-
-    logger.warning("GPU did not cool below %d°C within %ds", resume_temp, max_wait)
-
-
 def _emit_model_alert(
     event_type: str, severity: str, title: str, message: str, model_name: str
 ) -> None:
@@ -698,111 +456,12 @@ def _emit_model_alert(
         )
 
 
-def _get_model_cache_key(model_name: str, device: str) -> str:
-    """Keep separate cached model instances for CPU and CUDA loads."""
-    return f"{model_name}::{device}"
-
-
-def _instantiate_sentence_transformer(model_name: str, device: str):
-    """Construct the SentenceTransformer with operations-feed instrumentation."""
-    from sentence_transformers import SentenceTransformer
-
-    msg = f"Loading embedding model '{model_name}' on device='{device}'..."
-    logger.info(msg)
-    emit(
-        "model.loading",
-        msg,
-        source="embeddings",
-        severity="info",
-        runtime_context={"model_name": model_name, "device": device},
-    )
-    try:
-        model = SentenceTransformer(model_name, device=device, trust_remote_code=True)
-        profile = _assert_model_dimension_supported(model_name, model)
-    except Exception as exc:
-        emit(
-            "model.load_failed",
-            f"The app could not load the embedding model '{model_name}': {exc}",
-            source="embeddings",
-            severity="error",
-            runtime_context={"model_name": model_name, "error": str(exc)},
-        )
-        raise
-    # FR-242 — wrap with the LoRA domain adapter when one exists on disk.
-    # Returns ``model`` unchanged when no adapter is present (the vanilla
-    # safe default per Wang et al. 2022 GPL §4). See
-    # docs/specs/fr242-domain-adapter-gpl.md.
-    from .domain_adapter import load_adapted_model
-
-    model = load_adapted_model(model)
-    return model, profile
-
-
-def _post_load_model_tuning(
-    model, *, model_name: str, device: str, profile: dict
-) -> None:
-    """fp16 + thread-count + recommended-batch-size diagnostics post-load."""
-    if device == "cuda":
-        try:
-            model.half()
-            logger.info("fp16 inference enabled for model '%s'.", model_name)
-        except Exception:
-            logger.debug(
-                "fp16 conversion not supported for model '%s', using fp32",
-                model_name,
-            )
-    if profile["recommended_batch_size"] < profile["configured_batch_size"]:
-        logger.info(
-            "Model '%s' recommends batch size %d instead of configured %d because it reports %d dimensions.",
-            model_name,
-            profile["recommended_batch_size"],
-            profile["configured_batch_size"],
-            profile["embedding_dim"],
-        )
-    if device == "cpu":
-        try:
-            import torch
-
-            torch.set_num_threads(_get_cpu_encode_threads())
-        except Exception:
-            logger.debug("torch not available, skipping CPU thread limit")
-
-
-def _load_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
-    """Load and cache a sentence-transformers model."""
-    device = _resolve_device()
-    cache_key = _get_model_cache_key(model_name, device)
-    if cache_key in _model_cache:
-        return _model_cache[cache_key]
-    start = time.monotonic()
-    model, profile = _instantiate_sentence_transformer(model_name, device)
-    elapsed = time.monotonic() - start
-    msg = f"Model '{model_name}' loaded successfully in {elapsed:.1f}s on {device}."
-    logger.info(msg)
-    emit(
-        "model.ready",
-        msg,
-        source="embeddings",
-        severity="success",
-        runtime_context={
-            "model_name": model_name,
-            "device": device,
-            "elapsed_seconds": elapsed,
-        },
-    )
-    _post_load_model_tuning(
-        model, model_name=model_name, device=device, profile=profile
-    )
-    _model_cache[cache_key] = model
-    return model
-
-
 def _get_model_name() -> str:
     """Read the configured embedding model name from AppSetting."""
     try:
         from apps.core.models import AppSetting
 
-        setting = AppSetting.objects.filter(key="embedding_model").first()
+        setting = AppSetting.objects.filter(key="embedding.model").first()
         if setting:
             return str(setting.value)
     except Exception:
@@ -814,16 +473,13 @@ def _get_model_name() -> str:
 
 # Bounds for the user-tunable batch size (mirrored in RuntimeConfigView).
 # Anything below the floor is too small to benefit from vectorisation;
-# anything above the ceiling risks GPU OOM on the RTX 3050 baseline.
+# anything above the ceiling risks memory pressure on smaller hosts.
 _BATCH_SIZE_MIN = 8
 _BATCH_SIZE_MAX = 128
 _BATCH_SIZE_HIGH = _BATCH_SIZE_MAX
 _BATCH_SIZE_DEFAULT = 32
 _OOM_ERROR_MARKERS = (
     "out of memory",
-    "cuda out of memory",
-    "cublas_status_alloc_failed",
-    "mps backend out of memory",
     "can't allocate memory",
     "std::bad_alloc",
 )
@@ -960,23 +616,6 @@ def _describe_model_runtime(
     }
 
 
-def _assert_model_dimension_supported(model_name: str, model: Any) -> dict[str, Any]:
-    """Fail fast when the configured model exceeds generic-vector storage limits."""
-    profile = _describe_model_runtime(
-        model_name=model_name,
-        configured_batch_size=_get_configured_batch_size(),
-        model=model,
-    )
-    if profile["dimension_compatible"]:
-        return profile
-
-    raise ValueError(
-        f"Embedding model '{model_name}' outputs {profile['embedding_dim']} dimensions, "
-        f"which exceeds the storage cap of {profile['storage_dimension_cap']} dimensions. "
-        "Choose a smaller model or raise the storage contract before promoting it."
-    )
-
-
 def _read_batch_size_override() -> int | None:
     """Read AppSetting override (system.embedding_batch_size); None on absence/invalid."""
     try:
@@ -1003,7 +642,7 @@ def _resolve_provider_embedding_dimension() -> int:
 
         provider = get_provider()
         return int(getattr(provider, "dimension", EMBEDDING_DIM)) or EMBEDDING_DIM
-    except Exception:  # noqa: BLE001 — provider abstraction optional; fall back to local BGE dim.
+    except Exception:  # noqa: BLE001 — provider abstraction optional; use configured dim.
         return EMBEDDING_DIM
 
 
@@ -1040,11 +679,7 @@ def _get_configured_batch_size() -> int:
     auto_batch = _read_hardware_recommended_batch_size()
     if auto_batch is not None:
         return auto_batch
-    return (
-        _BATCH_SIZE_HIGH
-        if _get_performance_mode() == PERFORMANCE_MODE_HIGH
-        else _BATCH_SIZE_DEFAULT
-    )
+    return _BATCH_SIZE_HIGH if _get_performance_mode() == "high" else _BATCH_SIZE_DEFAULT
 
 
 def _get_batch_size(model: Any | None = None) -> int:
@@ -1061,24 +696,14 @@ def _get_batch_size(model: Any | None = None) -> int:
 
 
 def _is_embedding_oom_error(exc: Exception) -> bool:
-    """Detect OOM-style failures from either CUDA or CPU allocators."""
+    """Detect OOM-style failures from provider clients."""
     message = str(exc).lower()
     return any(marker in message for marker in _OOM_ERROR_MARKERS)
 
 
 def _clear_embedding_runtime_memory() -> None:
     """Best-effort memory cleanup after an OOM before retrying."""
-    try:
-        import torch
-
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            try:
-                torch.cuda.ipc_collect()
-            except Exception:
-                logger.debug("torch.cuda.ipc_collect unavailable", exc_info=True)
-    except Exception:
-        logger.debug("Runtime memory cleanup skipped", exc_info=True)
+    logger.debug("Runtime memory cleanup skipped; embeddings use paid providers.")
 
 
 def _get_retry_batch_size_after_oom(
@@ -1223,11 +848,10 @@ def _l2_normalize(arr: np.ndarray) -> np.ndarray:
         return (arr / norms).astype(np.float32)
 
 
-# FR-237 — L2-normalization audit. Two scoring code paths exist downstream:
-# FAISS GPU uses inner-product (IndexFlatIP) and the NumPy CPU fallback uses
-# dot product. They are mathematically identical only for L2-normalized
-# vectors. Without a runtime check, a regression in `_l2_normalize` (or any
-# step between normalize and FAISS write) would silently bias every cosine
+# FR-237 — L2-normalization audit. The FAISS index and NumPy fallback both use
+# inner-product style scoring. They are mathematically identical to cosine
+# scoring only for L2-normalized vectors. Without a runtime check, a regression
+# in `_l2_normalize` or any later write step would silently bias every cosine
 # score by the row magnitude. Sources:
 #   - Wang et al. 2017, "Normalized Word Embedding and Orthogonal Transform
 #     for Bilingual Word Translation," NAACL §2 — establishes that cosine
@@ -1399,27 +1023,15 @@ throttles at the IP layer, so an instant retry can trip the same limit.
 _PROVIDER_FALLBACK_REASON_CODES = ("auth", "rate_limit", "budget", "transient")
 
 
-def _encode_via_local_model(
-    model, batch_texts: list[str], batch_size: int
-) -> np.ndarray:
-    """Direct ``model.encode`` call — preserves the legacy GPU/CPU/OOM path."""
-    return model.encode(
-        batch_texts,
-        batch_size=batch_size,
-        show_progress_bar=False,
-        convert_to_numpy=True,
-    )
-
-
 def _try_get_active_provider():
-    """Return the active embedding provider or None on import / lookup failure."""
+    """Return the active embedding provider."""
     try:
         from apps.pipeline.services.embedding_providers import get_provider
 
         return get_provider()
     except Exception:
-        logger.exception("get_provider failed; falling back to local encode")
-        return None
+        logger.exception("get_provider failed")
+        raise
 
 
 def _encode_via_provider_with_fallback(
@@ -1476,18 +1088,10 @@ def _encode_batch_via_provider(
 ) -> np.ndarray:
     """Encode a batch through the active provider abstraction.
 
-    Fast path: ``local`` provider goes straight to ``model.encode`` so the
-    existing OOM/thermal behaviour is unchanged. API path (openai/gemini)
-    goes through provider.embed with graceful fallback (FR-234) and records
-    token + cost usage in ``EmbeddingCostLedger``.
+    API providers go through provider.embed with graceful fallback (FR-234)
+    and record token + cost usage in ``EmbeddingCostLedger``.
     """
-    try:
-        from apps.pipeline.services.embedding_providers import get_provider  # noqa: F401
-    except ImportError:
-        return _encode_via_local_model(model, batch_texts, batch_size)
     provider = _try_get_active_provider()
-    if provider is None or getattr(provider, "name", "local") == "local":
-        return _encode_via_local_model(model, batch_texts, batch_size)
     result, used_provider = _encode_via_provider_with_fallback(
         provider=provider,
         batch_texts=batch_texts,
@@ -1507,12 +1111,12 @@ def _encode_batch_via_provider(
 
 
 def _read_fallback_provider_name() -> str:
-    """Read ``AppSetting("embedding.fallback_provider")``; default ``local``."""
+    """Read ``AppSetting("embedding.fallback_provider")``; default ``openai``."""
     from apps.core.models import AppSetting
 
     fallback_row = AppSetting.objects.filter(key="embedding.fallback_provider").first()
-    fallback_name = str(fallback_row.value).strip().lower() if fallback_row else "local"
-    return fallback_name or "local"
+    fallback_name = str(fallback_row.value).strip().lower() if fallback_row else "openai"
+    return fallback_name or "openai"
 
 
 def _swap_active_provider(fallback_name: str):
@@ -1849,7 +1453,6 @@ def _encode_one_batch_with_oom_recovery(
         (None, retry_batch_size) on OOM — caller retries SAME cursor with new size.
         Re-raises non-OOM exceptions.
     """
-    _thermal_guard_before_gpu_batch()
     try:
         vectors = _encode_batch_via_provider(
             batch_texts=batch_texts,
@@ -2044,7 +1647,7 @@ def _build_content_item_queryset(
 
     # Group A.6 — exclude rows flagged as cross-source duplicates. Their
     # embedding is reused from ``duplicate_of`` at retrieval time, so
-    # generating one here would just waste GPU and disk.
+    # generating one here would just waste provider calls and disk.
     qs = ContentItem.objects.filter(is_deleted=False, duplicate_of__isnull=True)
     if content_item_ids is not None:
         qs = qs.filter(pk__in=content_item_ids)
@@ -2109,12 +1712,15 @@ def generate_content_item_embeddings(
     """
     from apps.content.models import ContentItem
 
-    model_name = _get_model_name()
-    model = _load_model(model_name)
-    embedding_signature = get_current_embedding_signature(
-        model=model, model_name=model_name
+    provider = _try_get_active_provider()
+    model = None
+    model_name = getattr(provider, "model_name", _get_model_name())
+    embedding_signature = getattr(
+        provider,
+        "signature",
+        get_current_embedding_signature(model=None, model_name=model_name),
     )
-    batch_size = _get_batch_size(model)
+    batch_size = _get_batch_size(None)
     items = list(
         _build_content_item_queryset(
             content_item_ids,
@@ -2205,12 +1811,15 @@ def generate_sentence_embeddings(
     """
     from apps.content.models import Sentence
 
-    model_name = _get_model_name()
-    model = _load_model(model_name)
-    embedding_signature = get_current_embedding_signature(
-        model=model, model_name=model_name
+    provider = _try_get_active_provider()
+    model = None
+    model_name = getattr(provider, "model_name", _get_model_name())
+    embedding_signature = getattr(
+        provider,
+        "signature",
+        get_current_embedding_signature(model=None, model_name=model_name),
     )
-    batch_size = _get_batch_size(model)
+    batch_size = _get_batch_size(None)
     sentences = list(
         _build_sentence_queryset(
             content_item_ids,
@@ -2265,27 +1874,23 @@ def generate_all_embeddings(
 
 
 def get_model_status() -> dict[str, Any]:
-    """Return a status dict about the currently cached model."""
+    """Return a status dict about the active paid embedding provider."""
     model_name = _get_model_name()
     runtime_resolution = get_effective_runtime_resolution()
-    device = runtime_resolution["device"]
-    cache_key = _get_model_cache_key(model_name, device)
-    loaded = cache_key in _model_cache
-    model = _model_cache.get(cache_key)
     profile = _describe_model_runtime(
         model_name=model_name,
         configured_batch_size=_get_configured_batch_size(),
-        model=model,
+        model=None,
     )
     return {
         "model_name": model_name,
-        "loaded": loaded,
-        "device": device,
-        "fp16": runtime_resolution["effective_runtime_mode"] == "gpu",
+        "loaded": True,
+        "device": runtime_resolution["device"],
+        "fp16": False,
         "mode": runtime_resolution["performance_mode"],
         "effective_runtime_mode": runtime_resolution["effective_runtime_mode"],
         "effective_runtime_reason": runtime_resolution["reason"],
-        "batch_size": _get_batch_size(model),
+        "batch_size": _get_batch_size(None),
         "configured_batch_size": profile["configured_batch_size"],
         "embedding_dim": profile["embedding_dim"],
         "active_signature": profile["active_signature"],

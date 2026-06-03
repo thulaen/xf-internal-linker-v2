@@ -195,7 +195,6 @@ class CoreConfig(AppConfig):
         from . import tasks_compression_audit  # noqa: F401
         from . import tasks_cpp_fallback  # noqa: F401
         from . import tasks_dashboard  # noqa: F401
-        from . import tasks_gpu_cleanup  # noqa: F401
         from . import tasks_passkey_cleanup  # noqa: F401
         from . import tasks_performance_cert  # noqa: F401
         from . import tasks_schedule_recovery  # noqa: F401
@@ -458,16 +457,28 @@ def _register_existing_celery_schedules() -> None:
 _SCHEMA_WORK_COMMANDS = frozenset(
     {"migrate", "makemigrations", "sqlmigrate", "showmigrations", "squashmigrations"}
 )
+_RECOVERY_SKIP_COMMANDS = frozenset(
+    {
+        "decision_point",
+        "log_self_review_issue",
+        "log_tdd_lesson",
+        "preflight_tdd",
+        "print_open_issues",
+        "session_close",
+    }
+)
 
 
 def _is_schema_work_command(argv: list[str]) -> bool:
-    """Return True when the current invocation is schema work.
+    """Return True when the current invocation must not recover schedules.
 
     AutoIssue #272: running `manage.py migrate <app>` fires post_migrate,
     which used to dispatch every missed scheduled run (81 in the
-    incident). Schema-work commands must not enqueue heavy app work.
+    incident). Schema and proof-logging commands must not enqueue heavy
+    app work.
     """
-    return any(arg in _SCHEMA_WORK_COMMANDS for arg in argv[1:3])
+    blocked = _SCHEMA_WORK_COMMANDS | _RECOVERY_SKIP_COMMANDS
+    return any(arg in blocked for arg in argv[1:3])
 
 
 def _run_schedule_recovery(sender, **kwargs):

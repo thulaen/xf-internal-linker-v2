@@ -357,13 +357,13 @@ def _prereq_pipeline_gate() -> dict:
         # the minimal subset here rather than circularly importing the view.
         from apps.health.services import (
             check_celery_health,
-            check_gpu_faiss_health,
+            check_faiss_index_health,
             check_ml_models_health,
         )
 
         blockers: list[str] = []
         for result in (
-            check_gpu_faiss_health(),
+            check_faiss_index_health(),
             check_ml_models_health(),
             check_celery_health(),
         ):

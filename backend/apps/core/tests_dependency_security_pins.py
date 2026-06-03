@@ -31,8 +31,16 @@ EXPECTED_PROD_PINS = {
 }
 
 EXPECTED_DEV_PINS = {
+    "django-stubs==5.1.1",
+    "mypy==1.13.0",
     "pytest==9.0.3",
     "pytest-asyncio==1.3.0",
+}
+
+EXPECTED_DOCKER_QUALITY_TOOLS = {
+    "django-stubs==5.1.1",
+    "djangorestframework-stubs==3.15.1",
+    "mypy==1.13.0",
 }
 
 FORBIDDEN_REQUIREMENT_TEXT = {
@@ -76,3 +84,10 @@ class DependencySecurityPinsTests(SimpleTestCase):
         for forbidden in FORBIDDEN_REQUIREMENT_TEXT:
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, combined_text)
+
+    def test_backend_dockerfile_installs_quality_type_checker(self) -> None:
+        dockerfile_text = BACKEND_DOCKERFILE.read_text(encoding="utf-8")
+
+        for expected in EXPECTED_DOCKER_QUALITY_TOOLS:
+            with self.subTest(expected=expected):
+                self.assertIn(expected, dockerfile_text)

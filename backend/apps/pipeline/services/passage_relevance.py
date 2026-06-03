@@ -43,10 +43,9 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-#: BGE-M3 dense embedding dimension. Source: BAAI/bge-m3 model card on
-#: HuggingFace (https://huggingface.co/BAAI/bge-m3) — the dense head
-#: emits 1024-dim float32 vectors.
-_BGE_M3_EMBEDDING_DIM: int = 1024
+#: Default dense embedding dimension used when the paid provider cannot be
+#: inspected during cold-start.
+_DEFAULT_EMBEDDING_DIM: int = 1024
 
 #: Sentence-level overlap between adjacent passages. Chunking baseline:
 #: Callan 1994 SIGIR §5. With ~15 tokens per sentence and a ~200-token
@@ -71,7 +70,7 @@ from apps.core.services.settings_helpers import (
 
 
 # ---------------------------------------------------------------------------
-# Hash helper. SHA-256 hex digest of the exact passage text we feed BGE-M3.
+# Hash helper. SHA-256 hex digest of the exact passage text sent for embedding.
 # ---------------------------------------------------------------------------
 
 
@@ -97,7 +96,7 @@ def _passage_text_hash(text: str) -> str:
 class _EmbeddingResources:
     """Bundle of objects that the embed/encode helpers need together."""
 
-    model: Any
+    provider: Any
     signature: str
     codebook: Any | None
     opq_version: str
@@ -148,20 +147,15 @@ def _segment_passages_from_post(post) -> list:
 
 
 def _load_embedding_resources() -> _EmbeddingResources:
-    """Load the BGE-M3 model + currently-active OPQ codebook (if any)."""
+    """Load the active paid provider + currently-active OPQ codebook (if any)."""
     from apps.content.models import OPQCodebook
-    from apps.pipeline.services.embeddings import (
-        _get_model_name,
-        _load_model,
-        get_current_embedding_signature,
-    )
+    from apps.pipeline.services.embedding_providers import get_provider
 
-    model_name = _get_model_name()
-    model = _load_model(model_name)
-    signature = get_current_embedding_signature(model=model, model_name=model_name)
+    provider = get_provider()
+    signature = provider.signature
     codebook = OPQCodebook.objects.filter(is_active=True).first()
     return _EmbeddingResources(
-        model=model,
+        provider=provider,
         signature=signature,
         codebook=codebook,
         opq_version=codebook.corpus_signature if codebook else "",
@@ -223,20 +217,20 @@ def _diff_passages(
     )
 
 
-def _encode_passage_batch(texts: list[str], model) -> np.ndarray:
-    """Run the BGE-M3 model over the batch and L2-normalise the result."""
+def _encode_passage_batch(texts: list[str], provider) -> np.ndarray:
+    """Run the active paid provider over the batch and L2-normalise the result."""
     if not texts:
-        return np.zeros((0, _BGE_M3_EMBEDDING_DIM), dtype=np.float64)
+        return np.zeros((0, _DEFAULT_EMBEDDING_DIM), dtype=np.float64)
     from apps.pipeline.services.embeddings import (
         _encode_batch_via_provider,
         _get_batch_size,
         _l2_normalize,
     )
 
-    batch_size = _get_batch_size(model)
+    batch_size = _get_batch_size(None)
     raw = _encode_batch_via_provider(
         batch_texts=texts,
-        model=model,
+        model=None,
         batch_size=batch_size,
         job_id=None,
     )
@@ -344,7 +338,7 @@ def regenerate_passage_embeddings_for(content_item) -> int:
     """Idempotent: ensure ``content_item`` has up-to-date passage embeddings.
 
     Returns the number of passages re-embedded (0 if already current). Mutates
-    ``PassageEmbedding`` rows for ``content_item`` and reuses the BGE-M3 model
+    ``PassageEmbedding`` rows for ``content_item`` and reuses the active provider
     from ``apps.pipeline.services.embeddings``.
     """
     from apps.content.models import PassageEmbedding
@@ -368,7 +362,7 @@ def regenerate_passage_embeddings_for(content_item) -> int:
     diff = _diff_passages(passages, new_hashes, existing, resources)
 
     target_window = _setting_int("passage_relevance.passage_words", 200)
-    normalised = _encode_passage_batch(diff.embed_texts, resources.model)
+    normalised = _encode_passage_batch(diff.embed_texts, resources.provider)
     vectors_for_opq = _persist_passage_rows(
         content_item=content_item,
         passages=passages,

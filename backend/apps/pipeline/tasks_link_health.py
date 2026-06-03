@@ -1,5 +1,6 @@
 from __future__ import annotations
 import logging
+import requests
 import uuid
 from typing import Any
 from urllib.parse import urlparse
@@ -116,6 +117,10 @@ def verify_suggestions(self, suggestion_ids: list[str] | None = None) -> dict:
         verified, stale = _run_suggestion_verifications(XenForoAPIClient(), suggestions, total, job_id)
         _publish_progress(job_id, "completed", 1.0, f"Verification complete. {verified} verified, {stale} stale.")
         return {"verified": verified, "stale": stale, "job_id": job_id}
+    except requests.exceptions.RequestException as exc:
+        logger.warning("Verification %s aborted due to API error: %s", job_id, exc)
+        _publish_progress(job_id, "failed", 0.0, f"Verification aborted (API Error): {exc}", error=str(exc))
+        return {"verified": 0, "stale": 0, "job_id": job_id}
     except Exception as exc:
         logger.exception("Verification %s failed", job_id)
         _publish_progress(job_id, "failed", 0.0, f"Verification failed: {exc}", error=str(exc))

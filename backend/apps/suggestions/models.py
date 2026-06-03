@@ -15,6 +15,9 @@ from django.db import models
 from apps.core.models import TimestampedModel
 
 
+CONTENT_ITEM_MODEL = "content.ContentItem"
+
+
 class WeightPreset(TimestampedModel):
     """
     A named snapshot of all ranking-weight AppSetting values (categories ml,
@@ -122,7 +125,7 @@ class WeightAdjustmentHistory(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self) -> str:
-        return f"[{self.source}] {self.reason[:80]} at {self.created_at}"
+        return f"[{self.source}] {str(self.reason)[:80]} at {self.created_at}"
 
 
 class RankingChallenger(TimestampedModel):
@@ -211,7 +214,7 @@ class RankingChallenger(TimestampedModel):
         ordering = ["-created_at"]
 
     def __str__(self) -> str:
-        return f"Challenger {self.run_id[:16]} [{self.status}]"
+        return f"Challenger {str(self.run_id)[:16]} [{self.status}]"
 
 
 class ScopePreset(TimestampedModel):
@@ -240,7 +243,7 @@ class ScopePreset(TimestampedModel):
         ordering = ["name"]
 
     def __str__(self) -> str:
-        return self.name
+        return str(self.name)
 
 
 class PipelineRun(TimestampedModel):
@@ -406,7 +409,7 @@ class Suggestion(TimestampedModel):
 
     # Destination — the page being linked TO
     destination = models.ForeignKey(
-        "content.ContentItem",
+        CONTENT_ITEM_MODEL,
         on_delete=models.CASCADE,
         related_name="destination_suggestions",
         help_text="The content item that will receive an incoming link.",
@@ -419,7 +422,7 @@ class Suggestion(TimestampedModel):
 
     # Host — the page where the link will be PLACED
     host = models.ForeignKey(
-        "content.ContentItem",
+        CONTENT_ITEM_MODEL,
         on_delete=models.CASCADE,
         related_name="host_suggestions",
         help_text="The content item whose post will contain the new link.",
@@ -941,8 +944,8 @@ class Suggestion(TimestampedModel):
 
     def __str__(self) -> str:
         return (
-            f"[{self.status}] {self.destination_title[:50]} ← "
-            f"'{self.anchor_phrase[:30]}' (score={self.score_final:.3f})"
+            f"[{self.status}] {str(self.destination_title)[:50]} ← "
+            f"'{str(self.anchor_phrase)[:30]}' (score={self.score_final:.3f})"
         )
 
 
@@ -1053,7 +1056,7 @@ class PipelineDiagnostic(models.Model):
         help_text="The pipeline run this diagnostic belongs to.",
     )
     destination = models.ForeignKey(
-        "content.ContentItem",
+        CONTENT_ITEM_MODEL,
         on_delete=models.CASCADE,
         related_name="pipeline_diagnostics",
         help_text="The destination content item that was skipped.",
@@ -1176,13 +1179,13 @@ class RejectedPair(models.Model):
     """
 
     host = models.ForeignKey(
-        "content.ContentItem",
+        CONTENT_ITEM_MODEL,
         on_delete=models.CASCADE,
         related_name="rejected_pair_hosts",
         help_text="The page where a link was suggested and then rejected.",
     )
     destination = models.ForeignKey(
-        "content.ContentItem",
+        CONTENT_ITEM_MODEL,
         on_delete=models.CASCADE,
         related_name="rejected_pair_destinations",
         help_text="The suggested link target that was rejected.",

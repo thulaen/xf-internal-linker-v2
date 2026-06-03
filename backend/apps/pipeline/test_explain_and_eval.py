@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+from unittest.mock import patch
 
 import numpy as np
 from django.test import SimpleTestCase
@@ -80,6 +81,18 @@ class ReservoirSampleTests(SimpleTestCase):
     def test_k_must_be_positive(self) -> None:
         with self.assertRaises(ValueError):
             sample(range(10), k=0)
+
+    def test_finite_sequences_use_bounded_sampling_path(self) -> None:
+        stream = list(range(1000))
+        with patch.object(
+            Reservoir,
+            "add",
+            side_effect=AssertionError("streaming path called"),
+        ):
+            got = sample(stream, k=10, rng=deterministic_rng(seed=7))
+
+        self.assertEqual(len(got), 10)
+        self.assertTrue(set(got).issubset(stream))
 
 
 class FairShuffleTests(SimpleTestCase):

@@ -131,10 +131,6 @@ def _sample_local_state() -> dict[str, Any]:
         state["capabilities"] = {
             "cpu_cores": psutil.cpu_count(logical=True) or 0,
             "ram_gb": round(psutil.virtual_memory().total / (1024**3), 1),
-            # Helpers don't have a GPU per the Phase 4.9 hard rule;
-            # publish 0 so the main PC's router won't accidentally
-            # route gpu_required tasks here.
-            "gpu_vram_gb": 0,
             "network_quality": "good",
             "hostname": socket.gethostname(),
         }

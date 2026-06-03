@@ -216,3 +216,98 @@ class PurgeAgedRowsCascadePreventionTests(SimpleTestCase):
 
         self.assertEqual(result_step1, 0, "Step 1 should return 0 on failure")
         self.assertEqual(result_step2, 5, "Step 2 should succeed after connection reset")
+
+
+# ---------------------------------------------------------------------------
+# Mid-task stale-connection auto-retry (AutoIssue #20219)
+# ---------------------------------------------------------------------------
+#
+# The start-of-task ``if not connection.in_atomic_block: connection.close()``
+# guard only fixes a connection that went stale BETWEEN tasks. A connection
+# that drops in the MIDDLE of a long-running task (e.g. Postgres restart,
+# idle-in-transaction timeout, network blip during a 2-hour run) raises
+# DatabaseError / InterfaceError / OperationalError and the whole task dies.
+#
+# Fix: the long pipeline @shared_task decorators carry
+# ``autoretry_for=(DatabaseError, InterfaceError, OperationalError)`` with
+# ``retry_backoff`` so Celery re-queues the task. On re-run the start-of-task
+# guard hands the retry a fresh connection.
+#
+# These asserts read the Celery task object's resolved options. mutmut wraps
+# string/number literals, so each element is checked by EXACT identity /
+# equality, never substring.
+
+class MidTaskStaleConnectionRetryTests(SimpleTestCase):
+    """Long pipeline tasks must auto-retry on mid-task DB connection loss."""
+
+    # The long-running tasks that must carry the mid-task retry guard. Each is
+    # CPU/DB-bound and runs for minutes-to-hours, so a mid-run connection drop
+    # must re-queue rather than fail the whole job.
+    LONG_TASK_PATHS = (
+        "recalculate_click_distance_task",
+        "run_pipeline",
+        "import_content",
+        "nightly_data_retention",
+    )
+
+    def _resolve_task(self, attr_name):
+        from apps.pipeline import tasks as tasks_mod  # noqa: PLC0415
+
+        return getattr(tasks_mod, attr_name)
+
+    def _db_error_classes(self):
+        from django.db import (  # noqa: PLC0415
+            DatabaseError,
+            InterfaceError,
+            OperationalError,
+        )
+
+        return DatabaseError, InterfaceError, OperationalError
+
+    def test_long_tasks_autoretry_for_exact_db_error_classes(self):
+        """autoretry_for is EXACTLY the three DB connection error classes."""
+        db_err, iface_err, op_err = self._db_error_classes()
+        expected = {db_err, iface_err, op_err}
+        for attr in self.LONG_TASK_PATHS:
+            task = self._resolve_task(attr)
+            autoretry = getattr(task, "autoretry_for", None)
+            self.assertIsNotNone(
+                autoretry,
+                f"{attr} must declare autoretry_for for mid-task DB recovery",
+            )
+            self.assertEqual(
+                set(autoretry),
+                expected,
+                f"{attr}.autoretry_for must be exactly "
+                f"(DatabaseError, InterfaceError, OperationalError)",
+            )
+
+    def test_long_tasks_retry_backoff_is_exactly_60_seconds(self):
+        """retry_backoff must be EXACTLY 60 so retries wait a fixed seed.
+
+        Exact-value assert (not ``> 0``) so a literal mutation of the
+        ``retry_backoff=60`` seed in tasks.py is killed by the mutation gate.
+        """
+        for attr in self.LONG_TASK_PATHS:
+            task = self._resolve_task(attr)
+            backoff = getattr(task, "retry_backoff", None)
+            self.assertEqual(
+                backoff,
+                60,
+                f"{attr}.retry_backoff must be exactly 60, got {backoff!r}",
+            )
+
+    def test_long_tasks_bounded_max_retries(self):
+        """max_retries must be a finite positive bound, never unbounded."""
+        for attr in self.LONG_TASK_PATHS:
+            task = self._resolve_task(attr)
+            max_retries = getattr(task, "max_retries", None)
+            self.assertIsNotNone(
+                max_retries,
+                f"{attr} must cap retries (no unbounded retry loop)",
+            )
+            self.assertEqual(
+                max_retries,
+                3,
+                f"{attr}.max_retries must be exactly 3",
+            )

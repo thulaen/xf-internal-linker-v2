@@ -32,7 +32,9 @@ class _GracefulTelemetryExporter:
         try:
             return self._exporter.export(payload, *args, **kwargs)
         except Exception as exc:  # noqa: BLE001 - telemetry must not break app work.
-            self._logger.debug("Telemetry export skipped after exporter failure: %s", exc)
+            self._logger.debug(
+                "Telemetry export skipped after exporter failure: %s", exc
+            )
             return self._failure_result
 
     def force_flush(self, *args, timeout_millis=30_000, **kwargs):
@@ -43,14 +45,18 @@ class _GracefulTelemetryExporter:
                 **kwargs,
             )
         except Exception as exc:  # noqa: BLE001 - shutdown flush must stay graceful.
-            self._logger.debug("Telemetry flush skipped after exporter failure: %s", exc)
+            self._logger.debug(
+                "Telemetry flush skipped after exporter failure: %s", exc
+            )
             return False
 
     def shutdown(self, *args, **kwargs):
         try:
             return self._exporter.shutdown(*args, **kwargs)
         except Exception as exc:  # noqa: BLE001 - shutdown must never mask command exit.
-            self._logger.debug("Telemetry shutdown skipped after exporter failure: %s", exc)
+            self._logger.debug(
+                "Telemetry shutdown skipped after exporter failure: %s", exc
+            )
             return None
 
     def __getattr__(self, name):
@@ -107,6 +113,7 @@ LOCAL_APPS = [
     "apps.sync",
     "apps.api",
     "apps.diagnostics",
+    "apps.observability",
     "apps.notifications",
     "apps.knowledge_graph",
     "apps.health",
@@ -116,6 +123,8 @@ LOCAL_APPS = [
     "apps.realtime",
     # Phase OF — Operations Feed.
     "apps.ops_feed",
+    # Agent work queue. Tracks agent claims, repair attempts, and rollback signals.
+    "apps.work_queue",
     # PR-B — Scheduled Updates orchestrator (11am-11pm serial runner).
     "apps.scheduled_updates",
     # PR-C — Source-layer helpers (token bucket, backoff, bloom, HLL, etc).
@@ -204,6 +213,14 @@ DATABASES = {
                 "min_size": env.int("POSTGRES_POOL_MIN_SIZE", default=4),
                 "max_size": env.int("POSTGRES_POOL_MAX_SIZE", default=20),
                 "timeout": env.int("POSTGRES_POOL_TIMEOUT_S", default=30),
+                # Force connection recycling so psycopg3 COMMAND_OK / stale-state
+                # errors don't accumulate on long-running worker connections.
+                # max_lifetime=600s prevents any one connection from staying open
+                # longer than 10 minutes. max_idle=300s closes idle connections after
+                # 5 minutes so pool slots don't stay open through Celery idle periods.
+                # Citation: psycopg3 docs §6.4 "Pool configuration".
+                "max_lifetime": env.int("POSTGRES_POOL_MAX_LIFETIME_S", default=600),
+                "max_idle": env.int("POSTGRES_POOL_MAX_IDLE_S", default=300),
             },
         },
     }
@@ -576,17 +593,8 @@ LOCAL_VERIFICATION_BOOTSTRAP_ENABLED = env.bool(
 # ── ML / AI Settings ─────────────────────────────────────────────
 
 ML_PERFORMANCE_MODE = env("ML_PERFORMANCE_MODE", default="BALANCED")
-EMBEDDING_MODEL = env("EMBEDDING_MODEL", default="BAAI/bge-m3")
+EMBEDDING_MODEL = env("EMBEDDING_MODEL", default="text-embedding-3-small")
 EMBEDDING_BATCH_SIZE = env.int("EMBEDDING_BATCH_SIZE", default=32)
-
-# ── GPU Self-Limiting ─────────────────────────────────────────────
-# Mode-dependent VRAM fractions.  Percentages are relative to detected
-# VRAM — they scale automatically with GPU upgrades.
-# See docs/PERFORMANCE.md §6 for the three-layer GPU protection scheme.
-CUDA_MEMORY_FRACTION_SAFE = env.float("CUDA_MEMORY_FRACTION_SAFE", default=0.25)
-CUDA_MEMORY_FRACTION_HIGH = env.float("CUDA_MEMORY_FRACTION_HIGH", default=0.80)
-GPU_TEMP_CEILING_C = env.int("GPU_TEMP_CEILING_C", default=90)
-GPU_TEMP_RESUME_C = env.int("GPU_TEMP_RESUME_C", default=80)
 SPACY_MODEL = env("SPACY_MODEL", default="en_core_web_sm")
 
 # Pipeline guardrails (non-negotiable product rules)
@@ -659,9 +667,7 @@ if _TRACKING_DSN and _observability_host_resolves(_TRACKING_DSN):
         # REPLACES the pyroscope-io shipping path (ISS-103) which the
         # Pyroscope OSS 1.9 server does not index. Same DSN, same auth,
         # same dashboard — one less moving part.
-        profiles_sample_rate=float(
-            env("SENTRY_PROFILES_SAMPLE_RATE", default="1.0")
-        ),
+        profiles_sample_rate=float(env("SENTRY_PROFILES_SAMPLE_RATE", default="1.0")),
         environment=env("DJANGO_ENV", default="production"),
         send_default_pii=False,
     )
@@ -691,8 +697,11 @@ if (
         import pyroscope  # type: ignore[import-not-found]
 
         pyroscope.configure(
-            application_name=env("PYROSCOPE_APPLICATION_NAME", default="xf-linker-backend"),
+            application_name=env(
+                "PYROSCOPE_APPLICATION_NAME", default="xf-linker-backend"
+            ),
             server_address=_PYROSCOPE_ADDR,
+            sample_rate=env.int("PYROSCOPE_SAMPLE_RATE", default=250),
             tags={
                 "node_role": env("NODE_ROLE", default="primary"),
                 "node_id": env("NODE_ID", default="primary"),
@@ -736,11 +745,7 @@ _IS_TEST_RUN = (
     or "pytest" in _sys.modules
     or env("DJANGO_TEST_RUN", default="0") == "1"
 )
-if (
-    _OTEL_ENDPOINT
-    and not _IS_TEST_RUN
-    and _observability_host_resolves(_OTEL_ENDPOINT)
-):
+if _OTEL_ENDPOINT and not _IS_TEST_RUN and _observability_host_resolves(_OTEL_ENDPOINT):
     try:
         from opentelemetry import trace as _otel_trace
         from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
@@ -930,15 +935,11 @@ __all__ = [
     "CORS_ALLOW_CREDENTIALS",
     "CSRF_COOKIE_SAMESITE",
     "CSRF_TRUSTED_ORIGINS",
-    "CUDA_MEMORY_FRACTION_HIGH",
-    "CUDA_MEMORY_FRACTION_SAFE",
     "DATABASES",
     "DEFAULT_AUTO_FIELD",
     "DJANGO_APPS",
     "EMBEDDING_BATCH_SIZE",
     "EMBEDDING_MODEL",
-    "GPU_TEMP_CEILING_C",
-    "GPU_TEMP_RESUME_C",
     "HOST_SCAN_WORD_LIMIT",
     "INSTALLED_APPS",
     "LANGUAGE_CODE",

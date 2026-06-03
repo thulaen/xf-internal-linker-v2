@@ -89,10 +89,11 @@ class AppearanceSettingsView(APIView):
     def _get_config(self) -> dict:
         from apps.core.models import AppSetting
 
-        try:
-            setting = AppSetting.objects.get(key="appearance.config")
-            stored = json.loads(setting.value)
-        except AppSetting.DoesNotExist:
+        # AutoIssue #20375: route the stored blob through the guarded
+        # get_json helper so a corrupt value degrades to {} (and then to the
+        # defaults below) instead of raising an uncaught JSONDecodeError (500).
+        stored = AppSetting.get_json("appearance.config", {})
+        if not isinstance(stored, dict):
             stored = {}
         # Merge stored values over defaults.  Keys that are not in
         # DEFAULT_APPEARANCE are silently dropped — this cleans up legacy
@@ -1339,10 +1340,11 @@ def _save_appearance_key(key: str, value) -> None:
     """Persist a single key into the appearance config AppSetting blob."""
     from apps.core.models import AppSetting
 
-    try:
-        setting = AppSetting.objects.get(key="appearance.config")
-        stored = json.loads(setting.value)
-    except AppSetting.DoesNotExist:
+    # AutoIssue #20375: read the existing blob through the guarded get_json
+    # helper so a corrupt stored value falls back to {} instead of raising an
+    # uncaught JSONDecodeError when persisting a single appearance key.
+    stored = AppSetting.get_json("appearance.config", {})
+    if not isinstance(stored, dict):
         stored = {}
     stored[key] = value
     AppSetting.objects.update_or_create(

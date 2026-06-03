@@ -38,9 +38,9 @@ describe('PerformanceModeService', () => {
 
   it('refresh() updates mode + expiry from server response', () => {
     const stub: RuntimeSettingsResponse = {
-      runtime_mode: 'cuda',
+      runtime_mode: 'cpu',
       performance_mode: 'high',
-      effective_runtime_mode: 'cuda',
+      effective_runtime_mode: 'cpu',
       performance_mode_expiry: 'night',
       performance_mode_expires_at: '2026-05-10T06:00:00Z',
     };
@@ -57,13 +57,13 @@ describe('PerformanceModeService', () => {
       performance_mode: 'balanced',
       hardware_tier: 'low',
       high_performance_capable: false,
-      hardware_summary: 'tier=low ram=8.0GB cores=4 no GPU',
+      hardware_summary: 'tier=low ram=8.0GB cores=4',
     };
     svc.refresh().subscribe();
     httpMock.expectOne('/api/settings/runtime/').flush(stub);
     expect(svc.highPerformanceCapable()).toBe(false);
     expect(svc.hardwareTier()).toBe('low');
-    expect(svc.hardwareSummary()).toBe('tier=low ram=8.0GB cores=4 no GPU');
+    expect(svc.hardwareSummary()).toBe('tier=low ram=8.0GB cores=4');
   });
 
   it('refresh() leaves capability fields at their defaults when the server omits them', () => {
@@ -107,7 +107,7 @@ describe('PerformanceModeService', () => {
     const req = httpMock.expectOne('/api/settings/runtime/switch/');
     expect(req.request.body).toEqual({ mode: 'high', expiry: 'activity' });
     req.flush({
-      runtime_mode: 'cuda',
+      runtime_mode: 'cpu',
       performance_mode: 'high',
       performance_mode_expiry: 'activity',
     });
