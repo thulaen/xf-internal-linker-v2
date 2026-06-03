@@ -1,6 +1,6 @@
-# FR — run the scoped mutation gate on the remote 20-core "Dell" over SSH
+# FR — run the scoped mutation gate on the remote 14-core (6 P-cores + 8 E-cores) / 20-thread "Dell" over SSH
 
-[SPEC FRESHNESS: reviewed_at=2026-06-01 next_review=2026-06-30]
+[SPEC FRESHNESS: reviewed_at=2026-06-02 next_review=2026-06-30]
 [SPEC CITED: feature=dell-mutation-runner kind=technical_doc id=mutmut-docs verified_at=2026-06-01]
 [SPEC CITED: feature=dell-mutation-runner kind=technical_doc id=pytest-django-reuse-db verified_at=2026-06-01]
 [SPEC CITED: feature=dell-mutation-runner kind=technical_doc id=openssh-manual verified_at=2026-06-01]
@@ -16,7 +16,8 @@ tested — the commit is blocked. This check is slow.
 Today it runs on the everyday Windows laptop (nicknamed the "MSI"), which has only
 **8 CPU cores**. Mutation testing is CPU-heavy, so on 8 cores the gate can take many
 minutes. Meanwhile there is a second, faster Windows machine on the same home network —
-nicknamed the **"Dell"** — with **20 CPU cores and 15.7 GB of RAM** that normally sits
+nicknamed the **"Dell"** (an Intel **i5-13500T**: **14 cores (6 Performance-cores + 8
+Efficient-cores), 20 threads** and ~15.7 GB of RAM) that normally sits
 idle. The goal of this feature is to let the slow mutation gate run on the Dell instead,
 so commits clear faster, without changing the verdict it returns.
 
@@ -173,22 +174,27 @@ Each entry is a plain-English record:
 
 ```
 "machines": [
-  { "name": "dell",    "transport": "ssh",            "ssh_host": "dell", "weight": 0.60, "max_weight": 0.60 },
-  { "name": "windows", "transport": "docker_local",                       "weight": 0.30, "max_weight": 1.0 },
-  { "name": "mint",    "transport": "docker_context", "context": "mint",  "weight": 0.10, "max_weight": 1.0 }
+  { "name": "dell",    "transport": "docker_context", "context": "dell", "weight": 0.70, "max_weight": 0.85 },
+  { "name": "windows", "transport": "docker_local",                      "weight": 0.20, "max_weight": 1.0 },
+  { "name": "mint",    "transport": "docker_context", "context": "mint", "weight": 0.10, "max_weight": 1.0 }
 ]
 ```
 
 - **name** — a stable label used as the report-file suffix and the log tag.
 - **transport** — one of three literal strings: `docker_local` (run `docker compose exec`
   on this box = the everyday MSI/Windows laptop), `docker_context` (run
-  `docker --context <context> compose exec` = the Mint helper), or `ssh` (tar-sync the
-  source to the box then `ssh <host> ... docker compose run --rm --no-deps ...` = the Dell).
+  `docker --context <context> compose exec` = the Dell and the Mint helper, each addressed by
+  its own `context`), or `ssh` (tar-sync the source to the box then `ssh <host> ... docker
+  compose run --rm --no-deps ...` — the legacy single-Dell transport, kept for the opt-in
+  `XF_MUTATION_HOST=dell` path).
 - **weight** — the machine's relative share. The three need **not** pre-sum to 1.0; the
   selector renormalises whatever machines actually answer.
-- **max_weight** — a **ceiling** applied before renormalising. The Dell is capped at `0.60`,
-  so 60 % is a *maximum*, never an exact target. The other two have `1.0` (no cap).
-- **context** is required only for `docker_context`; **ssh_host** only for `ssh`.
+- **max_weight** — a **ceiling** applied before renormalising. The Dell is capped at `0.85`,
+  so 85 % is a *maximum*, never an exact target. The other two have `1.0` (no cap). The Dell
+  carries the heaviest base share (`0.70`) because it is the fastest box — an Intel i5-13500T
+  with 14 cores (6 P-cores + 8 E-cores) / 20 threads.
+- **context** is required only for `docker_context` (the Dell uses context `dell`, the Mint
+  helper uses context `mint`); **ssh_host** only for the legacy `ssh` transport.
 
 The legacy `split{ local_pct, remote_pct, remote_context }` block is **kept** alongside the
 new `machines` array. The loader prefers `machines` when present and falls back to the old
@@ -207,10 +213,11 @@ one-slot-per-machine placeholder for the workspace-wide Go/Rust/Haskell tools) l
 3. Slice the targets into contiguous, disjoint blocks by the final per-machine counts.
 
 The counts therefore sum **exactly** to the number of targets. Worked example: 9 C++
-binaries at shares 0.60 / 0.30 / 0.10 → floors 5 / 2 / 0 (sum 7), leftover 2 goes to the two
-largest remainders (mint 0.9, windows 0.7) → final **dell 5 / windows 3 / mint 1 = 9**.
-With fewer targets than machines (1 target across 3), the single target lands on the
-largest-share machine (dell) and the other two get empty slices and are skipped at dispatch.
+binaries at shares 0.70 / 0.20 / 0.10 → raw 6.3 / 1.8 / 0.9 → floors 6 / 1 / 0 (sum 7),
+leftover 2 goes to the two largest remainders (mint 0.9, windows 0.8) → final
+**dell 6 / windows 2 / mint 1 = 9**. With fewer targets than machines (1 target across 3),
+the single target lands on the largest-share machine (dell) and the other two get empty
+slices and are skipped at dispatch.
 
 ### Fail-open: a powered-off machine never blocks
 
@@ -223,7 +230,7 @@ logic lives in one place, `_select_machines(cfg, probe)`:
 2. **Drop every unreachable machine before any work is partitioned.** This is fail-**open**:
    a dead box's targets are reassigned to the machines that answer, never sent to a box that
    cannot run them.
-3. **Clamp each survivor to its `max_weight`** (Dell to 0.60), then **renormalise** the
+3. **Clamp each survivor to its `max_weight`** (Dell to 0.85), then **renormalise** the
    survivors to sum to 1.0, then **re-apply the ceiling** in a short bounded loop so the cap
    holds even after renormalisation pushes an uncapped machine up.
 4. If only one machine answers it gets share 1.0; if **none** answer, fall back to a single
@@ -234,9 +241,9 @@ Worked redistribution examples (all asserted by unit tests in
 
 | Reachable | Resulting shares |
 |---|---|
-| dell + windows + mint | dell 0.60, windows 0.30, mint 0.10 |
-| windows + mint (Dell OFF) | windows 0.75, mint 0.25 (Dell's 60 % redistributed) |
-| dell + windows (Mint OFF) | dell **0.60** (ceiling re-applied), windows 0.40 — NOT 0.667 |
+| dell + windows + mint | dell 0.70, windows 0.20, mint 0.10 |
+| windows + mint (Dell OFF) | windows 0.667, mint 0.333 (Dell's 70 % redistributed) |
+| dell + windows (Mint OFF) | dell **0.78**, windows 0.22 — 0.78 < the 0.85 ceiling, so NO clamp |
 | windows only (Dell + Mint OFF) | windows 1.0 — identical to today's local-only run |
 
 ### Why SSH-tar for the Dell, not a new docker context
@@ -305,8 +312,8 @@ introduced.
 The unit of work is the **staged source files** (already capped at 15 files). Each file is a
 self-contained work item: it carries its own changed-line token (`path:line,line` or
 `path:ALL`) and its own naming-convention test file, so a file's mutants can only die to its
-own test on whichever machine owns it. `_partition_weighted` hands Dell about 60 % of the
-files (a ceiling), Windows about 30 %, and Mint about 10 %, as **disjoint** contiguous
+own test on whichever machine owns it. `_partition_weighted` hands Dell about 70 % of the
+files (capped at 85 %), Windows about 20 %, and Mint about 10 %, as **disjoint** contiguous
 slices that sum to the file count exactly once — so total work across the fleet is the staged
 file set exactly once, never doubled. Cost is approximated by file count, not CPU-time, so a
 1-2 file commit lands entirely on one machine or collapses to local; the win is on the large
@@ -360,7 +367,7 @@ reconciliation is possible. A mutant is a confirmed real survivor only if it app
 
 - **Powered-off boxes → fail-OPEN at probe time.** `_select_machines` probes each machine
   once with bounded budgets, drops every unreachable box BEFORE any file is assigned, clamps
-  Dell to its 0.60 ceiling, and renormalises survivors to 1.0 (falling back to a single local
+  Dell to its 0.85 ceiling, and renormalises survivors to 1.0 (falling back to a single local
   Windows machine if nothing answers). A switched-off box never owns a file and never blocks
   the commit. Same redistribution table as the turbo section.
 - **Reachable-but-broken boxes → fail-CLOSED then local-recover.** A box that answered the
