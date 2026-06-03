@@ -109,9 +109,10 @@ def _build_ga4_service():
         )
     else:
         if not property_id or not project_id or not client_email or not private_key:
-            raise RuntimeError(
+            logger.warning(
                 "GA4 credentials not configured. Set them on the Settings page."
             )
+            return None, None
         service = build_ga4_data_service(
             property_id=property_id,
             project_id=project_id,
@@ -335,6 +336,12 @@ def fetch_ga4_session_cooccurrence(
     Session IDs are used only for grouping and discarded after aggregation.
     """
     service, property_id = _build_ga4_service()
+    if not service:
+        logger.warning(
+            "Skipping co-occurrence matrix build: GA4 credentials not configured."
+        )
+        return 0, 0, 0
+
     window_end = date.today()
     window_start = window_end - timedelta(days=data_window_days)
 

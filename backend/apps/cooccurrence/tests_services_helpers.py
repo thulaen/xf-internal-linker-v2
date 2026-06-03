@@ -418,3 +418,67 @@ class ExtractContentSignalsTests(SimpleTestCase):
         )
         signals = _extract_content_signals(suggestion)
         self.assertAlmostEqual(signals["relevance"], 0.5)
+
+
+class FetchGa4NoCredentialsSkipTests(SimpleTestCase):
+    """The GA4 co-occurrence fetch must skip gracefully without credentials.
+
+    Behaviour change (2026-06-02): _build_ga4_service no longer raises
+    RuntimeError when GA4 credentials are missing — it logs a warning and
+    returns (None, None).  fetch_ga4_session_cooccurrence then short-circuits
+    to (0, 0, 0) instead of crashing the scheduled co-occurrence build.
+    """
+
+    def test_skip_returns_zero_triple_when_service_missing(self) -> None:
+        from unittest.mock import patch
+
+        from apps.cooccurrence.services import fetch_ga4_session_cooccurrence
+
+        with patch(
+            "apps.cooccurrence.services._build_ga4_service",
+            return_value=(None, None),
+        ), self.assertLogs("apps.cooccurrence.services", "WARNING") as captured:
+            result = fetch_ga4_session_cooccurrence()
+        # Exact tuple AND per-element pins kill any value-flip mutant on the
+        # `return 0, 0, 0` skip path; the assertLogs pins the warning string so a
+        # mutant on the logger.warning message is also killed.
+        self.assertEqual(result, (0, 0, 0))
+        self.assertEqual(result[0], 0)
+        self.assertEqual(result[1], 0)
+        self.assertEqual(result[2], 0)
+        # EXACT message match (not substring) — a mutmut XX-wrapped string mutant
+        # still CONTAINS the original as a substring, so only an exact compare kills it.
+        self.assertEqual(
+            captured.output,
+            [
+                "WARNING:apps.cooccurrence.services:"
+                "Skipping co-occurrence matrix build: GA4 credentials not configured."
+            ],
+        )
+
+    def test_build_ga4_service_returns_none_when_credentials_missing(self) -> None:
+        """_build_ga4_service logs a warning and returns (None, None) with no creds."""
+        from unittest.mock import patch
+
+        from apps.cooccurrence.services import _build_ga4_service
+
+        empty_settings = {
+            "property_id": "",
+            "read_project_id": "",
+            "read_client_email": "",
+            "oauth_connected": False,
+            "google_oauth_client_id": "",
+        }
+        with patch(
+            "apps.analytics.views.get_ga4_telemetry_settings",
+            return_value=empty_settings,
+        ), patch(
+            "apps.analytics.views._read_setting", return_value=""
+        ), patch(
+            "apps.analytics.views._google_oauth_refresh_token", return_value=""
+        ), patch(
+            "apps.analytics.views._google_oauth_client_secret", return_value=""
+        ):
+            service, property_id = _build_ga4_service()
+        self.assertIsNone(service)
+        self.assertIsNone(property_id)
