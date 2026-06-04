@@ -1,21 +1,21 @@
 # FR — Rewrite Quota and Exemption (Phase K.2)
 
-[SPEC FRESHNESS: reviewed_at=2026-05-23 next_review=2026-06-23]
+[SPEC FRESHNESS: reviewed_at=2026-06-04 next_review=2026-07-04]
 
-[SPEC CITED: feature=rewrite-quota-and-exemption kind=academic_paper id=beck-2002-tdd verified_at=2026-05-23]
-[SPEC CITED: feature=rewrite-quota-and-exemption kind=academic_paper id=parnas-1972-modularity verified_at=2026-05-23]
-[SPEC CITED: feature=rewrite-quota-and-exemption kind=technical_doc id=iso-iec-ieee-29119-3-2021 verified_at=2026-05-23]
-[SPEC CITED: feature=rewrite-quota-and-exemption kind=technical_literature id=brooks-1995-mythical-man-month verified_at=2026-05-23]
+[SPEC CITED: feature=rewrite-quota-and-exemption kind=academic_paper id=beck-2002-tdd verified_at=2026-06-04]
+[SPEC CITED: feature=rewrite-quota-and-exemption kind=academic_paper id=parnas-1972-modularity verified_at=2026-06-04]
+[SPEC CITED: feature=rewrite-quota-and-exemption kind=technical_doc id=iso-iec-ieee-29119-3-2021 verified_at=2026-06-04]
+[SPEC CITED: feature=rewrite-quota-and-exemption kind=technical_literature id=brooks-1995-mythical-man-month verified_at=2026-06-04]
 
 ## Summary
 
-Every code-changing session must produce at least three rewrites or
-refactorings that improve the modular monolith (per Sticky #1, section
-"Mandatory Minimum Per Session: Three Rewrites or Refactorings"). The
-agent emits `[REWRITE COUNT: rewrites=<N> refactorings=<M>
-total=<N+M>]` in the AGENT-HANDOFF entry. The pre-commit hook
-`.githooks/check-rewrite-quota.py` hard-blocks code-changing commits
-when `total < 3`.
+Every code-changing session must produce measured improvements across
+20 named cleanup categories, each with a minimum of 15 items. The
+agent emits `[REWRITE COUNT: rewrites=<N> refactorings=<M> ...
+total=<sum>]` in the AGENT-HANDOFF entry. The pre-commit hook
+`.githooks/check-rewrite-quota.py` stops code-changing commits when
+the marker is missing, the arithmetic is wrong, any category is short
+without an exemption, or `total < 300` without an exemption.
 
 The hard block releases only when the agent provides deterministic
 evidence that further rewrites or refactorings in the touched area are
@@ -51,20 +51,17 @@ through the evidence file's `threshold_pct` field.
 
 Every code-changing commit's AGENT-HANDOFF.md entry must carry exactly
 one marker of the form `[REWRITE COUNT: rewrites=<N> refactorings=<M>
-total=<N+M>]` where:
+... complexity_reduced=<N> total=<sum>]` where:
 
-* `<N>` is the count of full rewrites (legacy implementation replaced
-  with a typed implementation in the correct owner language) in this
-  commit.
-* `<M>` is the count of in-language refactorings (structural
-  improvements that preserve behavior — clearer naming, deduplicated
-  logic, narrower types, tighter boundaries, smaller functions, broken
-  cycles) in this commit.
-* `<N+M>` is the numerical sum.
+* Each named field is one of the 20 cleanup categories enforced by the
+  hook.
+* Every category must be 15 or higher unless a verified exemption
+  applies.
+* `total` is the numerical sum of all 20 named fields.
 
 ### 2. The exemption marker
 
-When `total < 3` and the agent has deterministic evidence that further
+When `total < 300` and the agent has deterministic evidence that further
 rewrites in the touched area are not justified, the agent emits an
 additional `[REWRITE QUOTA EXEMPTION: ...]` marker pointing at a JSON
 evidence file. The hook calls `manage.py verify_rewrite_exemption`
@@ -111,10 +108,13 @@ in `scripts/precommit-docker.sh`. The hook:
 
 * Reads the staged AGENT-HANDOFF.md diff.
 * Looks for `[REWRITE QUOTA BOOTSTRAP: ...]` — pass.
-* Looks for `[REWRITE COUNT: ...]` — parses `rewrites`, `refactorings`,
-  `total`. If `total >= 3`, pass.
-* Looks for `[REWRITE QUOTA EXEMPTION: ...]` — parses `evidence_file`,
-  calls `manage.py verify_rewrite_exemption`, passes on exit 0.
+* Looks for `[REWRITE COUNT: ...]` — parses all 20 category fields and
+  `total`.
+* If `total < 300`, checks `[REWRITE QUOTA EXEMPTION: ...]` before
+  reporting category shortfalls; it parses `evidence_file`, calls
+  `manage.py verify_rewrite_exemption`, and passes only when that
+  command exits 0.
+* If `total >= 300`, verifies every category is 15 or higher.
 * Otherwise hard-block with a Rule-F three-part FAIL message.
 
 Pure-docs commits (no files under `backend/`, `frontend/`, `services/`,
@@ -174,16 +174,17 @@ gain is ≥ `threshold_pct`.
 
 ## Behavior tests
 
-`.githooks/test_check_rewrite_quota.py` covers 8 scenarios:
+`.githooks/test_check_rewrite_quota.py` covers 9 scenarios:
 
-1. `total >= 3` passes.
-2. `total < 3` without exemption blocks.
-3. `total < 3` with valid evidence file passes.
-4. `total < 3` with evidence file showing gain >= threshold blocks.
-5. `total < 3` with missing evidence file blocks.
-6. `[REWRITE QUOTA BOOTSTRAP: commit=introduces-rule]` short-circuits.
-7. Pure-docs commit (no code files staged) passes.
-8. Multi-violation listing form.
+1. `total >= 300` with all 20 categories at or above 15 passes.
+2. `total > 300` with all 20 categories at or above 15 passes.
+3. `total < 300` without exemption blocks.
+4. `total < 300` with valid evidence file passes.
+5. `total < 300` with evidence file showing gain >= threshold blocks.
+6. `total < 300` with missing evidence file blocks.
+7. `[REWRITE QUOTA BOOTSTRAP: commit=introduces-rule]` short-circuits.
+8. Pure-docs commit (no code files staged) passes.
+9. Multi-violation listing form.
 
 Tests stub the `verify_rewrite_exemption` subprocess via
 `unittest.mock.patch`.

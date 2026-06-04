@@ -94,6 +94,14 @@ def _valid_numeric_ten_source_marker() -> str:
     )
 
 
+def _zero_open_ten_source_marker() -> str:
+    return (
+        "[REGISTRY READ: 0 open (0 agent / 0 glitchtip / 0 pyroscope / "
+        "0 tempo / 0 loki / 0 faro / 0 mutation / 0 fuzz / 0 contract / "
+        "0 gh_ci), 0 registry - picked: none]"
+    )
+
+
 def _quality_read_marker() -> str:
     return (
         "[QUALITY GATE READ: self-written code must pass guidelines, tests, "
@@ -199,6 +207,10 @@ class CheckRegistryReadHookTests(unittest.TestCase):
         added = _valid_ten_source_marker(g=4, t=2, gh=5)
         self.assertEqual(self.hook._validate_marker(added), 0)
 
+    def test_zero_open_ten_source_marker_accepted(self):
+        added = _zero_open_ten_source_marker()
+        self.assertEqual(self.hook._validate_marker(added), 0)
+
     def test_ten_source_marker_mismatched_sum_rejected(self):
         added = (
             "[REGISTRY READ: 31 open (3 agent / 3 glitchtip / 3 pyroscope / "
@@ -213,6 +225,10 @@ class CheckRegistryReadHookTests(unittest.TestCase):
 
     def test_thirty_picks_accepted(self):
         added = _valid_ten_source_marker()
+        self.assertEqual(self.hook._validate_picks(added), 0)
+
+    def test_zero_open_marker_accepts_zero_picks(self):
+        added = _zero_open_ten_source_marker()
         self.assertEqual(self.hook._validate_picks(added), 0)
 
     def test_twenty_nine_picks_rejected(self):
@@ -733,7 +749,17 @@ class CheckRegistryReadHookTests(unittest.TestCase):
             self.assertIsNone(self.hook._previous_handoff_stamp(path))
 
     def test_verify_autoissue_quota_rejects_missing_ids(self):
-        self.assertEqual(self.hook._verify_autoissue_quota("no picked ids"), 1)
+        with mock.patch.object(self.hook, "_read_gate_state", return_value=None):
+            self.assertEqual(self.hook._verify_autoissue_quota("no picked ids"), 1)
+
+    def test_verify_autoissue_quota_skips_when_registry_is_empty(self):
+        added = _zero_open_ten_source_marker()
+        with (
+            mock.patch.object(self.hook, "_read_gate_state", return_value=None),
+            mock.patch.object(self.hook.subprocess, "run") as run,
+        ):
+            self.assertEqual(self.hook._verify_autoissue_quota(added), 0)
+        run.assert_not_called()
 
     def test_verify_autoissue_quota_runs_backend_check(self):
         added = _valid_numeric_ten_source_marker()
@@ -944,6 +970,123 @@ class CheckRegistryReadHookTests(unittest.TestCase):
             mock.patch.object(self.hook, "_verify_autoissue_quota", return_value=0),
         ):
             self.assertEqual(self.hook.main(), 0)
+
+
+class GateTokenValidationTests(unittest.TestCase):
+    """Tests for _validate_session_gate_token, _verify_gate_token, _read_gate_state.
+
+    Given the session gate runs at session start and writes session_gate_state.json,
+    When the pre-commit hook validates the token,
+    Then valid tokens pass, absent/stale/wrong tokens are rejected correctly.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.hook = _load_hook()
+
+    def _make_valid_state(self, secret: str, session_type: str, ts_mins: int, total_open: int) -> dict:
+        import hashlib, hmac as _hmac_mod
+        msg = f"{session_type}|{ts_mins}|{total_open}"
+        mac = _hmac_mod.new(secret.encode(), msg.encode(), hashlib.sha256)
+        token = mac.hexdigest()[:16]
+        return {
+            "session_type": session_type,
+            "layer2_autoissues": 10,
+            "layer2_paper_trail": 3,
+            "token": token,
+            "ts": ts_mins,
+            "total_open_count": total_open,
+            "generated_at": "2026-05-28T12:00:00Z",
+        }
+
+    def test_absent_state_file_passes(self):
+        """Backward-compat: no state file → gate token check passes (returns 0)."""
+        with mock.patch.object(self.hook, "_read_gate_state", return_value=None):
+            self.assertEqual(self.hook._validate_session_gate_token(), 0)
+
+    def test_valid_token_passes(self):
+        """A freshly generated valid token clears the gate check."""
+        import time
+        secret = "test-secret-hex"
+        ts_mins = int(time.time()) // 60
+        state = self._make_valid_state(secret, "reconciliation", ts_mins, 42)
+        with (
+            mock.patch.object(self.hook, "_read_gate_state", return_value=state),
+            mock.patch.dict("os.environ", {"SESSION_GATE_SECRET": secret}),
+        ):
+            self.assertEqual(self.hook._validate_session_gate_token(), 0)
+
+    def test_wrong_token_fails(self):
+        """A token that doesn't match the HMAC is rejected."""
+        import time
+        secret = "test-secret-hex"
+        ts_mins = int(time.time()) // 60
+        state = self._make_valid_state(secret, "reconciliation", ts_mins, 42)
+        state["token"] = "badc0ffee0badc0f"  # tampered token (wrong hex)
+        with (
+            mock.patch.object(self.hook, "_read_gate_state", return_value=state),
+            mock.patch.dict("os.environ", {"SESSION_GATE_SECRET": secret}),
+            mock.patch.object(sys, "stderr", StringIO()) as err,
+        ):
+            result = self.hook._validate_session_gate_token()
+        self.assertEqual(result, 1)
+        self.assertIn("token is invalid or stale", err.getvalue())
+
+    def test_stale_token_fails(self):
+        """A token from more than 360 minutes ago is treated as stale."""
+        secret = "test-secret-hex"
+        old_ts_mins = (1000000)  # far in the past
+        state = self._make_valid_state(secret, "feature", old_ts_mins, 10)
+        with (
+            mock.patch.object(self.hook, "_read_gate_state", return_value=state),
+            mock.patch.dict("os.environ", {"SESSION_GATE_SECRET": secret}),
+            mock.patch.object(sys, "stderr", StringIO()),
+        ):
+            result = self.hook._validate_session_gate_token()
+        self.assertEqual(result, 1)
+
+    def test_verify_autoissue_quota_uses_hard_mode_when_gate_state_valid(self):
+        """When gate state is valid, _verify_autoissue_quota calls --hard --session-type."""
+        import time
+        from subprocess import CompletedProcess
+        secret = "test-secret-hex"
+        ts_mins = int(time.time()) // 60
+        state = self._make_valid_state(secret, "reconciliation", ts_mins, 42)
+        with (
+            mock.patch.object(self.hook, "_read_gate_state", return_value=state),
+            mock.patch.dict("os.environ", {"SESSION_GATE_SECRET": secret}),
+            mock.patch.object(
+                self.hook.subprocess,
+                "run",
+                return_value=CompletedProcess(args=[], returncode=0, stdout="ok", stderr=""),
+            ) as run,
+        ):
+            result = self.hook._verify_autoissue_quota("marker text with picks")
+        self.assertEqual(result, 0)
+        args = run.call_args.args[0]
+        self.assertIn("--hard", args)
+        self.assertIn("--session-type", args)
+        self.assertIn("reconciliation", args)
+        self.assertNotIn("--ids", args)
+
+    def test_verify_autoissue_quota_uses_ids_when_no_gate_state(self):
+        """When gate state is absent, _verify_autoissue_quota falls back to --ids."""
+        from subprocess import CompletedProcess
+        added = _valid_numeric_ten_source_marker()
+        with (
+            mock.patch.object(self.hook, "_read_gate_state", return_value=None),
+            mock.patch.object(self.hook, "_previous_handoff_stamp", return_value=None),
+            mock.patch.object(
+                self.hook.subprocess,
+                "run",
+                return_value=CompletedProcess(args=[], returncode=0, stdout="ok", stderr=""),
+            ) as run,
+        ):
+            result = self.hook._verify_autoissue_quota(added)
+        self.assertEqual(result, 0)
+        args = run.call_args.args[0]
+        self.assertIn("--ids", args)
+        self.assertNotIn("--hard", args)
 
 
 if __name__ == "__main__":

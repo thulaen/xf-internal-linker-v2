@@ -54,16 +54,38 @@ def _full_marker(n: int = 10, picks: str | None = None) -> str:
     return f"[PAPER TRAIL READ: {n} open ({breakdown_str}) — picked: {picks}]"
 
 
+def _zero_open_marker() -> str:
+    return _full_marker(n=0, picks="none")
+
+
 class MarkerValidationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.hook = _load_hook()
+
+    def setUp(self):
+        # Isolate marker-structure tests from the ambient session-gate
+        # quota (audit/session_gate_state.json). These cases assert the
+        # 10-pick world, so pin the required quota to 10 regardless of
+        # whatever session_type / layer2_paper_trail the live gate file
+        # currently carries (e.g. a reconciliation session sets it to 3).
+        patcher = mock.patch.object(
+            self.hook, "_required_paper_trail_quota", return_value=10
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def test_valid_marker_with_ten_picks_accepted(self):
         marker = _full_marker(n=10)
         code, ids = self.hook._validate_marker(marker)
         self.assertEqual(code, 0)
         self.assertEqual(len(ids), 10)
+
+    def test_zero_open_marker_accepts_zero_picks(self):
+        marker = _zero_open_marker()
+        code, ids = self.hook._validate_marker(marker)
+        self.assertEqual(code, 0)
+        self.assertEqual(ids, [])
 
     def test_missing_marker_rejected(self):
         code, ids = self.hook._validate_marker("Some commit body with no marker.")
@@ -127,6 +149,22 @@ class HardBlockQuotaTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.hook = _load_hook()
+
+    def setUp(self):
+        # Pin the required quota to 10 so these tests exercise the
+        # docker / drought / timeout code paths deterministically,
+        # independent of the live session-gate quota.
+        patcher = mock.patch.object(
+            self.hook, "_required_paper_trail_quota", return_value=10
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_zero_open_queue_skips_quota_verifier(self):
+        with mock.patch.object(self.hook.subprocess, "run") as run:
+            result = self.hook._verify_quota(ids=[], declared_open=0)
+        self.assertEqual(result, 0)
+        run.assert_not_called()
 
     def test_drought_form_is_hard_fail(self):
         """A code-changing commit with fewer than 10 picks must fail —

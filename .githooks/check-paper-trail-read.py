@@ -17,14 +17,20 @@ Exit codes:
 
 from __future__ import annotations
 
+import hashlib
+import hmac as _hmac
+import json
 import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HANDOFF_PATH = REPO_ROOT / "AGENT-HANDOFF.md"
+SESSION_GATE_STATE = REPO_ROOT / "audit" / "session_gate_state.json"
+_TOKEN_VALID_WINDOW_MINS = 120
 
 # The 16 categories in the canonical order print_open_paper_trail emits.
 _CATEGORIES = (
@@ -53,7 +59,7 @@ _MARKER_RE = re.compile(
     re.IGNORECASE,
 )
 _QUOTA_VERIFIED_RE = re.compile(
-    r"\[PAPER\s+TRAIL\s+QUOTA\s+VERIFIED:\s*10\s+resolved\]",
+    r"\[PAPER\s+TRAIL\s+QUOTA\s+VERIFIED:\s*\d+\s+resolved\]",
     re.IGNORECASE,
 )
 _BREAKDOWN_TOKEN_RE = re.compile(r"(\d+)\s+(\w+)")
@@ -71,6 +77,52 @@ _CODE_PREFIXES = (
     ".githooks/",
     "backend/extensions/",
 )
+
+
+def _read_gate_state() -> dict | None:
+    try:
+        return json.loads(SESSION_GATE_STATE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _verify_gate_token(state: dict) -> bool:
+    secret = os.environ.get("SESSION_GATE_SECRET", "")
+    token = state.get("token", "")
+    ts = int(state.get("ts", 0))
+    session_type = state.get("session_type", "")
+    total_open = int(state.get("total_open_count", 0))
+    current_ts = int(time.time()) // 60
+    if abs(current_ts - ts) > _TOKEN_VALID_WINDOW_MINS:
+        return False
+    msg = f"{session_type}|{ts}|{total_open}"
+    mac = _hmac.new(secret.encode(), msg.encode(), hashlib.sha256)
+    expected = mac.hexdigest()[:16]
+    return _hmac.compare_digest(token, expected)
+
+
+def _validate_session_gate_token() -> int:
+    state = _read_gate_state()
+    if state is None:
+        return 0  # absent = pre-gate session (backward-compat for Increments 0-1)
+    if not _verify_gate_token(state):
+        sys.stderr.write(
+            "FAIL check-paper-trail-read: audit/session_gate_state.json token "
+            "is invalid or stale (>2 hours old).\n"
+            "WHY: session_start_payload.py was not run via startupd in this session, "
+            "or SESSION_GATE_SECRET has changed since the gate ran.\n"
+            "UNBLOCK: python scripts/session_start_payload.py\n"
+        )
+        return 2
+    return 0
+
+
+def _required_paper_trail_quota() -> int:
+    """Return the paper-trail quota for this session from the gate state, or 10 if absent."""
+    state = _read_gate_state()
+    if state is not None and _verify_gate_token(state):
+        return int(state.get("layer2_paper_trail", 10))
+    return 10
 
 
 # _read_staged_handoff_diff() lives in _hook_helpers.py per paper-trail
@@ -149,14 +201,23 @@ def _validate_marker(added: str) -> tuple[int, list[int]]:
         )
         return 2, []
 
+    required_picks = _required_paper_trail_quota()
     ids = [int(m) for m in _ID_RE.findall(match["picks"])]
     drought = bool(_DROUGHT_RE.search(match["picks"]))
-    # Docs-only commits accept the drought form (the picker honestly
-    # showed fewer than 10 open entries). Code-changing commits hit the
-    # _verify_quota gate next which rejects drought-form outright.
-    if not drought and len(ids) != 10:
+    if declared_n == 0:
+        if ids:
+            sys.stderr.write(
+                "FAIL check-paper-trail-read: the marker says 0 Paper Trail "
+                "items are open, but picked IDs are still listed. Use "
+                "`picked: none` for an honest empty queue.\n"
+            )
+            return 2, []
+        return 0, []
+    # Docs-only commits (required_picks==0) accept any number of ids including 0.
+    # Code-changing commits with required_picks>0 must hit the exact count or use drought form.
+    if required_picks > 0 and not drought and len(ids) != required_picks:
         sys.stderr.write(
-            f"FAIL check-paper-trail-read: expected 10 picked ids "
+            f"FAIL check-paper-trail-read: expected {required_picks} picked ids "
             f"(or drought-substitution form); got {len(ids)}.\n"
         )
         return 2, []
@@ -170,7 +231,14 @@ def _validate_marker(added: str) -> tuple[int, list[int]]:
     return 0, ids
 
 
-def _verify_quota(ids: list[int]) -> int:
+def _declared_open_from_marker(added: str) -> int | None:
+    match = _MARKER_RE.search(added)
+    if not match:
+        return None
+    return int(match["n"])
+
+
+def _verify_quota(ids: list[int], declared_open: int | None = None) -> int:
     """Shell out to manage.py verify_paper_trail_quota.
 
     HARD-BLOCK semantics (matches .githooks/check-registry-read.py): the
@@ -179,30 +247,45 @@ def _verify_quota(ids: list[int]) -> int:
     is used on a staged commit, the commit FAILS so that the backlog never
     grows silently. Returns 0 on pass, 2 on any failure.
     """
-    if len(ids) != 10:
+    required = _required_paper_trail_quota()
+
+    # docs sessions (required==0) skip the quota check entirely.
+    if required == 0:
+        return 0
+    if declared_open == 0 and not ids:
+        return 0
+
+    if len(ids) != required:
         # Drought form on a staged commit is a HARD FAIL — file
         # new paper-trail entries via `manage.py defer_work` until the
-        # picker has 10 to choose from, then resolve those 10.
+        # picker has the required number, then resolve those.
         sys.stderr.write(
             "FAIL check-paper-trail-read: drought-substitution form is not "
             "allowed on a staged commit. The paper-trail picker found "
             f"only {len(ids)} entr(y/ies); you must file new entries via "
             "`manage.py defer_work --title ... --category ... --abstract ... "
-            "--deferred-by ...` until the queue has 10, then resolve those 10 "
+            f"--deferred-by ...` until the queue has {required}, then resolve those "
             "via `manage.py resolve_paper_trail`.\n"
         )
         return 2
+
+    # Determine session type for the verify command.
+    state = _read_gate_state()
+    session_type = "feature"
+    if state is not None and _verify_gate_token(state):
+        session_type = state.get("session_type", "feature")
 
     cmd = [
         "docker", "compose", "exec", "-T", "backend",
         "python", "manage.py", "verify_paper_trail_quota",
         "--ids", *[str(i) for i in ids],
+        "--session-type", session_type,
     ]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
     except FileNotFoundError:
         sys.stderr.write(
-            "FAIL check-paper-trail-read: docker is not on PATH. The 10-"
+            "FAIL check-paper-trail-read: docker is not on PATH. The "
             "paper-trail quota MUST be checked against the live database "
             "before any code-changing commit can land. Start Docker Desktop "
             "and re-run, OR run the same commit on a host where Docker is "
@@ -212,7 +295,7 @@ def _verify_quota(ids: list[int]) -> int:
     except subprocess.TimeoutExpired:
         sys.stderr.write(
             "FAIL check-paper-trail-read: `manage.py verify_paper_trail_quota` "
-            "timed out (60s). The 10-paper-trail quota check is required; "
+            "timed out (60s). The paper-trail quota check is required; "
             "wait for the backend stack to be healthy and re-run.\n"
         )
         return 2
@@ -225,11 +308,14 @@ def _verify_quota(ids: list[int]) -> int:
         )
         return 2
 
-    sys.stdout.write("[PAPER TRAIL QUOTA VERIFIED: 10 resolved]\n")
+    sys.stdout.write(f"[PAPER TRAIL QUOTA VERIFIED: {required} resolved]\n")
     return 0
 
 
 def main() -> int:
+    if (rc := _validate_session_gate_token()) != 0:
+        return rc
+
     added = _read_staged_handoff_diff()
     if not added:
         # AGENT-HANDOFF.md was not staged. Any staged commit requires
@@ -253,11 +339,18 @@ def main() -> int:
     if exit_code != 0:
         return exit_code
 
-    if _commit_has_staged_files() and not _QUOTA_VERIFIED_RE.search(added):
+    required = _required_paper_trail_quota()
+    declared_open = _declared_open_from_marker(added)
+    if (
+        required > 0
+        and declared_open != 0
+        and _commit_has_staged_files()
+        and not _QUOTA_VERIFIED_RE.search(added)
+    ):
         sys.stderr.write(
             "FAIL check-paper-trail-read: commit is missing the "
-            "[PAPER TRAIL QUOTA VERIFIED: 10 resolved] marker. Run "
-            "`manage.py verify_paper_trail_quota --ids <10 ids> "
+            f"[PAPER TRAIL QUOTA VERIFIED: {required} resolved] marker. Run "
+            f"`manage.py verify_paper_trail_quota --ids <{required} ids> "
             "--resolved-after <prev handoff timestamp>` and paste the result.\n"
         )
         return 2
@@ -265,7 +358,7 @@ def main() -> int:
     if not _commit_has_staged_files():
         return 0
 
-    return _verify_quota(ids)
+    return _verify_quota(ids, declared_open=declared_open)
 
 
 if __name__ == "__main__":

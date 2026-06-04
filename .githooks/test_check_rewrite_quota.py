@@ -26,6 +26,14 @@ def _load_hook_module():
 hook = _load_hook_module()
 
 
+def _rewrite_count_marker(**overrides: int) -> str:
+    values = {name: 0 for name in hook._category_names()}
+    values.update(overrides)
+    total = sum(values.values())
+    fields = " ".join(f"{name}={value}" for name, value in values.items())
+    return f"[REWRITE COUNT: {fields} total={total}]"
+
+
 class _StderrCollector:
     def __init__(self, bucket: list[str]) -> None:
         self._bucket = bucket
@@ -58,16 +66,19 @@ def _run_with(
 
 class HappyPathTests(unittest.TestCase):
     def test_total_at_or_above_quota_passes(self) -> None:
+        values = {name: 15 for name in hook._category_names()}
         rc, out = _run_with(
             code_files=["backend/apps/example/views.py"],
-            handoff="[REWRITE COUNT: rewrites=2 refactorings=1 total=3]",
+            handoff=_rewrite_count_marker(**values),
         )
         self.assertEqual(rc, 0, msg=out)
 
     def test_total_above_quota_passes(self) -> None:
+        values = {name: 15 for name in hook._category_names()}
+        values["refactorings"] = 16
         rc, out = _run_with(
             code_files=["backend/apps/example/views.py"],
-            handoff="[REWRITE COUNT: rewrites=3 refactorings=4 total=7]",
+            handoff=_rewrite_count_marker(**values),
         )
         self.assertEqual(rc, 0, msg=out)
 
@@ -82,7 +93,8 @@ class ExemptionTests(unittest.TestCase):
 
     def test_low_total_with_valid_evidence_passes(self) -> None:
         handoff = (
-            "[REWRITE COUNT: rewrites=0 refactorings=1 total=1]\n"
+            _rewrite_count_marker(refactorings=1)
+            + "\n"
             "[REWRITE QUOTA EXEMPTION: touched_area=backend/apps/example "
             "python_lines_remaining=0 baseline=10.0 projected_after=8.0 "
             "projected_gain_pct=20.0 threshold_pct=30.0 "
@@ -98,7 +110,8 @@ class ExemptionTests(unittest.TestCase):
 
     def test_low_total_with_failing_verifier_blocks(self) -> None:
         handoff = (
-            "[REWRITE COUNT: rewrites=0 refactorings=1 total=1]\n"
+            _rewrite_count_marker(refactorings=1)
+            + "\n"
             "[REWRITE QUOTA EXEMPTION: touched_area=backend/apps/example "
             "python_lines_remaining=0 baseline=10.0 projected_after=5.0 "
             "projected_gain_pct=50.0 threshold_pct=30.0 "
@@ -131,15 +144,17 @@ class FailureTests(unittest.TestCase):
     def test_low_total_no_exemption_blocks(self) -> None:
         rc, out = _run_with(
             code_files=["backend/apps/example/views.py"],
-            handoff="[REWRITE COUNT: rewrites=0 refactorings=1 total=1]",
+            handoff=_rewrite_count_marker(refactorings=1),
         )
         self.assertEqual(rc, 2)
-        self.assertIn("below the minimum of 3", out)
+        self.assertIn("below the minimum of 300", out)
 
     def test_count_arithmetic_mismatch_blocks(self) -> None:
+        marker = _rewrite_count_marker(rewrites=2, refactorings=2)
+        marker = marker.replace("total=4", "total=5")
         rc, out = _run_with(
             code_files=["backend/apps/example/views.py"],
-            handoff="[REWRITE COUNT: rewrites=2 refactorings=2 total=5]",
+            handoff=marker,
         )
         self.assertEqual(rc, 2)
         self.assertIn("arithmetic", out)

@@ -2,10 +2,10 @@
 """
 Pre-commit hook: enforce the Rewrite Quota rule (2026-05-23, Phase K.2).
 
-Every code-changing commit must produce at least three rewrites or
-refactorings that improve the modular monolith. The agent emits a
-`[REWRITE COUNT: rewrites=<N> refactorings=<M> total=<N+M>]` marker
-in the AGENT-HANDOFF entry. When `total < 3`, the agent may release
+Every code-changing commit must produce improvements across 20 categories,
+each requiring a minimum of 15 items (300 total). The agent emits a
+`[REWRITE COUNT: rewrites=<N> refactorings=<M> ... total=<sum>]` marker
+in the AGENT-HANDOFF entry. When `total < 300`, the agent may release
 the hard block with a `[REWRITE QUOTA EXEMPTION: ...]` marker pointing
 at a JSON evidence file under `docs/rewrite-evidence/<session-id>.json`
 that `manage.py verify_rewrite_exemption` cross-checks.
@@ -27,19 +27,68 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# 2026-05-23 — Phase K.3 DRY refactor: CODE_PREFIXES and
-# staged_code_files were duplicated literally between this hook and
-# check-sticky-1-read.py. The shared module owns both now so a future
-# code-bearing path under backend/, services/, etc. lands in one
-# location.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _hook_helpers  # noqa: E402
 
+# --- Category definitions ---------------------------------------------------
+# Each tuple: (field_name, min_required, plain_english_description)
+_CATEGORIES = (
+    ("rewrites", 15,
+     "replacing legacy code with typed code in the correct owner language"),
+    ("refactorings", 15,
+     "in-language structural improvements that preserve behavior"),
+    ("long_functions_fixed", 15,
+     "shortening functions over 50 lines to ≤50 lines"),
+    ("dead_code_removed", 15,
+     "unused imports, unreachable branches, orphaned functions deleted"),
+    ("duplicates_eliminated", 15,
+     "copy-pasted blocks (6+ lines) consolidated into shared helpers"),
+    ("magic_numbers_named", 15,
+     "raw literals replaced with named constants or enums"),
+    ("type_annotations_added", 15,
+     "functions/variables given proper type hints or stricter types"),
+    ("docstrings_added", 15,
+     "public functions/classes given proper documentation"),
+    ("error_handling_improved", 15,
+     "bare except or swallowed errors replaced with specific handling"),
+    ("boundary_violations_fixed", 15,
+     "cross-module imports moved through api.py"),
+    ("circular_dependencies_broken", 15,
+     "import cycles resolved"),
+    ("god_classes_split", 15,
+     "classes with too many responsibilities broken into focused ones"),
+    ("n_plus_one_queries_fixed", 15,
+     "ORM queries in loops replaced with select_related/prefetch_related"),
+    ("unbounded_queries_paginated", 15,
+     "queryset .all() calls given limits or pagination"),
+    ("missing_indexes_added", 15,
+     "database indexes added where queries were doing full table scans"),
+    ("missing_tests_added", 15,
+     "untested public functions given their first test"),
+    ("flaky_tests_stabilized", 15,
+     "non-deterministic tests made reliable"),
+    ("hardcoded_secrets_removed", 15,
+     "credentials moved to env vars or secrets manager"),
+    ("sql_injections_parameterized", 15,
+     "string-formatted queries replaced with parameterized ones"),
+    ("complexity_reduced", 15,
+     "functions with cyclomatic complexity >10 simplified to ≤10"),
+)
+
+_MIN_QUOTA = sum(c[1] for c in _CATEGORIES)  # 300
+_CATEGORY_COUNT = len(_CATEGORIES)
+
+# Build the regex dynamically from the category list.
+_field_patterns = [
+    rf"(?P<{name}>\d+)" for name, _, _ in _CATEGORIES
+]
 _REWRITE_COUNT_RE = re.compile(
     r"\[REWRITE\s+COUNT:\s*"
-    r"rewrites=(?P<rewrites>\d+)\s+"
-    r"refactorings=(?P<refactorings>\d+)\s+"
-    r"total=(?P<total>\d+)\]"
+    + r"\s+".join(
+        rf"{name}={pattern}"
+        for (name, _, _), pattern in zip(_CATEGORIES, _field_patterns)
+    )
+    + r"\s+total=(?P<total>\d+)\]"
 )
 
 _BOOTSTRAP_RE = re.compile(
@@ -58,8 +107,6 @@ _EXEMPTION_RE = re.compile(
     r"evidence_file=(?P<evidence_file>[^\]\s]+)\]"
 )
 
-_MIN_QUOTA = 3
-
 
 def _fail(message: str) -> int:
     sys.stderr.write(message)
@@ -67,44 +114,59 @@ def _fail(message: str) -> int:
 
 
 def _staged_code_files() -> list[str]:
-    """Thin adapter so the in-module function name stays stable for tests."""
+    """Thin adapter so the in-module function name stays stable."""
     return _hook_helpers.staged_code_files(REPO_ROOT)
 
 
 def _staged_handoff_diff() -> str:
-    """Thin adapter so the in-module function name stays stable for tests."""
+    """Thin adapter so the in-module function name stays stable."""
     return _hook_helpers.get_staged_handoff_diff(REPO_ROOT)
 
 
-def _verify_exemption(touched_areas: list[str], evidence_file: str) -> tuple[bool, str]:
-    """Run manage.py verify_rewrite_exemption; return (passed, stderr)."""
+def _category_names() -> list[str]:
+    return [name for name, _, _ in _CATEGORIES]
+
+
+def _marker_template() -> str:
+    fields = " ".join(f"{name}=<N>" for name in _category_names())
+    return f"[REWRITE COUNT: {fields} total=<sum>]"
+
+
+def _category_summary() -> str:
+    lines = []
+    for name, minimum, desc in _CATEGORIES:
+        lines.append(f"  {name} (≥{minimum}): {desc}")
+    return "\n".join(lines)
+
+
+def _verify_exemption_marker(handoff_text: str) -> tuple[bool, str]:
+    exemption_match = _EXEMPTION_RE.search(handoff_text)
+    if exemption_match is None:
+        return False, ""
+    touched = exemption_match.group("touched_area").split(",")
+    evidence_file = exemption_match.group("evidence_file")
+    return _verify_exemption(touched, evidence_file)
+
+
+def _verify_exemption(
+    touched_areas: list[str], evidence_file: str,
+) -> tuple[bool, str]:
+    """Run manage.py verify_rewrite_exemption."""
     cmd = [
-        "docker",
-        "compose",
-        "exec",
-        "-T",
-        "backend",
-        "python",
-        "manage.py",
-        "verify_rewrite_exemption",
-        "--evidence-file",
-        evidence_file,
+        "docker", "compose", "exec", "-T", "backend",
+        "python", "manage.py", "verify_rewrite_exemption",
+        "--evidence-file", evidence_file,
     ]
     for area in touched_areas:
         cmd.extend(["--area", area])
     try:
         result = subprocess.run(
-            cmd,
-            cwd=str(REPO_ROOT),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=30,
-            check=False,
+            cmd, cwd=str(REPO_ROOT), capture_output=True,
+            text=True, encoding="utf-8", errors="replace",
+            timeout=30, check=False,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
-        return False, f"verify_rewrite_exemption could not be invoked: {exc}"
+        return False, f"verify_rewrite_exemption failed: {exc}"
     if result.returncode == 0:
         return True, ""
     return False, (result.stderr or "").strip() or (result.stdout or "").strip()
@@ -113,7 +175,6 @@ def _verify_exemption(touched_areas: list[str], evidence_file: str) -> tuple[boo
 def main() -> int:
     code_files = _staged_code_files()
     if not code_files:
-        # Pure-docs commits are exempt.
         return 0
 
     handoff_text = _staged_handoff_diff()
@@ -123,69 +184,80 @@ def main() -> int:
 
     count_match = _REWRITE_COUNT_RE.search(handoff_text)
     if count_match:
-        rewrites = int(count_match.group("rewrites"))
-        refactorings = int(count_match.group("refactorings"))
+        values: dict[str, int] = {}
+        for name, _, _ in _CATEGORIES:
+            values[name] = int(count_match.group(name))
+
         supplied_total = int(count_match.group("total"))
-        if supplied_total != rewrites + refactorings:
+        computed_total = sum(values.values())
+
+        if supplied_total != computed_total:
             return _fail(
                 "FAIL check-rewrite-quota: marker says "
-                f"total={supplied_total} but rewrites + refactorings = "
-                f"{rewrites + refactorings}. Fix the marker arithmetic.\n"
+                f"total={supplied_total} but the {_CATEGORY_COUNT} fields sum to "
+                f"{computed_total}. Fix the marker arithmetic.\n"
             )
+
+        if supplied_total < _MIN_QUOTA:
+            passed, stderr_text = _verify_exemption_marker(handoff_text)
+            if passed:
+                return 0
+            if _EXEMPTION_RE.search(handoff_text):
+                return _fail(
+                    "FAIL check-rewrite-quota: [REWRITE QUOTA EXEMPTION: ...] "
+                    "marker refused by verify_rewrite_exemption.\n"
+                    f"VERIFIER OUTPUT: {stderr_text}\n"
+                    "UNBLOCK: fix the evidence file per the message above.\n"
+                )
+            return _fail(
+                "FAIL check-rewrite-quota: total "
+                f"{supplied_total} is below the minimum of {_MIN_QUOTA} "
+                "and no [REWRITE QUOTA EXEMPTION: ...] marker is present.\n"
+                "WHY: every code-changing session must produce at least "
+                f"{_MIN_QUOTA} improvements, OR provide deterministic "
+                "evidence that further improvements in the touched area "
+                "are not justified.\n"
+                "UNBLOCK option A: produce more improvements until "
+                f"total >= {_MIN_QUOTA}, update the marker, and re-run.\n"
+                "UNBLOCK option B: create a JSON evidence file under "
+                "docs/rewrite-evidence/<session-id>.json and add the "
+                "[REWRITE QUOTA EXEMPTION: ...] marker referencing it.\n"
+            )
+
+        sub_failures = []
+        for name, minimum, desc in _CATEGORIES:
+            if values[name] < minimum:
+                sub_failures.append(
+                    f"{name}={values[name]} (need {minimum}): {desc}"
+                )
+
+        if sub_failures:
+            return _fail(
+                "FAIL check-rewrite-quota: per-category minimums "
+                f"not met ({len(sub_failures)} of {_CATEGORY_COUNT} categories "
+                "below their floor):\n"
+                + "\n".join(f"  • {f}" for f in sub_failures)
+                + "\n\nWHY: every code-changing session must produce "
+                f"at least {_MIN_QUOTA} total improvements across "
+                f"{_CATEGORY_COUNT} categories, each with a minimum of 15.\n"
+                "Categories:\n"
+                + _category_summary() + "\n"
+            )
+
         if supplied_total >= _MIN_QUOTA:
             return 0
     else:
         return _fail(
-            "FAIL check-rewrite-quota: code-changing commit but the "
-            "AGENT-HANDOFF.md entry is missing the [REWRITE COUNT: "
-            "rewrites=<N> refactorings=<M> total=<N+M>] marker.\n"
-            "WHY: the 2026-05-23 Rewrite Quota rule requires every "
-            "code-changing session to produce at least three rewrites "
-            "or refactorings that improve the modular monolith, OR "
-            "an explicit [REWRITE QUOTA EXEMPTION: ...] marker with a "
-            "JSON evidence file. See docs/specs/fr-rewrite-quota-and-"
-            "exemption.md.\n"
-            "UNBLOCK: add the marker after counting the rewrites and "
-            "refactorings in this commit. A rewrite is a replacement of "
-            "a legacy implementation with a typed implementation in the "
-            "correct owner language. A refactoring is an in-language "
-            "structural improvement that preserves behavior.\n"
+            "FAIL check-rewrite-quota: code-changing commit but "
+            "AGENT-HANDOFF.md is missing the rewrite count marker.\n"
+            f"Expected format: {_marker_template()}\n\n"
+            f"WHY: the Rewrite Quota rule requires {_MIN_QUOTA} "
+            f"total improvements across {_CATEGORY_COUNT} categories (15 each):\n"
+            + _category_summary()
+            + "\n\nUNBLOCK: add the marker after counting each "
+            "category, OR provide a [REWRITE QUOTA EXEMPTION: ...] "
+            "marker with a JSON evidence file.\n"
         )
-
-    # total < 3 — look for the exemption marker.
-    exemption_match = _EXEMPTION_RE.search(handoff_text)
-    if exemption_match is None:
-        return _fail(
-            f"FAIL check-rewrite-quota: rewrite count "
-            f"{count_match.group('total')} is below the minimum of "
-            f"{_MIN_QUOTA} and no [REWRITE QUOTA EXEMPTION: ...] "
-            "marker is present.\n"
-            "WHY: every code-changing session must produce at least "
-            f"{_MIN_QUOTA} rewrites or refactorings, OR provide "
-            "deterministic evidence that further rewrites in the "
-            "touched area are not justified.\n"
-            "UNBLOCK option A: produce more rewrites or refactorings "
-            "in this commit until total >= 3, update the marker, and "
-            "re-run the commit.\n"
-            "UNBLOCK option B: create a JSON evidence file under "
-            "docs/rewrite-evidence/<session-id>.json per "
-            "docs/specs/fr-rewrite-quota-and-exemption.md and add the "
-            "[REWRITE QUOTA EXEMPTION: ...] marker referencing it.\n"
-        )
-
-    # Validate the exemption via the management command.
-    touched = exemption_match.group("touched_area").split(",")
-    evidence_file = exemption_match.group("evidence_file")
-    passed, stderr_text = _verify_exemption(touched, evidence_file)
-    if passed:
-        return 0
-    return _fail(
-        "FAIL check-rewrite-quota: [REWRITE QUOTA EXEMPTION: ...] "
-        f"marker refused by verify_rewrite_exemption.\n"
-        f"VERIFIER OUTPUT: {stderr_text}\n"
-        "UNBLOCK: fix the evidence file per the message above and "
-        "re-run the commit.\n"
-    )
 
 
 if __name__ == "__main__":

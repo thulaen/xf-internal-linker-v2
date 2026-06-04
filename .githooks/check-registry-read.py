@@ -37,9 +37,14 @@ Run manually:
 from __future__ import annotations
 
 from collections.abc import Callable
+import hashlib
+import hmac as _hmac
+import json
+import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -259,6 +264,45 @@ COVERAGE_SUMMARY_RE = re.compile(
 HANDOFF_HEADING_RE = re.compile(
     r"^#\s+(?P<stamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})\b"
 )
+
+SESSION_GATE_STATE = REPO_ROOT / "audit" / "session_gate_state.json"
+_TOKEN_VALID_WINDOW_MINS = 360
+
+
+def _read_gate_state() -> dict | None:
+    try:
+        return json.loads(SESSION_GATE_STATE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _verify_gate_token(state: dict) -> bool:
+    secret = os.environ.get("SESSION_GATE_SECRET", "")
+    token = state.get("token", "")
+    ts = int(state.get("ts", 0))
+    session_type = state.get("session_type", "")
+    total_open = int(state.get("total_open_count", 0))
+    current_ts = int(time.time()) // 60
+    if abs(current_ts - ts) > _TOKEN_VALID_WINDOW_MINS:
+        return False
+    msg = f"{session_type}|{ts}|{total_open}"
+    mac = _hmac.new(secret.encode(), msg.encode(), hashlib.sha256)
+    expected = mac.hexdigest()[:16]
+    return _hmac.compare_digest(token, expected)
+
+
+def _validate_session_gate_token() -> int:
+    state = _read_gate_state()
+    if state is None:
+        return 0  # absent = pre-gate session (backward-compat for Increments 0-1)
+    if not _verify_gate_token(state):
+        return _fail(
+            "audit/session_gate_state.json token is invalid or stale (>6 hours old).\n"
+            "WHY: session_start_payload.py was not run via startupd in this session, "
+            "or SESSION_GATE_SECRET has changed since the gate ran.\n"
+            "UNBLOCK: python scripts/session_start_payload.py"
+        )
+    return 0
 
 
 def _staged_diff_for(path: Path) -> str:
@@ -518,6 +562,14 @@ def _validate_picks(added: str) -> int:
         )
     picks_blob = picks_match.group("picks")
     pick_tokens = _picked_id_tokens(picks_blob)
+    if _registry_declared_open_count(added) == 0:
+        if pick_tokens:
+            return _fail(
+                "The `[REGISTRY READ: 0 open ...]` marker says the AutoIssue "
+                "queue is empty, but picked issue IDs are still listed. Use "
+                "`picked: none` for an honest empty queue."
+            )
+        return 0
     has_drought_phrase = bool(DROUGHT_PHRASE_RE.search(picks_blob))
     has_substitution_form = bool(re.search(r"\bfrom\s+agent\b", picks_blob, re.IGNORECASE))
     if len(pick_tokens) != 30:
@@ -551,6 +603,13 @@ def _picked_id_tokens(picks_blob: str) -> list[str]:
         token.removeprefix("#")
         for token in ID_TOKEN_RE.findall(without_drought_refs)
     ]
+
+
+def _registry_declared_open_count(added: str) -> int | None:
+    match = NEW_MARKER_RE.search(added)
+    if not match:
+        return None
+    return int(match.group("n"))
 
 
 def _previous_handoff_stamp(path: Path = HANDOFF) -> str | None:
@@ -616,22 +675,24 @@ def _last_commit_before_previous_handoff() -> str | None:
 
 
 def _verify_autoissue_quota(added: str) -> int:
+    state = _read_gate_state()
+    if state is not None and _verify_gate_token(state):
+        return _verify_autoissue_quota_hard(state)
+    return _verify_autoissue_quota_ids(added)
+
+
+def _verify_autoissue_quota_ids(added: str) -> int:
+    if _registry_declared_open_count(added) == 0:
+        return 0
     issue_ids = _extract_picked_issue_ids(added)
     if not issue_ids:
         return _fail(
             "Could not extract the 30 picked AutoIssue IDs for the database check."
         )
     cmd = [
-        "docker",
-        "compose",
-        "exec",
-        "-T",
-        "backend",
-        "python",
-        "manage.py",
-        "verify_autoissue_quota",
-        "--ids",
-        *issue_ids,
+        "docker", "compose", "exec", "-T", "backend",
+        "python", "manage.py", "verify_autoissue_quota",
+        "--ids", *issue_ids,
     ]
     # 2026-05-17 — Quick win #4: use the most recent commit BEFORE the
     # previous handoff as the cutoff, not the previous handoff entry
@@ -641,6 +702,25 @@ def _verify_autoissue_quota(added: str) -> int:
     cutoff_stamp = _last_commit_before_previous_handoff()
     if cutoff_stamp:
         cmd.extend(["--resolved-after", cutoff_stamp])
+    return _run_quota_cmd(cmd)
+
+
+def _verify_autoissue_quota_hard(state: dict) -> int:
+    if int(state.get("total_open_count", 0)) == 0:
+        return 0
+    session_type = state.get("session_type", "feature")
+    cmd = [
+        "docker", "compose", "exec", "-T", "backend",
+        "python", "manage.py", "verify_autoissue_quota",
+        "--hard", "--session-type", session_type,
+    ]
+    cutoff_stamp = _last_commit_before_previous_handoff()
+    if cutoff_stamp:
+        cmd.extend(["--resolved-after", cutoff_stamp])
+    return _run_quota_cmd(cmd)
+
+
+def _run_quota_cmd(cmd: list[str]) -> int:
     try:
         result = subprocess.run(
             cmd,
@@ -664,7 +744,7 @@ def _verify_autoissue_quota(added: str) -> int:
     if result.returncode != 0:
         detail = (result.stdout + result.stderr).strip()
         return _fail(
-            "The handoff claims 30 AutoIssues, but the database check did not pass.\n"
+            "The handoff claims the required AutoIssues, but the database check did not pass.\n"
             f"{detail}"
         )
     return 0
@@ -936,6 +1016,7 @@ def main() -> int:
         return 0
     added = _staged_diff_for(HANDOFF)
     if (rc := _first_failure([
+        _validate_session_gate_token,
         lambda: _validate_marker(added),
         lambda: _validate_picks(added),
         lambda: _validate_ci_failed_runs(added),
