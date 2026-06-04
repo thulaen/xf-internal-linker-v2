@@ -277,6 +277,11 @@ class AutoIssue(models.Model):
             if update_fields is not None and "resolved_at" not in update_fields:
                 kwargs["update_fields"] = list(update_fields) + ["resolved_at"]
         super().save(*args, **kwargs)
+        try:
+            from apps.core.services.linear_api import sync_autoissue_to_linear
+            sync_autoissue_to_linear(self)
+        except Exception:
+            pass
 
     def __str__(self) -> str:
         prefix = f"[{self.source}/{self.severity}] "

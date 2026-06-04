@@ -567,10 +567,14 @@ XENFORO_WEBHOOK_SECRET = env("XENFORO_WEBHOOK_SECRET", default="")
 
 
 # ── WordPress API (read-only, optional) ──────────────────────────
-
 WORDPRESS_BASE_URL = env("WORDPRESS_BASE_URL", default="")
 WORDPRESS_USERNAME = env("WORDPRESS_USERNAME", default="")
 WORDPRESS_APP_PASSWORD = env("WORDPRESS_APP_PASSWORD", default="")
+
+
+# ── Linear API ───────────────────────────────────────────────────
+
+LINEAR_API_KEY = env("LINEAR_API_KEY", default="")
 
 
 # All heavy I/O and CPU tasks are owned by Celery (Python/C++).
