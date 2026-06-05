@@ -159,7 +159,34 @@ def _verify_code_review_lesson(issue_id: int) -> bool:
 
 
 def _verify_logged_review_ids(issue_ids: list[int]) -> bool:
-    return all(_verify_code_review_lesson(issue_id) for issue_id in issue_ids)
+    """Verify every id is a resolved code_review_lesson in ONE database query.
+
+    Batched on 2026-06-04: the previous per-id approach shelled one
+    `docker compose exec` per id, which did not scale (a 400-id commit took
+    ~2 hours and wedged the backend). A single `pk__in` query does the same
+    validation in one round-trip.
+    """
+    ids = sorted(set(issue_ids))
+    if not ids:
+        return True
+    id_list = ",".join(str(i) for i in ids)
+    code = (
+        "from apps.auto_issues.models import AutoIssue; "
+        f"ids=[{id_list}]; "
+        "n=AutoIssue.objects.filter(pk__in=ids, category__key='code_review_lesson', "
+        "status=AutoIssue.STATUS_RESOLVED).count(); "
+        "raise SystemExit(0 if n==len(ids) else 2)"
+    )
+    try:
+        result = subprocess.run(
+            ["docker", "compose", "exec", "-T", "backend", "python",
+             "manage.py", "shell", "-c", code],
+            cwd=str(REPO_ROOT), capture_output=True, text=True,
+            timeout=120, check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
 
 
 def _validate_summary_counts(summary: re.Match[str], touched_count: int) -> int:

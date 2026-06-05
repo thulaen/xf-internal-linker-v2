@@ -14,8 +14,8 @@ Workflow:
   5. If new < baseline × 0.90 → suggest updating the baseline.
 
 Skips silently when no built bundle exists (the dev hasn't run
-`docker compose build frontend-build` yet); the gate only fires after
-a build has happened.
+`scripts/build-smart.ps1 --target frontend-build` yet); the gate only
+fires after a build has happened.
 
 Usage:
     python .githooks/check-bundle-size.py
@@ -79,8 +79,8 @@ def main() -> int:
     if current is None:
         print(
             "[check-bundle-size] no built bundle in "
-            f"{DIST_DIR} — skipping (run `docker compose build "
-            "frontend-build` first to enable).",
+            f"{DIST_DIR} — skipping (run `scripts/build-smart.ps1 "
+            "--target frontend-build` first to enable).",
             file=sys.stderr,
         )
         return 0  # not a hard failure when nothing to measure

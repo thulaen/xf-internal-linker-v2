@@ -143,17 +143,21 @@ def to_regex(pattern: str) -> re.Pattern[str]:
     `re_path()` patterns: leave the regex pieces intact but add ^/$ anchors.
     All paths are normalised to start with `/api/` if not already.
     """
-    # Normalise leading / trailing slashes.
     raw = pattern.strip()
-    if not raw.startswith("/"):
-        raw = "/" + raw
+    # Strip outer ^ $ anchors that may already exist (re_path patterns).
+    raw = raw.lstrip("^").rstrip("$")
+    # Strip Django regex named groups FIRST: (?P<name>...) → (...). This must
+    # run before the angle-bracket conversion below, otherwise `<name>` inside
+    # `(?P<name>` is eaten by the path-style rule and leaves a broken `(?P[`.
+    raw = re.sub(r"\(\?P<[^>]+>", "(", raw)
     # Path-style angle-bracket captures → `[^/]+`
     raw = re.sub(r"<[^>]+>", r"[^/]+", raw)
-    # Strip Django regex named groups: (?P<name>...) → (...)
-    raw = re.sub(r"\(\?P<[^>]+>", "(", raw)
-    # Strip outer ^ $ anchors that may already exist.
-    raw = raw.lstrip("^").rstrip("$")
-    return re.compile("^" + raw + "/?$")
+    # Drop a trailing slash so we don't emit a doubled `//?$`; the optional
+    # slash is re-added by the compile below.
+    raw = raw.rstrip("/")
+    # Accept the pattern with or without a leading slash — backend patterns
+    # mounted under `/api/` are stored without the prefix (`prune/safe/`).
+    return re.compile("^/?" + raw + "/?$")
 
 
 def url_matches(url: str, regexes: list[re.Pattern[str]]) -> bool:

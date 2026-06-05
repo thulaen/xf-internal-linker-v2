@@ -46,7 +46,33 @@ def _running_record(service: str, health: str = "healthy") -> str:
     return json.dumps({"Service": service, "State": "running", "Health": health})
 
 
-class HappyPathTests(unittest.TestCase):
+class _FakeHTTPResponse:
+    """Minimal context-manager stand-in for ``urllib.request.urlopen``."""
+
+    def __init__(self, status: int = 200, body: str = '{"status":"UP"}') -> None:
+        self.status = status
+        self._body = body
+
+    def __enter__(self) -> "_FakeHTTPResponse":
+        return self
+
+    def __exit__(self, *exc) -> bool:
+        return False
+
+    def read(self, _size: int = -1) -> bytes:
+        return self._body.encode("utf-8")
+
+
+class _NoRemoteMixin:
+    """Blank out REMOTE_SERVICES so local-focused tests make no network call."""
+
+    def setUp(self) -> None:  # noqa: D401
+        patcher = patch.object(hook, "REMOTE_SERVICES", ())
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+
+class HappyPathTests(_NoRemoteMixin, unittest.TestCase):
     def test_all_services_running_and_healthy_returns_zero(self) -> None:
         def fake_run(cmd, *args, **kwargs):
             service = cmd[-1]
@@ -73,9 +99,10 @@ class HappyPathTests(unittest.TestCase):
             self.assertEqual(hook.main(), 0)
 
 
-class FailureTests(unittest.TestCase):
+class FailureTests(_NoRemoteMixin, unittest.TestCase):
     def test_one_service_absent_blocks_with_message(self) -> None:
-        absent = "sonarqube"
+        # grafana is a local service; sonarqube moved to Mint (remote_services).
+        absent = "grafana"
 
         def fake_run(cmd, *args, **kwargs):
             service = cmd[-1]
@@ -95,7 +122,7 @@ class FailureTests(unittest.TestCase):
         self.assertIn("docker compose up -d", joined)
 
     def test_restarting_state_blocks(self) -> None:
-        broken = "vmagent"
+        broken = "tempo"
 
         def fake_run(cmd, *args, **kwargs):
             service = cmd[-1]
@@ -158,6 +185,139 @@ class FailureTests(unittest.TestCase):
         joined = "".join(captured)
         for service in down:
             self.assertIn(service, joined)
+
+
+class ConfigRemoteOwnershipTests(unittest.TestCase):
+    def test_sonarqube_remote_services_are_dell_owned(self) -> None:
+        remotes = {
+            service.get("label"): service
+            for service in hook.REMOTE_SERVICES
+        }
+        for label in ("sonarqube", "sonar-autoscan"):
+            self.assertIn(label, remotes)
+            self.assertEqual(remotes[label].get("host"), "dell")
+            self.assertEqual(remotes[label].get("context"), "dell")
+        self.assertEqual(
+            remotes["sonarqube"].get("health_command"),
+            [
+                "docker",
+                "--context",
+                "dell",
+                "exec",
+                "xf_linker_sonarqube",
+                "bash",
+                "-lc",
+                "curl -fsS http://localhost:9000/api/system/status",
+            ],
+        )
+
+
+class RemoteServiceTests(unittest.TestCase):
+    """Dell-hosted SonarQube is verified over HTTP via its status API."""
+
+    _REMOTE = (
+        {
+            "label": "sonarqube",
+            "host": "dell",
+            "health_url": "http://192.168.0.163:9000/api/system/status",
+            "health_ok_contains": '"status":"UP"',
+        },
+    )
+
+    @staticmethod
+    def _all_local_running(cmd, *args, **kwargs):
+        return _make_run_result(_running_record(cmd[-1], "healthy") + "\n")
+
+    def test_remote_sonarqube_up_returns_zero(self) -> None:
+        with patch.object(hook, "REMOTE_SERVICES", self._REMOTE), patch.object(
+            hook.subprocess, "run", side_effect=self._all_local_running
+        ), patch.object(
+            hook.urllib.request,
+            "urlopen",
+            return_value=_FakeHTTPResponse(200, '{"status":"UP"}'),
+        ):
+            self.assertEqual(hook.main(), 0)
+
+    def test_remote_sonarqube_command_up_returns_zero(self) -> None:
+        remote = (
+            {
+                "label": "sonarqube",
+                "host": "dell",
+                "health_command": [
+                    "docker",
+                    "--context",
+                    "dell",
+                    "exec",
+                    "xf_linker_sonarqube",
+                    "bash",
+                    "-lc",
+                    "curl -fsS http://localhost:9000/api/system/status",
+                ],
+                "health_ok_contains": '"status":"UP"',
+            },
+        )
+
+        def fake_run(cmd, *args, **kwargs):
+            if cmd[:3] == ["docker", "--context", "dell"]:
+                return _make_run_result('{"status":"UP"}\n')
+            return self._all_local_running(cmd, *args, **kwargs)
+
+        with patch.object(hook, "REMOTE_SERVICES", remote), patch.object(
+            hook.subprocess, "run", side_effect=fake_run
+        ):
+            self.assertEqual(hook.main(), 0)
+
+    def test_remote_sonarqube_command_failure_blocks(self) -> None:
+        remote = (
+            {
+                "label": "sonarqube",
+                "host": "dell",
+                "health_command": ["docker", "--context", "dell", "exec", "bad"],
+                "health_ok_contains": '"status":"UP"',
+            },
+        )
+
+        def fake_run(cmd, *args, **kwargs):
+            if cmd[:3] == ["docker", "--context", "dell"]:
+                return _make_run_result("", returncode=1)
+            return self._all_local_running(cmd, *args, **kwargs)
+
+        captured: list[str] = []
+        with patch.object(hook, "REMOTE_SERVICES", remote), patch.object(
+            hook.subprocess, "run", side_effect=fake_run
+        ), patch.object(hook.sys, "stderr", new=_collect(captured)):
+            rc = hook.main()
+        self.assertEqual(rc, 2)
+        self.assertIn("health_command failed", "".join(captured))
+
+    def test_remote_sonarqube_unreachable_blocks(self) -> None:
+        def boom(*args, **kwargs):
+            raise hook.urllib.error.URLError("connection refused")
+
+        captured: list[str] = []
+        with patch.object(hook, "REMOTE_SERVICES", self._REMOTE), patch.object(
+            hook.subprocess, "run", side_effect=self._all_local_running
+        ), patch.object(
+            hook.urllib.request, "urlopen", side_effect=boom
+        ), patch.object(hook.sys, "stderr", new=_collect(captured)):
+            rc = hook.main()
+        self.assertEqual(rc, 2)
+        joined = "".join(captured)
+        self.assertIn("sonarqube", joined)
+        self.assertIn("dell", joined.lower())
+
+    def test_remote_sonarqube_not_up_blocks(self) -> None:
+        captured: list[str] = []
+        with patch.object(hook, "REMOTE_SERVICES", self._REMOTE), patch.object(
+            hook.subprocess, "run", side_effect=self._all_local_running
+        ), patch.object(
+            hook.urllib.request,
+            "urlopen",
+            return_value=_FakeHTTPResponse(200, '{"status":"DOWN"}'),
+        ), patch.object(hook.sys, "stderr", new=_collect(captured)):
+            rc = hook.main()
+        self.assertEqual(rc, 2)
+        self.assertIn("sonarqube", "".join(captured))
 
 
 class _StderrCollector:

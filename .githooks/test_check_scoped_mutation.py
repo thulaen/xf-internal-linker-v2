@@ -15,72 +15,92 @@ hook = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(hook)
 
 
-class _FakeResolver:
-    def __init__(self, mut_floor):
-        self._f = mut_floor
+class _FakeCov:
+    """Stand-in for the coverage hook: returns canned changed-line sets."""
 
-    def tier_mutation_floor(self, path):  # noqa: ARG002
-        return self._f
+    def __init__(self, changed):
+        self._changed = changed
 
-
-# A realistic mutmut v2 progress/summary line.
-_GOOD = "⠼ 20/20  🎉 19 🫥 0 ⏰ 0 🤔 0 🙁 1 🔇 0"
-_BAD = "⠼ 20/20  🎉 12 🫥 0 ⏰ 1 🤔 0 🙁 7 🔇 0"
+    def _changed_lines(self, path):  # noqa: ARG002
+        return self._changed
 
 
-class ParseKillRateTests(unittest.TestCase):
-    def test_parses_high_kill_rate(self) -> None:
-        # 19 killed / (19+1) = 95%
-        self.assertAlmostEqual(hook._parse_kill_rate(_GOOD), 95.0, places=1)
+# Raw helper output the diff-scope runner prints. A completed run ends with
+# DONE (or NO_CHANGED_MUTANTS) and lists each survivor on its own `LIVE ` line.
+_CLEAN = "scanning\nNO_CHANGED_MUTANTS\n"
+_SURVIVORS = "scanning\nLIVE apps/x/foo.py:12 (m3)\nLIVE apps/x/foo.py:14 (m9)\nDONE\n"
+_INCOMPLETE = "scanning\ncontainer crashed before any verdict\n"
 
-    def test_parses_low_kill_rate(self) -> None:
-        # 12 killed / (12+7+1) = 60%
-        self.assertAlmostEqual(hook._parse_kill_rate(_BAD), 60.0, places=1)
 
-    def test_no_mutants_returns_none(self) -> None:
-        self.assertIsNone(hook._parse_kill_rate("nothing to mutate"))
+class ParseLiveTests(unittest.TestCase):
+    def test_completed_run_with_survivors_lists_them(self) -> None:
+        self.assertEqual(
+            hook._parse_live(_SURVIVORS),
+            ["apps/x/foo.py:12 (m3)", "apps/x/foo.py:14 (m9)"],
+        )
+
+    def test_completed_run_with_no_survivors_is_empty_list(self) -> None:
+        self.assertEqual(hook._parse_live(_CLEAN), [])
+
+    def test_incomplete_run_returns_none(self) -> None:
+        self.assertIsNone(hook._parse_live(_INCOMPLETE))
 
 
 class MainTests(unittest.TestCase):
+    def _patches(self, *, changed, run_mutmut):
+        """Patch the seams main() uses: staged files, the coverage hook
+        (changed-line source), the run lock, and the mutation runner.
+
+        `changed` is the set returned by cov._changed_lines (or None for a
+        brand-new file). `run_mutmut` is the (live, raw) tuple the runner yields.
+        """
+        return (
+            patch.object(hook, "_staged_python_files",
+                         return_value=["backend/apps/x/foo.py"]),
+            patch.object(hook, "_load_coverage_hook",
+                         return_value=_FakeCov(changed)),
+            patch.object(hook, "_acquire_lock_or_heal", return_value=0),
+            patch.object(hook, "_run_mutmut", return_value=run_mutmut),
+        )
+
     def test_no_staged_passes(self) -> None:
         with patch.object(hook, "_staged_python_files", return_value=[]):
             self.assertEqual(hook.main(), 0)
 
-    def test_above_floor_passes(self) -> None:
-        with patch.object(hook, "_staged_python_files",
-                          return_value=["backend/apps/x/foo.py"]), \
-             patch.object(hook, "_load_resolver", return_value=_FakeResolver(90)), \
-             patch.object(hook, "_run_mutmut", return_value=(95.0, _GOOD)):
+    def test_no_changed_lines_skips(self) -> None:
+        # Only comment / blank edits → no changed code → nothing to mutate-check.
+        p_staged, p_cov, p_lock, p_run = self._patches(
+            changed=set(), run_mutmut=([], _CLEAN))
+        with p_staged, p_cov, p_lock:
             self.assertEqual(hook.main(), 0)
 
-    def test_below_floor_blocks(self) -> None:
-        with patch.object(hook, "_staged_python_files",
-                          return_value=["backend/apps/x/foo.py"]), \
-             patch.object(hook, "_load_resolver", return_value=_FakeResolver(90)), \
-             patch.object(hook, "_run_mutmut", return_value=(60.0, _BAD)):
+    def test_no_survivors_passes(self) -> None:
+        p_staged, p_cov, p_lock, p_run = self._patches(
+            changed={12}, run_mutmut=([], _CLEAN))
+        with p_staged, p_cov, p_lock, p_run:
+            self.assertEqual(hook.main(), 0)
+
+    def test_survivor_on_changed_line_blocks(self) -> None:
+        p_staged, p_cov, p_lock, p_run = self._patches(
+            changed={12}, run_mutmut=(["apps/x/foo.py:12 (m3)"], _SURVIVORS))
+        with p_staged, p_cov, p_lock, p_run:
             self.assertEqual(hook.main(), 1)
-
-    def test_floor_capped_at_ninety(self) -> None:
-        # tier1 mutation floor is 100 in config, but the ceiling caps it at 90,
-        # so a 92% kill rate must PASS.
-        with patch.object(hook, "_staged_python_files",
-                          return_value=["backend/apps/x/foo.py"]), \
-             patch.object(hook, "_load_resolver", return_value=_FakeResolver(100)), \
-             patch.object(hook, "_run_mutmut", return_value=(92.0, _GOOD)):
-            self.assertEqual(hook.main(), 0)
 
     def test_unmeasurable_blocks(self) -> None:
-        with patch.object(hook, "_staged_python_files",
-                          return_value=["backend/apps/x/foo.py"]), \
-             patch.object(hook, "_load_resolver", return_value=_FakeResolver(90)), \
-             patch.object(hook, "_run_mutmut", return_value=(None, "docker down")):
+        # live is None → mutation could not run → fail closed.
+        p_staged, p_cov, p_lock, p_run = self._patches(
+            changed={12}, run_mutmut=(None, "docker down"))
+        with p_staged, p_cov, p_lock, p_run:
             self.assertEqual(hook.main(), 1)
 
-    def test_zero_floor_skips(self) -> None:
+    def test_live_lock_aborts(self) -> None:
+        # A live competing run holds the lock → main returns the abort code.
         with patch.object(hook, "_staged_python_files",
                           return_value=["backend/apps/x/foo.py"]), \
-             patch.object(hook, "_load_resolver", return_value=_FakeResolver(0)):
-            self.assertEqual(hook.main(), 0)
+             patch.object(hook, "_load_coverage_hook",
+                          return_value=_FakeCov({12})), \
+             patch.object(hook, "_acquire_lock_or_heal", return_value=2):
+            self.assertEqual(hook.main(), 2)
 
     def test_fail_message_has_three_parts(self) -> None:
         with patch.object(hook.sys.stderr, "write") as werr:

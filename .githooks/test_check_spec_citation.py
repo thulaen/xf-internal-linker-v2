@@ -111,7 +111,8 @@ class SpecCitationTests(unittest.TestCase):
             with mock.patch.object(self.hook, "REPO_ROOT", Path(td)), \
                  mock.patch.object(self.hook, "_staged_new_specs",
                                    return_value=["docs/specs/example.md"]), \
-                 mock.patch.object(self.hook, "_staged_code_files", return_value=[]):
+                 mock.patch.object(self.hook, "_staged_code_files", return_value=[]), \
+                 mock.patch.object(self.hook, "_today", return_value=date(2026, 5, 16)):
                 self.assertEqual(self.hook.main(), 0)
 
     def test_new_spec_without_monthly_freshness_fails(self):

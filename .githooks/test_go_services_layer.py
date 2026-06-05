@@ -29,7 +29,9 @@ artefacts the skip lifts automatically.
 
 from __future__ import annotations
 
+import importlib.util
 import os
+import subprocess
 import sys
 from pathlib import Path
 from unittest import TestCase, skipUnless
@@ -47,9 +49,36 @@ from _modular_monolith_constants import (  # noqa: E402
 )
 
 
+def _load_contract_hook():
+    """Load check-go-service-contract.py so the test reuses the hook's own
+    multi-service detection. Sharing the live helper is what keeps the test
+    and the on-commit hook from drifting (see the module docstring)."""
+    spec = importlib.util.spec_from_file_location(
+        "check_go_service_contract", HOOKS_DIR / "check-go-service-contract.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module  # @dataclass needs the module registered
+    spec.loader.exec_module(module)
+    return module
+
+
+_CONTRACT_HOOK = _load_contract_hook()
+
+
+def _has_contract(folder: Path) -> bool:
+    """A service publishes its RPC contract either as a single top-level
+    api.proto / api.http.md OR — for a multi-service folder (slice 1.6
+    sidecars shape) — as services.manifest.yaml plus api/*.proto. This mirrors
+    check-go-service-contract.py exactly."""
+    if any((folder / cf).is_file() for cf in GO_CONTRACT_FILES):
+        return True
+    return _CONTRACT_HOOK._is_multi_service_folder(folder)
+
+
 _ALLOWED_NON_GO_EXTENSIONS = {
     ".md",
     ".proto",
+    ".avsc",  # Avro schema definitions — a contract artefact like .proto.
     ".yml",
     ".yaml",
     ".toml",
@@ -83,6 +112,34 @@ _TOLERATED_ARTEFACTS = {
     "bench.txt",
     "PROMOTION-AUDIT.md",  # short-lived; auto-deleted at end of slice
 }
+
+
+def _git_ignored(paths: list[Path]) -> set[Path]:
+    """Return the subset of `paths` that git itself ignores.
+
+    Build outputs and protoc/buf intermediates (compiled binaries, *.tmp
+    files) are gitignored debris, not tracked source the layer-fence rule
+    governs. One batched `git check-ignore` keeps this cheap.
+    """
+    if not paths:
+        return set()
+    repo_root = SERVICES_DIR.parent
+    try:
+        result = subprocess.run(
+            # `-c safe.directory=*` keeps this working when the repo is owned
+            # by a different uid than the (container) user running the tests.
+            ["git", "-c", "safe.directory=*", "-C", str(repo_root),
+             "check-ignore", "--stdin"],
+            input="\n".join(str(p) for p in paths),
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return set()
+    ignored = {line.strip() for line in result.stdout.splitlines() if line.strip()}
+    return {p for p in paths if str(p) in ignored}
 
 
 def _is_test_fixture(path: Path) -> bool:
@@ -138,17 +195,17 @@ class GoServicesLayerTests(TestCase):
         self,
     ) -> None:
         for folder in go_service_folders():
-            contracts = [folder / cf for cf in GO_CONTRACT_FILES]
             self.assertTrue(
-                any(p.is_file() for p in contracts),
+                _has_contract(folder),
                 f"services/{folder.name}/ must publish ONE of {list(GO_CONTRACT_FILES)} — "
+                f"or, for a multi-service folder, services.manifest.yaml + api/*.proto — "
                 f"the contract is the public RPC surface",
             )
 
     def test_services_tier_contains_only_allowed_non_go_files(self) -> None:
         if not SERVICES_DIR.is_dir():
             self.skipTest("no services/ folder yet — nothing to check")
-        offenders: list[str] = []
+        candidates: list[Path] = []
         for folder in go_service_folders():
             for current, dirs, filenames in os.walk(folder):
                 # Skip vendored / build outputs that are not tracked.
@@ -167,7 +224,13 @@ class GoServicesLayerTests(TestCase):
                         continue
                     if _is_parity_baseline(full):
                         continue
-                    offenders.append(str(full.relative_to(SERVICES_DIR.parent)))
+                    candidates.append(full)
+        # Drop gitignored build/temp debris (compiled binaries, *.tmp protoc
+        # intermediates) — those are not tracked source the rule governs.
+        ignored = _git_ignored(candidates)
+        offenders = [
+            str(p.relative_to(SERVICES_DIR.parent)) for p in candidates if p not in ignored
+        ]
         self.assertEqual(
             offenders,
             [],

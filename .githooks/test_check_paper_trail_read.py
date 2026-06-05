@@ -93,6 +93,10 @@ class MarkerValidationTests(unittest.TestCase):
 
     def test_any_staged_file_without_handoff_fails(self):
         with (
+            # Neutralize the ambient session-gate token check so this test
+            # exercises the "staged files but no handoff marker" branch rather
+            # than short-circuiting on a stale audit/session_gate_state.json.
+            mock.patch.object(self.hook, "_validate_session_gate_token", return_value=0),
             mock.patch.object(self.hook, "_read_staged_handoff_diff", return_value=""),
             mock.patch.object(self.hook, "_code_changing_commit", return_value=False),
             mock.patch.object(self.hook, "_commit_has_staged_files", return_value=True, create=True),

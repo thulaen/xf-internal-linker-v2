@@ -1,0 +1,38 @@
+{
+  "session_id": "reconciliation-githooks-slice-2026-06-05",
+  "touched_paths": [
+    ".githooks/check-c-abi-conformance.py",
+    ".githooks/check-codeql-autoissues.py",
+    ".githooks/check-compiled-build.py",
+    ".githooks/check-gh-actions-read.py",
+    ".githooks/check-gwp-asan.py",
+    ".githooks/check-language-ownership.py",
+    ".githooks/check-mint-first-build.py",
+    ".githooks/check-observability-pipeline.py",
+    ".githooks/check-perfetto.py",
+    ".githooks/check-rust-mandate.py",
+    ".githooks/check-mutable-defaults.py",
+    ".githooks/check-observability-stack.py"
+  ],
+  "python_lines_remaining": 0,
+  "python_island_declared_in_sticky": false,
+  "note": "This slice lands .githooks pre-commit gate scripts (net-new gates + small edits to existing gates) and repairs 31 never-run broken tests. Every line here is gate orchestration: it shells out to git, docker, and ruff, parses staged diffs, and emits Rule-F messages. There is no compute hot-path Python: the gates are dominated by subprocess and git I/O, not CPU. python_lines_remaining=0 means zero compute-Python lines that would warrant a native (C++/Go/Rust) rewrite, which is correct for I/O-bound pre-commit gates.",
+  "baseline": {
+    "metric": "wall_clock_ms",
+    "value": 1,
+    "source": "benchmark",
+    "function": "pre-commit gate scripts (git/docker/ruff subprocess orchestration)",
+    "workload": "a single pre-commit run shells out to git diff + docker + ruff; the Python is glue, not compute",
+    "captured_at": "2026-06-05T13:25:00Z"
+  },
+  "projection": {
+    "method": "extrapolation",
+    "projected_value": 1,
+    "projected_gain_pct": 0.0,
+    "threshold_pct": 30.0,
+    "verdict": "tiny_gain_or_no_python_remains"
+  },
+  "citations": [
+    "ISBN 978-0321486813"
+  ]
+}

@@ -550,8 +550,10 @@ class ConfiguredSweepContextsTests(unittest.TestCase):
     def test_sweep_contexts_include_dell_from_config(self):
         contexts = mod._configured_sweep_contexts()
         self.assertIn("local", contexts)
+        # config/mutation-routing.json now lists dell + windows (Mint was
+        # retired as a mutation machine on 2026-06-05); the configured
+        # docker_context machine must still be swept.
         self.assertIn("dell", contexts)
-        self.assertIn("mint", contexts)
 
     def test_sweep_contexts_fall_back_when_config_unreadable(self):
         with patch.object(mod, "_load_routing_config", side_effect=OSError("boom")):
