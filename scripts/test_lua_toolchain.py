@@ -145,6 +145,13 @@ def test_lua_quality_runner_uses_adaptive_workers_and_all_tools() -> None:
     assert "MUTATION-NOT-WIRED: language=lua" not in runner
 
 
+def test_compose_defines_lua_quality_tools_service() -> None:
+    compose = _read("docker-compose.yml")
+    assert "lua-quality-tools:" in compose
+    assert "tools/lua/Dockerfile" in compose
+    assert "xf-linker-lua-quality-tools:latest" in compose
+
+
 def test_agent_rules_lock_lua_and_redis_to_windows_local_control_plane() -> None:
     required = (
         "Local control plane stays on Windows Docker Desktop",

@@ -61,17 +61,17 @@ services:
       retries: 5
 
   # ─────────────────────────────────────────────
-  # SonarQube — code-quality server. Runs on the Mint helper, NOT Windows.
-  # Gated behind the `mint-quality` profile so a default `docker compose up`
+  # SonarQube — code-quality server. Runs on the Dell helper, NOT Windows.
+  # Gated behind the `dell-quality` profile so a default `docker compose up`
   # on Windows does not start it (see docs/specs/fr-mint-quality-tool-placement.md
-  # and config/docker-stack-health.json). Mint starts it via
-  # scripts/start-mint-quality-tools.ps1 (`docker compose --profile mint-quality up`).
-  # Windows reaches it over the network through SONAR_HOST_URL=http://10.10.10.91:9000.
+  # and config/docker-stack-health.json). Dell starts it via
+  # scripts/start-dell-sonar-tools.ps1. Windows reaches it over the network
+  # through SONAR_HOST_URL=http://dell:9000.
   # ─────────────────────────────────────────────
   sonarqube:
     image: sonarqube:community
     container_name: xf_linker_sonarqube
-    profiles: ["mint-quality"]
+    profiles: ["dell-quality"]
     restart: unless-stopped
     # 1.5g is comfortable for the Community edition with ES bootstrap checks
     # disabled; trimmed from 2g to leave headroom on a 16 GB host.
@@ -83,22 +83,22 @@ services:
       - sonarqube_extensions:/opt/sonarqube/extensions
       - sonarqube_logs:/opt/sonarqube/logs
     ports:
-      - "127.0.0.1:9000:9000"
+      - "${SONAR_BIND_ADDR:-127.0.0.1}:9000:9000"
 
   # ─────────────────────────────────────────────
-  # Manual one-shot Sonar scanner. Lives in the mint-quality profile so it
-  # does NOT pull onto Windows; run it on the Mint helper alongside the
+  # Manual one-shot Sonar scanner. Lives in the dell-quality profile so it
+  # does NOT pull onto Windows; run it on Dell alongside the
   # SonarQube server:
-  #   docker compose --profile mint-quality run --rm sonar-scanner
-  # (Day-to-day, sonar-autoscan on Mint scans continuously, so this manual
+  #   scripts/start-dell-sonar-tools.ps1
+  # (Day-to-day, sonar-autoscan on Dell scans continuously, so this manual
   # one-shot is rarely needed.)
   # ─────────────────────────────────────────────
   sonar-scanner:
     image: sonarsource/sonar-scanner-cli:latest
-    profiles: ["mint-quality"]
-    # No depends_on: SonarQube runs on Mint behind the mint-quality profile.
-    # On Mint it reaches the server via the in-network name; from Windows it
-    # would use SONAR_HOST_URL (http://10.10.10.91:9000 in .env).
+    profiles: ["dell-quality"]
+    # No depends_on: SonarQube runs on Dell behind the dell-quality profile.
+    # On Dell it reaches the server via the in-network name; from Windows it
+    # uses SONAR_HOST_URL=http://dell:9000.
     environment:
       SONAR_HOST_URL: ${SONAR_HOST_URL:-http://sonarqube:9000}
       SONAR_TOKEN: ${SONAR_TOKEN:-}
@@ -120,14 +120,14 @@ services:
 
   # ─────────────────────────────────────────────
   # Sonar autoscan loop — keeps SonarQube warm without user action.
-  # Runs on Mint alongside sonarqube (same mint-quality profile), NOT on
-  # Windows. On Mint it reaches sonarqube via the compose-network name
+  # Runs on Dell alongside sonarqube (same dell-quality profile), NOT on
+  # Windows. On Dell it reaches sonarqube via the compose-network name
   # `sonarqube` (its SONAR_HOST_URL default below); Windows never starts it.
   # ─────────────────────────────────────────────
   sonar-autoscan:
     image: sonarsource/sonar-scanner-cli:latest
     container_name: xf_linker_sonar_autoscan
-    profiles: ["mint-quality"]
+    profiles: ["dell-quality"]
     restart: unless-stopped
     # Cap the scanner so its JVM (-Xmx768m) plus overhead can't exceed ~1g.
     mem_limit: 1g
@@ -517,6 +517,23 @@ services:
     command: sh -lc "tail -f /dev/null"
     healthcheck:
       test: ["CMD-SHELL", "node --version >/dev/null 2>&1 && npm --version >/dev/null 2>&1"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+      start_period: 20s
+
+  lua-quality-tools:
+    build:
+      context: .
+      dockerfile: tools/lua/Dockerfile
+    image: xf-linker-lua-quality-tools:latest
+    profiles: ["quality-tools"]
+    working_dir: /repo
+    volumes:
+      - .:/repo
+    command: sh -lc "tail -f /dev/null"
+    healthcheck:
+      test: ["CMD-SHELL", "command -v lua-fastcheck >/dev/null && lua-mutmut --version >/dev/null && luajit -v >/dev/null 2>&1"]
       interval: 60s
       timeout: 20s
       retries: 3

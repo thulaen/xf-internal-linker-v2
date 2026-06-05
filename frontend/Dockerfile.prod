@@ -27,7 +27,7 @@ ENV CHROME_BIN=/usr/bin/chromium \
     NODE_OPTIONS=--max-old-space-size=2048
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends chromium python3 \
+    && apt-get install -y --no-install-recommends chromium git python3 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

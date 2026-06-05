@@ -6,6 +6,7 @@ from pathlib import Path
 
 
 SCRIPT = Path(__file__).resolve().parent / "run-angular-quality.sh"
+FRONTEND_DOCKERFILE = Path(__file__).resolve().parents[1] / "frontend" / "Dockerfile.prod"
 
 
 def test_angular_wrapper_passes_large_scope_by_file() -> None:
@@ -21,3 +22,9 @@ def test_angular_wrapper_delegates_mutation_in_turbo_mode() -> None:
 
     assert 'XF_TURBO_MUTATION="${XF_TURBO_MUTATION:-0}"' in text
     assert "Angular mutation delegated to turbo coordinator" in text
+
+
+def test_frontend_quality_image_installs_git_for_policy_helpers() -> None:
+    text = FRONTEND_DOCKERFILE.read_text(encoding="utf-8")
+
+    assert "git" in text
