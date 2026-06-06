@@ -572,6 +572,14 @@ class RuntimeConfigView(APIView):
             "value_type": "int",
             "description": "Embedding batch size used by the pipeline runtime.",
         },
+        "system.gpu_memory_budget_pct": {
+            "value_type": "int",
+            "description": "Maximum GPU memory budget percentage for embeddings.",
+        },
+        "system.gpu_temp_pause_c": {
+            "value_type": "int",
+            "description": "GPU temperature where embedding work pauses.",
+        },
         "system.cpu_encode_threads": {
             "value_type": "int",
             "description": "CPU thread cap for CPU-side embedding inference.",
@@ -664,6 +672,10 @@ class RuntimeConfigView(APIView):
         from django.conf import settings as django_conf
 
         default_batch = int(getattr(django_conf, "EMBEDDING_BATCH_SIZE", 32) or 32)
+        default_gpu_pct = int(
+            float(getattr(django_conf, "CUDA_MEMORY_FRACTION_HIGH", 0.8) or 0.8) * 100
+        )
+        default_gpu_temp = int(getattr(django_conf, "GPU_TEMP_CEILING_C", 90) or 90)
         default_queue_concurrency = self._default_queue_concurrency(django_conf)
         cpu_thread_cap = self._cpu_thread_cap()
         default_cpu_threads = min(self.CPU_THREAD_DEFAULT, cpu_thread_cap)
@@ -679,6 +691,12 @@ class RuntimeConfigView(APIView):
             "embedding_batch_size": self._read_int(
                 "system.embedding_batch_size", default_batch
             ),
+            "gpu_memory_budget_pct": self._read_int(
+                "system.gpu_memory_budget_pct", default_gpu_pct
+            ),
+            "gpu_temp_pause_c": self._read_int(
+                "system.gpu_temp_pause_c", default_gpu_temp
+            ),
             "cpu_encode_threads": self._read_int(
                 "system.cpu_encode_threads", default_cpu_threads
             ),
@@ -688,6 +706,8 @@ class RuntimeConfigView(APIView):
                 "system.aggressive_oom_backoff", True
             ),
             "embedding_batch_size_range": [self.BATCH_SIZE_MIN, self.BATCH_SIZE_MAX],
+            "gpu_memory_budget_pct_range": [10, 95],
+            "gpu_temp_pause_c_range": [50, 95],
             "cpu_encode_threads_range": [1, cpu_thread_cap],
             "default_queue_concurrency_range": qc_range,
             "celery_concurrency_range": qc_range,
@@ -774,6 +794,18 @@ class RuntimeConfigView(APIView):
                 "db_key": "system.embedding_batch_size",
                 "lo": self.BATCH_SIZE_MIN,
                 "hi": self.BATCH_SIZE_MAX,
+            },
+            {
+                "field": "gpu_memory_budget_pct",
+                "db_key": "system.gpu_memory_budget_pct",
+                "lo": 10,
+                "hi": 95,
+            },
+            {
+                "field": "gpu_temp_pause_c",
+                "db_key": "system.gpu_temp_pause_c",
+                "lo": 50,
+                "hi": 95,
             },
             {
                 "field": "cpu_encode_threads",

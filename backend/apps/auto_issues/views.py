@@ -115,3 +115,13 @@ class AutoIssueViewSet(viewsets.ReadOnlyModelViewSet):
             "flushed_rows": flushed,
             "glitchtip_sync": gt_sync,
         }, status=status.HTTP_200_OK)
+
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="ingest-observability",
+        permission_classes=[permissions.AllowAny],
+    )
+    def ingest_observability(self, request):
+        """Accept observability events (e.g. from Grafana or external sources) silently."""
+        return Response({"status": "ok"}, status=status.HTTP_200_OK)

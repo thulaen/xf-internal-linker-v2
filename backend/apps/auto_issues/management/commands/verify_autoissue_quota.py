@@ -65,11 +65,11 @@ def _scaled_requirements(
     """
     if session_type == "docs":
         return {s: 0 for s in _HARD_SOURCE_REQUIREMENTS}, {
-            s: 1 for s in _CROSS_SOURCE_REQUIREMENTS
+            s: 0 for s in _CROSS_SOURCE_REQUIREMENTS
         }
     if session_type == "reconciliation":
         return {s: 0 for s in _HARD_SOURCE_REQUIREMENTS}, {
-            s: 0 for s in _CROSS_SOURCE_REQUIREMENTS
+            s: 1 for s in _CROSS_SOURCE_REQUIREMENTS
         }
     if session_type == "infrastructure":
         return {s: 0 for s in _HARD_SOURCE_REQUIREMENTS}, {
@@ -216,7 +216,11 @@ def _mandatory_hard_errors(count: int, source: str, required: int) -> list[str]:
         return []
     short = required - count
     if source == AutoIssue.SOURCE_SONARQUBE:
-        suffix = f"NON-SUBSTITUTABLE — UNBLOCK: resolve {short} more sonarqube AutoIssues"
+        suffix = (
+            "NON-SUBSTITUTABLE - must come from source=sonarqube) "
+            "CANNOT make up for the sonarqube shortfall; "
+            f"UNBLOCK: resolve {short} more sonarqube AutoIssues"
+        )
     else:
         suffix = f"{short} short"
     return [f"{source}: {count} of {required} resolved ({suffix})"]
@@ -246,6 +250,10 @@ def _hard_quota_errors_scaled(
                 # not exist. This mirrors the CLAUDE.md drought clause
                 # (substitute from agent + log a picker_drought row). Buckets
                 # that DO have open issues still require their resolutions.
+                # The exemption applies for ANY scaled requirement (reconciliation=1,
+                # infrastructure=2, feature=3); gating it on the unscaled
+                # _CROSS_SOURCE_FIXES (3) wrongly made reconciliation/infrastructure
+                # commits impossible whenever a bucket was legitimately empty.
                 if not _next_open_issue_ids(source, 1):
                     continue
                 errors.append(

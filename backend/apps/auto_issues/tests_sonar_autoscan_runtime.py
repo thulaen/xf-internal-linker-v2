@@ -41,10 +41,13 @@ def _sonarqube_reachable() -> bool:
     if not SONAR_TOKEN:
         return False
     try:
-        req = urllib.request.Request(f"{SONAR_HOST}/api/system/status")
+        req = urllib.request.Request(
+            f"{SONAR_HOST}/api/authentication/validate",
+            headers={"Authorization": "Basic " + b64encode(f"{SONAR_TOKEN}:".encode()).decode()},
+        )
         with urllib.request.urlopen(req, timeout=5) as resp:
             body = json.loads(resp.read())
-            return body.get("status") == "UP"
+            return bool(body.get("valid"))
     except (urllib.error.URLError, OSError, json.JSONDecodeError):
         return False
 

@@ -17,7 +17,8 @@ session start.
 from __future__ import annotations
 
 import json
-import subprocess
+import shutil
+import subprocess  # nosec B404
 
 from django.core.management.base import BaseCommand
 
@@ -126,25 +127,6 @@ class Command(BaseCommand):
         # both the comprehensive coding rules AND the coverage rules.
         self.stdout.write("[GUIDELINES READ: AI-CODING-GUIDELINES.md + docs/CODE-COVERAGE-RULES.md]")
 
-        self._print_linear_issues()
-
-    def _print_linear_issues(self) -> None:
-        try:
-            from apps.core.services.linear_api import fetch_open_linear_issues
-            issues = fetch_open_linear_issues()
-        except Exception:
-            self.stdout.write("[LINEAR ISSUES READ: skipped — API error]")
-            return
-
-        if not issues:
-            self.stdout.write("[LINEAR ISSUES READ: 0 open — picked: none]")
-            return
-
-        pick_ids = ", ".join(i["id"] for i in issues)
-        self.stdout.write(f"[LINEAR ISSUES READ: {len(issues)} open — picked: {pick_ids}]")
-        for i in issues:
-            self.stdout.write(f"  {i['id']} {i.get('title', '')[:80]} — {i.get('url', '')}")
-
     def _print_ci_failed_runs(self) -> None:
         """Shell out to `gh run list` and print the second marker line.
 
@@ -153,10 +135,15 @@ class Command(BaseCommand):
         returns. The check-registry-read.py hook accepts that form so
         contributors without `gh` aren't blocked.
         """
+        gh_path = shutil.which("gh")
+        if gh_path is None:
+            self.stdout.write("[CI FAILED RUNS READ: skipped — gh unavailable]")
+            return
+
         try:
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603
                 [
-                    "gh", "run", "list",
+                    gh_path, "run", "list",
                     "--status", "failure",
                     "--limit", "10",
                     "--json", "databaseId,name,headBranch,conclusion,url,workflowName",

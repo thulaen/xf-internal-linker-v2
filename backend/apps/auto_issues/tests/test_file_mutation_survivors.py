@@ -115,6 +115,16 @@ class FileMutationSurvivorsTests(TransactionTestCase):
             0,
         )
 
+    def test_malformed_json_report_raises_command_error(self):
+        # Lines 310-311: a report that exists but is not valid JSON is a
+        # hard error (the tool run is broken), unlike a missing report.
+        from django.core.management.base import CommandError
+
+        bad = self.tmp / "broken.json"
+        bad.write_text("{not valid json", encoding="utf-8")
+        with self.assertRaisesMessage(CommandError, "could not parse"):
+            self._run(tool="stryker", report=str(bad))
+
     def test_missing_report_treated_as_clean_run(self):
         # Phase I rule: a missing report is NOT an error; the mutation
         # tool may have crashed or hit the 5-min cap. No survivors to
@@ -257,6 +267,53 @@ class CargoHelperFunctionTests(TestCase):
         self.assertEqual(result["file"], "src/lib.rs")
         self.assertIn("mypkg", result["id"])
         self.assertIn("my_fn", result["id"])
+
+    def test_cargo_mutants_shape_a_reads_missed_and_outcomes(self):
+        # Lines 217-224 + 244-246: object payload routes through shape A,
+        # gathering both the flat `missed[]` list and `MissedMutant`
+        # outcomes that carry a nested scenario.Mutant object.
+        from apps.auto_issues.management.commands.file_mutation_survivors import (
+            _parse_cargo_mutants,
+        )
+        payload = {
+            "missed": [
+                {"file": "src/a.rs", "line": 5, "replacement": "==",
+                 "package": "p", "function": "f"},
+            ],
+            "outcomes": [
+                {
+                    "summary": "MissedMutant",
+                    "scenario": {"Mutant": {"file": "src/b.rs", "line": 9,
+                                             "replacement": "!="}},
+                },
+                {"summary": "CaughtMutant", "scenario": {"Mutant": {}}},
+            ],
+        }
+        survivors = _parse_cargo_mutants(payload)
+        self.assertEqual(len(survivors), 2)
+        files = sorted(s["file"] for s in survivors)
+        self.assertEqual(files, ["src/a.rs", "src/b.rs"])
+
+    def test_cargo_mutants_shape_b_reads_array_of_outcomes(self):
+        # Lines 227-234 + 247-248: list payload routes through shape B; only
+        # MissedMutant outcomes with a real Mutant object become survivors.
+        from apps.auto_issues.management.commands.file_mutation_survivors import (
+            _parse_cargo_mutants,
+        )
+        payload = [
+            {
+                "summary": "MissedMutant",
+                "scenario": {"Mutant": {"file": "src/c.rs", "line": 3,
+                                         "replacement": "<="}},
+            },
+            {"summary": "CaughtMutant",
+             "scenario": {"Mutant": {"file": "src/d.rs", "line": 4}}},
+            {"summary": "MissedMutant", "scenario": {"Mutant": {}}},  # empty -> skipped
+        ]
+        survivors = _parse_cargo_mutants(payload)
+        self.assertEqual(len(survivors), 1)
+        self.assertEqual(survivors[0]["file"], "src/c.rs")
+        self.assertEqual(survivors[0]["line"], 3)
 
 
 class SupportedToolsAndMucheckTests(SimpleTestCase):

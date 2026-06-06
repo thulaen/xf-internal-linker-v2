@@ -92,6 +92,40 @@ class SeverityNameTests(SimpleTestCase):
             self.assertEqual(tasks._severity_name(0), "SEV_0")
 
 
+class HelperConstraintMetadataTests(SimpleTestCase):
+    """The ``@HelperConstraint`` decorator stamps routing metadata onto the
+    bridge task so the helper-routing engine can read its resource profile.
+
+    The decorator sits INSIDE ``@shared_task``, so the metadata lives on the
+    Celery task's underlying callable (``run_bullboard_bridge.run`` when the
+    task is registered, or ``__wrapped__`` for the raw function). We read it
+    via the canonical accessor ``get_constraint`` to prove the exact values
+    declared in the source are the values the router will see.
+    """
+
+    def test_run_bullboard_bridge_carries_helper_constraint(self) -> None:
+        from apps.core.helpers import get_constraint
+        from apps.ops_feed.tasks import run_bullboard_bridge
+
+        # The decorator stashes ``__helper_constraint__`` on the wrapped
+        # callable; ``get_constraint`` returns it (or None when absent).
+        wrapped = getattr(run_bullboard_bridge, "__wrapped__", run_bullboard_bridge)
+        meta = get_constraint(wrapped)
+
+        self.assertIsNotNone(
+            meta,
+            msg="run_bullboard_bridge must declare a @HelperConstraint so the "
+            "routing engine knows its resource profile.",
+        )
+        # Exact values pin the changed decorator lines: a read-only bridge that
+        # is not CPU- or GPU-heavy, ~256 MB RAM, ~600 s expected runtime.
+        self.assertFalse(meta.cpu_intensive)
+        self.assertFalse(meta.gpu_required)
+        self.assertEqual(meta.storage_writes_to, "none")
+        self.assertEqual(meta.ram_peak_mb, 256)
+        self.assertEqual(meta.expected_seconds_p50, 600)
+
+
 class RunBullboardBridgeBackoffTests(SimpleTestCase):
     """The Celery entry point is hang-safe ONLY with ``max_iterations`` set.
 

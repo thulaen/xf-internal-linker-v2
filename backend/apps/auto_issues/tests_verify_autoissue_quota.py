@@ -95,6 +95,27 @@ class VerifyAutoIssueQuotaCommandTests(TestCase):
         with self.assertRaisesMessage(CommandError, "do not exist"):
             call_command("verify_autoissue_quota", ids=issue_ids)
 
+    def test_missing_ids_without_hard_flag_fails(self) -> None:
+        # Line 136: with neither --hard nor --ids, the command refuses.
+        with self.assertRaisesMessage(
+            CommandError, "--ids is required unless --hard is used."
+        ):
+            call_command("verify_autoissue_quota")
+
+    def test_hard_docs_session_type_passes_with_no_quota(self) -> None:
+        # Lines 117-121: --hard --session-type docs short-circuits to a
+        # success marker and requires no resolved issues at all.
+        out = StringIO()
+        call_command(
+            "verify_autoissue_quota",
+            hard=True,
+            session_type="docs",
+            stdout=out,
+        )
+        self.assertIn(
+            "[AUTOISSUE QUOTA VERIFIED: docs — no quota required]", out.getvalue()
+        )
+
 
 class HardQuotaTests(TestCase):
     """Tests for _hard_quota_errors() — Fixes 5, 6, and 7."""
@@ -279,16 +300,52 @@ class ScaledRequirementsTests(TestCase):
         self.assertEqual(errors, [], f"Expected no errors, got: {errors}")
 
     def test_hard_flag_reconciliation_fails_with_zero_cross_source(self):
-        """Reconciliation quota fails when cross-source count is 0."""
+        """Reconciliation quota fails when a bucket HAS open issues but none resolved.
+
+        The shortfall must be reported for buckets that have resolvable open
+        work; the genuine-drought exemption only spares buckets that are empty.
+        """
         from apps.auto_issues.management.commands.verify_autoissue_quota import (
             _hard_quota_errors_scaled,
             _scaled_requirements,
             _CROSS_SOURCE_REQUIREMENTS,
         )
+        # Give every cross-source bucket an OPEN issue so none is "dry"; then
+        # resolve none, so the quota must report every bucket short.
+        for src in _CROSS_SOURCE_REQUIREMENTS:
+            AutoIssue.objects.create(
+                source=src,
+                external_id=f"open-{src}",
+                title=f"open {src} issue",
+                status=AutoIssue.STATUS_OPEN,
+            )
         h, c = _scaled_requirements("reconciliation")
         counts: dict = {}  # no resolved issues at all
         errors = _hard_quota_errors_scaled(counts, h, c)
         self.assertGreater(len(errors), 0, "Expected errors with zero resolved cross-source")
+
+    def test_reconciliation_dry_cross_source_bucket_is_exempt(self):
+        """A cross-source bucket with NO open issues is exempt in reconciliation.
+
+        Regression: the genuine-drought exemption was gated on
+        `required == _CROSS_SOURCE_FIXES` (3, the feature-mode value), so it
+        never fired for reconciliation (required=1) or infrastructure (2).
+        That made every reconciliation commit impossible whenever pyroscope /
+        fuzz / contract were legitimately empty — you cannot resolve issues
+        that do not exist. The exemption must apply for any scaled requirement.
+        """
+        from apps.auto_issues.management.commands.verify_autoissue_quota import (
+            _hard_quota_errors_scaled,
+            _scaled_requirements,
+            _CROSS_SOURCE_REQUIREMENTS,
+        )
+        # Empty DB: every cross-source bucket is dry (0 open issues).
+        h, c = _scaled_requirements("reconciliation")
+        counts: dict = {}  # nothing resolved, but nothing exists to resolve
+        errors = _hard_quota_errors_scaled(counts, h, c)
+        self.assertEqual(
+            errors, [], f"Dry cross-source buckets must be exempt; got: {errors}"
+        )
 
 
 def _create_resolved_issues(count: int) -> list[str]:

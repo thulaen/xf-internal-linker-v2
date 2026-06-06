@@ -13,9 +13,9 @@ mistakes that have already bitten us during this session:
   - YAML `>` fold turns a multi-line `mkdir -p\n  /tmp/a\n  /tmp/b\n`
     with deeper indentation on the args into two separate commands —
     one with no args. mkdir must stay on a single line.
-  - SonarQube moved to the Mint helper on 2026-05-29
+  - SonarQube moved from Mint to Dell on 2026-06-05
     (docs/specs/fr-mint-quality-tool-placement.md). Both `sonarqube`
-    and `sonar-autoscan` now carry the `mint-quality` profile so a
+    and `sonar-autoscan` now carry the `dell-quality` profile so a
     default `docker compose up` on Windows starts neither. Because the
     dependent (`sonar-autoscan`) is gated by the same profile as its
     dependency (`sonarqube`), the default config stays valid — Compose
@@ -43,9 +43,9 @@ def _load_compose() -> dict:
         return yaml.safe_load(fh)
 
 
-class SonarqubeServiceMintQualityTests(SimpleTestCase):
-    """`sonarqube` runs on the Mint helper, gated behind the
-    `mint-quality` profile so a default `docker compose up` on Windows
+class SonarqubeServiceDellQualityTests(SimpleTestCase):
+    """`sonarqube` runs on Dell, gated behind the
+    `dell-quality` profile so a default `docker compose up` on Windows
     does not start it."""
 
     def setUp(self) -> None:
@@ -55,13 +55,17 @@ class SonarqubeServiceMintQualityTests(SimpleTestCase):
     def test_sonarqube_service_exists(self) -> None:
         self.assertIn("sonarqube", self.services)
 
-    def test_sonarqube_gated_to_mint_quality_profile(self) -> None:
+    def test_sonarqube_gated_to_dell_quality_profile(self) -> None:
         sonarqube = self.services["sonarqube"]
         self.assertIn("profiles", sonarqube, (
-            "sonarqube must carry the mint-quality profile so it does not "
-            "start on Windows; Mint runs it via start-mint-quality-tools.ps1."
+            "sonarqube must carry the dell-quality profile so it does not "
+            "start on Windows; Dell runs it via start-dell-sonar-tools.ps1."
         ))
-        self.assertIn("mint-quality", sonarqube["profiles"])
+        self.assertIn("dell-quality", sonarqube["profiles"])
+
+    def test_sonarqube_can_bind_to_dell_lan(self) -> None:
+        sonarqube = self.services["sonarqube"]
+        self.assertIn("${SONAR_BIND_ADDR:-127.0.0.1}:9000:9000", sonarqube["ports"])
 
     def test_sonarqube_has_restart_policy(self) -> None:
         sonarqube = self.services["sonarqube"]
@@ -69,17 +73,17 @@ class SonarqubeServiceMintQualityTests(SimpleTestCase):
 
 
 class SonarScannerServiceTests(SimpleTestCase):
-    """The one-shot `sonar-scanner` service runs on the Mint helper (with the
-    SonarQube server) via the mint-quality profile, and must not regress to a
+    """The one-shot `sonar-scanner` service runs on Dell (with the
+    SonarQube server) via the dell-quality profile, and must not regress to a
     broken working_dir."""
 
     def setUp(self) -> None:
         self.compose = _load_compose()
         self.scanner = self.compose["services"]["sonar-scanner"]
 
-    def test_one_shot_scanner_gated_to_mint_quality_profile(self) -> None:
+    def test_one_shot_scanner_gated_to_dell_quality_profile(self) -> None:
         self.assertIn("profiles", self.scanner)
-        self.assertIn("mint-quality", self.scanner["profiles"])
+        self.assertIn("dell-quality", self.scanner["profiles"])
 
     def test_no_working_dir_trap(self) -> None:
         """`working_dir: /tmp/sonar-src` would re-introduce the perm bug."""
@@ -97,7 +101,7 @@ class SonarScannerServiceTests(SimpleTestCase):
 
 
 class SonarAutoscanServiceTests(SimpleTestCase):
-    """The Mint-hosted `sonar-autoscan` service — every sanity check the
+    """The Dell-hosted `sonar-autoscan` service — every sanity check the
     runtime bugs taught us, encoded as a test."""
 
     def setUp(self) -> None:
@@ -114,7 +118,7 @@ class SonarAutoscanServiceTests(SimpleTestCase):
 
     def test_smoke_gated_to_mint_quality_profile(self) -> None:
         self.assertIn("profiles", self.autoscan)
-        self.assertIn("mint-quality", self.autoscan["profiles"])
+        self.assertIn("dell-quality", self.autoscan["profiles"])
 
     def test_smoke_restart_policy_survives_reboots(self) -> None:
         self.assertEqual(self.autoscan.get("restart"), "unless-stopped")

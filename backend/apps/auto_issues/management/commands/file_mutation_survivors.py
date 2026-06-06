@@ -65,7 +65,14 @@ from apps.auto_issues.services.mutation_severity import severity_for
 _CATEGORY_KEY = "mutation_survivor"
 _CATEGORY_LABEL = "Mutation survivor"
 
-_SUPPORTED_TOOLS = {"stryker", "mutmut", "mull", "go-mutesting", "cargo-mutants"}
+_SUPPORTED_TOOLS = {
+    "stryker",
+    "mutmut",
+    "mull",
+    "go-mutesting",
+    "cargo-mutants",
+    "mucheck",
+}
 
 
 def _get_or_create_category() -> AutoIssueCategory:

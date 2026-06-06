@@ -8,7 +8,7 @@ class TestTasksEmbeddings(SimpleTestCase):
         mock_connection.in_atomic_block = False
         mock_build.side_effect = Exception("Sentinel")
         
-        from apps.pipeline.tasks_embeddings import refresh_faiss_index
+        from apps.pipeline.tasks_embeddings import refresh_faiss_index  # noqa: PLC0415
         with self.assertRaises(Exception) as ctx:
             refresh_faiss_index()
             
@@ -21,7 +21,7 @@ class TestTasksEmbeddings(SimpleTestCase):
         mock_connection.in_atomic_block = False
         mock_flush.side_effect = Exception("Sentinel")
         
-        from apps.pipeline.tasks_embeddings import nrt_delta_flush
+        from apps.pipeline.tasks_embeddings import nrt_delta_flush  # noqa: PLC0415
         with self.assertRaises(Exception) as ctx:
             nrt_delta_flush()
             

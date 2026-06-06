@@ -8,8 +8,12 @@ hardcoding worker counts.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+from unittest import mock
+
 from django.test import SimpleTestCase
 
+from apps.pipeline.services import hardware_profile as hp
 from apps.pipeline.services.hardware_profile import (
     HardwareProfile,
     max_jobs_fast,
@@ -67,3 +71,90 @@ class MaxJobsHeavyTests(SimpleTestCase):
             tier="bogus",  # type: ignore[arg-type]
         )
         self.assertGreaterEqual(max_jobs_heavy(bogus), 1)
+
+
+class HardwareProfileGpuFieldsTests(SimpleTestCase):
+    """The profile carries optional GPU fields (vram_gb, has_cuda) that default
+    to a CPU-only machine so existing call sites keep working unchanged.
+    """
+
+    def test_gpu_fields_default_to_cpu_only(self) -> None:
+        profile = HardwareProfile(ram_gb=16.0, cpu_cores=8, tier="medium")  # type: ignore[arg-type]
+        self.assertEqual(profile.vram_gb, 0.0)
+        self.assertFalse(profile.has_cuda)
+
+    def test_gpu_fields_round_trip_when_set(self) -> None:
+        profile = HardwareProfile(
+            ram_gb=64.0,
+            cpu_cores=16,
+            tier="workstation",  # type: ignore[arg-type]
+            vram_gb=24.0,
+            has_cuda=True,
+        )
+        self.assertEqual(profile.vram_gb, 24.0)
+        self.assertTrue(profile.has_cuda)
+
+
+class ReadSettingOverrideTests(SimpleTestCase):
+    """``_read_setting_override`` reads the operator's manual tier override
+    from AppSetting. It must (a) normalise a present value, (b) return "" when
+    the row is absent or blank, and (c) swallow any DB/startup error so a
+    fresh install with no AppSetting table still auto-detects its tier.
+    """
+
+    def test_returns_normalised_override_value(self) -> None:
+        row = SimpleNamespace(value="  HIGH  ")
+        fake_setting = mock.Mock()
+        fake_setting.objects.filter.return_value.first.return_value = row
+
+        with mock.patch.dict(
+            "sys.modules",
+            {"apps.core.models": mock.Mock(AppSetting=fake_setting)},
+        ):
+            self.assertEqual(hp._read_setting_override(), "high")
+        fake_setting.objects.filter.assert_called_once_with(
+            key="performance.profile_override"
+        )
+
+    def test_returns_empty_when_no_row(self) -> None:
+        fake_setting = mock.Mock()
+        fake_setting.objects.filter.return_value.first.return_value = None
+
+        with mock.patch.dict(
+            "sys.modules",
+            {"apps.core.models": mock.Mock(AppSetting=fake_setting)},
+        ):
+            self.assertEqual(hp._read_setting_override(), "")
+
+    def test_returns_empty_when_value_is_blank(self) -> None:
+        row = SimpleNamespace(value="")
+        fake_setting = mock.Mock()
+        fake_setting.objects.filter.return_value.first.return_value = row
+
+        with mock.patch.dict(
+            "sys.modules",
+            {"apps.core.models": mock.Mock(AppSetting=fake_setting)},
+        ):
+            self.assertEqual(hp._read_setting_override(), "")
+
+    def test_db_error_is_swallowed_and_logged_at_debug(self) -> None:
+        # On a fresh install the AppSetting table may not exist yet; the
+        # lookup raises, and the helper must fall back to "" (auto-detect)
+        # rather than crash the hardware-profile detection at startup.
+        fake_setting = mock.Mock()
+        fake_setting.objects.filter.side_effect = RuntimeError("no such table")
+
+        with (
+            mock.patch.dict(
+                "sys.modules",
+                {"apps.core.models": mock.Mock(AppSetting=fake_setting)},
+            ),
+            mock.patch.object(hp, "logger") as fake_logger,
+        ):
+            self.assertEqual(hp._read_setting_override(), "")
+
+        debug_messages = [c.args[0] for c in fake_logger.debug.call_args_list]
+        self.assertTrue(
+            any("profile override unavailable" in m for m in debug_messages),
+            debug_messages,
+        )

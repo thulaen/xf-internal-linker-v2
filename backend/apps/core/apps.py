@@ -108,16 +108,15 @@ def _consume_safe_mode_boot_flag(sender, **kwargs):
             .first()
         ) or "default"
 
-        with transaction.atomic():
-            AppSetting.objects.update_or_create(
-                key="system.performance_mode",
-                defaults={
-                    "value": "safe",
-                    "value_type": "str",
-                    "category": "performance",
-                },
-            )
-            AppSetting.objects.filter(key="system.boot_safe_once").delete()
+        AppSetting.objects.update_or_create(
+            key="system.performance_mode",
+            defaults={
+                "value": "safe",
+                "value_type": "str",
+                "category": "performance",
+            },
+        )
+        AppSetting.objects.filter(key="system.boot_safe_once").delete()
 
         _record_safe_mode_history(prior_value)
         logger.warning(

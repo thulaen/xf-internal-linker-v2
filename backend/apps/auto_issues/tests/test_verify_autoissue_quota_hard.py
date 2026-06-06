@@ -37,6 +37,8 @@ class VerifyAutoIssueQuotaHardTests(TestCase):
         _create_resolved(AutoIssue.SOURCE_LOKI, 7)
         _create_resolved(AutoIssue.SOURCE_PERFETTO, 10)
         _create_resolved(AutoIssue.SOURCE_GWP_ASAN, 10)
+        _create_resolved(AutoIssue.SOURCE_LIGHTHOUSE, 3)
+        _create_resolved(AutoIssue.SOURCE_PG_STAT, 3)
 
         out = StringIO()
         call_command(
@@ -46,7 +48,7 @@ class VerifyAutoIssueQuotaHardTests(TestCase):
             stdout=out,
         )
 
-        self.assertIn("[AUTOISSUE QUOTA VERIFIED: 97 resolved]", out.getvalue())
+        self.assertIn("[AUTOISSUE QUOTA VERIFIED: 103 resolved]", out.getvalue())
 
     def test_sonarqube_subquota_short_refuses_even_with_excess_cross_source(self) -> None:
         cutoff = timezone.now() - timedelta(minutes=5)
@@ -54,8 +56,11 @@ class VerifyAutoIssueQuotaHardTests(TestCase):
         _create_resolved(AutoIssue.SOURCE_RUST_DEFECT, 10)
         _create_resolved(AutoIssue.SOURCE_PPROF, 10)
         _create_resolved(AutoIssue.SOURCE_ALLOY, 10)
+        _create_resolved(AutoIssue.SOURCE_LOKI, 7)
         _create_resolved(AutoIssue.SOURCE_PERFETTO, 10)
         _create_resolved(AutoIssue.SOURCE_GWP_ASAN, 10)
+        _create_resolved(AutoIssue.SOURCE_LIGHTHOUSE, 3)
+        _create_resolved(AutoIssue.SOURCE_PG_STAT, 3)
 
         with self.assertRaisesMessage(
             CommandError,
@@ -77,6 +82,8 @@ class VerifyAutoIssueQuotaHardTests(TestCase):
         _create_resolved(AutoIssue.SOURCE_LOKI, 7)
         _create_resolved(AutoIssue.SOURCE_PERFETTO, 10)
         _create_resolved(AutoIssue.SOURCE_GWP_ASAN, 10)
+        _create_resolved(AutoIssue.SOURCE_LIGHTHOUSE, 3)
+        _create_resolved(AutoIssue.SOURCE_PG_STAT, 3)
 
         with self.assertRaisesMessage(
             CommandError,
@@ -98,6 +105,9 @@ class VerifyAutoIssueQuotaHardTests(TestCase):
         _create_resolved(AutoIssue.SOURCE_LOKI, 7)
         _create_resolved(AutoIssue.SOURCE_PERFETTO, 10)
         _create_resolved(AutoIssue.SOURCE_GWP_ASAN, 10)
+        _create_resolved(AutoIssue.SOURCE_LIGHTHOUSE, 3)
+        _create_resolved(AutoIssue.SOURCE_PG_STAT, 3)
+        _create_open(AutoIssue.SOURCE_GLITCHTIP)
 
         with self.assertRaisesMessage(CommandError, "glitchtip: 0 of 3 resolved"):
             call_command(
@@ -115,6 +125,8 @@ class VerifyAutoIssueQuotaHardTests(TestCase):
         _create_resolved(AutoIssue.SOURCE_LOKI, 7)
         _create_resolved(AutoIssue.SOURCE_PERFETTO, 10)
         _create_resolved(AutoIssue.SOURCE_GWP_ASAN, 10)
+        _create_resolved(AutoIssue.SOURCE_LIGHTHOUSE, 3)
+        _create_resolved(AutoIssue.SOURCE_PG_STAT, 3)
 
         with self.assertRaises(CommandError) as raised:
             call_command(
@@ -145,6 +157,16 @@ def _create_resolved(source: str, count: int) -> None:
             resolved_by="codex-test",
             lessons_learned="Trap: hard quota rows need two-part lessons. Fix shape: create resolved rows with lessons.",
         )
+
+
+def _create_open(source: str) -> None:
+    AutoIssue.objects.create(
+        source=source,
+        external_id=f"hard-quota-open-{source}-{AutoIssue.objects.count()}",
+        title=f"Given open quota row exists When source is {source} Then drought does not bypass",
+        status=AutoIssue.STATUS_OPEN,
+        lessons_learned="",
+    )
 
 
 def _stamp(value) -> str:

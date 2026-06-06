@@ -14,7 +14,8 @@ from apps.pipeline.services.hardware_profile import (
     _emit_json,
 )
 
-class _StopAfterGuard(Exception): pass
+class _StopAfterGuard(Exception):
+    pass
 
 class HardwareProfileTests(SimpleTestCase):
     def setUp(self):
@@ -102,6 +103,15 @@ class HardwareProfileTests(SimpleTestCase):
         mock_filter.return_value = mock_qs
         mock_qs.first.return_value.value = " High "
         self.assertEqual(_read_setting_override(), "high")
+
+    @patch('apps.core.models.AppSetting.objects.filter')
+    def test_read_setting_override_logs_unavailable_setting_store(self, mock_filter):
+        mock_filter.side_effect = RuntimeError("settings table unavailable")
+
+        with self.assertLogs("apps.pipeline.services.hardware_profile", level="DEBUG") as logs:
+            self.assertEqual(_read_setting_override(), "")
+
+        self.assertTrue(any("performance profile override unavailable" in line for line in logs.output))
 
     def test_describe(self):
         prof = HardwareProfile(ram_gb=16.0, cpu_cores=8, tier="high")

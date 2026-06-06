@@ -54,6 +54,8 @@ class HardwareProfile:
     ram_gb: float
     cpu_cores: int
     tier: Tier
+    vram_gb: float = 0.0
+    has_cuda: bool = False
 
     def describe(self) -> str:
         return f"tier={self.tier} ram={self.ram_gb:.1f}GB cores={self.cpu_cores}"
@@ -210,13 +212,19 @@ def polars_thread_count(profile: HardwareProfile | None = None) -> int:
 
 def _read_setting_override() -> str:
     try:
+        import warnings
         from apps.core.models import AppSetting
 
-        row = AppSetting.objects.filter(key="performance.profile_override").first()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            row = AppSetting.objects.filter(key="performance.profile_override").first()
         if row and row.value:
             return str(row.value).strip().lower()
     except Exception:  # noqa: BLE001 — pre-Django-init / fresh-install path: no AppSetting table yet, fall back to auto-detect.
-        pass  # AppSetting unavailable; return empty (no override)
+        logger.debug(
+            "performance profile override unavailable; using auto-detected hardware profile",
+            exc_info=True,
+        )
     return ""
 
 

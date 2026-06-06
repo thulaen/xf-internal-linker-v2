@@ -75,3 +75,49 @@ class CollectSystemMetricsGuardTests(SimpleTestCase):
         fake_conn, result = self._run_with_atomic(in_atomic_block=False)
         fake_conn.close.assert_called_once()
         self.assertEqual(result, {"collected": True})
+
+
+class HelperConstraintMetadataTests(SimpleTestCase):
+    """Both tasks must carry the ``@HelperConstraint`` routing metadata.
+
+    The decorator stashes a ``_ConstraintMeta`` on the wrapped callable so the
+    helper-machine router can decide where to run the task. Pre-change neither
+    task carried this metadata; the change declares both as light, CPU-only,
+    Postgres-writing tasks with a 128 MB peak. These tests pin the exact
+    declared values so a future edit that drops the decorator or flips a flag
+    is caught.
+    """
+
+    def _meta(self, task) -> object:
+        # The constraint lives on the inner callable that Celery wraps.
+        return getattr(task.run, "__helper_constraint__", None)
+
+    def test_detect_gaps_constraint_values(self) -> None:
+        from apps.observability import tasks
+
+        meta = self._meta(tasks.detect_observability_gaps)
+        self.assertIsNotNone(meta, "detect_observability_gaps lost its @HelperConstraint")
+        self.assertFalse(meta.cpu_intensive)
+        self.assertFalse(meta.gpu_required)
+        self.assertEqual(meta.storage_writes_to, "postgres_main")
+        self.assertEqual(meta.ram_peak_mb, 128)
+
+    def test_collect_system_metrics_constraint_values(self) -> None:
+        from apps.observability import tasks
+
+        meta = self._meta(tasks.collect_system_metrics)
+        self.assertIsNotNone(meta, "collect_system_metrics lost its @HelperConstraint")
+        self.assertFalse(meta.cpu_intensive)
+        self.assertFalse(meta.gpu_required)
+        self.assertEqual(meta.storage_writes_to, "postgres_main")
+        self.assertEqual(meta.ram_peak_mb, 128)
+
+    def test_constraint_resolvable_via_get_constraint_by_task_name(self) -> None:
+        from apps.core.helpers import get_constraint
+        from apps.observability import tasks
+
+        for task in (tasks.detect_observability_gaps, tasks.collect_system_metrics):
+            resolved = get_constraint(task.name)
+            self.assertIsNotNone(resolved)
+            self.assertEqual(resolved.storage_writes_to, "postgres_main")
+            self.assertEqual(resolved.ram_peak_mb, 128)

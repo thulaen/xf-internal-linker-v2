@@ -8,7 +8,7 @@ class TestTasksEmbeddingBakeoff(SimpleTestCase):
         mock_connection.in_atomic_block = False
         mock_get_int.side_effect = Exception("Sentinel")
         
-        from apps.pipeline.tasks_embedding_bakeoff import embedding_provider_bakeoff
+        from apps.pipeline.tasks_embedding_bakeoff import embedding_provider_bakeoff  # noqa: PLC0415
         
         with self.assertRaises(Exception) as ctx:
             embedding_provider_bakeoff()  # pylint: disable=no-value-for-parameter
@@ -19,7 +19,7 @@ class TestTasksEmbeddingBakeoff(SimpleTestCase):
     @mock.patch("apps.core.models.AppSetting.get_str")
     def test_discover_providers_with_key(self, mock_get_str):
         mock_get_str.return_value = "dummy_key"
-        from apps.pipeline.tasks_embedding_bakeoff import _discover_providers
+        from apps.pipeline.tasks_embedding_bakeoff import _discover_providers  # noqa: PLC0415
         providers = _discover_providers()
         self.assertIn("local", providers)
         self.assertIn("openai", providers)
@@ -28,6 +28,6 @@ class TestTasksEmbeddingBakeoff(SimpleTestCase):
     @mock.patch("apps.core.models.AppSetting.get_str")
     def test_discover_providers_no_key(self, mock_get_str):
         mock_get_str.return_value = ""
-        from apps.pipeline.tasks_embedding_bakeoff import _discover_providers
+        from apps.pipeline.tasks_embedding_bakeoff import _discover_providers  # noqa: PLC0415
         providers = _discover_providers()
         self.assertEqual(providers, ["local"])

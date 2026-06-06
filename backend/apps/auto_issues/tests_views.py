@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from apps.auto_issues.models import AutoIssue
+from apps.auto_issues.models import AutoIssue, AutoIssueCategory
 
 
 User = get_user_model()
@@ -84,6 +84,42 @@ class AutoIssueAPITests(TestCase):
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["source"], "pyroscope")
 
+    def test_arbitrary_status_filter_matches_exact_status(self):
+        # views.py line 44: a status param that is neither "open" nor
+        # "resolved" falls through to an exact `status=<param>` filter.
+        self._seed(external_id="x1", canonical_fingerprint="c1")
+        self._seed(
+            external_id="x2",
+            canonical_fingerprint="c2",
+            status=AutoIssue.STATUS_PICKED,
+        )
+        self.client.force_authenticate(self.viewer)
+        resp = self.client.get(
+            f"/api/auto-issues/?status={AutoIssue.STATUS_PICKED}"
+        )
+        results = self._results(resp)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["status"], AutoIssue.STATUS_PICKED)
+
+    def test_category_filter_matches_category_key(self):
+        # views.py line 50: a category param filters on the related
+        # category's `key`, so only rows in that category come back.
+        # Use test-specific keys via get_or_create so the pre-seeded
+        # taxonomy (which already owns keys like "security") never collides.
+        wanted, _ = AutoIssueCategory.objects.get_or_create(
+            key="views-test-wanted", defaults={"label": "Views Test Wanted"}
+        )
+        other, _ = AutoIssueCategory.objects.get_or_create(
+            key="views-test-other", defaults={"label": "Views Test Other"}
+        )
+        self._seed(external_id="x1", canonical_fingerprint="c1", category=wanted)
+        self._seed(external_id="x2", canonical_fingerprint="c2", category=other)
+        self.client.force_authenticate(self.viewer)
+        resp = self.client.get("/api/auto-issues/?category=views-test-wanted")
+        results = self._results(resp)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["external_id"], "x1")
+
     def test_resync_requires_admin(self):
         self.client.force_authenticate(self.viewer)
         resp = self.client.post("/api/auto-issues/resync/")
@@ -120,3 +156,27 @@ class AutoIssueAPITests(TestCase):
         resp = self.client.get(f"/api/auto-issues/{row.pk}/")
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.data["lessons_learned"], "Trap: ...\nFix: ...")
+
+    def test_ingest_observability_accepts_anonymous_post(self):
+        # The endpoint is AllowAny: an unauthenticated client can POST and
+        # the view answers 200 {"status": "ok"} without touching the DB.
+        resp = self.client.post(
+            "/api/auto-issues/ingest-observability/",
+            {"event": "alert", "value": 1},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json(), {"status": "ok"})
+
+    def test_ingest_observability_accepts_empty_body(self):
+        # No payload at all is still accepted silently — Grafana/webhook
+        # senders that POST nothing must not get a 4xx.
+        resp = self.client.post("/api/auto-issues/ingest-observability/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json(), {"status": "ok"})
+
+    def test_ingest_observability_rejects_get(self):
+        # Only POST is routed; a GET to the action must 405, proving the
+        # method allowlist on the new action is wired correctly.
+        resp = self.client.get("/api/auto-issues/ingest-observability/")
+        self.assertEqual(resp.status_code, 405)

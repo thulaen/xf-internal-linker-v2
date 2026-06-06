@@ -426,7 +426,7 @@ CELERY_BEAT_SCHEDULE = {
     # itself is idempotent so unchanged content does zero work.
     "refresh-passage-embeddings": {
         "task": "pipeline.refresh_passage_embeddings",
-        "schedule": crontab(minute="*/30"),
+        "schedule": crontab(minute="12,42"),
         "options": {"queue": "pipeline"},
     },
     # Group L #91 — daily local Postgres backup. 02:30 UTC sits inside

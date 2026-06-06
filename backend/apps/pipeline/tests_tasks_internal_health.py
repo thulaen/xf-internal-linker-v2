@@ -8,7 +8,7 @@ class TestTasksInternalHealth(SimpleTestCase):
         mock_connection.in_atomic_block = False
         mock_refresh.side_effect = Exception("Sentinel")
         
-        from apps.pipeline.tasks_internal_health import refresh_disk_pressure_state
+        from apps.pipeline.tasks_internal_health import refresh_disk_pressure_state  # noqa: PLC0415
         with self.assertRaises(Exception) as ctx:
             refresh_disk_pressure_state()
         
@@ -21,7 +21,7 @@ class TestTasksInternalHealth(SimpleTestCase):
         mock_connection.in_atomic_block = False
         mock_get.side_effect = Exception("Sentinel")
         
-        from apps.pipeline.tasks_internal_health import cpp_fallback_share_check
+        from apps.pipeline.tasks_internal_health import cpp_fallback_share_check  # noqa: PLC0415
         with self.assertRaises(Exception) as ctx:
             cpp_fallback_share_check()
             
@@ -35,7 +35,7 @@ class TestTasksInternalHealth(SimpleTestCase):
         mock_connection.in_atomic_block = True
         mock_get.return_value = {"python_share": 0.1, "alert_threshold": 0.05}
         
-        from apps.pipeline.tasks_internal_health import cpp_fallback_share_check
+        from apps.pipeline.tasks_internal_health import cpp_fallback_share_check  # noqa: PLC0415
         res = cpp_fallback_share_check()
         
         self.assertEqual(res["share"], 0.1)

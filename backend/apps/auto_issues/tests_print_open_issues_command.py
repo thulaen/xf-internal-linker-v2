@@ -98,6 +98,21 @@ class PrintOpenIssuesCommandTests(TestCase):
 
     @mock.patch(
         "apps.auto_issues.management.commands.print_open_issues.subprocess.run",
+    )
+    @mock.patch(
+        "apps.auto_issues.management.commands.print_open_issues.shutil.which",
+        return_value=None,
+    )
+    def test_ci_probe_missing_gh_path_prints_skipped(self, _mock_which, mock_run) -> None:
+        _make_issue()
+        out = StringIO()
+        call_command("print_open_issues", stdout=out)
+
+        self.assertIn("CI FAILED RUNS READ: skipped", out.getvalue())
+        mock_run.assert_not_called()
+
+    @mock.patch(
+        "apps.auto_issues.management.commands.print_open_issues.subprocess.run",
         return_value=SimpleNamespace(returncode=0, stdout="{not-json"),
     )
     def test_ci_probe_bad_json_prints_unparseable(self, _mock_run) -> None:
@@ -160,3 +175,56 @@ class PrintOpenIssuesCommandTests(TestCase):
         self.assertIn(f"#{first.id}", text)
         self.assertIn(f"#{unique.id}", text)
         self.assertNotIn(f"#{duplicate.id} [agent/medium] [coverage-gap]", text)
+
+    @mock.patch(
+        "apps.auto_issues.management.commands.print_open_issues.subprocess.run",
+        side_effect=FileNotFoundError,
+    )
+    def test_full_ten_coverage_gaps_emit_ten_picked_marker(self, _mock_run) -> None:
+        # When 10+ distinct coverage-gap rows are open, the command takes the
+        # else-branch (line 216) and prints "[COVERAGE GAPS READ: 10 picked"
+        # rather than the drought form.
+        for i in range(12):
+            _make_issue(
+                title=f"[coverage-gap] area {i}",
+                external_id=f"covgap-{i}",
+                canonical_fingerprint=f"covgap-canon-{i}",
+                priority_score=float(50 + i),
+            )
+
+        out = StringIO()
+        call_command("print_open_issues", stdout=out)
+        text = out.getvalue()
+
+        self.assertIn("[COVERAGE GAPS READ: 10 picked —", text)
+        # Drought wording must NOT appear when the queue is full.
+        self.assertNotIn("to file", text)
+
+    def test_zero_open_returns_early_without_ci_probe(self) -> None:
+        # views the zero-open early return (lines 76-77): no rows seeded, so
+        # the command prints the zero marker and never reaches the CI probe.
+        out = StringIO()
+        with mock.patch(
+            "apps.auto_issues.management.commands.print_open_issues.subprocess.run"
+        ) as mock_run:
+            call_command("print_open_issues", stdout=out)
+        self.assertIn("[REGISTRY READ: 0 open auto-issues]", out.getvalue())
+        mock_run.assert_not_called()
+
+    @mock.patch(
+        "apps.auto_issues.management.commands.print_open_issues.subprocess.run",
+        side_effect=FileNotFoundError,
+    )
+    def test_limit_break_stops_at_requested_count(self, _mock_run) -> None:
+        # _unique_issue_rows breaks when it has gathered `limit` rows
+        # (line 247). Seed 3 unique rows, ask for 1, get exactly 1 printed.
+        top = _make_issue(title="Top priority", priority_score=99)
+        _make_issue(title="Second priority", priority_score=98)
+        _make_issue(title="Third priority", priority_score=97)
+
+        out = StringIO()
+        call_command("print_open_issues", "--limit", "1", stdout=out)
+        text = out.getvalue()
+
+        self.assertIn("showing top 1", text)
+        self.assertIn(f"#{top.id}", text)

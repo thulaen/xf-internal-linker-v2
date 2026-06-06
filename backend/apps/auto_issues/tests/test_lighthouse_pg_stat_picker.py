@@ -179,7 +179,7 @@ class QuotaCommandBugTests(SimpleTestCase):
         """Bug fix: calling _hard_quota_errors with only zeroed counts must not KeyError."""
         counts = self._all_zero_counts()
         # Should return errors (all quotas unmet) but never raise.
-        errors = _hard_quota_errors(counts, "2026-05-26 00:00")
+        errors = _hard_quota_errors(counts)
         self.assertIsInstance(errors, list)
         self.assertTrue(len(errors) > 0)
 
@@ -205,7 +205,7 @@ class QuotaCommandBugTests(SimpleTestCase):
         """Bug fix: the quota description string must derive values from constants.
         If REQUIRED_LIGHTHOUSE_FIXES is 3, the message must say '3 lighthouse'."""
         counts = self._all_zero_counts()
-        errors = _hard_quota_errors(counts, "2026-05-26 00:00")
+        errors = _hard_quota_errors(counts)
         # The description line is always the third item in the message list.
         desc_line = next((l for l in errors if "lighthouse" in l and "required:" in l), None)
         self.assertIsNotNone(desc_line)

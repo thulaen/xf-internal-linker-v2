@@ -4384,7 +4384,7 @@ class EmbeddingRuntimeSafetyTests(TestCase):
 
     def test_pipeline_embedding_loaders_only_return_current_signature_rows(self):
         AppSetting.objects.update_or_create(
-            key="embedding_model",
+            key="embedding.model",
             defaults={
                 "value": "future/model",
                 "value_type": "str",

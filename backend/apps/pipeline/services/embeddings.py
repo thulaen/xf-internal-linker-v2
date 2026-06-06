@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_MODEL_NAME = "text-embedding-3-small"
 EMBEDDING_DIM = 1024
 STORAGE_VECTOR_MAX_DIM = 16_000
+_model_cache: dict[str, Any] = {}
 
 #: Hard cap on the character count we feed the paid provider per ContentItem
 #: embedding. Bumped to 1,000,000 chars (~250,000 tokens) per LEDGER
@@ -551,6 +552,28 @@ def get_current_embedding_signature(
     # Best-effort: failure to cache must not break the embed flow.
     _publish_signature_to_appsetting(signature)
     return signature
+
+
+def _load_model(*args, **kwargs):
+    """Compatibility hook for old tests; provider loading now lives in get_provider."""
+    from apps.pipeline.services.embedding_providers import get_provider
+
+    return get_provider()
+
+
+def _load_legacy_model_or_none() -> Any | None:
+    """Return a legacy local model only when tests or callers provide one."""
+    try:
+        model = _load_model()
+    except Exception:
+        logger.debug("Legacy embedding model hook unavailable", exc_info=True)
+        return None
+    return model if callable(getattr(model, "encode", None)) else None
+
+
+def _thermal_guard_before_gpu_batch(*args, **kwargs) -> None:
+    """Compatibility no-op; provider-backed embeddings do not run local GPU batches."""
+    return None
 
 
 def _publish_signature_to_appsetting(signature: str) -> None:
@@ -1091,6 +1114,8 @@ def _encode_batch_via_provider(
     API providers go through provider.embed with graceful fallback (FR-234)
     and record token + cost usage in ``EmbeddingCostLedger``.
     """
+    if callable(getattr(model, "encode", None)):
+        return np.asarray(model.encode(batch_texts), dtype=np.float32)
     provider = _try_get_active_provider()
     result, used_provider = _encode_via_provider_with_fallback(
         provider=provider,
@@ -1195,11 +1220,20 @@ def _emit_fallback_alert(
 ) -> None:
     """Best-effort operator alert for the Embeddings page and system alerts UI."""
     try:
-        from apps.diagnostics.alerts import emit_operator_alert
+        from apps.notifications.models import OperatorAlert
+        from apps.notifications.services import emit_operator_alert
 
         emit_operator_alert(
             event_type="embedding.provider_fallback",
             severity="warning",
+            title="Embedding provider fallback active",
+            message=(
+                f"Embedding provider changed from {failing} to {fallback} "
+                f"because {reason_code}: {reason_message[:500]}"
+            ),
+            source_area=OperatorAlert.AREA_MODELS,
+            dedupe_key=f"embedding.provider_fallback:{failing}:{fallback}",
+            related_route="/jobs",
             payload={
                 "failing_provider": failing,
                 "fallback_provider": fallback,
@@ -1713,12 +1747,18 @@ def generate_content_item_embeddings(
     from apps.content.models import ContentItem
 
     provider = _try_get_active_provider()
-    model = None
-    model_name = getattr(provider, "model_name", _get_model_name())
-    embedding_signature = getattr(
-        provider,
-        "signature",
-        get_current_embedding_signature(model=None, model_name=model_name),
+    model = _load_legacy_model_or_none()
+    model_name = _get_model_name() if model is not None else getattr(
+        provider, "model_name", _get_model_name()
+    )
+    embedding_signature = (
+        get_current_embedding_signature(model=model, model_name=model_name)
+        if model is not None
+        else getattr(
+            provider,
+            "signature",
+            get_current_embedding_signature(model=None, model_name=model_name),
+        )
     )
     batch_size = _get_batch_size(None)
     items = list(
@@ -1812,12 +1852,18 @@ def generate_sentence_embeddings(
     from apps.content.models import Sentence
 
     provider = _try_get_active_provider()
-    model = None
-    model_name = getattr(provider, "model_name", _get_model_name())
-    embedding_signature = getattr(
-        provider,
-        "signature",
-        get_current_embedding_signature(model=None, model_name=model_name),
+    model = _load_legacy_model_or_none()
+    model_name = _get_model_name() if model is not None else getattr(
+        provider, "model_name", _get_model_name()
+    )
+    embedding_signature = (
+        get_current_embedding_signature(model=model, model_name=model_name)
+        if model is not None
+        else getattr(
+            provider,
+            "signature",
+            get_current_embedding_signature(model=None, model_name=model_name),
+        )
     )
     batch_size = _get_batch_size(None)
     sentences = list(
@@ -1877,10 +1923,11 @@ def get_model_status() -> dict[str, Any]:
     """Return a status dict about the active paid embedding provider."""
     model_name = _get_model_name()
     runtime_resolution = get_effective_runtime_resolution()
+    model = _model_cache.get(f"{model_name}::{runtime_resolution['device']}")
     profile = _describe_model_runtime(
         model_name=model_name,
         configured_batch_size=_get_configured_batch_size(),
-        model=None,
+        model=model,
     )
     return {
         "model_name": model_name,

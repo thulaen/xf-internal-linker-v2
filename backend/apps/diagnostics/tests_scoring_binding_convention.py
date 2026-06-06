@@ -19,11 +19,23 @@ from pathlib import Path
 
 from django.test import SimpleTestCase
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_SCORING_CPP = _REPO_ROOT / "backend" / "extensions" / "scoring.cpp"
-_HEALTH_PY = _REPO_ROOT / "backend" / "apps" / "diagnostics" / "health.py"
+_APP_DIR = Path(__file__).resolve().parents[2]
+_SCORING_CPP = _APP_DIR / "extensions" / "scoring.cpp"
+_HEALTH_PY = _APP_DIR / "apps" / "diagnostics" / "health.py"
+
+# The Python runtime call sites that probe the ``scoring`` module by attribute
+# name. If any of these drifts back to the old ``score_full_batch`` name, the
+# attribute probe fails at runtime and the kernel silently falls back to the
+# pure-Python loop (10-50x slower) with no compile-time error.
+_BACKEND = _APP_DIR / "apps"
+_RUNTIME_CALL_SITES = (
+    _BACKEND / "pipeline" / "services" / "ranker.py",
+    _BACKEND / "pipeline" / "services" / "ext_loader.py",
+    _BACKEND / "crawler" / "tasks.py",
+)
 
 _EXPECTED_BINDING = "calculate_composite_scores_full_batch"
+_OLD_BINDING = "score_full_batch"
 
 
 class ScoringBindingConventionTests(SimpleTestCase):
@@ -53,3 +65,44 @@ class ScoringBindingConventionTests(SimpleTestCase):
             "health.py _NATIVE_RUNTIME_MODULES must check the same binding name "
             "scoring.cpp exports.",
         )
+
+    def test_runtime_call_sites_probe_new_binding_name(self) -> None:
+        """Each runtime caller must reference the renamed binding.
+
+        Guards against the silent-fallback regression: probing the loaded
+        ``scoring`` module for the old ``score_full_batch`` attribute always
+        returns ``None`` after the rename, forcing the slow Python path.
+        """
+        for path in _RUNTIME_CALL_SITES:
+            source = path.read_text(encoding="utf-8")
+            self.assertIn(
+                _EXPECTED_BINDING,
+                source,
+                f"{path.name} must probe the renamed scoring binding.",
+            )
+
+    def test_runtime_call_sites_have_no_active_old_binding_reference(self) -> None:
+        """No executable line may reference the old binding name.
+
+        Comments may still mention ``score_full_batch`` for historical
+        context, and the Python reference helper ends in ``_py``; both are
+        excluded so only an active code reference to the bare old name fails.
+        """
+        for path in _RUNTIME_CALL_SITES:
+            offenders = []
+            for lineno, raw in enumerate(
+                path.read_text(encoding="utf-8").splitlines(), start=1
+            ):
+                code = raw.split("#", 1)[0]
+                stripped = code.replace(_EXPECTED_BINDING, "")
+                # Drop the Python reference helper ``..._full_batch_py`` so its
+                # ``score_full_batch`` substring does not trip the check.
+                stripped = stripped.replace(f"{_OLD_BINDING}_py", "")
+                if _OLD_BINDING in stripped:
+                    offenders.append(f"{path.name}:{lineno}: {raw.strip()}")
+            self.assertEqual(
+                offenders,
+                [],
+                "Active old-binding references would silently disable the "
+                f"C++ scoring kernel: {offenders}",
+            )

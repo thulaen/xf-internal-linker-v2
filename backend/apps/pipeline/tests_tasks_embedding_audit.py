@@ -8,7 +8,7 @@ class TestTasksEmbeddingAudit(SimpleTestCase):
         mock_connection.in_atomic_block = False
         mock_is_enabled.side_effect = Exception("Sentinel")
         
-        from apps.pipeline.tasks_embedding_audit import embedding_accuracy_audit
+        from apps.pipeline.tasks_embedding_audit import embedding_accuracy_audit  # noqa: PLC0415
         
         with self.assertRaises(Exception) as ctx:
             embedding_accuracy_audit(fortnightly=True, force=False)  # pylint: disable=no-value-for-parameter
@@ -22,7 +22,7 @@ class TestTasksEmbeddingAudit(SimpleTestCase):
         mock_connection.in_atomic_block = True
         mock_is_enabled.return_value = False
         
-        from apps.pipeline.tasks_embedding_audit import embedding_accuracy_audit
+        from apps.pipeline.tasks_embedding_audit import embedding_accuracy_audit  # noqa: PLC0415
         
         res = embedding_accuracy_audit(fortnightly=True, force=False)  # pylint: disable=no-value-for-parameter
         self.assertEqual(res, {"skipped": "disabled"})

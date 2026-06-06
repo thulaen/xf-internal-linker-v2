@@ -237,6 +237,36 @@ class SelfHealingDecisionLogicTests(SimpleTestCase):
         self.assertEqual(self_healing._allowed_action(decision), "watch")
 
 
+class RefreshProjectionConstraintTests(SimpleTestCase):
+    """The ``refresh_projection`` Celery task declares its helper-routing
+    profile via ``@HelperConstraint``.
+
+    Importing ``apps.work_queue.tasks`` applies the decorator (the changed
+    lines), and ``get_constraint`` reads back the exact metadata the router
+    consumes. No DB is touched: the decorator only annotates the callable.
+    """
+
+    def test_refresh_projection_carries_helper_constraint(self) -> None:
+        from apps.core.helpers import get_constraint
+        from apps.work_queue.tasks import refresh_projection
+
+        wrapped = getattr(refresh_projection, "__wrapped__", refresh_projection)
+        meta = get_constraint(wrapped)
+
+        self.assertIsNotNone(
+            meta,
+            msg="refresh_projection must declare a @HelperConstraint so the "
+            "routing engine knows it writes to the main Postgres node.",
+        )
+        # Exact values pin the changed decorator lines: a light Postgres-writing
+        # projection refresh, ~256 MB RAM, ~5 s expected runtime.
+        self.assertFalse(meta.cpu_intensive)
+        self.assertFalse(meta.gpu_required)
+        self.assertEqual(meta.storage_writes_to, "postgres_main")
+        self.assertEqual(meta.ram_peak_mb, 256)
+        self.assertEqual(meta.expected_seconds_p50, 5)
+
+
 class CorrelationGroupPayloadTests(SimpleTestCase):
     def test_group_payload_counts_sources_and_max_priority(self) -> None:
         class Issue:

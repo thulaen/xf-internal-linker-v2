@@ -34,6 +34,8 @@ import logging
 import time
 from typing import Any
 
+from apps.core.helpers import HelperConstraint
+
 logger = logging.getLogger(__name__)
 
 # Defaults — overridable via Celery task kwargs.
@@ -155,6 +157,13 @@ if shared_task is not None:
         name="apps.ops_feed.tasks.run_bullboard_bridge",
         soft_time_limit=_TASK_SOFT_TIME_LIMIT,
         time_limit=_TASK_SOFT_TIME_LIMIT + 30,
+    )
+    @HelperConstraint(
+        cpu_intensive=False,
+        gpu_required=False,
+        storage_writes_to="none",
+        ram_peak_mb=256,
+        expected_seconds_p50=600,
     )
     def run_bullboard_bridge(*, max_iterations: int | None = None) -> dict[str, int]:
         """Celery entry point. Wraps ``_run_bridge_once`` so the bridge can

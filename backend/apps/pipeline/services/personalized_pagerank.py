@@ -165,19 +165,19 @@ def compute(
     teleport_probability = 1.0 - damping
 
     # Phase 5b — drive the CPU native kernel's power iteration to convergence.
-    from extensions import pagerank as pagerank_kernel  # local import
+    from extensions import pagerank as pagerank_kernel  # pylint: disable=no-name-in-module
 
     ranks = np.full(n, 1.0 / n, dtype=np.float64)
     for _iteration in range(max_iterations):
         next_ranks, delta = pagerank_kernel.personalized_pagerank_step(
-            indptr=csr.indptr,
-            indices=csr.indices,
-            data=csr.data,
-            ranks=ranks,
-            dangling_mask=csr.dangling,
-            personalization=personalization,
-            damping=teleport_probability,
-            node_count=n,
+            csr.indptr,
+            csr.indices,
+            csr.data,
+            ranks,
+            csr.dangling,
+            personalization,
+            teleport_probability,
+            n,
         )
         ranks = next_ranks
         if delta <= n * tolerance:

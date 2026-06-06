@@ -489,7 +489,7 @@ class RegressionFactorTests(TestCase):
             status=AutoIssue.STATUS_RESOLVED,
             resolved_at=dj_tz.now() - timedelta(days=3),
         )
-        naive_last_seen = datetime(2026, 5, 27, 12, 0, 0)  # no tzinfo
+        naive_last_seen = (dj_tz.now() + timedelta(hours=1)).replace(tzinfo=None)
         score = regression_factor(fingerprint="regr-fp-naive", last_seen=naive_last_seen)
         self.assertEqual(score, 1.0)
 

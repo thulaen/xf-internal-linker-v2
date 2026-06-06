@@ -109,18 +109,18 @@ def compute(
 
     # Run the same two SpMV operations (A · hub, A^T · authority)
     # through the CPU native kernel.
-    from extensions import pagerank as pagerank_kernel  # local import
+    from extensions import pagerank as pagerank_kernel  # pylint: disable=no-name-in-module
 
     authority = np.full(n, 1.0 / n, dtype=np.float64)
     hub = np.full(n, 1.0 / n, dtype=np.float64)
     for _iteration in range(max_iterations):
         next_authority, next_hub = pagerank_kernel.hits_step(
-            indptr=csr.indptr,
-            indices=csr.indices,
-            data=csr.data,
-            authority=authority,
-            hub=hub,
-            node_count=n,
+            csr.indptr,
+            csr.indices,
+            csr.data,
+            authority,
+            hub,
+            n,
         )
         # L1-normalise both vectors after each iteration so the
         # power-iteration eigenvector grows neither to zero nor to

@@ -8,10 +8,10 @@ class TestTasksLinkHealth(SimpleTestCase):
         mock_connection.in_atomic_block = False
         mock_filter.side_effect = Exception("Sentinel")
         
-        from apps.pipeline.tasks_link_health import verify_suggestions
+        from apps.pipeline.tasks_link_health import verify_suggestions  # noqa: PLC0415
         
         with self.assertRaises(Exception) as ctx:
-            verify_suggestions(suggestion_ids=["foo"])
+            verify_suggestions(suggestion_ids=["foo"])  # pylint: disable=no-value-for-parameter
             
         self.assertEqual(str(ctx.exception), "Sentinel")
         mock_connection.close.assert_called_once()

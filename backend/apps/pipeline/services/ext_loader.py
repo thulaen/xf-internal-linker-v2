@@ -7,9 +7,9 @@ the dashboard) and to the health system, rather than silently falling back.
 Usage:
     from apps.pipeline.services.ext_loader import load_extension
 
-    scoring_ext = load_extension("scoring", "score_full_batch")
+    scoring_ext = load_extension("scoring", "calculate_composite_scores_full_batch")
     if scoring_ext is not None:
-        scoring_ext.score_full_batch(...)
+        scoring_ext.calculate_composite_scores_full_batch(...)
 """
 
 from __future__ import annotations
@@ -108,9 +108,9 @@ def _log_to_errorlog(
                 "'powershell -ExecutionPolicy Bypass -File scripts\\build-native-extensions.ps1'"
             ),
         )
-    except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
+    except Exception as log_exc:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
         # ErrorLog itself may not be available during early startup or tests.
-        pass
+        logger.debug("Could not write C++ extension failure to ErrorLog", exc_info=True)
 
     # AutoIssue surface (added 2026-05-09 per AutoIssue #14). Fingerprint
     # combines module_name + step so a single rebuild closes ALL extension
@@ -141,5 +141,5 @@ def _log_to_errorlog(
             priority_score=70.0,
             occurrence_count=1,
         ).__dict__)
-    except Exception:  # noqa: BLE001 — AutoIssue surface is best-effort.
-        pass
+    except Exception as issue_exc:  # noqa: BLE001 — AutoIssue surface is best-effort.
+        logger.debug("Could not write C++ extension failure to AutoIssue", exc_info=True)

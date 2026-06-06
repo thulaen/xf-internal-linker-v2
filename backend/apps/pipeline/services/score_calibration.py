@@ -75,7 +75,7 @@ COLD_START_PARAMS: PlattParams = PlattParams(a=_COLD_START_A, b=_COLD_START_B)
 def calibrated_probability(
     cosine_score: float,
     *,
-    params: Optional[PlattParams] = None,
+    params: PlattParams | None = None,
 ) -> float:
     """Map a raw cosine score to a calibrated probability via Platt.
 
@@ -115,7 +115,7 @@ def fit_platt_sigmoid(
     *,
     max_iters: int = 100,
     tolerance: float = 1e-6,
-) -> Optional[PlattParams]:
+) -> PlattParams | None:
     """Fit a Platt sigmoid via Newton-Raphson on the BCE loss.
 
     Returns None when validation set < 1000 (Niculescu-Mizil 2005 §4)
@@ -169,7 +169,7 @@ def _newton_step(
     targets: list[float],
     a: float,
     b: float,
-) -> tuple[Optional[float], float]:
+) -> tuple[float | None, float]:
     """One Newton-Raphson iteration on the BCE loss. Returns (step_a, step_b).
 
     Returns (None, 0.0) when the Hessian is near-singular (numerical
@@ -204,7 +204,7 @@ def passes_calibrated_threshold(
     cosine_score: float,
     *,
     threshold: float = MIN_CALIBRATED_PROBABILITY_DEFAULT,
-    params: Optional[PlattParams] = None,
+    params: PlattParams | None = None,
 ) -> bool:
     """Return True if the calibrated probability is at or above *threshold*.
 
@@ -223,7 +223,7 @@ APPSETTING_KEY_FITTED_AT: str = "pipeline.calibration_fitted_at"
 APPSETTING_KEY_PAIRS: str = "pipeline.calibration_validation_pairs"
 
 
-def load_active_params() -> Optional[PlattParams]:
+def load_active_params() -> PlattParams | None:
     """Read the persisted Platt fit. Returns None when no fit has run yet.
 
     Cold-start safe: any DB / model-import failure returns None and the
@@ -232,7 +232,7 @@ def load_active_params() -> Optional[PlattParams]:
     via ``calibrated_probability(...)``).
     """
     try:
-        from apps.core.models import AppSetting
+        from apps.core.models import AppSetting  # noqa: PLC0415  # noqa: PLC0415
 
         a_row = (
             AppSetting.objects.filter(key=APPSETTING_KEY_A)
@@ -268,8 +268,8 @@ def persist_active_params(
     successful ``fit_platt_sigmoid`` run. Atomic per-row update_or_create;
     Django ORM handles the row-level consistency.
     """
-    from apps.core.models import AppSetting
-    from datetime import datetime, timezone
+    from apps.core.models import AppSetting  # noqa: PLC0415  # noqa: PLC0415
+    from datetime import datetime, timezone  # noqa: PLC0415
 
     now_iso = datetime.now(tz=timezone.utc).isoformat()
     for key, value in (
@@ -301,7 +301,7 @@ def get_calibration_status() -> dict[str, object]:
             ),
         }
     try:
-        from apps.core.models import AppSetting
+        from apps.core.models import AppSetting  # noqa: PLC0415  # noqa: PLC0415
 
         fitted_at = (
             AppSetting.objects.filter(key=APPSETTING_KEY_FITTED_AT)

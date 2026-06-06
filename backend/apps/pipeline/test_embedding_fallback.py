@@ -139,6 +139,25 @@ class FallbackHelperTests(TestCase):
         self.assertIn("openai", job.message)
         self.assertIn("local", job.message)
 
+    def test_fallback_alert_uses_operator_alert_contract(self) -> None:
+        with mock.patch(
+            "apps.notifications.services.emit_operator_alert"
+        ) as emit_alert:
+            embeddings_module._emit_fallback_alert(
+                failing="openai",
+                fallback="local",
+                reason_code="auth",
+                reason_message="token expired",
+            )
+
+        kwargs = emit_alert.call_args.kwargs
+        self.assertEqual(kwargs["event_type"], "embedding.provider_fallback")
+        self.assertEqual(kwargs["severity"], "warning")
+        self.assertIn("title", kwargs)
+        self.assertIn("message", kwargs)
+        self.assertEqual(kwargs["dedupe_key"], "embedding.provider_fallback:openai:local")
+        self.assertEqual(kwargs["payload"]["reason_code"], "auth")
+
 
 class EncodeBatchFallbackTests(TestCase):
     """End-to-end: ``_encode_batch_via_provider`` swaps provider on failure."""

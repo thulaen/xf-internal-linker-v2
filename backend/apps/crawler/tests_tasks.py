@@ -109,3 +109,70 @@ class PulseHeartbeatConnectionGuardTests(SimpleTestCase):
     def test_close_called_when_not_in_atomic_block(self) -> None:
         fake_conn = self._run_with_atomic(in_atomic_block=False)
         fake_conn.close.assert_called_once()
+
+
+class PulseHeartbeatCppProbeTests(SimpleTestCase):
+    """The C++ extension probe must look up the real exported callable name.
+
+    The scoring binding exposes ``calculate_composite_scores_full_batch`` (see
+    backend/extensions/scoring.cpp PYBIND11_MODULE). Probing for the legacy
+    ``score_full_batch`` name produced a 'missing expected callable' warning
+    every heartbeat. This test pins the probe to the correct name and proves
+    its result lands in the ``cpp_extensions`` check entry."""
+
+    def _run_heartbeat(self, *, extension_obj):
+        from apps.crawler import tasks
+
+        fake_conn = MagicMock()
+        fake_conn.in_atomic_block = True
+
+        cursor_ctx = MagicMock()
+        cursor_ctx.__enter__ = MagicMock(return_value=MagicMock())
+        cursor_ctx.__exit__ = MagicMock(return_value=False)
+        fake_conn.cursor.return_value = cursor_ctx
+
+        fake_redis = MagicMock()
+        fake_inspect = MagicMock()
+        # One live worker keeps overall_ok True, so the cpp-extension check is
+        # the only signal under test (the cpp probe never flips overall_ok).
+        fake_inspect.active.return_value = {"worker-1": []}
+        fake_app = MagicMock()
+        fake_app.control.inspect.return_value = fake_inspect
+
+        load_extension = MagicMock(return_value=extension_obj)
+        system_event = MagicMock()
+        broadcast = MagicMock()
+
+        with patch.object(tasks, "connection", fake_conn), patch(
+            "django_redis.get_redis_connection", return_value=fake_redis
+        ), patch("celery.current_app", fake_app), patch(
+            "apps.pipeline.services.ext_loader.load_extension", load_extension
+        ), patch(
+            "apps.crawler.models.SystemEvent", system_event
+        ), patch(
+            "apps.realtime.services.broadcast", broadcast
+        ):
+            result = tasks.pulse_heartbeat()
+        return result, load_extension
+
+    def test_probe_uses_calculate_composite_scores_full_batch(self) -> None:
+        sentinel = object()
+        result, load_extension = self._run_heartbeat(extension_obj=sentinel)
+
+        # The probe must request the real exported callable, not the legacy name.
+        load_extension.assert_called_once_with(
+            "scoring", "calculate_composite_scores_full_batch"
+        )
+        # A non-None handle means the C++ extension check reports OK.
+        self.assertTrue(result["checks"]["cpp_extensions"]["ok"])
+
+    def test_probe_missing_extension_reports_not_ok(self) -> None:
+        result, load_extension = self._run_heartbeat(extension_obj=None)
+
+        load_extension.assert_called_once_with(
+            "scoring", "calculate_composite_scores_full_batch"
+        )
+        # A None handle means the extension is unavailable; the check is not OK
+        # but does NOT flip the overall heartbeat (Python fallbacks exist).
+        self.assertFalse(result["checks"]["cpp_extensions"]["ok"])
+        self.assertTrue(result["ok"])

@@ -46,6 +46,7 @@ logger = logging.getLogger(__name__)
 #: Default dense embedding dimension used when the paid provider cannot be
 #: inspected during cold-start.
 _DEFAULT_EMBEDDING_DIM: int = 1024
+_BGE_M3_EMBEDDING_DIM: int = _DEFAULT_EMBEDDING_DIM
 
 #: Sentence-level overlap between adjacent passages. Chunking baseline:
 #: Callan 1994 SIGIR §5. With ~15 tokens per sentence and a ~200-token
@@ -92,7 +93,7 @@ def _passage_text_hash(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, init=False)
 class _EmbeddingResources:
     """Bundle of objects that the embed/encode helpers need together."""
 
@@ -100,6 +101,20 @@ class _EmbeddingResources:
     signature: str
     codebook: Any | None
     opq_version: str
+
+    def __init__(
+        self,
+        *,
+        provider: Any | None = None,
+        model: Any | None = None,
+        signature: str,
+        codebook: Any | None,
+        opq_version: str,
+    ) -> None:
+        self.provider = provider if provider is not None else model
+        self.signature = signature
+        self.codebook = codebook
+        self.opq_version = opq_version
 
 
 @dataclass(slots=True)
@@ -149,10 +164,10 @@ def _segment_passages_from_post(post) -> list:
 def _load_embedding_resources() -> _EmbeddingResources:
     """Load the active paid provider + currently-active OPQ codebook (if any)."""
     from apps.content.models import OPQCodebook
-    from apps.pipeline.services.embedding_providers import get_provider
+    from apps.pipeline.services import embeddings
 
-    provider = get_provider()
-    signature = provider.signature
+    provider = embeddings._load_model()
+    signature = embeddings.get_current_embedding_signature(model=provider)
     codebook = OPQCodebook.objects.filter(is_active=True).first()
     return _EmbeddingResources(
         provider=provider,

@@ -9,7 +9,7 @@ class TestTasksMonthly(SimpleTestCase):
         mock_connection.in_atomic_block = False
         mock_call.side_effect = Exception("Sentinel")
         
-        from apps.pipeline.tasks_monthly import run_monthly_top_50_celery
+        from apps.pipeline.tasks_monthly import run_monthly_top_50_celery  # noqa: PLC0415
         with self.assertRaises(Exception) as ctx:
             run_monthly_top_50_celery()
             
@@ -21,7 +21,7 @@ class TestTasksMonthly(SimpleTestCase):
     def test_run_monthly_top_50_celery_success(self, mock_call, mock_connection):
         mock_connection.in_atomic_block = True
         
-        from apps.pipeline.tasks_monthly import run_monthly_top_50_celery
+        from apps.pipeline.tasks_monthly import run_monthly_top_50_celery  # noqa: PLC0415
         res = run_monthly_top_50_celery()
         
         expected_month = datetime.now(timezone.utc).strftime("%Y-%m")

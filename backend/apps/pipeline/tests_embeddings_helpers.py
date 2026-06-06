@@ -13,14 +13,23 @@ from unittest import mock
 import numpy as np
 from django.test import SimpleTestCase
 
+from apps.pipeline.services import embeddings as embeddings_module
 from apps.pipeline.services.embeddings import (
     L2NormalizationAuditError,
     _audit_l2_normalization,
     _build_content_item_text_inputs,
     _build_sentence_text_inputs,
+    _emit_fallback_alert,
+    _encode_batch_via_provider,
     _extract_existing_quality_gate_inputs,
+    _load_legacy_model_or_none,
+    _load_model,
     _PROVIDER_FALLBACK_REASON_CODES,
     _quality_gate_should_skip,
+    _thermal_guard_before_gpu_batch,
+    generate_content_item_embeddings,
+    generate_sentence_embeddings,
+    get_model_status,
 )
 
 
@@ -268,3 +277,344 @@ class AuditL2NormalizationTests(SimpleTestCase):
         batch = self._unit_batch()
         batch[0] = batch[0] * (1.0 + 5e-7)
         _audit_l2_normalization(batch)
+
+
+class LoadModelCompatibilityHookTests(SimpleTestCase):
+    """The provider migration left thin compatibility hooks the old call
+    sites and tests still reach for. They must keep working so callers do
+    not crash after the local-model code was removed.
+    """
+
+    def test_load_model_delegates_to_get_provider(self):
+        # ``_load_model`` now returns whatever ``get_provider`` returns —
+        # the local-model loader was deleted in the paid-provider migration.
+        sentinel = mock.Mock(name="provider")
+        with mock.patch(
+            "apps.pipeline.services.embedding_providers.get_provider",
+            return_value=sentinel,
+        ) as get_provider:
+            self.assertIs(_load_model("ignored-arg", extra="ignored-kw"), sentinel)
+        get_provider.assert_called_once_with()
+
+    def test_legacy_model_returned_only_when_it_has_encode(self):
+        # A real legacy local model exposes ``.encode``; that is the signal
+        # the generate_* paths use to take the local-encode branch.
+        encodable = mock.Mock(name="legacy-model")
+        encodable.encode = lambda texts: texts
+        with mock.patch.object(
+            embeddings_module, "_load_model", return_value=encodable
+        ):
+            self.assertIs(_load_legacy_model_or_none(), encodable)
+
+    def test_legacy_model_is_none_when_provider_has_no_encode(self):
+        # The paid provider has no ``.encode`` attribute, so the legacy hook
+        # must report "no local model" and let the provider path run.
+        provider = mock.Mock(spec=["embed", "name", "signature"])
+        with mock.patch.object(
+            embeddings_module, "_load_model", return_value=provider
+        ):
+            self.assertIsNone(_load_legacy_model_or_none())
+
+    def test_legacy_model_is_none_when_loader_raises(self):
+        # If the hook itself blows up, the caller must get None (and keep
+        # going through the provider) rather than a propagated exception.
+        with mock.patch.object(
+            embeddings_module,
+            "_load_model",
+            side_effect=RuntimeError("no local model installed"),
+        ):
+            self.assertIsNone(_load_legacy_model_or_none())
+
+    def test_thermal_guard_is_a_noop(self):
+        # Provider-backed embeddings never run a local GPU batch, so the
+        # thermal guard is a no-op that must accept any args and return None.
+        self.assertIsNone(_thermal_guard_before_gpu_batch())
+        self.assertIsNone(_thermal_guard_before_gpu_batch(1, 2, device="cuda"))
+
+
+class EncodeBatchLocalModelFastPathTests(SimpleTestCase):
+    """``_encode_batch_via_provider`` short-circuits to ``model.encode`` when a
+    legacy local model is supplied, skipping the paid-provider path entirely.
+    """
+
+    def test_uses_model_encode_when_model_has_encode(self):
+        captured = {}
+
+        class _LocalModel:
+            def encode(self, texts):
+                captured["texts"] = list(texts)
+                return [[0.1, 0.2], [0.3, 0.4]]
+
+        # ``_try_get_active_provider`` must NOT be called on the fast path.
+        with mock.patch.object(
+            embeddings_module, "_try_get_active_provider"
+        ) as provider_getter:
+            out = _encode_batch_via_provider(
+                batch_texts=["a", "b"],
+                model=_LocalModel(),
+                batch_size=2,
+                job_id=None,
+            )
+        provider_getter.assert_not_called()
+        self.assertEqual(captured["texts"], ["a", "b"])
+        self.assertEqual(out.dtype, np.float32)
+        self.assertEqual(out.shape, (2, 2))
+        self.assertAlmostEqual(float(out[0, 0]), 0.1, places=6)
+
+
+class GetModelStatusModelCacheTests(SimpleTestCase):
+    """``get_model_status`` looks up a cached model handle keyed by
+    ``<model_name>::<device>`` and forwards it to ``_describe_model_runtime``.
+    """
+
+    def setUp(self):
+        # The module-level cache is shared state; isolate each test.
+        self._saved_cache = dict(embeddings_module._model_cache)
+        embeddings_module._model_cache.clear()
+        self.addCleanup(self._restore_cache)
+
+    def _restore_cache(self):
+        embeddings_module._model_cache.clear()
+        embeddings_module._model_cache.update(self._saved_cache)
+
+    def test_cached_model_is_passed_to_describe_runtime(self):
+        cached_handle = mock.Mock(name="cached-model")
+        runtime = {
+            "performance_mode": "high",
+            "effective_runtime_mode": "api",
+            "device": "api",
+            "reason": "paid embedding provider",
+        }
+        embeddings_module._model_cache["bge-m3::api"] = cached_handle
+
+        with (
+            mock.patch.object(
+                embeddings_module, "_get_model_name", return_value="bge-m3"
+            ),
+            mock.patch.object(
+                embeddings_module,
+                "get_effective_runtime_resolution",
+                return_value=runtime,
+            ),
+            mock.patch.object(
+                embeddings_module, "_get_configured_batch_size", return_value=32
+            ),
+            mock.patch.object(embeddings_module, "_get_batch_size", return_value=16),
+            mock.patch.object(
+                embeddings_module, "_describe_model_runtime"
+            ) as describe,
+        ):
+            describe.return_value = {
+                "configured_batch_size": 32,
+                "embedding_dim": 1024,
+                "active_signature": "sig",
+                "storage_dimension_cap": 16000,
+                "dimension_compatible": True,
+            }
+            status = get_model_status()
+
+        # The cached handle for "bge-m3::api" must be forwarded, not None.
+        self.assertIs(describe.call_args.kwargs["model"], cached_handle)
+        self.assertEqual(status["device"], "api")
+        self.assertEqual(status["embedding_dim"], 1024)
+
+    def test_missing_cache_entry_forwards_none(self):
+        runtime = {
+            "performance_mode": "high",
+            "effective_runtime_mode": "api",
+            "device": "api",
+            "reason": "paid embedding provider",
+        }
+        with (
+            mock.patch.object(
+                embeddings_module, "_get_model_name", return_value="bge-m3"
+            ),
+            mock.patch.object(
+                embeddings_module,
+                "get_effective_runtime_resolution",
+                return_value=runtime,
+            ),
+            mock.patch.object(
+                embeddings_module, "_get_configured_batch_size", return_value=32
+            ),
+            mock.patch.object(embeddings_module, "_get_batch_size", return_value=16),
+            mock.patch.object(
+                embeddings_module, "_describe_model_runtime"
+            ) as describe,
+        ):
+            describe.return_value = {
+                "configured_batch_size": 32,
+                "embedding_dim": 1024,
+                "active_signature": "sig",
+                "storage_dimension_cap": 16000,
+                "dimension_compatible": True,
+            }
+            get_model_status()
+
+        # Nothing cached for this key → None is forwarded.
+        self.assertIsNone(describe.call_args.kwargs["model"])
+
+
+class EmitFallbackAlertContractTests(SimpleTestCase):
+    """``_emit_fallback_alert`` raises an OperatorAlert with the FR-234
+    fallback contract: event type, severity, dedupe key, route, and payload.
+    """
+
+    def test_emits_operator_alert_with_full_contract(self):
+        with mock.patch(
+            "apps.notifications.services.emit_operator_alert"
+        ) as emit_alert:
+            _emit_fallback_alert(
+                failing="openai",
+                fallback="local",
+                reason_code="auth",
+                reason_message="token expired",
+            )
+
+        kwargs = emit_alert.call_args.kwargs
+        self.assertEqual(kwargs["event_type"], "embedding.provider_fallback")
+        self.assertEqual(kwargs["severity"], "warning")
+        self.assertEqual(kwargs["title"], "Embedding provider fallback active")
+        self.assertIn("openai", kwargs["message"])
+        self.assertIn("local", kwargs["message"])
+        self.assertEqual(
+            kwargs["dedupe_key"], "embedding.provider_fallback:openai:local"
+        )
+        self.assertEqual(kwargs["related_route"], "/jobs")
+        self.assertEqual(kwargs["payload"]["reason_code"], "auth")
+        self.assertEqual(kwargs["payload"]["failing_provider"], "openai")
+        self.assertEqual(kwargs["payload"]["fallback_provider"], "local")
+
+    def test_swallows_alert_failure_without_raising(self):
+        # The alert surface is best-effort: a failure must NOT bubble up and
+        # block the embedding fallback itself.
+        with mock.patch(
+            "apps.notifications.services.emit_operator_alert",
+            side_effect=RuntimeError("alert pipe down"),
+        ):
+            self.assertIsNone(
+                _emit_fallback_alert(
+                    failing="openai",
+                    fallback="local",
+                    reason_code="auth",
+                    reason_message="boom",
+                )
+            )
+
+
+class GenerateEmbeddingsModelResolutionTests(SimpleTestCase):
+    """The ``generate_*_embeddings`` entrypoints resolve model_name + signature
+    differently depending on whether a legacy local model is present, then
+    return early when their queryset is empty. These tests pin that preamble.
+    """
+
+    def _legacy_model(self):
+        m = mock.Mock(name="legacy-model")
+        m.encode = lambda texts: texts
+        return m
+
+    def test_content_item_uses_legacy_model_signature_when_present(self):
+        legacy = self._legacy_model()
+        with (
+            mock.patch.object(embeddings_module, "_try_get_active_provider"),
+            mock.patch.object(
+                embeddings_module, "_load_legacy_model_or_none", return_value=legacy
+            ),
+            mock.patch.object(
+                embeddings_module, "_get_model_name", return_value="local-bge"
+            ),
+            mock.patch.object(
+                embeddings_module,
+                "get_current_embedding_signature",
+                return_value="local-sig",
+            ) as get_sig,
+            mock.patch.object(embeddings_module, "_get_batch_size", return_value=8),
+            mock.patch.object(
+                embeddings_module, "_build_content_item_queryset", return_value=[]
+            ),
+            mock.patch("apps.content.models.ContentItem"),
+        ):
+            result = generate_content_item_embeddings()
+
+        # Empty queryset → early return with zeroed counts.
+        self.assertEqual(result, {"embedded": 0, "skipped": 0})
+        # Legacy branch: signature derived from the legacy model itself.
+        get_sig.assert_called_once_with(model=legacy, model_name="local-bge")
+
+    def test_content_item_uses_provider_signature_when_no_legacy_model(self):
+        provider = mock.Mock(name="provider")
+        provider.model_name = "paid-model"
+        provider.signature = "paid-sig"
+        with (
+            mock.patch.object(
+                embeddings_module,
+                "_try_get_active_provider",
+                return_value=provider,
+            ),
+            mock.patch.object(
+                embeddings_module, "_load_legacy_model_or_none", return_value=None
+            ),
+            mock.patch.object(embeddings_module, "_get_batch_size", return_value=8),
+            mock.patch.object(
+                embeddings_module, "_build_content_item_queryset", return_value=[]
+            ) as build_qs,
+            mock.patch("apps.content.models.ContentItem"),
+        ):
+            result = generate_content_item_embeddings(content_item_ids=[1, 2])
+
+        self.assertEqual(result, {"embedded": 0, "skipped": 0})
+        # Provider branch: the provider's own signature is used verbatim,
+        # so the queryset filter receives the provider signature.
+        build_qs.assert_called_once()
+        self.assertEqual(build_qs.call_args.args[2], "paid-sig")
+
+    def test_sentence_uses_legacy_model_signature_when_present(self):
+        legacy = self._legacy_model()
+        with (
+            mock.patch.object(embeddings_module, "_try_get_active_provider"),
+            mock.patch.object(
+                embeddings_module, "_load_legacy_model_or_none", return_value=legacy
+            ),
+            mock.patch.object(
+                embeddings_module, "_get_model_name", return_value="local-bge"
+            ),
+            mock.patch.object(
+                embeddings_module,
+                "get_current_embedding_signature",
+                return_value="local-sig",
+            ) as get_sig,
+            mock.patch.object(embeddings_module, "_get_batch_size", return_value=8),
+            mock.patch.object(
+                embeddings_module, "_build_sentence_queryset", return_value=[]
+            ),
+            mock.patch("apps.content.models.Sentence"),
+        ):
+            result = generate_sentence_embeddings()
+
+        self.assertEqual(result, {"embedded": 0, "skipped": 0})
+        get_sig.assert_called_once_with(model=legacy, model_name="local-bge")
+
+    def test_sentence_uses_provider_signature_when_no_legacy_model(self):
+        provider = mock.Mock(name="provider")
+        provider.model_name = "paid-model"
+        provider.signature = "paid-sig"
+        with (
+            mock.patch.object(
+                embeddings_module,
+                "_try_get_active_provider",
+                return_value=provider,
+            ),
+            mock.patch.object(
+                embeddings_module, "_load_legacy_model_or_none", return_value=None
+            ),
+            mock.patch.object(embeddings_module, "_get_batch_size", return_value=8),
+            mock.patch.object(
+                embeddings_module, "_build_sentence_queryset", return_value=[]
+            ) as build_qs,
+            mock.patch("apps.content.models.Sentence"),
+        ):
+            result = generate_sentence_embeddings(content_item_ids=[7])
+
+        self.assertEqual(result, {"embedded": 0, "skipped": 0})
+        build_qs.assert_called_once()
+        self.assertEqual(build_qs.call_args.args[2], "paid-sig")

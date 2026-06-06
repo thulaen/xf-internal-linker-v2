@@ -509,8 +509,3 @@ class PaperTrailEntry(models.Model):
         elif previous_status is not None and previous_status != self.status:
             self._append_history(f"status:{self.status}")
         super().save(*args, **kwargs)
-        try:
-            from apps.core.services.linear_api import sync_papertrail_to_linear
-            sync_papertrail_to_linear(self)
-        except Exception:
-            pass
