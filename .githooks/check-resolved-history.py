@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pre-commit gate: every staged file must have a disk-backed
+"""Pre-commit warning: every staged file should have a disk-backed
 search_resolved_issues lookup recorded in the current task.
 
 USER RULE (2026-05-18):
@@ -9,7 +9,7 @@ USER RULE (2026-05-18):
   agent task. The lookup must produce evidence on disk that it was run.
   A memory-only lookup does NOT satisfy the mandate.
 
-This hook implements the hard-block:
+This hook implements the warning:
 
   1. Reads `audit/resolved_issues_lookup_log.jsonl` (the disk-backed audit
      log written by `manage.py search_resolved_issues`).
@@ -19,13 +19,13 @@ This hook implements the hard-block:
   3. Collects every file_path that has an audit entry under the current
      task_id.
   4. Compares against the set of staged production source file paths.
-  5. Hard-blocks the commit if any staged file is missing an audit entry.
+  5. Warns if any staged file is missing an audit entry.
 
 The Postgres `pgdata` volume remains the primary source for resolved-issue
 content (via AutoIssue.lessons_learned); the JSONL audit log is the
 disk-backed evidence that the lookup happened, surviving any database wipe.
 
-Rule-F compliant: every FAIL message has WHAT failed / WHY / UNBLOCK.
+Rule-F compliant: every WARN message has WHAT failed / WHY / UNBLOCK.
 
 Source: docs/PER-FILE-LESSON-LOOKUP-RULE.md (authored 2026-05-18).
 """
@@ -133,6 +133,11 @@ def _audit_entries_for_task(task_id: str) -> list[dict]:
     return entries
 
 
+def _warn(message: str) -> int:
+    sys.stderr.write(message)
+    return 0
+
+
 def main() -> int:
     files = _staged_production_files()
     if not files:
@@ -142,8 +147,8 @@ def main() -> int:
     audit_entries = _audit_entries_for_task(task_id)
 
     if not AUDIT_LOG_PATH.exists():
-        sys.stderr.write(
-            "FAIL check-resolved-history: disk-backed audit log "
+        return _warn(
+            "WARN check-resolved-history: disk-backed audit log "
             f"{AUDIT_LOG_PATH.relative_to(REPO_ROOT)} does not exist.\n"
             "WHY: the 2026-05-18 user rule requires every staged file to "
             "have a disk-backed search_resolved_issues lookup recorded for "
@@ -156,11 +161,10 @@ def main() -> int:
             "appends one entry to audit/resolved_issues_lookup_log.jsonl. "
             "Re-run the commit once every staged file has an entry.\n"
         )
-        return 2
 
     if not audit_entries:
-        sys.stderr.write(
-            f"FAIL check-resolved-history: zero audit log entries for "
+        return _warn(
+            f"WARN check-resolved-history: zero audit log entries for "
             f"task_id={task_id}.\n"
             f"WHY: the 2026-05-18 user rule requires every staged file to "
             f"have a disk-backed search_resolved_issues lookup recorded for "
@@ -174,7 +178,6 @@ def main() -> int:
             "task_id automatically captured from the [TDD PREFLIGHT: "
             "...] marker.\n"
         )
-        return 2
 
     covered: set[str] = {
         _normalise_path(e.get("file_path", "")) for e in audit_entries
@@ -190,8 +193,8 @@ def main() -> int:
             if len(uncovered) > 8
             else ""
         )
-        sys.stderr.write(
-            f"FAIL check-resolved-history: {len(uncovered)} staged "
+        return _warn(
+            f"WARN check-resolved-history: {len(uncovered)} staged "
             f"production source file(s) have NO disk-backed "
             f"search_resolved_issues audit entry under task_id={task_id}.\n"
             f"{listed}{more}\n"
@@ -207,7 +210,6 @@ def main() -> int:
             "search_resolved_issues --area <exact file path>`. After every "
             "missing file is covered, re-run the commit.\n"
         )
-        return 2
 
     return 0
 

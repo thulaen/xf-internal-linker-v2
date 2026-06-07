@@ -107,6 +107,18 @@ else
   quality_log_scope_skip "$wrapper_name" ng-test "$MAX_SCOPE_FILES_ng_test"
 fi
 
+if [[ -z "$frontend_lint_targets" && -z "$frontend_scss_targets" && -z "$frontend_test_includes" ]]; then
+  quality_evidence_write \
+    --out "$evidence_file" \
+    --check-type normal_test \
+    --status passed \
+    --tool-name angular-quality \
+    --command "bash scripts/run-angular-quality.sh" \
+    --summary "No changed frontend file needed scoped Angular lint, tests, or mutation." \
+    --failure-fingerprint "angular-quality:no-changed-targets"
+  exit 0
+fi
+
 target_dir="$repo_root/backend/reports/quality-targets"
 mkdir -p "$target_dir"
 changed_files_file="$target_dir/angular-changed-files.txt"

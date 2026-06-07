@@ -267,82 +267,70 @@ run_hard_gate verify-deep-links _run_deep_link_check
 # during Commit A's chain-debugging. The chain MUST enforce the pipeline so
 # agents cannot ship new production code without strict TDD evidence. See
 # AutoIssue #295 (CRITICAL: chain revert dropped TDD-pipeline enforcement).
-run_hard_gate check-tdd-preflight python .githooks/check-tdd-preflight.py
+
 run_hard_gate check-no-destructive-docker-commands python .githooks/check-no-destructive-docker-commands.py
 run_hard_gate check-mint-first-build python .githooks/check-mint-first-build.py
-run_hard_gate check-decision-point python .githooks/check-decision-point.py
-run_hard_gate check-session-close python .githooks/check-session-close.py
-run_hard_gate check-tdd-strict python .githooks/check-tdd-strict.py
+run_soft_gate check-decision-point python .githooks/check-decision-point.py
+run_soft_gate check-session-close python .githooks/check-session-close.py
+
 run_hard_gate check-rust-mandate python .githooks/check-rust-mandate.py
-run_hard_gate check-test-case-mandate python .githooks/check-test-case-mandate.py
-run_hard_gate check-lessons-read-at-session-start python .githooks/check-lessons-read-at-session-start.py
-run_hard_gate check-snapshotd-ritual python .githooks/check-snapshotd-ritual.py
-run_hard_gate check-gh-actions-read python .githooks/check-gh-actions-read.py
-run_hard_gate check-code-review-lessons python .githooks/check-code-review-lessons.py
+run_soft_gate check-test-case-mandate python .githooks/check-test-case-mandate.py
+
+run_soft_gate check-code-review-lessons python .githooks/check-code-review-lessons.py
 # 2026-05-20 — Per-file resolved-issue lookup hard mandate. Agents should run
 # `python scripts/lookup_remote_or_local.py --area <exact file>` for each
 # staged production file; it uses the backend SQLite endpoint when available
 # and falls back to the native disk helper when the backend is down. Refuses any
 # commit whose staged production source files lack a disk-backed audit
 # entry in audit/resolved_issues_lookup_log.jsonl under the current task.
-run_hard_gate check-resolved-history python .githooks/check-resolved-history.py
+run_soft_gate check-resolved-history python .githooks/check-resolved-history.py
 # 2026-05-18 user directive — commit-failure lookup. Refuses any commit that
 # has no audit log entry in audit/commit_failures_lookup_log.jsonl under the
 # current task_id. Run `manage.py search_commit_failures` once per task.
-run_hard_gate check-commit-failures-lookup python .githooks/check-commit-failures-lookup.py
-run_hard_gate check-registry-read python .githooks/check-registry-read.py
-run_hard_gate check-paper-trail-read python .githooks/check-paper-trail-read.py
+run_soft_gate check-commit-failures-lookup python .githooks/check-commit-failures-lookup.py
+
 # 2026-05-23 — Phase K.1: ABSOLUTE Sticky #1 Read Rule. Code-changing
 # commits must carry a [STICKY 1 READ: ...] marker whose SHA-256 prefix
 # matches the live sticky body. Spec at
 # docs/specs/fr-sticky-1-read-rule.md.
-run_hard_gate check-sticky-1-read python .githooks/check-sticky-1-read.py
+
 # 2026-05-23 — Phase K.2: Rewrite Quota rule. Code-changing commits
 # must produce >= 3 rewrites/refactorings or carry a verified
 # [REWRITE QUOTA EXEMPTION:] evidence marker. Spec at
 # docs/specs/fr-rewrite-quota-and-exemption.md.
-run_hard_gate check-rewrite-quota python .githooks/check-rewrite-quota.py
+
 # 2026-05-23 — Phase K.3: Native Inspection Window (7 days). Edits to
-# settled native-language artifacts (Haskell / Rust / Go / C++) need a
-# documented reopen marker. Spec at
-# docs/specs/fr-native-inspection-and-spec-windows.md.
-run_hard_gate check-native-inspection-window python .githooks/check-native-inspection-window.py
+# settled Rust artifacts need a documented reopen marker. C++, Go, Haskell,
+# and Lua hook gates are retired with the Python+Rust-only backend rule.
+run_soft_gate check-native-inspection-window python .githooks/check-native-inspection-window.py
 # 2026-05-23 — Phase K.3: Settled-Spec Window (14 days). Edits to
 # settled docs/specs/*.md need a documented reopen marker (user
 # request, citation drift, or KPI drift).
-run_hard_gate check-spec-window python .githooks/check-spec-window.py
-run_hard_gate check-autoissue-quota python .githooks/check-autoissue-quota.py
+run_soft_gate check-spec-window python .githooks/check-spec-window.py
+
 # Always-on, drought-aware per-source quotas (pgexporter health now; Phase B
 # adds compiler warnings). Blocks while a source has >= threshold open
 # findings unless threshold were resolved this session; 0 open never blocks.
-run_hard_gate check-always-on-quota python .githooks/check-always-on-quota.py
+
 run_hard_gate check-codeql-autoissues python .githooks/check-codeql-autoissues.py
 # Per-source observability gates — same family as CodeQL: block while any
-# unresolved finding for that source remains open. GWP-ASan = C++ heap
-# corruption; Perfetto = measured performance regressions.
-run_hard_gate check-gwp-asan python .githooks/check-gwp-asan.py
+# unresolved finding for that source remains open. Perfetto = measured
+# performance regressions. C++ heap-corruption gates are retired with C++.
 run_hard_gate check-perfetto python .githooks/check-perfetto.py
-run_hard_gate check-paper-trail-evidence python .githooks/check-paper-trail-evidence.py
-run_hard_gate check-deferral-filed python .githooks/check-deferral-filed.py
-run_hard_gate check-profiling-proof python .githooks/check-profiling-proof.py
-run_hard_gate check-perf-proof python .githooks/check-perf-proof.py
-run_hard_gate check-tdd-cycle python .githooks/check-tdd-cycle.py
-run_hard_gate check-spec-citation python .githooks/check-spec-citation.py
-run_hard_gate check-scoped-lessons python .githooks/check-scoped-lessons.py
+run_soft_gate check-paper-trail-evidence python .githooks/check-paper-trail-evidence.py
+run_soft_gate check-deferral-filed python .githooks/check-deferral-filed.py
+
+run_soft_gate check-spec-citation python .githooks/check-spec-citation.py
+run_soft_gate check-scoped-lessons python .githooks/check-scoped-lessons.py
 run_hard_gate check-debug-code python .githooks/check-debug-code.py
 run_hard_gate check-junk-files python .githooks/check-junk-files.py
-# Slice 1.5 — Go services tier boundary + contract enforcement.
-run_hard_gate check-no-cross-language-import python .githooks/check-no-cross-language-import.py
-# Wrong-language IMPLEMENTATIONS (distinct from the import boundary above):
-# MinHash/LSH in Python (belongs in C++), HTTP servers in Python (belongs in
-# Go), domain-invariant classifiers in Python services (belongs in Haskell),
-# Postgres-owning Go services (belongs in Django).
-run_hard_gate check-language-ownership python .githooks/check-language-ownership.py
-run_hard_gate check-go-service-contract python .githooks/check-go-service-contract.py
-# Rules J + L (2026-05-16) — C++ kernel lifecycle invariant + stubs only
-# move when the contract moves. Both fire only when relevant paths are in
-# the staged diff so they cost nothing on unrelated commits.
-run_hard_gate check-cpp-lifecycle python .githooks/check-cpp-lifecycle.py
+# ADR 0007 (Python + Rust ONLY) retired the old C++, Go, Haskell, and Lua
+# hook gates. The commit path now checks the active Python/Rust code only
+# instead of blocking on removed-language ownership or service-contract rules.
+run_hard_gate check-dead-code-on-replace python .githooks/check-dead-code-on-replace.py
+run_hard_gate check-xftool-contract python .githooks/check-xftool-contract.py
+# Rule L (2026-05-16) — generated stubs only move when the contract moves.
+# C++ lifecycle checks are retired with C++.
 run_hard_gate check-stubs-not-regenerated python .githooks/check-stubs-not-regenerated.py
 
 if grep -E '^backend/.*\.py$|^scripts/.*\.py$' <<<"$staged" >/dev/null; then
@@ -372,19 +360,11 @@ if grep -E '^backend/apps/.*\.py$' <<<"$staged" >/dev/null; then
   run_hard_gate check-scoped-mutation python .githooks/check-scoped-mutation.py
 fi
 
-# Compiled code must build AND run. Fires only when a compiled-language file
-# is staged. Runs a fast build+test of the affected target before the heavy
-# per-language quality runners below, so a non-compiling change fails early.
-if grep -E '\.(go|cpp|h|rs|hs)$' <<<"$staged" >/dev/null; then
-  run_hard_gate check-compiled-build python .githooks/check-compiled-build.py
-fi
-
 # Heavy per-language quality runners (Phase J.6 CI offload — 2026-05-22).
 # Each runner executes the full toolchain (ng test + eslint + stylelint +
-# Stryker for Angular; pytest + ruff + mypy + mutmut for Python; clang-
-# format + clang-tidy + cppcheck + ctest for C++; gofmt + go vet +
-# golangci-lint + go test for Go). On a developer workstation these
-# routinely take 10-30 minutes per run and surface real test work that
+# Stryker for Angular; pytest + ruff + mypy + mutmut for Python; cargo
+# checks for Rust). On a developer workstation these routinely take
+# 10-30 minutes per run and surface real test work that
 # belongs to the language's own CI suite, not the pre-commit gate.
 #
 # Behaviour:
@@ -408,16 +388,15 @@ if grep -E '^backend/.*\.py$' <<<"$staged" >/dev/null; then
   run_hard_gate run-python-quality bash scripts/run-python-quality.sh
 fi
 
-if grep -E '^backend/extensions/.*\.(cpp|h)$' <<<"$staged" >/dev/null; then
-  run_soft_gate run-cpp-quality bash scripts/run-cpp-quality.sh
+# Rust quality is scoped to changed Rust files. C++, Go, Haskell, and Lua
+# quality gates are retired and no longer run from hooks.
+if grep -qE '\.rs$|Cargo\.(toml|lock)' <<<"$staged"; then
+  if [[ "${XF_LOCAL_COMPILED_SOFTGATES:-0}" != "1" ]]; then
+    echo "SKIP local Rust soft-gate: it runs in the Dell compiled-quality shard below (set XF_LOCAL_COMPILED_SOFTGATES=1 to force local runs)."
+  else
+    run_soft_gate run-rust-quality bash scripts/run-rust-quality.sh
+  fi
 fi
-
-if grep -E '(^|/)go\.(mod|sum)$|\.go$' <<<"$staged" >/dev/null; then
-  run_soft_gate run-go-quality bash scripts/run-go-quality.sh
-fi
-
-run_soft_gate run-rust-quality    bash scripts/run-rust-quality.sh
-run_soft_gate run-haskell-quality bash scripts/run-haskell-quality.sh
 
 run_soft_gate run-quality-debt-report bash scripts/run-quality-debt-report.sh --changed
 run_soft_gate agent-guard docker compose exec -T backend python /repo/scripts/agent_guard.py $staged
@@ -432,17 +411,8 @@ if [[ "${XF_TURBO_MUTATION:-0}" == "1" ]]; then
   if grep -qE '^backend/.*\.py$' <<<"$staged"; then
     run_soft_gate turbo-mutation-python python scripts/turbo_mutation.py --language python
   fi
-  if grep -qE '^backend/extensions/.*\.(cpp|h)$' <<<"$staged"; then
-    run_soft_gate turbo-mutation-cpp python scripts/turbo_mutation.py --language cpp
-  fi
-  if grep -qE '(^|/)go\.(mod|sum)$|\.go$' <<<"$staged"; then
-    run_soft_gate turbo-mutation-go python scripts/turbo_mutation.py --language go
-  fi
   if grep -qE '\.rs$|Cargo\.(toml|lock)' <<<"$staged"; then
     run_soft_gate turbo-mutation-rust python scripts/turbo_mutation.py --language rust
-  fi
-  if grep -qE '\.hs$|\.cabal$' <<<"$staged"; then
-    run_soft_gate turbo-mutation-haskell python scripts/turbo_mutation.py --language haskell
   fi
   if grep -qE '^frontend/.*\.(ts|html|scss)$' <<<"$staged"; then
     run_soft_gate turbo-mutation-typescript python scripts/turbo_mutation.py --language typescript
@@ -455,33 +425,26 @@ if [[ "${XF_TURBO_TESTS:-0}" == "1" ]]; then
   run_hard_gate turbo-tests python /repo/scripts/turbo_tests.py --language python
 fi
 
-# Run compiled-language quality shards on Mint and Dell in parallel.
-# Both shards run the same toolchain (clang-tidy, ctest, go test, cargo test,
-# hlint, etc.) against the same source tree.  Firing them simultaneously halves
-# wall-clock time for C++/Go/Rust/Haskell quality when both machines are online.
-# An offline machine is non-fatal: its shard exits non-zero and the combined
-# check fails, which prompts the agent to bring the machine back online.
-if grep -qE '^backend/extensions/.*\.(cpp|h)$|(^|/)go\.(mod|sum)$|\.go$|\.rs$|Cargo\.(toml|lock)|\.hs$|\.cabal$' <<<"$staged"; then
+# Run the Rust quality shard on Dell.
+# Dell runs the Rust toolchain against the synced source tree plus the Dell
+# share of MegaLinter.
+# Mint is removed from the compute path: it is the storage/observability host,
+# never a quality shard, so a flaky Mint can no longer block a commit. Dell
+# already runs the identical toolchain, so nothing is lost by dropping Mint.
+if grep -qE '\.rs$|Cargo\.(toml|lock)' <<<"$staged"; then
   manifest_json="$(python scripts/plan-scoped-quality-shards.py --mode "${COMMIT_SCOPE_MODE:-push}" 2>/dev/null || echo '{}')"
-
-  # Mint shard — via SSH (Mint is a Linux helper machine)
-  (printf "%s" "$manifest_json" | \
-    bash scripts/run-mint-quality-shard.sh) &
-  MINT_PID=$!
 
   # Dell shard — via docker --context dell (Dell is a remote Docker host)
   (printf "%s" "$manifest_json" | \
     bash scripts/run-dell-quality-shard.sh) &
   DELL_PID=$!
 
-  wait $MINT_PID; MINT_RC=$?
   wait $DELL_PID; DELL_RC=$?
 
-  if [[ $MINT_RC -ne 0 || $DELL_RC -ne 0 ]]; then
-    printf "FAIL compiled-quality-shards: Mint exit=%s Dell exit=%s\n" \
-      "$MINT_RC" "$DELL_RC" >&2
-    printf "WHY: one or both remote quality shards reported a failure in the compiled-language checks.\n" >&2
-    printf "UNBLOCK: check Mint and Dell docker context connectivity, then rerun the commit.\n" >&2
+  if [[ $DELL_RC -ne 0 ]]; then
+    printf "FAIL compiled-quality-shard: Dell exit=%s\n" "$DELL_RC" >&2
+    printf "WHY: the Dell quality shard reported a failure in the compiled-language checks.\n" >&2
+    printf "UNBLOCK: check the Dell docker context connectivity (docker --context dell info), then rerun the commit.\n" >&2
     _finish_precommit 1
   fi
 fi

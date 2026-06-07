@@ -135,6 +135,7 @@ def test_frontend_quality_uses_changed_test_includes() -> None:
     assert "QUALITY_FRONTEND_TEST_INCLUDES" in frontend_text
     assert "--include $QUALITY_FRONTEND_TEST_INCLUDES" in frontend_text
     assert "in_cap npm run test:ci -- --code-coverage=true\n" not in frontend_text
+    assert "No changed frontend file needed scoped Angular lint, tests, or mutation." in frontend_text
 
 
 def test_quality_debt_changed_mode_does_not_run_frontend_suite() -> None:
@@ -188,6 +189,10 @@ def test_python_quality_coverage_targets_changed_sources_only() -> None:
     assert "QUALITY_PYTHON_COVERAGE_TARGETS" in text
     assert "coverage_args" in text
     assert "--cov=apps --cov=config" not in text
+    assert 'XF_TURBO_TESTS:-0' in text
+    assert "FULL TURBO TESTS" in text
+    assert "pip-audit scoped to dependency-file changes" in text
+    assert "Safety dependency check skipped because no dependency file changed." in text
 
 
 def test_python_quality_excludes_generated_sidecar_protobuf_stubs() -> None:

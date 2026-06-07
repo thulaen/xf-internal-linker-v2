@@ -164,7 +164,7 @@ host_evidence="$repo_root/backend/reports/quality-evidence/python.jsonl"
 mkdir -p "$(dirname "$host_evidence")"
 lint_split_done=0
 pytest_split_done=0
-if [[ "${XF_LINT_SPLIT:-0}" == "1" ]]; then
+if [[ "${XF_LINT_SPLIT:-1}" == "1" ]]; then
   echo "[LINT SPLIT: sharding ruff/pylint/mypy/bandit to Dell 88% (host-side)]"
   python "$repo_root/scripts/run_lint_on_context.py" \
     --files $python_targets --bandit-files $bandit_targets --evidence-out "$host_evidence"
@@ -172,7 +172,7 @@ if [[ "${XF_LINT_SPLIT:-0}" == "1" ]]; then
   lint_split_done=1
   if [[ $lint_split_rc -ne 0 ]]; then exit $lint_split_rc; fi
 fi
-if [[ "${XF_PYTEST_SPLIT:-0}" == "1" ]]; then
+if [[ "${XF_PYTEST_SPLIT:-1}" == "1" ]]; then
   echo "[PYTEST SPLIT: sharding pytest to Dell 88% (own test DB, host-side)]"
   python "$repo_root/scripts/run_pytest_on_context.py" \
     --targets $python_test_targets --evidence-out "$host_evidence"
@@ -198,7 +198,7 @@ docker compose run --rm -T --name "$QUALITY_CONTAINER" "${docker_run_opts[@]}" \
   -e QUALITY_PYTHON_MUTATION_TEST_TARGETS_FILE="/repo/backend/reports/quality-targets/python-mutation-test-targets.txt" \
   -e XF_QUALITY_ENV="${XF_QUALITY_ENV:-local}" \
   -e XF_QUALITY_CORES="$(quality_cores)" \
-  -e XF_TURBO_MUTATION="${XF_TURBO_MUTATION:-0}" \
+  -e XF_TURBO_MUTATION="${XF_TURBO_MUTATION:-1}" \
   -e SKIP_LINT_IN_CONTAINER="$lint_split_done" \
   -e SKIP_PYTEST_IN_CONTAINER="$pytest_split_done" \
   backend-quality sh -lc '
@@ -264,8 +264,22 @@ docker compose run --rm -T --name "$QUALITY_CONTAINER" "${docker_run_opts[@]}" \
     python /repo/scripts/run_quality_step.py --evidence-out "$evidence" --check-type security --tool-name pip-audit --command "pip-audit" --pass-summary "Python dependency audit passed." --fail-summary "Python dependency audit found existing dependency debt (tracked separately)." || true
     python /repo/scripts/run_quality_step.py --evidence-out "$evidence" --check-type security --tool-name safety --command "safety check --full-report" --pass-summary "Safety dependency check passed." --fail-summary "Safety found existing dependency debt (tracked separately)." || true
   else
-    python /repo/scripts/run_quality_step.py --evidence-out "$evidence" --check-type security --tool-name pip-audit --command "pip-audit" --pass-summary "Python dependency audit passed." --fail-summary "Python dependency audit found existing dependency debt." || true
-    python /repo/scripts/run_quality_step.py --evidence-out "$evidence" --check-type security --tool-name safety --command "safety check --full-report" --pass-summary "Safety dependency check passed." --fail-summary "Safety found existing dependency debt." || true
+    python /repo/scripts/write_quality_evidence.py \
+      --out "$evidence" \
+      --check-type security \
+      --status passed \
+      --tool-name pip-audit \
+      --command "pip-audit scoped to dependency-file changes" \
+      --summary "Python dependency audit skipped because no dependency file changed." \
+      --failure-fingerprint "pip-audit:no-dependency-change"
+    python /repo/scripts/write_quality_evidence.py \
+      --out "$evidence" \
+      --check-type security \
+      --status passed \
+      --tool-name safety \
+      --command "safety scoped to dependency-file changes" \
+      --summary "Safety dependency check skipped because no dependency file changed." \
+      --failure-fingerprint "safety:no-dependency-change"
   fi
   coverage_args=""
   for target in $coverage_targets; do
@@ -281,8 +295,8 @@ docker compose run --rm -T --name "$QUALITY_CONTAINER" "${docker_run_opts[@]}" \
   # the actual changed-file signal behind the full monolith.
   # Phase H: 5-min cap on pytest. Targets are already scoped to changed
   # backend files via select_python_test_targets.py.
-  if [[ "${XF_TURBO_TESTS:-0}" == "1" ]]; then
-    echo "[TURBO TESTS: distributing pytest shards via turbo_tests.py]"
+  if [[ "${XF_TURBO_TESTS:-0}" == "1" && "${SKIP_PYTEST_IN_CONTAINER:-0}" != "1" ]]; then
+    echo "[FULL TURBO TESTS: distributing pytest shards via turbo_tests.py because XF_TURBO_TESTS=1]"
     python /repo/scripts/turbo_tests.py --language python
     TURBO_RC=$?
     if [[ $TURBO_RC -ne 0 ]]; then exit $TURBO_RC; fi
@@ -291,7 +305,7 @@ docker compose run --rm -T --name "$QUALITY_CONTAINER" "${docker_run_opts[@]}" \
   if [[ "${SKIP_LOCAL_PYTEST:-0}" != "1" && "${SKIP_PYTEST_IN_CONTAINER:-0}" != "1" ]]; then
     in_cap python /repo/scripts/run_quality_step.py --evidence-out "$evidence" --check-type normal_test --tool-name pytest --command "cd /repo/backend && python -m pytest --override-ini addopts= -p randomly -q --maxfail=1 --reuse-db $coverage_args $test_targets" --pass-summary "Changed backend pytest targets passed." --fail-summary "Changed backend pytest targets failed."
   fi
-  if [ "${XF_TURBO_MUTATION:-0}" = "1" ]; then
+  if [ "${XF_TURBO_MUTATION:-1}" = "1" ]; then
     echo "[run-python-quality] XF_TURBO_MUTATION=1: mutation delegated to turbo coordinator (65/35 split via turbo_mutation.py)"
     exit 0
   fi

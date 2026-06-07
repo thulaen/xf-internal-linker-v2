@@ -25,7 +25,8 @@ def _default_runner(command: list[str]) -> tuple[int, str, str]:
         command,
         check=False,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     return completed.returncode, completed.stdout, completed.stderr
 
@@ -194,23 +195,39 @@ def _transfer_image(image: str, src_builder: str, dst_builder: str) -> tuple[int
     65/35 mint-first split never leaves an image stranded. Streaming (a pipe,
     not a temp tar) keeps big images off disk.
     """
-    try:
-        saver = subprocess.Popen(
-            ["docker", "--context", src_builder, "save", image],
-            stdout=subprocess.PIPE,
-        )
-        loader = subprocess.Popen(
-            ["docker", "--context", dst_builder, "load"],
-            stdin=saver.stdout, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        )
-        if saver.stdout is not None:
-            saver.stdout.close()
-        out_bytes, _ = loader.communicate()
-        saver.wait()
-        rc = loader.returncode if loader.returncode else saver.returncode
-        return rc, (out_bytes.decode("utf-8", "replace") if out_bytes else "")
-    except OSError as exc:
-        return 1, f"transfer failed: {exc}"
+    import time
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        try:
+            saver = subprocess.Popen(
+                ["docker", "--context", src_builder, "save", image],
+                stdout=subprocess.PIPE,
+            )
+            loader = subprocess.Popen(
+                ["docker", "--context", dst_builder, "load"],
+                stdin=saver.stdout, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            )
+            if saver.stdout is not None:
+                saver.stdout.close()
+            out_bytes, _ = loader.communicate(timeout=600)
+            saver.wait()
+            rc = loader.returncode if loader.returncode else saver.returncode
+            if rc == 0:
+                return rc, (out_bytes.decode("utf-8", "replace") if out_bytes else "")
+            else:
+                err_msg = out_bytes.decode("utf-8", "replace") if out_bytes else ""
+                if attempt < max_retries:
+                    _plain_error(f"[smart-build] transfer failed (attempt {attempt}/{max_retries}), retrying in 5s... Error: {err_msg}")
+                    time.sleep(5)
+                else:
+                    return rc, err_msg
+        except OSError as exc:
+            if attempt < max_retries:
+                _plain_error(f"[smart-build] transfer failed with OSError (attempt {attempt}/{max_retries}), retrying in 5s... Error: {exc}")
+                time.sleep(5)
+            else:
+                return 1, f"transfer failed: {exc}"
+    return 1, "transfer failed: max retries exceeded"
 
 
 def _service_image_map(runner: CommandRunner) -> dict[str, str]:
@@ -249,6 +266,9 @@ def _load_images_locally(
     """
     local = _builder_name(config, "windows")
     if builder == local or not config.get("load_remote_images", True):
+        return 0
+    if targets and any("mutation-tools" in t for t in targets):
+        print(f"[smart-build] Skipping local load for {targets} because they are remote-only mutation tools.", file=sys.stderr)
         return 0
     image_map = _service_image_map(runner)
     tags = [image_map[t] for t in targets if t in image_map] if targets else list(image_map.values())

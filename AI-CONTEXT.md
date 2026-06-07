@@ -375,8 +375,7 @@ must fail.
 Language-specific rules files:
 - `frontend/FRONTEND-RULES.md` — before any frontend work
 - `backend/PYTHON-RULES.md` — before any Python backend work
-- `backend/extensions/CPP-RULES.md` — before any C++ work
-- `COMPILED-LANGUAGE-RULES.md` - before any compiled-language work. Builds, runtime artifacts, checks, coverage, mutation tests, and fuzz tests must use Docker-managed storage.
+- [`RUST-FIRST.md`](RUST-FIRST.md) — before any hot-path / native work. Rust is the only compiled language and is authoritative (no Python fallback). Builds, runtime artifacts, checks, coverage, mutation tests, and fuzz tests use the Docker-managed PyO3 + maturin path. (C++, Go, Haskell, and Lua are removed — the old `backend/extensions/CPP-RULES.md` and `COMPILED-LANGUAGE-RULES.md` are retired; see [`docs/adr/0007-python-rust-two-language.md`](docs/adr/0007-python-rust-two-language.md).)
 
 ### MUST UPDATE after work is done
 
@@ -517,7 +516,7 @@ If you decide not to fix that finding in the current session, you must do both:
 - Roadmap libraries: `ngx-monaco-editor-v2`, `three`, `ngx-charts`
 
 ### Engine
-- **Hybrid Engine**: Python (Django/Celery) orchestration with hot-path C++ (pybind11) acceleration.
+- **Hybrid Engine**: Python (Django/Celery) orchestration with hot-path Rust (PyO3 + maturin) acceleration. Rust is authoritative — no Python fallback (see [`RUST-FIRST.md`](RUST-FIRST.md)). (The old C++/pybind11 path is superseded; C++, Go, Haskell, and Lua are removed — ADR 0007.)
 
 
 
@@ -804,10 +803,10 @@ Every phase that introduces new functionality or a feature request (FR) requires
 - **Mandatory Web Research**: Before writing a spec or code for a feature request, the AI MUST search the web (including patent databases, academic papers, and official documentation) to find the most accurate math and algorithms. This ensures the implementation is based on a "source of truth" and is not "half-baked."
 - Write the spec to `docs/specs/fr0XX-<slug>.md` before touching implementation code.
 - The spec must include a source summary, a math-fidelity note, a full implementation spec, and a test plan. Use `docs/specs/fr006-weighted-link-graph.md` as the quality model.
-- **Ranking Performance Rule**: For `FR-015` and any later feature that changes ranking, reranking, candidate scoring, candidate retrieval, or another hot ranking loop, the spec must plan a C++ implementation for the hot inner loop and a behavior-matching Python fallback. C++ is the default execution path for ranking hot loops; Python exists only as the safety fallback when the extension is unavailable or unsafe to use.
-- **Ranking Fallback Rule**: Every such ranking spec must name the Python twin, the `HAS_CPP_EXT`-style gate, the correctness test that compares Python and C++ outputs, and the fallback proof that the feature still works when the compiled module is missing.
-- **Ranking Speed Visibility Rule**: Every such ranking spec must also define a plain-English diagnostic or status field that explains why the C++ speed path is not active or not helping enough, for example: not compiled, import failed, disabled by setting, unsupported inputs, below serial/parallel threshold, or no material speedup seen in benchmark checks.
-- **Ranking Dashboard Rule**: That C++ status must appear on the operator-facing dashboard or diagnostics UI, not only in logs or hidden JSON. Operators must be able to see whether the C++ path is active, whether Python fallback is being used, and whether the speed path is actually helping.
+- **Ranking Performance Rule**: For `FR-015` and any later feature that changes ranking, reranking, candidate scoring, candidate retrieval, or another hot ranking loop, the spec must plan a Rust kernel for the hot inner loop. Rust is the default execution path for ranking hot loops and is authoritative — there is NO Python fallback (see [`RUST-FIRST.md`](RUST-FIRST.md)). (This supersedes the old "C++ first + Python fallback" rule; C++ is removed.)
+- **Ranking No-Fallback Rule**: Every such ranking spec must name the Rust kernel, its parity unit tests and property tests (the old C++/Python parity oracle survives only during the port, then is deleted in the same commit), and the loud diagnostics/health error that fires when the kernel fails to load. There is no Python twin and no `HAS_CPP_EXT`-style fallback gate.
+- **Ranking Speed Visibility Rule**: Every such ranking spec must also define a plain-English diagnostic or status field that explains the Rust kernel's load state, for example: not compiled, import failed, or kernel did not load. A missing kernel is a loud error, not a silent drop to Python.
+- **Ranking Dashboard Rule**: That Rust kernel status must appear on the operator-facing dashboard or diagnostics UI, not only in logs or hidden JSON. Operators must be able to see whether the Rust kernel is loaded and whether the fast path is healthy (runtime status is `rust` or `error` — there is no `python` value).
 - FR-007 (freshness): source the math from `US8407231B2`. Do not reuse freshness signals from FR-006's weighted edge features - the boundary is intentional.
 - FR-008 (phrase matching): source the math from `US7536408B2`. Do not reuse phrase or surrounding-text signals from FR-006's edge features - the boundary is intentional.
 - FR-016 to FR-020 also require a spec/design pass before implementation because they change telemetry schemas, attribution logic, alerting behavior, and model-promotion/runtime safety. Those phases must define neutral fallbacks, rollback paths, and regression gates before any code lands.

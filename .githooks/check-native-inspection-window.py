@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Pre-commit hook: enforce the 7-day Native Inspection Window (Phase K.3).
+Pre-commit hook: enforce the 7-day Rust Inspection Window (Phase K.3).
 
 Sticky #1 (paper_trail row 11, SHA prefix 7b8d04510bf49e49) addendum
-"Native Inspection Window" gives every newly-merged native artifact
+"Native Inspection Window" gives every newly-merged Rust artifact
 seven calendar days of open inspection. After the window closes the
 artifact is "settled" and edits are hard-blocked unless paired with one
 of three documented reopen markers:
@@ -14,7 +14,7 @@ of three documented reopen markers:
   [OTEL_PROFILE REGRESSION: file=<path> baseline_p95_ms=<X>
                             observed_p95_ms=<Y> sustained_minutes=<N>]
 
-The hook scans every staged native-language file, then walks the
+The hook scans every staged Rust file, then walks the
 AGENT-HANDOFF history back-to-front to find the most recent
 ``[NATIVE INSPECTION WINDOW: file=<path> opened_at=... closes_at=...]``
 marker for that path. Files with no prior window are treated as
@@ -37,12 +37,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _hook_helpers  # noqa: E402
 
-# Native-language path prefixes + file extensions per Sticky #1.
-_NATIVE_PREFIXES = (
-    "services/",
-    "backend/extensions/",
-)
-_NATIVE_EXTENSIONS = (".rs", ".cpp", ".hpp", ".hs", ".go")
+# Rust-only file extensions per the Python+Rust backend rule. C++, Go,
+# Haskell, and Lua are retired from hook gating.
+_RUST_EXTENSIONS = (".rs",)
 
 _HANDOFF_PATH = REPO_ROOT / "AGENT-HANDOFF.md"
 
@@ -85,15 +82,13 @@ def _fail(message: str) -> int:
     return 2
 
 
-def _is_native_path(path: str) -> bool:
-    if any(path.startswith(p) for p in _NATIVE_PREFIXES):
-        return True
-    return any(path.endswith(ext) for ext in _NATIVE_EXTENSIONS)
+def _is_rust_path(path: str) -> bool:
+    return any(path.endswith(ext) for ext in _RUST_EXTENSIONS)
 
 
-def _staged_native_files() -> list[str]:
-    """Return staged files matching native-language prefixes or extensions."""
-    return [p for p in _hook_helpers.staged_code_files(REPO_ROOT) if _is_native_path(p)]
+def _staged_rust_files() -> list[str]:
+    """Return staged Rust source files."""
+    return [p for p in _hook_helpers.staged_code_files(REPO_ROOT) if _is_rust_path(p)]
 
 
 def _staged_handoff_diff() -> str:
@@ -160,8 +155,8 @@ def _has_regression_reopen(diff: str, path: str) -> bool:
 
 
 def main() -> int:
-    native_files = _staged_native_files()
-    if not native_files:
+    rust_files = _staged_rust_files()
+    if not rust_files:
         return 0
 
     handoff = _handoff_text()
@@ -169,7 +164,7 @@ def main() -> int:
     now = datetime.now(timezone.utc)
 
     settled_violations: list[str] = []
-    for path in native_files:
+    for path in rust_files:
         window = _latest_window_for(path, handoff)
         if window is None:
             # First-time merge of the artifact — the window opens here.
@@ -190,13 +185,13 @@ def main() -> int:
         return 0
 
     return _fail(
-        "FAIL check-native-inspection-window: the following native-language "
+        "FAIL check-native-inspection-window: the following Rust "
         "files have a closed inspection window and the staged AGENT-HANDOFF "
         "entry has no documented reopen marker for them:\n"
         + "\n".join(settled_violations)
         + "\n"
         "WHY: Sticky #1 addendum 'Native Inspection Window' gives every "
-        "newly-merged native artifact 7 days of open inspection. After "
+        "newly-merged Rust artifact 7 days of open inspection. After "
         "that window closes the artifact is 'settled' and casual edits "
         "are blocked to prevent post-merge churn (Brooks 1995 ch.8, "
         "irreversibility cost).\n"

@@ -41,7 +41,7 @@ class _StderrCollector:
 
 def _run_with(
     *,
-    native_files: list[str],
+    rust_files: list[str],
     handoff_text: str = "",
     handoff_diff: str = "",
     now: datetime | None = None,
@@ -55,7 +55,7 @@ def _run_with(
             return fixed_now if tz is None else fixed_now.astimezone(tz)
 
     with patch.object(
-        hook, "_staged_native_files", return_value=native_files
+        hook, "_staged_rust_files", return_value=rust_files
     ), patch.object(
         hook, "_handoff_text", return_value=handoff_text
     ), patch.object(
@@ -77,14 +77,20 @@ def _window_marker(path: str, opened_at: datetime) -> str:
 
 class NoNativeFilesExempt(unittest.TestCase):
     def test_pure_docs_commit_passes(self) -> None:
-        rc, _ = _run_with(native_files=[])
+        rc, _ = _run_with(rust_files=[])
         self.assertEqual(rc, 0)
+
+    def test_retired_language_files_are_not_rust_paths(self) -> None:
+        self.assertFalse(hook._is_rust_path("services/sentinel/src/Main.hs"))
+        self.assertFalse(hook._is_rust_path("services/streamd/cmd/main.go"))
+        self.assertFalse(hook._is_rust_path("backend/extensions/scoring.cpp"))
+        self.assertFalse(hook._is_rust_path("backend/lua/rules.lua"))
 
 
 class FirstMergeExempt(unittest.TestCase):
-    def test_native_file_with_no_prior_window_passes(self) -> None:
+    def test_rust_file_with_no_prior_window_passes(self) -> None:
         rc, _ = _run_with(
-            native_files=["services/sentinel/src/Main.hs"],
+            rust_files=["backend/extensions/scoring/src/lib.rs"],
             handoff_text="some prior content without any window markers",
         )
         self.assertEqual(rc, 0)
@@ -94,9 +100,9 @@ class OpenWindowPasses(unittest.TestCase):
     def test_open_window_lets_edit_through(self) -> None:
         now = datetime(2026, 5, 23, tzinfo=timezone.utc)
         opened = now - timedelta(days=3)
-        handoff = _window_marker("services/sentinel/src/Main.hs", opened)
+        handoff = _window_marker("backend/extensions/scoring/src/lib.rs", opened)
         rc, _ = _run_with(
-            native_files=["services/sentinel/src/Main.hs"],
+            rust_files=["backend/extensions/scoring/src/lib.rs"],
             handoff_text=handoff,
             now=now,
         )
@@ -107,14 +113,14 @@ class SettledWindowBlocks(unittest.TestCase):
     def test_closed_window_with_no_reopen_blocks(self) -> None:
         now = datetime(2026, 5, 23, tzinfo=timezone.utc)
         opened = now - timedelta(days=30)
-        handoff = _window_marker("services/sentinel/src/Main.hs", opened)
+        handoff = _window_marker("backend/extensions/scoring/src/lib.rs", opened)
         rc, out = _run_with(
-            native_files=["services/sentinel/src/Main.hs"],
+            rust_files=["backend/extensions/scoring/src/lib.rs"],
             handoff_text=handoff,
             now=now,
         )
         self.assertEqual(rc, 2)
-        self.assertIn("services/sentinel/src/Main.hs", out)
+        self.assertIn("backend/extensions/scoring/src/lib.rs", out)
         self.assertIn("closed", out)
 
 
@@ -122,15 +128,16 @@ class ReopenMarkersAllowEdit(unittest.TestCase):
     def setUp(self) -> None:
         self.now = datetime(2026, 5, 23, tzinfo=timezone.utc)
         opened = self.now - timedelta(days=30)
-        self.handoff = _window_marker("services/sentinel/src/Main.hs", opened)
+        self.path = "backend/extensions/scoring/src/lib.rs"
+        self.handoff = _window_marker(self.path, opened)
 
     def test_user_reopen_passes(self) -> None:
         diff = (
-            '[USER REQUEST INSPECTION: file=services/sentinel/src/Main.hs '
+            f'[USER REQUEST INSPECTION: file={self.path} '
             'reason="user-requested second pass for correctness review"]'
         )
         rc, _ = _run_with(
-            native_files=["services/sentinel/src/Main.hs"],
+            rust_files=[self.path],
             handoff_text=self.handoff,
             handoff_diff=diff,
             now=self.now,
@@ -139,11 +146,11 @@ class ReopenMarkersAllowEdit(unittest.TestCase):
 
     def test_user_reopen_with_short_reason_blocks(self) -> None:
         diff = (
-            '[USER REQUEST INSPECTION: file=services/sentinel/src/Main.hs '
+            f'[USER REQUEST INSPECTION: file={self.path} '
             'reason="too short"]'
         )
         rc, out = _run_with(
-            native_files=["services/sentinel/src/Main.hs"],
+            rust_files=[self.path],
             handoff_text=self.handoff,
             handoff_diff=diff,
             now=self.now,
@@ -153,11 +160,11 @@ class ReopenMarkersAllowEdit(unittest.TestCase):
 
     def test_pyroscope_regression_meets_threshold(self) -> None:
         diff = (
-            "[PYROSCOPE REGRESSION: file=services/sentinel/src/Main.hs "
-            "baseline_p95_ms=100.0 observed_p95_ms=200.0 sustained_minutes=15]"
+            f"[PYROSCOPE REGRESSION: file={self.path} baseline_p95_ms=100.0 "
+            "observed_p95_ms=200.0 sustained_minutes=15]"
         )
         rc, _ = _run_with(
-            native_files=["services/sentinel/src/Main.hs"],
+            rust_files=[self.path],
             handoff_text=self.handoff,
             handoff_diff=diff,
             now=self.now,
@@ -166,11 +173,11 @@ class ReopenMarkersAllowEdit(unittest.TestCase):
 
     def test_pyroscope_regression_below_multiplier_blocks(self) -> None:
         diff = (
-            "[PYROSCOPE REGRESSION: file=services/sentinel/src/Main.hs "
-            "baseline_p95_ms=100.0 observed_p95_ms=120.0 sustained_minutes=15]"
+            f"[PYROSCOPE REGRESSION: file={self.path} baseline_p95_ms=100.0 "
+            "observed_p95_ms=120.0 sustained_minutes=15]"
         )
         rc, _ = _run_with(
-            native_files=["services/sentinel/src/Main.hs"],
+            rust_files=[self.path],
             handoff_text=self.handoff,
             handoff_diff=diff,
             now=self.now,
@@ -179,11 +186,11 @@ class ReopenMarkersAllowEdit(unittest.TestCase):
 
     def test_otel_regression_with_short_window_blocks(self) -> None:
         diff = (
-            "[OTEL_PROFILE REGRESSION: file=services/sentinel/src/Main.hs "
-            "baseline_p95_ms=100.0 observed_p95_ms=200.0 sustained_minutes=5]"
+            f"[OTEL_PROFILE REGRESSION: file={self.path} baseline_p95_ms=100.0 "
+            "observed_p95_ms=200.0 sustained_minutes=5]"
         )
         rc, _ = _run_with(
-            native_files=["services/sentinel/src/Main.hs"],
+            rust_files=[self.path],
             handoff_text=self.handoff,
             handoff_diff=diff,
             now=self.now,
