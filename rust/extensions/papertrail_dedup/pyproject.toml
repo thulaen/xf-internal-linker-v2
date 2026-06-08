@@ -1,0 +1,18 @@
+[build-system]
+requires = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "papertrail_dedup"
+description = "Paper-trail MinHash + LSH near-duplicate index (Rust, PyO3)."
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+dynamic = ["version"]
+
+[tool.maturin]
+# The built artifact imports as `extensions.papertrail_dedup` once staged on
+# PYTHONPATH under `extensions/`, matching the C++ module it replaces.
+module-name = "papertrail_dedup"

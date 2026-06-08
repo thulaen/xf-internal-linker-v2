@@ -1,0 +1,34 @@
+# xftool — the single Rust command-line multi-tool (ADR 0008, fr-rust-cli-tooling).
+#
+# This is TOOLING, not app architecture: the Django app and the kernel crates
+# (rust/extensions/*) NEVER depend on it. It is for CI checks, log forensics,
+# data cleanup, and auditing only. One binary, many grouped subcommands
+# (`xftool <group> <verb-noun>`), built with clap derive.
+[package]
+name = "xftool"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "xftool — the single Rust CLI multi-tool for CI checks, log forensics, data cleanup, and auditing (ADR 0008)."
+
+[[bin]]
+name = "xftool"
+path = "src/main.rs"
+
+[dependencies]
+# clap (derive) is the command framework: grouped subcommands + generated --help.
+clap = { version = "4", features = ["derive"] }
+# serde / serde_json: parse the JSON inputs the tools read and emit the
+# `--format json` machine-readable output for CI.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# sha2: artifact hash verification (`xftool artifact check`).
+sha2 = "0.10"
+
+[lints]
+workspace = true

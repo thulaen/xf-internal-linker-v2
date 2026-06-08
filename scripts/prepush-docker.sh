@@ -33,6 +33,11 @@ fi
 if grep -E '(^|/)go\.(mod|sum)$|\.go$' <<<"$scoped_paths" >/dev/null; then
   bash scripts/run-go-quality.sh
 fi
+if grep -qE '\.rs$|Cargo\.(toml|lock)' <<<"$scoped_paths"; then
+  # Rust clippy hard gate at push-time (belt-and-suspenders: Dell shard already
+  # runs clippy at commit time). Runs via the local compiled-tools container.
+  COMMIT_SCOPE_MODE=push bash scripts/run-rust-quality.sh
+fi
 bash scripts/run-quality-debt-report.sh --changed
 
 if grep -E '^backend/apps/.*\.py$' <<<"$scoped_paths" > /dev/null; then

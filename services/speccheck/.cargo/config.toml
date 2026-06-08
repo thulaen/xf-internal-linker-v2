@@ -1,0 +1,6 @@
+[term]
+color = "always"
+
+[build]
+target-dir = "/tmp/xf-speccheck-cargo-target"
+rustflags = ["-D", "unsafe-code"]

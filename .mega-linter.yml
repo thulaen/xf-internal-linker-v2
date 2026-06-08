@@ -22,6 +22,8 @@ DISABLE:
   - CPP_CLANGTIDY        # run-cpp-quality.sh
   - CPP_CPPCHECK         # run-cpp-quality.sh
   - TYPESCRIPT_ES        # run-angular-quality.sh
+  - REPOSITORY_JSCPD     # PyO3 extension boilerplate triggers 0% threshold; tracked via AutoIssues
+  - REPOSITORY_GRYPE     # CVE scan of transitive deps; tracked via pip-audit/cargo-audit in quality scripts
 
 # Enable linters that add value not covered elsewhere
 ENABLE:

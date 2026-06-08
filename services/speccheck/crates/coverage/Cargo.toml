@@ -1,0 +1,17 @@
+[package]
+name = "speccheck-coverage"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+description.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+serde_json = "1.0.149"
+
+[lints]
+workspace = true

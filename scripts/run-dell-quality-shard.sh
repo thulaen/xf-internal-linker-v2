@@ -153,13 +153,24 @@ pids+=("$!")
 # too long" from the docker.exe wrapper), so write it to a local file that
 # we read inside the container. This also avoids Docker's 64KB bufio.Scanner limit.
 if [[ -n "$ml_paths" ]]; then
+  # Write the scoped path list and the repo-root config to the Dell volume so
+  # MegaLinter finds the correct DISABLE list and VALIDATE_ALL_CODEBASE setting.
   printf '%s\n' "$ml_paths" | MSYS_NO_PATHCONV=1 docker --context dell run -i --rm -v "${DELL_VOLUME}:/repo" alpine sh -c "cat > /repo/.ml_paths.txt"
+  if [[ -f "$repo_root/.mega-linter.yml" ]]; then
+    echo "[dell-shard] Copying .mega-linter.yml to Dell volume..."
+    # shellcheck disable=SC2002
+    cat "$repo_root/.mega-linter.yml" | \
+      MSYS_NO_PATHCONV=1 docker --context dell run -i --rm \
+        -v "${DELL_VOLUME}:/repo" alpine sh -c "cat > /repo/.mega-linter.yml"
+  fi
+  # Write the report inside the Dell volume so we can read it back after the run.
   MSYS_NO_PATHCONV=1 docker --context dell run --rm \
     -e VALIDATE_ALL_CODEBASE=false \
-    -e REPORT_OUTPUT_FOLDER=/tmp/megalinter-reports \
+    -e REPORT_OUTPUT_FOLDER=/tmp/lint/.megalinter-reports \
     -e LOG_LEVEL=WARNING \
     -e OUTPUT_FORMAT=json \
-    -v "${DELL_VOLUME}:/tmp/lint:ro" \
+    -e "DISABLE=PYTHON_RUFF,PYTHON_PYLINT,PYTHON_BANDIT,GO_GOLANGCI_LINT,RUST_CLIPPY,RUST_RUSTFMT,CPP_CLANGTIDY,CPP_CPPCHECK,TYPESCRIPT_ES,REPOSITORY_JSCPD,REPOSITORY_GRYPE" \
+    -v "${DELL_VOLUME}:/tmp/lint" \
     --entrypoint bash \
     oxsecurity/megalinter:v8 \
     -c 'export FILTER_REGEX_INCLUDE="$(cat /tmp/lint/.ml_paths.txt)" && exec /entrypoint.sh' \
@@ -179,6 +190,20 @@ done
 if [[ -f "/tmp/dell-megalinter-$$.jsonl" ]]; then
   cat "/tmp/dell-megalinter-$$.jsonl"
   rm -f "/tmp/dell-megalinter-$$.jsonl"
+fi
+
+# --- Ingest MegaLinter findings into AutoIssues (advisory, never blocks commit) ---
+# Read the JSON report written inside the Dell volume and pipe to the Django backend.
+# The || true ensures that ingestion failures do NOT affect the commit gate; the
+# MegaLinter exit code above is what drives the hard block.
+if [[ -n "$ml_paths" ]]; then
+  ml_report="$(MSYS_NO_PATHCONV=1 docker --context dell run --rm \
+    -v "${DELL_VOLUME}:/repo" alpine \
+    sh -c 'cat /repo/.megalinter-reports/mega-linter-report.json 2>/dev/null' || true)"
+  if [[ -n "$ml_report" ]]; then
+    printf '%s' "$ml_report" | \
+      docker compose exec -T backend python manage.py ingest_megalinter_json --stdin || true
+  fi
 fi
 
 exit "$status"

@@ -1,0 +1,21 @@
+[package]
+name = "lua-fastcheck"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+description = "Fast scoped LuaJIT sandbox and dialect checker."
+keywords.workspace = true
+categories.workspace = true
+
+[[bin]]
+name = "lua-fastcheck"
+path = "src/main.rs"
+
+[dependencies]
+mlua = { version = "0.10.5", features = ["luajit", "vendored"] }
+
+[lints]
+workspace = true

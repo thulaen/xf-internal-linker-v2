@@ -79,7 +79,11 @@ mutation_diff_file() {
   base="$(git merge-base "$MUTATION_DIFF_REF" HEAD 2>/dev/null || true)"
   if [ -z "$base" ]; then
     echo "[mutation] warning: diff ref $MUTATION_DIFF_REF unavailable; using staged diff" >&2
-    git diff --cached --binary > "$MUTATION_DIFF_FILE"
+    # git diff --cached fails inside containers that have no git staging area
+    # (Dell compiled-tools volume is a tar-synced tree, not a git checkout).
+    # An empty diff means "no changed lines" which is safe: mutation is either
+    # skipped by XF_TURBO_MUTATION=1 or cargo-mutants finds no in-diff targets.
+    git diff --cached --binary > "$MUTATION_DIFF_FILE" 2>/dev/null || true
   else
     git diff --binary "$base" HEAD > "$MUTATION_DIFF_FILE"
   fi

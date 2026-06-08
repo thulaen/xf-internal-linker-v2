@@ -404,6 +404,54 @@ ALLOWLIST: frozenset[str] = frozenset({
     # variable name in the sonar-autoscan loop (SONAR_AUTOSCAN_INTERVAL_SECONDS).
     # Not a new technical concept; the word "interval" is already in any dictionary.
     "INTERVAL",
+    # Rust extension workspace terms (added 2026-06-08). Bench variable names,
+    # well-known technical standards, academic venues, and internal IDs that
+    # appear in the 26 PyO3 kernel READMEs and benchmark files.
+    # Bench / code variable names (not new technical jargon):
+    "BANDS", "CACHE", "CATALOG", "COUNTERS", "DEPTH", "DIM", "DOG",
+    "EPSILON", "EXPLANATIONS", "FOX", "HASHES", "LOGS", "NEUTRAL",
+    "SELECTED", "SHAPES", "SIZES", "SURVIVED", "TOL", "USAGE", "WIDTH",
+    "WITH",
+    # Well-known technical standards and formats:
+    "BLAS",     # Basic Linear Algebra Subroutines — standard numerical library
+    "BRDA",     # Branch Data format in LCOV coverage reports
+    "BSD-2",    # BSD 2-Clause License — standard open-source license
+    "CRC-32C",  # Castagnoli CRC-32 checksum variant
+    "CSR",      # Compressed Sparse Row — standard sparse matrix format
+    "FMA",      # Fused Multiply-Add — standard CPU instruction
+    "HREF",     # HTML hyperlink reference attribute (same root as URL)
+    "IEEE-754", # IEEE standard for floating-point arithmetic
+    "NAN",      # Not a Number — IEEE 754 special value
+    "SIMD",     # Single Instruction Multiple Data — CPU parallelism
+    # Academic venues / conferences (third-party citations, not project jargon):
+    "CIKM",     # ACM Conference on Information and Knowledge Management
+    "CVPR",     # Computer Vision and Pattern Recognition conference
+    "ICCV",     # International Conference on Computer Vision
+    "STOC",     # ACM Symposium on Theory of Computing
+    "TPAMI",    # IEEE Transactions on Pattern Analysis and Machine Intelligence
+    # Algorithm and data-structure shorthand (established CS terms):
+    "FNV",      # Fowler-Noll-Vo hash function
+    "IVFADC",   # Inverted File with Asymmetric Distance Computation (ANN)
+    "LUT",      # Look-Up Table — standard hardware/software optimisation term
+    "ULP",      # Unit in the Last Place — floating-point precision measure
+    # Doc filename reference:
+    "AUTO-GENERATED-STUB",      # generated file marker in README comment
+    "PYTHON-RUST-MIGRATION-PLAN",  # doc filename (docs/PYTHON-RUST-MIGRATION-PLAN.md)
+    # Internal Rust bug-tracking IDs (same pattern as RUSTBUG-CORR-004/007 already
+    # in PLAIN-ENGLISH-RULE.md; adding the remaining IDs here avoids per-ID glossary rows):
+    "RUSTBUG-CONC", "RUSTBUG-CONC-001", "RUSTBUG-CONC-002", "RUSTBUG-CONC-003",
+    "RUSTBUG-CONC-004", "RUSTBUG-CONC-005",
+    "RUSTBUG-CORR", "RUSTBUG-CORR-001", "RUSTBUG-CORR-002", "RUSTBUG-CORR-003",
+    "RUSTBUG-CORR-005", "RUSTBUG-CORR-006", "RUSTBUG-CORR-008", "RUSTBUG-CORR-009",
+    "RUSTBUG-CORR-010",
+    "RUSTBUG-COVERAGE-001", "RUSTBUG-MUTATION-001",
+    "RUSTBUG-PERF", "RUSTBUG-PERF-001", "RUSTBUG-PERF-002", "RUSTBUG-PERF-003",
+    "RUSTBUG-PERF-004", "RUSTBUG-PERF-005", "RUSTBUG-PERF-006", "RUSTBUG-PERF-007",
+    "RUSTBUG-PERF-008", "RUSTBUG-PERF-009", "RUSTBUG-PERF-010",
+    "RUSTBUG-RES", "RUSTBUG-RES-002", "RUSTBUG-RES-003", "RUSTBUG-RES-004",
+    "RUSTBUG-RES-005",
+    "RUSTBUG-SEC", "RUSTBUG-SEC-001", "RUSTBUG-SEC-002", "RUSTBUG-SEC-003",
+    "RUSTBUG-SEC-004", "RUSTBUG-SEC-005",
 })
 
 # Regex: 3+ consecutive uppercase letters with optional repeated hyphen-

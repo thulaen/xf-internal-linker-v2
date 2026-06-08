@@ -1,0 +1,13 @@
+{
+  "total": 1.0,
+  "components": {
+    "relevance": 0.6,
+    "freshness": 0.25,
+    "authority": 0.15
+  },
+  "bounds": {
+    "relevance": [0.0, 1.0],
+    "freshness": [0.0, 1.0],
+    "authority": [0.0, 1.0]
+  }
+}

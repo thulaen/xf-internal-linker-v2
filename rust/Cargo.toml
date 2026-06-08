@@ -1,0 +1,31 @@
+# Cargo workspace for Rust hot-path kernels exposed to Python via PyO3.
+#
+# This workspace is the home for kernels ported from C++ per
+# docs/PYTHON-RUST-MIGRATION-PLAN.md and RUST-FIRST.md. It holds the
+# `xf_kernels` scaffold crate (PyO3 + maturin build-path proof) and one
+# cdylib crate per ported kernel under `extensions/<name>`; each kernel maps
+# 1:1 to the Python module `extensions.<name>` (e.g. `extensions/l2norm`
+# ships `l2norm.so` imported as `extensions.l2norm`).
+[workspace]
+resolver = "2"
+members = ["xf_kernels", "extensions/l2norm", "extensions/count_min_sketch", "extensions/counting_bloom", "extensions/compressed_bloom", "extensions/anchor_self_information", "extensions/ranking_decision_engine", "extensions/generic_anchor_matcher", "extensions/texttok", "extensions/phrasematch", "extensions/rareterm", "extensions/linkparse", "extensions/anchor_descriptiveness", "extensions/anchor_diversity", "extensions/api_rate_limiter", "extensions/fieldrel", "extensions/feedrerank", "extensions/pagerank", "extensions/lesson_index", "extensions/papertrail_dedup", "extensions/scoring", "extensions/simsearch", "extensions/ivf_index", "extensions/passagesim", "extensions/quantemb", "tools"]
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.83"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/local/xf-internal-linker-v2"
+# readme/keywords/categories satisfy clippy's `cargo_common_metadata` lint
+# (the `clippy::cargo` group is `-D warnings` in the Rust mandate gate). The
+# `readme` path is resolved per-crate, so each member ships its own README.md.
+readme = "README.md"
+keywords = ["pyo3", "maturin", "kernel", "hot-path", "rust"]
+categories = ["science", "concurrency"]
+description = "Rust hot-path kernels exposed to Python via PyO3 + maturin."
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = "warn"
+pedantic = "warn"

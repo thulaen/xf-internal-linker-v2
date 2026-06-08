@@ -1,0 +1,41 @@
+# cargo-mutants configuration for the Rust hot-path kernels workspace.
+#
+# The `#[pyfunction]` / `#[pymodule]` functions are thin FFI adapters over the
+# Python boundary: they take PyO3 view types (`PyReadwriteArray*`) that only a
+# running CPython interpreter can construct, so `cargo test` cannot reach them
+# (this is exactly why line coverage sits at ~72% — see the ratchet in
+# scripts/run-rust-coverage.sh). Mutating those unreachable wrappers produces
+# survivors that no Rust-only test could ever catch, which would falsely fail
+# the mutation gate. The real compute lives in the plain-Rust cores
+# (`normalize_l2_slice`, `normalize_l2_batch_buffer`, `l2_norm_core`), which ARE
+# unit-tested and ARE mutated.
+#
+# `exclude_re` matches cargo-mutants' mutant display text, which embeds the
+# function name, e.g.:
+#   replace != with == in normalize_l2_batch
+#   replace normalize_l2 -> PyResult<()> with PyResult::new()
+# Each pattern uses `\b` (word boundary) so the wrapper name is matched exactly
+# and does NOT also match the testable cores: `\bnormalize_l2\b` does not match
+# `normalize_l2_slice` (no boundary between `2` and `_`), and
+# `\bnormalize_l2_batch\b` does not match `normalize_l2_batch_buffer`. So the
+# plain-Rust cores stay mutated while only the FFI wrappers are excluded.
+# IMPORTANT: the mutant text ALSO contains the file path (e.g.
+# `extensions/l2norm/src/lib.rs:...`), so a bare name like `l2norm` would match
+# the path on every line and exclude everything. The patterns below anchor on
+# the two syntactic positions where the *function name* appears:
+#   - ` in <fn>$`            (operator mutants: "replace != with == in <fn>")
+#   - ` replace <fn> ->`     (whole-body mutants: "replace <fn> -> ... with ...")
+exclude_re = [
+    # l2norm crate: the PyO3 entry points and module registration.
+    " in normalize_l2$",
+    " in normalize_l2_batch$",
+    " replace normalize_l2 ->",
+    " replace normalize_l2_batch ->",
+    " replace l2norm ->",
+    # xf_kernels crate: the scaffold's PyO3 entry points and module.
+    " in version$",
+    " in l2_norm$",
+    " replace version ->",
+    " replace l2_norm ->",
+    " replace xf_kernels ->",
+]

@@ -1,0 +1,18 @@
+[package]
+name = "speccheck-repeat-key"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+description.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+sha2 = "0.10.8"
+speccheck-parser = { path = "../parser", version = "0.1.0" }
+
+[lints]
+workspace = true

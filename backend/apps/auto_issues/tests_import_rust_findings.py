@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import importlib
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest import skipUnless
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -12,7 +14,14 @@ from apps.auto_issues.models import AutoIssue
 from apps.auto_issues.services import rust_findings
 from apps.paper_trail.services import dedup as paper_trail_dedup
 
+try:
+    importlib.import_module("extensions.papertrail_dedup")
+    _RUST_KERNEL_AVAILABLE = True
+except ImportError:
+    _RUST_KERNEL_AVAILABLE = False
 
+
+@skipUnless(_RUST_KERNEL_AVAILABLE, "papertrail_dedup Rust kernel not built in this environment")
 class RustFindingsImportTests(TestCase):
     def setUp(self) -> None:
         AutoIssue.objects.filter(source=AutoIssue.SOURCE_RUST_DEFECT).delete()

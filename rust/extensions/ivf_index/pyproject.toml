@@ -1,0 +1,23 @@
+# maturin is the build backend that compiles this Rust crate into an
+# importable Python extension module named `ivf_index`. `maturin build` reads
+# this file, runs `cargo build`, and produces a wheel containing
+# `ivf_index.so`.
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "ivf_index"
+version = "0.1.0"
+description = "Inverted File + OPQ asymmetric-distance vector search kernel (Rust), imported by the runtime as extensions.ivf_index."
+requires-python = ">=3.10"
+license = { text = "MIT OR Apache-2.0" }
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+
+[tool.maturin]
+# Build against the stable ABI so one wheel covers CPython 3.10+.
+features = ["pyo3/extension-module"]

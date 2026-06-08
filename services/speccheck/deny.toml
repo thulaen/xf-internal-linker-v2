@@ -1,0 +1,9 @@
+[licenses]
+allow = ["MIT", "Apache-2.0"]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[advisories]
+ignore = []

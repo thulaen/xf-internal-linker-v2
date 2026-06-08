@@ -1,0 +1,18 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "ranking_decision_engine"
+version = "0.1.0"
+description = "Rust RankingDecisionEngine authority module, imported by the runtime as extensions.ranking_decision_engine."
+requires-python = ">=3.10"
+license = { text = "MIT OR Apache-2.0" }
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+
+[tool.maturin]
+features = ["extension-module"]

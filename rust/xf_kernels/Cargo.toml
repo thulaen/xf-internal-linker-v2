@@ -1,0 +1,27 @@
+[package]
+name = "xf_kernels"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Scaffold Rust kernel crate exposed to Python via PyO3 (build-path proof)."
+
+[lib]
+# `cdylib` produces the shared library that becomes the importable Python
+# extension module (`xf_kernels.<abi3>.so`). `rlib` keeps the crate usable as a
+# plain Rust library so `cargo test` can exercise the core logic without going
+# through Python.
+name = "xf_kernels"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# abi3-py310: build against the stable Python ABI (CPython 3.10+), so a single
+# wheel works across future Python 3.x without a rebuild per minor version.
+pyo3 = { version = "0.26", features = ["abi3-py310", "extension-module"] }
+
+[lints]
+workspace = true

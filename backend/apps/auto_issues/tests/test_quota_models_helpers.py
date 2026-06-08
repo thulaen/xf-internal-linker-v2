@@ -60,21 +60,35 @@ class ScaledRequirementsTests(SimpleTestCase):
         self.assertEqual(hard[AutoIssue.SOURCE_SONARQUBE], REQUIRED_SONARQUBE_FIXES)
 
 
+_EFFECTIVE_REQ_PATH = (
+    "apps.auto_issues.management.commands.verify_autoissue_quota._effective_requirement"
+)
+
+
 class MandatoryHardErrorsTests(SimpleTestCase):
+    # _mandatory_hard_errors now calls _effective_requirement which queries the DB.
+    # Patch it here to keep these as pure unit tests (no DB needed).
+
     def test_count_meets_requirement_no_error(self):
-        self.assertEqual(
-            _mandatory_hard_errors(10, AutoIssue.SOURCE_SONARQUBE, 10), []
-        )
+        with patch(_EFFECTIVE_REQ_PATH, return_value=10):
+            self.assertEqual(
+                _mandatory_hard_errors(10, AutoIssue.SOURCE_SONARQUBE, 10), []
+            )
 
     def test_sonarqube_shortfall_is_non_substitutable(self):
-        errors = _mandatory_hard_errors(7, AutoIssue.SOURCE_SONARQUBE, 10)
+        with patch(_EFFECTIVE_REQ_PATH, return_value=10):
+            errors = _mandatory_hard_errors(7, AutoIssue.SOURCE_SONARQUBE, 10)
         self.assertEqual(len(errors), 1)
         self.assertIn("NON-SUBSTITUTABLE", errors[0])
         self.assertIn("resolve 3 more sonarqube", errors[0])
 
     def test_non_sonarqube_shortfall_uses_short_suffix(self):
-        errors = _mandatory_hard_errors(8, AutoIssue.SOURCE_PERFETTO, 10)
-        self.assertEqual(errors, ["perfetto: 8 of 10 resolved (2 short)"])
+        with patch(_EFFECTIVE_REQ_PATH, return_value=10):
+            errors = _mandatory_hard_errors(8, AutoIssue.SOURCE_PERFETTO, 10)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("perfetto", errors[0])
+        self.assertIn("8 of 10", errors[0])
+        self.assertIn("2 short", errors[0])
 
 
 class CountAndDuplicateErrorsTests(SimpleTestCase):

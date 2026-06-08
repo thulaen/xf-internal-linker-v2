@@ -1,0 +1,22 @@
+[package]
+name = "lua-mutmut"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+description = "Docker-managed LuaJIT mutation runner for sandboxed Lua scripts."
+keywords.workspace = true
+categories.workspace = true
+
+[[bin]]
+name = "lua-mutmut"
+path = "src/main.rs"
+
+[dependencies]
+mlua = { version = "0.10.5", features = ["luajit", "vendored"] }
+
+[lints]
+workspace = true
+

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "store": {
+    "aaaa1111referenced": {"sha256": "aaaa1111referenced", "bytes": 1024, "last_used_at": "2026-06-07T00:00:00Z"},
+    "bbbb2222orphaned": {"sha256": "bbbb2222orphaned", "bytes": 2048, "last_used_at": "2020-01-01T00:00:00Z"}
+  },
+  "active": {
+    "cpp_runtime": {
+      "language": "cpp",
+      "artifacts": [{"module": "extensions", "sha256": "aaaa1111referenced"}]
+    }
+  },
+  "cpp_runtime_hash": "aaaa1111referenced"
+}

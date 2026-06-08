@@ -1,0 +1,36 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/parser",
+    "crates/repeat_key",
+    "crates/report",
+    "crates/detectors",
+    "crates/coverage",
+    "crates/quality-cores",
+    "crates/host_fingerprint",
+    "crates/lua_fastcheck",
+    "crates/lua_mutmut",
+    "crates/cluster_core",
+    "crates/cluster_sig",
+    "crates/cli",
+]
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.83"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/local/xf-internal-linker-v2"
+readme = "README.md"
+description = "Docker-managed Rust checker for behavior specs, reports, and defect candidates."
+keywords = ["bdd", "tdd", "speccheck", "static-analysis", "rust"]
+categories = ["development-tools", "command-line-utilities"]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
+cargo = "warn"

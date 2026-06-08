@@ -1,0 +1,39 @@
+[package]
+name = "papertrail_dedup"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Paper-trail MinHash + LSH near-duplicate index, ported from C++ to Rust, exposed to Python as extensions.papertrail_dedup via PyO3."
+
+[lib]
+# `cdylib` produces the importable Python extension module
+# (`papertrail_dedup.so` -> `extensions.papertrail_dedup`); its name MUST match
+# the `#[pymodule]` function name. `rlib` keeps the pure-Rust core
+# (`DedupIndexCore`) reachable from `cargo test` and the Criterion benchmark
+# without crossing the Python boundary.
+name = "papertrail_dedup"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# abi3-py310: build once against the stable Python ABI (CPython 3.10+). No
+# `numpy` here — this kernel takes `str`/`int`/`float` and returns lists/tuples,
+# not arrays. The MinHash + LSH math is hand-rolled integer arithmetic with a
+# vendored mt19937_64, so there are no third-party algorithm crates.
+pyo3 = { version = "0.26", features = ["abi3-py310", "extension-module"] }
+
+[dev-dependencies]
+# Criterion drives the mandatory hot-path benchmark (3 input sizes) over the
+# plain-Rust core without crossing the Python boundary.
+criterion = "0.5"
+
+[[bench]]
+name = "bench_papertrail_dedup"
+harness = false
+
+[lints]
+workspace = true

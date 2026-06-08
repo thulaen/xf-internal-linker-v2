@@ -1,0 +1,35 @@
+# cargo-deny policy for the Rust hot-path kernels workspace.
+#
+# Mirrors services/speccheck/deny.toml but widens the license allow-list to the
+# exact set the kernels' dependency tree actually uses (verified with
+# `cargo deny list`): the PyO3 + numpy + ndarray + criterion stack pulls in a
+# handful of permissive, OSI-approved licenses beyond MIT / Apache-2.0. Each
+# entry below is justified by a real dependency, not a blanket allow:
+#
+#   MIT, Apache-2.0                 most of the tree (pyo3, ndarray, libc, ...)
+#   Apache-2.0 WITH LLVM-exception  target-lexicon (pyo3 build dependency)
+#   BSD-2-Clause                    numpy 0.26 (the Rust crate, not the Python lib)
+#   Unicode-3.0                     unicode-ident (Unicode data tables)
+#
+# Without this file, `cargo deny check` rejects every license (its default is
+# "allow nothing"), which is exactly the failure the Rust mandate gate surfaced.
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "Unicode-3.0",
+]
+
+[bans]
+# A duplicated crate version is a warning (it bloats the build) but not a hard
+# block; a wildcard version requirement IS a hard block (it breaks reproducible
+# builds). Same policy as the speccheck workspace.
+multiple-versions = "warn"
+wildcards = "deny"
+
+[advisories]
+# RustSec advisory IDs to ignore go here, with a justifying comment each. Empty
+# today: cargo-audit (the advisory step that runs before this one) is clean.
+ignore = []

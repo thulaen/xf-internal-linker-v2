@@ -1,0 +1,43 @@
+[package]
+name = "scoring"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Composite ranking-score hot-path kernel, ported from C++ to Rust, exposed to Python as extensions.scoring via PyO3."
+
+[lib]
+# `cdylib` produces the shared library that becomes the importable Python
+# extension module. The lib name (`scoring`) MUST match the `#[pymodule]`
+# function name in `src/lib.rs` and the artifact this crate ships as
+# `extensions.scoring`. `rlib` keeps the crate usable as a plain Rust library
+# so `cargo test`/`criterion` can exercise the core without the Python edge.
+name = "scoring"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# abi3-py310: build against the stable Python ABI (CPython 3.10+) so one
+# wheel works across future 3.x without a per-minor rebuild. Pinned to the
+# 0.26 line to match the workspace scaffold.
+pyo3 = { version = "0.26", features = ["abi3-py310", "extension-module"] }
+# `numpy` 0.26 pairs with `pyo3` 0.26 and gives zero-copy read-only views
+# (`PyReadonlyArray2`/`PyReadonlyArray1`) over the float32 inputs and builds the
+# returned 1-D float32 result via `IntoPyArray`.
+numpy = "0.26"
+
+[dev-dependencies]
+# Criterion drives the mandatory hot-path benchmark (3 input sizes) over the
+# plain-Rust core (`score_full_batch_core`) without crossing the Python edge,
+# matching the Mandatory Benchmark Rule and RUST-FIRST.md step 5.
+criterion = "0.5"
+
+[[bench]]
+name = "bench_scoring"
+harness = false
+
+[lints]
+workspace = true

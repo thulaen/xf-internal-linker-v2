@@ -1,0 +1,23 @@
+# maturin is the build backend that compiles this Rust crate into an
+# importable Python extension module named `anchor_diversity`. `maturin build`
+# reads this file, runs `cargo build`, and produces a wheel containing
+# `anchor_diversity.so`.
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "anchor_diversity"
+version = "0.1.0"
+description = "FR-045 anchor-diversity hot-path kernel (Rust), imported by the runtime as extensions.anchor_diversity."
+requires-python = ">=3.10"
+license = { text = "MIT OR Apache-2.0" }
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+
+[tool.maturin]
+# Build against the stable ABI so one wheel covers CPython 3.10+.
+features = ["pyo3/extension-module"]

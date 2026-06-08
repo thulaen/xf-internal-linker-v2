@@ -90,6 +90,7 @@ class AutoIssue(models.Model):
     SOURCE_GH_CI = "gh_ci"           # gh run list --status failure
     # Phase B of the test-hardening plan (added 2026-06-01):
     SOURCE_COMPILER = "compiler"     # clang/gcc/go vet/golangci-lint/clippy/GHC/hlint warnings
+    SOURCE_MEGALINTER = "megalinter"  # MegaLinter multi-linter suite findings
     SOURCE_CHOICES = [
         (SOURCE_GLITCHTIP, "GlitchTip"),
         (SOURCE_PYROSCOPE, "Pyroscope"),
@@ -113,6 +114,7 @@ class AutoIssue(models.Model):
         (SOURCE_CONTRACT, "Contract drift"),
         (SOURCE_GH_CI, "GH Actions CI failure"),
         (SOURCE_COMPILER, "Compiler/linter warning"),
+        (SOURCE_MEGALINTER, "MegaLinter"),
     ]
 
     STATUS_OPEN = "open"

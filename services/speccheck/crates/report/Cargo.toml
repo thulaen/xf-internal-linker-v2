@@ -1,0 +1,20 @@
+[package]
+name = "speccheck-report"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+description.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+serde_json = "1.0.149"
+speccheck-coverage = { path = "../coverage", version = "0.1.0" }
+speccheck-detectors = { path = "../detectors", version = "0.1.0" }
+speccheck-parser = { path = "../parser", version = "0.1.0" }
+
+[lints]
+workspace = true

@@ -45,6 +45,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Set up Rust toolchain for CodeQL
+        if: ${{ matrix.language == 'rust' }}
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:

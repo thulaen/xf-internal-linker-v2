@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import gzip
+import importlib
 import json
 from pathlib import Path
 import subprocess
 from tempfile import TemporaryDirectory
+from unittest import skipUnless
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -15,7 +17,14 @@ from rest_framework.test import APIClient
 
 from apps.auto_issues.models import AutoIssue, FindBugsLearnedLesson
 
+try:
+    importlib.import_module("extensions.papertrail_dedup")
+    _RUST_KERNEL_AVAILABLE = True
+except ImportError:
+    _RUST_KERNEL_AVAILABLE = False
 
+
+@skipUnless(_RUST_KERNEL_AVAILABLE, "papertrail_dedup Rust kernel not built in this environment")
 class FindBugsOperationalTests(TestCase):
     def setUp(self) -> None:
         AutoIssue.objects.filter(source=AutoIssue.SOURCE_RUST_DEFECT).delete()

@@ -1,0 +1,23 @@
+[package]
+name = "speccheck-cluster-sig"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+description.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[[bin]]
+name = "cluster-sig"
+path = "src/main.rs"
+
+[dependencies]
+speccheck-cluster-core = { path = "../cluster_core", version = "0.1.0" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[lints]
+workspace = true

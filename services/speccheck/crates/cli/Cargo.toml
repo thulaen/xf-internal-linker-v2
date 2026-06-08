@@ -1,0 +1,24 @@
+[package]
+name = "speccheck"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+description.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[[bin]]
+name = "speccheck"
+path = "src/main.rs"
+
+[dependencies]
+speccheck-coverage = { path = "../coverage", version = "0.1.0" }
+speccheck-detectors = { path = "../detectors", version = "0.1.0" }
+speccheck-parser = { path = "../parser", version = "0.1.0" }
+speccheck-report = { path = "../report", version = "0.1.0" }
+
+[lints]
+workspace = true

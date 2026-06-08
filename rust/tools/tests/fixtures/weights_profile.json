@@ -1,0 +1,13 @@
+{
+  "weights": {
+    "relevance": 0.5,
+    "freshness": 0.3,
+    "authority": 0.2
+  },
+  "bounds": {
+    "relevance": [0.0, 1.0],
+    "freshness": [0.0, 1.0],
+    "authority": [0.0, 1.0]
+  },
+  "monotonic": ["authority", "freshness", "relevance"]
+}

@@ -1,0 +1,40 @@
+[package]
+name = "lesson_index"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Three-sub-index in-process cache (scoped lessons / perf baselines / citations) hot-path kernel, ported from C++ to Rust, exposed to Python as extensions.lesson_index via PyO3."
+
+[lib]
+# `cdylib` produces the shared library that becomes the importable Python
+# extension module. The lib name (`lesson_index`) MUST match the `#[pymodule]`
+# function name in `src/lib.rs` and the artifact this crate ships as
+# `extensions.lesson_index`. `rlib` keeps the crate usable as a plain Rust
+# library so `cargo test` and the Criterion benchmark can exercise the core
+# logic without crossing the Python boundary.
+name = "lesson_index"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# abi3-py310: build against the stable Python ABI (CPython 3.10+). Pinned to the
+# 0.26 line to match the workspace scaffold. No `numpy` here: this kernel takes
+# `str`/`int` and small record classes, not arrays.
+pyo3 = { version = "0.26", features = ["abi3-py310", "extension-module"] }
+
+[dev-dependencies]
+# Criterion drives the mandatory hot-path benchmark (3 input sizes) over the
+# plain-Rust cores without crossing the Python boundary, matching the Mandatory
+# Benchmark Rule and RUST-FIRST.md step 5.
+criterion = "0.5"
+
+[[bench]]
+name = "bench_lesson_index"
+harness = false
+
+[lints]
+workspace = true
