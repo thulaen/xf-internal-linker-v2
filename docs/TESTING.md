@@ -22,12 +22,11 @@ If you change a rule here, change it once and every session picks it up next tim
 | Backend security scan | bandit | **Yes** |
 | Backend dependency CVE scan | pip-audit | **Yes** |
 | Backend type check | mypy (strict on `apps.crawler` only) | **Yes** for crawler, lenient elsewhere |
-| C++ unit tests | GoogleTest via `ctest` | **Yes** |
-| C++ edge-case tests | custom GoogleBenchmark binaries | **Yes** |
-| C++ AddressSanitizer | clang sanitizers | **Yes** |
-| C++ ThreadSanitizer | clang sanitizers | No (TBB false positives) |
-| C++ static analysis | cppcheck | **Yes** |
-| C++ format check | clang-format-22 | **Yes** |
+| Rust unit & property tests | `cargo test` (`#[cfg(test)]` + proptest/quickcheck) | **Yes** |
+| Rust benchmarks | Criterion (`cargo bench`) | **Yes** |
+| Rust static analysis & lint | `cargo clippy` | **Yes** |
+| Rust format check | `cargo fmt --check` | **Yes** |
+| Rust mutation tests | `cargo-mutants` | **Yes** |
 | Frontend unit tests | Karma + Jasmine | **Yes** |
 | Frontend lint | ESLint (Angular + a11y) | **Yes** |
 | Frontend type check | TypeScript strict mode | **Yes** (compile fails the build) |
@@ -49,7 +48,7 @@ Use this matrix:
 | **Backend service module** (`backend/apps/<app>/services/<x>.py`) | A `test_<x>.py` covering the public surface | Same folder, or `backend/apps/<app>/tests/test_<x>.py` |
 | **Backend API view / endpoint** | An integration test hitting the route through `auth_client` | `backend/apps/<app>/test_*.py` |
 | **Hot-path Python function** (ranking, scoring, retrieval, embedding, attribution) | Both a unit test AND a benchmark | Test alongside the module; benchmark in `backend/benchmarks/test_bench_<area>.py` |
-| **Hot-path C++ function** | Both a GoogleTest unit test AND a Google Benchmark | Test in `backend/extensions/tests/test_*.cpp`; benchmark in `backend/extensions/benchmarks/bench_*.cpp` |
+| **Hot-path Rust kernel** | Rust unit + property tests AND a Criterion benchmark | Tests in the crate's `#[cfg(test)]` module; benchmark in the crate's `benches/` (see [`RUST-FIRST.md`](../RUST-FIRST.md)) |
 | **Angular component** | A `*.spec.ts` next to the component | `frontend/src/app/<area>/<comp>.component.spec.ts` |
 | **Angular service** | A `*.spec.ts` next to the service | Same folder as the service |
 | **Angular pipe / directive / pure utility** | A `*.spec.ts` next to it | Same folder |
@@ -65,8 +64,8 @@ If your task is a refactor, add tests for any code path that previously lacked c
 
 - Python tests: file MUST start with `test_`. Inside, classes start with `Test` and functions start with `test_` (config in `backend/pytest.ini`).
 - Python benchmarks: `backend/benchmarks/test_bench_<area>.py`. Use the `pytest-benchmark` fixture.
-- C++ unit tests: `backend/extensions/tests/test_<area>.cpp`, registered in `CMakeLists.txt`.
-- C++ benchmarks: `backend/extensions/benchmarks/bench_<area>.cpp` (Google Benchmark) or `test_edges_<area>.cpp` (edge-case tests).
+- Rust unit & property tests: in the kernel crate's `#[cfg(test)]` module (`cargo test` discovers them).
+- Rust benchmarks: in the crate's `benches/` directory (Criterion, run via `cargo bench`).
 - Angular unit tests: `<filename>.spec.ts` next to `<filename>.ts`.
 - Playwright smoke (CI-safe, mocks API): `frontend/tests/<feature>-smoke.spec.ts`.
 - Playwright live (needs real backend): `frontend/tests/live/<feature>-live.spec.ts`.
@@ -137,7 +136,7 @@ When a skip is removed, also delete the surrounding `TODO(testing)` / `TODO(a11y
 | Playwright CI-safe subset (matches CI exactly) | `cd frontend && PLAYWRIGHT_CI=1 npx playwright test --reporter=list` |
 | Playwright everything (incl. live + capture, needs prod stack on :80) | `cd frontend && npx playwright test --reporter=list` |
 | Playwright live tests against the running prod stack | `cd frontend && npm run ui:test:live` |
-| C++ unit tests | `cd backend/extensions && cmake -B build && cmake --build build && cd build && ctest --output-on-failure` |
+| Rust unit & property tests | run through the Docker-managed maturin/cargo path (`cargo test`); see [`RUST-FIRST.md`](../RUST-FIRST.md) |
 
 ---
 
@@ -151,4 +150,4 @@ When a skip is removed, also delete the surrounding `TODO(testing)` / `TODO(a11y
 - [frontend/FRONTEND-RULES.md](../frontend/FRONTEND-RULES.md) — frontend coding rules.
 - [frontend/DESIGN-PATTERNS.md](../frontend/DESIGN-PATTERNS.md) — GA4 design language.
 - [backend/PYTHON-RULES.md](../backend/PYTHON-RULES.md) — Python backend coding rules.
-- [backend/extensions/CPP-RULES.md](../backend/extensions/CPP-RULES.md) — C++ coding rules.
+- [RUST-FIRST.md](../RUST-FIRST.md) — Rust hot-path rules (backend is Python + Rust only; the old `backend/extensions/CPP-RULES.md` is retired per ADR 0007).

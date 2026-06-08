@@ -617,13 +617,11 @@ Do not recompute LexRank separately for every host-destination pair. This is des
 
 ## Native Runtime Plan
 
-Per `docs/NATIVE_RUNTIME_POLICY.md`:
+Per [`RUST-FIRST.md`](../../RUST-FIRST.md) (backend is Python + Rust only, ADR 0007):
 
-- Python implementation first as the reference path;
-- optional hot-path native port later at `backend/extensions/passagecentrality.cpp`;
-- same formulas, thresholds, and neutral fallbacks in both implementations.
-
-A C++ port is unlikely to be needed — this is computed once per destination at index time, not per host-destination pair at suggestion time. The 15 ms Python budget is comfortable.
+- This is computed once per destination at index time, not per host-destination pair at suggestion time, so it is **not** on the per-candidate hot path. The 15 ms Python budget is comfortable and Python is the right home for it.
+- If it ever moved onto the hot path, the scorer would become a Rust kernel (PyO3 + maturin) — the single canonical implementation, with **no Python fallback**.
+- (The earlier plan named an optional `passagecentrality.cpp` C++ port with a Python reference fallback; that C++-first / Python-fallback model is retired.)
 
 ## Test Plan
 

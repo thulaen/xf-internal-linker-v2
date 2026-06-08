@@ -23,7 +23,7 @@ Currently usable as-is. To get more data: bump the rate to `0.5` or `1.0` in dev
 
 ### 2. Add `@sentry_sdk.trace` decorators on hot paths
 
-For specific functions where the auto-instrumentation isn't granular enough (e.g. a single Celery task that does 5 different things), wrap them with `@sentry_sdk.trace` to record fine-grained spans. The hot paths to consider: ranking pipeline, BGE-M3 embedding calls, cooccurrence scoring.
+For specific functions where the auto-instrumentation isn't granular enough (e.g. a single Celery task that does 5 different things), wrap them with `@sentry_sdk.trace` to record fine-grained spans. The hot paths to consider: ranking pipeline, embedding-provider calls (the paid CPU embedding provider — see [`docs/specs/fr-cpu-paid-embeddings-runtime.md`](specs/fr-cpu-paid-embeddings-runtime.md)), cooccurrence scoring.
 
 **Cost:** ~5 lines per function. **Add when:** Performance tab shows a slow transaction but you can't tell which inner call is the culprit.
 

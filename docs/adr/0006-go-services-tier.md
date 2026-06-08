@@ -1,9 +1,17 @@
 # ADR 0006 — Go services tier as a peer module type
 
+> **SUPERSEDED by [ADR 0007 — Python + Rust only](0007-python-rust-two-language.md), 2026-06-06.**
+> The backend is now Python + Rust only. C, C++, Go, Haskell, and Lua are removed, and the Go
+> services tier (`services/streamd`, `services/sidecars`, `services/clusterd`) no longer exists.
+> Hot-path compute that this ADR routed to a Go sidecar now lives in a Rust extension built
+> through the Docker-managed maturin path (see [`RUST-FIRST.md`](../../RUST-FIRST.md)), with no
+> Python fallback. This ADR is kept as historical record only; do not follow its rules for new
+> work. See [`docs/PYTHON-RUST-MIGRATION-PLAN.md`](../PYTHON-RUST-MIGRATION-PLAN.md).
+
 **Date:** 2026-05-16
-**Status:** Accepted
+**Status:** Superseded by ADR 0007 (Python + Rust only) on 2026-06-06.
 **Deciders:** Project owner.
-**Related:** ADR 0001, ADR 0002, ADR 0003.
+**Related:** ADR 0001, ADR 0002, ADR 0003; superseded by ADR 0007 (Python + Rust only).
 
 ## Context
 

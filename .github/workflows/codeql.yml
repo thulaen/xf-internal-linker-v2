@@ -45,17 +45,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install C++ build dependencies
-        if: ${{ matrix.language == 'c-cpp' }}
-        run: sudo apt-get update && sudo apt-get install -y cmake libtbb-dev
-
-      - name: Set up Go
-        if: ${{ matrix.language == 'go' }}
-        uses: actions/setup-go@v6
-        with:
-          go-version: "stable"
-          cache: false
-
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
@@ -63,14 +52,6 @@ jobs:
           build-mode: ${{ matrix.build-mode }}
           config-file: ./.github/codeql/codeql-config.yml
           queries: security-and-quality
-
-      - name: Build C/C++ precisely
-        if: ${{ matrix.language == 'c-cpp' }}
-        run: bash scripts/codeql-build-cpp.sh
-
-      - name: Build Go precisely
-        if: ${{ matrix.language == 'go' }}
-        run: bash scripts/codeql-build-go.sh
 
       - name: Analyze
         uses: github/codeql-action/analyze@v4

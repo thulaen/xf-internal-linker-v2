@@ -157,7 +157,7 @@ Every agent must prefer reuse before creating a custom library, helper, service,
 - Reuse or extend an existing shared module when it already owns the job.
 - Do not copy a helper into a second location to avoid an import. Fix the import path or move the helper to the correct shared module.
 - For compiled code, a new custom library must be a dynamic library, which means a shared compiled file loaded by the app at runtime. Use `.so` on Linux containers, `.dll` on Windows-only tooling, or the platform equivalent.
-- Store compiled runtime outputs through the Docker-managed compiled-artifact path in `COMPILED-LANGUAGE-RULES.md`. Do not commit generated binaries.
+- Store compiled runtime outputs through the Docker-managed build path. For the only compiled language (Rust), that path is PyO3 + maturin through the Docker build image — see [`RUST-FIRST.md`](RUST-FIRST.md). Do not commit generated binaries. (The old `COMPILED-LANGUAGE-RULES.md` is retired; C, C++, Go, Haskell, and Lua are removed.)
 - Static linking or a one-off private compiled helper needs a written exception in the standards marker and in the handoff entry, with the reason and the follow-up owner.
 - If the shared library would become too broad, stop and ask before creating a large cross-cutting module.
 
@@ -167,7 +167,7 @@ Every new code path must be visible to the current or newly registered test tool
 
 - New Python code must be covered by the Docker backend test, lint, coverage, and configured mutation path.
 - New TypeScript, Angular, HTML, or SCSS code must be covered by the Docker-managed frontend lint, unit test, coverage, and configured mutation path.
-- New C++, Go, or other compiled code must be covered by Docker-managed tests, coverage, mutation or fuzz testing where supported, and benchmarks for hot paths.
+- New Rust kernel code (the only compiled language — C++, Go, Haskell, and Lua are removed) must be covered by Docker-managed tests, coverage, mutation or fuzz testing where supported, and Criterion benchmarks for hot paths — see [`RUST-FIRST.md`](RUST-FIRST.md).
 - New folders, package roots, generated runtime paths, or build targets must update the relevant tool discovery pattern in the same change.
 - If a future language or framework is added, the first change must add its Docker-managed test command, coverage command, lint or static-analysis command, mutation or fuzz command when supported, and readiness check.
 - A new tool is not allowed to depend on a developer's host machine. It must run through Docker or another documented project-managed runtime.
@@ -856,8 +856,8 @@ The coverage target for a task is determined by what the task touches. If a task
 | Backend service modules (`backend/apps/*/services/**`) | Level A | **90%** |
 | API endpoints (`backend/apps/api/`, `backend/apps/*/views*.py`) | Level A | **90%** |
 | Celery tasks (`backend/apps/*/tasks*.py`) | Level A | **90%** |
-| C++ extensions (`backend/extensions/*.cpp`) | Level A (MC/DC) | **100% branch + 100% mutation** |
-| Go modules (`**/go.mod`) | Level B + mutation | **95% line + blocking Go mutation testing** |
+| Rust kernels (`rust/**/*.rs`, built via PyO3 + maturin — see [`RUST-FIRST.md`](RUST-FIRST.md)) | Level A (MC/DC) | **100% branch + 100% mutation** |
+| ~~C++ extensions~~ / ~~Go modules~~ | RETIRED | C++ and Go are removed (ADR 0007). Hot-path compute is Rust only — use the Rust kernels row above. |
 | Angular components (`frontend/src/app/**/*.component.ts`) | Level B + mutation | **95% line + 85% branch + 95% mutation** |
 | Angular services (`frontend/src/app/**/*.service.ts`) | Level B + mutation | **95% line + 85% branch + 95% mutation** |
 | Critical review-page workflows | Level A + E2E | **90% + Playwright spec** |

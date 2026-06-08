@@ -53,7 +53,7 @@ Set when the task does any of:
 - Aggregates >100K rows (Polars `group_by`, numpy reductions, `bulk_update` over a large queryset).
 - Walks a graph or runs a clustering / scoring loop in Python.
 - Re-fits a small model (TF-IDF refresh, calibration fit, hub detection).
-- Calls a long-running C++ extension that does the actual compute.
+- Calls a long-running Rust extension that does the actual compute.
 
 When you set `cpu_intensive=True`, also set `ram_peak_mb=512` unless you have evidence the task is heavier.
 
@@ -89,7 +89,9 @@ Optional. Set when you have a credible historical p50 from production telemetry.
 
 ### `requires_warmed_models`
 
-Optional. Set when the task assumes a specific model is already loaded into the worker's memory (e.g. `("bge-m3-onnx",)`). The router will only place the task on helpers whose `warmed_model_keys` already include every entry in this tuple.
+Optional. Set when the task assumes a specific model is already loaded into the worker's memory. The router will only place the task on helpers whose `warmed_model_keys` already include every entry in this tuple.
+
+> **Note:** the `bge-m3` examples below are historical. Production embeddings now come from a paid CPU provider (see [`docs/specs/fr-cpu-paid-embeddings-runtime.md`](specs/fr-cpu-paid-embeddings-runtime.md)), so there is no in-process BGE-M3 model holding ~2.5 GB of GPU weights any more. The `requires_warmed_models` / `gpu_required` mechanism still works for any future in-process model; treat the BGE-M3 numbers as an illustration of a heavy GPU task, not the current embedding path.
 
 ---
 

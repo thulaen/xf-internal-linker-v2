@@ -384,11 +384,11 @@ Copy the destination score and diagnostics onto each `Suggestion`.
 
 ## Native Runtime Plan
 
-Per `docs/NATIVE_RUNTIME_POLICY.md`:
+Per [`RUST-FIRST.md`](../../RUST-FIRST.md) (backend is Python + Rust only, ADR 0007):
 
-- Python reference implementation first;
-- optional hot-path native scorer later at `backend/extensions/internalsearch.cpp`;
-- analytics import remains outside the native layer.
+- If the scorer lands on the per-candidate hot path, it is a Rust kernel (PyO3 + maturin) — the single canonical implementation, **no Python fallback**.
+- The analytics import (a batch / Celery job, not a hot path) stays in Python.
+- (The earlier plan named an `internalsearch.cpp` C++ scorer with a Python reference; that C++-first / Python-fallback model is retired.)
 
 Reuse the existing diagnostics surfaces rather than adding a new operator-only subsystem.
 

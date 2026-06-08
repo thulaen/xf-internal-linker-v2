@@ -6,7 +6,9 @@ name: Scoped Mutation (CI)
 #   - GitHub PR CI runs scoped mutation only for changed modules.
 #   - CI runs uncapped (no 5-min wall-clock cap; XF_QUALITY_ENV=ci).
 #   - CI hard-blocks the PR on mutation-score thresholds (Stryker 95%,
-#     mutmut 100%, Mull 100%, go-mutesting 70%).
+#     mutmut 100%, cargo-mutants per config/mutation-routing.json).
+#   - The backend is Python + Rust only (ADR 0007); the former C++ (Mull)
+#     and Go (go-mutesting) scoped jobs were removed on 2026-06-06.
 #
 # Local commits use the same scripts with XF_QUALITY_ENV=local; that
 # path is soft-block (surviving mutants become AutoIssues via
@@ -31,8 +33,7 @@ jobs:
     outputs:
       angular: ${{ steps.classify.outputs.angular }}
       python: ${{ steps.classify.outputs.python }}
-      go: ${{ steps.classify.outputs.go }}
-      cpp: ${{ steps.classify.outputs.cpp }}
+      rust: ${{ steps.classify.outputs.rust }}
       any: ${{ steps.classify.outputs.any }}
     steps:
       - uses: actions/checkout@v5
@@ -55,8 +56,10 @@ jobs:
           echo "$payload"
           echo "angular=$(echo "$payload" | jq -c '.angular')" >> "$GITHUB_OUTPUT"
           echo "python=$(echo "$payload" | jq -c '.python')" >> "$GITHUB_OUTPUT"
-          echo "go=$(echo "$payload" | jq -c '.go')" >> "$GITHUB_OUTPUT"
-          echo "cpp=$(echo "$payload" | jq -c '.cpp')" >> "$GITHUB_OUTPUT"
+          # The rust bucket may be absent in older detect_changed_modules.py
+          # output; default to [] so the rust-mutation job's `if:` guard
+          # cleanly skips instead of erroring.
+          echo "rust=$(echo "$payload" | jq -c '.rust // []')" >> "$GITHUB_OUTPUT"
           echo "any=$(echo "$payload" | jq -r '.any_mutation_targets')" >> "$GITHUB_OUTPUT"
 
   angular-mutation:
@@ -144,88 +147,56 @@ jobs:
           mutmut run --max-children 2
           mutmut export-cicd-stats
 
-  go-mutation:
-    name: go-mutesting (changed Go modules)
+  rust-mutation:
+    name: cargo-mutants (changed Rust crates)
     needs: detect
-    if: needs.detect.outputs.any == 'true' && needs.detect.outputs.go != '[]'
+    if: needs.detect.outputs.any == 'true' && needs.detect.outputs.rust != '[]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-      - name: Install go-mutesting
-        run: go install github.com/zimmski/go-mutesting/cmd/go-mutesting@latest
-      - name: Run go-mutesting on changed modules
-        env:
-          XF_QUALITY_ENV: ci
-          XF_CHANGED_GO: ${{ needs.detect.outputs.go }}
-        run: |
-          set -e
-          # Resolve modules from changed file paths.
-          modules=$(echo "$XF_CHANGED_GO" | jq -r '.[] | split("/") | "services/" + .[1]' | sort -u)
-          for mod in $modules; do
-            echo "Mutating module: $mod"
-            (cd "$mod" && go-mutesting ./...)
-          done
-
-  cpp-mutation:
-    name: Mull (changed C++ extensions, scoped)
-    needs: detect
-    if: needs.detect.outputs.any == 'true' && needs.detect.outputs.cpp != '[]'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      # K3: route via the existing compiled-tools docker image. It has
-      # LLVM 19 + Mull baked in (Dockerfile pinned at
-      # backend/extensions/compiled-tools/Dockerfile). Mirrors the
-      # cpp-mull job in .github/workflows/ci.yml verbatim — only
-      # difference is we run scripts/cpp_mutation_targets.py first to
-      # scope to changed binaries only.
+      # Route via the compiled-tools docker image. It bakes the rustup
+      # stable toolchain (pinned by rust-toolchain.toml) plus cargo-mutants.
+      # Both Rust workspaces
+      # are covered: the new /repo/rust kernel workspace and the existing
+      # services/speccheck workspace. We resolve which workspace(s) the
+      # changed files belong to and run cargo-mutants there. CI runs
+      # uncapped per the XF_QUALITY_ENV=ci gate.
       - name: Build compiled-tools image
         run: docker compose build compiled-tools
-      - name: Run scoped Mull mutation via Docker
+      - name: Run scoped cargo-mutants via Docker
         env:
           XF_QUALITY_ENV: ci
-        run: |
-          # The container's run-cpp-mutation.sh already calls
-          # scripts/cpp_mutation_targets.py (K1) to narrow the binary
-          # list to changed C++ files. CI runs uncapped per the
-          # XF_QUALITY_ENV=ci gate.
-          docker compose run --rm \
-            -e XF_QUALITY_ENV=ci \
-            compiled-tools bash /repo/scripts/run-cpp-mutation.sh --clean
-      - name: Mutation-score ratchet per binary
-        if: always()
+          XF_CHANGED_RUST: ${{ needs.detect.outputs.rust }}
         run: |
           set -e
-          failed=0
-          # Read the scoped binary list from the same source the script
-          # used (the script narrows to changed binaries; ratchet only
-          # checks those).
-          while IFS= read -r target; do
-            [ -z "$target" ] && continue
-            case "$target" in '#'*) continue ;; esac
-            report="backend/extensions/reports/mull/${target}/mutants.json"
-            if [ -f "$report" ]; then
-              python .githooks/check-mutation-score.py \
-                --tool mull --target "$target" --report "$report" --seed-if-empty \
-                || failed=1
-            fi
-          done < <(python scripts/cpp_mutation_targets.py)
-          exit "$failed"
-      - name: Upload Mull reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: mull-reports-scoped
-          path: backend/extensions/reports/mull/
-          retention-days: 30
+          # Map each changed Rust path to its owning workspace root.
+          # rust/**         -> /repo/rust
+          # services/<n>/** -> /repo/services/<n>
+          workspaces=$(echo "$XF_CHANGED_RUST" | jq -r '
+            .[]
+            | if startswith("rust/") then "/repo/rust"
+              elif startswith("services/") then "/repo/services/" + (split("/")[1])
+              else empty end
+          ' | sort -u)
+          if [ -z "$workspaces" ]; then
+            echo "No Rust workspace resolved from changed files; nothing to mutate."
+            exit 0
+          fi
+          for ws in $workspaces; do
+            echo "::group::cargo-mutants in $ws"
+            docker compose run --rm \
+              -e XF_QUALITY_ENV=ci \
+              compiled-tools bash -lc "
+                set -euo pipefail
+                cd '$ws'
+                cargo mutants --no-shuffle --jobs 2
+              "
+            echo "::endgroup::"
+          done
 
   remote-only-evidence:
     name: Record CI completion evidence
-    needs: [detect, angular-mutation, python-mutation, go-mutation, cpp-mutation]
+    needs: [detect, angular-mutation, python-mutation, rust-mutation]
     if: always() && needs.detect.outputs.any == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -235,5 +206,4 @@ jobs:
           echo "Scoped mutation workflow finished."
           echo "Angular: ${{ needs.angular-mutation.result }}"
           echo "Python:  ${{ needs.python-mutation.result }}"
-          echo "Go:      ${{ needs.go-mutation.result }}"
-          echo "C++:     ${{ needs.cpp-mutation.result }}"
+          echo "Rust:    ${{ needs.rust-mutation.result }}"

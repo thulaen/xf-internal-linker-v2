@@ -805,7 +805,7 @@ Passage-level retrieval now runs end-to-end. Every word of every forum post and 
 - **Gate A (passagesim.cpp):**
   - Architecture: MaxSim aggregation via AVX2 FMA.
   - Budget: Near-zero persistent RAM (stateless), dynamic buffers ~10MB.
-  - Floors: Parity ≤1e-6 vs NumPy (scoring hot path), ≥10× faster than NumPy per CPP-RULES.md §25. Zero ASAN/UBSan errors.
+  - Floors: Parity ≤1e-6 vs NumPy (scoring hot path), ≥10× faster than NumPy (the mission-critical hot-path floor; see [`RUST-FIRST.md`](../../RUST-FIRST.md) "Performance Floors" — `passagesim` is one of the vector-search kernels being ported C++ → Rust). Zero sanitizer errors.
 - **Gate A (ivf_index.cpp):**
   - Architecture: IVF clustering + asymmetric distance search.
   - Budget: ~16MB RAM for centroids + partition lists. Disk for IVF lists ~15MB.

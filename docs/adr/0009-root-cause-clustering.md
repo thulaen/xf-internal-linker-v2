@@ -1,9 +1,23 @@
-# ADR 0007 — Root-cause clustering of AutoIssues via the clusterd sidecar
+# ADR 0009 — Root-cause clustering of AutoIssues via the clusterd sidecar (SUPERSEDED)
 
-**Date:** 2026-05-29
-**Status:** Accepted
+> **SUPERSEDED by [ADR 0007 — Python + Rust only](0007-python-rust-two-language.md) — clusterd removed 2026-06-06.**
+> This ADR placed the root-cause clustering compute in a Go sidecar (`clusterd`). The backend is
+> now Python + Rust only, so the Go sidecar (`clusterd`) was removed on 2026-06-06; the MinHash/LSH
+> similarity and grouping compute moves to a Rust extension on the hot path (see
+> [`RUST-FIRST.md`](../../RUST-FIRST.md)), with Python orchestration around it and no Python
+> fallback. This ADR is kept as historical record only; do not follow its Go-sidecar shape for new
+> work.
+>
+> **Note on the original ADR-number clash:** this file was filed as `0007` while a second `0007`
+> (Python + Rust only) was added on 2026-06-06. To resolve the collision this file was renumbered
+> to **0009** on 2026-06-07 (the next free number after 0008). The active decision of record for
+> language choice is [`0007-python-rust-two-language.md`](0007-python-rust-two-language.md)
+> (2026-06-06).
+
+**Date:** 2026-05-29 (renumbered 0007 → 0009 on 2026-06-07)
+**Status:** Superseded by ADR 0007 (Python + Rust only) on 2026-06-06; clusterd removed.
 **Deciders:** Project owner.
-**Related:** ADR 0006 (Go services tier), `docs/specs/fr-root-cause-clustering.md`.
+**Related:** ADR 0006 (Go services tier, also superseded), `docs/specs/fr-root-cause-clustering.md`; superseded by ADR 0007 (Python + Rust only).
 
 ## Context
 

@@ -364,11 +364,11 @@ Do not recompute full text segmentation separately for every host-destination pa
 
 ## Native Runtime Plan
 
-Per `docs/NATIVE_RUNTIME_POLICY.md`:
+Per [`RUST-FIRST.md`](../../RUST-FIRST.md) (backend is Python + Rust only, ADR 0007):
 
-- Python implementation first as the reference path;
-- optional hot-path native port later at `backend/extensions/semanticdrift.cpp`;
-- same formulas, thresholds, and neutral fallbacks in both implementations.
+- If this lands on the per-candidate hot path, the scorer is a Rust kernel (PyO3 + maturin), which is the single canonical implementation — **there is no Python fallback**.
+- A missing or broken Rust kernel is a loud diagnostics/health error, not a quiet drop to Python.
+- (The earlier plan named a `semanticdrift.cpp` C++ port with a Python reference fallback; that C++-first / Python-fallback model is retired.)
 
 Do not create a second diagnostics surface. Reuse existing pipeline diagnostics plumbing.
 

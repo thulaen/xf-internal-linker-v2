@@ -6,11 +6,16 @@ owner: thulaen@gmail.com
 date: 2026-05-08
 related:
   - docs/specs/pick-01-token-bucket.md  # existing Python TokenBucket
-  - backend/extensions/CPP-RULES.md
+  - RUST-FIRST.md  # hot-path rule (replaces the retired CPP-RULES.md / CPP-FIRST.md)
   - backend/apps/sources/token_bucket.py  # parity reference
 ---
 
-# FR-250 — API rate limiter (C++)
+# FR-250 — API rate limiter (native hot path)
+
+> **Language note (2026-06-06):** this spec was written for the old C++-first model with a
+> Python fallback. The backend is now **Python + Rust only** (ADR 0007), so the native rate
+> limiter is a Rust kernel with **no Python fallback** — see [`RUST-FIRST.md`](../../RUST-FIRST.md).
+> The C++ details below are historical record. `CPP-RULES.md` and `CPP-FIRST.md` are deleted.
 
 ## Why (the problem in plain English)
 
@@ -129,8 +134,10 @@ Operations (all O(1)):
 - `register_defaults()` called at Django app ready.
 - `RateLimiterContext(name, cost=1)`: `with` block that calls
   `wait_seconds`, sleeps if needed, then `try_acquire`. Raises if exhausted.
-- Falls back to the Python `TokenBucket` if the C++ extension is not built
-  (per CPP-FIRST.md "Python is fallback and reference only").
+- _(Historical, C++-first model.)_ The original design fell back to the Python `TokenBucket`
+  when the C++ extension was not built. Under the current Python + Rust only model
+  ([`RUST-FIRST.md`](../../RUST-FIRST.md)) the Rust kernel is authoritative and there is **no
+  Python fallback**; a missing/broken kernel is a loud diagnostics/health error.
 
 ## Concurrency
 

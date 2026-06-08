@@ -19,11 +19,8 @@ batch:
       buildspec: .codebuild/test-backend.yml
     - identifier: pytest_8
       buildspec: .codebuild/test-backend.yml
-    - identifier: lua_tests
-      buildspec: .codebuild/test-backend.yml
 
 phases:
   build:
     commands:
       - . scripts/quality_cores.sh
-      - bash scripts/run-lua-quality.sh

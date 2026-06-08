@@ -14,9 +14,6 @@
         { "name": "xf_linker_celery_beat", "health": "healthy" },
         { "name": "xf_linker_nginx", "health": "healthy" },
         { "name": "xf_linker_frontend_mutation_tools", "health": "healthy" },
-        { "name": "xf_linker_lua_quality_tools", "health": "healthy" },
-        { "name": "xf_linker_streamd", "health": "healthy" },
-        { "name": "xf_linker_sidecars", "health": "healthy" },
         { "name": "xf_linker_grafana" },
         { "name": "xf_linker_alloy" },
         { "name": "xf_linker_otel_collector" },
@@ -29,11 +26,9 @@
       "name": "mint-quality-plane",
       "kind": "ssh",
       "host": "mint",
-      "description": "Mint keeps the heavy quality, profiling, scanner, and error-tracking containers running.",
+      "description": "Mint keeps compiled quality, profiling, metrics, and error-tracking containers running.",
       "containers": [
         { "name": "xf_linker_compiled_tools", "health": "healthy" },
-        { "name": "xf_linker_sonarqube" },
-        { "name": "xf_linker_sonar_autoscan" },
         { "name": "xf_linker_pyroscope" },
         { "name": "xf_linker_pyroscope_ebpf_profiler" },
         { "name": "xf_linker_multi_lang_observability_picker" },
@@ -42,6 +37,16 @@
         { "name": "xf_linker_vmsingle" },
         { "name": "xf_linker_vmagent" },
         { "name": "xf_linker_vmalert" }
+      ]
+    },
+    {
+      "name": "dell-sonar-plane",
+      "kind": "docker-context",
+      "context": "dell",
+      "description": "Dell owns SonarQube and sonar-autoscan so the scanner index and cache stay off MSI and the slow Mint helper.",
+      "containers": [
+        { "name": "xf_linker_sonarqube" },
+        { "name": "xf_linker_sonar_autoscan" }
       ]
     },
     {

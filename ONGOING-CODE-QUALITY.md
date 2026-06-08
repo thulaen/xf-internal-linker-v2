@@ -91,7 +91,7 @@ When you fix an issue:
 
 These come from the existing PARAMOUNT files but are repeated here because they apply to **every** session:
 
-- **C++ first for hot paths.** [`CPP-FIRST.md`](CPP-FIRST.md) — if a C++ extension exists for the operation, call it. Python is fallback and reference only.
+- **Rust first for hot paths.** [`RUST-FIRST.md`](RUST-FIRST.md) — hot-path compute lives in Rust kernels (built via PyO3 + maturin). Rust is authoritative; there is NO Python fallback. (This supersedes the old C++-first rule; C++, Go, Haskell, and Lua are removed — see [`docs/adr/0007-python-rust-two-language.md`](docs/adr/0007-python-rust-two-language.md).)
 - **Hardware-aware defaults.** [`HARDWARE-PROFILES.md`](HARDWARE-PROFILES.md) — never hardcode batch sizes, parallelism, or FAISS configuration; read from `apps/pipeline/services/hardware_profile.py`.
 - **Disk-pressure circuit breaker.** [`DISK-PRESSURE-RULES.md`](DISK-PRESSURE-RULES.md) — pre-flight large writes via `apps/pipeline/services/disk_pressure.require_free_disk()`.
 - **No-duplicates rule.** [`NO-DUPLICATES.md`](NO-DUPLICATES.md) — every per-content table follows the `(content_hash, signal_version)` skip-if-unchanged + supersede + retention pattern.

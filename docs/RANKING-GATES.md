@@ -51,14 +51,14 @@ The spec file at `docs/specs/frXXX-*.md` (or `pick-NN-*.md`) must exist and cont
 | `## Researched Starting Point` | Every default value cited from a published baseline |
 | `## Why This Does Not Overlap With Any Existing Signal` | Complete enumeration + disambiguation |
 | `## Neutral Fallback` | Behavior when input is missing or below BLC §6.4 minimum-data floors |
-| `## Architecture Lane` | Python / C++ / hybrid — decision and justification |
+| `## Architecture Lane` | Python / Rust / hybrid — decision and justification (backend is Python + Rust only; hot paths are Rust with no Python fallback — see [`RUST-FIRST.md`](../RUST-FIRST.md)) |
 | `## Hardware Budget` | RAM, CPU ms, GPU VRAM, disk — measured on the target machine |
 | `## Real-World Constraints` | Deployment gotchas, rate limits, FAISS index size interactions |
 | `## Diagnostics` | What the reviewer sees in the suggestion detail view |
 | `## Benchmark Plan` | Three input sizes per BLC §1.4 |
 | `## Edge Cases` | Every failure mode mapped to an exception or documented fallback |
 | `## Gate Justifications` | Explicit justification for any gate checklist item that doesn't apply |
-| `## Pending` | Explicit list of what's deferred (C++ port, frontend UI, benchmark, etc.) |
+| `## Pending` | Explicit list of what's deferred (Rust port, frontend UI, benchmark, etc.) |
 
 A spec that omits a section blocks the merge. A spec with an empty section blocks the merge.
 
@@ -108,13 +108,13 @@ No signal may raise an unhandled exception inside `score_destination_matches`. A
 
 The spec must show, with numbers derived from the hardware targets in `docs/BUSINESS-LOGIC-CHECKLIST.md §6`:
 
-- Python hot-path < 50 ms per 500-candidate batch
-- C++ hot-path < 5 ms per 500-candidate batch
+- Python hot-path < 50 ms per 500-candidate batch (prototype, before the Rust port)
+- Rust hot-path < 5 ms per 500-candidate batch
 - RAM < 10 GB app-headroom (Docker + PostgreSQL + Django + Celery + Angular dev) — each signal's per-pipeline cost
-- GPU < 6 GB VRAM (shared with BAAI/bge-m3 already loaded) — zero for non-embedding signals
+- GPU budget — zero for non-embedding signals (embeddings now come from a paid CPU provider, not an in-process GPU model — see [`docs/specs/fr-cpu-paid-embeddings-runtime.md`](specs/fr-cpu-paid-embeddings-runtime.md))
 - Disk cost with 30-day and 90-day growth projections for any new persistent column
 
-If any budget is violated: either (a) propose a cheaper algorithm (approximation, sampling, cache) and re-measure, or (b) mark the signal `# PERF: pending C++ port` in code with a follow-up ticket, or (c) defer the signal to a session after hardware upgrade.
+If any budget is violated: either (a) propose a cheaper algorithm (approximation, sampling, cache) and re-measure, or (b) mark the signal `# PERF: pending Rust port` in code with a follow-up ticket, or (c) defer the signal to a session after hardware upgrade.
 
 #### A9 — Recommended-preset keys seeded with cited comments
 
@@ -213,8 +213,8 @@ Target machine: i5-12450H (8 cores / 12 threads), 16 GB RAM, RTX 3050 6 GB VRAM,
 Estimate for the proposed idea:
 
 - **Expected RAM**: must fit in the 10 GB app-headroom after Django + Celery + PostgreSQL + Angular + Redis are loaded.
-- **Expected CPU**: hot-path < 50 ms per 500-candidate batch (Python) or < 5 ms (C++). Non-hot-path (precompute caches, periodic Celery tasks) gets looser budgets but still documented.
-- **Expected GPU**: if using the GPU, must fit in 6 GB VRAM with BAAI/bge-m3 (~2.5 GB) already loaded.
+- **Expected CPU**: hot-path < 50 ms per 500-candidate batch (Python prototype) or < 5 ms (Rust kernel). Non-hot-path (precompute caches, periodic Celery tasks) gets looser budgets but still documented.
+- **Expected GPU**: non-embedding signals use no GPU. Embeddings come from a paid CPU provider, not an in-process GPU model (see [`docs/specs/fr-cpu-paid-embeddings-runtime.md`](specs/fr-cpu-paid-embeddings-runtime.md)).
 - **Expected disk**: any new persistent column must include 30-day and 90-day growth projections.
 
 If any budget is violated:

@@ -70,6 +70,7 @@ These are **floors**. The strictest target wins when a task touches multiple are
 | Critical review-page workflows | **90%** + at least 1 Playwright E2E spec |
 | External integrations (GSC, GA4, Matomo, WP, XF, OpenAI, Gemini, webhooks) | **90%** + Pact contract + at least 1 integration smoke (mocked or sandboxed) |
 | Go modules (`**/go.mod`) | **95%** line coverage + blocking Go mutation testing |
+| Rust workspaces (`rust/`, `services/speccheck/`) | **95%** line coverage (ratchet toward target via `cargo llvm-cov`) + 0.75 cargo-mutants kill rate |
 
 ## Realistic commit policy
 
@@ -90,6 +91,7 @@ The current per-language floor is enforced by:
 - Frontend: `scripts/run-angular-quality.sh` reads the Karma coverage report, records full-app coverage as quality debt, and blocks only new or changed Angular component/service targets that violate the ratchet policy.
 - C++: GoogleTest line/branch coverage is instrumented through Docker-managed coverage scripts and must fail below 100% branch coverage.
 - Go: `go-quality` in `.github/workflows/ci.yml` and `.githooks/pre-push` run Go tests with `-coverprofile=cover.out`, fail below 95% total coverage, and run Go mutation testing when a Go module exists.
+- Rust: `scripts/run-rust-coverage.sh` runs `cargo llvm-cov` over every Rust workspace (`rust/` and `services/speccheck/`) inside the Docker-managed `compiled-tools` image. The long-term target is **95%** line coverage (phase E8 of [`docs/PYTHON-RUST-MIGRATION-PLAN.md`](PYTHON-RUST-MIGRATION-PLAN.md)). Because current Rust coverage may still be below 95%, this gate does **not** hard-fail for being below the target. Instead it stores a per-workspace floor in `config/rust-coverage-floor.json` that can only rise, fails only when a workspace drops below its stored floor, and ratchets the floor up toward 95% as coverage improves. Rust mutation testing uses `cargo-mutants` with a 0.75 kill-rate gate (see `docs/MUTATION-THRESHOLDS.md`).
 
 **The floor only goes up.** Lowering it without a documented incident is a protocol violation.
 

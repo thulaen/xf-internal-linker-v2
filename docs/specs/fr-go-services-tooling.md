@@ -1,6 +1,13 @@
-# FR — Go services-tier tooling chain
+# FR — Go services-tier tooling chain (SUPERSEDED — Go removed 2026-06-06)
 
-**Status:** Draft, slice 1.5.
+> **SUPERSEDED.** The backend is now **Python + Rust only** (see
+> [ADR 0007](../adr/0007-python-rust-two-language.md) and
+> [`RUST-FIRST.md`](../../RUST-FIRST.md)). There is no Go services tier, so this
+> Go-tooling chain no longer applies. Hot-path compute is a Rust extension built
+> through the Docker-managed maturin path, with Python orchestration and no Python
+> fallback. This spec is kept as a historical record only; do not implement from it.
+
+**Status:** Superseded (was Draft, slice 1.5).
 **Spec ID:** fr-go-services-tooling.
 **Predecessor:** [fr-modular-monolith.md](fr-modular-monolith.md) (slice 1).
 

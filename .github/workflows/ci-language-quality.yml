@@ -5,8 +5,9 @@ name: ci-language-quality
 # These gates were previously hard-blocking pre-commit checks running
 # on developer workstations. Each runner is 10-30 minutes inside Docker
 # (ng test + eslint + stylelint + Stryker for Angular; pytest + ruff +
-# mypy + mutmut for Python; clang-format + clang-tidy + cppcheck +
-# ctest for C++; gofmt + go vet + golangci-lint + go test for Go).
+# mypy + mutmut for Python; cargo fmt + clippy + cargo test +
+# cargo-mutants for Rust). The backend is Python + Rust only (ADR 0007);
+# the former C++ and Go runners were removed on 2026-06-06.
 # That cost on every commit was the wrong trade-off: developers ran
 # them sequentially, sometimes for half an hour, while the same checks
 # would have run in CI anyway. Phase J.6 moved them out of the local
@@ -51,24 +52,13 @@ jobs:
           XF_QUALITY_ENV: ci
         run: bash scripts/run-python-quality.sh
 
-  cpp:
-    name: C++ quality
+  rust:
+    name: Rust quality
     runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.labels.*.name, 'cpp') || github.event_name == 'push'
+    if: contains(github.event.pull_request.labels.*.name, 'rust') || github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
-      - name: Run C++ quality gate
+      - name: Run Rust quality gate
         env:
           XF_QUALITY_ENV: ci
-        run: bash scripts/run-cpp-quality.sh
-
-  go:
-    name: Go quality
-    runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.labels.*.name, 'go') || github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run Go quality gate
-        env:
-          XF_QUALITY_ENV: ci
-        run: bash scripts/run-go-quality.sh
+        run: bash scripts/run-rust-quality.sh

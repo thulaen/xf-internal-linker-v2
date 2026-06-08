@@ -1,6 +1,6 @@
 # FR — Sidecars host: 40 internal services in one Go binary
 
-[SPEC FRESHNESS: reviewed_at=2026-05-17 next_review=2026-06-17]
+[SPEC FRESHNESS: reviewed_at=2026-06-08 next_review=2026-07-08]
 [SPEC CITED: feature=sidecars-host kind=architecture id=services-tier-multi-service-binary verified_at=2026-05-17]
 [SPEC CITED: feature=sidecars-host kind=technical_doc id=apache-tomcat-servlet-container-pattern verified_at=2026-05-17]
 [SPEC CITED: feature=sidecars-host kind=technical_literature id=donovan-kernighan-2015-go-programming-language-ch-8-concurrency verified_at=2026-05-17]

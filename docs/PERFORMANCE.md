@@ -181,24 +181,25 @@ The NVIDIA driver on this MSI laptop does not expose power management controls v
 
 ---
 
-## 7. C++ First Rule
+## 7. Rust First Rule
 
-> If a C++ extension exists for the operation, call it. Python is the fallback and reference implementation only.
+> If a Rust extension exists for the operation, call it. Rust is **authoritative** — there is **no Python fallback** and no Python reference copy. A missing or broken Rust kernel is a loud diagnostics/health error, not a quiet drop to Python.
 >
-> Hot-path speedups dominate overall throughput by [Amdahl's Law, 1967]: if a hot path accounts for 80% of execution time and C++ provides a 10× speedup, overall throughput improves by ~4.5×. Python fallback exists for correctness verification and environments where C++ compilation fails.
+> Hot-path speedups dominate overall throughput by [Amdahl's Law, 1967]: if a hot path accounts for 80% of execution time and the Rust kernel provides a 10× speedup, overall throughput improves by ~4.5×. Rust compiles through LLVM to native code in the same performance tier as the old C++ kernels, with compile-time memory safety on top.
 
-- See `backend/PYTHON-RULES.md` §19 for the Python side of this mandate.
-- See `backend/extensions/CPP-RULES.md` §25 for the C++ side.
-- The `ext_loader.py` service handles fallback logic. It logs a warning when falling back to Python.
+- The backend is **Python + Rust only** (ADR 0007). C, C++, Go, Haskell, and Lua are removed.
+- See [`RUST-FIRST.md`](../RUST-FIRST.md) for the full rule, the nine authoritative ranking responsibilities, the porting discipline, and the diagnostic surfacing.
+- See `backend/PYTHON-RULES.md` for the Python side of the boundary.
+- Rust kernels are built as Python extension modules via **PyO3 + maturin** through the Docker-managed build path — no host toolchain.
 
-### 7a. Polars Thread Pool — Coexistence with C++ and Celery
+### 7a. Polars Thread Pool — Coexistence with Rust and Celery
 
-Polars 1.x ships its own work-stealing thread pool, sized at first import via the `POLARS_MAX_THREADS` environment variable. We size it to **half of the detected CPU cores** so Celery workers, the C++ extensions, and the FAISS index pool keep their headroom. The size is set once at Django startup by `apps.core.apps.CoreConfig.ready()` calling `apps.pipeline.services.hardware_profile.polars_thread_count()`.
+Polars 1.x ships its own work-stealing thread pool, sized at first import via the `POLARS_MAX_THREADS` environment variable. We size it to **half of the detected CPU cores** so Celery workers, the Rust extensions, and the FAISS index pool keep their headroom. The size is set once at Django startup by `apps.core.apps.CoreConfig.ready()` calling `apps.pipeline.services.hardware_profile.polars_thread_count()`.
 
 Boundary policy:
 
 - Polars is for **batch / analytics / ETL** — Matomo and GA4 ingest aggregation, GSC TF-IDF rollups, anchor-entropy quantiles, CSV exports, weekly Parquet snapshots.
-- Polars is **never** called from inside `score_destination_matches()`, the per-candidate scoring loop, the BGE-M3 embedding loop, or the text-clean regex chain. Those paths stay C++ (CPP-FIRST.md). Polars is faster than a Python `for` loop but slower than a hand-tuned C++ kernel.
+- Polars is **never** called from inside `score_destination_matches()`, the per-candidate scoring loop, the embedding loop, or the text-clean regex chain. Those paths stay Rust (see [`RUST-FIRST.md`](../RUST-FIRST.md)). Polars is faster than a Python `for` loop but slower than a hand-tuned Rust kernel. (Embeddings now come from a paid CPU provider, not an in-process model — see [`docs/specs/fr-cpu-paid-embeddings-runtime.md`](specs/fr-cpu-paid-embeddings-runtime.md).)
 - An operator can override the thread budget by setting `POLARS_MAX_THREADS` in the environment before Django starts; we never override an explicit operator choice.
 
 ---
@@ -209,7 +210,7 @@ Boundary policy:
 >
 > Single-point benchmarks are misleading — they hide algorithmic complexity. A function that appears fast at n=10 may be O(n²) and unacceptable at n=10,000. Multi-size benchmarks reveal the true scaling behaviour. See [Fleming & Wallace 1986, "How Not to Lie with Statistics: The Correct Way to Summarize Benchmark Results", CACM 29(3)].
 
-- **C++**: `backend/extensions/benchmarks/bench_*.cpp` using Google Benchmark. Sizes: small / medium / large.
+- **Rust**: a Criterion benchmark under the kernel crate's `benches/`. Sizes: small / medium / large.
 - **Python**: `backend/benchmarks/test_bench_*.py` using pytest-benchmark. Sizes: small / medium / large.
 - Points to the benchmark rule in `CLAUDE.md`.
 

@@ -7,9 +7,9 @@
   },
   "compilation_split": {
     "machines": [
-      {"key": "dell", "builder": "dell", "percent": 88},
+      {"key": "dell", "builder": "dell", "percent": 92},
       {"key": "mint", "builder": "mint", "percent": 8},
-      {"key": "windows", "builder": "desktop-linux", "percent": 4}
+      {"key": "windows", "builder": "desktop-linux", "percent": 0}
     ],
     "salt": "xf-internal-linker-v2-build-split-v1"
   },

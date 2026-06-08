@@ -1,6 +1,6 @@
 # FR — Observability-Always-On + No-Deferral discipline
 
-[SPEC FRESHNESS: reviewed_at=2026-05-23 next_review=2026-06-23]
+[SPEC FRESHNESS: reviewed_at=2026-06-05 next_review=2026-09-05]
 
 [SPEC CITED: feature=observability-always-on-and-no-deferral kind=technical_doc id=beyer-sre-book-2016 verified_at=2026-05-23]
 [SPEC CITED: feature=observability-always-on-and-no-deferral kind=technical_doc id=opentelemetry-spec-1.42 verified_at=2026-05-23]
@@ -67,18 +67,19 @@ and exit; treating an exited init job as a failure would block every
 commit after the first start. The rule still applies to the rest of
 the stack.
 
-**Host split (2026-05-29).** `sonarqube`, `sonar-autoscan`, and `pyroscope`
-were moved off Windows onto the Mint helper (the `mint-quality` Compose
-profile; see `config/docker-stack-health.json` and
-`docs/specs/fr-mint-quality-tool-placement.md`). They remain always-on, but
-on Mint. The hook no longer expects them in the local `docker compose ps`
-output; instead `config/observability-services.json` lists them under
-`remote_services`, and `.githooks/check-observability-stack.py` verifies each
-over the network via its `health_url` (SonarQube `/api/system/status`,
-Pyroscope `/ready`). The deep verifier is `scripts/check-mint-quality-tools.ps1`.
-Restart these three with `scripts/start-mint-quality-tools.ps1`, never a local
-`docker compose up`. The 11 remaining containers stay on Windows and are still
-checked locally.
+**Host split (updated 2026-06-05).** `sonarqube` and `sonar-autoscan`
+now run on Dell. `pyroscope` remains on the Mint helper. These services remain
+always-on, but not on Windows. The hook no longer expects them in the local
+`docker compose ps` output; instead `config/observability-services.json` lists
+them under `remote_services`, and `.githooks/check-observability-stack.py`
+verifies each HTTP service over the network via its `health_url` (SonarQube
+`/api/system/status`, Pyroscope `/ready`). The deep verifiers are
+`scripts/check-dell-sonar-tools.ps1` for SonarQube and sonar-autoscan, and
+`scripts/check-mint-quality-tools.ps1` for Mint-owned profiling and quality
+tools. Restart Dell Sonar with `scripts/start-dell-sonar-tools.ps1`; restart
+Mint quality/profiling tools with `scripts/start-mint-quality-tools.ps1`.
+Never use a local Windows `docker compose up` for these remote services. The
+remaining local containers stay on Windows and are still checked locally.
 
 The hook PASSES when every container is in `State=running` AND
 `Health` is either `starting`, `healthy`, or empty (no healthcheck

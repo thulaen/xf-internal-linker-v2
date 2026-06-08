@@ -16,7 +16,7 @@
 [SPEC CITED: feature=fr-modular-monolith kind=technical_doc id=https://www.milanjovanovic.tech/blog/what-is-a-modular-monolith verified_at=2026-05-16]
 [SPEC CITED: feature=fr-modular-monolith kind=technical_doc id=https://kraken-tech.medium.com/from-monolith-to-modular-monolith-at-kraken-bb56f7b65aca verified_at=2026-05-16]
 [SPEC CITED: feature=fr-modular-monolith kind=technical_literature id=https://www.gopl.io/ verified_at=2026-05-16]
-[SPEC FRESHNESS: reviewed_at=2026-05-16 next_review=2026-06-16]
+[SPEC FRESHNESS: reviewed_at=2026-06-05 next_review=2026-07-05]
 
 ## Goal
 

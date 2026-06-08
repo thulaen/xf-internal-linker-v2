@@ -26,6 +26,24 @@ Every response, commit message, error report, status update, and user-facing sur
 
 Skipping any of the three parts is a protocol violation. Silence on errors is forbidden.
 
+### Decision Point line on every task-complete chat response (added 2026-05-20)
+
+A **Decision Point line** is required at the end of every task-complete chat response:
+one short line, written in plain English, that tells the user what you are waiting on
+and what their choices are right now. It starts with the literal text `Decision Point:`
+so the user can always find it at the bottom of a finished reply.
+
+- A task-complete chat response is any reply where you have finished the work the user
+  asked for in this turn (the task is done, blocked, or needs the user to choose).
+- The Decision Point line states the single next decision the user faces — for example,
+  "Decision Point: the change is ready to commit — say `commit` to land it, or tell me
+  what to adjust."
+- If there is nothing for the user to decide, say so plainly:
+  "Decision Point: nothing needed from you — the task is complete."
+
+This line removes ambiguity about whether a turn is finished and what the user should do
+next. It is required only on task-complete responses, not on every intermediate message.
+
 ---
 
 ## Before You Send — Mandatory Self-Check
@@ -109,7 +127,8 @@ When you must mention a technical concept, use the plain-English version from th
 | re-sorting results using better criteria | reranking |
 | a setting that controls how the AI behaves | hyperparameter |
 | code that runs thousands of times per second | hot path |
-| a speed-boosted module written in a faster language (C++) | C++ extension |
+| a speed-boosted module written in a faster language (Rust, via PyO3 + maturin) — this is the project's compute path; see RUST-FIRST.md | Rust extension |
+| RETIRED 2026-06-06 — kept for history. The project moved off C++ to Rust-only for hot paths (ADR 0007). Old meaning: a speed-boosted module written in C++. Use "Rust extension" instead | C++ extension (RETIRED) |
 | the background task runner | celery worker |
 | the framework that builds the visual interface | Angular |
 | the framework that handles data storage and business logic | Django |
@@ -142,13 +161,13 @@ When you must mention a technical concept, use the plain-English version from th
 | a Dockerfile line that sets a value the container can read while it runs | ENV |
 | a Dockerfile line that sets the folder future commands run from | WORKDIR |
 | a Dockerfile line that sets the default command for the container | CMD |
-| the new Go service that receives live events and lets other parts of the app read them back in order | streamd |
+| RETIRED 2026-06-06 — kept for history. streamd was a Go service; the Go tier is removed (ADR 0007). Old meaning: a Go service that received live events and let other parts of the app read them back in order | streamd (RETIRED) |
 | a service that stores short messages and hands them to other app parts in order | message broker |
 | a short repeat-detection code made from an event's source, type, and payload | dedupe key |
-| the repo rule file that explains how Docker builds and stores compiled-language outputs | COMPILED-LANGUAGE-RULES |
+| RETIRED 2026-06-06 — kept for history. C/C++/Go/Haskell/Lua are removed; the only compiled language is Rust, built through the Docker-managed maturin path (see RUST-FIRST.md). Old meaning: the repo rule file for how Docker built and stored compiled-language outputs | COMPILED-LANGUAGE-RULES (RETIRED) |
 | a set of common Linux command-line tools used by many scripts | GNU |
 | a book reference for an agile testing source | ISBN-978-0321534460 |
-| the Go setting that controls how many CPU threads Go can run at once | GOMAXPROCS |
+| RETIRED 2026-06-06 — kept for history. Go is removed from the backend (ADR 0007). Old meaning: the Go setting controlling how many CPU threads Go could run at once | GOMAXPROCS (RETIRED) |
 | a setting or path that is meant to run only on a remote service, not on the local computer | REMOTE-ONLY |
 | a short example name for an environment variable in tests and scripts | VAR |
 | storing compiled files by their exact file fingerprint so identical outputs use one saved copy instead of piling up | content-addressed compiled artifact store |
@@ -191,7 +210,13 @@ When you must mention a technical concept, use the plain-English version from th
 | a long string the app uses to prove it's allowed to call its own backend | Django Token |
 | running an AI agent without a chat window — give it one prompt, take its answer | headless mode |
 | a single number that combines several scoring factors into one final ranking number | composite score |
-| a Go test tool that makes small deliberate code changes and checks that the tests catch them | go-mutesting |
+| the Rust module that scores and orders link candidates, checks weight safety, and explains each decision | RankingDecisionEngine |
+| a saved, numbered, never-edited record of exactly which ranking weights were live at a moment in time | RankingPolicy / ranking policy |
+| the one service that turns presets, manual edits, and tuner results into the single live set of ranking weights | PolicyResolver / policy resolver |
+| scoring the same candidates a second time with proposed new weights, without changing what reviewers see, to test the new weights safely | shadow scoring / shadow pass |
+| re-scoring old suggestions with different weights to see how the ranking would have changed | replay / what-if re-scoring |
+| a statistical test that watches results as they arrive and stops as soon as there is enough evidence to accept or reject a change | SPRT / sequential probability ratio test |
+| RETIRED 2026-06-06 — kept for history. Go is removed from the backend (ADR 0007). Old meaning: a Go mutation-testing tool. Rust uses its own mutation tooling | go-mutesting (RETIRED) |
 | a Python test tool that makes small deliberate code changes and checks whether the tests catch them | mutmut / MUTMUT |
 | test changes that were not caught by the test suite | mutation survivors / MUTATION SURVIVORS |
 | the textbook Mining of Massive Datasets, used as a source for scoring and data-processing ideas | MMDS |
@@ -216,8 +241,8 @@ When you must mention a technical concept, use the plain-English version from th
 | numbered "feature request" specs in `docs/specs/fr*.md` — each one a contract for a feature | FR-014 / FR-016 / FR-XXX (any 3-digit feature number) |
 | FR-250 — a small C++ helper that holds back outbound API calls so we never go faster than each provider's documented limit (Google Search Console, Google Analytics 4, Matomo, XenForo, WordPress) | FR-250 / API rate limiter |
 | a way to compress number-fingerprints so the similarity search engine can fit a giant index in memory by storing each vector as a tiny code instead of a full float array | OPQ / Optimised Product Quantization |
-| an embedding model that turns text into number-fingerprints — the project's default | BGE-M3 |
-| Beijing Academy of Artificial Intelligence — the research org that publishes the BGE-M3 embedding model used as the project default | BAAI |
+| RETIRED 2026-06-06 — kept for history. BGE-M3 was a self-hosted embedding model that turned text into number-fingerprints; it is no longer the project default. The project now gets embeddings from a paid provider instead of running BGE-M3 locally | BGE-M3 (RETIRED) |
+| RETIRED 2026-06-06 — kept for history. Beijing Academy of Artificial Intelligence published the BGE-M3 model that the project used to run locally; BGE-M3 is retired, so BAAI is no longer the source of the project's embeddings | BAAI (RETIRED) |
 | ACM Special Interest Group on Information Retrieval — the main academic conference where search and ranking research is published; chunking and passage scoring papers cited in the project come from this venue | SIGIR |
 | Asymmetric Distance Computation — the OPQ scoring path that compares a query vector against compressed byte-codes instead of full float vectors; 5-10x faster than the float32 path for the same accuracy | ADC |
 | an industry-standard score that measures how good a ranked list is | NDCG / Normalised Discounted Cumulative Gain |
@@ -273,8 +298,8 @@ When you must mention a technical concept, use the plain-English version from th
 | GitHub's own security-advisory database — an alternative ID for vulnerabilities (`GHSA-xxxx-xxxx-xxxx`); pip-audit reports both CVE and GHSA when both are assigned | GHSA / GitHub Security Advisory |
 | a Web Vital metric that measures how long the page takes to react after the user clicks/taps — replaced FID in 2024 as the standard responsiveness yardstick | INP / Interaction-to-Next-Paint |
 | the legacy responsiveness Web Vital — measured the delay between a click and the browser starting to handle it; replaced by INP | FID / First Input Delay |
-| Microsoft's Visual C++ compiler — the C++ toolchain used when building native extensions on Windows; produces `.exe`, `.lib`, `.exp`, and `.pdb` byproducts the benchmark runner has to filter out | MSVC / Microsoft Visual C++ |
-| the four scoring components inside the C++ daily picker — Severity (how bad), Recency (how new), Regression (was-fine-yesterday), and Akaike Information Criterion (penalty for touching many modules); blended into one priority score per issue | SEV / REC / REG / AIC |
+| RETIRED 2026-06-06 — kept for history. C++ is removed from the backend (ADR 0007); native extensions are built in Rust through the Docker-managed maturin path. Old meaning: Microsoft's Visual C++ compiler used to build C++ extensions on Windows | MSVC / Microsoft Visual C++ (RETIRED) |
+| the four scoring components in the daily issue picker — Severity (how bad), Recency (how new), Regression (was-fine-yesterday), and Akaike Information Criterion (penalty for touching many modules); blended into one priority score per issue. (Note: the picker was originally written in C++; C++ is removed, so any port lives in Rust per ADR 0007) | SEV / REC / REG / AIC |
 | the international rulebook for making websites usable by people with disabilities — covers things like keyboard navigation, screen-reader support, color contrast; "AA" is the middle compliance level most enterprises target | WCAG / Web Content Accessibility Guidelines |
 | the JavaScript view of CSS — every loaded stylesheet exposes a `cssRules` array the browser keeps in sync; we walk it to debug why a CSS rule isn't winning the cascade | CSSOM / CSS Object Model |
 | the standard file format for translation work — an XML file with one entry per source string and a `<target>` slot the translator fills in; produced by `ng extract-i18n` and consumed by `ng build --localize` | XLF / XLIFF / XML Localization Interchange File Format |
@@ -313,18 +338,18 @@ When you must mention a technical concept, use the plain-English version from th
 | handoff marker proving the agent inspected Pyroscope and OpenTelemetry Profiles before coding; it names the service, touched scope, hotspot count, baseline command, and decision | profiling proof |
 | 95th-percentile latency — the response time that 95 out of 100 requests are at or below; the slowest 5 requests out of 100 are worse than this number | p95 latency |
 | 99th-percentile latency — the response time that 99 out of 100 requests are at or below; the slowest 1 request out of 100 is worse than this number | p99 latency |
-| moving one proven slow component to C++, Go, or another faster low-level language after measured proof shows normal fixes cannot hit the target | native rewrite |
-| a language built for high-speed low-level work, such as C++, Rust, or Go, where the program has more direct control over CPU work, memory use, and concurrency | systems language |
+| moving one proven slow component to Rust after measured proof shows normal Python fixes cannot hit the target; Rust is the only native target now (C++ and Go are removed — ADR 0007) | native rewrite |
+| a language built for high-speed low-level work where the program has more direct control over CPU work, memory use, and concurrency; in this project that language is Rust (C++ and Go are removed — ADR 0007) | systems language |
 | the one implementation that the repo treats as the main source of truth; old versions either call it, are clearly deprecated, or are removed | canonical implementation |
 | Remote Procedure Call — one service calls a function that runs in another process or service; used when code crosses a process boundary instead of calling a local function | RPC |
-| Foreign Function Interface — the boundary where Python calls into C++ (via pybind11) or vice-versa; used in the project's hot-path rerankers so the slow Python ranking math is replaced by fast C++ kernels | FFI |
+| Foreign Function Interface — the boundary where Python calls into native code or vice-versa; in this project Python calls into Rust kernels (via PyO3) so the slow Python ranking math is replaced by fast Rust kernels. (Was C++/pybind11 before the Rust migration — see RUST-FIRST.md) | FFI |
 | Near-Real-Time — describes scoring or retrieval that happens within seconds of an event (vs. batch jobs that run nightly); the project's NRT signals power live confidence-meter updates and the autotuner's short-window feedback loop | NRT || pre-commit hook script at `.githooks/check-file-size.py` that blocks commits adding a file over 1,500 lines (the cap from CLAUDE.md), and prevents grandfathered files (listed in `.githooks/file-size-grandfather.txt`) from growing past their recorded baseline | check-file-size / file-size-grandfather |
 | pre-commit hook script at `.githooks/check-no-downgraded-gates.py` that blocks any commit which silently flips a CI gate from blocking to warning-only (`\|\| true`, `continue-on-error: true`, `exit-code: '0'`, `::warning::`) unless the same diff also adds a `# GATE-DOWNGRADE-JUSTIFICATION:` comment with a real reason | check-no-downgraded-gates / GATE-DOWNGRADE-JUSTIFICATION |
 | pre-commit hook script at `.githooks/check-frontend-routes.py` that scans every `HttpClient.get/post/put/patch/delete('/api/...')` call in staged frontend TypeScript files and verifies the URL resolves to a real `path('...')` declaration in `backend/apps/**/urls.py`; prevents stale frontend → backend URL drift | check-frontend-routes |
 | pre-commit hook script at `.githooks/check-missing-tests.py` that blocks commits which add a new `*.component.ts`, `*.service.ts`, or `backend/apps/*/services/*.py` file without a matching test file (sibling `.spec.ts` for frontend, `test_<base>.py` in same/parent/tests dir for backend) | check-missing-tests |
-| AddressSanitizer — a Clang/GCC compiler instrumentation that catches memory-corruption bugs (use-after-free, out-of-bounds reads/writes, double-free, leaks) at runtime; the project runs the C++ extensions under it in CI to catch native-code bugs the unit tests would miss | ASAN / AddressSanitizer |
-| ThreadSanitizer — sister to ASAN that catches data races and thread-safety bugs at runtime; the project's CI build runs C++ tests under TSAN as a blocking check | TSAN / ThreadSanitizer |
-| Intel Threading Building Blocks — the C++ task scheduler the project's hot-path C++ kernels use for parallel work | TBB |
+| RETIRED 2026-06-06 — kept for history. C++ is removed from the backend (ADR 0007); Rust gives memory safety at compile time. Old meaning: a Clang/GCC instrumentation that caught C++ memory-corruption bugs at runtime | ASAN / AddressSanitizer (RETIRED) |
+| RETIRED 2026-06-06 — kept for history. C++ is removed from the backend (ADR 0007). Old meaning: a Clang/GCC instrumentation that caught data races in C++ at runtime | TSAN / ThreadSanitizer (RETIRED) |
+| RETIRED 2026-06-06 — kept for history. C++ is removed from the backend (ADR 0007). Old meaning: Intel Threading Building Blocks, the C++ parallel-task scheduler. Rust uses `rayon` for parallel work | TBB (RETIRED) |
 | log database — stores every container's stdout line, queryable like a search engine; runs default-on alongside GlitchTip and Pyroscope; reachable at `localhost:3100`; 30-day retention | Loki |
 | log shipper — a small agent that watches every running container's stdout and forwards each new line to Loki; runs default-on as the `alloy` service; replaces Promtail (which Grafana retired in March 2026) | Grafana Alloy / Alloy |
 | log query language — the search syntax for Loki; example: `rate({container_name="xf_linker_backend"} \|~ "(?i)error" [5m])` says "errors per second in the backend container over the last 5 minutes" | LogQL |
@@ -364,23 +389,23 @@ When you must mention a technical concept, use the plain-English version from th
 | testing the tests — a tool deliberately edits ("mutates") the code (e.g. swaps `==` for `!=`, drops a function call) then runs the test suite; if the tests still pass, the test suite is too weak to catch that regression, the mutant "survived", and CI fails. The discipline is the partner to randomised order: randomisation catches order-dependent tests; mutation catches tests-that-don't-actually-assert. | mutation testing / surviving mutant / mutant survived |
 | the Python mutation-testing tool used by this project across backend app code. Invoked via `mutmut run --paths-to-mutate=<path> --runner=<test cmd>`; `mutmut results` exits non-zero if any mutant survived | mutmut |
 | the TypeScript / Angular mutation-testing tool used by this project across Angular components and services. Reads `frontend/stryker.config.json`; integrates with Karma so the existing test runner mutates each file in turn | Stryker / Stryker Mutator |
-| a C++ checker that finds common bugs, memory risks, and unsafe patterns before the code runs | cppcheck |
-| a C++ checker that uses the compiler's understanding of the code to find bugs and enforce project rules | clang-tidy |
-| a C++ include checker that reports headers the file does not need and headers the file forgot to include directly | Include-What-You-Use / IWYU |
-| an all-in-one Go checker that runs many Go bug, style, and safety checks from one command | golangci-lint |
-| a Go security checker that searches Go code for common unsafe patterns | gosec |
-| Meta's static analyzer that checks C, C++, Java, and Objective-C for bugs such as null pointer use, leaks, and concurrency errors | Infer |
+| RETIRED 2026-06-06 — kept for history. C++ is removed from the backend (ADR 0007). Old meaning: a C++ bug/memory-risk checker. Rust uses `clippy` instead | cppcheck (RETIRED) |
+| RETIRED 2026-06-06 — kept for history. C++ is removed from the backend (ADR 0007). Old meaning: a C++ static checker. Rust uses `clippy` instead | clang-tidy (RETIRED) |
+| RETIRED 2026-06-06 — kept for history. C++ is removed from the backend (ADR 0007). Old meaning: a C++ header-include checker | Include-What-You-Use / IWYU (RETIRED) |
+| RETIRED 2026-06-06 — kept for history. Go is removed from the backend (ADR 0007). Old meaning: an all-in-one Go bug/style/safety checker | golangci-lint (RETIRED) |
+| RETIRED 2026-06-06 — kept for history. Go is removed from the backend (ADR 0007). Old meaning: a Go security checker | gosec (RETIRED) |
+| RETIRED 2026-06-06 — kept for history. C/C++ are removed from the backend (ADR 0007). Old meaning: Meta's static analyzer for C, C++, Java, and Objective-C | Infer (RETIRED) |
 | a Python checker that finds risky code patterns such as hard-coded secrets and unsafe function calls | Bandit |
 | a Python checker that reports code errors and risky patterns; this project runs the errors-only mode in Docker | PyLint |
 | a Python dependency checker that reports installed packages with known security problems | Safety |
-| the C++ mutation-testing tool used by this project through the Docker-managed Clang toolchain. Reads the C++ test build and fails when any configured mutant survives | Mull |
+| RETIRED 2026-06-06 — kept for history. C++ is removed from the backend (ADR 0007). Old meaning: the C++ mutation-testing tool run through Clang. Rust uses its own mutation tooling | Mull (RETIRED) |
 | one specific edit rule a mutation tool can apply (e.g. `cxx_relational_replacement` swaps `<` and `>`; `arithmetic_replacement` swaps `+` and `-`). The mutation tool walks the source once per mutator and tries each rule at every applicable location | mutator (mutation-testing sense) |
 | LLVM is an open-source compiler infrastructure project that the Clang C/C++ compiler is built on; tools like Mull, libFuzzer, ASan/TSan/MSan, and clang-tidy all ship as LLVM components. When the docs say "Mull works at the LLVM IR level," they mean it edits the intermediate code Clang produces before machine-code emission | LLVM |
-| coverage-guided random-input fuzz tool that ships with LLVM/Clang — feeds randomly-mutated byte arrays at thousands per second into a `LLVMFuzzerTestOneInput(uint8_t*, size_t)` function and watches whether the code crashes, leaks memory, or trips a sanitizer. Paired with `-fsanitize=fuzzer,address` so every interesting bug becomes a non-zero exit. Starter targets in `backend/extensions/fuzz/`; authoring guide in `AUTHORING.md` | libFuzzer |
-| MemorySanitizer — Clang sanitizer that catches reads of uninitialised memory at runtime (e.g. `int x; if (x > 0) {...}`). Highest false-positive rate of the sanitizers because it needs every dependency rebuilt with MSan instrumentation to avoid noise; this project ships a **project-only** MSan with `-fsanitize-blacklist=backend/extensions/msan-ignore.txt` excluding Faiss / Eigen / ICU / TBB / pybind11 | MSan / MemorySanitizer |
-| a libFuzzer harness file — one `LLVMFuzzerTestOneInput()` function that interprets a fuzz-generated byte stream as input to one C++ function under test. Lives in `backend/extensions/fuzz/fuzz_<name>.cpp`; rebuilt every CI run; smoke-runs for 60s per target | fuzz target |
-| the directory of seed inputs libFuzzer starts from when fuzzing a target (one dir per target under `backend/extensions/fuzz/corpus/<name>/`); libFuzzer mutates these and adds new "interesting" inputs that explore previously-unvisited code paths. Crash-reproducer files (`crash-<sha1>`) drop into the same dir | fuzz corpus / seed corpus |
-| Clang's per-sanitizer "ignore this file/function/source-path" config — used in `backend/extensions/msan-ignore.txt` to tell MSan not to flag reads originating inside Faiss / Eigen / ICU; reads from blacklisted code are treated as initialised. Format: `src:*/faiss/*`, `fun:Py*`, etc. | sanitizer blacklist / -fsanitize-blacklist |
+| RETIRED 2026-06-06 — kept for history. C++ is removed from the backend (ADR 0007). Old meaning: a coverage-guided C++ fuzz tool from LLVM/Clang. Rust fuzzing uses `cargo fuzz` | libFuzzer (RETIRED) |
+| RETIRED 2026-06-06 — kept for history. C++ is removed from the backend (ADR 0007); Rust gives memory safety at compile time. Old meaning: a Clang sanitizer that caught reads of uninitialised C++ memory | MSan / MemorySanitizer (RETIRED) |
+| RETIRED 2026-06-06 — kept for history. C++ is removed from the backend (ADR 0007). Old meaning: a libFuzzer harness file for one C++ function under test | fuzz target (RETIRED) |
+| RETIRED 2026-06-06 — kept for history. C++ is removed from the backend (ADR 0007). Old meaning: the seed-input directory libFuzzer mutated when fuzzing a C++ target | fuzz corpus / seed corpus (RETIRED) |
+| RETIRED 2026-06-06 — kept for history. C++ is removed from the backend (ADR 0007). Old meaning: Clang's per-sanitizer ignore-list config | sanitizer blacklist / -fsanitize-blacklist (RETIRED) |
 | contract-testing framework — the Angular frontend declares "I will call POST /api/foo with {a,b} and expect {c,d} back"; that contract is saved as a JSON file; the Django backend then has a test that replays each declared interaction and fails the build if the response shape drifts. Catches frontend/backend desync at PR time | Pact / contract testing |
 | the central registry server that holds every Pact JSON file (one consumer + one provider + their negotiated contract version). Lives in `docker-compose.yml` under the dev profile when used; the in-repo workflow can also just commit the JSON files directly and skip the broker for simpler one-team cases | Pact broker |
 | the discipline of letting the consumer (Angular) define the contract, then making the provider (Django) prove it conforms. The opposite is "provider-driven" where the backend ships an OpenAPI / Swagger spec and consumers adapt — Pact prefers consumer-driven because it makes the consumer's actual usage the source of truth, not a hand-edited spec that can drift | consumer-driven contracts |
@@ -398,7 +423,7 @@ When you must mention a technical concept, use the plain-English version from th
 | the fifth required ritual marker (FR-251) — proves the agent picked 10 coverage-gap AutoIssues to drain this session alongside the standard 30 auto-issue picks and 10 latest failed CI runs. Two valid forms: `[COVERAGE GAPS READ: 10 picked — #..., ...]` (populated) or `[COVERAGE GAPS READ: <K> picked + <10-K> to file — #..., (drought; ...)]` (drought) | COVERAGE GAPS READ marker |
 | the end-of-slice / end-of-task / end-of-session honesty marker (FR-251) — `[COVERAGE SUMMARY: target=<X>% actual=<Y>% — met / not met — <reason if not met>]`. Honesty is mandatory; claiming "met" when the suite is red is a protocol violation | COVERAGE SUMMARY marker |
 | FR-251 — the FR spec governing the strict code-coverage program shipped 2026-05-12. Sets the rules in `AI-CODING-GUIDELINES.md` + `docs/CODE-COVERAGE-RULES.md`; the actual work to achieve the targets lives in ~23 coverage-gap AutoIssues drained 10-per-session. See `docs/specs/fr251-code-coverage-program.md` | FR-251 / code-coverage program |
-| a fuzz-coverage-gap AutoIssue — one per public C++ module in `backend/extensions/` without a matching `fuzz_<name>.cpp` target. Emitted by `apps.auto_issues.services.fuzz.pick_fuzz_coverage_gaps`. The libFuzzer ratchet — as fuzz targets are added per the AutoIssue queue, these gap rows resolve | fuzz-coverage-gap |
+| RETIRED 2026-06-06 — kept for history. C++ is removed from the backend (ADR 0007); the C++ libFuzzer fuzz targets no longer apply. Old meaning: a fuzz-coverage-gap AutoIssue, one per public C++ module without a matching `fuzz_<name>.cpp` target. Rust fuzzing (`cargo fuzz`) replaces this | fuzz-coverage-gap (RETIRED) |
 | an object-oriented design principle that says "only talk to your immediate friends" — a method should only call methods on (a) itself, (b) its parameters, (c) objects it creates locally, (d) its direct component objects. Forbids deep chains like `a.b().c().d()`. Encourages "tell don't ask" redesigns where the caller's friend exposes a method that returns the needed value directly. See `AI-CODING-GUIDELINES.md` § Design principles | Law of Demeter / LoD |
 | a design principle that each module owns exactly one responsibility. Test: can you describe the module's job without using the word "and"? Mixing import-parsing + scoring + persistence in one function violates SoC; split into three functions. See `AI-CODING-GUIDELINES.md` § Design principles | Separation of Concerns / SoC |
 | a design principle that says validate inputs at the boundary and raise immediately on invariant violations. Don't paper over with silent defaults that hide the bug. A `ValueError("weight must be ≥ 0")` at function entry is far easier to debug than a wrong answer five layers deep. See `AI-CODING-GUIDELINES.md` § Design principles | Fail Fast |
@@ -408,7 +433,7 @@ When you must mention a technical concept, use the plain-English version from th
 | a commit that does one thing, with a title under 70 chars, a body explaining the WHY (not the WHAT), and a reference to any tracked issue ID. Forbidden generic titles: `fix`, `update`, `wip`, `stuff`, `misc`. See `AI-CODING-GUIDELINES.md` § Commit-message rules | atomic and descriptive commit |
 | the explicit human-approval gate required before any code is written for a change that touches core architecture, database schema (data migration), global state, public API contract, security model, or ABSOLUTE-rule-adjacent territory. Format: `[REVIEW GATE: awaiting approval]` after a 3-5 bullet summary. Cannot be bypassed by auto mode or session prompt. See `AI-CODING-GUIDELINES.md` § Major-change review gates | review gate / REVIEW GATE marker |
 | a stable Ubuntu release that Canonical supports for 5 years and receives security patches for 10 years (e.g., 20.04 LTS, 22.04 LTS); the GitHub Actions `ubuntu-latest` runner ships the current LTS version | LTS / Long-Term Support |
-| a compiler flag that enables Mull mutation testing — wires the Mull LLVM plugin into the Clang compilation pipeline so code mutations can be injected at the IR level; e.g. `-fpass-plugin=mull-ir-frontend` | -DMULL / DMULL / Mull flag |
+| RETIRED 2026-06-06 — kept for history. C++ is removed from the backend (ADR 0007). Old meaning: a Clang compiler flag that enabled Mull C++ mutation testing | -DMULL / DMULL / Mull flag (RETIRED) |
 
 | the required opening marker that says the agent knows its own code must pass the coding rules, required tests, coverage target, mutation tests, and local check setup before commit | QUALITY GATE READ marker |
 | the required handoff marker for code-changing sessions; it records that guidelines, tests, coverage, mutation tests, and check setup all passed before commit | QUALITY GATE RESULT marker |
@@ -428,17 +453,17 @@ When you must mention a technical concept, use the plain-English version from th
 | a test that locks in known-good output by comparing against a saved snapshot — the snapshot is the "gold" reference; later runs compare current output against the snapshot and fail when the diff is unexpected | golden test |
 | a runnable check that proves an architecture rule still holds — examples: "no module reaches into another module's private files," "no Python file exceeds 1500 lines," "every public function has a type signature." The slice-2 `import-linter` check is the first fitness function in this codebase | fitness function |
 | a translation layer between two modules so neither leaks its internal model into the other — the layer's job is to convert between the two sides' shapes and absorb the difference, preventing a change on one side from forcing a change on the other | anti-corruption layer |
-| a small standalone program written in Go that runs alongside the Django app and handles a workload Go is faster at (mostly concurrent network I/O, long-running daemons, CLI binaries with cold-start sensitivity); it is a peer module to the nine Django modules, not a microservice | Go service |
-| a process that runs next to the main app and shares its deployment; not a separate product, not a separate codebase split, not a microservice; the Go services in this project are sidecars | sidecar |
-| the way Python code talks to a Go service — either a gRPC contract file (`api.proto`) or a documented HTTP+JSON contract (`api.http.md`); the only legal way the two languages communicate in this project; direct cross-language imports are forbidden | cross-language RPC boundary |
-| Go's built-in test runner; `go test -race` adds a data-race detector that catches two goroutines reading and writing the same memory; `-shuffle=on` randomises the order so tests cannot depend on each other | go test |
-| Go's strictest static-analysis linter — finds dead code, misuse of standard library, suspicious nil checks; honours a per-module `staticcheck.conf` for narrowly silenced findings | staticcheck |
+| RETIRED 2026-06-06 — kept for history. The Go services tier is removed; the backend is Python + Rust only (ADR 0007). Old meaning: a small standalone Go program that ran alongside Django. Hot-path work now lives in Rust extensions; see RUST-FIRST.md | Go service (RETIRED) |
+| a process that runs next to the main app and shares its deployment; not a separate product, not a separate codebase split, not a microservice. (Note: the old Go-service sidecars are retired — the backend is Python + Rust only) | sidecar |
+| RETIRED 2026-06-06 — kept for history. With the Go tier removed, there is no Python↔Go RPC boundary. Old meaning: how Python talked to a Go service via `api.proto` or `api.http.md` | cross-language RPC boundary (RETIRED) |
+| RETIRED 2026-06-06 — kept for history. Go is removed from the backend. Old meaning: Go's built-in test runner with `-race` and `-shuffle=on` | go test (RETIRED) |
+| RETIRED 2026-06-06 — kept for history. Go is removed from the backend. Old meaning: Go's strictest static-analysis linter | staticcheck (RETIRED) |
 | a kind of network socket that lives as a file on the local filesystem (e.g. `/var/run/xf/streamd.sock`) and lets two processes on the same machine talk to each other without going through the network stack; round-trip latency is roughly 30-80 microseconds versus 100-200 microseconds for TCP loopback | Unix-domain socket / AF_UNIX |
 | the project's preferred transport between Python and Go on the same host — gRPC traffic runs over a Unix-domain socket file shared between containers via a Docker named volume; faster than TCP loopback and cuts JSON serialisation cost | gRPC over Unix-domain socket |
-| the template every future Go service follows — a binary entry point at `cmd/<name>/main.go`, a published gRPC contract at `api.proto`, transport over a Unix-domain socket, internal packages under `internal/`, multi-stage scratch Dockerfile under 25 MB, and a speed benchmark that proves the speed claim | streamd reference shape |
-| Go's built-in profiler — exposed as a small HTTP server on a localhost-only port (default 127.0.0.1:6060) so the OpenTelemetry profile collector can scrape it | pprof |
-| the Go standard-library function that binds SIGTERM / SIGINT to a context cancellation, so a service shuts down gracefully when Docker stops the container | signal.NotifyContext |
-| a protobuf linter and breaking-change detector — checks `api.proto` files for style problems and stops a developer from accidentally breaking the published contract | buf |
+| RETIRED 2026-06-06 — kept for history. The Go services tier is removed (ADR 0007). Old meaning: the template every Go service followed (`cmd/<name>/main.go`, `api.proto`, Unix-domain socket, scratch Dockerfile) | streamd reference shape (RETIRED) |
+| RETIRED 2026-06-06 — kept for history. Go is removed from the backend. Old meaning: Go's built-in profiler exposed on a localhost-only HTTP port | pprof (RETIRED) |
+| RETIRED 2026-06-06 — kept for history. Go is removed from the backend. Old meaning: the Go standard-library function binding SIGTERM/SIGINT to context cancellation | signal.NotifyContext (RETIRED) |
+| RETIRED 2026-06-06 — kept for history. With the Go tier removed there are no `api.proto` contracts to lint. Old meaning: a protobuf linter and breaking-change detector | buf (RETIRED) |
 | an agent-readable implementation contract written before code is edited; lists what the code must do, expected behaviour, edge cases, failure modes, security, usability, and regression risks; the next agent reads it as a working spec; different from an "automated test" which is the runnable proof the contract is satisfied | test case |
 | a row in the deferred-work table that records something the team chose not to do this session; from 17 May 2026 onward every new entry must link to a full test case (all 10 BDD fields) AND carry at least one citation (patent / DOI / arXiv / standard / RFC / ISBN / official-vendor URL); the database rejects entries that miss either piece | paper trail entry |
 | a stable identifier that points at a piece of original evidence — a patent number, a paper DOI like `10.1145/361598.361623`, an arXiv ID like `arXiv:2106.12345`, an ISO / IEEE / IETF standard number, an RFC number, an ISBN for a book, or a URL on the official-vendor allowlist; required on every new paper-trail entry so the next agent can resolve the source without guessing | citation |
@@ -483,8 +508,8 @@ When you must mention a technical concept, use the plain-English version from th
 | an internal identifier for a Rust correctness bug record | RUSTBUG-CORR-004 |
 | an internal identifier for a Rust correctness bug record | RUSTBUG-CORR-007 |
 | an internal identifier for a Rust resource-release bug record | RUSTBUG-RES-001 |
-| the Glasgow Haskell Compiler — the standard Haskell compiler | GHC |
-| a specific major version of the Glasgow Haskell Compiler | GHC-9 |
+| RETIRED 2026-06-06 — kept for history. Haskell is removed from the backend (ADR 0007). Old meaning: the standard Haskell compiler | GHC (RETIRED) |
+| RETIRED 2026-06-06 — kept for history. Haskell is removed from the backend (ADR 0007). Old meaning: a specific major version of the Haskell compiler | GHC-9 (RETIRED) |
 | an academic conference on web services (citation label) | ICWS |
 | satisfiability modulo theories — a logic solver technique | SMT |
 | the Apache AGE graph extension for PostgreSQL | AGE |

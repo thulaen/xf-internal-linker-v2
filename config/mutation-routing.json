@@ -1,31 +1,30 @@
 {
   "version": "1.1",
   "k8s_defer_to_coordinator": true,
-  "_routing_note": "When k8s_defer_to_coordinator is true and a K3s coordinator is active, the K8S.20 distribute_tests formula owns the actual per-machine shard split and these static machine weights are IGNORED. The static machines[] weights (dell 0.88 / windows 0.08 / mint 0.04 (coverage dell 0.88 / windows 0.12)) apply ONLY to the Docker-context fallback path used when the cluster is unavailable. Dell carries the heaviest share because it is the fastest box: an Intel i5-13500T (14 cores / 20 threads). The per-machine max_weight values remain a hard ceiling the coordinator formula must respect.",
+  "_routing_note": "When k8s_defer_to_coordinator is true and a K3s coordinator is active, the K8S.20 distribute_tests formula owns the actual per-machine shard split and these static machine weights are IGNORED. Fail-CLOSED policy: heavy quality runs 100% on Dell; Windows (MSI) does 0% and never absorbs Dell's work. If Dell is unreachable the gate hard-fails with a 'fix Dell' message — MSI runs nothing locally. Mint is the storage/observability host, never a compute shard. The zero-weight Windows entry is kept so config readers never KeyError; it is dispatched no files. Dell is an Intel i5-13500T (14 cores / 20 threads).",
   "machines": [
-    { "name": "dell",    "transport": "docker_context", "context": "dell",    "weight": 0.88, "max_weight": 0.92 },
-    { "name": "windows", "transport": "docker_local",                       "weight": 0.08, "max_weight": 1.0 },
-    { "name": "mint",    "transport": "docker_context", "context": "mint",  "weight": 0.04, "max_weight": 1.0 }
+    { "name": "dell",    "transport": "docker_context", "context": "dell",    "weight": 1.0, "max_weight": 1.0 },
+    { "name": "windows", "transport": "docker_local",                       "weight": 0.0, "max_weight": 1.0 }
   ],
   "split": {
-    "local_pct": 0.65,
-    "remote_pct": 0.35,
-    "remote_context": "mint"
+    "local_pct": 0.0,
+    "remote_pct": 1.0,
+    "remote_context": "dell"
   },
-  "_coverage_routing_note": "Used ONLY by .githooks/check-per-file-coverage.py for the per-commit diff-coverage gate. Two-machine split: Dell measures 88% of staged production files, Windows measures 12%. Same docker_context transport + named-volume (xf_coverage_repo) sync pattern as check-scoped-mutation.py. Fail-open: if Dell is unreachable the gate runs ALL files locally on Windows backend-quality (today's behaviour). The pass/fail semantics are unchanged — only WHERE each file's coverage is measured.",
+  "_coverage_routing_note": "Used ONLY by .githooks/check-per-file-coverage.py for the per-commit diff-coverage gate. Dell measures 100% of staged production files; Windows measures 0%. Fail-CLOSED: if Dell is unreachable the gate hard-fails with 'fix Dell' — MSI does NOT measure locally. The pass/fail semantics are unchanged — only WHERE each file's coverage is measured.",
   "coverage_machines": [
-    { "name": "dell",    "transport": "docker_context", "context": "dell", "weight": 0.88, "max_weight": 0.92 },
-    { "name": "windows", "transport": "docker_local",                     "weight": 0.12, "max_weight": 1.0 }
+    { "name": "dell",    "transport": "docker_context", "context": "dell", "weight": 1.0, "max_weight": 1.0 },
+    { "name": "windows", "transport": "docker_local",                     "weight": 0.0, "max_weight": 1.0 }
   ],
-  "_lint_routing_note": "Used ONLY by scripts/run_lint_on_context.py for the opt-in sharded lint/type-check path (ruff, pylint, mypy, bandit) gated on XF_LINT_SPLIT=1. Two-machine split: Dell lints 88% of the changed Python files, Windows 12%. Lint tools are stateless and read-only (no database), so each machine only needs the source synced (xf_lint_repo named volume, same tar+sha256 handshake as check-scoped-mutation.py / check-per-file-coverage.py) plus the xf-linker-backend-quality image. Fail-open: if Dell is unreachable EVERY file is linted locally on Windows backend-quality (today's behaviour). Pass/fail semantics are unchanged — only WHERE each file is linted.",
+  "_lint_routing_note": "Used ONLY by scripts/run_lint_on_context.py for the opt-in sharded lint/type-check path (ruff, pylint, mypy, bandit) gated on XF_LINT_SPLIT=1. Dell lints 100% of the changed Python files; Windows 0%. Fail-CLOSED: if Dell is unreachable the gate hard-fails with 'fix Dell' — MSI does NOT lint locally. Pass/fail semantics are unchanged — only WHERE each file is linted.",
   "lint_machines": [
-    { "name": "dell",    "transport": "docker_context", "context": "dell", "weight": 0.88, "max_weight": 0.92 },
-    { "name": "windows", "transport": "docker_local",                     "weight": 0.12, "max_weight": 1.0 }
+    { "name": "dell",    "transport": "docker_context", "context": "dell", "weight": 1.0, "max_weight": 1.0 },
+    { "name": "windows", "transport": "docker_local",                     "weight": 0.0, "max_weight": 1.0 }
   ],
-  "_pytest_routing_note": "Used ONLY by scripts/run_pytest_on_context.py for the opt-in sharded pytest path gated on XF_PYTEST_SPLIT=1. Two-machine split: Dell runs 88% of the changed test targets, Windows 12%. UNLIKE lint, these tests touch a database, so Dell runs them against ITS OWN empty Postgres+Redis test stack (docker-compose.dell-test.yml on the xf_dell_test_net network) — never the live Windows database. Same xf_test_repo named-volume + tar+sha256 handshake as the other gates. Fail-open: if Dell is unreachable EVERY target runs locally. Dell runs its whole slice in ONE pytest process against ONE test DB, so there is no within-Dell DB contention; Dell's slice and the local slice hit different databases on different machines so they cannot collide.",
+  "_pytest_routing_note": "Used ONLY by scripts/run_pytest_on_context.py for the opt-in sharded pytest path gated on XF_PYTEST_SPLIT=1. Dell runs 100% of the changed test targets; Windows 0%. Dell runs them against ITS OWN empty Postgres+Redis test stack (docker-compose.dell-test.yml on the xf_dell_test_net network) — never the live Windows database. Fail-CLOSED: if Dell is unreachable the gate hard-fails with 'fix Dell' — MSI does NOT run tests locally.",
   "pytest_machines": [
-    { "name": "dell",    "transport": "docker_context", "context": "dell", "weight": 0.88, "max_weight": 0.92 },
-    { "name": "windows", "transport": "docker_local",                     "weight": 0.12, "max_weight": 1.0 }
+    { "name": "dell",    "transport": "docker_context", "context": "dell", "weight": 1.0, "max_weight": 1.0 },
+    { "name": "windows", "transport": "docker_local",                     "weight": 0.0, "max_weight": 1.0 }
   ],
   "languages": {
     "python": {
@@ -37,36 +36,10 @@
       "report_host": ".tmp/mutmut-survivors.json",
       "targets_env": "XF_MUTMUT_PATHS"
     },
-    "cpp": {
-      "tool": "mull",
-      "container": "compiled-tools",
-      "split": true,
-      "report_dir_container": "/tmp/mull-reports",
-      "report_dir_host": ".tmp/mull-reports",
-      "binaries": [
-        "test_fieldrel",
-        "test_scoring",
-        "test_passagesim",
-        "test_simsearch",
-        "test_quantemb",
-        "test_ivf_index",
-        "test_streaming_sketches",
-        "test_papertrail_dedup",
-        "test_lesson_index"
-      ]
-    },
-    "go": {
-      "tool": "go-mutesting",
-      "container": "compiled-tools",
-      "split": true,
-      "workspace": "/repo/services",
-      "report_container": "/tmp/go-mutesting-report.json",
-      "report_host": ".tmp/go-mutesting-report.json"
-    },
     "typescript": {
       "tool": "stryker",
-      "container": "xf_linker_compiled_tools",
-      "context": "local",
+      "container": "xf_linker_frontend_mutation_tools",
+      "context": "dell",
       "split": true,
       "workspace": "/repo/frontend",
       "report_container": "/repo/frontend/reports/stryker.json",
@@ -77,25 +50,15 @@
       "container": "compiled-tools",
       "split": true,
       "workspace": "/repo/services/speccheck",
+      "workspaces": ["/repo/services/speccheck", "/repo/rust"],
       "report_container": "/tmp/mutants.out/outcomes.json",
       "report_host": ".tmp/rust-outcomes.json"
-    },
-    "haskell": {
-      "tool": "mucheck",
-      "container": "compiled-tools",
-      "split": true,
-      "workspace": "/repo/services/findbugs-haskell",
-      "report_container": "/tmp/mucheck-report.json",
-      "report_host": ".tmp/mucheck-report.json"
     }
   },
   "_kill_rate_gates_note": "Mirror of docs/MUTATION-THRESHOLDS.md (authoritative). Keep in sync.",
   "kill_rate_gates": {
     "python": 0.90,
-    "cpp": 0.80,
-    "go": 0.45,
-    "typescript": 0.70,
-    "rust": 0.75,
-    "haskell": 0.70
+    "typescript": 0.90,
+    "rust": 0.90
   }
 }

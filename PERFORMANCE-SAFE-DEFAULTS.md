@@ -4,7 +4,7 @@
 
 ## The Rule
 
-New AI work must NOT add unbounded loops, unbounded table growth, duplicate artefacts, or Python-only hot paths without justification. C++ is preferred for hot paths; bounded retention is mandatory for new tables; complexity must be declared.
+New AI work must NOT add unbounded loops, unbounded table growth, duplicate artefacts, or Python-only hot paths without justification. Rust is the hot-path compute language and is authoritative — there is NO Python fallback (see [`RUST-FIRST.md`](RUST-FIRST.md); C++, Go, Haskell, and Lua are removed). Bounded retention is mandatory for new tables; complexity must be declared.
 
 If you violate any of the patterns below, the pre-commit hook blocks the commit. To override per-instance, add `# noqa: perf-safe-defaults # justification: <one-line reason>`.
 
@@ -46,10 +46,10 @@ If you violate any of the patterns below, the pre-commit hook blocks the commit.
 ### Python-Only Hot Paths
 
 ❌ A function called per-candidate inside `score_destination_matches` written in Python only.
-✅ C++ extension with Python fallback. See [`CPP-FIRST.md`](CPP-FIRST.md).
+✅ A Rust kernel (Rust is authoritative — there is NO Python fallback). See [`RUST-FIRST.md`](RUST-FIRST.md).
 
-❌ A new sort/heap/similarity loop over more than 100 items without a C++ kernel.
-✅ Use existing C++ extensions (`scoring`, `simsearch`, `passagesim`) or add a new one per CPP-RULES.
+❌ A new sort/heap/similarity loop over more than 100 items without a Rust kernel.
+✅ Use existing Rust kernels (`scoring`, `simsearch`, `passagesim`) or add a new one per [`RUST-FIRST.md`](RUST-FIRST.md). (C++, Go, Haskell, and Lua are removed.)
 
 ### Magic Numbers In Services
 
@@ -77,7 +77,7 @@ Every new function or modified hot-path declares:
 
 1. **Time complexity** — `O(1)`, `O(log N)`, `O(N)`, `O(N²)`. Anything ≥ `O(N²)` requires written justification.
 2. **Space complexity** — peak memory in MB at the largest expected input.
-3. **C++ alternative considered** — if Python, why not C++? (One-line answer.)
+3. **Rust kernel considered** — if Python, why not a Rust kernel? (One-line answer.)
 4. **Storage budget** — if new persistent storage, what's the per-row cost in bytes and the projected row count at 1 year?
 5. **Failure mode** — what happens when the inputs are empty / null / way larger than expected?
 
@@ -85,21 +85,21 @@ The pre-commit hook will be extended (Phase 4.0a) to scan for the forbidden patt
 
 ## Required Citations For Hot-Path Python
 
-Any hot-path function written in Python (instead of C++) must cite **why** in a comment immediately above:
+Any hot-path function written in Python (instead of a Rust kernel) must cite **why** in a comment immediately above:
 
 ```python
 # Hot path: called per-candidate. Python is acceptable here because
 # the underlying RapidFuzz library is already C-extension-backed; a
-# new pure-C++ kernel would not be measurably faster than the existing
+# new Rust kernel would not be measurably faster than the existing
 # rapidfuzz._fuzz wrapper.
 def _score_fuzzy_match(...): ...
 ```
 
-If you can't write that comment, the function must be a C++ extension instead.
+If you can't write that comment, the function must be a Rust kernel instead (see [`RUST-FIRST.md`](RUST-FIRST.md)).
 
 ## Performance Regression Tests
 
-Every PR runs the existing benchmark suite (`scripts/bench-cpp.ps1` + `scripts/bench-py.ps1`) and compares against `master`. A regression of more than 10 % on any benchmarked function blocks the merge unless an explicit waiver is in the commit message.
+Every PR runs the existing benchmark suite (the Python benchmarks plus the Rust Criterion benchmarks for each kernel, per [`RUST-FIRST.md`](RUST-FIRST.md)) and compares against `master`. A regression of more than 10 % on any benchmarked function blocks the merge unless an explicit waiver is in the commit message. (The old C++ Google Benchmark path is superseded — C++ is removed.)
 
 ## Why This Rule Exists
 

@@ -80,13 +80,14 @@ Each AutoIssue contributes: `issue_title`, `issue_body`, `affected_files`
 Per the project's multi-language model and the user directive:
 
 - **Rust = step 3 + 4 speed-critical compute** (MinHash, LSH banding,
-  pairwise blended similarity). **CPP-FIRST escalation:** the repo already
-  ships a proven C++ MinHash+LSH kernel
-  (`backend/extensions/papertrail_dedup.cpp`). A Rust implementation is
-  only adopted if it **benchmarks at least as fast** as that C++ kernel on
-  the same workload; the benchmark is the native-rewrite escalation
-  evidence (`[NATIVE REWRITE REVIEW: ...]`, AutoIssue labelled
-  `performance-native-rewrite`). If Rust does not beat the C++ baseline,
+  pairwise blended similarity). The repo already ships a proven Rust
+  MinHash+LSH kernel (`rust/extensions/papertrail_dedup`, ported from C++
+  per RUST-FIRST.md), so the clustering compute reuses that kernel's
+  approach. Any new speed-critical Rust path is adopted only if it
+  **benchmarks at least as fast** as the established baseline on the same
+  workload; the benchmark is the native-rewrite escalation evidence
+  (`[NATIVE REWRITE REVIEW: ...]`, AutoIssue labelled
+  `performance-native-rewrite`). If the new path does not beat the baseline,
   the C++ kernel is reused and Rust is not added.
 - **Haskell = steps 1, 2, 4-threshold, 5 logic** (template decisions,
   shingling rules, blend weights, cluster selection).

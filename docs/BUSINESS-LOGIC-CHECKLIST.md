@@ -13,7 +13,7 @@ Run this first. Before writing a single line of code. If any answer is YES, stop
 - [ ] Does this feature duplicate an existing FR in `FEATURE-REQUESTS.md` or `AI-CONTEXT.md`? → **Stop.**
 - [ ] Does this feature lack a primary source (peer-reviewed paper with DOI, IETF RFC, or US/EU patent number)? → **Stop.**
 - [ ] Does this feature mix two or more independent concepts into one composite score without a published formula that combines them the same way? → **Stop.**
-- [ ] Can you name the exact Python or C++ file and variable that this feature reads as input? If not → **Stop.**
+- [ ] Can you name the exact Python or Rust file and variable that this feature reads as input? If not → **Stop.**
 - [ ] Does this feature have no neutral fallback — meaning if it produces garbage output, the rest of the pipeline cannot continue as if the feature is absent? → **Stop.**
 - [ ] Does this feature produce no reviewer-visible diagnostic (a score that appears in the suggestion detail view, health page, or diagnostics panel)? → **Stop.**
 - [ ] Can you state what specific user harm this feature prevents OR what measurable business value it improves? If not → **Stop.**
@@ -92,20 +92,22 @@ The paper or patent is the immutable spec. Code follows it, not the other way ar
 A paper can describe a correct algorithm that is too slow or too memory-intensive to ship as written.
 
 - [ ] After proving correctness (tests pass, formula matches paper), check whether the implementation meets the performance budget for this machine (see Section 6).
-- [ ] If the algorithm is correct but too slow, mark it `# PERF: pending C++ port` and open a follow-up task. Do not ship a correct-but-unusably-slow algorithm without a documented optimization plan.
+- [ ] If the algorithm is correct but too slow, mark it `# PERF: pending Rust port` and open a follow-up task. Do not ship a correct-but-unusably-slow algorithm without a documented optimization plan.
 - [ ] Constraints that the paper does not mention (RAM limits, FAISS index size, DB connection pool limits, Docker container memory) must be documented in the spec under `## Real-World Constraints`.
 
 ### 2.3 Architecture lane
 
+The backend is **Python + Rust only** (ADR 0007). C, C++, Go, Haskell, and Lua are removed. See [`RUST-FIRST.md`](../RUST-FIRST.md).
+
 | Logic type | Required language |
 |---|---|
-| Hot-path scoring loop (>1 k calls per pipeline run) | C++ extension — Python fallback only if C++ unavailable |
-| ML inference, embedding generation | Python |
+| Hot-path scoring loop (>1 k calls per pipeline run) | Rust extension (PyO3 + maturin) — **no Python fallback**; Rust is the single canonical implementation |
+| ML inference, embedding generation | Python orchestration (embeddings come from a paid CPU provider — see [`docs/specs/fr-cpu-paid-embeddings-runtime.md`](specs/fr-cpu-paid-embeddings-runtime.md)) |
 | External HTTP I/O, crawling, import | Python (Celery worker) |
 | UI orchestration | Angular |
 
-- [ ] New code is in the correct lane. Hot-path Python prototypes must be tagged `# PERF: must port to C++ before merge`.
-- [ ] If the feature touches core ranking, retrieval, or reranking loops, C++ is the default fast path. Python is the safety fallback, not the primary implementation.
+- [ ] New code is in the correct lane. Hot-path Python prototypes must be tagged `# PERF: must port to Rust before merge`.
+- [ ] If the feature touches core ranking, retrieval, or reranking loops, the Rust kernel is the authoritative fast path. There is no Python fallback — a missing/broken Rust kernel is a loud diagnostics/health error.
 
 ### 2.4 Edge case and error handling
 
@@ -137,13 +139,13 @@ These rules protect end-users and operators. No feature may override them.
 
 Every new scoring signal or ranking change must be visible to operators without reading logs. This is not optional.
 
-- [ ] The signal's contribution to the final composite score appears in the suggestion detail view (the per-suggestion diagnostic panel in the Review UI). It shows: raw signal value, whether the value was clamped or defaulted, whether fallback logic was used.
-- [ ] Whether the C++ fast path or the Python fallback ran is shown in the diagnostic panel.
+- [ ] The signal's contribution to the final composite score appears in the suggestion detail view (the per-suggestion diagnostic panel in the Review UI). It shows: raw signal value, whether the value was clamped or defaulted, and the Rust kernel load state.
+- [ ] The Rust kernel's runtime path (`rust` live, or `error` if the kernel failed to load) is shown in the diagnostic panel. There is no Python fallback path to report.
 - [ ] Operators can answer these four questions from the UI — no log access required:
   1. What changed the ranking of this suggestion?
   2. Why is this score neutral (zero or at its published default)?
-  3. Was fallback logic used for any signal?
-  4. Is the C++ fast path active?
+  3. Was any signal degraded or missing its data source?
+  4. Is the Rust kernel loaded and active (runtime path `rust`, not `error`)?
 - [ ] If a signal is degraded or missing (data source returned zero rows, embedding unavailable, GSC data older than 7 days), the **System Health / Diagnostics panel** shows a warning banner. A log entry alone is not sufficient.
 
 ---
@@ -166,7 +168,7 @@ AI drift happens when code advances but documentation does not. Preventing it is
 
 ### 4.3 Pending work tracking
 
-- [ ] Any work deferred from this session (C++ port pending, additional signals planned, data migration not yet written) is logged as a `[ ]` item in the spec under `## Pending`.
+- [ ] Any work deferred from this session (Rust port pending, additional signals planned, data migration not yet written) is logged as a `[ ]` item in the spec under `## Pending`.
 - [ ] The `AI-CONTEXT.md` execution ledger reflects partial status for any FR with open `## Pending` items.
 
 ### 4.4 Audit trigger
@@ -214,10 +216,10 @@ This section reflects the actual machine this project runs on. Re-verify these f
 
 Before merging any new feature, measure it against all of these:
 
-- [ ] Python hot-path signal: < 50 ms per pipeline run on a 500-candidate batch (single core, sustained).
-- [ ] C++ hot-path: < 5 ms per pipeline run on a 500-candidate batch.
+- [ ] Python hot-path signal (prototype, before the Rust port): < 50 ms per pipeline run on a 500-candidate batch (single core, sustained).
+- [ ] Rust hot-path kernel: < 5 ms per pipeline run on a 500-candidate batch.
 - [ ] Python Celery import / attribution worker: < 2 s per page batch.
-- [ ] Embedding batch (BAAI/bge-m3): < 500 ms per 32-document batch on GPU; < 2 s on CPU fallback.
+- [ ] Embedding batch (paid CPU provider — see [`docs/specs/fr-cpu-paid-embeddings-runtime.md`](specs/fr-cpu-paid-embeddings-runtime.md)): within the provider's documented latency budget per 32-document batch.
 - [ ] FAISS index rebuild: < 30 s for up to 50 k vectors on RTX 3050.
 - [ ] RAM headroom: Django + 2 Celery workers + PostgreSQL must stay under 10 GB combined during a pipeline run. Verify with `docker stats`.
 - [ ] Every spec for a feature that adds a new persistent table must include the estimated row size and projected growth rate (rows/day) under `## Real-World Constraints`.

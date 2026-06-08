@@ -1,6 +1,6 @@
 # AutoIssue And Paper-Trail Quota Hard Block
 
-[SPEC FRESHNESS: reviewed_at=2026-06-02 next_review=2026-09-02]
+[SPEC FRESHNESS: reviewed_at=2026-06-06 next_review=2026-09-02]
 
 ## 1. Quota definition (non-substitutable)
 
@@ -8,21 +8,27 @@ This spec restores hard refusal at exactly two Git moments: commit and push.
 "Hard refusal" means the command exits with a non-zero status so Git stops the
 action.
 
-The required session quota is:
+The configured session quota is:
 
-- 77 resolved AutoIssues since the previous handoff timestamp.
+- Up to 77 resolved AutoIssues since the previous handoff timestamp.
 - 10 resolved paper-trail entries since the previous handoff timestamp.
 
-The 77 AutoIssues split exactly as:
+The 77 AutoIssue ceiling splits as:
 
 - 30 resolved across the ten non-SonarQube source buckets, with at least 3 from
   each bucket: agent, glitchtip, pyroscope, tempo, faro, mutation, fuzz,
   contract, gh_ci, and vmalert.
 - 10 resolved with `source="sonarqube"`.
 - 10 resolved with `source="rust_defect"`.
-- 10 resolved with `source="pprof"`.
-- 10 resolved with `source="alloy"`.
-- 7 resolved with `source="loki"`.
+- Up to 10 resolved with `source="pprof"`.
+- Up to 10 resolved with `source="alloy"`.
+- Up to 7 resolved with `source="loki"`.
+
+The Python+Rust migration supersedes removed-runtime native observability work.
+Sources tied only to retired runtime tooling are excluded from the live hard
+quota before the database availability calculation runs. As of ADR 0007 and
+`docs/PYTHON-RUST-MIGRATION-PLAN.md`, that retired hard-source set is:
+`pprof`, `perfetto`, and `gwp_asan`. Rust and Python issues remain live.
 
 Resolved means all of these are true:
 
@@ -32,7 +38,22 @@ Resolved means all of these are true:
 - `resolution_lessons` contains both `Trap:` and `Fix shape:` for paper-trail
   entries.
 
-The 10 SonarQube, 10 rust_defect, 10 pprof, 10 alloy, and 7 loki picks are mandatory. Resolving 77 cross-source AutoIssues does NOT satisfy the check - the mandatory buckets must also be present.
+The verifier calculates the live requirement for each source from the database:
+
+```text
+live_required_for_source =
+  min(configured_source_quota, unresolved_rows_for_source + resolved_this_session_for_source)
+```
+
+This makes the quota drought-aware without hardcoded numbers. If a source has
+zero unresolved rows and zero rows resolved this session, that source requires
+zero for the commit. If a source has 15 available rows and its configured
+quota is 30, resolving those 15 rows satisfies that source. If the source has
+more rows than the configured quota, the configured quota remains the ceiling.
+
+The SonarQube, rust_defect, alloy, and loki buckets are still
+non-substitutable when work exists. Resolving cross-source AutoIssues does not
+satisfy an available SonarQube, rust_defect, alloy, or loki shortfall.
 
 The non-substitution rule comes from the existing SonarQube AutoIssue spec,
 which says the session quota is 30 existing source fixes plus 10 SonarQube
@@ -104,15 +125,16 @@ No local fallback may mark the check as passed.
 A quota failure must name the exact shortfall. The message includes:
 
 - The previous handoff timestamp.
-- The required totals: 77 AutoIssues and 10 paper-trail entries.
+- The configured totals: up to 77 AutoIssues and 10 paper-trail entries.
 - A per-bucket AutoIssue breakdown.
-- A dedicated line for `sonarqube: <observed>/10`, `rust_defect: <observed>/10`, `pprof: <observed>/10`, `alloy: <observed>/10`, and `loki: <observed>/7`.
-- For the zero-count case, this exact line:
-  `sonarqube: 0 of 10 resolved (NON-SUBSTITUTABLE - must come from source=sonarqube)`.
+- A dedicated line for each short source showing observed resolved rows,
+  live available requirement, and configured quota.
+- For the zero-resolved, available-work case, a line like:
+  `sonarqube: 0 of 4 available resolved (NON-SUBSTITUTABLE - must come from source=sonarqube)`.
 - For a partial shortfall, a line like:
   `sonarqube: 5 of 10 resolved (5 short)`.
-- A clear note that resolving more cross-source AutoIssues cannot make up for a
-  mandatory bucket shortfall.
+- A clear note that resolving more cross-source AutoIssues cannot make up for
+  an available mandatory-bucket shortfall.
 - The next open AutoIssue IDs or paper-trail entry IDs selected by the program
   from the database, so the operator does not manually choose rows.
 - The SonarQube importer runs before the counts, so SonarQube picks come from
@@ -122,13 +144,24 @@ A quota failure must name the exact shortfall. The message includes:
 
 ## Behavior
 
-Given 30 non-SonarQube AutoIssues, 10 SonarQube, 10 rust_defect, 10 pprof, 10 alloy, and 7 loki
-entries are resolved after the previous handoff, when the commit or push check
-runs, then both verification commands exit 0 and Git continues.
+Given the database has at least the configured quota available for every source
+and those configured quotas are resolved after the previous handoff, when the
+commit or push check runs, then both verification commands exit 0 and Git
+continues.
 
-Given 77 non-SonarQube AutoIssues are resolved and 0 SonarQube AutoIssues are
+Given a source has fewer available rows than its configured quota and every
+available row from that source is resolved after the previous handoff, when the
+commit or push check runs, then the source passes without inventing extra rows.
+
+Given a source has zero available rows, when the commit or push check runs, then
+that source requires zero resolved rows and does not block the commit.
+
+Given a source is retired by the Python+Rust migration, when unresolved rows
+from that source still exist, then those rows do not add to the hard quota.
+
+Given SonarQube has available unresolved rows and 0 SonarQube AutoIssues are
 resolved, when the commit or push check runs, then the check exits 2 and states
-that the SonarQube 10 cannot be substituted.
+that the available SonarQube work cannot be substituted.
 
 Given Docker cannot run the backend command, when the hook runs, then it exits 2
 with the fail-closed Docker message.
@@ -151,5 +184,11 @@ with the fail-closed Docker message.
 - [SPEC CITED: technical_doc] Docker, "docker compose exec", page read
   2026-05-20, https://docs.docker.com/compose/reference/exec/. Source for
   running verification commands inside the backend container with `-T`.
+- [SPEC CITED: technical_doc] `docs/adr/0007-python-rust-two-language.md`,
+  reviewed 2026-06-06. Source for C, C++, Go, Haskell, and removed native
+  observability retirement.
+- [SPEC CITED: technical_doc] `docs/PYTHON-RUST-MIGRATION-PLAN.md`, reviewed
+  2026-06-06. Source for retiring native-observability AutoIssue feeders while
+  keeping Rust and Python issues live.
 
 [SPEC CITED: feature=autoissue-quota-hard-block kind=technical_doc id=https://git-scm.com/docs/githooks verified_at=2026-06-02]

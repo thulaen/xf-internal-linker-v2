@@ -14,9 +14,9 @@ Important:
 - Check `## Pending Slices` (below) for deferred sub-feature work before starting a new session.
 - Verify the repository state before trusting request status text.
 - Update this file and `AI-CONTEXT.md` after finishing a session.
-- Future ranking-affecting requests should treat C++ as the default execution path for the hot inner loop, while keeping a behavior-matching Python fallback for safety.
-- Those ranking requests must also expose a plain-English reason when the C++ speed path is not active or is not helping enough, for example: not compiled, import failed, disabled, unsupported input shape, small batch, or no real speedup measured.
-- That status must be visible on the dashboard or diagnostics UI so an operator can see whether C++ is active, whether fallback is being used, and whether the fast path is actually helping.
+- Future ranking-affecting requests must treat Rust as the default execution path for the hot inner loop. Rust is authoritative and there is NO Python fallback. See [`RUST-FIRST.md`](RUST-FIRST.md) and [`docs/adr/0007-python-rust-two-language.md`](docs/adr/0007-python-rust-two-language.md). (This supersedes the old "C++ first with a Python fallback" rule; C++ is removed.)
+- Those ranking requests must expose a plain-English reason when the Rust speed path is not active, for example: not compiled, import failed, or the kernel did not load. A missing Rust kernel is a loud diagnostics/health error, not a silent drop to Python.
+- That status must be visible on the dashboard or diagnostics UI so an operator can see whether the Rust kernel is loaded and whether the fast path is healthy.
 
 ## Ranking FR Checklist — Every New Ranking Signal Must Do All Five
 
@@ -39,7 +39,7 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 
 ## Infrastructure Notes
 
-- Python/C++ remains the single source of truth for all business logic, link scanning, and sitemap processing.
+- Python is the single source of truth for all business logic, link scanning, and sitemap processing. Hot-path compute lives in Rust kernels (Rust is authoritative; no Python fallback — see [`RUST-FIRST.md`](RUST-FIRST.md)). C++ and Go are removed.
 - Normal pending phase work continues after this helper addition. The next queued product phase in the current cleaned repo state is Phase 19 / `FR-016`.
 
 ## Active
@@ -52,7 +52,7 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 **Rules:** [`AI-CODING-GUIDELINES.md`](AI-CODING-GUIDELINES.md) + [`docs/CODE-COVERAGE-RULES.md`](docs/CODE-COVERAGE-RULES.md).
 **Roadmap:** [`docs/ROADMAP.md`](docs/ROADMAP.md) M0-M10.
 
-**What this is:** A strict, future-aware code-coverage program. Every change picks the right coverage target from the per-task table in `AI-CODING-GUIDELINES.md`. Every Level A area (14 of them — import normalisation, text cleaning, sentence splitting, embedding lifecycle, index build/search, scoring, meta-algo, business logic, near-dup removal, existing-link detection, broken-link detection, approval transitions, permissions, analytics import, Celery idempotency, DB integrity) requires MC/DC + property-based tests + full branch + mutation testing + golden fixtures + E2E. Per-language floors: backend 90%, API 90%, Celery 90%, Angular 75%, C++ 100% branch + Mull mutation ≥ 70%.
+**What this is:** A strict, future-aware code-coverage program. Every change picks the right coverage target from the per-task table in `AI-CODING-GUIDELINES.md`. Every Level A area (14 of them — import normalisation, text cleaning, sentence splitting, embedding lifecycle, index build/search, scoring, meta-algo, business logic, near-dup removal, existing-link detection, broken-link detection, approval transitions, permissions, analytics import, Celery idempotency, DB integrity) requires MC/DC + property-based tests + full branch + mutation testing + golden fixtures + E2E. Per-language floors: backend 90%, API 90%, Celery 90%, Angular 75%, Rust kernels 100% branch + mutation ≥ 70% (the old C++/Mull floor is superseded — C++ is removed; see RUST-FIRST.md).
 
 **Opening-ritual extension:** alongside the existing 18 auto-issue picks and 10 latest failed CI runs, every session picks 10 coverage-gap AutoIssues. Marker `[COVERAGE GAPS READ: 10 picked — #..., ...]`. End-of-slice marker `[COVERAGE SUMMARY: target=X% actual=Y% — met / not met]`.
 
@@ -646,7 +646,7 @@ Future deferred work will be listed here as new checkbox entries.
 - New backend app: `backend/apps/diagnostics/`.
 - New settings endpoint `GET /api/settings/diagnostics/` for cache TTL and lookback window config.
 - Each card shows: status badge (`ACTIVE` / `ENABLED` / `DISABLED` / `ERROR` / `NOT BUILT`), ranking weight, weight active flag, signal coverage % (last 7 days), avg signal value, storage (table name + row count + bytes), last computation time, last error message + timestamp.
-- For ranking signals with a C++ accelerator, each card also shows C++ runtime status (`C++ ACTIVE`, `PYTHON FALLBACK`, or `C++ NOT HELPING`) and a plain-English reason.
+- For ranking signals with a Rust kernel, each card also shows the kernel's runtime status (`RUST ACTIVE` or `ERROR` — there is no Python fallback, so a missing kernel is a loud error, not a degraded mode) and a plain-English reason. (Supersedes the old C++/`PYTHON FALLBACK` wording — see RUST-FIRST.md.)
 - Expandable "View current settings" panel — read-only key-value list of every configurable parameter for that signal.
 - "Go to settings →" link per card navigates to the signal's own settings tab.
 - Error cards show a red left border and a "View in Error Log →" link.
@@ -1349,7 +1349,7 @@ The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will b
 - Keep this separate from `FR-009`. Do not use `ExistingLink.anchor_text` as the repetition corpus in v1; use `Suggestion` history only.
 - Keep this separate from `FR-015`. This is anchor-level anti-spam control, not destination-slate diversity.
 - Keep this separate from `FR-016` to `FR-018`. No CTR, dwell, approval rates, or delayed reward inputs are allowed.
-- This changes hot ranking behavior, so the implementation phase must include both a Python reference path and a C++ batch fast path with parity tests.
+- This changes hot ranking behavior, so the implementation phase must add a Rust kernel for the batch fast path (Rust is authoritative — no Python fallback; see RUST-FIRST.md). The old "Python reference + C++ fast path with parity tests" shape is superseded; keep the prior implementation only as a temporary parity oracle during the port, then delete it in the same commit.
 - Full spec: `docs/specs/fr045-anchor-diversity-exact-match-reuse-guard.md`.
 
 ---
@@ -1391,7 +1391,7 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 - Keep this separate from `FR-024`. FR-024 measures single-page dwell; FR-047 measures page-to-page transitions.
 - Consumes existing GA4 `page_view` events from FR-016 — do not add new GA4 import logic.
 - Daily batch aggregation only in v1. No real-time streaming.
-- This changes hot ranking behavior, so the implementation phase must include both a Python reference path and a C++ batch fast path with parity tests.
+- This changes hot ranking behavior, so the implementation phase must add a Rust kernel for the batch fast path (Rust is authoritative — no Python fallback; see RUST-FIRST.md). The old "Python reference + C++ fast path with parity tests" shape is superseded; keep the prior implementation only as a temporary parity oracle during the port, then delete it in the same commit.
 - Full spec: `docs/specs/fr047-navigation-path-prediction.md`.
 
 ---
@@ -1422,7 +1422,7 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 - Keep this separate from `FR-015`. FR-015 diversifies the suggestion slate; FR-048 scores individual destinations by cluster depth.
 - Uses existing `ContentItem.embedding` vectors — do not re-embed pages.
 - HDBSCAN runs daily or per-pipeline-run, not per-suggestion. Cache cluster assignments on `ContentItem`.
-- This changes hot ranking behavior, so the implementation phase must include both a Python reference path and a C++ batch fast path with parity tests.
+- This changes hot ranking behavior, so the implementation phase must add a Rust kernel for the batch fast path (Rust is authoritative — no Python fallback; see RUST-FIRST.md). The old "Python reference + C++ fast path with parity tests" shape is superseded; keep the prior implementation only as a temporary parity oracle during the port, then delete it in the same commit.
 - Full spec: `docs/specs/fr048-topical-authority-cluster-density.md`.
 
 ---
@@ -1453,7 +1453,7 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 - Keep this separate from `FR-016` / `FR-017`. FR-016/017 aggregate traffic metrics; FR-049 classifies queries by intent type.
 - Consumes existing GSC query data from FR-017 — do not add new GSC import logic.
 - Keyword pattern matching only in v1. No external NLP or ML models.
-- This changes hot ranking behavior, so the implementation phase must include both a Python reference path and a C++ batch fast path with parity tests.
+- This changes hot ranking behavior, so the implementation phase must add a Rust kernel for the batch fast path (Rust is authoritative — no Python fallback; see RUST-FIRST.md). The old "Python reference + C++ fast path with parity tests" shape is superseded; keep the prior implementation only as a temporary parity oracle during the port, then delete it in the same commit.
 - Full spec: `docs/specs/fr049-query-intent-funnel-alignment.md`.
 
 ---
@@ -1484,7 +1484,7 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 - Consumes existing GA4/GSC data from FR-016/FR-017 — do not add new import logic.
 - Monthly model recomputation only. No real-time seasonal updates.
 - Simple ratio-to-moving-average decomposition in v1. No Prophet, ARIMA, or external time-series libraries.
-- This changes hot ranking behavior, so the implementation phase must include both a Python reference path and a C++ batch fast path with parity tests.
+- This changes hot ranking behavior, so the implementation phase must add a Rust kernel for the batch fast path (Rust is authoritative — no Python fallback; see RUST-FIRST.md). The old "Python reference + C++ fast path with parity tests" shape is superseded; keep the prior implementation only as a temporary parity oracle during the port, then delete it in the same commit.
 - Full spec: `docs/specs/fr050-seasonality-temporal-demand.md`.
 
 ---
@@ -1505,12 +1505,12 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 - Formula: `score = (1/|W|) × Σ_{t ∈ W ∩ D} IDF(t)`, normalised per-query to [0,1].
 - Reuses existing BM25 IDF vocabulary — no new model required.
 - Settings: `reference_context.enabled`, `reference_context.ranking_weight` (default `0.03`), `reference_context.window_tokens`, `reference_context.idf_smoothing`.
-- C++ extension: `refcontext.cpp`.
+- Native hot path: a Rust kernel `refcontext` (the old C++ `refcontext.cpp` plan is superseded — Rust only; see RUST-FIRST.md).
 
 ### Implementation notes for the AI
 - Keep separate from `score_keyword` (Jaccard on full token sets) — this is micro-context (10-word window) only.
 - Keep separate from `score_semantic` (embedding cosine) — this is token-level, not embedding-level.
-- C++ hot path mandatory. Full spec: `docs/specs/fr051-reference-context-scoring.md`.
+- Rust hot path mandatory (C++ is removed — see RUST-FIRST.md). Full spec: `docs/specs/fr051-reference-context-scoring.md`.
 
 ---
 
@@ -1531,7 +1531,7 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 - Settings: `readability_match.enabled`, `readability_match.ranking_weight` (default `0.02`), `readability_match.max_grade_gap`, `readability_match.penalty_per_grade`.
 
 ### Implementation notes for the AI
-- Pure Python formula — no C++ needed (three arithmetic ops per page).
+- Pure Python formula — no Rust kernel needed (three arithmetic ops per page).
 - Keep separate from all existing signals — no existing signal measures readability.
 
 ---
@@ -1548,15 +1548,15 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 - Score each destination at sub-document granularity by finding the best-matching passage (~200 words) rather than scoring the full page.
 
 ### Specific controls / behaviour
-- Chunk each destination into k=5 passages. Encode each as 1024-dim BGE-M3 vector.
+- Chunk each destination into k=5 passages. Encode each as a 1024-dim embedding vector. (The embeddings now come from the project's paid embedding provider; the old local BGE-M3 model is retired — see `docs/specs/fr-cpu-paid-embeddings-runtime.md`.)
 - Formula: `score = max_{i=1..k} cos_sim(query_sentence_embedding, passage_i_embedding)`.
 - Passage embeddings stored as separate int8-quantised FAISS index (~256 MB).
 - Settings: `passage_relevance.enabled`, `passage_relevance.ranking_weight` (default `0.05`), `passage_relevance.passages_per_page`, `passage_relevance.passage_words`, `passage_relevance.index_quantised`.
-- C++ extension: `passagesim.cpp`.
+- Native hot path: a Rust kernel (the old C++ `passagesim.cpp` plan is superseded — the backend is Python + Rust only; see RUST-FIRST.md).
 
 ### Implementation notes for the AI
 - Keep separate from `score_semantic` (full-document cosine). This is passage-level, not page-level.
-- int8 quantisation via `quantemb.cpp` (OPT-06) to keep RAM under 256 MB.
+- int8 quantisation via the `quantemb` Rust kernel (OPT-06) to keep RAM under 256 MB (the old C++ `quantemb.cpp` is superseded — Rust only; see RUST-FIRST.md).
 
 ---
 
@@ -1577,7 +1577,7 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 - Settings: `boilerplate_ratio.enabled`, `boilerplate_ratio.ranking_weight` (default `0.02`), `boilerplate_ratio.boilerplate_threshold`, `boilerplate_ratio.min_content_chars`.
 
 ### Implementation notes for the AI
-- Pure Python — no C++ needed (string length comparison at index time).
+- Pure Python — no Rust kernel needed (string length comparison at index time).
 - Keep separate from all quality signals — no existing signal measures boilerplate ratio.
 
 ---
@@ -1663,11 +1663,11 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 - Formula: `perplexity(T) = exp(-1/|T| × Σ log P_KN(tᵢ|context))`. Score: `1 / (1 + log(PP / baseline_PP))`.
 - n-gram model (~200 MB on disk, discardable after scoring).
 - Settings: `ngram_quality.enabled`, `ngram_quality.ranking_weight` (default `0.03`), `ngram_quality.max_n`, `ngram_quality.kn_discount`, `ngram_quality.baseline_perplexity`.
-- C++ extension: `ngramqual.cpp`.
+- Native hot path: a Rust kernel `ngramqual` (the old C++ `ngramqual.cpp` plan is superseded — Rust only; see RUST-FIRST.md).
 
 ### Implementation notes for the AI
 - Keep separate from `score_keyword` (overlap metric). This is a language model quality metric.
-- C++ hot path for perplexity computation over long token sequences.
+- Rust hot path for perplexity computation over long token sequences (C++ is removed — see RUST-FIRST.md).
 
 ---
 
@@ -1689,7 +1689,7 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 
 ### Implementation notes for the AI
 - Keep separate from `FR-048` topical cluster density (cluster-level). This is section-level sentence purity.
-- Uses existing BGE-M3 embeddings — no new model.
+- Uses the project's existing embeddings — no new model. (Embeddings come from the paid provider now; the old local BGE-M3 model is retired — see `docs/specs/fr-cpu-paid-embeddings-runtime.md`.)
 
 ---
 
@@ -1777,7 +1777,7 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 
 ### Implementation notes for the AI
 - Keep separate from FR-060 (ListNet). MHR uses grade-pair SVMs; ListNet uses LightGBM.
-- scikit-learn LinearSVC — no custom C++ needed.
+- scikit-learn LinearSVC — no custom Rust kernel needed.
 
 ---
 
@@ -1798,7 +1798,7 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 
 ### Implementation notes for the AI
 - Keep separate from FR-014 (HDBSCAN near-duplicate clustering). SRC is multi-relational spectral; HDBSCAN is density-based single-view.
-- scipy.sparse.linalg.eigsh + sklearn KMeans — no custom C++ needed.
+- scipy.sparse.linalg.eigsh + sklearn KMeans — no custom Rust kernel needed.
 
 ---
 
@@ -1819,7 +1819,7 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 - Settings: `isotonic_calibration.enabled` (default `false`), `isotonic_calibration.min_training_samples`, `isotonic_calibration.retrain_days`.
 
 ### Implementation notes for the AI
-- scikit-learn IsotonicRegression — no custom C++ needed.
+- scikit-learn IsotonicRegression — no custom Rust kernel needed.
 - Keep separate from all scoring signals — this is a post-scoring calibration layer.
 
 ---
@@ -1839,11 +1839,11 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 - Smooth rank: `π_σ(i) = 1 + Σⱼ≠ᵢ σ((sⱼ - sᵢ) / σ_temp)`. DCG_smooth via soft discount.
 - σ_temp annealed from 1.0 to 0.05 over training.
 - Settings: `smoothrank.enabled` (default `false`), `smoothrank.sigma_init`, `smoothrank.sigma_min`, `smoothrank.sigma_anneal`, `smoothrank.learning_rate`, `smoothrank.n_epochs`, `smoothrank.retrain_days`.
-- C++ extension: `smoothrank.cpp`.
+- Native hot path: a Rust kernel `smoothrank` (the old C++ `smoothrank.cpp` plan is superseded — Rust only; see RUST-FIRST.md).
 
 ### Implementation notes for the AI
 - Keep separate from FR-018 (L-BFGS on proxy loss). SmoothRank optimises the actual NDCG metric.
-- C++ hot path mandatory for gradient computation over n² sigmoid calls.
+- Rust hot path mandatory for gradient computation over n² sigmoid calls (C++ is removed — see RUST-FIRST.md).
 
 ---
 
@@ -1862,11 +1862,11 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 - Transition matrix per source. `π = stationary(Σ_k λ_k T_k)` via power iteration.
 - SDP: `min ‖T* - Σ_k λ_k T_k‖_F²` s.t. `λ ≥ 0, Σλ = 1`.
 - Settings: `rank_aggregation.enabled` (default `false`), `rank_aggregation.sdp_max_iter`, `rank_aggregation.sdp_tol`, `rank_aggregation.power_iter_max`, `rank_aggregation.power_iter_tol`, `rank_aggregation.retrain_days`.
-- C++ extension: `rankagg.cpp`.
+- Native hot path: a Rust kernel `rankagg` (the old C++ `rankagg.cpp` plan is superseded — Rust only; see RUST-FIRST.md).
 
 ### Implementation notes for the AI
 - Keep separate from FR-046 (unsupervised RRF). This is supervised with editorial labels.
-- C++ for matrix construction and power iteration.
+- Rust for matrix construction and power iteration (C++ is removed — see RUST-FIRST.md).
 
 ---
 
@@ -1885,10 +1885,10 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 - Stage 1: cheap features (Jaccard, scope, boilerplate). Stage 2: +BM25, phrase match. Stage 3: +embeddings, all signals.
 - Each stage: `Linear(d, 32) → ReLU → Linear(32, 1)`. Trained on pruned datasets.
 - Settings: `cascade_rerank.enabled` (default `false`), `cascade_rerank.stage1_top_n`, `cascade_rerank.stage2_top_n`, `cascade_rerank.stage3_top_n`, `cascade_rerank.net_hidden_size`, `cascade_rerank.adam_lr`, `cascade_rerank.retrain_days`.
-- C++ extension: `cascade.cpp`.
+- Native hot path: a Rust kernel `cascade` (the old C++ `cascade.cpp` plan is superseded — Rust only; see RUST-FIRST.md).
 
 ### Implementation notes for the AI
-- C++ hot path for stage scoring (small neural net forward pass).
+- Rust hot path for stage scoring (small neural net forward pass) (C++ is removed — see RUST-FIRST.md).
 - Replaces the single-pass scoring with a 3-stage pipeline. Existing signals are not removed — just evaluated at different stages.
 
 ---
@@ -2172,7 +2172,7 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 
 ### Implementation notes for the AI
 - Python service in `backend/apps/crawler/services/crawl_priority.py`. OR-Tools runs in Python process.
-- C++ is NOT used -- OR-Tools provides its own native solver behind the Python API.
+- No custom Rust kernel is needed -- OR-Tools provides its own native solver behind the Python API.
 - Add `ortools>=9.9` to `backend/requirements.txt`.
 
 ---
@@ -2202,7 +2202,7 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 - Python service in `backend/apps/pipeline/services/passage_centrality.py`. No ML model, no GPU, no external API.
 - TextTiling segmentation can share approach with FR-043 but must not modify FR-043's scorer or diagnostics.
 - LexRank uses TF-IDF + cosine similarity + PageRank power iteration. All parameters from published defaults.
-- Performance budget: < 15 ms per page in Python. C++ port unlikely to be needed (index-time, not suggestion-time).
+- Performance budget: < 15 ms per page in Python. A Rust kernel is unlikely to be needed (index-time, not suggestion-time).
 - Storage: ~5-10 MB total for 100K pages. Negligible.
 
 ---

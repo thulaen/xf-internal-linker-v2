@@ -1,9 +1,0 @@
-version: 0.2
-
-phases:
-  build:
-    commands:
-      - . scripts/quality_cores.sh
-      - workers="$(quality_cores lua-sidecar-builds)"
-      - find apps/ frontend/nginx-lua/ .githooks/lua/ services/ -name '*.lua' -print0 | xargs -0 -r -P "$workers" -n 1 luajit -bl >/dev/null
-      - luajit scripts/lua_ffi_smoke.lua

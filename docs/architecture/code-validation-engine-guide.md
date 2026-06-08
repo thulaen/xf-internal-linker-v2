@@ -1,5 +1,16 @@
 # Code Validation Engine Guide
 
+> **PARTLY STALE — language model changed 2026-06-06.** The backend is now
+> **Python + Rust only** (see [ADR 0007](../adr/0007-python-rust-two-language.md)
+> and [`RUST-FIRST.md`](../../RUST-FIRST.md)). The parts of this guide that describe
+> the CVE sidecar as "Haskell-led, with C++ kernels, a Go worker-pool, and Lua
+> rule packs", and the "Lua PreToolUse advisor", describe the retired five-language
+> polyglot. Under the current model, any CVE work that needs a hot path is a Rust
+> extension built through the Docker-managed maturin path, with Python orchestration
+> and no Python fallback; there is no Go/Haskell/C++/Lua tier. Treat those passages
+> as historical context only; the engine's app-facing home under the governance
+> module and the AutoIssue/Review-queue flow are unchanged.
+
 ## Read This First
 
 The Code Validation Engine, shortened to CVE here, is the app's pre-execution
@@ -67,11 +78,11 @@ callable surface another part of the app can use. Other Python modules talk to
 this area through the governance module's `api.py` public surface. A public
 surface is the small file that says what another module is allowed to import.
 
-`services/cve/` is the sidecar. A sidecar is a helper process that runs next to
-the Django app and handles work better suited to another runtime. CVE's sidecar
-is Haskell-led, with C++ kernels, Go worker-pool and transport code, measured
-Rust hot paths only when benchmark proof says they are needed, and Lua rule
-packs where the existing Lua rules say Lua owns the job.
+Hot-path CVE compute (when benchmark proof says it is needed) lives in a Rust
+extension built through the Docker-managed maturin path, with Python orchestration
+around it and no Python fallback. The retired five-language design routed this work
+to a `services/cve/` Haskell/C++/Go/Lua sidecar; that sidecar no longer exists
+under the Python + Rust model.
 
 `/diagnostics/code-validation/` is the planned React diagnostics page from the
 Stream F2 rewrite. The current app still has Angular routes, including a

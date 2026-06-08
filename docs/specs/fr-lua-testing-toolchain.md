@@ -4,7 +4,14 @@ source_types:
   - technical_doc
 ---
 
-# Lua Testing Toolchain
+# Lua Testing Toolchain (SUPERSEDED — Lua removed 2026-06-06)
+
+> **SUPERSEDED.** Lua was removed from the project on 2026-06-06. The backend is now
+> **Python + Rust only** (see [ADR 0007](../adr/0007-python-rust-two-language.md) and
+> [`docs/PYTHON-RUST-MIGRATION-PLAN.md`](../PYTHON-RUST-MIGRATION-PLAN.md)). The LuaJIT/busted/
+> luacheck/luacov/`lua-mutmut` toolchain, the `scripts/run-lua-quality.sh` wrapper, and the Lua
+> CodeBuild shards described below no longer exist. This spec is kept as a historical record only;
+> do not implement anything from it. For current testing, see [`docs/TESTING.md`](../TESTING.md).
 
 [SPEC FRESHNESS: reviewed_at=2026-06-02 next_review=2026-09-02]
 

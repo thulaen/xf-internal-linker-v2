@@ -1,19 +1,18 @@
 # CodeQL Local Security Scan
 
-Last updated: 2026-05-28.
+Last updated: 2026-06-07.
 
 CodeQL is GitHub's security scanner. It reads source code, creates one database per programming language, and writes results as SARIF, which is a standard JSON report format for security tools.
 
 ## What Gets Scanned
 
-The repo detects supported languages before every scan. Today it scans:
+The repo detects supported languages before every scan. The backend is Python + Rust only (see [ADR 0007](../adr/0007-python-rust-two-language.md)); C/C++ and Go were removed on 2026-06-06. Today it scans:
 
-1. C/C++.
-2. Go.
-3. Python.
-4. JavaScript/TypeScript.
+1. Python.
+2. Rust.
+3. JavaScript/TypeScript (the Angular frontend).
 
-Rust is included automatically only after tracked Rust source files exist. Haskell and PostgreSQL files are not scanned because this CodeQL setup does not support them for this project.
+A language is included only when tracked source files for it exist. PostgreSQL/SQL files are not scanned because this CodeQL setup does not support them for this project.
 
 ## Install CodeQL on Windows
 
@@ -78,16 +77,4 @@ Raise these only when the machine has enough free memory and disk space.
 
 ## Build Commands
 
-C/C++ builds only `backend/extensions`:
-
-```bash
-bash scripts/codeql-build-cpp.sh
-```
-
-Go compiles each tracked Go module without running test bodies:
-
-```bash
-bash scripts/codeql-build-go.sh
-```
-
-Python and JavaScript/TypeScript use CodeQL build-free mode.
+All scanned languages use CodeQL build-free mode. Python, Rust, and JavaScript/TypeScript need no manual build step before analysis, so there are no per-language CodeQL build scripts.

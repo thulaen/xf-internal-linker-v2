@@ -1,9 +1,18 @@
 # Modular Monolith
 
 **Status:** Foundation document — slice 1 of 10. Every later slice references it.
-**Last updated:** 2026-05-16.
+**Last updated:** 2026-06-06.
 **Source-backed spec:** [`docs/specs/fr-modular-monolith.md`](specs/fr-modular-monolith.md).
-**Decisions of record:** [`docs/adr/0001-modular-monolith.md`](adr/0001-modular-monolith.md), [`0002`](adr/0002-public-interface-api-py.md), [`0003`](adr/0003-cross-module-fk-allowed.md), [`0004`](adr/0004-no-event-bus-yet.md), [`0005`](adr/0005-shims-removed-in-slice-10.md).
+**Decisions of record:** [`docs/adr/0001-modular-monolith.md`](adr/0001-modular-monolith.md), [`0002`](adr/0002-public-interface-api-py.md), [`0003`](adr/0003-cross-module-fk-allowed.md), [`0004`](adr/0004-no-event-bus-yet.md), [`0005`](adr/0005-shims-removed-in-slice-10.md), [`0007`](adr/0007-python-rust-two-language.md).
+
+> **Language note (2026-06-06):** the backend is **Python + Rust only**. Rust owns the
+> hot paths (the per-candidate scoring loop, candidate retrieval, embedding/sketch math)
+> and holds the single canonical implementation for the nine ranking responsibilities listed
+> in [`RUST-FIRST.md`](../RUST-FIRST.md). There is **no Python fallback** for a Rust kernel.
+> C, C++, Go, Haskell, and Lua are removed. The earlier "C++ for hot paths" and "Go services
+> tier" sections of this document are superseded — see [ADR 0007](adr/0007-python-rust-two-language.md)
+> and [`docs/PYTHON-RUST-MIGRATION-PLAN.md`](PYTHON-RUST-MIGRATION-PLAN.md). The nine Django
+> modules, the `api.py` boundary, and the one-way dependency direction below are unchanged.
 
 ## Plain-English summary
 
@@ -30,7 +39,7 @@ The backend is split into nine modules. Every module owns one job. The module na
 | **platform** | Cross-cutting helpers everything else uses: settings, hardware profile, disk-pressure circuit breaker, audit logging, error tracking, feature flags, plain-English helpers. |
 | **content** | Posts, pages, threads, anchor phrases, distilled text. The content model the linker reads and writes against. |
 | **sources** | The read-only connectors to XenForo and WordPress. Owns API clients, webhook receivers, SSH-export fallbacks, rate limiting. Never writes to the live forum. |
-| **pipeline** | The 3-stage ranking pipeline: candidate selection, scoring, re-ranking. Owns the C++ extensions for hot paths and the Python orchestration around them. |
+| **pipeline** | The 3-stage ranking pipeline: candidate selection, scoring, re-ranking. Owns the Rust extensions for the hot paths and the Python orchestration around them. |
 | **suggestions** | Proposed links: status transitions (proposed → reviewed → applied → rejected), the review queue, anchor policy enforcement, near-duplicate clustering. |
 | **analytics** | The read-only data taps to Google Search Console, Google Analytics 4, Matomo. Owns the ingest cadence, the rate limiter, the impact-tracking tables. |
 | **graph** | Link-graph storage, PageRank, node affinity, graph fitness checks, visualization data. |
@@ -39,69 +48,20 @@ The backend is split into nine modules. Every module owns one job. The module na
 
 The names exist as folders today only conceptually. Slice 2 maps each existing `backend/apps/<name>/` to one of the nine modules. Slice 3 starts moving code into `api.py` files.
 
-## Services tier (Go sidecars)
+## Services tier (Go sidecars) — RETIRED
 
-Alongside the nine Django modules is a separate tier — the **services tier** — for Go programs that run as sidecars to the Django app. A Go service is a peer module to the nine Django modules, not a tenth Django module. Decision of record: [ADR 0006](adr/0006-go-services-tier.md).
-
-| Service | Owns |
-|---------|------|
-| **`services/streamd`** | The stream-engine broker. Receives live events and lets other parts of the app read them back in order. |
-
-Future Go services arrive only after the native-rewrite escalation proves Python cannot meet the target (profiling proof, source-backed spec, 20× speedup or a `[PERFORMANCE EXEMPTION: ...]`, C++-first check, `[NATIVE REWRITE REVIEW: ...]` marker, AutoIssue labelled `performance-native-rewrite`).
-
-**Rules for the services tier:**
-
-1. Each Go service has its own folder under `services/<name>/`, its own contract file (`api.proto` for gRPC or `api.http.md` for HTTP+JSON), its own binary entry point at `services/<name>/cmd/<name>/main.go`, and its own [`docs/modules/services.md`](modules/services.md) (or a per-service stub once there is more than one). Library-only Go modules under `services/` are forbidden — the slice-1.5 hook `.githooks/check-go-service-contract.py` hard-blocks the loophole.
-2. Go services do **not** own Postgres tables. Persistent reads and writes go through the relevant Django module's `api.py` via RPC.
-3. Python may not import Go code. Go may not embed Python code. The only legal channel is the RPC contract. The slice-1.5 hook `.githooks/check-no-cross-language-import.py` enforces this at commit time.
-4. The nine-module dependency direction is unchanged. Go services are sidecars, not a layer.
-
-The services-tier quality tooling (`scripts/run-go-quality.sh` + nine per-stage sub-scripts) lands in slice 1.5 alongside the Python and C++ quality chains.
-
-### Go tooling
-
-The Go quality chain mirrors C++ (`scripts/run-cpp-quality.sh`) one-for-one. Each stage writes one `quality_evidence` row so per-stage failures are visible in the quality dashboard.
-
-| Stage | Sub-script | Tool | Notes |
-|---|---|---|---|
-| Format | `scripts/run-go-format.sh` | `gofmt -l` | Hard-fail on any flagged file. |
-| Vet | `scripts/run-go-vet.sh` | `go vet ./...` | Catches the bugs the compiler ignores. |
-| Static analysis | `scripts/run-go-staticcheck.sh` | `staticcheck ./...` | Honours `services/<name>/staticcheck.conf` for narrow silences. |
-| Lint | `scripts/run-go-lint.sh` | `golangci-lint run ./...` | Honours `services/<name>/.golangci.yml`. |
-| Security | `scripts/run-go-gosec.sh` | `gosec ./...` | Catches command-injection-shaped exec.Command calls. |
-| Contract lint | `scripts/run-buf-lint.sh` | `buf lint api.proto` | Skipped per service when no .proto contract is present. |
-| Tests + race + coverage | `scripts/run-go-tests.sh` | `go test -race -shuffle=on -count=1 -coverprofile` | 80% baseline for streamd, 95% for greenfield Go. |
-| Mutation | `scripts/run-go-mutation.sh` | `go-mutesting ./...` | Kill-rate gate ≥ 70%. |
-| Benchmark | `scripts/run-go-bench.sh` | `go test -bench=. -benchmem -count=1 -run='^$' ./...` | Runs only when bench files are in scope. |
-
-All stages run inside the `compiled-tools` Docker image so the host never needs a local Go toolchain.
-
-### Streamd reference shape
-
-Streamd is the template every future Go service follows:
-
-- **Binary entry point** at `services/streamd/cmd/streamd/main.go`. No library-only Go modules under `services/`.
-- **gRPC over a Unix-domain socket** at `/var/run/xf/streamd.sock` (named volume `streamd_sock`, mounted read-write into the backend container). gRPC over Unix socket cuts round-trip latency to roughly 30–80 µs versus 100–200 µs for TCP loopback.
-- **Single contract file** `services/streamd/api.proto` publishing four RPCs: `Publish`, `Subscribe`, `Manage`, `Health`.
-- **Internal packages stay private** under `services/streamd/internal/`. Generated stubs live at `services/streamd/api/gen/` and are committed so the build does not depend on a fresh `protoc` run.
-- **Multi-stage scratch Dockerfile**. Final image under 25 MB.
-- **Speed benchmark** at `services/streamd/test/bench_publish_subscribe_test.go` proving p99 round-trip latency < 1 ms and throughput > 50,000 messages per second. A miss after 5 tuning iterations files a `performance-native-rewrite` AutoIssue plus a `[PERFORMANCE EXEMPTION: ...]` marker — honest failure is preferred to silent slow numbers.
-- **Python callers** route through the private client at `backend/apps/realtime/_streamd_client.py`. Public surface is the owning Django module's `api.py`. No caller imports the gRPC stubs directly.
-
-### Sidecars reference shape (slice 1.6)
-
-The sidecars binary is the second member of the services tier and the template every future **multi-service** Go binary follows. Where streamd hosts one service per binary, sidecars hosts 40 Apache-pattern internal services under one runtime — they share the 512 MB RAM / 1 GB storage / 7-day retention budget and one Unix-domain socket.
-
-- **Single binary entry point** at `services/sidecars/cmd/sidecars/main.go` registers all 40 internal services against one gRPC server. No second `cmd/<other>/main.go` (besides the healthcheck binary). Per-internal-service code lives under `services/sidecars/internal/<name>/`.
-- **One contract per internal service** at `services/sidecars/api/<name>.proto`. The shared types (Empty, Ack, HealthReply) live in `services/sidecars/api/shared.proto`. Generated stubs are committed under `services/sidecars/api/gen/`.
-- **One Unix-domain socket** at `/var/run/xf-sidecars/sidecars.sock` (named volume `sidecars_sock`). Different gRPC service names route to different internal handlers off the same listener.
-- **Shared infrastructure** under `services/sidecars/internal/shared/`: `budget` (debug.SetMemoryLimit + OnPressure), `pruner` (60 s storage sweep), `pool` (sync.Pool buffers), `idle` (per-service idle detector + priority release), `store` (scoped bbolt.DB factory), `socket`, `otel`, `manifest`.
-- **Single source of truth** at `services/sidecars/services.manifest.yaml` declaring 1..40 internal services with their RPCs, owning Django module, priority, and nominal RAM/storage shares.
-- **Resource budget** declared in `services/sidecars/budget.yaml` and enforced both at boot (main.go) and at commit (`.githooks/check-go-service-resource-budget.py`).
-- **Hard constraints**: 512 MB RAM, 1 GB storage, 7-day retention, no Postgres ownership, one socket, scratch image ≤ 35 MB. Full list and rationale in [`docs/specs/fr-sidecars-host.md`](specs/fr-sidecars-host.md).
-- **Python callers** route through one private client per internal service under `backend/apps/<owning>/_sidecars/<name>_client.py`. The shared `backend/apps/_sidecars/client_base.py` provides the `sidecars_channel(service_name)` context manager. Public surface stays the owning Django module's `api.py`.
-
-The 9-item Rule K hook recognises multi-service folders via a `services.manifest.yaml` + `api/*.proto` pair; Items 2 and 5 are then validated against the manifest + per-proto stubs instead of a single top-level api.proto.
+> **Retired 2026-06-06.** The backend is now **Python + Rust only**, so there is no Go
+> services tier. The Go sidecars (`services/streamd`, `services/sidecars`, `services/clusterd`)
+> and their RPC contracts are removed. Work that those sidecars did either moves into Python
+> orchestration or into a Rust extension on the hot path. [ADR 0006](adr/0006-go-services-tier.md)
+> (Go services tier) and [ADR 0009 — root-cause clustering via the clusterd sidecar](adr/0009-root-cause-clustering.md)
+> are superseded by [ADR 0007 — Python + Rust only](adr/0007-python-rust-two-language.md). The
+> migration sequence is in [`docs/PYTHON-RUST-MIGRATION-PLAN.md`](PYTHON-RUST-MIGRATION-PLAN.md).
+>
+> The nine-module Django dependency direction below is unchanged. The hot-path compute that used
+> to be argued between "C++ first" and "Go sidecar" is now always a Rust extension built through
+> the Docker-managed maturin path, with the single canonical implementation and no Python fallback
+> (see [`RUST-FIRST.md`](../RUST-FIRST.md)).
 
 ## Public interface convention
 
@@ -199,7 +159,7 @@ The full plan covers ten slices. Each slice has a single goal and a single check
 | 3 | Move `platform.api` first (smallest, most-used). | `import-linter` ratchet drops; no module reaches into `platform` private files. |
 | 4 | Move `content.api`. | Same shape as slice 3. |
 | 5 | Move `sources.api`. | Same shape. |
-| 6 | Move `pipeline.api`. | Same shape. C++ extension boundary unchanged — Python wrapper goes through `api.py`. |
+| 6 | Move `pipeline.api`. | Same shape. Rust extension boundary unchanged — Python wrapper goes through `api.py`. |
 | 7 | Move `suggestions.api`. | Same shape. |
 | 8 | Move `analytics.api` and `graph.api` (smaller; can land together). | Same shape. |
 | 9 | Move `operations.api` and `governance.api`. | Same shape. |
@@ -238,7 +198,7 @@ Slice 1 lands the stubs. The detail arrives in the slice that moves the module.
 
 **What about plugins?** The plugin system in `docs/v2-master-plan.md` § 13 continues. A plugin is a module too; it follows the same `api.py` rule. Slice 2 covers plugin registration.
 
-**What about C++ extensions?** They are private to the module that owns them. The module's `api.py` re-exports the Python wrappers around the C++ extension. The boundary rule does not change for C++.
+**What about Rust extensions?** They are private to the module that owns them. The module's `api.py` re-exports the Python wrappers around the Rust extension. The boundary rule does not change for Rust. (The backend has no C++/Go code any more — see the language note at the top.)
 
 **Why not microservices?** A microservice split costs roughly 10× what a module split costs and would solve a problem we don't have (multi-team scale, polyglot runtime, independent deploy). See ADR 0001 for the full reasoning.
 

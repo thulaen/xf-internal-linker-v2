@@ -15,6 +15,17 @@ The detection logic lives in [`backend/apps/pipeline/services/hardware_profile.p
 
 The user is on `high` today. The plan is "one day I'll have a faster PC" — the tier swaps automatically on the next reboot after the upgrade and every consuming service picks up the new batch size / parallelism / cache budget without code changes.
 
+## Helper Machines
+
+The Dell helper machine is available for repo-owned turbo quality checks. Agents reach it through Docker context `dell`; the backend quality image is `xf-linker-backend-quality:latest`. The Python quality runner uses Dell for the large shard and Windows for the small shard, so agents should run the turbo helper instead of replacing it with a single local Docker run. Mint remains a separate helper for the observability stack and any runner whose config names `mint`, but Dell is the primary Python quality helper.
+
+Quick proof commands:
+
+```powershell
+docker --context dell run --rm xf-linker-backend-quality:latest python --version
+docker --context dell run --rm xf-linker-backend-quality:latest python -m pytest --version
+```
+
 ## What Each Tier Controls
 
 - **Embedding batch size.** `recommended_batch_size(dimension=1024)` in `hardware_profile.py` returns the right number per tier.

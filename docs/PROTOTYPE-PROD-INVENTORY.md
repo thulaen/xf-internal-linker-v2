@@ -286,7 +286,7 @@ Each signal card has Enable/ranking_weight (range 0–0.3 unless noted) plus par
 - Save Delivery / Save Quiet Hours / Save Subscriptions
 
 ### TAB 6 — Diagnostics
-- Weight Diagnostics table (Name · Weight · C++ · Storage · Health) + Refresh
+- Weight Diagnostics table (Name · Weight · Rust · Storage · Health) + Refresh
 
 ### TAB 7 — Performance
 - Runtime Profile Recommendation (CPU cores, RAM GB, Disk free GB, native kernels) + Apply Suggested Limits
@@ -332,10 +332,10 @@ Each signal card has Enable/ranking_weight (range 0–0.3 unless noted) plus par
 - System preset: **"Recommended"** (read-only, is_system, ~100+ keys, fallback source). Custom presets apply non-destructively (only listed keys written).
 
 ### 39 active meta-algorithms (META-01…META-39)
-- Optimizers/embeddings: 01 SGD · 02 Momentum · 03 AdaGrad · 04 RMSprop · 34 Adam · 05 BGE-M3
+- Optimizers/embeddings: 01 SGD · 02 Momentum · 03 AdaGrad · 04 RMSprop · 34 Adam · 05 Embeddings (paid CPU provider — see [`docs/specs/fr-cpu-paid-embeddings-runtime.md`](specs/fr-cpu-paid-embeddings-runtime.md); was BGE-M3)
 - Graph/authority: 06 PageRank · 15 Link freshness · 17 Weighted destination authority · 19 Scope tree proximity · 27 Session cooccurrence · 28 Behavioral hubs · 29 Knowledge graph · 39 Graph candidate
 - Retrieval/scoring: 07 Cosine top-k · 08 Tokeniser · 09 BM25 · 10 TF-IDF · 11 Keyword Jaccard · 12 Cosine similarity
-- Ranking/rerank: 13 Slate diversity (MMR) · 14 Feedback reranker (C++) · 24 Feedback reranker (Python) · 35 Ranking challenger · 36 Explore/exploit · 38 Near-duplicate clustering
+- Ranking/rerank: 13 Slate diversity (MMR) · 14 Feedback reranker (Rust kernel — the old META-24 Python fallback is retired now that Rust is authoritative) · 35 Ranking challenger · 36 Explore/exploit · 38 Near-duplicate clustering
 - Content/anchor: 16 Click distance · 18 Phrase match · 20 Host post quality · 21 Learned anchor · 22 Rare-term propagation · 23 Field-aware relevance · 25 Spam guard · 37 Silo leakage guard
 - Value/attribution: 26 Value model · 30 Attribution engine · 31 Weight tuner (monthly) · 32 Impact engine · 33 Crawler discovery
 - Forward-declared: P1–P12, Q1–Q24
@@ -428,7 +428,7 @@ verify_api_key, get_threads(node_id, page), get_thread, get_posts(thread_id, pag
 - **Work Queue** (`/work-queue`): Celery queue overview (queue, task count, workers, rate limit; polled 15s); task breakdown (Pending · Active · Retry)
 - **Observability** (`/observability`): live service cards (name, status, storage %, Open Dashboard → Grafana; polled 15s)
 - **Find Bugs** (`/find-bugs`): Refresh; Run Now · Import Latest · Prune Artifacts · Sync Context · Generate Report; filters (Search, Severity all/critical/high/medium/low, Status open/picked/fixing/resolved/deferred); findings table (Pattern · Severity · Status · File · Confirmed by · Actions: Re-evaluate · Confirm Real Bug · Create Fix Task · Assign to Agent · Run Duplicate Check); D3 severity chart
-- **Performance** (`/performance`): benchmark results for C++ and Python hot paths
+- **Performance** (`/performance`): benchmark results for Rust and Python hot paths
 - **Alerts** (`/alerts`): operator alert center
 - **Undo History** (`/audit/undo-timeline`): filters (Subject type, Actor, Lookback days 1–90 default 30); timeline table (Action badge create/update/delete/restore, Subject type+ID, Actor, Message, Created, Is restorable, reason); expandable old/new diff; Restore + confirm dialog
 - **Preferences** (`/preferences`): appearance, language, accessibility, onboarding aggregator

@@ -1,7 +1,18 @@
-# Module: services (Go sidecars)
+# Module: services (Go sidecars) — RETIRED
 
-**Tier:** Services tier — peer to the nine Django modules.
-**Status:** Stub — full detail lands alongside each Go service's slice.
+> **RETIRED 2026-06-06.** The backend is now **Python + Rust only** (see
+> [ADR 0007](../adr/0007-python-rust-two-language.md) and
+> [`RUST-FIRST.md`](../../RUST-FIRST.md)). There is no Go services tier. The Go
+> sidecars described below (`services/streamd`, `services/sidecars`, and the
+> retired `services/clusterd`) and their RPC contracts are removed. Work those
+> sidecars did either moves into Python orchestration or into a Rust extension on
+> the hot path. [ADR 0006](../adr/0006-go-services-tier.md) is superseded. The
+> migration sequence is in
+> [`docs/PYTHON-RUST-MIGRATION-PLAN.md`](../PYTHON-RUST-MIGRATION-PLAN.md). The
+> rest of this document is kept only as a historical record of the retired design.
+
+**Tier:** Services tier (RETIRED) — was a peer to the nine Django modules.
+**Status:** Retired — the Go services tier no longer exists.
 **Maps to today:** `services/streamd/` (stream-engine broker, slice 1.5) + `services/sidecars/` (40 Apache-pattern services in one binary, slice 1.6).
 **Decision of record:** [`docs/adr/0006-go-services-tier.md`](../adr/0006-go-services-tier.md).
 

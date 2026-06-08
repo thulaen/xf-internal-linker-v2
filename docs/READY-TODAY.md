@@ -23,7 +23,7 @@ Both states are "ready to go", but only the first state changes today's review-q
 
 | Pick | Where you see it |
 |---|---|
-| Semantic similarity (BGE-M3) | `score_semantic` |
+| Semantic similarity (embeddings from the paid CPU provider — see [`docs/specs/fr-cpu-paid-embeddings-runtime.md`](specs/fr-cpu-paid-embeddings-runtime.md)) | `score_semantic` |
 | Keyword match | `score_keyword` |
 | PageRank (FR-006) | `score_march_2026_pagerank` |
 | HITS authority + hub | Inside `score_node_affinity` (W3c GraphSignalRanker) |

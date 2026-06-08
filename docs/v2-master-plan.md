@@ -193,9 +193,9 @@ A local-first application that suggests highly contextual internal links for Xen
 | Background Jobs | Celery 5.x | Production-grade task queue with retries, rate limiting, scheduling |
 | Job Scheduler | Celery Beat | Periodic tasks (auto-resync, GSC sync, stale checks) |
 | WebSockets | Django Channels 4.x + Daphne | Real-time job progress, live previews, stale alerts |
-| Embeddings | sentence-transformers (BAAI/bge-m3) | 1024-dim dense vectors, balanced (CPU) and high-performance (GPU/CUDA) modes |
+| Embeddings | Paid CPU embedding provider (was sentence-transformers / BAAI/bge-m3) | Dense vectors fetched from a hosted CPU provider — see [`docs/specs/fr-cpu-paid-embeddings-runtime.md`](specs/fr-cpu-paid-embeddings-runtime.md). The old in-process BGE-M3 GPU/CPU model is retired. |
+| Hot-path compute | Rust extensions (PyO3 + maturin, Docker-built) | Authoritative single implementation for every hot path — **no Python fallback**. Backend is Python + Rust only (ADR 0007); see [`RUST-FIRST.md`](../RUST-FIRST.md). Replaces the earlier C++-first policy. |
 | NLP | spaCy en_core_web_sm | Sentence splitting, entity recognition, noun chunks |
-| GPU | PyTorch with CUDA support | Same as V1, auto-detection |
 | API Framework | Django REST Framework | Serializers, viewsets, pagination, filtering, throttling |
 
 ### Frontend
@@ -1892,8 +1892,7 @@ Toggle in the sidebar or settings page. The switch:
 
 ### Performance Mode Specifications
 
-- **BALANCED**: CPU inference, batch_size=32, bge-m3 loads to CPU, no NVIDIA runtime required.
-- **HIGH_PERFORMANCE**: CUDA inference if RTX 3050 or better detected, batch_size=128, requires nvidia-container-toolkit on host.
+> **Retired (2026-06-06).** These in-process embedding modes assumed a local BGE-M3 model loading to CPU or CUDA. Embeddings now come from a paid CPU embedding provider (see [`docs/specs/fr-cpu-paid-embeddings-runtime.md`](specs/fr-cpu-paid-embeddings-runtime.md)), so there is no local model device choice. The batch size and the provider's latency budget are documented in that spec.
 
 ---
 
@@ -2193,7 +2192,7 @@ class Command(BaseCommand):
 | **23** | Configurable Host Scan Window & Anchor Policy | 1 session | Phase 4 |
 | **24** | Redirect/404 Monitor | 1 session | Phase 12 |
 | **25** | Elasticsearch Plugin | 2-3 sessions | Phase 16 |
-| **26** | BGE-M3 upgrade + word-window + autovacuum + Arrow/Bitmap/C++ performance layer | 1 session | Current Phase |
+| **26** | _(historical)_ BGE-M3 upgrade + word-window + autovacuum + Arrow/Bitmap performance layer. Embeddings later moved to a paid CPU provider ([`fr-cpu-paid-embeddings-runtime.md`](specs/fr-cpu-paid-embeddings-runtime.md)) and the C++ performance layer was superseded by Rust (ADR 0007). | 1 session | Done |
 
 ### Phase 0: Project Bootstrap
 

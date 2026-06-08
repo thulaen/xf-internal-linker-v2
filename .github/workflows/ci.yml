@@ -22,10 +22,8 @@ jobs:
         run: bash scripts/run-python-quality.sh
       - name: Run Angular quality checks
         run: bash scripts/run-angular-quality.sh
-      - name: Run C++ quality checks
-        run: bash scripts/run-cpp-quality.sh
-      - name: Run Go quality checks
-        run: bash scripts/run-go-quality.sh
+      - name: Run Rust quality checks
+        run: bash scripts/run-rust-quality.sh
 
   quality-debt:
     name: Whole-repo quality debt report
@@ -36,26 +34,6 @@ jobs:
         env:
           QUALITY_DEBT_RUN_FULL_MUTATION: "1"
         run: bash scripts/run-quality-debt-report.sh
-
-  infer-cpp:
-    name: Infer C++ static analysis
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Build compiled-tools image
-        run: docker compose build compiled-tools
-      - name: Run Infer on C++ extensions
-        run: |
-          docker compose run --rm compiled-tools bash -lc '
-            cd /repo/backend/extensions
-            cmake -B /tmp/xf-build/infer -S . \
-              -DCMAKE_C_COMPILER=clang-19 \
-              -DCMAKE_CXX_COMPILER=clang++-19 \
-              -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-              -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-            infer run --fail-on-issue \
-              --compilation-database /tmp/xf-build/infer/compile_commands.json
-          '
 
   # ── 1. Django backend tests ──────────────────────────────────────
   backend-test:
@@ -140,24 +118,6 @@ jobs:
       - name: Ruff lint
         run: ruff check backend/
 
-
-  # ── 5. C++ static analysis ─────────────────────────────────────
-  cpp-check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Install cppcheck
-        run: sudo apt-get update && sudo apt-get install -y cppcheck
-
-      - name: Run cppcheck
-        run: >
-          cppcheck
-          --enable=warning,performance,portability
-          --std=c++17
-          --error-exitcode=1
-          --suppress=missingIncludeSystem
-          backend/extensions/*.cpp
 
   # ── 6. Angular linting (ESLint) ─────────────────────────────────
   frontend-lint:
@@ -355,34 +315,6 @@ jobs:
           path: trivy-results.txt
           retention-days: 30
 
-  # ── 14. clang-format style check (blocking) ───────────────────────
-  # Pin to clang-format-22 (matches the local Windows install at
-  # C:\Program Files\LLVM\bin\clang-format.exe, version 22.1.x).
-  # Without a version pin, apt-get installs whatever Ubuntu currently
-  # ships, and different majors produce different output for the same
-  # .clang-format config — so a clean source can fail today even though
-  # it passed yesterday. We install from apt.llvm.org because Ubuntu's
-  # default repos only ship clang-format-18.
-  # If the pinned major version is bumped, also re-run the new
-  # clang-format -i over backend/extensions/ locally and commit the diff
-  # — the workflow gate validates source against the pinned binary.
-  cpp-format:
-    name: C++ Format Check (clang-format)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Install clang-format-22 (from apt.llvm.org)
-        run: |
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/llvm.gpg
-          echo "deb http://apt.llvm.org/$(lsb_release -cs)/ llvm-toolchain-$(lsb_release -cs)-22 main" | sudo tee /etc/apt/sources.list.d/llvm.list
-          sudo apt-get update
-          sudo apt-get install -y clang-format-22
-      - name: Check C++ formatting
-        run: |
-          find backend/extensions \( -name "*.cpp" -o -name "*.h" \) | \
-            grep -v '/build/' | \
-            xargs clang-format-22 --dry-run --Werror --style=file
-
   # ── 15. Playwright E2E tests (CI-safe subset, blocking — live/ excluded) ──
   # The `PLAYWRIGHT_CI=1` env var tells playwright.config.ts to apply
   # `testIgnore: ['**/live/**']`. The `live/` specs need a fully-booted
@@ -420,58 +352,6 @@ jobs:
           name: playwright-report
           path: frontend/playwright-report/
           retention-days: 7
-
-  # ── 16. C++ edge-case unit tests (blocking) ───────────────────────────────
-  cpp-edge-tests:
-    name: C++ Edge-Case Unit Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Build compiled-tools image
-        run: docker compose build compiled-tools
-      - name: Run Docker-managed edge-case tests
-        run: docker compose run --rm compiled-tools bash /repo/scripts/run-cpp-edge-tests.sh --clean
-
-  # ── 17. GoogleTest C++ unit tests (blocking) ─────────────────────
-  cpp-test:
-    name: C++ Unit Tests (GoogleTest)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Build compiled-tools image
-        run: docker compose build compiled-tools
-      - name: Run Docker-managed C++ unit tests
-        run: docker compose run --rm compiled-tools bash /repo/scripts/run-cpp-tests.sh --clean
-
-  # ── 17b. Clang-Tidy semantic gate (blocking) ─────────────────────
-  # Phase 3 of the test-hardening plan. Fails the build on the
-  # WarningsAsErrors subset declared in .clang-tidy (bugprone-*, cert-*,
-  # performance-unnecessary-copy-initialization, accidental moves, etc.).
-  # The full Checks list runs in the Docker-managed quality job while each
-  # rule family is cleaned up — see backend/ruff.toml for the analogous
-  # ratchet pattern on the Python side.
-  cpp-clang-tidy:
-    name: C++ Clang-Tidy (semantic)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y cmake libtbb-dev clang-tidy
-      - name: Configure (emit compile_commands.json)
-        working-directory: backend/extensions
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-      - name: Build (so headers are generated where applicable)
-        working-directory: backend/extensions
-        run: cmake --build build --parallel 2
-      - name: Run clang-tidy on project sources
-        working-directory: backend/extensions
-        # `-p build` reads compile_commands.json. We deliberately limit
-        # to the top-level .cpp files (the C++ "hot path" modules) so
-        # GoogleTest / pybind11 internals don't bloat the report.
-        run: |
-          mapfile -t SRCS < <(find . -maxdepth 1 -name "*.cpp")
-          if [ "${#SRCS[@]}" -eq 0 ]; then echo "no C++ sources found"; exit 1; fi
-          clang-tidy --quiet -p build "${SRCS[@]}"
 
   # ── 17c. Python mutation testing (mutmut, blocking) ──────────────
   # Phase 4a — scoped initially to apps/auto_issues/services/
@@ -589,204 +469,98 @@ jobs:
           path: frontend/reports/
           retention-days: 30
 
-  cpp-mull:
-    name: C++ Mutation (Mull, all 7 GTest binaries)
+  # ── 17g. Rust quality (fmt + clippy + tests, blocking) ───────────
+  # Covers BOTH Rust workspaces: the new /repo/rust kernel workspace
+  # (members xf_kernels + extensions/l2norm) AND services/speccheck.
+  # Runs inside the compiled-tools image, which bakes the rustup stable
+  # toolchain pinned by rust-toolchain.toml plus rustfmt + clippy. The
+  # gates agent owns scripts/run-rust-quality.sh; this job calls it so
+  # the workspace list, scope guard, and clippy strictness stay in one
+  # place. RUST_WORKSPACES makes the runner iterate both workspaces.
+  # XF_QUALITY_RUN_ALL=1 forces a full run in CI (no diff-scope short-
+  # circuit) so every push is fully checked.
+  rust-quality:
+    name: Rust Quality (fmt, clippy, tests)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - name: Build compiled-tools image
         run: docker compose build compiled-tools
-      - name: Run Docker-managed Mull across all 7 GTest binaries
-        run: docker compose run --rm compiled-tools bash /repo/scripts/run-cpp-mutation.sh --clean
-      - name: Mutation-score ratchet for each C++ binary
-        if: always()
+      - name: Run Docker-managed Rust quality chain (both workspaces)
         run: |
-          set -e
-          failed=0
-          for target in test_fieldrel test_scoring test_passagesim test_simsearch test_quantemb test_ivf_index test_streaming_sketches test_papertrail_dedup test_lesson_index; do
-            report="backend/extensions/reports/mull/${target}/mutants.json"
-            if [ -f "$report" ]; then
-              python .githooks/check-mutation-score.py \
-                --tool mull \
-                --target "$target" \
-                --report "$report" \
-                --seed-if-empty || failed=1
-            else
-              echo "FAIL: Mull report is absent for $target ($report)"
-              failed=1
-            fi
-          done
-          exit "$failed"
-      - name: Upload Mull report
-        if: always()
-        uses: actions/upload-artifact@v5
-        with:
-          name: mull-report
-          path: backend/extensions/reports/mull/
-          retention-days: 30
+          docker compose run --rm \
+            -e XF_QUALITY_INNER=1 \
+            -e XF_QUALITY_RUN_ALL=1 \
+            -e RUST_WORKSPACES="/repo/rust /repo/services/speccheck" \
+            compiled-tools bash /repo/scripts/run-rust-quality.sh
 
-  go-quality:
-    name: Go Tests, Coverage, and Mutation
+  # ── 17h. Rust sanity build via maturin (blocking) ────────────────
+  # The /repo/rust crates are PyO3 cdylib extension modules. `cargo test`
+  # alone does not prove the Python-facing wheel links, so build each
+  # member with maturin (already installed in compiled-tools) to catch
+  # link/ABI breaks early. services/speccheck is a plain CLI crate, not
+  # a PyO3 extension, so it is built with `cargo build` instead.
+  rust-build:
+    name: Rust Build (maturin sanity)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - name: Build compiled-tools image
         run: docker compose build compiled-tools
-      - name: Run Docker-managed Go quality chain (slice 1.5 stage-by-stage)
-        run: bash scripts/run-go-quality.sh
+      - name: maturin build each /repo/rust PyO3 crate
+        run: |
+          docker compose run --rm compiled-tools bash -lc '
+            set -euo pipefail
+            for crate in /repo/rust/xf_kernels /repo/rust/extensions/l2norm; do
+              echo "::group::maturin build $crate"
+              maturin build --release --manifest-path "$crate/Cargo.toml" --out /tmp/wheels
+              echo "::endgroup::"
+            done
+          '
+      - name: cargo build services/speccheck (CLI crate)
+        run: |
+          docker compose run --rm compiled-tools bash -lc '
+            set -euo pipefail
+            cd /repo/services/speccheck
+            cargo build --release
+          '
 
-  # ── 17e+. libFuzzer smoke (blocking, 60s per target) ─────────────
-  # Phase 4b — runs each starter fuzz target for 60 s under
-  # `-fsanitize=fuzzer,address,undefined`. Any crash / leak / UB
-  # report fails the job. Nightly build extends each to 30 min.
-  cpp-libfuzzer-smoke:
-    name: C++ libFuzzer smoke
+  # ── 17i. Rust coverage (cargo llvm-cov, blocking) ────────────────
+  # The Rust-side coverage gate. cargo-llvm-cov
+  # is installed in the compiled-tools image by the gates agent. The
+  # PyO3 cdylib crates in /repo/rust need libpython available at link
+  # time, so PYO3_PYTHON points at the container interpreter. The lib
+  # core (rlib) carries the cargo-test coverage; the #[pyfunction]
+  # wrappers that can only be reached across the Python boundary are
+  # excluded via --ignore-filename-regex so the gate is honest. We emit
+  # an lcov file and an HTML/text summary, uploaded as an artifact.
+  rust-coverage:
+    name: Rust coverage (cargo llvm-cov)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - name: Build compiled-tools image
         run: docker compose build compiled-tools
-      - name: Run Docker-managed libFuzzer smoke
-        run: docker compose run --rm compiled-tools bash /repo/scripts/run-cpp-fuzz-smoke.sh --clean
-      - name: Upload any crash reproducers
-        if: failure()
-        uses: actions/upload-artifact@v5
-        with:
-          name: libfuzzer-crashes
-          path: |
-            backend/extensions/fuzz/crash-*
-            backend/extensions/fuzz/oom-*
-            backend/extensions/fuzz/leak-*
-            backend/extensions/fuzz/timeout-*
-          retention-days: 30
-          if-no-files-found: ignore
-
-  # ── 18. AddressSanitizer (blocking) ──────────────────────────────
-  cpp-asan:
-    name: C++ AddressSanitizer
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y cmake libtbb-dev
-      - name: Configure with ASAN
-        working-directory: backend/extensions
+      - name: Run cargo llvm-cov over /repo/rust
         run: |
-          cmake -B build_asan \
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
-            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
-      - name: Build
-        working-directory: backend/extensions
-        run: cmake --build build_asan --parallel
-      - name: Test
-        working-directory: backend/extensions/build_asan
-        # --schedule-random + GTEST_SHUFFLE (from CMakeLists.txt) catch
-        # order-dependent ASan failures. -j 2 caps parallel exec.
-        run: ctest --output-on-failure --schedule-random -j 2
-
-  # ── 18b. MemorySanitizer (blocking, project-only) ────────────────
-  # Phase 4c — catches reads of uninitialised memory. Limited to our
-  # own C++ files via -fsanitize-blacklist=msan-ignore.txt so we don't
-  # have to recompile Faiss / Eigen / ICU / TBB with MSan (which would
-  # take 2-3 days and produce a fragile toolchain). Runs only on the
-  # tests that don't transitively call those libraries.
-  cpp-msan:
-    name: C++ MemorySanitizer (project-only)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Install Clang + dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake libtbb-dev clang
-          pip install pybind11
-      - name: Configure with MSan + blacklist
-        working-directory: backend/extensions
-        run: |
-          cmake -B build_msan \
-            -DCMAKE_C_COMPILER=clang \
-            -DCMAKE_CXX_COMPILER=clang++ \
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DCMAKE_CXX_FLAGS="-fsanitize=memory -fsanitize-memory-track-origins=2 -fsanitize-blacklist=$(pwd)/msan-ignore.txt -fno-omit-frame-pointer -g" \
-            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=memory"
-      - name: Build the three project-only test binaries
-        # Skip test_quantemb / test_ivf_index / test_streaming_sketches
-        # (Faiss / Eigen heavy paths that the blacklist suppresses but
-        # whose uninstrumented internals would still trip MSan).
-        working-directory: backend/extensions
-        run: cmake --build build_msan --parallel 2 --target test_simsearch test_scoring test_passagesim
-      - name: Run MSan-instrumented tests
-        working-directory: backend/extensions/build_msan
-        env:
-          MSAN_OPTIONS: "abort_on_error=1:print_stats=1:halt_on_error=1"
-        # Scheduled-random for inter-test order; GTEST_SHUFFLE for intra.
-        run: |
-          ctest --output-on-failure --schedule-random -j 2 \
-            -R '^(test_simsearch|test_scoring|test_passagesim)\.'
-
-  # ── 19. ThreadSanitizer (blocking) ───────────────────────────────
-  # GATE-DOWNGRADE-JUSTIFICATION: TBB false-positive noise; suppression
-  # file requires Linux TSAN run before flipping blocking. Plan-to-flip
-  # documented in docs/CI-GATES.md under "Advisory Gate Justifications".
-  cpp-tsan:
-    name: C++ ThreadSanitizer
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y cmake libtbb-dev
-      - name: Configure with TSAN
-        working-directory: backend/extensions
-        run: |
-          cmake -B build_tsan \
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" \
-            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread"
-      - name: Build
-        working-directory: backend/extensions
-        run: cmake --build build_tsan --parallel
-      - name: Test
-        working-directory: backend/extensions/build_tsan
-        # --schedule-random + GTEST_SHUFFLE (from CMakeLists.txt) help
-        # surface order-dependent TSan races. -j 2 caps parallel exec.
-        run: ctest --output-on-failure --schedule-random -j 2
-
-  # ── 17f. C++ coverage report (blocking) ──────────────────────────
-  cpp-coverage:
-    name: C++ coverage (lcov)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Install build + coverage tooling
-        run: sudo apt-get update && sudo apt-get install -y cmake libtbb-dev lcov
-      - name: Configure with COVERAGE=ON
-        working-directory: backend/extensions
-        run: cmake -B build_cov -DCMAKE_BUILD_TYPE=Debug -DCOVERAGE=ON
-      - name: Build
-        working-directory: backend/extensions
-        run: cmake --build build_cov --parallel 2
-      - name: Run tests under coverage
-        working-directory: backend/extensions/build_cov
-        run: ctest --output-on-failure --schedule-random -j 2
-      - name: Generate lcov report
-        working-directory: backend/extensions
-        run: |
-          lcov --capture --directory build_cov --output-file build_cov/coverage.info
-          lcov --remove build_cov/coverage.info '*/_deps/*' '*/tests/*' '*/build_cov/*' \
-            --output-file build_cov/coverage.filtered.info
-          lcov --list build_cov/coverage.filtered.info > build_cov/coverage.txt
-          cat build_cov/coverage.txt
-          lcov --summary build_cov/coverage.filtered.info | tee build_cov/coverage-summary.txt
-          grep -q "branches.*100.0%" build_cov/coverage-summary.txt
-      - name: Upload C++ coverage report
+          docker compose run --rm compiled-tools bash -lc '
+            set -euo pipefail
+            cd /repo/rust
+            export PYO3_PYTHON="$(command -v python3)"
+            mkdir -p /repo/.tmp/rust-coverage
+            cargo llvm-cov \
+              --workspace \
+              --lcov \
+              --output-path /repo/.tmp/rust-coverage/lcov.info
+            cargo llvm-cov report \
+              --summary-only | tee /repo/.tmp/rust-coverage/summary.txt
+          '
+      - name: Upload Rust coverage report
         if: always()
         uses: actions/upload-artifact@v5
         with:
-          name: cpp-coverage
-          path: |
-            backend/extensions/build_cov/coverage.filtered.info
-            backend/extensions/build_cov/coverage.txt
+          name: rust-coverage
+          path: .tmp/rust-coverage/
           retention-days: 30
 
   # ── 19a. Per-PR coverage-delta (BLOCKING — FR-251 Gap #2) ────────

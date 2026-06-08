@@ -1,5 +1,17 @@
 # Celery Replacement, Mint Quality Move, and Sonar Repair Plan
 
+> **SUPERSEDED in part — language model changed 2026-06-06.** This plan proposes
+> replacing Celery with a **Go** task runtime and repeatedly refers to keeping
+> existing **Go sidecars**. The backend is now **Python + Rust only** (see
+> [ADR 0007](../adr/0007-python-rust-two-language.md) and
+> [`RUST-FIRST.md`](../../RUST-FIRST.md)); Go, Haskell, C++, and Lua are removed,
+> and there is no Go services tier. Do **not** add a Go task runtime or new Go
+> sidecars from this plan. Harvest only the language-neutral ideas (the Redis
+> Streams task model, the Mint quality/observability move, and the Sonar repair);
+> any new task-runtime or hot-path work must be Python orchestration plus a Rust
+> extension on the hot path, with no Python fallback. The Mint-move and Sonar
+> portions remain useful.
+
 Last refreshed: 2026-05-26.
 
 Audience: the next Codex, Claude, Gemini, or other repo agent that receives a fresh session after this long one becomes too heavy.

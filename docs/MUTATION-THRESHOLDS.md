@@ -21,31 +21,21 @@ These are the exact values currently in `config/mutation-routing.json` `kill_rat
 | Language    | Kill-rate floor |
 |-------------|-----------------|
 | python      | 0.90            |
-| cpp         | 0.80            |
-| go          | 0.45            |
-| typescript  | 0.70            |
-| rust        | 0.75            |
-| haskell     | 0.70            |
+| typescript  | 0.90            |
+| rust        | 0.90            |
+
+The backend is Python + Rust only (see [ADR 0007](adr/0007-python-rust-two-language.md)); the former `cpp` (mull) and `go` (go-mutesting) floors were removed on 2026-06-06.
 
 ## Per-language sections
 
 ### python — floor 0.90
-Tooling: `mutmut` in the `backend` container. Python carries the most business logic in this repo, so it holds the highest floor.
+Tooling: `mutmut` in the `backend-quality` container. Python carries the most business logic in this repo, so it holds the highest floor.
 
-### cpp — floor 0.80
-Tooling: `mull` in the `compiled-tools` container. Hot-path kernels with focused unit binaries; high floor because these paths are performance- and correctness-critical.
-
-### go — floor 0.45
-Tooling: `go-mutesting` in the `compiled-tools` container. Lower floor reflects the smaller, newer Go sidecar surface and the higher share of equivalent mutants in Go's generated and glue code. Raise this as the Go test surface matures.
-
-### typescript — floor 0.70
+### typescript — floor 0.90
 Tooling: `stryker` against the `frontend` workspace. Mid floor for UI logic.
 
-### rust — floor 0.75
-Tooling: `cargo-mutants` against `services/speccheck`.
-
-### haskell — floor 0.70
-Tooling: `mucheck` against `services/findbugs-haskell`.
+### rust — floor 0.90
+Tooling: `cargo-mutants` against the `/repo/rust` and `/repo/services/speccheck` workspaces.
 
 ## Per-module overrides (finer-grained, may be added later)
 

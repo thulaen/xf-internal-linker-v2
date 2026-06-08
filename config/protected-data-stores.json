@@ -22,7 +22,6 @@
     "sonarqube_logs",
     "sonar_scanner_cache",
     "streamd_sock",
-    "clusterd_sock",
     "hf_cache",
     "sidecars_sock",
     "sidecars_data",

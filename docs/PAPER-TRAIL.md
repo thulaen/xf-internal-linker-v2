@@ -388,9 +388,10 @@ documented.
 
 ---
 
-## The C++ dedup index
+## The Rust dedup index
 
-The fast similarity check is `backend/extensions/papertrail_dedup.cpp`.
+The fast similarity check is the Rust kernel `rust/extensions/papertrail_dedup`
+(imported as `extensions.papertrail_dedup`), ported from C++ per RUST-FIRST.md.
 It implements **MinHash + LSH (Locality-Sensitive Hashing)** per:
 
 - Broder (1997). "On the resemblance and containment of documents."
