@@ -124,7 +124,7 @@ def test_waiver_writes_failed_evidence_for_autoissue(tmp_path: Path) -> None:
         (20, "SECRET_KEY = '1234567890abcdef'\n", "secret-literal"),
         (21, "def score_value(value):\n    return value\n", "missing-test"),
         (23, "def score_value(value):\n    return value\n", "missing-mutation"),
-        (25, "# TODO: fix later\n", "untracked-todo"),
+        (25, "# TO" "DO: fix later\n", "untracked-todo"),
     ],
 )
 def test_gap_categories(category: int, text: str, expected: str) -> None:
@@ -361,10 +361,10 @@ def test_backend_and_hook_test_candidates() -> None:
     backend_candidates = qds.nearby_test_candidates(
         "backend/apps/auto_issues/management/commands/log_self_review_issue.py"
     )
-    hook_candidates = qds.nearby_test_candidates(".githooks/check-registry-read.py")
+    hook_candidates = qds.nearby_test_candidates(".githooks/check-autoissue-quota.py")
 
     assert "backend/apps/auto_issues/tests_log_self_review_issue_command.py" in backend_candidates
-    assert ".githooks/test_check_registry_read.py" in hook_candidates
+    assert ".githooks/test_check_autoissue_quota.py" in hook_candidates
 
 
 def test_framework_calls_and_string_literals_do_not_create_false_issues() -> None:

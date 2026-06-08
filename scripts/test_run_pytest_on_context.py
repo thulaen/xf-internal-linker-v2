@@ -7,7 +7,9 @@ monkeypatched so no container ever starts under test.
 """
 
 import json
+import inspect
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -31,12 +33,51 @@ def test_remote_pytest_cmd_joins_dell_test_net_and_overrides_db_host():
     assert cmd[:5] == ["docker", "--context", "dell", "run", "--rm"]
     assert "--network" in cmd and "xf_dell_test_net" in cmd
     assert "xf_test_repo:/repo" in cmd
+    assert "xf_dell_compiled_repo:/opt/xf/compiled" in cmd
     # DB + Redis point at Dell's test-stack service names, not the live host.
     assert "POSTGRES_HOST=postgres" in cmd
     assert "REDIS_URL=redis://redis:6379/0" in cmd
+    assert "PYTHONPATH=/opt/xf/compiled/backend:/repo/backend" in cmd
     assert "config.settings.test" in " ".join(cmd)
     assert cmd[-1] == "apps/foo/tests.py"
     assert "--reuse-db" in cmd
+
+
+def test_sync_roots_include_backend_and_root_config_files():
+    """Given repo-level tests, When syncing to Dell, Then root config files are included."""
+    m = _mod()
+    assert "backend" in m._SYNC_ROOTS
+    assert "config" in m._SYNC_ROOTS
+    assert "loki-config.yaml" in m._SYNC_ROOTS
+    assert "--exclude=backend/backups" in m._TAR_EXCLUDES
+
+
+def test_host_hashes_strip_pytest_node_ids():
+    """Given a single-test target, When hashing, Then only the file path is read."""
+    m = _mod()
+    hashes = m._host_hashes([
+        "apps/auto_issues/tests_quality_evidence.py::ProtectedDataMapTests::test_one"
+    ])
+    assert "apps/auto_issues/tests_quality_evidence.py" in hashes
+
+
+def test_sync_source_makes_audit_writable_for_dell_tests():
+    """Given Dell tests write audit logs, When syncing, Then audit is writable."""
+    m = _mod()
+    source = inspect.getsource(m._sync_source_to_context)
+    assert "mkdir -p /repo/audit" in source
+    assert "chmod 777 /repo/audit" in source
+
+
+def test_local_only_targets_are_split_out():
+    """Given a test needs local Alloy, When split, Then it stays on Windows."""
+    m = _mod()
+    shardable, local_only = m._split_local_only_targets([
+        "apps/pipeline/tests.py",
+        "apps/observability/tests_faro_alloy_smoke.py",
+    ])
+    assert shardable == ["apps/pipeline/tests.py"]
+    assert local_only == ["apps/observability/tests_faro_alloy_smoke.py"]
 
 
 def test_local_pytest_cmd_uses_compose_backend_quality():
@@ -49,16 +90,18 @@ def test_local_pytest_cmd_uses_compose_backend_quality():
     assert "--reuse-db" in cmd
 
 
-def test_pytest_routing_config_puts_88_percent_on_dell():
-    """Given the routing config, When read, Then Dell carries 88% of pytest."""
+def test_pytest_routing_config_puts_100_percent_on_dell():
+    """Given the routing config, When read, Then Dell carries 100% of pytest and Windows 0% (fail-closed)."""
     m = _mod()
     machines = {entry["name"]: entry for entry in m._load_pytest_routing_config()["machines"]}
-    assert machines["dell"]["weight"] == 0.88
+    assert machines["dell"]["weight"] == 1.0
     assert machines["dell"]["context"] == "dell"
     assert machines["windows"]["transport"] == "docker_local"
+    assert machines["windows"]["weight"] == 0.0
     cfg = json.loads((ROOT / "config" / "mutation-routing.json").read_text(encoding="utf-8"))
     assert cfg["pytest_machines"][0]["name"] == "dell"
-    assert cfg["pytest_machines"][0]["weight"] == 0.88
+    assert cfg["pytest_machines"][0]["weight"] == 1.0
+    assert cfg["pytest_machines"][1]["weight"] == 0.0
 
 
 def test_run_pytest_sharded_no_targets_is_clean():
@@ -67,6 +110,20 @@ def test_run_pytest_sharded_no_targets_is_clean():
     rc, out = m.run_pytest_sharded([])
     assert rc == 0
     assert "no changed test targets" in out
+
+
+def test_configure_stdout_uses_utf8_when_supported(monkeypatch):
+    """Given Windows output may reject Unicode, When starting, Then stdout is UTF-8."""
+    m = _mod()
+    calls = []
+    fake_stdout = SimpleNamespace(
+        reconfigure=lambda **kwargs: calls.append(kwargs),
+    )
+    monkeypatch.setattr(m.sys, "stdout", fake_stdout)
+
+    m._configure_stdout()
+
+    assert calls == [{"encoding": "utf-8", "errors": "replace"}]
 
 
 def _fake_routing():

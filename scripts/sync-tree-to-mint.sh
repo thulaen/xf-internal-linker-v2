@@ -26,44 +26,17 @@ shell_quote() {
   printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
 }
 
-sync_file_list() {
-  cd "${REPO_ROOT}"
-  git ls-files -z --cached --modified --others --exclude-standard |
-    while IFS= read -r -d '' path; do
-      [ -e "$path" ] || continue
-      case "$path" in
-        .git/* | \
-        node_modules/* | \
-        .venv/* | \
-        .mypy_cache/* | \
-        .pytest_cache/* | \
-        .ruff_cache/* | \
-        htmlcov/* | \
-        frontend/dist/* | \
-        frontend/node_modules/* | \
-        backend/coverage-html/* | \
-        backend/reports/* | \
-        backend/staticfiles/* | \
-        backend/media/* | \
-        backend/extensions/build_tests/* | \
-        backend/extensions/reports/* | \
-        services/speccheck/mutants.out | \
-        services/speccheck/mutants.out/* | \
-        services/speccheck/mutants.out.old | \
-        services/speccheck/mutants.out.old/*)
-          continue
-          ;;
-      esac
-      printf '%s\0' "$path"
-    done |
-    sort -zu
-}
+# Single source of truth for the synced file list (derives from git, respects
+# .gitignore). Shared with run-dell-quality-shard.sh so the two can never drift
+# apart. Callers cd to REPO_ROOT before invoking sync_file_list.
+# shellcheck source=lib/sync_source_list.sh
+. "${SCRIPT_DIR}/lib/sync_source_list.sh"
 
 REMOTE_REPO_PATH_QUOTED="$(shell_quote "${MINT_REPO_PATH}")"
 REMOTE_EXTRACT_COMMAND="set -euo pipefail; repo=${REMOTE_REPO_PATH_QUOTED}; mkdir -p \"\$repo\"; docker run --rm -v \"\$repo:/repo\" alpine sh -c 'find /repo -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +'; tar -xzf - -C \"\$repo\""
 
 echo "[sync-tree-to-mint] ${REPO_ROOT} -> ${MINT_USER}@${MINT_HOST}:${MINT_REPO_PATH}"
-sync_file_list |
+( cd "${REPO_ROOT}" && sync_file_list ) |
   (cd "${REPO_ROOT}" && tar --null -T - -czf -) |
   ssh "${MINT_USER}@${MINT_HOST}" "${REMOTE_EXTRACT_COMMAND}"
 echo "[sync-tree-to-mint] done"

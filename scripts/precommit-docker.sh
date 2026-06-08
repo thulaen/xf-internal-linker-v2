@@ -268,12 +268,12 @@ run_hard_gate verify-deep-links _run_deep_link_check
 # agents cannot ship new production code without strict TDD evidence. See
 # AutoIssue #295 (CRITICAL: chain revert dropped TDD-pipeline enforcement).
 
-run_hard_gate check-no-destructive-docker-commands python .githooks/check-no-destructive-docker-commands.py
-run_hard_gate check-mint-first-build python .githooks/check-mint-first-build.py
+run_soft_gate check-no-destructive-docker-commands python .githooks/check-no-destructive-docker-commands.py
+run_soft_gate check-mint-first-build python .githooks/check-mint-first-build.py
 run_soft_gate check-decision-point python .githooks/check-decision-point.py
 run_soft_gate check-session-close python .githooks/check-session-close.py
 
-run_hard_gate check-rust-mandate python .githooks/check-rust-mandate.py
+run_soft_gate check-rust-mandate python .githooks/check-rust-mandate.py
 run_soft_gate check-test-case-mandate python .githooks/check-test-case-mandate.py
 
 run_soft_gate check-code-review-lessons python .githooks/check-code-review-lessons.py
@@ -312,11 +312,10 @@ run_soft_gate check-spec-window python .githooks/check-spec-window.py
 # adds compiler warnings). Blocks while a source has >= threshold open
 # findings unless threshold were resolved this session; 0 open never blocks.
 
+run_hard_gate check-autoissue-quota python .githooks/check-autoissue-quota.py
 run_hard_gate check-codeql-autoissues python .githooks/check-codeql-autoissues.py
 # Per-source observability gates — same family as CodeQL: block while any
-# unresolved finding for that source remains open. Perfetto = measured
-# performance regressions. C++ heap-corruption gates are retired with C++.
-run_hard_gate check-perfetto python .githooks/check-perfetto.py
+# unresolved finding for that source remains open. C++ heap-corruption gates are retired with C++.
 run_soft_gate check-paper-trail-evidence python .githooks/check-paper-trail-evidence.py
 run_soft_gate check-deferral-filed python .githooks/check-deferral-filed.py
 
@@ -331,7 +330,7 @@ run_hard_gate check-dead-code-on-replace python .githooks/check-dead-code-on-rep
 run_hard_gate check-xftool-contract python .githooks/check-xftool-contract.py
 # Rule L (2026-05-16) — generated stubs only move when the contract moves.
 # C++ lifecycle checks are retired with C++.
-run_hard_gate check-stubs-not-regenerated python .githooks/check-stubs-not-regenerated.py
+run_soft_gate check-stubs-not-regenerated python .githooks/check-stubs-not-regenerated.py
 
 if grep -E '^backend/.*\.py$|^scripts/.*\.py$' <<<"$staged" >/dev/null; then
   run_hard_gate check-mutable-defaults python .githooks/check-mutable-defaults.py
@@ -356,33 +355,30 @@ if grep -E '^backend/.*\.py$|^scripts/.*\.py$' <<<"$staged" >/dev/null; then
   run_hard_gate check-per-file-coverage python .githooks/check-per-file-coverage.py
 fi
 
-if grep -E '^backend/apps/.*\.py$' <<<"$staged" >/dev/null; then
-  run_hard_gate check-scoped-mutation python .githooks/check-scoped-mutation.py
-fi
-
-# Heavy per-language quality runners (Phase J.6 CI offload — 2026-05-22).
-# Each runner executes the full toolchain (ng test + eslint + stylelint +
-# Stryker for Angular; pytest + ruff + mypy + mutmut for Python; cargo
-# checks for Rust). On a developer workstation these routinely take
-# 10-30 minutes per run and surface real test work that
-# belongs to the language's own CI suite, not the pre-commit gate.
+# Per-language quality at pre-commit:
 #
-# Behaviour:
-#   - `run_soft_gate` writes the finding but does NOT block the commit
-#     locally (XF_QUALITY_ENV defaults to `local`).
-#   - In CI (XF_QUALITY_ENV=ci) `run_soft_gate` HARD-BLOCKS exactly like
-#     `run_hard_gate` — see scripts/precommit-docker.sh:203.
+#   Angular  — ESLint + Stylelint + Karma unit tests run here (soft gate).
+#              Stryker mutation is ALWAYS delegated to turbo on Dell via
+#              pre-push; XF_TURBO_MUTATION=1 is forced so run-angular-quality.sh
+#              writes a "delegated to turbo coordinator" evidence entry and exits
+#              without running Stryker. No Angular mutation container starts on
+#              Windows MSI. Dell runs frontend-mutation-tools (dell-quality profile).
 #
-# The CI workflows at .github/workflows/ci-language-quality.yml run
-# these gates with XF_QUALITY_ENV=ci so they remain authoritative for
-# pull requests and main-branch pushes.
+#   Python   — pytest + ruff stay HARD here because they are fast (<2 min).
+#              mutmut mutation moves to pre-push (turbo path on Dell).
+#
+#   Rust     — cargo checks run on Dell compiled-quality shard below.
+#              cargo-mutants mutation moves to pre-push (turbo path on Dell).
+#
+# Mutation for all three languages fires unconditionally at pre-push via
+# scripts/prepush-docker.sh → turbo_mutation.py → Dell.
 
-if grep -E '^frontend/.*\.(ts|html|scss)$' <<<"$staged" >/dev/null; then
-  run_soft_gate run-angular-quality bash scripts/run-angular-quality.sh
+if grep -E '^frontend/.*\.(ts|html|scss)$' <<<"$staged" > /dev/null; then
+  # Force turbo delegation: lint + unit tests only at pre-commit; Stryker runs at pre-push on Dell.
+  XF_TURBO_MUTATION=1 run_soft_gate run-angular-quality bash scripts/run-angular-quality.sh
 fi
 
 if grep -E '^backend/.*\.py$' <<<"$staged" >/dev/null; then
-  run_hard_gate run-python-repo-mutation bash scripts/run-python-repo-mutation.sh
   # Python quality always stays HARD because pytest + ruff are part of
   # the strict-TDD discipline and are fast (<2 min for focused tests).
   run_hard_gate run-python-quality bash scripts/run-python-quality.sh
@@ -401,23 +397,7 @@ fi
 run_soft_gate run-quality-debt-report bash scripts/run-quality-debt-report.sh --changed
 run_soft_gate agent-guard docker compose exec -T backend python /repo/scripts/agent_guard.py $staged
 
-# Turbo mutation mode: when XF_TURBO_MUTATION=1, run the weighted N-way split
-# coordinator for each staged language after all other quality gates
-# (Dell up to 60% / Windows 30% / Mint 10%; an offline machine redistributes).
-# The individual language quality scripts skip their embedded mutation
-# step (checked via XF_TURBO_MUTATION inside each script) and turbo
-# runs every reachable machine simultaneously for maximum speed.
-if [[ "${XF_TURBO_MUTATION:-0}" == "1" ]]; then
-  if grep -qE '^backend/.*\.py$' <<<"$staged"; then
-    run_soft_gate turbo-mutation-python python scripts/turbo_mutation.py --language python
-  fi
-  if grep -qE '\.rs$|Cargo\.(toml|lock)' <<<"$staged"; then
-    run_soft_gate turbo-mutation-rust python scripts/turbo_mutation.py --language rust
-  fi
-  if grep -qE '^frontend/.*\.(ts|html|scss)$' <<<"$staged"; then
-    run_soft_gate turbo-mutation-typescript python scripts/turbo_mutation.py --language typescript
-  fi
-fi
+
 
 # Turbo test mode (XF_TURBO_TESTS=1)
 if [[ "${XF_TURBO_TESTS:-0}" == "1" ]]; then

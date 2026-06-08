@@ -44,22 +44,19 @@ class TestShouldScanPath(TestCase):
     def test_generated_pb2_skipped(self):
         self.assertFalse(cli.should_scan_path("backend/apps/realtime/api_pb2.py"))
 
-    def test_generated_pb_go_skipped(self):
-        self.assertFalse(cli.should_scan_path("services/streamd/api/gen/api.pb.go"))
-
     def test_backslash_path_normalised(self):
         self.assertFalse(cli.should_scan_path("frontend\\node_modules\\a.js"))
 
 
 class TestDetectLanguages(TestCase):
     def test_supported_languages_in_canonical_order(self):
-        inv = cli.detect_languages(["a.py", "b.ts", "c.go", "d.cpp"])
-        self.assertEqual(inv.languages, ["c-cpp", "go", "python", "javascript-typescript"])
+        inv = cli.detect_languages(["a.py", "b.ts", "z.rs"])
+        self.assertEqual(inv.languages, ["rust", "python", "javascript-typescript"])
 
     def test_unsupported_reported_sorted(self):
-        inv = cli.detect_languages(["x.hs", "y.sql"])
+        inv = cli.detect_languages(["y.sql"])
         self.assertEqual(inv.languages, [])
-        self.assertEqual(inv.unsupported_present, ["haskell", "sql"])
+        self.assertEqual(inv.unsupported_present, ["sql"])
 
     def test_skipped_paths_excluded(self):
         inv = cli.detect_languages(["node_modules/a.js", "real.py"])
@@ -72,11 +69,8 @@ class TestDetectLanguages(TestCase):
 
 
 class TestBuildMode(TestCase):
-    def test_c_cpp_is_manual(self):
-        self.assertEqual(cli.build_mode_for_language("c-cpp"), "manual")
-
-    def test_go_is_manual(self):
-        self.assertEqual(cli.build_mode_for_language("go"), "manual")
+    def test_rust_is_none(self):
+        self.assertEqual(cli.build_mode_for_language("rust"), "none")
 
     def test_python_is_none(self):
         self.assertEqual(cli.build_mode_for_language("python"), "none")

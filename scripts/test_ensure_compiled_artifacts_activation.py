@@ -17,7 +17,6 @@ does not touch the real ``/opt/xf/compiled`` tree.
 from __future__ import annotations
 
 import importlib.util
-import os
 import shutil
 import sys
 import tempfile
@@ -143,6 +142,74 @@ class ActivationRouteTests(unittest.TestCase):
         ):
             eca._activate_staged_runtime(self.stage)
         self.assertEqual(calls, ["rollback"], msg="fallback should not fire on the clean path")
+
+
+class RuntimeImportProbeTests(unittest.TestCase):
+    """Runtime smoke imports must include Rust-owned kernels."""
+
+    def test_probe_checks_rust_kernel_imports_and_public_names(self) -> None:
+        code = eca._runtime_import_probe_code()
+        expected = {
+            "anchor_self_information": "bigram_entropy",
+            "compressed_bloom": "CompressedBloomFilter",
+            "count_min_sketch": "CountMinSketch",
+            "counting_bloom": "CountingBloomFilter",
+            "l2norm": "normalize_l2_batch",
+        }
+        for module_name, attr_name in expected.items():
+            self.assertIn(f"extensions.{module_name}", code)
+            self.assertIn(attr_name, code)
+
+
+class CarryForwardRustKernelsTests(unittest.TestCase):
+    """The C++ stage dir must inherit the already-active Rust kernels.
+
+    A kernel ported from C++ to Rust (e.g. ``anchor_self_information``) is built
+    by the Rust path, not the C++ build, so the freshly-built C++ stage dir does
+    NOT contain its ``.so``. The runtime import probe — run against the stage dir
+    inside ``_build_cpp_runtime`` — always imports every Rust kernel, so without
+    carrying the active Rust ``.so`` into the stage dir the C++ rebuild crashes
+    on ``ModuleNotFoundError: extensions.anchor_self_information`` and the backend
+    crash-loops. Carrying them forward also stops the C++ activation move from
+    wiping the Rust kernels out of the active dir.
+    """
+
+    def setUp(self) -> None:
+        self.tmpdir = Path(tempfile.mkdtemp(prefix="eca-carry-"))
+        self.addCleanup(shutil.rmtree, str(self.tmpdir), ignore_errors=True)
+        self.active = self.tmpdir / "active" / "extensions"
+        self.active.mkdir(parents=True)
+        # Active dir holds a Rust kernel (bare .so) the C++ build won't produce.
+        (self.active / "anchor_self_information.so").write_bytes(b"RUST")
+        (self.active / "l2norm.so").write_bytes(b"RUST-L2")
+        self.stage = self.tmpdir / ".stage-build"
+        (self.stage / "extensions").mkdir(parents=True)
+        (self.stage / "extensions" / "scoring.cpython-312.so").write_bytes(b"CPP")
+
+    def test_active_rust_kernels_are_copied_into_stage(self) -> None:
+        with patch.object(eca, "ACTIVE_EXTENSIONS_ROOT", self.active):
+            eca._carry_forward_rust_kernels_into_stage(self.stage)
+        staged = self.stage / "extensions"
+        self.assertEqual((staged / "anchor_self_information.so").read_bytes(), b"RUST")
+        self.assertEqual((staged / "l2norm.so").read_bytes(), b"RUST-L2")
+        # The C++ artifact already in the stage dir is untouched.
+        self.assertEqual((staged / "scoring.cpython-312.so").read_bytes(), b"CPP")
+
+    def test_missing_rust_kernel_is_skipped_without_error(self) -> None:
+        # Only one Rust kernel present in active; the rest simply aren't carried.
+        (self.active / "l2norm.so").unlink()
+        with patch.object(eca, "ACTIVE_EXTENSIONS_ROOT", self.active):
+            eca._carry_forward_rust_kernels_into_stage(self.stage)
+        staged = self.stage / "extensions"
+        self.assertTrue((staged / "anchor_self_information.so").exists())
+        self.assertFalse((staged / "l2norm.so").exists())
+
+    def test_no_active_dir_is_a_noop(self) -> None:
+        empty_active = self.tmpdir / "nope" / "extensions"
+        with patch.object(eca, "ACTIVE_EXTENSIONS_ROOT", empty_active):
+            # Must not raise even when the active dir does not exist yet.
+            eca._carry_forward_rust_kernels_into_stage(self.stage)
+        self.assertTrue((self.stage / "extensions" / "scoring.cpython-312.so").exists())
 
 
 if __name__ == "__main__":  # pragma: no cover

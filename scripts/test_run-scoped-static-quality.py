@@ -28,13 +28,16 @@ def test_starts_windows_quality_scripts_as_jobs():
 
 def test_does_not_run_rust_on_windows_host():
     t = _text()
-    windows_section = t.split("# --- 3. Start Mint job", maxsplit=1)[0]
+    windows_section = t.split("# --- 3. Start the Dell job", maxsplit=1)[0]
     assert '"scripts/run-rust-quality.sh"' not in windows_section
 
 
-def test_delegates_megalinter_to_mint():
+def test_delegates_megalinter_to_dell_only_mint_removed():
     t = _text()
-    assert "run-mint-quality-shard.sh" in t
+    assert "run-dell-quality-shard.sh" in t
+    # Mint is removed from the compute path — it stays only as the storage/
+    # observability host, never a quality shard.
+    assert "run-mint-quality-shard.sh" not in t
     assert "megalinter-windows" not in t
 
 
@@ -44,10 +47,17 @@ def test_reuses_existing_quality_images_for_turbo_speed():
     assert "XF_TURBO_MUTATION" in t
 
 
-def test_starts_mint_job_via_ssh():
+def test_does_not_start_a_mint_job():
+    """Mint is removed from compute — no Mint ssh shard, no Mint source sync."""
     t = _text()
-    assert "ssh" in t
-    assert "run-mint-quality-shard.sh" in t
+    assert "run-mint-quality-shard.sh" not in t
+    assert "sync-tree-to-mint.sh" not in t
+
+
+def test_starts_dell_job_via_docker_context():
+    t = _text()
+    assert "docker --context dell" in t
+    assert "run-dell-quality-shard.sh" in t
 
 
 def test_waits_for_all_jobs():
@@ -73,17 +83,10 @@ def test_handles_zero_failed_jobs_under_strict_mode():
     assert "@($failed).Count" in t
 
 
-def test_syncs_working_tree_to_mint_before_shard():
-    """Mint runs compiled-language quality against its OWN checkout, so the
-    orchestrator must push the current working tree (including unstaged edits)
-    to Mint BEFORE the shard runs — otherwise it builds Mint's stale code."""
+def test_does_not_sync_to_mint():
+    """Mint is no longer a compute shard, so the flaky tar-over-ssh source sync
+    that used to race the commit is gone. Dell carries the compiled + MegaLinter
+    work; Dell does its own source sync inside run-dell-quality-shard.sh."""
     t = _text()
-    assert "sync-tree-to-mint.sh" in t, (
-        "orchestrator must invoke the Mint source-sync helper "
-        "(rsync isn't on Windows; we tar-over-ssh through git-bash)"
-    )
-    before_shard = t.split("# --- 3. Start Mint job", maxsplit=1)[0]
-    assert "sync-tree-to-mint.sh" in before_shard, (
-        "the source-sync must run BEFORE the Mint shard ssh call, "
-        "or Mint builds stale code"
-    )
+    assert "sync-tree-to-mint.sh" not in t
+    assert "run-dell-quality-shard.sh" in t

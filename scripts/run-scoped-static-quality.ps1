@@ -1,7 +1,8 @@
 <#
 .SYNOPSIS
     Parallel quality orchestrator - starts all quality checks simultaneously.
-    Windows and Mint run quality checks at the same time. MegaLinter runs on Mint.
+    Windows and Dell run quality checks at the same time. MegaLinter runs on Dell.
+    Mint is removed from the compute path (storage/observability host only).
 
 .DESCRIPTION
     This replaces the sequential precommit-docker.sh pattern for CI and push.
@@ -12,8 +13,9 @@
       run-angular-quality.sh, run-lua-quality.sh,
       language-specific checks only; Docker images are reused, not rebuilt.
 
-    Mint (via SSH): run-cpp-quality.sh, run-go-quality.sh,
-      run-haskell-quality.sh, run-rust-quality.sh, and MegaLinter on the changed file set.
+    Dell (via Docker context): compiled-language checks and 100% of MegaLinter.
+    (Mint, the storage/observability host, may still lend CPU for distributed
+    C++ compilation via icecc — that is best-effort and never blocks a commit.)
 
 .PARAMETER ScopeMode
     Commit scope mode passed to the shard planner: staged, push, or worktree.
@@ -71,7 +73,7 @@ if ($MintIP) {
     Write-Host "[orchestrator] Cannot resolve $MintHost to an IP - icecc disabled (local C++ build only)."
 }
 
-# --- 1. Plan MegaLinter file scope. MegaLinter itself runs on Mint. ---
+# --- 1. Plan MegaLinter file scope. MegaLinter runs on Dell only. ---
 Write-Host "[orchestrator] Planning scoped quality shards (mode=$ScopeMode)..."
 $manifestJson = cmd.exe /c "python scripts\plan-scoped-quality-shards.py --mode $ScopeMode 2>NUL"
 if ($LASTEXITCODE -ne 0) {
@@ -79,8 +81,7 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 $manifest = $manifestJson | ConvertFrom-Json
-Write-Host "[orchestrator] Windows: $($manifest.windows_megalinter_paths.Count) files ($($manifest.weight_proof.windows_pct)%)"
-Write-Host "[orchestrator] Mint:    $($manifest.mint_megalinter_paths.Count) files ($($manifest.weight_proof.mint_pct)%)"
+Write-Host "[orchestrator] Dell:    $($manifest.dell_megalinter_paths.Count) files ($($manifest.weight_proof.dell_pct)%)"
 
 # --- 2. Start Windows quality jobs (all in parallel) ---
 $jobs = @()
@@ -106,30 +107,22 @@ foreach ($script in @(
     } -ArgumentList $repoRoot, $script, $ScopeMode, $BashExe
 }
 
-# --- 2b. Push the CURRENT working tree to Mint BEFORE the shard runs ---
-#     Mint builds compiled-language quality (Rust/Go/Haskell/C++) against its OWN
-#     checkout, so without this sync it would build Mint's stale copy and miss the
-#     edits we are trying to verify. rsync is not installed on the Windows host and
-#     PowerShell corrupts binary pipes, so the helper streams a tarball over ssh
-#     through git-bash. This must complete before the Mint shard ssh call.
-Write-Host "[orchestrator] Syncing working tree to Mint before compiled-language shard..."
-& $BashExe -c "MINT_HOST='$MintHost' MINT_REPO_PATH='$MintRepoPath' bash scripts/sync-tree-to-mint.sh"
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "[orchestrator] Source sync to Mint failed (exit $LASTEXITCODE) - Mint would build stale code. Aborting."
-    exit 1
-}
-
-# --- 3. Start Mint job (one SSH call - Mint runner handles everything in parallel) ---
-$mintJob = Start-Job -Name "mint-shard" -ScriptBlock {
-    param($mintHost, $repoPath, $json, $mode)
+# --- 3. Start the Dell job. Dell syncs its own source tree inside the shard
+#        script (run-dell-quality-shard.sh) and runs the compiled-language
+#        checks plus 100% of MegaLinter. Mint is no longer a shard, so there is
+#        no tar-over-ssh source sync to race the commit. ---
+$dellJob = Start-Job -Name "dell-shard" -ScriptBlock {
+    param($root, $json, $mode, $bashExe)
+    Set-Location $root
     $env:COMMIT_SCOPE_MODE = $mode
-    $json | ssh "mint-helper-01@$mintHost" "COMMIT_SCOPE_MODE=$mode bash $repoPath/scripts/run-mint-quality-shard.sh" 2>&1
+    docker --context dell info *>$null
+    $json | & $bashExe scripts/run-dell-quality-shard.sh 2>&1
     if ($LASTEXITCODE -ne 0) {
-        throw "mint-shard failed with exit code $LASTEXITCODE"
+        throw "dell-shard failed with exit code $LASTEXITCODE"
     }
-} -ArgumentList $MintHost, $MintRepoPath, $manifestJson, $ScopeMode
+} -ArgumentList $repoRoot, $manifestJson, $ScopeMode, $BashExe
 
-$allJobs = $jobs + $mintJob
+$allJobs = $jobs + $dellJob
 
 # --- 4. Wait for everything and collect output ---
 Write-Host "[orchestrator] All quality checks running. Waiting for completion..."
@@ -145,4 +138,4 @@ if ($failedCount -gt 0) {
     exit 1
 }
 
-Write-Host "[orchestrator] All quality checks passed. Windows $($manifest.weight_proof.windows_pct)% / Mint $($manifest.weight_proof.mint_pct)%."
+Write-Host "[orchestrator] All quality checks passed. MegaLinter on Dell $($manifest.weight_proof.dell_pct)% (Mint removed from compute)."

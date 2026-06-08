@@ -46,7 +46,7 @@ def extract_section(text: str, anchor: str) -> str:
         if _is_shared_heading(lines[index]):
             end = index
             break
-    return "\n".join(lines[start:end + 1]).rstrip() + "\n"
+    return "\n".join(lines[start:end]).rstrip() + "\n"
 
 
 def _find_heading(lines: list[str], anchor: str) -> int:

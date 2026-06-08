@@ -99,26 +99,49 @@ def test_select_all_up() -> None:
     assert _shares(machines) == {"dell": 0.60, "windows": 0.30, "mint": 0.10}
 
 
-def test_select_dell_off() -> None:
+def test_select_dell_off_raises_fail_closed() -> None:
+    # Fail-CLOSED: a down remote (Dell) must NOT have its share moved to Windows.
     routing = _load_routing()
-    machines = _shared(routing, _three_raw(), {"windows", "mint"})
-    assert _shares(machines) == {"windows": 0.75, "mint": 0.25}
+    try:
+        _shared(routing, _three_raw(), {"windows", "mint"})
+    except routing.RemoteUnavailableError as exc:
+        assert "dell" in str(exc).lower()
+        return
+    raise AssertionError("expected RemoteUnavailableError when Dell is unreachable")
 
 
-def test_select_mint_off_holds_dell_ceiling_not_0667() -> None:
+def test_select_any_remote_off_raises_fail_closed() -> None:
+    # Even with Dell up, a different down remote (mint) hard-fails — Windows
+    # never absorbs a dead remote's work.
     routing = _load_routing()
-    machines = _shared(routing, _three_raw(), {"dell", "windows"})
-    shares = _shares(machines)
-    assert shares["dell"] == 0.60, shares
-    assert shares["windows"] == 0.40, shares
+    try:
+        _shared(routing, _three_raw(), {"dell", "windows"})
+    except routing.RemoteUnavailableError:
+        return
+    raise AssertionError("expected RemoteUnavailableError when a remote is unreachable")
 
 
-def test_select_all_off_single_local() -> None:
+def test_renormalise_respects_dell_ceiling_when_clamped() -> None:
+    # Keep ceiling-clamp coverage now that the partial-survivor path raises:
+    # Dell weight 0.95 exceeds its 0.92 ceiling → clamped; Windows takes the rest.
     routing = _load_routing()
-    machines = _shared(routing, _three_raw(), set())
-    assert len(machines) == 1
-    assert machines[0]["transport"] == "docker_local"
-    assert abs(machines[0]["share"] - 1.0) < 1e-9
+    machines = [
+        {"name": "dell", "weight": 0.95, "max_weight": 0.92},
+        {"name": "windows", "weight": 0.05, "max_weight": 1.0},
+    ]
+    routing._renormalise_with_ceilings(machines)
+    shares = {m["name"]: round(m["share"], 6) for m in machines}
+    assert shares["dell"] <= 0.92 + 1e-6, shares
+    assert abs(shares["dell"] + shares["windows"] - 1.0) < 1e-9, shares
+
+
+def test_select_all_off_raises_fail_closed() -> None:
+    routing = _load_routing()
+    try:
+        _shared(routing, _three_raw(), set())
+    except routing.RemoteUnavailableError:
+        return
+    raise AssertionError("expected RemoteUnavailableError when nothing is reachable")
 
 
 def test_local_machine_synth() -> None:

@@ -53,6 +53,21 @@ if ! command -v go-mutesting >/dev/null 2>&1; then
   exit 1
 fi
 
+mutation_targets_for_module() {
+  local module="$1"
+  local path
+  local rel
+  while IFS= read -r path; do
+    case "$path" in
+      "$module"/*.go) rel="${path#"$module"/}" ;;
+      *) continue ;;
+    esac
+    [[ "$rel" == *_test.go ]] && continue
+    [[ "$rel" == api/gen/* ]] && continue
+    printf '%s\n' "$rel"
+  done <<<"${QUALITY_GO_PATHS:-}"
+}
+
 # Slice 1.5 - baseline at 0.45 because go-mutesting now reports MSI 0.47 on
 # streamd (paper-trail #370/#549 track the gap). The previous 0.70 floor
 # was an aspirational target; the slice ships the chain with a regression-
@@ -63,8 +78,13 @@ status=0
 while IFS= read -r module; do
   [[ -z "$module" ]] && continue
   report="$module/report.json"
-  echo "+ go-mutesting ./... in $module (threshold $threshold, 5-min cap)"
-  if ! _go_in_cap 300 bash -c "cd '$module' && go-mutesting ./..."; then
+  mapfile -t targets < <(mutation_targets_for_module "$module")
+  if [[ "${#targets[@]}" -eq 0 ]]; then
+    echo "No non-generated Go source files needed go-mutesting in $module."
+    continue
+  fi
+  echo "+ go-mutesting ${targets[*]} in $module (threshold $threshold, 5-min cap)"
+  if ! (cd "$module" && _go_in_cap 300 go-mutesting "${targets[@]}"); then
     status=1
     continue
   fi

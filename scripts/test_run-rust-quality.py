@@ -36,6 +36,14 @@ def test_scope_guard_exports_quality_rust_paths():
     )
 
 
+def test_rust_quality_runs_inside_compiled_tools_container():
+    """Host runs must enter the Docker-managed compiled-tools container."""
+    text = SCRIPT.read_text()
+    assert "docker compose exec -T" in text
+    assert "compiled-tools bash /repo/scripts/run-rust-quality.sh" in text
+    assert "XF_QUALITY_INNER=1" in text
+
+
 def test_scope_guard_delegates_to_commit_scope_py():
     """Scope detection must use commit_scope.py for consistency with other gates."""
     text = SCRIPT.read_text()
@@ -91,4 +99,57 @@ def test_rust_fuzz_is_wired():
     assert "max_total_time" in text, (
         "run-rust-quality.sh fuzz run must be time-bounded via -max_total_time "
         "so CI does not hang on a slow fuzz target"
+    )
+
+
+# ── multi-workspace coverage (the new /repo/rust workspace) ───────────────────
+
+
+def test_quality_covers_both_speccheck_and_rust_workspaces():
+    """fmt + clippy + cargo test must run over BOTH speccheck AND /repo/rust."""
+    text = SCRIPT.read_text()
+    assert "/repo/services/speccheck" in text, (
+        "run-rust-quality.sh must still cover the speccheck workspace"
+    )
+    assert "/repo/rust" in text, (
+        "run-rust-quality.sh must also cover the new /repo/rust kernels "
+        "workspace per docs/PYTHON-RUST-MIGRATION-PLAN.md"
+    )
+
+
+def test_quality_iterates_a_workspace_list():
+    """The script must loop over a list of workspaces, not a single path."""
+    text = SCRIPT.read_text()
+    # A `for ws in ...` loop over the workspace list is the shape that lets the
+    # fmt/clippy/test block run once per workspace.
+    assert re.search(r"for\s+\w+\s+in\b", text), (
+        "run-rust-quality.sh must iterate over a workspace list so the "
+        "fmt/clippy/test block runs once per Rust workspace"
+    )
+
+
+def test_quality_tolerates_a_missing_workspace_without_failing():
+    """A workspace with no Cargo.toml must be skipped, not hard-fail the run."""
+    text = SCRIPT.read_text()
+    # The per-workspace Cargo.toml guard must use `continue` (skip this
+    # workspace) rather than `exit 1`, so a missing workspace is tolerated.
+    assert re.search(r"Cargo\.toml.*\n.*continue", text) or re.search(
+        r"continue", text
+    ), (
+        "run-rust-quality.sh must `continue` past a workspace that lacks a "
+        "Cargo.toml instead of aborting the whole run"
+    )
+
+
+def test_quality_respects_rust_workspace_override():
+    """The RUST_WORKSPACE override must still select a single workspace."""
+    text = SCRIPT.read_text()
+    assert "RUST_WORKSPACE" in text, (
+        "run-rust-quality.sh must keep honouring the RUST_WORKSPACE override "
+        "so a caller can still pin the run to one workspace"
+    )
+    # The list default must be overridable and include both default workspaces.
+    assert "RUST_WORKSPACES" in text, (
+        "run-rust-quality.sh must expose a RUST_WORKSPACES list (plural) that "
+        "defaults to both speccheck and /repo/rust"
     )

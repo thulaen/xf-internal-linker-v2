@@ -113,20 +113,18 @@ ensure_image backend-quality xf-linker-backend-quality:latest
 
 frontend_changed_paths="$(changed_frontend_paths)"
 if [[ -n "$frontend_changed_paths" ]]; then
-  ensure_image frontend-mutation-tools xf-linker-frontend-mutation-tools:latest
-
+  # frontend-mutation-tools runs on Dell (dell-quality profile) — never starts locally on Windows.
+  # Verify it is up on Dell via the docker --context dell path.
   set +e
-  docker compose up -d --no-deps frontend-mutation-tools
-  autostart_status=$?
+  docker --context dell inspect xf_linker_frontend_mutation_tools > /dev/null 2>&1
+  dell_frontend_status=$?
   set -e
-  if [[ "$autostart_status" -eq 0 ]]; then
-    record_readiness passed docker-tools-autostart "docker compose up -d --no-deps frontend-mutation-tools" "Docker-managed quality tool container started for changed frontend files."
+  if [[ "$dell_frontend_status" -eq 0 ]]; then
+    record_readiness passed frontend-tools-dell "docker --context dell inspect xf_linker_frontend_mutation_tools" "Frontend mutation container is running on Dell."
   else
-    record_readiness failed docker-tools-autostart "docker compose up -d --no-deps frontend-mutation-tools" "Docker-managed quality tool container could not start."
-    exit "$autostart_status"
+    record_readiness failed frontend-tools-dell "docker --context dell inspect xf_linker_frontend_mutation_tools" "frontend-mutation-tools is not running on Dell. Start it with: docker --context dell compose up -d --profile dell-quality frontend-mutation-tools"
+    exit "$dell_frontend_status"
   fi
-
-  wait_for_service frontend-mutation-tools frontend-tools
   ensure_volume frontend_tool_cache
 else
   record_readiness passed frontend-tools-scope "python scripts/commit_scope.py paths --mode ${COMMIT_SCOPE_MODE:-staged}" "No changed frontend files; frontend mutation readiness skipped."
@@ -164,8 +162,9 @@ else
 fi
 
 if [[ -n "$frontend_changed_paths" ]]; then
+  # Verify frontend tools on Dell (container lives in dell-quality profile).
   set +e
-  docker compose exec -T frontend-mutation-tools sh -lc '
+  docker --context dell exec xf_linker_frontend_mutation_tools sh -lc '
     node --version
     npm --version
     npx eslint --version
@@ -176,9 +175,9 @@ if [[ -n "$frontend_changed_paths" ]]; then
   frontend_status=$?
   set -e
   if [[ "$frontend_status" -eq 0 ]]; then
-    record_readiness passed frontend-tools "docker compose exec frontend-mutation-tools tool version checks" "Frontend quality tools are installed in the running container."
+    record_readiness passed frontend-tools "docker --context dell exec xf_linker_frontend_mutation_tools tool version checks" "Frontend quality tools are installed on Dell."
   else
-    record_readiness failed frontend-tools "docker compose exec frontend-mutation-tools tool version checks" "A frontend quality tool is missing or broken."
+    record_readiness failed frontend-tools "docker --context dell exec xf_linker_frontend_mutation_tools tool version checks" "A frontend quality tool is missing or broken on Dell."
     exit "$frontend_status"
   fi
 fi

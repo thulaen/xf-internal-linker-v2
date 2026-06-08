@@ -35,6 +35,17 @@ _PROBE_DOCKER_TIMEOUT = 15
 _PROBE_SSH_TIMEOUT = 10
 
 
+class RemoteUnavailableError(RuntimeError):
+    """A configured REMOTE quality machine (Dell) did not answer its probe.
+
+    Fail-CLOSED policy: heavy quality work runs on the remote helper (Dell), not
+    on the local Windows box. When a configured docker_context/ssh machine is
+    unreachable we do NOT move its share onto Windows — we raise so the caller
+    hard-fails with a clear "fix Dell" message. Windows only ever runs its own
+    configured share, never a dead remote's.
+    """
+
+
 def _machines_from_config(cfg: dict) -> list[dict]:
     """Read the `machines` array, or synthesise the legacy two-machine list.
 
@@ -89,21 +100,37 @@ def _renormalise_with_ceilings(machines: list[dict]) -> None:
 
 
 def _select_machines(cfg: dict, probe: Callable[[dict], bool] | None = None) -> list[dict]:
-    """Drop unreachable machines, apply ceilings, renormalise survivors to 1.0.
+    """Keep reachable machines, apply ceilings, renormalise survivors to 1.0.
 
     `probe(machine) -> bool` is injected so unit tests pass a fake (no live
-    Docker/SSH). Fail-open: every dead box is removed BEFORE any work is
-    partitioned, so its items are never assigned to a machine that cannot run
-    them. If nothing answers, fall back to a single local Windows machine.
+    Docker/SSH). Fail-CLOSED: a configured REMOTE machine (docker_context/ssh,
+    i.e. Dell) that does not answer its probe raises ``RemoteUnavailableError``.
+    Its share is NEVER redistributed onto the local Windows box — the caller
+    must hard-fail and tell the operator to bring the remote (Dell) back. The
+    local Windows machine still runs its OWN configured share when reachable.
     """
     if probe is None:
         probe = _probe_reachable
-    machines = [m for m in _machines_from_config(cfg) if probe(m)]
-    if not machines:
-        machines = [{"name": "windows", "transport": "docker_local",
-                     "weight": 1.0, "max_weight": 1.0}]
-    _renormalise_with_ceilings(machines)
-    return machines
+    machines = _machines_from_config(cfg)
+    reachable_ids = {id(m) for m in machines if probe(m)}
+    down_remotes = [
+        m["name"] for m in machines
+        if m["transport"] in ("docker_context", "ssh") and id(m) not in reachable_ids
+    ]
+    if down_remotes:
+        raise RemoteUnavailableError(
+            "Remote quality helper(s) unreachable: " + ", ".join(down_remotes)
+            + ". Heavy quality runs on the remote (Dell), not on Windows. "
+            "Wake or fix the remote and retry — Windows will NOT run it locally."
+        )
+    reachable = [m for m in machines if id(m) in reachable_ids]
+    if not reachable:
+        raise RemoteUnavailableError(
+            "No quality machine is reachable (not even local Docker). "
+            "Start Docker / fix the remote and retry."
+        )
+    _renormalise_with_ceilings(reachable)
+    return reachable
 
 
 def _probe_reachable(machine: dict) -> bool:

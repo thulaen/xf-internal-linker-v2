@@ -46,11 +46,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Same tar exclude recipe the other two sharders use — the Dell side re-hashes
 # the SAME bytes, so the exclude list MUST match exactly or the manifest fails.
-_TAR_EXCLUDES = (
-    "--exclude=__pycache__", "--exclude=*.pyc", "--exclude=*.so",
-    "--exclude=build", "--exclude=build_*", "--exclude=.pytest_cache",
-    "--exclude=.ruff_cache", "--exclude=htmlcov", "--exclude=backend/reports",
-)
+import sys  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from _sync_tar_excludes import TAR_EXCLUDES as _TAR_EXCLUDES  # noqa: E402
 
 # This gate's OWN source-snapshot volume on the remote machine, parallel to
 # xf_mutation_repo / xf_coverage_repo so the three gates never collide.
@@ -95,8 +93,8 @@ def _load_machine_routing():
 def _load_lint_routing_config() -> dict:
     """Read the ``lint_machines`` block from config/mutation-routing.json.
 
-    Falls back to a Dell-0.88 / Windows-0.12 pair if the key is absent so an
-    older config never crashes the gate.
+    Falls back to a Dell-1.0 / Windows-0.0 pair (fail-closed: Dell does 100%,
+    MSI 0%) if the key is absent so an older config never crashes the gate.
     """
     path = REPO_ROOT / "config" / "mutation-routing.json"
     try:
@@ -107,9 +105,9 @@ def _load_lint_routing_config() -> dict:
     if not machines:
         machines = [
             {"name": "dell", "transport": "docker_context", "context": "dell",
-             "weight": 0.88, "max_weight": 0.92},
+             "weight": 1.0, "max_weight": 1.0},
             {"name": "windows", "transport": "docker_local",
-             "weight": 0.12, "max_weight": 1.0},
+             "weight": 0.0, "max_weight": 1.0},
         ]
     return {"machines": machines}
 
@@ -208,6 +206,9 @@ def _remote_lint_cmd(context: str, tool: str, files: list[str]) -> list[str]:
         "-v", "compiled_artifacts:/opt/xf/compiled",
         "-w", "/repo/backend",
         "-e", f"PYTHONPATH={_REMOTE_PYTHONPATH}",
+        "-e", "DJANGO_SETTINGS_MODULE=config.settings.test",
+        "-e", "DJANGO_SECRET_KEY=ci-fake-secret-key",
+        "-e", "POSTGRES_PASSWORD=ci-fake-postgres-password",
         "-e", "REPO_ROOT=/repo",
         _IMAGE,
         *_inner_command(tool, files),

@@ -8,19 +8,13 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 
-SUPPORTED_ORDER = ["c-cpp", "go", "rust", "python", "javascript-typescript"]
-UNSUPPORTED_REPORTED = {"haskell", "sql"}
+# The backend is Python + Rust only (ADR 0007). C/C++ and Go were removed on
+# 2026-06-06, so they are no longer in the scanned-language set. The frontend is
+# Angular (JavaScript/TypeScript).
+SUPPORTED_ORDER = ["rust", "python", "javascript-typescript"]
+UNSUPPORTED_REPORTED = {"sql"}
 
 EXTENSION_TO_LANGUAGE = {
-    ".c": "c-cpp",
-    ".cc": "c-cpp",
-    ".cpp": "c-cpp",
-    ".cxx": "c-cpp",
-    ".h": "c-cpp",
-    ".hh": "c-cpp",
-    ".hpp": "c-cpp",
-    ".hxx": "c-cpp",
-    ".go": "go",
     ".rs": "rust",
     ".py": "python",
     ".js": "javascript-typescript",
@@ -29,7 +23,6 @@ EXTENSION_TO_LANGUAGE = {
     ".tsx": "javascript-typescript",
     ".mjs": "javascript-typescript",
     ".cjs": "javascript-typescript",
-    ".hs": "haskell",
     ".sql": "sql",
 }
 
@@ -53,11 +46,7 @@ SKIP_PARTS = {
     "audit",
 }
 
-GENERATED_PREFIXES = (
-    ("services", "sidecars", "api", "gen"),
-    ("services", "streamd", "api", "gen"),
-    ("backend", "apps", "realtime", "_streamd_pb2"),
-)
+GENERATED_PREFIXES: tuple[tuple[str, ...], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -78,7 +67,7 @@ def _normalise(path: str) -> PurePosixPath:
 
 
 def _is_generated(parts: tuple[str, ...], name: str) -> bool:
-    if name.endswith(("_pb2.py", "_pb2_grpc.py", ".pb.go", "_grpc.pb.go")):
+    if name.endswith(("_pb2.py", "_pb2_grpc.py")):
         return True
     return any(parts[: len(prefix)] == prefix for prefix in GENERATED_PREFIXES)
 
@@ -125,9 +114,12 @@ def _github_matrix(inventory: LanguageInventory) -> dict:
 
 
 def build_mode_for_language(language: str) -> str:
-    """Return the CodeQL build mode used by this repository."""
-    if language in {"c-cpp", "go"}:
-        return "manual"
+    """Return the CodeQL build mode used by this repository.
+
+    Python, Rust, and JavaScript/TypeScript all use CodeQL build-free
+    ("none") mode here, so no manual build step is required.
+    """
+    del language  # all current languages use build-free mode
     return "none"
 
 

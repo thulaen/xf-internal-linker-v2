@@ -7,7 +7,7 @@ BDD:
 
   Given a non-empty changed-file list
   When build_manifest() runs
-  Then every file lands on Mint (windows_pct=0) and the weight proof sums
+  Then every file lands on Dell or Mint (windows_pct=0) with a 95% Dell target
 """
 
 from __future__ import annotations
@@ -71,26 +71,32 @@ class TestCost(TestCase):
 
 class TestBuildManifest(TestCase):
     def test_empty_returns_zero_weight_proof(self) -> None:
-        manifest = p.build_manifest([], 0, 8)
+        manifest = p.build_manifest([], 0, 8, 8)
         self.assertEqual(manifest["weight_proof"]["total_cost"], 0)
         self.assertEqual(manifest["mint_megalinter_paths"], [])
+        self.assertEqual(manifest["dell_megalinter_paths"], [])
 
-    def test_all_files_go_to_mint(self) -> None:
-        manifest = p.build_manifest(["a.py", "b.go"], 0, 8)
+    def test_all_files_go_to_dell_mint_removed(self) -> None:
+        manifest = p.build_manifest([f"file_{index}.py" for index in range(20)], 0, 8, 8)
         self.assertEqual(manifest["windows_megalinter_paths"], [])
-        self.assertEqual(set(manifest["mint_megalinter_paths"]), {"a.py", "b.go"})
+        self.assertEqual(manifest["mint_megalinter_paths"], [])
+        self.assertEqual(len(manifest["dell_megalinter_paths"]), 20)
         self.assertEqual(manifest["weight_proof"]["windows_pct"], 0.0)
-        self.assertEqual(manifest["weight_proof"]["mint_pct"], 100.0)
+        self.assertEqual(manifest["weight_proof"]["dell_target_pct"], 100.0)
+        self.assertEqual(manifest["weight_proof"]["mint_target_pct"], 0.0)
+        self.assertEqual(manifest["weight_proof"]["dell_pct"], 100.0)
+        self.assertEqual(manifest["weight_proof"]["mint_pct"], 0.0)
 
     def test_total_cost_sums_file_costs(self) -> None:
-        manifest = p.build_manifest(["a.py", "b.cpp"], 0, 8)
+        manifest = p.build_manifest(["a.py", "b.cpp"], 0, 8, 8)
         self.assertEqual(manifest["weight_proof"]["total_cost"], 2 + 6)
         self.assertEqual(
-            manifest["weight_proof"]["mint_cost"],
+            manifest["weight_proof"]["mint_cost"] + manifest["weight_proof"]["dell_cost"],
             manifest["weight_proof"]["total_cost"],
         )
 
     def test_disposable_files_dropped_to_empty_manifest(self) -> None:
-        manifest = p.build_manifest(["reports/x.sarif", ".tmp/y.json"], 0, 8)
+        manifest = p.build_manifest(["reports/x.sarif", ".tmp/y.json"], 0, 8, 8)
         self.assertEqual(manifest["mint_megalinter_paths"], [])
+        self.assertEqual(manifest["dell_megalinter_paths"], [])
         self.assertEqual(manifest["weight_proof"]["total_cost"], 0)

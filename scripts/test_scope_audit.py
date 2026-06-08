@@ -61,6 +61,20 @@ def test_every_wrapper_writes_scope_decision_line() -> None:
     assert missing == []
 
 
+def test_cpp_fuzz_smoke_skips_rust_ported_targets() -> None:
+    text = _read("scripts/run-cpp-fuzz-smoke.sh")
+    removed_targets = {
+        "fuzz_anchor_self_information",
+        "fuzz_compressed_bloom",
+        "fuzz_count_min_sketch",
+        "fuzz_counting_bloom",
+        "fuzz_l2norm",
+    }
+    listed_targets = set(re.findall(r"\bfuzz_[A-Za-z0-9_]+\b", text))
+
+    assert removed_targets.isdisjoint(listed_targets)
+
+
 def test_every_raised_cap_has_documented_reason() -> None:
     missing_reason: list[str] = []
     assignment = re.compile(r"^\s*MAX_SCOPE_FILES_[A-Za-z0-9_]+=(?P<value>\d+)", re.MULTILINE)

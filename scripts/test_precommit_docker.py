@@ -20,8 +20,6 @@ def test_hard_gates_run_before_language_quality() -> None:
     )
     hard_gates = (
         "run_hard_gate python .githooks/check-code-review-lessons.py",
-        "run_hard_gate python .githooks/check-registry-read.py",
-        "run_hard_gate python .githooks/check-paper-trail-read.py",
         "run_hard_gate python .githooks/check-deferral-filed.py",
         "run_hard_gate python .githooks/check-profiling-proof.py",
         "run_hard_gate python .githooks/check-perf-proof.py",

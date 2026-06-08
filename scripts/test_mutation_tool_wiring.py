@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 from pathlib import Path
 
 
@@ -92,11 +93,6 @@ def test_other_mutation_wrappers_expose_expected_tool_contracts() -> None:
             "/tmp/stryker.changed.config.json",
             "file_mutation_survivors",
         ),
-        "scripts/run-lua-quality.sh": (
-            "lua-mutmut binary is required",
-            "lua-mutmut \"${lua_mutation_args[@]}\"",
-            "luamut compatibility command is required",
-        ),
         "scripts/run-rust-quality.sh": (
             "cargo mutants",
             "cargo-mutants not installed; skipping Rust mutation.",
@@ -115,12 +111,97 @@ def test_other_mutation_wrappers_expose_expected_tool_contracts() -> None:
             assert expected in text, f"{path} missing {expected!r}"
 
 
-def test_turbo_mutation_has_windows_to_mint_and_mint_to_windows_e2e_paths() -> None:
+def test_rust_mutation_config_lists_both_workspaces() -> None:
+    """config/mutation-routing.json rust block must cover /repo/rust too."""
+    import json
+
+    config = json.loads(_read("config/mutation-routing.json"))
+    rust = config["languages"]["rust"]
+    # A `workspaces` list (plural) is the new shape that lets cargo-mutants run
+    # across every Rust workspace. Both the speccheck service and the new
+    # /repo/rust kernels workspace must appear.
+    workspaces = rust.get("workspaces")
+    assert isinstance(workspaces, list), (
+        "rust block must declare a `workspaces` list so cargo-mutants covers "
+        "more than one Rust workspace"
+    )
+    assert "/repo/services/speccheck" in workspaces
+    assert "/repo/rust" in workspaces
+    # The kill-rate gate must stay at 0.90 (unchanged).
+    assert config["kill_rate_gates"]["rust"] == 0.90
+
+
+def test_turbo_rust_runner_loops_over_workspaces() -> None:
+    """turbo_mutation._run_rust must iterate the configured workspace list."""
+    text = _read("scripts/turbo_mutation.py")
+    # The runner must read the plural `workspaces` key and loop over it so each
+    # Rust workspace gets its own cargo-mutants run + report file.
+    assert '"workspaces"' in text, (
+        "turbo_mutation._run_rust must read the `workspaces` list from config"
+    )
+
+
+def test_turbo_rust_runner_runs_cargo_mutants_per_workspace(monkeypatch) -> None:
+    """_run_rust must invoke cargo-mutants once per configured workspace."""
+    turbo = _load_turbo_module()
+
+    cfg = {
+        "languages": {
+            "rust": {
+                "tool": "cargo-mutants",
+                "workspaces": ["/repo/services/speccheck", "/repo/rust"],
+                "report_host": ".tmp/rust-outcomes.json",
+            }
+        }
+    }
+    machine = {
+        "name": "windows",
+        "transport": "docker_local",
+        "weight": 1.0,
+        "max_weight": 1.0,
+        "share": 1.0,
+    }
+    seen_cmds: list[str] = []
+
+    def fake_run_on_machine(_machine, _container, cmd, **_kwargs):
+        seen_cmds.append(cmd)
+        return 0, "{}"
+
+    monkeypatch.setattr(turbo, "_run_on_machine", fake_run_on_machine)
+    monkeypatch.setattr(turbo, "_file_survivors", lambda *a, **k: "")
+
+    turbo._run_rust(cfg, [machine], {"windows": 4}, dry_run=True)
+
+    speccheck_runs = [c for c in seen_cmds if "/repo/services/speccheck" in c]
+    rust_runs = [c for c in seen_cmds if "cd /repo/rust" in c]
+    assert speccheck_runs, "cargo-mutants must run in the speccheck workspace"
+    assert rust_runs, "cargo-mutants must run in the /repo/rust workspace"
+    assert all("cargo mutants" in c for c in seen_cmds if "cargo mutants" in c)
+
+
+def test_dell_shard_syncs_rust_workspace() -> None:
+    """run-dell-quality-shard.sh must ship rust/ to the Dell volume."""
+    text = _read("scripts/run-dell-quality-shard.sh")
+    # The tar that seeds the Dell volume must include the rust/ tree, and the
+    # remote cleanup must remove it before re-extracting, otherwise the inner
+    # run-rust-quality.sh finds no /repo/rust workspace on Dell.
+    assert "tar" in text
+    assert re.search(r"-cf - .*\brust\b", text), (
+        "run-dell-quality-shard.sh tar argument list must include rust/ so the "
+        "/repo/rust workspace exists on the Dell compute shard"
+    )
+    assert "/repo/rust" in text, (
+        "run-dell-quality-shard.sh remote cleanup (rm -rf) must remove "
+        "/repo/rust before re-extracting the synced tree"
+    )
+
+
+def test_turbo_mutation_has_windows_and_dell_remote_e2e_paths() -> None:
     text = _read("scripts/turbo_mutation.py")
     config = _read("config/mutation-routing.json")
 
-    # Legacy block retained for backward compatibility (kept green on purpose).
-    assert '"remote_context": "mint"' in config
+    # Mint is removed from compute: the Docker-context fallback remote is Dell.
+    assert '"remote_context": "dell"' in config
     # New weighted machines array is the primary routing source.
     assert '"machines"' in config
     assert 'docker", "--context", ctx' in text

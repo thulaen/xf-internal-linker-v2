@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Scoped MegaLinter file-level shard planner.
 
-Assigns changed + affected files to Mint for MegaLinter, then emits a
-JSON manifest for the orchestrator. Language-specific jobs still use the
-turbo orchestrator's Windows/Mint split.
+Assigns changed + affected files to Dell for MegaLinter, then emits a JSON
+manifest for the orchestrator. Mint is removed from the compute path: it stays
+the storage/observability host, never a quality shard. Dell carries 100% of the
+MegaLinter work; the per-file Dell/Windows 90/10 split lives in the separate
+mutation/coverage/lint/pytest gates (config/mutation-routing.json).
+Language-specific jobs still use the turbo orchestrator's language-specific split.
 
 Reuses: commit_scope, quality_cores.
 """
@@ -28,6 +31,8 @@ COST_BY_EXT: dict[str, int] = {
     ".cpp": 6, ".cc": 6, ".cxx": 6, ".c": 6, ".h": 6, ".hpp": 6,
 }
 DEFAULT_COST = 2
+DELL_MEGALINTER_TARGET_PCT = 100.0
+MINT_MEGALINTER_TARGET_PCT = 0.0
 DISPOSABLE_PATH_PREFIXES: tuple[str, ...] = (
     ".antigravitycli/",
     ".tmp/",
@@ -85,23 +90,30 @@ def build_manifest(
     changed_files: list[str],
     windows_cpus: int,
     mint_cpus: int,
+    dell_cpus: int,
 ) -> dict:
-    """Assign files to Windows/Mint and return the JSON manifest dict."""
+    """Assign MegaLinter files to Dell/Mint and return the manifest dict."""
     if not changed_files:
         return {
             "changed_files": [],
             "affected_files": [],
             "windows_megalinter_paths": [],
             "mint_megalinter_paths": [],
+            "dell_megalinter_paths": [],
             "windows_workers": windows_cpus,
             "mint_workers": mint_cpus,
+            "dell_workers": dell_cpus,
             "blocking_scope": [],
             "weight_proof": {
                 "total_cost": 0,
                 "windows_cost": 0,
                 "mint_cost": 0,
+                "dell_cost": 0,
                 "windows_pct": 0.0,
                 "mint_pct": 0.0,
+                "dell_pct": 0.0,
+                "mint_target_pct": MINT_MEGALINTER_TARGET_PCT,
+                "dell_target_pct": DELL_MEGALINTER_TARGET_PCT,
             },
         }
 
@@ -112,42 +124,58 @@ def build_manifest(
             "affected_files": [],
             "windows_megalinter_paths": [],
             "mint_megalinter_paths": [],
+            "dell_megalinter_paths": [],
             "windows_workers": windows_cpus,
             "mint_workers": mint_cpus,
+            "dell_workers": dell_cpus,
             "blocking_scope": [],
             "weight_proof": {
                 "total_cost": 0,
                 "windows_cost": 0,
                 "mint_cost": 0,
+                "dell_cost": 0,
                 "windows_pct": 0.0,
                 "mint_pct": 0.0,
+                "dell_pct": 0.0,
+                "mint_target_pct": MINT_MEGALINTER_TARGET_PCT,
+                "dell_target_pct": DELL_MEGALINTER_TARGET_PCT,
             },
         }
 
-    # Sort by cost desc then path asc for deterministic greedy assignment.
+    # Sort by cost desc then path asc for deterministic assignment. Mint is
+    # removed from compute, so every MegaLinter file goes to Dell.
     sorted_files = sorted(changed_files, key=lambda p: (-_cost(p), p))
     total_cost = sum(_cost(p) for p in sorted_files)
     windows_files: list[str] = []
-    mint_files: list[str] = sorted_files
+    mint_files: list[str] = []
+    dell_files = list(sorted_files)
     windows_cost = 0
-    mint_cost = total_cost
+    mint_cost = 0
+    dell_cost = total_cost
     w_pct = 0.0
-    m_pct = 100.0 if total_cost else 0.0
+    m_pct = 0.0
+    d_pct = 100.0 if total_cost else 0.0
 
     return {
         "changed_files": changed_files,
         "affected_files": changed_files,
         "windows_megalinter_paths": windows_files,
         "mint_megalinter_paths": mint_files,
+        "dell_megalinter_paths": dell_files,
         "windows_workers": windows_cpus,
         "mint_workers": mint_cpus,
+        "dell_workers": dell_cpus,
         "blocking_scope": changed_files,
         "weight_proof": {
             "total_cost": total_cost,
             "windows_cost": windows_cost,
             "mint_cost": mint_cost,
+            "dell_cost": dell_cost,
             "windows_pct": w_pct,
             "mint_pct": m_pct,
+            "dell_pct": d_pct,
+            "mint_target_pct": MINT_MEGALINTER_TARGET_PCT,
+            "dell_target_pct": DELL_MEGALINTER_TARGET_PCT,
         },
     }
 
@@ -164,8 +192,9 @@ def main() -> None:
     changed = commit_scope.paths_for_mode(REPO_ROOT, args.mode)
     win_cpus = 0
     mint_cpus = int(os.environ.get("MINT_WORKERS", "8"))
+    dell_cpus = int(os.environ.get("DELL_WORKERS", "32"))
 
-    manifest = build_manifest(changed, win_cpus, mint_cpus)
+    manifest = build_manifest(changed, win_cpus, mint_cpus, dell_cpus)
     manifest["scope_mode"] = args.mode
     print(json.dumps(manifest, indent=2))
 

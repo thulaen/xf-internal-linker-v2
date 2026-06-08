@@ -362,9 +362,28 @@ def _run_go(cfg: dict, machines: list[dict], machine_cores: dict, dry_run: bool)
     return result + _file_survivors("go-mutesting", report_host, dry_run)
 
 
+def _rust_workspaces(cfg: dict) -> list[str]:
+    """Configured Rust workspaces — the plural `workspaces` list, else legacy."""
+    rust = cfg["languages"]["rust"]
+    workspaces = rust.get("workspaces")
+    if isinstance(workspaces, list) and workspaces:
+        return workspaces
+    return [rust["workspace"]]
+
+
+def _rust_slug(workspace: str) -> str:
+    """Filesystem-safe slug for a workspace path (for per-workspace filenames)."""
+    return workspace.strip("/").replace("/", "-") or "root"
+
+
 def _run_rust(cfg: dict, machines: list[dict], machine_cores: dict, dry_run: bool) -> str:
-    """cargo-mutants on speccheck — --jobs derived from each machine's weight."""
-    workspace = cfg["languages"]["rust"]["workspace"]
+    """cargo-mutants over EVERY configured Rust workspace.
+
+    Each (machine, workspace) pair runs cargo-mutants once with a `--jobs`
+    budget derived from the machine's weighted share, writing its outcomes to a
+    per-workspace report file so survivors from every workspace are filed.
+    """
+    workspaces = _rust_workspaces(cfg)
     TMP_DIR.mkdir(exist_ok=True)
     outputs: list[str] = []
     lock = threading.Lock()
@@ -372,20 +391,24 @@ def _run_rust(cfg: dict, machines: list[dict], machine_cores: dict, dry_run: boo
     def body(machine: dict, _slice: list) -> None:
         name = machine["name"]
         jobs = _jobs_for(machine_cores.get(name, 2), machine["share"])
-        cmd = (
-            f"cd {workspace} && cargo mutants --jobs {jobs} "
-            f"--output /tmp/mutants-{name}.out || true; "
-            f"cat /tmp/mutants-{name}.out/outcomes.json 2>/dev/null || echo '{{}}'"
-        )
-        rc, out = _run_on_machine(machine, "compiled-tools", cmd, timeout=480)
-        with lock:
-            outputs.append(f"[turbo rust {name}] rc={rc}\n{out}")
-        try:
-            blob = json.loads(out[out.rindex("{"):])
-            (TMP_DIR / f"rust-outcomes-{name}.json").write_text(
-                json.dumps(blob), encoding="utf-8")
-        except (ValueError, json.JSONDecodeError):
-            pass
+        for workspace in workspaces:
+            slug = _rust_slug(workspace)
+            out_dir = f"/tmp/mutants-{name}-{slug}.out"
+            cmd = (
+                f"[ -f {workspace}/Cargo.toml ] || {{ echo '{{}}'; exit 0; }}; "
+                f"cd {workspace} && cargo mutants --jobs {jobs} "
+                f"--output {out_dir} || true; "
+                f"cat {out_dir}/outcomes.json 2>/dev/null || echo '{{}}'"
+            )
+            rc, out = _run_on_machine(machine, "compiled-tools", cmd, timeout=480)
+            with lock:
+                outputs.append(f"[turbo rust {name}:{slug}] rc={rc}\n{out}")
+            try:
+                blob = json.loads(out[out.rindex("{"):])
+                (TMP_DIR / f"rust-outcomes-{name}-{slug}.json").write_text(
+                    json.dumps(blob), encoding="utf-8")
+            except (ValueError, json.JSONDecodeError):
+                pass
 
     _fanout(machines, list(range(len(machines))), body)
     result = "\n".join(outputs)
@@ -393,8 +416,10 @@ def _run_rust(cfg: dict, machines: list[dict], machine_cores: dict, dry_run: boo
 
     filing_out = ""
     for machine in machines:
-        report_file = TMP_DIR / f"rust-outcomes-{machine['name']}.json"
-        filing_out += _file_survivors("cargo-mutants", report_file, dry_run)
+        for workspace in workspaces:
+            slug = _rust_slug(workspace)
+            report_file = TMP_DIR / f"rust-outcomes-{machine['name']}-{slug}.json"
+            filing_out += _file_survivors("cargo-mutants", report_file, dry_run)
     return result + filing_out
 
 
@@ -443,16 +468,20 @@ def _run_haskell(cfg: dict, machines: list[dict], machine_cores: dict, dry_run: 
 
 
 def _run_typescript(cfg: dict, cores_local: int, dry_run: bool) -> str:
-    """Stryker on Angular frontend — local only."""
-    workspace = cfg["languages"]["typescript"]["workspace"]
-    report_container = cfg["languages"]["typescript"]["report_container"]
-    report_host = REPO_ROOT / cfg["languages"]["typescript"]["report_host"]
+    """Stryker on Angular frontend — runs on Dell via docker_context transport."""
+    ts_cfg = cfg["languages"]["typescript"]
+    workspace = ts_cfg["workspace"]
+    container = ts_cfg["container"]  # xf_linker_frontend_mutation_tools
+    context = ts_cfg["context"]      # dell
+    report_host = REPO_ROOT / ts_cfg["report_host"]
 
+    cores_flag = max(1, cores_local)
     cmd = (
         f"cd {workspace} && "
-        f"npx stryker run --concurrency {cores_local} 2>&1 || true"
+        f"npx stryker run --concurrency {cores_flag} 2>&1 || true"
     )
-    rc, out = _run_in_container("local", "xf_linker_compiled_tools", cmd, timeout=540)
+    rc, out = _run_in_container("docker_context", container, cmd,
+                                context=context, timeout=540)
     print(out)
     return _file_survivors("stryker", report_host, dry_run)
 
@@ -484,6 +513,47 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _kill_rate_from_report(language: str, cfg: dict) -> float | None:
+    """Read the survivors report and compute actual kill rate (0.0–1.0).
+
+    Returns None when the report is absent or unreadable (treated as unknown,
+    not as a pass — callers should hard-block on None too).
+    """
+    lang_cfg = cfg["languages"].get(language, {})
+    report_key = lang_cfg.get("report_host")
+    if not report_key:
+        return None
+    report_path = REPO_ROOT / report_key
+    if not report_path.is_file():
+        return None
+    try:
+        data = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    # Normalise to a list of mutant dicts regardless of tool format.
+    mutants: list[dict] = []
+    if isinstance(data, list):
+        mutants = data
+    elif isinstance(data, dict):
+        mutants = (
+            data.get("mutants")
+            or data.get("survivors")
+            or [m for f in data.get("files", {}).values()
+                for m in (f.get("mutants") if isinstance(f, dict) else [])]
+        ) or []
+
+    if not mutants:
+        return None  # no mutants generated — not a pass, treat as unknown
+
+    killed = sum(
+        1 for m in mutants
+        if isinstance(m, dict)
+        and m.get("status") in ("killed", "Killed", "Timeout", "timeout")
+    )
+    return killed / len(mutants)
+
+
 def main() -> int:
     if sys.platform == "win32":
         sys.stdout.reconfigure(encoding='utf-8')
@@ -513,8 +583,56 @@ def main() -> int:
     filing_output = dispatch[args.language]()
     print(filing_output)
 
-    gate = cfg.get("kill_rate_gates", {}).get(args.language, 0)
-    print(f"[turbo] done — kill-rate gate for {args.language}: {gate:.0%}")
+    # ── kill-rate gate ────────────────────────────────────────────────────────
+    # Compare actual kill rate against the configured threshold.  A rate below
+    # the floor means too many mutants survived — hard-block the push so the
+    # gap cannot be pushed to the remote.  Missing report = hard-block too
+    # (mutation failed to run, which is not a pass).
+    gate: float = cfg.get("kill_rate_gates", {}).get(args.language, 0.0)
+    kill_rate = _kill_rate_from_report(args.language, cfg)
+
+    if kill_rate is None:
+        print(
+            f"\nFAIL [turbo] {args.language}: mutation report not found or unreadable.",
+            file=sys.stderr,
+        )
+        print(
+            f"WHY: turbo_mutation.py could not find a survivors report for"
+            f" {args.language} after running the mutation tool.",
+            file=sys.stderr,
+        )
+        print(
+            "UNBLOCK: check the mutation tool output above for errors, fix the"
+            " container/context issue, then retry the push.",
+            file=sys.stderr,
+        )
+        return 1
+
+    pct = kill_rate * 100.0
+    print(f"[turbo] {args.language}: kill_rate={pct:.1f}% gate={gate*100:.0f}%")
+
+    if kill_rate < gate:
+        missed = len([1]) * (gate - kill_rate) * 100  # placeholder for count
+        print(
+            f"\nFAIL [turbo] {args.language}: kill rate {pct:.1f}% is below the"
+            f" {gate*100:.0f}% gate — {gate*100 - pct:.1f}pp of mutants survived.",
+            file=sys.stderr,
+        )
+        print(
+            f"WHY: {args.language} mutation testing killed only {pct:.1f}% of mutants"
+            f" but the repo requires {gate*100:.0f}%. Surviving mutants are code paths"
+            " your tests do not actually check.",
+            file=sys.stderr,
+        )
+        print(
+            "UNBLOCK: add or strengthen tests until the kill rate meets the gate,"
+            " then retry the push. Surviving mutant AutoIssues are in the 'mutation'"
+            " picker bucket — resolve them as part of the 30-per-session quota.",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(f"[turbo] {args.language}: kill-rate gate PASSED ({pct:.1f}% >= {gate*100:.0f}%)")
     return 0
 
 

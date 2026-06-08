@@ -26,16 +26,11 @@ targets=(
   fuzz_texttok
   fuzz_anchor_descriptiveness
   fuzz_anchor_diversity
-  fuzz_anchor_self_information
   fuzz_api_rate_limiter
-  fuzz_compressed_bloom
-  fuzz_count_min_sketch
-  fuzz_counting_bloom
   fuzz_feedrerank
   fuzz_fieldrel
   fuzz_generic_anchor_matcher
   fuzz_ivf_index
-  fuzz_l2norm
   fuzz_linkparse
   fuzz_pagerank
   fuzz_phrasematch

@@ -49,6 +49,9 @@ def test_remote_lint_cmd_uses_dell_context_volume_and_image():
     cmd = m._remote_lint_cmd("dell", "ruff", ["apps/a.py"])
     assert cmd[:5] == ["docker", "--context", "dell", "run", "--rm"]
     assert "xf_lint_repo:/repo" in cmd
+    assert "DJANGO_SETTINGS_MODULE=config.settings.test" in cmd
+    assert "DJANGO_SECRET_KEY=ci-fake-secret-key" in cmd
+    assert "POSTGRES_PASSWORD=ci-fake-postgres-password" in cmd
     assert "xf-linker-backend-quality:latest" in cmd
     assert cmd[-3:] == ["ruff", "check", "apps/a.py"]
     # cwd is the synced source on the remote, never the local /app bind mount.
@@ -64,17 +67,19 @@ def test_local_lint_cmd_uses_compose_backend_quality():
     assert cmd[-3:] == ["bandit", "-q", "apps/a.py"]
 
 
-def test_lint_routing_config_puts_88_percent_on_dell():
-    """Given the routing config, When read, Then Dell carries 88% of lint."""
+def test_lint_routing_config_puts_100_percent_on_dell():
+    """Given the routing config, When read, Then Dell carries 100% of lint and Windows 0% (fail-closed)."""
     m = _mod()
     machines = {entry["name"]: entry for entry in m._load_lint_routing_config()["machines"]}
-    assert machines["dell"]["weight"] == 0.88
+    assert machines["dell"]["weight"] == 1.0
     assert machines["dell"]["context"] == "dell"
     assert machines["windows"]["transport"] == "docker_local"
+    assert machines["windows"]["weight"] == 0.0
     # The block really exists in the committed config (not just the fallback).
     cfg = json.loads((ROOT / "config" / "mutation-routing.json").read_text(encoding="utf-8"))
     assert cfg["lint_machines"][0]["name"] == "dell"
-    assert cfg["lint_machines"][0]["weight"] == 0.88
+    assert cfg["lint_machines"][0]["weight"] == 1.0
+    assert cfg["lint_machines"][1]["weight"] == 0.0
 
 
 def test_run_tool_sharded_no_files_is_clean():

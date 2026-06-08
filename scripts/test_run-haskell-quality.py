@@ -36,6 +36,14 @@ def test_scope_guard_exports_quality_haskell_paths():
     )
 
 
+def test_haskell_quality_runs_inside_compiled_tools_container():
+    """Host runs must enter the Docker-managed compiled-tools container."""
+    text = SCRIPT.read_text()
+    assert "docker compose exec -T" in text
+    assert "compiled-tools bash /repo/scripts/run-haskell-quality.sh" in text
+    assert "XF_QUALITY_INNER=1" in text
+
+
 def test_scope_guard_delegates_to_commit_scope_py():
     """Scope detection must use commit_scope.py for consistency with other gates."""
     text = SCRIPT.read_text()

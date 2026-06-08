@@ -67,7 +67,6 @@ all_targets=(
   test_quantemb
   test_ivf_index
   test_streaming_sketches
-  test_papertrail_dedup
   test_lesson_index
 )
 targets=()

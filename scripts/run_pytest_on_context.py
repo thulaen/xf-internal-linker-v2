@@ -47,26 +47,51 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Same tar exclude recipe the other sharders use — the Dell side re-hashes the
 # SAME bytes, so the exclude list MUST match exactly or the manifest fails.
-_TAR_EXCLUDES = (
-    "--exclude=__pycache__", "--exclude=*.pyc", "--exclude=*.so",
-    "--exclude=build", "--exclude=build_*", "--exclude=.pytest_cache",
-    "--exclude=.ruff_cache", "--exclude=htmlcov", "--exclude=backend/reports",
+import sys  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from _sync_tar_excludes import TAR_EXCLUDES as _TAR_EXCLUDES  # noqa: E402
+_SYNC_ROOTS = (
+    "backend",
+    ".githooks",
+    ".github",
+    "config",
+    "grafana",
+    "scripts",
+    "config.alloy",
+    "loki-config.yaml",
+    "otelcol-config.yaml",
+    "pyroscope.yaml",
+    "docker-compose.yml",
+    "docker-compose.dell-test.yml",
+    "pytest.ini",
 )
 
 # This gate's OWN source-snapshot volume on the remote, parallel to
 # xf_mutation_repo / xf_coverage_repo / xf_lint_repo.
 _TEST_VOLUME = "xf_test_repo"
 _IMAGE = "xf-linker-backend-quality:latest"
+_DELL_COMPILED_VOLUME = "xf_dell_compiled_repo"
 
 # The network created by docker-compose.dell-test.yml; the test container joins
 # it so the hostnames `postgres` and `redis` resolve to Dell's own test stack.
 _DELL_TEST_NET = "xf_dell_test_net"
+
+_LOCAL_ONLY_TARGET_PARTS = (
+    "apps/observability/tests_faro_alloy_smoke.py",
+)
 
 # Pytest flags shared by both the Dell and local slices, mirroring the existing
 # scoped run in scripts/run-python-quality.sh (random order, reuse the test DB
 # so migrations run once). `--override-ini addopts=` drops the repo's heavy
 # default addopts (coverage, etc.) so a scoped shard stays fast.
 _PYTEST_FLAGS = ("--override-ini", "addopts=", "-p", "randomly", "-q", "--reuse-db")
+
+
+def _configure_stdout() -> None:
+    """Force UTF-8 output so Windows can print merged remote test output."""
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if reconfigure is not None:
+        reconfigure(encoding="utf-8", errors="replace")
 
 
 def _load_machine_routing():
@@ -82,7 +107,8 @@ def _load_machine_routing():
 def _load_pytest_routing_config() -> dict:
     """Read the ``pytest_machines`` block from config/mutation-routing.json.
 
-    Falls back to a Dell-0.88 / Windows-0.12 pair if the key is absent.
+    Falls back to a Dell-1.0 / Windows-0.0 pair (fail-closed: Dell does 100%,
+    MSI 0%) if the key is absent.
     """
     path = REPO_ROOT / "config" / "mutation-routing.json"
     try:
@@ -93,17 +119,27 @@ def _load_pytest_routing_config() -> dict:
     if not machines:
         machines = [
             {"name": "dell", "transport": "docker_context", "context": "dell",
-             "weight": 0.88, "max_weight": 0.92},
+             "weight": 1.0, "max_weight": 1.0},
             {"name": "windows", "transport": "docker_local",
-             "weight": 0.12, "max_weight": 1.0},
+             "weight": 0.0, "max_weight": 1.0},
         ]
     return {"machines": machines}
+
+
+def _target_file(rel: str) -> str:
+    """Return the backend-relative file path from a pytest target."""
+    return rel.split("::", 1)[0]
+
+
+def _target_files(rel_slice: list[str]) -> list[str]:
+    """Return unique backend-relative files from pytest targets."""
+    return list(dict.fromkeys(_target_file(rel) for rel in rel_slice))
 
 
 def _host_hashes(rel_slice: list[str]) -> dict[str, str]:
     """sha256 of each backend/<rel> target the host ships to the remote."""
     hashes: dict[str, str] = {}
-    for rel in rel_slice:
+    for rel in _target_files(rel_slice):
         try:
             data = (REPO_ROOT / "backend" / rel).read_bytes()
         except OSError:
@@ -115,7 +151,7 @@ def _host_hashes(rel_slice: list[str]) -> dict[str, str]:
 def _tar_producer(env: dict) -> subprocess.Popen:
     """One tar producer (backend + .githooks, shared exclude list) for the push."""
     return subprocess.Popen(
-        ["tar", "-cf", "-", *_TAR_EXCLUDES, "backend", ".githooks"],
+        ["tar", "-cf", "-", *_TAR_EXCLUDES, *_SYNC_ROOTS],
         cwd=REPO_ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env,
     )
 
@@ -125,7 +161,8 @@ def _sync_source_to_context(context: str, env: dict) -> str | None:
     extractor = [
         "docker", "--context", context, "run", "--rm", "-i",
         "-v", f"{_TEST_VOLUME}:/repo",
-        "alpine:latest", "sh", "-c", "tar -xf - -C /repo",
+        "alpine:latest", "sh", "-c",
+        "tar -xf - -C /repo && mkdir -p /repo/audit && chmod 777 /repo/audit",
     ]
     try:
         tar = _tar_producer(env)
@@ -152,7 +189,7 @@ def _run_remote_sha(context: str, env: dict):
         cmd = [
             "docker", "--context", context, "run", "--rm",
             "-v", f"{_TEST_VOLUME}:/repo", "-w", "/repo/backend",
-            "alpine:latest", "sh", "-c", "sha256sum " + " ".join(rel_slice),
+            "alpine:latest", "sh", "-c", "sha256sum " + " ".join(_target_files(rel_slice)),
         ]
         try:
             proc = subprocess.run(
@@ -177,7 +214,7 @@ def _verify_snapshot(run_remote, rel_slice: list[str],
         parts = line.split()
         if len(parts) >= 2:
             remote[parts[-1].replace("\\", "/")] = parts[0].strip()
-    return all(remote.get(rel) == host_hashes.get(rel) for rel in rel_slice)
+    return all(remote.get(rel) == host_hashes.get(rel) for rel in _target_files(rel_slice))
 
 
 def _remote_pytest_cmd(context: str, targets: list[str]) -> list[str]:
@@ -192,13 +229,14 @@ def _remote_pytest_cmd(context: str, targets: list[str]) -> list[str]:
         "docker", "--context", context, "run", "--rm",
         "--network", _DELL_TEST_NET,
         "-v", f"{_TEST_VOLUME}:/repo",
+        "-v", f"{_DELL_COMPILED_VOLUME}:/opt/xf/compiled",
         "-w", "/repo/backend",
         "--env-file", str(REPO_ROOT / ".env"),
         "-e", "DJANGO_SETTINGS_MODULE=config.settings.test",
         "-e", "POSTGRES_HOST=postgres",
         "-e", "REDIS_URL=redis://redis:6379/0",
         "-e", "CELERY_BROKER_URL=redis://redis:6379/2",
-        "-e", "PYTHONPATH=/repo/backend",
+        "-e", "PYTHONPATH=/opt/xf/compiled/backend:/repo/backend",
         _IMAGE,
         "python", "-m", "pytest", *_PYTEST_FLAGS, *targets,
     ]
@@ -244,6 +282,24 @@ def _pytest_slice_local(targets: list[str]) -> tuple[int, str]:
     return _run(_local_pytest_cmd(targets), env, timeout=1800)
 
 
+def _is_local_only_target(target: str) -> bool:
+    """True when a test talks to services only running on the Windows stack."""
+    target_file = _target_file(target).replace("\\", "/")
+    return any(part in target_file for part in _LOCAL_ONLY_TARGET_PARTS)
+
+
+def _split_local_only_targets(targets: list[str]) -> tuple[list[str], list[str]]:
+    """Return (shardable, local_only) while preserving target order."""
+    shardable: list[str] = []
+    local_only: list[str] = []
+    for target in targets:
+        if _is_local_only_target(target):
+            local_only.append(target)
+        else:
+            shardable.append(target)
+    return shardable, local_only
+
+
 def run_pytest_sharded(targets: list[str]) -> tuple[int, str]:
     """Split test targets across machines, run each slice, merge into one verdict.
 
@@ -255,7 +311,14 @@ def run_pytest_sharded(targets: list[str]) -> tuple[int, str]:
         return 0, "[PYTEST SPLIT: no changed test targets]\n"
     routing = _load_machine_routing()
     machines = routing._select_machines(_load_pytest_routing_config())
-    plan = routing._partition_weighted(targets, machines)
+    shardable_targets, local_only_targets = _split_local_only_targets(targets)
+    plan = routing._partition_weighted(shardable_targets, machines)
+    if local_only_targets:
+        local_machine = next(
+            (machine for machine in machines if machine["transport"] != "docker_context"),
+            machines[0],
+        )
+        plan.setdefault(local_machine["name"], []).extend(local_only_targets)
 
     results: dict[str, tuple[int, str]] = {}
     lock = threading.Lock()
@@ -343,4 +406,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    _configure_stdout()
     raise SystemExit(main())

@@ -26,25 +26,33 @@ def test_planner_file_exists():
 
 def test_empty_scope_returns_empty_lists():
     mod = _load_planner()
-    result = mod.build_manifest(changed_files=[], windows_cpus=8, mint_cpus=4)
+    result = mod.build_manifest(changed_files=[], windows_cpus=8, mint_cpus=4, dell_cpus=6)
     assert result["windows_megalinter_paths"] == []
     assert result["mint_megalinter_paths"] == []
+    assert result["dell_megalinter_paths"] == []
     assert result["weight_proof"]["total_cost"] == 0
 
 
-def test_megalinter_runs_on_mint_for_python_files():
+def test_megalinter_never_runs_on_windows_for_python_files():
     mod = _load_planner()
-    result = mod.build_manifest(["backend/apps/audit/models.py"], 8, 4)
+    result = mod.build_manifest(["backend/apps/audit/models.py"], 8, 4, 6)
     assert result["windows_megalinter_paths"] == []
-    assert "backend/apps/audit/models.py" in result["mint_megalinter_paths"]
+    helper_paths = result["mint_megalinter_paths"] + result["dell_megalinter_paths"]
+    assert "backend/apps/audit/models.py" in helper_paths
 
 
-def test_cpp_file_goes_to_mint():
-    """C++ files run through Mint with the rest of MegaLinter."""
+def test_all_megalinter_files_go_to_dell_mint_removed():
+    """MegaLinter runs on Dell only now — Mint is removed from the compute path."""
     mod = _load_planner()
-    result = mod.build_manifest(["backend/extensions/papertrail_dedup.cpp"], 8, 4)
+    files = [f"backend/apps/audit/models_{index}.py" for index in range(20)]
+    result = mod.build_manifest(files, 8, 4, 6)
     assert result["windows_megalinter_paths"] == []
-    assert "backend/extensions/papertrail_dedup.cpp" in result["mint_megalinter_paths"]
+    assert result["mint_megalinter_paths"] == []
+    assert set(result["dell_megalinter_paths"]) == set(files)
+    assert result["weight_proof"]["dell_target_pct"] == 100.0
+    assert result["weight_proof"]["mint_target_pct"] == 0.0
+    assert result["weight_proof"]["dell_pct"] == 100.0
+    assert result["weight_proof"]["mint_pct"] == 0.0
 
 
 def test_weight_percentages_sum_to_100():
@@ -55,18 +63,19 @@ def test_weight_percentages_sum_to_100():
         "services/speccheck/src/lib.rs",
         "scripts/run-go-quality.sh",
     ]
-    result = mod.build_manifest(files, 8, 4)
+    result = mod.build_manifest(files, 8, 4, 6)
     proof = result["weight_proof"]
-    assert abs(proof["windows_pct"] + proof["mint_pct"] - 100.0) < 0.1
+    assert abs(proof["windows_pct"] + proof["mint_pct"] + proof["dell_pct"] - 100.0) < 0.1
 
 
 def test_deterministic_assignment():
     mod = _load_planner()
     files = ["a.py", "b.rs", "c.go", "d.cpp", "e.ts", "f.yml"]
-    r1 = mod.build_manifest(files, 8, 4)
-    r2 = mod.build_manifest(files, 8, 4)
+    r1 = mod.build_manifest(files, 8, 4, 6)
+    r2 = mod.build_manifest(files, 8, 4, 6)
     assert r1["windows_megalinter_paths"] == r2["windows_megalinter_paths"]
     assert r1["mint_megalinter_paths"] == r2["mint_megalinter_paths"]
+    assert r1["dell_megalinter_paths"] == r2["dell_megalinter_paths"]
 
 
 def test_disposable_artifacts_are_filtered_from_scope():
@@ -84,9 +93,10 @@ def test_disposable_artifacts_are_filtered_from_scope():
         "luacov.stats.out",
         "reports/megalinter/report.json",
     ]
-    result = mod.build_manifest(files, 8, 4)
+    result = mod.build_manifest(files, 8, 4, 6)
 
     assert result["changed_files"] == ["backend/apps/observability/services/stack_status.py"]
-    assert result["mint_megalinter_paths"] == [
+    assert result["windows_megalinter_paths"] == []
+    assert result["mint_megalinter_paths"] + result["dell_megalinter_paths"] == [
         "backend/apps/observability/services/stack_status.py"
     ]

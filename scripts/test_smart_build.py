@@ -53,17 +53,16 @@ def test_non_gpu_build_uses_weighted_builder_and_never_cloud():
     assert all("cloud" not in command for command in runner.commands)
 
 
-def test_target_from_weighted_split_can_use_windows_local():
-    """Given weighted Windows target, When helper runs, Then Windows builder is selected."""
-    from scripts.smart_build import run
+def test_windows_never_routed_as_build_target():
+    """Given the fail-closed build policy, When 1000 targets are routed, Then none land on Windows.
 
-    runner = FakeRunner()
-    target = _target_for_builder("desktop-linux")
+    MSI (desktop-linux) builds 0% — it never builds images for other machines.
+    """
+    from scripts.smart_build import _select_builder_for_target
 
-    exit_code = run(["--target", target], runner=runner)
-
-    assert exit_code == 0
-    assert ["docker", "--context", "desktop-linux", "compose", "build", target] in runner.commands
+    config = json.loads((ROOT / "config/docker-build-routing.json").read_text(encoding="utf-8"))
+    routed = [_select_builder_for_target(f"service-{index}", config) for index in range(1000)]
+    assert routed.count("desktop-linux") == 0
 
 
 def test_mint_unavailable_fails_closed_without_windows_or_cloud_fallback(capsys):
@@ -94,25 +93,26 @@ def test_select_only_switches_builder_without_running_build():
     assert not any("compose" in command and "build" in command for command in runner.commands)
 
 
-def test_routing_config_routes_88_percent_to_dell_and_disables_cloud():
-    """Given routing config, When read, Then Dell carries 88% and cloud stays off."""
+def test_routing_config_routes_92_percent_to_dell_zero_to_windows():
+    """Given routing config, When read, Then Dell carries 92%, Windows 0%, cloud off."""
     config = json.loads((ROOT / "config/docker-build-routing.json").read_text(encoding="utf-8"))
 
     assert config["builders"]["mint"] == "mint"
     assert config["builders"]["windows"] == "desktop-linux"
     assert config["builders"]["dell"] == "dell"
     machines = {entry["key"]: entry for entry in config["compilation_split"]["machines"]}
-    assert machines["dell"]["percent"] == 88
+    assert machines["dell"]["percent"] == 92
     assert machines["dell"]["builder"] == "dell"
     assert machines["mint"]["percent"] == 8
-    assert machines["windows"]["percent"] == 4
+    # MSI builds 0% — it never builds images for other machines.
+    assert machines["windows"]["percent"] == 0
     assert sum(entry["percent"] for entry in config["compilation_split"]["machines"]) == 100
     assert config["fallback_policy"] == "fail_closed"
     assert "cloud" in config["disabled_builders"]
 
 
-def test_weighted_split_is_stable_and_routes_about_88_percent_to_dell():
-    """Given many targets, When routed, Then about 88 percent go to Dell."""
+def test_weighted_split_is_stable_and_routes_about_92_percent_to_dell():
+    """Given many targets, When routed, Then about 92 percent go to Dell and 0 to Windows."""
     from scripts.smart_build import _select_builder_for_target
 
     config = json.loads((ROOT / "config/docker-build-routing.json").read_text(encoding="utf-8"))
@@ -122,10 +122,10 @@ def test_weighted_split_is_stable_and_routes_about_88_percent_to_dell():
         for index in range(1000)
     ]
 
-    # Dell carries ~88% (allow stable-hash drift); Mint and Windows still get work.
-    assert 840 <= routed.count("dell") <= 915
+    # Dell carries ~92% (allow stable-hash drift); Mint still gets work; Windows gets none.
+    assert 885 <= routed.count("dell") <= 950
     assert routed.count("mint") > 0
-    assert routed.count("desktop-linux") > 0
+    assert routed.count("desktop-linux") == 0
     assert routed == [
         _select_builder_for_target(f"service-{index}", config)
         for index in range(1000)
@@ -257,20 +257,26 @@ def test_mint_build_loads_image_into_local_docker():
     assert transfers == [("xf-img:latest", "mint", "desktop-linux")]
 
 
-def test_windows_build_skips_local_load():
-    """Given a Windows-built target, When it builds locally, Then no transfer happens."""
-    from scripts.smart_build import run
+def test_local_builder_skips_image_load():
+    """Given a build that ran on the local (Windows) builder, Then no transfer happens.
 
-    target = _target_for_builder("desktop-linux")
-    runner = _ImageMapRunner({target: "xf-img:latest"})
+    Windows no longer routes any build, but the local-load skip path still guards
+    a local build: when builder == the local builder the image is already present
+    locally, so nothing is pulled.
+    """
+    from scripts.smart_build import _builder_name, _load_images_locally
+
+    config = json.loads((ROOT / "config/docker-build-routing.json").read_text(encoding="utf-8"))
+    local = _builder_name(config, "windows")
     transfers = []
 
-    exit_code = run(
-        ["--target", target], runner=runner,
+    rc = _load_images_locally(
+        builder=local, targets=["backend"], config=config,
+        runner=_ImageMapRunner({"backend": "xf-img:latest"}),
         transfer=lambda image, src, dst: (transfers.append((image, src, dst)), (0, ""))[1],
     )
 
-    assert exit_code == 0
+    assert rc == 0
     assert transfers == []
 
 

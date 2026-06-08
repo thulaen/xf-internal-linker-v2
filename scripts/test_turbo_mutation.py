@@ -35,6 +35,17 @@ def _load_turbo_module():
     return module
 
 
+def _load_routing_module():
+    spec = importlib.util.spec_from_file_location(
+        "machine_routing_for_tests",
+        ROOT / "scripts" / "machine_routing.py",
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def _machine(name, transport, weight, max_weight=1.0, context=None, ssh_host=None):
     """Build a raw machine dict in the config shape (pre-selection)."""
     m = {"name": name, "transport": transport, "weight": weight, "max_weight": max_weight}
@@ -117,40 +128,34 @@ def test_select_machines_all_up_keeps_target_weights() -> None:
     assert _shares(machines) == {"dell": 0.60, "windows": 0.30, "mint": 0.10}
 
 
-def test_select_machines_dell_off_redistributes() -> None:
+def test_select_machines_dell_off_raises_error() -> None:
     turbo = _load_turbo_module()
-    machines = _shared(turbo, _three_raw(), {"windows", "mint"})
-    names = {m["name"] for m in machines}
-    assert "dell" not in names
-    assert _shares(machines) == {"windows": 0.75, "mint": 0.25}
-    assert abs(sum(m["share"] for m in machines) - 1.0) < 1e-9
+    import pytest
+    with pytest.raises(turbo._routing.RemoteUnavailableError):
+        _shared(turbo, _three_raw(), {"windows", "mint"})
 
 
-def test_select_machines_mint_off_applies_dell_ceiling() -> None:
+def test_select_machines_mint_off_raises_error() -> None:
     turbo = _load_turbo_module()
-    machines = _shared(turbo, _three_raw(), {"dell", "windows"})
-    shares = _shares(machines)
-    assert shares["dell"] == 0.60, shares
-    assert shares["windows"] == 0.40, shares
+    import pytest
+    with pytest.raises(turbo._routing.RemoteUnavailableError):
+        _shared(turbo, _three_raw(), {"dell", "windows"})
 
 
 def test_select_machines_never_exceeds_max_weight() -> None:
     turbo = _load_turbo_module()
-    for reachable in ({"dell", "windows", "mint"}, {"dell", "windows"},
-                      {"dell", "mint"}, {"dell"}):
-        machines = _shared(turbo, _three_raw(), reachable)
-        for m in machines:
-            if m["name"] == "dell":
-                assert m["share"] <= 0.60 + 1e-9, (reachable, m["share"])
+    # When all configured machines are reachable, the shares are calculated and the ceiling is respected.
+    machines = _shared(turbo, _three_raw(), {"dell", "windows", "mint"})
+    for m in machines:
+        if m["name"] == "dell":
+            assert m["share"] <= 0.60 + 1e-9, m["share"]
 
 
-def test_select_machines_all_off_falls_back_to_local() -> None:
+def test_select_machines_all_off_raises_error() -> None:
     turbo = _load_turbo_module()
-    machines = _shared(turbo, _three_raw(), set())
-    assert len(machines) == 1
-    only = machines[0]
-    assert only["transport"] == "docker_local"
-    assert abs(only["share"] - 1.0) < 1e-9
+    import pytest
+    with pytest.raises(turbo._routing.RemoteUnavailableError):
+        _shared(turbo, _three_raw(), set())
 
 
 def test_select_machines_probe_is_injected_no_live_io(monkeypatch) -> None:
@@ -239,7 +244,11 @@ def test_ssh_transport_syncs_source_then_builds_compose_run_no_deps(monkeypatch)
 
 def test_unreachable_machine_spawns_no_thread() -> None:
     turbo = _load_turbo_module()
-    machines = _shared(turbo, _three_raw(), {"windows", "mint"})  # dell off
+    # Define machines manually to bypass selection logic and test dispatching logic directly.
+    machines = [
+        {"name": "windows", "transport": "docker_local", "share": 0.75},
+        {"name": "mint", "transport": "docker_context", "share": 0.25},
+    ]
     items = [f"x{i}" for i in range(6)]
     plan = turbo._partition_weighted(items, machines)
     seen: list = []
