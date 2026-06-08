@@ -1,10 +1,12 @@
-"""Convention tests for the lesson_index / papertrail_dedup fuzz harnesses.
+"""Convention tests for the C++ libFuzzer harnesses under ``backend/extensions/fuzz/``.
 
-Two new libFuzzer harnesses were added under ``backend/extensions/fuzz/``:
-
-* ``fuzz_lesson_index.cpp`` exercises the ``lesson_index`` runtime kernel.
-* ``fuzz_papertrail_dedup.cpp`` exercises the ``papertrail_dedup`` runtime
-  kernel.
+No C++ fuzz harnesses remain: ``fuzz_papertrail_dedup.cpp`` was removed when the
+``papertrail_dedup`` kernel was ported from C++ to Rust at
+``rust/extensions/papertrail_dedup`` per RUST-FIRST.md dead-code-on-replace, and
+``fuzz_lesson_index.cpp`` was removed earlier for the ``lesson_index`` port. Each
+Rust crate carries its own ``#[cfg(test)]`` coverage. ``_HARNESSES`` is therefore
+empty and both convention tests pass trivially; they re-arm automatically if a
+future C++ harness entry is added.
 
 A libFuzzer harness only runs if it is BOTH (a) present on disk with an
 ``LLVMFuzzerTestOneInput`` entry point that includes the kernel header it
@@ -29,10 +31,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 _FUZZ_DIR = _REPO_ROOT / "backend" / "extensions" / "fuzz"
 _CMAKE = _FUZZ_DIR / "CMakeLists.txt"
 
-_HARNESSES = {
-    "lesson_index": "../include/lesson_index.h",
-    "papertrail_dedup": "../include/papertrail_dedup.h",
-}
+_HARNESSES: dict[str, str] = {}
 
 
 class FuzzHarnessRegistrationConventionTests(SimpleTestCase):

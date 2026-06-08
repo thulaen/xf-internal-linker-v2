@@ -2,112 +2,78 @@ from setuptools import setup
 from pybind11.setup_helpers import Pybind11Extension, build_ext
 import sys
 
+# NOTE: the `l2norm` kernel was ported to Rust (rust/extensions/l2norm,
+# built via PyO3 + maturin) and is no longer built here. Per RUST-FIRST.md
+# the C++ source, header, bench, and fuzz harness were deleted in the same
+# change that proved the Rust kernel, so there is exactly one implementation.
 ext_modules = [
-    Pybind11Extension(
-        "l2norm",
-        ["l2norm.cpp"],
-        extra_compile_args=["-O3", "-march=native"]
-        if sys.platform != "win32"
-        else ["/O2", "/arch:AVX2"],
-    ),
-    Pybind11Extension(
-        "scoring",
-        ["scoring.cpp"],
-        extra_compile_args=["-O3", "-std=c++17", "-march=native"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17", "/arch:AVX2"],
-        libraries=["tbb"] if sys.platform != "win32" else [],
-    ),
-    Pybind11Extension(
-        "texttok",
-        ["texttok.cpp"],
-        extra_compile_args=["-O3", "-std=c++17"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17"],
-    ),
-    Pybind11Extension(
-        "simsearch",
-        ["simsearch.cpp"],
-        extra_compile_args=["-O3", "-std=c++17", "-march=native"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17", "/arch:AVX2"],
-        libraries=["tbb"] if sys.platform != "win32" else [],
-    ),
-    Pybind11Extension(
-        "pagerank",
-        ["pagerank.cpp"],
-        extra_compile_args=["-O3", "-std=c++17", "-march=native"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17", "/arch:AVX2"],
-    ),
-    Pybind11Extension(
-        "phrasematch",
-        ["phrasematch.cpp"],
-        extra_compile_args=["-O3", "-std=c++17", "-march=native"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17", "/arch:AVX2"],
-    ),
-    Pybind11Extension(
-        "fieldrel",
-        ["fieldrel.cpp"],
-        extra_compile_args=["-O3", "-std=c++17", "-march=native"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17", "/arch:AVX2"],
-    ),
-    Pybind11Extension(
-        "rareterm",
-        ["rareterm.cpp"],
-        extra_compile_args=["-O3", "-std=c++17"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17"],
-    ),
-    Pybind11Extension(
-        "linkparse",
-        ["linkparse.cpp"],
-        extra_compile_args=["-O3", "-std=c++17"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17"],
-    ),
-    Pybind11Extension(
-        "feedrerank",
-        ["feedrerank.cpp"],
-        extra_compile_args=["-O3", "-std=c++17", "-march=native"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17", "/arch:AVX2"],
-        libraries=["tbb"] if sys.platform != "win32" else [],
-    ),
-    Pybind11Extension(
-        "anchor_diversity",
-        ["anchor_diversity.cpp"],
-        extra_compile_args=["-O3", "-std=c++17"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17"],
-    ),
+    # NOTE: `scoring` was ported from C++ to Rust (rust/extensions/scoring,
+    # built via PyO3 + maturin) and is no longer built here. Per RUST-FIRST.md
+    # the C++ source, dedicated header, bench, edge test, and fuzz harness were
+    # deleted in the same change that proved the Rust kernel, so there is
+    # exactly one implementation.
+    # NOTE: `texttok` was ported from C++ to Rust (rust/extensions/texttok,
+    # built via PyO3 + maturin) and is no longer built here. Per RUST-FIRST.md
+    # the C++ source, header, bench, and fuzz harness were deleted in the same
+    # change that proved the Rust kernel, so there is exactly one
+    # implementation.
+    # NOTE: `simsearch` was ported from C++ to Rust (rust/extensions/simsearch,
+    # built via PyO3 + maturin) and is no longer built here. Per RUST-FIRST.md
+    # the C++ source, dedicated header, fuzz harness, GoogleTest unit test,
+    # dedicated benchmark, and edge-test were deleted in the same change that
+    # proved the Rust kernel, so there is exactly one implementation.
+    # NOTE: `pagerank` was ported from C++ to Rust (rust/extensions/pagerank,
+    # built via PyO3 + maturin) and is no longer built here. Per RUST-FIRST.md
+    # the C++ source, dedicated header, and fuzz harness were deleted in the same
+    # change that proved the Rust kernel, so there is exactly one implementation.
+    # NOTE: `phrasematch` was ported from C++ to Rust (rust/extensions/phrasematch,
+    # built via PyO3 + maturin) and is no longer built here. Per RUST-FIRST.md
+    # the C++ source, header, and fuzz harness were deleted in the same change
+    # that proved the Rust kernel, so there is exactly one implementation.
+    # NOTE: `fieldrel` was ported from C++ to Rust (rust/extensions/fieldrel,
+    # built via PyO3 + maturin) and is no longer built here. Per RUST-FIRST.md
+    # the C++ source, dedicated header, fuzz harness, and dedicated benchmark
+    # were deleted in the same change that proved the Rust kernel, so there is
+    # exactly one implementation.
+    # NOTE: `rareterm` was ported from C++ to Rust (rust/extensions/rareterm,
+    # built via PyO3 + maturin) and is no longer built here. Per RUST-FIRST.md
+    # the C++ source, header, bench, and fuzz harness were deleted in the same
+    # change that proved the Rust kernel, so there is exactly one
+    # implementation.
+    # NOTE: `linkparse` was ported from C++ to Rust (rust/extensions/linkparse,
+    # built via PyO3 + maturin) and is no longer built here. Per RUST-FIRST.md
+    # the C++ source, header, fuzz harness, and orphan benchmark were deleted in
+    # the same change that proved the Rust kernel, so there is exactly one
+    # implementation.
+    # NOTE: `feedrerank` was ported from C++ to Rust (rust/extensions/feedrerank,
+    # built via PyO3 + maturin) and is no longer built here. Per RUST-FIRST.md
+    # the C++ source, dedicated header, fuzz harness, and orphan benchmark were
+    # deleted in the same change that proved the Rust kernel, so there is exactly
+    # one implementation.
+    # NOTE: `anchor_diversity` was ported from C++ to Rust
+    # (rust/extensions/anchor_diversity, built via PyO3 + maturin) and is no
+    # longer built here. Per RUST-FIRST.md the C++ source, header, fuzz harness,
+    # and dedicated benchmark were deleted in the same change that proved the
+    # Rust kernel, so there is exactly one implementation.
     # ── Anti-garbage anchor signals (3 algos, plan PR-Anchor) ─────
     # Each sits in its own extension per the one-kernel-per-.cpp
     # pattern. All three are tiny — well under the 64 MB RAM /
     # 64 MB disk caps the plan called for.
-    Pybind11Extension(
-        "generic_anchor_matcher",
-        ["generic_anchor_matcher.cpp"],
-        extra_compile_args=["-O3", "-std=c++17"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17"],
-    ),
-    Pybind11Extension(
-        "anchor_descriptiveness",
-        ["anchor_descriptiveness.cpp"],
-        extra_compile_args=["-O3", "-std=c++17"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17"],
-    ),
-    Pybind11Extension(
-        "anchor_self_information",
-        ["anchor_self_information.cpp"],
-        extra_compile_args=["-O3", "-std=c++17", "-march=native"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17", "/arch:AVX2"],
-    ),
+    # NOTE: `generic_anchor_matcher` was ported from C++ to Rust
+    # (rust/extensions/generic_anchor_matcher). It is built by the Rust path, so
+    # its Pybind11Extension build entry was removed here per RUST-FIRST.md
+    # dead-code-on-replace. The C++ source and fuzz harness were deleted in the
+    # same slice.
+    # NOTE: `anchor_descriptiveness` was ported from C++ to Rust
+    # (rust/extensions/anchor_descriptiveness). It is built by the Rust path, so
+    # its Pybind11Extension build entry was removed here per RUST-FIRST.md
+    # dead-code-on-replace. The C++ source and fuzz harness were deleted and the
+    # shared bench_anchor_garbage.cpp had its pieces removed in the same slice.
+    # NOTE: `anchor_self_information` was ported from C++ to Rust
+    # (rust/extensions/anchor_self_information). It is built by the Rust path,
+    # so its Pybind11Extension build entry was removed here per RUST-FIRST.md
+    # dead-code-on-replace. The C++ source, fuzz harness, and shared benchmark
+    # translation unit were deleted in the same slice.
     # NOTE: pixie_walk.cpp is an empty 0-byte stub left from phase-0
     # scaffolding (FR-021). The C++ Pixie-style random walk over the
     # Article-Entity bipartite graph was never written. Its caller in
@@ -124,78 +90,47 @@ ext_modules = [
     #     if sys.platform != "win32"
     #     else ["/O2", "/std:c++17", "/arch:AVX2"],
     # ),
-    Pybind11Extension(
-        "quantemb",
-        ["quantemb.cpp"],
-        extra_compile_args=["-O3", "-std=c++17", "-march=native"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17", "/arch:AVX2"],
-    ),
-    Pybind11Extension(
-        "passagesim",
-        ["passagesim.cpp"],
-        extra_compile_args=["-O3", "-std=c++17", "-march=native"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17", "/arch:AVX2"],
-    ),
-    Pybind11Extension(
-        "ivf_index",
-        ["ivf_index.cpp"],
-        extra_compile_args=["-O3", "-std=c++17", "-march=native"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17", "/arch:AVX2"],
-    ),
-    Pybind11Extension(
-        "counting_bloom",
-        ["counting_bloom.cpp"],
-        extra_compile_args=["-O3", "-std=c++17"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17"],
-    ),
-    Pybind11Extension(
-        "compressed_bloom",
-        ["compressed_bloom.cpp"],
-        extra_compile_args=["-O3", "-std=c++17"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17"],
-    ),
-    Pybind11Extension(
-        "count_min_sketch",
-        ["count_min_sketch.cpp"],
-        extra_compile_args=["-O3", "-std=c++17"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17"],
-    ),
-    # FR-250: outbound rate limiter for GSC, GA4, Matomo, XenForo, WordPress.
-    # Spec: docs/specs/fr250-api-rate-limiter.md
-    Pybind11Extension(
-        "api_rate_limiter",
-        ["api_rate_limiter.cpp"],
-        extra_compile_args=["-O3", "-std=c++17"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17"],
-    ),
-    # Paper-trail dedup — MinHash + LSH near-duplicate detection. Spec
-    # in plan you-will-finish-every-cryptic-sphinx.md + sources of truth
-    # Broder 1997, Indyk-Motwani 1998, MMDS Ch.3.
-    Pybind11Extension(
-        "papertrail_dedup",
-        ["papertrail_dedup.cpp"],
-        extra_compile_args=["-O3", "-std=c++17"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17"],
-    ),
-    # lesson_index — three-sub-index in-process cache (ScopedLessonIndex,
-    # PerfBaselineCache, CitationCache). Sources of truth: Leis 2013 (ART),
-    # Pagh-Rodler 2001 (Cuckoo), Celis-Larson-Munro 1985 (Robin Hood),
-    # RFC 3309 (CRC-32C). Spec in docs/specs/lesson-index.md.
-    Pybind11Extension(
-        "lesson_index",
-        ["lesson_index.cpp"],
-        extra_compile_args=["-O3", "-std=c++17"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17"],
-    ),
+    # NOTE: `quantemb` was ported from C++ to Rust (rust/extensions/quantemb —
+    # OPQ encoder + trainer). It is built by the Rust path, so its
+    # Pybind11Extension build entry and C++ source/header/fuzz/test/bench were
+    # deleted here per RUST-FIRST.md dead-code-on-replace.
+    # NOTE: `passagesim` was ported from C++ to Rust (rust/extensions/passagesim
+    # — FR-053 passage-level MaxSim kernel). It is built by the Rust path, so its
+    # Pybind11Extension build entry and C++ source/header/fuzz/test/bench were
+    # deleted here per RUST-FIRST.md dead-code-on-replace.
+    # NOTE: `ivf_index` was ported from C++ to Rust
+    # (rust/extensions/ivf_index). It is built by the Rust path, so its
+    # Pybind11Extension build entry and C++ source/header/fuzz/test/bench were
+    # deleted here per RUST-FIRST.md dead-code-on-replace.
+    # NOTE: `counting_bloom` was ported from C++ to Rust
+    # (rust/extensions/counting_bloom). It is built by the Rust path, so its
+    # Pybind11Extension build entry and C++ source were deleted here per
+    # RUST-FIRST.md dead-code-on-replace.
+    # NOTE: `compressed_bloom` was ported from C++ to Rust
+    # (rust/extensions/compressed_bloom). It is built by the Rust path, so its
+    # Pybind11Extension build entry and C++ source were deleted here per
+    # RUST-FIRST.md dead-code-on-replace.
+    # NOTE: `count_min_sketch` was ported from C++ to Rust
+    # (rust/extensions/count_min_sketch). It is built by the Rust path, so its
+    # Pybind11Extension build entry and C++ source were deleted here per
+    # RUST-FIRST.md dead-code-on-replace.
+    # NOTE: `api_rate_limiter` was ported from C++ to Rust
+    # (rust/extensions/api_rate_limiter — FR-250 outbound rate limiter for GSC,
+    # GA4, Matomo, XenForo, WordPress). It is built by the Rust path, so its
+    # Pybind11Extension build entry and C++ source were deleted here per
+    # RUST-FIRST.md dead-code-on-replace.
+    # NOTE: `papertrail_dedup` was ported from C++ to Rust
+    # (rust/extensions/papertrail_dedup — MinHash + LSH near-duplicate index;
+    # sources of truth Broder 1997, Indyk-Motwani 1998, MMDS Ch.3). It is built
+    # by the Rust path, so its Pybind11Extension build entry, C++ source, header,
+    # fuzz harness, benchmark, and unit-test translation unit were deleted here
+    # per RUST-FIRST.md dead-code-on-replace.
+    # NOTE: `lesson_index` was ported from C++ to Rust
+    # (rust/extensions/lesson_index — three-sub-index in-process cache:
+    # ScopedLessonIndex, PerfBaselineCache, CitationCache; CRC-32C snapshots per
+    # RFC 3309). It is built by the Rust path, so its Pybind11Extension build
+    # entry, C++ source, header, fuzz harness, benchmark, and unit-test
+    # translation unit were deleted here per RUST-FIRST.md dead-code-on-replace.
 ]
 
 

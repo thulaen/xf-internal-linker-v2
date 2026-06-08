@@ -49,24 +49,49 @@ function(add_single_file_fuzz NAME)
     target_include_directories(fuzz_${NAME} PRIVATE ${EXT_INC} ${EXT_ROOT})
 endfunction()
 
-add_fuzz(simsearch   "${EXT_ROOT}/simsearch.cpp")
-add_fuzz(scoring     "${EXT_ROOT}/scoring.cpp")
-add_fuzz(passagesim  "${EXT_ROOT}/passagesim.cpp")
-add_fuzz(quantemb    "${EXT_ROOT}/quantemb.cpp")
-add_fuzz(rareterm    "${EXT_ROOT}/rareterm.cpp")
-add_fuzz(texttok     "${EXT_ROOT}/texttok.cpp")
-add_single_file_fuzz(anchor_descriptiveness)
-add_single_file_fuzz(anchor_diversity)
-add_single_file_fuzz(anchor_self_information)
-add_single_file_fuzz(api_rate_limiter)
-add_single_file_fuzz(compressed_bloom)
-add_single_file_fuzz(count_min_sketch)
-add_single_file_fuzz(counting_bloom)
-add_single_file_fuzz(feedrerank)
-add_single_file_fuzz(fieldrel)
-add_single_file_fuzz(generic_anchor_matcher)
-add_single_file_fuzz(ivf_index)
-add_single_file_fuzz(l2norm)
-add_single_file_fuzz(linkparse)
-add_single_file_fuzz(pagerank)
-add_single_file_fuzz(phrasematch)
+# simsearch ported to Rust (rust/extensions/simsearch); its C++ source, header,
+# fuzz harness, benchmark, and edge test were removed per RUST-FIRST.md
+# dead-code-on-replace. Fuzzing is now the cargo-test/criterion suite in
+# rust/extensions/simsearch.
+# scoring ported to Rust (rust/extensions/scoring) per RUST-FIRST.md
+# dead-code-on-replace; its C++ source, header, fuzz harness, benchmark, and
+# edge test were removed.
+# passagesim ported to Rust (rust/extensions/passagesim) per RUST-FIRST.md
+# dead-code-on-replace; its C++ source, header, fuzz harness, GoogleTest unit
+# test, and benchmark were removed.
+# quantemb ported to Rust (rust/extensions/quantemb) per RUST-FIRST.md
+# dead-code-on-replace; its C++ source, header, fuzz harness, GoogleTest unit
+# test, and benchmark were removed.
+# rareterm ported to Rust (rust/extensions/rareterm); its C++ source, header,
+# fuzz harness, and benchmark were removed per RUST-FIRST.md dead-code-on-replace.
+# texttok ported to Rust (rust/extensions/texttok); its C++ source, header, and
+# fuzz harness were removed per RUST-FIRST.md dead-code-on-replace.
+# anchor_descriptiveness ported to Rust (rust/extensions/anchor_descriptiveness);
+# its C++ source and fuzz harness were removed per RUST-FIRST.md dead-code-on-replace.
+# anchor_diversity ported to Rust (rust/extensions/anchor_diversity); its C++
+# source, header, fuzz harness, and benchmark were removed per RUST-FIRST.md dead-code-on-replace.
+# api_rate_limiter ported to Rust (rust/extensions/api_rate_limiter); its C++
+# single-file fuzz harness was removed per RUST-FIRST.md dead-code-on-replace.
+# anchor_self_information ported to Rust (rust/extensions/anchor_self_information);
+# its C++ fuzz harness was removed per RUST-FIRST.md dead-code-on-replace.
+# compressed_bloom ported to Rust (rust/extensions/compressed_bloom); its C++
+# fuzz harness was removed per RUST-FIRST.md dead-code-on-replace.
+# count_min_sketch ported to Rust (rust/extensions/count_min_sketch); its C++
+# fuzz harness was removed per RUST-FIRST.md dead-code-on-replace.
+# counting_bloom ported to Rust (rust/extensions/counting_bloom); its C++
+# fuzz harness was removed per RUST-FIRST.md dead-code-on-replace.
+# feedrerank ported to Rust (rust/extensions/feedrerank); its C++ single-file
+# fuzz harness was removed per RUST-FIRST.md dead-code-on-replace.
+# fieldrel ported to Rust (rust/extensions/fieldrel); its C++ single-file fuzz
+# harness was removed per RUST-FIRST.md dead-code-on-replace.
+# generic_anchor_matcher ported to Rust (rust/extensions/generic_anchor_matcher);
+# its C++ fuzz harness was removed per RUST-FIRST.md dead-code-on-replace.
+# ivf_index ported to Rust (rust/extensions/ivf_index); its C++ source, header,
+# single-file fuzz harness, GoogleTest unit test, and benchmark were removed per
+# RUST-FIRST.md dead-code-on-replace.
+# linkparse ported to Rust (rust/extensions/linkparse); its C++ source, header,
+# fuzz harness, and orphan benchmark were removed per RUST-FIRST.md dead-code-on-replace.
+# pagerank ported to Rust (rust/extensions/pagerank); its C++ single-file fuzz
+# harness was removed per RUST-FIRST.md dead-code-on-replace.
+# phrasematch ported to Rust (rust/extensions/phrasematch); its C++ source,
+# header, and fuzz harness were removed per RUST-FIRST.md dead-code-on-replace.

@@ -2,7 +2,6 @@ import time
 import numpy as np
 import scoring
 import simsearch
-import l2norm
 
 
 def bench_scoring():
@@ -53,25 +52,6 @@ def bench_simsearch():
     print(f"SimSearch (50k total, 5k candidates, dim 384) avg time: {avg_ms:.4f} ms")
 
 
-def bench_l2norm():
-    print("\n--- Benchmarking L2Norm ---")
-    rows = 10000
-    cols = 384
-    data = np.random.rand(rows, cols).astype(np.float32)
-
-    # Warmup
-    l2norm.normalize_l2_batch(data.copy())
-
-    start = time.perf_counter()
-    for _ in range(100):
-        l2norm.normalize_l2_batch(data.copy())
-    end = time.perf_counter()
-
-    avg_ms = (end - start) * 1000 / 100
-    print(f"L2Norm (10k x 384) avg time: {avg_ms:.4f} ms")
-
-
 if __name__ == "__main__":
     bench_scoring()
     bench_simsearch()
-    bench_l2norm()

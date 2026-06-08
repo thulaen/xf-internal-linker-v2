@@ -75,16 +75,45 @@ function(add_bench NAME)
     endif()
 endfunction()
 
-add_bench(simsearch       "${EXT_ROOT}/simsearch.cpp")
-add_bench(scoring         "${EXT_ROOT}/scoring.cpp")
-add_bench(passagesim      "${EXT_ROOT}/passagesim.cpp")
-add_bench(quantemb        "${EXT_ROOT}/quantemb.cpp")
-add_bench(ivf_index       "${EXT_ROOT}/ivf_index.cpp")
-add_bench(anchor_garbage)
-add_bench(streaming_sketches)
-add_bench(api_rate_limiter)
-add_bench(papertrail_dedup ${EXT_ROOT}/papertrail_dedup.cpp)
-add_bench(lesson_index ${EXT_ROOT}/lesson_index.cpp)
+# NOTE: `simsearch` was ported from C++ to Rust (rust/extensions/simsearch) per
+# RUST-FIRST.md dead-code-on-replace. Its benchmark now lives at
+# rust/extensions/simsearch/benches/bench_simsearch.rs (criterion), so the C++
+# add_bench entry and bench_simsearch.cpp were removed.
+# NOTE: `scoring` was ported from C++ to Rust (rust/extensions/scoring) per
+# RUST-FIRST.md dead-code-on-replace. Its benchmark now lives at
+# rust/extensions/scoring/benches/bench_scoring.rs (criterion), so the C++
+# add_bench entry and bench_scoring.cpp were removed.
+# NOTE: `passagesim` was ported from C++ to Rust (rust/extensions/passagesim)
+# per RUST-FIRST.md dead-code-on-replace. Its benchmark now lives at
+# rust/extensions/passagesim/benches/bench_passagesim.rs (criterion), so the C++
+# add_bench entry and bench_passagesim.cpp were removed.
+# NOTE: `quantemb` was ported from C++ to Rust (rust/extensions/quantemb) per
+# RUST-FIRST.md dead-code-on-replace. Its benchmark now lives at
+# rust/extensions/quantemb/benches/bench_quantemb.rs (criterion), so the C++
+# add_bench entry and bench_quantemb.cpp were removed.
+# NOTE: `ivf_index` was ported from C++ to Rust (rust/extensions/ivf_index) per
+# RUST-FIRST.md dead-code-on-replace. Its benchmark now lives at
+# rust/extensions/ivf_index/benches/bench_ivf_index.rs (criterion), so the C++
+# add_bench entry and bench_ivf_index.cpp were removed.
+# NOTE: bench_anchor_garbage was deleted per RUST-FIRST.md
+# dead-code-on-replace. Its anchor_self_information section was ported to Rust,
+# and modifying the shared C++ benchmark would violate the removed-language
+# guard. Keep the remaining anchor C++ kernels covered by their existing tests
+# until their Rust ports land.
+# NOTE: bench_streaming_sketches was deleted per RUST-FIRST.md
+# dead-code-on-replace. Its three kernels (count_min_sketch, counting_bloom,
+# compressed_bloom) were ported from C++ to Rust; the benchmarks now live in the
+# Rust Criterion benches under rust/extensions/<kernel>/benches/, so the C++
+# bench translation unit no longer benchmarks any kernel and was removed.
+# api_rate_limiter ported to Rust (rust/extensions/api_rate_limiter); its C++
+# single-file benchmark was removed per RUST-FIRST.md dead-code-on-replace. The
+# benchmark now lives in rust/extensions/api_rate_limiter/benches/.
+# papertrail_dedup ported to Rust (rust/extensions/papertrail_dedup); its C++
+# single-file benchmark was removed per RUST-FIRST.md dead-code-on-replace. The
+# benchmark now lives in rust/extensions/papertrail_dedup/benches/.
+# lesson_index ported to Rust (rust/extensions/lesson_index); its C++ benchmark
+# was removed per RUST-FIRST.md dead-code-on-replace. The benchmark now lives in
+# rust/extensions/lesson_index/benches/.
 
 function(add_edge_test NAME)
     set(SOURCES ${ARGN})
@@ -107,5 +136,9 @@ endfunction()
 
 enable_testing()
 
-add_edge_test(simsearch "${EXT_ROOT}/simsearch.cpp")
-add_edge_test(scoring   "${EXT_ROOT}/scoring.cpp")
+# NOTE: `simsearch` edge tests were ported to Rust cargo tests
+# (rust/extensions/simsearch/src/lib.rs) per RUST-FIRST.md dead-code-on-replace;
+# the C++ add_edge_test entry and test_edges_simsearch.cpp were removed.
+# NOTE: `scoring` edge tests were ported to Rust cargo tests
+# (rust/extensions/scoring/src/lib.rs) per RUST-FIRST.md dead-code-on-replace;
+# the C++ add_edge_test entry and test_edges_scoring.cpp were removed.

@@ -1,3 +1,0 @@
-# libFuzzer seed corpus for fuzz_simsearch.
-# Place small representative byte files here. libFuzzer mutates them and
-# saves crashes as `crash-<sha1>` files alongside.

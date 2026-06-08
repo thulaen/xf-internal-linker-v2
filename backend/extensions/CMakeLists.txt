@@ -65,55 +65,56 @@ if (MULL_BUILD)
         -g
     )
 endif()
-add_executable(test_simsearch tests/test_simsearch.cpp simsearch.cpp)
-target_include_directories(test_simsearch PRIVATE include)
-if (TBB_FOUND)
-    target_link_libraries(test_simsearch GTest::gtest_main TBB::tbb)
-else()
-    target_link_libraries(test_simsearch GTest::gtest_main)
-endif()
-add_executable(test_scoring tests/test_scoring.cpp scoring.cpp)
-target_include_directories(test_scoring PRIVATE include)
-if (TBB_FOUND)
-    target_link_libraries(test_scoring GTest::gtest_main TBB::tbb)
-else()
-    target_link_libraries(test_scoring GTest::gtest_main)
-endif()
-add_executable(test_passagesim tests/test_passagesim.cpp passagesim.cpp)
-target_include_directories(test_passagesim PRIVATE include)
-target_link_libraries(test_passagesim GTest::gtest_main)
+# NOTE: `simsearch` was ported from C++ to Rust (rust/extensions/simsearch) per
+# RUST-FIRST.md dead-code-on-replace. Its GoogleTest cases now live in the Rust
+# cargo-test suite (rust/extensions/simsearch/src/lib.rs), so the C++ test
+# executable and its translation unit were removed.
+# NOTE: `scoring` was ported from C++ to Rust (rust/extensions/scoring) per
+# RUST-FIRST.md dead-code-on-replace. Its GoogleTest cases now live in the Rust
+# cargo-test suite (rust/extensions/scoring/src/lib.rs), so the C++ test
+# executable and its translation unit were removed.
+# NOTE: `passagesim` was ported from C++ to Rust (rust/extensions/passagesim)
+# per RUST-FIRST.md dead-code-on-replace. Its GoogleTest cases now live in the
+# Rust cargo-test suite (rust/extensions/passagesim/src/lib.rs), so the C++ test
+# executable and its translation unit were removed.
 add_executable(test_fieldrel tests/test_fieldrel.cpp fieldrel.cpp)
 target_include_directories(test_fieldrel PRIVATE include)
 target_link_libraries(test_fieldrel GTest::gtest_main)
-add_executable(test_quantemb tests/test_quantemb.cpp quantemb.cpp)
-target_include_directories(test_quantemb PRIVATE include)
-target_link_libraries(test_quantemb GTest::gtest_main)
-add_executable(test_ivf_index tests/test_ivf_index.cpp ivf_index.cpp)
-target_include_directories(test_ivf_index PRIVATE include)
-target_link_libraries(test_ivf_index GTest::gtest_main)
-add_executable(test_streaming_sketches tests/test_streaming_sketches.cpp)
-target_include_directories(test_streaming_sketches PRIVATE include)
-target_link_libraries(test_streaming_sketches GTest::gtest_main)
+# NOTE: `quantemb` was ported from C++ to Rust (rust/extensions/quantemb) per
+# RUST-FIRST.md dead-code-on-replace. Its GoogleTest cases now live in the Rust
+# cargo-test suite (rust/extensions/quantemb/src/lib.rs), so the C++ test
+# executable and its translation unit were removed.
+# NOTE: `ivf_index` was ported from C++ to Rust (rust/extensions/ivf_index) per
+# RUST-FIRST.md dead-code-on-replace. Its GoogleTest unit test, C++ source,
+# header, fuzz harness, and benchmark were removed; the equivalent coverage now
+# lives in the rust/extensions/ivf_index cargo-test suite.
+# NOTE: test_streaming_sketches was deleted per RUST-FIRST.md
+# dead-code-on-replace. Its three kernels (count_min_sketch, counting_bloom,
+# compressed_bloom) were ported from C++ to Rust; the GoogleTest cases now live
+# in the Rust cargo-test suites under rust/extensions/<kernel>/src/lib.rs plus
+# backend/apps/pipeline/tests_<kernel>_rust_parity.py, so the C++ test
+# translation unit no longer exercises any kernel and was removed.
 
-add_executable(test_papertrail_dedup tests/test_papertrail_dedup.cpp papertrail_dedup.cpp)
-target_include_directories(test_papertrail_dedup PRIVATE include)
-target_link_libraries(test_papertrail_dedup GTest::gtest_main)
+# NOTE: `papertrail_dedup` was ported from C++ to Rust
+# (rust/extensions/papertrail_dedup) per RUST-FIRST.md dead-code-on-replace. Its
+# GoogleTest cases now live in the Rust cargo-test suite
+# (rust/extensions/papertrail_dedup/src/lib.rs), so the C++ test executable and
+# its translation unit were removed.
 
-add_executable(test_lesson_index tests/test_lesson_index.cpp lesson_index.cpp)
-target_include_directories(test_lesson_index PRIVATE include)
-target_link_libraries(test_lesson_index GTest::gtest_main)
+# NOTE: `lesson_index` was ported from C++ to Rust (rust/extensions/lesson_index)
+# per RUST-FIRST.md dead-code-on-replace. Its GoogleTest cases now live in the
+# Rust cargo-test suite (rust/extensions/lesson_index/src/lib.rs), so the C++
+# test executable and its translation unit were removed.
 
 enable_testing()
 set(XF_GTEST_TARGETS
-    test_simsearch
-    test_scoring
-    test_passagesim
+    # NOTE: test_passagesim removed — passagesim ported to Rust
+    # (rust/extensions/passagesim) per RUST-FIRST.md dead-code-on-replace.
     test_fieldrel
-    test_quantemb
-    test_ivf_index
-    test_streaming_sketches
-    test_papertrail_dedup
-    test_lesson_index
+    # NOTE: test_quantemb removed — quantemb ported to Rust
+    # (rust/extensions/quantemb) per RUST-FIRST.md dead-code-on-replace.
+    # NOTE: test_ivf_index removed — ivf_index ported to Rust
+    # (rust/extensions/ivf_index) per RUST-FIRST.md dead-code-on-replace.
 )
 foreach(test_target IN LISTS XF_GTEST_TARGETS)
     add_test(NAME ${test_target} COMMAND $<TARGET_FILE:${test_target}>)
