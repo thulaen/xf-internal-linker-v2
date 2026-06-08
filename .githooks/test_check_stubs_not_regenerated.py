@@ -111,6 +111,16 @@ class StubsNotRegeneratedTests(TestCase):
         self.assertEqual(rc, 2)
         self.assertIn("streamd", err)
 
+    def test_staged_uses_acm_filter_to_exclude_deleted(self) -> None:
+        captured_args = []
+        def fake_run(cmd, **_kwargs):
+            captured_args.append(cmd)
+            return _FakeCompleted(stdout="services/streamd/api/gen/api.pb.go\n")
+        from _hook_helpers import subprocess as helpers_subprocess
+        with patch.object(helpers_subprocess, "run", side_effect=fake_run):
+            hook._staged()
+        self.assertTrue(any(any(arg.startswith("--diff-filter=ACM") for arg in args) for args in captured_args))
+
 
 if __name__ == "__main__":
     import unittest

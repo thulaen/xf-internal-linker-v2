@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+message_file="${1:?commit message file is required}"
+hook_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$hook_dir/findings-transcript.sh"
+
+transcript="$(xf_findings_transcript_path)"
+if [[ ! -s "$transcript" ]]; then
+  rm -f "$transcript"
+  exit 0
+fi
+
+mapfile -t raw_ids < "$transcript"
+finding_ids=()
+for raw_id in "${raw_ids[@]}"; do
+  clean_id="${raw_id#\#}"
+  clean_id="${clean_id//$'\r'/}"
+  if [[ "$clean_id" =~ ^[0-9]+$ ]]; then
+    finding_ids+=("#$clean_id")
+  fi
+done
+
+rm -f "$transcript"
+
+if [[ "${#finding_ids[@]}" -eq 0 ]]; then
+  exit 0
+fi
+
+joined_ids="$(printf ", %s" "${finding_ids[@]}")"
+joined_ids="${joined_ids:2}"
+
+{
+  printf "\n"
+  printf "[FINDINGS FILED: %s AutoIssues created — %s]\n" "${#finding_ids[@]}" "$joined_ids"
+} >> "$message_file"

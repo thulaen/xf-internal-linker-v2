@@ -13,10 +13,10 @@ Scope of in-hook build/test (toolchains available in the running containers):
   * C++ — rebuild the extensions via scripts/ensure_compiled_artifacts.py in
            the backend container, then import-smoke the affected module.
 
-Rust (.rs) and Haskell (.hs) builds run through their dedicated quality
-runners already wired in scripts/precommit-docker.sh (run-rust-quality.sh /
-run-haskell-quality.sh); this gate flags staged .rs/.hs so the author knows
-those runners must pass, but does not duplicate their toolchain here.
+Rust (.rs) builds run through their dedicated quality runner already wired
+in scripts/precommit-docker.sh (run-rust-quality.sh); this gate flags staged
+.rs so the author knows that runner must pass, but does not duplicate its
+toolchain here.
 
 Exit codes:
     0 — every affected compiled target built and its tests ran clean.

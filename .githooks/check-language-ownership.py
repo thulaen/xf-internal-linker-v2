@@ -4,8 +4,7 @@
 The repo assigns each kind of work to the language that owns it:
   * C++   — native hot-path compute (MinHash / LSH / fingerprinting).
   * Go    — transport, service wiring, HTTP/RPC servers. Never owns Postgres.
-  * Haskell — domain invariants / classification decisions.
-  * Python/Django — orchestration only.
+  * Python/Django — orchestration and domain logic.
 
 This gate catches the most common ownership violations as IMPLEMENTATIONS
 (not imports — that boundary is check-no-cross-language-import.py's job, and
@@ -17,10 +16,7 @@ What it flags:
      C++ papertrail_dedup extension.
   2. Python that stands up an HTTP server (Flask / FastAPI / aiohttp /
      http.server) — transport belongs in a Go service.
-  3. Python under apps/*/services/ that encodes a domain-invariant classifier
-     (a *_severity / classify_* function returning hardcoded category strings
-     from numeric thresholds) — that decision belongs in Haskell.
-  4. A Go service file that owns a Postgres table (gorm/db struct tags,
+  3. A Go service file that owns a Postgres table (gorm/db struct tags,
      CREATE TABLE, pgx/postgres driver) — Go services never own tables.
 
 The helper ``scan_paths(paths)`` is exposed so tests never touch the git index.
@@ -28,7 +24,6 @@ The helper ``scan_paths(paths)`` is exposed so tests never touch the git index.
 
 from __future__ import annotations
 
-import ast
 import re
 import subprocess
 import sys
@@ -61,40 +56,6 @@ def _is_test_or_generated(path: str) -> bool:
     )
 
 
-def _classifier_violation(tree: ast.AST) -> bool:
-    """True if a function returns >=2 distinct string literals from numeric
-    threshold branches — the shape of a domain-invariant classifier."""
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.FunctionDef):
-            continue
-        if not re.search(r"severity|classif|categor", node.name, re.I):
-            continue
-        literals: set[str] = set()
-        for sub in ast.walk(node):
-            if isinstance(sub, ast.If) and _compares_number(sub.test):
-                for stmt in sub.body:
-                    if (
-                        isinstance(stmt, ast.Return)
-                        and isinstance(stmt.value, ast.Constant)
-                        and isinstance(stmt.value.value, str)
-                    ):
-                        literals.add(stmt.value.value)
-        if len(literals) >= 2:
-            return True
-    return False
-
-
-def _compares_number(test: ast.AST) -> bool:
-    if isinstance(test, ast.Compare):
-        return any(
-            isinstance(c, ast.Constant) and isinstance(c.value, (int, float))
-            for c in test.comparators
-        )
-    if isinstance(test, ast.BoolOp):
-        return any(_compares_number(v) for v in test.values)
-    return False
-
-
 def _scan_python(path: str, text: str) -> list[str]:
     out: list[str] = []
     if _MINHASH_NAME_RE.search(text) and not _DEDUP_IMPORT_RE.search(text):
@@ -108,17 +69,6 @@ def _scan_python(path: str, text: str) -> list[str]:
             f"{path}: stands up an HTTP server in Python. Transport/serving "
             "belongs in a Go service (services/<name>/), not Python."
         )
-    if "/services/" in path:
-        try:
-            tree = ast.parse(text)
-        except SyntaxError:
-            return out
-        if _classifier_violation(tree):
-            out.append(
-                f"{path}: encodes a domain-invariant classifier (category from "
-                "numeric thresholds). That decision belongs in the Haskell "
-                "findbugs service; Python should read its result."
-            )
     return out
 
 
@@ -170,8 +120,8 @@ def _fail(violations: list[str]) -> int:
     sys.stderr.write(
         "\nFAIL check-language-ownership: code is written in the wrong language.\n"
         "WHY: each kind of work has an owning language (C++ for hot-path "
-        "compute, Go for transport, Haskell for domain decisions, Python for "
-        "orchestration). The flagged code crosses that boundary.\n"
+        "compute, Go for transport, Python for orchestration and domain "
+        "logic). The flagged code crosses that boundary.\n"
         "UNBLOCK: move the logic to its owning language and call it from "
         "Python, or — if this is a false positive — file it via "
         "`manage.py report_hook_false_positive --hook check-language-ownership`.\n\n"

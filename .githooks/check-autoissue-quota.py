@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Run the hard AutoIssue and paper-trail quota checks.
 
-This gate mirrors the quota enforcement that ``check-registry-read`` and
-``check-paper-trail-read`` perform, using the SAME session-gate-aware
+This gate is the sole enforcer of the session-gate-aware AutoIssue +
+paper-trail quotas (it superseded the now-removed ``check-registry-read`` /
+``check-paper-trail-read`` gates), using the session-gate-aware
 interface: it reads ``audit/session_gate_state.json`` for the session type
 and passes ``--hard --session-type <type>`` to the verifiers. For a ``docs``
 session both verifiers return "no quota required" and the gate passes.

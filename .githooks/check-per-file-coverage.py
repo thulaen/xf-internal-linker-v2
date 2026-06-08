@@ -40,11 +40,9 @@ _SCRIPT = REPO_ROOT / "scripts" / "detect_changed_modules.py"
 
 # The ONE tar exclude recipe shared with check-scoped-mutation: the Dell side
 # re-hashes the SAME bytes, so the exclude list must match exactly.
-_TAR_EXCLUDES = (
-    "--exclude=__pycache__", "--exclude=*.pyc", "--exclude=*.so",
-    "--exclude=build", "--exclude=build_*", "--exclude=.pytest_cache",
-    "--exclude=.ruff_cache", "--exclude=htmlcov", "--exclude=backend/reports",
-)
+import sys  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from _sync_tar_excludes import TAR_EXCLUDES as _TAR_EXCLUDES  # noqa: E402
 
 # Named volume that holds the Dell-side source snapshot (parallel to the
 # mutation gate's xf_mutation_repo — coverage gets its own so the two gates

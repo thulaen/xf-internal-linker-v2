@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Always-on, drought-aware "fix N" quota gate for configured AutoIssue sources.
 
-Unlike the session-type-scaled quotas in check-registry-read /
-check-autoissue-quota, this gate is ALWAYS on (every commit) and per-source:
+Unlike the session-type-scaled quota in check-autoissue-quota, this gate is
+ALWAYS on (every commit) and per-source:
 a commit is blocked while >= threshold findings of that source are open, unless
 >= threshold were resolved this session. A clean source (0 open) never blocks.
 

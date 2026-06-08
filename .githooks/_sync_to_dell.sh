@@ -14,9 +14,10 @@ DELL_REPO="${DELL_REPO_PATH:-C:\\Users\\PC\\xf-internal-linker-v2}"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-tar -cf - \
-  --exclude='__pycache__' --exclude='*.pyc' --exclude='*.so' \
-  --exclude='build' --exclude='build_*' --exclude='.pytest_cache' \
-  --exclude='.ruff_cache' --exclude='htmlcov' --exclude='backend/reports' \
+# Single source of truth: scripts/_sync_tar_excludes.py (shared with the Python
+# sharders; MUST stay byte-identical — the Dell side re-hashes the same bytes, so
+# a drifted list fails the manifest). Read the --exclude args from that one list.
+mapfile -t _tar_excludes < <(python3 "${repo_root}/scripts/_sync_tar_excludes.py")
+tar -cf - "${_tar_excludes[@]}" \
   backend .githooks \
   | ssh -o BatchMode=yes "$DELL_HOST" "cd ${DELL_REPO} && tar -xf -"

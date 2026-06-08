@@ -31,7 +31,7 @@ HOOKS_DIR = Path(__file__).resolve().parent
 if str(HOOKS_DIR) not in sys.path:
     sys.path.insert(0, str(HOOKS_DIR))
 
-from _hook_helpers import staged_paths  # noqa: E402
+from _hook_helpers import run_git, staged_paths  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -44,7 +44,11 @@ _PY_STUB_RE = re.compile(
 
 
 def _staged() -> list[str]:
-    return staged_paths(REPO_ROOT)
+    stdout = run_git(
+        REPO_ROOT,
+        ["diff", "--cached", "--name-only", "--diff-filter=ACM"],
+    )
+    return [line.strip() for line in stdout.splitlines() if line.strip()]
 
 
 def _services_with_stub_diffs(paths: list[str]) -> set[str]:

@@ -145,7 +145,7 @@ def main() -> int:
         return 0
     added = _read_staged_handoff_diff()
     if not added:
-        return 0  # check-paper-trail-read already covers missing-handoff
+        return 0  # no staged handoff diff -> nothing to validate here
     return validate(added)
 
 

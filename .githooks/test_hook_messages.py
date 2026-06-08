@@ -56,7 +56,6 @@ class HookMessageTests(unittest.TestCase):
             "check-spec-citation.py",
             "check-scoped-lessons.py",
             "check-code-review-lessons.py",
-            "check-paper-trail-read.py",  # already compliant
             # Rule H sub-rules — six hooks landed in this session.
             "check-debug-code.py",
             "check-junk-files.py",

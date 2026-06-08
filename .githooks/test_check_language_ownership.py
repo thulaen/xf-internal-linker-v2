@@ -78,16 +78,6 @@ class LanguageOwnershipTests(unittest.TestCase):
         with _TempFile("backend/apps/zz_tmp/views.py", code) as rel:
             self.assertEqual(hook.scan_paths([rel]), [])
 
-    def test_python_classifier_in_services_flagged(self) -> None:
-        code = (
-            "def classify_severity(score):\n"
-            "    if score >= 0.9:\n        return 'critical'\n"
-            "    if score >= 0.5:\n        return 'high'\n"
-            "    return 'low'\n"
-        )
-        with _TempFile("backend/apps/zz_tmp/services/sev.py", code) as rel:
-            self.assertTrue(hook.scan_paths([rel]))
-
     def test_plain_orchestration_not_flagged(self) -> None:
         code = "def fetch(ids):\n    return [i for i in ids if i]\n"
         with _TempFile("backend/apps/zz_tmp/services/plain.py", code) as rel:

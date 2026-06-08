@@ -54,18 +54,52 @@ if str(HOOKS_DIR) not in sys.path:
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 EXTENSIONS_DIR = REPO_ROOT / "backend" / "extensions"
+RUST_EXTENSIONS_DIR = REPO_ROOT / "rust" / "extensions"
 ENSURE_SCRIPT = REPO_ROOT / "scripts" / "ensure_compiled_artifacts.py"
 HEALTH_FILE = REPO_ROOT / "backend" / "apps" / "diagnostics" / "health.py"
 
 _PYBIND11_RE = re.compile(r"PYBIND11_MODULE\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,")
+# The leading `\b(?<!_)` anchors on a real word start so the C++
+# `EXTENSION_NAMES` regex does NOT also match `RUST_EXTENSION_NAMES`
+# (which contains `EXTENSION_NAMES` as a suffix and is defined first in the
+# file). Without it `re.search` would grab the Rust set as the C++ set.
 _EXTENSION_NAMES_RE = re.compile(
-    r"EXTENSION_NAMES\s*=\s*\{(?P<body>[^}]+)\}", re.MULTILINE | re.DOTALL
+    r"(?<![A-Za-z0-9_])EXTENSION_NAMES\s*=\s*\{(?P<body>[^}]+)\}",
+    re.MULTILINE | re.DOTALL,
+)
+_RUST_EXTENSION_NAMES_RE = re.compile(
+    r"(?<![A-Za-z0-9_])RUST_EXTENSION_NAMES\s*=\s*\{(?P<body>[^}]+)\}",
+    re.MULTILINE | re.DOTALL,
+)
+# A PyO3 module is declared as `#[pymodule]` immediately above `fn <name>(`.
+# The module function name must equal the kernel name so the built `<name>.so`
+# imports as `extensions.<name>`.
+_PYMODULE_RE = re.compile(
+    r"#\[pymodule\]\s*(?:pub\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(",
+    re.MULTILINE | re.DOTALL,
 )
 
 
 def _names_in_extension_set(text: str) -> set[str]:
     """Parse EXTENSION_NAMES = { ... } and return its names."""
     match = _EXTENSION_NAMES_RE.search(text)
+    if not match:
+        return set()
+    body = match.group("body")
+    return set(re.findall(r"\"([a-z_][a-z0-9_]*)\"", body))
+
+
+def _names_in_rust_extension_set(text: str) -> set[str]:
+    """Parse RUST_EXTENSION_NAMES = { ... } and return its names.
+
+    These are kernels ported from C++ to Rust (PyO3 + maturin). Each is built
+    from ``rust/extensions/<name>`` and stages into the same
+    ``active/extensions/`` directory as the C++ ``.so`` files, so the import
+    name (``extensions.<name>``) is unchanged. For the lifecycle invariant a
+    Rust kernel's source-of-record is its crate, NOT a ``backend/extensions``
+    ``.cpp`` file.
+    """
+    match = _RUST_EXTENSION_NAMES_RE.search(text)
     if not match:
         return set()
     body = match.group("body")
@@ -115,6 +149,47 @@ def _source_kernels() -> dict[str, Path]:
     return sources
 
 
+def _rust_source_kernels() -> dict[str, Path]:
+    """Map module name -> lib.rs path for every Rust kernel crate.
+
+    A Rust kernel lives at ``rust/extensions/<name>/src/lib.rs``. This is the
+    source-of-record for a kernel that was ported off C++ — the equivalent of a
+    ``backend/extensions/<name>.cpp`` for the C++ kernels.
+    """
+    sources: dict[str, Path] = {}
+    if not RUST_EXTENSIONS_DIR.is_dir():
+        return sources
+    for crate_dir in RUST_EXTENSIONS_DIR.iterdir():
+        lib_rs = crate_dir / "src" / "lib.rs"
+        if crate_dir.is_dir() and lib_rs.is_file():
+            sources[crate_dir.name] = lib_rs
+    return sources
+
+
+def _check_pymodule_block(name: str, source_path: Path) -> str | None:
+    """Return a failure message (or None) for the `#[pymodule]` of a Rust kernel.
+
+    Mirrors ``_check_pybind_block`` for C++: the PyO3 module function name must
+    match the crate (and import) name so the built ``<name>.so`` imports as
+    ``extensions.<name>``.
+    """
+    body = source_path.read_text(encoding="utf-8", errors="replace")
+    match = _PYMODULE_RE.search(body)
+    if match is None:
+        return (
+            f"  {name}: Rust crate exists but has no `#[pymodule]` function. "
+            f"Add `#[pymodule] fn {name}(m: &Bound<'_, PyModule>) ...` so Python "
+            "can import it."
+        )
+    if match.group(1) != name:
+        return (
+            f"  {name}: `#[pymodule]` declares `{match.group(1)}` but the crate "
+            f"is `rust/extensions/{name}`. The module function name must match "
+            "the crate (and import) name."
+        )
+    return None
+
+
 def _check_pybind_block(name: str, source_path: Path) -> str | None:
     """Return failure message (or None) for the PYBIND11 block of `name`."""
     body = source_path.read_text(encoding="utf-8", errors="replace")
@@ -138,16 +213,28 @@ def _collect_failures(
     sources: dict[str, Path],
     ext_names: set[str],
     runtime_names: set[str],
+    rust_names: set[str],
 ) -> list[str]:
-    """Build the full list of lifecycle failures in repo-wide order."""
+    """Build the C++ lifecycle failures in repo-wide order.
+
+    ``rust_names`` are the kernels backed by a Rust crate. Their
+    ``_NATIVE_RUNTIME_MODULES`` entry is satisfied by the Rust source, NOT a
+    C++ ``.cpp`` + ``EXTENSION_NAMES`` pair, so they are excluded from the C++
+    runtime universe here and validated by ``_collect_rust_failures`` instead.
+    A name that is wrongly registered as BOTH C++ and Rust is caught up front
+    by ``_collect_cross_language_failures``.
+    """
     failures: list[str] = []
     src_set = set(sources)
-    universe = sorted(src_set | ext_names | runtime_names)
+    # A Rust-backed runtime kernel must not be treated as a half-registered C++
+    # kernel just because it has no `.cpp` / no EXTENSION_NAMES entry.
+    cpp_runtime_names = runtime_names - rust_names
+    universe = sorted(src_set | ext_names | cpp_runtime_names)
 
     for name in universe:
         in_src = name in src_set
         in_ext = name in ext_names
-        in_runtime = name in runtime_names
+        in_runtime = name in cpp_runtime_names
         present = sum([in_src, in_ext, in_runtime])
         if present == 0 or present == 3:
             continue
@@ -180,14 +267,97 @@ def _collect_failures(
     return failures
 
 
-def _zero_byte_only(sources: dict[str, Path]) -> list[str]:
-    """Catch 0-byte sources even when they're absent from EXTENSION_NAMES + runtime tuple."""
-    return [
-        f"  {name}: source is 0 bytes ({path.relative_to(REPO_ROOT)}). "
-        "An empty .cpp file builds nothing - either implement it or remove the file."
-        for name, path in sorted(sources.items())
-        if path.stat().st_size == 0
-    ]
+def _collect_rust_failures(
+    rust_sources: dict[str, Path],
+    rust_names: set[str],
+    runtime_names: set[str],
+) -> list[str]:
+    """Build the Rust kernel lifecycle failures in repo-wide order.
+
+    A Rust kernel exists only when ALL THREE are present together:
+      1. ``rust/extensions/<name>/src/lib.rs`` with a matching ``#[pymodule]``,
+      2. ``<name>`` in ``RUST_EXTENSION_NAMES`` in
+         ``scripts/ensure_compiled_artifacts.py``,
+      3. ``<name>`` in ``_NATIVE_RUNTIME_MODULES`` in
+         ``backend/apps/diagnostics/health.py``.
+    Same strict three-way invariant as the C++ side, with the Rust crate as the
+    source-of-record instead of a ``.cpp`` file.
+    """
+    failures: list[str] = []
+    src_set = set(rust_sources)
+    # Every crate under rust/extensions/ is a kernel crate (the `xf_kernels`
+    # scaffold lives at rust/xf_kernels, outside this dir, so it is never seen
+    # here). A crate present in only one of the three places is half-registered,
+    # exactly like a bare C++ `.cpp`.
+    universe = sorted(src_set | rust_names | (runtime_names & (src_set | rust_names)))
+
+    for name in universe:
+        in_src = name in src_set
+        in_names = name in rust_names
+        in_runtime = name in runtime_names
+        present = sum([in_src, in_names, in_runtime])
+        if present == 0 or present == 3:
+            continue
+        missing: list[str] = []
+        if not in_src:
+            missing.append(f"rust/extensions/{name}/src/lib.rs (with #[pymodule])")
+        if not in_names:
+            missing.append(
+                "RUST_EXTENSION_NAMES in scripts/ensure_compiled_artifacts.py"
+            )
+        if not in_runtime:
+            missing.append(
+                "_NATIVE_RUNTIME_MODULES in backend/apps/diagnostics/health.py"
+            )
+        failures.append(
+            f"  {name}: Rust kernel half-registered ({present}/3 places present). "
+            f"Missing: {', '.join(missing)}."
+        )
+
+    for name, path in sorted(rust_sources.items()):
+        if path.stat().st_size == 0:
+            failures.append(
+                f"  {name}: Rust source is 0 bytes ({path.relative_to(REPO_ROOT)}). "
+                "An empty lib.rs builds nothing - either implement it or remove "
+                "the crate."
+            )
+            continue
+        pymodule_failure = _check_pymodule_block(name, path)
+        if pymodule_failure is not None:
+            failures.append(pymodule_failure)
+
+    return failures
+
+
+def _collect_cross_language_failures(
+    cpp_sources: dict[str, Path],
+    ext_names: set[str],
+    rust_sources: dict[str, Path],
+    rust_names: set[str],
+) -> list[str]:
+    """Block a kernel that is registered as BOTH C++ and Rust (half-deleted port).
+
+    When a kernel is ported off C++ to Rust the C++ source, header, and
+    ``EXTENSION_NAMES`` entry are deleted in the SAME change (RUST-FIRST.md
+    zero-fallback / dead-code-on-replace). A name that still appears on both
+    sides means the C++ side was not fully retired.
+    """
+    failures: list[str] = []
+    cpp_side = set(cpp_sources) | ext_names
+    rust_side = set(rust_sources) | rust_names
+    for name in sorted(cpp_side & rust_side):
+        wheres: list[str] = []
+        if name in cpp_sources:
+            wheres.append(f"backend/extensions/{name}.cpp")
+        if name in ext_names:
+            wheres.append("EXTENSION_NAMES")
+        failures.append(
+            f"  {name}: registered as BOTH a Rust kernel and a C++ kernel. "
+            f"The C++ side is not fully retired (still in: {', '.join(wheres)}). "
+            "Delete the C++ source/header and the EXTENSION_NAMES entry in the "
+            "same change that lands the Rust port."
+        )
+    return failures
 
 
 def main() -> int:
@@ -196,12 +366,18 @@ def main() -> int:
         return 0
 
     sources = _source_kernels()
+    rust_sources = _rust_source_kernels()
     ensure_text = ENSURE_SCRIPT.read_text(encoding="utf-8", errors="replace")
     health_text = HEALTH_FILE.read_text(encoding="utf-8", errors="replace")
     ext_names = _names_in_extension_set(ensure_text)
+    rust_names = _names_in_rust_extension_set(ensure_text)
     runtime_names = _names_in_native_runtime(health_text)
 
-    failures = _collect_failures(sources, ext_names, runtime_names)
+    failures = (
+        _collect_cross_language_failures(sources, ext_names, rust_sources, rust_names)
+        + _collect_failures(sources, ext_names, runtime_names, rust_names)
+        + _collect_rust_failures(rust_sources, rust_names, runtime_names)
+    )
     # Dedup zero-byte messages (which may surface twice — once via half-registered, once via direct scan).
     seen: set[str] = set()
     failures_unique: list[str] = []
@@ -215,18 +391,24 @@ def main() -> int:
         return 0
 
     sys.stderr.write(
-        "FAIL check-cpp-lifecycle: C++ kernel lifecycle invariant broken (full-tree scan).\n"
+        "FAIL check-cpp-lifecycle: native kernel lifecycle invariant broken (full-tree scan).\n"
         "WHY: Rule J requires every kernel to be registered in ALL THREE "
-        "places together (source file, EXTENSION_NAMES, _NATIVE_RUNTIME_MODULES) "
-        "or in NONE of them. The hook scans the entire tree on every commit, "
-        "not just staged changes, so half-registered kernels cannot accumulate "
-        "as legacy debt. Empty .cpp placeholders are also blocked - they build "
-        "nothing and confuse the GUI 'missing C++ kernels' panel forever.\n"
+        "places together or in NONE of them. A C++ kernel needs its "
+        "backend/extensions/<name>.cpp source + EXTENSION_NAMES + "
+        "_NATIVE_RUNTIME_MODULES. A kernel ported to Rust (RUST-FIRST.md) needs "
+        "its rust/extensions/<name>/src/lib.rs crate + RUST_EXTENSION_NAMES + "
+        "_NATIVE_RUNTIME_MODULES instead, and must NOT keep a C++ twin. The hook "
+        "scans the entire tree on every commit, not just staged changes, so "
+        "half-registered or half-ported kernels cannot accumulate as legacy "
+        "debt. Empty .cpp / lib.rs placeholders are also blocked - they build "
+        "nothing and confuse the GUI 'missing kernels' panel forever.\n"
         "UNBLOCK: For each kernel below, either (a) complete the three "
-        "registrations, OR (b) remove the partial one. If you want to park "
+        "registrations for its language, OR (b) remove the partial one. When a "
+        "kernel is ported off C++ to Rust, delete the C++ .cpp/header and the "
+        "EXTENSION_NAMES entry in the SAME change. If you want to park "
         "a kernel's name for later implementation, move its line to "
         "docs/CPP-ROADMAP.md - that file does not trip the hook because the "
-        "name is not present in any of the three lifecycle places.\n"
+        "name is not present in any of the lifecycle places.\n"
     )
     for line in failures_unique:
         sys.stderr.write(line + "\n")

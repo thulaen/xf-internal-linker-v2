@@ -7,7 +7,7 @@ copy of `_read_staged_handoff_diff`, `is_production_source`, and
 `parse_iso8601`. The Windows cp1252 default locale crashed one hook
 silently on em-dashes / arrows in handoff entries; verifier-result
 caching had to be retrofitted per-hook; the picks-segment-scoping bug
-in check-registry-read regexed against the whole diff instead of the
+in the now-removed check-registry-read gate regexed against the whole diff instead of the
 scoped marker block.
 
 This module is the single source of truth for:
@@ -87,8 +87,8 @@ def staged_paths(repo_root: Path) -> list[str]:
 
 
 # 2026-05-23 — Phase K.3 DRY refactor: the seven code-bearing path
-# prefixes were duplicated literally in check-sticky-1-read.py and
-# check-rewrite-quota.py. The Sticky #1 system, the Rewrite Quota rule,
+# prefixes were duplicated literally in the now-removed check-sticky-1-read.py
+# and check-rewrite-quota.py. The Sticky #1 system, the Rewrite Quota rule,
 # the Native Inspection Window, and the Settled-Spec Window all need
 # the same predicate ("is this a code-changing commit?"). Promoting
 # CODE_PREFIXES + staged_code_files() to the shared module collapses

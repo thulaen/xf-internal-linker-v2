@@ -63,11 +63,9 @@ _GUARDED_REL_PATHS: list[str] = []
 
 # The ONE tar exclude recipe shared by every remote source push (Dell + Mint).
 # The remote re-hash must hash the SAME bytes, so this list lives in one place.
-_TAR_EXCLUDES = (
-    "--exclude=__pycache__", "--exclude=*.pyc", "--exclude=*.so",
-    "--exclude=build", "--exclude=build_*", "--exclude=.pytest_cache",
-    "--exclude=.ruff_cache", "--exclude=htmlcov", "--exclude=backend/reports",
-)
+import sys  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from _sync_tar_excludes import TAR_EXCLUDES as _TAR_EXCLUDES  # noqa: E402
 
 
 def _load_coverage_hook():

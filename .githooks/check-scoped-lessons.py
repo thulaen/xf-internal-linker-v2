@@ -69,7 +69,7 @@ def main() -> int:
     match = _SCOPED_RE.search(handoff)
     if not match:
         sys.stderr.write(
-            "FAIL check-scoped-lessons: this commit modifies code but "
+            "WARN check-scoped-lessons: this commit modifies code but "
             "AGENT-HANDOFF.md has no [SCOPED LESSONS READ: N lessons in "
             "<paths>] marker.\n"
             "WHY: Rule D requires every code-changing commit to first look "

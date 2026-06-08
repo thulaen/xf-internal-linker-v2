@@ -189,7 +189,7 @@ def _handle_new_spec_failures(specs: list[str]) -> int | None:
     if missing:
         joined = ", ".join(missing)
         new_spec_lines = (
-            f"FAIL check-spec-citation: new spec file(s) without citation: {joined}\n"
+            f"WARN check-spec-citation: new spec file(s) without citation: {joined}\n"
             "WHY: Rule C requires every new feature / algorithm / signal / "
             "meta-algorithm parameter to cite at least one patent, DOI, RFC, "
             "stable URL, or technical literature before implementation begins.",
@@ -206,7 +206,7 @@ def _handle_new_spec_failures(specs: list[str]) -> int | None:
 
 def _missing_code_proof(code_files: list[str]) -> int:
     missing_proof_lines = (
-        "FAIL check-spec-citation: this commit modifies code but does not "
+        "WARN check-spec-citation: this commit modifies code but does not "
         "include [SPEC PROOF] in the staged handoff.",
         f"WHY: {len(code_files)} staged code file(s) need a current SDD, PRD, "
         "or technical spec with source citations before commit.",
@@ -338,7 +338,7 @@ def _first_spec_problem(specs: list[str]) -> str | None:
 
 def _code_gate_failure(problem: str) -> int:
     code_gate_lines = (
-        f"FAIL check-spec-citation: {problem}.",
+        f"WARN check-spec-citation: {problem}.",
         "WHY: code commits need a current SDD, PRD, or technical spec backed "
         "by patents, academic papers, or technical literature.",
         "UNBLOCK: update the related spec, run the focused tests, review the "
