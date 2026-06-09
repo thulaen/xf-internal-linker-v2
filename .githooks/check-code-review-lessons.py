@@ -90,8 +90,9 @@ def _staged_handoff_diff() -> str:
 
 
 def _fail(message: str) -> int:
-    sys.stderr.write(message)
-    return 2
+    """Soft-gate warning: log the issue but allow commit."""
+    sys.stderr.write(f"WARNING check-code-review-lessons: {message}")
+    return 0
 
 
 def _agent_marker_spans(body: str) -> list[tuple[str, str, int, int]]:

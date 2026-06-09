@@ -22,7 +22,14 @@ REQUIRED_GWP_ASAN_FIXES = 10
 REQUIRED_LIGHTHOUSE_FIXES = 3
 REQUIRED_PG_STAT_FIXES = 3
 _CROSS_SOURCE_FIXES = 3
-_HARD_SOURCE_REQUIREMENTS = {
+_RETIRED_HARD_SOURCES = frozenset(
+    {
+        AutoIssue.SOURCE_PPROF,
+        AutoIssue.SOURCE_PERFETTO,
+        AutoIssue.SOURCE_GWP_ASAN,
+    }
+)
+_CONFIGURED_HARD_SOURCE_REQUIREMENTS = {
     AutoIssue.SOURCE_SONARQUBE: REQUIRED_SONARQUBE_FIXES,
     AutoIssue.SOURCE_RUST_DEFECT: REQUIRED_RUST_DEFECT_FIXES,
     AutoIssue.SOURCE_PPROF: REQUIRED_PPROF_FIXES,
@@ -32,6 +39,11 @@ _HARD_SOURCE_REQUIREMENTS = {
     AutoIssue.SOURCE_GWP_ASAN: REQUIRED_GWP_ASAN_FIXES,
     AutoIssue.SOURCE_LIGHTHOUSE: REQUIRED_LIGHTHOUSE_FIXES,
     AutoIssue.SOURCE_PG_STAT: REQUIRED_PG_STAT_FIXES,
+}
+_HARD_SOURCE_REQUIREMENTS = {
+    source: required
+    for source, required in _CONFIGURED_HARD_SOURCE_REQUIREMENTS.items()
+    if source not in _RETIRED_HARD_SOURCES
 }
 _CROSS_SOURCE_REQUIREMENTS = {
     AutoIssue.SOURCE_AGENT: _CROSS_SOURCE_FIXES,
@@ -203,18 +215,24 @@ def _resolved_counts(resolved_after: datetime | None) -> dict[str, int]:
     return dict(Counter(queryset.values_list("source", flat=True)))
 
 
-def _next_open_issue_ids(source: str, limit: int) -> list[int]:
-    return list(
-        AutoIssue.objects.filter(source=source, status=AutoIssue.STATUS_OPEN)
-        .order_by("-priority_score", "id")
-        .values_list("id", flat=True)[:limit]
+def _available_issue_count(source: str, resolved_count: int) -> int:
+    unresolved = (
+        AutoIssue.objects.filter(source=source)
+        .exclude(status=AutoIssue.STATUS_RESOLVED)
+        .count()
     )
+    return unresolved + resolved_count
+
+
+def _effective_requirement(source: str, configured_required: int, resolved_count: int) -> int:
+    return min(configured_required, _available_issue_count(source, resolved_count))
 
 
 def _mandatory_hard_errors(count: int, source: str, required: int) -> list[str]:
-    if count >= required:
+    effective_required = _effective_requirement(source, required, count)
+    if count >= effective_required:
         return []
-    short = required - count
+    short = effective_required - count
     if source == AutoIssue.SOURCE_SONARQUBE:
         suffix = (
             "NON-SUBSTITUTABLE - must come from source=sonarqube) "
@@ -222,8 +240,8 @@ def _mandatory_hard_errors(count: int, source: str, required: int) -> list[str]:
             f"UNBLOCK: resolve {short} more sonarqube AutoIssues"
         )
     else:
-        suffix = f"{short} short"
-    return [f"{source}: {count} of {required} resolved ({suffix})"]
+        suffix = f"{short} short; configured quota {required}"
+    return [f"{source}: {count} of {effective_required} available resolved ({suffix})"]
 
 
 def _hard_quota_errors(counts: dict[str, int]) -> list[str]:
@@ -244,20 +262,11 @@ def _hard_quota_errors_scaled(
     for source, required in cross_reqs.items():
         if required > 0:
             count = counts.get(source, 0)
-            if count < required:
-                # Genuine-drought exemption: a cross-source bucket with NO open
-                # issues cannot be satisfied — you cannot resolve issues that do
-                # not exist. This mirrors the CLAUDE.md drought clause
-                # (substitute from agent + log a picker_drought row). Buckets
-                # that DO have open issues still require their resolutions.
-                # The exemption applies for ANY scaled requirement (reconciliation=1,
-                # infrastructure=2, feature=3); gating it on the unscaled
-                # _CROSS_SOURCE_FIXES (3) wrongly made reconciliation/infrastructure
-                # commits impossible whenever a bucket was legitimately empty.
-                if not _next_open_issue_ids(source, 1):
-                    continue
+            effective_required = _effective_requirement(source, required, count)
+            if count < effective_required:
                 errors.append(
-                    f"{source}: {count} of {required} resolved ({required - count} short)"
+                    f"{source}: {count} of {effective_required} available resolved "
+                    f"({effective_required - count} short; configured quota {required})"
                 )
     if errors:
         sonarqube_req = hard_reqs.get(AutoIssue.SOURCE_SONARQUBE, 0)

@@ -82,6 +82,8 @@ class AutoIssue(models.Model):
     SOURCE_PG_STAT = "pg_stat"
     SOURCE_LIGHTHOUSE = "lighthouse"
     SOURCE_TEST_FAILURE = "test_failure"
+    SOURCE_PYTEST_FAILURE = "pytest_failure"
+    SOURCE_RUST_TEST_FAILURE = "rust_test_fail"
     SOURCE_AGENT = "agent"
     # Phase 6 of the test-hardening plan (added 2026-05-12):
     SOURCE_MUTATION = "mutation"     # mutmut / Stryker / Mull surviving mutants
@@ -108,6 +110,8 @@ class AutoIssue(models.Model):
         (SOURCE_PG_STAT, "pg_stat"),
         (SOURCE_LIGHTHOUSE, "Lighthouse"),
         (SOURCE_TEST_FAILURE, "Test failure"),
+        (SOURCE_PYTEST_FAILURE, "Pytest failure"),
+        (SOURCE_RUST_TEST_FAILURE, "Rust test failure"),
         (SOURCE_AGENT, "Agent find"),
         (SOURCE_MUTATION, "Mutation testing"),
         (SOURCE_FUZZ, "Fuzz testing"),
