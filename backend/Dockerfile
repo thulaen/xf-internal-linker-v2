@@ -146,9 +146,7 @@ FROM runtime AS quality
 USER root
 
 # Mutation and static-quality tools stay out of the runtime image.
-COPY --from=go-tools /usr/local/go /usr/local/go
-COPY --from=go-tools /go/bin/go-mutesting /usr/local/bin/go-mutesting
-ENV PATH="/usr/local/go/bin:${PATH}"
+# Note: go-mutesting and mutmut have been moved to the mutation-tools stage.
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     lua5.4 \
@@ -159,7 +157,6 @@ RUN luarocks install busted && \
     luarocks install luacheck
 
 RUN pip install --no-cache-dir \
-      mutmut==2.5.1 \
       ruff==0.8.6 \
       bandit==1.8.3 \
       pip-audit==2.7.3 \
@@ -178,4 +175,13 @@ RUN pip install --no-cache-dir \
       hypothesis==6.115.5 && \
     pip cache purge
 
+USER appuser
+
+FROM quality AS mutation-tools
+
+USER root
+COPY --from=go-tools /usr/local/go /usr/local/go
+COPY --from=go-tools /go/bin/go-mutesting /usr/local/bin/go-mutesting
+ENV PATH="/usr/local/go/bin:${PATH}"
+RUN pip install --no-cache-dir mutmut==2.5.1
 USER appuser

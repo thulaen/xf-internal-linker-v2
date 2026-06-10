@@ -60,113 +60,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # ─────────────────────────────────────────────
-  # SonarQube — code-quality server. Runs on the Dell helper, NOT Windows.
-  # Gated behind the `dell-quality` profile so a default `docker compose up`
-  # on Windows does not start it (see docs/specs/fr-mint-quality-tool-placement.md
-  # and config/docker-stack-health.json). Dell starts it via
-  # scripts/start-dell-sonar-tools.ps1. Windows reaches it over the network
-  # through SONAR_HOST_URL=http://dell:9000.
-  # ─────────────────────────────────────────────
-  sonarqube:
-    image: sonarqube:community
-    container_name: xf_linker_sonarqube
-    profiles: ["dell-quality"]
-    restart: unless-stopped
-    # 1.5g is comfortable for the Community edition with ES bootstrap checks
-    # disabled; trimmed from 2g to leave headroom on a 16 GB host.
-    mem_limit: 1536m
-    environment:
-      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
-    volumes:
-      - sonarqube_data:/opt/sonarqube/data
-      - sonarqube_extensions:/opt/sonarqube/extensions
-      - sonarqube_logs:/opt/sonarqube/logs
-    ports:
-      - "${SONAR_BIND_ADDR:-127.0.0.1}:9000:9000"
-
-  # ─────────────────────────────────────────────
-  # Manual one-shot Sonar scanner. Lives in the dell-quality profile so it
-  # does NOT pull onto Windows; run it on Dell alongside the
-  # SonarQube server:
-  #   scripts/start-dell-sonar-tools.ps1
-  # (Day-to-day, sonar-autoscan on Dell scans continuously, so this manual
-  # one-shot is rarely needed.)
-  # ─────────────────────────────────────────────
-  sonar-scanner:
-    image: sonarsource/sonar-scanner-cli:latest
-    profiles: ["dell-quality"]
-    # No depends_on: SonarQube runs on Dell behind the dell-quality profile.
-    # On Dell it reaches the server via the in-network name; from Windows it
-    # uses SONAR_HOST_URL=http://dell:9000.
-    environment:
-      SONAR_HOST_URL: ${SONAR_HOST_URL:-http://sonarqube:9000}
-      SONAR_TOKEN: ${SONAR_TOKEN:-}
-      SONAR_SCANNER_OPTS: ${SONAR_SCANNER_OPTS:--Xmx768m}
-    volumes:
-      - .:/repo:ro
-      - sonar_scanner_cache:/opt/sonar-scanner/.sonar/cache
-    entrypoint: ["/bin/sh", "-lc"]
-    command:
-      - >
-        rm -rf /tmp/sonar-src &&
-        mkdir -p /tmp/sonar-src/backend /tmp/sonar-src/frontend &&
-        cp -a /repo/backend/. /tmp/sonar-src/backend/ &&
-        cp -a /repo/frontend/. /tmp/sonar-src/frontend/ &&
-        cd /tmp/sonar-src &&
-        sonar-scanner
-        -Dsonar.host.url="$${SONAR_HOST_URL}"
-        -Dsonar.token="$${SONAR_TOKEN}"
-
-  # ─────────────────────────────────────────────
-  # Sonar autoscan loop — keeps SonarQube warm without user action.
-  # Runs on Dell alongside sonarqube (same dell-quality profile), NOT on
-  # Windows. On Dell it reaches sonarqube via the compose-network name
-  # `sonarqube` (its SONAR_HOST_URL default below); Windows never starts it.
-  # ─────────────────────────────────────────────
-  sonar-autoscan:
-    image: sonarsource/sonar-scanner-cli:latest
-    container_name: xf_linker_sonar_autoscan
-    profiles: ["dell-quality"]
-    restart: unless-stopped
-    # Cap the scanner so its JVM (-Xmx768m) plus overhead can't exceed ~1g.
-    mem_limit: 1g
-    depends_on:
-      sonarqube:
-        condition: service_started
-    environment:
-      SONAR_HOST_URL: ${SONAR_HOST_URL:-http://sonarqube:9000}
-      SONAR_TOKEN: ${SONAR_TOKEN:-}
-      SONAR_AUTOSCAN_INTERVAL_SECONDS: ${SONAR_AUTOSCAN_INTERVAL_SECONDS:-1800}
-      SONAR_SCANNER_OPTS: ${SONAR_SCANNER_OPTS:--Xmx768m}
-    volumes:
-      - .:/repo:ro
-      - sonar_scanner_cache:/opt/sonar-scanner/.sonar/cache
-    entrypoint: ["/bin/sh", "-lc"]
-    command:
-      - >
-        while true; do
-          INTERVAL="$${SONAR_AUTOSCAN_INTERVAL_SECONDS:-1800}";
-          if [ "$${INTERVAL}" = "0" ]; then
-            echo "auto-scan disabled";
-            sleep 3600;
-            continue;
-          fi;
-          until curl -fsS "$${SONAR_HOST_URL}/api/system/status" >/dev/null; do
-            echo "waiting for sonarqube";
-            sleep 10;
-          done;
-          rm -rf /tmp/sonar-src;
-          mkdir -p /tmp/sonar-src/backend /tmp/sonar-src/frontend;
-          cp -a /repo/backend/. /tmp/sonar-src/backend/;
-          cp -a /repo/frontend/. /tmp/sonar-src/frontend/;
-          cd /tmp/sonar-src;
-          sonar-scanner
-            -Dsonar.host.url="$${SONAR_HOST_URL}"
-            -Dsonar.token="$${SONAR_TOKEN}" ||
-            echo "scan failed, will retry next cycle";
-          sleep "$${INTERVAL}";
-        done
 
   # ─────────────────────────────────────────────
   # Django 5.2 LTS backend — production settings + Daphne/uvicorn ASGI
@@ -218,10 +111,6 @@ services:
       # Slice 1.5 — streamd Unix-domain socket. Read-write so the private
       # Python client (apps/realtime/_streamd_client.py) can dial it.
       - streamd_sock:/var/run/xf:rw
-      # clusterd Unix-domain socket — read-write so the private client
-      # (apps/auto_issues/_clusterd_client.py) can connect (a unix-socket
-      # connect needs write access on the socket inode), matching streamd_sock.
-      - clusterd_sock:/var/run/xf-clusterd:rw
     ports:
       - "8000:8000"
     healthcheck:
@@ -283,6 +172,30 @@ services:
       dockerfile: Dockerfile
       target: quality
     image: xf-linker-backend-quality:latest
+    profiles: ["quality"]
+    env_file: .env
+    working_dir: /repo/backend
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.test
+      PYTHONPATH: /opt/xf/compiled/active:/opt/xf/compiled:/app
+      REPO_ROOT: /repo
+    volumes:
+      - ./backend:/app
+      - .:/repo
+      - compiled_artifacts:/opt/xf/compiled
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["python", "--version"]
+
+  backend-mutation-tools:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: mutation-tools
+    image: xf-linker-backend-mutation-tools:latest
     profiles: ["quality"]
     env_file: .env
     working_dir: /repo/backend
@@ -522,31 +435,15 @@ services:
       retries: 3
       start_period: 20s
 
-  lua-quality-tools:
-    build:
-      context: .
-      dockerfile: tools/lua/Dockerfile
-    image: xf-linker-lua-quality-tools:latest
-    profiles: ["quality-tools"]
-    working_dir: /repo
-    volumes:
-      - .:/repo
-    command: sh -lc "tail -f /dev/null"
-    healthcheck:
-      test: ["CMD-SHELL", "command -v lua-fastcheck >/dev/null && lua-mutmut --version >/dev/null && luajit -v >/dev/null 2>&1"]
-      interval: 60s
-      timeout: 20s
-      retries: 3
-      start_period: 20s
-
   compiled-tools:
     build:
       context: .
       dockerfile: tools/mutation/Dockerfile
+      target: quality
     image: xf-linker-compiled-tools:latest
     container_name: xf_linker_compiled_tools
-    # Heavy compiled-language quality toolchain (C++/Go/Haskell/Rust mutation,
-    # lint, static analysis). Per docs/specs/fr-mint-quality-tool-placement.md
+    # Heavy compiled-language quality toolchain (lint, static analysis).
+    # Per docs/specs/fr-mint-quality-tool-placement.md
     # this runs on the Mint helper, not Windows — so the Windows 65/35 split
     # sends compiled-language work to Mint's 35% share. Gated so a default
     # Windows `docker compose up` skips it; Mint starts it via
@@ -563,7 +460,32 @@ services:
       - go_tool_mod_cache:/go/pkg/mod
     command: bash -lc "tail -f /dev/null"
     healthcheck:
-      test: ["CMD-SHELL", "command -v mutmut >/dev/null 2>&1 && command -v mull-runner-19 >/dev/null 2>&1 && command -v go >/dev/null 2>&1 && command -v cmake >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "command -v go >/dev/null 2>&1 && command -v cmake >/dev/null 2>&1"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+      start_period: 20s
+
+  compiled-mutation-tools:
+    build:
+      context: .
+      dockerfile: tools/mutation/Dockerfile
+      target: mutation-tools
+    image: xf-linker-compiled-mutation-tools:latest
+    container_name: xf_linker_compiled_mutation_tools
+    # Isolated mutation tools stage
+    profiles: ["mint-quality"]
+    restart: unless-stopped
+    mem_limit: 2g
+    working_dir: /repo
+    volumes:
+      - .:/repo
+      - compiled_artifacts:/opt/xf/compiled
+      - compiled_tool_cache:/root/.cache
+      - go_tool_mod_cache:/go/pkg/mod
+    command: bash -lc "tail -f /dev/null"
+    healthcheck:
+      test: ["CMD-SHELL", "command -v mutmut >/dev/null 2>&1 && command -v mull-runner-19 >/dev/null 2>&1"]
       interval: 60s
       timeout: 20s
       retries: 3
@@ -603,33 +525,13 @@ services:
       timeout: 2s
       retries: 3
 
-  # ─────────────────────────────────────────────
-  # clusterd — root-cause clustering sidecar (gRPC over Unix socket).
-  # Bundles three language tiers in one image: Rust cluster-sig (speed),
-  # Haskell findbugs-cluster (logic), Go clusterd (plumbing). Python callers
-  # route through backend/apps/auto_issues/_clusterd_client.py — never direct.
-  # Rule K: go.mod + api.proto + cmd/clusterd/server.go + Dockerfile +
-  #         api/gen/*.pb.go + this block + go.sum + multi-stage Dockerfile +
-  #         clusterd_sock named volume. Build context is the repo root so the
-  #         Rust/Haskell/Go service trees are all reachable.
-  # ─────────────────────────────────────────────
-  clusterd:
-    build:
-      context: ./services
-      dockerfile: clusterd/Dockerfile
-    image: xf-linker-clusterd:latest
-    container_name: xf_linker_clusterd
-    restart: always
-    mem_limit: 512m
-    volumes:
-      - clusterd_sock:/var/run/xf-clusterd
-    environment:
-      XF_CLUSTERD_SOCKET: /var/run/xf-clusterd/clusterd.sock
-    healthcheck:
-      test: ["CMD", "/clusterd-healthcheck"]
-      interval: 10s
-      timeout: 2s
-      retries: 3
+  # clusterd service REMOVED per ADR 0007 (Python + Rust only). It bundled the
+  # retired Haskell findbugs-cluster + Go plumbing tiers. Full teardown is done:
+  # services/clusterd + services/findbugs-haskell source, the auto_issues
+  # clustering feature (cluster_autoissues/tune_clustering/_clusterd_client/
+  # _clusterd_pb2), the clusterd_sock volume + backend mount, and the Haskell
+  # hooks/CI are all deleted. The Rust-backed FindBugs scanner (rust_defect
+  # source, findbugs.* celery tasks, FindBugs REST views) is unrelated and stays.
 
   # ─────────────────────────────────────────────
   # startupd — lean session-start gateway (port 8765).
@@ -945,7 +847,7 @@ services:
     volumes:
       - pyroscope_data:/data
     ports:
-      - "127.0.0.1:4040:4040"
+      - "4040:4040"
     command:
       - "-config.file=/etc/pyroscope.yaml"
       - "-target=all"
@@ -1199,8 +1101,6 @@ volumes:
   # down` so callers keep the same path after a stop/start.
   streamd_sock:
     driver: local
-  clusterd_sock:
-    driver: local
   hf_cache:
     driver: local
   nginx_logs:
@@ -1217,14 +1117,7 @@ volumes:
     driver: local
   sqlite_registry_data:
     driver: local
-  sonarqube_data:
-    driver: local
-  sonarqube_extensions:
-    driver: local
-  sonarqube_logs:
-    driver: local
-  sonar_scanner_cache:
-    driver: local
+
   # Slice 1.6 — sidecars Unix-domain socket directory and persistent storage.
   # sidecars_sock is ephemeral by design (the socket is recreated on each
   # sidecars start) but the volume keeps the path stable across stop/start so

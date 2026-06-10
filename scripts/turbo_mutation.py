@@ -163,7 +163,13 @@ def _run_in_container(
         ctx = context if transport == "docker_context" else transport
         docker_cmd = [
             "docker", "--context", ctx,
-            "compose", "exec", "-T", container, "bash", "-lc", cmd,
+            "run", "--rm",
+            "-v", "xf_test_repo:/repo",
+            "-v", "xf_dell_quality_cache:/tmp/xf-test-cache",
+            "-v", "frontend_tool_cache:/root/.npm",
+            "-w", "/repo",
+            "xf-linker-" + container + ":latest",
+            "bash", "-lc", cmd,
         ]
     try:
         result = subprocess.run(
@@ -255,11 +261,13 @@ def _run_python(cfg: dict, cores_local: int, dry_run: bool) -> str:
         f"PY\n"
         f"cd \"$workdir\"; "
         f"find {paths} -name '*.pyc' -delete 2>/dev/null; "
+        f"ln -sf \"$MUTMUT_CACHE_DIR\" .mutmut-cache; "
         f"python -m mutmut run --max-children {cores_local} || true; "
         f"python -m mutmut export-cicd-stats > /tmp/mutmut-survivors.json 2>/dev/null || true; "
         f"cat /tmp/mutmut-survivors.json"
     )
-    rc, out = _run_in_container("local", "backend", mutmut_cmd, timeout=540)
+    mutmut_cmd = f"export MUTMUT_CACHE_DIR=/tmp/xf-test-cache/mutmut; " + mutmut_cmd
+    rc, out = _run_in_container("docker_context", "backend-mutation-tools", mutmut_cmd, context="dell", timeout=540)
     print(out, end="")
     _write_json_blob(out, report_host)
     return _file_survivors("mutmut", report_host, dry_run)
@@ -287,7 +295,7 @@ def _run_cpp(cfg: dict, machines: list[dict], machine_cores: dict, dry_run: bool
                 f"mull-runner-19 -reporters Elements -report-dir /tmp/mull-reports "
                 f"/repo/backend/build/{binary} -timeout 60 || true"
             )
-            rc, out = _run_on_machine(machine, "compiled-tools", cmd, timeout=180)
+            rc, out = _run_on_machine(machine, "compiled-mutation-tools", cmd, timeout=180)
             with lock:
                 outputs.append(f"[turbo cpp {machine['name']}:{binary}] rc={rc}\n{out}")
 
@@ -297,7 +305,7 @@ def _run_cpp(cfg: dict, machines: list[dict], machine_cores: dict, dry_run: bool
 
     for machine in machines:
         rc, out = _run_on_machine(
-            machine, "compiled-tools",
+            machine, "compiled-mutation-tools",
             "cat /tmp/mull-reports/*.json 2>/dev/null || true", timeout=30,
         )
         if out.strip():
@@ -335,7 +343,7 @@ def _run_go(cfg: dict, machines: list[dict], machine_cores: dict, dry_run: bool)
             f"for m in re.finditer(r'PASS.*?([^\\s]+\\.go):(\\d+).*?\\((.+?)\\)', lines)]; "
             f"json.dump({{'mutators': [{{'file':s['file'],'line':s['line'],'type':s['mutator'],'result':{{'passed':True}}}} for s in survivors]}}, open('/tmp/go-mut-report-{name}.json','w'))\""
         )
-        rc, out = _run_on_machine(machine, "compiled-tools", cmd, timeout=480)
+        rc, out = _run_on_machine(machine, "compiled-mutation-tools", cmd, timeout=480)
         with lock:
             outputs.append(f"[turbo go {name}] rc={rc}\n{out}")
 
@@ -348,7 +356,7 @@ def _run_go(cfg: dict, machines: list[dict], machine_cores: dict, dry_run: bool)
     merged: list[dict] = []
     for machine in machines:
         rc2, raw = _run_on_machine(
-            machine, "compiled-tools",
+            machine, "compiled-mutation-tools",
             f"cat /tmp/go-mut-report-{machine['name']}.json 2>/dev/null || echo '{{}}'",
             timeout=20,
         )
@@ -400,7 +408,7 @@ def _run_rust(cfg: dict, machines: list[dict], machine_cores: dict, dry_run: boo
                 f"--output {out_dir} || true; "
                 f"cat {out_dir}/outcomes.json 2>/dev/null || echo '{{}}'"
             )
-            rc, out = _run_on_machine(machine, "compiled-tools", cmd, timeout=480)
+            rc, out = _run_on_machine(machine, "compiled-mutation-tools", cmd, timeout=480)
             with lock:
                 outputs.append(f"[turbo rust {name}:{slug}] rc={rc}\n{out}")
             try:
@@ -442,7 +450,7 @@ def _run_haskell(cfg: dict, machines: list[dict], machine_cores: dict, dry_run: 
             f"for m in re.finditer(r'Mutant.*?\\\"([^:]+):(\\d+).*?survived.*?\\((.+?)\\)', txt, re.I|re.S)]; "
             f"json.dump({{'survivors':survivors}}, open('/tmp/mucheck-report-{name}.json','w'))\""
         )
-        rc, out = _run_on_machine(machine, "compiled-tools", cmd, timeout=480)
+        rc, out = _run_on_machine(machine, "compiled-mutation-tools", cmd, timeout=480)
         with lock:
             outputs.append(f"[turbo haskell {name}] rc={rc}\n{out}")
 
@@ -453,7 +461,7 @@ def _run_haskell(cfg: dict, machines: list[dict], machine_cores: dict, dry_run: 
     filing_out = ""
     for machine in machines:
         rc2, raw = _run_on_machine(
-            machine, "compiled-tools",
+            machine, "compiled-mutation-tools",
             f"cat /tmp/mucheck-report-{machine['name']}.json 2>/dev/null || echo '{{\"survivors\":[]}}'",
             timeout=20,
         )
@@ -478,7 +486,7 @@ def _run_typescript(cfg: dict, cores_local: int, dry_run: bool) -> str:
     cores_flag = max(1, cores_local)
     cmd = (
         f"cd {workspace} && "
-        f"npx stryker run --concurrency {cores_flag} 2>&1 || true"
+        f"npx stryker run --incremental --concurrency {cores_flag} 2>&1 || true"
     )
     rc, out = _run_in_container("docker_context", container, cmd,
                                 context=context, timeout=540)

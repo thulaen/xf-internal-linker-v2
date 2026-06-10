@@ -16,13 +16,12 @@ RUN go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest && \
     go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.2 && \
     go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
 
-FROM ubuntu:24.04
+FROM ubuntu:24.04 AS quality
 
 ENV PATH="/usr/local/go/bin:${PATH}"
 ARG INFER_VERSION=1.2.0
 
 COPY --from=go-tools /usr/local/go /usr/local/go
-COPY --from=go-tools /go/bin/go-mutesting /usr/local/bin/go-mutesting
 COPY --from=go-tools /go/bin/golangci-lint /usr/local/bin/golangci-lint
 COPY --from=go-tools /go/bin/gosec /usr/local/bin/gosec
 # Slice 1.5 — copy the four new Go binaries from the build stage.
@@ -57,22 +56,31 @@ RUN apt-get update && \
       python3-pip \
       python-is-python3 \
       libgmp-dev && \
-    curl -1sLf 'https://dl.cloudsmith.io/public/mull-project/mull-stable/setup.deb.sh' | bash && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends mull-19 && \
     curl -sSL "https://github.com/facebook/infer/releases/download/v${INFER_VERSION}/infer-linux-x86_64-v${INFER_VERSION}.tar.xz" \
       | tar -C /opt -xJ && \
     ln -s "/opt/infer-linux-x86_64-v${INFER_VERSION}/bin/infer" /usr/local/bin/infer && \
-    pip install --break-system-packages --ignore-installed --no-cache-dir mutmut==3.5.0 pybind11==2.13.6 semgrep && \
+    pip install --break-system-packages --ignore-installed --no-cache-dir pybind11==2.13.6 maturin==1.13.3 semgrep && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Rust toolchain via rustup (stable channel).
 # cargo-mutants provides mutation testing for Rust code.
 # cargo-fuzz provides libFuzzer-backed fuzz testing; the "|| true" allows the
 # build to succeed on architectures where nightly is unavailable for fuzzing.
+# cargo-llvm-cov measures line/branch coverage; it needs the llvm-tools-preview
+# rustup component (it shells out to llvm-cov / llvm-profdata from that
+# component). The component is added to the stable toolchain (used by
+# scripts/run-rust-coverage.sh).
+# cargo-audit (RustSec advisory scan) and cargo-deny (license/ban/advisory
+# policy) back the security/license steps of the Rust mandate gate
+# (.githooks/check_rust_mandate.py). Without them the gate cannot run those
+# checks for real; it degrades to a warning, so installing them here is the
+# primary fix.
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable && \
     . "$HOME/.cargo/env" && \
-    cargo install cargo-mutants && \
+    rustup component add llvm-tools-preview && \
+    cargo install cargo-llvm-cov && \
+    cargo install cargo-audit --locked && \
+    cargo install cargo-deny --locked && \
     (cargo install cargo-fuzz --version "^0.12" || true) && \
     rm -rf /root/.cargo/registry /root/.cargo/git
 
@@ -91,4 +99,20 @@ ENV PATH="/root/.ghcup/bin:/root/.cabal/bin:${PATH}"
 
 WORKDIR /repo
 
-CMD ["bash", "-lc", "mutmut --version && mull-runner-19 --version && go version && command -v go-mutesting >/dev/null && golangci-lint --version && gosec -version && staticcheck -version && buf --version && protoc --version && protoc-gen-go --version && cmake --version && clang++-19 --version && clang-tidy-19 --version && cppcheck --version && include-what-you-use --version && infer --version && semgrep --version && rustc --version && cargo --version && cargo mutants --version && ghc --version && cabal --version && hlint --version && echo 'compiled tools ready'"]
+CMD ["bash", "-lc", "go version && golangci-lint --version && gosec -version && staticcheck -version && buf --version && protoc --version && protoc-gen-go --version && cmake --version && clang++-19 --version && clang-tidy-19 --version && cppcheck --version && include-what-you-use --version && infer --version && semgrep --version && rustc --version && cargo --version && cargo llvm-cov --version && cargo audit --version && cargo deny --version && maturin --version && ghc --version && cabal --version && hlint --version && echo 'compiled tools ready'"]
+
+FROM quality AS mutation-tools
+
+COPY --from=go-tools /go/bin/go-mutesting /usr/local/bin/go-mutesting
+
+RUN curl -1sLf 'https://dl.cloudsmith.io/public/mull-project/mull-stable/setup.deb.sh' | bash && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends mull-19 && \
+    pip install --break-system-packages --ignore-installed --no-cache-dir mutmut==3.5.0 && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN . "$HOME/.cargo/env" && \
+    cargo install cargo-mutants && \
+    rm -rf /root/.cargo/registry /root/.cargo/git
+
+CMD ["bash", "-lc", "mutmut --version && mull-runner-19 --version && go-mutesting --version && cargo mutants --version && echo 'mutation tools ready'"]
