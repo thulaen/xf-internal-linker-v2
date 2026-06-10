@@ -86,8 +86,8 @@ impl DedupError {
             }
             DedupError::SaveOpen => "PaperTrailDedupIndex: cannot open save path",
             DedupError::LoadOpen => "PaperTrailDedupIndex: cannot open load path",
-            SnapshotError::MagicMismatch => "PaperTrailDedupIndex: snapshot magic mismatch",
-            SnapshotError::UnsupportedVersion => "PaperTrailDedupIndex: unsupported snapshot version",
+            DedupError::MagicMismatch => "PaperTrailDedupIndex: snapshot magic mismatch",
+            DedupError::UnsupportedVersion => "PaperTrailDedupIndex: unsupported snapshot version",
         }
     }
 }
@@ -525,10 +525,10 @@ impl DedupIndexCore {
         let seed = read_u64(&mut cur).map_err(|_| DedupError::LoadOpen)?;
         let entry_count = read_u64(&mut cur).map_err(|_| DedupError::LoadOpen)?;
         if magic != SNAPSHOT_MAGIC {
-            return Err(SnapshotError::MagicMismatch);
+            return Err(DedupError::MagicMismatch);
         }
         if version != SNAPSHOT_VERSION {
-            return Err(SnapshotError::UnsupportedVersion);
+            return Err(DedupError::UnsupportedVersion);
         }
         self.clear();
         self.seed = seed;
@@ -862,7 +862,7 @@ mod tests {
         let path = dir.join("bad.idx");
         std::fs::write(&path, vec![0_u8; 32]).unwrap();
         let mut idx = core();
-        assert_eq!(idx.load(&path).unwrap_err(), SnapshotError::MagicMismatch);
+        assert_eq!(idx.load(&path).unwrap_err(), DedupError::MagicMismatch);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -878,7 +878,7 @@ mod tests {
         buf.extend_from_slice(&0_u64.to_le_bytes());
         std::fs::write(&path, buf).unwrap();
         let mut idx = core();
-        assert_eq!(idx.load(&path).unwrap_err(), SnapshotError::UnsupportedVersion);
+        assert_eq!(idx.load(&path).unwrap_err(), DedupError::UnsupportedVersion);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

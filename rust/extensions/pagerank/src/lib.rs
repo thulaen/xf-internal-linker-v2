@@ -86,8 +86,10 @@ pub fn pagerank_step_core(
         *value += base_mass;
         total_mass += *value;
     }
-    for value in &mut next {
-        *value /= total_mass;
+    if total_mass > 0.0 {
+        for value in &mut next {
+            *value /= total_mass;
+        }
     }
 
     let mut delta = 0.0_f64;
@@ -379,6 +381,18 @@ mod tests {
             (sum - 1.0).abs() < 1e-12,
             "ranks should sum to 1, got {sum}"
         );
+    }
+
+    #[test]
+    fn pagerank_step_degenerate_graph_does_not_panic() {
+        let (indptr, indices, data) = cycle_graph();
+        let ranks = vec![0.0; 3];
+        let dangling = vec![false; 3];
+        let (next, _delta) =
+            pagerank_step_core(&indptr, &indices, &data, &ranks, &dangling, 0.0, 3);
+        assert!((next[0]).abs() < 1e-12);
+        assert!((next[1]).abs() < 1e-12);
+        assert!((next[2]).abs() < 1e-12);
     }
 
     #[test]

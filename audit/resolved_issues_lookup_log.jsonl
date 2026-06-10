@@ -2700,3 +2700,9 @@
 {"file_path": "backend/apps/resolved_search_batch_audit", "lookup_at": "2026-06-10T19:30:36Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 1, "result_ids": [1084]}
 {"file_path": "backend/apps/resolved_search_batch_pipeline", "lookup_at": "2026-06-10T19:30:36Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 1, "result_ids": [1085]}
 {"file_path": "backend/apps/resolved_search_limited", "lookup_at": "2026-06-10T19:30:36Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/resolved_search_windows", "lookup_at": "2026-06-10T21:01:07Z", "task_id": "a26dcbfa-85d7-43e2-a56d-660eae0fb82a", "agent": "claude", "result_count": 1, "result_ids": [230]}
+{"file_path": "backend/apps/resolved_search_limited", "lookup_at": "2026-06-10T21:01:07Z", "task_id": "a26dcbfa-85d7-43e2-a56d-660eae0fb82a", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/resolved_search_audit", "lookup_at": "2026-06-10T21:01:07Z", "task_id": "a26dcbfa-85d7-43e2-a56d-660eae0fb82a", "agent": "claude", "result_count": 1, "result_ids": [233]}
+{"file_path": "backend/apps/resolved_search_batch_audit", "lookup_at": "2026-06-10T21:01:07Z", "task_id": "a26dcbfa-85d7-43e2-a56d-660eae0fb82a", "agent": "claude", "result_count": 1, "result_ids": [235]}
+{"file_path": "backend/apps/resolved_search_batch_pipeline", "lookup_at": "2026-06-10T21:01:07Z", "task_id": "a26dcbfa-85d7-43e2-a56d-660eae0fb82a", "agent": "claude", "result_count": 1, "result_ids": [236]}
+{"file_path": ".githooks", "lookup_at": "2026-06-10T21:02:22Z", "task_id": "a26dcbfa-85d7-43e2-a56d-660eae0fb82a", "agent": "claude", "result_count": 2, "result_ids": [212, 211]}
