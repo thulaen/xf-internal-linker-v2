@@ -21,14 +21,20 @@ from dataclasses import dataclass
 import re
 from typing import Iterable, Mapping, Sequence, TypeAlias
 
-try:
-    # The C++ fast path (FR-045 batch scorer). Normalization and diagnostics
-    # composition stay in Python; this module just delivers the arithmetic.
-    from extensions import anchor_diversity as _anchor_diversity_cpp  # type: ignore
+from .rust_kernels import KernelUnavailableError, load_kernel
 
+# The FR-045 batch scorer was ported from C++ to Rust
+# (rust/extensions/anchor_diversity). It is loaded through the shared
+# `load_kernel` helper at the point of use (RUST-FIRST.md zero-fallback). The
+# pure-Python `_arithmetic_via_python` below is retained as the cross-language
+# parity oracle the acceptance test (backend/tests/test_parity_anchor_diversity.py)
+# drives — NOT a silent runtime fallback. `HAS_CPP_EXT` reports whether the
+# native kernel is importable; the path-agnostic parity test toggles it to
+# exercise both the native arithmetic and the Python oracle.
+try:
+    load_kernel("extensions.anchor_diversity", "evaluate_batch")
     HAS_CPP_EXT = True
-except ImportError:
-    _anchor_diversity_cpp = None  # type: ignore[assignment]
+except KernelUnavailableError:
     HAS_CPP_EXT = False
 
 ContentKey: TypeAlias = tuple[int, str]
@@ -309,7 +315,7 @@ def evaluate_anchor_diversity_batch(
     arithmetic: list[dict | None] = [None] * n
     if needs_math:
         computed = (
-            _arithmetic_via_cpp(needs_math, histories, exact_before, settings)
+            _arithmetic_via_rust(needs_math, histories, exact_before, settings)
             if HAS_CPP_EXT
             else _arithmetic_via_python(needs_math, histories, exact_before, settings)
         )
@@ -368,7 +374,7 @@ def evaluate_anchor_diversity_batch(
             continue
 
         row = arithmetic[i]
-        assert row is not None  # needs_math loop already filled this slot
+        assert row is not None  # nosec B101  # needs_math loop already filled this slot
         score = row["score"]
         score_component = min(0.0, 2.0 * (score - 0.5))
         diagnostics.update(
@@ -396,20 +402,21 @@ def evaluate_anchor_diversity_batch(
     return results
 
 
-def _arithmetic_via_cpp(
+def _arithmetic_via_rust(
     indices: list[int],
     histories: list[AnchorHistory],
     exact_before: list[int],
     settings: AnchorDiversitySettings,
 ) -> list[dict]:
-    """Run the FR-045 arithmetic through the C++ batch scorer."""
+    """Run the FR-045 arithmetic through the Rust batch scorer (no fallback)."""
     import numpy as np
 
+    kernel = load_kernel("extensions.anchor_diversity", "evaluate_batch")
     active = np.array(
         [histories[i].active_anchor_count for i in indices], dtype=np.int32
     )
     before = np.array([exact_before[i] for i in indices], dtype=np.int32)
-    result = _anchor_diversity_cpp.evaluate_batch(  # type: ignore[union-attr]
+    result = kernel.evaluate_batch(  # type: ignore[attr-defined]
         active,
         before,
         int(settings.min_history_count),

@@ -203,7 +203,7 @@ def test_docker_context_branch_unchanged(monkeypatch) -> None:
     turbo._run_in_container("local", "compiled-tools", "echo local")
     turbo._run_in_container("mint", "compiled-tools", "echo remote")
     assert calls[0][:5] == ["docker", "compose", "exec", "-T", "compiled-tools"]
-    assert calls[1][:7] == ["docker", "--context", "mint", "compose", "exec", "-T", "compiled-tools"]
+    assert calls[1][:5] == ["docker", "--context", "mint", "run", "--rm"]
 
 
 def test_ssh_transport_syncs_source_then_builds_compose_run_no_deps(monkeypatch) -> None:

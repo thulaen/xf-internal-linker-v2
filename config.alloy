@@ -40,6 +40,12 @@ discovery.relabel "containers" {
   }
 
   rule {
+    source_labels = ["__meta_docker_container_label_docker_mcp"]
+    regex         = "true"
+    action        = "drop"
+  }
+
+  rule {
     source_labels = ["__meta_docker_container_name"]
     regex         = "/(.*)"
     target_label  = "container_name"

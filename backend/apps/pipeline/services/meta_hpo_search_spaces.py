@@ -1,26 +1,35 @@
 """TPE search spaces — single source of truth for what Option B tunes.
 
-Every entry here corresponds to a ``TPE-tuned = Yes`` row in one of
-the pick specs under ``docs/specs/pick-NN-*.md`` §6. The meta-HPO
-study (pick #42) samples from these spaces; safety rails clip
-proposed values back into range; the apply step writes the winning
-values into ``AppSetting``.
+Phase 7 (Slice 15) made this space **registry-driven**: the live
+``SEARCH_SPACE`` is assembled by :func:`build_search_space`, which
+combines a small set of legacy hand-written entries with entries
+**derived at runtime from the canonical tunable registry**
+(``apps.suggestions.tunable_registry``). A tunable registered in the
+registry therefore appears in the Optuna search space automatically —
+**no edit to this module or any tuner code is required.**
 
 **Policy rules baked in here:**
 
 1. **Correctness params are excluded.** Bloom FPR, HLL precision,
    Kernel SHAP `nsamples`, Conformal ``alpha``, Google quota caps, and
-   any RFC-mandated behaviour stays fixed forever. They never appear
-   below.
-2. **Paper-backed bounds.** Every distribution's min/max comes from
-   the cited paper / empirical reasonable range in the pick spec §6
-   "TPE search space" column.
+   any RFC-mandated behaviour stays fixed forever. They never appear in
+   the registry, so they never reach the search space.
+2. **Paper-backed bounds.** Every distribution's min/max comes from the
+   cited paper / empirical reasonable range — the registry stores the
+   ``citation`` next to each bound.
 3. **No DB writes from this module.** It only *describes* the space.
    Writing happens in :mod:`meta_hpo` after safety gates pass.
+4. **§F boundary — offline-only (``ranking_train``).** Deriving and
+   sampling the search space TRAINS / COMPARES candidate profiles
+   offline. Nothing here activates, promotes, or rolls back a profile;
+   activation stays gated by Rust governance + GUI approval.
 
-Adding a new pick's TPE-tuned key: add a :class:`SearchSpaceEntry`
-here and add a corresponding migration that seeds the AppSetting key.
-That's all — the study picks it up automatically on the next run.
+Adding a new tunable: add ONE entry to ``META_PARAMS`` /
+``BLEND_WEIGHTS`` / ``CONDITIONAL_BLEND_WEIGHTS`` in
+``apps.suggestions.tunable_registry``. The deriver picks it up on the
+next study run — that is the Phase 7 "no tuner-code change per new
+tunable" payoff. Legacy hand-written entries below cover the handful of
+TPE-tuned keys that are not (yet) in the registry.
 """
 
 from __future__ import annotations
@@ -123,13 +132,21 @@ def is_fr099_fr105_tpe_eligible() -> bool:
         return False
 
 
-# ── The 12 TPE-tuned keys + 7 FR-099..FR-105 guarded entries ───────
+# ── Legacy hand-written TPE-tuned keys ─────────────────────────────
+#
+# These are the TPE-tuned picks that are not (yet) mirrored in the
+# canonical tunable registry — keys like ``trustrank.damping`` and
+# ``query_expansion_bow.alpha`` that the registry does not own. They are
+# combined with the registry-derived entries by :func:`build_search_space`.
+# When a key here is later added to the registry, the registry entry
+# wins (see ``_REGISTRY_PRECEDENCE`` in :func:`build_search_space`) and
+# the legacy entry can be deleted.
 #
 # Order mirrors the plan manifest. Each block cites its pick spec §6
 # TPE row so reviewers can audit against the source of truth.
 
 
-SEARCH_SPACE: list[SearchSpaceEntry] = [
+_LEGACY_SEARCH_SPACE: list[SearchSpaceEntry] = [
     # pick #27 — Query Expansion BoW (Rocchio α / β)
     SearchSpaceEntry(
         app_setting_key="query_expansion_bow.alpha",
@@ -365,11 +382,147 @@ _GROUP_G_HARMONIOUS_12_ENTRIES: list[SearchSpaceEntry] = [
 ]
 
 
-# Splice FR-099..FR-105 into SEARCH_SPACE iff the burn-in gate passes.
+# Splice FR-099..FR-105 into the legacy list iff the burn-in gate passes.
 # Evaluated at module-import time (stable for the process lifetime).
 if is_fr099_fr105_tpe_eligible():
-    SEARCH_SPACE.extend(_FR099_FR105_ENTRIES)
-    SEARCH_SPACE.extend(_GROUP_G_HARMONIOUS_12_ENTRIES)
+    _LEGACY_SEARCH_SPACE.extend(_FR099_FR105_ENTRIES)
+    _LEGACY_SEARCH_SPACE.extend(_GROUP_G_HARMONIOUS_12_ENTRIES)
+
+
+# ── Registry-driven derivation (Phase 7 heart) ─────────────────────
+#
+# The deriver turns each canonical-registry ``TunableEntry`` into a
+# ``SearchSpaceEntry`` whose ``suggest`` / ``clip`` / ``to_appsetting``
+# callables are inferred from the registry's ``lower`` / ``upper`` /
+# ``default`` fields. A registry entry therefore becomes an Optuna
+# distribution with NO per-entry callable hand-coded here — the Phase 7
+# "no tuner-code change per new tunable" guarantee.
+
+
+def _looks_like_int(default: str) -> bool:
+    """True when the registry default is an integer literal (no decimal).
+
+    The registry stores defaults as strings (``"60"`` vs ``"1.2"``). An
+    integer-looking default + whole-number bounds means the knob should
+    use an integer Optuna distribution and an integer serialiser so the
+    written AppSetting value round-trips without a spurious ``.0``.
+    """
+    text = (default or "").strip()
+    if not text:
+        return False
+    try:
+        as_float = float(text)
+    except (TypeError, ValueError):
+        return False
+    return "." not in text and "e" not in text.lower() and as_float == int(as_float)
+
+
+def _int_serialiser(value: Any) -> str:
+    return str(int(round(float(value))))
+
+
+def _float_serialiser(value: Any) -> str:
+    return f"{float(value):.4f}"
+
+
+def derive_entry(key: str, lower: float, upper: float, default: str) -> SearchSpaceEntry:
+    """Build one :class:`SearchSpaceEntry` from registry bound fields.
+
+    Distribution + serialiser are chosen from ``default``: an integer
+    literal yields ``suggest_int`` + an int serialiser, anything else a
+    ``suggest_float`` + a 4-dp serialiser. ``clip`` clamps into
+    ``[lower, upper]`` exactly as the legacy entries do.
+    """
+    if _looks_like_int(default):
+        lo_i, hi_i = int(round(lower)), int(round(upper))
+        return SearchSpaceEntry(
+            app_setting_key=key,
+            pick_number=0,  # 0 = registry-derived (no plan-spec pick number)
+            suggest=_suggest_int(key, lo_i, hi_i),
+            clip=_clip(lo_i, hi_i),
+            to_appsetting=_int_serialiser,
+        )
+    return SearchSpaceEntry(
+        app_setting_key=key,
+        pick_number=0,
+        suggest=_suggest_float(key, float(lower), float(upper)),
+        clip=_clip(float(lower), float(upper)),
+        to_appsetting=_float_serialiser,
+    )
+
+
+def derive_registry_search_space() -> list[SearchSpaceEntry]:
+    """Derive search-space entries from the canonical tunable registry.
+
+    Reads ``META_PARAMS``, ``BLEND_WEIGHTS``, and the candidate weight of
+    each ``CONDITIONAL_BLEND_WEIGHTS`` entry. Excluded meta keys are
+    skipped — they are deliberately not auto-tuned. The registry is
+    imported lazily and read fresh on every call so a test (or a new
+    tunable registered at runtime) is reflected without re-importing this
+    module.
+    """
+    from apps.suggestions.tunable_registry import (
+        BLEND_WEIGHTS,
+        CONDITIONAL_BLEND_WEIGHTS,
+        META_PARAMS,
+        META_PARAMS_EXCLUDED,
+    )
+
+    derived: list[SearchSpaceEntry] = []
+    seen: set[str] = set()
+
+    def _add(key: str, entry) -> None:
+        if key in META_PARAMS_EXCLUDED or key in seen:
+            return
+        seen.add(key)
+        derived.append(
+            derive_entry(key, entry.lower, entry.upper, entry.default)
+        )
+
+    for key, entry in META_PARAMS.items():
+        _add(key, entry)
+    for key, entry in BLEND_WEIGHTS.items():
+        _add(key, entry)
+    for weight_key, (_gate_key, entry) in CONDITIONAL_BLEND_WEIGHTS.items():
+        _add(weight_key, entry)
+
+    return derived
+
+
+def build_search_space() -> list[SearchSpaceEntry]:
+    """Assemble the live search space: registry-derived + legacy entries.
+
+    The registry is the single source of truth, so registry-derived
+    entries take precedence: a legacy hand-written entry whose key the
+    registry now owns is dropped in favour of the registry-derived one.
+    Legacy entries that the registry does not own (e.g.
+    ``trustrank.damping``) are appended after.
+    """
+    derived = derive_registry_search_space()
+    derived_keys = {entry.app_setting_key for entry in derived}
+    combined = list(derived)
+    for entry in _LEGACY_SEARCH_SPACE:
+        if entry.app_setting_key not in derived_keys:
+            combined.append(entry)
+    return combined
+
+
+def rebuild_search_space() -> list[SearchSpaceEntry]:
+    """Rebuild the module-level ``SEARCH_SPACE`` from the current registry.
+
+    ``meta_hpo`` iterates the module-level ``SEARCH_SPACE`` list object,
+    so we mutate it in place (rather than rebind) to keep that reference
+    live. Returns the rebuilt list for convenience.
+    """
+    SEARCH_SPACE[:] = build_search_space()
+    return SEARCH_SPACE
+
+
+#: The live search space the study iterates. Registry-driven: rebuilt
+#: from the registry at import time and re-buildable via
+#: :func:`rebuild_search_space` (e.g. before each weekly study run, so a
+#: tunable registered since process start is picked up).
+SEARCH_SPACE: list[SearchSpaceEntry] = build_search_space()
 
 
 # ── Study-level constants ─────────────────────────────────────────

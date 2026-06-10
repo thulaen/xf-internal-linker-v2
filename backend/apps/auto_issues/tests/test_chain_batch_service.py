@@ -57,16 +57,7 @@ class ChainBatchServiceTests(TestCase):
         self.assertEqual(result["autoissue_quota"]["status"], "fail")
         self.assertIn("duplicate AutoIssue ids", result["autoissue_quota"]["reason"])
 
-    def test_batch_verify_requires_ten_sonarqube_quota_rows(self) -> None:
-        rows = [
-            _autoissue("quota_test", status=AutoIssue.STATUS_RESOLVED)
-            for _ in range(40)
-        ]
 
-        result = batch_verify({"autoissue_quota": [row.pk for row in rows]})
-
-        self.assertEqual(result["autoissue_quota"]["status"], "fail")
-        self.assertIn("expected 10 SonarQube AutoIssues", result["autoissue_quota"]["reason"])
 
     def test_resolved_paper_evidence_requires_code_review_lesson_reference(self) -> None:
         entry = _resolved_paper_entry(

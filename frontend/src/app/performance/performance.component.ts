@@ -7,9 +7,11 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatChipsModule } from '@angular/material/chips';
-import { BaseChartDirective } from 'ng2-charts';
-import { ChartConfiguration, ChartData } from 'chart.js';
+import type { EChartsOption } from 'echarts';
 import { timer } from 'rxjs';
+import { EchartsDirective } from '../shared/charts/echarts.directive';
+import { PeHelperDirective } from '../shared/directives/pe-helper.directive';
+import { gscChartBase, gscPalette, token, withAlpha } from '../shared/charts/echarts-theme';
 import {
   PerformanceService,
   BenchmarkRun,
@@ -40,7 +42,8 @@ interface UniqueFunction {
     MatProgressSpinnerModule,
     MatTooltipModule,
     MatChipsModule,
-    BaseChartDirective,
+    EchartsDirective,
+    PeHelperDirective,
   ],
   templateUrl: './performance.component.html',
   styleUrls: ['./performance.component.scss'],
@@ -69,20 +72,16 @@ export class PerformanceComponent implements OnInit {
   // docs/specs/fr247-fast-path-observability.md.
   readonly stage2PathStatus = signal<Stage2PathStatus | null>(null);
 
-  // Trend chart data — set once after the trends fetch resolves.
-  readonly trendChartData = signal<ChartData<'line'> | null>(null);
-  readonly trendChartOptions: ChartConfiguration<'line'>['options'] = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: true, position: 'top' },
-      tooltip: { mode: 'index', intersect: false },
-    },
-    scales: {
-      x: { title: { display: true, text: 'Date' } },
-      y: { title: { display: true, text: 'Time (ms)' }, beginAtZero: true },
-    },
-  };
+  // Trend chart option — set once after the trends fetch resolves. `null`
+  // until data arrives so the template shows the empty state, never a blank
+  // chart implying "all good".
+  readonly trendChartData = signal<EChartsOption | null>(null);
+
+  // Truthful state for the trend chart card. The card is always shown so the
+  // operator never sees a missing panel; this signal drives whether the body
+  // is the live chart, a loading spinner, an empty "no history yet" note, or
+  // a blocked "could not load" note. Never a blank chart implying "all good".
+  readonly trendState = signal<'loading' | 'ready' | 'empty' | 'error'>('loading');
 
   /** Sizes exposed to the template so the three-cell row collapses to a `@for`. */
   readonly sizes = INPUT_SIZES;
@@ -252,14 +251,24 @@ export class PerformanceComponent implements OnInit {
   }
 
   private loadTrends(): void {
+    this.trendState.set('loading');
     this.svc.getTrends()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (points) => {
-          if (points.length === 0) return;
+          if (points.length === 0) {
+            this.trendChartData.set(null);
+            this.trendState.set('empty');
+            return;
+          }
           this.trendChartData.set(buildTrendChart(points));
+          this.trendState.set('ready');
         },
-        error: (err) => console.warn('loadTrends failed', err),
+        error: (err) => {
+          console.warn('loadTrends failed', err);
+          this.trendChartData.set(null);
+          this.trendState.set('error');
+        },
       });
   }
 
@@ -284,28 +293,52 @@ function worstStatus(a: string, b: string): string {
 }
 
 /**
- * Build a Chart.js dataset from raw trend points. Top-level pure
- * function — easy to test in isolation, doesn't capture component
- * state, doesn't allocate fields.
+ * Build an ECharts multi-line option from raw trend points. Top-level pure
+ * function — easy to test in isolation, doesn't capture component state.
+ * One line per `language/function`, up to 10, plotting mean time in ms over
+ * the sorted set of dates.
  */
-function buildTrendChart(points: BenchmarkTrendPoint[]): ChartData<'line'> {
-  const funcMap = new Map<string, { dates: string[]; values: number[] }>();
+function buildTrendChart(points: BenchmarkTrendPoint[]): EChartsOption {
+  const funcMap = new Map<string, Map<string, number>>();
   for (const p of points) {
     const key = `${p.language}/${p.function}`;
     let entry = funcMap.get(key);
     if (!entry) {
-      entry = { dates: [], values: [] };
+      entry = new Map<string, number>();
       funcMap.set(key, entry);
     }
-    entry.dates.push(p.date);
-    entry.values.push(p.mean_ns / 1_000_000); /* ns → ms */
+    entry.set(p.date, p.mean_ns / 1_000_000); /* ns → ms */
   }
   const labels = [...new Set(points.map((p) => p.date))].sort();
-  const datasets = [...funcMap.entries()].slice(0, 10).map(([key, data]) => ({
-    label: key,
-    data: data.values,
-    fill: false,
-    tension: 0.3,
+  const base = gscChartBase();
+  const series = [...funcMap.entries()].slice(0, 10).map(([key, byDate]) => ({
+    name: key,
+    type: 'line' as const,
+    smooth: true,
+    showSymbol: false,
+    // Align each series to the shared date axis; gaps become null points.
+    data: labels.map((d) => byDate.get(d) ?? null),
   }));
-  return { labels, datasets };
+  const muted = token('--color-text-muted');
+  return {
+    ...base,
+    color: gscPalette(),
+    tooltip: { ...(base['tooltip'] as object), trigger: 'axis' },
+    legend: { ...(base['legend'] as object), type: 'scroll', data: series.map((s) => s.name) },
+    xAxis: {
+      type: 'category',
+      data: labels,
+      name: 'Date',
+      axisLine: { lineStyle: { color: token('--color-border') } },
+      axisLabel: { color: muted, fontSize: 11 },
+    },
+    yAxis: {
+      type: 'value',
+      name: 'Time (ms)',
+      min: 0,
+      axisLabel: { color: muted, fontSize: 11 },
+      splitLine: { lineStyle: { color: withAlpha(muted, 0.1) } },
+    },
+    series,
+  };
 }

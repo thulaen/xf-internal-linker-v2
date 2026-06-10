@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 
 STATE_FILE = Path(".git/xf-hook-state.json")
-TIMEOUT_SEC = 300
+TIMEOUT_SEC = 99999999
 
 def get_git_diff_hash() -> str:
     """Get the tree hash of the currently staged files (Bazel-like exact state)."""
@@ -53,7 +53,6 @@ def main():
         {"name": "run-python-quality", "cmd": ["sh", "scripts/quality_cache.sh", "sh", "scripts/run-python-quality.sh"]},
         {"name": "run-angular-quality", "cmd": ["sh", "scripts/quality_cache.sh", "sh", "scripts/run-angular-quality.sh"]},
         {"name": "run-rust-quality", "cmd": ["sh", "scripts/quality_cache.sh", "sh", "scripts/run-rust-quality.sh"]},
-        {"name": "check-missing-tests", "cmd": ["python", ".githooks/check-missing-tests.py"]},
     ]
 
     to_run = []

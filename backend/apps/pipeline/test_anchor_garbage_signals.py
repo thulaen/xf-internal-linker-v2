@@ -13,10 +13,9 @@ Covers:
 - Pure-Python helpers: ``_damerau_levenshtein``,
   ``_char_trigram_jaccard``, ``_bigram_entropy``.
 
-The C++ kernels are not required to be built — every test exercises
-the Python-fallback path that the wrapper module uses when the C++
-extensions aren't available. When the kernels ARE built, the same
-tests still pass (the wrapper transparently routes through them).
+The Rust self-information kernel is required for algorithm 3. Tests
+patch in a tiny Rust-like stub so the production module never needs a
+Python fallback for that hot path.
 """
 
 from __future__ import annotations
@@ -29,17 +28,133 @@ from django.test import SimpleTestCase, TestCase
 from apps.pipeline.services import anchor_garbage_signals as ags
 
 
+def _stub_bigram_entropy(text: str) -> float:
+    if len(text) < 2:
+        return 0.0
+    counts: dict[str, int] = {}
+    total = 0
+    for index in range(len(text) - 1):
+        bigram = text[index : index + 2]
+        counts[bigram] = counts.get(bigram, 0) + 1
+        total += 1
+    entropy = 0.0
+    for count in counts.values():
+        probability = count / total
+        entropy -= probability * math.log2(probability)
+    return entropy
+
+
+class _RustGenericMatcherAutomaton:
+    """Faithful stand-in for the Rust ``Automaton`` opaque handle.
+
+    Holds the phrase list and reproduces the kernel's byte-level Aho-Corasick
+    contract: a phrase matches when its bytes are a substring of the text, each
+    distinct matched phrase is emitted once, in order of first match position.
+    """
+
+    def __init__(self, phrases: list[str]) -> None:
+        self._phrases = list(phrases)
+
+
+class _RustKernelStub:
+    """Combined Rust-like kernel stub.
+
+    Exposes every native attribute the module loads through `load_kernel`:
+    `bigram_entropy` (anchor_self_information), `build_automaton` + `find_all`
+    (generic_anchor_matcher), and `damerau_levenshtein` + `char_trigram_jaccard`
+    (anchor_descriptiveness). One object can stand in for any of the kernels
+    because the production code only calls the attribute it needs. The
+    descriptiveness methods delegate to the module's own pure-Python parity
+    oracle so the stub stays faithful to the native byte semantics.
+    """
+
+    @staticmethod
+    def bigram_entropy(text: str) -> float:
+        return _stub_bigram_entropy(text)
+
+    @staticmethod
+    def damerau_levenshtein(a: str, b: str) -> int:
+        return ags._damerau_levenshtein_py(a, b)  # noqa: SLF001 — stub mirrors kernel
+
+    @staticmethod
+    def char_trigram_jaccard(a: str, b: str) -> float:
+        return ags._char_trigram_jaccard_py(a, b)  # noqa: SLF001 — stub mirrors kernel
+
+    @staticmethod
+    def build_automaton(phrases: list[str]) -> _RustGenericMatcherAutomaton:
+        return _RustGenericMatcherAutomaton(phrases)
+
+    @staticmethod
+    def find_all(
+        automaton: _RustGenericMatcherAutomaton, text: str
+    ) -> list[str]:
+        if not text:
+            return []
+        text_bytes = text.encode("utf-8")
+        # (first-match byte position, phrase) for each distinct phrase that
+        # occurs as a byte-substring; emit in first-match-position order — the
+        # exact Rust `find_all` contract.
+        first_pos: dict[str, int] = {}
+        for phrase in automaton._phrases:  # noqa: SLF001 — stub mirrors kernel internals
+            if not phrase:
+                continue
+            pos = text_bytes.find(phrase.encode("utf-8"))
+            if pos >= 0 and phrase not in first_pos:
+                first_pos[phrase] = pos
+        return [p for p, _ in sorted(first_pos.items(), key=lambda kv: kv[1])]
+
+
+class RustKernelStubMixin:
+    """Patch the shared `load_kernel` seam to a combined Rust-like stub.
+
+    Both Rust hot paths (`generic_anchor_matcher` and
+    `anchor_self_information`) are loaded through `load_kernel`; one combined
+    stub stands in for both so tests never need the compiled `.so`. Also clears
+    the `_compiled_lexicon` cache so each test rebuilds against the stub.
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        ags._compiled_lexicon.cache_clear()
+        loader = patch.object(
+            ags, "load_kernel", return_value=_RustKernelStub()
+        )
+        loader.start()
+        self.addCleanup(loader.stop)
+        self.addCleanup(ags._compiled_lexicon.cache_clear)
+
+
+# Backwards-compatible aliases for the original mixin names used below.
+RustGenericMatcherStubMixin = RustKernelStubMixin
+RustSelfInformationStubMixin = RustKernelStubMixin
+
+
 # ─────────────────────────────────────────────────────────────────────
 # Algo 1 — generic_score
 # ─────────────────────────────────────────────────────────────────────
 
 
-class GenericScoreTests(SimpleTestCase):
+class GenericScoreTests(RustGenericMatcherStubMixin, SimpleTestCase):
     def test_empty_anchor_returns_no_match(self) -> None:
         result = ags.generic_score("")
         self.assertFalse(result.matched)
         self.assertEqual(result.matched_phrases, ())
         self.assertEqual(result.genericness, 0.0)
+
+    def test_missing_rust_kernel_raises_loudly(self) -> None:
+        # Zero-fallback: when the Rust matcher kernel is unavailable, a real
+        # generic anchor must raise (no silent Python fallback).
+        from apps.pipeline.services.rust_kernels import KernelUnavailableError
+
+        ags._compiled_lexicon.cache_clear()
+        with patch.object(
+            ags,
+            "load_kernel",
+            side_effect=KernelUnavailableError("generic matcher missing"),
+        ):
+            with self.assertRaises(KernelUnavailableError):
+                ags.generic_score("click here")
+        ags._compiled_lexicon.cache_clear()
 
     def test_click_here_anchor_matches(self) -> None:
         result = ags.generic_score("click here")
@@ -82,7 +197,10 @@ class GenericScoreTests(SimpleTestCase):
 # ─────────────────────────────────────────────────────────────────────
 
 
-class DescriptivenessScoreTests(SimpleTestCase):
+class DescriptivenessScoreTests(RustKernelStubMixin, SimpleTestCase):
+    # anchor_descriptiveness is now a Rust kernel loaded via `load_kernel`; the
+    # stub mixin patches that seam (delegating to the pure-Python parity oracle)
+    # so these tests never require the compiled `.so`.
     def test_empty_anchor_returns_neutral(self) -> None:
         result = ags.descriptiveness_score("", "destination title", "slug")
         self.assertEqual(result.score, 0.0)
@@ -129,7 +247,7 @@ class DescriptivenessScoreTests(SimpleTestCase):
 # ─────────────────────────────────────────────────────────────────────
 
 
-class SelfInformationScoreTests(SimpleTestCase):
+class SelfInformationScoreTests(RustSelfInformationStubMixin, SimpleTestCase):
     def test_empty_anchor_returns_neutral(self) -> None:
         result = ags.self_information_score("")
         self.assertEqual(result.entropy, 0.0)
@@ -180,7 +298,7 @@ class SelfInformationScoreTests(SimpleTestCase):
 # ─────────────────────────────────────────────────────────────────────
 
 
-class HelperMathTests(SimpleTestCase):
+class HelperMathTests(RustSelfInformationStubMixin, SimpleTestCase):
     def test_damerau_levenshtein_zero_for_identical(self) -> None:
         self.assertEqual(ags._damerau_levenshtein("hello", "hello"), 0)
 
@@ -218,13 +336,29 @@ class HelperMathTests(SimpleTestCase):
         self.assertEqual(ags._bigram_entropy("a"), 0.0)
         self.assertEqual(ags._bigram_entropy(""), 0.0)
 
+    def test_bigram_entropy_requires_rust_kernel(self) -> None:
+        # When the kernel is missing, `load_kernel` raises a loud
+        # KernelUnavailableError (a RuntimeError) and `_bigram_entropy` lets it
+        # propagate — no silent drop to a Python fallback.
+        from apps.pipeline.services.rust_kernels import KernelUnavailableError
+
+        with patch.object(
+            ags,
+            "load_kernel",
+            side_effect=KernelUnavailableError(
+                "Rust kernel 'extensions.anchor_self_information' is not loaded."
+            ),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "anchor_self_information"):
+                ags._bigram_entropy("anchor text")
+
 
 # ─────────────────────────────────────────────────────────────────────
 # Dispatcher composite
 # ─────────────────────────────────────────────────────────────────────
 
 
-class EvaluateAllTests(SimpleTestCase):
+class EvaluateAllTests(RustSelfInformationStubMixin, SimpleTestCase):
     def test_seo_keyword_stuffed_anchor_negative_composite(self) -> None:
         # Anchor exactly matches the URL slug AND the title is only
         # loosely related → manufactured-keyword red flag dominates,
@@ -282,7 +416,7 @@ class EvaluateAllTests(SimpleTestCase):
 # ─────────────────────────────────────────────────────────────────────
 
 
-class BuildDispatcherTests(TestCase):
+class BuildDispatcherTests(RustSelfInformationStubMixin, TestCase):
     def setUp(self) -> None:
         from apps.core.runtime_flags import invalidate
 

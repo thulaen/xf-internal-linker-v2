@@ -15,7 +15,6 @@ so session-start sees fresh data; staggered :05/:35 (GT) and :10/:40
 from __future__ import annotations
 
 import logging
-import os
 
 from celery import shared_task
 from django.utils import timezone
@@ -282,48 +281,6 @@ def pick_ci_failed_runs():
     return _run()
 
 
-@shared_task(name="auto_issues.ingest_sonarqube_findings")
-@HelperConstraint(
-    cpu_intensive=False,
-    gpu_required=False,
-    storage_writes_to="postgres_main",
-    ram_peak_mb=192,
-    expected_seconds_p50=30,
-)
-def ingest_sonarqube_findings():
-    """Fetch SonarQube findings and import them into AutoIssues."""
-    if not connection.in_atomic_block:
-        connection.close()
-    token = os.environ.get("SONAR_TOKEN", "")
-    if not token:
-        return {"status": "skipped", "reason": "SONAR_TOKEN is not configured"}
-
-    base_url = os.environ.get("SONAR_HOST_URL", "http://sonarqube:9000")
-    project_key = os.environ.get("SONAR_PROJECT_KEY", "xf-internal-linker-v2")
-    from apps.auto_issues.services import sonarqube
-
-    try:
-        issues = sonarqube.fetch_sonar_issues(
-            base_url=base_url,
-            project_key=project_key,
-            token=token,
-        )
-    except sonarqube.SonarQubeUnavailable as exc:
-        return {"status": "unavailable", "reason": str(exc)}
-
-    result = sonarqube.ingest_sonarqube_issues(
-        project_key,
-        issues,
-        base_url=base_url,
-    )
-    return {
-        "status": "ok",
-        "created": result.created,
-        "updated": result.updated,
-        "merged": result.merged,
-        "total": result.total,
-    }
-
 
 @shared_task(name="findbugs.run_scan")
 @HelperConstraint(
@@ -564,6 +521,36 @@ def pick_daily_slow_queries():
     from apps.auto_issues.services.slow_query_picker import pick_slow_queries
 
     return pick_slow_queries()
+
+
+@shared_task(name="auto_issues.pick_daily_glitchtip_slow_transactions")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=128,
+    expected_seconds_p50=15,
+)
+def pick_daily_glitchtip_slow_transactions():
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    if not connection.in_atomic_block:
+        connection.close()
+
+    """Top-K slowest GlitchTip performance transactions → auto_issues.
+
+    Closes the last GlitchTip gap: the error picker only promotes events
+    that raised. A slow endpoint or background job can get progressively
+    slower WITHOUT raising, so it never reaches AutoIssues. This picker
+    queries GlitchTip's Sentry-compatible organization-events endpoint for
+    the slowest transactions (by p95 duration) and files each one over the
+    250 ms threshold, deduped + severity-scaled like the slow-query picker.
+    Graceful no-op when GlitchTip env vars are unset.
+    """
+    from apps.auto_issues.services.glitchtip_perf_picker import (
+        pick_slowest_glitchtip_transactions,
+    )
+
+    return pick_slowest_glitchtip_transactions()
 
 
 @shared_task(name="auto_issues.pick_daily_internal_issues")

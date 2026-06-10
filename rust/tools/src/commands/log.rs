@@ -99,7 +99,9 @@ fn cluster_errors(text: &str, top: usize) -> ToolReport {
         }
         total += 1;
         let key = cluster_key(trimmed);
-        let entry = counts.entry(key).or_insert((0, trimmed.to_string()));
+        let entry = counts
+            .entry(key)
+            .or_insert_with(|| (0, trimmed.to_string()));
         entry.0 += 1;
     }
 

@@ -24,6 +24,7 @@ from apps.pipeline.services.meta_hpo_safety import (
 from apps.pipeline.services.meta_hpo_search_spaces import (
     DEFAULT_N_TRIALS,
     SEARCH_SPACE,
+    _LEGACY_SEARCH_SPACE,
     clip_params,
     keys,
 )
@@ -34,12 +35,22 @@ from apps.pipeline.services.meta_hpo_search_spaces import (
 
 class SearchSpaceTests(SimpleTestCase):
     def test_covers_expected_12_tpe_tuned_keys(self) -> None:
-        # One entry per TPE-tuned pick from the G1 spec tables.
+        # One entry per TPE-tuned pick from the G1 spec tables. Phase 7
+        # made SEARCH_SPACE registry-driven, so the hand-written legacy
+        # picks now live in `_LEGACY_SEARCH_SPACE`; the live SEARCH_SPACE
+        # additionally carries registry-derived entries (pick_number 0).
         expected_pick_numbers = {27, 27, 28, 30, 31, 33, 34, 35, 36, 40, 49, 52}
         self.assertEqual(
-            {entry.pick_number for entry in SEARCH_SPACE},
+            {entry.pick_number for entry in _LEGACY_SEARCH_SPACE},
             expected_pick_numbers,
         )
+
+    def test_live_space_includes_registry_derived_entries(self) -> None:
+        # Phase 7: the live SEARCH_SPACE is the legacy picks PLUS the
+        # registry-derived entries. Registry keys must be present.
+        live_keys = {entry.app_setting_key for entry in SEARCH_SPACE}
+        for registry_key in ("pipeline.rrf_k", "w_semantic", "pipeline.bm25_k1"):
+            self.assertIn(registry_key, live_keys)
 
     def test_every_entry_has_unique_appsetting_key(self) -> None:
         seen = set()

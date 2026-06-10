@@ -96,7 +96,35 @@ for workspace in "${workspaces[@]}"; do
   fi
 
   echo "+ cargo test --jobs $workers -- --test-threads $workers"
-  cargo test --jobs "$workers" -- --test-threads "$workers"
+  set +e
+  set -o pipefail
+  cargo test --jobs "$workers" -- --test-threads "$workers" 2>&1 | tee "/tmp/cargo_test_out_$$.log"
+  test_rc="${PIPESTATUS[0]}"
+  set -e
+  if [[ "$test_rc" -ne 0 ]]; then
+    echo "[run-rust-quality] Cargo test failed. Filing AutoIssue..."
+    # Take the last 20 lines as the summary
+    summary="$(tail -n 20 "/tmp/cargo_test_out_$$.log" | tr '\n' ' ')"
+    if [[ -z "${summary// /}" ]]; then
+      summary="Cargo test failed with exit code $test_rc"
+    fi
+    # Use python if available to file the issue
+    if command -v python >/dev/null 2>&1 && python -c "import django" >/dev/null 2>&1; then
+      python "$repo_root/backend/manage.py" file_test_failure \
+        --tool "cargo-test" \
+        --test-target "workspace:$(basename "$workspace")" \
+        --test-file "$workspace" \
+        --test-name "cargo-test" \
+        --failure-summary "$summary" \
+        --severity high \
+        --run-id "${XF_QUALITY_RUN_ID:-local-run}" \
+        --shard-id "${XF_QUALITY_SHARD_ID:-local-shard}" \
+        --worker "${XF_QUALITY_WORKER:-windows}" || true
+    else
+      echo "[run-rust-quality] python not found, skipping AutoIssue filing."
+    fi
+    exit "$test_rc"
+  fi
 
   if [[ "${XF_TURBO_MUTATION:-0}" == "1" ]]; then
     echo "[run-rust-quality] XF_TURBO_MUTATION=1: Rust mutation delegated to turbo coordinator (65/35 split via turbo_mutation.py)"

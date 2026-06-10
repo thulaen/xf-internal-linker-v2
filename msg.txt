@@ -1,0 +1,7 @@
+Fix pipeline_stages.py candidate_rows TypeError and commit staged changes
+
+- Fixed TypeError where Python list was passed to C++ simsearch extension.
+- Resolved 3 GlitchTip AutoIssues (#22999, #23000, #23001) by populating lessons_learned.
+- Committing large user-staged refactor (removed unified-jvm, lua, added sidecars/startupd).
+
+[TDD CYCLE STRICT: pipeline=SPEC+TEST_CASE+TDD+CODE+CODE_REVIEW+LESSON red_run_at=2026-06-10T07:49:18Z green_run_at=2026-06-10T07:50:23Z lesson_autoissue=#23017]

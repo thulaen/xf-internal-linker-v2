@@ -253,17 +253,12 @@ class SeverityFactorTests(SimpleTestCase):
 
     # ── Missing severity tables for 18/21 sources (Fix #1) ────────────────
 
-    def test_severity_factor_returns_nonzero_for_sonarqube_high(self):
-        """AutoIssue #Fix1: sonarqube source had no severity table — returned 0.0."""
-        self.assertGreater(
-            severity_factor(AutoIssue.SOURCE_SONARQUBE, AutoIssue.SEVERITY_HIGH),
-            0.0,
-        )
+
 
     def test_severity_factor_all_missing_sources_have_nonzero_critical(self):
         """All 18 previously-missing sources must return >0 for CRITICAL severity."""
         missing_sources = [
-            AutoIssue.SOURCE_SONARQUBE,
+            AutoIssue.SOURCE_TEMPO,
             AutoIssue.SOURCE_TEMPO,
             AutoIssue.SOURCE_LOKI,
             AutoIssue.SOURCE_FARO,
@@ -291,7 +286,7 @@ class SeverityFactorTests(SimpleTestCase):
 
     def test_default_table_severity_ordering_is_strict(self):
         """Default table values must be strictly ordered: CRITICAL > HIGH > MEDIUM > LOW."""
-        source = AutoIssue.SOURCE_SONARQUBE
+        source = AutoIssue.SOURCE_TEMPO
         critical = severity_factor(source, AutoIssue.SEVERITY_CRITICAL)
         high = severity_factor(source, AutoIssue.SEVERITY_HIGH)
         medium = severity_factor(source, AutoIssue.SEVERITY_MEDIUM)
@@ -303,23 +298,23 @@ class SeverityFactorTests(SimpleTestCase):
 
     def test_default_table_values_do_not_exceed_glitchtip(self):
         """Default table is conservative — its HIGH must be <= GlitchTip HIGH (0.85)."""
-        default_high = severity_factor(AutoIssue.SOURCE_SONARQUBE, AutoIssue.SEVERITY_HIGH)
+        default_high = severity_factor(AutoIssue.SOURCE_TEMPO, AutoIssue.SEVERITY_HIGH)
         glitchtip_high = severity_factor(AutoIssue.SOURCE_GLITCHTIP, AutoIssue.SEVERITY_HIGH)
         self.assertLessEqual(default_high, glitchtip_high)
 
-    def test_default_table_exact_values_via_sonarqube(self):
+    def test_default_table_exact_values_via_tempo(self):
         """Exact values for _SEV_TABLE_DEFAULT — kills value-nudge mutants."""
         self.assertAlmostEqual(
-            severity_factor(AutoIssue.SOURCE_SONARQUBE, AutoIssue.SEVERITY_CRITICAL), 0.90
+            severity_factor(AutoIssue.SOURCE_TEMPO, AutoIssue.SEVERITY_CRITICAL), 0.90
         )
         self.assertAlmostEqual(
-            severity_factor(AutoIssue.SOURCE_SONARQUBE, AutoIssue.SEVERITY_HIGH), 0.75
+            severity_factor(AutoIssue.SOURCE_TEMPO, AutoIssue.SEVERITY_HIGH), 0.75
         )
         self.assertAlmostEqual(
-            severity_factor(AutoIssue.SOURCE_SONARQUBE, AutoIssue.SEVERITY_MEDIUM), 0.50
+            severity_factor(AutoIssue.SOURCE_TEMPO, AutoIssue.SEVERITY_MEDIUM), 0.50
         )
         self.assertAlmostEqual(
-            severity_factor(AutoIssue.SOURCE_SONARQUBE, AutoIssue.SEVERITY_LOW), 0.15
+            severity_factor(AutoIssue.SOURCE_TEMPO, AutoIssue.SEVERITY_LOW), 0.15
         )
 
     def test_all_default_sources_share_identical_values(self):
@@ -328,7 +323,7 @@ class SeverityFactorTests(SimpleTestCase):
         Kills mutants that redirect a source to a different table.
         """
         _DEFAULT_SOURCES = [
-            AutoIssue.SOURCE_SONARQUBE,
+            AutoIssue.SOURCE_TEMPO,
             AutoIssue.SOURCE_TEMPO,
             AutoIssue.SOURCE_LOKI,
             AutoIssue.SOURCE_FARO,
@@ -353,13 +348,13 @@ class SeverityFactorTests(SimpleTestCase):
             AutoIssue.SEVERITY_MEDIUM,
             AutoIssue.SEVERITY_LOW,
         ):
-            ref = severity_factor(AutoIssue.SOURCE_SONARQUBE, sev)
+            ref = severity_factor(AutoIssue.SOURCE_TEMPO, sev)
             for source in _DEFAULT_SOURCES[1:]:
                 with self.subTest(source=source, sev=sev):
                     self.assertEqual(
                         severity_factor(source, sev),
                         ref,
-                        msg=f"{source}/{sev} must equal sonarqube/{sev}",
+                        msg=f"{source}/{sev} must equal tempo/{sev}",
                     )
 
 

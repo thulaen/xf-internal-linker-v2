@@ -7,6 +7,7 @@ from django.db import transaction
 import numpy as np
 
 from apps.content.models import PassageEmbedding, OPQCodebook
+from apps.pipeline.services.rust_kernels import load_kernel
 
 logger = logging.getLogger(__name__)
 
@@ -72,15 +73,11 @@ def train_codebook(sample_size=100000, m=64, k=256, n_iter=25):
     if D % m != 0:
         raise ValueError(f"Embedding dimension {D} must be divisible by M={m}")
 
-    # 2. Call C++ extension to train OPQ
-    try:
-        from extensions import quantemb
-    except ImportError:
-        logger.error(
-            "quantemb C++ extension not found. Falling back to Python OPQ trainer."
-        )
-        # Fallback would go here. For now, we raise if C++ is not available.
-        raise RuntimeError("quantemb extension required for OPQ training")
+    # 2. Call the Rust kernel to train OPQ. There is NO Python fallback (ADR
+    #    0007 two-language rule): `load_kernel` raises a loud
+    #    `KernelUnavailableError` with a rebuild hint if the `.so` is missing or
+    #    stale, instead of silently degrading OPQ training.
+    quantemb = load_kernel("extensions.quantemb", "opq_train")
 
     logger.info(f"Calling quantemb.opq_train with {N}x{D} matrix...")
     rot, codebooks = quantemb.opq_train(data, m, k, n_iter)

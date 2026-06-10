@@ -20,12 +20,16 @@ from django.conf import settings
 from apps.ops_feed.services import emit
 from apps.core.performance_mode import get_requested_performance_mode
 
-try:
-    from extensions import l2norm
-
-    HAS_CPP_EXT = True
-except ImportError:
-    HAS_CPP_EXT = False
+# RUST-FIRST.md zero-fallback: the L2-normalization hot path has exactly one
+# implementation — the Rust kernel `extensions.l2norm` (built from
+# rust/extensions/l2norm via PyO3 + maturin). There is NO Python fallback and
+# NO C++ copy. `_l2_normalize` loads the kernel through the shared
+# `load_kernel` helper, which raises a loud `KernelUnavailableError` the moment
+# the hot path runs without the kernel, so a broken build is a visible failure
+# rather than a silent drop to a slower NumPy path. The same load state is
+# surfaced on the System Health page by apps.diagnostics.health (the `l2norm`
+# entry in _NATIVE_RUNTIME_MODULES).
+from apps.pipeline.services.rust_kernels import load_kernel
 
 logger = logging.getLogger(__name__)
 
@@ -856,19 +860,22 @@ def _record_embedding_backoff(
 
 
 def _l2_normalize(arr: np.ndarray) -> np.ndarray:
-    """Row-wise L2 normalization. Zero-row arrays pass through unchanged."""
+    """Row-wise L2 normalization via the Rust `extensions.l2norm` kernel.
+
+    Zero-row arrays pass through unchanged. There is NO Python fallback
+    (RUST-FIRST.md zero-fallback): if the Rust kernel did not load, this
+    raises a loud ``RuntimeError`` pointing at the Docker-managed rebuild
+    rather than silently dropping to a slower NumPy path. The kernel
+    normalizes the float32 array in place, so the input is cast to float32
+    first to guarantee the in-place buffer the kernel mutates is the one we
+    return.
+    """
     if arr.shape[0] == 0:
         return arr
-
-    if HAS_CPP_EXT:
-        # In-place C++ normalization (fast)
-        l2norm.normalize_l2_batch(arr)
-        return arr.astype(np.float32)
-    else:
-        # Numpy fallback
-        norms = np.linalg.norm(arr, axis=1, keepdims=True)
-        norms = np.maximum(norms, 1e-12)
-        return (arr / norms).astype(np.float32)
+    l2norm = load_kernel("extensions.l2norm", "normalize_l2_batch")
+    contiguous = np.ascontiguousarray(arr, dtype=np.float32)
+    l2norm.normalize_l2_batch(contiguous)
+    return contiguous
 
 
 # FR-237 — L2-normalization audit. The FAISS index and NumPy fallback both use

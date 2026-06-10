@@ -5,7 +5,6 @@ import { MatButtonToggleChange } from '@angular/material/button-toggle';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ActivatedRoute } from '@angular/router';
 import { of } from 'rxjs';
-import { provideCharts, withDefaultRegisterables } from 'ng2-charts';
 
 import { AnalyticsComponent } from './analytics.component';
 import { AnalyticsService } from './analytics.service';
@@ -294,7 +293,6 @@ describe('AnalyticsComponent', () => {
             },
           },
         },
-        provideCharts(withDefaultRegisterables()),
       ],
     }).compileComponents();
 
@@ -340,7 +338,6 @@ describe('AnalyticsComponent', () => {
             },
           },
         },
-        provideCharts(withDefaultRegisterables()),
       ],
     }).compileComponents();
 
@@ -376,7 +373,6 @@ describe('AnalyticsComponent', () => {
             },
           },
         },
-        provideCharts(withDefaultRegisterables()),
       ],
     }).compileComponents();
 
@@ -418,7 +414,6 @@ describe('AnalyticsComponent', () => {
             snapshot: { queryParams: {}, fragment: null, data: {}, params: {}, url: [] },
           },
         },
-        provideCharts(withDefaultRegisterables()),
       ],
     }).compileComponents();
 
@@ -452,7 +447,6 @@ describe('AnalyticsComponent', () => {
             snapshot: { queryParams: {}, fragment: null, data: {}, params: {}, url: [] },
           },
         },
-        provideCharts(withDefaultRegisterables()),
       ],
     }).compileComponents();
 

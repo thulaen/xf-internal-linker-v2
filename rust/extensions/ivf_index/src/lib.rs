@@ -54,8 +54,8 @@
 //! Quantization + IVFADC asymmetric distance computation); Ge, He, Ke and Sun
 //! 2013 CVPR (`doi:10.1109/CVPR.2013.379`, Optimized Product Quantization).
 
+use numpy::PyUntypedArrayMethods;
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1, PyReadonlyArray2, PyReadonlyArray3};
-use numpy::{PyArrayMethods, PyUntypedArrayMethods};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 
@@ -160,7 +160,9 @@ pub fn build_adc_lut(
     if m == 0 || dim % m != 0 {
         // Degenerate input: zero-fill so the caller gets a deterministic
         // "no preference" LUT instead of garbage, matching the C++.
-        out_lut.iter_mut().for_each(|v| *v = 0.0);
+        for v in out_lut.iter_mut() {
+            *v = 0.0;
+        }
         return;
     }
     let sub_dim = dim / m;
@@ -594,7 +596,7 @@ mod tests {
         // dim=3, m=2 -> 3 % 2 != 0 -> zero-fill.
         let query = [1.0_f32, 2.0, 3.0];
         let rotation = vec![0.0_f32; 9];
-        let codebooks = vec![1.0_f32; 2 * 2 * 1]; // arbitrary
+        let codebooks = vec![1.0_f32; 4]; // arbitrary
         let mut lut = vec![7.0_f32; 4]; // m*k = 2*2
         build_adc_lut(&query, &rotation, &codebooks, 3, 2, 2, &mut lut);
         assert_eq!(
@@ -647,7 +649,7 @@ mod tests {
         // n_passages == 0 returns (0, 0.0) before any other work.
         let query = [1.0_f32, 0.0];
         let rotation = [1.0_f32, 0.0, 0.0, 1.0];
-        let codebooks = [1.0_f32, 0.0];
+        let codebooks = [1.0_f32, 0.0, 0.0, 1.0];
         let (idx, sim) = adc_score_destination_core(&query, &[], &rotation, &codebooks, 2, 0, 1, 2);
         assert_eq!(idx, 0);
         assert_eq!(sim, 0.0);
@@ -871,10 +873,12 @@ mod tests {
         }
         let mut ref_scored: Vec<(f64, i32)> = Vec::new();
         for &cid in &centroid_ids {
-            for &vid in &partition_member_lists[cid as usize] {
+            let cid_u = usize::try_from(cid).unwrap_or(0);
+            for &vid in &partition_member_lists[cid_u] {
                 let mut d = 0.0_f64;
+                let vid_u = usize::try_from(vid).unwrap_or(0);
                 for mi in 0..m {
-                    d += lut64[mi * k + opq_codes[(vid as usize) * m + mi] as usize];
+                    d += lut64[mi * k + usize::from(opq_codes[vid_u * m + mi])];
                 }
                 ref_scored.push((d, vid));
             }

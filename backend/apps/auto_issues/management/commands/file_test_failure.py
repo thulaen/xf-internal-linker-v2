@@ -36,6 +36,15 @@ _VALID_SEVERITIES = {
 }
 
 
+def _determine_source(tool: str) -> str:
+    tool_lower = tool.lower()
+    if tool_lower == "pytest":
+        return AutoIssue.SOURCE_PYTEST_FAILURE
+    if tool_lower in ("cargo_test", "cargo-test", "rust"):
+        return AutoIssue.SOURCE_RUST_TEST_FAILURE
+    return AutoIssue.SOURCE_TEST_FAILURE
+
+
 def file_test_failure(
     *,
     tool: str,
@@ -59,9 +68,10 @@ def file_test_failure(
     ext_id = _external_id(tool, test_target, test_file, test_name, fp)
     sev = _VALID_SEVERITIES[severity]
     refs = list(artifact_refs or [])
+    source_val = _determine_source(tool)
 
     existing = AutoIssue.objects.filter(
-        source=AutoIssue.SOURCE_TEST_FAILURE, external_id=ext_id
+        source=source_val, external_id=ext_id
     ).first()
 
     if existing is not None:
@@ -71,6 +81,7 @@ def file_test_failure(
         return existing, action
 
     issue = _create_issue(
+        source_val=source_val,
         external_id=ext_id,
         tool=tool,
         test_target=test_target,
@@ -121,9 +132,9 @@ def _get_or_create_category() -> AutoIssueCategory:
     return category
 
 
-def _observation(*, run_id: str, shard_id: str, worker: str, now) -> dict:
+def _observation(*, source_val: str, run_id: str, shard_id: str, worker: str, now) -> dict:
     return {
-        "source": AutoIssue.SOURCE_TEST_FAILURE,
+        "source": source_val,
         "run_id": run_id,
         "shard_id": shard_id,
         "worker": worker,
@@ -135,6 +146,7 @@ def _observation(*, run_id: str, shard_id: str, worker: str, now) -> dict:
 
 def _create_issue(
     *,
+    source_val: str,
     external_id: str,
     tool: str,
     test_target: str,
@@ -150,10 +162,10 @@ def _create_issue(
 ) -> AutoIssue:
     title = f"[{tool}] {test_target}: {test_name}"[:_MAX_TITLE_CHARS]
     description = f"Failure summary: {failure_summary[:_MAX_SUMMARY_CHARS]}\nFile: {test_file}\nRun: {run_id} shard: {shard_id} worker: {worker}"
-    obs = _observation(run_id=run_id, shard_id=shard_id, worker=worker, now=now)
+    obs = _observation(source_val=source_val, run_id=run_id, shard_id=shard_id, worker=worker, now=now)
     fp = _failure_fingerprint(failure_summary)
     return AutoIssue.objects.create(
-        source=AutoIssue.SOURCE_TEST_FAILURE,
+        source=source_val,
         external_id=external_id,
         category=_get_or_create_category(),
         title=title,
@@ -182,7 +194,7 @@ def _update_existing(
     issue.occurrence_count += 1
     obs = issue.source_observations or []
     obs = obs[-(_MAX_OBSERVATIONS - 1):] if len(obs) >= _MAX_OBSERVATIONS else obs
-    obs.append(_observation(run_id=run_id, shard_id=shard_id, worker=worker, now=now))
+    obs.append(_observation(source_val=issue.source, run_id=run_id, shard_id=shard_id, worker=worker, now=now))
     issue.source_observations = obs
     if refs:
         issue.artifact_refs = list(issue.artifact_refs or []) + refs

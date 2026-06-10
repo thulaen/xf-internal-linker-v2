@@ -44,6 +44,7 @@ fn make_codebooks() -> Vec<f32> {
         .collect()
 }
 
+#[allow(clippy::cast_possible_truncation)]
 fn make_codes(n_passages: usize) -> Vec<u8> {
     (0..n_passages * M).map(|i| (i % K) as u8).collect()
 }

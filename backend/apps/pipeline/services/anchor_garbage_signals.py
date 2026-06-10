@@ -44,7 +44,7 @@ The three algos here sit in a clean, additive surface.
 Cold-start safety
 -----------------
 Every helper returns 0.0 (or its neutral default) when:
-- The C++ kernel isn't built (Python fallback fires instead).
+- The pending generic/descriptiveness native kernels are not built.
 - The lexicon file is empty / missing.
 - The AppSetting toggle is off.
 - The input is empty.
@@ -64,13 +64,12 @@ to ``score_final`` per candidate. Same Pattern-A sidecar used by
 from __future__ import annotations
 
 import logging
-import math
 import os
 import re
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Iterable, Mapping
-from .pattern_matcher import AhoCorasickMatcher
+from .rust_kernels import load_kernel
 
 logger = logging.getLogger(__name__)
 
@@ -132,33 +131,45 @@ _DEFAULT_LEXICON_PATH = os.path.join(
 
 
 # ─────────────────────────────────────────────────────────────────────
-# C++ kernel binding — falls back to pure-Python when not built
+# Native kernel bindings.
+#
+# The generic-phrase Aho-Corasick matcher and the character-bigram entropy hot
+# path are both owned by Rust kernels (RUST-FIRST.md zero-fallback):
+# `extensions.generic_anchor_matcher` and `extensions.anchor_self_information`.
+# Each is loaded through the shared `load_kernel` helper at the point of use,
+# which raises a loud `KernelUnavailableError` (a `RuntimeError`) when the
+# kernel is missing — there is no Python fallback, so there is no module-level
+# capture for them.
+#
+# `anchor_descriptiveness` was ported from C++ to Rust
+# (rust/extensions/anchor_descriptiveness); it is loaded through the shared
+# `load_kernel` helper at the point of use, like the other Rust kernels. The
+# pure-Python `_damerau_levenshtein_py` / `_char_trigram_jaccard_py` below are
+# retained ONLY as the cross-language parity oracle the test suite asserts
+# against — they are NOT a runtime fallback (RUST-FIRST.md zero-fallback).
 # ─────────────────────────────────────────────────────────────────────
 
 
-try:  # pragma: no cover — depends on whether the .so was compiled
-    from extensions import generic_anchor_matcher as _cpp_matcher  # type: ignore[import]
+def _generic_matcher_kernel() -> object:
+    """Load the Rust generic-anchor matcher kernel, or raise loudly.
 
-    _HAS_CPP_MATCHER = True
-except ImportError:
-    _cpp_matcher = None  # type: ignore[assignment]
-    _HAS_CPP_MATCHER = False
+    The kernel exposes `build_automaton(list[str]) -> Automaton` and
+    `find_all(Automaton, str) -> list[str]`. There is no Python fallback
+    (RUST-FIRST.md zero-fallback); a missing kernel raises
+    `KernelUnavailableError`.
+    """
+    return load_kernel("extensions.generic_anchor_matcher", "build_automaton")
 
-try:  # pragma: no cover
-    from extensions import anchor_descriptiveness as _cpp_descr  # type: ignore[import]
 
-    _HAS_CPP_DESCR = True
-except ImportError:
-    _cpp_descr = None  # type: ignore[assignment]
-    _HAS_CPP_DESCR = False
+def _descr_kernel() -> object:
+    """Load the Rust anchor-descriptiveness kernel, or raise loudly.
 
-try:  # pragma: no cover
-    from extensions import anchor_self_information as _cpp_self_info  # type: ignore[import]
-
-    _HAS_CPP_SELF_INFO = True
-except ImportError:
-    _cpp_self_info = None  # type: ignore[assignment]
-    _HAS_CPP_SELF_INFO = False
+    The kernel exposes `damerau_levenshtein(a, b) -> int` and
+    `char_trigram_jaccard(a, b) -> float`. There is no Python fallback
+    (RUST-FIRST.md zero-fallback); a missing kernel raises
+    `KernelUnavailableError`.
+    """
+    return load_kernel("extensions.anchor_descriptiveness", "damerau_levenshtein")
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -204,37 +215,31 @@ def _load_lexicon(*, lexicon_path: str | None = None) -> tuple[str, ...]:
                 line = raw.strip().lower()
                 if line and not line.startswith("#"):
                     phrases.append(line)
-    except Exception:  # noqa: BLE001  # AppSetting unreachable (test env / migrations not run) — operator-extras path is just skipped, lexicon-from-disk still works.
+    except Exception:  # noqa: BLE001  # nosec B110  # AppSetting unreachable (test env / migrations not run) — operator-extras path is just skipped, lexicon-from-disk still works.
         pass
     return tuple(phrases)
 
 
 @lru_cache(maxsize=4)
 def _compiled_lexicon(lexicon_path: str | None) -> tuple[tuple[str, ...], object]:
-    """Return ``(phrases, compiled_matcher_or_None)`` for *lexicon_path*.
+    """Return ``(phrases, automaton)`` for *lexicon_path*.
 
-    When the C++ kernel is built, ``compiled_matcher_or_None`` is the
-    Aho-Corasick automaton. When it isn't, returns ``None`` and the
-    Python fallback iterates the phrase list (slower but correct).
+    ``automaton`` is the Rust ``extensions.generic_anchor_matcher`` automaton
+    built from ``phrases``. There is no Python fallback (RUST-FIRST.md
+    zero-fallback): when the kernel is missing, the loud
+    ``KernelUnavailableError`` from :func:`_generic_matcher_kernel` propagates.
+    For an empty lexicon there is nothing to match, so ``automaton`` is
+    ``None`` and the matcher reports ``matched=False`` for everything.
 
-    Cached on path so multiple calls don't re-read the file.
+    Cached on path so multiple calls don't re-read the file or rebuild the
+    automaton.
     """
     phrases = _load_lexicon(lexicon_path=lexicon_path)
     if not phrases:
         return phrases, None
-    if _HAS_CPP_MATCHER and _cpp_matcher is not None:
-        try:
-            automaton = _cpp_matcher.build_automaton(list(phrases))  # type: ignore[union-attr]
-            return phrases, automaton
-        except Exception as exc:  # pragma: no cover — defensive
-            logger.warning("anchor_garbage: C++ build failed: %s", exc)
-
-    # Python fallback: build a token-aware Aho-Corasick automaton
-    matcher = AhoCorasickMatcher(case_sensitive=False)
-    for phrase in phrases:
-        matcher.add_pattern(phrase, phrase)
-    matcher.build()
-    return phrases, matcher
+    kernel = _generic_matcher_kernel()
+    automaton = kernel.build_automaton(list(phrases))  # type: ignore[attr-defined]
+    return phrases, automaton
 
 
 def generic_score(
@@ -252,25 +257,16 @@ def generic_score(
 
         if not is_enabled(KEY_GENERIC_ENABLED, default=True):
             return GenericMatchResult(False, (), 0.0)
-    except Exception:  # noqa: BLE001  # runtime_flags unavailable (mid-migration / test env); fall through with feature enabled — flag is hot-path, must not raise.
+    except Exception:  # noqa: BLE001  # nosec B110  # runtime_flags unavailable (mid-migration / test env); fall through with feature enabled — flag is hot-path, must not raise.
         pass  # runtime_flags unavailable; fall through with feature enabled
     needle = anchor.lower().strip()
     phrases, automaton = _compiled_lexicon(lexicon_path)
-    if not phrases:
+    if not phrases or automaton is None:
         return GenericMatchResult(False, (), 0.0)
 
-    if (
-        _HAS_CPP_MATCHER
-        and automaton is not None
-        and not isinstance(automaton, AhoCorasickMatcher)
-    ):
-        try:
-            matches = _cpp_matcher.find_all(automaton, needle)  # type: ignore[union-attr]
-        except Exception as exc:
-            logger.warning("anchor_garbage: C++ find_all failed: %s", exc)
-            matches = _python_find_all(needle, automaton)
-    else:
-        matches = _python_find_all(needle, automaton)
+    # Rust kernel is authoritative — no Python fallback (RUST-FIRST.md).
+    kernel = _generic_matcher_kernel()
+    matches = kernel.find_all(automaton, needle)  # type: ignore[attr-defined]
 
     if not matches:
         return GenericMatchResult(False, (), 0.0)
@@ -287,20 +283,6 @@ def generic_score(
         matched_phrases=tuple(matches),
         genericness=float(genericness),
     )
-
-
-def _python_find_all(needle: str, matcher: object) -> list[str]:
-    """Pure-Python fallback using Aho-Corasick.
-
-    Replaces the O(n*m) loop with O(n) scanning.
-    """
-    if matcher is None or not isinstance(matcher, AhoCorasickMatcher):
-        return []
-
-    # matcher.find_all returns PatternMatch objects.
-    # We only want the values (original phrases).
-    matches = matcher.find_all(needle)
-    return sorted(list({m.value for m in matches}))
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -349,7 +331,7 @@ def descriptiveness_score(
 
         if not is_enabled(KEY_DESCR_ENABLED, default=True):
             return DescriptivenessResult(1.0, 0.0, 0.0)
-    except Exception:  # noqa: BLE001  # runtime_flags unavailable (mid-migration / test env); fall through with feature enabled — flag is hot-path, must not raise.
+    except Exception:  # noqa: BLE001  # nosec B110  # runtime_flags unavailable (mid-migration / test env); fall through with feature enabled — flag is hot-path, must not raise.
         pass  # runtime_flags unavailable; fall through with feature enabled
 
     a = anchor.lower().strip()
@@ -386,16 +368,17 @@ def descriptiveness_score(
 
 
 def _damerau_levenshtein(a: str, b: str) -> int:
-    """Damerau-Levenshtein distance with O(min(n,m)) memory.
+    """Damerau-Levenshtein distance via the Rust kernel (no fallback)."""
+    kernel = _descr_kernel()
+    return int(kernel.damerau_levenshtein(a, b))  # type: ignore[attr-defined]
 
-    Falls through to the C++ kernel when available; otherwise the
-    pure-Python rolling-row DP is correct for all valid inputs.
+
+def _damerau_levenshtein_py(a: str, b: str) -> int:
+    """Pure-Python Damerau-Levenshtein parity oracle (O(min(n,m)) memory).
+
+    Retained as the cross-language reference the parity tests assert the Rust
+    kernel against. NOT a runtime fallback.
     """
-    if _HAS_CPP_DESCR and _cpp_descr is not None:  # pragma: no cover — needs build
-        try:
-            return int(_cpp_descr.damerau_levenshtein(a, b))  # type: ignore[union-attr]
-        except Exception as exc:
-            logger.warning("anchor_garbage: C++ damerau_levenshtein failed: %s", exc)
     if not a:
         return len(b)
     if not b:
@@ -423,12 +406,13 @@ def _damerau_levenshtein(a: str, b: str) -> int:
 
 
 def _char_trigram_jaccard(a: str, b: str) -> float:
-    """Jaccard similarity over character 3-grams of *a* and *b*."""
-    if _HAS_CPP_DESCR and _cpp_descr is not None:  # pragma: no cover — needs build
-        try:
-            return float(_cpp_descr.char_trigram_jaccard(a, b))  # type: ignore[union-attr]
-        except Exception as exc:
-            logger.warning("anchor_garbage: C++ jaccard failed: %s", exc)
+    """Jaccard over character 3-grams via the Rust kernel (no fallback)."""
+    kernel = _descr_kernel()
+    return float(kernel.char_trigram_jaccard(a, b))  # type: ignore[attr-defined]
+
+
+def _char_trigram_jaccard_py(a: str, b: str) -> float:
+    """Pure-Python char-trigram Jaccard parity oracle. NOT a runtime fallback."""
     grams_a = _char_ngrams(a, _CHAR_NGRAM)
     grams_b = _char_ngrams(b, _CHAR_NGRAM)
     if not grams_a or not grams_b:
@@ -485,7 +469,7 @@ def self_information_score(
 
         if not is_enabled(KEY_SELF_INFO_ENABLED, default=True):
             return SelfInformationResult(0.0, 0.0, False, 0.0)
-    except Exception:  # noqa: BLE001  # runtime_flags unavailable (mid-migration / test env); fall through with feature enabled — flag is hot-path, must not raise.
+    except Exception:  # noqa: BLE001  # nosec B110  # runtime_flags unavailable (mid-migration / test env); fall through with feature enabled — flag is hot-path, must not raise.
         pass  # runtime_flags unavailable; fall through with feature enabled
 
     entropy = _bigram_entropy(anchor.lower())
@@ -519,32 +503,14 @@ def self_information_score(
 def _bigram_entropy(text: str) -> float:
     """Shannon character-bigram entropy in bits.
 
-    H(X) = -Σ p(x) log₂ p(x) over the bigram distribution. C++
-    fast-path falls through to pure Python when not built.
+    H(X) = -Σ p(x) log₂ p(x) over the bigram distribution. The Rust kernel
+    `extensions.anchor_self_information` owns this hot path; it is loaded
+    through the shared `load_kernel` helper, which raises a loud
+    `KernelUnavailableError` (a `RuntimeError`) when the kernel is missing —
+    there is no Python fallback (RUST-FIRST.md zero-fallback).
     """
-    if (
-        _HAS_CPP_SELF_INFO and _cpp_self_info is not None
-    ):  # pragma: no cover — needs build
-        try:
-            return float(_cpp_self_info.bigram_entropy(text))  # type: ignore[union-attr]
-        except Exception as exc:
-            logger.warning("anchor_garbage: C++ bigram_entropy failed: %s", exc)
-    if len(text) < 2:
-        return 0.0
-    counts: dict[str, int] = {}
-    total = 0
-    for i in range(len(text) - 1):
-        bg = text[i : i + 2]
-        counts[bg] = counts.get(bg, 0) + 1
-        total += 1
-    if total == 0:
-        return 0.0
-    h = 0.0
-    inv_total = 1.0 / total
-    for c in counts.values():
-        p = c * inv_total
-        h -= p * math.log2(p)
-    return h
+    kernel = load_kernel("extensions.anchor_self_information", "bigram_entropy")
+    return float(kernel.bigram_entropy(text))
 
 
 def _resolve_corpus_stats(

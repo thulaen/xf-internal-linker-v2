@@ -40,8 +40,8 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 # INTERNAL_IPS = ["127.0.0.1"]
 
 # ── More verbose logging in development ───────────────────────────
-LOGGING["root"]["level"] = "DEBUG"  # noqa: F405
-LOGGING["loggers"]["apps"]["level"] = "DEBUG"  # noqa: F405
+LOGGING["root"]["level"] = "DEBUG"  # pylint: disable=undefined-variable,used-before-assignment  # noqa: F405
+LOGGING["loggers"]["apps"]["level"] = "DEBUG"  # pylint: disable=undefined-variable,used-before-assignment  # noqa: F405
 
 # ── CORS: allow Angular dev server ───────────────────────────────
 CORS_ALLOW_ALL_ORIGINS = True  # Only safe in dev — never in production!

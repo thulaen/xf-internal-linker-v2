@@ -5,32 +5,26 @@ import {
   ElementRef,
   EventEmitter,
   Input,
+  NgZone,
   OnChanges,
   OnDestroy,
   Output,
   SimpleChanges,
   ViewChild,
+  inject,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import * as d3 from 'd3';
+import * as echarts from 'echarts';
 
 import { GhostEdge, GraphNode, GraphTopology } from '../graph.service';
+import { token } from '../../shared/charts/echarts-theme';
 
-// D3 simulation node type — extends GraphNode with x/y/fx/fy fields.
-interface SimNode extends GraphNode {
-  x?: number;
-  y?: number;
-  fx?: number | null;
-  fy?: number | null;
-}
-
-// D3 simulation link type — source/target become SimNode references after init.
-interface SimLink extends d3.SimulationLinkDatum<SimNode> {
-  context: string;
-  anchor: string;
-  weight: number;
+/** Minimal shape of the ECharts click event we read (node/edge + data). */
+interface ChartClickParams {
+  dataType?: string;
+  data?: Record<string, unknown>;
 }
 
 /** Max radius a node can reach (px). */
@@ -38,6 +32,34 @@ const MAX_RADIUS = 20;
 /** Base radius for a zero-pagerank node (px). */
 const MIN_RADIUS = 4;
 
+/**
+ * Tableau-10 categorical palette for silo colours. Matched to the d3
+ * `schemeTableau10` ordinal scale the previous version used so the silo
+ * colours stay recognisable across the migration.
+ */
+const SILO_PALETTE = [
+  '#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f',
+  '#edc949', '#af7aa1', '#ff9da7', '#9c755f', '#bab0ab',
+];
+
+/**
+ * Link graph (Slice 15 / Phase 6) — Apache ECharts `graph` series with a
+ * force layout. Replaces the hand-written d3 force simulation. Keeps the
+ * same `@Input`/`@Output` contract and the imperative `focusNode()` helper
+ * so the parent (`graph.component`) needs no changes beyond the host swap.
+ *
+ * Feature parity with the d3 version:
+ *  - force layout, zoom + pan (`roam`), draggable nodes;
+ *  - hover dims everything except the node and its neighbours
+ *    (`emphasis.focus: 'adjacency'`);
+ *  - silo colours via ECharts categories;
+ *  - PageRank heat mode (RdYlBu-style ramp) toggled by `heatmapMode`;
+ *  - churn rings drawn as a second graph series behind the nodes;
+ *  - ghost-edge overlay (dashed potential links) as a third series;
+ *  - context filter hides weak/isolated edges;
+ *  - tooltip with title / degree / silo;
+ *  - programmatic focus + zoom on a node id.
+ */
 @Component({
   selector: 'app-link-graph-viz',
   standalone: true,
@@ -59,505 +81,291 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
   @Output() nodeSelected = new EventEmitter<GraphNode | null>();
   @Output() ghostEdgeClicked = new EventEmitter<GhostEdge>();
 
-  @ViewChild('svgContainer') svgRef!: ElementRef<SVGSVGElement>;
+  @ViewChild('chartHost') chartHostRef!: ElementRef<HTMLDivElement>;
   @ViewChild('wrapper') wrapperRef!: ElementRef<HTMLDivElement>;
-  @ViewChild('tooltip') tooltipRef!: ElementRef<HTMLDivElement>;
 
-  // Only template-bound state — read by the loading-overlay @if. Every
-  // other field on this class is imperative D3 plumbing (selections,
-  // simulation, refs to DOM nodes); converting those to signals would
-  // fight D3's mutation model without any reactivity gain.
+  /** Template-bound: drives the loading overlay while the layout settles. */
   readonly isSimulating = signal(false);
 
-  private simulation: d3.Simulation<SimNode, SimLink> | null = null;
+  private readonly zone = inject(NgZone);
+  private chart: echarts.ECharts | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private viewReady = false;
-  /** Tripped in ngOnDestroy. Guards the requestAnimationFrame pre-tick
-   *  chain (large-graph layout warmup, ~300 frames) from continuing
-   *  after the component is destroyed — previously the rAF loop kept
-   *  ticking the dead simulation and applying positions to stale
-   *  selections for ~5s after a route navigation. */
-  private destroyed = false;
-  private zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null;
-  private simNodes: SimNode[] = [];
-  private nodeMap = new Map<number, SimNode>();
-  private _siloColor: d3.ScaleOrdinal<number, string> | null = null;
-  private _orphanColor = '';
-  private linkSel: d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown> | null = null;
-  private churnRingSel: d3.Selection<SVGCircleElement, SimNode, SVGGElement, unknown> | null = null;
-  private ghostLinkGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
+  /** Index of node id → GraphNode for click/tooltip lookups. */
+  private nodeById = new Map<number, GraphNode>();
 
   ngAfterViewInit(): void {
     this.viewReady = true;
-    this._setupResizeObserver();
+    this.zone.runOutsideAngular(() => {
+      this.chart = echarts.init(this.chartHostRef.nativeElement, undefined, { renderer: 'canvas' });
+      this.chart.on('click', (params) => this.onChartClick(params as ChartClickParams));
+      this.resizeObserver = new ResizeObserver(() => this.chart?.resize());
+      this.resizeObserver.observe(this.wrapperRef.nativeElement);
+    });
     if (this.topology.nodes.length > 0) {
-      this._buildGraph();
+      this.render();
     }
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['topology'] && this.viewReady) {
-      this._buildGraph();
-    } else if ((changes['heatmapMode'] || changes['prMin'] || changes['prMax']) && this.viewReady) {
-      this._applyColorMode();
-    } else if (changes['contextFilter'] && this.viewReady) {
-      this._applyContextFilter();
-    } else if (changes['highlightEdge'] && this.viewReady) {
-      this._applyEdgeBlink();
-    } else if ((changes['ghostEdges'] || changes['showGhostEdges']) && this.viewReady) {
-      this._applyGhostEdges();
+    if (!this.viewReady) return;
+    // Any input that changes the picture re-builds the option. ECharts
+    // diffs internally, so a full rebuild is simple and correct (KISS) —
+    // the per-property d3 mutators are no longer needed.
+    if (
+      changes['topology'] || changes['heatmapMode'] || changes['prMin'] ||
+      changes['prMax'] || changes['contextFilter'] || changes['highlightEdge'] ||
+      changes['ghostEdges'] || changes['showGhostEdges'] || changes['churnyIds']
+    ) {
+      this.render();
     }
   }
 
   ngOnDestroy(): void {
-    // Trip the destroy flag BEFORE tearing things down so the rAF
-    // pre-tick chain (see _buildGraph large-graph branch) bails on
-    // its next frame instead of running another 290 wasted ticks.
-    this.destroyed = true;
-    this.simulation?.stop();
     this.resizeObserver?.disconnect();
-
-    // Remove D3 zoom and drag listeners so their closures (which reference `this`)
-    // do not prevent garbage collection of the component after navigation away.
-    if (this.svgRef?.nativeElement) {
-      d3.select(this.svgRef.nativeElement).on('.zoom', null);
-    }
-    // Null out D3 selection references to release DOM node references.
-    this.linkSel = null;
-    this.churnRingSel = null;
-    this.ghostLinkGroup = null;
-    this.zoomBehavior = null;
+    this.resizeObserver = null;
+    this.chart?.dispose();
+    this.chart = null;
   }
 
   // ── Internal ──────────────────────────────────────────────────────────────
 
-  private _setupResizeObserver(): void {
-    this.resizeObserver = new ResizeObserver(() => {
-      if (this.simulation) {
-        const { width, height } = this._dims();
-        this.simulation.force('center', d3.forceCenter(width / 2, height / 2));
-        this.simulation.alpha(0.1).restart();
-      }
-    });
-    this.resizeObserver.observe(this.wrapperRef.nativeElement);
-  }
-
-  private _dims(): { width: number; height: number } {
-    const el = this.wrapperRef.nativeElement;
-    return { width: el.clientWidth || 800, height: el.clientHeight || 560 };
-  }
-
-  private _nodeRadius(node: SimNode): number {
+  private nodeRadius(node: GraphNode): number {
     const r = Math.log(node.pagerank * 100 + 1) * 3 + MIN_RADIUS;
     return Math.min(r, MAX_RADIUS);
   }
 
-  private _buildGraph(): void {
-    this.simulation?.stop();
+  /** RdYlBu-style heat colour for a pagerank value (high = warm/red). */
+  private heatColor(pagerank: number): string {
+    const lo = this.prMin > 0 ? this.prMin : 1e-9;
+    const hi = this.prMax > lo ? this.prMax : lo * 10;
+    const span = Math.log(hi) - Math.log(lo);
+    const t = span > 0
+      ? Math.min(1, Math.max(0, (Math.log(Math.max(pagerank, lo)) - Math.log(lo)) / span))
+      : 0;
+    return rdYlBu(t);
+  }
 
-    const svgEl = this.svgRef.nativeElement;
-    d3.select(svgEl).selectAll('*').remove();
-
-    const { nodes, links } = this.topology;
-    if (nodes.length === 0) return;
-
-    const { width, height } = this._dims();
-
-    // Deep-clone so D3 mutation doesn't affect the original input.
-    this.simNodes = nodes.map((n) => ({ ...n }));
-    const simNodes = this.simNodes;
-
-    // Build a lookup map used by ghost-edge positioning.
-    this.nodeMap.clear();
-    for (const n of simNodes) {
-      this.nodeMap.set(n.id, n);
+  private nodeColor(node: GraphNode): string {
+    if (this.heatmapMode) {
+      return this.heatColor(node.pagerank);
     }
-    const simLinks: SimLink[] = links.map((l) => ({
-      source: l.source as unknown as SimNode,
-      target: l.target as unknown as SimNode,
-      context: l.context,
-      anchor: l.anchor,
-      weight: l.weight,
+    if (node.in_degree === 0) {
+      return token('--graph-node-orphan');
+    }
+    return SILO_PALETTE[Math.abs(node.silo_id) % SILO_PALETTE.length];
+  }
+
+  private edgeColor(ctx: string): string {
+    if (ctx === 'isolated') return token('--color-error');
+    if (ctx === 'weak_context') return token('--color-warning-accent');
+    return '#bdc1c6';
+  }
+
+  private render(): void {
+    if (!this.chart) return;
+    const { nodes, links } = this.topology;
+    if (nodes.length === 0) {
+      this.chart.clear();
+      return;
+    }
+
+    this.nodeById = new Map(nodes.map((n) => [n.id, n]));
+
+    // Large graphs take a moment to settle; show the overlay until the
+    // force layout stabilises (`graphRoam`/`finished` event).
+    const isLarge = nodes.length > 500;
+    this.zone.run(() => this.isSimulating.set(isLarge));
+
+    // One graph series holds every node and every edge so they share the
+    // same force layout — the d3 version drew ghost edges and churn rings
+    // off the same node positions, and a single series is the only way to
+    // keep them aligned in ECharts. Churny pages get a dashed warning
+    // border directly on the node (the old "ring" overlay) instead of a
+    // separate misaligned series.
+    const warning = token('--color-warning-accent');
+    const graphNodes = nodes.map((n) => {
+      const churny = this.churnyIds.has(n.id);
+      return {
+        id: String(n.id),
+        name: n.title,
+        symbolSize: this.nodeRadius(n) * 2,
+        itemStyle: {
+          color: this.nodeColor(n),
+          borderColor: churny ? warning : '#fff',
+          borderWidth: churny ? 3 : 1.5,
+          borderType: (churny ? 'dashed' : 'solid') as 'dashed' | 'solid',
+        },
+        value: n.pagerank,
+        _silo: n.silo_id,
+        _in: n.in_degree,
+        _out: n.out_degree,
+      };
+    });
+
+    const visibleLinks = links.filter(
+      (l) => this.contextFilter !== 'contextual' || l.context === 'contextual',
+    );
+    const graphLinks = visibleLinks.map((l) => {
+      const highlighted = this.highlightEdge
+        && l.source === this.highlightEdge.source
+        && l.target === this.highlightEdge.target;
+      return {
+        source: String(l.source),
+        target: String(l.target),
+        lineStyle: {
+          color: highlighted ? token('--color-primary') : this.edgeColor(l.context),
+          opacity: highlighted ? 0.95 : 0.4,
+          width: highlighted ? 2.5 : 1,
+        },
+      };
+    });
+
+    // Ghost edges: dashed "potential link" overlay between existing nodes,
+    // added to the same series so they track real node positions.
+    const ghostVisible = this.showGhostEdges
+      ? this.ghostEdges.filter((g) => this.nodeById.has(g.source) && this.nodeById.has(g.target))
+      : [];
+    const ghostLinks = ghostVisible.map((g) => ({
+      source: String(g.source),
+      target: String(g.target),
+      _ghost: g,
+      lineStyle: {
+        color: token('--color-primary'),
+        opacity: 0.5,
+        width: 1.5,
+        type: 'dashed' as const,
+      },
     }));
 
-    // Build a map for quick neighbor lookup during hover.
-    const neighborSet = new Map<number, Set<number>>();
-    for (const l of links) {
-      if (!neighborSet.has(l.source)) neighborSet.set(l.source, new Set());
-      if (!neighborSet.has(l.target)) neighborSet.set(l.target, new Set());
-      neighborSet.get(l.source)!.add(l.target);
-      neighborSet.get(l.target)!.add(l.source);
-    }
+    const option: echarts.EChartsOption = {
+      tooltip: {
+        backgroundColor: 'rgba(32, 33, 36, 0.92)',
+        borderWidth: 0,
+        padding: 12,
+        textStyle: { color: '#e8eaed', fontSize: 12 },
+        formatter: (params) => graphTooltip(params as ChartClickParams),
+      },
+      legend: { show: false },
+      series: [
+        {
+          type: 'graph',
+          layout: 'force',
+          roam: true,
+          draggable: true,
+          focusNodeAdjacency: true,
+          force: { repulsion: 120, edgeLength: 80, gravity: 0.08 },
+          emphasis: { focus: 'adjacency', lineStyle: { width: 2 } },
+          lineStyle: { curveness: 0 },
+          data: graphNodes,
+          links: [...graphLinks, ...ghostLinks],
+        },
+      ],
+    };
 
-    // Colour scale — one colour per unique silo_id.
-    const siloIds = [...new Set(simNodes.map((n) => n.silo_id))];
-    const color = d3.scaleOrdinal<number, string>(d3.schemeTableau10).domain(siloIds);
-    this._siloColor = color;
+    this.chart.setOption(option, { notMerge: true });
+    this.chart.off('finished');
+    this.chart.on('finished', () => this.zone.run(() => this.isSimulating.set(false)));
 
-    // Orphan nodes use the error/danger colour from the theme.
-    const orphanColor = getComputedStyle(document.documentElement)
-      .getPropertyValue('--graph-node-orphan').trim();
-    this._orphanColor = orphanColor;
-
-    // ── SVG setup ────────────────────────────────────────────────────────────
-
-    const svg = d3.select(svgEl)
-      .attr('width', width)
-      .attr('height', height);
-
-    // Zoom/pan container.
-    const container = svg.append('g').attr('class', 'graph-container');
-
-    this.zoomBehavior = d3.zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.1, 8])
-      .on('zoom', (event) => {
-        container.attr('transform', event.transform);
-      });
-    svg.call(this.zoomBehavior);
-
-    // ── Force simulation ──────────────────────────────────────────────────────
-
-    this.simulation = d3.forceSimulation<SimNode, SimLink>(simNodes)
-      .force('link', d3.forceLink<SimNode, SimLink>(simLinks)
-        .id((d) => d.id)
-        .strength((l) => l.weight * 0.3)
-      )
-      .force('charge', d3.forceManyBody().strength(-120))
-      .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collide', d3.forceCollide<SimNode>().radius((d) => this._nodeRadius(d) + 2));
-
-    // ── Edges ─────────────────────────────────────────────────────────────────
-
-    const link = container.append('g')
-      .attr('class', 'links')
-      .selectAll<SVGLineElement, SimLink>('line')
-      .data(simLinks)
-      .join('line')
-      .attr('class', 'edge')
-      .attr('stroke', (l) => this._edgeColor(l.context))
-      .attr('stroke-opacity', 0.4);
-
-    this.linkSel = link;
-    this._applyContextFilter();
-
-    // ── Ghost edges (Coverage Gap overlay) ────────────────────────────────────
-
-    this.ghostLinkGroup = container.append('g').attr('class', 'ghost-links');
-    this._applyGhostEdges();
-
-    // ── Churn rings (rendered behind nodes) ───────────────────────────────────
-
-    const churnyNodes = simNodes.filter((d) => this.churnyIds.has(d.id));
-    this.churnRingSel = container.append('g')
-      .attr('class', 'churn-rings')
-      .selectAll<SVGCircleElement, SimNode>('circle')
-      .data(churnyNodes)
-      .join('circle')
-      .attr('class', 'churn-ring')
-      .attr('r', (d) => this._nodeRadius(d) + 4)
-      .attr('fill', 'none')
-      .attr('stroke', '#f9ab00')
-      .attr('stroke-width', 2)
-      .attr('stroke-dasharray', '4 2');
-
-    // ── Nodes ─────────────────────────────────────────────────────────────────
-
-    const nodeGroup = container.append('g')
-      .attr('class', 'nodes')
-      .selectAll<SVGCircleElement, SimNode>('circle')
-      .data(simNodes)
-      .join('circle')
-      .attr('class', 'node')
-      .attr('r', (d) => this._nodeRadius(d))
-      .attr('fill', (d) => this._nodeColor(d))
-      .attr('stroke', '#fff')
-      .attr('stroke-width', 1.5)
-      .call(this._drag(this.simulation))
-      .on('mouseover', (event, d) => this._onHover(event, d, nodeGroup, link, neighborSet))
-      .on('mouseout', () => this._onHoverEnd(nodeGroup, link))
-      .on('click', (event, d) => {
-        event.stopPropagation();
-        this.nodeSelected.emit(d);
-      });
-
-    // Click on empty canvas deselects.
-    svg.on('click', () => this.nodeSelected.emit(null));
-
-    // ── Tick ──────────────────────────────────────────────────────────────────
-
-    const isLarge = simNodes.length > 500;
-
-    if (isLarge) {
-      // Pre-compute layout without live rendering to keep the UI responsive.
-      this.isSimulating.set(true);
-      this.simulation.stop();
-
-      const TICKS = 300;
-      let tick = 0;
-      const step = () => {
-        // Bail out if the component has been destroyed mid-pre-tick —
-        // see the `destroyed` flag in ngOnDestroy. Previously this
-        // loop kept ticking a stopped simulation and applying
-        // positions to stale D3 selections for ~5s after navigation.
-        if (this.destroyed) return;
-        if (tick < TICKS) {
-          this.simulation!.tick();
-          tick++;
-          requestAnimationFrame(step);
-        } else {
-          this.isSimulating.set(false);
-          this._applyPositions(nodeGroup, link);
-          this._applyGhostPositions();
-        }
-      };
-      requestAnimationFrame(step);
-    } else {
-      this.simulation.on('tick', () => {
-        this._applyPositions(nodeGroup, link);
-        this._applyGhostPositions();
-      });
-    }
-
-    this._renderLegend(svg, width, height);
-  }
-
-  private _applyPositions(
-    nodeGroup: d3.Selection<SVGCircleElement, SimNode, SVGGElement, unknown>,
-    link: d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown>
-  ): void {
-    link
-      .attr('x1', (d) => (d.source as SimNode).x ?? 0)
-      .attr('y1', (d) => (d.source as SimNode).y ?? 0)
-      .attr('x2', (d) => (d.target as SimNode).x ?? 0)
-      .attr('y2', (d) => (d.target as SimNode).y ?? 0);
-
-    nodeGroup
-      .attr('cx', (d) => d.x ?? 0)
-      .attr('cy', (d) => d.y ?? 0);
-
-    this.churnRingSel
-      ?.attr('cx', (d) => d.x ?? 0)
-      .attr('cy', (d) => d.y ?? 0);
-  }
-
-  private _drag(sim: d3.Simulation<SimNode, SimLink>): d3.DragBehavior<SVGCircleElement, SimNode, SimNode | d3.SubjectPosition> {
-    return d3.drag<SVGCircleElement, SimNode>()
-      .on('start', (event, d) => {
-        if (!event.active) sim.alphaTarget(0.3).restart();
-        d.fx = d.x;
-        d.fy = d.y;
-      })
-      .on('drag', (event, d) => {
-        d.fx = event.x;
-        d.fy = event.y;
-      })
-      .on('end', (event) => {
-        if (!event.active) sim.alphaTarget(0);
-        // Leave fx/fy set — node stays pinned where the user dropped it.
-      });
-  }
-
-  private _nodeColor(d: SimNode): string {
+    // Heat legend (low → high) for heatmap mode.
     if (this.heatmapMode) {
-      const lo = this.prMin > 0 ? this.prMin : 1e-9;
-      const hi = this.prMax > lo ? this.prMax : lo * 10;
-      const scale = d3.scaleLog<number>().domain([lo, hi]).range([0, 1]).clamp(true);
-      return d3.interpolateRdYlBu(1 - scale(Math.max(d.pagerank, lo)));
+      this.applyHeatVisualMap();
     }
-    return d.in_degree === 0
-      ? this._orphanColor
-      : (this._siloColor ? this._siloColor(d.silo_id) : '#aaa');
   }
 
-  private _applyColorMode(): void {
-    if (!this.svgRef?.nativeElement) return;
-    d3.select(this.svgRef.nativeElement)
-      .selectAll<SVGCircleElement, SimNode>('.node')
-      .attr('fill', (d) => this._nodeColor(d));
-    const { width, height } = this._dims();
-    this._renderLegend(d3.select(this.svgRef.nativeElement), width, height);
-  }
-
-  private _renderLegend(
-    svg: d3.Selection<SVGSVGElement, unknown, null, undefined>,
-    width: number,
-    height: number
-  ): void {
-    svg.select('.heatmap-legend').remove();
-    svg.select('defs #heatmap-grad').remove();
-    if (!this.heatmapMode) return;
-
-    const BAR_W = 120, BAR_H = 10, M = 16;
-    let defs = svg.select<SVGDefsElement>('defs');
-    if (defs.empty()) defs = svg.append('defs') as d3.Selection<SVGDefsElement, unknown, null, undefined>;
-    const grad = defs.append('linearGradient').attr('id', 'heatmap-grad');
-    d3.range(0, 1.01, 0.1).forEach(t => {
-      grad.append('stop')
-        .attr('offset', `${Math.round(t * 100)}%`)
-        .attr('stop-color', d3.interpolateRdYlBu(1 - t));
-    });
-
-    const g = svg.append('g')
-      .attr('class', 'heatmap-legend')
-      .attr('transform', `translate(${M}, ${height - M - BAR_H - 16})`);
-
-    g.append('rect')
-      .attr('width', BAR_W).attr('height', BAR_H).attr('rx', 2)
-      .attr('fill', 'url(#heatmap-grad)');
-
-    ([{ x: 0, anchor: 'start', label: 'Low' }, { x: BAR_W, anchor: 'end', label: 'High' }] as const)
-      .forEach(({ x, anchor, label }) => {
-        g.append('text')
-          .attr('x', x).attr('y', BAR_H + 12)
-          .attr('font-size', '10px')
-          .attr('text-anchor', anchor)
-          .attr('fill', 'var(--color-text-muted)')
-          .text(label);
-      });
-  }
-
-  private _applyGhostEdges(): void {
-    if (!this.ghostLinkGroup) return;
-
-    const visible = this.showGhostEdges
-      ? this.ghostEdges.filter((ge) => this.nodeMap.has(ge.source) && this.nodeMap.has(ge.target))
-      : [];
-
-    this.ghostLinkGroup
-      .selectAll<SVGLineElement, GhostEdge>('line')
-      .data(visible, (d) => d.suggestion_id)
-      .join('line')
-      .attr('class', 'ghost-edge')
-      .attr('stroke', 'var(--color-primary)')
-      .attr('stroke-opacity', 0.5)
-      .attr('stroke-width', 1.5)
-      .attr('stroke-dasharray', '6,4')
-      .style('cursor', 'pointer')
-      .on('click', (event, d) => {
-        event.stopPropagation();
-        this.ghostEdgeClicked.emit(d);
-      })
-      .on('mouseover', (event, d) => {
-        d3.select(this.tooltipRef.nativeElement)
-          .style('display', 'block')
-          .style('left', `${event.offsetX + 12}px`)
-          .style('top', `${event.offsetY - 10}px`)
-          .html(
-            `<strong>Potential link</strong><br>` +
-            `"${d.anchor_phrase}"<br>` +
-            `Score: ${d.score_final.toFixed(2)}`
-          );
-      })
-      .on('mouseout', () => {
-        d3.select(this.tooltipRef.nativeElement).style('display', 'none');
-      });
-
-    this._applyGhostPositions();
-  }
-
-  private _applyGhostPositions(): void {
-    if (!this.ghostLinkGroup) return;
-    this.ghostLinkGroup
-      .selectAll<SVGLineElement, GhostEdge>('line')
-      .attr('x1', (d) => this.nodeMap.get(d.source)?.x ?? 0)
-      .attr('y1', (d) => this.nodeMap.get(d.source)?.y ?? 0)
-      .attr('x2', (d) => this.nodeMap.get(d.target)?.x ?? 0)
-      .attr('y2', (d) => this.nodeMap.get(d.target)?.y ?? 0);
-  }
-
-  private _edgeColor(ctx: string): string {
-    if (ctx === 'isolated')     return '#d93025'; // red
-    if (ctx === 'weak_context') return '#f9ab00'; // amber
-    return '#bdc1c6';                             // gray (contextual)
-  }
-
-  private _applyContextFilter(): void {
-    this.linkSel?.attr('display', (l) => {
-      if (this.contextFilter === 'contextual' && l.context !== 'contextual') return 'none';
-      return null;
+  /** Add a visualMap legend showing the low→high PageRank colour ramp. */
+  private applyHeatVisualMap(): void {
+    if (!this.chart) return;
+    this.chart.setOption({
+      visualMap: {
+        show: true,
+        type: 'continuous',
+        min: this.prMin,
+        max: this.prMax > this.prMin ? this.prMax : this.prMin + 1,
+        left: 16,
+        bottom: 16,
+        dimension: undefined,
+        seriesIndex: [],
+        text: ['High', 'Low'],
+        calculable: false,
+        inRange: { color: [rdYlBu(0), rdYlBu(0.5), rdYlBu(1)] },
+        textStyle: { color: token('--color-text-muted'), fontSize: 10 },
+        itemWidth: 12,
+        itemHeight: 80,
+      },
     });
   }
 
-  private _applyEdgeBlink(): void {
-    this.linkSel?.classed('edge--blink', (l) => {
-      if (!this.highlightEdge) return false;
-      const s = typeof l.source === 'object' ? (l.source as SimNode).id : (l.source as number);
-      const t = typeof l.target === 'object' ? (l.target as SimNode).id : (l.target as number);
-      return s === this.highlightEdge.source && t === this.highlightEdge.target;
-    });
-  }
-
-  private _onHover(
-    event: MouseEvent,
-    hovered: SimNode,
-    nodeGroup: d3.Selection<SVGCircleElement, SimNode, SVGGElement, unknown>,
-    link: d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown>,
-    neighborSet: Map<number, Set<number>>
-  ): void {
-    const neighbors = neighborSet.get(hovered.id) ?? new Set<number>();
-
-    nodeGroup.attr('opacity', (d) =>
-      d.id === hovered.id || neighbors.has(d.id) ? 1 : 0.15
-    );
-    link.attr('stroke-opacity', (l) => {
-      const s = (l.source as SimNode).id;
-      const t = (l.target as SimNode).id;
-      return s === hovered.id || t === hovered.id ? 0.8 : 0.05;
-    });
-
-    // Tooltip
-    const tooltip = d3.select(this.tooltipRef.nativeElement);
-    tooltip
-      .style('display', 'block')
-      .style('left', `${event.offsetX + 12}px`)
-      .style('top', `${event.offsetY - 10}px`)
-      .html(
-        `<strong>${hovered.title}</strong><br>` +
-        `In: ${hovered.in_degree} &nbsp; Out: ${hovered.out_degree}<br>` +
-        `Silo: ${hovered.silo_id}`
-      );
-  }
-
-  private _onHoverEnd(
-    nodeGroup: d3.Selection<SVGCircleElement, SimNode, SVGGElement, unknown>,
-    link: d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown>
-  ): void {
-    nodeGroup.attr('opacity', 1);
-    link.attr('stroke-opacity', 0.4);
-    d3.select(this.tooltipRef.nativeElement).style('display', 'none');
+  private onChartClick(params: ChartClickParams): void {
+    const data = params.data as Record<string, unknown> | undefined;
+    if (params.dataType === 'edge' && data && data['_ghost']) {
+      this.zone.run(() => this.ghostEdgeClicked.emit(data['_ghost'] as GhostEdge));
+      return;
+    }
+    if (params.dataType === 'node' && data && typeof data['id'] === 'string') {
+      const id = Number(data['id']);
+      const node = this.nodeById.get(id);
+      if (node) {
+        this.zone.run(() => this.nodeSelected.emit(node));
+        return;
+      }
+    }
+    // Click on empty canvas deselects.
+    this.zone.run(() => this.nodeSelected.emit(null));
   }
 
   /**
-   * Programmatically zoom to a node and select it.
-   * Returns false if the node is not in the current topology.
+   * Programmatically focus a node: emit selection, highlight its adjacency,
+   * and zoom toward it. Returns false if the node is not in the current
+   * topology so the caller can fall back (e.g. show a "not on screen" hint).
    */
   focusNode(nodeId: number): boolean {
-    const node = this.simNodes.find((n) => n.id === nodeId);
-    if (!node || node.x == null || node.y == null) return false;
+    const node = this.nodeById.get(nodeId);
+    if (!node || !this.chart) return false;
 
     this.nodeSelected.emit(node);
-
-    const svgEl = this.svgRef?.nativeElement;
-    if (!svgEl || !this.zoomBehavior) return false;
-
-    const { width, height } = this._dims();
-    const scale = 2;
-    const transform = d3.zoomIdentity
-      .translate(width / 2, height / 2)
-      .scale(scale)
-      .translate(-node.x, -node.y);
-
-    d3.select(svgEl)
-      .transition()
-      .duration(750)
-      .call(this.zoomBehavior.transform as any, transform);
-
-    // Highlight the focused node with a thicker stroke.
-    d3.select(svgEl)
-      .selectAll<SVGCircleElement, SimNode>('.node')
-      .attr('stroke-width', (d) => d.id === nodeId ? 3 : 1.5)
-      .attr('stroke', (d) => d.id === nodeId ? 'var(--color-primary)' : '#fff');
-
+    this.zone.runOutsideAngular(() => {
+      this.chart?.dispatchAction({
+        type: 'focusNodeAdjacency',
+        seriesIndex: 0,
+        dataIndex: [...this.nodeById.keys()].indexOf(nodeId),
+      });
+      // Zoom in toward the focused node (the single graph series).
+      this.chart?.dispatchAction({ type: 'graphRoam', seriesIndex: 0, zoom: 1.5 });
+    });
     return true;
   }
+}
+
+/** Build the hover tooltip HTML for a node or a ghost edge. */
+function graphTooltip(p: ChartClickParams): string {
+  const data = p.data;
+  if (p.dataType === 'node' && data && typeof data['_in'] === 'number') {
+    return `<strong>${data['name']}</strong><br>` +
+      `In: ${data['_in']} &nbsp; Out: ${data['_out']}<br>` +
+      `Silo: ${data['_silo']}`;
+  }
+  if (p.dataType === 'edge' && data && data['_ghost']) {
+    const g = data['_ghost'] as GhostEdge;
+    return `<strong>Potential link</strong><br>"${g.anchor_phrase}"<br>Score: ${g.score_final.toFixed(2)}`;
+  }
+  return '';
+}
+
+/**
+ * RdYlBu-style diverging ramp (blue → yellow → red) for `t` in [0, 1].
+ * High `t` returns warm red (high PageRank), low `t` returns cool blue —
+ * matching the d3 `interpolateRdYlBu(1 - t)` the previous version used.
+ * Three-stop linear interpolation keeps it tiny and dependency-free.
+ */
+function rdYlBu(t: number): string {
+  const clamped = Math.min(1, Math.max(0, t));
+  const blue = [49, 54, 149];
+  const yellow = [255, 255, 191];
+  const red = [165, 0, 38];
+  const [a, b, local] = clamped < 0.5
+    ? [blue, yellow, clamped / 0.5]
+    : [yellow, red, (clamped - 0.5) / 0.5];
+  const mix = (i: number) => Math.round(a[i] + (b[i] - a[i]) * local);
+  return `rgb(${mix(0)}, ${mix(1)}, ${mix(2)})`;
 }

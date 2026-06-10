@@ -71,11 +71,13 @@
           <mat-card-header>
             <mat-card-title i18n="@@analytics.funnel.title">Funnel Performance</mat-card-title>
             <mat-card-subtitle i18n="@@analytics.funnel.subtitle">Last {{ funnelData.days }} days — {{ sourceLabel(selectedSource) }}</mat-card-subtitle>
+            <mat-icon class="chart-help-icon"
+                      [peHelper]="'Shows how many visitors move from one step to the next; a big drop means people leave at that step.'">help_outline</mat-icon>
           </mat-card-header>
           <mat-card-content>
             <div class="funnel-container">
               @if (funnelChartData) {
-                <canvas baseChart [data]="funnelChartData" [options]="funnelChartOptions" [type]="'bar'"></canvas>
+                <div class="chart-host" [echarts]="funnelChartData"></div>
               } @else {
                 <div class="empty-chart">
                   <mat-icon class="icon-3xl">bar_chart</mat-icon>
@@ -124,12 +126,16 @@
           <mat-card-header>
             <mat-card-title i18n="@@analytics.algorithm.title">Algorithm Performance</mat-card-title>
             <mat-card-subtitle i18n="@@analytics.algorithm.subtitle">Comparison across different model versions</mat-card-subtitle>
+            <mat-icon class="chart-help-icon"
+                      [peHelper]="'Compares how well each version of the ranking math performed, from 0 to 100 percent.'">help_outline</mat-icon>
           </mat-card-header>
           <mat-card-content>
             @if (versionChartData) {
               <div class="chart-wrapper chart-wrapper--md">
-                <canvas baseChart [data]="versionChartData" [options]="versionChartOptions" [type]="'bar'"></canvas>
+                <div class="chart-host" [echarts]="versionChartData"></div>
               </div>
+            } @else {
+              <div class="empty-state-mini"><p i18n="@@analytics.algorithm.chart_empty">No version performance data to chart yet.</p></div>
             }
             
             <div class="table-section">
@@ -241,12 +247,14 @@
           <mat-card-header>
             <mat-card-title i18n="@@analytics.engagementTrend.title">Engagement Trend</mat-card-title>
             <mat-card-subtitle i18n="@@analytics.engagementTrend.subtitle">User interaction trends over the last {{ trendData.items.length }} days</mat-card-subtitle>
+            <mat-icon class="chart-help-icon"
+                      [peHelper]="'Daily clicks (left side) next to the engagement rate as a percent (right side).'">help_outline</mat-icon>
           </mat-card-header>
           <mat-card-content>
             <div class="trend-section">
               @if (trendData.items.length && trendChartData) {
                 <div class="chart-wrapper chart-wrapper--lg">
-                  <canvas baseChart [data]="trendChartData" [options]="trendChartOptions" [type]="'line'"></canvas>
+                  <div class="chart-host" [echarts]="trendChartData"></div>
                 </div>
                 <div class="trend-footer">
                   <div class="trend-stat">
@@ -272,11 +280,15 @@
       @if (breakdowns; as breakdownData) {
         <div class="breakdown-grid" id="analytics-breakdowns">
           <mat-card class="report-card ga4-card" id="analytics-device-mix-card">
-            <mat-card-header><mat-card-title i18n="@@analytics.deviceMix.title">Device Mix</mat-card-title></mat-card-header>
+            <mat-card-header>
+              <mat-card-title i18n="@@analytics.deviceMix.title">Device Mix</mat-card-title>
+              <mat-icon class="chart-help-icon"
+                        [peHelper]="'Share of visits by device — phone, tablet, or desktop.'">help_outline</mat-icon>
+            </mat-card-header>
             <mat-card-content>
               @if (deviceChartData && breakdownData.device_categories.length) {
                 <div class="chart-wrapper chart-wrapper--sm">
-                  <canvas baseChart [data]="deviceChartData" [options]="doughnutOptions" [type]="'doughnut'"></canvas>
+                  <div class="chart-host" [echarts]="deviceChartData"></div>
                 </div>
               } @else {
                 <div class="empty-state-mini"><p i18n="@@analytics.deviceMix.empty">No device data.</p></div>
@@ -285,11 +297,15 @@
           </mat-card>
 
           <mat-card class="report-card ga4-card" id="analytics-channel-mix-card">
-            <mat-card-header><mat-card-title i18n="@@analytics.channelMix.title">Channel Mix</mat-card-title></mat-card-header>
+            <mat-card-header>
+              <mat-card-title i18n="@@analytics.channelMix.title">Channel Mix</mat-card-title>
+              <mat-icon class="chart-help-icon"
+                        [peHelper]="'Share of visits by traffic source — search, direct, referral, and so on.'">help_outline</mat-icon>
+            </mat-card-header>
             <mat-card-content>
               @if (channelChartData && breakdownData.channel_groups.length) {
                 <div class="chart-wrapper chart-wrapper--sm">
-                  <canvas baseChart [data]="channelChartData" [options]="doughnutOptions" [type]="'doughnut'"></canvas>
+                  <div class="chart-host" [echarts]="channelChartData"></div>
                 </div>
               } @else {
                 <div class="empty-state-mini"><p i18n="@@analytics.channelMix.empty">No channel data.</p></div>
@@ -298,11 +314,15 @@
           </mat-card>
 
           <mat-card class="report-card ga4-card" id="analytics-geographic-mix-card">
-            <mat-card-header><mat-card-title i18n="@@analytics.geographicMix.title">Geographic Mix</mat-card-title></mat-card-header>
+            <mat-card-header>
+              <mat-card-title i18n="@@analytics.geographicMix.title">Geographic Mix</mat-card-title>
+              <mat-icon class="chart-help-icon"
+                        [peHelper]="'Visits by country — the top 10 countries by clicks.'">help_outline</mat-icon>
+            </mat-card-header>
             <mat-card-content>
               @if (geoChartData && breakdownData.countries.length) {
                 <div class="chart-wrapper chart-wrapper--sm">
-                  <canvas baseChart [data]="geoChartData" [options]="funnelChartOptions" [type]="'bar'"></canvas>
+                  <div class="chart-host" [echarts]="geoChartData"></div>
                 </div>
                 <div class="card-footer">
                   <button mat-button color="primary" (click)="toggleFullGeo()">
@@ -436,11 +456,13 @@
         <mat-card-header>
           <mat-card-title i18n="@@analytics.impact.scatter.title">Traffic vs. Lift Scatter</mat-card-title>
           <mat-card-subtitle i18n="@@analytics.impact.scatter.subtitle">Each dot is one applied suggestion. Position shows baseline traffic vs. measured lift.</mat-card-subtitle>
+          <mat-icon class="chart-help-icon"
+                    [peHelper]="'Each dot is a suggestion: how busy the page was (left to right) versus the percent change after the link was added (up and down).'">help_outline</mat-icon>
         </mat-card-header>
         <mat-card-content>
           @if (scatterChartData) {
             <div class="chart-wrapper chart-wrapper--md">
-              <canvas baseChart [data]="scatterChartData" [options]="scatterChartOptions" [type]="'scatter'"></canvas>
+              <div class="chart-host" [echarts]="scatterChartData"></div>
             </div>
           } @else {
             <div class="empty-chart chart-wrapper--md">

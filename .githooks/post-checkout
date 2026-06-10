@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Post-checkout hook: ensure Gemini-breaking worktreeConfig extension is not in .git/config.
 # Fires after checkout, worktree add, branch switch.
 set -e

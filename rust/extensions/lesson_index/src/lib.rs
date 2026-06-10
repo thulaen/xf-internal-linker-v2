@@ -1,3 +1,4 @@
+#![allow(clippy::missing_const_for_fn)]
 //! Three-sub-index in-process cache hot-path kernel, ported from the C++
 //! `lesson_index` kernel (`backend/extensions/lesson_index.cpp` plus
 //! `include/lesson_index.h`) to Rust and exposed to Python as the native module
@@ -134,9 +135,8 @@ fn write_snapshot(path: &Path, payload: &[u8]) -> Result<(), SnapshotError> {
     tmp.push(".tmp");
     let tmp_path = Path::new(&tmp);
     {
-        let mut out = fs::File::create(tmp_path).map_err(|e| {
-            SnapshotError::Io(format!("lesson_index: cannot open snapshot for write: {e}"))
-        })?;
+        let mut out = fs::File::create(tmp_path)
+            .map_err(|e| SnapshotError::Io(format!("lesson_index: cannot open snapshot for write: {e}")))?;
         out.write_all(&snapshot_header(payload))
             .and_then(|()| out.write_all(payload))
             .map_err(|e| SnapshotError::Io(format!("lesson_index: snapshot write failed: {e}")))?;
@@ -149,9 +149,8 @@ fn write_snapshot(path: &Path, payload: &[u8]) -> Result<(), SnapshotError> {
 /// payload bytes. Maps every failure mode to `RuntimeError` with a message
 /// mirroring the C++ kernel.
 fn read_snapshot(path: &Path) -> Result<Vec<u8>, SnapshotError> {
-    let bytes = fs::read(path).map_err(|e| {
-        SnapshotError::Io(format!("lesson_index: cannot open snapshot for read: {e}"))
-    })?;
+    let bytes = fs::read(path)
+        .map_err(|e| SnapshotError::Io(format!("lesson_index: cannot open snapshot for read: {e}")))?;
     if bytes.len() < 24 {
         return Err(SnapshotError::Format(
             "lesson_index: snapshot magic mismatch (corrupt or wrong format)",
@@ -173,9 +172,7 @@ fn read_snapshot(path: &Path) -> Result<Vec<u8>, SnapshotError> {
     let stored_crc = u32::from_le_bytes(bytes[16..20].try_into().unwrap());
     let payload = &bytes[24..];
     if payload.len() < payload_size {
-        return Err(SnapshotError::Format(
-            "lesson_index: snapshot payload truncated",
-        ));
+        return Err(SnapshotError::Format("lesson_index: snapshot payload truncated"));
     }
     let payload = &payload[..payload_size];
     if crc32c(payload) != stored_crc {
@@ -200,9 +197,7 @@ impl<'a> Cursor<'a> {
 
     fn take(&mut self, n: usize) -> Result<&'a [u8], SnapshotError> {
         if self.pos + n > self.buf.len() {
-            return Err(SnapshotError::Format(
-                "lesson_index: snapshot payload truncated",
-            ));
+            return Err(SnapshotError::Format("lesson_index: snapshot payload truncated"));
         }
         let slice = &self.buf[self.pos..self.pos + n];
         self.pos += n;
@@ -372,6 +367,7 @@ impl ScopedLessonCore {
         total
     }
 
+    #[allow(clippy::missing_const_for_fn)]
     pub fn clear(&mut self) {
         self.data.clear();
         self.id_to_path.clear();
@@ -468,6 +464,7 @@ impl PerfBaselineCore {
         total
     }
 
+    #[allow(clippy::missing_const_for_fn)]
     pub fn clear(&mut self) {
         self.data.clear();
     }
@@ -626,7 +623,9 @@ impl PerfBaselineCache {
     }
 }
 
-/// Python-facing citation cache. Deliberately minimal binding: only capacity +
+/// Python-facing citation cache.
+///
+/// Deliberately minimal binding: only capacity +
 /// memory accounting are exposed (the Python service owns the citation data in a
 /// pure-Python dict). It still respects the `max_entries` cap for parity.
 #[pyclass]

@@ -25,7 +25,7 @@ crate-type = ["cdylib", "rlib"]
 # abi3-py310: build against the stable Python ABI (CPython 3.10+) so one
 # wheel works across future 3.x without a per-minor rebuild. Pinned to the
 # 0.26 line to match the workspace scaffold (`xf_kernels`).
-pyo3 = { version = "0.26", features = ["abi3-py310", "extension-module"] }
+pyo3 = { version = "0.26", features = ["abi3-py310"] }
 # `numpy` 0.26 pairs with `pyo3` 0.26 and gives zero-copy read-only views
 # (`PyReadonlyArray1`/`PyReadonlyArray2`) over the float32 query vector and
 # passage matrix the FR-053 scorer passes in.
@@ -43,3 +43,6 @@ harness = false
 
 [lints]
 workspace = true
+
+[features]
+extension-module = ["pyo3/extension-module"]

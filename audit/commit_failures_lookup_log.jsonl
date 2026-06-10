@@ -66,3 +66,10 @@
 {"task_id": "74744ebe-dba3-4f23-90e6-7e068ef51564", "agent": "claude", "looked_up_at": "2026-06-05T13:57:36Z", "result_count": 10, "source": "db-fallback"}
 {"task_id": "74744ebe-dba3-4f23-90e6-7e068ef51564", "agent": "claude", "looked_up_at": "2026-06-05T13:59:44Z", "result_count": 10, "source": "db-fallback"}
 {"task_id": "d7c06c1b-b459-4e6e-a804-1216bad3666c", "agent": "claude", "looked_up_at": "2026-06-07T17:53:11Z", "result_count": 10, "source": "db-fallback"}
+{"task_id": "efd5c7d2-7f9f-447b-aa44-053e79065252", "agent": "claude", "looked_up_at": "2026-06-08T07:33:28Z", "result_count": 10, "source": "db-fallback"}
+{"task_id": "efd5c7d2-7f9f-447b-aa44-053e79065252", "agent": "claude", "looked_up_at": "2026-06-08T07:36:30Z", "result_count": 10, "source": "db-fallback"}
+{"task_id": "3cf8af91-31df-468d-bc0d-9cf333a941ca", "agent": "claude", "looked_up_at": "2026-06-08T11:42:14Z", "result_count": 10, "source": "db-fallback"}
+{"task_id": "3cf8af91-31df-468d-bc0d-9cf333a941ca", "agent": "claude", "looked_up_at": "2026-06-08T13:08:16Z", "result_count": 10, "source": "db-fallback"}
+{"task_id": "9a63e59d-5295-4afa-b855-01d8be296bd3", "agent": "claude", "looked_up_at": "2026-06-08T18:26:31Z", "result_count": 10, "source": "db-fallback"}
+{"task_id": "c635d8a7-1874-4fa7-aea5-aefe0d251039", "agent": "claude", "looked_up_at": "2026-06-10T09:16:53Z", "result_count": 10, "source": "db-fallback"}
+{"task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "looked_up_at": "2026-06-10T17:43:34Z", "result_count": 10, "source": "db-fallback"}

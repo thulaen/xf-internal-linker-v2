@@ -164,8 +164,15 @@ def compute(
     # pagerank_core.h header comment for the convention.
     teleport_probability = 1.0 - damping
 
-    # Phase 5b — drive the CPU native kernel's power iteration to convergence.
-    from extensions import pagerank as pagerank_kernel  # pylint: disable=no-name-in-module
+    # Drive the Rust native kernel's power iteration to convergence. The kernel
+    # was ported from C++ to Rust (rust/extensions/pagerank); it is loaded
+    # through the shared `load_kernel` helper so a missing kernel fails loudly
+    # (RUST-FIRST.md zero-fallback) instead of silently dropping to Python.
+    from .rust_kernels import load_kernel
+
+    pagerank_kernel = load_kernel(
+        "extensions.pagerank", "personalized_pagerank_step"
+    )
 
     ranks = np.full(n, 1.0 / n, dtype=np.float64)
     for _iteration in range(max_iterations):

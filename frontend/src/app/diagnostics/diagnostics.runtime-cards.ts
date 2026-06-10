@@ -37,7 +37,7 @@ export interface RuntimeExecutionCard {
     | 'embedding_specialist'
     | 'scheduler_lane';
   title: string;
-  runtime: 'cpp' | 'python' | 'mixed' | 'unknown';
+  runtime: 'cpp' | 'rust' | 'python' | 'error' | 'mixed' | 'unknown';
   state: 'healthy' | 'degraded' | 'failed';
   statusLine: string;
   explanation: string;
@@ -235,7 +235,13 @@ function buildSimpleExecutionCard(
 }
 
 function asRuntime(value: unknown): RuntimeExecutionCard['runtime'] {
-  if (value === 'cpp' || value === 'python' || value === 'mixed') {
+  if (
+    value === 'cpp' ||
+    value === 'rust' ||
+    value === 'python' ||
+    value === 'error' ||
+    value === 'mixed'
+  ) {
     return value;
   }
   return 'unknown';

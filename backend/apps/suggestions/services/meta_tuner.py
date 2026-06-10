@@ -134,22 +134,117 @@ def propose_meta_parameter_drift(
     return proposed
 
 
+def _optuna_candidate_window(
+    current: float, lo: float, hi: float
+) -> tuple[float, float]:
+    """Per-key sampling window: the drift band, clamped to registry bounds.
+
+    The candidate may move at most ±``_META_DRIFT_PCT`` from the current
+    value (same risk profile as the random-drift V1) and never leaves the
+    registry's ``[lo, hi]``. Returns ``(window_lo, window_hi)``.
+    """
+    window_lo = max(lo, current * (1.0 - _META_DRIFT_PCT))
+    window_hi = min(hi, current * (1.0 + _META_DRIFT_PCT))
+    if window_hi < window_lo:  # current already outside bounds — snap in.
+        window_lo = window_hi = float(np.clip(current, lo, hi))
+    return window_lo, window_hi
+
+
+def propose_meta_parameters_optuna(
+    current_values: Mapping[str, str | float] | None = None,
+    *,
+    n_trials: int = 16,
+    seed: int | None = None,
+) -> dict[str, float]:
+    """Phase 7 — Optuna-driven candidate meta-parameter profile.
+
+    Replaces the blind random-drift V1: an in-memory Optuna study samples
+    one candidate per tunable registry key from a per-key window (the
+    ±drift band clamped to the registry's ``[lo, hi]``). The registry is
+    the single source of tunables, so a newly-registered key is sampled
+    automatically with NO change to this function — the Phase 7 guarantee.
+
+    §F boundary: this is offline ``ranking_train`` work. It returns a
+    candidate dict the caller wraps in a ``RankingChallenger`` for the
+    SPRT approval workflow; it NEVER activates, promotes, or writes the
+    live preset. Activation stays gated by Rust governance + GUI approval.
+
+    Determinism: pass ``seed`` for a reproducible draw (tests do). With no
+    online objective at this layer, the study explores the drift window;
+    the downstream SPRT evaluator decides whether the candidate ships.
+    """
+    import optuna
+
+    if current_values is None:
+        current_values = get_current_weights()
+
+    bounds = _bounds()
+    sampler = optuna.samplers.TPESampler(seed=seed)
+    study = optuna.create_study(direction="maximize", sampler=sampler)
+
+    proposed: dict[str, float] = {}
+
+    def objective(trial: "optuna.trial.Trial") -> float:
+        # Sample one value per eligible key inside its drift window. The
+        # objective is constant (no online signal here) — the study's job
+        # is to PROPOSE a registry-bounded candidate, not to score it.
+        for key, (lo, hi) in bounds.items():
+            if key in _AUTOTUNER_EXCLUDED:
+                continue
+            raw = current_values.get(key)
+            if raw is None:
+                continue
+            try:
+                current = float(raw)
+            except (TypeError, ValueError):
+                logger.warning(
+                    "meta_tuner(optuna): cannot parse current value for %s = %r — skipping",
+                    key,
+                    raw,
+                )
+                continue
+            window_lo, window_hi = _optuna_candidate_window(current, lo, hi)
+            value = trial.suggest_float(key, window_lo, window_hi)
+            # DEFAULT-ON-RULE invariant: never zero a parameter.
+            if value <= 0.0:  # pragma: no cover — bounds are >0, defensive
+                value = lo
+            proposed[key] = value
+        return 0.0
+
+    # Silence Optuna's per-trial INFO chatter for this short in-memory study.
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    study.optimize(objective, n_trials=max(1, n_trials), show_progress_bar=False)
+
+    # Return the best trial's params (keyed by registry key), re-clamped
+    # defensively to registry bounds.
+    best = dict(study.best_params)
+    result: dict[str, float] = {}
+    for key, value in best.items():
+        lo, hi = bounds[key]
+        result[key] = float(np.clip(value, lo, hi))
+    return result
+
+
 class MetaAlgorithmTuner:
-    """Lightweight tuner that builds a candidate meta-parameter set.
+    """Optuna-driven tuner that builds a candidate meta-parameter set.
 
-    V1 strategy is deliberately conservative — propose a small drift,
-    let the existing SPRT challenger evaluator + GSC rollback watchdog
-    decide whether to keep it. Future versions can add Bayesian
-    optimisation on the per-key (lo, hi) box.
+    Phase 7 replaced the blind random-drift V1 with an Optuna-driven
+    proposal sampled from the canonical tunable registry
+    (:func:`propose_meta_parameters_optuna`). The registry is the single
+    source of tunables, so a newly-registered meta-parameter is proposed
+    automatically with no change to this class.
 
-    The tuner does NOT write AppSetting directly — it produces a
-    candidate dict that the caller (the Celery task) wraps in a
-    ``RankingChallenger`` row with ``kind="meta_algorithm"``.
+    The tuner does NOT write AppSetting directly — it produces a candidate
+    dict that the caller (the Celery task) wraps in a ``RankingChallenger``
+    row with ``kind="meta_algorithm"``. Activation of any candidate stays
+    gated by the existing SPRT challenger evaluator + GSC rollback
+    watchdog, and ultimately by Rust governance + GUI approval (§F). The
+    tuner only PROPOSES; it never promotes.
     """
 
     def propose(self) -> dict[str, float]:
-        """Build one candidate meta-parameter dict."""
-        return propose_meta_parameter_drift()
+        """Build one candidate meta-parameter dict via the Optuna path."""
+        return propose_meta_parameters_optuna()
 
     def explain_excluded(self) -> dict[str, str]:
         """Return the keys this tuner deliberately doesn't touch + reasons."""

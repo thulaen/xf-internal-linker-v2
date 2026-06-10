@@ -185,6 +185,7 @@ from apps.api.passage_relevance_views import PassageRelevanceSettingsView
 from apps.api.session_gate_view import session_gate
 from apps.core.views_preview import SyncPreviewView
 from apps.core.views_prune import SafePruneView
+from apps.platform.views.search_views import FederatedSearchView
 
 router = DefaultRouter()
 
@@ -542,6 +543,7 @@ urlpatterns = [
     path("dashboard/", DashboardView.as_view(), name="dashboard"),
     # Phase SR + MS routes live above the DRF router include (see note
     # next to `suggestions/readiness/` earlier in this file).
+    path("search/", FederatedSearchView.as_view(), name="federated-search"),
     path("crawler/", include("apps.crawler.urls")),
     path("", include("apps.notifications.urls")),
     path("system/status/", include("apps.diagnostics.urls")),

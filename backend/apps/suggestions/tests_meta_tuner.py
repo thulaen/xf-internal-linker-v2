@@ -13,9 +13,12 @@ Pin the safety invariants of the new ``MetaAlgorithmTuner`` module:
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import numpy as np
 from django.test import SimpleTestCase
 
+from apps.suggestions.tunable_registry import TunableEntry
 from apps.suggestions.services.meta_tuner import (
     _AUTOTUNER_EXCLUDED,
     _META_DRIFT_PCT,
@@ -127,6 +130,99 @@ class ProposeDriftTests(SimpleTestCase):
         current[first_key] = "not-a-number"
         proposal = propose_meta_parameter_drift(current_values=current)
         self.assertNotIn(first_key, proposal)
+
+
+class OptunaDrivenMetaProposalTests(SimpleTestCase):
+    """Phase 7 — the meta tuner proposes via the registry-driven Optuna
+    search space, not pure random drift.
+
+    The proposal stays offline (it returns a candidate dict the caller
+    wraps in a ``RankingChallenger`` for the SPRT approval workflow);
+    nothing here activates a profile — activation stays Rust-governed.
+    """
+
+    def _current_values(self) -> dict[str, str]:
+        from apps.suggestions.services.meta_tuner import _META_PARAM_BOUNDS
+
+        out: dict[str, str] = {}
+        for key, (lo, hi) in _META_PARAM_BOUNDS.items():
+            out[key] = f"{(lo + hi) / 2.0}"
+        return out
+
+    def test_new_registry_key_auto_appears_in_optuna_proposal(self) -> None:
+        """A brand-new registry tunable is proposed without editing the
+        tuner — the core Phase 7 acceptance, at the meta-tuner layer.
+        """
+        from apps.suggestions import tunable_registry
+        from apps.suggestions.services.meta_tuner import (
+            propose_meta_parameters_optuna,
+        )
+
+        new_key = "pipeline.brand_new_meta_optuna_knob"
+        patched = dict(tunable_registry.META_PARAMS)
+        patched[new_key] = TunableEntry(
+            lower=0.10,
+            upper=0.90,
+            default="0.50",
+            citation="test-only",
+        )
+        current = self._current_values()
+        current[new_key] = "0.50"
+        with patch.object(tunable_registry, "META_PARAMS", patched):
+            proposal = propose_meta_parameters_optuna(
+                current_values=current, n_trials=4, seed=1
+            )
+        self.assertIn(new_key, proposal)
+
+    def test_optuna_proposal_respects_registry_bounds(self) -> None:
+        from apps.suggestions.services.meta_tuner import (
+            _META_PARAM_BOUNDS,
+            propose_meta_parameters_optuna,
+        )
+
+        proposal = propose_meta_parameters_optuna(
+            current_values=self._current_values(), n_trials=6, seed=3
+        )
+        for key, value in proposal.items():
+            lo, hi = _META_PARAM_BOUNDS[key]
+            self.assertGreaterEqual(value, lo, f"{key} below lower bound")
+            self.assertLessEqual(value, hi, f"{key} above upper bound")
+            self.assertGreater(value, 0.0, f"{key} zeroed — DEFAULT-ON violation")
+
+    def test_optuna_proposal_excludes_excluded_keys(self) -> None:
+        from apps.suggestions.services.meta_tuner import (
+            _AUTOTUNER_EXCLUDED,
+            propose_meta_parameters_optuna,
+        )
+
+        current = {key: "42.0" for key in _AUTOTUNER_EXCLUDED}
+        proposal = propose_meta_parameters_optuna(
+            current_values=current, n_trials=3, seed=2
+        )
+        for key in _AUTOTUNER_EXCLUDED:
+            self.assertNotIn(key, proposal)
+
+    def test_optuna_proposal_empty_current_values_is_empty(self) -> None:
+        from apps.suggestions.services.meta_tuner import (
+            propose_meta_parameters_optuna,
+        )
+
+        proposal = propose_meta_parameters_optuna(
+            current_values={}, n_trials=3, seed=4
+        )
+        self.assertEqual(proposal, {})
+
+    def test_tuner_propose_uses_optuna_path(self) -> None:
+        """``MetaAlgorithmTuner.propose()`` routes through the Optuna path."""
+        from apps.suggestions.services import meta_tuner
+
+        sentinel = {"pipeline.rrf_k": 61.0}
+        with patch.object(
+            meta_tuner, "propose_meta_parameters_optuna", return_value=sentinel
+        ) as optuna_path:
+            result = meta_tuner.MetaAlgorithmTuner().propose()
+        optuna_path.assert_called_once()
+        self.assertEqual(result, sentinel)
 
 
 class MetaAlgorithmTunerTests(SimpleTestCase):

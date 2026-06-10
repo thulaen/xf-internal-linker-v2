@@ -57,9 +57,9 @@ const NEUTRAL_SCORE: f64 = 0.5;
 const SPAM_RISK_CEILING: f64 = 1.0;
 const SCORE_SLOPE: f64 = 0.5;
 
-/// The eight parallel output columns of the FR-045 batch scorer, one entry per
-/// candidate. Returned by [`evaluate_anchor_diversity_core`] so `cargo test`
-/// can validate the arithmetic without crossing the Python boundary.
+/// The eight parallel output columns of the FR-045 batch scorer, one entry per candidate.
+///
+/// Returned by [`evaluate_anchor_diversity_core`] so `cargo test` can validate the arithmetic without crossing the Python boundary.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct AnchorDiversityOutputs {
     pub projected_exact_count: Vec<i32>,
@@ -98,10 +98,9 @@ impl AnchorDiversityOutputs {
     }
 }
 
-/// Plain-Rust FR-045 batch scorer core (no `PyO3`). Computes the eight output
-/// columns from the two parallel int32 input slices and the four scalar
-/// settings. Unit-testable with `cargo test` without crossing the Python
-/// boundary.
+/// Plain-Rust FR-045 batch scorer core (no `PyO3`).
+///
+/// Computes the eight output columns from the two parallel int32 input slices and the four scalar settings. Unit-testable with `cargo test` without crossing the Python boundary.
 ///
 /// # Panics
 ///
@@ -146,9 +145,10 @@ pub fn evaluate_anchor_diversity_core(
         let count_overflow_norm =
             (f64::from(count_overflow_abs) / f64::from(count_denom)).min(SPAM_RISK_CEILING);
 
-        let spam_risk = (SHARE_WEIGHT * share_overflow + COUNT_WEIGHT * count_overflow_norm)
+        let spam_risk = COUNT_WEIGHT
+            .mul_add(count_overflow_norm, SHARE_WEIGHT * share_overflow)
             .min(SPAM_RISK_CEILING);
-        let score = NEUTRAL_SCORE - SCORE_SLOPE * spam_risk;
+        let score = SCORE_SLOPE.mul_add(-spam_risk, NEUTRAL_SCORE);
 
         let blocked = hard_cap_enabled && (projected_count > max_exact_match_count);
         let state = if blocked {

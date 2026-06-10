@@ -65,7 +65,7 @@ _ACTIVE_METAS: tuple[dict, ...] = (
     {"id": "adagrad", "meta_code": "META-03", "title": "AdaGrad"},
     {"id": "rmsprop", "meta_code": "META-04", "title": "RMSprop"},
     {"id": "adam", "meta_code": "META-34", "title": "Adam (Kingma & Ba 2014)"},
-    {"id": "bge_m3", "meta_code": "META-05", "title": "BGE-M3 sentence embeddings"},
+    {"id": "bge_m3", "meta_code": "META-05", "title": "Paid API sentence embeddings"},
     {
         "id": "pagerank",
         "meta_code": "META-06",

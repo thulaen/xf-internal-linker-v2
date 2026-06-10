@@ -42,13 +42,14 @@ from .meta_hpo_safety import (
     passes_improvement_gate,
     persist_snapshot_for_rollback,
 )
+from . import meta_hpo_search_spaces
 from .meta_hpo_search_spaces import (
     DEFAULT_N_TRIALS,
     DEFAULT_STORAGE_URL,
-    SEARCH_SPACE,
     clip_params,
     make_pruner,
     make_sampler,
+    rebuild_search_space,
     sample_params,
 )
 
@@ -104,10 +105,22 @@ def _current_snapshot() -> dict[str, Any]:
 
 
 def _apply_snapshot(clipped: dict[str, Any]) -> None:
-    """Write every key in *clipped* back into AppSetting using its entry's serialiser."""
+    """Write every key in *clipped* back into AppSetting using its entry's serialiser.
+
+    Iterates the live (registry-rebuilt) ``SEARCH_SPACE`` via the module
+    reference so registry-derived entries are serialised correctly.
+
+    §F boundary note: writing the winning params into ``AppSetting`` is
+    NOT a profile activation — it is the legacy meta-HPO snapshot path
+    that pre-dates the Rust governance boundary, gated upstream by the
+    safety rails (improvement gate + per-param clamp). Phase 7 does not
+    add or widen any activation path here; it only makes the keys this
+    iterates registry-driven. The §F-correct change (route activation
+    through Rust ``ranking_governance``) is tracked separately.
+    """
     from apps.core.models import AppSetting
 
-    for entry in SEARCH_SPACE:
+    for entry in meta_hpo_search_spaces.SEARCH_SPACE:
         key = entry.app_setting_key
         if key not in clipped:
             continue
@@ -153,6 +166,11 @@ def run_study_and_maybe_apply(
     Invoked by the ``meta_hyperparameter_hpo`` scheduled job.
     """
     ensure_storage_dir(storage_url)
+    # Phase 7: rebuild the search space from the canonical tunable
+    # registry at the start of every run so any tunable registered since
+    # this process started is tuned with no tuner-code change. The study
+    # only PROPOSES candidates here; activation stays Rust-governed (§F).
+    rebuild_search_space()
     if checkpoint:
         checkpoint(progress_pct=0.0, message="Loading reservoir eval set")
 

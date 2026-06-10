@@ -49,6 +49,15 @@ nltk==3.9.4                          # FR-243 WordNet sense-count lookup. WordNe
                                      # corpus downloaded at image-build time —
                                      # see backend/Dockerfile RUN nltk.download.
 networkx==3.4.2                      # Graph algorithms (FR-012)
+networkit==11.0                      # Phase NK — fast large-scale link-graph signals
+                                     # (docs/specs/fr-networkit-graph-signals.md): link
+                                     # prediction, Louvain communities, betweenness, k-core,
+                                     # connected components, local clustering, multi-centrality.
+                                     # Native core via manylinux wheel. OFFLINE/batch in the
+                                     # graph module; feeds the ranker as Optuna-tunable signals.
+                                     # Complements networkx (faster at scale + algos it lacks);
+                                     # node2vec signal reuses the existing node2vec pkg, not NK.
+                                     # Source: Staudt, Sazonovs & Meyerhenke 2016 (doi:10.1017/nws.2016.20).
 
 # ── Analytics & Google APIs ──────────────────────────────────────
 google-api-python-client==2.155.0    # GSC/GA4 API (FR-016, FR-017)
@@ -102,6 +111,7 @@ lz4==4.4.5                           # LZ4 frame compression for CodeQL SARIF ev
  
 # ── Performance Layer ─────────────────────────────────────────────
 pyarrow==17.0.0
+datafusion==41.0.0                   # Local analytical SQL engine (Rust)
 polars==1.18.0                       # Fast Rust-based DataFrame library — replaces the
                                      # row-by-row Python aggregation loops in analytics
                                      # ingest (Matomo / GA4 / GSC) and the `csv.writer`

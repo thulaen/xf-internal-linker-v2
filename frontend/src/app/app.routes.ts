@@ -6,7 +6,6 @@
  */
 
 import { Routes } from '@angular/router';
-import { provideCharts, withDefaultRegisterables } from 'ng2-charts';
 import { authGuard } from './core/guards/auth.guard';
 import { unsavedChangesGuard } from './core/guards/unsaved-changes.guard';
 
@@ -54,7 +53,6 @@ export const routes: Routes = [
     path: 'graph',
     loadComponent: () =>
       import('./graph/graph.component').then((m) => m.GraphComponent),
-    providers: [provideCharts(withDefaultRegisterables())],
     title: 'Link Graph — XF Internal Linker',
     canActivate: [authGuard],
   },
@@ -62,7 +60,6 @@ export const routes: Routes = [
     path: 'analytics',
     loadComponent: () =>
       import('./analytics/analytics.component').then((m) => m.AnalyticsComponent),
-    providers: [provideCharts(withDefaultRegisterables())],
     title: 'Analytics — XF Internal Linker',
     canActivate: [authGuard],
   },
@@ -192,7 +189,6 @@ export const routes: Routes = [
     path: 'performance',
     loadComponent: () =>
       import('./performance/performance.component').then((m) => m.PerformanceComponent),
-    providers: [provideCharts(withDefaultRegisterables())],
     title: 'Performance — XF Internal Linker',
     canActivate: [authGuard],
   },

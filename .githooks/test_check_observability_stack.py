@@ -101,7 +101,7 @@ class HappyPathTests(_NoRemoteMixin, unittest.TestCase):
 
 class FailureTests(_NoRemoteMixin, unittest.TestCase):
     def test_one_service_absent_blocks_with_message(self) -> None:
-        # grafana is a local service; sonarqube moved to Mint (remote_services).
+        # grafana is a local service.
         absent = "grafana"
 
         def fake_run(cmd, *args, **kwargs):
@@ -187,40 +187,15 @@ class FailureTests(_NoRemoteMixin, unittest.TestCase):
             self.assertIn(service, joined)
 
 
-class ConfigRemoteOwnershipTests(unittest.TestCase):
-    def test_sonarqube_remote_services_are_dell_owned(self) -> None:
-        remotes = {
-            service.get("label"): service
-            for service in hook.REMOTE_SERVICES
-        }
-        for label in ("sonarqube", "sonar-autoscan"):
-            self.assertIn(label, remotes)
-            self.assertEqual(remotes[label].get("host"), "dell")
-            self.assertEqual(remotes[label].get("context"), "dell")
-        self.assertEqual(
-            remotes["sonarqube"].get("health_command"),
-            [
-                "docker",
-                "--context",
-                "dell",
-                "exec",
-                "xf_linker_sonarqube",
-                "bash",
-                "-lc",
-                "curl -fsS http://localhost:9000/api/system/status",
-            ],
-        )
-
-
 class RemoteServiceTests(unittest.TestCase):
-    """Dell-hosted SonarQube is verified over HTTP via its status API."""
+    """Remote services are verified over HTTP via their health endpoint."""
 
     _REMOTE = (
         {
-            "label": "sonarqube",
+            "label": "tika",
             "host": "dell",
-            "health_url": "http://192.168.0.163:9000/api/system/status",
-            "health_ok_contains": '"status":"UP"',
+            "health_url": "http://192.168.0.163:9998/tika",
+            "health_ok_contains": "Apache Tika",
         },
     )
 
@@ -228,38 +203,38 @@ class RemoteServiceTests(unittest.TestCase):
     def _all_local_running(cmd, *args, **kwargs):
         return _make_run_result(_running_record(cmd[-1], "healthy") + "\n")
 
-    def test_remote_sonarqube_up_returns_zero(self) -> None:
+    def test_remote_service_up_returns_zero(self) -> None:
         with patch.object(hook, "REMOTE_SERVICES", self._REMOTE), patch.object(
             hook.subprocess, "run", side_effect=self._all_local_running
         ), patch.object(
             hook.urllib.request,
             "urlopen",
-            return_value=_FakeHTTPResponse(200, '{"status":"UP"}'),
+            return_value=_FakeHTTPResponse(200, "Apache Tika"),
         ):
             self.assertEqual(hook.main(), 0)
 
-    def test_remote_sonarqube_command_up_returns_zero(self) -> None:
+    def test_remote_service_command_up_returns_zero(self) -> None:
         remote = (
             {
-                "label": "sonarqube",
+                "label": "tika",
                 "host": "dell",
                 "health_command": [
                     "docker",
                     "--context",
                     "dell",
                     "exec",
-                    "xf_linker_sonarqube",
-                    "bash",
-                    "-lc",
-                    "curl -fsS http://localhost:9000/api/system/status",
+                    "xf_dell_tika",
+                    "curl",
+                    "-fsS",
+                    "http://localhost:9998/tika",
                 ],
-                "health_ok_contains": '"status":"UP"',
+                "health_ok_contains": "Apache Tika",
             },
         )
 
         def fake_run(cmd, *args, **kwargs):
             if cmd[:3] == ["docker", "--context", "dell"]:
-                return _make_run_result('{"status":"UP"}\n')
+                return _make_run_result("Apache Tika\n")
             return self._all_local_running(cmd, *args, **kwargs)
 
         with patch.object(hook, "REMOTE_SERVICES", remote), patch.object(
@@ -267,13 +242,13 @@ class RemoteServiceTests(unittest.TestCase):
         ):
             self.assertEqual(hook.main(), 0)
 
-    def test_remote_sonarqube_command_failure_blocks(self) -> None:
+    def test_remote_service_command_failure_blocks(self) -> None:
         remote = (
             {
-                "label": "sonarqube",
+                "label": "tika",
                 "host": "dell",
                 "health_command": ["docker", "--context", "dell", "exec", "bad"],
-                "health_ok_contains": '"status":"UP"',
+                "health_ok_contains": "Apache Tika",
             },
         )
 
@@ -290,7 +265,7 @@ class RemoteServiceTests(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertIn("health_command failed", "".join(captured))
 
-    def test_remote_sonarqube_unreachable_blocks(self) -> None:
+    def test_remote_service_unreachable_blocks(self) -> None:
         def boom(*args, **kwargs):
             raise hook.urllib.error.URLError("connection refused")
 
@@ -303,21 +278,21 @@ class RemoteServiceTests(unittest.TestCase):
             rc = hook.main()
         self.assertEqual(rc, 2)
         joined = "".join(captured)
-        self.assertIn("sonarqube", joined)
+        self.assertIn("tika", joined)
         self.assertIn("dell", joined.lower())
 
-    def test_remote_sonarqube_not_up_blocks(self) -> None:
+    def test_remote_service_not_healthy_blocks(self) -> None:
         captured: list[str] = []
         with patch.object(hook, "REMOTE_SERVICES", self._REMOTE), patch.object(
             hook.subprocess, "run", side_effect=self._all_local_running
         ), patch.object(
             hook.urllib.request,
             "urlopen",
-            return_value=_FakeHTTPResponse(200, '{"status":"DOWN"}'),
+            return_value=_FakeHTTPResponse(200, "error page"),
         ), patch.object(hook.sys, "stderr", new=_collect(captured)):
             rc = hook.main()
         self.assertEqual(rc, 2)
-        self.assertIn("sonarqube", "".join(captured))
+        self.assertIn("tika", "".join(captured))
 
 
 class _StderrCollector:

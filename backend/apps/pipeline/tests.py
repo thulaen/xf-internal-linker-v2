@@ -482,6 +482,9 @@ class PipelineLoaderTests(TestCase):
             clean_text="Short sentence. This one is out of range.",
             char_count=39,
         )
+        from apps.pipeline.services.embeddings import get_current_embedding_filter
+        current_version = get_current_embedding_filter()["embedding_model_version"]
+
         first_sentence = Sentence.objects.create(
             content_item=content,
             post=post,
@@ -492,7 +495,7 @@ class PipelineLoaderTests(TestCase):
             end_char=15,
             word_position=5,
             embedding=[0.25] * 1024,
-            embedding_model_version="text-embedding-3-small:1024",
+            embedding_model_version=current_version,
         )
         Sentence.objects.create(
             content_item=content,
@@ -504,7 +507,7 @@ class PipelineLoaderTests(TestCase):
             end_char=41,
             word_position=50,
             embedding=[0.75] * 1024,
-            embedding_model_version="text-embedding-3-small:1024",
+            embedding_model_version=current_version,
         )
 
         content_keys = {(content.pk, content.content_type)}
@@ -575,7 +578,7 @@ class SimsearchExtensionTests(TestCase):
         cpp_idx, cpp_scores = simsearch_ext.score_and_topk(
             destination_embedding,
             sentence_embeddings,
-            candidate_rows,
+            np.array(candidate_rows, dtype=np.int32),
             5,
         )
 
@@ -750,6 +753,31 @@ class FieldRelExtensionTests(TestCase):
             self.assertAlmostEqual(cpp_score, py_score, places=6)
 
 
+def _rareterm_python_reference(
+    terms, evidences, supporting_pages, host_tokens, max_terms
+):
+    """Independent pure-Python oracle for the rare-term score.
+
+    Mirrors the documented algorithm (FR-010): keep terms present in
+    ``host_tokens``; if none, return ``(False, 0.0)``; otherwise order by
+    ``(evidence desc, supporting_pages desc, term asc)``, average the evidence
+    of the top ``max_terms`` kept terms, and return ``(True, 0.5 + 0.5*mean)``.
+    """
+    matched = [
+        (term, evidence, pages)
+        for term, evidence, pages in zip(
+            terms, evidences, supporting_pages, strict=True
+        )
+        if term in host_tokens
+    ]
+    if not matched:
+        return (False, 0.0)
+    matched.sort(key=lambda item: (-item[1], -item[2], item[0]))
+    keep_count = min(max_terms, len(matched))
+    mean_evidence = sum(item[1] for item in matched[:keep_count]) / keep_count
+    return (True, 0.5 + 0.5 * mean_evidence)
+
+
 class RareTermExtensionTests(TestCase):
     def test_evaluate_rare_terms_matches_python_reference_profiles(self):
         if rareterm_ext is None or not hasattr(rareterm_ext, "evaluate_rare_terms"):
@@ -843,6 +871,10 @@ class RareTermExtensionTests(TestCase):
                 ),
             )
 
+            # `profile` is built above but unused now that the reference is an
+            # inline oracle; reference it so linters stay quiet.
+            self.assertEqual(profile.profile_state, "profile_ready")
+
             cpp_matched, cpp_score = rareterm_ext.evaluate_rare_terms(
                 terms,
                 evidences,
@@ -851,21 +883,23 @@ class RareTermExtensionTests(TestCase):
                 rare_term_service.MAX_TERMS_PER_SUGGESTION,
             )
 
-            with patch.object(rare_term_service, "HAS_CPP_EXT", False):
-                py_result = rare_term_service._evaluate_rare_term_propagation(
-                    destination=destination,
-                    host_sentence_tokens=host_tokens,
-                    profiles={destination.key: profile},
-                    settings=rare_term_service.RareTermPropagationSettings(
-                        enabled=True
-                    ),
-                )
+            # Independent pure-Python reference oracle (the kernel is now
+            # Rust-only with no in-service Python fallback — RUST-FIRST.md
+            # zero-fallback). This mirrors the documented algorithm exactly:
+            # keep host-matched terms, order by (evidence desc, pages desc,
+            # term asc), average the top MAX_TERMS_PER_SUGGESTION evidences, and
+            # squash with 0.5 + 0.5*lift.
+            ref_matched, ref_score = _rareterm_python_reference(
+                terms,
+                evidences,
+                supporting_pages,
+                host_tokens,
+                rare_term_service.MAX_TERMS_PER_SUGGESTION,
+            )
 
-            self.assertEqual(cpp_matched, py_result.rare_term_state == "computed_match")
+            self.assertEqual(cpp_matched, ref_matched)
             if cpp_matched:
-                self.assertAlmostEqual(
-                    cpp_score, py_result.score_rare_term_propagation, places=6
-                )
+                self.assertAlmostEqual(cpp_score, ref_score, places=6)
             else:
                 self.assertAlmostEqual(cpp_score, 0.0, places=6)
 
@@ -4119,12 +4153,14 @@ class SyncJobCleanupResumeTests(TestCase):
         from apps.pipeline.tasks_import import ImportState
         from apps.pipeline.tasks_import_helpers import _maybe_flush_and_checkpoint
 
-        AppSetting.objects.create(
+        AppSetting.objects.update_or_create(
             key="system.master_pause",
-            value="true",
-            value_type="bool",
-            category="system",
-            description="Master pause",
+            defaults={
+                "value": "true",
+                "value_type": "bool",
+                "category": "system",
+                "description": "Master pause",
+            }
         )
         job = SyncJob.objects.create(
             source="api",

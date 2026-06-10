@@ -1,0 +1,639 @@
+# Slice 1.6 — sidecars host manifest.
+#
+# Single source of truth for the 40 Apache-pattern internal services
+# co-hosted in the sidecars Go binary. cmd/sidecars/main.go reads this at
+# boot to register each service against the shared gRPC server.
+#
+# Per-service memory_share_mb and storage_share_mb are HINTS for the
+# pruner's eviction aggressiveness, NOT hard caps. The hard caps are global
+# (512 MB RAM, 1 GB storage) declared in host: below and enforced by
+# internal/shared/budget + internal/shared/pruner.
+#
+# The 6 services marked implemented: true ship with real RPC logic this
+# slice. The other 34 ship with gRPC skeletons returning codes.Unimplemented
+# + one paper-trail entry tagged `sidecars_followup` per service.
+
+host:
+  total_memory_mb: 512
+  total_storage_mb: 1024
+  retention_hours: 168
+  max_image_size_mb: 35
+  socket_path: /var/run/xf-sidecars/sidecars.sock
+  storage_path: /var/lib/xf/sidecars
+  metrics_port: 6061
+  idle_release_seconds: 30
+  pruner_interval_seconds: 60
+  memory_pressure_threshold_percent: 80
+
+services:
+  # ----- IMPLEMENTED (6) -----
+
+  - name: snapshotd
+    apache: "Parquet + Iceberg manifest"
+    owning_module: governance
+    memory_share_mb: 96
+    storage_share_mb: 384
+    priority: high
+    implemented: true
+    rpcs:
+      - {name: CreateSnapshot,    in: CreateSnapshotRequest,    out: Snapshot,           streaming: none}
+      - {name: GetSnapshot,       in: GetSnapshotRequest,       out: Snapshot,           streaming: none}
+      - {name: ListByIssue,       in: ListByIssueRequest,       out: SnapshotList,       streaming: none}
+      - {name: Compare,           in: CompareRequest,           out: ComparisonReport,   streaming: none}
+      - {name: Search,            in: SearchRequest,            out: Snapshot,           streaming: server}
+      - {name: Pin,               in: PinRequest,               out: Snapshot,           streaming: none}
+      - {name: Unpin,             in: UnpinRequest,             out: Snapshot,           streaming: none}
+      - {name: ReadRows,          in: ReadRowsRequest,          out: SnapshotRow,        streaming: server}
+      - {name: DiffBeforeAfter,   in: DiffBeforeAfterRequest,   out: ComparisonReport,   streaming: none}
+      - {name: Health,            in: Empty,                    out: HealthReply,        streaming: none}
+
+  - name: bullboard
+    apache: "NiFi bulletin board"
+    owning_module: operations
+    memory_share_mb: 32
+    storage_share_mb: 128
+    priority: high
+    implemented: true
+    rpcs:
+      - {name: Post,                  in: PostBulletinRequest,        out: Bulletin,            streaming: none}
+      - {name: Recent,                in: RecentRequest,              out: BulletinList,        streaming: none}
+      - {name: Subscribe,             in: SubscribeRequest,           out: Bulletin,            streaming: server}
+      - {name: RegisterThreshold,     in: ThresholdRule,              out: ThresholdRule,       streaming: none}
+      - {name: ListThresholds,        in: Empty,                      out: ThresholdRuleList,   streaming: none}
+      - {name: RemoveThreshold,       in: RemoveThresholdRequest,     out: Ack,                 streaming: none}
+      - {name: EvaluateNow,           in: EvaluateNowRequest,         out: EvaluationReport,    streaming: none}
+      - {name: PromoteToAutoIssue,    in: PromoteRequest,             out: Ack,                 streaming: none}
+      - {name: Health,                in: Empty,                      out: HealthReply,         streaming: none}
+
+  - name: attrouted
+    apache: "NiFi route-on-attribute"
+    owning_module: sources
+    memory_share_mb: 16
+    storage_share_mb: 64
+    priority: high
+    implemented: true
+    rpcs:
+      - {name: Route,           in: RouteRequest,        out: RouteDecision,    streaming: none}
+      - {name: RegisterRule,    in: RouteRule,           out: RouteRule,        streaming: none}
+      - {name: ListRules,       in: Empty,               out: RouteRuleList,    streaming: none}
+      - {name: RemoveRule,      in: RemoveRuleRequest,   out: Ack,              streaming: none}
+      - {name: Replay,          in: ReplayRequest,       out: ReplayReport,     streaming: none}
+      - {name: Health,          in: Empty,               out: HealthReply,      streaming: none}
+
+  - name: schemard
+    apache: "Avro"
+    owning_module: governance
+    memory_share_mb: 16
+    storage_share_mb: 32
+    priority: high
+    implemented: true
+    rpcs:
+      - {name: Register,       in: RegisterSchemaRequest,   out: SchemaVersion,    streaming: none}
+      - {name: Get,            in: GetSchemaRequest,        out: SchemaVersion,    streaming: none}
+      - {name: ListVersions,   in: ListVersionsRequest,     out: SchemaVersionList, streaming: none}
+      - {name: CheckCompat,    in: CheckCompatRequest,      out: CompatReport,     streaming: none}
+      - {name: Latest,         in: LatestRequest,           out: SchemaVersion,    streaming: none}
+      - {name: Health,         in: Empty,                   out: HealthReply,      streaming: none}
+
+  - name: coordd
+    apache: "Zookeeper + Curator"
+    owning_module: platform
+    memory_share_mb: 32
+    storage_share_mb: 32
+    priority: high
+    implemented: true
+    rpcs:
+      - {name: CreateEphemeral,    in: EphemeralRequest,     out: NodeID,           streaming: none}
+      - {name: Watch,              in: WatchRequest,         out: WatchEvent,       streaming: server}
+      - {name: Lock,               in: LockRequest,          out: LockToken,        streaming: none}
+      - {name: Unlock,             in: UnlockRequest,        out: Ack,              streaming: none}
+      - {name: Elect,              in: ElectRequest,         out: LeaderEvent,      streaming: server}
+      - {name: Discover,           in: DiscoverRequest,      out: ServiceList,      streaming: none}
+      - {name: Health,             in: Empty,                out: HealthReply,      streaming: none}
+
+  - name: errord
+    apache: "Camel exception handler"
+    owning_module: operations
+    memory_share_mb: 16
+    storage_share_mb: 32
+    priority: high
+    implemented: true
+    rpcs:
+      - {name: RegisterPolicy,    in: ErrorPolicy,            out: ErrorPolicy,        streaming: none}
+      - {name: Handle,            in: HandleExceptionRequest, out: HandleResult,       streaming: none}
+      - {name: ListPolicies,      in: Empty,                  out: ErrorPolicyList,    streaming: none}
+      - {name: Stats,             in: Empty,                  out: ErrorStats,         streaming: none}
+      - {name: Health,            in: Empty,                  out: HealthReply,        streaming: none}
+
+  # ----- SKELETON (34) — return codes.Unimplemented; each has a paper-trail entry -----
+
+  - name: topicd
+    apache: "Kafka"
+    owning_module: platform
+    memory_share_mb: 32
+    storage_share_mb: 64
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: Produce,     in: ProduceRequest,    out: Ack,         streaming: none}
+      - {name: Consume,     in: ConsumeRequest,    out: Event,       streaming: server}
+      - {name: Commit,      in: CommitRequest,     out: Ack,         streaming: none}
+      - {name: ListTopics,  in: Empty,             out: TopicList,   streaming: none}
+      - {name: Health,      in: Empty,             out: HealthReply, streaming: none}
+
+  - name: provd
+    apache: "NiFi + Atlas"
+    owning_module: operations
+    memory_share_mb: 8
+    storage_share_mb: 16
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: RecordOrigin,  in: RecordOriginRequest,  out: Ack,           streaming: none}
+      - {name: RecordStage,   in: RecordStageRequest,   out: Ack,           streaming: none}
+      - {name: GetLineage,    in: GetLineageRequest,    out: LineageGraph,  streaming: none}
+      - {name: Search,        in: SearchRequest,        out: LineageEntry,  streaming: server}
+      - {name: Health,        in: Empty,                out: HealthReply,   streaming: none}
+
+  - name: pressured
+    apache: "NiFi backpressure"
+    owning_module: operations
+    memory_share_mb: 8
+    storage_share_mb: 16
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: Report,     in: ReportPressureRequest, out: Ack,             streaming: none}
+      - {name: Check,      in: CheckPressureRequest,  out: PressureStatus,  streaming: none}
+      - {name: Subscribe,  in: SubscribeRequest,      out: PressureEvent,   streaming: server}
+      - {name: Health,     in: Empty,                 out: HealthReply,     streaming: none}
+
+  - name: extractd
+    apache: "Tika"
+    owning_module: sources
+    memory_share_mb: 16
+    storage_share_mb: 16
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: Extract,     in: ExtractRequest,    out: ExtractedDoc,  streaming: none}
+      - {name: ExtractURL,  in: ExtractURLRequest, out: ExtractedDoc,  streaming: none}
+      - {name: DetectMIME,  in: DetectMIMERequest, out: MIMEReply,     streaming: none}
+      - {name: OCR,         in: OCRRequest,        out: OCRReply,      streaming: none}
+      - {name: Health,      in: Empty,             out: HealthReply,   streaming: none}
+
+  - name: dagd
+    apache: "Airflow"
+    owning_module: operations
+    memory_share_mb: 16
+    storage_share_mb: 16
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: Register,    in: DAGSpec,         out: DAGSpec,        streaming: none}
+      - {name: Run,         in: RunDAGRequest,   out: RunID,          streaming: none}
+      - {name: Status,      in: StatusRequest,   out: DAGStatus,      streaming: none}
+      - {name: Visualise,   in: VisualiseRequest, out: VisualisedDAG, streaming: none}
+      - {name: History,     in: HistoryRequest,  out: RunEvent,       streaming: server}
+      - {name: Health,      in: Empty,           out: HealthReply,    streaming: none}
+
+  - name: ruled
+    apache: "HertzBeat + Eagle"
+    owning_module: operations
+    memory_share_mb: 8
+    storage_share_mb: 16
+    priority: low
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: RegisterRule,  in: Rule,            out: Rule,         streaming: none}
+      - {name: Evaluate,      in: EvaluateRequest, out: EvaluateResult, streaming: none}
+      - {name: ListRules,     in: Empty,           out: RuleList,     streaming: none}
+      - {name: RemoveRule,    in: RemoveRequest,   out: Ack,          streaming: none}
+      - {name: Subscribe,     in: SubscribeRequest, out: RuleEvent,   streaming: server}
+      - {name: Health,        in: Empty,           out: HealthReply,  streaming: none}
+
+  - name: retentd
+    apache: "Falcon + Pulsar"
+    owning_module: platform
+    memory_share_mb: 8
+    storage_share_mb: 16
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: RegisterPolicy, in: RetentionPolicy,  out: RetentionPolicy, streaming: none}
+      - {name: GetPolicy,      in: GetPolicyRequest, out: RetentionPolicy, streaming: none}
+      - {name: ListPolicies,   in: Empty,            out: RetentionList,   streaming: none}
+      - {name: EnforceCheck,   in: EnforceRequest,   out: EnforceReport,   streaming: none}
+      - {name: Health,         in: Empty,            out: HealthReply,     streaming: none}
+
+  - name: timetravd
+    apache: "Iceberg"
+    owning_module: content
+    memory_share_mb: 16
+    storage_share_mb: 32
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: Snapshot,       in: SnapshotRequest,    out: SnapshotID,    streaming: none}
+      - {name: AsOf,           in: AsOfRequest,        out: Snapshot,      streaming: none}
+      - {name: Diff,           in: DiffRequest,        out: DiffReport,    streaming: none}
+      - {name: ListSnapshots,  in: ListRequest,        out: SnapshotID,    streaming: server}
+      - {name: Health,         in: Empty,              out: HealthReply,   streaming: none}
+
+  - name: gatewayd
+    apache: "APISIX + ShenYu"
+    owning_module: platform
+    memory_share_mb: 16
+    storage_share_mb: 16
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: AddPlugin,    in: Plugin,         out: Plugin,         streaming: none}
+      - {name: RemovePlugin, in: RemoveRequest,  out: Ack,            streaming: none}
+      - {name: Handle,       in: HandleRequest,  out: HandleReply,    streaming: none}
+      - {name: Health,       in: Empty,          out: HealthReply,    streaming: none}
+
+  - name: arrowd
+    apache: "Arrow + Flight"
+    owning_module: analytics
+    memory_share_mb: 16
+    storage_share_mb: 16
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: DoGet,        in: FlightTicket,   out: FlightData,    streaming: server}
+      - {name: DoPut,        in: FlightData,     out: PutResult,     streaming: client}
+      - {name: ListFlights,  in: FlightCriteria, out: FlightInfo,    streaming: none}
+      - {name: GetSchema,    in: SchemaRequest,  out: FlightSchema,  streaming: none}
+      - {name: Health,       in: Empty,          out: HealthReply,   streaming: none}
+
+  - name: catalogd
+    apache: "Atlas"
+    owning_module: governance
+    memory_share_mb: 16
+    storage_share_mb: 32
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: Register,    in: CatalogEntry,   out: CatalogEntry,  streaming: none}
+      - {name: Get,         in: GetEntryRequest, out: CatalogEntry, streaming: none}
+      - {name: Search,      in: SearchRequest,  out: CatalogEntry,  streaming: server}
+      - {name: Refs,        in: RefsRequest,    out: RefList,       streaming: none}
+      - {name: Freshness,   in: FreshnessRequest, out: FreshnessReport, streaming: none}
+      - {name: Health,      in: Empty,          out: HealthReply,   streaming: none}
+
+  - name: aclsd
+    apache: "Ranger + Sentry"
+    owning_module: platform
+    memory_share_mb: 8
+    storage_share_mb: 16
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: Evaluate,      in: EvaluateRequest, out: Decision,     streaming: none}
+      - {name: AddPolicy,     in: ACLPolicy,       out: ACLPolicy,    streaming: none}
+      - {name: ListPolicies,  in: Empty,           out: ACLPolicyList, streaming: none}
+      - {name: RemovePolicy,  in: RemoveRequest,   out: Ack,          streaming: none}
+      - {name: Health,        in: Empty,           out: HealthReply,  streaming: none}
+
+  - name: pluginhotd
+    apache: "OpenWhisk"
+    owning_module: platform
+    memory_share_mb: 8
+    storage_share_mb: 16
+    priority: low
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: Reload,       in: ReloadRequest,   out: Ack,           streaming: none}
+      - {name: Status,       in: StatusRequest,   out: PluginStatus,  streaming: none}
+      - {name: Rollback,     in: RollbackRequest, out: Ack,           streaming: none}
+      - {name: ListLoaded,   in: Empty,           out: PluginList,    streaming: none}
+      - {name: Sandbox,      in: SandboxRequest,  out: SandboxResult, streaming: none}
+      - {name: Health,       in: Empty,           out: HealthReply,   streaming: none}
+
+  - name: mesh
+    apache: "EventMesh + Camel"
+    owning_module: platform
+    memory_share_mb: 16
+    storage_share_mb: 16
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: Publish,    in: PublishRequest,  out: Ack,           streaming: none}
+      - {name: Subscribe,  in: SubscribeRequest, out: MeshEvent,    streaming: server}
+      - {name: AddRoute,   in: MeshRoute,       out: MeshRoute,     streaming: none}
+      - {name: ListRoutes, in: Empty,           out: MeshRouteList, streaming: none}
+      - {name: Health,     in: Empty,           out: HealthReply,   streaming: none}
+
+  - name: smd
+    apache: "Helix + Pekko"
+    owning_module: suggestions
+    memory_share_mb: 8
+    storage_share_mb: 16
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: RegisterMachine, in: StateMachine,      out: StateMachine,  streaming: none}
+      - {name: Transition,      in: TransitionRequest, out: TransitionAck, streaming: none}
+      - {name: GetState,        in: GetStateRequest,   out: MachineState,  streaming: none}
+      - {name: History,         in: HistoryRequest,    out: HistoryReply,  streaming: none}
+      - {name: Health,          in: Empty,             out: HealthReply,   streaming: none}
+
+  - name: tieredd
+    apache: "Pulsar tiered"
+    owning_module: content
+    memory_share_mb: 8
+    storage_share_mb: 32
+    priority: low
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: Offload,    in: OffloadRequest,   out: Ack,           streaming: none}
+      - {name: Restore,    in: RestoreRequest,   out: Ack,           streaming: none}
+      - {name: ListCold,   in: Empty,            out: ColdList,      streaming: none}
+      - {name: Stats,      in: Empty,            out: TieredStats,   streaming: none}
+      - {name: Health,     in: Empty,            out: HealthReply,   streaming: none}
+
+  - name: qsched
+    apache: "YARN + YuniKorn"
+    owning_module: operations
+    memory_share_mb: 16
+    storage_share_mb: 16
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: SubmitTask, in: TaskSpec,         out: TaskID,           streaming: none}
+      - {name: NextTask,   in: NextTaskRequest,  out: TaskSpec,         streaming: none}
+      - {name: SetWeights, in: WeightsRequest,   out: Ack,              streaming: none}
+      - {name: Stats,      in: Empty,            out: SchedStats,       streaming: none}
+      - {name: Health,     in: Empty,            out: HealthReply,      streaming: none}
+
+  - name: gremlind
+    apache: "TinkerPop + Gremlin"
+    owning_module: graph
+    memory_share_mb: 16
+    storage_share_mb: 32
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: Traverse,      in: TraverseRequest,   out: TraversalResult, streaming: server}
+      - {name: Path,          in: PathRequest,       out: PathResult,    streaming: none}
+      - {name: Neighborhood,  in: NeighborhoodRequest, out: NeighborhoodResult, streaming: none}
+      - {name: Count,         in: CountRequest,      out: CountResult,    streaming: none}
+      - {name: Health,        in: Empty,             out: HealthReply,    streaming: none}
+
+  - name: tsd
+    apache: "Druid + Pinot"
+    owning_module: analytics
+    memory_share_mb: 16
+    storage_share_mb: 32
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: Ingest,      in: IngestRequest,   out: Ack,             streaming: none}
+      - {name: Query,       in: TSDQuery,        out: TSDQueryResult,  streaming: none}
+      - {name: ListMetrics, in: Empty,           out: MetricList,      streaming: none}
+      - {name: Rollup,      in: RollupRequest,   out: RollupResult,    streaming: none}
+      - {name: Health,      in: Empty,           out: HealthReply,     streaming: none}
+
+  - name: hintd
+    apache: "Cassandra hinted handoff"
+    owning_module: platform
+    memory_share_mb: 8
+    storage_share_mb: 16
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: Buffer,    in: BufferRequest,  out: Ack,            streaming: none}
+      - {name: Drain,     in: DrainRequest,   out: HintEvent,      streaming: server}
+      - {name: Stats,     in: Empty,          out: HintStats,      streaming: none}
+      - {name: Forget,    in: ForgetRequest,  out: Ack,            streaming: none}
+      - {name: Health,    in: Empty,          out: HealthReply,    streaming: none}
+
+  - name: viewd
+    apache: "CouchDB views"
+    owning_module: analytics
+    memory_share_mb: 8
+    storage_share_mb: 16
+    priority: low
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: RegisterView, in: ViewSpec,       out: ViewSpec,       streaming: none}
+      - {name: Query,        in: ViewQuery,      out: ViewResult,     streaming: none}
+      - {name: Refresh,      in: RefreshRequest, out: Ack,            streaming: none}
+      - {name: ListViews,    in: Empty,          out: ViewList,       streaming: none}
+      - {name: Health,       in: Empty,          out: HealthReply,    streaming: none}
+
+  - name: cepd
+    apache: "Flink CEP"
+    owning_module: operations
+    memory_share_mb: 16
+    storage_share_mb: 16
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: RegisterPattern, in: CEPPattern,        out: CEPPattern,    streaming: none}
+      - {name: Feed,            in: CEPEvent,          out: Ack,           streaming: none}
+      - {name: Subscribe,       in: SubscribeRequest,  out: CEPMatch,      streaming: server}
+      - {name: ListPatterns,    in: Empty,             out: CEPPatternList, streaming: none}
+      - {name: Health,          in: Empty,             out: HealthReply,   streaming: none}
+
+  - name: xcomd
+    apache: "Airflow XCom"
+    owning_module: operations
+    memory_share_mb: 8
+    storage_share_mb: 16
+    priority: low
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: Push,    in: XComPushRequest, out: Ack,          streaming: none}
+      - {name: Pull,    in: XComPullRequest, out: XComValue,    streaming: none}
+      - {name: List,    in: XComListRequest, out: XComKeyList,  streaming: none}
+      - {name: Forget,  in: XComForgetRequest, out: Ack,        streaming: none}
+      - {name: Health,  in: Empty,           out: HealthReply,  streaming: none}
+
+  - name: purged
+    apache: "TrafficControl"
+    owning_module: platform
+    memory_share_mb: 8
+    storage_share_mb: 16
+    priority: low
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: Purge,      in: PurgeRequest,    out: Ack,             streaming: none}
+      - {name: Subscribe,  in: SubscribeRequest, out: PurgeEvent,     streaming: server}
+      - {name: Stats,      in: Empty,           out: PurgeStats,      streaming: none}
+      - {name: Health,     in: Empty,           out: HealthReply,     streaming: none}
+
+  - name: delayd
+    apache: "RocketMQ delayed"
+    owning_module: platform
+    memory_share_mb: 8
+    storage_share_mb: 16
+    priority: low
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: Schedule,   in: ScheduleRequest, out: ScheduleID,      streaming: none}
+      - {name: Cancel,     in: CancelRequest,   out: Ack,             streaming: none}
+      - {name: Drain,      in: DrainRequest,    out: DelayedEvent,    streaming: server}
+      - {name: Stats,      in: Empty,           out: DelayStats,      streaming: none}
+      - {name: Health,     in: Empty,           out: HealthReply,     streaming: none}
+
+  - name: flumed
+    apache: "Flume"
+    owning_module: sources
+    memory_share_mb: 8
+    storage_share_mb: 16
+    priority: low
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: Ingest,            in: FlumeEvent,           out: Ack,            streaming: none}
+      - {name: AddInterceptor,    in: Interceptor,          out: Interceptor,    streaming: none}
+      - {name: RemoveInterceptor, in: RemoveRequest,        out: Ack,            streaming: none}
+      - {name: Subscribe,         in: SubscribeRequest,     out: FlumeEvent,     streaming: server}
+      - {name: Health,            in: Empty,                out: HealthReply,    streaming: none}
+
+  - name: politenessd
+    apache: "Nutch"
+    owning_module: sources
+    memory_share_mb: 16
+    storage_share_mb: 32
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: CheckAllowed,   in: CheckAllowedRequest, out: AllowedReply,   streaming: none}
+      - {name: AcquireSlot,    in: AcquireRequest,      out: SlotToken,      streaming: none}
+      - {name: ReleaseSlot,    in: ReleaseRequest,      out: Ack,            streaming: none}
+      - {name: RefreshRobots,  in: RefreshRequest,      out: Ack,            streaming: none}
+      - {name: Stats,          in: Empty,               out: PolitenessStats, streaming: none}
+      - {name: Health,         in: Empty,               out: HealthReply,    streaming: none}
+
+  - name: fnd
+    apache: "Pulsar Functions + OpenWhisk"
+    owning_module: platform
+    memory_share_mb: 8
+    storage_share_mb: 16
+    priority: low
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: Register,  in: FunctionSpec,    out: FunctionSpec,    streaming: none}
+      - {name: Invoke,    in: InvokeRequest,   out: InvokeResult,    streaming: none}
+      - {name: List,      in: Empty,           out: FunctionList,    streaming: none}
+      - {name: Logs,      in: LogsRequest,     out: LogLine,         streaming: server}
+      - {name: Health,    in: Empty,           out: HealthReply,     streaming: none}
+
+  - name: drilld
+    apache: "Drill"
+    owning_module: governance
+    memory_share_mb: 8
+    storage_share_mb: 16
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: ValidateJSON,        in: ValidateJSONRequest, out: ValidationReport, streaming: none}
+      - {name: RegisterReadSchema,  in: ReadSchema,          out: ReadSchema,       streaming: none}
+      - {name: Read,                in: ReadRequest,         out: DrillRow,         streaming: server}
+      - {name: Health,              in: Empty,               out: HealthReply,      streaming: none}
+
+  - name: anomalyd
+    apache: "Eagle"
+    owning_module: operations
+    memory_share_mb: 8
+    storage_share_mb: 16
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: Feed,            in: AnomalyFeedRequest,  out: Ack,            streaming: none}
+      - {name: Subscribe,       in: SubscribeRequest,    out: AnomalyEvent,   streaming: server}
+      - {name: GetBaseline,     in: BaselineRequest,     out: Baseline,       streaming: none}
+      - {name: RegisterMetric,  in: MetricSpec,          out: MetricSpec,     streaming: none}
+      - {name: Health,          in: Empty,               out: HealthReply,    streaming: none}
+
+  - name: txd
+    apache: "RocketMQ transactional outbox"
+    owning_module: platform
+    memory_share_mb: 8
+    storage_share_mb: 16
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: Begin,    in: BeginTxRequest,  out: TxID,            streaming: none}
+      - {name: Commit,   in: CommitTxRequest, out: Ack,             streaming: none}
+      - {name: Rollback, in: RollbackTxRequest, out: Ack,           streaming: none}
+      - {name: Drain,    in: DrainRequest,    out: OutboxRow,       streaming: server}
+      - {name: Stats,    in: Empty,           out: OutboxStats,     streaming: none}
+      - {name: Health,   in: Empty,           out: HealthReply,     streaming: none}
+
+  - name: lookupd
+    apache: "Druid lookups"
+    owning_module: pipeline
+    memory_share_mb: 8
+    storage_share_mb: 16
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: Set,     in: SetLookupRequest, out: Ack,           streaming: none}
+      - {name: Get,     in: GetLookupRequest, out: LookupValue,   streaming: none}
+      - {name: Reload,  in: ReloadRequest,    out: Ack,           streaming: none}
+      - {name: List,    in: Empty,            out: LookupList,    streaming: none}
+      - {name: Health,  in: Empty,            out: HealthReply,   streaming: none}
+
+  - name: dedupd
+    apache: "Pulsar dedup"
+    owning_module: platform
+    memory_share_mb: 8
+    storage_share_mb: 16
+    priority: medium
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: Check,    in: DedupCheckRequest, out: DedupCheckReply, streaming: none}
+      - {name: Record,   in: DedupRecordRequest, out: Ack,           streaming: none}
+      - {name: Stats,    in: Empty,             out: DedupStats,     streaming: none}
+      - {name: Health,   in: Empty,             out: HealthReply,    streaming: none}
+
+  - name: compactd
+    apache: "Hudi compaction"
+    owning_module: platform
+    memory_share_mb: 8
+    storage_share_mb: 32
+    priority: low
+    implemented: false
+    follow_up_tags: [sidecars_followup]
+    rpcs:
+      - {name: ScheduleCompaction, in: CompactionRequest, out: CompactionID, streaming: none}
+      - {name: Status,             in: StatusRequest,     out: CompactionStatus, streaming: none}
+      - {name: RunNow,             in: RunNowRequest,     out: Ack,          streaming: none}
+      - {name: Stats,              in: Empty,             out: CompactionStats, streaming: none}
+      - {name: Health,             in: Empty,             out: HealthReply,  streaming: none}

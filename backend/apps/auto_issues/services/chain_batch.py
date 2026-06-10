@@ -143,7 +143,6 @@ def _verify_autoissue_quota(ids: list[int], resolved_after: datetime | None) -> 
     rows = _autoissue_rows(ids)
     errors.extend(_missing_errors(ids, rows, "AutoIssue"))
     errors.extend(_duplicate_canonical_errors(ids, rows, "AutoIssue"))
-    errors.extend(_sonarqube_quota_errors(ids, rows))
     for issue_id in ids:
         row = rows.get(issue_id)
         if row is not None:
@@ -350,25 +349,7 @@ def _quota_count_errors(ids: list[int], expected: int, label: str) -> list[str]:
     return errors
 
 
-def _sonarqube_quota_errors(
-    ids: list[int],
-    rows: dict[int, dict[str, Any]],
-) -> list[str]:
-    found = sum(
-        1
-        for issue_id in ids
-        if _is_sonarqube_row(rows.get(issue_id) or {})
-    )
-    if found == 10:
-        return []
-    return [f"expected 10 SonarQube AutoIssues, got {found}"]
 
-
-def _is_sonarqube_row(row: dict[str, Any]) -> bool:
-    return (
-        row.get("source") == AutoIssue.SOURCE_SONARQUBE
-        or str(row.get("external_id") or "").startswith("sonarqube:")
-    )
 
 
 def _missing_errors(ids: list[int], rows: dict[int, dict[str, Any]], label: str) -> list[str]:

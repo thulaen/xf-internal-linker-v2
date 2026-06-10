@@ -12,7 +12,7 @@ from apps.auto_issues.models import AutoIssue
 from apps.auto_issues.services import fuzz
 
 
-class FuzzPickerTests(SimpleTestCase):
+class FuzzPickerTests(TestCase):
     def test_missing_crashes_dir_returns_zero(self) -> None:
         # The crashes dir doesn't exist on a fresh checkout — the
         # libFuzzer CI job creates it. Picker must handle that gracefully.

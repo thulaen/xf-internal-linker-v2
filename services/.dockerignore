@@ -1,0 +1,14 @@
+# Build-context excludes for the clusterd image (context: ./services).
+# Keep only source; drop language build caches, sockets, and reports so the
+# context stays small (it is shipped to the build daemon, possibly over TCP).
+**/target
+**/dist-newstyle
+**/*_sock
+**/report.json
+**/cover.out
+**/bench.txt
+**/.compile.lock
+**/__pycache__
+**/*.pyc
+**/node_modules
+**/.git

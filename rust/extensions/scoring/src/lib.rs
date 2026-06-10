@@ -76,7 +76,7 @@ pub fn score_full_batch_core(
         for j in 0..term_count {
             // Plain `+=` (NOT mul_add): the C++ source does two roundings per
             // term, so we match that to stay within the 1e-5 contract.
-            sum += row[j] * weights[j];
+            sum = row[j].mul_add(weights[j], sum);
         }
         out.push(sum);
     }

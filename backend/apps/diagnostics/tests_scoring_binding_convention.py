@@ -20,7 +20,8 @@ from pathlib import Path
 from django.test import SimpleTestCase
 
 _APP_DIR = Path(__file__).resolve().parents[2]
-_SCORING_CPP = _APP_DIR / "extensions" / "scoring.cpp"
+_RUST_DIR = Path("/repo/rust") if Path("/repo/rust").exists() else _APP_DIR.parent / "rust"
+_SCORING_CPP = _RUST_DIR / "extensions" / "scoring" / "src" / "lib.rs"
 _HEALTH_PY = _APP_DIR / "apps" / "diagnostics" / "health.py"
 
 # The Python runtime call sites that probe the ``scoring`` module by attribute
@@ -42,16 +43,16 @@ class ScoringBindingConventionTests(SimpleTestCase):
     def test_scoring_cpp_exports_expected_binding_name(self) -> None:
         source = _SCORING_CPP.read_text(encoding="utf-8")
         self.assertIn(
-            f'm.def("{_EXPECTED_BINDING}"',
+            f'wrap_pyfunction!({_EXPECTED_BINDING}, m)',
             source,
-            "scoring.cpp must export the binding under the name the health "
+            "lib.rs must export the binding under the name the health "
             "check and Python callers expect.",
         )
 
     def test_scoring_cpp_no_longer_exports_old_binding_name(self) -> None:
         source = _SCORING_CPP.read_text(encoding="utf-8")
         self.assertNotIn(
-            'm.def("score_full_batch"',
+            'wrap_pyfunction!(score_full_batch',
             source,
             "The old binding name must not be re-exported; health.py expects "
             "the renamed binding.",

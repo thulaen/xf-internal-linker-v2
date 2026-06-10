@@ -73,9 +73,13 @@ pub fn score_field_tokens_core(
         let idf = ((1.0 + f64::from(field_count))
             / (1.0 + f64::from(field_presence_counts[index])))
         .ln_1p();
-        let denominator = f64::from(field_tfs[index])
-            + bm25_k1
-                * (1.0 - b_value + b_value * (f64::from(field_length) / reference_length.max(1.0)));
+        let denominator = bm25_k1.mul_add(
+            b_value.mul_add(
+                f64::from(field_length) / reference_length.max(1.0),
+                1.0 - b_value,
+            ),
+            f64::from(field_tfs[index]),
+        );
         let tf_norm = if denominator > 0.0 {
             (f64::from(field_tfs[index]) * (bm25_k1 + 1.0)) / denominator
         } else {

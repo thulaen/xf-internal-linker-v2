@@ -24,7 +24,7 @@ crate-type = ["cdylib", "rlib"]
 # `numpy` here — this kernel takes `str`/`int`/`float` and returns lists/tuples,
 # not arrays. The MinHash + LSH math is hand-rolled integer arithmetic with a
 # vendored mt19937_64, so there are no third-party algorithm crates.
-pyo3 = { version = "0.26", features = ["abi3-py310", "extension-module"] }
+pyo3 = { version = "0.26", features = ["abi3-py310"] }
 
 [dev-dependencies]
 # Criterion drives the mandatory hot-path benchmark (3 input sizes) over the
@@ -37,3 +37,6 @@ harness = false
 
 [lints]
 workspace = true
+
+[features]
+extension-module = ["pyo3/extension-module"]

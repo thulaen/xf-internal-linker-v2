@@ -155,6 +155,44 @@
   position: relative;
 }
 
+/* ECharts host fills the sized container above. */
+.chart-host {
+  width: 100%;
+  height: 100%;
+}
+
+/* Truthful empty / loading / error state for the trend chart. */
+.chart-empty-state {
+  height: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm, 8px);
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: var(--space-md, 16px);
+
+  p {
+    margin: 0;
+    max-width: 420px;
+    font-size: 13px;
+  }
+
+  &--error {
+    color: var(--color-error);
+  }
+}
+
+.chart-help-icon {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  cursor: help;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
 /* ── Results table ───────────────────────────────────────────── */
 
 .results-card {

@@ -107,9 +107,14 @@ def compute(
     csr = nx_digraph_to_csr(graph, normalize_per_source=False)
     n = csr.node_count
 
-    # Run the same two SpMV operations (A · hub, A^T · authority)
-    # through the CPU native kernel.
-    from extensions import pagerank as pagerank_kernel  # pylint: disable=no-name-in-module
+    # Run the same two sparse matrix-vector operations (A · hub,
+    # A^T · authority) through the Rust native kernel. The kernel was ported
+    # from C++ to Rust (rust/extensions/pagerank); it is loaded through the
+    # shared `load_kernel` helper so a missing kernel fails loudly
+    # (RUST-FIRST.md zero-fallback) instead of silently dropping to Python.
+    from .rust_kernels import load_kernel
+
+    pagerank_kernel = load_kernel("extensions.pagerank", "hits_step")
 
     authority = np.full(n, 1.0 / n, dtype=np.float64)
     hub = np.full(n, 1.0 / n, dtype=np.float64)

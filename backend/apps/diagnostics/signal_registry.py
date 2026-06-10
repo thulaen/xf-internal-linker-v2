@@ -95,7 +95,7 @@ SIGNALS: list[SignalDefinition] = [
         id="semantic_similarity",
         name="Semantic Similarity",
         type="ranking",
-        description="Cosine similarity between sentence and destination embeddings (BGE-M3).",
+        description="Cosine similarity between sentence and destination embeddings (paid API provider).",
         table_name="content_sentence (embedding), content_contentitem (embedding)",
         cpp_kernel="simsearch.score_and_topk",
         weight_key="w_semantic",
@@ -103,7 +103,7 @@ SIGNALS: list[SignalDefinition] = [
         spec_path=None,
         academic_source="Chen et al. 2024 - BGE-M3 multilingual embeddings; cosine similarity (Salton 1975)",
         source_kind="paper",
-        architecture_lane="cpp_first",
+        architecture_lane="rust_first",
         neutral_value=0.0,
         min_data_threshold=">=10 ContentItem rows with embeddings",
         diagnostic_surfaces=(
@@ -111,7 +111,11 @@ SIGNALS: list[SignalDefinition] = [
             "weight_diagnostics",
             "mission_critical",
         ),
-        benchmark_module="backend/benchmarks/test_bench_embeddings.py",
+        # The embedding L2-normalization hot path was ported from C++ to Rust
+        # (extensions.l2norm); its benchmark is now the Rust Criterion bench
+        # (rust/extensions/l2norm/benches/bench_l2norm.rs), not a Python
+        # pytest-benchmark module, so there is no test_bench_embeddings.py.
+        benchmark_module=None,
         autotune_included=True,
         default_enabled=True,
         added_in_phase="Phase 2",
@@ -539,11 +543,14 @@ SIGNALS: list[SignalDefinition] = [
         spec_path="docs/specs/fr018-auto-tuned-ranking-weights.md",
         academic_source="Centroid similarity in dense embedding space (Chen et al. 2024 BGE-M3)",
         source_kind="paper",
-        architecture_lane="cpp_first",
+        architecture_lane="rust_first",
         neutral_value=0.5,
         min_data_threshold=">=20 ContentItem rows with embeddings for stable centroid",
         diagnostic_surfaces=("suggestion_detail", "weight_diagnostics"),
-        benchmark_module="backend/benchmarks/test_bench_embeddings.py",
+        # Embedding normalization moved to the Rust extensions.l2norm kernel;
+        # its benchmark is the Rust Criterion bench, not a Python module, so
+        # the deleted test_bench_embeddings.py is no longer referenced.
+        benchmark_module=None,
         autotune_included=True,
         default_enabled=True,
         added_in_phase="Phase 21",

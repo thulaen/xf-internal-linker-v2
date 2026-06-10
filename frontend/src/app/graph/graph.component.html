@@ -502,7 +502,7 @@
         }
 
         <div class="network-layout">
-          <div class="graph-canvas">
+          <div class="graph-canvas" id="graph-network-viz-card">
             <app-link-graph-viz
               [topology]="topo"
               [heatmapMode]="heatmapMode()"
@@ -668,14 +668,17 @@
               <mat-icon mat-card-avatar>donut_large</mat-icon>
               <mat-card-title>Context Distribution</mat-card-title>
               <mat-card-subtitle>All {{ qTopo.links.length | number }} links</mat-card-subtitle>
+              <mat-icon class="chart-help-icon"
+                        [peHelper]="'How many links sit inside real content (contextual) versus in weak spots (weak context) or alone (isolated).'">help_outline</mat-icon>
             </mat-card-header>
             <mat-card-content class="chart-content ga4-card">
               @if (pieData) {
-                <canvas baseChart
-                  [data]="pieData"
-                  type="pie"
-                  class="qualities-pie">
-                </canvas>
+                <div class="qualities-pie" [echarts]="pieData"></div>
+              } @else {
+                <div class="qualities-chart-empty">
+                  <mat-icon class="empty-icon">donut_large</mat-icon>
+                  <p>No links to classify yet. Run a sync to build the link graph.</p>
+                </div>
               }
               <div class="context-legend">
                 <span class="legend-dot dot-contextual"></span> Contextual
@@ -713,6 +716,8 @@
             <mat-icon mat-card-avatar>text_fields</mat-icon>
             <mat-card-title>Anchor Text Frequency</mat-card-title>
             <mat-card-subtitle>Top 15 anchor texts by link count</mat-card-subtitle>
+            <mat-icon class="chart-help-icon"
+                      [peHelper]="'The 15 most-used link phrases and how often each one appears.'">help_outline</mat-icon>
           </mat-card-header>
           <mat-card-content>
             @if (warnings.length > 0) {
@@ -729,11 +734,12 @@
               </div>
             }
             @if (barData) {
-              <canvas baseChart
-                [data]="barData"
-                type="bar"
-                class="qualities-bar">
-              </canvas>
+              <div class="qualities-bar" [echarts]="barData"></div>
+            } @else {
+              <div class="qualities-chart-empty">
+                <mat-icon class="empty-icon">text_fields</mat-icon>
+                <p>No anchor text recorded yet. Run a sync to collect link phrases.</p>
+              </div>
             }
           </mat-card-content>
         </mat-card>
@@ -955,25 +961,19 @@
             <mat-icon mat-card-avatar>show_chart</mat-icon>
             <mat-card-title>Link Network Velocity (Last 30 Days)</mat-card-title>
             <mat-card-subtitle>Links created vs. links that disappeared each day</mat-card-subtitle>
+            <mat-icon class="chart-help-icon"
+                      [peHelper]="'Links created versus links that disappeared, day by day.'">help_outline</mat-icon>
           </mat-card-header>
           <mat-card-content>
-            @if (!velocity) {
-              <div class="spinner-center">
-                <mat-spinner diameter="24"></mat-spinner>
+            @if (velocity && velocityHasHistory()) {
+              <div class="velocity-chart-wrap">
+                <div class="velocity-chart-host" [echarts]="velocity"></div>
               </div>
-            } @else if (velocity.labels?.length === 0) {
+            } @else {
               <div class="empty-state">
                 <mat-icon class="empty-icon">timeline</mat-icon>
                 <h3>No link history yet</h3>
                 <p>Run at least two syncs to start recording link changes over time.</p>
-              </div>
-            } @else {
-              <div class="velocity-chart-wrap">
-                <canvas baseChart
-                  [data]="velocity"
-                  [options]="velocityChartOptions"
-                  type="line">
-                </canvas>
               </div>
             }
           </mat-card-content>

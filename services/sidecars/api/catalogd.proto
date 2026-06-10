@@ -1,0 +1,31 @@
+// Slice 1.6 — catalogd skeleton contract.
+// Apache reference: Atlas. Owning Django module: governance.
+// Ships as a gRPC skeleton this slice; every RPC returns codes.Unimplemented.
+// Real RPC bodies fill in via a future session — tracked in the paper-trail under
+// the tag `sidecars_followup`. Message names are service-prefixed because every
+// .proto file lives in the same proto package (xf.sidecars.v1).
+
+syntax = "proto3";
+
+package xf.sidecars.v1;
+
+import "shared.proto";
+
+option go_package = "xf-internal-linker-v2/services/sidecars/api/gen;sidecarsv1";
+
+service Catalogd {
+  rpc Register(CatalogdCatalogEntry) returns (CatalogdCatalogEntry);
+  rpc Get(CatalogdGetEntryRequest) returns (CatalogdCatalogEntry);
+  rpc Search(CatalogdSearchRequest) returns (stream CatalogdCatalogEntry);
+  rpc Refs(CatalogdRefsRequest) returns (CatalogdRefList);
+  rpc Freshness(CatalogdFreshnessRequest) returns (CatalogdFreshnessReport);
+  rpc Health(Empty) returns (HealthReply);
+}
+
+message CatalogdCatalogEntry {}
+message CatalogdFreshnessReport {}
+message CatalogdFreshnessRequest {}
+message CatalogdGetEntryRequest {}
+message CatalogdRefList {}
+message CatalogdRefsRequest {}
+message CatalogdSearchRequest {}

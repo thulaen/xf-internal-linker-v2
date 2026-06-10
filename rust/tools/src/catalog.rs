@@ -76,9 +76,10 @@ pub fn list_report(category_filter: Option<&str>) -> ToolReport {
     let needle = category_filter.map(str::to_lowercase);
     let entries: Vec<&CatalogEntry> = CATALOG
         .iter()
-        .filter(|e| match &needle {
-            Some(n) => e.category.to_lowercase().contains(n),
-            None => true,
+        .filter(|e| {
+            needle
+                .as_ref()
+                .is_none_or(|n| e.category.to_lowercase().contains(n))
         })
         .collect();
 

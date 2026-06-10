@@ -28,12 +28,18 @@ logger = logging.getLogger(__name__)
 # docs/CPP-ROADMAP.md on 2026-05-16 so they can be re-promoted one at a time
 # through the full lifecycle when someone actually implements them.
 _NATIVE_RUNTIME_MODULES = (
-    # ── Ranking / retrieval core (12) ──
+    # ── Ranking / retrieval core (13) ──
     (
         "scoring",
         "calculate_composite_scores_full_batch",
         "Composite scoring kernel",
         True,
+    ),
+    (
+        "ranking_decision_engine",
+        "rank_candidates",
+        "Ranking decision/governance engine",
+        False,
     ),
     ("simsearch", "score_and_topk", "Sentence search kernel", True),
     ("pagerank", "pagerank_step", "PageRank kernel", True),
@@ -44,8 +50,8 @@ _NATIVE_RUNTIME_MODULES = (
     ("rareterm", "evaluate_rare_terms", "Rare-term propagation kernel", False),
     ("linkparse", "find_urls", "Link parser kernel", False),
     ("phrasematch", "longest_contiguous_overlap", "Phrase matching kernel", False),
-    ("passagesim", "passage_max_sim", "FR-053 Passage-level similarity", False),
-    ("quantemb", "quantize_int8", "OPT-06 Embedding int8 quantiser", False),
+    ("passagesim", "maxsim", "FR-053 Passage-level similarity", False),
+    ("quantemb", "opq_encode", "OPQ embedding quantiser", False),
     # ── Anchor analysis kernels (3) ──
     ("anchor_descriptiveness", "damerau_levenshtein", "Anchor descriptiveness scorer", False),
     ("anchor_diversity", "evaluate_batch", "Anchor diversity evaluator", False),
@@ -72,6 +78,18 @@ def _result(
     return state, explanation, next_step, metadata or {}
 
 
+def _native_runtime_path(origin: str | None) -> str:
+    """Classify a loaded native kernel as ``rust`` or ``cpp`` from its artifact filename.
+
+    C++ pybind11 kernels ship an ABI-tagged ``<name>.cpython-*.so``; the Rust/PyO3 build ships
+    a bare ``<name>.so``. The source of truth for the Rust set is ``RUST_EXTENSION_NAMES`` in
+    ``scripts/ensure_compiled_artifacts.py``; here we read the loaded artifact's origin so the
+    label reflects what actually loaded.
+    """
+    base = os.path.basename(str(origin or ""))
+    return "cpp" if ".cpython-" in base else "rust"
+
+
 def _classify_module_state(
     *,
     importable: bool,
@@ -79,13 +97,19 @@ def _classify_module_state(
     critical: bool,
     error: str,
     expected_attr: str,
+    origin: str | None = None,
 ) -> tuple[str, str, bool, str]:
-    """Map import/callable probe results to a (state, runtime_path, fallback_active, fallback_reason) tuple."""
+    """Map import/callable probe results to a (state, runtime_path, fallback_active, fallback_reason) tuple.
+
+    A healthy kernel reports the language that actually backs it: ``rust`` for the Rust/PyO3
+    build, ``cpp`` for C++ pybind11. There is no ``python`` value — the Python+Rust backend has
+    no Python fallback, so a load failure is ``error``.
+    """
     if importable and callable_present:
-        return "healthy", "cpp", False, ""
+        return "healthy", _native_runtime_path(origin), False, ""
     fallback_reason = error or f"Missing expected callable '{expected_attr}'."
     state = "failed" if critical else "degraded"
-    return state, "python", True, fallback_reason
+    return state, "error", True, fallback_reason
 
 
 def _native_module_runtime_status() -> list[dict[str, object]]:
@@ -107,7 +131,7 @@ def _native_module_runtime_status() -> list[dict[str, object]]:
             except Exception as exc:
                 error = str(exc)
                 logger.debug(
-                    "Failed to import native extension %s; falling back to Python.",
+                    "Failed to import native extension %s; no Python fallback is available.",
                     dotted_name,
                     exc_info=True,
                 )
@@ -120,6 +144,7 @@ def _native_module_runtime_status() -> list[dict[str, object]]:
             critical=critical,
             error=error,
             expected_attr=expected_attr,
+            origin=origin,
         )
 
         statuses.append(
@@ -167,6 +192,7 @@ def _benchmark_scoring() -> dict[str, object]:
     try:
         import numpy as np
 
+        # pylint: disable-next=no-name-in-module,import-error
         from extensions import scoring as scoring_ext
         from apps.pipeline.services import ranker as ranker_service
 
@@ -196,6 +222,7 @@ def _benchmark_scoring() -> dict[str, object]:
 def _benchmark_texttok() -> dict[str, object]:
     """Benchmark batched tokeniser (Python text_tokens vs texttok C++ extension)."""
     try:
+        # pylint: disable-next=no-name-in-module,import-error
         from extensions import texttok as texttok_ext
         from apps.pipeline.services import text_tokens as text_tokens_service
 
@@ -220,6 +247,7 @@ def _benchmark_simsearch() -> dict[str, object]:
     try:
         import numpy as np
 
+        # pylint: disable-next=no-name-in-module,import-error
         from extensions import simsearch as simsearch_ext
 
         np.random.seed(11)
@@ -263,6 +291,7 @@ def _benchmark_pagerank() -> dict[str, object]:
     try:
         import numpy as np
 
+        # pylint: disable-next=no-name-in-module,import-error
         from extensions import pagerank as pagerank_ext
         from apps.pipeline.services import weighted_pagerank as pagerank_service
 
@@ -307,6 +336,7 @@ def _benchmark_feedrerank() -> dict[str, object]:
     try:
         import numpy as np
 
+        # pylint: disable-next=no-name-in-module,import-error
         from extensions import feedrerank as feedrerank_ext
 
         np.random.seed(17)
@@ -691,7 +721,7 @@ def _native_scoring_metadata(
     healthy_modules = classification["healthy_modules"]
     fallback_active = bool(classification["fallback_active"])
     runtime_path = (
-        "cpp" if not fallback_active else ("mixed" if healthy_modules else "python")
+        "cpp" if not fallback_active else ("mixed_error" if healthy_modules else "error")
     )
     return {
         "runtime_path": runtime_path,
@@ -730,23 +760,23 @@ def _native_scoring_module_failure_result(
     critical_failures = classification["critical_failures"]
     if critical_failures:
         metadata["fallback_reason"] = (
-            "One or more critical C++ kernels are unavailable, so Python fallback is protecting ranking."
+            "One or more critical native kernels are not available; no Python fallback is available."
         )
         return _result(
             "failed",
-            f"The native C++ fast path is not fully safe right now. Critical kernels missing: {', '.join(s['module'] for s in critical_failures)}.",
-            "Rebuild the native extensions and restore the missing critical kernels before trusting the fast path.",
+            f"The native fast path is not fully safe right now. Critical kernels missing: {', '.join(s['module'] for s in critical_failures)}.",
+            "Rebuild the native extensions and restore the missing critical kernels before trusting the path.",
             metadata,
         )
     degraded_modules = classification["degraded_modules"]
     if degraded_modules:
         metadata["fallback_reason"] = (
-            "Some optional C++ kernels are unavailable, so mixed C++/Python execution is active."
+            "Some optional native kernels are not available; no Python fallback is available."
         )
         return _result(
             "degraded",
-            f"Core C++ scoring is active, but some optional kernels are falling back to Python: {', '.join(s['module'] for s in degraded_modules)}.",
-            "Rebuild the optional native extensions if you want every fast path back.",
+            f"Core native scoring is active, but some optional kernels are unavailable: {', '.join(s['module'] for s in degraded_modules)}.",
+            "Rebuild the optional native extensions if you want every fast path ready.",
             metadata,
         )
     return None
@@ -1078,18 +1108,18 @@ def _conflict_orphaned_suggestions() -> list[dict]:
 
 
 def _conflict_native_unhealthy() -> list[dict]:
-    """Flag drift when the C++ fast path is not fully healthy (failed or degraded)."""
+    """Flag drift when the native fast path is not fully healthy."""
     state, _, _, metadata = check_native_scoring()
     if state == "healthy":
         return []
     return [
         {
             "type": "drift",
-            "title": "C++ Fast Path Not Fully Healthy",
-            "description": "The repo expects C++ to be the default hot-path, but native runtime diagnostics report fallback or failure.",
+            "title": "Native Fast Path Not Fully Healthy",
+            "description": "The repo expects Rust or remaining native kernels to be ready, but runtime diagnostics report an unavailable kernel.",
             "severity": "high" if state == "failed" else "medium",
             "location": "backend/apps/diagnostics/health.py",
-            "why": "Hot-loop work is falling back to Python in at least part of the runtime, which can reduce speed and hide native regressions.",
+            "why": "Hot-loop work has a missing native kernel, which can stop the affected path or hide a broken build.",
             "next_step": metadata.get("fallback_reason")
             or "Rebuild native extensions and re-run parity checks.",
         }

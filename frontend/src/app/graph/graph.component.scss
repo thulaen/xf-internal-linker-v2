@@ -569,13 +569,40 @@
 }
 
 .qualities-pie {
-  max-width: 220px;
-  max-height: 220px;
+  width: 100%;
+  max-width: 260px;
+  height: 220px;
 }
 
 .qualities-bar {
   width: 100%;
-  max-height: 220px;
+  height: 240px;
+}
+
+.qualities-chart-empty {
+  align-items: center;
+  color: var(--color-text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 220px;
+  justify-content: center;
+  text-align: center;
+
+  p {
+    font-size: 12px;
+    margin: 0;
+    max-width: 260px;
+  }
+}
+
+.chart-help-icon {
+  color: var(--color-text-muted);
+  cursor: help;
+  font-size: 18px;
+  height: 18px;
+  margin-left: auto;
+  width: 18px;
 }
 
 .context-legend {
@@ -780,6 +807,11 @@
 .velocity-chart-wrap {
   height: 280px;
   position: relative;
+}
+
+.velocity-chart-host {
+  width: 100%;
+  height: 100%;
 }
 
 .churn-badge {

@@ -48,7 +48,7 @@ use pyo3::types::{PyFrozenSet, PyList};
 /// `true` when `byte` is ASCII alphanumeric `[0-9A-Za-z]`. Everything else is a
 /// token separator. Mirrors the C++ `is_ascii_alnum(char)`.
 #[inline]
-fn is_ascii_alnum(byte: u8) -> bool {
+const fn is_ascii_alnum(byte: u8) -> bool {
     byte.is_ascii_alphanumeric()
 }
 
@@ -56,7 +56,7 @@ fn is_ascii_alnum(byte: u8) -> bool {
 /// returned unchanged. Mirrors the C++ `ascii_lower(char)` (it does NOT touch
 /// non-ASCII bytes, so UTF-8 continuation bytes pass through untouched).
 #[inline]
-fn ascii_lower(byte: u8) -> u8 {
+const fn ascii_lower(byte: u8) -> u8 {
     byte.to_ascii_lowercase()
 }
 
@@ -124,9 +124,9 @@ pub fn tokenize_one_core<S: BuildHasher>(
     unique_tokens
 }
 
-/// Tokenize a batch of texts, preserving input order. Plain Rust, used by both
-/// the Criterion benchmark and the `PyO3` boundary. Generic over the stopword
-/// hasher for the same reason as [`tokenize_one_core`].
+/// Tokenize a batch of texts, preserving input order.
+///
+/// Plain Rust, used by both the Criterion benchmark and the `PyO3` boundary. Generic over the stopword hasher for the same reason as [`tokenize_one_core`].
 #[must_use]
 pub fn tokenize_text_batch_core<S: BuildHasher>(
     texts: &[String],

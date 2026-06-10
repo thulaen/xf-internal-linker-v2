@@ -84,7 +84,7 @@ _LOCAL_ONLY_TARGET_PARTS = (
 # scoped run in scripts/run-python-quality.sh (random order, reuse the test DB
 # so migrations run once). `--override-ini addopts=` drops the repo's heavy
 # default addopts (coverage, etc.) so a scoped shard stays fast.
-_PYTEST_FLAGS = ("--override-ini", "addopts=", "-p", "randomly", "-q", "--reuse-db")
+_PYTEST_FLAGS = ("--override-ini", "addopts=", "-p", "randomly", "-q", "--reuse-db", "-o", "cache_dir=/tmp/xf-test-cache/pytest")
 
 
 def _configure_stdout() -> None:
@@ -230,6 +230,7 @@ def _remote_pytest_cmd(context: str, targets: list[str]) -> list[str]:
         "--network", _DELL_TEST_NET,
         "-v", f"{_TEST_VOLUME}:/repo",
         "-v", f"{_DELL_COMPILED_VOLUME}:/opt/xf/compiled",
+        "-v", "xf_dell_quality_cache:/tmp/xf-test-cache",
         "-w", "/repo/backend",
         "--env-file", str(REPO_ROOT / ".env"),
         "-e", "DJANGO_SETTINGS_MODULE=config.settings.test",
@@ -273,6 +274,8 @@ def _pytest_slice_on_remote(context: str, targets: list[str]) -> tuple[int, str]
         return None
     if not _verify_snapshot(_run_remote_sha(context, env), targets, _host_hashes(targets)):
         return None
+    # Fix permission for xf_dell_quality_cache before pytest runs as non-root user
+    subprocess.run(["docker", "--context", context, "run", "--rm", "-v", "xf_dell_quality_cache:/tmp/xf-test-cache", "alpine:latest", "chmod", "-R", "777", "/tmp/xf-test-cache"], env=env, check=False)
     return _run(_remote_pytest_cmd(context, targets), env, timeout=1800)
 
 

@@ -40,16 +40,6 @@
       ]
     },
     {
-      "name": "dell-sonar-plane",
-      "kind": "docker-context",
-      "context": "dell",
-      "description": "Dell owns SonarQube and sonar-autoscan so the scanner index and cache stay off MSI and the slow Mint helper.",
-      "containers": [
-        { "name": "xf_linker_sonarqube" },
-        { "name": "xf_linker_sonar_autoscan" }
-      ]
-    },
-    {
       "name": "third-pc-template",
       "enabled": false,
       "kind": "ssh",

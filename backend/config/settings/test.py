@@ -28,11 +28,11 @@ SECRET_KEY = locals().get("SECRET_KEY", "test-secret-key")
 
 ALLOWED_HOSTS = ["testserver", "localhost", "127.0.0.1"]
 
-if env.bool("XF_USE_POSTGRES_TEST_DB", default=True):  # noqa: F405
-    DATABASES["default"] = {  # noqa: F405
-        **DATABASES["default"],  # noqa: F405
-        "NAME": env("POSTGRES_TEST_DB", default="test_xf_linker"),  # noqa: F405
-        "TEST": {"NAME": env("POSTGRES_TEST_DB", default="test_xf_linker")},  # noqa: F405
+if env.bool("XF_USE_POSTGRES_TEST_DB", default=True):  # pylint: disable=undefined-variable  # noqa: F405
+    DATABASES["default"] = {  # pylint: disable=undefined-variable,used-before-assignment  # noqa: F405
+        **DATABASES["default"],  # pylint: disable=undefined-variable,used-before-assignment  # noqa: F405
+        "NAME": env("POSTGRES_TEST_DB", default="test_xf_linker"),  # pylint: disable=undefined-variable  # noqa: F405
+        "TEST": {"NAME": env("POSTGRES_TEST_DB", default="test_xf_linker")},  # pylint: disable=undefined-variable  # noqa: F405
         "CONN_MAX_AGE": 0,
         "OPTIONS": {"connect_timeout": 10},
     }
@@ -40,7 +40,7 @@ else:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "test.sqlite3",  # noqa: F405
+            "NAME": BASE_DIR / "test.sqlite3",  # pylint: disable=undefined-variable  # noqa: F405
         }
     }
 
@@ -69,14 +69,14 @@ PASSWORD_HASHERS = [
 ]
 
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
-EMBEDDING_MODEL = "BAAI/bge-m3"
+EMBEDDING_MODEL = "text-embedding-3-small"
 
 # Keep expected 4xx validation responses from cluttering test output while still
 # surfacing actual server-side failures.
 LOGGING = {
-    **LOGGING,  # noqa: F405
+    **LOGGING,  # pylint: disable=undefined-variable,used-before-assignment  # noqa: F405
     "loggers": {
-        **LOGGING["loggers"],  # noqa: F405
+        **LOGGING["loggers"],  # pylint: disable=undefined-variable,used-before-assignment  # noqa: F405
         "django.request": {
             "handlers": ["console"],
             "level": "ERROR",

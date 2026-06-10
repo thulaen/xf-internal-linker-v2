@@ -101,6 +101,33 @@
   width: 100%;
 }
 
+.findbugs-chart-empty {
+  align-items: center;
+  color: var(--color-text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 132px;
+  justify-content: center;
+  margin-top: 12px;
+  text-align: center;
+
+  p {
+    font-size: 12px;
+    margin: 0;
+    max-width: 280px;
+  }
+}
+
+.chart-help-icon {
+  color: var(--color-text-muted);
+  cursor: help;
+  font-size: 16px;
+  height: 16px;
+  vertical-align: middle;
+  width: 16px;
+}
+
 .chart-panel {
   border-left: 1px solid var(--card-border);
   min-height: 0;

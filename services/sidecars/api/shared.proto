@@ -1,0 +1,44 @@
+// Slice 1.6 — shared types used by every sidecar service's gRPC contract.
+//
+// Imported via `import "shared.proto";` from every api/<name>.proto. Keeps
+// the per-service contract files small and avoids redeclaring Health, Ack,
+// Empty across 40 places.
+
+syntax = "proto3";
+
+package xf.sidecars.v1;
+
+option go_package = "xf-internal-linker-v2/services/sidecars/api/gen;sidecarsv1";
+
+// Empty is the canonical no-body request. Some RPCs (Health, ListXxx) take no
+// input — using a named message keeps proto3 happy without forcing each
+// service to declare its own zero-field type.
+message Empty {}
+
+// Ack is the canonical "accepted" reply. The `ok` field is required so the
+// caller can distinguish "I got it" from gRPC-transport success.
+message Ack {
+  bool ok = 1;
+  // Optional human-readable detail (e.g., "rule registered as #42").
+  string detail = 2;
+}
+
+// HealthReply mirrors the gRPC standard health-check enum, but lives in the
+// sidecars package so we don't pull in grpc-health-v1 for one enum.
+// HealthStatus values share scope with the proto package, so prefix them
+// with HEALTH_ to avoid collisions with other enums in shared scope.
+enum HealthStatus {
+  HEALTH_UNKNOWN = 0;
+  HEALTH_SERVING = 1;
+  HEALTH_NOT_SERVING = 2;
+}
+
+message HealthReply {
+  HealthStatus status = 1;
+  // RFC3339 timestamp of the binary's start time. Useful for liveness-watchdog
+  // scripts that want to verify the process did not crash-restart.
+  string started_at = 2;
+  // Name of the inner service the reply describes. Lets the one shared
+  // Health RPC be reused across all 40 internal services.
+  string service = 3;
+}

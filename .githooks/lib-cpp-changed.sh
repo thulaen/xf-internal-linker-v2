@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # lib-cpp-changed.sh — maps changed C++ source files to the GoogleTest
 # binary names that own them. Used by pre-commit (fast band) and
 # pre-push (heavy band) to build / run only the test binaries affected

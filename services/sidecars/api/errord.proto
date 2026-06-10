@@ -1,0 +1,78 @@
+// Slice 1.6 — errord contract.
+//
+// errord is the Camel-style exception-policy registry. The operations
+// module asks Handle(...) when an exception bubbles up so it knows whether
+// to file an AutoIssue, alert an operator, swallow, or retry.
+
+syntax = "proto3";
+
+package xf.sidecars.v1;
+
+import "shared.proto";
+
+option go_package = "xf-internal-linker-v2/services/sidecars/api/gen;sidecarsv1";
+
+service Errord {
+  rpc RegisterPolicy(ErrorPolicy) returns (ErrorPolicy);
+  rpc Handle(HandleExceptionRequest) returns (HandleResult);
+  rpc ListPolicies(Empty) returns (ErrorPolicyList);
+  rpc Stats(Empty) returns (ErrorStats);
+  rpc Health(Empty) returns (HealthReply);
+}
+
+enum HandleAction {
+  ACT_UNKNOWN = 0;
+  // ACT_SWALLOW: log at info, no AutoIssue.
+  ACT_SWALLOW = 1;
+  // ACT_RETRY: caller should retry per backoff_seconds.
+  ACT_RETRY = 2;
+  // ACT_ALERT: post a bullboard bulletin (no AutoIssue yet).
+  ACT_ALERT = 3;
+  // ACT_FILE_AUTOISSUE: caller should file an AutoIssue (errord does NOT call
+  // governance directly; the caller owns that boundary).
+  ACT_FILE_AUTOISSUE = 4;
+}
+
+message ErrorPolicy {
+  string id = 1;
+  // match_class: e.g., "ValueError" or "psycopg2.OperationalError"
+  // (substring match against the Python exception class name).
+  string match_class = 2;
+  // match_module: optional repo-relative path prefix (e.g., "apps/sources/").
+  string match_module = 3;
+  HandleAction action = 4;
+  int32 backoff_seconds = 5;
+  int32 priority = 6;
+  bool enabled = 7;
+  // autoissue_severity (low | medium | high | critical) — only honoured when
+  // action == FILE_AUTOISSUE.
+  string autoissue_severity = 8;
+}
+
+message ErrorPolicyList {
+  repeated ErrorPolicy items = 1;
+}
+
+message HandleExceptionRequest {
+  string class_name = 1;
+  string module = 2;
+  string message = 3;
+  // top_frames: top 10 stack frames (per fr-sidecars-host.md — no full traces).
+  repeated string top_frames = 4;
+}
+
+message HandleResult {
+  string matched_policy_id = 1;
+  HandleAction action = 2;
+  int32 backoff_seconds = 3;
+  string explanation = 4;
+  string autoissue_severity = 5;
+}
+
+message ErrorStats {
+  int64 total_handled = 1;
+  int64 total_swallowed = 2;
+  int64 total_retried = 3;
+  int64 total_alerted = 4;
+  int64 total_autoissue_filed = 5;
+}

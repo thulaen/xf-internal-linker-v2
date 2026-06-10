@@ -1,0 +1,65 @@
+// Slice 1.6 — searchd contract.
+//
+// searchd is the Lucene-equivalent full-text index for the repo, built on
+// Bleve (a pure-Go search engine with the same inverted-index + BM25 ranking
+// as Apache Lucene, but no JVM). It indexes AutoIssues, PaperTrail entries,
+// and snapshot evidence so session-start lesson lookups and issue searches
+// return RANKED results instead of SQL substring matches.
+//
+// All sidecar services share the proto package xf.sidecars.v1, so every
+// message name here is prefixed `Searchd` to avoid clashing with another
+// service's message (e.g. snapshotd already declares SearchRequest).
+//
+// Index is persisted under /var/lib/xf/sidecars/searchd/.
+
+syntax = "proto3";
+
+package xf.sidecars.v1;
+
+import "shared.proto";
+
+option go_package = "xf-internal-linker-v2/services/sidecars/api/gen;sidecarsv1";
+
+service Searchd {
+  rpc Index(SearchdIndexRequest) returns (Ack);
+  rpc Search(SearchdQueryRequest) returns (SearchdResults);
+  rpc Delete(SearchdDeleteRequest) returns (Ack);
+  rpc Health(Empty) returns (HealthReply);
+}
+
+message SearchdDocument {
+  string id = 1;      // unique, e.g. "autoissue:42" / "paper_trail:7"
+  string kind = 2;    // "autoissue" | "paper_trail" | "snapshot"
+  string title = 3;
+  string body = 4;    // full text: lessons, abstract, description
+  string area = 5;    // repo-relative path / module for scoped-lesson queries
+  repeated string tags = 6;
+}
+
+message SearchdIndexRequest {
+  repeated SearchdDocument documents = 1;
+}
+
+message SearchdQueryRequest {
+  string query = 1;
+  string kind = 2;    // optional exact-match filter; empty = all kinds
+  string area = 3;    // optional prefix filter; empty = all areas
+  int32 limit = 4;    // 0 → server default (10)
+}
+
+message SearchdHit {
+  string id = 1;
+  string kind = 2;
+  string title = 3;
+  double score = 4;   // BM25 relevance score
+  string fragment = 5; // highlighted matching fragment from the body
+}
+
+message SearchdResults {
+  repeated SearchdHit hits = 1;
+  int64 total = 2;
+}
+
+message SearchdDeleteRequest {
+  repeated string ids = 1;
+}

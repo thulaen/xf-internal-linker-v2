@@ -6,13 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 import re
 
-try:
-    from extensions import phrasematch
-
-    HAS_CPP_EXT = True
-except ImportError:
-    HAS_CPP_EXT = False
-
+from .rust_kernels import load_kernel
 from .text_tokens import STANDARD_ENGLISH_STOPWORDS, TOKEN_RE
 from .pattern_matcher import AhoCorasickMatcher
 
@@ -255,7 +249,7 @@ def _evaluate_phrase_match(
         else None
     )
 
-    _TOKEN_SEP = "\u0000"
+    _TOKEN_SEP = "\u0000"  # nosec B105
 
     for phrase in destination_phrases:
         pattern = _TOKEN_SEP.join(phrase.tokens)
@@ -697,22 +691,17 @@ def _count_context_hits(
 
 
 def _longest_contiguous_overlap(left: tuple[str, ...], right: tuple[str, ...]) -> int:
-    if HAS_CPP_EXT:
-        return int(phrasematch.longest_contiguous_overlap(list(left), list(right)))
+    """Length of the longest contiguous token run shared by ``left`` and ``right``.
 
-    best = 0
-    for left_start in range(len(left)):
-        for right_start in range(len(right)):
-            match_len = 0
-            while (
-                left_start + match_len < len(left)
-                and right_start + match_len < len(right)
-                and left[left_start + match_len] == right[right_start + match_len]
-            ):
-                match_len += 1
-            if match_len > best:
-                best = match_len
-    return best
+    Delegates to the Rust kernel
+    ``extensions.phrasematch.longest_contiguous_overlap``. There is no Python
+    fallback (RUST-FIRST.md zero-fallback): a missing or incomplete kernel raises
+    ``KernelUnavailableError`` loudly via :func:`load_kernel` rather than silently
+    dropping to a slower brute-force implementation. Returns ``0`` when either
+    list is empty or there is no shared run.
+    """
+    phrasematch = load_kernel("extensions.phrasematch", "longest_contiguous_overlap")
+    return int(phrasematch.longest_contiguous_overlap(list(left), list(right)))
 
 
 def _build_match_candidate(

@@ -62,9 +62,21 @@
         </div>
         <mat-progress-bar mode="determinate" [value]="artifactPercent()"></mat-progress-bar>
       </div>
-      <div class="chart-panel">
-        <span class="metric-label">Severity spread</span>
-        <svg #chart class="findbugs-chart" role="img" aria-label="FindBugs severity chart"></svg>
+      <div class="chart-panel" id="find-bugs-severity-card">
+        <span class="metric-label">
+          Severity spread
+          <mat-icon class="chart-help-icon"
+                    [peHelper]="'How many findings fall into each severity level.'">help_outline</mat-icon>
+        </span>
+        @if (severityChart(); as chart) {
+          <div class="findbugs-chart" [echarts]="chart"
+               role="img" aria-label="FindBugs severity chart"></div>
+        } @else {
+          <div class="findbugs-chart-empty">
+            <mat-icon class="empty-icon">bar_chart</mat-icon>
+            <p>No findings to chart yet. Run a scan or import the latest results.</p>
+          </div>
+        }
       </div>
     </div>
   </mat-card>

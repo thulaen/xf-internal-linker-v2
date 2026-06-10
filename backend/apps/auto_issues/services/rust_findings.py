@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
-import importlib
 import json
 from pathlib import Path
 import sys
@@ -14,6 +13,10 @@ from django.utils import timezone
 
 from apps.auto_issues.models import AutoIssue
 from apps.auto_issues.services.dedup import upsert_dedup
+from apps.pipeline.services.rust_kernels import (
+    KernelUnavailableError,
+    load_kernel,
+)
 
 
 REQUIRED_BUG_FIELDS = frozenset({
@@ -251,12 +254,12 @@ def _load_native_dedup_module():
     if backend_path not in sys.path:
         sys.path.insert(0, backend_path)
     try:
-        return importlib.import_module("extensions.papertrail_dedup")
-    except ImportError as exc:
+        return load_kernel("extensions.papertrail_dedup", "DedupIndex")
+    except KernelUnavailableError as exc:
         raise CommandError(
-            "Rust finding import requires the compiled C++ papertrail_dedup "
-            "extension. Rebuild it with `cd /app/extensions && python setup.py "
-            "build_ext --inplace` inside the backend container."
+            "Rust finding import requires the compiled papertrail_dedup Rust "
+            "kernel. Rebuild it via scripts/ensure_compiled_artifacts.py in the "
+            "Docker-managed compiled-tools image, then restart the backend."
         ) from exc
 
 

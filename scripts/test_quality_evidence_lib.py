@@ -58,7 +58,7 @@ def test_tool_readiness_skips_frontend_mutation_when_no_frontend_files_changed()
     assert "changed_frontend_paths()" in text
     assert "frontend_changed_paths=\"$(changed_frontend_paths)\"" in text
     assert "No changed frontend files; frontend mutation readiness skipped." in text
-    assert text.count("ensure_image frontend-mutation-tools") == 1
-    assert text.index("ensure_image frontend-mutation-tools") > text.index(
+    assert text.count("docker --context dell inspect xf_linker_frontend_mutation_tools") >= 2
+    assert text.index("docker --context dell inspect xf_linker_frontend_mutation_tools") > text.index(
         'if [[ -n "$frontend_changed_paths" ]]'
     )

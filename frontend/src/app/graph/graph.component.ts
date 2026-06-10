@@ -21,8 +21,10 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatSliderModule } from '@angular/material/slider';
 import { catchError, debounceTime, distinctUntilChanged, of, Subject, switchMap, timer } from 'rxjs';
-import { BaseChartDirective } from 'ng2-charts';
-import { ChartData, ChartOptions } from 'chart.js';
+import type { EChartsOption } from 'echarts';
+import { EchartsDirective } from '../shared/charts/echarts.directive';
+import { PeHelperDirective } from '../shared/directives/pe-helper.directive';
+import { gscChartBase, token, withAlpha } from '../shared/charts/echarts-theme';
 
 import {
   GraphService,
@@ -99,7 +101,8 @@ const EMPTY_NODE_LINKS = { inbound: [] as GraphLink[], outbound: [] as GraphLink
     MatDialogModule,
     MatSliderModule,
     LinkGraphVizComponent,
-    BaseChartDirective,
+    EchartsDirective,
+    PeHelperDirective,
     // Phase NV / Gap 145 — restores last-viewed tab on return visits.
     PersistTabDirective,
   ],
@@ -165,17 +168,11 @@ export class GraphComponent implements OnInit {
   readonly today = new Date().toISOString().slice(0, 10);
 
   // ── Tab 9: Freshness ─────────────────────────────────────────────
-  readonly velocityChartData = signal<ChartData<'line'> | null>(null);
-  readonly velocityChartOptions: ChartOptions<'line'> = {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: { mode: 'index', intersect: false },
-    plugins: { legend: { position: 'top' } },
-    scales: {
-      x: { ticks: { maxTicksLimit: 15, font: { size: 11 } } },
-      y: { stacked: false, beginAtZero: true, ticks: { precision: 0 } },
-    },
-  };
+  // `null` = not loaded yet (spinner); a value = ready to draw. The
+  // separate `velocityHasHistory` signal drives the "no history yet"
+  // empty state so a real-but-empty result never shows a blank chart.
+  readonly velocityChartData = signal<EChartsOption | null>(null);
+  readonly velocityHasHistory = signal(false);
   readonly churnTable = signal<ChurnNode[]>([]);
   readonly loadingFreshness = signal(false);
   readonly churnColumns: readonly string[] = ['title', 'churn_count'];
@@ -195,8 +192,8 @@ export class GraphComponent implements OnInit {
   // ── Tab 6: Qualities ─────────────────────────────────────────────
   readonly contextFilter = signal<'all' | 'contextual'>('all');
   readonly highlightEdge = signal<{ source: number; target: number } | null>(null);
-  readonly contextPieData = signal<ChartData<'pie'> | null>(null);
-  readonly anchorBarData = signal<ChartData<'bar'> | null>(null);
+  readonly contextPieData = signal<EChartsOption | null>(null);
+  readonly anchorBarData = signal<EChartsOption | null>(null);
   readonly pageQualityRows = signal<PageQualityRow[]>([]);
   readonly isolatedLinks = signal<IsolatedLinkRow[]>([]);
   readonly anchorWarnings = signal<AnchorWarning[]>([]);
@@ -612,15 +609,7 @@ export class GraphComponent implements OnInit {
     const nContextual  = links.filter((l) => l.context === 'contextual').length;
     const nWeak        = links.filter((l) => l.context === 'weak_context').length;
     const nIsolated    = links.filter((l) => l.context === 'isolated').length;
-    this.contextPieData.set({
-      labels: ['Contextual', 'Weak Context', 'Isolated'],
-      datasets: [{
-        data: [nContextual, nWeak, nIsolated],
-        backgroundColor: ['#1a73e8', '#f9ab00', '#d93025'],
-        borderWidth: 1,
-        borderColor: '#fff',
-      }],
-    });
+    this.contextPieData.set(buildContextPie(nContextual, nWeak, nIsolated));
 
     // Anchor frequency bar chart (top 15)
     const anchorCount = new Map<string, number>();
@@ -633,14 +622,7 @@ export class GraphComponent implements OnInit {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 15);
 
-    this.anchorBarData.set({
-      labels: sortedAnchors.map(([text]) => text.length > 30 ? text.slice(0, 30) + '…' : text),
-      datasets: [{
-        label: 'Link count',
-        data: sortedAnchors.map(([, count]) => count),
-        backgroundColor: '#1a73e8',
-      }],
-    });
+    this.anchorBarData.set(buildAnchorBar(sortedAnchors));
 
     // Anchor warnings: any single anchor > 5% of all links
     this.anchorWarnings.set(
@@ -779,35 +761,119 @@ export class GraphComponent implements OnInit {
   private _buildVelocityChart(): void {
     const history: HistoryPoint[] = this.topology().history;
     if (history.length === 0) {
-      this.velocityChartData.set({ labels: [], datasets: [] });
+      this.velocityChartData.set(null);
+      this.velocityHasHistory.set(false);
       this.churnTable.set([]);
       return;
     }
 
-    this.velocityChartData.set({
-      labels: history.map((h) => h.date),
-      datasets: [
-        {
-          label: 'Links Created',
-          data: history.map((h) => h.created),
-          fill: true,
-          borderColor: '#1a73e8',
-          backgroundColor: 'rgba(26,115,232,0.12)',
-          pointRadius: 3,
-          tension: 0.3,
-        },
-        {
-          label: 'Links Disappeared',
-          data: history.map((h) => h.deleted),
-          fill: true,
-          borderColor: '#c5221f',
-          backgroundColor: 'rgba(197,34,31,0.12)',
-          pointRadius: 3,
-          tension: 0.3,
-        },
-      ],
-    });
-
+    this.velocityChartData.set(buildVelocityChart(history));
+    this.velocityHasHistory.set(true);
     this.churnTable.set(this.topology().churny_nodes);
   }
+}
+
+// ── ECharts builders (top-level pure functions — testable in isolation) ──────
+
+/** Context-distribution pie: contextual / weak / isolated link share. */
+function buildContextPie(contextual: number, weak: number, isolated: number): EChartsOption {
+  const base = gscChartBase();
+  return {
+    ...base,
+    tooltip: { ...(base['tooltip'] as object), trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+    legend: { ...(base['legend'] as object) },
+    series: [
+      {
+        type: 'pie',
+        radius: ['0%', '70%'],
+        center: ['50%', '46%'],
+        avoidLabelOverlap: true,
+        itemStyle: { borderColor: '#fff', borderWidth: 1 },
+        label: { color: token('--color-text-secondary'), fontSize: 12 },
+        data: [
+          { name: 'Contextual', value: contextual, itemStyle: { color: token('--color-primary') } },
+          { name: 'Weak Context', value: weak, itemStyle: { color: token('--color-warning-accent') } },
+          { name: 'Isolated', value: isolated, itemStyle: { color: token('--color-error') } },
+        ],
+      },
+    ],
+  };
+}
+
+/** Top-15 anchor-text frequency bar (long anchors truncated to 30 chars). */
+function buildAnchorBar(sortedAnchors: [string, number][]): EChartsOption {
+  const base = gscChartBase();
+  const muted = token('--color-text-muted');
+  return {
+    ...base,
+    tooltip: { ...(base['tooltip'] as object), trigger: 'axis' },
+    legend: { show: false },
+    grid: { left: 8, right: 16, top: 16, bottom: 64, containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: sortedAnchors.map(([text]) => (text.length > 30 ? text.slice(0, 30) + '…' : text)),
+      axisLabel: { color: muted, fontSize: 11, rotate: 35, interval: 0 },
+      axisLine: { lineStyle: { color: token('--color-border') } },
+    },
+    yAxis: {
+      type: 'value',
+      minInterval: 1,
+      axisLabel: { color: muted, fontSize: 11 },
+      splitLine: { lineStyle: { color: withAlpha(muted, 0.1) } },
+    },
+    series: [
+      {
+        name: 'Link count',
+        type: 'bar',
+        data: sortedAnchors.map(([, count]) => count),
+        itemStyle: { color: token('--color-primary'), borderRadius: [4, 4, 0, 0] },
+        barMaxWidth: 36,
+      },
+    ],
+  };
+}
+
+/** Daily links-created vs links-disappeared area lines (last 30 days). */
+function buildVelocityChart(history: HistoryPoint[]): EChartsOption {
+  const base = gscChartBase();
+  const muted = token('--color-text-muted');
+  const created = token('--color-primary');
+  const deleted = token('--color-error');
+  return {
+    ...base,
+    color: [created, deleted],
+    tooltip: { ...(base['tooltip'] as object), trigger: 'axis' },
+    legend: { ...(base['legend'] as object), data: ['Links Created', 'Links Disappeared'] },
+    xAxis: {
+      type: 'category',
+      data: history.map((h) => h.date),
+      axisLabel: { color: muted, fontSize: 11 },
+      axisLine: { lineStyle: { color: token('--color-border') } },
+    },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      minInterval: 1,
+      axisLabel: { color: muted, fontSize: 11 },
+      splitLine: { lineStyle: { color: withAlpha(muted, 0.1) } },
+    },
+    series: [
+      {
+        name: 'Links Created',
+        type: 'line',
+        smooth: true,
+        symbolSize: 6,
+        areaStyle: { color: withAlpha(created, 0.12) },
+        data: history.map((h) => h.created),
+      },
+      {
+        name: 'Links Disappeared',
+        type: 'line',
+        smooth: true,
+        symbolSize: 6,
+        areaStyle: { color: withAlpha(deleted, 0.12) },
+        data: history.map((h) => h.deleted),
+      },
+    ],
+  };
 }

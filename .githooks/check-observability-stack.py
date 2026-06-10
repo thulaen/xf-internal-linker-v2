@@ -231,9 +231,7 @@ def main() -> int:
         + "\n".join(failures)
         + "\nUNBLOCK: for local services, bring them back up with "
         "`docker compose up -d <service>` (or restart Docker Desktop "
-        "if the whole engine is down).  For Dell-hosted Sonar services, "
-        "start them with `scripts/start-dell-sonar-tools.ps1` and verify "
-        "with `scripts/check-dell-sonar-tools.ps1`.  For Mint-hosted "
+        "if the whole engine is down).  For Mint-hosted "
         "profiling services, use `scripts/start-mint-quality-tools.ps1` "
         "and `scripts/check-mint-quality-tools.ps1`.  Re-run the commit once "
         "every service is reachable.\n"

@@ -351,7 +351,10 @@ def run_lint(
         tool_files = (bandit_files if tool == "bandit" and bandit_files is not None else files) or []
         rc, out = run_tool_sharded(tool, tool_files)
         if out:
-            sys.stdout.write(out)
+            try:
+                sys.stdout.write(out)
+            except UnicodeEncodeError:
+                sys.stdout.buffer.write(out.encode('utf-8'))
         worst = max(worst, rc)
         sys.stdout.write(f"[LINT RESULT: {tool} rc={rc}]\n")
         if evidence_out is not None:

@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Push the current working-tree source snapshot to the Dell mutation runner.
 #
 # Scoped mutation must run against the EXACT staged source. This tars the

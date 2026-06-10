@@ -71,7 +71,6 @@ class AutoIssue(models.Model):
     SOURCE_TEMPO = "tempo"
     SOURCE_LOKI = "loki"
     SOURCE_FARO = "faro"
-    SOURCE_SONARQUBE = "sonarqube"
     SOURCE_VMALERT = "vmalert"
     SOURCE_RUST_DEFECT = "rust_defect"
     SOURCE_PPROF = "pprof"
@@ -93,13 +92,13 @@ class AutoIssue(models.Model):
     # Phase B of the test-hardening plan (added 2026-06-01):
     SOURCE_COMPILER = "compiler"     # clang/gcc/go vet/golangci-lint/clippy/GHC/hlint warnings
     SOURCE_MEGALINTER = "megalinter"  # MegaLinter multi-linter suite findings
+    SOURCE_PRE_COMMIT_WARNING = "precommit_warn"
     SOURCE_CHOICES = [
         (SOURCE_GLITCHTIP, "GlitchTip"),
         (SOURCE_PYROSCOPE, "Pyroscope"),
         (SOURCE_TEMPO, "Tempo"),
         (SOURCE_LOKI, "Loki"),
         (SOURCE_FARO, "Faro"),
-        (SOURCE_SONARQUBE, "SonarQube"),
         (SOURCE_VMALERT, "vmalert"),
         (SOURCE_RUST_DEFECT, "Rust defect"),
         (SOURCE_PPROF, "pprof"),
@@ -119,6 +118,7 @@ class AutoIssue(models.Model):
         (SOURCE_GH_CI, "GH Actions CI failure"),
         (SOURCE_COMPILER, "Compiler/linter warning"),
         (SOURCE_MEGALINTER, "MegaLinter"),
+        (SOURCE_PRE_COMMIT_WARNING, "Pre-commit soft gate warning"),
     ]
 
     STATUS_OPEN = "open"

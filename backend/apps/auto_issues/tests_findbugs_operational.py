@@ -219,14 +219,14 @@ class FindBugsOperationalTests(TestCase):
         self.assertEqual(sync.status_code, 200)
         self.assertEqual(sync.json()["status"], "ok")
 
-    def test_generated_report_compares_findbugs_with_glitchtip_and_sonarqube(self):
+    def test_generated_report_compares_findbugs_with_glitchtip_and_tempo(self):
         from apps.auto_issues.services.findbugs import generate_findbugs_report
 
         _issue("RUSTBUG-SEC-002", "critical", canonical="shared-glitchtip")
-        _issue("RUSTBUG-PERF-001", "high", canonical="shared-sonarqube")
+        _issue("RUSTBUG-PERF-001", "high", canonical="shared-tempo")
         _issue("RUSTBUG-RES-001", "medium", canonical="rust-only")
         _external_issue(AutoIssue.SOURCE_GLITCHTIP, canonical="shared-glitchtip")
-        _external_issue(AutoIssue.SOURCE_SONARQUBE, canonical="shared-sonarqube")
+        _external_issue(AutoIssue.SOURCE_TEMPO, canonical="shared-tempo")
 
         report = generate_findbugs_report()
 
@@ -235,7 +235,7 @@ class FindBugsOperationalTests(TestCase):
             {
                 "findbugs_total": 3,
                 "glitchtip_overlap": 1,
-                "sonarqube_overlap": 1,
+                "tempo_overlap": 1,
                 "findbugs_unique": 1,
                 "unique_fingerprints": ["rust-only"],
             },

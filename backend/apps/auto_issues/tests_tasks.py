@@ -199,41 +199,6 @@ class NetworkPickerGuardCoverageTests(SimpleTestCase):
         )
 
 
-class SonarqubeIngestGuardTests(SimpleTestCase):
-    """ingest_sonarqube_findings closes the connection then short-circuits.
-
-    With no SONAR_TOKEN the task returns the skip dict right after the guard,
-    so no SonarQube HTTP fetch runs. The empty-environment patch pins the exact
-    skip contract and kills any mutant that flips the token check.
-    """
-
-    def test_close_called_and_skips_without_token(self) -> None:
-        from apps.auto_issues import tasks
-
-        conn = MagicMock()
-        conn.in_atomic_block = False
-        with patch.object(tasks, "connection", conn), patch.dict(
-            tasks.os.environ, {}, clear=True
-        ):
-            result = tasks.ingest_sonarqube_findings()
-        conn.close.assert_called_once()
-        self.assertEqual(
-            result,
-            {"status": "skipped", "reason": "SONAR_TOKEN is not configured"},
-        )
-
-    def test_close_skipped_inside_atomic_block(self) -> None:
-        from apps.auto_issues import tasks
-
-        conn = MagicMock()
-        conn.in_atomic_block = True
-        with patch.object(tasks, "connection", conn), patch.dict(
-            tasks.os.environ, {}, clear=True
-        ):
-            tasks.ingest_sonarqube_findings()
-        conn.close.assert_not_called()
-
-
 class CloseStaleIssuesThresholdTests(SimpleTestCase):
     """close_stale_issues closes the connection then queries through the ORM.
 

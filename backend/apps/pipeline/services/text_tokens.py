@@ -1,16 +1,25 @@
-"""Shared tokenization helpers used by pipeline scoring services."""
+"""Shared tokenization helpers used by pipeline scoring services.
+
+The hot tokenization path is owned by the Rust kernel ``extensions.texttok``
+(ported from C++ per RUST-FIRST.md). It is loaded through the shared
+:func:`apps.pipeline.services.rust_kernels.load_kernel` helper at the point of
+use, which raises a loud ``KernelUnavailableError`` when the kernel is missing —
+there is no silent Python fallback for the native path.
+
+The pure-Python functions below (:func:`_tokenize_text_py`,
+:func:`tokenize_text_batch`) are kept as the **byte-parity reference oracle**:
+they define the exact tokenization the Rust kernel must match (the regex
+``TOKEN_RE`` + stopword removal), and the parity test in
+``apps/pipeline/tests.py`` asserts the Rust kernel equals this reference for
+every input. They are the source of truth for the exact behaviour, not a
+runtime fallback for the hot path.
+"""
 
 from __future__ import annotations
 
 import re
 
-try:
-    from extensions import texttok
-
-    HAS_CPP_EXT = True
-except ImportError:
-    HAS_CPP_EXT = False
-
+from .rust_kernels import load_kernel
 
 TOKEN_RE = re.compile(r"[A-Za-z0-9]+(?:'[A-Za-z0-9]+)?")
 STANDARD_ENGLISH_STOPWORDS = frozenset(
@@ -212,10 +221,17 @@ def tokenize_text_batch(
 
 
 def tokenize_text(text: str) -> frozenset[str]:
-    """Tokenize text for set-style overlap scoring."""
-    if HAS_CPP_EXT:
-        return texttok.tokenize_text_batch([text or ""], STANDARD_ENGLISH_STOPWORDS)[0]
-    return tokenize_text_batch([text], STANDARD_ENGLISH_STOPWORDS)[0]
+    """Tokenize text for set-style overlap scoring.
+
+    Delegates to the Rust kernel ``extensions.texttok.tokenize_text_batch``.
+    There is no Python fallback (RUST-FIRST.md zero-fallback): a missing or
+    incomplete kernel raises ``KernelUnavailableError`` loudly via
+    :func:`load_kernel` rather than silently dropping to the slower reference
+    implementation. The native kernel returns a ``frozenset`` per text and
+    preserves input order, so indexing ``[0]`` is safe.
+    """
+    texttok = load_kernel("extensions.texttok", "tokenize_text_batch")
+    return texttok.tokenize_text_batch([text or ""], STANDARD_ENGLISH_STOPWORDS)[0]
 
 
 def tokenize_text_stemmed(text: str) -> frozenset[str]:

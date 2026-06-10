@@ -27,7 +27,7 @@ crate-type = ["cdylib", "rlib"]
 # to match the workspace scaffold (`xf_kernels`). No `numpy` here: this kernel
 # takes two `str` and returns `int`/`float`, not arrays, so it needs only base
 # PyO3.
-pyo3 = { version = "0.26", features = ["abi3-py310", "extension-module"] }
+pyo3 = { version = "0.26", features = ["abi3-py310"] }
 
 [dev-dependencies]
 # Criterion drives the mandatory hot-path benchmark (3 input sizes) over the
@@ -41,3 +41,6 @@ harness = false
 
 [lints]
 workspace = true
+
+[features]
+extension-module = ["pyo3/extension-module"]

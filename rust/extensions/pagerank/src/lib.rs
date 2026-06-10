@@ -72,7 +72,7 @@ pub fn pagerank_step_core(
         let mut link_mass = 0.0_f64;
         for idx in indptr[row]..indptr[row + 1] {
             let col = indices[idx as usize] as usize;
-            link_mass += data[idx as usize] * ranks[col];
+            link_mass = data[idx as usize].mul_add(ranks[col], link_mass);
         }
         next[row] = (1.0 - damping) * link_mass;
         if dangling[row] {
@@ -80,7 +80,7 @@ pub fn pagerank_step_core(
         }
     }
 
-    let base_mass = ((1.0 - damping) * dangling_mass + damping) / node_count as f64;
+    let base_mass = (1.0 - damping).mul_add(dangling_mass, damping) / node_count as f64;
     let mut total_mass = 0.0_f64;
     for value in &mut next {
         *value += base_mass;
@@ -126,7 +126,7 @@ pub fn personalized_pagerank_step_core(
         let mut link_mass = 0.0_f64;
         for idx in indptr[row]..indptr[row + 1] {
             let col = indices[idx as usize] as usize;
-            link_mass += data[idx as usize] * ranks[col];
+            link_mass = data[idx as usize].mul_add(ranks[col], link_mass);
         }
         next[row] = (1.0 - damping) * link_mass;
         if dangling[row] {
@@ -134,7 +134,7 @@ pub fn personalized_pagerank_step_core(
         }
     }
 
-    let teleport_mass = ((1.0 - damping) * dangling_mass) + damping;
+    let teleport_mass = (1.0 - damping).mul_add(dangling_mass, damping);
     let mut total_mass = 0.0_f64;
     for (value, &p) in next.iter_mut().zip(personalization.iter()) {
         *value += teleport_mass * p;
@@ -175,8 +175,8 @@ pub fn hits_step_core(
         for idx in indptr[v]..indptr[v + 1] {
             let u = indices[idx as usize] as usize;
             let w = data[idx as usize];
-            next_authority[v] += w * hub[u];
-            next_hub[u] += w * authority[v];
+            next_authority[v] = w.mul_add(hub[u], next_authority[v]);
+            next_hub[u] = w.mul_add(authority[v], next_hub[u]);
         }
     }
     (next_authority, next_hub)

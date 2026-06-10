@@ -67,7 +67,7 @@ fn rotate_vector(v_in: &[f32], rotation: &[f32], dim: usize) -> Vec<f32> {
     for (j, slot) in v_rot.iter_mut().enumerate() {
         let mut sum: f32 = 0.0;
         for i in 0..dim {
-            sum += v_in[i] * rotation[(i * dim) + j];
+            sum = v_in[i].mul_add(rotation[(i * dim) + j], sum);
         }
         *slot = sum;
     }
@@ -81,7 +81,7 @@ fn subvector_distance(sub_vector: &[f32], centroid: &[f32]) -> f32 {
     let mut dist: f32 = 0.0;
     for d in 0..sub_vector.len() {
         let diff = sub_vector[d] - centroid[d];
-        dist += diff * diff;
+        dist = diff.mul_add(diff, dist);
     }
     dist
 }

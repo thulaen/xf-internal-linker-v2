@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Strips [extensions] worktreeConfig = true from .git/config.
 # Gemini CLI / Gemini Antigravity stop responding when this block is present.
 # Claude Code's Agent(isolation: "worktree") re-adds it on every worktree op.

@@ -10,8 +10,10 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
-import { BaseChartDirective } from 'ng2-charts';
-import { ChartConfiguration, ChartData } from 'chart.js';
+import type { EChartsOption } from 'echarts';
+import { EchartsDirective } from '../shared/charts/echarts.directive';
+import { PeHelperDirective } from '../shared/directives/pe-helper.directive';
+import { gscChartBase, gscPalette, token, withAlpha } from '../shared/charts/echarts-theme';
 import {
   AnalyticsBreakdownsResponse,
   AnalyticsFunnelResponse,
@@ -71,7 +73,8 @@ import { WatchedPagesComponent } from './watched-pages/watched-pages.component';
     MatButtonToggleModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
-    BaseChartDirective,
+    EchartsDirective,
+    PeHelperDirective,
     RouterLink,
     EngagementMixComponent,
     ImpactDiaryComponent,
@@ -117,54 +120,7 @@ export class AnalyticsComponent implements OnInit {
   engagementWindowDays: 7 | 14 | 30 = 30;
   topSuggestionsOrder: 'clicks' | 'quick_exit' = 'clicks';
 
-  scatterChartData: ChartData<'scatter'> | null = null;
-  scatterChartOptions: ChartConfiguration<'scatter'>['options'] = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'bottom',
-        labels: { boxWidth: 10, usePointStyle: true, padding: 16, color: '#5f6368', font: { size: 12 } }
-      },
-      tooltip: {
-        backgroundColor: 'rgba(32, 33, 36, 0.9)',
-        titleColor: '#ffffff',
-        bodyColor: '#e8eaed',
-        padding: 12,
-        cornerRadius: 4,
-        callbacks: {
-          label: (ctx) => {
-            const raw = ctx.raw as { x: number; y: number; label?: string };
-            const baselineClicks = $localize`:@@analytics.impact.scatter.tooltip.baseline:baseline clicks`;
-            const liftLabel = $localize`:@@analytics.impact.scatter.tooltip.lift:lift`;
-            return ` ${raw.label ?? ctx.dataset.label}: ${raw.x} ${baselineClicks}, ${raw.y > 0 ? '+' : ''}${raw.y}% ${liftLabel}`;
-          }
-        }
-      }
-    },
-    scales: {
-      x: {
-        title: { 
-          display: true, 
-          text: $localize`:@@analytics.impact.scatter.axis.x:Baseline Traffic (Clicks)`, 
-          color: '#5f6368', 
-          font: { size: 11 } 
-        },
-        ticks: { color: '#5f6368', font: { size: 11 } },
-        grid: { color: 'rgba(95, 99, 104, 0.1)' }
-      },
-      y: {
-        title: { 
-          display: true, 
-          text: $localize`:@@analytics.impact.scatter.axis.y:Lift (%)`, 
-          color: '#5f6368', 
-          font: { size: 11 } 
-        },
-        ticks: { color: '#5f6368', font: { size: 11 } },
-        grid: { color: 'rgba(95, 99, 104, 0.1)' }
-      }
-    }
-  };
+  scatterChartData: EChartsOption | null = null;
 
   cohortBySource: Array<{ label: string; positive: number; neutral: number; negative: number; inconclusive: number; total: number }> = [];
   cohortByAnchorFamily: Array<{ label: string; positive: number; neutral: number; negative: number; inconclusive: number; total: number }> = [];
@@ -174,153 +130,15 @@ export class AnalyticsComponent implements OnInit {
   syncingMatomo = false;
   selectedSource: 'all' | 'ga4' | 'matomo' = 'all';
 
-  // Chart Data
-  funnelChartData: ChartData<'bar'> | null = null;
-  funnelChartOptions: ChartConfiguration<'bar'>['options'] = {
-    indexAxis: 'y',
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        backgroundColor: 'rgba(32, 33, 36, 0.9)',
-        titleColor: '#ffffff',
-        bodyColor: '#e8eaed',
-        padding: 12,
-        cornerRadius: 4,
-        titleFont: { size: 13, weight: 'bold' },
-        bodyFont: { size: 12 },
-      }
-    },
-    scales: {
-      x: { display: false, grid: { display: false } },
-      y: {
-        grid: { display: false },
-        ticks: { color: '#5f6368', font: { size: 12 } }
-      }
-    }
-  };
-
-  trendChartData: ChartData<'line'> | null = null;
-  trendChartOptions: ChartConfiguration<'line'>['options'] = {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: { mode: 'index', intersect: false },
-    plugins: {
-      legend: {
-        position: 'bottom',
-        labels: {
-          boxWidth: 10,
-          usePointStyle: true,
-          padding: 20,
-          color: '#5f6368',
-          font: { size: 12 }
-        }
-      },
-      tooltip: {
-        backgroundColor: 'rgba(32, 33, 36, 0.9)',
-        titleColor: '#ffffff',
-        bodyColor: '#e8eaed',
-        padding: 12,
-        cornerRadius: 4,
-        titleFont: { size: 13, weight: 'bold' },
-        bodyFont: { size: 12 },
-      }
-    },
-    scales: {
-      y: {
-        type: 'linear',
-        display: true,
-        position: 'left',
-        title: { 
-          display: true, 
-          text: $localize`:@@analytics.engagementTrend.axis.clicks:Clicks`, 
-          color: '#5f6368', 
-          font: { size: 11 } 
-        },
-        ticks: { color: '#5f6368', font: { size: 11 } },
-        grid: { color: 'rgba(95, 99, 104, 0.1)' }
-      },
-      y1: {
-        type: 'linear',
-        display: true,
-        position: 'right',
-        title: { 
-          display: true, 
-          text: $localize`:@@analytics.engagementTrend.axis.rate:Rate (%)`, 
-          color: '#5f6368', 
-          font: { size: 11 } 
-        },
-        ticks: { color: '#5f6368', font: { size: 11 } },
-        min: 0,
-        max: 100,
-        grid: { drawOnChartArea: false }
-      },
-      x: {
-        grid: { display: false },
-        ticks: { color: '#5f6368', font: { size: 11 } }
-      }
-    }
-  };
-
-  versionChartData: ChartData<'bar'> | null = null;
-  versionChartOptions: ChartConfiguration<'bar'>['options'] = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'bottom',
-        labels: { boxWidth: 10, usePointStyle: true, padding: 16, color: '#5f6368', font: { size: 12 } }
-      },
-      tooltip: {
-        backgroundColor: 'rgba(32, 33, 36, 0.9)',
-        titleColor: '#ffffff',
-        bodyColor: '#e8eaed',
-        padding: 12,
-        cornerRadius: 4,
-      }
-    },
-    scales: {
-      y: {
-        min: 0,
-        max: 100,
-        title: { 
-          display: true, 
-          text: $localize`:@@analytics.algorithm.axis.performance:Performance (%)`, 
-          color: '#5f6368', 
-          font: { size: 11 } 
-        },
-        ticks: { color: '#5f6368', font: { size: 11 } },
-        grid: { color: 'rgba(95, 99, 104, 0.1)' }
-      },
-      x: {
-        ticks: { color: '#5f6368', font: { size: 11 } },
-        grid: { display: false }
-      }
-    }
-  };
-
-  deviceChartData: ChartData<'doughnut'> | null = null;
-  channelChartData: ChartData<'doughnut'> | null = null;
-  geoChartData: ChartData<'bar'> | null = null;
-  doughnutOptions: ChartConfiguration<'doughnut'>['options'] = {
-    responsive: true,
-    maintainAspectRatio: false,
-    cutout: '68%',
-    plugins: {
-      legend: {
-        position: 'bottom',
-        labels: { boxWidth: 10, usePointStyle: true, padding: 16, color: '#5f6368', font: { size: 12 } }
-      },
-      tooltip: {
-        backgroundColor: 'rgba(32, 33, 36, 0.9)',
-        titleColor: '#ffffff',
-        bodyColor: '#e8eaed',
-        padding: 12,
-        cornerRadius: 4,
-      }
-    }
-  };
+  // Chart options (Apache ECharts). Each is `null` until its data builder
+  // runs after a successful fetch, so the template shows a truthful empty
+  // state instead of a blank chart.
+  funnelChartData: EChartsOption | null = null;
+  trendChartData: EChartsOption | null = null;
+  versionChartData: EChartsOption | null = null;
+  deviceChartData: EChartsOption | null = null;
+  channelChartData: EChartsOption | null = null;
+  geoChartData: EChartsOption | null = null;
 
   ngOnInit(): void {
     this.restoreToggleStateFromStorage();
@@ -388,38 +206,70 @@ export class AnalyticsComponent implements OnInit {
       return;
     }
 
+    // One ECharts scatter series per reward bucket so the legend lets the
+    // operator toggle each outcome. Colours come from design-system tokens
+    // (success / warning / error / muted), never hardcoded hex.
     const rewardColors: Record<string, string> = {
-      positive: 'rgba(52, 168, 83, 0.85)',
-      neutral: 'rgba(251, 188, 4, 0.85)',
-      negative: 'rgba(234, 67, 53, 0.85)',
-      inconclusive: 'rgba(128, 134, 139, 0.85)',
+      positive: token('--color-success'),
+      neutral: token('--color-warning-accent'),
+      negative: token('--color-error'),
+      inconclusive: token('--color-text-muted'),
     };
 
-    const groups: Record<string, Array<{ x: number; y: number; label: string }>> = {
-      positive: [],
-      neutral: [],
-      negative: [],
-      inconclusive: [],
+    const groups: Record<string, Array<[number, number, string]>> = {
+      positive: [], neutral: [], negative: [], inconclusive: [],
     };
-
     for (const impact of this.searchImpacts) {
-      groups[impact.reward_label].push({
-        x: impact.baseline_clicks,
-        y: parseFloat((impact.lift_clicks_pct * 100).toFixed(1)),
-        label: impact.anchor_phrase,
-      });
+      groups[impact.reward_label].push([
+        impact.baseline_clicks,
+        parseFloat((impact.lift_clicks_pct * 100).toFixed(1)),
+        impact.anchor_phrase,
+      ]);
     }
 
+    const base = gscChartBase();
+    const muted = token('--color-text-muted');
+    const baselineLabel = $localize`:@@analytics.impact.scatter.tooltip.baseline:baseline clicks`;
+    const liftLabel = $localize`:@@analytics.impact.scatter.tooltip.lift:lift`;
+    const series = Object.entries(groups)
+      .filter(([, pts]) => pts.length > 0)
+      .map(([label, data]) => ({
+        name: this.rewardLabel(label),
+        type: 'scatter' as const,
+        symbolSize: 14,
+        itemStyle: { color: withAlpha(rewardColors[label], 0.85) },
+        data,
+      }));
+
     this.scatterChartData = {
-      datasets: Object.entries(groups)
-        .filter(([, pts]) => pts.length > 0)
-        .map(([label, data]) => ({
-          label: this.rewardLabel(label),
-          data,
-          backgroundColor: rewardColors[label],
-          pointRadius: 8,
-          pointHoverRadius: 11,
-        }))
+      ...base,
+      tooltip: {
+        ...(base['tooltip'] as object),
+        trigger: 'item',
+        formatter: (params) => {
+          const p = params as unknown as { value: [number, number, string]; seriesName: string };
+          const [x, y, anchor] = p.value;
+          const sign = y > 0 ? '+' : '';
+          return `${anchor || p.seriesName}: ${x} ${baselineLabel}, ${sign}${y}% ${liftLabel}`;
+        },
+      },
+      legend: { ...(base['legend'] as object), data: series.map((s) => s.name) },
+      xAxis: {
+        type: 'value',
+        name: $localize`:@@analytics.impact.scatter.axis.x:Baseline Traffic (Clicks)`,
+        nameLocation: 'middle',
+        nameGap: 28,
+        nameTextStyle: { color: muted, fontSize: 11 },
+        axisLabel: { color: muted, fontSize: 11 },
+        splitLine: { lineStyle: { color: withAlpha(muted, 0.1) } },
+      },
+      yAxis: {
+        type: 'value',
+        name: $localize`:@@analytics.impact.scatter.axis.y:Lift (%)`,
+        axisLabel: { color: muted, fontSize: 11 },
+        splitLine: { lineStyle: { color: withAlpha(muted, 0.1) } },
+      },
+      series,
     };
   }
 
@@ -566,129 +416,214 @@ export class AnalyticsComponent implements OnInit {
 
   private prepareFunnelChart(): void {
     const totals = this.funnel?.totals;
-    if (!totals) return;
+    if (!totals) {
+      this.funnelChartData = null;
+      return;
+    }
 
+    const labels = [
+      $localize`:@@analytics.funnel.label.impressions:Impressions`,
+      $localize`:@@analytics.funnel.label.clicks:Clicks`,
+      $localize`:@@analytics.funnel.label.views:Views`,
+      $localize`:@@analytics.funnel.label.engaged:Engaged`,
+      $localize`:@@analytics.funnel.label.conversions:Conversions`,
+    ];
+    const values = [
+      totals.impressions, totals.clicks, totals.destination_views,
+      totals.engaged_sessions, totals.conversions,
+    ];
+    const primary = token('--color-primary');
+    const base = gscChartBase();
+    const muted = token('--color-text-muted');
+    // Horizontal bar: category on the y-axis (ECharts equivalent of
+    // chart.js `indexAxis:'y'`). Bars fade from solid to light along the
+    // funnel so the drop-off reads at a glance.
     this.funnelChartData = {
-      labels: [
-        $localize`:@@analytics.funnel.label.impressions:Impressions`, 
-        $localize`:@@analytics.funnel.label.clicks:Clicks`, 
-        $localize`:@@analytics.funnel.label.views:Views`, 
-        $localize`:@@analytics.funnel.label.engaged:Engaged`, 
-        $localize`:@@analytics.funnel.label.conversions:Conversions`
+      ...base,
+      tooltip: { ...(base['tooltip'] as object), trigger: 'axis', axisPointer: { type: 'shadow' } },
+      legend: { show: false },
+      grid: { left: 8, right: 16, top: 8, bottom: 8, containLabel: true },
+      xAxis: { type: 'value', show: false, splitLine: { show: false } },
+      yAxis: {
+        type: 'category',
+        inverse: true,
+        data: labels,
+        axisLabel: { color: muted, fontSize: 12 },
+        axisLine: { show: false },
+        axisTick: { show: false },
+      },
+      series: [
+        {
+          type: 'bar',
+          barWidth: 32,
+          data: values.map((v, i) => ({
+            value: v,
+            itemStyle: { color: withAlpha(primary, 0.85 - i * 0.15), borderRadius: 4 },
+          })),
+        },
       ],
-      datasets: [{
-        data: [
-          totals.impressions,
-          totals.clicks,
-          totals.destination_views,
-          totals.engaged_sessions,
-          totals.conversions
-        ],
-        backgroundColor: [
-          'rgba(26, 115, 232, 0.85)',
-          'rgba(26, 115, 232, 0.7)',
-          'rgba(26, 115, 232, 0.55)',
-          'rgba(26, 115, 232, 0.4)',
-          'rgba(26, 115, 232, 0.25)',
-        ],
-        borderColor: '#1a73e8',
-        borderWidth: 1,
-        borderRadius: 4,
-        barThickness: 32
-      }]
     };
   }
 
   private prepareTrendChart(): void {
-    if (!this.trend?.items.length) return;
+    if (!this.trend?.items.length) {
+      this.trendChartData = null;
+      return;
+    }
 
-    const labels = this.trend.items.map(i => i.date.slice(5));
+    const items = this.trend.items;
+    const labels = items.map((i) => i.date.slice(5));
+    const clicksName = $localize`:@@analytics.engagementTrend.dataset.clicks:Clicks`;
+    const ctrName = $localize`:@@analytics.engagementTrend.dataset.ctr:CTR (%)`;
+    const engName = $localize`:@@analytics.engagementTrend.dataset.engagement:Engagement (%)`;
+    const base = gscChartBase();
+    const muted = token('--color-text-muted');
+    const clicksColor = token('--color-primary');
+    const ctrColor = token('--color-success');
+    const engColor = token('--color-warning-accent');
+    // Dual y-axis: clicks (left) and percentage rates 0–100 (right).
     this.trendChartData = {
-      labels: labels,
-      datasets: [
+      ...base,
+      color: [clicksColor, ctrColor, engColor],
+      tooltip: { ...(base['tooltip'] as object), trigger: 'axis' },
+      legend: { ...(base['legend'] as object), data: [clicksName, ctrName, engName] },
+      xAxis: {
+        type: 'category',
+        data: labels,
+        boundaryGap: false,
+        axisLabel: { color: muted, fontSize: 11 },
+        axisLine: { lineStyle: { color: token('--color-border') } },
+      },
+      yAxis: [
         {
-          label: $localize`:@@analytics.engagementTrend.dataset.clicks:Clicks`,
-          data: this.trend.items.map(i => i.clicks),
-          borderColor: '#1a73e8',
-          backgroundColor: 'rgba(26, 115, 232, 0.1)',
-          fill: true,
-          tension: 0.4,
-          yAxisID: 'y'
+          type: 'value',
+          name: $localize`:@@analytics.engagementTrend.axis.clicks:Clicks`,
+          min: 0,
+          axisLabel: { color: muted, fontSize: 11 },
+          splitLine: { lineStyle: { color: withAlpha(muted, 0.1) } },
         },
         {
-          label: $localize`:@@analytics.engagementTrend.dataset.ctr:CTR (%)`,
-          data: this.trend.items.map(i => i.ctr * 100),
-          borderColor: '#34a853',
-          backgroundColor: 'transparent',
-          borderDash: [5, 5],
-          tension: 0.4,
-          yAxisID: 'y1'
+          type: 'value',
+          name: $localize`:@@analytics.engagementTrend.axis.rate:Rate (%)`,
+          min: 0,
+          max: 100,
+          position: 'right',
+          axisLabel: { color: muted, fontSize: 11 },
+          splitLine: { show: false },
+        },
+      ],
+      series: [
+        {
+          name: clicksName, type: 'line', smooth: true, yAxisIndex: 0,
+          areaStyle: { color: withAlpha(clicksColor, 0.1) },
+          data: items.map((i) => i.clicks),
         },
         {
-          label: $localize`:@@analytics.engagementTrend.dataset.engagement:Engagement (%)`,
-          data: this.trend.items.map(i => i.engagement_rate * 100),
-          borderColor: '#fbbc04',
-          backgroundColor: 'transparent',
-          tension: 0.4,
-          yAxisID: 'y1'
-        }
-      ]
+          name: ctrName, type: 'line', smooth: true, yAxisIndex: 1,
+          lineStyle: { type: 'dashed' }, showSymbol: false,
+          data: items.map((i) => parseFloat((i.ctr * 100).toFixed(2))),
+        },
+        {
+          name: engName, type: 'line', smooth: true, yAxisIndex: 1, showSymbol: false,
+          data: items.map((i) => parseFloat((i.engagement_rate * 100).toFixed(2))),
+        },
+      ],
     };
   }
 
   private prepareVersionChart(): void {
-    if (!this.versionComparison?.items.length) return;
+    if (!this.versionComparison?.items.length) {
+      this.versionChartData = null;
+      return;
+    }
 
+    const items = this.versionComparison.items;
+    const ctrName = $localize`:@@analytics.algorithm.dataset.ctr:CTR (%)`;
+    const engName = $localize`:@@analytics.algorithm.dataset.engagement:Engagement (%)`;
+    const base = gscChartBase();
+    const muted = token('--color-text-muted');
+    const ctrColor = token('--color-primary');
+    const engColor = token('--color-success');
     this.versionChartData = {
-      labels: this.versionComparison.items.map(i => i.version_slug),
-      datasets: [
+      ...base,
+      color: [ctrColor, engColor],
+      tooltip: { ...(base['tooltip'] as object), trigger: 'axis', axisPointer: { type: 'shadow' } },
+      legend: { ...(base['legend'] as object), data: [ctrName, engName] },
+      xAxis: {
+        type: 'category',
+        data: items.map((i) => i.version_slug),
+        axisLabel: { color: muted, fontSize: 11 },
+        axisLine: { lineStyle: { color: token('--color-border') } },
+      },
+      yAxis: {
+        type: 'value',
+        name: $localize`:@@analytics.algorithm.axis.performance:Performance (%)`,
+        min: 0,
+        max: 100,
+        axisLabel: { color: muted, fontSize: 11 },
+        splitLine: { lineStyle: { color: withAlpha(muted, 0.1) } },
+      },
+      series: [
         {
-          label: $localize`:@@analytics.algorithm.dataset.ctr:CTR (%)`,
-          data: this.versionComparison.items.map(i => i.ctr * 100),
-          backgroundColor: 'rgba(26, 115, 232, 0.8)',
-          borderRadius: 4
+          name: ctrName, type: 'bar', barMaxWidth: 28,
+          itemStyle: { color: withAlpha(ctrColor, 0.85), borderRadius: [4, 4, 0, 0] },
+          data: items.map((i) => parseFloat((i.ctr * 100).toFixed(2))),
         },
         {
-          label: $localize`:@@analytics.algorithm.dataset.engagement:Engagement (%)`,
-          data: this.versionComparison.items.map(i => i.engagement_rate * 100),
-          backgroundColor: 'rgba(52, 168, 83, 0.8)',
-          borderRadius: 4
-        }
-      ]
+          name: engName, type: 'bar', barMaxWidth: 28,
+          itemStyle: { color: withAlpha(engColor, 0.85), borderRadius: [4, 4, 0, 0] },
+          data: items.map((i) => parseFloat((i.engagement_rate * 100).toFixed(2))),
+        },
+      ],
     };
   }
 
   private prepareBreakdownCharts(): void {
-    if (!this.breakdowns) return;
+    if (!this.breakdowns) {
+      this.deviceChartData = null;
+      this.channelChartData = null;
+      this.geoChartData = null;
+      return;
+    }
 
-    // Device Doughnut
-    this.deviceChartData = {
-      labels: this.breakdowns.device_categories.map(i => i.label),
-      datasets: [{
-        data: this.breakdowns.device_categories.map(i => i.clicks),
-        backgroundColor: ['#1a73e8', '#34a853', '#fbbc04', '#80868b']
-      }]
-    };
+    // Device + channel are doughnut pies sharing the tokened palette.
+    this.deviceChartData = buildDoughnut(
+      this.breakdowns.device_categories.map((i) => ({ name: i.label, value: i.clicks })),
+    );
+    this.channelChartData = buildDoughnut(
+      this.breakdowns.channel_groups.map((i) => ({ name: i.label, value: i.clicks })),
+    );
 
-    // Channel Doughnut
-    this.channelChartData = {
-      labels: this.breakdowns.channel_groups.map(i => i.label),
-      datasets: [{
-        data: this.breakdowns.channel_groups.map(i => i.clicks),
-        backgroundColor: ['#1a73e8', '#34a853', '#fbbc04', '#ea4335', '#fa7b17', '#80868b']
-      }]
-    };
-
-    // Country Bar (Top 10)
+    // Country bar (Top 10).
     const topCountries = this.breakdowns.countries.slice(0, 10);
+    const base = gscChartBase();
+    const muted = token('--color-text-muted');
     this.geoChartData = {
-      labels: topCountries.map(i => i.label),
-      datasets: [{
-        label: $localize`:@@analytics.geographicMix.dataset.clicks:Clicks`,
-        data: topCountries.map(i => i.clicks),
-        backgroundColor: 'rgba(26, 115, 232, 0.7)',
-        borderRadius: 4
-      }]
+      ...base,
+      tooltip: { ...(base['tooltip'] as object), trigger: 'axis', axisPointer: { type: 'shadow' } },
+      legend: { show: false },
+      grid: { left: 8, right: 16, top: 16, bottom: 24, containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: topCountries.map((i) => i.label),
+        axisLabel: { color: muted, fontSize: 11, rotate: 30, interval: 0 },
+        axisLine: { lineStyle: { color: token('--color-border') } },
+      },
+      yAxis: {
+        type: 'value',
+        minInterval: 1,
+        axisLabel: { color: muted, fontSize: 11 },
+        splitLine: { lineStyle: { color: withAlpha(muted, 0.1) } },
+      },
+      series: [
+        {
+          name: $localize`:@@analytics.geographicMix.dataset.clicks:Clicks`,
+          type: 'bar',
+          data: topCountries.map((i) => i.clicks),
+          itemStyle: { color: withAlpha(token('--color-primary'), 0.7), borderRadius: [4, 4, 0, 0] },
+          barMaxWidth: 36,
+        },
+      ],
     };
   }
 
@@ -939,4 +874,30 @@ export class AnalyticsComponent implements OnInit {
   rewardClass(label: string): string {
     return `reward-badge--${label}`;
   }
+}
+
+/**
+ * Build a doughnut pie option for the device / channel mix cards. Top-level
+ * pure function — testable in isolation, no component state captured. Slices
+ * use the shared tokened palette (GSC blue first, no orange, flat colours).
+ */
+function buildDoughnut(data: Array<{ name: string; value: number }>): EChartsOption {
+  const base = gscChartBase();
+  return {
+    ...base,
+    color: gscPalette(),
+    tooltip: { ...(base['tooltip'] as object), trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+    legend: { ...(base['legend'] as object) },
+    series: [
+      {
+        type: 'pie',
+        radius: ['58%', '78%'],
+        center: ['50%', '44%'],
+        avoidLabelOverlap: true,
+        itemStyle: { borderColor: '#fff', borderWidth: 2 },
+        label: { show: false },
+        data,
+      },
+    ],
+  };
 }

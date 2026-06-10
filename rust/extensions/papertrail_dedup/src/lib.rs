@@ -1,3 +1,4 @@
+#![allow(clippy::missing_const_for_fn)]
 //! Paper-trail `MinHash` + LSH near-duplicate index, ported from the C++ kernel
 //! `backend/extensions/papertrail_dedup.cpp` to Rust and exposed to Python as
 //! the native module `extensions.papertrail_dedup` via `PyO3`.
@@ -85,8 +86,8 @@ impl DedupError {
             }
             DedupError::SaveOpen => "PaperTrailDedupIndex: cannot open save path",
             DedupError::LoadOpen => "PaperTrailDedupIndex: cannot open load path",
-            DedupError::MagicMismatch => "PaperTrailDedupIndex: snapshot magic mismatch",
-            DedupError::UnsupportedVersion => "PaperTrailDedupIndex: unsupported snapshot version",
+            SnapshotError::MagicMismatch => "PaperTrailDedupIndex: snapshot magic mismatch",
+            SnapshotError::UnsupportedVersion => "PaperTrailDedupIndex: unsupported snapshot version",
         }
     }
 }
@@ -514,8 +515,8 @@ impl DedupIndexCore {
     /// # Errors
     ///
     /// - [`DedupError::LoadOpen`] if the file cannot be opened/read.
-    /// - [`DedupError::MagicMismatch`] if the magic header is wrong.
-    /// - [`DedupError::UnsupportedVersion`] if the version is not 1.
+    /// - [`SnapshotError::MagicMismatch`] if the magic header is wrong.
+    /// - [`SnapshotError::UnsupportedVersion`] if the version is not 1.
     pub fn load(&mut self, path: &Path) -> Result<(), DedupError> {
         let bytes = fs::read(path).map_err(|_| DedupError::LoadOpen)?;
         let mut cur = io::Cursor::new(bytes);
@@ -524,10 +525,10 @@ impl DedupIndexCore {
         let seed = read_u64(&mut cur).map_err(|_| DedupError::LoadOpen)?;
         let entry_count = read_u64(&mut cur).map_err(|_| DedupError::LoadOpen)?;
         if magic != SNAPSHOT_MAGIC {
-            return Err(DedupError::MagicMismatch);
+            return Err(SnapshotError::MagicMismatch);
         }
         if version != SNAPSHOT_VERSION {
-            return Err(DedupError::UnsupportedVersion);
+            return Err(SnapshotError::UnsupportedVersion);
         }
         self.clear();
         self.seed = seed;
@@ -861,7 +862,7 @@ mod tests {
         let path = dir.join("bad.idx");
         std::fs::write(&path, vec![0_u8; 32]).unwrap();
         let mut idx = core();
-        assert_eq!(idx.load(&path).unwrap_err(), DedupError::MagicMismatch);
+        assert_eq!(idx.load(&path).unwrap_err(), SnapshotError::MagicMismatch);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -877,7 +878,7 @@ mod tests {
         buf.extend_from_slice(&0_u64.to_le_bytes());
         std::fs::write(&path, buf).unwrap();
         let mut idx = core();
-        assert_eq!(idx.load(&path).unwrap_err(), DedupError::UnsupportedVersion);
+        assert_eq!(idx.load(&path).unwrap_err(), SnapshotError::UnsupportedVersion);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

@@ -69,14 +69,14 @@ pub fn rerank_factor_one(
     let exploit_denom = f64::from(totals) + alpha + beta;
     let score_exploit_raw = (f64::from(successes) + alpha) / exploit_denom.max(EXPLOIT_DENOM_FLOOR);
     let oc = observation_confidence;
-    let score_exploit = (oc * score_exploit_raw) + ((1.0 - oc) * NEUTRAL);
+    let score_exploit = (1.0 - oc).mul_add(NEUTRAL, oc * score_exploit_raw);
     // UCB1 exploration bonus. Parenthesization matches the C++ kernel exactly:
     // sqrt( ln(n_global + 1) / (totals + 1) ) — the log is taken of
     // `n_global + 1` ALONE, then divided by `totals + 1`, then square-rooted.
     let score_explore =
-        exploration_rate * ((f64::from(n_global) + 1.0).ln() / (f64::from(totals) + 1.0)).sqrt();
+        exploration_rate * (f64::from(n_global).ln_1p() / (f64::from(totals) + 1.0)).sqrt();
     let raw_modifier = (score_exploit + score_explore) - NEUTRAL;
-    let factor = 1.0 + (weight * raw_modifier);
+    let factor = weight.mul_add(raw_modifier, 1.0);
     factor.clamp(FACTOR_MIN, FACTOR_MAX)
 }
 
@@ -132,13 +132,13 @@ fn mmr_one(
         let selected_row = &selected[j * width..j * width + width];
         let mut dot = 0.0_f64;
         for d in 0..width {
-            dot += candidate_row[d] * selected_row[d];
+            dot = candidate_row[d].mul_add(selected_row[d], dot);
         }
         if j == 0 || dot > max_similarity {
             max_similarity = dot;
         }
     }
-    let mmr = (diversity_lambda * relevance) - ((1.0 - diversity_lambda) * max_similarity);
+    let mmr = (1.0 - diversity_lambda).mul_add(-max_similarity, diversity_lambda * relevance);
     (mmr, max_similarity)
 }
 
@@ -305,8 +305,8 @@ mod tests {
         let denom = (f64::from(totals) + alpha + beta).max(1e-9);
         let exploit_raw = (f64::from(successes) + alpha) / denom;
         let exploit = oc * exploit_raw + (1.0 - oc) * 0.5;
-        let explore = exploration_rate
-            * ((f64::from(n_global) + 1.0).ln() / (f64::from(totals) + 1.0)).sqrt();
+        let explore =
+            exploration_rate * (f64::from(n_global).ln_1p() / (f64::from(totals) + 1.0)).sqrt();
         let factor = 1.0 + weight * ((exploit + explore) - 0.5);
         factor.clamp(0.5, 2.0)
     }

@@ -121,7 +121,7 @@ class SignalContractTests(SimpleTestCase):
         semantic = get_signal("semantic_similarity")
         self.assertIsNotNone(semantic)
         self.assertEqual(semantic.type, "ranking")
-        self.assertEqual(semantic.architecture_lane, "cpp_first")
+        self.assertEqual(semantic.architecture_lane, "rust_first")
 
     def test_get_signal_returns_none_for_unknown_id(self):
         from apps.diagnostics.signal_registry import get_signal
@@ -450,6 +450,7 @@ class GlitchtipEventsViewTests(TestCase):
             username="glitchtip-user", password="pass"
         )
         self.client.force_authenticate(user=user)
+        ErrorLog.objects.all().delete()
 
     def _make_error(self, **overrides):
         defaults = {

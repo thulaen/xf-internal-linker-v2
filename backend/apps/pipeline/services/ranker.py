@@ -11,49 +11,29 @@ import dataclasses
 import heapq
 import logging
 import math
-import warnings
 import numpy as np
 from rapidfuzz import fuzz
 from typing import Any, Mapping
 
+from .rust_kernels import KernelUnavailableError, load_kernel
+
 logger = logging.getLogger(__name__)
 
+# The ranker's final composite-score kernel was ported from C++ to Rust
+# (rust/extensions/scoring) and is loaded through the shared `load_kernel`
+# helper (RUST-FIRST.md zero-fallback — there is no Python copy of the hot
+# path). Loading at module level inside a try/except is a boot-safety shim: if
+# the native `.so` is not yet staged, the import still succeeds so the rest of
+# the module is usable, and the actual call (below) raises loudly through
+# `load_kernel`. `_calculate_composite_scores_full_batch_py` is retained ONLY as
+# the cross-language parity oracle the acceptance tests drive — it is NOT a
+# silent runtime fallback.
 try:
-    from extensions import scoring
-
-    HAS_CPP_EXT = True
-except ImportError as _ext_err:
-    HAS_CPP_EXT = False
-    _msg = (
-        "C++ scoring extension not found — ranker using slow Python fallback. "
-        "Run 'powershell -ExecutionPolicy Bypass -File scripts\\build-native-extensions.ps1'."
-    )
-    warnings.warn(_msg, RuntimeWarning)
-    logging.getLogger(__name__).warning(_msg)
-    # Write to ErrorLog so the failure is visible in the dashboard.
-    try:
-        import traceback
-        from apps.audit.models import ErrorLog
-
-        ErrorLog.objects.create(
-            job_type="cpp_extension",
-            step="import_scoring",
-            error_message=_msg,
-            raw_exception=traceback.format_exc(),
-            why=(
-                "The compiled C++ scoring extension (.so on Linux, .pyd on Windows) "
-                "could not be imported. This means the ranker is using the slow Python "
-                "fallback which is 50-100x slower. Rebuild with: "
-                "powershell -ExecutionPolicy Bypass -File scripts\\build-native-extensions.ps1"
-            ),
-        )
-    except Exception as log_exc:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
-        logger.debug("Could not write C++ scoring fallback to ErrorLog", exc_info=True)
-
-HAS_CPP_FULL_BATCH = HAS_CPP_EXT and hasattr(
-    scoring,
-    "calculate_composite_scores_full_batch",
-)
+    scoring = load_kernel("extensions.scoring", "calculate_composite_scores_full_batch")
+    HAS_CPP_FULL_BATCH = True
+except KernelUnavailableError:
+    scoring = None
+    HAS_CPP_FULL_BATCH = False
 
 # Default character-length bounds for host sentences selected as
 # anchor context. A sentence shorter than ``_DEFAULT_MIN_SENTENCE_CHARS``
@@ -755,18 +735,23 @@ def score_destination_matches(
     silo_array = silo_array[:row_idx]
 
     if pending_candidates:
-        if HAS_CPP_FULL_BATCH:
-            score_finals = scoring.calculate_composite_scores_full_batch(
-                component_scores,
-                batch_weights,
-                silo_array,
-            )
-        else:
-            score_finals = _calculate_composite_scores_full_batch_py(
-                component_scores,
-                batch_weights,
-                silo_array,
-            )
+        # RUST-FIRST.md zero-fallback: the Rust kernel is authoritative and is
+        # called unconditionally. `load_kernel` raises a loud
+        # `KernelUnavailableError` if the native `.so` is missing, instead of
+        # silently dropping to the slow Python path. The Rust kernel's typed
+        # numpy extractor (`PyReadonlyArray2<f32>`) requires C-contiguous
+        # float32 inputs, so coerce here exactly like the parity oracle does.
+        kernel = load_kernel(
+            "extensions.scoring", "calculate_composite_scores_full_batch"
+        )
+        component_scores_f32 = np.ascontiguousarray(component_scores, dtype=np.float32)
+        batch_weights_f32 = np.ascontiguousarray(batch_weights, dtype=np.float32)
+        silo_array_f32 = np.ascontiguousarray(silo_array, dtype=np.float32)
+        score_finals = kernel.calculate_composite_scores_full_batch(
+            component_scores_f32,
+            batch_weights_f32,
+            silo_array_f32,
+        )
     else:
         score_finals = np.empty(0, dtype=np.float32)
 

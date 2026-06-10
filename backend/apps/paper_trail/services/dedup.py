@@ -1,22 +1,35 @@
-"""Process-singleton wrapper around the C++ papertrail_dedup index.
+"""Process-singleton wrapper around the papertrail_dedup index.
 
-The C++ extension is the source of truth for near-duplicate detection.
-This module owns one lazily-loaded `DedupIndex` per process, persists
+The Rust kernel ``rust/extensions/papertrail_dedup`` (ported from C++ per
+RUST-FIRST.md, zero fallback) is the source of truth for near-duplicate
+detection. This module owns one lazily-loaded `DedupIndex` per process, persists
 it to `/app/data/papertrail.idx` after every mutation, and exposes a
 small Python API that the management commands and signals call into.
 
-Falls back gracefully when the extension can't be imported (development
-environments without a built C++ wheel) — in that case the wrapper
-becomes a no-op so the Django app still boots and tests still run.
+Loading goes through the shared
+:func:`apps.pipeline.services.rust_kernels.load_kernel` helper, which owns the
+single "import the kernel or raise a loud error" path and verifies the kernel
+exposes its ``DedupIndex`` class, so a stale or half-built ``.so`` fails clearly
+instead of deep in a hot path.
+
+The module still degrades to a no-op when the extension can't be imported — that
+keeps the Django app boot-safe in environments without compiled artefacts. This
+is a boot-safety shim, not a second copy of the algorithm: there is no Python
+implementation of the MinHash/LSH index; the only behaviour here is "return
+False/0/[]/None until the kernel is present".
 """
 
 from __future__ import annotations
 
-import importlib
 import logging
 import os
 import threading
 from pathlib import Path
+
+from apps.pipeline.services.rust_kernels import (
+    KernelUnavailableError,
+    load_kernel,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +45,13 @@ def _load_extension():
     if _extension_module is not None or _extension_failed:
         return _extension_module
     try:
-        _extension_module = importlib.import_module("extensions.papertrail_dedup")
-    except ImportError as exc:
+        _extension_module = load_kernel("extensions.papertrail_dedup", "DedupIndex")
+    except KernelUnavailableError as exc:
         _extension_failed = True
         logger.warning(
-            "papertrail_dedup extension not importable; dedup is disabled. "
-            "Build the extension via setup.py to enable similarity dedup. "
-            "Underlying error: %s",
+            "papertrail_dedup kernel not importable; dedup is disabled. "
+            "Rebuild the Rust kernel via scripts/ensure_compiled_artifacts.py to "
+            "enable similarity dedup. Underlying error: %s",
             exc,
         )
     return _extension_module

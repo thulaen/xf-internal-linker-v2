@@ -1152,7 +1152,8 @@ def _read_master_pause() -> bool:
 
 def _build_embeddings_label(active_model: dict, runtime: dict) -> tuple[str, str]:
     """Return ``(model_name, model_label)`` for the embeddings tile."""
-    model_name = active_model.get("model_name") or "BAAI/bge-m3"
+    default_model = getattr(settings, "EMBEDDING_MODEL", "text-embedding-3-small")
+    model_name = active_model.get("model_name") or default_model
     dimension = active_model.get("dimension")
     device = active_model.get("device_target") or runtime.get("device") or "cpu"
     label = f"{model_name} on {device}"
@@ -1551,7 +1552,7 @@ def _meta_tile_attribution() -> dict:
 
 def _meta_tile_cooccurrence() -> dict:
     try:
-        from apps.cooccurrence.models import SessionCooccurrencePair
+        from apps.cooccurrence.models import SessionCoOccurrencePair as SessionCooccurrencePair
         from django.db.models import Max
 
         latest = SessionCooccurrencePair.objects.aggregate(m=Max("updated_at"))["m"]
@@ -1700,9 +1701,9 @@ def _read_datetime_setting(key: str):
             raw = raw[:-1] + "+00:00"
         dt = datetime.fromisoformat(raw)
         if dt.tzinfo is None:
-            from django.utils.timezone import utc
+            from datetime import timezone as _tz
 
-            dt = dt.replace(tzinfo=utc)
+            dt = dt.replace(tzinfo=_tz.utc)
         return dt
     except (ValueError, TypeError):
         return None

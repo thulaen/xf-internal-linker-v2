@@ -1,0 +1,182 @@
+/**
+ * Apple Liquid Glass Theme — XF Internal Linker Documentation
+ *
+ * This styling implements a modern, frosted glass aesthetic based on Apple's 2025
+ * design tokens. It uses a subtle gradient background, backdrop-filters for depth,
+ * and high-contrast typography for readability.
+ */
+
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root {
+  /* Apple Liquid Glass — Light */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.5);
+  --glass-highlight: inset 0 0.5px 0 rgba(255, 255, 255, 0.8);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  --glass-blur: blur(20px) saturate(180%);
+  
+  --surface-primary: #F5F5F7;
+  --surface-secondary: #E8E8ED;
+  --text-primary: #1D1D1F;
+  --text-secondary: #6E6E73;
+  --accent: #0071E3;
+  --accent-hover: #0077ED;
+  
+  /* Docusaurus Core Overrides */
+  --ifm-color-primary: #0071E3;
+  --ifm-color-primary-dark: #0064CC;
+  --ifm-color-primary-darker: #005EBF;
+  --ifm-color-primary-darkest: #004D9E;
+  --ifm-color-primary-light: #0A7EF0;
+  --ifm-color-primary-lighter: #2E8FF5;
+  --ifm-color-primary-lightest: #5CAAF8;
+  --ifm-background-color: transparent;
+  --ifm-font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --ifm-heading-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --ifm-font-family-monospace: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  --ifm-border-radius: 12px;
+  --ifm-global-shadow-lw: 0 4px 16px rgba(0, 0, 0, 0.06);
+  --ifm-global-shadow-md: 0 8px 32px rgba(0, 0, 0, 0.08);
+  --ifm-code-font-size: 85%;
+  --ifm-font-size-base: 100%;
+  --ifm-line-height-base: 1.65;
+}
+
+[data-theme='dark'] {
+  --glass-bg: rgba(44, 44, 46, 0.65);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.08);
+  --glass-highlight: inset 0 0.5px 0 rgba(255, 255, 255, 0.06);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --glass-blur: blur(20px) saturate(180%);
+  
+  --surface-primary: #000000;
+  --surface-secondary: #1C1C1E;
+  --text-primary: #F5F5F7;
+  --text-secondary: #A1A1A6;
+  --accent: #2997FF;
+  --accent-hover: #40A3FF;
+  
+  --ifm-color-primary: #2997FF;
+  --ifm-color-primary-dark: #1A8AEF;
+  --ifm-color-primary-darker: #0F80E5;
+  --ifm-color-primary-darkest: #0A6BC0;
+  --ifm-color-primary-light: #45A5FF;
+  --ifm-color-primary-lighter: #5EB1FF;
+  --ifm-color-primary-lightest: #8ECCFF;
+}
+
+/* Background Gradient */
+html, body {
+  background: linear-gradient(135deg, var(--surface-primary) 0%, var(--surface-secondary) 100%);
+  background-attachment: fixed;
+  color: var(--text-primary);
+}
+
+/* Liquid Glass Navbar */
+.navbar {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  transition: all 200ms ease-out;
+}
+
+.navbar__brand {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Glass Sidebar */
+.theme-doc-sidebar-container {
+  background: var(--glass-bg) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  -webkit-backdrop-filter: var(--glass-blur) !important;
+  border-right: var(--glass-border) !important;
+}
+
+.menu__link {
+  transition: all 200ms ease-out;
+  border-radius: 8px;
+}
+
+.menu__link--active {
+  background-color: rgba(var(--ifm-color-primary), 0.1) !important;
+  font-weight: 600;
+}
+
+/* Glass Cards & Alerts */
+.card, .alert, .theme-admonition {
+  background: var(--glass-bg) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  -webkit-backdrop-filter: var(--glass-blur) !important;
+  border: var(--glass-border) !important;
+  box-shadow: var(--glass-shadow) !important;
+  border-radius: var(--ifm-border-radius);
+  transition: transform 200ms ease-out, box-shadow 200ms ease-out;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.12) !important;
+}
+
+[data-theme='dark'] .card:hover {
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Buttons & Focus Rings */
+.button {
+  transition: all 200ms ease-out;
+  border-radius: 8px;
+}
+
+.button:focus, a:focus, input:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.3) !important;
+}
+
+[data-theme='dark'] .button:focus, [data-theme='dark'] a:focus, [data-theme='dark'] input:focus {
+  box-shadow: 0 0 0 4px rgba(41, 151, 255, 0.3) !important;
+}
+
+/* Code Blocks */
+pre, code {
+  font-family: var(--ifm-font-family-monospace);
+}
+
+.prism-code {
+  border: var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: 10px;
+}
+
+/* Thin Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(110, 110, 115, 0.3);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(110, 110, 115, 0.5);
+}
+
+/* Footer */
+.footer {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-top: var(--glass-border);
+  padding: 3rem 0;
+}

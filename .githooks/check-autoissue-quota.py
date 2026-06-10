@@ -8,12 +8,6 @@ interface: it reads ``audit/session_gate_state.json`` for the session type
 and passes ``--hard --session-type <type>`` to the verifiers. For a ``docs``
 session both verifiers return "no quota required" and the gate passes.
 
-The SonarQube AutoIssue refresh is best-effort: a refresh failure (for
-example HTTP 401 when the Mint SonarQube token is missing, or the service
-still booting) must NOT block a commit here. SonarQube *availability* is a
-separate concern already enforced by ``check-observability-stack``. Refreshing
-the issue table is a convenience, not a quota gate, so its failure is logged
-and tolerated.
 """
 
 from __future__ import annotations
@@ -50,18 +44,6 @@ def _session_type() -> str:
 
 def main() -> int:
     session_type = _session_type()
-
-    # Best-effort SonarQube refresh — never blocks the commit.
-    refresh_code = _run_management_command(
-        "SonarQube AutoIssue refresh", ("ingest_sonarqube_issues",)
-    )
-    if refresh_code != 0:
-        print(
-            "[check-autoissue-quota] SonarQube refresh skipped (non-fatal): "
-            "the issue table is not refreshed this run. SonarQube availability "
-            "is enforced separately by check-observability-stack.",
-            file=sys.stderr,
-        )
 
     # Hard quota gates — these block the commit.
     for label, command_parts in (

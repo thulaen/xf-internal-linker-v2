@@ -37,10 +37,37 @@ from ._lifecycle_helpers import repo_root as _repo_root
 
 
 def _names_in_extension_set(text: str) -> set[str]:
-    match = re.search(r"EXTENSION_NAMES\s*=\s*\{([^}]+)\}", text, re.DOTALL)
+    # `(?<![A-Za-z0-9_])` keeps this from also matching the
+    # `RUST_EXTENSION_NAMES` assignment (which ends in `EXTENSION_NAMES` and
+    # appears first in the file).
+    match = re.search(
+        r"(?<![A-Za-z0-9_])EXTENSION_NAMES\s*=\s*\{([^}]+)\}", text, re.DOTALL
+    )
     if not match:
         return set()
     return set(re.findall(r"\"([a-z_][a-z0-9_]*)\"", match.group(1)))
+
+
+def _names_in_rust_extension_set(text: str) -> set[str]:
+    """Names in RUST_EXTENSION_NAMES — kernels ported from C++ to Rust."""
+    match = re.search(
+        r"(?<![A-Za-z0-9_])RUST_EXTENSION_NAMES\s*=\s*\{([^}]+)\}", text, re.DOTALL
+    )
+    if not match:
+        return set()
+    return set(re.findall(r"\"([a-z_][a-z0-9_]*)\"", match.group(1)))
+
+
+def _rust_source_kernels(rust_ext_dir: Path) -> dict[str, int]:
+    """Map name -> lib.rs size for every rust/extensions/<name> crate."""
+    out: dict[str, int] = {}
+    if not rust_ext_dir.is_dir():
+        return out
+    for crate_dir in rust_ext_dir.iterdir():
+        lib_rs = crate_dir / "src" / "lib.rs"
+        if crate_dir.is_dir() and lib_rs.is_file():
+            out[crate_dir.name] = lib_rs.stat().st_size
+    return out
 
 
 # quality-debt-ignore: reason: AST walk over _NATIVE_RUNTIME_MODULES tuple needs three nested isinstance checks (Assign / Tuple / inner Tuple / first Constant); flattening loses correctness because the tuple shape is precisely four levels deep
@@ -102,35 +129,80 @@ class Command(BaseCommand):
             help="Output a JSON document instead of the human-readable table.",
         )
 
-    # quality-debt-ignore: reason: handle() reads three files, walks the union of three name sets, builds row dicts, and renders a table — the steps are tightly coupled to the audit output shape and splitting hurts readability
+    # quality-debt-ignore: reason: a kernel row folds C++ and Rust three-way state into one PRESENT/BROKEN/ABSENT verdict; the booleans are tightly coupled to the table columns and splitting hurts readability
+    @staticmethod
+    def _kernel_row(
+        name: str,
+        *,
+        sources: dict[str, int],
+        rust_sources: dict[str, int],
+        ext_names: set[str],
+        rust_names: set[str],
+        rt_names: set[str],
+    ) -> dict[str, object]:
+        """Fold the C++ and Rust three-way state for *name* into one row.
+
+        A kernel is PRESENT when it forms a complete C++ triple (.cpp +
+        EXTENSION_NAMES + runtime) OR a complete Rust triple (rust crate +
+        RUST_EXTENSION_NAMES + runtime), and is not registered as both.
+        """
+        cpp_size = sources.get(name)
+        rust_size = rust_sources.get(name)
+        in_cpp_src = cpp_size is not None and cpp_size > 0
+        in_rust_src = rust_size is not None and rust_size > 0
+        is_empty = (cpp_size == 0) or (rust_size == 0)
+        in_ext = name in ext_names
+        in_rust_names = name in rust_names
+        in_rt = name in rt_names
+
+        cpp_present = sum([in_cpp_src, in_ext, in_rt])
+        rust_present = sum([in_rust_src, in_rust_names, in_rt])
+        cpp_side = in_cpp_src or in_ext
+        rust_side = in_rust_src or in_rust_names
+        both_languages = cpp_side and rust_side
+
+        is_rust = rust_side and not cpp_side
+        complete = cpp_present == 3 or rust_present == 3
+        absent = cpp_present == 0 and rust_present == 0
+        broken = both_languages or is_empty or not (complete or absent)
+        state = "BROKEN" if broken else ("PRESENT" if complete else "ABSENT")
+        return {
+            "name": name,
+            "lang": "rust" if is_rust else "cpp",
+            "src": in_rust_src if is_rust else in_cpp_src,
+            "src_empty": is_empty,
+            "ext": in_rust_names if is_rust else in_ext,
+            "rt": in_rt,
+            "state": state,
+        }
+
+    # quality-debt-ignore: reason: handle() reads four files, walks the union of name sets, builds row dicts, and renders a table — the steps are tightly coupled to the audit output shape and splitting hurts readability
     def handle(self, *args, **options):
         root = _repo_root()
         ext_dir = root / "backend" / "extensions"
+        rust_ext_dir = root / "rust" / "extensions"
         ensure = root / "scripts" / "ensure_compiled_artifacts.py"
         health = root / "backend" / "apps" / "diagnostics" / "health.py"
 
         sources = _source_kernels(ext_dir)
-        ext_names = _names_in_extension_set(ensure.read_text(encoding="utf-8", errors="replace")) if ensure.is_file() else set()
+        rust_sources = _rust_source_kernels(rust_ext_dir)
+        ensure_text = ensure.read_text(encoding="utf-8", errors="replace") if ensure.is_file() else ""
+        ext_names = _names_in_extension_set(ensure_text)
+        rust_names = _names_in_rust_extension_set(ensure_text)
         rt_names = _names_in_native_runtime(health.read_text(encoding="utf-8", errors="replace")) if health.is_file() else set()
 
-        all_names = sorted(set(sources) | ext_names | rt_names)
-        rows = []
-        for name in all_names:
-            size = sources.get(name)
-            in_src_nonzero = size is not None and size > 0
-            is_empty = size is not None and size == 0
-            in_ext = name in ext_names
-            in_rt = name in rt_names
-            present = sum([in_src_nonzero, in_ext, in_rt])
-            broken = present not in (0, 3) or is_empty
-            rows.append({
-                "name": name,
-                "src": in_src_nonzero,
-                "src_empty": is_empty,
-                "ext": in_ext,
-                "rt": in_rt,
-                "state": "BROKEN" if broken else ("PRESENT" if present == 3 else "ABSENT"),
-            })
+        all_names = sorted(set(sources) | set(rust_sources) | ext_names | rust_names | rt_names)
+        rows = [
+            self._kernel_row(
+                name,
+                sources=sources,
+                rust_sources=rust_sources,
+                ext_names=ext_names,
+                rust_names=rust_names,
+                rt_names=rt_names,
+            )
+            for name in all_names
+        ]
 
         if options["only_broken"]:
             rows = [r for r in rows if r["state"] == "BROKEN"]
@@ -142,17 +214,19 @@ class Command(BaseCommand):
         clean = [r for r in rows if r["state"] == "PRESENT"]
         broken = [r for r in rows if r["state"] == "BROKEN"]
         absent = [r for r in rows if r["state"] == "ABSENT"]
-        self.stdout.write("C++ kernel lifecycle audit (Rule J)")
+        self.stdout.write("Native kernel lifecycle audit (Rule J, C++ + Rust)")
         self.stdout.write(f"  PRESENT (all three places): {len(clean)}")
         self.stdout.write(f"  BROKEN  (half-registered or 0-byte): {len(broken)}")
         self.stdout.write(f"  ABSENT  (none of three places): {len(absent)}")
         self.stdout.write("")
-        self.stdout.write(f"  {'name':<32}  src   ext   rt    state")
+        self.stdout.write(f"  {'name':<32}  lang  src   reg   rt    state")
         for r in rows:
             src = ("yes" if r["src"] else ("0B " if r["src_empty"] else "no "))
-            ext = "yes" if r["ext"] else "no "
+            reg = "yes" if r["ext"] else "no "
             rt = "yes" if r["rt"] else "no "
-            self.stdout.write(f"  {r['name']:<32}  {src}   {ext}   {rt}   {r['state']}")
+            self.stdout.write(
+                f"  {r['name']:<32}  {r['lang']:<4}  {src}   {reg}   {rt}   {r['state']}"
+            )
         if broken:
             self.stdout.write("")
             self.stdout.write(

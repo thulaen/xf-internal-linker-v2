@@ -691,7 +691,7 @@ def _score_sentences_stage2(
             top_idx, top_scores = simsearch.score_and_topk(
                 destination_embedding,
                 sentence_embeddings,
-                candidate_rows,
+                np.array(candidate_rows, dtype=np.int32),
                 top_k,
             )
             _record_stage2_path("cpp")
@@ -753,8 +753,8 @@ def _emit_polysemy_diagnostics(
             continue
         try:
             diag = gate_polysemy(record.text)
-        except Exception:  # noqa: BLE001 — defensive: never crash Stage-2.
-            continue
+        except Exception:  # noqa: BLE001
+            continue  # nosec B112
         if diag.runtime_path == "no_wordnet" or not diag.polysemous_terms:
             continue
         diagnostics.append(

@@ -15,12 +15,7 @@ import re
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
-try:
-    from extensions import linkparse
-
-    HAS_CPP_EXT = True
-except ImportError:
-    HAS_CPP_EXT = False
+from .rust_kernels import load_kernel
 
 logger = logging.getLogger(__name__)
 
@@ -234,20 +229,23 @@ def _resolve_target(
 
 
 def _find_urls(raw_bbcode: str) -> list[_MatchedLink]:
-    if HAS_CPP_EXT:
-        raw = linkparse.find_urls(raw_bbcode or "")
-        return [
-            _MatchedLink(
-                url=row[0],
-                anchor_text=row[1],
-                extraction_method=row[2],
-                start=row[3],
-                end=row[4],
-            )
-            for row in raw
-        ]
-
-    return _find_urls_py(raw_bbcode)
+    # Rust kernel owns the link parse (RUST-FIRST.md zero-fallback). A missing
+    # or incomplete kernel raises KernelUnavailableError loudly via load_kernel
+    # rather than silently dropping to the slower Python regex path. The pure
+    # Python `_find_urls_py` below stays as the parity oracle the test suite
+    # asserts against, not as a runtime fallback.
+    linkparse = load_kernel("extensions.linkparse", "find_urls")
+    raw = linkparse.find_urls(raw_bbcode or "")
+    return [
+        _MatchedLink(
+            url=row[0],
+            anchor_text=row[1],
+            extraction_method=row[2],
+            start=row[3],
+            end=row[4],
+        )
+        for row in raw
+    ]
 
 
 def _find_urls_py(raw_bbcode: str) -> list[_MatchedLink]:

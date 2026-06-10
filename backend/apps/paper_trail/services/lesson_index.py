@@ -3,19 +3,32 @@
 Three independent singletons (one per sub-index) share the 512 MB cap.
 Each persists its snapshot to /app/data/lesson_index/{scoped,perf,cite}.bin.
 
-The module falls back to a no-op when the C++ extension isn't built —
-keeps the Django app boot-safe in dev environments without compiled
-artefacts.
+The kernel is the Rust crate ``rust/extensions/lesson_index`` (ported from C++
+per RUST-FIRST.md, zero fallback). The shared
+:func:`apps.pipeline.services.rust_kernels.load_kernel` helper owns the single
+"import the kernel or raise a loud error" path and verifies the kernel exposes
+its ``memory_cap_bytes`` public attribute, so a stale or half-built ``.so``
+fails clearly instead of deep in a hot path.
+
+The module still degrades to a no-op when the extension isn't importable — that
+keeps the Django app boot-safe in environments without compiled artefacts. This
+is a boot-safety shim, not a second copy of the algorithm: there is no
+Python implementation of the cache; the only behaviour here is "return
+False/None/[] until the kernel is present".
 """
 
 from __future__ import annotations
 
-import importlib
 import logging
 import os
 import threading
 from pathlib import Path
 from typing import Any
+
+from apps.pipeline.services.rust_kernels import (
+    KernelUnavailableError,
+    load_kernel,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +49,10 @@ def _load_extension():
     if _mod is not None or _extension_failed:
         return _mod
     try:
-        _mod = importlib.import_module("extensions.lesson_index")
-    except ImportError as exc:
+        _mod = load_kernel("extensions.lesson_index", "memory_cap_bytes")
+    except KernelUnavailableError as exc:
         _extension_failed = True
-        logger.warning("lesson_index extension not importable: %s", exc)
+        logger.warning("lesson_index kernel not importable: %s", exc)
     return _mod
 
 
@@ -216,15 +229,17 @@ def compute_speedup(fn_sig: str, *, new_p50_ns: int) -> float | None:
 def cite_put(key: str, *, kind: str, id_: str, title: str, authors: str,
              year: int, url: str, accessible: int = 1,
              last_checked_unix: int = 1_700_000_000) -> bool:
-    """Note: the underlying C++ binding for CitationCache.put isn't yet
-    surfaced (Day-1 scaffold only exposes get/size). This function logs
-    the citation in an internal Python dict so the API surface is stable
-    for tests; the C++ binding swap-in is Day-6 work.
+    """Store a citation in the in-process Python dict.
+
+    By design the ``CitationCache`` kernel binding exposes only
+    ``size``/``memory_bytes``/``reclaim_now``/``clear`` (matching the original
+    C++ binding surface); the citation records themselves live in this
+    process-local Python dict, not in the kernel. This is the intended
+    ownership split, not a fallback for a missing kernel method.
     """
     idx = _ensure_cite()
     if idx is None:
         return False
-    global _cite_python_fallback
     _cite_python_fallback[key] = {
         "kind": kind,
         "id": id_,

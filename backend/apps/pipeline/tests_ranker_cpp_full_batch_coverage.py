@@ -1,20 +1,24 @@
-"""Coverage for the C++ full-batch scoring path in ``ranker.py``.
+"""Coverage for the Rust full-batch scoring path in ``ranker.py``.
 
-Phase 2.14 fix: the module flag ``HAS_CPP_FULL_BATCH`` historically probed
-``scoring.score_full_batch`` — a name the compiled C++ extension never
-exported — so the flag was permanently ``False`` and the ranker silently fell
-through to the slow pure-Python ``_calculate_composite_scores_full_batch_py``
-even on machines where the kernel loaded fine. The fix probes the real export
-``calculate_composite_scores_full_batch`` and calls it at the batch site
-inside :func:`score_destination_matches`.
+The ranker's final composite-score kernel was ported from C++ to Rust
+(rust/extensions/scoring) and is loaded through the shared ``load_kernel``
+helper (RUST-FIRST.md zero-fallback). ``HAS_CPP_FULL_BATCH`` now reflects
+whether ``load_kernel("extensions.scoring",
+"calculate_composite_scores_full_batch")`` succeeded at module import. The batch
+call site in :func:`score_destination_matches` calls the kernel unconditionally
+through ``load_kernel`` — there is no Python-fallback branch.
 
-These ``SimpleTestCase`` tests pin that fix:
+``_calculate_composite_scores_full_batch_py`` is retained ONLY as the
+cross-language parity oracle these tests (and the health benchmark) drive; it is
+NOT a silent runtime fallback.
 
-* ``HAS_CPP_FULL_BATCH`` is now ``True`` in the quality image (the kernel is
-  compiled), which would be ``False`` on the pre-change code.
-* The C++ batch call site (the ``calculate_composite_scores_full_batch``
-  branch) returns the same composite ``score_final`` as the pure-Python
-  reference, proving the renamed call is wired correctly and is not a no-op.
+These ``SimpleTestCase`` tests pin:
+
+* ``HAS_CPP_FULL_BATCH`` is ``True`` in the quality/runtime image (the Rust
+  kernel is built and exports ``calculate_composite_scores_full_batch``).
+* The Rust batch call site returns a real finite composite ``score_final``.
+* The Rust kernel and the pure-Python parity oracle agree to 1e-5 on the same
+  inputs, proving the kernel is wired correctly and is not a no-op.
 
 ``score_destination_matches`` is documented as pure-Python with only a
 best-effort, try/except-guarded ContentItem/Sentence prefetch, so these tests
@@ -24,10 +28,7 @@ warning, and scoring proceeds.
 
 from __future__ import annotations
 
-import builtins
-import importlib
-import warnings
-from unittest.mock import patch
+import numpy as np
 
 from django.test import SimpleTestCase
 
@@ -64,8 +65,8 @@ def _content_record(*, content_id: int, silo_group_id: int | None) -> ContentRec
     )
 
 
-class CppFullBatchScoringPathTests(SimpleTestCase):
-    """The renamed C++ batch call must activate and match the Python reference."""
+class RustFullBatchScoringPathTests(SimpleTestCase):
+    """The Rust batch call must activate and match the Python parity oracle."""
 
     def setUp(self) -> None:
         self.destination = _content_record(content_id=1, silo_group_id=10)
@@ -100,22 +101,24 @@ class CppFullBatchScoringPathTests(SimpleTestCase):
             silo_settings=SiloSettings(mode="disabled"),
         )
 
-    def test_cpp_full_batch_flag_is_enabled_in_quality_image(self) -> None:
-        # Pre-change code probed the non-existent ``score_full_batch`` export,
-        # so this flag was permanently False. The fix probes the real export.
+    def test_rust_full_batch_flag_is_enabled_in_runtime_image(self) -> None:
+        # The Rust kernel is built and loaded at module import, so the flag is
+        # True and the loaded module exposes the real export.
         self.assertTrue(
             ranker_service.HAS_CPP_FULL_BATCH,
-            "The compiled C++ kernel exports calculate_composite_scores_full_batch, "
-            "so the batch flag must be True after the Phase 2.14 rename fix.",
+            "The Rust kernel exports calculate_composite_scores_full_batch, so "
+            "HAS_CPP_FULL_BATCH must be True after the Rust port.",
         )
+        self.assertIsNotNone(ranker_service.scoring)
         self.assertTrue(
-            hasattr(ranker_service.scoring, "calculate_composite_scores_full_batch")
+            hasattr(
+                ranker_service.scoring, "calculate_composite_scores_full_batch"
+            )
         )
-        self.assertFalse(hasattr(ranker_service.scoring, "score_full_batch"))
 
-    def test_cpp_batch_path_returns_scored_candidate(self) -> None:
-        # Exercises the ``calculate_composite_scores_full_batch`` call site
-        # (the True branch of ``if HAS_CPP_FULL_BATCH``) end to end.
+    def test_rust_batch_path_returns_scored_candidate(self) -> None:
+        # Exercises the calculate_composite_scores_full_batch call site end to
+        # end through the Rust kernel.
         results = self._score()
         self.assertEqual(len(results), 1)
         candidate = results[0]
@@ -125,59 +128,24 @@ class CppFullBatchScoringPathTests(SimpleTestCase):
         self.assertIsInstance(candidate.score_final, float)
         self.assertGreater(candidate.score_final, 0.0)
 
-    def test_cpp_batch_and_python_reference_agree(self) -> None:
-        # Force the C++ branch (line 759) then force the Python fallback branch
-        # and assert the composite scores agree. This proves the renamed C++
-        # call is correctly wired and is not silently returning a wrong value.
-        with patch.object(ranker_service, "HAS_CPP_FULL_BATCH", True):
-            cpp_score = self._score()[0].score_final
-        with patch.object(ranker_service, "HAS_CPP_FULL_BATCH", False):
-            py_score = self._score()[0].score_final
-        self.assertAlmostEqual(cpp_score, py_score, places=4)
+    def test_rust_kernel_and_python_oracle_agree(self) -> None:
+        # The Rust kernel and the pure-Python parity oracle must produce the
+        # same composite scores on the same float32 inputs (1e-5 contract). This
+        # proves the Rust call is correctly wired and not returning wrong values.
+        rng = np.random.default_rng(11)
+        component_scores = rng.uniform(-1.0, 1.0, size=(64, 12)).astype(np.float32)
+        weights = rng.uniform(-0.75, 0.75, size=(12,)).astype(np.float32)
+        silo = rng.uniform(-0.5, 0.5, size=(64,)).astype(np.float32)
 
-
-class CppImportFallbackErrorLogTests(SimpleTestCase):
-    """When the C++ scoring import fails AND the ErrorLog write also fails,
-    the module's best-effort handler must swallow the second failure and log
-    it at debug level instead of letting it crash module import.
-
-    Pre-change this branch was a bare ``pass``; the fix logs the secondary
-    failure with ``logger.debug(..., exc_info=True)``. The test reloads the
-    module with the C++ extension import forced to fail and the ErrorLog write
-    forced to raise, then proves the reload still completes (the secondary
-    failure was caught) with the Python-fallback flags set.
-    """
-
-    def _reload_clean(self) -> None:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            importlib.reload(ranker_service)
-
-    def test_secondary_errorlog_failure_is_swallowed_during_import(self) -> None:
-        # Guarantee the module is reloaded back to its real (C++-enabled)
-        # state no matter how this test exits, so later tests are unaffected.
-        self.addCleanup(self._reload_clean)
-
-        real_import = builtins.__import__
-
-        def fake_import(name, *args, **kwargs):
-            fromlist = args[2] if len(args) >= 3 else kwargs.get("fromlist")
-            if name == "extensions" and fromlist and "scoring" in fromlist:
-                raise ImportError("forced: scoring extension missing")
-            if name == "extensions.scoring":
-                raise ImportError("forced: scoring extension missing")
-            return real_import(name, *args, **kwargs)
-
-        with patch("apps.audit.models.ErrorLog.objects") as mock_objs:
-            mock_objs.create.side_effect = RuntimeError("ErrorLog table missing")
-            with patch.object(builtins, "__import__", side_effect=fake_import):
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    importlib.reload(ranker_service)
-
-            # The reload completed without raising, which proves the inner
-            # ``except Exception`` swallowed the ErrorLog RuntimeError.
-            self.assertFalse(ranker_service.HAS_CPP_EXT)
-            self.assertFalse(ranker_service.HAS_CPP_FULL_BATCH)
-            # The secondary ErrorLog write was attempted (and raised).
-            mock_objs.create.assert_called_once()
+        kernel = ranker_service.load_kernel(
+            "extensions.scoring", "calculate_composite_scores_full_batch"
+        )
+        rust_out = kernel.calculate_composite_scores_full_batch(
+            np.ascontiguousarray(component_scores, dtype=np.float32),
+            np.ascontiguousarray(weights, dtype=np.float32),
+            np.ascontiguousarray(silo, dtype=np.float32),
+        )
+        oracle_out = ranker_service._calculate_composite_scores_full_batch_py(
+            component_scores, weights, silo
+        )
+        np.testing.assert_allclose(rust_out, oracle_out, rtol=1e-5, atol=1e-5)

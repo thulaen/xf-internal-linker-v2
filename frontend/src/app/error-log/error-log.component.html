@@ -148,7 +148,7 @@
                   <p>{{ issue.description }}</p>
                 </div>
               }
-              @if (issue.affected_files?.length) {
+              @if (issue.affected_files.length) {
                 <div class="detail-block">
                   <strong>Affected files</strong>
                   <ul>
@@ -158,7 +158,7 @@
                   </ul>
                 </div>
               }
-              @if (issue.source_observations?.length) {
+              @if (issue.source_observations.length) {
                 <div class="detail-block">
                   <strong>Observed by ({{ issue.source_observations.length }} source(s))</strong>
                   <ul>

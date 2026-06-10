@@ -43,6 +43,11 @@ If you violate any of the patterns below, the pre-commit hook blocks the commit.
 ❌ Two implementations of the same algorithm in different files (e.g. one in `services/` and one in `tasks.py`).
 ✅ Single implementation, imported wherever needed.
 
+### Sequential Bulk Container Execution
+
+❌ Looping over hundreds of files and running `docker compose run` or `docker exec` sequentially in Python or Bash.
+✅ Use `concurrent.futures.ThreadPoolExecutor` (or `xargs -P` / GNU `parallel`) to parallelize container spin-ups. Bound the concurrency using `XF_QUALITY_CORES` or a safe maximum (e.g. 4 for local, 16 for remote context) to prevent Docker from choking.
+
 ### Python-Only Hot Paths
 
 ❌ A function called per-candidate inside `score_destination_matches` written in Python only.

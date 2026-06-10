@@ -50,7 +50,7 @@ APP_SETTING_EMBEDDING_SIGNATURE = "embedding.current_signature"
 
 
 def _read_cached_embedding_signature() -> str:
-    """Return the BGE-M3 signature from the AppSetting cache, or "" if unset.
+    """Return the embedding signature from the AppSetting cache, or "" if unset.
 
     Never loads the model. The embed pipeline writes this key on its
     first encode op per worker process. If no worker has run yet, the
@@ -211,7 +211,7 @@ def _count_fresh_vs_total(signature: str) -> tuple[int, int]:
 def _check_embeddings_fresh() -> ContributorResult:
     """20 pts: fraction of ContentItems whose embedding matches the current model version.
 
-    Phase 4 fix #3 — read the BGE-M3 signature from a cached AppSetting
+    Phase 4 fix #3 — read the embedding signature from a cached AppSetting
     row (key ``embedding.current_signature``) instead of loading the
     model on every dashboard refresh. The cache is populated by the
     embed pipeline (which already loads the model for real work) and
@@ -279,7 +279,7 @@ def _check_cpp_loaded() -> ContributorResult:
                 for s in statuses
                 if s.get("fallback_active")
             ]
-            hint = f"On Python fallback: {', '.join(fallback)}. Rebuild via 'docker compose build backend'."
+            hint = f"On Python fallback: {', '.join(fallback)}. Run scripts/build-smart.ps1 --target backend to rebuild."
         return ContributorResult(
             name="cpp_loaded",
             label="C++ kernels loaded",
@@ -389,7 +389,7 @@ def _check_frontend_built() -> ContributorResult:
             max_pts=5,
             fix_hint=""
             if index_present
-            else "Run 'docker compose build frontend-build' to rebuild the production bundle.",
+            else "Run scripts/build-smart.ps1 --target frontend-build to rebuild the production bundle.",
         )
     except Exception:
         logger.debug("confidence_meter: frontend_built check failed", exc_info=True)

@@ -7,15 +7,23 @@ from dataclasses import dataclass
 import math
 from typing import TYPE_CHECKING
 
-try:
-    from extensions import fieldrel
-
-    HAS_CPP_EXT = True
-except ImportError:
-    HAS_CPP_EXT = False
-
 from .learned_anchor import KNOWN_NOISE_ANCHORS, LearnedAnchorInputRow
+from .rust_kernels import KernelUnavailableError, load_kernel
 from .text_tokens import STANDARD_ENGLISH_STOPWORDS, TOKEN_RE
+
+# The FR-011 BM25F field scorer was ported from C++ to Rust
+# (rust/extensions/fieldrel). It is loaded through the shared `load_kernel`
+# helper at the point of use (RUST-FIRST.md zero-fallback). The pure-Python
+# `field_raw` block in `_score_field` below is retained as the cross-language
+# parity oracle the acceptance tests drive — NOT a silent runtime fallback.
+# `HAS_CPP_EXT` reports whether the native kernel is importable; the parity
+# tests toggle it to exercise both the native scorer and the Python oracle.
+try:
+    fieldrel = load_kernel("extensions.fieldrel", "score_field_tokens")
+    HAS_CPP_EXT = True
+except KernelUnavailableError:
+    fieldrel = None
+    HAS_CPP_EXT = False
 
 if TYPE_CHECKING:
     from .ranker import ContentRecord

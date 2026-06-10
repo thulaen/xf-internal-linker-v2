@@ -2,7 +2,6 @@ import { TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ActivatedRoute } from '@angular/router';
 import { of } from 'rxjs';
-import { provideCharts, withDefaultRegisterables } from 'ng2-charts';
 
 import { GraphComponent } from './graph.component';
 import { GraphService } from './graph.service';
@@ -30,7 +29,6 @@ describe('GraphComponent — _computeQuality()', () => {
       providers: [
         { provide: GraphService, useValue: graphServiceStub },
         { provide: ActivatedRoute, useValue: {} },
-        provideCharts(withDefaultRegisterables()),
       ],
     }).compileComponents();
 
@@ -55,10 +53,12 @@ describe('GraphComponent — _computeQuality()', () => {
     (component as any)._computeQuality();
 
     expect(component.contextPieData()).toBeTruthy();
-    const counts = component.contextPieData()!.datasets[0].data as number[];
-    expect(counts[0]).toBe(1); // contextual
-    expect(counts[1]).toBe(1); // weak_context
-    expect(counts[2]).toBe(1); // isolated
+    // ECharts pie series data is an array of { name, value } objects.
+    const series = (component.contextPieData()!.series as Array<{ data: Array<{ name: string; value: number }> }>)[0];
+    const byName = new Map(series.data.map((d) => [d.name, d.value]));
+    expect(byName.get('Contextual')).toBe(1);
+    expect(byName.get('Weak Context')).toBe(1);
+    expect(byName.get('Isolated')).toBe(1);
   });
 
   it('should flag over-used anchors as warnings when > 5% of total links', () => {

@@ -1,0 +1,2 @@
+#!/bin/bash
+which bash > hook_bash.txt; echo $PATH >> hook_bash.txt; docker buildx ls >> hook_bash.txt

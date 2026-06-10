@@ -200,7 +200,13 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
       | Array<{ label?: string; module?: string; runtime_path?: string; fallback_active?: boolean }>
       | undefined) ?? [];
     const fallback = moduleStatuses.filter(
-      (m) => m?.fallback_active === true || m?.runtime_path === 'python',
+      // A native kernel that did not load reports runtime_path 'error' (there is no
+      // Python fallback in the Python+Rust backend); 'python' is kept for legacy/cached
+      // payloads.
+      (m) =>
+        m?.fallback_active === true ||
+        m?.runtime_path === 'error' ||
+        m?.runtime_path === 'python',
     );
     return {
       fallbackCount: fallback.length,

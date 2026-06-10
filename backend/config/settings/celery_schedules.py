@@ -301,6 +301,17 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=11, minute=25),
         "options": {"queue": "default", "expires": 600},
     },
+    # GlitchTip slow-transaction picker. The error picker only promotes
+    # events that raised; this one promotes endpoints/jobs that got slow
+    # WITHOUT raising (p95 over 250 ms). Runs every 30 min in the active
+    # window, staggered at :12/:42 so it does not fight GlitchTip error
+    # sync (:00/:30), the error picker (:05/:35), Pyroscope (:10/:40), or
+    # Loki (:15/:45) for Postgres.
+    "auto-issues-glitchtip-slow-transaction-pick": {
+        "task": "auto_issues.pick_daily_glitchtip_slow_transactions",
+        "schedule": crontab(hour="11-23", minute="12,42"),
+        "options": {"queue": "default", "expires": 1500},
+    },
     "auto-issues-close-stale": {
         "task": "auto_issues.close_stale_issues",
         "schedule": crontab(hour=11, minute=30),

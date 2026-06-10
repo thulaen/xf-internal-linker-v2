@@ -49,6 +49,32 @@ class FileTestFailureCreateTests(TestCase):
         self.assertEqual(issue.status, AutoIssue.STATUS_OPEN)
         self.assertIn("failed_test::", issue.external_id)
 
+    def test_pytest_tool_uses_pytest_failure_source(self) -> None:
+        issue, _ = file_test_failure(
+            tool="pytest",
+            test_target=_TARGET,
+            test_file=_FILE,
+            test_name=_NAME,
+            failure_summary=_SUMMARY,
+            severity="medium",
+            run_id=_RUN_ID,
+            shard_id=_SHARD_ID,
+        )
+        self.assertEqual(issue.source, "pytest_failure")
+
+    def test_cargo_test_tool_uses_rust_test_failure_source(self) -> None:
+        issue, _ = file_test_failure(
+            tool="cargo-test",
+            test_target=_TARGET,
+            test_file=_FILE,
+            test_name=_NAME,
+            failure_summary=_SUMMARY,
+            severity="medium",
+            run_id=_RUN_ID,
+            shard_id=_SHARD_ID,
+        )
+        self.assertEqual(issue.source, "rust_test_fail")
+
     def test_external_id_contains_fingerprint(self) -> None:
         issue, _ = file_test_failure(
             tool=_TOOL,

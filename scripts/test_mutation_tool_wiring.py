@@ -77,17 +77,9 @@ def test_scoped_mutation_workflow_uses_temp_pyproject_config() -> None:
 
 
 def test_other_mutation_wrappers_expose_expected_tool_contracts() -> None:
+    # Only the two surviving mutation wrappers: Angular (TypeScript/Stryker)
+    # and Rust (cargo-mutants). C++, Go, and Haskell removed per ADR 0007.
     checks = {
-        "scripts/run-cpp-mutation.sh": (
-            "mull-runner-19",
-            "Mull IR frontend pass plugin not found",
-            "backend/extensions/reports/mull",
-        ),
-        "scripts/run-go-mutation.sh": (
-            "go-mutesting not installed in this image.",
-            "go-mutesting ./...",
-            "report.json",
-        ),
         "scripts/run-angular-quality.sh": (
             "npx stryker run",
             "/tmp/stryker.changed.config.json",
@@ -97,11 +89,6 @@ def test_other_mutation_wrappers_expose_expected_tool_contracts() -> None:
             "cargo mutants",
             "cargo-mutants not installed; skipping Rust mutation.",
             "--in-diff",
-        ),
-        "scripts/run-haskell-quality.sh": (
-            "mucheck --timeout 60",
-            "mucheck not installed; skipping Haskell mutation.",
-            "WARN: mucheck exited non-zero",
         ),
     }
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 xf_findings_transcript_path() {
   if [[ -n "${XF_FINDINGS_TRANSCRIPT:-}" ]]; then

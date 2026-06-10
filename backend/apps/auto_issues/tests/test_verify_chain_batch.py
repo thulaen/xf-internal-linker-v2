@@ -55,7 +55,7 @@ class VerifyChainBatchCommandTests(TestCase):
         autoissue_quota = _resolved_autoissues(33)
         autoissue_quota += _resolved_autoissues(
             10,
-            source=AutoIssue.SOURCE_SONARQUBE,
+            source=AutoIssue.SOURCE_RUST_DEFECT,
         )
         paper_quota = _resolved_paper_entries(10)
         evidence = _paper_evidence_entry()

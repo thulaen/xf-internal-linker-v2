@@ -121,22 +121,40 @@
     }
 
     <!-- Trend chart -->
-    @if (trendChartData(); as chart) {
-      <mat-card class="trend-card ga4-card" id="performance-trend-chart-card">
-        <mat-card-header>
-          <mat-card-title>Performance Trends (last 30 days)</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          <div class="chart-container">
-            <canvas baseChart
-                    [data]="chart"
-                    [options]="trendChartOptions"
-                    type="line">
-            </canvas>
-          </div>
-        </mat-card-content>
-      </mat-card>
-    }
+    <mat-card class="trend-card ga4-card" id="performance-trend-chart-card">
+      <mat-card-header>
+        <mat-card-title>Performance Trends (last 30 days)</mat-card-title>
+        <mat-icon class="chart-help-icon"
+                  [peHelper]="'How long each benchmarked function takes (in milliseconds) over time — lower is faster.'">help_outline</mat-icon>
+      </mat-card-header>
+      <mat-card-content>
+        @switch (trendState()) {
+          @case ('ready') {
+            <div class="chart-container">
+              <div class="chart-host" [echarts]="trendChartData()"></div>
+            </div>
+          }
+          @case ('loading') {
+            <div class="chart-empty-state">
+              <mat-spinner diameter="24"></mat-spinner>
+              <p>Loading benchmark history…</p>
+            </div>
+          }
+          @case ('empty') {
+            <div class="chart-empty-state">
+              <mat-icon class="icon-3xl">show_chart</mat-icon>
+              <p>No benchmark history yet. Run the benchmark suite a few times to build a trend.</p>
+            </div>
+          }
+          @case ('error') {
+            <div class="chart-empty-state chart-empty-state--error">
+              <mat-icon class="icon-3xl">error_outline</mat-icon>
+              <p>Could not load benchmark history. Check that the benchmark service is reachable, then retry.</p>
+            </div>
+          }
+        }
+      </mat-card-content>
+    </mat-card>
 
     <!-- Results table -->
     <mat-card class="results-card ga4-card" id="performance-results-card">

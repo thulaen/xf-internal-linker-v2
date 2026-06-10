@@ -33,7 +33,6 @@ _BLOCKED_EXT: dict[str, str] = {
     ".go": "Go", ".proto": "Go",
     ".hs": "Haskell", ".lhs": "Haskell", ".cabal": "Haskell",
     ".lua": "Lua",
-    ".java": "Java",
 }
 # Exact filenames of removed-language build/manifest files -> label.
 _BLOCKED_NAME: dict[str, str] = {

@@ -29,7 +29,7 @@
 //!    supporting-page count descending, then term string ascending.
 //! 5. `keep_count = min(max_terms as usize, n_matched)`; average the evidence of
 //!    the first `keep_count` kept terms into `lift`.
-//! 6. Return `(true, 0.5 + 0.5 * lift)`.
+//! 6. Return `(true, 0.5f64.mul_add(lift, 0.5))`.
 //!
 //! ## Exact parity (port note)
 //!
@@ -144,7 +144,7 @@ pub fn evaluate_rare_terms_core<S: BuildHasher>(
     // is exact — the precision-loss lint does not apply to this small range.
     #[allow(clippy::cast_precision_loss)]
     let lift = sum / keep_count as f64;
-    Ok((true, 0.5 + 0.5 * lift))
+    Ok((true, 0.5f64.mul_add(lift, 0.5)))
 }
 
 /// `evaluate_rare_terms(...) -> tuple[bool, float]`.

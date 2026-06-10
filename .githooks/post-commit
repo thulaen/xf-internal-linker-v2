@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 #
 # Post-commit Decision Point shim (Session S3 of the TDD-pipeline rule).
 #

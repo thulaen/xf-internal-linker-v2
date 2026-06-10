@@ -168,10 +168,26 @@ def build_faiss_index() -> None:
 
     matrix = np.vstack(vectors).astype(np.float32)
     dim = matrix.shape[1]
-
-    index = faiss.IndexFlatIP(dim)
-    index.add(matrix)  # pylint: disable=no-value-for-parameter
-    device = "CPU"
+    
+    from django.conf import settings
+    index_type = getattr(settings, "FAISS_INDEX_TYPE", "FlatIP")
+    
+    if index_type == "IVFFlat" and len(vectors) >= 256:
+        nlist = max(10, int(np.sqrt(len(vectors))))
+        quantizer = faiss.IndexFlatIP(dim)
+        index = faiss.IndexIVFFlat(quantizer, dim, nlist, faiss.METRIC_INNER_PRODUCT)
+        logger.info(f"Training FAISS IVF index with {len(vectors)} vectors and nlist={nlist}")
+        index.train(matrix)  # pylint: disable=no-value-for-parameter
+        index.add(matrix)  # pylint: disable=no-value-for-parameter
+        
+        # Set default nprobe to 1/4 of nlist (but at least 1)
+        nprobe = getattr(settings, "FAISS_IVF_NPROBE", max(1, nlist // 4))
+        index.nprobe = nprobe
+        device = "CPU"
+    else:
+        index = faiss.IndexFlatIP(dim)
+        index.add(matrix)  # pylint: disable=no-value-for-parameter
+        device = "CPU"
 
     with _index_lock:
         _faiss_index = index
@@ -236,7 +252,7 @@ def faiss_search(
 
         query = np.ascontiguousarray(query_vectors, dtype=np.float32)
         search_k = min(k * 2, len(id_map))  # over-fetch to allow filtering
-        scores, indices = index.search(query, search_k)
+        scores, indices = index.search(query, search_k)  # pylint: disable=no-value-for-parameter
 
         return [
             _filter_faiss_row(

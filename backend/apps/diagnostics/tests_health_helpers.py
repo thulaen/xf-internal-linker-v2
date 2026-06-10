@@ -46,44 +46,64 @@ from apps.diagnostics.health import (
 
 
 class ClassifyModuleStateTests(SimpleTestCase):
-    """Verify the if/elif/else module-state classification table."""
+    """Verify the module-state table + the rust/cpp/error runtime_path label."""
 
-    def test_healthy_when_importable_and_callable(self):
+    def test_healthy_cpp_kernel_reports_runtime_path_cpp(self):
+        # C++ pybind11 kernels ship an ABI-tagged `<name>.cpython-*.so`.
         state, runtime, fallback, reason = _classify_module_state(
             importable=True,
             callable_present=True,
             critical=True,
             error="",
             expected_attr="run",
+            origin="/opt/xf/compiled/active/extensions/scoring.cpython-312-x86_64-linux-gnu.so",
         )
         self.assertEqual(state, "healthy")
         self.assertEqual(runtime, "cpp")
         self.assertFalse(fallback)
         self.assertEqual(reason, "")
 
-    def test_failed_when_critical_and_missing_callable(self):
+    def test_healthy_rust_kernel_reports_runtime_path_rust(self):
+        # Rust/PyO3 kernels ship a bare `<name>.so` (no cpython ABI tag).
+        state, runtime, fallback, _ = _classify_module_state(
+            importable=True,
+            callable_present=True,
+            critical=False,
+            error="",
+            expected_attr="normalize_l2_batch",
+            origin="/opt/xf/compiled/active/extensions/l2norm.so",
+        )
+        self.assertEqual(state, "healthy")
+        self.assertEqual(runtime, "rust")
+        self.assertFalse(fallback)
+
+    def test_failed_when_critical_and_missing_callable_reports_error(self):
+        # The Python+Rust backend has no Python fallback, so a load failure is
+        # runtime_path "error", never "python".
         state, runtime, fallback, reason = _classify_module_state(
             importable=True,
             callable_present=False,
             critical=True,
             error="",
             expected_attr="run",
+            origin=None,
         )
         self.assertEqual(state, "failed")
-        self.assertEqual(runtime, "python")
+        self.assertEqual(runtime, "error")
         self.assertTrue(fallback)
         self.assertIn("run", reason)
 
-    def test_degraded_when_noncritical_and_missing(self):
+    def test_degraded_when_noncritical_and_missing_reports_error(self):
         state, runtime, fallback, reason = _classify_module_state(
             importable=False,
             callable_present=False,
             critical=False,
             error="ImportError: not built",
             expected_attr="run",
+            origin=None,
         )
         self.assertEqual(state, "degraded")
-        self.assertEqual(runtime, "python")
+        self.assertEqual(runtime, "error")
         self.assertTrue(fallback)
         self.assertEqual(reason, "ImportError: not built")
 
@@ -94,8 +114,28 @@ class ClassifyModuleStateTests(SimpleTestCase):
             critical=True,
             error="boom",
             expected_attr="run",
+            origin=None,
         )
         self.assertEqual(reason, "boom")
+
+
+class NativeModuleRuntimePathTests(SimpleTestCase):
+    """The live native-runtime status reports the correct backing language per kernel."""
+
+    def test_l2norm_is_rust_and_scoring_is_cpp(self):
+        from apps.diagnostics.health import _native_module_runtime_status
+
+        statuses = {s["module"]: s for s in _native_module_runtime_status()}
+        l2norm = statuses.get("l2norm")
+        scoring = statuses.get("scoring")
+        if not l2norm or l2norm["state"] != "healthy":
+            self.skipTest("l2norm kernel not loaded in this environment")
+        if not scoring or scoring["state"] != "healthy":
+            self.skipTest("scoring kernel not loaded in this environment")
+        # l2norm was ported C++ -> Rust (loads from a bare l2norm.so via PyO3).
+        self.assertEqual(l2norm["runtime_path"], "rust")
+        # scoring was ported C++ -> Rust.
+        self.assertEqual(scoring["runtime_path"], "rust")
 
 
 # ---------------------------------------------------------------------------
@@ -310,7 +350,7 @@ class NativeScoringMetadataTests(SimpleTestCase):
         self.assertTrue(meta["safe_to_use"])
         self.assertTrue(meta["native_scoring_active"])
 
-    def test_runtime_path_is_python_when_no_healthy_modules(self):
+    def test_runtime_path_is_error_when_no_healthy_modules(self):
         statuses = [{"module": "a", "fallback_reason": "down"}]
         meta = _native_scoring_metadata(
             statuses,
@@ -318,7 +358,7 @@ class NativeScoringMetadataTests(SimpleTestCase):
             self._aggregate(),
             {},
         )
-        self.assertEqual(meta["runtime_path"], "python")
+        self.assertEqual(meta["runtime_path"], "error")
         self.assertFalse(meta["safe_to_use"])
 
 
@@ -348,7 +388,7 @@ class NativeScoringResultTests(SimpleTestCase):
         self.assertIsNotNone(result)
         state, _, _, m = result
         self.assertEqual(state, "failed")
-        self.assertIn("Python fallback", m["fallback_reason"])
+        self.assertIn("no Python fallback", m["fallback_reason"])
 
     def test_degraded_modules_returns_degraded(self):
         meta: dict = {}
@@ -358,7 +398,7 @@ class NativeScoringResultTests(SimpleTestCase):
         self.assertIsNotNone(result)
         state, _, _, m = result
         self.assertEqual(state, "degraded")
-        self.assertIn("optional", m["fallback_reason"])
+        self.assertIn("not available", m["fallback_reason"])
 
     def test_no_module_failures_returns_none(self):
         meta: dict = {}

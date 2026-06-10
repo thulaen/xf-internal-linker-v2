@@ -46,6 +46,7 @@ use pyo3::prelude::*;
 #[must_use]
 pub fn salted_index(item: &str, salt: usize, salt_mix: u64, modulus: usize) -> usize {
     assert!(modulus != 0, "salted_index requires a non-zero modulus");
+    #[allow(clippy::collection_is_never_read)]
     let mixed = format!("{item}#{}", (salt as u64).wrapping_mul(salt_mix));
     let mut hasher = DefaultHasher::new();
     mixed.hash(&mut hasher);

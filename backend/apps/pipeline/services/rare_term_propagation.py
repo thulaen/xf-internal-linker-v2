@@ -6,12 +6,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Mapping, TypeAlias
 
-try:
-    from extensions import rareterm
-
-    HAS_CPP_EXT = True
-except ImportError:
-    HAS_CPP_EXT = False
+from .rust_kernels import load_kernel
 
 if TYPE_CHECKING:
     from .ranker import ContentRecord
@@ -254,58 +249,33 @@ def _evaluate_rare_term_propagation(
             settings=settings,
         )
 
-    if HAS_CPP_EXT:
-        matched, score = rareterm.evaluate_rare_terms(
-            [term.term for term in profile.propagated_terms],
-            [float(term.term_evidence) for term in profile.propagated_terms],
-            [int(term.supporting_related_pages) for term in profile.propagated_terms],
-            host_sentence_tokens,
-            MAX_TERMS_PER_SUGGESTION,
-        )
-        if not matched:
-            return _neutral_result(
-                rare_term_state="neutral_no_host_match",
-                profile=profile,
-                settings=settings,
-            )
-
-        matched_terms = [
-            term
-            for term in profile.propagated_terms
-            if term.term in host_sentence_tokens
-        ]
-        matched_terms.sort(
-            key=lambda term: (
-                -term.term_evidence,
-                -term.supporting_related_pages,
-                term.term,
-            )
-        )
-        top_matches = tuple(matched_terms[:MAX_TERMS_PER_SUGGESTION])
-        diagnostics = _build_diagnostics(
-            rare_term_state="computed_match",
-            profile=profile,
-            matched_terms=top_matches,
-            settings=settings,
-            score=score,
-        )
-        return RareTermPropagationResult(
-            score_rare_term_propagation=score,
-            rare_term_component=score_rare_term_component(score),
-            rare_term_state="computed_match",
-            rare_term_diagnostics=diagnostics,
-        )
-
-    matched_terms = [
-        term for term in profile.propagated_terms if term.term in host_sentence_tokens
-    ]
-    if not matched_terms:
+    # Rust kernel owns the rare-term score (RUST-FIRST.md zero-fallback). A
+    # missing or incomplete kernel raises KernelUnavailableError loudly via
+    # load_kernel rather than silently dropping to a slower Python recompute.
+    rareterm = load_kernel("extensions.rareterm", "evaluate_rare_terms")
+    matched, score = rareterm.evaluate_rare_terms(
+        [term.term for term in profile.propagated_terms],
+        [float(term.term_evidence) for term in profile.propagated_terms],
+        [int(term.supporting_related_pages) for term in profile.propagated_terms],
+        host_sentence_tokens,
+        MAX_TERMS_PER_SUGGESTION,
+    )
+    if not matched:
         return _neutral_result(
             rare_term_state="neutral_no_host_match",
             profile=profile,
             settings=settings,
         )
 
+    # Re-derive the top matched terms for the diagnostics payload. This mirrors
+    # the kernel's keep/sort logic (host membership, then evidence desc ->
+    # supporting pages desc -> term asc) so the diagnostics list matches the
+    # terms the score was computed from.
+    matched_terms = [
+        term
+        for term in profile.propagated_terms
+        if term.term in host_sentence_tokens
+    ]
     matched_terms.sort(
         key=lambda term: (
             -term.term_evidence,
@@ -314,16 +284,6 @@ def _evaluate_rare_term_propagation(
         )
     )
     top_matches = tuple(matched_terms[:MAX_TERMS_PER_SUGGESTION])
-    # Phase 0.13 — guard against the (rare) case where matched_terms is
-    # empty by the time we reach here. The neutral 0.0 lift means no
-    # rare-term contribution, matching the no-signal default.
-    if not top_matches:
-        rare_term_lift = 0.0
-    else:
-        rare_term_lift = sum(term.term_evidence for term in top_matches) / len(
-            top_matches
-        )
-    score = 0.5 + (0.5 * rare_term_lift)
     diagnostics = _build_diagnostics(
         rare_term_state="computed_match",
         profile=profile,

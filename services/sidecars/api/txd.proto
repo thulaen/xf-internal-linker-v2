@@ -1,0 +1,31 @@
+// Slice 1.6 — txd skeleton contract.
+// Apache reference: RocketMQ transactional outbox. Owning Django module: platform.
+// Ships as a gRPC skeleton this slice; every RPC returns codes.Unimplemented.
+// Real RPC bodies fill in via a future session — tracked in the paper-trail under
+// the tag `sidecars_followup`. Message names are service-prefixed because every
+// .proto file lives in the same proto package (xf.sidecars.v1).
+
+syntax = "proto3";
+
+package xf.sidecars.v1;
+
+import "shared.proto";
+
+option go_package = "xf-internal-linker-v2/services/sidecars/api/gen;sidecarsv1";
+
+service Txd {
+  rpc Begin(TxdBeginTxRequest) returns (TxdTxID);
+  rpc Commit(TxdCommitTxRequest) returns (Ack);
+  rpc Rollback(TxdRollbackTxRequest) returns (Ack);
+  rpc Drain(TxdDrainRequest) returns (stream TxdOutboxRow);
+  rpc Stats(Empty) returns (TxdOutboxStats);
+  rpc Health(Empty) returns (HealthReply);
+}
+
+message TxdBeginTxRequest {}
+message TxdCommitTxRequest {}
+message TxdDrainRequest {}
+message TxdOutboxRow {}
+message TxdOutboxStats {}
+message TxdRollbackTxRequest {}
+message TxdTxID {}

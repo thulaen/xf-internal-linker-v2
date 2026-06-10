@@ -21,7 +21,10 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 # abi3-py310: build against the stable Python ABI (CPython 3.10+), so a single
 # wheel works across future Python 3.x without a rebuild per minor version.
-pyo3 = { version = "0.26", features = ["abi3-py310", "extension-module"] }
+pyo3 = { version = "0.26", features = ["abi3-py310"] }
 
 [lints]
 workspace = true
+
+[features]
+extension-module = ["pyo3/extension-module"]

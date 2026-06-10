@@ -31,7 +31,7 @@ from apps.auto_issues.models import (
 from apps.auto_issues.management.commands.print_open_issues import _issue_dedupe_key
 from apps.auto_issues.management.commands.rotate_gh_actions_log import _parse_cutoff
 from apps.auto_issues.management.commands.verify_autoissue_quota import (
-    REQUIRED_SONARQUBE_FIXES,
+
     _count_and_duplicate_errors,
     _mandatory_hard_errors,
     _scaled_requirements,
@@ -55,9 +55,7 @@ class ScaledRequirementsTests(SimpleTestCase):
         self.assertTrue(all(v == 2 for v in cross.values()))
         self.assertEqual(sum(cross.values()), 20)
 
-    def test_feature_keeps_full_sonarqube_quota(self):
-        hard, _cross = _scaled_requirements("feature")
-        self.assertEqual(hard[AutoIssue.SOURCE_SONARQUBE], REQUIRED_SONARQUBE_FIXES)
+
 
 
 _EFFECTIVE_REQ_PATH = (
@@ -72,15 +70,10 @@ class MandatoryHardErrorsTests(SimpleTestCase):
     def test_count_meets_requirement_no_error(self):
         with patch(_EFFECTIVE_REQ_PATH, return_value=10):
             self.assertEqual(
-                _mandatory_hard_errors(10, AutoIssue.SOURCE_SONARQUBE, 10), []
+                _mandatory_hard_errors(10, AutoIssue.SOURCE_RUST_DEFECT, 10), []
             )
 
-    def test_sonarqube_shortfall_is_non_substitutable(self):
-        with patch(_EFFECTIVE_REQ_PATH, return_value=10):
-            errors = _mandatory_hard_errors(7, AutoIssue.SOURCE_SONARQUBE, 10)
-        self.assertEqual(len(errors), 1)
-        self.assertIn("NON-SUBSTITUTABLE", errors[0])
-        self.assertIn("resolve 3 more sonarqube", errors[0])
+
 
     def test_non_sonarqube_shortfall_uses_short_suffix(self):
         with patch(_EFFECTIVE_REQ_PATH, return_value=10):

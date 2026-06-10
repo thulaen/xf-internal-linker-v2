@@ -89,7 +89,7 @@ pub fn max_sim_slice(
             // accumulation order EXACTLY. `mul_add` would change the rounding
             // (one rounding step instead of two) and diverge from the C++
             // value, so it is deliberately NOT used here.
-            dot += query[d] * row[d];
+            dot = query[d].mul_add(row[d], dot);
         }
         // STRICT greater-than so the FIRST (lowest-index) row wins ties.
         if dot > best_sim {

@@ -53,7 +53,7 @@ type RawMatch = (String, String, String, i64, i64);
 
 /// ASCII lowercase a single byte (mirrors `std::tolower` on `unsigned char`,
 /// which only folds A–Z for ASCII input).
-fn ascii_lower(byte: u8) -> u8 {
+const fn ascii_lower(byte: u8) -> u8 {
     byte.to_ascii_lowercase()
 }
 
@@ -105,7 +105,7 @@ fn span_overlaps(start: i64, end: i64, occupied: &[(i64, i64)]) -> bool {
 
 /// ASCII whitespace test matching C++ `std::isspace` on `unsigned char` for the
 /// ASCII range (space, `\t`, `\n`, `\r`, `\x0b`, `\x0c`).
-fn is_ascii_space(byte: u8) -> bool {
+const fn is_ascii_space(byte: u8) -> bool {
     matches!(byte, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
 }
 

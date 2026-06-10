@@ -357,6 +357,87 @@ def recompute_all_search_impact() -> dict[str, int]:
     return {"processed_suggestions": count}
 
 
+_SPIKE_RATIO = 4  # alert when latest clicks exceed 4x the trailing average
+_SPIKE_NOISE_FLOOR_CLICKS = 10  # ignore pages below this on the target day
+
+
+def _snapshot_gsc_clicks(start_date, end_date) -> "Path | None":
+    """Export the GSC click window to a Parquet snapshot; None when empty.
+
+    A fixed filename is reused (atomic replace) so snapshots never pile up.
+    """
+    import tempfile
+    from pathlib import Path
+
+    import polars as pl
+
+    from apps.pipeline.services._parquet_io import write_parquet_atomic
+    from .models import SearchMetric
+
+    rows = list(
+        SearchMetric.objects.filter(
+            source="gsc", date__range=[start_date, end_date]
+        ).values_list("content_item_id", "date", "clicks")
+    )
+    if not rows:
+        return None
+    item_ids, dates, clicks = zip(*rows)
+    df = pl.DataFrame(
+        {
+            "content_item_id": list(item_ids),
+            "date": list(dates),
+            "clicks": list(clicks),
+        }
+    )
+    path = (
+        Path(tempfile.gettempdir())
+        / "xf-analytics-snapshots"
+        / "gsc_clicks_window.parquet"
+    )
+    write_parquet_atomic(df, path)
+    return path
+
+
+def _query_spikes(
+    snapshot_path, target_date, window_start, window_end
+) -> list[tuple[int, int, float]]:
+    """One DataFusion SQL pass: noise floor, both windows, and the 4x rule."""
+    from apps.pipeline.services.datafusion_engine import DataFusionEngine
+
+    engine = DataFusionEngine()
+    engine.register_parquet_file("gsc_clicks", snapshot_path)
+    query_template = """
+        WITH latest AS (
+            SELECT content_item_id, SUM(clicks) AS latest_clicks
+            FROM gsc_clicks
+            WHERE "date" = DATE '{t}'
+            GROUP BY content_item_id
+            HAVING SUM(clicks) > {floor}
+        ),
+        trailing AS (
+            SELECT content_item_id, AVG(clicks) AS avg_clicks
+            FROM gsc_clicks
+            WHERE "date" BETWEEN DATE '{ws}' AND DATE '{we}'
+            GROUP BY content_item_id
+        )
+        SELECT latest.content_item_id, latest.latest_clicks, trailing.avg_clicks
+        FROM latest
+        JOIN trailing ON latest.content_item_id = trailing.content_item_id
+        WHERE trailing.avg_clicks > 0
+          AND latest.latest_clicks > trailing.avg_clicks * {r}
+    """
+    query = query_template.replace('{t}', str(target_date)).replace('{floor}', str(_SPIKE_NOISE_FLOOR_CLICKS)).replace('{ws}', str(window_start)).replace('{we}', str(window_end)).replace('{r}', str(_SPIKE_RATIO))  # nosec B608
+    table = engine.execute_sql(query)
+    return [
+        (int(item_id), int(latest), float(avg))
+        for item_id, latest, avg in zip(
+            table.column("content_item_id").to_pylist(),
+            table.column("latest_clicks").to_pylist(),
+            table.column("avg_clicks").to_pylist(),
+        )
+    ]
+
+
 @shared_task(
     name="analytics.detect_traffic_spikes", time_limit=600, soft_time_limit=540
 )
@@ -369,13 +450,18 @@ def recompute_all_search_impact() -> dict[str, int]:
 def detect_traffic_spikes() -> dict[str, int]:
     """
     FR-023 Part 3: Momentum-based spike detection.
-    Alerts the dashboard when a page's daily traffic exceeds 3x its 7-day trailing average.
+    Alerts the dashboard when a page's daily traffic exceeds 4x its 7-day trailing average.
+
+    DataFusion rewire 2026-06-10: the click window is snapshotted to a local
+    Parquet file and a single analytical SQL pass computes the noise floor,
+    both window aggregates, and the spike rule — replacing two ORM GROUP BY
+    queries plus a Python filter loop, and keeping the heavy scan off the
+    transactional Postgres connection.
     """
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
     if not connection.in_atomic_block:
         connection.close()
 
-    from django.db.models import Avg, Sum
     from apps.notifications.services import emit_operator_alert
     from apps.notifications.models import OperatorAlert
     from apps.content.models import ContentItem
@@ -390,55 +476,12 @@ def detect_traffic_spikes() -> dict[str, int]:
     seven_days_ago = target_date - timedelta(days=7)
     one_day_ago = target_date - timedelta(days=1)
 
-    # 2. Identify candidates (pages with at least some traffic on the target date)
-    # We only care about pages with > 10 clicks to avoid noise from 1 click vs 0.
-    candidates = list(
-        SearchMetric.objects.filter(
-            date=target_date, source="gsc", clicks__gt=10
-        ).values_list("content_item_id", flat=True)
-    )
-    if not candidates:
+    # 2. Snapshot the full window once, then one SQL pass finds the spikes.
+    snapshot_path = _snapshot_gsc_clicks(seven_days_ago, target_date)
+    if snapshot_path is None:
         return {"alerts_emitted": 0}
 
-    # Performance refactor 2026-05-04: previously this loop issued
-    # 2 queries per candidate (avg_clicks + latest_clicks via two
-    # separate aggregates) plus one ContentItem.objects.get per spike
-    # — N+1 × 3. Replaced with two GROUP BY queries (one per window)
-    # and one bulk ContentItem fetch keyed on PK.
-    avg_rows = (
-        SearchMetric.objects.filter(
-            content_item_id__in=candidates,
-            source="gsc",
-            date__range=[seven_days_ago, one_day_ago],
-        )
-        .values("content_item_id")
-        .annotate(avg_clicks=Avg("clicks"))
-    )
-    avg_by_item: dict[int, float] = {
-        r["content_item_id"]: float(r["avg_clicks"] or 0) for r in avg_rows
-    }
-
-    latest_rows = (
-        SearchMetric.objects.filter(
-            content_item_id__in=candidates, source="gsc", date=target_date
-        )
-        .values("content_item_id")
-        .annotate(latest=Sum("clicks"))
-    )
-    latest_by_item: dict[int, int] = {
-        r["content_item_id"]: int(r["latest"] or 0) for r in latest_rows
-    }
-
-    # First pass: pick the items that actually fired the spike rule so
-    # we only have to bulk-fetch their titles, not every candidate.
-    spiking: list[tuple[int, int, float]] = []
-    for item_id in candidates:
-        avg_clicks = avg_by_item.get(item_id, 0.0)
-        latest_clicks = latest_by_item.get(item_id, 0)
-        # Threshold: 300% above average (i.e., 4x the average)
-        if avg_clicks > 0 and latest_clicks > (avg_clicks * 4):
-            spiking.append((item_id, latest_clicks, avg_clicks))
-
+    spiking = _query_spikes(snapshot_path, target_date, seven_days_ago, one_day_ago)
     if not spiking:
         return {"alerts_emitted": 0}
 

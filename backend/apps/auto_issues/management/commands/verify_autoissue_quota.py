@@ -12,7 +12,6 @@ from apps.auto_issues.models import AutoIssue
 
 
 REQUIRED_AUTOISSUE_FIXES = 30
-REQUIRED_SONARQUBE_FIXES = 10
 REQUIRED_RUST_DEFECT_FIXES = 10
 REQUIRED_PPROF_FIXES = 10
 REQUIRED_ALLOY_FIXES = 10
@@ -30,7 +29,6 @@ _RETIRED_HARD_SOURCES = frozenset(
     }
 )
 _CONFIGURED_HARD_SOURCE_REQUIREMENTS = {
-    AutoIssue.SOURCE_SONARQUBE: REQUIRED_SONARQUBE_FIXES,
     AutoIssue.SOURCE_RUST_DEFECT: REQUIRED_RUST_DEFECT_FIXES,
     AutoIssue.SOURCE_PPROF: REQUIRED_PPROF_FIXES,
     AutoIssue.SOURCE_ALLOY: REQUIRED_ALLOY_FIXES,
@@ -233,14 +231,7 @@ def _mandatory_hard_errors(count: int, source: str, required: int) -> list[str]:
     if count >= effective_required:
         return []
     short = effective_required - count
-    if source == AutoIssue.SOURCE_SONARQUBE:
-        suffix = (
-            "NON-SUBSTITUTABLE - must come from source=sonarqube) "
-            "CANNOT make up for the sonarqube shortfall; "
-            f"UNBLOCK: resolve {short} more sonarqube AutoIssues"
-        )
-    else:
-        suffix = f"{short} short; configured quota {required}"
+    suffix = f"{short} short; configured quota {required}"
     return [f"{source}: {count} of {effective_required} available resolved ({suffix})"]
 
 
@@ -269,11 +260,10 @@ def _hard_quota_errors_scaled(
                     f"({effective_required - count} short; configured quota {required})"
                 )
     if errors:
-        sonarqube_req = hard_reqs.get(AutoIssue.SOURCE_SONARQUBE, 0)
         lighthouse_req = hard_reqs.get(AutoIssue.SOURCE_LIGHTHOUSE, 0)
         pg_stat_req = hard_reqs.get(AutoIssue.SOURCE_PG_STAT, 0)
         errors.append(
-            f"Hard quota required: {sonarqube_req} sonarqube, "
+            f"Hard quota required: "
             f"{lighthouse_req} lighthouse, {pg_stat_req} pg_stat, "
             "and the configured source buckets."
         )

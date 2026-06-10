@@ -23,14 +23,21 @@ import numpy as np
 
 from apps.suggestions.recommended_weights import recommended_bool, recommended_float
 
+from .rust_kernels import KernelUnavailableError, load_kernel
+
 if TYPE_CHECKING:
     from .ranker import ContentKey, ScoredCandidate
 
+# The FR-015 MMR diversity batch was ported from C++ to Rust
+# (rust/extensions/feedrerank). It is loaded through the shared `load_kernel`
+# helper (RUST-FIRST.md zero-fallback). The inline Python reference in
+# `_mmr_select_for_host` below is retained as the cross-language parity oracle
+# the acceptance tests drive — NOT a silent runtime fallback. `HAS_CPP_DIVERSITY`
+# reports whether the native kernel is importable; the parity tests toggle it.
 try:
-    from extensions import feedrerank
-
-    HAS_CPP_DIVERSITY = hasattr(feedrerank, "calculate_mmr_scores_batch")
-except ImportError:
+    feedrerank = load_kernel("extensions.feedrerank", "calculate_mmr_scores_batch")
+    HAS_CPP_DIVERSITY = True
+except KernelUnavailableError:
     feedrerank = None
     HAS_CPP_DIVERSITY = False
 

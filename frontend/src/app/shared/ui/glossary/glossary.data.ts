@@ -42,6 +42,12 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
       'An inbound link to a page from somewhere else (internal or external). High-quality backlinks build authority.',
   },
   {
+    term: 'ECharts',
+    category: 'general',
+    definition:
+      'The charting library this app uses to draw every chart and the link-network map. It replaced the older chart.js and d3 drawing tools.',
+  },
+  {
     term: 'Behavioral hub',
     category: 'graph',
     definition:

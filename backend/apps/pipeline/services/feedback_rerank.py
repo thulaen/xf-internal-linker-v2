@@ -14,11 +14,20 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from django.db.models import Count, Q
 
-try:
-    from extensions import feedrerank
+from .rust_kernels import KernelUnavailableError, load_kernel
 
+# The FR-013 explore/exploit rerank batch was ported from C++ to Rust
+# (rust/extensions/feedrerank). It is loaded through the shared `load_kernel`
+# helper (RUST-FIRST.md zero-fallback). The inline Python reference in
+# `calculate_rerank_factor` / `rerank_candidates` below is retained as the
+# cross-language parity oracle the acceptance tests drive — NOT a silent runtime
+# fallback. `HAS_CPP_EXT` reports whether the native kernel is importable; the
+# parity tests toggle it to exercise both the native batch and the oracle.
+try:
+    feedrerank = load_kernel("extensions.feedrerank", "calculate_rerank_factors_batch")
     HAS_CPP_EXT = True
-except ImportError:
+except KernelUnavailableError:
+    feedrerank = None
     HAS_CPP_EXT = False
 
 from apps.suggestions.recommended_weights import recommended_bool, recommended_float

@@ -6,7 +6,6 @@ import {
 } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { provideCharts, withDefaultRegisterables } from 'ng2-charts';
 import { of, throwError } from 'rxjs';
 
 import { PerformanceComponent } from './performance.component';
@@ -44,7 +43,6 @@ describe('PerformanceComponent', () => {
         provideHttpClientTesting(),
         provideRouter([]),
         provideNoopAnimations(),
-        provideCharts(withDefaultRegisterables()),
         { provide: PerformanceService, useValue: svcStub },
       ],
     })
@@ -87,7 +85,6 @@ describe('PerformanceComponent', () => {
         provideHttpClientTesting(),
         provideRouter([]),
         provideNoopAnimations(),
-        provideCharts(withDefaultRegisterables()),
         { provide: PerformanceService, useValue: failing },
       ],
     }).overrideComponent(PerformanceComponent, {

@@ -39,8 +39,11 @@ def _fail(detail: str) -> int:
         "WHY: the observability stack must not only run, it must feed problems "
         "into AutoIssues. This check could not confirm that the pipeline is "
         "reachable, so we cannot prove findings are being recorded.\n"
-        "UNBLOCK: make sure the backend container is up "
-        "(docker compose up -d backend) and re-run.\n"
+        "UNBLOCK: 1. Inspect why the pipeline or backend is down.\n"
+        "         2. Query AutoIssue.lessons_learned from the database for past fixes to this specific problem.\n"
+        "         3. Fix the underlying issue using TDD and unit tests so it doesn't happen again.\n"
+        "         4. Record your fix and root-cause in a new lessons_learned entry.\n"
+        "         5. Ensure the backend container is up (docker compose up -d backend) and re-run.\n"
         f"\nDetail:\n{detail}\n"
     )
     return 1

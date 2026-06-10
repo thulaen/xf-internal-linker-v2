@@ -10,7 +10,7 @@ from apps.auto_issues.management.commands.verify_autoissue_quota import (
     REQUIRED_AUTOISSUE_FIXES,
     REQUIRED_LIGHTHOUSE_FIXES,
     REQUIRED_PG_STAT_FIXES,
-    REQUIRED_SONARQUBE_FIXES,
+    REQUIRED_RUST_DEFECT_FIXES,
     _count_and_duplicate_errors,
     _hard_quota_errors,
     _mandatory_hard_errors,
@@ -153,7 +153,7 @@ class QuotaCommandBugTests(SimpleTestCase):
         return {
             source: 0
             for source in [
-                AutoIssue.SOURCE_SONARQUBE, AutoIssue.SOURCE_RUST_DEFECT,
+                AutoIssue.SOURCE_RUST_DEFECT,
                 AutoIssue.SOURCE_PPROF, AutoIssue.SOURCE_ALLOY,
                 AutoIssue.SOURCE_LOKI, AutoIssue.SOURCE_PERFETTO,
                 AutoIssue.SOURCE_GWP_ASAN, AutoIssue.SOURCE_PROMETHEUS,
@@ -167,15 +167,24 @@ class QuotaCommandBugTests(SimpleTestCase):
         }
 
     def test_mandatory_hard_errors_no_keyerror_on_missing_source(self):
-        """Bug fix: _mandatory_hard_errors used counts[key] directly on sonarqube.
+        """Bug fix: _mandatory_hard_errors used counts[key] directly on rust_defect.
         If counts dict is missing the key it must return an error, not raise KeyError."""
         # Simulates first-ever session where counts is empty.
-        result = _mandatory_hard_errors(0, AutoIssue.SOURCE_SONARQUBE, REQUIRED_SONARQUBE_FIXES)
+        with patch(
+            "apps.auto_issues.management.commands.verify_autoissue_quota._available_issue_count",
+            return_value=REQUIRED_RUST_DEFECT_FIXES,
+        ):
+            result = _mandatory_hard_errors(
+                0, AutoIssue.SOURCE_RUST_DEFECT, REQUIRED_RUST_DEFECT_FIXES
+            )
         self.assertTrue(len(result) > 0)
-        self.assertIn("NON-SUBSTITUTABLE", result[0])
+        self.assertIn("short; configured quota", result[0])
 
-    @patch("apps.auto_issues.management.commands.verify_autoissue_quota._next_open_issue_ids", return_value=[])
-    def test_hard_quota_errors_no_keyerror_on_empty_counts(self, mock_next_ids):
+    @patch(
+        "apps.auto_issues.management.commands.verify_autoissue_quota._available_issue_count",
+        return_value=REQUIRED_RUST_DEFECT_FIXES,
+    )
+    def test_hard_quota_errors_no_keyerror_on_empty_counts(self, mock_available):
         """Bug fix: calling _hard_quota_errors with only zeroed counts must not KeyError."""
         counts = self._all_zero_counts()
         # Should return errors (all quotas unmet) but never raise.
@@ -200,8 +209,11 @@ class QuotaCommandBugTests(SimpleTestCase):
         duplicate_errors = [e for e in errors if "Duplicate" in e]
         self.assertEqual(duplicate_errors, [])
 
-    @patch("apps.auto_issues.management.commands.verify_autoissue_quota._next_open_issue_ids", return_value=[])
-    def test_quota_description_uses_constants_not_literals(self, mock_next_ids):
+    @patch(
+        "apps.auto_issues.management.commands.verify_autoissue_quota._available_issue_count",
+        return_value=10,
+    )
+    def test_quota_description_uses_constants_not_literals(self, mock_available):
         """Bug fix: the quota description string must derive values from constants.
         If REQUIRED_LIGHTHOUSE_FIXES is 3, the message must say '3 lighthouse'."""
         counts = self._all_zero_counts()
@@ -210,7 +222,6 @@ class QuotaCommandBugTests(SimpleTestCase):
         desc_line = next((l for l in errors if "lighthouse" in l and "required:" in l), None)
         self.assertIsNotNone(desc_line)
         self.assertIn(str(REQUIRED_LIGHTHOUSE_FIXES), desc_line)
-        self.assertIn(str(REQUIRED_SONARQUBE_FIXES), desc_line)
 
 
 class LighthousePickerUnavailableTests(SimpleTestCase):

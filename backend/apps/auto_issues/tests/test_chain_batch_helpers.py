@@ -17,8 +17,6 @@ from apps.auto_issues.models import AutoIssue
 from apps.auto_issues.services.chain_batch import (
     _duplicate_canonical_errors,
     _is_resolved_code_review,
-    _is_sonarqube_row,
-    _line_failed_within_hour,
     _missing_errors,
     _paper_evidence_core_errors,
     _quota_count_errors,
@@ -26,10 +24,10 @@ from apps.auto_issues.services.chain_batch import (
     _render_ids,
     _requires_resolution_evidence,
     _resolved_time_errors,
-    _sonarqube_quota_errors,
     _test_case_result,
     _unique_ids,
     _RESOLUTION_EVIDENCE_CUTOFF,
+    _line_failed_within_hour,
 )
 
 
@@ -66,26 +64,7 @@ class QuotaCountErrorsTests(SimpleTestCase):
         self.assertIn("duplicate AutoIssue ids are not allowed", errors)
 
 
-class SonarqubeQuotaErrorsTests(SimpleTestCase):
-    def _row(self, **kw):
-        return {"source": None, "external_id": None, **kw}
 
-    def test_exactly_ten_sonarqube_rows_pass(self):
-        ids = list(range(10))
-        rows = {i: self._row(source=AutoIssue.SOURCE_SONARQUBE) for i in ids}
-        self.assertEqual(_sonarqube_quota_errors(ids, rows), [])
-
-    def test_nine_rows_reports_shortfall(self):
-        ids = list(range(9))
-        rows = {i: self._row(source=AutoIssue.SOURCE_SONARQUBE) for i in ids}
-        self.assertEqual(
-            _sonarqube_quota_errors(ids, rows),
-            ["expected 10 SonarQube AutoIssues, got 9"],
-        )
-
-    def test_external_id_prefix_counts_as_sonarqube(self):
-        self.assertTrue(_is_sonarqube_row({"external_id": "sonarqube:42"}))
-        self.assertFalse(_is_sonarqube_row({"external_id": "glitchtip:42"}))
 
 
 class MissingAndDuplicateTests(SimpleTestCase):

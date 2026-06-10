@@ -59,7 +59,7 @@ const ROOT: usize = 0;
 /// Flat index into the goto table for `(node, byte)`: `(node << 8) | byte`,
 /// matching the C++ `goto_index`.
 #[inline]
-fn goto_index(node: usize, byte: u8) -> usize {
+const fn goto_index(node: usize, byte: u8) -> usize {
     (node << 8) | (byte as usize)
 }
 
@@ -233,7 +233,7 @@ impl AutomatonCore {
     /// The number of trie nodes (root is node 0, so a fresh empty automaton has
     /// `node_count == 1`).
     #[must_use]
-    pub fn node_count(&self) -> usize {
+    pub const fn node_count(&self) -> usize {
         self.node_count
     }
 
@@ -256,7 +256,7 @@ pub struct Automaton {
 impl Automaton {
     /// Read-only `node_count` attribute (root counts as node 0).
     #[getter]
-    fn node_count(&self) -> usize {
+    const fn node_count(&self) -> usize {
         self.core.node_count()
     }
 

@@ -1,0 +1,26 @@
+// Slice 1.6 — purged skeleton contract.
+// Apache reference: TrafficControl. Owning Django module: platform.
+// Ships as a gRPC skeleton this slice; every RPC returns codes.Unimplemented.
+// Real RPC bodies fill in via a future session — tracked in the paper-trail under
+// the tag `sidecars_followup`. Message names are service-prefixed because every
+// .proto file lives in the same proto package (xf.sidecars.v1).
+
+syntax = "proto3";
+
+package xf.sidecars.v1;
+
+import "shared.proto";
+
+option go_package = "xf-internal-linker-v2/services/sidecars/api/gen;sidecarsv1";
+
+service Purged {
+  rpc Purge(PurgedPurgeRequest) returns (Ack);
+  rpc Subscribe(PurgedSubscribeRequest) returns (stream PurgedPurgeEvent);
+  rpc Stats(Empty) returns (PurgedPurgeStats);
+  rpc Health(Empty) returns (HealthReply);
+}
+
+message PurgedPurgeEvent {}
+message PurgedPurgeRequest {}
+message PurgedPurgeStats {}
+message PurgedSubscribeRequest {}

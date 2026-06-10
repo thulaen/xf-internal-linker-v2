@@ -47,7 +47,7 @@ def scan_broken_links(job_id: str | None = None) -> dict:
     if not connection.in_atomic_block:
         connection.close()
     
-    from apps.pipeline.services.broken_links import (
+    from apps.pipeline.tasks_broken_links import (
         collect_urls_to_scan,
         build_existing_records_map,
         scan_via_async_http,
@@ -57,11 +57,8 @@ def scan_broken_links(job_id: str | None = None) -> dict:
     job_id = job_id or str(uuid.uuid4())
     _publish_progress(job_id, "running", 0.0, "Collecting links for health check...")
     
-    allowed_domains = _broken_link_allowed_domains()
-    urls_to_scan, total_urls, hit_scan_cap = collect_urls_to_scan(
-        allowed_domains=allowed_domains,
-        max_urls=_MAX_BROKEN_LINK_SCAN_URLS,
-    )
+    urls_to_scan, hit_scan_cap = collect_urls_to_scan()
+    total_urls = len(urls_to_scan)
 
     if not urls_to_scan:
         _publish_progress(job_id, "completed", 1.0, "No internal links found to scan.")

@@ -1,0 +1,14 @@
+version: v2
+# Slice 1.6 — sidecars hosts 40 internal services. Each api/<name>.proto declares
+# its own service. The MINIMAL lint preset matches services/streamd's policy.
+# The same exemptions apply: gRPC health enum uses the standard (UNKNOWN /
+# SERVING / NOT_SERVING) without buf's preferred prefixing.
+lint:
+  use:
+    - MINIMAL
+  except:
+    - ENUM_VALUE_PREFIX
+    - ENUM_ZERO_VALUE_SUFFIX
+    - SERVICE_SUFFIX
+    - RPC_RESPONSE_STANDARD_NAME
+    - PACKAGE_DIRECTORY_MATCH

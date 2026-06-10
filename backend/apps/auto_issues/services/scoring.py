@@ -70,8 +70,7 @@ _SEV_TABLES = {
     AutoIssue.SOURCE_GLITCHTIP: _SEV_TABLE_GLITCHTIP,
     AutoIssue.SOURCE_PYROSCOPE: _SEV_TABLE_PYROSCOPE,
     AutoIssue.SOURCE_AGENT: _SEV_TABLE_AGENT,
-    # 18 sources that previously fell through to {}.get(severity, 0.0)
-    AutoIssue.SOURCE_SONARQUBE: _SEV_TABLE_DEFAULT,
+    # 17 sources that previously fell through to {}.get(severity, 0.0)
     AutoIssue.SOURCE_TEMPO: _SEV_TABLE_DEFAULT,
     AutoIssue.SOURCE_LOKI: _SEV_TABLE_DEFAULT,
     AutoIssue.SOURCE_FARO: _SEV_TABLE_DEFAULT,

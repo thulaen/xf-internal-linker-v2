@@ -27,7 +27,7 @@ V1 contract:
 
 V2 follow-ups (from the spec ``## Pending``):
     * int8-quantised FAISS index for query-time speedup
-    * C++ kernel ``passagesim.cpp`` for batch passage similarity
+    * Rust kernel ``extensions.passagesim`` for batch passage similarity
     * Frontend settings card + suggestion-detail diagnostic block
 """
 
@@ -39,6 +39,8 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+
+from apps.pipeline.services.rust_kernels import KernelUnavailableError, load_kernel
 
 logger = logging.getLogger(__name__)
 
@@ -300,11 +302,15 @@ def _encode_and_persist_opq(
         return
     from apps.content.models import PassageEmbedding
 
+    # The Rust kernel `extensions.quantemb` is the sole OPQ encoder. If the
+    # `.so` is missing or stale, `load_kernel` raises `KernelUnavailableError`;
+    # here OPQ encoding is an optional persistence step, so we log a warning and
+    # skip rather than fail the whole pipeline run.
     try:
-        from extensions import quantemb
-    except ImportError:
+        quantemb = load_kernel("extensions.quantemb", "opq_encode")
+    except KernelUnavailableError:
         logger.warning(
-            "quantemb extension not available; skipping OPQ encoding for passages."
+            "quantemb kernel not available; skipping OPQ encoding for passages."
         )
         return
 
@@ -638,14 +644,17 @@ def score(host_sentence_embedding, content_item) -> tuple[float, dict[str, Any]]
         )
 
         # Both q and passages are L2-normalised at write time, so cosine
-        # similarity reduces to a dot product.
+        # similarity reduces to a dot product. The Rust kernel
+        # `extensions.passagesim` is the authoritative MaxSim path; the inline
+        # NumPy branch is kept as a runtime safety net (it costs nothing and the
+        # broad `except` in the caller already guards correctness) for the case
+        # where the `.so` is missing or stale.
         try:
-            from extensions import passagesim
-
+            passagesim = load_kernel("extensions.passagesim", "maxsim")
             best_sim, best_idx = passagesim.maxsim(q, passage_matrix)
             sims = [0.0] * len(rows)
             sims[best_idx] = best_sim
-        except ImportError:
+        except KernelUnavailableError:
             sims = passage_matrix @ q
             best_idx = int(np.argmax(sims))
             best_sim = float(sims[best_idx])

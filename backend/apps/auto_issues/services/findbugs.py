@@ -787,13 +787,13 @@ def generate_findbugs_report() -> dict[str, Any]:
 def compare_findbugs_with_observability_sources() -> dict[str, Any]:
     findbugs = _canonical_fingerprints(AutoIssue.SOURCE_RUST_DEFECT)
     glitchtip = _canonical_fingerprints(AutoIssue.SOURCE_GLITCHTIP)
-    sonarqube = _canonical_fingerprints(AutoIssue.SOURCE_SONARQUBE)
-    observed_elsewhere = glitchtip | sonarqube
+    tempo = _canonical_fingerprints(AutoIssue.SOURCE_TEMPO)
+    observed_elsewhere = glitchtip | tempo
     unique = sorted(findbugs - observed_elsewhere)
     return {
         "findbugs_total": len(findbugs),
         "glitchtip_overlap": len(findbugs & glitchtip),
-        "sonarqube_overlap": len(findbugs & sonarqube),
+        "tempo_overlap": len(findbugs & tempo),
         "findbugs_unique": len(unique),
         "unique_fingerprints": unique[:25],
     }

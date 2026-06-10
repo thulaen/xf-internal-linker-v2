@@ -28,7 +28,6 @@ OBSERVABILITY_SOURCES: tuple[str, ...] = (
     AutoIssue.SOURCE_TEMPO,
     AutoIssue.SOURCE_LOKI,
     AutoIssue.SOURCE_FARO,
-    AutoIssue.SOURCE_SONARQUBE,
     AutoIssue.SOURCE_VMALERT,
 )
 

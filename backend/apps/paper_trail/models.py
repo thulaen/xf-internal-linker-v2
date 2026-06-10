@@ -3,8 +3,8 @@
 One row per deferred work item. Schema is parallel to AutoIssue but
 does NOT overlap: AutoIssue tracks discovered problems; paper trail
 tracks deliberately-deferred work, with a detailed abstract explaining
-why, plus dedup via the C++ MinHash + LSH index in
-`backend/extensions/papertrail_dedup.cpp`.
+why, plus dedup via the Rust MinHash + LSH index in
+`rust/extensions/papertrail_dedup` (imported as extensions.papertrail_dedup).
 
 The save() override enforces:
 - abstract ≤ 600 words

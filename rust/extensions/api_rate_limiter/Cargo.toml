@@ -26,7 +26,7 @@ crate-type = ["cdylib", "rlib"]
 # works across future 3.x without a per-minor rebuild. Pinned to the 0.26 line
 # to match the workspace scaffold (`xf_kernels`). No `numpy` here: this kernel
 # takes `str`/`float`/`int`, not arrays, so it needs only base PyO3.
-pyo3 = { version = "0.26", features = ["abi3-py310", "extension-module"] }
+pyo3 = { version = "0.26", features = ["abi3-py310"] }
 
 [dev-dependencies]
 # Criterion drives the mandatory hot-path benchmark (3 input sizes) over the
@@ -40,3 +40,6 @@ harness = false
 
 [lints]
 workspace = true
+
+[features]
+extension-module = ["pyo3/extension-module"]

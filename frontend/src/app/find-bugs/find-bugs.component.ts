@@ -1,8 +1,12 @@
-import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { catchError, finalize, of } from 'rxjs';
-import * as d3 from 'd3';
+import type { EChartsOption } from 'echarts';
+
+import { EchartsDirective } from '../shared/charts/echarts.directive';
+import { PeHelperDirective } from '../shared/directives/pe-helper.directive';
+import { gscChartBase, token, withAlpha } from '../shared/charts/echarts-theme';
 
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -35,17 +39,20 @@ import { FindBugsFinding, FindBugsService, FindBugsSummary } from './find-bugs.s
     MatSelectModule,
     MatTableModule,
     MatTooltipModule,
+    EchartsDirective,
+    PeHelperDirective,
   ],
   templateUrl: './find-bugs.component.html',
   styleUrls: ['./find-bugs.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class FindBugsComponent implements OnInit, AfterViewInit {
-  @ViewChild('chart')
-  set chartRef(value: ElementRef<SVGElement> | undefined) {
-    this.chart = value;
-    this.renderChart();
-  }
+export class FindBugsComponent implements OnInit {
+  /**
+   * Severity bar chart option. `null` until the summary loads (or when the
+   * summary carries no severity counts) so the template shows a truthful
+   * empty state, never a blank chart implying "no bugs".
+   */
+  readonly severityChart = signal<EChartsOption | null>(null);
 
   readonly displayedColumns = ['expand', 'pattern', 'severity', 'status', 'file', 'confirmedBy', 'actions'];
   readonly severities = ['', 'critical', 'high', 'medium', 'low'];
@@ -60,18 +67,11 @@ export class FindBugsComponent implements OnInit, AfterViewInit {
   error = '';
   expandedFindingId: number | null = null;
 
-  private viewReady = false;
-  private chart?: ElementRef<SVGElement>;
   private readonly service = inject(FindBugsService);
   private readonly cdr = inject(ChangeDetectorRef);
 
   ngOnInit(): void {
     this.refresh();
-  }
-
-  ngAfterViewInit(): void {
-    this.viewReady = true;
-    this.renderChart();
   }
 
   refresh(): void {
@@ -334,33 +334,19 @@ export class FindBugsComponent implements OnInit, AfterViewInit {
     this.runAction(() => this.service.moveToLesson(finding.id, classification, lesson));
   }
 
+  /**
+   * Build the severity bar chart from the summary's severity counts. Sets
+   * `severityChart` to `null` when there is no data so the template renders a
+   * truthful empty state instead of an empty chart. Pure transform of the
+   * summary — no DOM access, so it is safe to call before the view is ready.
+   */
   private renderChart(): void {
-    if (!this.viewReady || !this.chart || !this.summary) return;
-    const data = Object.entries(this.summary.severity || {}).map(([label, value]) => ({ label, value }));
-    const svg = d3.select(this.chart.nativeElement);
-    svg.selectAll('*').remove();
-    const width = 360;
-    const height = 160;
-    const x = d3.scaleBand().domain(data.map((item) => item.label)).range([0, width]).padding(0.24);
-    const y = d3.scaleLinear().domain([0, Math.max(1, ...data.map((item) => item.value))]).range([height, 0]);
-    svg.attr('viewBox', `0 0 ${width} ${height + 28}`);
-    svg.selectAll('rect')
-      .data(data)
-      .join('rect')
-      .attr('x', (item) => x(item.label) ?? 0)
-      .attr('y', (item) => y(item.value))
-      .attr('width', x.bandwidth())
-      .attr('height', (item) => height - y(item.value))
-      .attr('rx', 4)
-      .attr('class', 'severity-bar')
-      .attr('fill', 'var(--color-primary)');
-    svg.selectAll('text')
-      .data(data)
-      .join('text')
-      .attr('x', (item) => (x(item.label) ?? 0) + x.bandwidth() / 2)
-      .attr('y', height + 18)
-      .attr('text-anchor', 'middle')
-      .text((item) => item.label);
+    const entries = Object.entries(this.summary?.severity ?? {});
+    if (entries.length === 0) {
+      this.severityChart.set(null);
+      return;
+    }
+    this.severityChart.set(buildSeverityChart(entries));
   }
 
   private parseDescription(finding: FindBugsFinding): Record<string, any> {
@@ -371,4 +357,41 @@ export class FindBugsComponent implements OnInit, AfterViewInit {
       return {};
     }
   }
+}
+
+/**
+ * Build the ECharts bar option for the severity spread. Top-level pure
+ * function — easy to test, no component state captured. Bars use the tokened
+ * GSC blue (`var(--color-primary)`) so the chart stays inside the design
+ * system rather than a hardcoded hex.
+ */
+function buildSeverityChart(entries: [string, number][]): EChartsOption {
+  const base = gscChartBase();
+  const muted = token('--color-text-muted');
+  return {
+    ...base,
+    tooltip: { ...(base['tooltip'] as object), trigger: 'axis' },
+    legend: { show: false },
+    grid: { left: 8, right: 16, top: 16, bottom: 28, containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: entries.map(([label]) => label),
+      axisLabel: { color: muted, fontSize: 11 },
+      axisLine: { lineStyle: { color: token('--color-border') } },
+    },
+    yAxis: {
+      type: 'value',
+      minInterval: 1,
+      axisLabel: { color: muted, fontSize: 11 },
+      splitLine: { lineStyle: { color: withAlpha(muted, 0.1) } },
+    },
+    series: [
+      {
+        type: 'bar',
+        data: entries.map(([, value]) => value),
+        itemStyle: { color: token('--color-primary'), borderRadius: [4, 4, 0, 0] },
+        barMaxWidth: 48,
+      },
+    ],
+  };
 }

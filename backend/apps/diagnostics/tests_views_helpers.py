@@ -34,20 +34,28 @@ class BuildEmbeddingsLabelTests(SimpleTestCase):
 
     def test_active_model_with_dimension(self):
         name, label = _build_embeddings_label(
-            {"model_name": "BAAI/bge-m3", "dimension": 1024, "device_target": "cuda"},
+            {
+                "model_name": "text-embedding-3-small",
+                "dimension": 1536,
+                "device_target": "cpu",
+            },
             {},
         )
-        self.assertEqual(name, "BAAI/bge-m3")
-        self.assertEqual(label, "BAAI/bge-m3 on cuda (1024d)")
+        self.assertEqual(name, "text-embedding-3-small")
+        self.assertEqual(label, "text-embedding-3-small on cpu (1536d)")
 
     def test_falls_back_to_runtime_device(self):
         _, label = _build_embeddings_label({"model_name": "x"}, {"device": "cpu"})
         self.assertEqual(label, "x on cpu")
 
     def test_default_model_when_missing(self):
+        from django.conf import settings
+
         name, label = _build_embeddings_label({}, {})
-        self.assertEqual(name, "BAAI/bge-m3")
-        self.assertEqual(label, "BAAI/bge-m3 on cpu")
+        expected = getattr(settings, "EMBEDDING_MODEL", "text-embedding-3-small")
+        self.assertEqual(name, expected)
+        self.assertNotIn("bge-m3", name.lower())
+        self.assertEqual(label, f"{expected} on cpu")
 
 
 class EmbeddingsTileMessageTests(SimpleTestCase):
@@ -398,3 +406,33 @@ class CountSignalErrorsTests(SimpleTestCase):
             {"unrelated:thing": 99},
         )
         self.assertEqual(n, 0)
+
+
+class NoRetiredBgeM3ActiveModelTests(SimpleTestCase):
+    """Guard: no live default treats the retired BGE-M3 model as active.
+
+    Embeddings moved to a paid API provider
+    (docs/specs/fr-cpu-paid-embeddings-runtime.md). The configured
+    default model, the diagnostics dashboard fallback, and the
+    suggestions meta-registry must all name the paid provider, never
+    BAAI/bge-m3.
+    """
+
+    def test_configured_default_model_is_paid_provider(self):
+        from django.conf import settings
+
+        model = getattr(settings, "EMBEDDING_MODEL", "")
+        self.assertTrue(model)
+        self.assertNotIn("bge-m3", model.lower())
+
+    def test_dashboard_tile_falls_back_to_paid_provider(self):
+        name, _ = _build_embeddings_label({}, {})
+        self.assertNotIn("bge-m3", name.lower())
+        self.assertNotIn("baai", name.lower())
+
+    def test_meta_registry_has_no_active_bge_m3_title(self):
+        from apps.suggestions.meta_registry import _ACTIVE_METAS
+
+        titles = [m["title"].lower() for m in _ACTIVE_METAS]
+        for title in titles:
+            self.assertNotIn("bge-m3", title)

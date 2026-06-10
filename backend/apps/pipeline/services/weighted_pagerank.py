@@ -17,11 +17,19 @@ from apps.ops_feed.services import emit
 import numpy as np
 from scipy.sparse import coo_matrix, csr_matrix
 
-try:
-    from extensions import pagerank as pagerank_ext
+from .rust_kernels import KernelUnavailableError, load_kernel
 
+# The PageRank power-iteration step was ported from C++ to Rust
+# (rust/extensions/pagerank). It is loaded through the shared `load_kernel`
+# helper (RUST-FIRST.md zero-fallback). The inline Python `_pagerank_step_py`
+# below is retained as the cross-language parity oracle the acceptance tests and
+# the health benchmark drive — NOT a silent runtime fallback. `HAS_CPP_EXT`
+# reports whether the native kernel is importable.
+try:
+    pagerank_ext = load_kernel("extensions.pagerank", "pagerank_step")
     HAS_CPP_EXT = True
-except ImportError:
+except KernelUnavailableError:
+    pagerank_ext = None
     HAS_CPP_EXT = False
 
 logger = logging.getLogger(__name__)

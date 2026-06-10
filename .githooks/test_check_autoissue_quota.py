@@ -29,14 +29,14 @@ def test_hook_returns_2_when_either_quota_short(monkeypatch, capsys) -> None:
                 command,
                 2,
                 "",
-                "sonarqube: 0 of 10 resolved (NON-SUBSTITUTABLE - must come from source=sonarqube)\n",
+                "quota: 0 of 10 resolved\n",
             )
         return subprocess.CompletedProcess(command, 0, "[PAPER TRAIL QUOTA VERIFIED: 10 resolved]\n", "")
 
     monkeypatch.setattr(hook.subprocess, "run", fake_run)
 
     assert hook.main() == 2
-    assert "sonarqube: 0 of 10 resolved" in capsys.readouterr().err
+    assert "quota" in capsys.readouterr().err.lower()
 
 
 def test_hook_returns_zero_when_both_verifiers_pass(monkeypatch) -> None:
@@ -50,7 +50,7 @@ def test_hook_returns_zero_when_both_verifiers_pass(monkeypatch) -> None:
     assert hook.main() == 0
 
 
-def test_hook_refreshes_sonarqube_before_verifying(monkeypatch) -> None:
+def test_hook_runs_quota_verifiers_in_order(monkeypatch) -> None:
     hook = _load_hook()
     seen = []
 
@@ -61,9 +61,8 @@ def test_hook_refreshes_sonarqube_before_verifying(monkeypatch) -> None:
     monkeypatch.setattr(hook.subprocess, "run", fake_run)
 
     assert hook.main() == 0
-    assert "ingest_sonarqube_issues" in seen[0]
-    assert "verify_autoissue_quota" in seen[1]
-    assert "verify_paper_trail_quota" in seen[2]
+    assert "verify_autoissue_quota" in seen[0]
+    assert "verify_paper_trail_quota" in seen[1]
 
 
 def test_docker_down_fails_closed(monkeypatch, capsys) -> None:
@@ -107,7 +106,7 @@ def test_ci_mode_does_not_bypass(monkeypatch) -> None:
     assert hook.main() == 2
 
 
-def test_pre_push_enforces_both_quotas_including_sonarqube() -> None:
+def test_pre_push_enforces_both_quotas() -> None:
     prepush = (REPO_ROOT / "scripts" / "prepush-docker.sh").read_text(encoding="utf-8")
 
     quota_index = prepush.index("python .githooks/check-autoissue-quota.py")
@@ -117,8 +116,7 @@ def test_pre_push_enforces_both_quotas_including_sonarqube() -> None:
 
 
 # --- 2026-05-29 regression tests: the verifiers expose --session-type, not the
-#     long-removed --since-handoff, and a SonarQube refresh failure must not
-#     block the commit (availability is enforced by check-observability-stack).
+#     long-removed --since-handoff.
 
 
 def test_source_uses_session_type_not_since_handoff() -> None:
@@ -159,16 +157,3 @@ def test_session_type_rejects_unknown_value(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(hook, "GATE_STATE", state)
     assert hook._session_type() == "feature"
 
-
-def test_sonar_refresh_failure_is_non_fatal(monkeypatch) -> None:
-    """SonarQube refresh is best-effort: a non-zero refresh must NOT block the
-    commit when both quota verifiers pass."""
-    hook = _load_hook()
-
-    def fake_run(command, **kwargs):
-        rc = 1 if "ingest_sonarqube_issues" in command else 0
-        return subprocess.CompletedProcess(command, rc, "ok\n", "")
-
-    monkeypatch.setattr(hook.subprocess, "run", fake_run)
-    monkeypatch.setattr(hook, "_session_type", lambda: "docs")
-    assert hook.main() == 0

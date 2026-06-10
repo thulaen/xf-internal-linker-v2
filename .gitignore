@@ -137,6 +137,25 @@ frontend/out-tsc/
 
 # Backend static files (build artifacts)
 backend/static/
+
+# Rust build artefacts — never commit these; the compiled wheel is the deliverable
+rust/target/
+rust/mutants.out/
+rust/mutants.out.old/
+rust/**/.mutmut-cache
+
+# Session scratch files — created by the commit-gauntlet helpers; junk, never commit
+.slice4*.json
+.slice4*.txt
+.slice4*.py
+.cov.json
+
+# Data dumps and binary assets that do not belong in git
+backend/scripts/autoissues_dump.json
+Live-Ranking-Weights.xlsx
+*.bak-build*.html
+# Ad-hoc one-off ruff-loop fix scripts (created per session, not for commit)
+backend/fix_ruff*.py
 .claude/
 
 # Cloudflare Tunnel portable binary
@@ -195,6 +214,7 @@ audit/session_gate_state.json
 
 # Auto-generated mutation-test output directories (mutmut, cargo-mutants, etc.)
 **/mutants.out/
+**/mutants.out.old/
 **/mutants/
 backend/mutants/
 
@@ -202,10 +222,14 @@ backend/mutants/
 services/speccheck/target/
 services/*/target/
 
-# Haskell build output (findbugs-haskell and any future Haskell services)
-services/findbugs-haskell/dist-newstyle/
-services/*/dist-newstyle/
-services/*/.stack-work/
+# Rust hot-path kernels workspace (rust/) — build output + maturin wheels.
+# The Docker-managed build writes target/ to the container's /tmp, but ignore
+# these so a stray host `cargo`/`maturin` build never commits artifacts.
+rust/target/
+rust/**/target/
+rust/wheels/
+rust/**/*.so
+rust/**/*.pyd
 
 # Miscellaneous Go and C++ test/bench artefacts that don't belong in the repo
 **/cover.out
@@ -253,3 +277,5 @@ backend/html/
 audit/agent_progress_latest.txt
 audit/agent_progress_state.json
 audit/cluster_tuned_params.json
+services/sidecars/sidecars
+backend/audit/admin_recovery_log.jsonl

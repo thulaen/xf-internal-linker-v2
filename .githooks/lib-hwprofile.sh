@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # lib-hwprofile.sh — sourced by .githooks/pre-commit and .githooks/pre-push.
 #
 # Exports MAX_JOBS_FAST and MAX_JOBS_HEAVY based on the detected hardware

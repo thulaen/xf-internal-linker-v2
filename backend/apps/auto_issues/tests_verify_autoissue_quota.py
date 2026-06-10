@@ -123,24 +123,16 @@ class HardQuotaTests(TestCase):
     def _counts(self, **overrides) -> dict:
         """Build a counts dict that satisfies all hard requirements by default."""
         from apps.auto_issues.management.commands.verify_autoissue_quota import (
-            REQUIRED_SONARQUBE_FIXES,
             REQUIRED_RUST_DEFECT_FIXES,
-            REQUIRED_PPROF_FIXES,
             REQUIRED_ALLOY_FIXES,
             REQUIRED_LOKI_HARD_FIXES,
-            REQUIRED_PERFETTO_FIXES,
-            REQUIRED_GWP_ASAN_FIXES,
             REQUIRED_LIGHTHOUSE_FIXES,
             REQUIRED_PG_STAT_FIXES,
         )
         base = {
-            AutoIssue.SOURCE_SONARQUBE: REQUIRED_SONARQUBE_FIXES,
             AutoIssue.SOURCE_RUST_DEFECT: REQUIRED_RUST_DEFECT_FIXES,
-            AutoIssue.SOURCE_PPROF: REQUIRED_PPROF_FIXES,
             AutoIssue.SOURCE_ALLOY: REQUIRED_ALLOY_FIXES,
             AutoIssue.SOURCE_LOKI: REQUIRED_LOKI_HARD_FIXES,
-            AutoIssue.SOURCE_PERFETTO: REQUIRED_PERFETTO_FIXES,
-            AutoIssue.SOURCE_GWP_ASAN: REQUIRED_GWP_ASAN_FIXES,
             AutoIssue.SOURCE_LIGHTHOUSE: REQUIRED_LIGHTHOUSE_FIXES,
             AutoIssue.SOURCE_PG_STAT: REQUIRED_PG_STAT_FIXES,
             AutoIssue.SOURCE_AGENT: 3,
@@ -164,6 +156,7 @@ class HardQuotaTests(TestCase):
         from apps.auto_issues.management.commands.verify_autoissue_quota import (
             _hard_quota_errors,
         )
+        _create_open_issue(AutoIssue.SOURCE_LIGHTHOUSE)
         counts = self._counts(**{AutoIssue.SOURCE_LIGHTHOUSE: 0})
         errors = _hard_quota_errors(counts)
         self.assertTrue(
@@ -176,6 +169,7 @@ class HardQuotaTests(TestCase):
         from apps.auto_issues.management.commands.verify_autoissue_quota import (
             _hard_quota_errors,
         )
+        _create_open_issue(AutoIssue.SOURCE_PG_STAT)
         counts = self._counts(**{AutoIssue.SOURCE_PG_STAT: 0})
         errors = _hard_quota_errors(counts)
         self.assertTrue(
@@ -208,27 +202,58 @@ class HardQuotaTests(TestCase):
         )
         self.assertEqual(params, ["counts"], f"Expected only 'counts', got {params}")
 
-    # ── Fix 7: no triple sonarqube error messages ─────────────────────
 
-    def test_hard_quota_errors_sonarqube_shortfall_emits_exactly_two_messages(self):
-        """AutoIssue Fix 7: sonarqube shortfall must produce exactly 2 lines, not 3 or 4.
 
-        Before the fix: 4 lines (sonarqube per-source + CANNOT make up + UNBLOCK + summary).
-        After the fix: 2 lines (sonarqube per-source with embedded UNBLOCK + summary).
-        """
+    def test_hard_quota_passes_when_live_mandatory_bucket_is_dry(self):
+        """A mandatory bucket with no open work cannot block the commit."""
         from apps.auto_issues.management.commands.verify_autoissue_quota import (
             _hard_quota_errors,
         )
-        # Only sonarqube is short; all other sources meet their requirements.
-        counts = self._counts(**{AutoIssue.SOURCE_SONARQUBE: 0})
+        counts = self._counts(**{AutoIssue.SOURCE_ALLOY: 0})
         errors = _hard_quota_errors(counts)
-        self.assertEqual(
-            len(errors),
-            2,
-            f"Expected exactly 2 error lines, got {len(errors)}: {errors}",
+        self.assertEqual(errors, [], f"Dry hard bucket must be exempt; got: {errors}")
+
+    def test_hard_quota_ignores_retired_native_observability_source(self):
+        """Retired removed-runtime observability sources no longer block commits."""
+        from apps.auto_issues.management.commands.verify_autoissue_quota import (
+            _hard_quota_errors,
         )
-        self.assertTrue(any("sonarqube" in e.lower() for e in errors))
-        self.assertTrue(any("UNBLOCK" in e for e in errors))
+        _create_open_issue(AutoIssue.SOURCE_PPROF)
+        _create_open_issue(AutoIssue.SOURCE_PERFETTO)
+        _create_open_issue(AutoIssue.SOURCE_GWP_ASAN)
+        counts = self._counts(
+            **{
+                AutoIssue.SOURCE_PPROF: 0,
+                AutoIssue.SOURCE_PERFETTO: 0,
+                AutoIssue.SOURCE_GWP_ASAN: 0,
+            }
+        )
+        errors = _hard_quota_errors(counts)
+        self.assertEqual(errors, [], f"Retired hard sources must not block: {errors}")
+
+    def test_hard_quota_requires_only_available_open_work(self):
+        """If fewer issues exist than the quota, resolving those available rows is enough."""
+        from apps.auto_issues.management.commands.verify_autoissue_quota import (
+            _hard_quota_errors,
+        )
+        first = _create_open_issue(AutoIssue.SOURCE_ALLOY)
+        second = _create_open_issue(AutoIssue.SOURCE_ALLOY)
+        counts = self._counts(**{AutoIssue.SOURCE_ALLOY: 0})
+        errors = _hard_quota_errors(counts)
+        self.assertTrue(
+            any("alloy: 0 of 2 available resolved" in e for e in errors),
+            f"Expected available-work shortfall, got: {errors}",
+        )
+
+        AutoIssue.objects.filter(id__in=[first.id, second.id]).update(
+            status=AutoIssue.STATUS_RESOLVED,
+            resolved_at=timezone.now(),
+            resolved_by="codex-test",
+            lessons_learned="Trap: available rows were finite.\nFix shape: resolved all available rows.",
+        )
+        counts = self._counts(**{AutoIssue.SOURCE_ALLOY: 2})
+        errors = _hard_quota_errors(counts)
+        self.assertEqual(errors, [], f"Available hard-bucket work is resolved: {errors}")
 
 
 class ScaledRequirementsTests(TestCase):
@@ -285,6 +310,13 @@ class ScaledRequirementsTests(TestCase):
         h, c = fn("feature")
         self.assertEqual(h, hard, "feature: hard reqs must match full quota")
         self.assertEqual(c, cross, "feature: cross reqs must match full quota")
+
+    def test_feature_hard_quotas_exclude_retired_native_observability_sources(self):
+        fn, hard, cross = self._import()
+        h, c = fn("feature")
+        self.assertNotIn(AutoIssue.SOURCE_PPROF, h)
+        self.assertNotIn(AutoIssue.SOURCE_PERFETTO, h)
+        self.assertNotIn(AutoIssue.SOURCE_GWP_ASAN, h)
 
     def test_hard_flag_reconciliation_passes_with_ten_cross_source(self):
         """verify_autoissue_quota --hard --session-type reconciliation accepts 1-per-cross-source."""
@@ -347,6 +379,33 @@ class ScaledRequirementsTests(TestCase):
             errors, [], f"Dry cross-source buckets must be exempt; got: {errors}"
         )
 
+    def test_feature_cross_source_requires_only_available_open_work(self):
+        """Feature mode adapts cross-source quotas to available rows."""
+        from apps.auto_issues.management.commands.verify_autoissue_quota import (
+            _hard_quota_errors_scaled,
+            _scaled_requirements,
+            _CROSS_SOURCE_REQUIREMENTS,
+        )
+        _create_open_issue(AutoIssue.SOURCE_PYROSCOPE)
+        h, c = _scaled_requirements("feature")
+        counts = {src: 3 for src in _CROSS_SOURCE_REQUIREMENTS}
+        counts[AutoIssue.SOURCE_PYROSCOPE] = 0
+        errors = _hard_quota_errors_scaled(counts, h, c)
+        self.assertTrue(
+            any("pyroscope: 0 of 1 available resolved" in e for e in errors),
+            f"Expected one available pyroscope row to block; got: {errors}",
+        )
+
+        AutoIssue.objects.filter(source=AutoIssue.SOURCE_PYROSCOPE).update(
+            status=AutoIssue.STATUS_RESOLVED,
+            resolved_at=timezone.now(),
+            resolved_by="codex-test",
+            lessons_learned="Trap: one row was available.\nFix shape: resolved the one row.",
+        )
+        counts[AutoIssue.SOURCE_PYROSCOPE] = 1
+        errors = _hard_quota_errors_scaled(counts, h, c)
+        self.assertEqual(errors, [], f"Resolved available cross-source row: {errors}")
+
 
 def _create_resolved_issues(count: int) -> list[str]:
     return [str(_create_issue().id) for _ in range(count)]
@@ -370,4 +429,13 @@ def _create_issue(
         resolved_at=resolved_at,
         resolved_by="codex-test",
         lessons_learned=lessons_learned,
+    )
+
+
+def _create_open_issue(source: str) -> AutoIssue:
+    return AutoIssue.objects.create(
+        source=source,
+        external_id=f"open-{source}-{AutoIssue.objects.count()}",
+        title=f"Open {source} quota issue",
+        status=AutoIssue.STATUS_OPEN,
     )
