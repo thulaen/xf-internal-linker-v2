@@ -2682,3 +2682,21 @@
 {"file_path": "backend/apps/resolved_search_batch_pipeline", "lookup_at": "2026-06-10T19:10:08Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 1, "result_ids": [182]}
 {"file_path": "backend/apps/resolved_search_windows", "lookup_at": "2026-06-10T19:10:08Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 1, "result_ids": [183]}
 {"file_path": ".githooks", "lookup_at": "2026-06-10T19:10:21Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 2, "result_ids": [245, 244]}
+{"file_path": "backend/apps/resolved_search_batch_audit", "lookup_at": "2026-06-10T19:15:55Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 1, "result_ids": [37]}
+{"file_path": "backend/apps/resolved_search_batch_pipeline", "lookup_at": "2026-06-10T19:15:55Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 1, "result_ids": [38]}
+{"file_path": "backend/apps/resolved_search_windows", "lookup_at": "2026-06-10T19:15:55Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 1, "result_ids": [39]}
+{"file_path": "backend/apps/resolved_search_limited", "lookup_at": "2026-06-10T19:15:55Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/resolved_search_audit", "lookup_at": "2026-06-10T19:15:55Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 1, "result_ids": [42]}
+{"file_path": ".githooks", "lookup_at": "2026-06-10T19:17:54Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 2, "result_ids": [672, 671]}
+{"file_path": "backend/apps/resolved_search_audit", "lookup_at": "2026-06-10T19:24:11Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 1, "result_ids": [631]}
+{"file_path": "backend/apps/resolved_search_batch_audit", "lookup_at": "2026-06-10T19:24:11Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 1, "result_ids": [633]}
+{"file_path": "backend/apps/resolved_search_batch_pipeline", "lookup_at": "2026-06-10T19:24:11Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 1, "result_ids": [634]}
+{"file_path": "backend/apps/resolved_search_limited", "lookup_at": "2026-06-10T19:24:11Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/resolved_search_windows", "lookup_at": "2026-06-10T19:24:11Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 1, "result_ids": [637]}
+{"file_path": ".githooks", "lookup_at": "2026-06-10T19:26:00Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 2, "result_ids": [1114, 1113]}
+{"file_path": ".githooks", "lookup_at": "2026-06-10T19:30:33Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 2, "result_ids": [1069, 1068]}
+{"file_path": "backend/apps/resolved_search_windows", "lookup_at": "2026-06-10T19:30:36Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 1, "result_ids": [1081]}
+{"file_path": "backend/apps/resolved_search_audit", "lookup_at": "2026-06-10T19:30:36Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 1, "result_ids": [1082]}
+{"file_path": "backend/apps/resolved_search_batch_audit", "lookup_at": "2026-06-10T19:30:36Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 1, "result_ids": [1084]}
+{"file_path": "backend/apps/resolved_search_batch_pipeline", "lookup_at": "2026-06-10T19:30:36Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 1, "result_ids": [1085]}
+{"file_path": "backend/apps/resolved_search_limited", "lookup_at": "2026-06-10T19:30:36Z", "task_id": "2d332c8a-4330-4069-a4bf-e8613349b820", "agent": "claude", "result_count": 0, "result_ids": []}
