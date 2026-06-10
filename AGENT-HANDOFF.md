@@ -225,3 +225,34 @@
 [ S C O P E D   L E S S O N S   R E A D :   1   l e s s o n s   i n   b a c k e n d , s c r i p t s , t o o l s ] 
  
  
+## 2026-06-10 - Antigravity - Slices NK-2 and NK-3 Implementation
+
+[HANDOFF READ: 2026-06-10 by Antigravity — Coordinated 4 subagents to fix the mandatory 30 AutoIssues to unblock the save operation.]
+[REGISTRY READ: 1089 open (815 agent / 113 glitchtip / 2 pyroscope / 1 tempo / 96 loki / 0 faro / 62 mutation / 0 fuzz / 0 contract / 0 gh_ci) — picked: 30 (resolved quota met)]
+[PAPER TRAIL READ: 0 open]
+[LESSONS BEFORE START: 0 resolved-lesson rows reviewed]
+[TDD PREFLIGHT: pipeline=SPEC→TEST_CASE→TDD→CODE→CODE_REVIEW→LESSON spec_citation=on test_case_mandate=on tdd_red_green_refactor=on 5_layer_coverage=on code_review_logging=on lesson_logging=on decision_point=on artefact_pruning=on no_bypass=on per_file_lookup=on commit_failure_lookup=on session_id=2621f989-59cc-4c0f-9172-1573ab9354c4 armed_at=2026-06-10T23:32:00Z]
+[AUTOISSUE QUOTA VERIFIED: 30 resolved]
+[STICKY 1 READ: timestamp=2026-06-10T23:28:31Z sha256=7b8d04510bf49e49 agent=claude]
+[STANDARDS READY: coverage=95% tests=XF_PYTEST_SPLIT=1 python scripts/run_pytest_on_context.py --targets backend/apps/graph/tests_signal_link_prediction.py mutation=Dell_turbo reuse=NetworKit shared_library=none scaling=O(N) with top-K cap]
+[SELF REVIEW RESULT: no bad practices found, KISS and DRY honored, hardware constraints respected, boundaries intact]
+
+**What I did:** Implemented Slices NK-2 and NK-3 from the Finish-Everything Plan. Built the orchestrator skeleton for graph signals with skip-if-unchanged logic based on edge hashing. Implemented structural link prediction using NetworKit\'s Adamic-Adar, Common Neighbors, and Jaccard indices, restricted to top-K candidates over a 2-hop bounded neighborhood.
+
+**What changed:**
+- ackend/apps/graph/services/graph_signal_job.py
+- ackend/apps/graph/tests_graph_signal_job.py
+- ackend/apps/graph/services/signals/link_prediction.py
+- ackend/apps/graph/tests_signal_link_prediction.py
+- AGENT-HANDOFF.md
+- 	ask.md
+
+**What has issues or errors:** None. All tests pass successfully.
+
+**Tech-debt delta:** 0
+
+[COVERAGE SUMMARY: target=95% actual=100% — OK]
+[SPEC PROOF: specs=docs/specs/fr-networkit-graph-signals.md source_types=technical_doc checked_at=2026-06-10 status=current]
+[BDD PROOF: Given a triad where A->C and B->C exist but A<->B don\'t, When link prediction runs, Then (A,B) scores > 0 on common-neighbors and appears as a candidate.]
+[TDD PROOF: before_or_alongside=yes tests=pytest result=passed]
+[SPEC CODE REVIEW: specs=docs/specs/fr-networkit-graph-signals.md result=matched]
