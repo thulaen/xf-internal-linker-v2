@@ -9,6 +9,7 @@ pipeline to avoid suggesting links that already exist.
 import uuid
 
 from django.db import models
+from pgvector.django import VectorField
 
 from apps.core.models import TimestampedModel
 
@@ -220,3 +221,214 @@ class BrokenLink(TimestampedModel):
 
     def __str__(self) -> str:
         return f"{self.source_content} -> {self.url} [{self.http_status}]"
+
+
+class GraphSignalRun(TimestampedModel):
+    """
+    A single snapshot of computed graph signals for the entire site.
+    Uses skip-if-unchanged (by graph_hash) to avoid redundant computation.
+    """
+
+    STATUS_COMPUTING = "computing"
+    STATUS_CURRENT = "current"
+    STATUS_SUPERSEDED = "superseded"
+    STATUS_FAILED = "failed"
+
+    STATUS_CHOICES = [
+        (STATUS_COMPUTING, "Computing"),
+        (STATUS_CURRENT, "Current"),
+        (STATUS_SUPERSEDED, "Superseded"),
+        (STATUS_FAILED, "Failed"),
+    ]
+
+    graph_hash = models.CharField(
+        max_length=64,
+        db_index=True,
+        help_text="SHA-256 hash of the sorted active edges used to build the graph.",
+    )
+    signal_version = models.CharField(
+        max_length=50,
+        help_text="Version identifier of the signal-computation logic.",
+    )
+    node_count = models.IntegerField(
+        help_text="Number of nodes (content items) in this graph.",
+    )
+    edge_count = models.IntegerField(
+        help_text="Number of edges (links) in this graph.",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_COMPUTING,
+        db_index=True,
+        help_text="Lifecycle state of this run.",
+    )
+    computed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this run finished computing and became current.",
+    )
+    params_json = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Configuration and hyperparameter snapshot used for this run.",
+    )
+
+    class Meta:
+        verbose_name = "Graph Signal Run"
+        verbose_name_plural = "Graph Signal Runs"
+        indexes = [
+            models.Index(fields=["graph_hash", "signal_version", "status"]),
+        ]
+
+    def __str__(self) -> str:
+        prefix = self.graph_hash[:32] if self.graph_hash else "None"
+        return f"Run {prefix}... ({self.signal_version})"
+
+
+class NodeGraphSignal(models.Model):
+    """
+    Per-node (content item) structural signals computed during a specific run.
+    """
+
+    run = models.ForeignKey(
+        GraphSignalRun,
+        on_delete=models.CASCADE,
+        related_name="node_signals",
+        help_text="The snapshot run that produced this signal.",
+    )
+    content_item = models.ForeignKey(
+        "content.ContentItem",
+        on_delete=models.CASCADE,
+        related_name="graph_signals",
+        help_text="The content item these signals describe.",
+    )
+
+    # Signals 2 & 3: Communities & Betweenness
+    community_id = models.IntegerField(
+        null=True, blank=True, help_text="Louvain community partition ID."
+    )
+    betweenness = models.FloatField(
+        null=True, blank=True, help_text="Betweenness centrality score."
+    )
+
+    # Signals 4 & 5: Reach & Centrality Panel
+    click_depth = models.IntegerField(
+        null=True, blank=True, help_text="Shortest path distance from hub seeds."
+    )
+    inbound_reachable = models.BooleanField(
+        default=True, help_text="Whether this node can be reached from hubs."
+    )
+    is_orphan = models.BooleanField(
+        default=False, help_text="True if in-degree is 0."
+    )
+    eigenvector = models.FloatField(
+        null=True, blank=True, help_text="Eigenvector centrality score."
+    )
+    katz = models.FloatField(
+        null=True, blank=True, help_text="Katz centrality score."
+    )
+    closeness = models.FloatField(
+        null=True, blank=True, help_text="Closeness centrality score."
+    )
+
+    # Signals 6,7,8,10
+    core_number = models.IntegerField(
+        null=True, blank=True, help_text="k-core decomposition shell number."
+    )
+    component_id = models.IntegerField(
+        null=True, blank=True, help_text="Weakly connected component ID."
+    )
+    is_main_component = models.BooleanField(
+        default=False, help_text="True if part of the largest connected component."
+    )
+    local_clustering = models.FloatField(
+        null=True, blank=True, help_text="Local clustering coefficient."
+    )
+    group_seed_rank = models.IntegerField(
+        null=True, blank=True, help_text="Rank order as a group-closeness seed."
+    )
+
+    # Signal 9: node2vec embedding
+    node2vec_embedding = VectorField(
+        dimensions=768,  # Or whatever dim the existing node2vec uses.
+        null=True,
+        blank=True,
+        help_text="Structural embedding vector from node2vec.",
+    )
+
+    class Meta:
+        verbose_name = "Node Graph Signal"
+        verbose_name_plural = "Node Graph Signals"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["run", "content_item"],
+                name="graph_unique_node_signal_per_run",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"Node Signal for {self.content_item} (Run {self.run_id})"
+
+
+class LinkPredictionCandidate(models.Model):
+    """
+    Candidate links proposed by structural link prediction algorithms.
+    Capped to top-K per source per run.
+    """
+
+    run = models.ForeignKey(
+        GraphSignalRun,
+        on_delete=models.CASCADE,
+        related_name="link_candidates",
+        help_text="The snapshot run that produced this candidate.",
+    )
+    from_item = models.ForeignKey(
+        "content.ContentItem",
+        on_delete=models.CASCADE,
+        related_name="link_predictions_out",
+        help_text="Proposed source content item.",
+    )
+    to_item = models.ForeignKey(
+        "content.ContentItem",
+        on_delete=models.CASCADE,
+        related_name="link_predictions_in",
+        help_text="Proposed destination content item.",
+    )
+
+    # Signal 1: Link Prediction
+    adamic_adar = models.FloatField(
+        null=True, blank=True, help_text="Adamic-Adar index score."
+    )
+    common_neighbors = models.FloatField(
+        null=True, blank=True, help_text="Common neighbors count."
+    )
+    jaccard = models.FloatField(
+        null=True, blank=True, help_text="Jaccard similarity of neighborhoods."
+    )
+
+    # Flag signals from communities/betweenness
+    same_community = models.BooleanField(
+        default=False, help_text="True if both nodes are in the same Louvain community."
+    )
+    is_bridge = models.BooleanField(
+        default=False, help_text="True if this candidate connects different communities."
+    )
+
+    # Structural embedding cosine
+    embed_cosine = models.FloatField(
+        null=True, blank=True, help_text="Cosine similarity of their node2vec embeddings."
+    )
+
+    class Meta:
+        verbose_name = "Link Prediction Candidate"
+        verbose_name_plural = "Link Prediction Candidates"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["run", "from_item", "to_item"],
+                name="graph_unique_link_prediction_candidate_per_run",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"Candidate {self.from_item} -> {self.to_item}"
