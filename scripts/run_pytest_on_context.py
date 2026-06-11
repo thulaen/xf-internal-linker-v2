@@ -78,6 +78,7 @@ _DELL_TEST_NET = "xf_dell_test_net"
 
 _LOCAL_ONLY_TARGET_PARTS = (
     "apps/observability/tests_faro_alloy_smoke.py",
+    "apps/realtime/tests_sidecars_characterization.py",
 )
 
 # Pytest flags shared by both the Dell and local slices, mirroring the existing
