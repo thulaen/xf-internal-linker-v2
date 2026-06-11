@@ -437,22 +437,144 @@ describe('ErrorLogComponent', () => {
 
   it('showJobTypeAndStatusFilters returns false for glitchtip, auto-issues, and pyroscope tabs, and true otherwise', async () => {
     const c = await buildComponent();
-    
+
     // Should be false for these tabs
     c.selectedTabIndex = 1; // GLITCHTIP_TAB_INDEX
     expect(c.showJobTypeAndStatusFilters).toBeFalse();
-    
+
     c.selectedTabIndex = 3; // AUTO_ISSUES_TAB_INDEX
     expect(c.showJobTypeAndStatusFilters).toBeFalse();
-    
+
     c.selectedTabIndex = 4; // PYROSCOPE_TAB_INDEX
     expect(c.showJobTypeAndStatusFilters).toBeFalse();
 
     // Should be true for other tabs
     c.selectedTabIndex = 0; // internal
     expect(c.showJobTypeAndStatusFilters).toBeTrue();
-    
+
     c.selectedTabIndex = 2; // all
     expect(c.showJobTypeAndStatusFilters).toBeTrue();
+  });
+
+  // Kills surviving Stryker mutants AutoIssues #19047 (ConditionalExpression),
+  // #19048 (BooleanLiteral) on uniqueJobTypes block and #19049 (BlockStatement)
+  // on unreviewedCount block. These getters had no assertions so any mutation
+  // that changed their return value survived undetected.
+  it('uniqueJobTypes returns sorted deduplicated job types', async () => {
+    const c = await buildComponent();
+    c.errors = [
+      makeError({ id: 1, job_type: 'sync' }),
+      makeError({ id: 2, job_type: 'import' }),
+      makeError({ id: 3, job_type: 'sync' }),
+      makeError({ id: 4, job_type: 'embed' }),
+    ];
+    expect(c.uniqueJobTypes).toEqual(['embed', 'import', 'sync']);
+  });
+
+  it('uniqueJobTypes returns empty array when there are no errors', async () => {
+    const c = await buildComponent();
+    c.errors = [];
+    expect(c.uniqueJobTypes).toEqual([]);
+  });
+
+  it('unreviewedCount returns count of unacknowledged errors only', async () => {
+    const c = await buildComponent();
+    c.errors = [
+      makeError({ id: 1, acknowledged: false }),
+      makeError({ id: 2, acknowledged: true }),
+      makeError({ id: 3, acknowledged: false }),
+    ];
+    expect(c.unreviewedCount).toBe(2);
+  });
+
+  it('unreviewedCount returns 0 when all errors are acknowledged', async () => {
+    const c = await buildComponent();
+    c.errors = [
+      makeError({ id: 1, acknowledged: true }),
+      makeError({ id: 2, acknowledged: true }),
+    ];
+    expect(c.unreviewedCount).toBe(0);
+  });
+
+  it('filteredErrors excludes acknowledged errors when filterAcknowledged is unreviewed', async () => {
+    const c = await buildComponent();
+    c.selectedTabIndex = 0;
+    c.errors = [
+      makeError({ id: 1, source: 'internal', acknowledged: false }),
+      makeError({ id: 2, source: 'internal', acknowledged: true }),
+    ];
+    c.filterJobType = '';
+    c.filterAcknowledged = 'unreviewed';
+    const result = c.filteredErrors;
+    expect(result.length).toBe(1);
+    expect(result[0].id).toBe(1);
+  });
+
+  it('filteredErrors excludes unacknowledged errors when filterAcknowledged is reviewed', async () => {
+    const c = await buildComponent();
+    c.selectedTabIndex = 0;
+    c.errors = [
+      makeError({ id: 1, source: 'internal', acknowledged: false }),
+      makeError({ id: 2, source: 'internal', acknowledged: true }),
+    ];
+    c.filterJobType = '';
+    c.filterAcknowledged = 'reviewed';
+    const result = c.filteredErrors;
+    expect(result.length).toBe(1);
+    expect(result[0].id).toBe(2);
+  });
+
+  it('filteredErrors filters by job type when filterJobType is set', async () => {
+    const c = await buildComponent();
+    c.selectedTabIndex = 0;
+    c.errors = [
+      makeError({ id: 1, source: 'internal', job_type: 'pipeline', acknowledged: false }),
+      makeError({ id: 2, source: 'internal', job_type: 'import', acknowledged: false }),
+    ];
+    c.filterJobType = 'pipeline';
+    c.filterAcknowledged = 'unreviewed';
+    const result = c.filteredErrors;
+    expect(result.length).toBe(1);
+    expect(result[0].id).toBe(1);
+  });
+
+  it('uniqueJobTypes returns unique sorted job types from all errors', async () => {
+    const c = await buildComponent();
+    c.errors = [
+      makeError({ job_type: 'pipeline' }),
+      makeError({ job_type: 'import' }),
+      makeError({ job_type: 'pipeline' }),
+    ];
+    expect(c.uniqueJobTypes).toEqual(['import', 'pipeline']);
+  });
+
+  it('uniqueJobTypes values are job_type strings not acknowledged booleans', async () => {
+    const c = await buildComponent();
+    c.errors = [
+      makeError({ job_type: 'crawler', acknowledged: false }),
+      makeError({ job_type: 'sync', acknowledged: true }),
+    ];
+    const types = c.uniqueJobTypes;
+    expect(types).toContain('crawler');
+    expect(types).toContain('sync');
+    expect(types.every(t => typeof t === 'string' && t !== '')).toBeTrue();
+  });
+
+  it('groupedErrors uses filteredErrors not raw errors', async () => {
+    const c = await buildComponent();
+    c.selectedTabIndex = 0;
+    c.errors = [
+      makeError({ id: 1, source: 'glitchtip', job_type: 'pipeline', fingerprint: 'fp-gt' }),
+      makeError({ id: 2, source: 'internal', job_type: 'pipeline', fingerprint: 'fp-int' }),
+    ];
+    c.filterJobType = '';
+    c.filterAcknowledged = 'all';
+    // filteredErrors excludes glitchtip when tab=0 (non-glitchtip tab)
+    const filtered = c.filteredErrors;
+    const grouped = c.groupedErrors;
+    // Each ErrorGroup.totalCount is the occurrence count for that fingerprint bucket.
+    // The total across all groups equals the number of filteredErrors entries.
+    const groupedCount = grouped.reduce((sum, g) => sum + g.totalCount, 0);
+    expect(groupedCount).toBe(filtered.length);
   });
 });
