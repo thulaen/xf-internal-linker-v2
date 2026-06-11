@@ -10,7 +10,7 @@
     Set XF_TURBO_MUTATION=1 to activate turbo mode from existing quality scripts.
 
 .PARAMETER Language
-    Which language to mutate: python, cpp, go, typescript, rust, haskell.
+    Which language to mutate: python, cpp, typescript, rust, haskell.
 
 .PARAMETER DryRun
     Parse + count survivors but do not write AutoIssues.
@@ -21,13 +21,12 @@
 .EXAMPLE
     .\scripts\turbo-mutation.ps1 -Language python
     .\scripts\turbo-mutation.ps1 -Language cpp -DryRun
-    .\scripts\turbo-mutation.ps1 -Language go  -Cores 8
 #>
 
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("python", "cpp", "go", "typescript", "rust", "haskell")]
+    [ValidateSet("python", "cpp", "typescript", "rust", "haskell")]
     [string]$Language,
 
     [switch]$DryRun,

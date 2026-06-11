@@ -108,11 +108,6 @@ services:
       - compiled_artifacts:/opt/xf/compiled
       - media_files:/app/media
       - staticfiles:/app/staticfiles
-      # Slice 1.5 — streamd Unix-domain socket. Read-write so the private
-      # Python client (apps/realtime/_streamd_client.py) can dial it.
-      - streamd_sock:/var/run/xf:rw
-      # Slice 1.6 — sidecars Unix-domain socket.
-      - sidecars_sock:/var/run/xf-sidecars:rw
     ports:
       - "8000:8000"
     healthcheck:
@@ -185,7 +180,6 @@ services:
       - ./backend:/app
       - .:/repo
       - compiled_artifacts:/opt/xf/compiled
-      - sidecars_sock:/var/run/xf-sidecars:rw
     depends_on:
       postgres:
         condition: service_healthy
@@ -247,7 +241,6 @@ services:
       - .:/repo:ro
       - compiled_artifacts:/opt/xf/compiled
       - hf_cache:/tmp/.cache
-      - sidecars_sock:/var/run/xf-sidecars:rw
       # 90-day Pyroscope retention cleanup (auto_issues.run_retention_cleanup)
       # walks this volume and deletes blocks older than 90 days.
       - pyroscope_data:/pyroscope-data
@@ -306,7 +299,6 @@ services:
       - .:/repo:ro
       - compiled_artifacts:/opt/xf/compiled
       - hf_cache:/tmp/.cache
-      - sidecars_sock:/var/run/xf-sidecars:rw
       # 90-day Pyroscope retention cleanup (auto_issues.run_retention_cleanup)
       # walks this volume and deletes blocks older than 90 days.
       - pyroscope_data:/pyroscope-data
@@ -364,7 +356,6 @@ services:
       - .:/repo:ro
       - compiled_artifacts:/opt/xf/compiled
       - hf_cache:/tmp/.cache
-      - sidecars_sock:/var/run/xf-sidecars:rw
     healthcheck:
       test: ["CMD-SHELL", "grep -q beat /proc/1/cmdline || exit 1"]
       interval: 60s
@@ -463,7 +454,6 @@ services:
       - .:/repo
       - compiled_artifacts:/opt/xf/compiled
       - compiled_tool_cache:/root/.cache
-      - go_tool_mod_cache:/go/pkg/mod
     command: bash -lc "tail -f /dev/null"
     healthcheck:
       test: ["CMD-SHELL", "command -v go >/dev/null 2>&1 && command -v cmake >/dev/null 2>&1"]
@@ -488,7 +478,6 @@ services:
       - .:/repo
       - compiled_artifacts:/opt/xf/compiled
       - compiled_tool_cache:/root/.cache
-      - go_tool_mod_cache:/go/pkg/mod
     command: bash -lc "tail -f /dev/null"
     healthcheck:
       test: ["CMD-SHELL", "command -v mutmut >/dev/null 2>&1 && command -v mull-runner-19 >/dev/null 2>&1"]
@@ -497,40 +486,6 @@ services:
       retries: 3
       start_period: 20s
 
-  # ─────────────────────────────────────────────
-  # Streamd — Go stream-engine broker sidecar (slice 1.5).
-  # Publishes 4 gRPC RPCs (Publish / Subscribe / Manage / Health) over the
-  # streamd_sock Unix-domain socket. Python callers route through the private
-  # client at backend/apps/realtime/_streamd_client.py — never via direct
-  # import. ADR 0006 + docs/MODULAR-MONOLITH.md § Services tier own the rules.
-  # ─────────────────────────────────────────────
-  streamd:
-    build:
-      context: ./services/streamd
-    image: xf-linker-streamd:latest
-    container_name: xf_linker_streamd
-    restart: always
-    # Slice 1.5 — scratch-based image with only two static binaries inside;
-    # running as root is acceptable because there is no shell, package
-    # manager, or writeable filesystem to compromise. read_only would block
-    # the Unix-socket bind on /var/run/xf so it's off. user: 1000:1000 was
-    # tried but Docker named volumes are root-owned by default which made
-    # the socket bind fail with EACCES.
-    # Tiny static Go broker — cap it so it can never balloon on a 16 GB host.
-    # GOMEMLIMIT keeps the Go heap well under the container ceiling.
-    mem_limit: 192m
-    volumes:
-      - streamd_sock:/var/run/xf
-    environment:
-      XF_STREAMD_SOCKET: /var/run/xf/streamd.sock
-      XF_STREAMD_LOG_LEVEL: info
-      GOMEMLIMIT: 160MiB
-    healthcheck:
-      test: ["CMD", "/streamd-healthcheck"]
-      interval: 10s
-      timeout: 2s
-      retries: 3
-
   # clusterd service REMOVED per ADR 0007 (Python + Rust only). It bundled the
   # retired Haskell findbugs-cluster + Go plumbing tiers. Full teardown is done:
   # services/clusterd + services/findbugs-haskell source, the auto_issues
@@ -538,110 +493,6 @@ services:
   # _clusterd_pb2), the clusterd_sock volume + backend mount, and the Haskell
   # hooks/CI are all deleted. The Rust-backed FindBugs scanner (rust_defect
   # source, findbugs.* celery tasks, FindBugs REST views) is unrelated and stays.
-
-  # ─────────────────────────────────────────────
-  # startupd — lean session-start gateway (port 8765).
-  # Proxies to Django /api/session-gate/ for DB-backed markers,
-  # signs the response with HMAC-SHA256, writes audit/session_gate_state.json
-  # (bind-mounted so the pre-commit hooks on the host can read the token).
-  # Rule K: go.mod + api.http.md + cmd/startupd/main.go + Dockerfile
-  #         + docker-compose block (this entry). No gRPC → no _sock volume.
-  # ─────────────────────────────────────────────
-  startupd:
-    build:
-      context: ./services/startupd
-    image: xf-linker-startupd:latest
-    container_name: xf_linker_startupd
-    restart: always
-    # Lean session gateway — small ceiling; it only proxies + signs.
-    mem_limit: 192m
-    ports:
-      - "8765:8765"
-    environment:
-      XF_STARTUPD_ADDR: ":8765"
-      XF_GATE_DJANGO_URL: "http://backend:8000"
-      SESSION_GATE_SECRET: "${SESSION_GATE_SECRET:-}"
-      GOMEMLIMIT: 160MiB
-      XF_STARTUP_PAYLOAD_PATH: "/repo/audit/session_start_payload.jsonl"
-      XF_GATE_STATE_PATH: "/repo/audit/session_gate_state.json"
-    volumes:
-      # Bind-mount the host audit/ dir so session_gate_state.json is
-      # written directly to the repo tree where the pre-commit hooks can
-      # read it at commit time without Docker.
-      - ./audit:/repo/audit
-    depends_on:
-      backend:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "/startupd-healthcheck"]
-      interval: 15s
-      timeout: 3s
-      retries: 3
-      start_period: 5s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "5m"
-        max-file: "2"
-
-  # ─────────────────────────────────────────────
-  # Sidecars — 40 Apache-pattern internal gRPC services co-hosted in one
-  # Go binary under a shared 512 MB RAM / 1 GB storage budget.
-  # Rule K: go.mod + api.proto files + cmd/sidecars/main.go + Dockerfile
-  #         (multi-stage scratch) + docker-compose block (this entry)
-  #         + sidecars_sock named volume (gRPC service).
-  # Exposes metrics on port 6061 (internal only — not published to host).
-  # Socket path: /var/run/xf-sidecars/sidecars.sock (via sidecars_sock volume).
-  # Storage path: /var/lib/xf/sidecars (via sidecars_data volume).
-  # ─────────────────────────────────────────────
-  sidecars:
-    build:
-      context: ./services/sidecars
-    image: xf-linker-sidecars:latest
-    container_name: xf_linker_sidecars
-    restart: always
-    # Run as root (image default) — same rationale as streamd: Docker named
-    # volumes (sidecars_sock, sidecars_data) are root-owned, so a non-root
-    # uid cannot bind the Unix socket or create the storage dir (EACCES). The
-    # scratch image has no shell, package manager, or writable FS to attack,
-    # so root is acceptable here. GOMEMLIMIT still bounds the Go heap.
-    # Container ceiling sits above GOMEMLIMIT (512 MiB Go heap) to leave room
-    # for the Bleve (searchd) memory-mapped index page cache, which lives
-    # OUTSIDE the Go heap. 768m total keeps the 40 services + Avro + Bleve
-    # comfortable without bloating a 16 GB host.
-    mem_limit: 768m
-    environment:
-      XF_SIDECARS_SOCKET: "/var/run/xf-sidecars/sidecars.sock"
-      XF_SIDECARS_STORAGE: "/var/lib/xf/sidecars"
-      XF_SIDECARS_METRICS_PORT: "6061"
-      XF_SIDECARS_MANIFEST: "/etc/xf/services.manifest.yaml"
-      GOMEMLIMIT: "512MiB"
-    volumes:
-      # Unix-domain socket dir — shared with backend container so Python
-      # gRPC stubs can reach the 40 co-hosted services without a TCP hop.
-      - sidecars_sock:/var/run/xf-sidecars
-      # Persistent storage for Parquet manifests, bulletin-board data, etc.
-      - sidecars_data:/var/lib/xf/sidecars
-      # The scratch image carries the manifest at /services.manifest.yaml, but
-      # bind-mounting the live file lets manifest edits take effect on a simple
-      # `docker compose up -d sidecars` without an image rebuild.
-      - ./services/sidecars/services.manifest.yaml:/etc/xf/services.manifest.yaml:ro
-    expose:
-      - "6061"
-    depends_on:
-      backend:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "/sidecars-healthcheck"]
-      interval: 20s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "5m"
-        max-file: "2"
 
   # ─────────────────────────────────────────────
   # Nginx — serves the Angular prod bundle + proxies /api/ and /ws/
@@ -1097,15 +948,7 @@ volumes:
     driver: local
   frontend_tool_cache:
     driver: local
-  go_tool_mod_cache:
-    driver: local
   staticfiles:
-    driver: local
-  # Slice 1.5 — Unix-domain socket transport between backend (Python) and the
-  # streamd Go sidecar. Protected by docs/PROTECTED-DATA-STORES.md — the socket
-  # file is ephemeral, but the volume holding it must survive `docker compose
-  # down` so callers keep the same path after a stop/start.
-  streamd_sock:
     driver: local
   hf_cache:
     driver: local
@@ -1122,17 +965,6 @@ volumes:
   questdb_data:
     driver: local
   sqlite_registry_data:
-    driver: local
-
-  # Slice 1.6 — sidecars Unix-domain socket directory and persistent storage.
-  # sidecars_sock is ephemeral by design (the socket is recreated on each
-  # sidecars start) but the volume keeps the path stable across stop/start so
-  # Python gRPC stubs don't need path reconfiguration.
-  # sidecars_data holds Parquet manifest files, bulletin-board state, etc.
-  # Both survive `docker compose down` (no -v) per docs/PROTECTED-DATA-STORES.md.
-  sidecars_sock:
-    driver: local
-  sidecars_data:
     driver: local
 
 configs:

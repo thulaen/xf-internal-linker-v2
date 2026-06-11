@@ -27,8 +27,6 @@ try {
     & $gitBash scripts/run-cpp-quality.sh
     if ($LASTEXITCODE -ne 0) { throw "C++ quality checks failed." }
 
-    & $gitBash scripts/run-go-quality.sh
-    if ($LASTEXITCODE -ne 0) { throw "Go quality checks failed." }
 
     git diff --check
     if ($LASTEXITCODE -ne 0) { throw "Whitespace check failed." }

@@ -14,7 +14,7 @@
 
 .NOTES
     Run as a regular user (winget does not require elevation for user-scope installs).
-    Script adds C:\Tools\protoc\bin and C:\Tools\golangci-lint to user PATH
+    Script adds C:\Tools\protoc\bin to user PATH
     if not already present.
 #>
 [CmdletBinding(SupportsShouldProcess)]
@@ -42,14 +42,6 @@ function Add-UserPath { param([string]$dir)
 
 Write-Host "`nInstalling Windows host tools (idempotent)"
 Write-Host ("-" * 60)
-
-# ── Go ────────────────────────────────────────────────────────────────────────
-if (-not $SkipGo -and -not (Is-OnPath "go")) {
-    Write-Host "Installing Go via winget..."
-    winget install --id GoLang.Go --accept-source-agreements --accept-package-agreements
-} else {
-    Write-Host "  SKIP  Go — already installed"
-}
 
 # ── Rust / rustup ─────────────────────────────────────────────────────────────
 if (-not $SkipRust -and -not (Is-OnPath "rustup")) {
@@ -83,25 +75,6 @@ if (-not (Is-OnPath "cppcheck")) {
     Write-Host "  SKIP  Cppcheck — already installed"
 }
 
-# ── golangci-lint (GitHub release ZIP) ───────────────────────────────────────
-$golangciDir = "C:\Tools\golangci-lint"
-if (-not (Test-Path "$golangciDir\golangci-lint.exe")) {
-    Write-Host "Installing golangci-lint from GitHub release..."
-    $ver = "v1.62.2"
-    $url = "https://github.com/golangci/golangci-lint/releases/download/$ver/golangci-lint-1.62.2-windows-amd64.zip"
-    $zip = "$env:TEMP\golangci-lint.zip"
-    Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
-    New-Item -ItemType Directory -Force -Path $golangciDir | Out-Null
-    Expand-Archive -Path $zip -DestinationPath $golangciDir -Force
-    # Move the binary up from the versioned subfolder
-    Get-ChildItem "$golangciDir\*\golangci-lint.exe" | Move-Item -Destination $golangciDir -Force
-    Get-ChildItem "$golangciDir\golangci-lint-*" -Directory | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item $zip -Force
-    Add-UserPath $golangciDir
-} else {
-    Write-Host "  SKIP  golangci-lint — already installed"
-}
-
 # ── protoc (GitHub release ZIP) ──────────────────────────────────────────────
 $protocBin = "C:\Tools\protoc\bin"
 if (-not (Test-Path "$protocBin\protoc.exe")) {
@@ -116,24 +89,6 @@ if (-not (Test-Path "$protocBin\protoc.exe")) {
     Add-UserPath $protocBin
 } else {
     Write-Host "  SKIP  protoc — already installed"
-}
-
-# ── Go tools (require Go on PATH) ─────────────────────────────────────────────
-if (Is-OnPath "go") {
-    if (-not (Is-OnPath "go-mutesting")) {
-        Write-Host "Installing go-mutesting..."
-        go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest
-    } else {
-        Write-Host "  SKIP  go-mutesting — already installed"
-    }
-    if (-not (Is-OnPath "buf")) {
-        Write-Host "Installing buf..."
-        go install github.com/bufbuild/buf/cmd/buf@latest
-    } else {
-        Write-Host "  SKIP  buf — already installed"
-    }
-} else {
-    Write-Warning "Go not on PATH — skipping go-mutesting and buf install. Restart shell and re-run."
 }
 
 # ── Rust extras (require rustup on PATH) ─────────────────────────────────────

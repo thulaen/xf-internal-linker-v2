@@ -35,7 +35,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = REPO_ROOT / "config" / "mutation-routing.json"
 TMP_DIR = REPO_ROOT / ".tmp"
 
-_ALL_LANGUAGES = ("python", "cpp", "go", "typescript", "rust", "haskell")
+_ALL_LANGUAGES = ("python", "cpp", "typescript", "rust", "haskell")
 
 
 def _load_machine_routing():
@@ -322,54 +322,6 @@ def _run_cpp(cfg: dict, machines: list[dict], machine_cores: dict, dry_run: bool
     return result + filing_out
 
 
-def _run_go(cfg: dict, machines: list[dict], machine_cores: dict, dry_run: bool) -> str:
-    """go-mutesting on services/ — weighted across every reachable machine."""
-    workspace = cfg["languages"]["go"]["workspace"]
-    report_host = TMP_DIR / "go-mutesting-report.json"
-    TMP_DIR.mkdir(exist_ok=True)
-    outputs: list[str] = []
-    lock = threading.Lock()
-
-    def body(machine: dict, _slice: list) -> None:
-        name = machine["name"]
-        gomax = _jobs_for(machine_cores.get(name, 2), machine["share"])
-        cmd = (
-            f"cd {workspace} && GOMAXPROCS={gomax} "
-            f"go-mutesting ./... 2>&1 | tee /tmp/go-mut-{name}.txt || true; "
-            f"python3 -c \""
-            f"import re, json; "
-            f"lines=open('/tmp/go-mut-{name}.txt').read(); "
-            f"survivors=[{{'file':m.group(1),'line':int(m.group(2)),'mutator':m.group(3),'replacement':''}} "
-            f"for m in re.finditer(r'PASS.*?([^\\s]+\\.go):(\\d+).*?\\((.+?)\\)', lines)]; "
-            f"json.dump({{'mutators': [{{'file':s['file'],'line':s['line'],'type':s['mutator'],'result':{{'passed':True}}}} for s in survivors]}}, open('/tmp/go-mut-report-{name}.json','w'))\""
-        )
-        rc, out = _run_on_machine(machine, "compiled-mutation-tools", cmd, timeout=480)
-        with lock:
-            outputs.append(f"[turbo go {name}] rc={rc}\n{out}")
-
-    # go-mutesting walks the whole workspace; the partition is by machine, so
-    # every reachable machine is given a 1-item placeholder slice to run once.
-    _fanout(machines, list(range(len(machines))), body)
-    result = "\n".join(outputs)
-    print(result)
-
-    merged: list[dict] = []
-    for machine in machines:
-        rc2, raw = _run_on_machine(
-            machine, "compiled-mutation-tools",
-            f"cat /tmp/go-mut-report-{machine['name']}.json 2>/dev/null || echo '{{}}'",
-            timeout=20,
-        )
-        try:
-            merged.extend((json.loads(raw.strip() or "{}").get("mutators")) or [])
-        except json.JSONDecodeError:
-            pass
-
-    if merged:
-        report_host.write_text(json.dumps({"mutators": merged}), encoding="utf-8")
-    return result + _file_survivors("go-mutesting", report_host, dry_run)
-
-
 def _rust_workspaces(cfg: dict) -> list[str]:
     """Configured Rust workspaces — the plural `workspaces` list, else legacy."""
     rust = cfg["languages"]["rust"]
@@ -582,7 +534,6 @@ def main() -> int:
     dispatch = {
         "python":     lambda: _run_python(cfg, local_cores, args.dry_run),
         "cpp":        lambda: _run_cpp(cfg, machines, cores, args.dry_run),
-        "go":         lambda: _run_go(cfg, machines, cores, args.dry_run),
         "rust":       lambda: _run_rust(cfg, machines, cores, args.dry_run),
         "haskell":    lambda: _run_haskell(cfg, machines, cores, args.dry_run),
         "typescript": lambda: _run_typescript(cfg, local_cores, args.dry_run),

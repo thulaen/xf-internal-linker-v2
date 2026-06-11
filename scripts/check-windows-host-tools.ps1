@@ -19,14 +19,11 @@ $ErrorActionPreference = "Continue"
 
 # Prepend known locations so the check works regardless of caller PATH state
 $knownPaths = @(
-    "C:\Program Files\Go\bin",
     "C:\Users\$env:USERNAME\.cargo\bin",
     "C:\Program Files\CMake\bin",
     "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\Ninja-build.Ninja_Microsoft.Winget.Source_8wekyb3d8bbwe",
     "C:\Program Files\Cppcheck",
-    "C:\Tools\golangci-lint",
     "C:\Tools\protoc\bin",
-    "C:\Users\$env:USERNAME\go\bin",
     "C:\Tools\cargo-mutants"
 )
 foreach ($p in $knownPaths) {
@@ -66,15 +63,11 @@ Write-Host ""
 Write-Host "Windows host tool presence report"
 Write-Host ("-" * 50)
 
-Check-Tool "Go"            "go"            @("version")
 Check-Tool "Rust/cargo"    "cargo"         @("--version")
 Check-Tool "CMake"         "cmake"         @("--version")
 Check-Tool "Ninja"         "ninja"         @("--version")
 Check-Tool "Cppcheck"      "cppcheck"      @("--version")
-Check-Tool "golangci-lint" "golangci-lint" @("--version")
 Check-Tool "protoc"        "protoc"        @("--version")
-Check-Tool "buf"           "buf"           @("--version")
-Check-Tool "go-mutesting"  "go-mutesting"  @("/help")
 Check-Tool "cargo-mutants" "cargo-mutants" @("mutants", "--version")
 
 Write-Host ("-" * 50)

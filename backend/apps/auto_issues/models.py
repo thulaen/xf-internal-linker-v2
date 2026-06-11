@@ -90,7 +90,7 @@ class AutoIssue(models.Model):
     SOURCE_CONTRACT = "contract"     # Pact provider-verification drift
     SOURCE_GH_CI = "gh_ci"           # gh run list --status failure
     # Phase B of the test-hardening plan (added 2026-06-01):
-    SOURCE_COMPILER = "compiler"     # clang/gcc/go vet/golangci-lint/clippy/GHC/hlint warnings
+    SOURCE_COMPILER = "compiler"     # clang/gcc/clippy/GHC/hlint warnings
     SOURCE_MEGALINTER = "megalinter"  # MegaLinter multi-linter suite findings
     SOURCE_PRE_COMMIT_WARNING = "precommit_warn"
     SOURCE_CHOICES = [
