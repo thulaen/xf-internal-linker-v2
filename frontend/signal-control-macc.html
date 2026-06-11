@@ -572,7 +572,7 @@ input[type="range"], input[type="checkbox"], input[type="radio"], progress{ acce
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>
   </span>
   <span class="tb-word">Signal Control</span>
-  <span class="tb-build" data-tip="Prototype build number. After a hard refresh (Ctrl+Shift+R) this should read the latest build. If it shows an older number, your browser is serving a cached copy.">macc 16</span>
+  <span class="tb-build" data-tip="Prototype build number. After a hard refresh (Ctrl+Shift+R) this should read the latest build. If it shows an older number, your browser is serving a cached copy.">macc 17</span>
 </div>
 
 <button class="tb-prop tb-x3" data-tip="The website this app is managing. Click to switch to a different property."><i data-lucide="globe"></i>
@@ -14307,6 +14307,11 @@ body{ background:var(--canvas); }
 <style id="macc-svgtext">
 /* macc 16 — readable chart labels: the Coverage donut renders full-size */
 [data-page="embeddings"] .scl-pbody .scl-ring{ width:120px !important; height:120px !important; }
+/* test-dashboard ring: its arc already self-rotates inline, so undo the class rotation
+   (which was flinging the caption sideways) and render at the authored 96px */
+[data-page="test-dashboard"] .scl-ring{ width:auto !important; height:auto !important; }
+[data-page="test-dashboard"] .scl-ring svg{ width:96px !important; height:96px !important; transform:none !important; }
+[data-page="test-dashboard"] .scl-ring svg text{ transform:none !important; }
 </style>
 </body>
 </html>

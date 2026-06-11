@@ -58,6 +58,47 @@ class TunableEntry:
 # behaviour byte-for-byte; defaults sourced from
 # `recommended_weights.RECOMMENDED_PRESET_WEIGHTS`.
 META_PARAMS: dict[str, TunableEntry] = {
+    "graph.nk_link_prediction.ranking_weight": TunableEntry(
+        lower=0.01, upper=1.0, default="0.05",
+        citation="FR-networkit-graph-signals - Liben-Nowell & Kleinberg 2007",
+    ),
+    "graph.nk_communities.ranking_weight": TunableEntry(
+        lower=0.01, upper=1.0, default="0.05",
+        citation="FR-networkit-graph-signals - Blondel et al. 2008",
+    ),
+    "graph.nk_betweenness.ranking_weight": TunableEntry(
+        lower=0.01, upper=1.0, default="0.05",
+        citation="FR-networkit-graph-signals - Brandes 2001",
+    ),
+    "graph.nk_reach.ranking_weight": TunableEntry(
+        lower=0.01, upper=1.0, default="0.05",
+        citation="FR-networkit-graph-signals - Reach proxy",
+    ),
+    "graph.nk_centrality.ranking_weight": TunableEntry(
+        lower=0.01, upper=1.0, default="0.05",
+        citation="FR-networkit-graph-signals - Bonacich 1972",
+    ),
+    "graph.nk_kcore.ranking_weight": TunableEntry(
+        lower=0.01, upper=1.0, default="0.05",
+        citation="FR-networkit-graph-signals - Seidman 1983",
+    ),
+    "graph.nk_components.ranking_weight": TunableEntry(
+        lower=0.01, upper=1.0, default="0.05",
+        citation="FR-networkit-graph-signals - Connected Components",
+    ),
+    "graph.nk_local_clustering.ranking_weight": TunableEntry(
+        lower=0.01, upper=1.0, default="0.05",
+        citation="FR-networkit-graph-signals - Clustering",
+    ),
+    "graph.nk_node2vec.ranking_weight": TunableEntry(
+        lower=0.01, upper=1.0, default="0.05",
+        citation="FR-networkit-graph-signals - node2vec Grover & Leskovec 2016",
+    ),
+    "graph.nk_group_seed_rank.ranking_weight": TunableEntry(
+        lower=0.01, upper=1.0, default="0.05",
+        citation="FR-networkit-graph-signals - Group closeness",
+    ),
+
     "pipeline.rrf_k": TunableEntry(
         lower=20.0, upper=200.0, default="60",
         citation="Cormack et al. 2009 SIGIR'09 §3 (k=60 default; range 20–200)",

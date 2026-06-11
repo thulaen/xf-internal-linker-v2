@@ -71,7 +71,7 @@ _NORMALIZE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
 # in practice, and the downstream normalization + count threshold
 # already filters out incidental substring matches like "error_count=0"
 # (their content varies, so they never accumulate to threshold).
-_NOISE_FILTER = '|~ "(?i)(error|warn|warning|critical|exception|traceback)" !~ "database \\"test_xf_linker\\" already exists" !~ "timestamp too old"'
+_NOISE_FILTER = '|~ "(?i)(error|warn|warning|critical|exception|traceback)" !~ "database \\"test_xf_linker\\" already exists" !~ "timestamp too old" !~ "database \\"test_xf_linker\\" is being accessed" !~ "current transaction is aborted"'
 
 
 @dataclass(frozen=True)

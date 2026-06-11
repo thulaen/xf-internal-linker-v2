@@ -1,7 +1,9 @@
 import pytest
+from datetime import timedelta
+from django.utils import timezone
 
 from apps.content.models import ContentItem
-from apps.graph.models import ExistingLink, GraphSignalRun
+from apps.graph.models import ExistingLink, GraphSignalRun, NodeGraphSignal, LinkPredictionCandidate
 from apps.graph.services.graph_signal_job import load_active_edges, compute_graph_hash, run_signals
 
 pytestmark = pytest.mark.django_db
@@ -12,7 +14,8 @@ def _create_content_item(url_suffix=""):
         title=f"Test Page {url_suffix}",
         content_hash=f"hash{url_suffix}",
         content_id=int(url_suffix) if url_suffix.isdigit() else 1,
-        is_deleted=False
+        is_deleted=False,
+        march_2026_pagerank_score=0.5
     )
 
 def test_load_active_edges():
@@ -41,44 +44,72 @@ def test_load_active_edges():
     assert set(extra_nodes) == {ci1.id, ci2.id, ci3.id}
 
 def test_run_signals_changed_graph():
+    """Given a changed graph, When the job runs, Then a current run with all signals exists and the prior run is superseded."""
     ci1 = _create_content_item("1")
     ci2 = _create_content_item("2")
     ExistingLink.objects.create(from_content_item=ci1, to_content_item=ci2, anchor_text="a")
     
+    # Run 1
     run, graph_data = run_signals(signal_version="v1.0")
-    assert run.status == GraphSignalRun.STATUS_COMPUTING
+    assert run.status == GraphSignalRun.STATUS_CURRENT
     assert run.node_count == 2
     assert run.edge_count == 1
-    assert graph_data is not None
+    assert NodeGraphSignal.objects.filter(run=run).count() == 2
     
+    # Run 2 with changed graph
+    ci3 = _create_content_item("3")
+    ExistingLink.objects.create(from_content_item=ci2, to_content_item=ci3, anchor_text="b")
+    
+    run2, graph_data2 = run_signals(signal_version="v1.0")
+    assert run2.status == GraphSignalRun.STATUS_CURRENT
+    assert run2.node_count == 3
+    
+    # Run 1 should be superseded
+    run.refresh_from_db()
+    assert run.status == GraphSignalRun.STATUS_SUPERSEDED
+
 def test_run_signals_unchanged_graph():
+    """Given the same graph, When the job re-runs, Then it no-ops."""
     ci1 = _create_content_item("1")
     ci2 = _create_content_item("2")
     ExistingLink.objects.create(from_content_item=ci1, to_content_item=ci2, anchor_text="a")
     
-    # First run creates the computing run
     run1, graph_data1 = run_signals(signal_version="v1.0")
     
-    # Manually set to current
-    run1.status = GraphSignalRun.STATUS_CURRENT
-    run1.save()
-    
-    # Second run should skip
+    # Second run should skip (no-op)
     run2, graph_data2 = run_signals(signal_version="v1.0")
         
     assert run2.id == run1.id
     assert graph_data2 is None
+    assert run1.status == GraphSignalRun.STATUS_CURRENT
 
-def test_run_signals_force():
+def test_retention_policy_pruning():
+    """Given runs older than retention, When the job completes, Then they are pruned."""
     ci1 = _create_content_item("1")
     ci2 = _create_content_item("2")
     ExistingLink.objects.create(from_content_item=ci1, to_content_item=ci2, anchor_text="a")
     
-    run1, _ = run_signals(signal_version="v1.0")
-    run1.status = GraphSignalRun.STATUS_CURRENT
-    run1.save()
+    # Create 3 older superseded runs
+    now = timezone.now()
+    r1 = GraphSignalRun.objects.create(graph_hash="h1", signal_version="v1.0", node_count=0, edge_count=0, status=GraphSignalRun.STATUS_SUPERSEDED, computed_at=now - timedelta(days=5))
+    r2 = GraphSignalRun.objects.create(graph_hash="h2", signal_version="v1.0", node_count=0, edge_count=0, status=GraphSignalRun.STATUS_SUPERSEDED, computed_at=now - timedelta(days=4))
+    r3 = GraphSignalRun.objects.create(graph_hash="h3", signal_version="v1.0", node_count=0, edge_count=0, status=GraphSignalRun.STATUS_SUPERSEDED, computed_at=now - timedelta(days=3))
     
-    run2, graph_data2 = run_signals(force=True, signal_version="v1.0")
-    assert run2.id != run1.id
-    assert run2.status == GraphSignalRun.STATUS_COMPUTING
-    assert graph_data2 is not None
+    run4, graph_data4 = run_signals(signal_version="v1.0")
+    
+    # Prune keeps the 2 most recent superseded. r1 should be deleted.
+    assert not GraphSignalRun.objects.filter(id=r1.id).exists()
+    assert GraphSignalRun.objects.filter(id=r2.id).exists()
+    assert GraphSignalRun.objects.filter(id=r3.id).exists()
+    assert GraphSignalRun.objects.filter(id=run4.id).exists()
+
+def test_dry_run():
+    ci1 = _create_content_item("1")
+    ci2 = _create_content_item("2")
+    ExistingLink.objects.create(from_content_item=ci1, to_content_item=ci2, anchor_text="a")
+    
+    run, graph_data = run_signals(signal_version="v1.0", dry_run=True)
+    
+    # Dry run deletes the created run object
+    assert not GraphSignalRun.objects.filter(id=run.id).exists()
+    assert NodeGraphSignal.objects.count() == 0

@@ -434,4 +434,25 @@ describe('ErrorLogComponent', () => {
     const result = c.filteredErrors;
     expect(result.length).toBe(2);
   });
+
+  it('showJobTypeAndStatusFilters returns false for glitchtip, auto-issues, and pyroscope tabs, and true otherwise', async () => {
+    const c = await buildComponent();
+    
+    // Should be false for these tabs
+    c.selectedTabIndex = 1; // GLITCHTIP_TAB_INDEX
+    expect(c.showJobTypeAndStatusFilters).toBeFalse();
+    
+    c.selectedTabIndex = 3; // AUTO_ISSUES_TAB_INDEX
+    expect(c.showJobTypeAndStatusFilters).toBeFalse();
+    
+    c.selectedTabIndex = 4; // PYROSCOPE_TAB_INDEX
+    expect(c.showJobTypeAndStatusFilters).toBeFalse();
+
+    // Should be true for other tabs
+    c.selectedTabIndex = 0; // internal
+    expect(c.showJobTypeAndStatusFilters).toBeTrue();
+    
+    c.selectedTabIndex = 2; // all
+    expect(c.showJobTypeAndStatusFilters).toBeTrue();
+  });
 });

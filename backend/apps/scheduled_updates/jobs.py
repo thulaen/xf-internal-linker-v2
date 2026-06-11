@@ -1994,3 +1994,17 @@ def run_anchor_self_information_corpus_stats_refresh(job, checkpoint) -> None:
         progress_pct=100.0,
         message=f"Stats refreshed: N={n}, median={median:.3f}, MAD={mad:.3f}",
     )
+
+
+@scheduled_job(
+    "graph_signals_compute_all",
+    display_name="Graph Signals Compute All",
+    cadence_seconds=86400,
+    estimate_seconds=600,
+    priority=JOB_PRIORITY_MEDIUM,
+)
+def run_graph_signals_compute_all(job, checkpoint) -> None:
+    from apps.graph.services.graph_signal_job import run_signals
+    checkpoint(progress_pct=10.0, message="Starting graph signals computation...")
+    run_signals(force=False)
+    checkpoint(progress_pct=100.0, message="Graph signals computation complete.")

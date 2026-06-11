@@ -485,6 +485,19 @@ def score_destination_matches(
         sentence_embedding_by_id = {}
         destination_content_item = None
 
+    nk_node_signal = None
+    nk_link_candidates_by_host = {}
+    if destination_content_item:
+        try:
+            from apps.graph.api import latest_node_signal, link_prediction_candidates
+            nk_node_signal = latest_node_signal(destination_content_item)
+            nk_candidates = link_prediction_candidates(destination_content_item, as_destination=True)
+            nk_link_candidates_by_host = {
+                (c.from_item.content_id, c.from_item.content_type): c for c in nk_candidates
+            }
+        except Exception as exc:
+            logger.warning("Failed to fetch NetworKit graph signals", exc_info=True)
+
     # FR-245 — when calibration is enabled (default true), use the
     # Platt-calibrated probability instead of the raw cosine cutoff.
     # Cold-start params target σ(0)=0.5 at cosine=0.25 so behaviour is
@@ -775,6 +788,17 @@ def score_destination_matches(
         else 0.0
     )
 
+    nk_node_contribution = 0.0
+    if nk_node_signal:
+        def _get_nk(val): return float(val) - 0.5 if val is not None else 0.0
+        nk_node_contribution += float(weights.get("graph.nk_centrality.ranking_weight", 0.0)) * _get_nk(nk_node_signal.eigenvector)
+        nk_node_contribution += float(weights.get("graph.nk_betweenness.ranking_weight", 0.0)) * _get_nk(nk_node_signal.betweenness)
+        nk_node_contribution += float(weights.get("graph.nk_reach.ranking_weight", 0.0)) * (0.5 if nk_node_signal.inbound_reachable else -0.5)
+        nk_node_contribution += float(weights.get("graph.nk_kcore.ranking_weight", 0.0)) * _get_nk(nk_node_signal.core_number)
+        nk_node_contribution += float(weights.get("graph.nk_components.ranking_weight", 0.0)) * (0.5 if nk_node_signal.is_main_component else -0.5)
+        nk_node_contribution += float(weights.get("graph.nk_local_clustering.ranking_weight", 0.0)) * _get_nk(nk_node_signal.local_clustering)
+        nk_node_contribution += float(weights.get("graph.nk_group_seed_rank.ranking_weight", 0.0)) * _get_nk(nk_node_signal.group_seed_rank)
+
     for pending_candidate, raw_score_final in zip(pending_candidates, score_finals):
         match = pending_candidate["match"]
         phrase_match = pending_candidate["phrase_match"]
@@ -789,6 +813,16 @@ def score_destination_matches(
             pending_candidate["score_click_distance_component"]
         )
         score_final = float(raw_score_final)
+
+        nk_link_contribution = 0.0
+        nk_cand = nk_link_candidates_by_host.get(match.host_key)
+        if nk_cand:
+            def _get_nk(val): return float(val) - 0.5 if val is not None else 0.0
+            nk_link_contribution += float(weights.get("graph.nk_link_prediction.ranking_weight", 0.0)) * _get_nk(nk_cand.adamic_adar)
+            nk_link_contribution += float(weights.get("graph.nk_communities.ranking_weight", 0.0)) * (0.5 if nk_cand.same_community else -0.5)
+            nk_link_contribution += float(weights.get("graph.nk_node2vec.ranking_weight", 0.0)) * _get_nk(nk_cand.embed_cosine)
+        
+        score_final += nk_node_contribution + nk_link_contribution
 
         # FR-099 through FR-105 — graph-topology signals.
         # Dispatcher returns weighted_contribution (already multiplied by each
