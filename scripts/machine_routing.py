@@ -24,6 +24,8 @@ so the per-machine counts sum EXACTLY to the item count (Balinski & Young,
 
 from __future__ import annotations
 
+import os
+import platform
 import subprocess
 from pathlib import Path
 from typing import Callable
@@ -33,6 +35,18 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # Probe budgets — bounded so a powered-off box never hangs the run.
 _PROBE_DOCKER_TIMEOUT = 15
 _PROBE_SSH_TIMEOUT = 10
+
+# Docker context names that mean "the local Docker Desktop engine". On the
+# Windows host (the MSI) these are forbidden quality targets — tests, lint,
+# coverage, and mutation run on the Dell helper only.
+_LOCAL_CONTEXT_NAMES = frozenset({"", "default", "desktop-linux", "desktop-windows"})
+
+
+def _on_windows_host() -> bool:
+    """True on the bare Windows host (the MSI); CI runners are exempt."""
+    if os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("CI") == "true":
+        return False
+    return platform.system() == "Windows"
 
 
 class RemoteUnavailableError(RuntimeError):
@@ -102,6 +116,19 @@ def _select_machines(cfg: dict, probe: Callable[[dict], bool] | None = None) -> 
     if probe is None:
         probe = _probe_reachable
     machines = _machines_from_config(cfg)
+    if _on_windows_host():
+        local_targets = [
+            m["name"] for m in machines
+            if m["transport"] == "docker_context"
+            and m.get("context", "") in _LOCAL_CONTEXT_NAMES
+        ]
+        if local_targets:
+            raise RemoteUnavailableError(
+                "Machine(s) " + ", ".join(local_targets)
+                + " point at the local Docker Desktop engine. Tests and "
+                "mutation runs are blocked on this Windows machine (MSI) — "
+                "route the work to the Dell docker context instead."
+            )
     reachable_ids = {id(m) for m in machines if probe(m)}
     down_remotes = [
         m["name"] for m in machines

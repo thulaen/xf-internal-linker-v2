@@ -36,6 +36,9 @@ ANGULAR_CORES="${ANGULAR_CORES:-16}"
 ANGULAR_VOLUME="${ANGULAR_VOLUME:-xf_angular_repo}"
 IMAGE="xf-linker-frontend-mutation-tools:latest"
 
+. scripts/_dell_only_guard.sh
+xf_require_remote_context run-angular-quality "$ANGULAR_DOCKER_CONTEXT"
+
 # ── Scope to changed / new frontend files ────────────────────────────────────
 scope_mode="${COMMIT_SCOPE_MODE:-staged}"
 changed_files="$("$PY" scripts/commit_scope.py paths --mode "$scope_mode" || true)"

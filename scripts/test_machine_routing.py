@@ -327,6 +327,38 @@ class _MonkeyPatch:
         self._undo.clear()
 
 
+def test_local_docker_context_is_rejected_on_windows_host(monkeypatch) -> None:
+    """Tests/mutation must never target the local Docker Desktop engine on
+    the Windows host (MSI) — even when a config points a docker_context
+    machine at it."""
+    routing = _load_routing()
+    monkeypatch.setattr(routing, "_on_windows_host", lambda: True)
+    cfg = {"machines": [
+        _machine("sneaky-local", "docker_context", 1.0, context="desktop-linux"),
+    ]}
+    try:
+        routing._select_machines(cfg, probe=lambda m: True)
+    except routing.RemoteUnavailableError as exc:
+        assert "blocked on this Windows machine" in str(exc)
+        assert "Dell" in str(exc)
+    else:
+        raise AssertionError("desktop-linux context must be rejected on MSI")
+
+
+def test_dell_context_is_allowed_on_windows_host(monkeypatch) -> None:
+    routing = _load_routing()
+    monkeypatch.setattr(routing, "_on_windows_host", lambda: True)
+    cfg = {"machines": [_machine("dell", "docker_context", 1.0, context="dell")]}
+    machines = routing._select_machines(cfg, probe=lambda m: True)
+    assert [m["name"] for m in machines] == ["dell"]
+
+
+def test_windows_host_detection_exempts_ci(monkeypatch) -> None:
+    routing = _load_routing()
+    monkeypatch.setattr(routing.os, "environ", {"GITHUB_ACTIONS": "true"})
+    assert routing._on_windows_host() is False
+
+
 def _run_all() -> int:
     import inspect
 

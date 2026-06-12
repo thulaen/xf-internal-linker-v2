@@ -35,6 +35,9 @@ PYTHON_MUTATION_DOCKER_CONTEXT="${PYTHON_MUTATION_DOCKER_CONTEXT:-dell}"
 PYTHON_MUTATION_VOLUME="xf_python_mutation_repo"
 PYTHON_MUTATION_IMAGE="xf-linker-backend-mutation-tools:latest"
 
+. scripts/_dell_only_guard.sh
+xf_require_remote_context run-python-mutation "$PYTHON_MUTATION_DOCKER_CONTEXT"
+
 python_cmd=(python)
 if ! command -v "${python_cmd[0]}" >/dev/null 2>&1; then
   if command -v python3 >/dev/null 2>&1; then

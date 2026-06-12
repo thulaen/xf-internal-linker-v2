@@ -4,6 +4,8 @@ set -euo pipefail
 repo_root="${REPO_ROOT:-$(git rev-parse --show-toplevel)}"
 RUST_MUTATION_DOCKER_CONTEXT="${RUST_MUTATION_DOCKER_CONTEXT:-dell}"
 XF_RUST_MUTATION_JOBS="${XF_RUST_MUTATION_JOBS:-16}"
+. "$repo_root/scripts/_dell_only_guard.sh"
+xf_require_remote_context run-rust-mutation "$RUST_MUTATION_DOCKER_CONTEXT"
 
 if [[ "${XF_QUALITY_INNER:-0}" != "1" && ! -f /.dockerenv ]]; then
   cd "$repo_root"

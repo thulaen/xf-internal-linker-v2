@@ -16,6 +16,7 @@ cd "$repo_root"
 # removes the docker container on EXIT/INT/TERM so orphans cannot
 # survive a TaskStop or Ctrl-C.
 . scripts/_quality_concurrency.sh
+. scripts/_dell_only_guard.sh
 quality_install_cleanup_trap
 quality_acquire_meta_lock
 quality_acquire_tool_lock python-quality
@@ -140,7 +141,12 @@ pytest_split_done=0
 # machine_routing is fail-CLOSED: if Dell is unreachable the split raises and
 # this gate hard-fails with a "fix Dell" message instead of silently linting on
 # Windows. Set XF_LINT_SPLIT=0 / XF_PYTEST_SPLIT=0 to force a local-only run.
-if [[ "${XF_QUALITY_ENV:-local}" == "ci" ]]; then
+if xf_on_msi_host; then
+  # This Windows machine (MSI) never runs quality tools locally — force the
+  # Dell splits no matter what XF_QUALITY_ENV / XF_*_SPLIT overrides say.
+  XF_LINT_SPLIT=1
+  XF_PYTEST_SPLIT=1
+elif [[ "${XF_QUALITY_ENV:-local}" == "ci" ]]; then
   : "${XF_LINT_SPLIT:=0}"
   : "${XF_PYTEST_SPLIT:=0}"
 else
@@ -176,6 +182,10 @@ if [[ "$lint_split_done" == "1" && "$pytest_split_done" == "1" ]]; then
   echo "[PYTHON QUALITY: all checks ran on Dell — lint, types, security, pytest, coverage, dependency audit. Local container not started.]"
   exit 0
 fi
+
+# Reaching this point means at least one split did not run — only CI runners
+# may take the in-container path; the Windows host (MSI) is hard-blocked.
+xf_block_local_quality_container run-python-quality
 
 # Phase H: stable container name + register for cleanup trap.
 QUALITY_CONTAINER="$(quality_docker_container_name python-quality)"
