@@ -808,7 +808,7 @@ def nearby_test_candidates(path: str) -> list[str]:
     source = Path(path)
     stem = source.stem
     if path.startswith("frontend/"):
-        return [str(source.with_name(f"{stem}.spec.ts"))]
+        return [source.with_name(f"{stem}.spec.ts").as_posix()]
     parent = source.parent
     stems = {stem, stem.replace("-", "_"), stem.replace("_", "-")}
     ancestors = [
@@ -834,7 +834,7 @@ def nearby_test_candidates(path: str) -> list[str]:
                     str(ancestor / "tests" / f"tests_{candidate_stem}.py"),
                 ]
             )
-    return candidates
+    return [candidate.replace("\\", "/") for candidate in candidates]
 
 
 def scan_test_quality(path: str, text: str) -> list[DebtIssue]:

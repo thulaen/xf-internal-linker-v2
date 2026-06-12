@@ -29,6 +29,10 @@ class VerifyCmdTests(unittest.TestCase):
     def test_prometheus_is_configured_at_ten(self):
         self.assertIn(("prometheus", 10), mod.ALWAYS_ON_SOURCES)
 
+    def test_rust_compiler_is_configured_at_ten(self):
+        self.assertIn(("rust_compiler", 10), mod.ALWAYS_ON_SOURCES)
+        self.assertNotIn(("compiler", 10), mod.ALWAYS_ON_SOURCES)
+
 
 class MainTests(unittest.TestCase):
     def test_no_staged_files_passes(self):

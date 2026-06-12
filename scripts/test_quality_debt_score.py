@@ -174,12 +174,22 @@ def test_new_code_at_target_does_not_need_old_baseline() -> None:
     assert qds.file_failures(Path.cwd(), score, qds.default_baseline(), {score.path: ""}) == []
 
 
-def test_hook_scripts_call_changed_quality_gate() -> None:
+def test_quality_debt_runs_after_task_completion_not_precommit() -> None:
     precommit = Path("scripts/precommit-docker.sh").read_text(encoding="utf-8")
-    prepush = Path("scripts/prepush-docker.sh").read_text(encoding="utf-8")
+    task_completion = Path("scripts/run-task-completion.sh").read_text(encoding="utf-8")
 
-    assert "run-quality-debt-report.sh --changed" in precommit
-    assert "run-quality-debt-report.sh --changed" in prepush
+    assert "run-quality-debt-report.sh" not in precommit
+    assert "agent_guard.py" not in precommit
+    assert "scripts/quality_debt_score.py" in task_completion
+    assert "--debt-only" in task_completion
+    assert "backend/reports/quality-evidence/quality-debt.jsonl" in task_completion
+    assert "TASK COMPLETION: quality-debt report" in task_completion
+    assert "QUALITY_DEBT_TIMEOUT_SECONDS" in task_completion
+    assert "timeout --signal=TERM" in task_completion
+
+
+def test_quality_debt_wrapper_is_removed() -> None:
+    assert not Path("scripts/run-quality-debt-report.sh").exists()
 
 
 def test_git_path_helpers_normalize_changed_and_tracked(monkeypatch: pytest.MonkeyPatch) -> None:

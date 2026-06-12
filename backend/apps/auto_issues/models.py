@@ -89,8 +89,8 @@ class AutoIssue(models.Model):
     SOURCE_FUZZ = "fuzz"             # libFuzzer crashes / coverage gaps
     SOURCE_CONTRACT = "contract"     # Pact provider-verification drift
     SOURCE_GH_CI = "gh_ci"           # gh run list --status failure
-    # Phase B of the test-hardening plan (added 2026-06-01):
-    SOURCE_COMPILER = "compiler"     # clang/gcc/clippy/GHC/hlint warnings
+    # Phase B of the test-hardening plan (updated 2026-06-12):
+    SOURCE_RUST_COMPILER = "rust_compiler"  # rustc/clippy warnings and errors
     SOURCE_MEGALINTER = "megalinter"  # MegaLinter multi-linter suite findings
     SOURCE_PRE_COMMIT_WARNING = "precommit_warn"
     SOURCE_CHOICES = [
@@ -116,7 +116,7 @@ class AutoIssue(models.Model):
         (SOURCE_FUZZ, "Fuzz testing"),
         (SOURCE_CONTRACT, "Contract drift"),
         (SOURCE_GH_CI, "GH Actions CI failure"),
-        (SOURCE_COMPILER, "Compiler/linter warning"),
+        (SOURCE_RUST_COMPILER, "Rust compiler warning"),
         (SOURCE_MEGALINTER, "MegaLinter"),
         (SOURCE_PRE_COMMIT_WARNING, "Pre-commit soft gate warning"),
     ]

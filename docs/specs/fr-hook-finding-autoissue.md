@@ -63,6 +63,17 @@ Given only soft local checks file findings, when the driver finishes, then no
 `commit_blocker` AutoIssue is filed and the commit driver continues through the
 normal soft-finding path.
 
+Given a commit runs, when the driver reaches the end of the fast code checks,
+then it does not run quality-debt report generation or the retired Agent Guard
+checker; quality-debt reporting is a task-completion tool, not a commit-time
+correctness check.
+
+Given an agent completes a task, when `scripts/run-task-completion.sh` runs,
+then it calls `scripts/quality_debt_score.py --changed --debt-only`, writes
+quality evidence to `backend/reports/quality-evidence/quality-debt.jsonl`, and
+returns success after recording debt findings so the report guides the next
+cleanup instead of pretending to be a fast commit check.
+
 Given a GitHub Actions workflow run finishes with `conclusion=failure`, when the
 CI failure workflow runs, then it reads the failed run's jobs through `gh api`
 and files one `source="gh_ci"` AutoIssue per failed job.
@@ -133,6 +144,9 @@ the CI failure workflow does not change that path.
   stable external id based on hook name plus failure fingerprint, passes
   explicit `Trap:` and `Fix shape:` lessons, and returns the AutoIssue id for
   the `[COMMIT BLOCKED: ...]` marker.
+- `scripts/run-task-completion.sh` owns after-task quality-debt reporting. It
+  prints a plain heading, calls `scripts/quality_debt_score.py --changed
+  --debt-only`, writes quality evidence, and stays outside the pre-commit path.
 - `.githooks/prepare-commit-msg` edits the commit message file in place, using
   Git's supported hook timing after the default message exists and before the
   editor opens.
@@ -201,6 +215,7 @@ the CI failure workflow does not change that path.
 
 - `python .githooks/test__hook_helpers.py`
 - `python scripts/test_precommit_docker.py`
+- `python -m pytest -q scripts/test_quality_debt_score.py`
 - `python .githooks/test_prepare_commit_msg.py`
 - `python -m pytest -q .githooks/test_check_gh_actions_read.py`
 - `python -m pytest -q tests/test_agent_chat_format.py`

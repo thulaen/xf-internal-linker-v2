@@ -27,7 +27,6 @@ FULL_SCOPE_EXACT = {
     "scripts/prepush-docker.sh",
     "scripts/run-angular-quality.sh",
     "scripts/run-python-quality.sh",
-    "scripts/run-quality-debt-report.sh",
     "scripts/run-rust-quality.sh",
     "scripts/run-scoped-static-quality.ps1",
     "scripts/tdd_write_guard.py",

@@ -1,9 +1,8 @@
-"""File compiler/linter warnings as deduped SOURCE_COMPILER AutoIssues.
+"""File Rust compiler warnings as deduped AutoIssues.
 
 Pure parsing lives in compiler_warnings.py; this layer turns each warning into
-a deduped AutoIssue via the shared upsert_dedup, mirroring the pickers. All
-four languages (cpp/go/rust/haskell) share ONE source and ONE always-on
-"fix 10" quota. Spec: docs/specs/fr-compiler-warning-autoissues.md.
+a deduped AutoIssue via the shared upsert_dedup, mirroring the pickers. Rust is
+the only active compiled backend language.
 """
 
 from __future__ import annotations
@@ -18,8 +17,8 @@ from apps.auto_issues.services.compiler_warnings import (
 from apps.auto_issues.services.dedup import upsert_dedup
 
 # AutoIssue.external_id is CharField(max_length=128) and both fingerprint
-# fields are CharField(max_length=64). Raw "compiler:<lang>:<path>:<line>:<code>"
-# keys routinely exceed those limits for real source paths, so we file a
+# fields are CharField(max_length=64). Raw rust compiler keys routinely exceed
+# those limits for real source paths, so we file a
 # short readable external_id and a stable 16-char hex dedup key.
 _EXTERNAL_ID_MAX = 128
 _HASH_LEN = 16
@@ -37,7 +36,7 @@ def ingest_compiler_warnings(text: str, language: str, *, dry_run: bool = False)
 def _dedup_key(warning: CompilerWarning) -> str:
     """Readable (file, line, code-or-message) identity for one diagnostic."""
     tail = warning.code or warning.message[:48]
-    return f"compiler:{warning.language}:{warning.file}:{warning.line}:{tail}"
+    return f"rust_compiler:{warning.language}:{warning.file}:{warning.line}:{tail}"
 
 
 def _short_hash(key: str) -> str:
@@ -67,10 +66,10 @@ def _file_warning(warning: CompilerWarning) -> bool:
     location = f"{warning.file}:{warning.line}" + (f":{warning.col}" if warning.col else "")
     upsert_dedup(
         canonical=fingerprint,
-        source=AutoIssue.SOURCE_COMPILER,
+        source=AutoIssue.SOURCE_RUST_COMPILER,
         external_id=external_id,
         fingerprint=fingerprint,
-        title=f"[{warning.language}] {warning.severity}: {detail}"[:200],
+        title=f"[rust compiler] {warning.severity}: {detail}"[:200],
         description=(
             f"{location} {warning.severity}: {warning.message} "
             f"{f'[{warning.code}]' if warning.code else ''}".strip()
@@ -87,7 +86,7 @@ def _file_warning(warning: CompilerWarning) -> bool:
 def _next_occurrence_count(external_id: str) -> int:
     existing = (
         AutoIssue.objects
-        .filter(source=AutoIssue.SOURCE_COMPILER, external_id=external_id)
+        .filter(source=AutoIssue.SOURCE_RUST_COMPILER, external_id=external_id)
         .exclude(status=AutoIssue.STATUS_RESOLVED)
         .first()
     )

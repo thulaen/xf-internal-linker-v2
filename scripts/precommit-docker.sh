@@ -284,8 +284,8 @@ run_hard_gate check-rust-mandate python .githooks/check-rust-mandate.py
 # settled docs/specs/*.md need a documented reopen marker (user
 # request, citation drift, or KPI drift).
 run_hard_gate check-autoissue-quota python .githooks/check-autoissue-quota.py
-# Always-on, drought-aware per-source quotas (pgexporter health now; Phase B
-# adds compiler warnings). Blocks while a source has >= threshold open
+# Always-on, drought-aware per-source quotas (pgexporter health and Rust
+# compiler warnings). Blocks while a source has >= threshold open
 # findings unless threshold were resolved this session; 0 open never blocks.
 run_hard_gate check-always-on-quota python .githooks/check-always-on-quota.py
 run_hard_gate check-codeql-autoissues python .githooks/check-codeql-autoissues.py
@@ -350,10 +350,8 @@ fi
 
 run_hard_gate run-rust-quality bash scripts/run-rust-quality.sh
 
-run_soft_gate run-quality-debt-report bash scripts/run-quality-debt-report.sh --changed
-run_soft_gate agent-guard docker compose exec -T backend python /repo/scripts/agent_guard.py $staged
-
-
+# Task-completion reports run outside the commit hook. The commit hook keeps
+# only code-correctness checks and hard project-health checks.
 
 # Turbo test mode (XF_TURBO_TESTS=1)
 if [[ "${XF_TURBO_TESTS:-0}" == "1" ]]; then

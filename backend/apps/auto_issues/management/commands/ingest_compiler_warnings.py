@@ -1,8 +1,8 @@
-"""Ingest captured compiler/linter warnings into deduped SOURCE_COMPILER AutoIssues.
+"""Ingest captured Rust compiler warnings into deduped AutoIssues.
 
 Reads a warning log file (the quality runners tee compiler stderr to one) for a
-given language and files one deduped AutoIssue per warning. Supports --dry-run.
-Spec: docs/specs/fr-compiler-warning-autoissues.md.
+Rust compiler run and files one deduped AutoIssue per warning. Supports
+--dry-run. Spec: docs/specs/fr-compiler-warning-autoissues.md.
 """
 
 from __future__ import annotations
@@ -16,13 +16,13 @@ from apps.auto_issues.services.compiler_warnings import SUPPORTED_LANGUAGES
 
 
 class Command(BaseCommand):
-    help = "File AutoIssues for captured compiler/linter warnings."
+    help = "File AutoIssues for captured Rust compiler warnings."
 
     def add_arguments(self, parser) -> None:
         parser.add_argument("--path", required=True, help="Path to the captured warning log.")
         parser.add_argument(
             "--language", required=True, choices=SUPPORTED_LANGUAGES,
-            help="Which compiler/linter produced the log.",
+            help="Which compiler produced the log. Rust is the only supported value.",
         )
         parser.add_argument(
             "--dry-run", action="store_true",
@@ -35,7 +35,7 @@ class Command(BaseCommand):
             raise CommandError(f"--path {path} does not exist or is not a file.")
         text = path.read_text(encoding="utf-8", errors="replace")
         result = ingest_compiler_warnings(text, opts["language"], dry_run=opts["dry_run"])
-        prefix = "[COMPILER WARNINGS (dry-run)" if opts["dry_run"] else "[COMPILER WARNINGS"
+        prefix = "[RUST COMPILER WARNINGS (dry-run)" if opts["dry_run"] else "[RUST COMPILER WARNINGS"
         self.stdout.write(
             self.style.SUCCESS(
                 f"{prefix}: language={opts['language']} parsed={result['parsed']} "

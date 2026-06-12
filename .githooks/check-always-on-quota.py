@@ -28,7 +28,7 @@ HANDOFF = REPO_ROOT / "AGENT-HANDOFF.md"
 # (source slug, threshold).
 ALWAYS_ON_SOURCES: list[tuple[str, int]] = [
     ("prometheus", 10),
-    ("compiler", 10),
+    ("rust_compiler", 10),
 ]
 
 _HEADING_RE = re.compile(r"^#\s+(?P<stamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})\b")

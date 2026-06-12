@@ -1,4 +1,4 @@
-"""Fast tests for compiler_ingest.py (warning text -> deduped SOURCE_COMPILER AutoIssues).
+"""Fast tests for compiler_ingest.py (Rust warning text -> deduped AutoIssues).
 
 SimpleTestCase with the DB seam mocked (upsert_dedup + AutoIssue.objects), so the
 whole suite runs in milliseconds and the scoped-mutation gate can re-run it per
@@ -23,8 +23,8 @@ from apps.auto_issues.services.compiler_warnings import CompilerWarning
 
 
 def _warn(**kw):
-    base = dict(language="cpp", file="src/a.cpp", line=10, col=4,
-                code="-Wunused", message="unused variable 'x'", severity="warning")
+    base = dict(language="rust", file="rust/extensions/demo/src/lib.rs", line=10, col=4,
+                code="clippy::needless_return", message="unused variable 'x'", severity="warning")
     base.update(kw)
     return CompilerWarning(**base)
 
@@ -43,7 +43,7 @@ class IngestTests(SimpleTestCase):
         with patch.object(compiler_ingest, "parse_warnings",
                           return_value=[_warn(), _warn(line=20)]), \
              patch.object(compiler_ingest, "upsert_dedup") as upsert:
-            result = compiler_ingest.ingest_compiler_warnings("x", "cpp", dry_run=True)
+            result = compiler_ingest.ingest_compiler_warnings("x", "rust", dry_run=True)
         self.assertEqual(result, {"parsed": 2, "filed": 0})
         upsert.assert_not_called()
 
@@ -52,19 +52,19 @@ class IngestTests(SimpleTestCase):
                           return_value=[_warn(), _warn(line=20)]), \
              patch.object(compiler_ingest, "upsert_dedup") as upsert, \
              patch.object(compiler_ingest.AutoIssue, "objects", _objects(first=None)):
-            result = compiler_ingest.ingest_compiler_warnings("x", "cpp")
+            result = compiler_ingest.ingest_compiler_warnings("x", "rust")
         self.assertEqual(result, {"parsed": 2, "filed": 2})
         self.assertEqual(upsert.call_count, 2)
 
-    def test_warning_maps_to_low_severity_and_compiler_source(self):
+    def test_warning_maps_to_low_severity_and_rust_compiler_source(self):
         with patch.object(compiler_ingest, "upsert_dedup") as upsert, \
              patch.object(compiler_ingest.AutoIssue, "objects", _objects(first=None)):
             compiler_ingest._file_warning(_warn(severity="warning"))
         kwargs = upsert.call_args.kwargs
-        self.assertEqual(kwargs["source"], AutoIssue.SOURCE_COMPILER)
+        self.assertEqual(kwargs["source"], AutoIssue.SOURCE_RUST_COMPILER)
         self.assertEqual(kwargs["severity"], AutoIssue.SEVERITY_LOW)
         self.assertAlmostEqual(kwargs["priority_score"], 0.35)
-        self.assertEqual(kwargs["affected_files"], ["src/a.cpp"])
+        self.assertEqual(kwargs["affected_files"], ["rust/extensions/demo/src/lib.rs"])
         self.assertIn("10:4", kwargs["description"])  # col present in location
 
     def test_error_maps_to_high_severity(self):
@@ -79,7 +79,7 @@ class IngestTests(SimpleTestCase):
         with patch.object(compiler_ingest, "upsert_dedup") as upsert, \
              patch.object(compiler_ingest.AutoIssue, "objects", _objects(first=None)):
             compiler_ingest._file_warning(_warn(col=None))
-        self.assertIn("src/a.cpp:10 ", upsert.call_args.kwargs["description"])
+        self.assertIn("rust/extensions/demo/src/lib.rs:10 ", upsert.call_args.kwargs["description"])
 
     def test_detail_falls_back_to_code_when_message_empty(self):
         with patch.object(compiler_ingest, "upsert_dedup") as upsert, \
@@ -89,12 +89,12 @@ class IngestTests(SimpleTestCase):
 
     def test_dedup_key_uses_message_when_no_code(self):
         key = compiler_ingest._dedup_key(_warn(code="", message="m" * 80))
-        self.assertTrue(key.startswith("compiler:cpp:src/a.cpp:10:"))
+        self.assertTrue(key.startswith("rust_compiler:rust:rust/extensions/demo/src/lib.rs:10:"))
         self.assertIn("m" * 48, key)
         self.assertNotIn("m" * 49, key)
 
     def test_short_hash_is_16_hex_chars(self):
-        h = compiler_ingest._short_hash("compiler:cpp:x:1:y")
+        h = compiler_ingest._short_hash("rust_compiler:rust:x:1:y")
         self.assertEqual(len(h), 16)
         int(h, 16)  # raises if not hex
 
@@ -102,7 +102,7 @@ class IngestTests(SimpleTestCase):
         self.assertEqual(compiler_ingest._external_id("short:key", "abcd"), "short:key")
 
     def test_external_id_truncates_long_keys_and_appends_hash(self):
-        long_key = "compiler:cpp:" + "d/" * 200 + "file.cpp:1:code"
+        long_key = "rust_compiler:rust:" + "d/" * 200 + "file.rs:1:code"
         fp = "0123456789abcdef"
         out = compiler_ingest._external_id(long_key, fp)
         self.assertLessEqual(len(out), compiler_ingest._EXTERNAL_ID_MAX)

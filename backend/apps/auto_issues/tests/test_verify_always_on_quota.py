@@ -36,7 +36,7 @@ class VerifyAlwaysOnQuotaArgTests(SimpleTestCase):
         ns = self._parser().parse_args(["--source", "prometheus"])
         self.assertEqual(ns.source, "prometheus")
         self.assertEqual(ns.threshold, DEFAULT_THRESHOLD)
-        ns2 = self._parser().parse_args(["--source", "compiler", "--threshold", "7"])
+        ns2 = self._parser().parse_args(["--source", "rust_compiler", "--threshold", "7"])
         self.assertEqual(ns2.threshold, 7)
         self.assertIsInstance(ns2.threshold, int)
 

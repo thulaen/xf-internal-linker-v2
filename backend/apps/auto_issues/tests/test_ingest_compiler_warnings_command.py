@@ -24,19 +24,19 @@ class IngestCompilerWarningsCommandTests(SimpleTestCase):
     def test_missing_path_raises_command_error(self):
         with mock.patch("pathlib.Path.is_file", return_value=False):
             with self.assertRaises(CommandError):
-                call_command(_CMD, "--path", "nope.log", "--language", "cpp")
+                call_command(_CMD, "--path", "nope.log", "--language", "rust")
 
     def test_reads_file_and_reports_counts(self):
         out = StringIO()
         with (
             mock.patch("pathlib.Path.is_file", return_value=True),
-            mock.patch("pathlib.Path.read_text", return_value="a.cpp:1:1: warning: x"),
+            mock.patch("pathlib.Path.read_text", return_value="warning: x\n  --> src/a.rs:1:1"),
             mock.patch(_SERVICE, return_value={"parsed": 3, "filed": 2}) as ingest,
         ):
-            call_command(_CMD, "--path", "warn.log", "--language", "cpp", stdout=out)
-        ingest.assert_called_once_with("a.cpp:1:1: warning: x", "cpp", dry_run=False)
+            call_command(_CMD, "--path", "warn.log", "--language", "rust", stdout=out)
+        ingest.assert_called_once_with("warning: x\n  --> src/a.rs:1:1", "rust", dry_run=False)
         text = out.getvalue()
-        self.assertIn("[COMPILER WARNINGS:", text)
+        self.assertIn("[RUST COMPILER WARNINGS:", text)
         self.assertIn("parsed=3", text)
         self.assertIn("filed=2", text)
 
@@ -47,10 +47,10 @@ class IngestCompilerWarningsCommandTests(SimpleTestCase):
             mock.patch("pathlib.Path.read_text", return_value="log"),
             mock.patch(_SERVICE, return_value={"parsed": 1, "filed": 0}) as ingest,
         ):
-            call_command(_CMD, "--path", "w.log", "--language", "go", "--dry-run", stdout=out)
-        ingest.assert_called_once_with("log", "go", dry_run=True)
-        self.assertIn("[COMPILER WARNINGS (dry-run):", out.getvalue())
+            call_command(_CMD, "--path", "w.log", "--language", "rust", "--dry-run", stdout=out)
+        ingest.assert_called_once_with("log", "rust", dry_run=True)
+        self.assertIn("[RUST COMPILER WARNINGS (dry-run):", out.getvalue())
 
-    def test_unknown_language_is_rejected_by_choices(self):
+    def test_removed_language_is_rejected_by_choices(self):
         with self.assertRaises(CommandError):
-            call_command(_CMD, "--path", "w.log", "--language", "cobol")
+            call_command(_CMD, "--path", "w.log", "--language", "cpp")
