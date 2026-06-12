@@ -144,13 +144,6 @@ def test_select_all_off_raises_fail_closed() -> None:
     raise AssertionError("expected RemoteUnavailableError when nothing is reachable")
 
 
-def test_local_machine_synth() -> None:
-    routing = _load_routing()
-    m = routing._local_machine()
-    assert m["transport"] == "docker_local"
-    assert m["name"] == "windows"
-
-
 def test_probe_injected_no_live_io(monkeypatch) -> None:
     routing = _load_routing()
     called = {"n": 0}
@@ -170,6 +163,8 @@ def test_probe_injected_no_live_io(monkeypatch) -> None:
 def _fake_proc(rc):
     class _P:
         returncode = rc
+        stdout = b""
+        stderr = b""
     return lambda *a, **k: _P()
 
 
@@ -311,7 +306,6 @@ def test_turbo_reexports_same_object() -> None:
     assert turbo._select_machines is routing._select_machines
     assert turbo._partition_weighted is routing._partition_weighted
     assert turbo._renormalise_with_ceilings is routing._renormalise_with_ceilings
-    assert turbo._local_machine is routing._local_machine
 
 
 # ── standalone harness (no pytest on the host) ─────────────────────────────────

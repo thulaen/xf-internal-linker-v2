@@ -280,3 +280,4 @@ audit/inter_model/
 audit/cluster_tuned_params.json
 services/sidecars/sidecars
 backend/audit/admin_recovery_log.jsonl
+scripts/inter_model_state.sqlite

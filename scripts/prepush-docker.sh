@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Push-time quality gate — runs the Dell-only parallel quality orchestrator.
+# Push-time MUTATION gate — runs the Dell-only parallel mutation orchestrator.
 #
-# Every per-language runner (run-python-quality.sh, run-python-repo-mutation.sh,
-# run-rust-quality.sh, run-angular-quality.sh) self-syncs to the Dell helper and
-# runs its heavy work THERE, fail-closed. scripts/run-scoped-static-quality.ps1
-# fans them out in parallel so a push runs all quality on Dell at once. Local
-# pre-commit uses the fast scope-gated precommit-docker.sh instead.
+# Every per-language mutation runner (run-python-mutation.sh,
+# run-python-repo-mutation.sh, run-rust-mutation.sh, run-angular-mutation.sh)
+# self-syncs to the Dell helper and runs its heavy work THERE, fail-closed.
+# scripts/run-scoped-static-quality.ps1 fans them out in parallel so a push
+# runs all mutation testing on Dell at once. Unit tests and lint run at
+# pre-commit only, via the scope-gated precommit-docker.sh.
 set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"

@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Shared machine-routing math for weighted N-way mutation work.
+"""Shared machine-routing math for weighted N-way quality work.
 
 This tiny module is the SINGLE SOURCE of the machine-selection and
-weighted-partition logic used by two callers:
+weighted-partition logic used by the quality runners:
 
-* ``scripts/turbo_mutation.py`` — the big per-language mutation SWEEP.
-* ``.githooks/check-scoped-mutation.py`` — the per-commit scoped-mutation GATE.
+* ``scripts/turbo_mutation.py`` — the per-language mutation sweep.
+* ``scripts/run_pytest_on_context.py`` — the sharded pytest path.
+* ``scripts/run_lint_on_context.py`` — the sharded lint/type-check path.
+* ``scripts/turbo_tests.py`` — the split test runner.
 
-It has ZERO Django imports and does NOT import either caller, so it breaks the
-import cycle (``turbo_mutation`` importlib-loads the gate for its SSH helpers, so
-the gate cannot import ``turbo_mutation`` at top level). Both callers
-importlib-load this file by absolute path and re-export the names.
+It has ZERO Django imports and does NOT import any caller. Every caller
+importlib-loads this file by absolute path and re-exports the names.
 
 The functions are pure (selection + partition) except ``_probe_reachable``,
 which performs the one bounded reachability check per machine. The probe is
@@ -65,16 +65,6 @@ def _machines_from_config(cfg: dict) -> list[dict]:
         {"name": "mint", "transport": "docker_context", "context": ctx,
          "weight": split.get("remote_pct", 0.35), "max_weight": 1.0},
     ]
-
-
-def _local_machine() -> dict:
-    """The synthetic always-trusted local Windows machine (share 1.0).
-
-    One definition shared by the all-off fallback in ``_select_machines`` and
-    the gate's conservative local re-run of any failed remote slice (DRY).
-    """
-    return {"name": "windows", "transport": "docker_local",
-            "weight": 1.0, "max_weight": 1.0, "share": 1.0}
 
 
 def _renormalise_with_ceilings(machines: list[dict]) -> None:

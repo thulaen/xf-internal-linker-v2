@@ -200,3 +200,17 @@ def test_quality_respects_rust_workspace_override():
         "run-rust-quality.sh must expose a RUST_WORKSPACES list (plural) that "
         "defaults to both speccheck and /repo/rust"
     )
+
+
+def test_host_scope_guard_exits_before_dell_sync():
+    """The host block must check for Rust changes BEFORE probing/syncing Dell,
+    so non-Rust commits skip instantly instead of paying a multi-directory
+    Dell sync on every commit."""
+    text = SCRIPT.read_text()
+    skip_pos = text.find("skipping Dell sync and Rust quality run")
+    probe_pos = text.find('docker --context "$RUST_MUTATION_DOCKER_CONTEXT" info')
+    assert skip_pos != -1, "host block must have its own no-Rust early exit"
+    assert probe_pos != -1, "host block must keep the Dell probe"
+    assert skip_pos < probe_pos, (
+        "the no-Rust early exit must come before the Dell probe/sync"
+    )

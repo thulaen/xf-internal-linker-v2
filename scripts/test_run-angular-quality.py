@@ -9,19 +9,27 @@ SCRIPT = Path(__file__).resolve().parent / "run-angular-quality.sh"
 FRONTEND_DOCKERFILE = Path(__file__).resolve().parents[1] / "frontend" / "Dockerfile.prod"
 
 
-def test_angular_wrapper_passes_large_scope_by_file() -> None:
+MUTATION_SCRIPT = Path(__file__).resolve().parent / "run-angular-mutation.sh"
+
+
+def test_angular_quality_is_dell_only_lint_and_tests() -> None:
+    """Pre-commit Angular quality = eslint + stylelint + unit tests on Dell.
+    No mutation here — Stryker lives in run-angular-mutation.sh (pre-push)."""
     text = SCRIPT.read_text(encoding="utf-8")
 
-    assert "QUALITY_FRONTEND_LINT_TARGETS_FILE" in text
-    assert 'QUALITY_FRONTEND_LINT_TARGETS="$frontend_lint_targets"' not in text
-    assert "read_target_file" in text
+    assert 'docker --context "$ANGULAR_DOCKER_CONTEXT"' in text
+    assert "eslint" in text
+    assert "stylelint" in text
+    assert "test:ci" in text
+    assert "npx stryker" not in text
 
 
-def test_angular_wrapper_delegates_mutation_in_turbo_mode() -> None:
-    text = SCRIPT.read_text(encoding="utf-8")
+def test_angular_mutation_script_owns_stryker() -> None:
+    """Pre-push Angular mutation = incremental Stryker on Dell."""
+    text = MUTATION_SCRIPT.read_text(encoding="utf-8")
 
-    assert 'XF_TURBO_MUTATION="${XF_TURBO_MUTATION:-0}"' in text
-    assert "Angular mutation delegated to turbo coordinator" in text
+    assert "npx stryker run" in text
+    assert "--incremental" in text
 
 
 def test_frontend_quality_image_installs_git_for_policy_helpers() -> None:

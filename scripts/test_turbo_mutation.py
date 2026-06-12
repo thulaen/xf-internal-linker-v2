@@ -57,10 +57,11 @@ def _machine(name, transport, weight, max_weight=1.0, context=None, ssh_host=Non
 
 
 def _three_raw():
+    """Three docker_context machines — the only transport the turbo path allows."""
     return [
-        _machine("dell", "ssh", 0.60, max_weight=0.60, ssh_host="dell"),
-        _machine("windows", "docker_local", 0.30, max_weight=1.0),
-        _machine("mint", "docker_context", 0.10, max_weight=1.0, context="mint"),
+        _machine("dell", "docker_context", 0.60, max_weight=0.60, context="dell"),
+        _machine("helper2", "docker_context", 0.30, max_weight=1.0, context="helper2"),
+        _machine("helper3", "docker_context", 0.10, max_weight=1.0, context="helper3"),
     ]
 
 
@@ -75,7 +76,7 @@ def _shared(turbo, raw, reachable_names):
 
 def test_partition_weighted_sums_exactly_to_len_items() -> None:
     turbo = _load_turbo_module()
-    machines = _shared(turbo, _three_raw(), {"dell", "windows", "mint"})
+    machines = _shared(turbo, _three_raw(), {"dell", "helper2", "helper3"})
     for n in (0, 1, 9, 100):
         items = list(range(n))
         result = turbo._partition_weighted(items, machines)
@@ -89,27 +90,27 @@ def test_partition_weighted_sums_exactly_to_len_items() -> None:
 
 def test_partition_weighted_nine_cpp_binaries() -> None:
     turbo = _load_turbo_module()
-    machines = _shared(turbo, _three_raw(), {"dell", "windows", "mint"})
+    machines = _shared(turbo, _three_raw(), {"dell", "helper2", "helper3"})
     items = [f"bin{i}" for i in range(9)]
-    result = turbo._partition_weighted(items, items_machines := machines)
+    result = turbo._partition_weighted(items, machines)
     counts = {m["name"]: len(result[m["name"]]) for m in machines}
-    assert counts == {"dell": 5, "windows": 3, "mint": 1}, counts
+    assert counts == {"dell": 5, "helper2": 3, "helper3": 1}, counts
     seen = [b for m in machines for b in result[m["name"]]]
     assert sorted(seen) == sorted(items)
 
 
 def test_partition_weighted_fewer_items_than_machines() -> None:
     turbo = _load_turbo_module()
-    machines = _shared(turbo, _three_raw(), {"dell", "windows", "mint"})
+    machines = _shared(turbo, _three_raw(), {"dell", "helper2", "helper3"})
     result = turbo._partition_weighted(["only"], machines)
     assert result["dell"] == ["only"]
-    assert result["windows"] == []
-    assert result["mint"] == []
+    assert result["helper2"] == []
+    assert result["helper3"] == []
 
 
 def test_partition_weighted_is_deterministic() -> None:
     turbo = _load_turbo_module()
-    machines = _shared(turbo, _three_raw(), {"dell", "windows", "mint"})
+    machines = _shared(turbo, _three_raw(), {"dell", "helper2", "helper3"})
     items = list(range(13))
     a = turbo._partition_weighted(items, machines)
     b = turbo._partition_weighted(items, machines)
@@ -124,28 +125,33 @@ def _shares(machines):
 
 def test_select_machines_all_up_keeps_target_weights() -> None:
     turbo = _load_turbo_module()
-    machines = _shared(turbo, _three_raw(), {"dell", "windows", "mint"})
-    assert _shares(machines) == {"dell": 0.60, "windows": 0.30, "mint": 0.10}
+    machines = _shared(turbo, _three_raw(), {"dell", "helper2", "helper3"})
+    assert _shares(machines) == {"dell": 0.60, "helper2": 0.30, "helper3": 0.10}
 
 
 def test_select_machines_dell_off_raises_error() -> None:
     turbo = _load_turbo_module()
-    import pytest
-    with pytest.raises(turbo._routing.RemoteUnavailableError):
-        _shared(turbo, _three_raw(), {"windows", "mint"})
+    try:
+        _shared(turbo, _three_raw(), {"helper2", "helper3"})
+    except turbo._routing.RemoteUnavailableError as exc:
+        assert "dell" in str(exc).lower()
+        return
+    raise AssertionError("expected RemoteUnavailableError when Dell is unreachable")
 
 
-def test_select_machines_mint_off_raises_error() -> None:
+def test_select_machines_any_remote_off_raises_error() -> None:
     turbo = _load_turbo_module()
-    import pytest
-    with pytest.raises(turbo._routing.RemoteUnavailableError):
-        _shared(turbo, _three_raw(), {"dell", "windows"})
+    try:
+        _shared(turbo, _three_raw(), {"dell", "helper2"})
+    except turbo._routing.RemoteUnavailableError:
+        return
+    raise AssertionError("expected RemoteUnavailableError when any remote is unreachable")
 
 
 def test_select_machines_never_exceeds_max_weight() -> None:
     turbo = _load_turbo_module()
     # When all configured machines are reachable, the shares are calculated and the ceiling is respected.
-    machines = _shared(turbo, _three_raw(), {"dell", "windows", "mint"})
+    machines = _shared(turbo, _three_raw(), {"dell", "helper2", "helper3"})
     for m in machines:
         if m["name"] == "dell":
             assert m["share"] <= 0.60 + 1e-9, m["share"]
@@ -153,9 +159,11 @@ def test_select_machines_never_exceeds_max_weight() -> None:
 
 def test_select_machines_all_off_raises_error() -> None:
     turbo = _load_turbo_module()
-    import pytest
-    with pytest.raises(turbo._routing.RemoteUnavailableError):
+    try:
         _shared(turbo, _three_raw(), set())
+    except turbo._routing.RemoteUnavailableError:
+        return
+    raise AssertionError("expected RemoteUnavailableError when nothing is reachable")
 
 
 def test_select_machines_probe_is_injected_no_live_io(monkeypatch) -> None:
@@ -189,7 +197,7 @@ def test_machines_from_config_legacy_shape_synthesises_two_machines() -> None:
 
 # ── transports ────────────────────────────────────────────────────────────────
 
-def test_docker_context_branch_unchanged(monkeypatch) -> None:
+def test_docker_context_transport_builds_dell_run_command(monkeypatch) -> None:
     turbo = _load_turbo_module()
     calls: list[list[str]] = []
 
@@ -200,44 +208,45 @@ def test_docker_context_branch_unchanged(monkeypatch) -> None:
 
     monkeypatch.setattr(turbo.subprocess, "run", lambda cmd, **k: (calls.append(cmd), Result())[1])
 
-    turbo._run_in_container("local", "compiled-tools", "echo local")
-    turbo._run_in_container("mint", "compiled-tools", "echo remote")
-    assert calls[0][:5] == ["docker", "compose", "exec", "-T", "compiled-tools"]
-    assert calls[1][:5] == ["docker", "--context", "mint", "run", "--rm"]
-
-
-def test_ssh_transport_syncs_source_then_builds_compose_run_no_deps(monkeypatch) -> None:
-    turbo = _load_turbo_module()
-    order: list[str] = []
-    calls: list[list[str]] = []
-
-    class Result:
-        returncode = 0
-        stdout = "ok"
-        stderr = ""
-
-    def fake_sync(*a, **k):
-        order.append("sync")
-        return None  # success
-
-    def fake_run(cmd, **k):
-        order.append("run")
-        calls.append(cmd)
-        return Result()
-
-    monkeypatch.setattr(turbo, "_sync_source_to_dell_for_turbo", fake_sync)
-    monkeypatch.setattr(turbo.subprocess, "run", fake_run)
-
-    turbo._run_in_container(
-        "ssh", "compiled-tools", "echo hi",
-        ssh_host="dell",
+    rc, out = turbo._run_in_container(
+        "docker_context", "backend-mutation-tools", "echo hi", context="dell"
     )
-    assert order[0] == "sync", "source must be synced before the ssh run"
-    argv = calls[-1]
-    joined = " ".join(argv)
-    assert argv[0] == "ssh"
-    assert "set DOCKER_CONFIG=" in joined
-    assert "docker compose run --rm --no-deps -T" in joined
+    assert rc == 0
+    argv = calls[0]
+    assert argv[:5] == ["docker", "--context", "dell", "run", "--rm"]
+    assert "xf_python_mutation_repo:/repo" in argv, (
+        "mutation runs must mount the dedicated xf_python_mutation_repo volume, "
+        "not xf_test_repo (the repo-mutation runner wipes xf_test_repo in parallel)"
+    )
+    assert "xf_test_repo:/repo" not in argv
+
+
+def test_non_docker_context_transports_fail_closed_without_subprocess(monkeypatch) -> None:
+    turbo = _load_turbo_module()
+
+    def boom(*a, **k):
+        raise AssertionError("disallowed transports must never spawn a subprocess")
+
+    monkeypatch.setattr(turbo.subprocess, "run", boom)
+
+    for transport in ("ssh", "docker_local", "local", "mint"):
+        rc, out = turbo._run_in_container(transport, "compiled-tools", "echo hi")
+        assert rc == 1, f"transport {transport} must fail closed with rc 1"
+        assert "is not allowed" in out
+        assert "Dell docker context" in out
+        assert "never falls back to Windows" in out
+
+
+def test_docker_context_without_context_name_fails_closed(monkeypatch) -> None:
+    turbo = _load_turbo_module()
+
+    def boom(*a, **k):
+        raise AssertionError("a missing context name must never spawn a subprocess")
+
+    monkeypatch.setattr(turbo.subprocess, "run", boom)
+    rc, out = turbo._run_in_container("docker_context", "compiled-tools", "echo hi")
+    assert rc == 1
+    assert "context" in out.lower()
 
 
 # ── dispatch plan ─────────────────────────────────────────────────────────────
@@ -246,8 +255,8 @@ def test_unreachable_machine_spawns_no_thread() -> None:
     turbo = _load_turbo_module()
     # Define machines manually to bypass selection logic and test dispatching logic directly.
     machines = [
-        {"name": "windows", "transport": "docker_local", "share": 0.75},
-        {"name": "mint", "transport": "docker_context", "share": 0.25},
+        {"name": "helper2", "transport": "docker_context", "context": "helper2", "share": 0.75},
+        {"name": "helper3", "transport": "docker_context", "context": "helper3", "share": 0.25},
     ]
     items = [f"x{i}" for i in range(6)]
     plan = turbo._partition_weighted(items, machines)
@@ -265,7 +274,7 @@ def test_unreachable_machine_spawns_no_thread() -> None:
 
 def test_zero_item_machine_is_not_dispatched() -> None:
     turbo = _load_turbo_module()
-    machines = _shared(turbo, _three_raw(), {"dell", "windows", "mint"})
+    machines = _shared(turbo, _three_raw(), {"dell", "helper2", "helper3"})
     plan = turbo._partition_weighted(["solo"], machines)  # only dell gets work
     handled: list[str] = []
 
@@ -284,12 +293,19 @@ def test_rust_core_budget_derives_from_weight_not_hardcoded_ratio() -> None:
     assert turbo._jobs_for(4, 0.10) == 1  # never below 1 for a reachable machine
 
 
-def test_split_false_languages_stay_local() -> None:
+def test_windows_only_shortcut_and_ssh_helpers_are_deleted() -> None:
+    # Fail-closed cleanup: the split:false Windows-only machine list, the ssh
+    # command builder, the Dell source-sync helper, and the loader for the
+    # deleted .githooks/check-scoped-mutation.py hook must all be gone.
     turbo = _load_turbo_module()
-    cfg = {"machines": _three_raw()}
-    machines = turbo._machines_for_language(cfg, split_enabled=False, probe=lambda m: True)
-    assert len(machines) == 1
-    assert machines[0]["transport"] == "docker_local"
+    for name in (
+        "_machines_for_language",
+        "_ssh_docker_command",
+        "_sync_source_to_dell_for_turbo",
+        "_load_gate_module",
+        "_local_machine",
+    ):
+        assert not hasattr(turbo, name), f"{name} should be deleted from turbo_mutation"
 
 
 # ── tiny standalone harness (no pytest on the host) ───────────────────────────

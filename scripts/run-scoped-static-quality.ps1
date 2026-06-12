@@ -1,14 +1,15 @@
 <#
 .SYNOPSIS
-    Parallel quality orchestrator — DELL ONLY.
+    Parallel MUTATION orchestrator — DELL ONLY, pre-push.
 
-    Fans out every per-language quality runner at once. Each runner
-    (run-python-quality.sh, run-python-repo-mutation.sh, run-rust-quality.sh,
-    run-angular-quality.sh) already syncs its source to the Dell helper and runs
-    the heavy work THERE, fail-CLOSED (no Windows fallback). This script just
-    start them in parallel and waits, so a push runs all quality on Dell at
-    once. The old Windows-local jobs, Mint/icecc, and the compiled-language
-    shard paths are gone.
+    Fans out every per-language MUTATION runner at once. Each runner
+    (run-python-mutation.sh, run-python-repo-mutation.sh, run-rust-mutation.sh,
+    run-angular-mutation.sh) already syncs its source to the Dell helper and
+    runs the heavy work THERE, fail-CLOSED (no Windows fallback). This script
+    just starts them in parallel and waits, so a push runs all mutation testing
+    on Dell at once. Unit tests and lint run at pre-commit only; mutation runs
+    at pre-push only — here. The old Windows-local jobs, Mint/icecc, and the
+    compiled-language shard paths are gone.
 
 .DESCRIPTION
     Invoked by the push path (scripts/prepush-docker.sh). Local pre-commit still

@@ -338,6 +338,8 @@ def run_lint(
     for tool in tools:
         tool_files = (bandit_files if tool == "bandit" and bandit_files is not None else files) or []
         if not tool_files:
+            if evidence_out is not None:
+                _write_lint_evidence(evidence_out, tool, [], 0)
             continue
             
         subjects = {
@@ -373,17 +375,34 @@ def run_lint(
 
 
 def _run_dependency_audit(evidence_out: Path | None) -> None:
-    """Run pip-audit and safety check on Dell, advisory only."""
+    """Run pip-audit and safety check on Dell, advisory only.
+
+    Results are cached on the requirements files' content hash, so the
+    Dell calls are skipped until a requirements file or tool config changes.
+    """
+    from quality_cache import QualityCache
+    cache = QualityCache(REPO_ROOT)
+    subject = cache.subject_hash_for_files([
+        REPO_ROOT / "backend" / "requirements.txt",
+        REPO_ROOT / "backend" / "requirements-dev.txt",
+    ])
+    audit_commands = [
+        ("pip-audit", ["pip-audit", "-r", "requirements.txt"]),
+        ("safety", ["safety", "check", "-r", "requirements.txt", "--full-report"]),
+    ]
+    pending = [(t, c) for t, c in audit_commands if not cache.has_pass(t, subject)]
+    if not pending:
+        sys.stdout.write(
+            "[LINT CACHE: dependency audit skipped — requirements unchanged]\n"
+        )
+        return
     routing = _load_machine_routing()
     machines = routing._select_machines(_load_lint_routing_config())
     dell_ctx = next((m.get("context", "dell") for m in machines if m["name"] == "dell"), "dell")
     env = {**os.environ, "MSYS_NO_PATHCONV": "1"}
     _sync_source_to_context(dell_ctx, env)
 
-    for tool, cmd_args in [
-        ("pip-audit", ["pip-audit", "-r", "requirements.txt"]),
-        ("safety", ["safety", "check", "-r", "requirements.txt", "--full-report"]),
-    ]:
+    for tool, cmd_args in pending:
         cmd = [
             "docker", "--context", dell_ctx, "run", "--rm",
             "-v", f"{_LINT_VOLUME}:/repo", "-w", "/repo/backend",
@@ -392,6 +411,8 @@ def _run_dependency_audit(evidence_out: Path | None) -> None:
         rc, out = _run(cmd, env, timeout=300)
         if out.strip():
             sys.stdout.write(f"----- {tool} @ dell (rc={rc}) -----\n{out}\n")
+        if rc == 0:
+            cache.record(tool, [subject])
         if evidence_out:
             _append_evidence(
                 evidence_out, check_type="security", status="passed" if rc == 0 else "failed",

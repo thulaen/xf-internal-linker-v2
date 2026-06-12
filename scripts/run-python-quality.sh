@@ -91,10 +91,14 @@ if {
 } | grep -Eq "^backend/requirements(-dev)?\.txt$"; then
   dependency_changed=1
 fi
+target_dir="$repo_root/backend/reports/quality-targets"
+mkdir -p "$target_dir"
+test_target_map_file="$target_dir/python-test-target-map.json"
 test_target_file="$(mktemp)"
 test_target_error="$(mktemp)"
 if ! "$PY" scripts/select_python_test_targets.py \
   --repo-root "$repo_root" \
+  --map-out "$test_target_map_file" \
   "${changed_python[@]}" > "$test_target_file" 2> "$test_target_error"; then
   quality_evidence_write \
     --out "$evidence_file" \
@@ -109,8 +113,6 @@ if ! "$PY" scripts/select_python_test_targets.py \
 fi
 python_test_targets="$(tr -d "\r" < "$test_target_file" | tr "\n" " ")"
 
-target_dir="$repo_root/backend/reports/quality-targets"
-mkdir -p "$target_dir"
 python_targets_file="$target_dir/python-targets.txt"
 python_test_targets_file="$target_dir/python-test-targets.txt"
 coverage_targets_file="$target_dir/python-coverage-targets.txt"
@@ -120,13 +122,14 @@ printf "%s" "$python_test_targets" > "$python_test_targets_file"
 printf "%s" "$coverage_targets" > "$coverage_targets_file"
 printf "%s" "$bandit_targets" > "$bandit_targets_file"
 
-# ── Opt-in: shard lint + pytest to Dell, host-side (outside the container) ──
+# ── Default-on for local commits: shard lint + pytest to Dell, host-side ──
 # The split runners dispatch with `docker --context dell`, which only works from
-# the host — never from inside backend-quality. So an enabled split runs HERE,
-# the matching in-container step is skipped (SKIP_* env passed into the container
-# below), and each tool's merged pass/fail is recorded as the SAME
-# QualityEvidence row the in-container step writes (the runners take
-# --evidence-out). Both vars default OFF: unset = today's local-only behaviour.
+# the host — never from inside backend-quality. An enabled split runs HERE and
+# each tool's merged pass/fail is recorded as the SAME QualityEvidence row the
+# in-container step writes (the runners take --evidence-out). When BOTH splits
+# ran, the local backend-quality container is not started at all — Dell covered
+# lint, types, security, pytest, coverage, and the dependency audit. CI
+# (XF_QUALITY_ENV=ci) has no Dell context and keeps the in-container path.
 host_evidence="$repo_root/backend/reports/quality-evidence/python.jsonl"
 mkdir -p "$(dirname "$host_evidence")"
 lint_split_done=0
@@ -145,20 +148,33 @@ else
   : "${XF_PYTEST_SPLIT:=1}"
 fi
 if [[ "${XF_LINT_SPLIT:-0}" == "1" ]]; then
-  echo "[LINT SPLIT: routing ruff/pylint/mypy/bandit to Dell 100% (host-side)]"
+  echo "[LINT SPLIT: routing ruff/pylint/mypy/bandit + dependency audit to Dell 100% (host-side)]"
   "$PY" "$repo_root/scripts/run_lint_on_context.py" \
-    --files $python_targets --bandit-files $bandit_targets --evidence-out "$host_evidence"
+    --files $python_targets --bandit-files $bandit_targets \
+    --dependency-audit --evidence-out "$host_evidence"
   lint_split_rc=$?
   lint_split_done=1
   if [[ $lint_split_rc -ne 0 ]]; then exit $lint_split_rc; fi
 fi
 if [[ "${XF_PYTEST_SPLIT:-0}" == "1" ]]; then
-  echo "[PYTEST SPLIT: routing pytest to Dell 100% (own test DB, host-side)]"
-  "$PY" "$repo_root/scripts/run_pytest_on_context.py" \
-    --targets $python_test_targets --evidence-out "$host_evidence"
+  echo "[PYTEST SPLIT: routing pytest + coverage to Dell 100% (own test DB, host-side)]"
+  cov_targets_csv="$(printf "%s" "$coverage_targets" | tr -s " " "," | sed "s/^,//;s/,$//")"
+  pytest_split_args=(--targets $python_test_targets --evidence-out "$host_evidence")
+  if [[ -f "$test_target_map_file" ]]; then
+    pytest_split_args+=(--cache-map "$test_target_map_file")
+  fi
+  if [[ -n "$cov_targets_csv" ]]; then
+    pytest_split_args+=(--cov-targets "$cov_targets_csv")
+  fi
+  "$PY" "$repo_root/scripts/run_pytest_on_context.py" "${pytest_split_args[@]}"
   pytest_split_rc=$?
   pytest_split_done=1
   if [[ $pytest_split_rc -ne 0 ]]; then exit $pytest_split_rc; fi
+fi
+
+if [[ "$lint_split_done" == "1" && "$pytest_split_done" == "1" ]]; then
+  echo "[PYTHON QUALITY: all checks ran on Dell — lint, types, security, pytest, coverage, dependency audit. Local container not started.]"
+  exit 0
 fi
 
 # Phase H: stable container name + register for cleanup trap.

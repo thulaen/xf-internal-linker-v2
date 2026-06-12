@@ -5,9 +5,9 @@ BDD:
   When _jobs_for() runs
   Then it returns round(cores*share) with a floor of 1
 
-  Given split:false for a language
-  When _machines_for_language() runs
-  Then it returns a Windows-only machine list (no fan-out)
+  Given the Dell-only routing rule
+  When the module is inspected
+  Then the deleted local/ssh helper functions stay deleted
 
   Given a report path that does not exist
   When _file_survivors() runs
@@ -50,19 +50,16 @@ class TestJobsFor(TestCase):
         self.assertEqual(tm._jobs_for(7, 0.5), 4)  # round(3.5) -> 4 banker's? py rounds to even
 
 
-class TestMachinesForLanguage(TestCase):
-    def test_split_false_is_windows_only(self) -> None:
-        machines = tm._machines_for_language({}, split_enabled=False)
-        self.assertEqual(len(machines), 1)
-        self.assertEqual(machines[0]["name"], "windows")
-        self.assertEqual(machines[0]["share"], 1.0)
+class TestNoLocalMachinePaths(TestCase):
+    def test_machines_for_language_shortcut_is_gone(self) -> None:
+        # The split:false Windows-only shortcut was deleted; machine selection
+        # always goes through _select_machines (Dell docker context only).
+        self.assertFalse(hasattr(tm, "_machines_for_language"))
 
-    def test_split_true_delegates_to_select_machines(self) -> None:
-        sentinel = [{"name": "dell"}]
-        with mock.patch.object(tm, "_select_machines", return_value=sentinel) as sel:
-            machines = tm._machines_for_language({"cfg": 1}, split_enabled=True)
-        sel.assert_called_once()
-        self.assertEqual(machines, sentinel)
+    def test_ssh_and_local_helpers_are_gone(self) -> None:
+        for helper in ("_ssh_docker_command", "_load_gate_module",
+                       "_sync_source_to_dell_for_turbo", "_local_machine"):
+            self.assertFalse(hasattr(tm, helper), f"{helper} must stay deleted")
 
 
 class TestWriteJsonBlob(TestCase):
@@ -102,16 +99,16 @@ class TestFileSurvivors(TestCase):
 class TestMachineCores(TestCase):
     def test_override_wins(self) -> None:
         self.assertEqual(
-            tm._machine_cores({"transport": "ssh"}, override=12), 12
+            tm._machine_cores(
+                {"transport": "docker_context", "context": "dell"}, override=12
+            ),
+            12,
         )
 
-    def test_ssh_default_is_twenty(self) -> None:
-        self.assertEqual(
-            tm._machine_cores({"transport": "ssh"}, override=0), 20
-        )
-
-    def test_local_probes_docker_cores(self) -> None:
+    def test_docker_context_probes_docker_cores(self) -> None:
         with mock.patch.object(tm, "_docker_cores", return_value=6) as probe:
-            cores = tm._machine_cores({"transport": "docker_local"}, override=0)
-        probe.assert_called_once_with("local")
+            cores = tm._machine_cores(
+                {"transport": "docker_context", "context": "dell"}, override=0
+            )
+        probe.assert_called_once_with("dell")
         self.assertEqual(cores, 6)

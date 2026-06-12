@@ -15,16 +15,26 @@ def test_orchestrator_file_exists():
     assert SCRIPT.exists(), "scripts/run-scoped-static-quality.ps1 must exist"
 
 
-def test_starts_all_per_language_runners_in_parallel():
+def test_starts_all_mutation_runners_in_parallel():
+    """Pre-push runs MUTATION only; unit tests + lint live at pre-commit."""
     t = _text()
     for s in (
-        "run-python-quality.sh",
+        "run-python-mutation.sh",
         "run-python-repo-mutation.sh",
-        "run-rust-quality.sh",
-        "run-angular-quality.sh",
+        "run-rust-mutation.sh",
+        "run-angular-mutation.sh",
     ):
         assert s in t, f"Orchestrator must start {s}"
     assert "Start-Job" in t, "Runners must start in parallel via Start-Job"
+    # The pre-commit quality runners must NOT run again at push time.
+    for quality_only in (
+        "run-python-quality.sh",
+        "run-rust-quality.sh",
+        "run-angular-quality.sh",
+    ):
+        assert quality_only not in t, (
+            f"{quality_only} is a pre-commit runner; pre-push is mutation-only"
+        )
 
 
 def test_dell_only_no_windows_local_or_mint_or_shard():

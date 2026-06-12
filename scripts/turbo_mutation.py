@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""Turbo mutation coordinator — weighted N-way parallel split.
+"""Turbo mutation coordinator — Dell docker-context only, fail-closed.
 
-Each language runs its own tool independently.  Python and TypeScript run their
-mutation tools on the Dell helper (their containers live there).  Rust fans its
-target workspaces out across every REACHABLE machine by weight, with Dell
-carrying the load.  Any machine that is powered off is dropped before work is
-assigned and its share is redistributed to the machines that answer, so a
-switched-off box never blocks the run.  Surviving mutants are filed as
-AutoIssues via ``manage.py file_mutation_survivors``.
+Each language runs its own tool independently, and EVERY run goes through the
+``docker_context`` transport (the Dell docker connection).  There is no ssh
+path and no local Windows execution: if the Dell context is unreachable the
+run hard-fails with a plain-English "fix Dell" message instead of falling back.
+Surviving mutants are filed as AutoIssues via
+``manage.py file_mutation_survivors``.
 
 Usage::
 
@@ -50,18 +49,16 @@ def _load_machine_routing():
 _routing = _load_machine_routing()
 
 # Re-export the shared routing functions so this module's public names (and its
-# 17 existing tests) resolve to the one canonical copy of the weighting math.
+# existing tests) resolve to the one canonical copy of the weighting math.
 _machines_from_config = _routing._machines_from_config
-_local_machine = _routing._local_machine
 _renormalise_with_ceilings = _routing._renormalise_with_ceilings
 _select_machines = _routing._select_machines
 _probe_reachable = _routing._probe_reachable
 _partition_weighted = _routing._partition_weighted
 _dispatch_to_machines = _routing._dispatch_to_machines
 
-# Probe budgets — re-exported for any caller that referenced them here.
+# Probe budget — re-exported for any caller that referenced it here.
 _PROBE_DOCKER_TIMEOUT = _routing._PROBE_DOCKER_TIMEOUT
-_PROBE_SSH_TIMEOUT = _routing._PROBE_SSH_TIMEOUT
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -87,51 +84,10 @@ def _jobs_for(cores: int, share: float) -> int:
     return max(1, round(cores * share))
 
 
-# ── weighted machine selection (pure, fail-open) ──────────────────────────────
+# ── weighted machine selection ────────────────────────────────────────────────
 # The selection + partition math lives in scripts/machine_routing.py and is
-# re-exported at the top of this module so it is single-sourced with the
-# per-commit scoped-mutation gate. Only the turbo-specific wrapper stays here.
-
-
-def _machines_for_language(
-    cfg: dict, split_enabled: bool, probe: Callable[[dict], bool] | None = None
-) -> list[dict]:
-    """Reachable machine list for a language; split:false stays Windows-only."""
-    if not split_enabled:
-        return [{"name": "windows", "transport": "docker_local",
-                 "weight": 1.0, "max_weight": 1.0, "share": 1.0}]
-    return _select_machines(cfg, probe)
-
-
-def _sync_source_to_dell_for_turbo(machine: dict) -> str | None:
-    """Tar the working tree to the Dell before an ssh run (reuses the gate helper)."""
-    gate = _load_gate_module()
-    host = machine.get("ssh_host", machine["name"])
-    repo = os.environ.get("DELL_REPO_PATH", r"C:\Users\PC\xf-internal-linker-v2")
-    env = {**os.environ, "MSYS_NO_PATHCONV": "1"}
-    return gate._sync_source_to_dell(host, repo, env)
-
-
-def _load_gate_module():
-    """Import the scoped-mutation hook so the SSH helpers are single-sourced."""
-    path = REPO_ROOT / ".githooks" / "check-scoped-mutation.py"
-    spec = importlib.util.spec_from_file_location("check_scoped_mutation", path)
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-
-def _ssh_docker_command(machine: dict, container: str, cmd: str) -> list[str]:
-    """Build the ssh argv that runs `cmd` in an ephemeral container on the Dell."""
-    host = machine.get("ssh_host", machine["name"])
-    repo = os.environ.get("DELL_REPO_PATH", r"C:\Users\PC\xf-internal-linker-v2")
-    docker_cfg = os.environ.get("DELL_DOCKER_CONFIG", r"C:\Users\PC\.docker-mut")
-    remote = (
-        f"set DOCKER_CONFIG={docker_cfg}&& cd {repo} && "
-        f"docker compose run --rm --no-deps -T {container} bash -lc {json.dumps(cmd)}"
-    )
-    return ["ssh", "-o", "BatchMode=yes", host, remote]
+# re-exported at the top of this module so it is single-sourced with the other
+# quality runners. main() calls _select_machines(cfg) directly.
 
 
 def _run_in_container(
@@ -140,36 +96,37 @@ def _run_in_container(
     cmd: str,
     *,
     context: str | None = None,
-    ssh_host: str | None = None,
     timeout: int = 600,
 ) -> tuple[int, str]:
-    """Run cmd in a container via one of three transports.  Returns (rc, output).
+    """Run cmd in a container on a docker context.  Returns (rc, output).
 
-    `transport` is "docker_local" / "local" (Windows), "docker_context" plus a
-    context name (Mint), or "ssh" plus an ssh_host (Dell). The legacy callers
-    that pass a context string ("local" / "mint") as the first argument keep
-    working: a non-transport value is treated as a docker context.
+    Only the ``docker_context`` transport is allowed.  Any other transport
+    (ssh, docker_local, local, legacy context strings) fails closed with rc 1
+    and never spawns a subprocess — mutation work must never run on the local
+    Windows box or over ssh.
     """
-    if transport in ("docker_local", "local"):
-        docker_cmd = ["docker", "compose", "exec", "-T", container, "bash", "-lc", cmd]
-    elif transport == "ssh":
-        machine = {"name": ssh_host or "dell", "ssh_host": ssh_host or "dell"}
-        sync_problem = _sync_source_to_dell_for_turbo(machine)
-        if sync_problem is not None:
-            return 1, f"[turbo] ssh sync failed: {sync_problem}\n"
-        docker_cmd = _ssh_docker_command(machine, container, cmd)
-    else:
-        ctx = context if transport == "docker_context" else transport
-        docker_cmd = [
-            "docker", "--context", ctx,
-            "run", "--rm",
-            "-v", "xf_test_repo:/repo",
-            "-v", "xf_dell_quality_cache:/tmp/xf-test-cache",
-            "-v", "frontend_tool_cache:/root/.npm",
-            "-w", "/repo",
-            "xf-linker-" + container + ":latest",
-            "bash", "-lc", cmd,
-        ]
+    if transport != "docker_context":
+        return 1, (
+            f"transport {transport} is not allowed; all mutation work runs"
+            " through the Dell docker context (fail-closed). UNBLOCK: fix the"
+            " dell docker context — work never falls back to Windows."
+        )
+    if not context:
+        return 1, (
+            "docker_context transport was given no context name (fail-closed)."
+            " UNBLOCK: set \"context\": \"dell\" on the machine entry in"
+            " config/mutation-routing.json."
+        )
+    docker_cmd = [
+        "docker", "--context", context,
+        "run", "--rm",
+        "-v", "xf_python_mutation_repo:/repo",
+        "-v", "xf_dell_quality_cache:/tmp/xf-test-cache",
+        "-v", "frontend_tool_cache:/root/.npm",
+        "-w", "/repo",
+        "xf-linker-" + container + ":latest",
+        "bash", "-lc", cmd,
+    ]
     try:
         result = subprocess.run(
             docker_cmd, capture_output=True, text=True, encoding="utf-8",
@@ -188,8 +145,7 @@ def _run_on_machine(
     """Dispatch _run_in_container using a machine dict's transport fields."""
     return _run_in_container(
         machine["transport"], container, cmd,
-        context=machine.get("context"), ssh_host=machine.get("ssh_host"),
-        timeout=timeout,
+        context=machine.get("context"), timeout=timeout,
     )
 
 
@@ -418,21 +374,16 @@ def _run_typescript(cfg: dict, cores_local: int, dry_run: bool) -> str:
 # ── entry point ───────────────────────────────────────────────────────────────
 
 def _machine_cores(machine: dict, override: int) -> int:
-    """CPU count for a machine: --cores override, else probe its transport."""
+    """CPU count for a machine: --cores override, else probe its docker context."""
     if override:
         return override
-    transport = machine["transport"]
-    if transport in ("docker_local", "local"):
-        return _docker_cores("local")
-    if transport == "docker_context":
-        return _docker_cores(machine["context"])
-    return 20  # ssh/Dell: 20-core box; remote core probe over SSH is not worth it
+    return _docker_cores(machine["context"])
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Turbo weighted N-way mutation coordinator "
-        "(Dell up to 60% / Windows 30% / Mint 10%; offline machines redistribute).")
+        description="Turbo mutation coordinator — all work runs on the Dell"
+        " docker context (fail-closed; no ssh, no local Windows fallback).")
     parser.add_argument("--language", required=True, choices=list(_ALL_LANGUAGES),
                         help="Which language to mutate.")
     parser.add_argument("--dry-run", action="store_true",
@@ -491,19 +442,18 @@ def main() -> int:
     cfg = _load_config()
     TMP_DIR.mkdir(exist_ok=True)
 
-    split_enabled = cfg["languages"][args.language].get("split", False)
-    machines = _machines_for_language(cfg, split_enabled)
+    machines = _select_machines(cfg)
     cores = {m["name"]: _machine_cores(m, args.cores) for m in machines}
 
     plan_desc = ", ".join(f"{m['name']}={m['share']:.0%}" for m in machines)
-    print(f"[turbo] language={args.language} split={split_enabled} "
+    print(f"[turbo] language={args.language} "
           f"reachable=[{plan_desc}] dry_run={args.dry_run}")
 
-    local_cores = cores.get("windows") or next(iter(cores.values()), 2)
+    lead_cores = next(iter(cores.values()), 2)
     dispatch = {
-        "python":     lambda: _run_python(cfg, local_cores, args.dry_run),
+        "python":     lambda: _run_python(cfg, lead_cores, args.dry_run),
         "rust":       lambda: _run_rust(cfg, machines, cores, args.dry_run),
-        "typescript": lambda: _run_typescript(cfg, local_cores, args.dry_run),
+        "typescript": lambda: _run_typescript(cfg, lead_cores, args.dry_run),
     }
 
     filing_output = dispatch[args.language]()

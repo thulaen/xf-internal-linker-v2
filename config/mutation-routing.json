@@ -1,7 +1,7 @@
 {
   "version": "1.1",
   "k8s_defer_to_coordinator": true,
-  "_routing_note": "When k8s_defer_to_coordinator is true and a K3s coordinator is active, the K8S.20 distribute_tests formula owns the actual per-machine shard split and these static machine weights are IGNORED. Fail-CLOSED policy: heavy quality runs 100% on Dell; Windows (MSI) does 0% and never absorbs Dell's work. If Dell is unreachable the gate hard-fails with a 'fix Dell' message — MSI runs nothing locally. Mint is the storage/observability host, never a compute shard. Windows (MSI) is no longer a quality host: it is removed from the heavy, coverage, and lint machine lists and runs 0% of all quality work. It is retained ONLY in pytest_machines (weight 0.0) as the local host for the two characterization tests that need the live Windows service stack. Dell is an Intel i5-13500T (14 cores / 20 threads).",
+  "_routing_note": "When k8s_defer_to_coordinator is true and a K3s coordinator is active, the K8S.20 distribute_tests formula owns the actual per-machine shard split and these static machine weights are IGNORED. Fail-CLOSED policy: heavy quality runs 100% on Dell via the docker_context transport; Windows (MSI) does 0% and never absorbs Dell's work. If Dell is unreachable the gate hard-fails with a 'fix Dell' message — MSI runs nothing locally. Mint is the storage/observability host, never a compute shard. Windows (MSI) is not a quality host: it appears in NO machine list (machines, coverage, lint, or pytest) and the ssh and docker_local transports are not supported by the turbo mutation coordinator. Dell is an Intel i5-13500T (14 cores / 20 threads).",
   "machines": [
     { "name": "dell",    "transport": "docker_context", "context": "dell",    "weight": 1.0, "max_weight": 1.0 }
   ],
@@ -18,16 +18,15 @@
   "lint_machines": [
     { "name": "dell",    "transport": "docker_context", "context": "dell", "weight": 1.0, "max_weight": 1.0 }
   ],
-  "_pytest_routing_note": "Used ONLY by scripts/run_pytest_on_context.py for the opt-in sharded pytest path gated on XF_PYTEST_SPLIT=1. Dell runs 100% of the changed test targets; Windows 0%. Dell runs them against ITS OWN empty Postgres+Redis test stack (docker-compose.dell-test.yml on the xf_dell_test_net network) — never the live Windows database. Fail-CLOSED: if Dell is unreachable the gate hard-fails with 'fix Dell' — MSI does NOT run tests locally.",
+  "_pytest_routing_note": "Used ONLY by scripts/run_pytest_on_context.py for the opt-in sharded pytest path gated on XF_PYTEST_SPLIT=1. Dell runs 100% of the changed test targets; Windows runs none and is not listed. Dell runs them against ITS OWN empty Postgres+Redis test stack (docker-compose.dell-test.yml on the xf_dell_test_net network) — never the live Windows database. Fail-CLOSED: if Dell is unreachable the gate hard-fails with 'fix Dell' — MSI does NOT run tests locally.",
   "pytest_machines": [
-    { "name": "dell",    "transport": "docker_context", "context": "dell", "weight": 1.0, "max_weight": 1.0 },
-    { "name": "windows", "transport": "docker_local",                     "weight": 0.0, "max_weight": 1.0 }
+    { "name": "dell",    "transport": "docker_context", "context": "dell", "weight": 1.0, "max_weight": 1.0 }
   ],
   "languages": {
     "python": {
       "tool": "mutmut",
       "container": "backend",
-      "context": "local",
+      "context": "dell",
       "split": true,
       "report_container": "/tmp/mutmut-survivors.json",
       "report_host": ".tmp/mutmut-survivors.json",

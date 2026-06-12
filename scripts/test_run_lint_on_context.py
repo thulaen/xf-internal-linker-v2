@@ -201,6 +201,7 @@ def test_run_lint_empty_bandit_files_records_no_targets_pass(monkeypatch, tmp_pa
 def test_dependency_audit_runs_tools_and_records_evidence(monkeypatch, tmp_path):
     """Given --dependency-audit, When run, Then it executes pip-audit and safety check on Dell and logs evidence."""
     m = _mod()
+    monkeypatch.setenv("XF_QUALITY_CACHE", "0")  # never touch the real pass-cache
     monkeypatch.setattr(m, "_load_machine_routing", _fake_routing)
     monkeypatch.setattr(m, "_sync_source_to_context", lambda ctx, env: None)
     

@@ -1,9 +1,27 @@
 import json
+import socket
 import time
 import urllib.parse
 import urllib.request
 from datetime import UTC, datetime
 from uuid import uuid4
+
+import pytest
+
+
+def _service_reachable(host: str, port: int, timeout: float = 2.0) -> bool:
+    """True when a TCP connection to host:port succeeds within the timeout."""
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+pytestmark = pytest.mark.skipif(
+    not (_service_reachable("alloy", 12347) and _service_reachable("loki", 3100)),
+    reason="alloy/loki are only on the live observability stack; skipped where absent",
+)
 
 
 def test_faro_alloy_receiver_forwards_errors_to_loki_with_picker_labels():

@@ -74,13 +74,25 @@ def test_compiled_mutation_image_requires_cargo_mutants() -> None:
     assert "command -v cargo-mutants" in compose
 
 
-def test_windows_python_mutation_uses_temp_pyproject_config() -> None:
-    text = _read("scripts/run-windows-mutation.ps1")
+def test_python_mutation_runner_is_dell_only() -> None:
+    """Pre-push Python mutation runs on Dell only — no local container, no
+    turbo delegate, with the >=90% kill gate and content-hash pair caching."""
+    text = _read("scripts/run-python-mutation.sh")
 
+    assert 'PYTHON_MUTATION_DOCKER_CONTEXT="${PYTHON_MUTATION_DOCKER_CONTEXT:-dell}"' in text
+    assert 'docker --context "$PYTHON_MUTATION_DOCKER_CONTEXT"' in text
+    assert "xf_python_mutation_repo" in text
+    assert "xf-linker-backend-mutation-tools" in text
+    assert ">= 90.0" in text
+    assert "filter-pairs --tool mutmut" in text
+    assert "record-pairs --tool mutmut" in text
     assert "[tool.mutmut]" in text
     assert "paths_to_mutate" in text
-    assert "also_copy" in text
     assert "mutmut run --max-children" in text
+    assert "XF_TURBO_MUTATION" not in text
+    assert "backend-quality" not in text
+    # The Windows-local mutation runner is gone for good.
+    assert not (ROOT / "scripts" / "run-windows-mutation.ps1").exists()
 
 
 def test_ci_python_mutation_uses_temp_pyproject_config() -> None:
@@ -275,15 +287,15 @@ def test_rust_quality_syncs_rust_workspace_to_dell() -> None:
     )
 
 
-def test_turbo_mutation_has_windows_and_dell_remote_e2e_paths() -> None:
+def test_turbo_mutation_has_dell_remote_e2e_paths() -> None:
     text = _read("scripts/turbo_mutation.py")
     config = _read("config/mutation-routing.json")
 
-    # Mint is removed from compute: the Docker-context fallback remote is Dell.
+    # Dell is the only compute machine; the legacy split block still names it.
     assert '"remote_context": "dell"' in config
     # New weighted machines array is the primary routing source.
     assert '"machines"' in config
-    assert 'docker", "--context", ctx' in text
+    assert 'docker", "--context", context' in text
     assert 'docker", "compose", "exec"' in text
     # The hardcoded two-thread (local+remote) loop is replaced by the weighted
     # machine fan-out — assert the new dispatch path exists instead.
@@ -293,7 +305,20 @@ def test_turbo_mutation_has_windows_and_dell_remote_e2e_paths() -> None:
     assert "_file_survivors(" in text
 
 
-def test_turbo_ssh_transport_builds_dell_compose_run_command(monkeypatch) -> None:
+def test_turbo_ssh_transport_fails_closed_without_subprocess(monkeypatch) -> None:
+    turbo = _load_turbo_module()
+
+    def boom(*args, **kwargs):
+        raise AssertionError("ssh transport must never spawn a subprocess")
+
+    monkeypatch.setattr(turbo.subprocess, "run", boom)
+    rc, out = turbo._run_in_container("ssh", "compiled-tools", "echo hi")
+    assert rc == 1
+    assert "is not allowed" in out
+    assert "Dell docker context" in out
+
+
+def test_turbo_container_runner_builds_dell_context_command_only(monkeypatch) -> None:
     turbo = _load_turbo_module()
     calls: list[list[str]] = []
 
@@ -302,44 +327,22 @@ def test_turbo_ssh_transport_builds_dell_compose_run_command(monkeypatch) -> Non
         stdout = "ok"
         stderr = ""
 
-    monkeypatch.setattr(turbo, "_sync_source_to_dell_for_turbo", lambda m: None)
     monkeypatch.setattr(turbo.subprocess, "run",
                         lambda cmd, **k: (calls.append(cmd), Result())[1])
 
-    turbo._run_in_container("ssh", "compiled-tools", "echo hi", ssh_host="dell")
-    argv = calls[-1]
-    joined = " ".join(argv)
-    assert argv[0] == "ssh"
-    assert "set DOCKER_CONFIG=" in joined
-    assert "docker compose run --rm --no-deps -T" in joined
-
-
-def test_turbo_container_runner_builds_windows_and_mint_commands(monkeypatch) -> None:
-    turbo = _load_turbo_module()
-    calls: list[list[str]] = []
-
-    class Result:
-        returncode = 0
-        stdout = "ok"
-        stderr = ""
-
-    def fake_run(cmd, **kwargs):
-        calls.append(cmd)
-        return Result()
-
-    monkeypatch.setattr(turbo.subprocess, "run", fake_run)
-
-    assert turbo._run_in_container("local", "compiled-tools", "echo local") == (0, "ok")
     assert turbo._run_in_container(
-        "mint", "compiled-tools", "echo remote") == (0, "ok")
-
-    assert calls[0][:5] == ["docker", "compose", "exec", "-T", "compiled-tools"]
-    assert calls[1][:7] == [
+        "docker_context", "compiled-tools", "echo hi", context="dell") == (0, "ok")
+    assert calls[0][:7] == [
         "docker",
         "--context",
-        "mint",
+        "dell",
         "run",
         "--rm",
         "-v",
-        "xf_test_repo:/repo",
+        "xf_python_mutation_repo:/repo",
     ]
+
+    for transport in ("local", "docker_local", "mint"):
+        rc, out = turbo._run_in_container(transport, "compiled-tools", "echo hi")
+        assert rc == 1 and "is not allowed" in out
+    assert len(calls) == 1  # only the docker_context call shelled out

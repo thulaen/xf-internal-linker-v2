@@ -4,9 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+
 
 def _read_script(path: str) -> str:
-    return Path(path).read_text(encoding="utf-8")
+    # Resolve from the repo root so the tests pass from any working
+    # directory — including the Dell test container, whose cwd is
+    # /repo/backend rather than the repo root.
+    return (ROOT / path).read_text(encoding="utf-8")
 
 
 def test_hard_gates_run_before_language_quality() -> None:
