@@ -1,3 +1,30 @@
+## 2026-06-12 - Claude Opus 4.8 (1M) - Finish the Vitest migration: move Stryker mutation off Karma, remove Karma entirely
+
+[HANDOFF READ: 2026-06-12 by Claude Opus 4.8 — Migrated Angular unit tests from Karma/Jasmine to Vitest; left Stryker mutation on karma-runner as a tracked follow-up]
+[REGISTRY READ: ~974 open — picked: quota already met this session (63 resolved, DB-backed gate)]
+[STICKY 1 READ: timestamp=2026-06-12T21:00:00Z sha256=7b8d04510bf49e49 agent=claude]
+
+**What I did (plain English):** Finished the one follow-up the last commit flagged. Stryker (the mutation tester that runs before a push) used to drive a Karma+Chrome run of the tests; it could not run the new Vitest tests. It now uses Stryker's built-in **command runner**, which just runs the same `npm run test:ci` (Vitest) command the unit-test gate uses. With that, Karma and Jasmine are fully removed from the project — no Angular test code or tool uses them anymore.
+
+**What now works that did not before:**
+- Mutation testing runs on Vitest. Proven on Dell: Stryker mutated `copy-button.component.ts`, killed 11 of 14 mutants, correctly reported 3 real survivors (an untested `clearTimeout` branch), and enforced the score threshold — in ~2.5 minutes on the Karma-free image.
+- The whole `node_modules` resolution trap is handled: Stryker copies the project into per-mutant sandboxes, and those copies cannot follow the `node_modules` symlink the unit-test gate uses. The mutation runner now overlays the changed source onto the image's `/app` directory (which has a real `node_modules`) and runs Stryker from there.
+
+**What changed:**
+- `frontend/stryker.config.json` — `testRunner` is now `command` (was `karma`); the command runs `npm run test:ci -- --include $STRYKER_TEST_INCLUDES`; `coverageAnalysis: off` (the command runner does not do per-test coverage); Karma block removed.
+- `scripts/run-angular-mutation.sh` — scopes `--mutate` to the changed component/service files, passes their sibling specs to the command via `STRYKER_TEST_INCLUDES`, overlays source onto `/app`, and caps mutation concurrency at 4 (each mutant rebuilds the app, ~1.5 GB, so too many in parallel would exhaust Dell's memory).
+- `frontend/package.json` — removed `@stryker-mutator/karma-runner`, `karma`, `karma-*`, `jasmine-core`, `@types/jasmine`.
+- `frontend/karma.conf.cjs` — deleted.
+- `scripts/test_run-angular-quality.py` — contract tests updated: the mutation script uses `--mutate` + `STRYKER_TEST_INCLUDES`, and `stryker.config.json` uses the command runner, not Karma.
+
+**Verification (turbo=used — every run on Dell):** Live Stryker mutation run on the rebuilt **Karma-free** image succeeded (11 killed / 3 survived / score gate enforced). Image confirmed to have no `karma` and to still have `vitest` + `@stryker-mutator/core`. Contract tests pass on Dell (7 passed, 2 self-skip where `frontend/` is not synced). `bash -n` clean.
+
+**What has issues or errors:** None. Trade-off noted honestly: the command runner rebuilds the Angular app once per mutant, so mutation is slower than a warm in-process runner would be. It is scoped to changed files and runs only at push time, so this is acceptable; a future optimisation could use `@stryker-mutator/vitest-runner` with a standalone Vitest config, but that risks drifting from the Angular builder, which is why the command runner (reusing the proven path) was chosen.
+
+**Tech-debt delta:** Net positive — retired the last Karma/Jasmine usage in the repo; the Vitest migration is now fully complete (unit tests AND mutation).
+
+[COVERAGE SUMMARY: target=N/A% actual=N/A% — runner/config change; the 1085 unit tests stay green and mutation now runs on the same Vitest path]
+
 ## 2026-06-12 - Claude Opus 4.8 (1M) - Migrate Angular unit tests from Karma/Jasmine to Vitest (175 files, 1085 tests green)
 
 [HANDOFF READ: 2026-06-12 by Claude Opus 4.8 — Speed program: dropped pylint for ruff, added dmypy/oxlint/nextest/mold/sccache, fixed two prod-build breaks and the CI Rust scope no-op]

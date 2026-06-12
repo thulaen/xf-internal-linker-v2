@@ -31,6 +31,21 @@ xf_require_remote_context run-angular-mutation "$ANGULAR_DOCKER_CONTEXT"
 scope_mode="${COMMIT_SCOPE_MODE:-staged}"
 changed_files="$("$PY" scripts/commit_scope.py paths --mode "$scope_mode" || true)"
 
+# Source files to MUTATE: changed, non-spec component/service files (matching the
+# stryker.config.json mutate globs) that have a sibling spec to test them.
+mutate_targets="$(
+  while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+    rel="${path#frontend/}"
+    case "$rel" in
+      src/app/*.spec.ts) ;;
+      src/app/*.component.ts|src/app/*.service.ts)
+        spec="${rel%.ts}.spec.ts"; [[ -f "frontend/$spec" ]] && printf '%s\n' "$rel" ;;
+    esac
+  done <<< "$changed_files" | sort -u
+)"
+
+# Specs that COVER those source files (the command runner runs these per mutant).
 test_includes="$(
   while IFS= read -r path; do
     [[ -n "$path" ]] || continue
@@ -45,11 +60,11 @@ test_includes="$(
   done <<< "$changed_files" | sort -u
 )"
 
-if [[ -z "$test_includes" ]]; then
-  echo "[run-angular-mutation] No changed frontend spec files -- skipping."
+if [[ -z "$mutate_targets" ]]; then
+  echo "[run-angular-mutation] No changed mutable source (component/service) files -- skipping."
   exit 0
 fi
-echo "[run-angular-mutation] Scoped to changed frontend files: test=$(printf '%s' "$test_includes" | grep -c .) (cores=$ANGULAR_CORES)."
+echo "[run-angular-mutation] Scoped: mutate=$(printf '%s' "$mutate_targets" | grep -c .) source file(s), test=$(printf '%s' "$test_includes" | grep -c .) spec(s)."
 
 if ! docker --context "$ANGULAR_DOCKER_CONTEXT" info >/dev/null 2>&1; then
   echo "FAIL run-angular-mutation: Dell context '$ANGULAR_DOCKER_CONTEXT' is required and not reachable." >&2
@@ -69,21 +84,36 @@ if ! tar -cf - \
 fi
 
 test_oneline="$(printf '%s' "$test_includes" | tr '\n' ' ')"
+mutate_oneline="$(printf '%s' "$mutate_targets" | paste -sd, -)"
+
+# Mutation concurrency is capped well below the unit-test cap: Stryker's command
+# runner rebuilds the Angular app once PER MUTANT (~1.5 GB each), so too many in
+# parallel would exhaust Dell's memory.
+mutation_cores="$ANGULAR_CORES"
+[[ "$mutation_cores" -gt 4 ]] && mutation_cores=4
 
 exec docker --context "$ANGULAR_DOCKER_CONTEXT" run --rm \
   -v "$ANGULAR_VOLUME":/work \
-  -w /work/frontend \
   -e CI=true \
-  -e CHROME_BIN=/usr/bin/chromium \
   -e XF_QUALITY_ENV="${XF_QUALITY_ENV:-local}" \
-  -e STRYKER_CONCURRENCY="$ANGULAR_CORES" \
+  -e STRYKER_CONCURRENCY="$mutation_cores" \
+  -e STRYKER_MUTATE="$mutate_oneline" \
+  -e STRYKER_TEST_INCLUDES="$test_oneline" \
   "$IMAGE" sh -lc '
   set -eu
-  ln -sfn /app/node_modules /work/frontend/node_modules
-  echo "+ stryker run --incremental --concurrency $STRYKER_CONCURRENCY"
+  # Overlay the synced source onto the image /app dir, which has a REAL
+  # node_modules. The unit-test gate symlinks node_modules into /work, but
+  # Strykers per-mutant sandbox copies cannot follow that symlink, so mutation
+  # runs from /app where the toolchain resolves. The command runner then runs
+  # `npm run test:ci -- --include $STRYKER_TEST_INCLUDES` (the same Vitest path
+  # the unit-test gate uses) against each mutated source file.
+  tar -C /work/frontend --exclude=node_modules --exclude=.stryker-tmp \
+      --exclude=dist --exclude=.angular -cf - . | tar -C /app -xf -
+  cd /app
+  echo "+ stryker run --mutate $STRYKER_MUTATE --concurrency $STRYKER_CONCURRENCY"
   if [ "${XF_QUALITY_ENV:-local}" = "ci" ]; then
-    npx stryker run --incremental --concurrency "$STRYKER_CONCURRENCY"
+    npx stryker run --mutate "$STRYKER_MUTATE" --concurrency "$STRYKER_CONCURRENCY"
   else
-    npx stryker run --incremental --concurrency "$STRYKER_CONCURRENCY" || true
+    npx stryker run --mutate "$STRYKER_MUTATE" --concurrency "$STRYKER_CONCURRENCY" || true
   fi
   '
