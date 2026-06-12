@@ -37,7 +37,7 @@ test_includes="$(
     rel="${path#frontend/}"
     if [[ "$rel" == *.spec.ts ]]; then printf '%s\n' "$rel"; continue; fi
     case "$rel" in
-      src/app/*.component.ts|src/app/*.service.ts|src/app/*.directive.ts|src/app/*.pipe.ts)
+      src/app/*.ts)
         spec="${rel%.ts}.spec.ts"; [[ -f "frontend/$spec" ]] && printf '%s\n' "$spec" ;;
       src/app/*.component.html|src/app/*.component.scss)
         spec="${rel%.component.*}.component.spec.ts"; [[ -f "frontend/$spec" ]] && printf '%s\n' "$spec" ;;

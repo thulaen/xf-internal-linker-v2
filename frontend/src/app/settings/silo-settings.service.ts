@@ -833,8 +833,8 @@ export class SiloSettingsService {
     return this.http.post<AnalyticsConnectionResult>('/api/analytics/settings/gsc/test-connection/', payload); // noqa: route-check
   }
 
-  runGSCSync(payload?: { lookback_days?: number }): Observable<unknown> {
-    return this.http.post(`${this.baseUrl}/analytics/telemetry/gsc-sync/`, payload ?? {});
+  runGSCSync(payload?: { lookback_days?: number }): Observable<{ message?: string }> {
+    return this.http.post<{ message?: string }>(`${this.baseUrl}/analytics/telemetry/gsc-sync/`, payload ?? {});
   }
 
   getGoogleAuthUrl(): Observable<{ authorization_url: string }> {

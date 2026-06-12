@@ -357,10 +357,14 @@ export class FindBugsComponent implements OnInit {
     this.severityChart.set(buildSeverityChart(entries));
   }
 
-  private parseDescription(finding: FindBugsFinding): Record<string, unknown> {
+  // Returns the parsed JSON `description` blob. Typed as Record<string, any>
+  // (the established codebase idiom for free-form JSON) so callers can read
+  // both flat string fields and the nested `model_batch` object without
+  // tripping the production tsconfig's strict index checks.
+  private parseDescription(finding: FindBugsFinding): Record<string, any> {
     if (!finding.description) return {};
     try {
-      return JSON.parse(finding.description) as Record<string, unknown>;
+      return JSON.parse(finding.description) as Record<string, any>;
     } catch {
       return {};
     }

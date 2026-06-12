@@ -2,11 +2,20 @@
 """Distribute the read-only Python lint / type-check tools across machines.
 
 Dell carries 100% of the changed-file lint load (config: ``lint_machines`` in
-``config/mutation-routing.json``); Windows carries the rest. The four tools —
-``ruff``, ``pylint``, ``mypy``, ``bandit`` — are stateless and read-only (no
+``config/mutation-routing.json``); Windows carries the rest. The three tools —
+``ruff`` (which also carries the old error-only lint job via the PLE rules in
+``backend/pyproject.toml``), ``mypy``, ``bandit`` — are read-only (no
 database), so a machine only needs the source synced and the
 ``xf-linker-backend-quality`` image. There is nothing to merge into a database
 and no test fixtures to load; a file is either clean or it is not.
+
+``mypy`` runs through ``dmypy`` (the mypy daemon) inside a warm, persistent
+container named ``xf-dmypy-daemon`` on the remote machine. The daemon keeps the
+parsed-code state in memory between commits, so incremental type checks are
+near-instant. The container is created once and reused; it is NEVER removed by
+cleanup paths — surviving across runs is the whole point. The ``xf_lint_repo``
+volume is re-synced by the sync step before tools run, so the daemon always
+sees fresh files.
 
 This mirrors the two existing sharders so the behaviour is identical and the
 proven pieces are reused, not re-invented:
@@ -48,7 +57,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Same tar exclude recipe the other two sharders use — the Dell side re-hashes
 # the SAME bytes, so the exclude list MUST match exactly or the manifest fails.
-import sys  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from _sync_tar_excludes import TAR_EXCLUDES as _TAR_EXCLUDES  # noqa: E402
 
@@ -58,28 +66,35 @@ _LINT_VOLUME = "xf_lint_repo"
 _IMAGE = "xf-linker-backend-quality:latest"
 
 # Mounts + env mirror the mutation run (check-scoped-mutation.py) EXACTLY so a
-# tool resolves the same imports on Dell as it does locally — otherwise pylint
+# tool resolves the same imports on Dell as it does locally — otherwise a tool
 # could report a false `import-error` for a compiled extension that is present
 # locally but missing on the remote. PYTHONPATH points at /repo/backend (the
 # synced source on the remote) instead of the local /app bind mount.
 _REMOTE_PYTHONPATH = "/opt/xf/compiled/active:/opt/xf/compiled:/repo/backend"
+
+# The warm mypy-daemon container on the remote machine. NEVER remove it in a
+# cleanup path — its in-memory parsed-code state surviving across runs is what
+# makes incremental type checks near-instant.
+_DMYPY_CONTAINER = "xf-dmypy-daemon"
 
 
 def _inner_command(tool: str, files: list[str]) -> list[str]:
     """The tool invocation run INSIDE backend-quality, cwd=/repo/backend.
 
     File paths are backend-relative (e.g. ``apps/foo/bar.py``) on every machine,
-    so the same command string is valid locally and on Dell.
+    so the same command string is valid locally and on Dell. mypy goes through
+    ``dmypy run`` so the warm daemon answers; ``--timeout 7200`` keeps the
+    daemon alive for two idle hours before it shuts itself down (the container
+    stays up and the next run restarts it transparently).
     """
     if tool == "ruff":
         return ["ruff", "check", *files]
-    if tool == "pylint":
-        return ["pylint", "--errors-only", "--disable=no-member", *files]
     if tool == "mypy":
-        return ["python", "-m", "mypy", "--config-file", "/repo/backend/mypy.ini", *files]
+        return ["dmypy", "run", "--timeout", "7200", "--",
+                "--config-file", "/repo/backend/mypy.ini", *files]
     if tool == "bandit":
         return ["bandit", "-q", *files]
-    raise ValueError(f"Unknown lint tool: {tool!r} (expected ruff/pylint/mypy/bandit).")
+    raise ValueError(f"Unknown lint tool: {tool!r} (expected ruff/mypy/bandit).")
 
 
 def _load_machine_routing():
@@ -198,10 +213,9 @@ def _verify_snapshot(run_remote, rel_slice: list[str],
     return all(remote.get(rel) == host_hashes.get(rel) for rel in rel_slice)
 
 
-def _remote_lint_cmd(context: str, tool: str, files: list[str]) -> list[str]:
-    """The ``docker --context <ctx> run`` command that lints one slice on Dell."""
+def _container_flags() -> list[str]:
+    """Mounts + env shared by the one-shot lint containers and the dmypy daemon."""
     return [
-        "docker", "--context", context, "run", "--rm",
         "-v", f"{_LINT_VOLUME}:/repo",
         "-v", "compiled_artifacts:/opt/xf/compiled",
         "-w", "/repo/backend",
@@ -210,6 +224,52 @@ def _remote_lint_cmd(context: str, tool: str, files: list[str]) -> list[str]:
         "-e", "DJANGO_SECRET_KEY=ci-fake-secret-key",
         "-e", "POSTGRES_PASSWORD=ci-fake-postgres-password",
         "-e", "REPO_ROOT=/repo",
+    ]
+
+
+def _ensure_dmypy_container(context: str) -> str | None:
+    """Make sure the warm dmypy daemon container is running on the remote.
+
+    Returns None when the container is running (already or freshly started),
+    else a plain-English error string. Fail-closed: when the daemon cannot
+    start, mypy does not run at all — there is no local fallback.
+    """
+    env = {**os.environ, "MSYS_NO_PATHCONV": "1"}
+    rc, out = _run(
+        ["docker", "--context", context, "inspect", "-f",
+         "{{.State.Running}}", _DMYPY_CONTAINER],
+        env, timeout=60,
+    )
+    if rc == 0 and out.strip().lower() == "true":
+        return None
+    # A stopped or half-created container blocks the name; clear it first.
+    _run(["docker", "--context", context, "rm", "-f", _DMYPY_CONTAINER],
+         env, timeout=60)
+    rc, out = _run(
+        ["docker", "--context", context, "run", "-d",
+         "--name", _DMYPY_CONTAINER, "--restart", "unless-stopped",
+         *_container_flags(), _IMAGE, "sleep", "infinity"],
+        env, timeout=120,
+    )
+    if rc != 0:
+        return (f"could not start the dmypy daemon container on {context}; "
+                f"mypy cannot run (fail-closed, no local fallback):\n{out}")
+    return None
+
+
+def _remote_lint_cmd(context: str, tool: str, files: list[str]) -> list[str]:
+    """The docker command that lints one slice on the remote context.
+
+    mypy execs into the warm ``xf-dmypy-daemon`` container so the dmypy daemon
+    keeps its parsed-code state between commits; the other tools use one-shot
+    ``docker run --rm`` containers.
+    """
+    if tool == "mypy":
+        return ["docker", "--context", context, "exec", _DMYPY_CONTAINER,
+                *_inner_command(tool, files)]
+    return [
+        "docker", "--context", context, "run", "--rm",
+        *_container_flags(),
         _IMAGE,
         *_inner_command(tool, files),
     ]
@@ -232,13 +292,19 @@ def _lint_slice_on_remote(context: str, tool: str, files: list[str]
     """Sync source once, verify it, then lint the whole slice on the remote.
 
     Returns (rc, output), or None when the slice could not be trusted (sync or
-    manifest verify failed) so the caller re-lints it locally.
+    manifest verify failed). mypy additionally needs the warm dmypy daemon; if
+    that container cannot start, the slice fails closed with a plain-English
+    error instead of falling back to a cold local run.
     """
     env = {**os.environ, "MSYS_NO_PATHCONV": "1"}
     if _sync_source_to_context(context, env) is not None:
         return None
     if not _verify_snapshot(_run_remote_sha(context, env), files, _host_hashes(files)):
         return None
+    if tool == "mypy":
+        daemon_error = _ensure_dmypy_container(context)
+        if daemon_error is not None:
+            return 1, daemon_error
     return _run(_remote_lint_cmd(context, tool, files), env, timeout=600)
 
 
@@ -426,8 +492,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--tool", action="append", dest="tools",
-        choices=["ruff", "pylint", "mypy", "bandit"],
-        help="Lint tool to run (repeatable). Default: all four.",
+        choices=["ruff", "mypy", "bandit"],
+        help="Lint tool to run (repeatable). Default: all three.",
     )
     parser.add_argument(
         "--files", nargs="*", default=[],
@@ -454,7 +520,7 @@ def _norm(values) -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(list(argv if argv is not None else sys.argv[1:]))
-    tools = args.tools or ["ruff", "pylint", "mypy", "bandit"]
+    tools = args.tools or ["ruff", "mypy", "bandit"]
     files = _norm(args.files)
     bandit_files = None if args.bandit_files is None else _norm(args.bandit_files)
     evidence_out = Path(args.evidence_out) if args.evidence_out else None

@@ -19,8 +19,12 @@
 # See docs/PERFORMANCE.md §12 for why production mode matters.
 # ─────────────────────────────────────────────────────────────────
 
-# ── Stage 1: build ─────────────────────────────────────────────────
-FROM node:22-slim AS build
+# ── Stage 1a: toolchain ────────────────────────────────────────────
+# Everything the Dell quality/mutation gates need (chromium, git, the
+# baked node_modules, global lint tools) WITHOUT the ng build, so the
+# quality image stays buildable even while the app source has a compile
+# error. `build` layers the production compile on top of this.
+FROM node:22-slim AS toolchain
 
 ENV CHROME_BIN=/usr/bin/chromium \
     CI=true \
@@ -30,11 +34,20 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends chromium git python3 \
     && rm -rf /var/lib/apt/lists/*
 
+# Baked global quality tools: oxlint is the fast Rust-based linter the Dell
+# Angular quality gate runs BEFORE eslint (catches most issues in
+# milliseconds; eslint still runs after it for the type-aware rules).
+# Pinned so image rebuilds are reproducible.
+RUN npm install -g oxlint@1.69.0
+
 WORKDIR /app
 
 # Install dependencies first for better layer caching.
 COPY package*.json ./
 RUN npm install --legacy-peer-deps
+
+# ── Stage 1b: build ────────────────────────────────────────────────
+FROM toolchain AS build
 
 # Copy the source and build.
 COPY . .

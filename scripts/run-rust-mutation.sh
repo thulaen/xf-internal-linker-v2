@@ -64,6 +64,9 @@ if [[ "${XF_QUALITY_INNER:-0}" != "1" && ! -f /.dockerenv ]]; then
   exec docker --context "$RUST_MUTATION_DOCKER_CONTEXT" run --rm \
     -v xf_rust_mutation_repo:/repo \
     -v xf_dell_quality_cache:/tmp/xf-test-cache \
+    -v xf_sccache:/sccache \
+    -e RUSTC_WRAPPER=sccache \
+    -e SCCACHE_DIR=/sccache \
     -w /repo \
     -e XF_QUALITY_INNER=1 \
     -e REPO_ROOT=/repo \

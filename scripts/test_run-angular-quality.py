@@ -36,3 +36,32 @@ def test_frontend_quality_image_installs_git_for_policy_helpers() -> None:
     text = FRONTEND_DOCKERFILE.read_text(encoding="utf-8")
 
     assert "git" in text
+
+
+def test_oxlint_runs_before_eslint() -> None:
+    """oxlint is the fast pre-filter (fails the gate in milliseconds);
+    eslint still runs after it for the heavy type-aware rules."""
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert "+ oxlint" in text
+    assert "+ eslint" in text
+    assert text.index("+ oxlint") < text.index("+ eslint")
+    # oxlint must not replace eslint.
+    assert "npx eslint" in text
+
+
+def test_changed_component_pulls_sibling_spec() -> None:
+    """Any changed non-spec src/app/**/*.ts (component, service, plain util —
+    anything) maps to its sibling .spec.ts when one exists. Both the quality
+    gate and the mutation gate share this scoping."""
+    for script in (SCRIPT, MUTATION_SCRIPT):
+        text = script.read_text(encoding="utf-8")
+        assert 'spec="${rel%.ts}.spec.ts"' in text, script.name
+        assert "src/app/*.ts)" in text, script.name
+
+
+def test_frontend_image_bakes_oxlint() -> None:
+    """The mutation-tools image bakes a pinned oxlint into the toolchain."""
+    text = FRONTEND_DOCKERFILE.read_text(encoding="utf-8")
+
+    assert "npm install -g oxlint@" in text

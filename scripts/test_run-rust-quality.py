@@ -202,6 +202,98 @@ def test_quality_respects_rust_workspace_override():
     )
 
 
+# ── nextest + sccache wiring (Dell-only fast test path) ───────────────────────
+
+
+def test_quality_runs_tests_via_cargo_nextest():
+    """The inner test step must use cargo-nextest, not plain `cargo test`."""
+    text = SCRIPT.read_text()
+    assert "cargo nextest run" in text, (
+        "run-rust-quality.sh must run unit/integration tests through "
+        "cargo-nextest (installed in the Dell mutation image)"
+    )
+    assert "cargo test --jobs" not in text, (
+        "the old `cargo test --jobs` invocation must be replaced by "
+        "`cargo nextest run`"
+    )
+    assert "--test-threads" in text, (
+        "the nextest run must keep the worker-count threading flag"
+    )
+
+
+def test_quality_keeps_doctests_after_nextest():
+    """nextest does not run doctests; speccheck has real ``` doc examples
+    (e.g. services/speccheck/crates/report/src/lib.rs), so a `cargo test
+    --doc` step must survive after the nextest run."""
+    text = SCRIPT.read_text()
+    assert "cargo test --doc" in text, (
+        "run-rust-quality.sh must keep a `cargo test --doc` step because "
+        "cargo-nextest skips doctests and speccheck crates have them"
+    )
+    assert text.find("cargo nextest run") < text.rfind("cargo test --doc"), (
+        "the doctest step must come after the nextest run"
+    )
+
+
+def test_quality_wires_sccache_volume_and_wrapper():
+    """The Dell `docker run` must persist the sccache cache on a named volume
+    and route rustc through sccache so rebuilds hit the cache even after the
+    per-sync `rm -rf` wipes the target dirs."""
+    text = SCRIPT.read_text()
+    assert "-v xf_sccache:/sccache" in text
+    assert "RUSTC_WRAPPER=sccache" in text
+    assert "SCCACHE_DIR=/sccache" in text
+
+
+def test_quality_prints_sccache_stats_at_end():
+    """Cache effectiveness must be visible: the inner run prints
+    `sccache --show-stats` after the workspace loop."""
+    text = SCRIPT.read_text()
+    assert "sccache --show-stats" in text
+
+
+def test_mutation_wires_sccache_volume_and_wrapper():
+    """run-rust-mutation.sh's Dell `docker run` must share the same sccache
+    named volume + wrapper env as the quality runner."""
+    text = MUTATION_SCRIPT.read_text()
+    assert "-v xf_sccache:/sccache" in text
+    assert "RUSTC_WRAPPER=sccache" in text
+    assert "SCCACHE_DIR=/sccache" in text
+
+
+def test_host_block_honours_quality_rust_paths_override():
+    """QUALITY_RUST_PATHS must force a run even when commit scope is empty,
+    so operators can exercise the Dell pipeline on demand."""
+    text = SCRIPT.read_text()
+    host_block = text[: text.find(". \"$repo_root/scripts/_quality_concurrency.sh\"")]
+    assert 'if [[ -n "${QUALITY_RUST_PATHS:-}" ]]' in host_block, (
+        "the host re-exec block must honour a QUALITY_RUST_PATHS override "
+        "before falling back to commit_scope.py"
+    )
+
+
+def test_ci_full_run_bypasses_scope_guard():
+    """XF_QUALITY_RUN_ALL=1 must bypass the empty-diff early exit so the CI
+    rust-quality job (which sets that variable) never silently no-ops on a
+    fresh checkout where commit_scope.py returns nothing staged."""
+    text = SCRIPT.read_text()
+    assert 'XF_QUALITY_RUN_ALL' in text, (
+        "run-rust-quality.sh must consume XF_QUALITY_RUN_ALL=1 — the CI job "
+        "sets it but was ignored, making every CI Rust quality run a silent no-op"
+    )
+    # CI sets XF_QUALITY_INNER=1, so the host re-exec block is skipped and the
+    # inner block runs. The bypass lives in the inner block and must come BEFORE
+    # the inner "No changed Rust files detected -- skipping." early exit. rfind
+    # anchors on that inner message (the host block carries an earlier, longer
+    # variant: "... -- skipping Dell sync and Rust quality run.").
+    bypass_pos = text.find("XF_QUALITY_RUN_ALL", text.find("XF_QUALITY_INNER"))
+    inner_skip_pos = text.rfind("No changed Rust files detected")
+    assert bypass_pos != -1, "the inner block must consume XF_QUALITY_RUN_ALL"
+    assert bypass_pos < inner_skip_pos, (
+        "the XF_QUALITY_RUN_ALL bypass must appear before the inner no-files exit"
+    )
+
+
 def test_host_scope_guard_exits_before_dell_sync():
     """The host block must check for Rust changes BEFORE probing/syncing Dell,
     so non-Rust commits skip instantly instead of paying a multi-directory

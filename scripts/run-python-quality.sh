@@ -154,7 +154,7 @@ else
   : "${XF_PYTEST_SPLIT:=1}"
 fi
 if [[ "${XF_LINT_SPLIT:-0}" == "1" ]]; then
-  echo "[LINT SPLIT: routing ruff/pylint/mypy/bandit + dependency audit to Dell 100% (host-side)]"
+  echo "[LINT SPLIT: routing ruff/mypy/bandit + dependency audit to Dell 100% (host-side)]"
   "$PY" "$repo_root/scripts/run_lint_on_context.py" \
     --files $python_targets --bandit-files $bandit_targets \
     --dependency-audit --evidence-out "$host_evidence"
@@ -237,7 +237,6 @@ docker compose run --rm -T --name "$QUALITY_CONTAINER" "${docker_run_opts[@]}" \
   dependency_changed="${QUALITY_PYTHON_DEPENDENCY_CHANGED:-0}"
   if [ "${SKIP_LINT_IN_CONTAINER:-0}" != "1" ]; then
   python /repo/scripts/run_quality_step.py --evidence-out "$evidence" --check-type static_analysis --tool-name ruff --command "ruff check $targets" --pass-summary "Ruff static check passed for changed backend files." --fail-summary "Ruff static check failed for changed backend files."
-  python /repo/scripts/run_quality_step.py --evidence-out "$evidence" --check-type static_analysis --tool-name pylint --command "pylint --errors-only --disable=no-member $targets" --pass-summary "PyLint error-only check passed for changed backend files." --fail-summary "PyLint error-only check failed for changed backend files."
   # mypy type-checking — uses backend/mypy.ini so Django stubs + per-module
   # ignore_errors rules apply.  Running on the scoped $targets keeps it fast;
   # cross-module errors are suppressed by [mypy-apps.*] ignore_errors = True

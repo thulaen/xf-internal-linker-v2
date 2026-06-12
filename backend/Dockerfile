@@ -149,7 +149,6 @@ RUN pip install --no-cache-dir \
       bandit==1.8.3 \
       pip-audit==2.7.3 \
       safety==3.6.2 \
-      pylint==3.3.8 \
       mypy==1.13.0 \
       django-stubs==5.1.1 \
       djangorestframework-stubs==3.15.1 \

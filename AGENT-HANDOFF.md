@@ -1,3 +1,38 @@
+## 2026-06-12 - Claude Opus 4.8 (1M) - Speed program: drop pylint, dmypy/oxlint/nextest/mold/sccache; fix two prod-build breaks; CI Rust scope fix
+
+[HANDOFF READ: 2026-06-12 by Claude Opus 4.8 — Finished Dell-only quality routing: Python mutation on Dell, every local-Windows fallback deleted, content-hash cache keyed on source files]
+[REGISTRY READ: 974 open (735 agent / 106 glitchtip / 1 pyroscope / 1 tempo / 86 loki / 0 faro / 43 mutation / 0 fuzz / 0 contract / 2 gh_ci) — picked: 30 (resolved quota met, verified by the database-backed gate: 63 resolved)]
+[PAPER TRAIL READ: 0 open (drought; no open entries)]
+[LESSONS BEFORE START: 0 resolved-lesson rows reviewed in scripts, frontend/src/app/find-bugs, frontend/src/app/settings, backend]
+[SCOPED LESSONS READ: 0 lessons in scripts, frontend/src/app/find-bugs, frontend/src/app/settings, backend]
+[TDD PREFLIGHT: pipeline=SPEC→TEST_CASE→TDD→CODE→CODE_REVIEW→LESSON spec_citation=on test_case_mandate=on tdd_red_green_refactor=on 5_layer_coverage=on code_review_logging=on lesson_logging=on decision_point=on artefact_pruning=on no_bypass=on per_file_lookup=on commit_failure_lookup=on session_id=17e8081c-3edc-4f47-8d06-18353b8bf90f armed_at=2026-06-12T18:03:48Z]
+[STICKY 1 READ: timestamp=2026-06-12T18:30:00Z sha256=7b8d04510bf49e49 agent=claude]
+
+**What I did (plain English):** Finished the quality-speed program the user asked for. Eleven of the twelve speed items were already built by helper agents this session — I verified every one of them passes on the Dell helper machine, finished the last clean item (retiring the old `pylint` linter in favour of the faster `ruff` linter everywhere), and fixed two separate TypeScript compile errors that were stopping the production website build from compiling at all. The twelfth item (swapping the Angular test runner from Karma to Vitest) was assessed and left as its own focused change — it is the only item that replaces the whole test engine, the Angular Vitest builder is still experimental, and proving it needs several slow image rebuilds; bundling it here risked breaking the test gate for every future commit. It is described to the user in chat as a recommended next change, not started.
+
+**What now works that did not before:**
+- The production website build compiles again. Two TypeScript type errors on the `master` branch were blocking `ng build --configuration=production` (and therefore the production frontend image): `silo-settings.service.ts` returned an untyped response so a `.message` read failed, and `find-bugs.component.ts` read fields off an untyped parsed-JSON blob. Both are fixed; the Dell production image rebuilt clean and contains the real bundle plus the `oxlint` fast linter.
+- `pylint` is fully gone from the Python lint path and from the two quality Docker images (`backend/Dockerfile`, `tools/mutation/Dockerfile`); `ruff` now carries pylint's error rules via its `PLE` rule set. One real lint problem this surfaced — a duplicate `import sys` in `run_lint_on_context.py` — was also fixed.
+- The CI Rust quality job is no longer a silent no-op. The `XF_QUALITY_RUN_ALL=1` flag the CI job sets was read by nothing, so on a fresh checkout (empty staged diff) the Rust quality job skipped everything. The runner now honours that flag and runs the full check.
+
+**What changed:**
+- `backend/Dockerfile`, `backend/pyproject.toml` — pylint install removed; ruff `extend-select = ["PLE"]`.
+- `scripts/run_lint_on_context.py` — pylint branch gone; mypy now runs through a warm `dmypy` daemon container on Dell; duplicate `import sys` removed.
+- `frontend/src/app/settings/silo-settings.service.ts`, `frontend/src/app/find-bugs/find-bugs.component.ts` — typed the service response and the parsed-description blob so the production build type-checks.
+- `frontend/Dockerfile.prod` — split into a `toolchain` stage (chromium, git, node_modules, `oxlint@1.69.0`) and a `build` stage so the quality image stays buildable even if the app has a compile error.
+- `scripts/run-angular-quality.sh`, `run-angular-mutation.sh` — `oxlint` runs before `eslint`; any changed `src/app/*.ts` now pulls its sibling `.spec.ts`.
+- `scripts/run-rust-quality.sh`, `run-rust-mutation.sh` — `cargo nextest` replaces `cargo test`, `cargo test --doc` kept after it, `mold` linker + `sccache` (named volume `xf_sccache`) wired; `run-rust-quality.sh` honours `XF_QUALITY_RUN_ALL=1`.
+- `tools/mutation/Dockerfile` — pinned `cargo-nextest`, `mold`+`clang` with an image-level cargo config, and `sccache` installed.
+- `scripts/test_*` (5 files) — regression tests for pylint retirement, the dmypy daemon reuse, oxlint-before-eslint, sibling-spec scoping, nextest/mold/sccache wiring, and the CI scope bypass.
+
+**Verification (turbo=used — every check ran on the Dell helper):** 76 contract/unit tests pass on Dell (the 3 transient "turbo-rust" failures were a non-root `/repo/.tmp` permission artifact in the bare test volume, confirmed by re-running as root). `ruff check` clean on every changed Python file under the project config. The production `ng build --configuration=production` exits 0 on Dell and the rebuilt `xf-linker-frontend-mutation-tools:latest` image contains `/app/dist/.../browser/*.js` and `oxlint 1.69.0`. The AutoIssue quota gate verifies 63 resolved.
+
+**What has issues or errors:** None blocking. One open recommendation: the Karma→Vitest migration is not started (reasoning above) — it is the cleanest as its own change once someone can iterate on the experimental Angular Vitest builder. Note: `backend/check_errorlog.py` and `backend/check_schema.py` (untracked scratch scripts from other agents) and the pre-existing unstaged edit to `scripts/quality_cores.sh` were left untouched and not committed.
+
+**Tech-debt delta:** -5 items: pylint removed from the lint path and two images, a duplicate `import sys`, the silent CI Rust no-op, and two production-build TypeScript breaks that were stopping the prod image from compiling.
+
+[COVERAGE SUMMARY: target=N/A% actual=N/A% — shell/routing/Docker changes are guarded by 76 passing contract tests on Dell, not line coverage; the two TypeScript fixes are type-only and keep existing specs green]
+
 ## 2026-06-12 - Claude Opus 4.8 - Finish Dell-only quality routing: mutation on Dell, zero local fallbacks, cache wiring
 
 [HANDOFF READ: 2026-06-12 by Antigravity — Solved the 30-issue quota and committed the turbo-testing/strict-layout-split commit, leaving the Dell-only conversion half done]

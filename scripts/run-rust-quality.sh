@@ -11,8 +11,14 @@ if [[ "${XF_QUALITY_INNER:-0}" != "1" && ! -f /.dockerenv ]]; then
   cd "$repo_root"
   rust_mutation_jobs="${XF_RUST_MUTATION_JOBS:-16}"
   host_scope_mode="${COMMIT_SCOPE_MODE:-staged}"
-  host_rust_paths="$(python "$repo_root/scripts/commit_scope.py" paths --mode "$host_scope_mode" \
-    | grep -E '\.rs$|Cargo\.(toml|lock)$' || true)"
+  # QUALITY_RUST_PATHS forces a run on the given paths even when the commit
+  # scope has no Rust changes (operator/CI on-demand runs).
+  if [[ -n "${QUALITY_RUST_PATHS:-}" ]]; then
+    host_rust_paths="$QUALITY_RUST_PATHS"
+  else
+    host_rust_paths="$(python "$repo_root/scripts/commit_scope.py" paths --mode "$host_scope_mode" \
+      | grep -E '\.rs$|Cargo\.(toml|lock)$' || true)"
+  fi
   mkdir -p "$repo_root/.tmp"
   if ! git diff --cached -- services rust > "$repo_root/.tmp/rust-mutation.diff"; then
     : > "$repo_root/.tmp/rust-mutation.diff"
@@ -70,6 +76,9 @@ if [[ "${XF_QUALITY_INNER:-0}" != "1" && ! -f /.dockerenv ]]; then
   exec docker --context "$RUST_MUTATION_DOCKER_CONTEXT" run --rm \
     -v xf_rust_mutation_repo:/repo \
     -v xf_dell_quality_cache:/tmp/xf-test-cache \
+    -v xf_sccache:/sccache \
+    -e RUSTC_WRAPPER=sccache \
+    -e SCCACHE_DIR=/sccache \
     -w /repo \
     -e XF_QUALITY_INNER=1 \
     -e REPO_ROOT=/repo \
@@ -123,8 +132,12 @@ quality_warn_low_memory_per_worker cargo-mutants "$rust_mutation_jobs"
 # Scope guard: skip entirely when no Rust-relevant files changed.
 # In CI set COMMIT_SCOPE_MODE=push; locally defaults to staged.
 # Matches: *.rs, Cargo.toml, Cargo.lock
+# XF_QUALITY_RUN_ALL=1 bypasses the guard so CI full-workspace runs never
+# short-circuit on an empty staged diff (fresh checkout has no staged files).
 scope_mode="${COMMIT_SCOPE_MODE:-staged}"
-if [[ -n "${QUALITY_RUST_PATHS:-}" ]]; then
+if [[ "${XF_QUALITY_RUN_ALL:-0}" == "1" ]]; then
+  rust_paths="full-run-bypassed-by-xf-quality-run-all"
+elif [[ -n "${QUALITY_RUST_PATHS:-}" ]]; then
   rust_paths="$QUALITY_RUST_PATHS"
 else
   rust_paths="$(python "$repo_root/scripts/commit_scope.py" paths --mode "$scope_mode" \
@@ -137,6 +150,46 @@ fi
 rust_file_count="$(echo "$rust_paths" | wc -l | tr -d ' ')"
 echo "[run-rust-quality] Scoped to $rust_file_count changed Rust file(s)."
 export QUALITY_RUST_PATHS="$rust_paths"
+
+# Shared runner for the per-workspace test steps. On failure it files a
+# deduped AutoIssue (when Django is importable) and exits with the real
+# test exit code. Uses the loop's $workspace.
+run_rust_test_step() {
+  local test_label="$1"
+  shift
+  echo "+ $*"
+  set +e
+  set -o pipefail
+  "$@" 2>&1 | tee "/tmp/cargo_test_out_$$.log"
+  local test_rc="${PIPESTATUS[0]}"
+  set -e
+  if [[ "$test_rc" -eq 0 ]]; then
+    return 0
+  fi
+  echo "[run-rust-quality] $test_label failed. Filing AutoIssue..."
+  # Take the last 20 lines as the summary
+  local summary
+  summary="$(tail -n 20 "/tmp/cargo_test_out_$$.log" | tr '\n' ' ')"
+  if [[ -z "${summary// /}" ]]; then
+    summary="$test_label failed with exit code $test_rc"
+  fi
+  # Use python if available to file the issue
+  if command -v python >/dev/null 2>&1 && python -c "import django" >/dev/null 2>&1; then
+    python "$repo_root/backend/manage.py" file_test_failure \
+      --tool "cargo-test" \
+      --test-target "workspace:$(basename "$workspace")" \
+      --test-file "$workspace" \
+      --test-name "$test_label" \
+      --failure-summary "$summary" \
+      --severity high \
+      --run-id "${XF_QUALITY_RUN_ID:-local-run}" \
+      --shard-id "${XF_QUALITY_SHARD_ID:-local-shard}" \
+      --worker "${XF_QUALITY_WORKER:-windows}" || true
+  else
+    echo "[run-rust-quality] python not found, skipping AutoIssue filing."
+  fi
+  exit "$test_rc"
+}
 
 # Run the fmt + clippy + test block once per workspace. A
 # workspace whose Cargo.toml is absent (e.g. only one of the two trees is
@@ -178,40 +231,25 @@ for workspace in "${workspaces[@]}"; do
     exit "$clippy_rc"
   fi
 
-  echo "+ cargo test --jobs $workers -- --test-threads $workers"
-  set +e
-  set -o pipefail
-  cargo test --jobs "$workers" -- --test-threads "$workers" 2>&1 | tee "/tmp/cargo_test_out_$$.log"
-  test_rc="${PIPESTATUS[0]}"
-  set -e
-  if [[ "$test_rc" -ne 0 ]]; then
-    echo "[run-rust-quality] Cargo test failed. Filing AutoIssue..."
-    # Take the last 20 lines as the summary
-    summary="$(tail -n 20 "/tmp/cargo_test_out_$$.log" | tr '\n' ' ')"
-    if [[ -z "${summary// /}" ]]; then
-      summary="Cargo test failed with exit code $test_rc"
-    fi
-    # Use python if available to file the issue
-    if command -v python >/dev/null 2>&1 && python -c "import django" >/dev/null 2>&1; then
-      python "$repo_root/backend/manage.py" file_test_failure \
-        --tool "cargo-test" \
-        --test-target "workspace:$(basename "$workspace")" \
-        --test-file "$workspace" \
-        --test-name "cargo-test" \
-        --failure-summary "$summary" \
-        --severity high \
-        --run-id "${XF_QUALITY_RUN_ID:-local-run}" \
-        --shard-id "${XF_QUALITY_SHARD_ID:-local-shard}" \
-        --worker "${XF_QUALITY_WORKER:-windows}" || true
-    else
-      echo "[run-rust-quality] python not found, skipping AutoIssue filing."
-    fi
-    exit "$test_rc"
-  fi
-  
+  # cargo-nextest runs unit/integration tests in parallel; it does NOT run
+  # doctests, and the speccheck crates carry real doctest examples (e.g.
+  # crates/report/src/lib.rs), so a `cargo test --doc` step follows.
+  run_rust_test_step "cargo-nextest" \
+    cargo nextest run --build-jobs "$workers" --test-threads "$workers"
+  run_rust_test_step "cargo-test-doc" \
+    cargo test --doc --jobs "$workers"
+
+
   python /repo/scripts/quality_cache.py record-pairs --tool rust-quality --pairs-file "$pairs_file" --root /repo || true
 
 done
+
+# Make compile-cache effectiveness visible: a warm xf_sccache volume shows
+# cache hits here even though every sync wipes the workspace target dirs.
+if command -v sccache >/dev/null 2>&1; then
+  echo "+ sccache --show-stats"
+  sccache --show-stats || true
+fi
 
 if [[ "$checked_any" -eq 0 ]]; then
   echo "[run-rust-quality] No Rust workspace present in any of: ${workspaces[*]} -- nothing to check."

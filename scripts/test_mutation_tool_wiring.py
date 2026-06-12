@@ -74,6 +74,59 @@ def test_compiled_mutation_image_requires_cargo_mutants() -> None:
     assert "command -v cargo-mutants" in compose
 
 
+def test_compiled_mutation_image_installs_pinned_cargo_nextest() -> None:
+    """The quality stage must install cargo-nextest from the prebuilt
+    x86_64-unknown-linux-gnu release tarball at a pinned version (faster and
+    more reproducible than `cargo install cargo-nextest`)."""
+    text = _read("tools/mutation/Dockerfile")
+
+    assert re.search(r"NEXTEST_VERSION=\d+\.\d+\.\d+", text), (
+        "tools/mutation/Dockerfile must pin a cargo-nextest version"
+    )
+    assert "cargo-nextest" in text
+    assert "x86_64-unknown-linux-gnu" in text
+    assert "cargo install cargo-nextest" not in text
+
+
+def test_compiled_mutation_image_installs_mold_linker_with_cargo_config() -> None:
+    """mold + clang must be installed and selected through an image-level
+    cargo config so the repo's own .cargo stays untouched (Dell-only by
+    construction)."""
+    text = _read("tools/mutation/Dockerfile")
+
+    assert re.search(r"apt-get install[^&]*\bmold\b", text), (
+        "tools/mutation/Dockerfile must apt-get install mold"
+    )
+    assert re.search(r"apt-get install[^&]*\bclang\b", text), (
+        "tools/mutation/Dockerfile must apt-get install clang (mold driver)"
+    )
+    assert "[target.x86_64-unknown-linux-gnu]" in text
+    assert 'linker = "clang"' in text
+    assert "link-arg=-fuse-ld=mold" in text
+
+
+def test_compiled_mutation_image_installs_pinned_sccache() -> None:
+    """sccache must come from the pinned prebuilt release binary; the runtime
+    wrapper env (RUSTC_WRAPPER) is set by the runner scripts, not the image."""
+    text = _read("tools/mutation/Dockerfile")
+
+    assert re.search(r"SCCACHE_VERSION=\d+\.\d+\.\d+", text), (
+        "tools/mutation/Dockerfile must pin an sccache version"
+    )
+    assert "sccache" in text
+    assert "cargo install sccache" not in text
+
+
+def test_rust_runners_persist_sccache_on_named_dell_volume() -> None:
+    """Both Rust runner scripts must mount the xf_sccache named volume and
+    point rustc at it so compile caches survive the per-sync tree wipe."""
+    for path in ("scripts/run-rust-quality.sh", "scripts/run-rust-mutation.sh"):
+        text = _read(path)
+        assert "-v xf_sccache:/sccache" in text, f"{path} must mount xf_sccache"
+        assert "RUSTC_WRAPPER=sccache" in text, f"{path} must set RUSTC_WRAPPER"
+        assert "SCCACHE_DIR=/sccache" in text, f"{path} must set SCCACHE_DIR"
+
+
 def test_python_mutation_runner_is_dell_only() -> None:
     """Pre-push Python mutation runs on Dell only — no local container, no
     turbo delegate, with the >=90% kill gate and content-hash pair caching."""

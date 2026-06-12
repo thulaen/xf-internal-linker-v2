@@ -50,11 +50,43 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --de
     (cargo install cargo-fuzz --version "^0.12" || true) && \
     rm -rf /root/.cargo/registry /root/.cargo/git
 
+ENV CARGO_HOME="/root/.cargo"
 ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Fast Rust test/link/cache path (Dell-only by construction — this image only
+# runs on the Dell helper):
+#   - mold + clang: mold is the fast linker; clang is the driver that accepts
+#     -fuse-ld=mold. Installed in their own layer so the expensive
+#     rustup/cargo-install layer above stays cached.
+#   - cargo-nextest: prebuilt pinned release binary (faster and more
+#     reproducible than `cargo install`). NOTE: nextest does not run doctests;
+#     scripts/run-rust-quality.sh keeps a `cargo test --doc` step for that.
+#   - sccache: prebuilt pinned release binary. The runner scripts set
+#     RUSTC_WRAPPER=sccache and mount the xf_sccache named volume at runtime,
+#     so compile caches survive `cargo clean` and the per-sync tree wipe.
+ARG NEXTEST_VERSION=0.9.92
+ARG SCCACHE_VERSION=0.8.2
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends mold clang && \
+    rm -rf /var/lib/apt/lists/* && \
+    curl -fsSL "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-${NEXTEST_VERSION}/cargo-nextest-${NEXTEST_VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
+      | tar -xz -C "$CARGO_HOME/bin" cargo-nextest && \
+    curl -fsSL "https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/sccache-v${SCCACHE_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+      | tar -xz -C "$CARGO_HOME/bin" --strip-components=1 "sccache-v${SCCACHE_VERSION}-x86_64-unknown-linux-musl/sccache" && \
+    cargo nextest --version && mold --version && sccache --version
+
+# Image-level cargo config: route linking through clang + mold for every cargo
+# invocation in this image. Living in $CARGO_HOME keeps the repo's own .cargo
+# untouched (one place, Dell-only).
+RUN printf '%s\n' \
+      '[target.x86_64-unknown-linux-gnu]' \
+      'linker = "clang"' \
+      'rustflags = ["-C", "link-arg=-fuse-ld=mold"]' \
+      > "$CARGO_HOME/config.toml"
 
 WORKDIR /repo
 
-CMD ["bash", "-lc", "cmake --version && clang-19 --version && semgrep --version && rustc --version && cargo --version && cargo llvm-cov --version && cargo audit --version && cargo deny --version && maturin --version && echo 'compiled tools ready'"]
+CMD ["bash", "-lc", "cmake --version && clang-19 --version && semgrep --version && rustc --version && cargo --version && cargo llvm-cov --version && cargo audit --version && cargo deny --version && cargo nextest --version && mold --version && sccache --version && maturin --version && echo 'compiled tools ready'"]
 
 FROM quality AS mutation-tools
 

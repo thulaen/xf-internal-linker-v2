@@ -8,6 +8,12 @@ extend-exclude = [
     "apps/realtime/_streamd_pb2/api_pb2_grpc.py",
 ]
 
+# Pylint is retired. Ruff's PLE rules are the pylint error-class (E####)
+# equivalents, so adding them to the default E/F selection keeps the old
+# "pylint --errors-only" coverage inside the one remaining linter.
+[tool.ruff.lint]
+extend-select = ["PLE"]
+
 [tool.mutmut]
 paths_to_mutate = [
   "apps",

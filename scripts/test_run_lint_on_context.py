@@ -26,14 +26,41 @@ def _mod():
 
 
 def test_inner_command_per_tool():
-    """Given each tool, When building the inner command, Then it matches the local form."""
+    """Given each tool, When building the inner command, Then it matches the expected form."""
     m = _mod()
     assert m._inner_command("ruff", ["apps/a.py"]) == ["ruff", "check", "apps/a.py"]
-    assert m._inner_command("pylint", ["apps/a.py"]) == [
-        "pylint", "--errors-only", "--disable=no-member", "apps/a.py"]
     assert m._inner_command("mypy", ["apps/a.py"]) == [
-        "python", "-m", "mypy", "--config-file", "/repo/backend/mypy.ini", "apps/a.py"]
+        "dmypy", "run", "--timeout", "7200", "--",
+        "--config-file", "/repo/backend/mypy.ini", "apps/a.py"]
     assert m._inner_command("bandit", ["apps/a.py"]) == ["bandit", "-q", "apps/a.py"]
+
+
+def test_pylint_is_fully_retired():
+    """Given the lint router and quality wrapper, When read, Then pylint is gone (ruff's PLE rules replaced it)."""
+    router = (ROOT / "scripts" / "run_lint_on_context.py").read_text(encoding="utf-8")
+    wrapper = (ROOT / "scripts" / "run-python-quality.sh").read_text(encoding="utf-8")
+    assert "pylint" not in router.lower()
+    assert "pylint" not in wrapper.lower()
+
+
+def test_ruff_config_selects_pylint_error_parity_rules():
+    """Given backend/pyproject.toml, When parsed, Then ruff extends its selection with PLE (pylint-error parity)."""
+    import tomllib
+
+    cfg = tomllib.loads((ROOT / "backend" / "pyproject.toml").read_text(encoding="utf-8"))
+    assert "PLE" in cfg["tool"]["ruff"]["lint"]["extend-select"]
+
+
+def test_pylint_not_installed_in_quality_images():
+    """Given the quality Docker images, When read, Then neither installs pylint.
+
+    pylint was retired in favour of ruff's PLE rules, so leaving the pip
+    install line behind only bloats the image and confuses future agents.
+    """
+    backend_dockerfile = (ROOT / "backend" / "Dockerfile").read_text(encoding="utf-8")
+    assert "pylint==" not in backend_dockerfile
+    mutation_dockerfile = (ROOT / "tools" / "mutation" / "Dockerfile").read_text(encoding="utf-8")
+    assert "pylint==" not in mutation_dockerfile
 
 
 def test_inner_command_rejects_unknown_tool():
@@ -56,6 +83,78 @@ def test_remote_lint_cmd_uses_dell_context_volume_and_image():
     assert cmd[-3:] == ["ruff", "check", "apps/a.py"]
     # cwd is the synced source on the remote, never the local /app bind mount.
     assert "/repo/backend" in cmd
+
+
+def test_remote_lint_cmd_mypy_execs_into_warm_dmypy_daemon():
+    """Given a mypy slice, When building the remote command, Then it execs into the warm daemon container."""
+    m = _mod()
+    cmd = m._remote_lint_cmd("dell", "mypy", ["apps/a.py"])
+    assert cmd[:4] == ["docker", "--context", "dell", "exec"]
+    assert "xf-dmypy-daemon" in cmd
+    assert cmd[-8:] == ["dmypy", "run", "--timeout", "7200", "--",
+                        "--config-file", "/repo/backend/mypy.ini", "apps/a.py"]
+    # the daemon must survive between runs — one-shot --rm is forbidden here.
+    assert "--rm" not in cmd
+
+
+class _FakeProc:
+    def __init__(self, rc: int, out: str = ""):
+        self.returncode = rc
+        self.stdout = out
+        self.stderr = ""
+
+
+def test_dmypy_daemon_container_is_reused(monkeypatch):
+    """Given the daemon container already runs, When ensuring it, Then no new container is started."""
+    m = _mod()
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        if "inspect" in cmd:
+            return _FakeProc(0, "true\n")
+        return _FakeProc(0, "")
+
+    monkeypatch.setattr(m.subprocess, "run", fake_run)
+    assert m._ensure_dmypy_container("dell") is None
+    assert len(calls) == 1 and "inspect" in calls[0]
+    assert not any("-d" in c for c in calls)
+
+
+def test_dmypy_daemon_container_is_started_when_absent(monkeypatch):
+    """Given no running daemon container, When ensuring it, Then a fresh warm container is started."""
+    m = _mod()
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        if "inspect" in cmd:
+            return _FakeProc(1, "Error: no such container\n")
+        return _FakeProc(0, "")
+
+    monkeypatch.setattr(m.subprocess, "run", fake_run)
+    assert m._ensure_dmypy_container("dell") is None
+    removed = next(c for c in calls if "rm" in c)
+    assert "-f" in removed and "xf-dmypy-daemon" in removed
+    started = next(c for c in calls if "-d" in c)
+    assert "--name" in started and "xf-dmypy-daemon" in started
+    assert "--restart" in started and "unless-stopped" in started
+    assert "xf_lint_repo:/repo" in started
+    assert started[-2:] == ["sleep", "infinity"]
+
+
+def test_lint_slice_fails_closed_when_dmypy_daemon_cannot_start(monkeypatch):
+    """Given the daemon cannot start, When linting mypy on Dell, Then the slice fails closed (no local fallback)."""
+    m = _mod()
+    monkeypatch.setattr(m, "_sync_source_to_context", lambda ctx, env: None)
+    monkeypatch.setattr(m, "_run_remote_sha", lambda ctx, env: (lambda s: (0, "")))
+    monkeypatch.setattr(m, "_verify_snapshot", lambda rr, files, hashes: True)
+    monkeypatch.setattr(m, "_ensure_dmypy_container", lambda ctx: "daemon could not start")
+
+    rc, out = m._lint_slice_on_remote("dell", "mypy", ["apps/a.py"])
+
+    assert rc == 1
+    assert "daemon could not start" in out
 
 
 def test_lint_routing_config_puts_100_percent_on_dell():
@@ -158,11 +257,11 @@ def test_run_lint_writes_one_evidence_row_per_tool(monkeypatch, tmp_path):
     monkeypatch.setattr(m, "_lint_slice_on_remote", lambda ctx, tool, files: (0, ""))
     ev = tmp_path / "python.jsonl"
 
-    rc = m.run_lint(["ruff", "pylint"], ["apps/a.py", "apps/b.py"], evidence_out=ev)
+    rc = m.run_lint(["ruff", "mypy"], ["apps/a.py", "apps/b.py"], evidence_out=ev)
 
     assert rc == 0
     rows = [json.loads(line) for line in ev.read_text(encoding="utf-8").splitlines() if line.strip()]
-    assert {r["tool_name"] for r in rows} == {"ruff", "pylint"}
+    assert {r["tool_name"] for r in rows} == {"ruff", "mypy"}
     assert all(r["status"] == "passed" for r in rows)
     assert all(r["check_type"] == "static_analysis" for r in rows)
 

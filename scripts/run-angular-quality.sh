@@ -47,22 +47,26 @@ lint_targets="$(printf '%s\n' "$changed_files" \
   | grep -E '^frontend/src/app/.*\.(ts|html)$' | sed 's#^frontend/##' || true)"
 scss_targets="$(printf '%s\n' "$changed_files" \
   | grep -E '^frontend/src/app/.*\.scss$' | sed 's#^frontend/##' || true)"
-# A changed spec is tested directly; a changed component/service/etc. pulls in
-# its sibling .spec.ts when one exists. Same mapping the pre-reconciliation
-# runner used, so the scoping behaviour is unchanged — only WHERE it runs.
+# A changed spec is tested directly; ANY other changed src/app .ts file
+# (component, service, directive, pipe, plain util/model/routes — anything)
+# pulls in its sibling .spec.ts when one exists. The rest of the frontend
+# stays skipped — that is the point of scoping.
 test_includes="$(
   while IFS= read -r path; do
     [[ -n "$path" ]] || continue
     rel="${path#frontend/}"
     if [[ "$rel" == *.spec.ts ]]; then printf '%s\n' "$rel"; continue; fi
     case "$rel" in
-      src/app/*.component.ts|src/app/*.service.ts|src/app/*.directive.ts|src/app/*.pipe.ts)
+      src/app/*.ts)
         spec="${rel%.ts}.spec.ts"; [[ -f "frontend/$spec" ]] && printf '%s\n' "$spec" ;;
       src/app/*.component.html|src/app/*.component.scss)
         spec="${rel%.component.*}.component.spec.ts"; [[ -f "frontend/$spec" ]] && printf '%s\n' "$spec" ;;
     esac
   done <<< "$changed_files" | sort -u
 )"
+
+# oxlint lints .ts only — eslint still covers the Angular .html templates.
+oxlint_targets="$(printf '%s\n' "$lint_targets" | grep -E '\.ts$' || true)"
 
 if [[ -z "$lint_targets" && -z "$scss_targets" && -z "$test_includes" ]]; then
   echo "[run-angular-quality] No changed frontend file -- skipping."
@@ -93,6 +97,7 @@ fi
 
 # ── Run lint + parallel tests + mutation inside the frontend image on Dell ────
 lint_oneline="$(printf '%s' "$lint_targets" | tr '\n' ' ')"
+oxlint_oneline="$(printf '%s' "$oxlint_targets" | tr '\n' ' ')"
 scss_oneline="$(printf '%s' "$scss_targets" | tr '\n' ' ')"
 test_oneline="$(printf '%s' "$test_includes" | tr '\n' ' ')"
 
@@ -104,6 +109,7 @@ exec docker --context "$ANGULAR_DOCKER_CONTEXT" run --rm \
   -e KARMA_PARALLEL_EXECUTORS="$ANGULAR_CORES" \
   -e XF_QUALITY_ENV="${XF_QUALITY_ENV:-local}" \
   -e LINT_TARGETS="$lint_oneline" \
+  -e OXLINT_TARGETS="$oxlint_oneline" \
   -e SCSS_TARGETS="$scss_oneline" \
   -e TEST_INCLUDES="$test_oneline" \
   -e STRYKER_CONCURRENCY="$ANGULAR_CORES" \
@@ -112,6 +118,14 @@ exec docker --context "$ANGULAR_DOCKER_CONTEXT" run --rm \
   # The image baked node_modules at /app; the synced source has none. Symlink
   # it so ng / stryker / eslint / stylelint resolve their toolchain + .bin.
   ln -sfn /app/node_modules /work/frontend/node_modules
+  # oxlint first: the baked global binary catches most lint issues in
+  # milliseconds and fails the gate fast. Default rules + correctness denied;
+  # warnings are errors. eslint still runs after it — oxlint is an
+  # accelerator, not a replacement for the type-aware eslint rules.
+  if [ -n "${OXLINT_TARGETS:-}" ]; then
+    echo "+ oxlint $OXLINT_TARGETS"
+    oxlint -D correctness --deny-warnings $OXLINT_TARGETS
+  fi
   if [ -n "${LINT_TARGETS:-}" ]; then
     echo "+ eslint $LINT_TARGETS"; npx eslint $LINT_TARGETS
   fi
