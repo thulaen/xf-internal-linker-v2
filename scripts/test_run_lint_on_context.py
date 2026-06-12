@@ -58,28 +58,16 @@ def test_remote_lint_cmd_uses_dell_context_volume_and_image():
     assert "/repo/backend" in cmd
 
 
-def test_local_lint_cmd_uses_compose_backend_quality():
-    """Given a local slice, When building the command, Then it runs compose backend-quality."""
-    m = _mod()
-    cmd = m._local_lint_cmd("bandit", ["apps/a.py"])
-    assert cmd[:5] == ["docker", "compose", "run", "--rm", "-T"]
-    assert "backend-quality" in cmd
-    assert cmd[-3:] == ["bandit", "-q", "apps/a.py"]
-
-
 def test_lint_routing_config_puts_100_percent_on_dell():
     """Given the routing config, When read, Then Dell carries 100% of lint and Windows 0% (fail-closed)."""
     m = _mod()
     machines = {entry["name"]: entry for entry in m._load_lint_routing_config()["machines"]}
     assert machines["dell"]["weight"] == 1.0
     assert machines["dell"]["context"] == "dell"
-    assert machines["windows"]["transport"] == "docker_local"
-    assert machines["windows"]["weight"] == 0.0
-    # The block really exists in the committed config (not just the fallback).
+    # The block really exists in the committed config.
     cfg = json.loads((ROOT / "config" / "mutation-routing.json").read_text(encoding="utf-8"))
     assert cfg["lint_machines"][0]["name"] == "dell"
     assert cfg["lint_machines"][0]["weight"] == 1.0
-    assert cfg["lint_machines"][1]["weight"] == 0.0
 
 
 def test_run_tool_sharded_no_files_is_clean():
@@ -96,14 +84,12 @@ def _fake_routing():
         @staticmethod
         def _select_machines(_cfg):
             return [
-                {"name": "dell", "transport": "docker_context", "context": "dell", "share": 0.5},
-                {"name": "windows", "transport": "docker_local", "share": 0.5},
+                {"name": "dell", "transport": "docker_context", "context": "dell", "share": 1.0},
             ]
 
         @staticmethod
         def _partition_weighted(items, machines):
-            half = len(items) // 2
-            return {"dell": items[:half], "windows": items[half:]}
+            return {"dell": items}
 
         @staticmethod
         def _dispatch_to_machines(machines, plan, per_machine):
@@ -119,34 +105,50 @@ def test_run_tool_sharded_merges_worst_rc_and_labels_machines(monkeypatch):
     """Given a Dell-clean / Windows-failing split, When merged, Then rc is the worst (fail)."""
     m = _mod()
     monkeypatch.setattr(m, "_load_machine_routing", _fake_routing)
-    monkeypatch.setattr(m, "_lint_slice_on_remote", lambda ctx, tool, files: (0, ""))
-    monkeypatch.setattr(m, "_lint_slice_local", lambda tool, files: (2, "E001 bad thing\n"))
+    monkeypatch.setattr(m, "_lint_slice_on_remote", lambda ctx, tool, files: (2, "E001 bad thing\n"))
 
     rc, out = m.run_tool_sharded("ruff", ["apps/a.py", "apps/b.py"])
 
-    assert rc == 2  # Windows slice failed → overall fail
-    assert "windows" in out
+    assert rc == 2  # slice failed -> overall fail
+    assert "dell" in out
     assert "E001 bad thing" in out
 
 
-def test_run_tool_sharded_fails_open_to_local_when_remote_untrusted(monkeypatch):
-    """Given Dell returns untrusted (None), When linting, Then that slice re-runs locally."""
+def test_run_tool_sharded_fails_closed_when_remote_untrusted(monkeypatch):
+    """Given Dell returns untrusted (None), When linting, Then it fails closed."""
     m = _mod()
     monkeypatch.setattr(m, "_load_machine_routing", _fake_routing)
     monkeypatch.setattr(m, "_lint_slice_on_remote", lambda ctx, tool, files: None)
-    local_calls = []
 
-    def _local(tool, files):
-        local_calls.append(files)
-        return 0, ""
+    rc, out = m.run_tool_sharded("ruff", ["apps/a.py", "apps/b.py"])
 
-    monkeypatch.setattr(m, "_lint_slice_local", _local)
+    assert rc == 1
+    assert "Dell source sync or manifest verification failed for ruff" in out
 
-    rc, _out = m.run_tool_sharded("ruff", ["apps/a.py", "apps/b.py"])
 
-    assert rc == 0
-    # Both slices ended up running locally: Dell's (re-run) and Windows' own.
-    assert len(local_calls) == 2
+def test_run_tool_sharded_fails_closed_for_non_docker_context(monkeypatch):
+    """Given a non-docker_context machine, When linting, Then it fails closed."""
+    m = _mod()
+    
+    class _R_Windows:
+        @staticmethod
+        def _select_machines(_cfg):
+            return [{"name": "windows", "transport": "docker_local", "share": 1.0}]
+        @staticmethod
+        def _partition_weighted(items, machines):
+            return {"windows": items}
+        @staticmethod
+        def _dispatch_to_machines(machines, plan, per_machine):
+            for machine in machines:
+                per_machine(machine, plan.get(machine["name"]) or [])
+
+    monkeypatch.setattr(m, "_load_machine_routing", lambda: _R_Windows())
+    monkeypatch.setattr(m, "_lint_slice_on_remote", lambda ctx, tool, files: (0, ""))
+
+    rc, out = m.run_tool_sharded("ruff", ["apps/a.py", "apps/b.py"])
+
+    assert rc == 1
+    assert "transport not allowed" in out
 
 
 def test_run_lint_writes_one_evidence_row_per_tool(monkeypatch, tmp_path):
@@ -154,7 +156,6 @@ def test_run_lint_writes_one_evidence_row_per_tool(monkeypatch, tmp_path):
     m = _mod()
     monkeypatch.setattr(m, "_load_machine_routing", _fake_routing)
     monkeypatch.setattr(m, "_lint_slice_on_remote", lambda ctx, tool, files: (0, ""))
-    monkeypatch.setattr(m, "_lint_slice_local", lambda tool, files: (0, ""))
     ev = tmp_path / "python.jsonl"
 
     rc = m.run_lint(["ruff", "pylint"], ["apps/a.py", "apps/b.py"], evidence_out=ev)
@@ -171,7 +172,6 @@ def test_run_lint_bandit_failure_is_a_failed_security_evidence_row(monkeypatch, 
     m = _mod()
     monkeypatch.setattr(m, "_load_machine_routing", _fake_routing)
     monkeypatch.setattr(m, "_lint_slice_on_remote", lambda ctx, tool, files: (1, "B101\n"))
-    monkeypatch.setattr(m, "_lint_slice_local", lambda tool, files: (1, "B101\n"))
     ev = tmp_path / "python.jsonl"
 
     rc = m.run_lint(["bandit"], ["apps/a.py"], bandit_files=["apps/a.py"], evidence_out=ev)
@@ -188,7 +188,6 @@ def test_run_lint_empty_bandit_files_records_no_targets_pass(monkeypatch, tmp_pa
     m = _mod()
     monkeypatch.setattr(m, "_load_machine_routing", _fake_routing)
     monkeypatch.setattr(m, "_lint_slice_on_remote", lambda ctx, tool, files: (0, ""))
-    monkeypatch.setattr(m, "_lint_slice_local", lambda tool, files: (0, ""))
     ev = tmp_path / "python.jsonl"
 
     rc = m.run_lint(["bandit"], ["apps/a.py"], bandit_files=[], evidence_out=ev)
@@ -197,3 +196,29 @@ def test_run_lint_empty_bandit_files_records_no_targets_pass(monkeypatch, tmp_pa
     rows = [json.loads(line) for line in ev.read_text(encoding="utf-8").splitlines() if line.strip()]
     assert rows[0]["failure_fingerprint"] == "bandit:no-changed-targets"
     assert rows[0]["status"] == "passed"
+
+
+def test_dependency_audit_runs_tools_and_records_evidence(monkeypatch, tmp_path):
+    """Given --dependency-audit, When run, Then it executes pip-audit and safety check on Dell and logs evidence."""
+    m = _mod()
+    monkeypatch.setattr(m, "_load_machine_routing", _fake_routing)
+    monkeypatch.setattr(m, "_sync_source_to_context", lambda ctx, env: None)
+    
+    ran_cmds = []
+    def fake_run(cmd, env, timeout):
+        ran_cmds.append(cmd)
+        return 0, "All good!"
+    
+    monkeypatch.setattr(m, "_run", fake_run)
+    ev = tmp_path / "python.jsonl"
+
+    m.run_lint([], [], evidence_out=ev)
+    m._run_dependency_audit(ev)
+
+    assert any("pip-audit" in cmd for cmd in ran_cmds)
+    assert any("safety" in cmd for cmd in ran_cmds)
+    
+    rows = [json.loads(line) for line in ev.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert {r["tool_name"] for r in rows} == {"pip-audit", "safety"}
+    assert all(r["status"] == "passed" for r in rows)
+    assert all(r["check_type"] == "security" for r in rows)

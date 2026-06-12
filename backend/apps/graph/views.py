@@ -39,7 +39,7 @@ def _polars_chunked_csv(
     CSV output matches csv.writer's QUOTE_MINIMAL behaviour (no quotes around
     empty cells).
     """
-    import polars as pl
+    import polars as pl  # pylint: disable=import-error
 
     schema = {col: pl.Utf8 for col in columns}
 
@@ -74,7 +74,7 @@ def _coerce_csv_value(value: Any) -> str | None:
 
 
 def _flush_chunk_to_csv(chunk: list[dict[str, Any]], schema: dict[str, Any]) -> str:
-    import polars as pl
+    import polars as pl  # pylint: disable=import-error
 
     buf = io.BytesIO()
     pl.DataFrame(chunk, schema=schema).write_csv(
@@ -807,6 +807,81 @@ class GapAnalysisView(APIView):
                 "total_ghost_edges": total_ghost_edges,
             }
         )
+
+
+class GraphSignalsView(APIView):
+    """
+    GET /api/graph/signals/
+
+    Returns the latest graph signals and link prediction candidates for the ECharts UI.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request) -> Response:
+        from apps.graph.models import GraphSignalRun, NodeGraphSignal, LinkPredictionCandidate
+
+        run = GraphSignalRun.objects.filter(status=GraphSignalRun.STATUS_CURRENT).first()
+        if not run:
+            return Response({"run_exists": False})
+
+        try:
+            limit = min(int(request.query_params.get("limit", 200)), 500)
+        except (ValueError, TypeError):
+            limit = 200
+
+        candidates = list(
+            LinkPredictionCandidate.objects.filter(run=run)
+            .order_by("-adamic_adar")[:limit]
+            .values("from_item_id", "to_item_id", "adamic_adar", "same_community", "is_bridge")
+        )
+
+        node_ids = set()
+        for c in candidates:
+            node_ids.add(c["from_item_id"])
+            node_ids.add(c["to_item_id"])
+
+        node_signals = list(
+            NodeGraphSignal.objects.filter(run=run, content_item_id__in=node_ids)
+            .select_related("content_item")
+            .values(
+                "content_item_id", 
+                "content_item__title", 
+                "community_id", 
+                "betweenness",
+                "is_orphan",
+                "core_number"
+            )
+        )
+
+        nodes = []
+        for ns in node_signals:
+            nodes.append({
+                "id": ns["content_item_id"],
+                "title": ns["content_item__title"],
+                "community_id": ns["community_id"],
+                "betweenness": ns["betweenness"],
+                "is_orphan": ns["is_orphan"],
+                "core_number": ns["core_number"]
+            })
+
+        links = []
+        for c in candidates:
+            links.append({
+                "source": c["from_item_id"],
+                "target": c["to_item_id"],
+                "adamic_adar": c["adamic_adar"],
+                "same_community": c["same_community"],
+                "is_bridge": c["is_bridge"]
+            })
+
+        return Response({
+            "run_exists": True,
+            "run_id": run.id,
+            "computed_at": run.computed_at,
+            "nodes": nodes,
+            "links": links
+        })
 
 
 def _bfs_path(from_id: int, to_id: int, max_depth: int = 4) -> list | None:

@@ -38,8 +38,7 @@ class _TempFile:
             self.path.unlink()
         except OSError:
             pass
-        # Prune now-empty temp parent dirs so the repo tree stays clean and
-        # leftover dirs never trip the Rule K go-service-contract scan.
+        # Prune now-empty temp parent dirs so the repo tree stays clean.
         parent = self.path.parent
         while parent != REPO_ROOT and parent.is_dir():
             try:
@@ -58,6 +57,13 @@ class LanguageOwnershipTests(unittest.TestCase):
         with _TempFile("backend/apps/zz_tmp/badhash.py", code) as rel:
             self.assertTrue(hook.scan_paths([rel]))
 
+    def test_python_minhash_message_points_to_rust(self) -> None:
+        code = "def compute_minhash(rows):\n    return [hash(r) % 97 for r in rows]\n"
+        with _TempFile("backend/apps/zz_tmp/badhash.py", code) as rel:
+            violations = hook.scan_paths([rel])
+        self.assertTrue(violations)
+        self.assertIn("Rust papertrail_dedup extension", violations[0])
+
     def test_python_minhash_ok_when_delegating(self) -> None:
         code = (
             "import papertrail_dedup\n"
@@ -67,39 +73,16 @@ class LanguageOwnershipTests(unittest.TestCase):
         with _TempFile("backend/apps/zz_tmp/okhash.py", code) as rel:
             self.assertEqual(hook.scan_paths([rel]), [])
 
-    def test_python_http_server_flagged(self) -> None:
+    def test_python_http_server_not_flagged(self) -> None:
+        # Python/Django IS the web/transport layer now — standing up a server
+        # is legitimate and must not be flagged.
         code = "from flask import Flask\napp = Flask(__name__)\n"
         with _TempFile("backend/apps/zz_tmp/server.py", code) as rel:
-            self.assertTrue(hook.scan_paths([rel]))
-
-    def test_django_views_not_flagged_for_http(self) -> None:
-        # views.py is the legitimate Django HTTP surface — must not flag.
-        code = "from rest_framework.response import Response\n"
-        with _TempFile("backend/apps/zz_tmp/views.py", code) as rel:
             self.assertEqual(hook.scan_paths([rel]), [])
 
     def test_plain_orchestration_not_flagged(self) -> None:
         code = "def fetch(ids):\n    return [i for i in ids if i]\n"
         with _TempFile("backend/apps/zz_tmp/services/plain.py", code) as rel:
-            self.assertEqual(hook.scan_paths([rel]), [])
-
-    def test_go_service_postgres_flagged(self) -> None:
-        code = (
-            "package main\n"
-            "type Row struct {\n\tID int `db:\"id\"`\n}\n"
-            "func main() { sql.Open(\"postgres\", \"\") }\n"
-        )
-        with _TempFile("services/zz_tmp/main.go", code) as rel:
-            self.assertTrue(hook.scan_paths([rel]))
-
-    def test_go_service_no_postgres_ok(self) -> None:
-        code = "package main\nfunc main() { println(\"ok\") }\n"
-        with _TempFile("services/zz_tmp/clean.go", code) as rel:
-            self.assertEqual(hook.scan_paths([rel]), [])
-
-    def test_generated_go_skipped(self) -> None:
-        code = "package gen\ntype Row struct { ID int `db:\"id\"` }\n"
-        with _TempFile("services/zz_tmp/api/gen/x.pb.go", code) as rel:
             self.assertEqual(hook.scan_paths([rel]), [])
 
     def test_fail_message_has_three_parts(self) -> None:

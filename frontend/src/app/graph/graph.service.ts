@@ -159,6 +159,31 @@ export interface GapAnalysis {
   total_ghost_edges: number;
 }
 
+export interface GraphSignalNode {
+  id: number;
+  title: string;
+  community_id: number | null;
+  betweenness: number | null;
+  is_orphan: boolean;
+  core_number: number | null;
+}
+
+export interface GraphSignalLink {
+  source: number;
+  target: number;
+  adamic_adar: number | null;
+  same_community: boolean;
+  is_bridge: boolean;
+}
+
+export interface GraphSignalsResponse {
+  run_exists: boolean;
+  run_id?: number;
+  computed_at?: string;
+  nodes?: GraphSignalNode[];
+  links?: GraphSignalLink[];
+}
+
 // ── Service ───────────────────────────────────────────────────────────────────
 
 @Injectable({ providedIn: 'root' })
@@ -274,5 +299,12 @@ export class GraphService {
         map((res) => res.results),
         catchError(() => of([]))
       );
+  }
+
+  getGraphSignals(limit = 200): Observable<GraphSignalsResponse> {
+    const params = new HttpParams().set('limit', limit.toString());
+    return this.http
+      .get<GraphSignalsResponse>(`${this.base}/graph/signals/`, { params })
+      .pipe(catchError(() => of({ run_exists: false })));
   }
 }

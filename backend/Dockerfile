@@ -3,10 +3,6 @@
 # Python 3.12 (NOT 3.13 — ML libraries lag behind latest Python)
 # ─────────────────────────────────────────────────────────────────
 
-FROM golang:1.25-bookworm AS go-tools
-
-RUN go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest
-
 FROM python:3.12-slim AS runtime
 
 # Prevent Python from writing .pyc files and buffering stdout/stderr
@@ -146,15 +142,7 @@ FROM runtime AS quality
 USER root
 
 # Mutation and static-quality tools stay out of the runtime image.
-# Note: go-mutesting and mutmut have been moved to the mutation-tools stage.
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    lua5.4 \
-    luarocks \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN luarocks install busted && \
-    luarocks install luacheck
+# Note: mutmut has been moved to the mutation-tools stage.
 
 RUN pip install --no-cache-dir \
       ruff==0.8.6 \
@@ -180,8 +168,5 @@ USER appuser
 FROM quality AS mutation-tools
 
 USER root
-COPY --from=go-tools /usr/local/go /usr/local/go
-COPY --from=go-tools /go/bin/go-mutesting /usr/local/bin/go-mutesting
-ENV PATH="/usr/local/go/bin:${PATH}"
-RUN pip install --no-cache-dir mutmut==2.5.1
+RUN pip install --no-cache-dir mutmut==3.5.0
 USER appuser

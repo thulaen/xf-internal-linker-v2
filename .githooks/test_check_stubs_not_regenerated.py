@@ -70,16 +70,15 @@ class StubsNotRegeneratedTests(TestCase):
     def test_stubs_with_matching_contract_passes(self) -> None:
         rc, _ = self._run([
             "services/streamd/api.proto",
-            "services/streamd/api/gen/api.pb.go",
-            "services/streamd/api/gen/api_grpc.pb.go",
             "backend/apps/realtime/_streamd_pb2/api_pb2.py",
+            "backend/apps/realtime/_streamd_pb2/api_pb2_grpc.py",
         ])
         self.assertEqual(rc, 0)
 
     def test_stubs_without_contract_fails(self) -> None:
         rc, err = self._run([
-            "services/streamd/api/gen/api.pb.go",
-            "services/streamd/api/gen/api_grpc.pb.go",
+            "backend/apps/realtime/_streamd_pb2/api_pb2.py",
+            "backend/apps/realtime/_streamd_pb2/api_pb2_grpc.py",
         ])
         self.assertEqual(rc, 2)
         self.assertIn("FAIL check-stubs-not-regenerated", err)
@@ -97,12 +96,12 @@ class StubsNotRegeneratedTests(TestCase):
     def test_multi_service_only_flags_the_dirty_one(self) -> None:
         rc, err = self._run([
             "services/streamd/api.proto",
-            "services/streamd/api/gen/api.pb.go",
-            "services/webhookd/api/gen/api.pb.go",  # stub-only - dirty
+            "backend/apps/realtime/_streamd_pb2/api_pb2.py",
+            "backend/apps/webhooks/_webhookd_pb2/api_pb2.py",  # stub-only - dirty
         ])
         self.assertEqual(rc, 2)
         self.assertIn("webhookd", err)
-        self.assertNotIn("streamd - stubs changed", err)
+        self.assertNotIn("`streamd`", err)
 
     def test_python_pb2_stubs_are_also_watched(self) -> None:
         rc, err = self._run([
@@ -115,7 +114,7 @@ class StubsNotRegeneratedTests(TestCase):
         captured_args = []
         def fake_run(cmd, **_kwargs):
             captured_args.append(cmd)
-            return _FakeCompleted(stdout="services/streamd/api/gen/api.pb.go\n")
+            return _FakeCompleted(stdout="backend/apps/realtime/_streamd_pb2/api_pb2.py\n")
         from _hook_helpers import subprocess as helpers_subprocess
         with patch.object(helpers_subprocess, "run", side_effect=fake_run):
             hook._staged()

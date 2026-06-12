@@ -39,19 +39,19 @@ describe('GscKpiComponent', () => {
     fixture.detectChanges();
   });
 
-  it('renders the label and value', () => {
+  it('Given a label and value, When the KPI component renders, Then both are displayed', () => {
     expect(q('.gsc-kpi__label').textContent).toContain('Organic traffic');
     expect(q('.gsc-kpi__value').textContent).toContain('1.1K');
   });
 
-  it('shows a positive (green) delta with an up arrow for a rise', () => {
+  it('Given a positive delta, When the component renders, Then it displays a green tone and an up arrow', () => {
     const delta = q('.gsc-kpi__delta');
     expect(delta.classList).toContain('is-positive');
     expect(delta.textContent).toContain('+116%');
     expect(q('.gsc-kpi__delta mat-icon').textContent.trim()).toBe('arrow_upward');
   });
 
-  it('shows a negative (red) delta with a down arrow for a fall', () => {
+  it('Given a negative delta, When the component renders, Then it displays a red tone and a down arrow', () => {
     host.delta = -59;
     host.deltaSuffix = '';
     fixture.detectChanges();
@@ -61,21 +61,21 @@ describe('GscKpiComponent', () => {
     expect(q('.gsc-kpi__delta mat-icon').textContent.trim()).toBe('arrow_downward');
   });
 
-  it('inverts colour when lowerIsBetter (a fall is good)', () => {
+  it('Given a negative delta and lowerIsBetter is true, When it renders, Then the delta shows as positive (green)', () => {
     host.delta = -59;
     host.lowerIsBetter = true;
     fixture.detectChanges();
     expect(q('.gsc-kpi__delta').classList).toContain('is-positive');
   });
 
-  it('treats a rise as bad when lowerIsBetter', () => {
+  it('Given a positive delta and lowerIsBetter is true, When it renders, Then the delta shows as negative (red)', () => {
     host.delta = 12;
     host.lowerIsBetter = true;
     fixture.detectChanges();
     expect(q('.gsc-kpi__delta').classList).toContain('is-negative');
   });
 
-  it('renders a flat (no-change) delta with no arrow when delta is 0', () => {
+  it('Given a delta of 0, When it renders, Then it shows a flat tone without an arrow', () => {
     host.delta = 0;
     fixture.detectChanges();
     const delta = q('.gsc-kpi__delta');
@@ -83,7 +83,7 @@ describe('GscKpiComponent', () => {
     expect(q('.gsc-kpi__delta mat-icon')).toBeNull();
   });
 
-  it('hides the delta entirely when delta is null', () => {
+  it('Given a null delta, When it renders, Then the delta element is omitted', () => {
     host.delta = null;
     fixture.detectChanges();
     expect(q('.gsc-kpi__delta')).toBeNull();

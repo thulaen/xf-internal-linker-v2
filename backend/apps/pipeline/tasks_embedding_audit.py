@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
     queue="pipeline",
     soft_time_limit=60 * 60,  # 1h soft
     time_limit=60 * 60 + 300,  # hard + 5m grace
-    max_retries=0,
+    max_retries=None,
 )
 @HelperConstraint(
     gpu_required=False,

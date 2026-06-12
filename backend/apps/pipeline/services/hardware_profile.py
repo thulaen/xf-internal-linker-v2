@@ -55,7 +55,6 @@ class HardwareProfile:
     cpu_cores: int
     tier: Tier
     vram_gb: float = 0.0
-    has_cuda: bool = False
 
     def describe(self) -> str:
         return f"tier={self.tier} ram={self.ram_gb:.1f}GB cores={self.cpu_cores}"

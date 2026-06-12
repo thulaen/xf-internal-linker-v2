@@ -1,25 +1,22 @@
 #!/usr/bin/env python3
-"""Slice 1.5 — block direct Python<->Go imports across the services tier.
+"""Slice 1.5 — block direct Python calls into the services tier.
 
 Rule F-compliant (FAIL / WHY / UNBLOCK). Hard-block at commit.
 
 What this hook enforces (per ADR 0006 § Decision point 3 and
 docs/MODULAR-MONOLITH.md § Services tier rule 3):
 
-  Python may not import or shell into Go services. Go may not embed or shell
-  into Python code. The only legal channel is the RPC contract declared in
+  Python may not ctypes-load, subprocess, or os.system directly into a
+  `services/` service. The only legal channel is the RPC contract declared in
   services/<name>/api.proto or services/<name>/api.http.md.
 
-What it flags (using AST for Python and a comment-stripped regex pass for Go,
-so docstrings and comments do not trip the hook):
+What it flags (using AST for Python, so docstrings and comments do not trip
+the hook):
 
   Python: ctypes.CDLL(...) / ctypes.cdll.LoadLibrary(...) whose argument is a
           string literal pointing into `services/`. subprocess.run|call|Popen|
           check_output|check_call whose first arg references a `services/`
           path. os.system(...) likewise.
-
-  Go:     exec.Command("python"|"python3"|"manage.py"|"/repo/backend/...").
-          exec.CommandContext(ctx, "python"|...).
 
 The hook's helper `scan_paths(paths)` is exposed for unit tests so the test
 suite never has to write to the real git index.
@@ -28,7 +25,6 @@ suite never has to write to the real git index.
 from __future__ import annotations
 
 import ast
-import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -39,7 +35,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Files outside these suffixes are skipped — keeps the scan cheap.
 _PY_SUFFIXES = (".py",)
-_GO_SUFFIXES = (".go",)
 
 # Subprocess functions we care about.
 _SUBPROCESS_FUNCS = frozenset(
@@ -49,20 +44,6 @@ _SUBPROCESS_FUNCS = frozenset(
 # Substrings inside a string-literal argument that indicate the Python code is
 # shelling into the services tier. The leading "./" form is the common one.
 _SERVICES_HINTS = ("services/", "./services/")
-
-# Comment / string stripper for Go source.
-_GO_TOKEN_RE = re.compile(
-    r'("(?:\\.|[^"\\\n])*")|(`[^`]*`)|(//[^\n]*)|(/\*[\s\S]*?\*/)',
-)
-
-# exec.Command / exec.CommandContext calls that name a Python entry point or
-# reach into the backend Django tree. The (?:...,\s*) optional non-capturing
-# group covers CommandContext's extra `ctx` first argument.
-_GO_EXEC_RE = re.compile(
-    r'\bexec\.(?:Command|CommandContext)\s*\('
-    r'(?:[^,()]+,\s*)?'
-    r'"(python|python3|manage\.py|/repo/backend/[^"]+)"'
-)
 
 
 @dataclass(frozen=True)
@@ -167,47 +148,6 @@ def _scan_python(path: Path, source: str) -> list[Violation]:
 
 
 # ---------------------------------------------------------------------------
-# Go scan
-# ---------------------------------------------------------------------------
-
-
-def _strip_go_noncode(source: str) -> str:
-    """Remove `// ...` line comments and `/* ... */` block comments while
-    preserving double-quoted and backtick-quoted string literals so we never
-    flag matches that sit inside a comment or doc-string-style header."""
-
-    def _repl(match: re.Match[str]) -> str:
-        # Group 1 = "..." string. Group 2 = `...` raw string. Both kept.
-        if match.group(1) is not None or match.group(2) is not None:
-            return match.group(0)
-        # Group 3 / 4 = line / block comment. Replace with whitespace of the
-        # same length so line numbers are preserved.
-        text = match.group(0)
-        return "".join("\n" if ch == "\n" else " " for ch in text)
-
-    return _GO_TOKEN_RE.sub(_repl, source)
-
-
-def _scan_go(path: Path, source: str) -> list[Violation]:
-    """Return every exec.Command-into-Python violation in a Go source string."""
-    violations: list[Violation] = []
-    cleaned = _strip_go_noncode(source)
-    lines = cleaned.splitlines()
-    for line_no, line in enumerate(lines, start=1):
-        match = _GO_EXEC_RE.search(line)
-        if match:
-            violations.append(
-                Violation(
-                    path,
-                    line_no,
-                    line.strip()[:160],
-                    f"exec.Command(\"{match.group(1)}\", ...)",
-                )
-            )
-    return violations
-
-
-# ---------------------------------------------------------------------------
 # Public API used by the test suite and main()
 # ---------------------------------------------------------------------------
 
@@ -229,13 +169,11 @@ def scan_paths(paths: Iterable[Path]) -> list[Violation]:
             continue
         if suffix in _PY_SUFFIXES:
             violations.extend(_scan_python(path, source))
-        elif suffix in _GO_SUFFIXES:
-            violations.extend(_scan_go(path, source))
     return violations
 
 
 def _staged_files() -> list[Path]:
-    """Return staged Python and Go files via git diff."""
+    """Return staged Python files via git diff."""
     try:
         result = subprocess.run(
             ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
@@ -253,7 +191,7 @@ def _staged_files() -> list[Path]:
         if not line:
             continue
         suffix = Path(line).suffix.lower()
-        if suffix not in (*_PY_SUFFIXES, *_GO_SUFFIXES):
+        if suffix not in _PY_SUFFIXES:
             continue
         paths.append(REPO_ROOT / line)
     return paths
@@ -262,20 +200,18 @@ def _staged_files() -> list[Path]:
 def _format_failure(violations: list[Violation]) -> str:
     """Build the Rule-F three-part FAIL message."""
     body = [
-        "FAIL check-no-cross-language-import: staged code crosses the "
-        "Python <-> Go services tier boundary directly.",
+        "FAIL check-no-cross-language-import: staged Python code reaches into "
+        "the services/ tier directly.",
         "WHY: ADR 0006 Decision point 3 and docs/MODULAR-MONOLITH.md "
-        "Services tier rule 3 state Python and Go talk only through "
+        "Services tier rule 3 state Python talks to a service only through "
         "services/<name>/api.proto or services/<name>/api.http.md. Direct "
-        "ctypes / cgo / subprocess crosses the boundary and re-couples the "
-        "build, which is exactly what the modular-monolith refactor is "
+        "ctypes / subprocess / os.system crosses the boundary and re-couples "
+        "the build, which is exactly what the modular-monolith refactor is "
         "removing.",
         "UNBLOCK: Remove the direct call and route through the owning Django "
         "module's api.py over the RPC contract. For streamd specifically, "
         "use apps.realtime._streamd_client (private; do not import outside "
-        "apps.realtime/). For Go services calling Python, expose the "
-        "Python-owned data through that Django module's api.py and call "
-        "the gRPC service instead of shelling out to python3 / manage.py.",
+        "apps.realtime/).",
     ]
     text = "\n".join(body) + "\n"
     for v in violations:

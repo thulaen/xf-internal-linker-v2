@@ -3,12 +3,6 @@ import { CommonModule } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, interval, of, startWith, switchMap } from 'rxjs';
 
-import { MatButtonModule } from '@angular/material/button';
-import { MatCardModule } from '@angular/material/card';
-import { MatIconModule } from '@angular/material/icon';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-
 import { ServiceCardComponent } from '../diagnostics/service-card/service-card.component';
 import { ServiceStatus } from '../diagnostics/diagnostics.service';
 import { PeHelperDirective } from '../shared/directives/pe-helper.directive';
@@ -20,11 +14,6 @@ import { ObservabilityService } from './observability.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
-    MatButtonModule,
-    MatCardModule,
-    MatIconModule,
-    MatProgressBarModule,
-    MatProgressSpinnerModule,
     ServiceCardComponent,
     PeHelperDirective,
   ],
@@ -74,3 +63,4 @@ export class ObservabilityComponent implements OnInit {
     return Math.min(100, Math.max(0, numericValue));
   }
 }
+

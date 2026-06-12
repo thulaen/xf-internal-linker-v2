@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
 """Rule L - generated stubs only move when api.proto / api.http.md moves.
 
-The repo commits generated protobuf + grpc stubs so the build is
-reproducible without re-running protoc. But it is easy to accidentally
-re-run protoc with a newer plugin version and end up with a giant
-unrelated diff in `_pb2.py`, `_pb2_grpc.py`, or `*.pb.go`. This hook
-blocks commits where the generated stubs were touched but the source
-contract (api.proto / api.http.md) was NOT.
+The repo commits generated protobuf stubs so the build is reproducible
+without re-running protoc. But it is easy to accidentally re-run protoc
+with a newer plugin version and end up with a giant unrelated diff in
+`_pb2.py` or `_pb2_grpc.py`. This hook blocks commits where the generated
+stubs were touched but the source contract (api.proto / api.http.md) was
+NOT.
 
 The intent is: stubs are derived artefacts. They change WHEN AND ONLY
 WHEN the contract changes. Anything else is generator-version drift.
 
 Watched stub patterns:
-  - services/<name>/api/gen/*.pb.go
-  - services/<name>/api/gen/*_grpc.pb.go
   - backend/apps/<app>/_<name>_pb2/api_pb2.py
   - backend/apps/<app>/_<name>_pb2/api_pb2_grpc.py
 
@@ -35,9 +33,6 @@ from _hook_helpers import run_git, staged_paths  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-_GO_STUB_RE = re.compile(
-    r"^services/([a-z][a-z0-9_-]*)/api/gen/.+\.pb\.go$"
-)
 _PY_STUB_RE = re.compile(
     r"^backend/apps/[a-z_]+/_([a-z][a-z0-9_-]*)_pb2/.+_pb2(?:_grpc)?\.py$"
 )
@@ -54,10 +49,6 @@ def _staged() -> list[str]:
 def _services_with_stub_diffs(paths: list[str]) -> set[str]:
     services: set[str] = set()
     for p in paths:
-        m = _GO_STUB_RE.match(p)
-        if m:
-            services.add(m.group(1))
-            continue
         m = _PY_STUB_RE.match(p)
         if m:
             services.add(m.group(1))

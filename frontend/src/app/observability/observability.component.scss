@@ -1,35 +1,4 @@
-.observability-page {
-  display: grid;
-  gap: 16px;
-  padding: 24px;
+/* Replaced with Tailwind classes in HTML per GSC-DESIGN-SYSTEM.md */
+:host {
+  display: block;
 }
-
-.page-header h1 {
-  margin: 0;
-  font-size: 28px;
-}
-
-.page-header p {
-  margin: 4px 0 0;
-  color: var(--color-text-secondary);
-}
-
-.service-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
-}
-
-.stack-card {
-  display: grid;
-  gap: 12px;
-  border: 1px solid var(--card-border);
-}
-
-.loading-row,
-.notice-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-

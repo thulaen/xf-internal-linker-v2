@@ -147,7 +147,7 @@ quality_evidence_finalize() {
 }
 
 quality_evidence_write() {
-  python scripts/write_quality_evidence.py "$@"
+  "${PYTHON_CMD:-python}" scripts/write_quality_evidence.py "$@"
 }
 
 quality_artifact_safe_prune_host() {

@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 """Turbo mutation coordinator — weighted N-way parallel split.
 
-Each language runs its own tool independently.  Python and TypeScript always
-run locally on Windows (their containers only live there).  C++, Go, Rust, and
-Haskell fan their targets out across every REACHABLE machine by weight: the
-Dell helper takes up to 60 % (a ceiling, not an exact target), Windows 30 %,
-and the Mint helper 10 %.  Any machine that is powered off is dropped before
-work is assigned and its share is redistributed to the machines that answer,
-so a switched-off box never blocks the run.  Surviving mutants are filed as
+Each language runs its own tool independently.  Python and TypeScript run their
+mutation tools on the Dell helper (their containers live there).  Rust fans its
+target workspaces out across every REACHABLE machine by weight, with Dell
+carrying the load.  Any machine that is powered off is dropped before work is
+assigned and its share is redistributed to the machines that answer, so a
+switched-off box never blocks the run.  Surviving mutants are filed as
 AutoIssues via ``manage.py file_mutation_survivors``.
 
 Usage::
 
     python scripts/turbo_mutation.py --language python [--dry-run] [--cores N]
-    python scripts/turbo_mutation.py --language cpp    [--dry-run] [--cores N]
+    python scripts/turbo_mutation.py --language rust   [--dry-run] [--cores N]
 
 ``--cores`` overrides the auto-detected CPU count on each machine.
 Set ``XF_TURBO_MUTATION=1`` to activate turbo mode from existing quality scripts.
@@ -35,7 +34,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = REPO_ROOT / "config" / "mutation-routing.json"
 TMP_DIR = REPO_ROOT / ".tmp"
 
-_ALL_LANGUAGES = ("python", "cpp", "typescript", "rust", "haskell")
+_ALL_LANGUAGES = ("python", "typescript", "rust")
 
 
 def _load_machine_routing():
@@ -227,11 +226,52 @@ def _file_survivors(tool: str, report_host: Path, dry_run: bool = False) -> str:
 
 # ── per-language runners ──────────────────────────────────────────────────────
 
+def _changed_python_mutation_paths() -> list[str]:
+    """Backend Python paths to mutate, limited to changed existing files."""
+    raw = os.environ.get("XF_MUTMUT_PATHS") or os.environ.get("COMMIT_SCOPE_PATHS")
+    if raw:
+        candidates = raw.split()
+    else:
+        mode = os.environ.get("COMMIT_SCOPE_MODE", "staged")
+        try:
+            out = subprocess.check_output(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts" / "commit_scope.py"),
+                    "paths",
+                    "--mode",
+                    mode,
+                ],
+                text=True,
+                encoding="utf-8",
+                cwd=str(REPO_ROOT),
+            )
+        except Exception:
+            out = ""
+        candidates = out.splitlines()
+
+    paths: list[str] = []
+    for raw_path in candidates:
+        path = raw_path.strip().replace("\\", "/")
+        if path.startswith("backend/"):
+            path = path.removeprefix("backend/")
+        if not path.startswith("apps/") or not path.endswith(".py"):
+            continue
+        if (REPO_ROOT / "backend" / path).is_file():
+            paths.append(path)
+    return list(dict.fromkeys(paths))
+
+
 def _run_python(cfg: dict, cores_local: int, dry_run: bool) -> str:
-    """mutmut on all backend/apps Python files — local only, all cores."""
-    paths = os.environ.get("XF_MUTMUT_PATHS", "apps/")
+    """mutmut on changed backend/apps Python files only."""
+    paths = _changed_python_mutation_paths()
     report_host = TMP_DIR / "mutmut-survivors.json"
     TMP_DIR.mkdir(exist_ok=True)
+    if not paths:
+        report_host.write_text(
+            json.dumps({"skipped": True, "mutants": []}), encoding="utf-8"
+        )
+        return "[turbo] mutmut: No changed Python mutation targets — skipping.\n"
 
     mutmut_cmd = (
         f"cd /repo/backend && "
@@ -242,17 +282,17 @@ def _run_python(cfg: dict, cores_local: int, dry_run: bool) -> str:
         f"ln -s /repo/backend/config \"$workdir/config\"; "
         f"ln -s /repo/backend/pytest.ini \"$workdir/pytest.ini\"; "
         f"ln -s /repo/backend/conftest.py \"$workdir/conftest.py\"; "
-        f"python - \"$workdir\" {json.dumps(paths)} <<'PY'\n"
+        f"python - \"$workdir\" <<'PY'\n"
         f"from pathlib import Path\n"
         f"import sys\n"
         f"import os\n"
         f"import json\n"
         f"workdir = Path(sys.argv[1])\n"
-        f"paths = [p for p in sys.argv[2].split() if p]\n"
+        f"paths = {json.dumps(paths)}\n"
         f"tests = {json.dumps(os.environ.get('XF_MUTMUT_TESTS', 'apps'))}\n"
         f"workdir.joinpath('pyproject.toml').write_text(\n"
         f"    '[tool.mutmut]\\n'\n"
-        f"    f'paths_to_mutate = \"{{paths[0]}}\"\\n'\n"
+        f"    + 'paths_to_mutate = ' + json.dumps(paths) + '\\n'\n"
         f"    'also_copy = [\"apps\", \"config\", \"pytest.ini\", \"conftest.py\"]\\n'\n"
         f"    f'runner = \"env DJANGO_SETTINGS_MODULE=config.settings.development python -m pytest -x -q --reuse-db {{tests}}\"\\n'\n"
         f"    'tests_dir = \"apps/\"\\n',\n"
@@ -260,7 +300,7 @@ def _run_python(cfg: dict, cores_local: int, dry_run: bool) -> str:
         f")\n"
         f"PY\n"
         f"cd \"$workdir\"; "
-        f"find {paths} -name '*.pyc' -delete 2>/dev/null; "
+        f"find apps -name '*.pyc' -delete 2>/dev/null; "
         f"ln -sf \"$MUTMUT_CACHE_DIR\" .mutmut-cache; "
         f"python -m mutmut run --max-children {cores_local} || true; "
         f"python -m mutmut export-cicd-stats > /tmp/mutmut-survivors.json 2>/dev/null || true; "
@@ -281,47 +321,6 @@ def _fanout(
     _dispatch_to_machines(machines, plan, body)
 
 
-def _run_cpp(cfg: dict, machines: list[dict], machine_cores: dict, dry_run: bool) -> str:
-    """Mull on the C++ binaries — weighted across every reachable machine."""
-    binaries: list[str] = cfg["languages"]["cpp"]["binaries"]
-    report_dir_host = TMP_DIR / "mull-reports"
-    report_dir_host.mkdir(parents=True, exist_ok=True)
-    outputs: list[str] = []
-    lock = threading.Lock()
-
-    def body(machine: dict, bins: list[str]) -> None:
-        for binary in bins:
-            cmd = (
-                f"mull-runner-19 -reporters Elements -report-dir /tmp/mull-reports "
-                f"/repo/backend/build/{binary} -timeout 60 || true"
-            )
-            rc, out = _run_on_machine(machine, "compiled-mutation-tools", cmd, timeout=180)
-            with lock:
-                outputs.append(f"[turbo cpp {machine['name']}:{binary}] rc={rc}\n{out}")
-
-    _fanout(machines, binaries, body)
-    result = "\n".join(outputs)
-    print(result)
-
-    for machine in machines:
-        rc, out = _run_on_machine(
-            machine, "compiled-mutation-tools",
-            "cat /tmp/mull-reports/*.json 2>/dev/null || true", timeout=30,
-        )
-        if out.strip():
-            try:
-                data = json.loads(out.strip())
-                (report_dir_host / f"mull-{machine['name']}.json").write_text(
-                    json.dumps(data), encoding="utf-8")
-            except json.JSONDecodeError:
-                pass
-
-    filing_out = ""
-    for report_file in sorted(report_dir_host.glob("mull-*.json")):
-        filing_out += _file_survivors("mull", report_file, dry_run)
-    return result + filing_out
-
-
 def _rust_workspaces(cfg: dict) -> list[str]:
     """Configured Rust workspaces — the plural `workspaces` list, else legacy."""
     rust = cfg["languages"]["rust"]
@@ -334,6 +333,19 @@ def _rust_workspaces(cfg: dict) -> list[str]:
 def _rust_slug(workspace: str) -> str:
     """Filesystem-safe slug for a workspace path (for per-workspace filenames)."""
     return workspace.strip("/").replace("/", "-") or "root"
+
+
+def _rust_mutation_jobs(machine: dict, machine_cores: dict) -> int:
+    """Rust cargo-mutants jobs for a machine; Dell defaults to 16."""
+    override = os.environ.get("XF_RUST_MUTATION_JOBS")
+    if override:
+        try:
+            return max(1, int(override))
+        except ValueError:
+            return 16
+    if machine.get("name") == "dell" or machine.get("context") == "dell":
+        return 16
+    return _jobs_for(machine_cores.get(machine["name"], 2), machine["share"])
 
 
 def _run_rust(cfg: dict, machines: list[dict], machine_cores: dict, dry_run: bool) -> str:
@@ -350,13 +362,14 @@ def _run_rust(cfg: dict, machines: list[dict], machine_cores: dict, dry_run: boo
 
     def body(machine: dict, _slice: list) -> None:
         name = machine["name"]
-        jobs = _jobs_for(machine_cores.get(name, 2), machine["share"])
+        jobs = _rust_mutation_jobs(machine, machine_cores)
         for workspace in workspaces:
             slug = _rust_slug(workspace)
             out_dir = f"/tmp/mutants-{name}-{slug}.out"
+            diff_file = os.environ.get("MUTATION_DIFF_FILE", "/repo/.tmp/rust-mutation.diff")
             cmd = (
                 f"[ -f {workspace}/Cargo.toml ] || {{ echo '{{}}'; exit 0; }}; "
-                f"cd {workspace} && cargo mutants --jobs {jobs} "
+                f"cd {workspace} && cargo mutants --in-diff {diff_file} --jobs {jobs} "
                 f"--output {out_dir} || true; "
                 f"cat {out_dir}/outcomes.json 2>/dev/null || echo '{{}}'"
             )
@@ -380,50 +393,6 @@ def _run_rust(cfg: dict, machines: list[dict], machine_cores: dict, dry_run: boo
             slug = _rust_slug(workspace)
             report_file = TMP_DIR / f"rust-outcomes-{machine['name']}-{slug}.json"
             filing_out += _file_survivors("cargo-mutants", report_file, dry_run)
-    return result + filing_out
-
-
-def _run_haskell(cfg: dict, machines: list[dict], machine_cores: dict, dry_run: bool) -> str:
-    """mucheck — run on every reachable machine; parse stdout to JSON and file."""
-    workspace = cfg["languages"]["haskell"]["workspace"]
-    TMP_DIR.mkdir(exist_ok=True)
-    outputs: list[str] = []
-    lock = threading.Lock()
-
-    def body(machine: dict, _slice: list) -> None:
-        name = machine["name"]
-        cmd = (
-            f"cd {workspace} && "
-            f"mucheck --timeout 60 --module-dir . --test-suite all 2>&1 | tee /tmp/mucheck-{name}.txt || true; "
-            f"python3 -c \""
-            f"import re, json; "
-            f"txt=open('/tmp/mucheck-{name}.txt').read(); "
-            f"survivors=[{{'file':m.group(1),'line':int(m.group(2)),'mutator':m.group(3),'replacement':''}} "
-            f"for m in re.finditer(r'Mutant.*?\\\"([^:]+):(\\d+).*?survived.*?\\((.+?)\\)', txt, re.I|re.S)]; "
-            f"json.dump({{'survivors':survivors}}, open('/tmp/mucheck-report-{name}.json','w'))\""
-        )
-        rc, out = _run_on_machine(machine, "compiled-mutation-tools", cmd, timeout=480)
-        with lock:
-            outputs.append(f"[turbo haskell {name}] rc={rc}\n{out}")
-
-    _fanout(machines, list(range(len(machines))), body)
-    result = "\n".join(outputs)
-    print(result)
-
-    filing_out = ""
-    for machine in machines:
-        rc2, raw = _run_on_machine(
-            machine, "compiled-mutation-tools",
-            f"cat /tmp/mucheck-report-{machine['name']}.json 2>/dev/null || echo '{{\"survivors\":[]}}'",
-            timeout=20,
-        )
-        report_host = TMP_DIR / f"mucheck-report-{machine['name']}.json"
-        try:
-            report_host.write_text(
-                json.dumps(json.loads(raw.strip() or '{"survivors":[]}')), encoding="utf-8")
-        except json.JSONDecodeError:
-            pass
-        filing_out += _file_survivors("mucheck", report_host, dry_run)
     return result + filing_out
 
 
@@ -533,9 +502,7 @@ def main() -> int:
     local_cores = cores.get("windows") or next(iter(cores.values()), 2)
     dispatch = {
         "python":     lambda: _run_python(cfg, local_cores, args.dry_run),
-        "cpp":        lambda: _run_cpp(cfg, machines, cores, args.dry_run),
         "rust":       lambda: _run_rust(cfg, machines, cores, args.dry_run),
-        "haskell":    lambda: _run_haskell(cfg, machines, cores, args.dry_run),
         "typescript": lambda: _run_typescript(cfg, local_cores, args.dry_run),
     }
 

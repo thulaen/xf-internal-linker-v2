@@ -42,35 +42,35 @@ describe('GscSummaryCardComponent', () => {
     fixture.detectChanges();
   });
 
-  it('should create', () => {
+  it('Given standard inputs, When instantiated, Then the component builds successfully', () => {
     expect(host).toBeTruthy();
   });
 
-  it('renders the title', () => {
+  it('Given a title input, When rendered, Then the title text is displayed', () => {
     const titleEl = fixture.nativeElement.querySelector('.gsc-summary-card__title');
     expect(titleEl.textContent.trim()).toBe('Performance');
   });
 
-  it('renders a "Full report" link to the provided route', () => {
+  it('Given a reportLink input, When rendered, Then the report link points to the expected route', () => {
     const link = fixture.nativeElement.querySelector('a.gsc-summary-card__report');
     expect(link).toBeTruthy();
     expect(link.getAttribute('href')).toContain('/analytics');
     expect(link.textContent).toContain('Full report');
   });
 
-  it('projects body content into the card', () => {
+  it('Given projected body content, When rendered, Then the projected content is visible inside the card', () => {
     const projected = fixture.nativeElement.querySelector('.projected-body');
     expect(projected).toBeTruthy();
     expect(projected.textContent).toContain('body content');
   });
 
-  it('hides the report link when reportLink is null', () => {
+  it('Given a null reportLink, When rendered, Then the report link is hidden', () => {
     host.reportLink = null;
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('a.gsc-summary-card__report')).toBeNull();
   });
 
-  it('shows an icon only when one is provided', () => {
+  it('Given an icon input, When rendered, Then the specified icon is displayed, else it is hidden', () => {
     expect(fixture.nativeElement.querySelector('.gsc-summary-card__icon')).toBeNull();
     host.icon = 'insights';
     fixture.detectChanges();

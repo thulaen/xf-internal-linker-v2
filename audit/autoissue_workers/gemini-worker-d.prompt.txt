@@ -1,0 +1,18 @@
+You are Worker D using Gemini 3.1 Pro Preview High. Use high reasoning for this task.
+
+You are in a shared checkout on master. Do not create/switch branches. Do not stage, commit, push, or bypass checks. Other workers may edit other files, so do not revert unrelated changes.
+
+Goal: resolve these AutoIssues only: #21241, #21243, #21245, #21248. They are test-case specs for `frontend/src/app/observability/observability.component.html`, `.scss`, `.ts`, and `frontend/src/app/observability/observability.service.ts`.
+
+Ownership: only edit files under `frontend/src/app/observability/` and directly needed nearby tests/specs. If you need any other path, stop and report it.
+
+Required process:
+1. Read PLAIN-ENGLISH-RULE.md and THINK-BEFORE-YOU-CODE.md before editing.
+2. Read resolved lessons for `frontend/src/app/observability` before code.
+3. Use behavior wording: Given / When / Then.
+4. Test-first: add or update focused Angular tests before or alongside implementation. Run focused tests if practical.
+5. Keep fixes small, reduce duplicate code if touched, and avoid unrelated restyling.
+6. Resolve each AutoIssue only after proof, with lessons_learned containing both Trap: and Fix shape:.
+7. Final answer must list changed files, tests run, issue IDs resolved, and any blockers.
+
+Do not touch AGENT-HANDOFF.md or AI-CONTEXT.md.

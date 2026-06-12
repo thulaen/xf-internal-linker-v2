@@ -216,6 +216,7 @@ const STAGE1_RETRIEVERS_DEFAULTS: Stage1RetrieverSettings = {
   lexical_retriever_enabled: false,
   query_expansion_retriever_enabled: false,
   xenforo_bm25_retriever_enabled: false,
+  tantivy_bm25_retriever_enabled: false,
 };
 
 const PHASE6_PICKS_DEFAULTS: Phase6PickSettings = {

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Distribute the Django pytest suite across machines, Dell carrying ~88%.
+"""Distribute the Django pytest suite across machines, Dell carrying 100%.
 
-Dell runs ~88% of the changed-test targets (config: ``pytest_machines`` in
+Dell runs 100% of the changed-test targets (config: ``pytest_machines`` in
 ``config/mutation-routing.json``); Windows runs the rest. Unlike lint, these
 tests touch a database — so Dell runs them against ITS OWN empty Postgres +
 Redis test stack (``docker-compose.dell-test.yml`` on the ``xf_dell_test_net``
@@ -17,13 +17,19 @@ Reuses the proven building blocks rather than re-inventing them:
   shake the mutation, coverage, and lint gates use, into this gate's OWN named
   volume ``xf_test_repo`` so the gates never race on one volume.
 
-Fail-open: if no Dell context answers the probe, the split collapses to a single
-local machine and EVERY target runs locally (today's behaviour). If Dell answers
-but its sync or manifest verify fails, that slice re-runs locally. Pass/fail is
-unchanged — only WHERE each target runs.
+Fail-CLOSED at the probe layer: if the configured Dell context does not answer
+its reachability probe, ``machine_routing._select_machines`` raises and this gate
+hard-fails with a "fix Dell" message — work is NEVER silently moved to Windows.
+If Dell answers the probe but a slice's sync or manifest verify fails mid-run,
+that slice re-runs locally and the fallback is announced on stdout
+(``dell->local(unverified)``); the check still runs and pass/fail is unchanged —
+only WHERE each target runs. The two characterization tests in
+``_LOCAL_ONLY_TARGET_PARTS`` always run on the local Windows stack because they
+need services that only exist there.
 
-Opt-in: callers set ``XF_PYTEST_SPLIT=1``. With it unset the existing single
-local pytest run is used, so default behaviour does not change.
+For LOCAL commits ``scripts/run-python-quality.sh`` defaults ``XF_PYTEST_SPLIT=1``
+so Dell runs 100% of the changed test targets; CI keeps it off and runs them in
+the CI container. Set ``XF_PYTEST_SPLIT=0`` to force a local-only run.
 
 Concurrency safety: Dell runs its WHOLE slice in ONE pytest process against ONE
 test database, so there is no within-Dell database contention. Dell's slice and
@@ -152,7 +158,7 @@ def _host_hashes(rel_slice: list[str]) -> dict[str, str]:
 def _tar_producer(env: dict) -> subprocess.Popen:
     """One tar producer (backend + .githooks, shared exclude list) for the push."""
     return subprocess.Popen(
-        ["tar", "-cf", "-", *_TAR_EXCLUDES, *_SYNC_ROOTS],
+        ["tar", "-cf", "-", *_TAR_EXCLUDES, "backend", "rust", "services", ".githooks", "docs", "config", "docker-compose.yml", ".env.example", "nginx", "otelcol-config.yaml", "frontend/src/app", "scripts"],
         cwd=REPO_ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env,
     )
 
@@ -209,13 +215,18 @@ def _verify_snapshot(run_remote, rel_slice: list[str],
     """True only if the remote sha256 of every slice target matches the host's."""
     rc, out = run_remote(rel_slice)
     if rc != 0:
+        print("REMOTE SHA FAILED. rc=", rc, "out=", out)
         return False
     remote: dict[str, str] = {}
     for line in out.splitlines():
         parts = line.split()
         if len(parts) >= 2:
             remote[parts[-1].replace("\\", "/")] = parts[0].strip()
-    return all(remote.get(rel) == host_hashes.get(rel) for rel in _target_files(rel_slice))
+    match = all(remote.get(rel) == host_hashes.get(rel) for rel in _target_files(rel_slice))
+    if not match:
+        print("HOST HASHES:", host_hashes)
+        print("REMOTE HASHES:", remote)
+    return match
 
 
 def _remote_pytest_cmd(context: str, targets: list[str]) -> list[str]:
@@ -238,17 +249,9 @@ def _remote_pytest_cmd(context: str, targets: list[str]) -> list[str]:
         "-e", "POSTGRES_HOST=postgres",
         "-e", "REDIS_URL=redis://redis:6379/0",
         "-e", "CELERY_BROKER_URL=redis://redis:6379/2",
-        "-e", "PYTHONPATH=/opt/xf/compiled/backend:/repo/backend",
+        "-e", "PYTHONPATH=/opt/xf/compiled/active:/opt/xf/compiled:/repo/backend",
         _IMAGE,
         "python", "-m", "pytest", *_PYTEST_FLAGS, *targets,
-    ]
-
-
-def _local_pytest_cmd(targets: list[str]) -> list[str]:
-    """The ``docker compose run`` command that runs a pytest slice locally."""
-    return [
-        "docker", "compose", "run", "--rm", "-T", "-w", "/repo/backend",
-        "backend-quality", "python", "-m", "pytest", *_PYTEST_FLAGS, *targets,
     ]
 
 
@@ -271,37 +274,15 @@ def _pytest_slice_on_remote(context: str, targets: list[str]) -> tuple[int, str]
     manifest verify failed) so the caller re-runs it locally.
     """
     env = {**os.environ, "MSYS_NO_PATHCONV": "1"}
-    if _sync_source_to_context(context, env) is not None:
+    if (sync_err := _sync_source_to_context(context, env)) is not None:
+        print("SYNC ERR:", sync_err)
         return None
     if not _verify_snapshot(_run_remote_sha(context, env), targets, _host_hashes(targets)):
+        print("VERIFY ERR: snapshot mismatch!")
         return None
     # Fix permission for xf_dell_quality_cache before pytest runs as non-root user
     subprocess.run(["docker", "--context", context, "run", "--rm", "-v", "xf_dell_quality_cache:/tmp/xf-test-cache", "alpine:latest", "chmod", "-R", "777", "/tmp/xf-test-cache"], env=env, check=False)
     return _run(_remote_pytest_cmd(context, targets), env, timeout=1800)
-
-
-def _pytest_slice_local(targets: list[str]) -> tuple[int, str]:
-    """Run one pytest slice on the always-trusted local Windows backend-quality."""
-    env = {**os.environ, "MSYS_NO_PATHCONV": "1"}
-    return _run(_local_pytest_cmd(targets), env, timeout=1800)
-
-
-def _is_local_only_target(target: str) -> bool:
-    """True when a test talks to services only running on the Windows stack."""
-    target_file = _target_file(target).replace("\\", "/")
-    return any(part in target_file for part in _LOCAL_ONLY_TARGET_PARTS)
-
-
-def _split_local_only_targets(targets: list[str]) -> tuple[list[str], list[str]]:
-    """Return (shardable, local_only) while preserving target order."""
-    shardable: list[str] = []
-    local_only: list[str] = []
-    for target in targets:
-        if _is_local_only_target(target):
-            local_only.append(target)
-        else:
-            shardable.append(target)
-    return shardable, local_only
 
 
 def run_pytest_sharded(targets: list[str]) -> tuple[int, str]:
@@ -315,28 +296,20 @@ def run_pytest_sharded(targets: list[str]) -> tuple[int, str]:
         return 0, "[PYTEST SPLIT: no changed test targets]\n"
     routing = _load_machine_routing()
     machines = routing._select_machines(_load_pytest_routing_config())
-    shardable_targets, local_only_targets = _split_local_only_targets(targets)
-    plan = routing._partition_weighted(shardable_targets, machines)
-    if local_only_targets:
-        local_machine = next(
-            (machine for machine in machines if machine["transport"] != "docker_context"),
-            machines[0],
-        )
-        plan.setdefault(local_machine["name"], []).extend(local_only_targets)
+    plan = routing._partition_weighted(targets, machines)
 
     results: dict[str, tuple[int, str]] = {}
     lock = threading.Lock()
 
     def per_machine(machine: dict, slice_targets: list[str]) -> None:
-        if machine["transport"] == "docker_context":
-            outcome = _pytest_slice_on_remote(machine.get("context", "dell"), slice_targets)
-            where = machine["name"]
-            if outcome is None:  # untrusted → fail-open re-run locally
-                outcome = _pytest_slice_local(slice_targets)
-                where = f"{machine['name']}->local(unverified)"
-        else:
-            outcome = _pytest_slice_local(slice_targets)
-            where = f"{machine['name']}(local)"
+        if machine["transport"] != "docker_context":
+            with lock:
+                results[machine["name"]] = (1, "transport not allowed; pytest runs only on the Dell docker context")
+            return
+        outcome = _pytest_slice_on_remote(machine.get("context", "dell"), slice_targets)
+        where = machine["name"]
+        if outcome is None:  # untrusted -> fail-closed
+            outcome = (1, f"Dell source sync or manifest verification failed for pytest.")
         with lock:
             results[machine["name"]] = outcome
             sys.stdout.write(
@@ -370,11 +343,12 @@ def _append_evidence(evidence_out, **fields) -> None:
 
 def _write_pytest_evidence(evidence_out, rc: int) -> None:
     """Record the sharded pytest run's merged verdict as one QualityEvidence row."""
-    passed = rc == 0
+    # rc=5 means no tests collected, which is a success for scoped runs.
+    passed = rc == 0 or rc == 5
     _append_evidence(
         evidence_out, check_type="normal_test",
         status="passed" if passed else "failed", tool_name="pytest",
-        command="run_pytest_on_context.py --targets <changed test targets> (sharded Dell 88%)",
+        command="run_pytest_on_context.py --targets <changed test targets> (sharded Dell 100%)",
         summary=f"Sharded backend pytest targets {'passed' if passed else 'failed'}.",
         failure_fingerprint=f"pytest:{rc}",
     )
@@ -397,16 +371,40 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(list(argv if argv is not None else sys.argv[1:]))
     targets = [t.replace("\\", "/").removeprefix("backend/") for t in args.targets if t.strip()]
     evidence_out = Path(args.evidence_out) if args.evidence_out else None
+    
     if not targets:
         sys.stdout.write("[PYTEST SPLIT: no changed test targets — nothing to run]\n")
         return 0
-    rc, out = run_pytest_sharded(targets)
+
+    from quality_cache import QualityCache
+    cache = QualityCache(REPO_ROOT)
+    subjects = {
+        t: cache.subject_hash_for_files([REPO_ROOT / "backend" / _target_file(t)])
+        for t in targets
+    }
+    to_run, skipped = cache.filter("pytest", subjects)
+    
+    if skipped:
+        sys.stdout.write(f"[PYTEST CACHE: skipped {len(skipped)} unchanged targets]\n")
+    if not to_run:
+        sys.stdout.write("[PYTEST CACHE: all targets unchanged — nothing to run]\n")
+        if evidence_out is not None:
+            _write_pytest_evidence(evidence_out, 0)
+        return 0
+
+    rc, out = run_pytest_sharded(to_run)
     if out:
         sys.stdout.write(out)
+    
     sys.stdout.write(f"[PYTEST RESULT: rc={rc}]\n")
     if evidence_out is not None:
         _write_pytest_evidence(evidence_out, rc)
-    return rc
+    
+    if rc == 0 or rc == 5:
+        cache.record("pytest", [subjects[t] for t in to_run])
+    
+    # Return 0 if rc is 5 (no tests collected) to prevent shell script failures.
+    return 0 if rc == 5 else rc
 
 
 if __name__ == "__main__":

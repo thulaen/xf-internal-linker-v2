@@ -51,6 +51,29 @@ def test_turbo_python_mutation_uses_temp_pyproject_config() -> None:
     assert "mutmut run --max-children" in text
 
 
+def test_turbo_python_mutation_has_no_whole_apps_default() -> None:
+    text = _read("scripts/turbo_mutation.py")
+
+    assert 'os.environ.get("XF_MUTMUT_PATHS", "apps/")' not in text
+    assert "_changed_python_mutation_paths" in text
+    assert "No changed Python mutation targets" in text
+
+
+def test_backend_mutation_image_pins_multicore_mutmut() -> None:
+    text = _read("backend/Dockerfile")
+
+    assert "mutmut==3.5.0" in text
+    assert "mutmut==2.5.1" not in text
+
+
+def test_compiled_mutation_image_requires_cargo_mutants() -> None:
+    dockerfile = _read("tools/mutation/Dockerfile")
+    compose = _read("docker-compose.yml")
+
+    assert "cargo mutants --version" in dockerfile
+    assert "command -v cargo-mutants" in compose
+
+
 def test_windows_python_mutation_uses_temp_pyproject_config() -> None:
     text = _read("scripts/run-windows-mutation.ps1")
 
@@ -80,14 +103,12 @@ def test_other_mutation_wrappers_expose_expected_tool_contracts() -> None:
     # Only the two surviving mutation wrappers: Angular (TypeScript/Stryker)
     # and Rust (cargo-mutants). C++, Go, and Haskell removed per ADR 0007.
     checks = {
-        "scripts/run-angular-quality.sh": (
+        "scripts/run-angular-mutation.sh": (
             "npx stryker run",
-            "/tmp/stryker.changed.config.json",
-            "file_mutation_survivors",
         ),
-        "scripts/run-rust-quality.sh": (
+        "scripts/run-rust-mutation.sh": (
             "cargo mutants",
-            "cargo-mutants not installed; skipping Rust mutation.",
+            "cargo-mutants is required for Rust mutation",
             "--in-diff",
         ),
     }
@@ -166,19 +187,90 @@ def test_turbo_rust_runner_runs_cargo_mutants_per_workspace(monkeypatch) -> None
     assert all("cargo mutants" in c for c in seen_cmds if "cargo mutants" in c)
 
 
-def test_dell_shard_syncs_rust_workspace() -> None:
-    """run-dell-quality-shard.sh must ship rust/ to the Dell volume."""
-    text = _read("scripts/run-dell-quality-shard.sh")
-    # The tar that seeds the Dell volume must include the rust/ tree, and the
-    # remote cleanup must remove it before re-extracting, otherwise the inner
-    # run-rust-quality.sh finds no /repo/rust workspace on Dell.
-    assert "tar" in text
-    assert re.search(r"-cf - .*\brust\b", text), (
-        "run-dell-quality-shard.sh tar argument list must include rust/ so the "
+def test_turbo_rust_runner_defaults_dell_to_sixteen_jobs(monkeypatch) -> None:
+    """Dell Rust mutation should default to 16 cargo-mutants jobs."""
+    turbo = _load_turbo_module()
+
+    cfg = {
+        "languages": {
+            "rust": {
+                "tool": "cargo-mutants",
+                "workspaces": ["/repo/rust"],
+                "report_host": ".tmp/rust-outcomes.json",
+            }
+        }
+    }
+    machine = {
+        "name": "dell",
+        "transport": "docker_context",
+        "context": "dell",
+        "weight": 1.0,
+        "max_weight": 1.0,
+        "share": 1.0,
+    }
+    seen_cmds: list[str] = []
+
+    def fake_run_on_machine(_machine, _container, cmd, **_kwargs):
+        seen_cmds.append(cmd)
+        return 0, "{}"
+
+    monkeypatch.setattr(turbo, "_run_on_machine", fake_run_on_machine)
+    monkeypatch.setattr(turbo, "_file_survivors", lambda *a, **k: "")
+
+    turbo._run_rust(cfg, [machine], {"dell": 20}, dry_run=True)
+
+    assert any("cargo mutants --in-diff" in c and "--jobs 16" in c for c in seen_cmds)
+
+
+def test_turbo_rust_runner_uses_diff_scope(monkeypatch) -> None:
+    """Turbo Rust mutation must use --in-diff, not whole-workspace mutation."""
+    turbo = _load_turbo_module()
+
+    cfg = {
+        "languages": {
+            "rust": {
+                "tool": "cargo-mutants",
+                "workspaces": ["/repo/rust"],
+                "report_host": ".tmp/rust-outcomes.json",
+            }
+        }
+    }
+    machine = {
+        "name": "dell",
+        "transport": "docker_context",
+        "context": "dell",
+        "weight": 1.0,
+        "max_weight": 1.0,
+        "share": 1.0,
+    }
+    seen_cmds: list[str] = []
+
+    def fake_run_on_machine(_machine, _container, cmd, **_kwargs):
+        seen_cmds.append(cmd)
+        return 0, "{}"
+
+    monkeypatch.setattr(turbo, "_run_on_machine", fake_run_on_machine)
+    monkeypatch.setattr(turbo, "_file_survivors", lambda *a, **k: "")
+
+    turbo._run_rust(cfg, [machine], {"dell": 20}, dry_run=True)
+
+    assert any("cargo mutants --in-diff" in c for c in seen_cmds)
+    assert not any("cargo mutants --jobs" in c for c in seen_cmds)
+
+
+def test_rust_quality_syncs_rust_workspace_to_dell() -> None:
+    """run-rust-quality.sh must ship rust/ to the Dell volume before running."""
+    text = _read("scripts/run-rust-quality.sh")
+    # The host-side re-exec tars the source roots into the Dell volume, and the
+    # remote cleanup must remove the old tree before re-extracting, otherwise the
+    # inner run-rust-quality.sh finds no /repo/rust workspace on Dell.
+    assert "tar -cf -" in text
+    assert re.search(r"sync_roots=\([^)]*\brust\b", text), (
+        "run-rust-quality.sh sync_roots must include rust/ so the "
         "/repo/rust workspace exists on the Dell compute shard"
     )
     assert "/repo/rust" in text, (
-        "run-dell-quality-shard.sh remote cleanup (rm -rf) must remove "
+        "run-rust-quality.sh remote cleanup (rm -rf) must remove "
         "/repo/rust before re-extracting the synced tree"
     )
 
@@ -246,8 +338,8 @@ def test_turbo_container_runner_builds_windows_and_mint_commands(monkeypatch) ->
         "docker",
         "--context",
         "mint",
-        "compose",
-        "exec",
-        "-T",
-        "compiled-tools",
+        "run",
+        "--rm",
+        "-v",
+        "xf_test_repo:/repo",
     ]

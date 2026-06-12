@@ -1,0 +1,16 @@
+You are Worker B in a shared checkout on master. Do not create/switch branches. Do not stage, commit, push, or bypass checks. Other workers may edit other files, so do not revert unrelated changes.
+
+Goal: resolve these AutoIssues only: #19047, #19048, #19049, #21228. The first three are mutation survivors in `frontend/src/app/error-log/error-log.component.ts` around lines 295 and 300. The fourth is a test-case spec for `frontend/src/app/error-log/sidecars-data.service.ts`.
+
+Ownership: only edit files under `frontend/src/app/error-log/` and directly needed nearby specs. If you need any other path, stop and report it.
+
+Required process:
+1. Read PLAIN-ENGLISH-RULE.md and THINK-BEFORE-YOU-CODE.md before editing.
+2. Read resolved lessons for `frontend/src/app/error-log` before code.
+3. Use behavior wording: Given / When / Then.
+4. Test-first: add or update focused Angular tests before or alongside the implementation needed for these AutoIssues. Run focused tests if practical.
+5. Mutation issues should be fixed by strengthening tests or simplifying code, not by weakening behavior.
+6. Resolve each AutoIssue only after proof, with lessons_learned containing both Trap: and Fix shape:.
+7. Final answer must list changed files, tests run, issue IDs resolved, and any blockers.
+
+Do not touch AGENT-HANDOFF.md or AI-CONTEXT.md.

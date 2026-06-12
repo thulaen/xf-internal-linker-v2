@@ -33,6 +33,7 @@ _SETTINGS_DEFAULTS: dict[str, bool] = {
     "lexical_retriever_enabled": True,
     "query_expansion_retriever_enabled": False,
     "xenforo_bm25_retriever_enabled": True,
+    "tantivy_bm25_retriever_enabled": True,
 }
 
 _SETTINGS_DESCRIPTIONS: dict[str, str] = {
@@ -57,6 +58,16 @@ _SETTINGS_DESCRIPTIONS: dict[str, str] = {
         "existing API key, fused with FAISS results via RRF. XF-source "
         "candidates only — WordPress / blog / crawled hosts unaffected. "
         "See docs/specs/xf-bm25-retrieval.md."
+    ),
+    "tantivy_bm25_retriever_enabled": (
+        "Adds the TantivyBM25Retriever: true BM25 keyword ranking "
+        "(Robertson & Zaragoza 2009) over ALL host sources via Tantivy, "
+        "the in-process Rust full-text index (approved JVM-free "
+        "Lucene replacement — see "
+        "docs/specs/fr-approved-library-expansion-bank.md). Builds its "
+        "index in memory each pipeline pass from host titles, so it "
+        "covers WordPress / blog / crawled hosts and keeps working when "
+        "the forum's search endpoint is unavailable. Fused via RRF."
     ),
 }
 

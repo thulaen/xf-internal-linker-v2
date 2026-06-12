@@ -617,6 +617,21 @@
                     <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label i18n="@@settings.labels.retriever.tantivy">Tantivy BM25 retriever (local word-match index, all sources)</mat-label>
+                  <mat-select
+                    [(ngModel)]="stage1Retrievers.tantivy_bm25_retriever_enabled"
+                    [compareWith]="compareBooleans">
+                    <mat-option [value]="true" i18n="@@settings.options.enabled">Enabled</mat-option>
+                    <mat-option [value]="false" i18n="@@settings.options.disabled">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn"
+                          matTooltip="Adds the TantivyBM25Retriever: a word-match (BM25, Robertson & Zaragoza 2009) candidate finder that builds its index in memory from host titles on every pipeline pass — no separate search server. Unlike the XenForo retriever it covers ALL host sources (WordPress / blog / crawled, not just forum threads) and keeps working when the forum's search endpoint is down. Results fused via RRF. Tantivy is the approved Rust full-text library (no JVM)."
+                          i18n-matTooltip="@@settings.tips.tantivyRetriever"
+                          matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
               </div>
               <div class="card-actions-row">
                 <button mat-flat-button color="primary"

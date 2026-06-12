@@ -112,6 +112,7 @@ lz4==4.4.5                           # LZ4 frame compression for CodeQL SARIF ev
 # ── Performance Layer ─────────────────────────────────────────────
 pyarrow==17.0.0
 datafusion==41.0.0                   # Local analytical SQL engine (Rust)
+tantivy==0.24.0                      # In-process BM25 full-text index (Rust, Lucene-style) — stage-1 keyword retriever
 polars==1.18.0                       # Fast Rust-based DataFrame library — replaces the
                                      # row-by-row Python aggregation loops in analytics
                                      # ingest (Matomo / GA4 / GSC) and the `csv.writer`

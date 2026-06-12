@@ -673,7 +673,7 @@ class RuntimeConfigView(APIView):
 
         default_batch = int(getattr(django_conf, "EMBEDDING_BATCH_SIZE", 32) or 32)
         default_gpu_pct = int(
-            float(getattr(django_conf, "CUDA_MEMORY_FRACTION_HIGH", 0.8) or 0.8) * 100
+            float(getattr(django_conf, "GPU_MEMORY_FRACTION_HIGH", 0.8) or 0.8) * 100
         )
         default_gpu_temp = int(getattr(django_conf, "GPU_TEMP_CEILING_C", 90) or 90)
         default_queue_concurrency = self._default_queue_concurrency(django_conf)

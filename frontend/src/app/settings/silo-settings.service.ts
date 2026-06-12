@@ -404,6 +404,11 @@ export interface Stage1RetrieverSettings {
    *  fused with FAISS via RRF. XF-source content only. Default ON.
    *  See docs/specs/xf-bm25-retrieval.md. */
   xenforo_bm25_retriever_enabled: boolean;
+  /** Adds TantivyBM25Retriever — in-process Rust BM25 index built from
+   *  host titles each pipeline pass. Covers ALL host sources (WordPress /
+   *  blog / crawled, not just forum threads) and works without the
+   *  forum's search endpoint. Default ON. */
+  tantivy_bm25_retriever_enabled: boolean;
 }
 
 /** Phase 6 optional-pick master switches. Each pick has a single
@@ -828,7 +833,7 @@ export class SiloSettingsService {
     return this.http.post<AnalyticsConnectionResult>('/api/analytics/settings/gsc/test-connection/', payload); // noqa: route-check
   }
 
-  runGSCSync(payload?: { lookback_days?: number }): Observable<any> {
+  runGSCSync(payload?: { lookback_days?: number }): Observable<unknown> {
     return this.http.post(`${this.baseUrl}/analytics/telemetry/gsc-sync/`, payload ?? {});
   }
 
@@ -840,7 +845,7 @@ export class SiloSettingsService {
     return this.http.put<GoogleOAuthSettings>('/api/analytics/settings/google-oauth/', payload); // noqa: route-check
   }
 
-  unlinkGoogleAccount(): Observable<any> {
+  unlinkGoogleAccount(): Observable<unknown> {
     return this.http.post(`${this.baseUrl}/analytics/oauth/unlink/`, {});
   }
 

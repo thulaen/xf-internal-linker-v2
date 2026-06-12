@@ -27,6 +27,9 @@ class Stage1RetrieverSettingsViewTests(TestCase):
         self.assertEqual(body["query_expansion_retriever_enabled"], False)
         # Migration 0066 seeds the XF BM25 retriever default-on.
         self.assertEqual(body["xenforo_bm25_retriever_enabled"], True)
+        # Tantivy BM25 is default-on (default-on rule; local index, no
+        # external data needed).
+        self.assertEqual(body["tantivy_bm25_retriever_enabled"], True)
 
     def test_put_persists_all_flags(self) -> None:
         resp = self.client.put(
@@ -35,6 +38,7 @@ class Stage1RetrieverSettingsViewTests(TestCase):
                 "lexical_retriever_enabled": True,
                 "query_expansion_retriever_enabled": True,
                 "xenforo_bm25_retriever_enabled": False,
+                "tantivy_bm25_retriever_enabled": False,
             },
             format="json",
         )
@@ -46,6 +50,7 @@ class Stage1RetrieverSettingsViewTests(TestCase):
                 "lexical_retriever_enabled": True,
                 "query_expansion_retriever_enabled": True,
                 "xenforo_bm25_retriever_enabled": False,
+                "tantivy_bm25_retriever_enabled": False,
             },
         )
 
@@ -101,17 +106,19 @@ class Stage1RetrieverSettingsViewTests(TestCase):
             LexicalRetriever,
             QueryExpansionRetriever,
             SemanticRetriever,
+            TantivyBM25Retriever,
             XenForoBM25Retriever,
             default_retrievers,
         )
 
-        # Seeded default: semantic + lexical + XF-BM25; query expansion
-        # still opt-in.
+        # Seeded default: semantic + lexical + XF-BM25 + Tantivy-BM25;
+        # query expansion still opt-in.
         regs = default_retrievers()
-        self.assertEqual(len(regs), 3)
+        self.assertEqual(len(regs), 4)
         self.assertIsInstance(regs[0], SemanticRetriever)
         self.assertIsInstance(regs[1], LexicalRetriever)
         self.assertIsInstance(regs[2], XenForoBM25Retriever)
+        self.assertIsInstance(regs[3], TantivyBM25Retriever)
 
         # Flip every opt-in on via the API.
         self.client.put(
@@ -120,19 +127,28 @@ class Stage1RetrieverSettingsViewTests(TestCase):
                 "lexical_retriever_enabled": True,
                 "query_expansion_retriever_enabled": True,
                 "xenforo_bm25_retriever_enabled": True,
+                "tantivy_bm25_retriever_enabled": True,
             },
             format="json",
         )
 
         regs2 = default_retrievers()
-        self.assertEqual(len(regs2), 4)
+        self.assertEqual(len(regs2), 5)
         names = [r.name for r in regs2]
         self.assertEqual(
-            names, ["semantic", "lexical", "query_expansion", "xenforo_bm25"]
+            names,
+            [
+                "semantic",
+                "lexical",
+                "query_expansion",
+                "xenforo_bm25",
+                "tantivy_bm25",
+            ],
         )
         self.assertIsInstance(regs2[1], LexicalRetriever)
         self.assertIsInstance(regs2[2], QueryExpansionRetriever)
         self.assertIsInstance(regs2[3], XenForoBM25Retriever)
+        self.assertIsInstance(regs2[4], TantivyBM25Retriever)
 
     def test_xf_bm25_can_be_disabled_via_api(self) -> None:
         """Operator can opt out of the default-on XF BM25 retriever."""

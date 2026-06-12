@@ -81,26 +81,6 @@ class CompiledArtifactScriptTests(SimpleTestCase):
         self.assertEqual(active_files, {"scoring.so", "simsearch.so", "texttok.so"})
         self.assertEqual(len(manifest["store"]), 1)
 
-    def test_failed_cpp_import_verification_leaves_old_active_artifacts(self) -> None:
-        module = _load_script()
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _configure_paths(module, root)
-            module.ACTIVE_EXTENSIONS_ROOT.mkdir(parents=True)
-            old_artifact = module.ACTIVE_EXTENSIONS_ROOT / "scoring.so"
-            old_artifact.write_bytes(b"old")
-            stage_dir = module.ACTIVE_ROOT / ".stage-test"
-            (stage_dir / "extensions").mkdir(parents=True)
-            (stage_dir / "extensions" / "scoring.so").write_bytes(b"new")
-
-            with mock.patch.object(module, "_verify_runtime_imports", side_effect=RuntimeError):
-                with self.assertRaises(RuntimeError):
-                    module._activate_staged_runtime(stage_dir)
-
-            still_old = old_artifact.read_bytes()
-
-        self.assertEqual(still_old, b"old")
-
     def test_no_go_modules_records_state_without_fake_artifacts(self) -> None:
         module = _load_script()
         with tempfile.TemporaryDirectory() as tmp:

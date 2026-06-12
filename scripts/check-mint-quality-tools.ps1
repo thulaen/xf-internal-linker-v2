@@ -35,11 +35,7 @@ if ($Repair) {
 $ps = Invoke-MintText "cd '$MintRepoPath' && POSTGRES_PASSWORD=mint-quality-not-used docker compose --env-file .env.mint-quality --profile mint-quality ps compiled-tools pyroscope"
 Write-Host $ps
 
-Invoke-MintText "docker exec xf_linker_compiled_tools bash -lc 'python /repo/scripts/ensure_compiled_artifacts.py --check && command -v cabal >/dev/null 2>&1 && command -v ghc >/dev/null 2>&1'" | Out-Null
-
-if (-not $SkipHaskell) {
-    Invoke-MintText "docker exec xf_linker_compiled_tools bash /repo/scripts/run-haskell-quality.sh" | Out-Null
-}
+Invoke-MintText "docker exec xf_linker_compiled_tools bash -lc 'python /repo/scripts/ensure_compiled_artifacts.py --check'" | Out-Null
 
 $pyroscopeStatus = Invoke-MintText "curl -fsS http://127.0.0.1:4040/ready"
 Write-Host "[MINT PYROSCOPE STATUS: $pyroscopeStatus]"

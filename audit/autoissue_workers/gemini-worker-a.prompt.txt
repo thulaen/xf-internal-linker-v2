@@ -1,0 +1,24 @@
+You are Worker A using Gemini 3.1 Pro Preview High. Use high reasoning for this task.
+
+You are in a shared checkout on master. Do not create/switch branches. Do not stage, commit, push, or bypass checks. Other workers may edit other files, so do not revert unrelated changes.
+
+Goal: resolve these AutoIssues only: #21251, #21254, #21257, #21260, #21263, #21266. They are test-case specs for frontend shared helper/directive and GSC components:
+- frontend/src/app/shared/directives/pe-helper.directive.ts
+- frontend/src/app/shared/gsc/gsc-insight-card/gsc-insight-card.component.ts
+- frontend/src/app/shared/gsc/gsc-kpi/gsc-kpi.component.ts
+- frontend/src/app/shared/gsc/gsc-metric-tiles/gsc-metric-tiles.component.ts
+- frontend/src/app/shared/gsc/gsc-summary-card/gsc-summary-card.component.ts
+- frontend/src/app/shared/gsc/spike/spike-insight-card.component.ts
+
+Ownership: only edit files under frontend/src/app/shared/directives/ and frontend/src/app/shared/gsc/ plus directly needed nearby specs. If you need any other path, stop and report it.
+
+Required process:
+1. Read PLAIN-ENGLISH-RULE.md and THINK-BEFORE-YOU-CODE.md before editing.
+2. Read resolved lessons for the owned directories before code.
+3. Use behavior wording: Given / When / Then.
+4. Test-first: add or update focused Angular tests before or alongside implementation. Run focused tests if practical.
+5. Keep fixes small, reduce duplicate code if touched, and avoid unrelated restyling.
+6. Resolve each AutoIssue only after proof, with lessons_learned containing both Trap: and Fix shape:.
+7. Final answer must list changed files, tests run, issue IDs resolved, and any blockers.
+
+Do not touch AGENT-HANDOFF.md or AI-CONTEXT.md.

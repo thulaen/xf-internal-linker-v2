@@ -79,7 +79,7 @@ def _load_routing_cfg() -> dict:
 def _tar_producer(env: dict) -> subprocess.Popen:
     """One tar producer (backend + .githooks, shared exclude list) for any remote."""
     return subprocess.Popen(
-        ["tar", "-cf", "-", *_TAR_EXCLUDES, "backend", ".githooks"],
+        ["tar", "-cf", "-", *_TAR_EXCLUDES, "backend", "rust", "services", ".githooks", "docs", "config", "docker-compose.yml", ".env.example", "nginx", "otelcol-config.yaml", "frontend/src/app", "scripts"],
         cwd=REPO_ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env,
     )
 

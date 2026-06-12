@@ -124,7 +124,7 @@
         <td mat-cell *matCellDef="let finding">
           <span>{{ pattern(finding) }}</span>
           <span class="group-count" *ngIf="groupedCount(finding) > 1">
-            {{ groupedCount(finding) }} grouped
+            • {{ groupedCount(finding) }} grouped
           </span>
         </td>
       </ng-container>

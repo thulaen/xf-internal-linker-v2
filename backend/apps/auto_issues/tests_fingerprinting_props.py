@@ -20,10 +20,23 @@ References
 from __future__ import annotations
 
 import re
+import unittest
 
 from django.test import SimpleTestCase
-from hypothesis import given
-from hypothesis import strategies as st
+
+try:
+    from hypothesis import given
+    from hypothesis import strategies as st
+except ImportError as exc:  # hypothesis lives only in the backend-quality image
+    # The lean runtime image deliberately omits quality tools (see the
+    # Quality-Tool Container Ownership rule). Raising SkipTest at import
+    # time makes the runtime container record this module as skipped
+    # instead of erroring; the backend-quality container still runs it.
+    raise unittest.SkipTest(
+        "hypothesis is installed only in the backend-quality image; "
+        "run property tests via: docker compose run --rm backend-quality pytest "
+        "apps/auto_issues/tests_fingerprinting_props.py"
+    ) from exc
 
 from apps.auto_issues.services.fingerprinting import canonical_fingerprint
 

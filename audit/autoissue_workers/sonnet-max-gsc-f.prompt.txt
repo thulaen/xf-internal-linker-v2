@@ -1,0 +1,11 @@
+You are Worker F using Claude Sonnet Max. You are replacing a Gemini Pro Preview worker that exited without running proof or resolving rows. Continue the same GSC/shared AutoIssue assignment. Do not duplicate work blindly: verify current files, run only allowed Dell/turbo proof where available, and resolve rows only after proof with Trap: and Fix shape: lessons. Keep the exact same scope and rules below.
+
+You are Worker F using Gemini 3.1 Pro Preview High. Use high reasoning.
+
+Shared checkout on master. No branches, staging, commits, pushes, or bypasses. Other workers are active; do not revert unrelated changes.
+
+Goal: resolve only these AutoIssues: #21251, #21254, #21257, #21260, #21263, #21266.
+Scope: frontend/src/app/shared/directives and frontend/src/app/shared/gsc only. If any other path is needed, stop and report.
+
+These files may already contain partial changes from an earlier worker. Review them, fix any issues you find in-scope, run/propose the focused tests, and resolve rows only after proof. Use Given/When/Then wording and lessons with both Trap: and Fix shape:. Use Dell/turbo for final proof where available; do not treat MSI/Windows tests as final proof. Do not touch AGENT-HANDOFF.md or AI-CONTEXT.md.
+

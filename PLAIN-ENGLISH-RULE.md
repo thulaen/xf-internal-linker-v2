@@ -201,6 +201,7 @@ When you must mention a technical concept, use the plain-English version from th
 | the second word in the session-close marker name | CLOSE |
 | a follow-up marker word meaning the later agent or later step must continue the work | NEXT |
 | the standard way modern AI agents call external tools | MCP / Model Context Protocol |
+| a small local coordination database where manually started agents record who joined, what they claimed, what needs review, and who should prepare the final commit | inter-model interface / SQLite-backed coordination pool |
 | Anthropic's local AI coding agent that runs in your terminal | Claude Code |
 | OpenAI's local AI coding agent that runs in your terminal | Codex / Codex CLI |
 | Google's local AI coding agent that runs in your terminal | Gemini CLI |
@@ -261,6 +262,9 @@ When you must mention a technical concept, use the plain-English version from th
 | the standing rule that every new feature ships turned-on with a sensible starting value unless it needs external data we don't have on a fresh install | default-on rule |
 | a feature that legitimately needs data from outside the project (Google Analytics, Search Console, Matomo, autotuner training history) before it can produce useful output — allowed to default off | external-data-gated |
 | FR-019 alert that appears on the diagnostics page when a feature is dormant waiting on data, telling the operator how to activate it | OperatorAlert |
+| a Rust-built SQL engine that runs reporting-style queries directly against snapshot files instead of the main database, so heavy number-crunching never slows the app down | DataFusion / Apache DataFusion |
+| a compact column-based file format for tabular data — the snapshot files DataFusion queries are stored in it | Parquet / Apache Parquet |
+| a Rust-built keyword-search library (a rewrite of Java's Lucene) that runs inside our own process — gives BM25 word-match ranking without running a separate search server | Tantivy |
 | the standalone autotuner that adjusts meta-algorithm parameters (RRF k, BM25 k1/b, MMR lambda, etc.) on a monthly schedule with the same challenger-escrow safety as the ranking-weight tuner | meta-algorithm autotuner / FR-018b |
 | a security hole that lets an attacker run arbitrary code on the server — e.g. by feeding a malicious pickled blob into a `pickle.loads` call | RCE / Remote Code Execution |
 | a stable, permanent identifier for an academic paper or other digital document — looks like `10.1145/1571941.1572114`; the prefix `10.` is what marks it as a DOI | DOI / Digital Object Identifier |

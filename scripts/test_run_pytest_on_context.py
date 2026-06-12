@@ -69,25 +69,7 @@ def test_sync_source_makes_audit_writable_for_dell_tests():
     assert "chmod 777 /repo/audit" in source
 
 
-def test_local_only_targets_are_split_out():
-    """Given a test needs local Alloy, When split, Then it stays on Windows."""
-    m = _mod()
-    shardable, local_only = m._split_local_only_targets([
-        "apps/pipeline/tests.py",
-        "apps/observability/tests_faro_alloy_smoke.py",
-    ])
-    assert shardable == ["apps/pipeline/tests.py"]
-    assert local_only == ["apps/observability/tests_faro_alloy_smoke.py"]
 
-
-def test_local_pytest_cmd_uses_compose_backend_quality():
-    """Given a local slice, When building the command, Then it runs compose backend-quality."""
-    m = _mod()
-    cmd = m._local_pytest_cmd(["apps/foo/tests.py"])
-    assert cmd[:5] == ["docker", "compose", "run", "--rm", "-T"]
-    assert "backend-quality" in cmd
-    assert cmd[-1] == "apps/foo/tests.py"
-    assert "--reuse-db" in cmd
 
 
 def test_pytest_routing_config_puts_100_percent_on_dell():
@@ -96,12 +78,9 @@ def test_pytest_routing_config_puts_100_percent_on_dell():
     machines = {entry["name"]: entry for entry in m._load_pytest_routing_config()["machines"]}
     assert machines["dell"]["weight"] == 1.0
     assert machines["dell"]["context"] == "dell"
-    assert machines["windows"]["transport"] == "docker_local"
-    assert machines["windows"]["weight"] == 0.0
     cfg = json.loads((ROOT / "config" / "mutation-routing.json").read_text(encoding="utf-8"))
     assert cfg["pytest_machines"][0]["name"] == "dell"
     assert cfg["pytest_machines"][0]["weight"] == 1.0
-    assert cfg["pytest_machines"][1]["weight"] == 0.0
 
 
 def test_run_pytest_sharded_no_targets_is_clean():
@@ -132,14 +111,12 @@ def _fake_routing():
         @staticmethod
         def _select_machines(_cfg):
             return [
-                {"name": "dell", "transport": "docker_context", "context": "dell", "share": 0.5},
-                {"name": "windows", "transport": "docker_local", "share": 0.5},
+                {"name": "dell", "transport": "docker_context", "context": "dell", "share": 1.0},
             ]
 
         @staticmethod
         def _partition_weighted(items, machines):
-            half = len(items) // 2
-            return {"dell": items[:half], "windows": items[half:]}
+            return {"dell": items}
 
         @staticmethod
         def _dispatch_to_machines(machines, plan, per_machine):
@@ -152,36 +129,53 @@ def _fake_routing():
 
 
 def test_run_pytest_sharded_merges_worst_rc(monkeypatch):
-    """Given a Dell-pass / Windows-fail split, When merged, Then rc is the worst (fail)."""
+    """Given a Dell failure, When merged, Then rc is the worst (fail)."""
     m = _mod()
     monkeypatch.setattr(m, "_load_machine_routing", _fake_routing)
-    monkeypatch.setattr(m, "_pytest_slice_on_remote", lambda ctx, targets: (0, "dell ok\n"))
-    monkeypatch.setattr(m, "_pytest_slice_local", lambda targets: (1, "FAILED test_x\n"))
+    monkeypatch.setattr(m, "_pytest_slice_on_remote", lambda ctx, targets: (1, "FAILED test_x\n"))
 
     rc, out = m.run_pytest_sharded(["apps/a/tests.py", "apps/b/tests.py"])
 
     assert rc == 1
-    assert "windows" in out
+    assert "dell" in out
     assert "FAILED test_x" in out
 
 
-def test_run_pytest_sharded_fails_open_to_local_when_remote_untrusted(monkeypatch):
-    """Given Dell returns untrusted (None), When running, Then that slice re-runs locally."""
+def test_run_pytest_sharded_fails_closed_when_remote_untrusted(monkeypatch):
+    """Given Dell returns untrusted (None), When running, Then it fails closed."""
     m = _mod()
     monkeypatch.setattr(m, "_load_machine_routing", _fake_routing)
     monkeypatch.setattr(m, "_pytest_slice_on_remote", lambda ctx, targets: None)
-    local_calls = []
 
-    def _local(targets):
-        local_calls.append(targets)
-        return 0, "ok\n"
+    rc, out = m.run_pytest_sharded(["apps/a/tests.py", "apps/b/tests.py"])
 
-    monkeypatch.setattr(m, "_pytest_slice_local", _local)
+    assert rc == 1
+    assert "Dell source sync or manifest verification failed" in out
 
-    rc, _out = m.run_pytest_sharded(["apps/a/tests.py", "apps/b/tests.py"])
 
-    assert rc == 0
-    assert len(local_calls) == 2  # Dell's slice re-run locally + Windows' own slice
+def test_run_pytest_sharded_fails_closed_for_non_docker_context(monkeypatch):
+    """Given a non-docker_context machine, When running, Then it fails closed."""
+    m = _mod()
+
+    class _R_Windows:
+        @staticmethod
+        def _select_machines(_cfg):
+            return [{"name": "windows", "transport": "docker_local", "share": 1.0}]
+        @staticmethod
+        def _partition_weighted(items, machines):
+            return {"windows": items}
+        @staticmethod
+        def _dispatch_to_machines(machines, plan, per_machine):
+            for machine in machines:
+                per_machine(machine, plan.get(machine["name"]) or [])
+
+    monkeypatch.setattr(m, "_load_machine_routing", lambda: _R_Windows())
+    monkeypatch.setattr(m, "_pytest_slice_on_remote", lambda ctx, targets: (0, ""))
+
+    rc, out = m.run_pytest_sharded(["apps/a/tests.py", "apps/b/tests.py"])
+
+    assert rc == 1
+    assert "transport not allowed" in out
 
 
 def test_main_writes_normal_test_evidence_row_when_requested(monkeypatch, tmp_path):

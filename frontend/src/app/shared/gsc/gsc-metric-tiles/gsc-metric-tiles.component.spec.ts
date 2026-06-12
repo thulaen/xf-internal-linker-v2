@@ -30,27 +30,27 @@ describe('GscMetricTilesComponent', () => {
     fixture.detectChanges();
   });
 
-  it('renders one tile per item', () => {
+  it('Given a list of metric tiles, When the component renders, Then it creates one tile element per item', () => {
     expect(tiles().length).toBe(3);
   });
 
-  it('renders each tile label and value', () => {
+  it('Given a tile object, When rendered, Then the tile label and value are displayed', () => {
     const first = tiles()[0];
     expect(first.querySelector('.gsc-tile__label').textContent).toContain('Pending');
     expect(first.querySelector('.gsc-tile__value').textContent).toContain('5');
   });
 
-  it('applies the tone class to filled (coloured) tiles', () => {
+  it('Given tiles with specific tones, When rendered, Then each filled tile has the matching tone class', () => {
     expect(tiles()[0].classList).toContain('tone-blue');
     expect(tiles()[1].classList).toContain('tone-green');
   });
 
-  it('leaves a tile with no tone unfilled (no tone-* class)', () => {
+  it('Given a tile without a tone, When rendered, Then it lacks any tone class', () => {
     const third = tiles()[2];
     expect([...third.classList].some((c: string) => c.startsWith('tone-'))).toBeFalse();
   });
 
-  it('updates when the tiles input changes', () => {
+  it('Given an updated tiles array, When change detection runs, Then the rendered tiles match the new input', () => {
     host.tiles = [{ label: 'Only', value: 1, tone: 'purple' }];
     fixture.detectChanges();
     expect(tiles().length).toBe(1);

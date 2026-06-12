@@ -170,4 +170,33 @@ class AutoIssueStrTests(SimpleTestCase):
             severity=AutoIssue.SEVERITY_LOW,
             title="X" * 300,
         )
-        self.assertEqual(len(str(issue)), 100)
+    def test_str_all_sources_render(self) -> None:
+        for source, label in AutoIssue.SOURCE_CHOICES:
+            issue = AutoIssue(source=source, severity=AutoIssue.SEVERITY_LOW, title="X")
+            self.assertTrue(str(issue).startswith(f"[{source}/low]"))
+
+class OtherModelsStrTests(SimpleTestCase):
+    def test_codeql_evidence_str(self) -> None:
+        from apps.auto_issues.models import CodeQLFindingEvidence
+        ev = CodeQLFindingEvidence(language="cpp", rule_id="cpp/foo", file_path="main.cpp", line=42)
+        self.assertEqual(str(ev), "[codeql/cpp] cpp/foo main.cpp:42")
+
+    def test_build_failure_evidence_str(self) -> None:
+        from apps.auto_issues.models import BuildFailureEvidence
+        ev = BuildFailureEvidence(builder="gcc", targets=["foo", "bar"], exit_code=2)
+        self.assertEqual(str(ev), "[build/gcc] foo,bar exit=2")
+
+    def test_findbugs_lesson_str(self) -> None:
+        from apps.auto_issues.models import FindBugsLearnedLesson
+        lesson = FindBugsLearnedLesson(classification=FindBugsLearnedLesson.CLASS_FALSE_POSITIVE, lesson_fingerprint="abcdef1234567890")
+        self.assertEqual(str(lesson), "[findbugs-lesson/false_positive] abcdef123456")
+
+    def test_quality_evidence_str(self) -> None:
+        from apps.auto_issues.models import QualityEvidence
+        ev = QualityEvidence(check_type=QualityEvidence.CHECK_MUTATION, status=QualityEvidence.STATUS_FAILED, tool_name="mutmut", file_path="foo.py")
+        self.assertEqual(str(ev), "[mutation/failed] mutmut: foo.py")
+
+    def test_quality_raw_snippet_str(self) -> None:
+        from apps.auto_issues.models import QualityRawSnippet
+        raw = QualityRawSnippet(raw_report_hash="abcdef1234567890")
+        self.assertEqual(str(raw), "[quality-raw] abcdef123456")

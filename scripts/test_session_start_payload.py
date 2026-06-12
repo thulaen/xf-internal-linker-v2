@@ -1,13 +1,17 @@
-"""Tests for the non-Django startup payload wrapper."""
+"""Tests for the session-start gate script (Python-only path).
+
+The script calls Django's /api/session-gate/ directly — the Go
+"startupd" middleman is retired (ADR 0007). The behavioral tests cover
+the pure helpers so they run without HTTP or Docker; the documentation
+tests at the bottom pin the agent-rule files to the cached-payload
+startup protocol.
+"""
 
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
-
-import pytest
 
 from scripts import session_start_payload
 
@@ -15,270 +19,109 @@ from scripts import session_start_payload
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_default_url_uses_loopback() -> None:
-    assert session_start_payload.DEFAULT_URL == "http://127.0.0.1:8765/payload"
+def test_gate_path_is_the_django_endpoint() -> None:
+    assert session_start_payload.GATE_PATH == "/api/session-gate/"
+    assert session_start_payload.DEFAULT_BASE_URL == "http://localhost"
 
 
 def test_stdout_reconfigure_helper_is_safe() -> None:
     session_start_payload._prefer_utf8_stdout()
 
 
-def test_render_payload_can_print_autoissues_section() -> None:
-    payload = {
-        "body": "full",
-        "autoissues": ["[REGISTRY READ: 1 open]", "#1 issue"],
+def test_build_marker_block_orders_markers_canonically() -> None:
+    markers = {
+        "tdd_preflight": "[TDD PREFLIGHT: ...]",
+        "lessons": "[LESSONS BEFORE START: ...]",
+        "registry": "[REGISTRY READ: ...]",
+        "sticky": "[STICKY 1 READ: ...]",
+        "snapshots": "[SNAPSHOTS READ: skipped — snapshotd unavailable]",
+        "paper_trail": "[PAPER TRAIL READ: ...]",
     }
 
-    rendered = session_start_payload._render_payload(
-        payload,
-        section="autoissues",
-        raw_json=False,
+    block = session_start_payload.build_marker_block(markers)
+
+    assert block.splitlines() == [
+        "[STICKY 1 READ: ...]",
+        "[REGISTRY READ: ...]",
+        "[PAPER TRAIL READ: ...]",
+        "[SNAPSHOTS READ: skipped — snapshotd unavailable]",
+        "[LESSONS BEFORE START: ...]",
+        "[TDD PREFLIGHT: ...]",
+    ]
+
+
+def test_build_marker_block_appends_unknown_markers() -> None:
+    markers = {"sticky": "[STICKY 1 READ: ...]", "future": "[FUTURE: x]"}
+
+    block = session_start_payload.build_marker_block(markers)
+
+    assert block.splitlines() == ["[STICKY 1 READ: ...]", "[FUTURE: x]"]
+
+
+def test_build_marker_block_skips_empty_markers() -> None:
+    markers = {"sticky": "", "registry": "[REGISTRY READ: ...]"}
+
+    assert session_start_payload.build_marker_block(markers) == "[REGISTRY READ: ...]"
+
+
+def test_gate_state_carries_session_type_for_the_quota_hook() -> None:
+    # .githooks/check-autoissue-quota.py reads session_type from
+    # audit/session_gate_state.json — it must always be present.
+    state = session_start_payload.build_gate_state(
+        "reconciliation", {"total_open_count": 7}
     )
 
-    assert rendered == "[REGISTRY READ: 1 open]\n#1 issue"
+    assert state == {"session_type": "reconciliation", "total_open_count": 7}
 
 
-def test_render_payload_can_print_json() -> None:
-    payload = {"body": "full", "autoissues": ["#1 issue"]}
+def test_gate_state_defaults_missing_total_to_zero() -> None:
+    state = session_start_payload.build_gate_state("feature", {})
 
-    rendered = session_start_payload._render_payload(
-        payload,
-        section=None,
-        raw_json=True,
-    )
-
-    assert '"autoissues": ["#1 issue"]' in rendered
-
-
-def test_render_payload_inserts_stale_marker_after_handoff() -> None:
-    payload = {
-        "generated_at": "2026-05-26T00:00:00Z",
-        "expires_at": "2026-05-26T00:01:00Z",
-        "body": "[HANDOFF READ: old]\n[REGISTRY READ: old]",
-    }
-
-    rendered = session_start_payload._render_payload(
-        payload,
-        section=None,
-        raw_json=False,
-        stale=True,
-        refresh_status="started",
-    )
-
-    lines = rendered.splitlines()
-    assert lines[0] == "[HANDOFF READ: old]"
-    assert lines[1].startswith("[STARTUP PAYLOAD STALE:")
-    assert "refresh=started" in lines[1]
-    assert lines[2] == "[REGISTRY READ: old]"
+    assert state == {"session_type": "feature", "total_open_count": 0}
 
 
 @mock.patch("scripts.session_start_payload.urlopen")
-def test_read_payload_returns_current_body(mocked_urlopen) -> None:
+def test_call_gate_builds_url_with_type_and_areas(mocked_urlopen) -> None:
     mocked_urlopen.return_value.__enter__.return_value.read.return_value = json.dumps(
-        {
-            "version": 1,
-            "generated_at": "2026-05-26T00:00:00Z",
-            "expires_at": "2099-01-01T00:00:00Z",
-            "markers": ["[REGISTRY READ: 0 open]"],
-            "body": "[REGISTRY READ: 0 open]",
-        }
+        {"markers": {"sticky": "[STICKY 1 READ: ...]"}, "total_open_count": 3}
     ).encode("utf-8")
 
-    payload = session_start_payload.read_payload(
-        session_start_payload.DEFAULT_URL,
-        timeout_seconds=0.1,
+    data = session_start_payload._call_gate(
+        "http://localhost",
+        "reconciliation",
+        ["backend/apps/auto_issues", "backend/apps/api"],
+        timeout=1.0,
     )
 
-    assert payload["body"] == "[REGISTRY READ: 0 open]"
+    called_url = mocked_urlopen.call_args[0][0]
+    assert called_url.startswith("http://localhost/api/session-gate/?")
+    assert "type=reconciliation" in called_url
+    assert called_url.count("area=") == 2
+    assert data["total_open_count"] == 3
 
 
 @mock.patch("scripts.session_start_payload.urlopen")
-def test_read_payload_rejects_stale_body(mocked_urlopen) -> None:
-    mocked_urlopen.return_value.__enter__.return_value.read.return_value = json.dumps(
-        {
-            "version": 1,
-            "generated_at": "2026-05-26T00:00:00Z",
-            "expires_at": "2026-05-26T00:01:00Z",
-            "markers": [],
-            "body": "old",
-        }
-    ).encode("utf-8")
+def test_call_gate_exits_with_plain_english_fix_when_backend_down(
+    mocked_urlopen, capsys
+) -> None:
+    from urllib.error import URLError
 
-    with pytest.raises(RuntimeError, match="stale"):
-        session_start_payload.read_payload(
-            session_start_payload.DEFAULT_URL,
-            timeout_seconds=0.1,
+    mocked_urlopen.side_effect = URLError("connection refused")
+
+    try:
+        session_start_payload._call_gate(
+            "http://localhost", "feature", [], timeout=1.0
         )
+    except SystemExit as exc:
+        message = str(exc.code)
+    else:  # pragma: no cover - the call must exit
+        raise AssertionError("expected SystemExit")
+
+    assert "FAIL: the backend is not responding" in message
+    assert "docker compose up -d backend nginx" in message
 
 
-@mock.patch("scripts.session_start_payload._trigger_refresh")
-@mock.patch("scripts.session_start_payload.urlopen")
-def test_main_prints_stale_payload_instead_of_forcing_live_refresh(
-    mocked_urlopen,
-    mocked_refresh,
-    capsys,
-) -> None:
-    mocked_urlopen.return_value.__enter__.return_value.read.return_value = json.dumps(
-        {
-            "version": 1,
-            "generated_at": "2026-05-26T00:00:00Z",
-            "expires_at": "2026-05-26T00:01:00Z",
-            "markers": ["[HANDOFF READ: old]"],
-            "body": "[HANDOFF READ: old]\n[REGISTRY READ: old]",
-        }
-    ).encode("utf-8")
-    mocked_refresh.return_value = True
-
-    with mock.patch("sys.argv", ["session_start_payload.py"]):
-        result = session_start_payload.main()
-
-    assert result == 0
-    mocked_refresh.assert_called_once()
-    captured = capsys.readouterr()
-    lines = captured.out.splitlines()
-    assert lines[0] == "[HANDOFF READ: old]"
-    assert lines[1].startswith("[STARTUP PAYLOAD STALE:")
-    assert "refresh=started" in lines[1]
-    assert lines[2] == "[REGISTRY READ: old]"
-    assert "cached startup payload is stale" not in captured.err
-
-
-@mock.patch("scripts.session_start_payload._trigger_refresh")
-@mock.patch("scripts.session_start_payload.urlopen")
-def test_main_marks_stale_payload_when_refresh_start_fails(
-    mocked_urlopen,
-    mocked_refresh,
-    capsys,
-) -> None:
-    mocked_urlopen.return_value.__enter__.return_value.read.return_value = json.dumps(
-        {
-            "version": 1,
-            "generated_at": "2026-05-26T00:00:00Z",
-            "expires_at": "2026-05-26T00:01:00Z",
-            "markers": ["[HANDOFF READ: old]"],
-            "body": "[HANDOFF READ: old]",
-        }
-    ).encode("utf-8")
-    mocked_refresh.return_value = False
-
-    with mock.patch("sys.argv", ["session_start_payload.py"]):
-        result = session_start_payload.main()
-
-    assert result == 0
-    lines = capsys.readouterr().out.splitlines()
-    assert lines[0] == "[HANDOFF READ: old]"
-    assert "refresh=failed" in lines[1]
-
-
-@mock.patch("scripts.session_start_payload._trigger_refresh")
-@mock.patch("scripts.session_start_payload.urlopen")
-def test_main_no_auto_refresh_rejects_stale_payload(
-    mocked_urlopen,
-    mocked_refresh,
-    capsys,
-) -> None:
-    mocked_urlopen.return_value.__enter__.return_value.read.return_value = json.dumps(
-        {
-            "version": 1,
-            "generated_at": "2026-05-26T00:00:00Z",
-            "expires_at": "2026-05-26T00:01:00Z",
-            "markers": ["[HANDOFF READ: old]"],
-            "body": "[HANDOFF READ: old]",
-        }
-    ).encode("utf-8")
-
-    with mock.patch("sys.argv", ["session_start_payload.py", "--no-auto-refresh"]):
-        result = session_start_payload.main()
-
-    assert result == 1
-    mocked_refresh.assert_not_called()
-    captured = capsys.readouterr()
-    assert captured.out == ""
-    assert "cached startup payload is stale" in captured.err
-
-
-def test_payload_expires_soon_detects_near_expiry() -> None:
-    payload = {"expires_at": "2026-05-26T00:01:00Z"}
-
-    with mock.patch("scripts.session_start_payload.datetime") as mocked_datetime:
-        mocked_datetime.now.return_value = datetime(
-            2026,
-            5,
-            26,
-            0,
-            0,
-            30,
-            tzinfo=timezone.utc,
-        )
-        mocked_datetime.fromisoformat = datetime.fromisoformat
-
-        assert session_start_payload._payload_expires_soon(payload, 60.0)
-
-
-@mock.patch("scripts.session_start_payload.subprocess.Popen")
-def test_trigger_refresh_runs_refresh_in_background(mocked_popen) -> None:
-    assert session_start_payload._trigger_refresh()
-
-    mocked_popen.assert_called_once()
-    args, kwargs = mocked_popen.call_args
-    assert args[0] == session_start_payload.REFRESH_COMMAND
-    assert kwargs["cwd"] == session_start_payload.ROOT
-    assert kwargs["stdout"] == session_start_payload.subprocess.DEVNULL
-    assert kwargs["stderr"] == session_start_payload.subprocess.DEVNULL
-
-
-@mock.patch("scripts.session_start_payload.subprocess.Popen")
-def test_trigger_refresh_reports_start_failure(mocked_popen, capsys) -> None:
-    mocked_popen.side_effect = OSError("missing docker")
-
-    assert not session_start_payload._trigger_refresh()
-
-    assert "missing docker" in capsys.readouterr().err
-
-
-@mock.patch("scripts.session_start_payload._trigger_refresh")
-@mock.patch("scripts.session_start_payload._read_payload")
-def test_main_triggers_refresh_when_payload_is_unavailable(mocked_read_payload, mocked_refresh, capsys) -> None:
-    mocked_read_payload.side_effect = RuntimeError("helper unavailable")
-
-    with mock.patch("sys.argv", ["session_start_payload.py"]):
-        result = session_start_payload.main()
-
-    assert result == 1
-    mocked_refresh.assert_called_once()
-    assert "helper unavailable" in capsys.readouterr().err
-
-
-@mock.patch("scripts.session_start_payload._trigger_refresh")
-@mock.patch("scripts.session_start_payload._read_payload")
-def test_main_triggers_refresh_when_payload_is_nearly_expired(
-    mocked_read_payload,
-    mocked_refresh,
-    capsys,
-) -> None:
-    mocked_read_payload.return_value = {
-        "body": "[HANDOFF READ: ok]",
-        "expires_at": "2026-05-26T00:01:00Z",
-    }
-    mocked_refresh.return_value = True
-    with mock.patch("scripts.session_start_payload.datetime") as mocked_datetime:
-        mocked_datetime.now.return_value = datetime(
-            2026,
-            5,
-            26,
-            0,
-            0,
-            30,
-            tzinfo=timezone.utc,
-        )
-        mocked_datetime.fromisoformat = datetime.fromisoformat
-
-        with mock.patch("sys.argv", ["session_start_payload.py"]):
-            result = session_start_payload.main()
-
-    assert result == 0
-    mocked_refresh.assert_called_once()
-    assert "[HANDOFF READ: ok]" in capsys.readouterr().out
+# ── Documentation pins (unchanged protocol surface) ──────────────────
 
 
 def test_agent_rule_files_make_cached_payload_the_default() -> None:
@@ -290,19 +133,6 @@ def test_agent_rule_files_make_cached_payload_the_default() -> None:
         assert "Do not run `docker compose exec -T backend python manage.py refresh_session_start_payload` during normal chat startup" in text or "Normal chat startup must not run `docker compose exec -T backend python manage.py refresh_session_start_payload`" in text
         assert "Do not read `audit/session_start_payload.jsonl`" in text or "read `audit/session_start_payload.jsonl`" in text
         assert "only run live startup commands when the user explicitly asks" in text.lower()
-
-
-def test_agent_rule_files_do_not_tell_agents_to_rerun_after_stale_payload() -> None:
-    banned_phrases = (
-        "If the payload is stale or missing, run `docker compose exec -T backend python manage.py refresh_session_start_payload`, then run `python scripts/session_start_payload.py` again.",
-        "Use those live commands only as fallback evidence when the cached payload is stale or missing.",
-        "then run the individual legacy commands so the session still has real marker evidence",
-    )
-
-    for relative_path in ("AGENTS.md", "CLAUDE.md", "CODEX.md", "GEMINI.md", "AI-CONTEXT.md"):
-        text = (ROOT / relative_path).read_text(encoding="utf-8")
-        for phrase in banned_phrases:
-            assert phrase not in text
 
 
 def test_startup_banner_uses_payload_before_legacy_fallback() -> None:

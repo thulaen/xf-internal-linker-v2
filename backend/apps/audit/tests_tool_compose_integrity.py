@@ -25,15 +25,22 @@ class DockerToolComposeIntegrityTests(SimpleTestCase):
         with PROTECTED_DATA_STORES_PATH.open("r", encoding="utf-8") as fh:
             cls.protected_data = json.load(fh)
 
-    def test_tool_services_are_default_stack_services(self):
-        for name in TOOL_SERVICES:
-            service = self.services.get(name)
-            self.assertIsNotNone(service, msg=f"`{name}` is missing from docker-compose.yml.")
-            self.assertEqual(
-                service.get("profiles") or [],
-                [],
-                msg=f"`{name}` must start on a normal `docker compose up`.",
-            )
+    def test_tool_services_have_expected_profiles(self):
+        compiled = self.services.get("compiled-tools")
+        frontend = self.services.get("frontend-mutation-tools")
+        self.assertIsNotNone(compiled, msg="`compiled-tools` is missing.")
+        self.assertIsNotNone(frontend, msg="`frontend-mutation-tools` is missing.")
+        
+        self.assertEqual(
+            compiled.get("profiles") or [],
+            ["mint-quality"],
+            msg="`compiled-tools` must have the `mint-quality` profile."
+        )
+        self.assertEqual(
+            frontend.get("profiles") or [],
+            [],
+            msg="`frontend-mutation-tools` must start on a normal `docker compose up`."
+        )
 
     def test_tool_services_restart_and_keep_running(self):
         for name in TOOL_SERVICES:

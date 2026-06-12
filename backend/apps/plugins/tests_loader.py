@@ -49,3 +49,25 @@ class LoadEnabledPluginsAsyncGuardTests(SimpleTestCase):
         plugin_cls.objects.filter.assert_called_once_with(
             is_enabled=True, is_installed=True
         )
+
+    def test_suppresses_runtime_warning_during_db_access(self) -> None:
+        """The loader must catch and suppress the Django 'Accessing the database' RuntimeWarning."""
+        from apps.plugins.loader import load_enabled_plugins
+        import warnings
+
+        plugin_cls = MagicMock()
+        def mock_filter(*args, **kwargs):
+            warnings.warn(
+                "Accessing the database during app initialization is discouraged.",
+                category=RuntimeWarning,
+            )
+            return []
+        plugin_cls.objects.filter.side_effect = mock_filter
+
+        with patch(
+            "apps.core.services.async_context.in_async_context", return_value=False
+        ), patch("apps.plugins.models.Plugin", plugin_cls):
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                load_enabled_plugins()
+                self.assertEqual(len(w), 0, "Warning was not suppressed by the loader")

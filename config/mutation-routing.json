@@ -1,10 +1,9 @@
 {
   "version": "1.1",
   "k8s_defer_to_coordinator": true,
-  "_routing_note": "When k8s_defer_to_coordinator is true and a K3s coordinator is active, the K8S.20 distribute_tests formula owns the actual per-machine shard split and these static machine weights are IGNORED. Fail-CLOSED policy: heavy quality runs 100% on Dell; Windows (MSI) does 0% and never absorbs Dell's work. If Dell is unreachable the gate hard-fails with a 'fix Dell' message — MSI runs nothing locally. Mint is the storage/observability host, never a compute shard. The zero-weight Windows entry is kept so config readers never KeyError; it is dispatched no files. Dell is an Intel i5-13500T (14 cores / 20 threads).",
+  "_routing_note": "When k8s_defer_to_coordinator is true and a K3s coordinator is active, the K8S.20 distribute_tests formula owns the actual per-machine shard split and these static machine weights are IGNORED. Fail-CLOSED policy: heavy quality runs 100% on Dell; Windows (MSI) does 0% and never absorbs Dell's work. If Dell is unreachable the gate hard-fails with a 'fix Dell' message — MSI runs nothing locally. Mint is the storage/observability host, never a compute shard. Windows (MSI) is no longer a quality host: it is removed from the heavy, coverage, and lint machine lists and runs 0% of all quality work. It is retained ONLY in pytest_machines (weight 0.0) as the local host for the two characterization tests that need the live Windows service stack. Dell is an Intel i5-13500T (14 cores / 20 threads).",
   "machines": [
-    { "name": "dell",    "transport": "docker_context", "context": "dell",    "weight": 1.0, "max_weight": 1.0 },
-    { "name": "windows", "transport": "docker_local",                       "weight": 0.0, "max_weight": 1.0 }
+    { "name": "dell",    "transport": "docker_context", "context": "dell",    "weight": 1.0, "max_weight": 1.0 }
   ],
   "split": {
     "local_pct": 0.0,
@@ -13,13 +12,11 @@
   },
   "_coverage_routing_note": "Used ONLY by .githooks/check-per-file-coverage.py for the per-commit diff-coverage gate. Dell measures 100% of staged production files; Windows measures 0%. Fail-CLOSED: if Dell is unreachable the gate hard-fails with 'fix Dell' — MSI does NOT measure locally. The pass/fail semantics are unchanged — only WHERE each file's coverage is measured.",
   "coverage_machines": [
-    { "name": "dell",    "transport": "docker_context", "context": "dell", "weight": 1.0, "max_weight": 1.0 },
-    { "name": "windows", "transport": "docker_local",                     "weight": 0.0, "max_weight": 1.0 }
+    { "name": "dell",    "transport": "docker_context", "context": "dell", "weight": 1.0, "max_weight": 1.0 }
   ],
   "_lint_routing_note": "Used ONLY by scripts/run_lint_on_context.py for the opt-in sharded lint/type-check path (ruff, pylint, mypy, bandit) gated on XF_LINT_SPLIT=1. Dell lints 100% of the changed Python files; Windows 0%. Fail-CLOSED: if Dell is unreachable the gate hard-fails with 'fix Dell' — MSI does NOT lint locally. Pass/fail semantics are unchanged — only WHERE each file is linted.",
   "lint_machines": [
-    { "name": "dell",    "transport": "docker_context", "context": "dell", "weight": 1.0, "max_weight": 1.0 },
-    { "name": "windows", "transport": "docker_local",                     "weight": 0.0, "max_weight": 1.0 }
+    { "name": "dell",    "transport": "docker_context", "context": "dell", "weight": 1.0, "max_weight": 1.0 }
   ],
   "_pytest_routing_note": "Used ONLY by scripts/run_pytest_on_context.py for the opt-in sharded pytest path gated on XF_PYTEST_SPLIT=1. Dell runs 100% of the changed test targets; Windows 0%. Dell runs them against ITS OWN empty Postgres+Redis test stack (docker-compose.dell-test.yml on the xf_dell_test_net network) — never the live Windows database. Fail-CLOSED: if Dell is unreachable the gate hard-fails with 'fix Dell' — MSI does NOT run tests locally.",
   "pytest_machines": [

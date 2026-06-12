@@ -50,7 +50,7 @@ describe('GraphComponent — _computeQuality()', () => {
       history: [], churny_ids: [], churny_nodes: [],
     });
 
-    (component as any)._computeQuality();
+    (component as unknown as { _computeQuality: () => void })._computeQuality();
 
     expect(component.contextPieData()).toBeTruthy();
     // ECharts pie series data is an array of { name, value } objects.
@@ -79,7 +79,7 @@ describe('GraphComponent — _computeQuality()', () => {
       churny_nodes: [],
     });
 
-    (component as any)._computeQuality();
+    (component as unknown as { _computeQuality: () => void })._computeQuality();
 
     // 2 out of 20 = 10% — should trigger warning
     expect(component.anchorWarnings().length).toBeGreaterThan(0);
@@ -104,7 +104,7 @@ describe('GraphComponent — _computeQuality()', () => {
       history: [], churny_ids: [], churny_nodes: [],
     });
 
-    (component as any)._computeQuality();
+    (component as unknown as { _computeQuality: () => void })._computeQuality();
 
     expect(component.pageQualityRows().length).toBe(2);
     // Low Quality page has 1/3 contextual (33%) — comes first (worst)
@@ -128,7 +128,7 @@ describe('GraphComponent — _computeQuality()', () => {
       history: [], churny_ids: [], churny_nodes: [],
     });
 
-    (component as any)._computeQuality();
+    (component as unknown as { _computeQuality: () => void })._computeQuality();
 
     expect(component.isolatedLinks().length).toBe(1);
     expect(component.isolatedLinks()[0].anchor).toBe('bare link');

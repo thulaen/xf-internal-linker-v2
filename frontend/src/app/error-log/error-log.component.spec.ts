@@ -577,4 +577,18 @@ describe('ErrorLogComponent', () => {
     const groupedCount = grouped.reduce((sum, g) => sum + g.totalCount, 0);
     expect(groupedCount).toBe(filtered.length);
   });
+
+  it('filteredErrors excludes glitchtip errors when selectedTabIndex is not ALL_TAB_INDEX', async () => {
+    const c = await buildComponent();
+    c.selectedTabIndex = 0; // GLITCHTIP_TAB_INDEX is 1, ALL_TAB_INDEX is 2
+    c.errors = [
+      makeError({ id: 1, source: 'glitchtip' }),
+      makeError({ id: 2, source: 'internal' }),
+    ];
+    c.filterJobType = '';
+    c.filterAcknowledged = 'all';
+    const result = c.filteredErrors;
+    expect(result.length).toBe(1);
+    expect(result[0].id).toBe(2);
+  });
 });

@@ -206,3 +206,18 @@ class SessionStartPayloadServiceTests(SimpleTestCase):
 
         mocked_write.assert_called_once_with(path, mocked_build.return_value)
         self.assertIn("[SESSION START PAYLOAD REFRESHED: markers=1", text)
+
+    @mock.patch("apps.auto_issues.services.session_start_payload.write_payload")
+    @mock.patch("apps.auto_issues.services.session_start_payload.build_payload")
+    def test_auto_refresh_task_skips_write_on_read_only_filesystem(
+        self, mocked_build, mocked_write
+    ) -> None:
+        from apps.auto_issues.tasks import refresh_session_start_payload
+
+        mocked_build.return_value = SimpleNamespace(markers=["[REGISTRY READ: 0 open]"])
+        mocked_write.side_effect = OSError(30, "Read-only file system")
+
+        result = refresh_session_start_payload()
+
+        self.assertEqual(result["status"], "skipped")
+        self.assertIn("read-only", result["reason"])

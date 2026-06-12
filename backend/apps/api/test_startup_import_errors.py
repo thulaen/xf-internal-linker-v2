@@ -78,26 +78,20 @@ class StartupImportErrorTests(SimpleTestCase):
     def test_no_apps_operations_module(self):
         """apps.operations should not exist."""
         with self.assertRaises(ImportError):
-            import apps.operations  # noqa: F401
+            import apps.operations  # noqa: F401 # pylint: disable=import-error,no-name-in-module
 
         # But apps.ops_feed should exist
-        import apps.ops_feed  # noqa: F401
+        import apps.ops_feed  # noqa: F401 # pylint: disable=unused-import
         self.assertTrue(True, "apps.ops_feed imports successfully")
 
-    def test_platform_has_no_models(self):
-        """apps.platform should not have a models.py file."""
-        from apps.platform import views, services  # noqa: F401
-
-        with self.assertRaises(ImportError):
-            from apps.platform import models  # noqa: F401
-
     def test_platform_views_and_services_import(self):
-        """apps.platform should have views and services but not models."""
+        """apps.platform should have views, services, and models."""
         # This should work
         from apps.platform.views import search_views  # noqa: F401
         from apps.platform.services import docs_search  # noqa: F401
+        from apps.platform import models  # noqa: F401
 
-        self.assertTrue(True, "platform.views and platform.services import successfully")
+        self.assertTrue(True, "platform components import successfully")
 
     def test_url_configuration_loads(self):
         """URL configuration should load without import errors."""

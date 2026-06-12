@@ -53,7 +53,7 @@ QUALITY_IMAGE = "xf-linker-backend-quality:latest"
 
 
 def _split_dockerfile_stages(text: str) -> dict[str, str]:
-    """Return {'go-tools': '...', 'runtime': '...', 'quality': '...'} stage blocks."""
+    """Return {'runtime': '...', 'quality': '...', 'mutation-tools': '...'} stage blocks."""
     from_pattern = re.compile(r"^FROM\s+\S+(?:\s+AS\s+(\S+))?", re.MULTILINE)
     matches = list(from_pattern.finditer(text))
     stages: dict[str, str] = {}
@@ -83,10 +83,6 @@ class TestDockerfileHasNamedStages(TestCase):
         quality_block = self.stages.get("quality", "")
         self.assertIn("FROM runtime AS quality", quality_block,
                       "quality stage must extend runtime: 'FROM runtime AS quality'")
-
-    def test_go_tools_stage_exists(self) -> None:
-        self.assertIn("go-tools", self.stages,
-                      "Dockerfile must retain 'FROM golang:... AS go-tools' stage")
 
 
 class TestRuntimeStageHasNoQualityTools(TestCase):
@@ -145,27 +141,6 @@ class TestQualityStageHasRequiredTools(TestCase):
                     self.quality_block,
                     f"Quality package '{pkg}' must be installed in the quality stage.",
                 )
-
-    def test_go_toolchain_present_in_quality(self) -> None:
-        self.assertIn(
-            "COPY --from=go-tools /usr/local/go",
-            self.quality_block,
-            "Go toolchain must be copied into the quality stage.",
-        )
-
-    def test_go_mutesting_present_in_quality(self) -> None:
-        self.assertIn(
-            "go-mutesting",
-            self.quality_block,
-            "go-mutesting binary must be present in the quality stage.",
-        )
-
-    def test_luarocks_installs_present_in_quality(self) -> None:
-        self.assertIn(
-            "install busted",
-            self.quality_block,
-            "Lua quality tools (busted, luacheck, ...) must be installed in the quality stage.",
-        )
 
     def test_quality_stage_switches_back_to_appuser(self) -> None:
         self.assertIn(

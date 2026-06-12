@@ -47,29 +47,36 @@ def load_enabled_plugins() -> None:
         return
 
     from .models import Plugin
+    import warnings
 
-    for plugin in Plugin.objects.filter(is_enabled=True, is_installed=True):
-        if not plugin.module_path:
-            continue
-        try:
-            module = importlib.import_module(plugin.module_path)
-            if hasattr(module, "register"):
-                hooks_instance = module.register()
-                if hooks_instance is not None:
-                    _registry.append(hooks_instance)
-                    logger.info(
-                        "Loaded plugin '%s' from %s", plugin.name, plugin.module_path
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            category=RuntimeWarning,
+            message=".*Accessing the database during app initialization is discouraged.*",
+        )
+        for plugin in Plugin.objects.filter(is_enabled=True, is_installed=True):
+            if not plugin.module_path:
+                continue
+            try:
+                module = importlib.import_module(plugin.module_path)
+                if hasattr(module, "register"):
+                    hooks_instance = module.register()
+                    if hooks_instance is not None:
+                        _registry.append(hooks_instance)
+                        logger.info(
+                            "Loaded plugin '%s' from %s", plugin.name, plugin.module_path
+                        )
+                else:
+                    logger.warning(
+                        "Plugin '%s' (%s) has no register() function — skipped.",
+                        plugin.name,
+                        plugin.module_path,
                     )
-            else:
-                logger.warning(
-                    "Plugin '%s' (%s) has no register() function — skipped.",
+            except Exception:
+                logger.exception(
+                    "Failed to load plugin '%s' (%s) — disabling.",
                     plugin.name,
                     plugin.module_path,
                 )
-        except Exception:
-            logger.exception(
-                "Failed to load plugin '%s' (%s) — disabling.",
-                plugin.name,
-                plugin.module_path,
-            )
-            Plugin.objects.filter(pk=plugin.pk).update(is_enabled=False)
+                Plugin.objects.filter(pk=plugin.pk).update(is_enabled=False)

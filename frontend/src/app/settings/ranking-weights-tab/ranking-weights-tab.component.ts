@@ -241,6 +241,7 @@ export class RankingWeightsTabComponent implements OnInit, OnDestroy {
     lexical_retriever_enabled: false,
     query_expansion_retriever_enabled: false,
     xenforo_bm25_retriever_enabled: false,
+    tantivy_bm25_retriever_enabled: false,
   };
   savingStage1Retrievers = false;
 

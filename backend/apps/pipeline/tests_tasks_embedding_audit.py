@@ -26,3 +26,8 @@ class TestTasksEmbeddingAudit(SimpleTestCase):
         
         res = embedding_accuracy_audit(fortnightly=True, force=False)  # pylint: disable=no-value-for-parameter
         self.assertEqual(res, {"skipped": "disabled"})
+
+    def test_embedding_accuracy_audit_max_retries_none(self):
+        from apps.pipeline.tasks_embedding_audit import embedding_accuracy_audit  # noqa: PLC0415
+        
+        self.assertIsNone(embedding_accuracy_audit.max_retries)

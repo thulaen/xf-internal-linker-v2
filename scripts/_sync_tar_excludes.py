@@ -18,12 +18,13 @@ without updating every consumer in lockstep and re-baselining the manifests.
 
 # Patterns in their established order (no ``--exclude=`` prefix).
 TAR_EXCLUDE_PATTERNS = (
-    "__pycache__", "*.pyc", "*.so",
-    "build", "build_*", ".pytest_cache",
+    "__pycache__", "*.pyc",
+    "build", ".pytest_cache",
     ".ruff_cache", "htmlcov", "backend/reports",
     "backend/backups", "backend/coverage-html",
     "backend/extensions/build", "backend/extensions/build_*",
     "backend/extensions/reports",
+    "rust/target",
 )
 
 # The exact tuple the syncers pass to ``tar`` (byte-identical to the former

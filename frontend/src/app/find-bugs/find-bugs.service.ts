@@ -53,7 +53,7 @@ export class FindBugsService {
   findings(filters: Record<string, string> = {}): Observable<{ results: FindBugsFinding[] }> {
     let params = new HttpParams();
     Object.entries(filters).forEach(([key, value]) => {
-      if (value) params = params.set(key, value);
+      if (value !== '' && value !== null && value !== undefined) params = params.set(key, value);
     });
     return this.http.get<{ results: FindBugsFinding[] }>('/api/find-bugs/findings/', { params });
   }

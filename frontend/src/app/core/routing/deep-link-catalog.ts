@@ -460,6 +460,13 @@ export const DEEP_LINK_CATALOG: readonly DeepLinkEntry[] = [
     searchTerms: ['velocity', 'freshness', 'links created', 'links disappeared', 'churn'],
   },
   {
+    key: 'graph.signals',
+    label: 'Link graph — structural signals',
+    subtitle: 'Off-path structural link candidates and communities from NetworKit.',
+    route: '/graph/signals',
+    searchTerms: ['graph signals', 'networkit', 'adamic-adar', 'communities', 'structural candidates'],
+  },
+  {
     key: 'analytics.main',
     label: 'Analytics',
     subtitle: 'SEO impact reports from Google Search Console and Google Analytics 4.',

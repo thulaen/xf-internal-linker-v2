@@ -621,7 +621,12 @@ def refresh_session_start_payload():
     )
 
     payload = build_payload()
-    write_payload(default_payload_path(), payload)
+    try:
+        write_payload(default_payload_path(), payload)
+    except OSError as exc:
+        if exc.errno == 30:  # EROFS — /repo is mounted :ro in celery-worker containers
+            return {"status": "skipped", "reason": f"filesystem read-only: {exc}"}
+        raise
     return {"status": "ok", "markers": len(payload.markers)}
 
 

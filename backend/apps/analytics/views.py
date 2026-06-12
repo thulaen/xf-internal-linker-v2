@@ -1118,41 +1118,33 @@ class AnalyticsTelemetryBreakdownView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        queryset, days, source = _telemetry_queryset(request)
+        # DataFusion rewire 2026-06-10: breakdowns come from one SQL
+        # pass over a 15-minute Parquet snapshot instead of three live
+        # ORM GROUP BY queries per page load (see telemetry_rollups).
+        from .telemetry_rollups import breakdown_rows
+
+        days = _telemetry_window_days(request)
+        source = _telemetry_source_filter(request)
         return Response(
             {
                 "days": days,
                 "selected_source": source or "all",
                 "device_categories": _format_breakdown_rows(
-                    _aggregate_breakdown(queryset, "device_category"),
+                    breakdown_rows("device_category", days=days, source=source),
                     "device_category",
                 ),
                 "channel_groups": _format_breakdown_rows(
-                    _aggregate_breakdown(queryset, "default_channel_group"),
+                    breakdown_rows(
+                        "default_channel_group", days=days, source=source
+                    ),
                     "default_channel_group",
                 ),
                 "countries": _format_breakdown_rows(
-                    _aggregate_breakdown(queryset, "country"),
+                    breakdown_rows("country", days=days, source=source),
                     "country",
                 ),
             }
         )
-
-
-_BREAKDOWN_TOP_N = 6
-
-
-def _aggregate_breakdown(queryset, dimension: str):
-    """GROUP BY ``dimension`` + sum impressions/clicks/engaged_sessions, top-6."""
-    return (
-        queryset.values(dimension)
-        .annotate(
-            impressions=Sum("impressions"),
-            clicks=Sum("clicks"),
-            engaged_sessions=Sum("engaged_sessions"),
-        )
-        .order_by("-clicks", "-impressions", dimension)[:_BREAKDOWN_TOP_N]
-    )
 
 
 def _format_breakdown_rows(rows, dimension: str) -> list[dict]:
@@ -2423,7 +2415,7 @@ class AnalyticsGoogleOAuthUnlinkView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        from .models import AppSetting
+        from apps.core.models import AppSetting
 
         AppSetting.objects.filter(
             key__in=[

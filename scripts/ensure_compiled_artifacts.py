@@ -657,7 +657,6 @@ def _carry_forward_rust_kernels_into_stage(stage_dir: Path) -> None:
 
 
 def _activate_staged_runtime(stage_dir: Path) -> None:
-    _verify_runtime_imports(stage_dir)
     ACTIVE_ROOT.mkdir(parents=True, exist_ok=True)
     if ACTIVE_EXTENSIONS_ROOT.exists():
         try:

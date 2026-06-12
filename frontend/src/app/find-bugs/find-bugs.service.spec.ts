@@ -48,6 +48,13 @@ describe('FindBugsService', () => {
     expectPost('/api/find-bugs/approve-lesson/', { issue_id: 7 });
   });
 
+  it('fetches findings with filters, dropping empty strings but keeping zeros', () => {
+    service.findings({ search: 'foo', status: '', count: '0' }).subscribe();
+    const req = httpMock.expectOne('/api/find-bugs/findings/?search=foo&count=0');
+    expect(req.request.method).toBe('GET');
+    req.flush({ results: [] });
+  });
+
   it('posts report and context actions to bounded backend endpoints', () => {
     service.generateReport().subscribe();
     expectPost('/api/find-bugs/generate-report/', {});

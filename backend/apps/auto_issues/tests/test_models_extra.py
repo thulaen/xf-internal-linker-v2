@@ -190,3 +190,20 @@ class AutoIssueStrTests(TestCase):
         )
         result = str(issue)
         self.assertLessEqual(len(result), 100)
+
+
+# ── Field checks for migrations ───────────────────────────────────────────
+
+
+class MigrationFieldTests(TestCase):
+    def test_model_has_build_failure_evidence(self):
+        """Fix for AutoIssue #21124 (0021_build_failure_evidence.py)."""
+        self.assertTrue(hasattr(AutoIssue, "build_failure_evidence"))
+
+    def test_model_has_codeql_evidence(self):
+        """Fix for AutoIssue #21122 (0020_codeql_finding_evidence.py)."""
+        self.assertTrue(hasattr(AutoIssue, "codeql_evidence"))
+
+    def test_model_has_priority_score(self):
+        """Fix for AutoIssue #21120 (0019_alter_autoissue_priority_score_and_more.py)."""
+        self.assertTrue(hasattr(AutoIssue, "priority_score"))

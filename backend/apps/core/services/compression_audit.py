@@ -146,20 +146,14 @@ _CANDIDATES: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
         "ContentItem.pipeline_diagnostics JSON",
         "Per-item pipeline-stage diagnostics.",
     ),
-    # AuditEvent + OperationEvent runtime_context — millions of rows
-    # over time, even tiny per-row savings add up. Field names verified
+    # AuditEvent runtime_context — millions of rows over time,
+    # even tiny per-row savings add up. Field names verified
     # 2026-05-04 against the live model schemas.
     (
         "apps.audit.models.AuditEvent",
         ("metadata",),
         "AuditEvent.metadata JSON",
         "Per-event metadata blob.",
-    ),
-    (
-        "apps.ops_feed.models.OperationEvent",
-        ("runtime_context",),
-        "OperationEvent.runtime_context JSON",
-        "Per-event runtime context.",
     ),
     # SupersededEmbedding archive — raw float32 vectors, very compressible.
     (

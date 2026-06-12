@@ -1,14 +1,16 @@
-"""Django endpoint called by startupd's /gate proxy.
+"""Django endpoint behind scripts/session_start_payload.py.
 
 Returns JSON: {"markers": {...}, "total_open_count": N}.
 
-No auth required — this endpoint is only reachable from inside the
-Docker bridge network (startupd container → backend container). Exposed
-as GET /api/session-gate/.
+The Go "startupd" proxy that used to sit between the script and this
+endpoint was retired on 2026-06-11 (ADR 0007 — Python + Rust only);
+the script now calls this endpoint directly through nginx. Exposed as
+GET /api/session-gate/.
 
 Query params:
   type  — session type (docs/infrastructure/reconciliation/feature).
-           Unused by the DB queries but logged in the Go state file.
+           Unused by the DB queries; the script records it in
+           audit/session_gate_state.json for the quota hook.
   area  — repeatable repo-relative path; used for scoped lesson lookup.
 """
 from __future__ import annotations
@@ -101,10 +103,10 @@ def _sticky_marker() -> str:
         .first()
     )
     if entry is None:
-        return "[STICKY 1 READ: timestamp=N/A sha256=0000000000000000 agent=startupd]"
+        return "[STICKY 1 READ: timestamp=N/A sha256=0000000000000000 agent=session-gate]"
     body = entry.abstract or ""
     sha = hashlib.sha256(body.encode()).hexdigest()[:16]
-    return f"[STICKY 1 READ: timestamp={_now_utc_z()} sha256={sha} agent=startupd]"
+    return f"[STICKY 1 READ: timestamp={_now_utc_z()} sha256={sha} agent=session-gate]"
 
 
 def _registry_marker() -> tuple[str, int]:
@@ -204,45 +206,11 @@ def _paper_trail_marker() -> str:
 
 
 def _snapshots_marker() -> str:
-    try:
-        from apps.auto_issues._sidecars.snapshotd_client import SnapshotdClient  # noqa: PLC0415
-        client = SnapshotdClient(deadline=2.0)
-        if client.health() != "HEALTH_SERVING":
-            return "[SNAPSHOTS READ: skipped — snapshotd unavailable]"
-    except Exception:  # noqa: BLE001
-        return "[SNAPSHOTS READ: skipped — snapshotd unavailable]"
-
-    open_ids = list(
-        AutoIssue.objects.filter(status__in=_OPEN_STATUSES).values_list("id", flat=True)
-    )
-    _SEVERITY_RANK = {
-        "SK_CRITICAL": 0, "SK_ERROR": 1, "SK_WARNING": 2,
-        "SK_BEFORE": 3, "SK_AFTER": 4, "SK_INFO": 5,
-    }
-    all_snaps: list[dict] = []
-    for iid in open_ids:
-        try:
-            for snap in client.list_by_issue(iid):
-                all_snaps.append({
-                    "id": (snap.id or "")[:8] or "<unset>",
-                    "issue_id": snap.issue_id,
-                    "kind": snap.kind,
-                })
-        except Exception:  # noqa: BLE001
-            continue
-
-    issue_count = len({s["issue_id"] for s in all_snaps})
-    if not all_snaps:
-        return (
-            f"[SNAPSHOTS READ: 0 snapshots attached to 0 open issues — "
-            f"picked: (none — no open AutoIssue has an attached snapshot yet)]"
-        )
-    top3 = sorted(all_snaps, key=lambda s: _SEVERITY_RANK.get(s["kind"], 99))[:3]
-    chosen = ", ".join(f"#{s['id']}({s['kind']})" for s in top3)
-    return (
-        f"[SNAPSHOTS READ: {len(all_snaps)} snapshots attached to "
-        f"{issue_count} open issues — picked: {chosen}]"
-    )
+    # The Go snapshotd daemon was retired on 2026-06-11 (ADR 0007) and
+    # nothing ever created snapshots in production, so the store was
+    # always empty. The hooks accept this exact skipped form; keep the
+    # wording stable until a Python snapshot store exists.
+    return "[SNAPSHOTS READ: skipped — snapshotd unavailable]"
 
 
 def _lessons_marker(areas: list[str]) -> str:

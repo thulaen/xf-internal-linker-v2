@@ -46,6 +46,7 @@ _DEFAULT_ON_SETTING_KEYS = frozenset(
     (
         "stage1.lexical_retriever_enabled",
         "stage1.xenforo_bm25_retriever_enabled",
+        "stage1.tantivy_bm25_retriever_enabled",
     )
 )
 
@@ -857,6 +858,118 @@ def _fuse_via_rrf(
     return out
 
 
+# ── Concrete: TantivyBM25Retriever ───────────────────────────────
+
+
+class TantivyBM25Retriever:
+    """In-process BM25 keyword retriever over host titles via Tantivy.
+
+    True Okapi BM25 (Robertson & Zaragoza 2009) without a separate
+    search server: Tantivy is the approved Rust replacement for a
+    Lucene-style index (docs/specs/fr-approved-library-expansion-bank.md
+    § "Need full-text search without JVM"). Unlike
+    :class:`XenForoBM25Retriever` it covers ALL host sources (WordPress,
+    crawled — not just forum threads) and keeps working when the forum's
+    search endpoint is down. Unlike :class:`LexicalRetriever` it weighs
+    term rarity and document length instead of raw token overlap, so it
+    produces a different rank order — added value for RRF fusion.
+
+    The index is built fresh in RAM per pipeline pass from host title +
+    scope_title (the same text the lexical retriever reads): no on-disk
+    index, no staleness, no rebuild task. Feature-flagged via the
+    AppSetting ``stage1.tantivy_bm25_retriever_enabled`` (default ON).
+    Cold-start safe: missing package, empty corpus, or empty query all
+    return ``{}``.
+    """
+
+    name: str = "tantivy_bm25"
+
+    def __init__(self, *, enabled: bool = False):
+        self.enabled = enabled
+
+    @staticmethod
+    def _index_text(record) -> str:
+        """Lowercased alphanumeric text for one record.
+
+        Lowercasing also neutralises the query parser's AND/OR/NOT
+        operators (they are only operators in uppercase), and the
+        character strip removes quote/paren/colon query syntax.
+        """
+        import re
+
+        merged = " ".join(
+            part
+            for part in (
+                getattr(record, "title", "") or "",
+                getattr(record, "scope_title", "") or "",
+            )
+            if part
+        )
+        return re.sub(r"[^a-z0-9 ]+", " ", merged.lower()).strip()
+
+    def _build_index(self, context: RetrievalContext):
+        """Index every host record; returns (index, ordered keys) or None."""
+        import tantivy  # pylint: disable=import-error
+
+        builder = tantivy.SchemaBuilder()
+        builder.add_text_field("body", stored=False)
+        builder.add_unsigned_field("host_idx", stored=True)
+        index = tantivy.Index(builder.build())
+        # Fixed small heap: the corpus is titles only (a few MB at 100k
+        # hosts), far below this commit buffer.
+        writer = index.writer(heap_size=16_000_000)
+        indexed_keys: list[ContentKey] = []
+        for key, record in context.content_records.items():
+            text = self._index_text(record)
+            if not text:
+                continue
+            writer.add_document(tantivy.Document(body=text, host_idx=len(indexed_keys)))
+            indexed_keys.append(key)
+        if not indexed_keys:
+            return None
+        writer.commit()
+        index.reload()
+        return index, indexed_keys
+
+    def retrieve(self, context: RetrievalContext) -> dict[ContentKey, list[int]]:
+        if not self.enabled:
+            return {}
+        try:
+            import tantivy  # pylint: disable=import-error  # noqa: F401
+        except ImportError:
+            logger.warning(
+                "tantivy package not installed; tantivy_bm25 retriever "
+                "contributed nothing this pass (rebuild the backend image)"
+            )
+            return {}
+
+        built = self._build_index(context)
+        if built is None:
+            return {}
+        index, indexed_keys = built
+        searcher = index.searcher()
+
+        result: dict[ContentKey, list[int]] = {}
+        for dest_key in context.destination_keys:
+            dest_record = context.content_records.get(dest_key)
+            if dest_record is None:
+                continue
+            query_text = self._index_text(dest_record)
+            if not query_text:
+                continue
+            query = index.parse_query(query_text, ["body"])
+            hits = searcher.search(query, context.top_k + 1).hits
+            sentence_ids: list[int] = []
+            for _score, address in hits:
+                host_key = indexed_keys[searcher.doc(address).get_first("host_idx")]
+                if host_key == dest_key:
+                    continue
+                sentence_ids.extend(context.content_to_sentence_ids.get(host_key, []))
+            if sentence_ids:
+                result[dest_key] = sentence_ids
+        return result
+
+
 # ── Default registry ─────────────────────────────────────────────
 
 
@@ -895,6 +1008,8 @@ def default_retrievers() -> list[CandidateRetriever]:
         retrievers.append(
             XenForoBM25Retriever(enabled=True, per_dest_limit=per_dest_limit)
         )
+    if _setting_enabled("stage1.tantivy_bm25_retriever_enabled"):
+        retrievers.append(TantivyBM25Retriever(enabled=True))
 
     # FR-021: Graph-based Pixie Retriever
     if _setting_enabled("graph_candidate.enabled"):

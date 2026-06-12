@@ -40,34 +40,34 @@ describe('GscInsightCardComponent', () => {
     fixture.detectChanges();
   });
 
-  it('renders the headline and detail', () => {
+  it('Given a headline and detail, When the insight card renders, Then both texts are displayed', () => {
     expect(q('.gsc-insight__headline').textContent).toContain(
       'Fix issues before running the pipeline',
     );
     expect(q('.gsc-insight__detail').textContent).toContain('System health is degraded');
   });
 
-  it('applies the tone class', () => {
+  it('Given a tone, When the card renders, Then it applies the corresponding tone class to the wrapper', () => {
     expect(q('.gsc-insight').classList).toContain('tone-warning');
     host.tone = 'success';
     fixture.detectChanges();
     expect(q('.gsc-insight').classList).toContain('tone-success');
   });
 
-  it('renders the action link to the provided route', () => {
+  it('Given an action link and label, When the card renders, Then an anchor tag points to the route', () => {
     const action = q('a.gsc-insight__action');
     expect(action).toBeTruthy();
     expect(action.getAttribute('href')).toContain('/health');
     expect(action.textContent).toContain('Fix');
   });
 
-  it('omits the action when no actionLink is given', () => {
+  it('Given no action link, When the card renders, Then the action anchor tag is omitted', () => {
     host.actionLink = null;
     fixture.detectChanges();
     expect(q('a.gsc-insight__action')).toBeNull();
   });
 
-  it('omits the detail line when no detail is given', () => {
+  it('Given an empty detail line, When the card renders, Then the detail element is omitted', () => {
     host.detail = '';
     fixture.detectChanges();
     expect(q('.gsc-insight__detail')).toBeNull();

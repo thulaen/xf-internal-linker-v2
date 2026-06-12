@@ -1,13 +1,22 @@
 module.exports = function (config) {
   config.set({
     basePath: '',
-    frameworks: ['jasmine', '@angular-devkit/build-angular'],
+    frameworks: ['parallel', 'jasmine', '@angular-devkit/build-angular'],
     plugins: [
+      require('karma-parallel'),
       require('karma-jasmine'),
       require('karma-chrome-launcher'),
       require('karma-coverage'),
       require('@angular-devkit/build-angular/plugins/karma'),
     ],
+    // ng test parallelism — karma-parallel shards specs across N headless-Chrome
+    // executors so the suite uses multiple cores. run-angular-quality.sh sets
+    // KARMA_PARALLEL_EXECUTORS to the Dell core budget (capped at 16); locally it
+    // falls back to 4. Set KARMA_PARALLEL_EXECUTORS=1 to disable sharding.
+    parallelOptions: {
+      executors: Number(process.env.KARMA_PARALLEL_EXECUTORS) || 4,
+      shardStrategy: 'round-robin',
+    },
     client: {
       jasmine: {
         // Randomize spec execution order — surfaces tests that only pass

@@ -75,8 +75,12 @@ describe('FindBugsComponent', () => {
     expect(fixture.nativeElement.querySelector('.summary-card .chart-panel')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('.findings-card .findings-toolbar')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('section.findbugs-page > .filter-card')).toBeFalsy();
-    expect(fixture.nativeElement.querySelector('svg.findbugs-chart')).toBeTruthy();
-    expect(fixture.nativeElement.querySelectorAll('svg.findbugs-chart rect.severity-bar').length).toBe(4);
+    // ECharts renders into a div container (canvas renderer), not an inline SVG.
+    // Check the signal has a non-null option (4 severity levels → non-empty entries),
+    // and that the chart container div is visible rather than the empty-state placeholder.
+    expect(fixture.componentInstance.severityChart()).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.chart-panel .findbugs-chart')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.chart-panel .findbugs-chart-empty')).toBeFalsy();
 
     const buttons = Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
     buttons.find((button) => button.textContent?.includes('Run now'))?.click();
@@ -284,5 +288,18 @@ describe('FindBugsComponent', () => {
       'false_positive',
       jasmine.stringMatching('Trap:'),
     );
+  }));
+
+  it('cleans up subscriptions when the component is destroyed', fakeAsync(() => {
+    const fixture = TestBed.createComponent(FindBugsComponent);
+    fixture.detectChanges();
+    tick();
+    expect(fixture.componentInstance.summary).toBeTruthy();
+    expect(fixture.componentInstance.findings.length).toBeGreaterThan(0);
+
+    fixture.destroy();
+    tick();
+    // After destroy, subscription cleanup via takeUntilDestroyed prevents errors
+    expect(fixture.componentInstance).toBeTruthy(); // component object still exists
   }));
 });

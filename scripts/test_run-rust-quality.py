@@ -36,11 +36,12 @@ def test_scope_guard_exports_quality_rust_paths():
     )
 
 
-def test_rust_quality_runs_inside_compiled_tools_container():
-    """Host runs must enter the Docker-managed compiled-tools container."""
+def test_rust_quality_runs_inside_compiled_mutation_tools_on_dell():
+    """Host runs must enter Dell's Docker-managed compiled mutation image."""
     text = SCRIPT.read_text()
-    assert "docker compose exec -T" in text
-    assert "compiled-tools bash /repo/scripts/run-rust-quality.sh" in text
+    assert 'docker --context "$RUST_MUTATION_DOCKER_CONTEXT" run --rm' in text
+    assert "xf-linker-compiled-mutation-tools:latest" in text
+    assert "bash /repo/scripts/run-rust-quality.sh" in text
     assert "XF_QUALITY_INNER=1" in text
 
 
@@ -89,17 +90,63 @@ def test_scope_grep_pattern_correctness():
         assert not pattern.search(path), f"Expected scope filter NOT to match {path!r}"
 
 
+MUTATION_SCRIPT = SCRIPTS / "run-rust-mutation.sh"
+
+
 def test_rust_fuzz_is_wired():
-    """run-rust-quality.sh must run cargo-fuzz targets when they exist."""
-    text = SCRIPT.read_text()
+    """run-rust-mutation.sh must run cargo-fuzz targets when they exist."""
+    text = MUTATION_SCRIPT.read_text()
     assert "fuzz run" in text or "cargo-fuzz" in text, (
-        "run-rust-quality.sh must call cargo-fuzz so Rust fuzz targets are run "
+        "run-rust-mutation.sh must call cargo-fuzz so Rust fuzz targets are run "
         "alongside mutation tests"
     )
     assert "max_total_time" in text, (
-        "run-rust-quality.sh fuzz run must be time-bounded via -max_total_time "
+        "run-rust-mutation.sh fuzz run must be time-bounded via -max_total_time "
         "so CI does not hang on a slow fuzz target"
     )
+
+
+def test_rust_quality_routes_host_runs_to_dell_mutation_image():
+    """Host Rust quality runs must execute on Dell's compiled mutation image."""
+    text = SCRIPT.read_text()
+
+    assert 'RUST_MUTATION_DOCKER_CONTEXT="${RUST_MUTATION_DOCKER_CONTEXT:-dell}"' in text
+    assert 'docker --context "$RUST_MUTATION_DOCKER_CONTEXT" run --rm' in text
+    assert "xf-linker-compiled-mutation-tools:latest" in text
+
+
+def test_rust_mutation_defaults_to_sixteen_dell_jobs():
+    """Rust mutation must default to 16 cargo-mutants jobs on Dell."""
+    text = MUTATION_SCRIPT.read_text()
+
+    assert 'XF_RUST_MUTATION_JOBS="${XF_RUST_MUTATION_JOBS:-16}"' in text
+    assert 'rust_mutation_jobs="${XF_RUST_MUTATION_JOBS:-16}"' in text
+    assert 'cargo mutants --in-diff "$MUTATION_DIFF_FILE" --jobs "$rust_mutation_jobs"' in text
+
+
+def test_rust_mutation_is_compulsory_not_skipped():
+    """Missing cargo-mutants must fail the gate instead of skipping mutation."""
+    text = MUTATION_SCRIPT.read_text()
+
+    assert "cargo-mutants is required for Rust mutation" in text
+    assert "cargo-mutants not installed; skipping Rust mutation." not in text
+
+
+def test_rust_mutation_rejects_full_workspace_mode():
+    """Rust mutation must stay diff-scoped to changed or new files."""
+    text = MUTATION_SCRIPT.read_text()
+
+    assert "Full-workspace Rust mutation is disabled" in text
+    assert 'cargo mutants --in-diff "$MUTATION_DIFF_FILE" --jobs "$rust_mutation_jobs"' in text
+    assert 'cargo mutants --jobs "$rust_mutation_jobs"' not in text
+
+
+def test_rust_mutation_diff_includes_new_untracked_files():
+    """New Rust files must be included in the diff-fed mutation scope."""
+    text = MUTATION_SCRIPT.read_text()
+
+    assert "git ls-files --error-unmatch" in text
+    assert "git diff --no-index /dev/null" in text
 
 
 # ── multi-workspace coverage (the new /repo/rust workspace) ───────────────────

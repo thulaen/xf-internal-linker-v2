@@ -133,8 +133,8 @@ def _create_new(
         how_to_fix=suggest(payload.error_message, fp, payload.step),
         fingerprint=fp,
         severity=payload.severity,
-        node_id=node_id,
-        node_role=node_role,
+        node_id=node_id[:100],
+        node_role=node_role[:20],
         node_hostname=socket.gethostname()[:255],
         runtime_context=ctx,
     )

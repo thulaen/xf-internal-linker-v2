@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { catchError, finalize, of } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { EChartsOption } from 'echarts';
 
 import { EchartsDirective } from '../shared/charts/echarts.directive';
@@ -69,6 +70,7 @@ export class FindBugsComponent implements OnInit {
 
   private readonly service = inject(FindBugsService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly destroyRef = inject(DestroyRef);
 
   ngOnInit(): void {
     this.refresh();
@@ -77,11 +79,14 @@ export class FindBugsComponent implements OnInit {
   refresh(): void {
     this.error = '';
     this.service.summary()
-      .pipe(catchError(() => {
-        this.error = 'FindBugs summary could not be loaded.';
-        this.cdr.markForCheck();
-        return of(null);
-      }))
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        catchError(() => {
+          this.error = 'FindBugs summary could not be loaded.';
+          this.cdr.markForCheck();
+          return of(null);
+        })
+      )
       .subscribe((summary) => {
         this.summary = summary;
         this.renderChart();
@@ -95,11 +100,14 @@ export class FindBugsComponent implements OnInit {
       search: this.search,
       severity: this.severity,
       status: this.status,
-    }).pipe(catchError(() => {
-      this.error = 'FindBugs findings could not be loaded.';
-      this.cdr.markForCheck();
-      return of({ results: [] });
-    })).subscribe((payload) => {
+    }).pipe(
+      takeUntilDestroyed(this.destroyRef),
+      catchError(() => {
+        this.error = 'FindBugs findings could not be loaded.';
+        this.cdr.markForCheck();
+        return of({ results: [] });
+      })
+    ).subscribe((payload) => {
       this.findings = this.dedupeFindings(payload.results);
       this.cdr.markForCheck();
     });
@@ -188,9 +196,9 @@ export class FindBugsComponent implements OnInit {
   }
 
   modelDetail(): string {
-    const model = this.summary?.model as any;
+    const model = this.summary?.model;
     const reason = model?.reason || '';
-    if (model?.resource_comfort?.embedding_busy) {
+    if ((model as Record<string, unknown>)?.['resource_comfort'] && ((model as Record<string, unknown>)['resource_comfort'] as Record<string, unknown>)?.['embedding_busy']) {
       return 'Running beside embeddings; VictoriaMetrics will file a tuning issue if pressure is too high.';
     }
     if (reason === 'embeddings_busy') {
@@ -205,7 +213,7 @@ export class FindBugsComponent implements OnInit {
     if (reason === 'runner_completed') {
       return 'Running continuously with bounded time and output limits.';
     }
-    return reason ? `Reason: ${reason}` : 'Running continuously with Rust and Haskell confirmation.';
+    return reason ? `Reason: ${reason}` : 'Running continuously with Rust confirmation.';
   }
 
   batchProgressValue(): number {
@@ -349,10 +357,10 @@ export class FindBugsComponent implements OnInit {
     this.severityChart.set(buildSeverityChart(entries));
   }
 
-  private parseDescription(finding: FindBugsFinding): Record<string, any> {
+  private parseDescription(finding: FindBugsFinding): Record<string, unknown> {
     if (!finding.description) return {};
     try {
-      return JSON.parse(finding.description);
+      return JSON.parse(finding.description) as Record<string, unknown>;
     } catch {
       return {};
     }

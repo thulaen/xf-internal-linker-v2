@@ -4,8 +4,10 @@ Pure helpers (`_compute_fingerprint`, `_gather_context`, `_emit_ops_feed`)
 run in SimpleTestCase — no DB, no Docker. DB helpers (`_bump_existing`,
 `_create_new`, `_dedup_or_create`, `_recover_race`) need TestCase for
 transaction support but use minimal fixtures. The orchestrator class
-verifies that `ingest_error` glues the helpers together correctly and
-always emits the ops-feed event regardless of which branch returns.
+verifies that `ingest_error` glues the helpers together correctly.
+
+Note: `_emit_ops_feed` is a no-op since ops_feed was retired on 2026-06-11
+(ADR 0007 — Python+Rust only).
 """
 
 from __future__ import annotations
@@ -163,51 +165,16 @@ class GatherContextTests(SimpleTestCase):
 
 
 class EmitOpsFeedTests(SimpleTestCase):
-    """Severity mapping + None-row no-op + downstream-failure swallowing."""
+    """No-op tests since ops_feed was retired on 2026-06-11 (ADR 0007 — Python+Rust only)."""
 
     def test_no_op_on_none_row(self):
-        # No exception should be raised; nothing patched because the
-        # function returns at the `if row is None` guard.
+        # ops_feed module was deleted; function is now a no-op.
         self.assertIsNone(_emit_ops_feed(None))
 
-    def _make_row(self, **overrides) -> MagicMock:
+    def test_no_op_on_errorlog_row(self):
+        # ops_feed module was deleted; function is now a no-op.
         row = MagicMock(spec=ErrorLog)
         row.pk = 42
-        row.job_type = "pipeline"
-        row.error_message = "boom"
-        row.how_to_fix = "restart redis"
-        row.severity = ErrorLog.SEVERITY_MEDIUM
-        row.runtime_context = {"node_id": "primary"}
-        for k, v in overrides.items():
-            setattr(row, k, v)
-        return row
-
-    @patch("apps.ops_feed.services.emit")
-    def test_critical_severity_maps_to_error(self, mock_emit):
-        row = self._make_row(severity=ErrorLog.SEVERITY_CRITICAL)
-        _emit_ops_feed(row)
-        mock_emit.assert_called_once()
-        self.assertEqual(mock_emit.call_args.kwargs["severity"], "error")
-
-    @patch("apps.ops_feed.services.emit")
-    def test_high_severity_maps_to_error(self, mock_emit):
-        row = self._make_row(severity=ErrorLog.SEVERITY_HIGH)
-        _emit_ops_feed(row)
-        self.assertEqual(mock_emit.call_args.kwargs["severity"], "error")
-
-    @patch("apps.ops_feed.services.emit")
-    def test_medium_severity_maps_to_warning(self, mock_emit):
-        row = self._make_row(severity=ErrorLog.SEVERITY_MEDIUM)
-        _emit_ops_feed(row)
-        self.assertEqual(mock_emit.call_args.kwargs["severity"], "warning")
-
-    @patch("apps.ops_feed.services.emit", side_effect=Exception("ops_feed down"))
-    def test_swallows_downstream_failures(self, _mock_emit):
-        # Contract: ops-feed emission can never break error ingestion.
-        # If _emit_ops_feed leaks the exception, the test framework
-        # surfaces it as an error and this assertion is irrelevant —
-        # the bare call is the actual test.
-        row = self._make_row()
         self.assertIsNone(_emit_ops_feed(row))
 
 

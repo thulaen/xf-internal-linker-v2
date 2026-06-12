@@ -454,6 +454,7 @@ services:
       - .:/repo
       - compiled_artifacts:/opt/xf/compiled
       - compiled_tool_cache:/root/.cache
+      - go_tool_mod_cache:/go/pkg/mod
     command: bash -lc "tail -f /dev/null"
     healthcheck:
       test: ["CMD-SHELL", "command -v go >/dev/null 2>&1 && command -v cmake >/dev/null 2>&1"]
@@ -480,7 +481,7 @@ services:
       - compiled_tool_cache:/root/.cache
     command: bash -lc "tail -f /dev/null"
     healthcheck:
-      test: ["CMD-SHELL", "command -v mutmut >/dev/null 2>&1 && command -v mull-runner-19 >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "command -v mutmut >/dev/null 2>&1 && command -v cargo-mutants >/dev/null 2>&1"]
       interval: 60s
       timeout: 20s
       retries: 3

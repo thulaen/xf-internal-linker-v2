@@ -24,10 +24,6 @@ try {
     & $gitBash scripts/run-angular-quality.sh
     if ($LASTEXITCODE -ne 0) { throw "Angular quality checks failed." }
 
-    & $gitBash scripts/run-cpp-quality.sh
-    if ($LASTEXITCODE -ne 0) { throw "C++ quality checks failed." }
-
-
     git diff --check
     if ($LASTEXITCODE -ne 0) { throw "Whitespace check failed." }
 } finally {

@@ -7,10 +7,55 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from select_python_test_targets import select_targets
+from select_python_test_targets import select_targets, select_targets_with_map
 
 
 class SelectPythonTestTargetsTests(unittest.TestCase):
+    def test_deleted_source_files_are_skipped(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "backend/apps/auto_issues").mkdir(parents=True, exist_ok=True)
+
+            targets, missing = select_targets(
+                root,
+                [
+                    "backend/apps/auto_issues/management/commands/register_avro_schemas.py",
+                ],
+            )
+
+        self.assertEqual(targets, [])
+        self.assertEqual(missing, [])
+
+    def test_map_out_links_each_target_to_its_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "backend/apps/auto_issues/services/fingerprinting.py"
+            focused_test = (
+                root / "backend/apps/auto_issues/tests/test_fingerprinting.py"
+            )
+            source.parent.mkdir(parents=True, exist_ok=True)
+            focused_test.parent.mkdir(parents=True, exist_ok=True)
+            source.write_text("def canonical():\n    return 'x'\n", encoding="utf-8")
+            focused_test.write_text(
+                "from apps.auto_issues.services.fingerprinting import canonical\n",
+                encoding="utf-8",
+            )
+
+            _targets, missing, mapping = select_targets_with_map(
+                root,
+                ["backend/apps/auto_issues/services/fingerprinting.py"],
+            )
+
+        self.assertEqual(missing, [])
+        self.assertEqual(
+            mapping,
+            {
+                "apps/auto_issues/tests/test_fingerprinting.py": [
+                    "apps/auto_issues/services/fingerprinting.py"
+                ]
+            },
+        )
+
     def test_prefers_command_specific_test_over_whole_app(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -192,8 +237,6 @@ class SelectPythonTestTargetsTests(unittest.TestCase):
     def test_dirty_turbo_python_paths_have_focused_targets(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         paths = [
-            "backend/apps/auto_issues/_sidecars/schemard_client.py",
-            "backend/apps/auto_issues/_sidecars/snapshotd_client.py",
             "backend/apps/auto_issues/management/commands/refresh_session_start_payload.py",
             "backend/apps/auto_issues/management/commands/rotate_scope_log.py",
             "backend/apps/work_queue/services/correlation.py",
@@ -205,7 +248,6 @@ class SelectPythonTestTargetsTests(unittest.TestCase):
         targets, missing = select_targets(repo_root, paths)
 
         self.assertEqual(missing, [])
-        self.assertIn("apps/auto_issues/tests/test_sidecar_clients.py", targets)
         self.assertIn("apps/auto_issues/tests_session_start_payload.py", targets)
         self.assertIn("apps/auto_issues/tests_rotate_scope_log.py", targets)
         self.assertIn("apps/work_queue/tests_services.py", targets)

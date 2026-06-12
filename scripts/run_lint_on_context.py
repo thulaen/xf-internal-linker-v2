@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Distribute the read-only Python lint / type-check tools across machines.
 
-Dell carries ~88% of the changed-file lint load (config: ``lint_machines`` in
+Dell carries 100% of the changed-file lint load (config: ``lint_machines`` in
 ``config/mutation-routing.json``); Windows carries the rest. The four tools —
 ``ruff``, ``pylint``, ``mypy``, ``bandit`` — are stateless and read-only (no
 database), so a machine only needs the source synced and the
@@ -19,15 +19,17 @@ proven pieces are reused, not re-invented:
   ``.githooks/check-per-file-coverage.py``, into this gate's OWN named volume
   ``xf_lint_repo`` so the three gates never race on one volume.
 
-Fail-open at every layer: if no Dell context answers the reachability probe the
-split collapses to a single local Windows machine and EVERY file is linted
-locally (today's behaviour). If Dell answers but its sync or manifest verify
-fails, that slice is re-linted locally. The pass/fail result is identical in
-shape to the local-only path — only WHERE each file is linted changes.
+Fail-CLOSED at the probe layer: if the configured Dell context does not answer
+its reachability probe, ``machine_routing._select_machines`` raises and this gate
+hard-fails with a "fix Dell" message — work is NEVER silently moved to Windows.
+If Dell answers the probe but a slice's source sync or manifest verify fails
+mid-run, that slice is re-linted locally and the fallback is announced on stdout
+(``dell->local(unverified)``); the check still runs and the verdict is identical
+in shape to the Dell path — only WHERE that slice is linted changes.
 
-This path is opt-in: callers set ``XF_LINT_SPLIT=1`` (see
-``scripts/run-python-quality.sh``). With the variable unset the existing single
-local container keeps running, so the default behaviour is unchanged.
+For LOCAL commits ``scripts/run-python-quality.sh`` defaults ``XF_LINT_SPLIT=1``
+so Dell carries 100% of the changed-file lint load; CI keeps it off and lints in
+the CI container. Set ``XF_LINT_SPLIT=0`` to force a local-only run.
 """
 
 from __future__ import annotations
@@ -106,8 +108,6 @@ def _load_lint_routing_config() -> dict:
         machines = [
             {"name": "dell", "transport": "docker_context", "context": "dell",
              "weight": 1.0, "max_weight": 1.0},
-            {"name": "windows", "transport": "docker_local",
-             "weight": 0.0, "max_weight": 1.0},
         ]
     return {"machines": machines}
 
@@ -127,7 +127,7 @@ def _host_hashes(rel_slice: list[str]) -> dict[str, str]:
 def _tar_producer(env: dict) -> subprocess.Popen:
     """One tar producer (backend + .githooks, shared exclude list) for the push."""
     return subprocess.Popen(
-        ["tar", "-cf", "-", *_TAR_EXCLUDES, "backend", ".githooks"],
+        ["tar", "-cf", "-", *_TAR_EXCLUDES, "backend", "rust", "services", ".githooks"],
         cwd=REPO_ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env,
     )
 
@@ -215,14 +215,6 @@ def _remote_lint_cmd(context: str, tool: str, files: list[str]) -> list[str]:
     ]
 
 
-def _local_lint_cmd(tool: str, files: list[str]) -> list[str]:
-    """The ``docker compose run`` command that lints one slice locally."""
-    return [
-        "docker", "compose", "run", "--rm", "-T", "-w", "/repo/backend",
-        "backend-quality", *_inner_command(tool, files),
-    ]
-
-
 def _run(cmd: list[str], env: dict, timeout: int) -> tuple[int, str]:
     """Run a command, never raise; return (rc, combined-output)."""
     try:
@@ -250,12 +242,6 @@ def _lint_slice_on_remote(context: str, tool: str, files: list[str]
     return _run(_remote_lint_cmd(context, tool, files), env, timeout=600)
 
 
-def _lint_slice_local(tool: str, files: list[str]) -> tuple[int, str]:
-    """Lint one slice on the always-trusted local Windows backend-quality."""
-    env = {**os.environ, "MSYS_NO_PATHCONV": "1"}
-    return _run(_local_lint_cmd(tool, files), env, timeout=600)
-
-
 def run_tool_sharded(tool: str, files: list[str]) -> tuple[int, str]:
     """Split ``files`` across machines, lint each slice, merge into one verdict.
 
@@ -273,15 +259,14 @@ def run_tool_sharded(tool: str, files: list[str]) -> tuple[int, str]:
     lock = threading.Lock()
 
     def per_machine(machine: dict, slice_files: list[str]) -> None:
-        if machine["transport"] == "docker_context":
-            outcome = _lint_slice_on_remote(machine.get("context", "dell"), tool, slice_files)
-            where = machine["name"]
-            if outcome is None:  # untrusted → fail-open re-run locally
-                outcome = _lint_slice_local(tool, slice_files)
-                where = f"{machine['name']}->local(unverified)"
-        else:
-            outcome = _lint_slice_local(tool, slice_files)
-            where = f"{machine['name']}(local)"
+        if machine["transport"] != "docker_context":
+            with lock:
+                results[machine["name"]] = (1, "transport not allowed; lint runs only on the Dell docker context")
+            return
+        outcome = _lint_slice_on_remote(machine.get("context", "dell"), tool, slice_files)
+        where = machine["name"]
+        if outcome is None:  # untrusted -> fail-closed
+            outcome = (1, f"Dell source sync or manifest verification failed for {tool}.")
         with lock:
             results[machine["name"]] = outcome
             sys.stdout.write(f"[LINT SPLIT: {tool} on {where} -> {len(slice_files)} file(s)]\n")
@@ -327,7 +312,7 @@ def _write_lint_evidence(evidence_out, tool: str, files: list[str], rc: int) -> 
     _append_evidence(
         evidence_out, check_type=check_type,
         status="passed" if passed else "failed", tool_name=tool,
-        command=f"run_lint_on_context.py --tool {tool} (sharded Dell 88%)",
+        command=f"run_lint_on_context.py --tool {tool} (sharded Dell 100%)",
         summary=f"Sharded {tool} {'passed' if passed else 'failed'} for changed backend files.",
         failure_fingerprint=f"{tool}:{rc}",
     )
@@ -346,10 +331,30 @@ def run_lint(
     other tools run on ``files``. When ``evidence_out`` is set, each tool's
     merged verdict is appended as a QualityEvidence row.
     """
+    from quality_cache import QualityCache
+    cache = QualityCache(REPO_ROOT)
     worst = 0
+    
     for tool in tools:
         tool_files = (bandit_files if tool == "bandit" and bandit_files is not None else files) or []
-        rc, out = run_tool_sharded(tool, tool_files)
+        if not tool_files:
+            continue
+            
+        subjects = {
+            f: cache.subject_hash_for_files([REPO_ROOT / "backend" / f])
+            for f in tool_files
+        }
+        to_run, skipped = cache.filter(tool, subjects)
+        
+        if skipped:
+            sys.stdout.write(f"[LINT CACHE: skipped {len(skipped)} unchanged files for {tool}]\n")
+        if not to_run:
+            sys.stdout.write(f"[LINT CACHE: all files unchanged for {tool}]\n")
+            if evidence_out is not None:
+                _write_lint_evidence(evidence_out, tool, tool_files, 0)
+            continue
+            
+        rc, out = run_tool_sharded(tool, to_run)
         if out:
             try:
                 sys.stdout.write(out)
@@ -357,9 +362,43 @@ def run_lint(
                 sys.stdout.buffer.write(out.encode('utf-8'))
         worst = max(worst, rc)
         sys.stdout.write(f"[LINT RESULT: {tool} rc={rc}]\n")
+        
         if evidence_out is not None:
-            _write_lint_evidence(evidence_out, tool, tool_files, rc)
+            _write_lint_evidence(evidence_out, tool, to_run, rc)
+            
+        if rc == 0:
+            cache.record(tool, [subjects[f] for f in to_run])
+            
     return worst
+
+
+def _run_dependency_audit(evidence_out: Path | None) -> None:
+    """Run pip-audit and safety check on Dell, advisory only."""
+    routing = _load_machine_routing()
+    machines = routing._select_machines(_load_lint_routing_config())
+    dell_ctx = next((m.get("context", "dell") for m in machines if m["name"] == "dell"), "dell")
+    env = {**os.environ, "MSYS_NO_PATHCONV": "1"}
+    _sync_source_to_context(dell_ctx, env)
+
+    for tool, cmd_args in [
+        ("pip-audit", ["pip-audit", "-r", "requirements.txt"]),
+        ("safety", ["safety", "check", "-r", "requirements.txt", "--full-report"]),
+    ]:
+        cmd = [
+            "docker", "--context", dell_ctx, "run", "--rm",
+            "-v", f"{_LINT_VOLUME}:/repo", "-w", "/repo/backend",
+            _IMAGE, *cmd_args
+        ]
+        rc, out = _run(cmd, env, timeout=300)
+        if out.strip():
+            sys.stdout.write(f"----- {tool} @ dell (rc={rc}) -----\n{out}\n")
+        if evidence_out:
+            _append_evidence(
+                evidence_out, check_type="security", status="passed" if rc == 0 else "failed",
+                tool_name=tool, command=f"{tool} (Dell context)",
+                summary=f"{tool} {'passed' if rc == 0 else 'failed'} for backend dependencies.",
+                failure_fingerprint=f"{tool}:{rc}"
+            )
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -381,6 +420,10 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         "--evidence-out", default=None,
         help="JSON-lines path; when set, append one QualityEvidence row per tool.",
     )
+    parser.add_argument(
+        "--dependency-audit", action="store_true",
+        help="Run pip-audit and safety check on Dell.",
+    )
     return parser.parse_args(argv)
 
 
@@ -394,10 +437,14 @@ def main(argv: list[str] | None = None) -> int:
     files = _norm(args.files)
     bandit_files = None if args.bandit_files is None else _norm(args.bandit_files)
     evidence_out = Path(args.evidence_out) if args.evidence_out else None
+    rc = 0
     if not files and not bandit_files:
         sys.stdout.write("[LINT SPLIT: no changed files — nothing to lint]\n")
-        return 0
-    return run_lint(tools, files, bandit_files=bandit_files, evidence_out=evidence_out)
+    else:
+        rc = run_lint(tools, files, bandit_files=bandit_files, evidence_out=evidence_out)
+    if args.dependency_audit:
+        _run_dependency_audit(evidence_out)
+    return rc
 
 
 if __name__ == "__main__":

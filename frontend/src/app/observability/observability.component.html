@@ -1,8 +1,8 @@
-<section class="observability-page">
-  <header class="page-header">
+<section id="observability-page" class="observability-page p-[var(--spacing-page)]">
+  <header class="page-header flex gap-[var(--space-md)] mb-[var(--space-xl)]">
     <div>
-      <h1 [peHelper]="'VictoriaMetrics'">Observability Stack</h1>
-      <p>
+      <h1 class="text-2xl font-normal text-[var(--color-text-primary)]" [peHelper]="'Observability Stack'">Observability Stack</h1>
+      <p class="text-sm text-[var(--color-text-secondary)] mt-[var(--space-xs)]">
         Stack health for metrics, charts, alerts, logs, traces, profiles,
         browser signals, and code scans.
       </p>
@@ -10,35 +10,40 @@
   </header>
 
   @if (error(); as msg) {
-    <mat-card class="notice-card">
-      <mat-icon>warning</mat-icon>
-      <span>{{ msg }}</span>
-    </mat-card>
-  }
-
-  @if (services().length === 0 && !error()) {
-    <div class="loading-row">
-      <mat-spinner diameter="24"></mat-spinner>
-      <span>Loading stack health...</span>
+    <div class="notice-card bg-white border border-[var(--color-error)] rounded-[var(--card-border-radius)] p-[var(--spacing-card)] flex items-center gap-[var(--space-md)] mb-[var(--space-lg)]">
+      <span class="material-icons text-[var(--color-error)]">warning</span>
+      <span class="text-[var(--color-text-primary)]">{{ msg }}</span>
     </div>
   }
 
-  <div class="service-grid">
+  @if (services().length === 0 && !error()) {
+    <div class="loading-row flex items-center justify-center gap-[var(--space-md)] py-[var(--space-xl)]">
+      <svg class="animate-spin h-6 w-6 text-[var(--color-primary)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+      </svg>
+      <span class="text-[var(--color-text-secondary)] text-sm">Loading stack health...</span>
+    </div>
+  }
+
+  <div class="service-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[var(--spacing-md)]">
     @for (service of services(); track service.service_name) {
-      <mat-card class="stack-card" [id]="cardId(service)">
+      <div class="stack-card bg-white border border-[var(--card-border)] rounded-[var(--card-border-radius)] p-[var(--spacing-card)] flex flex-col hover:shadow-[var(--shadow-md)] transition-shadow duration-200" [id]="cardId(service)">
         <app-service-card [service]="service"></app-service-card>
+        
         @if (service.service_name === 'VictoriaMetrics') {
-          <mat-progress-bar
-            mode="determinate"
-            [attr.data-storage-used-percent]="storageUsedPercent(service)"
-            [value]="storageUsedPercent(service)"
-          ></mat-progress-bar>
+          <div class="mt-[var(--space-md)] w-full h-1 bg-gray-200 rounded-full overflow-hidden" [attr.data-storage-used-percent]="storageUsedPercent(service)">
+            <div class="h-full bg-[var(--color-primary)] rounded-full" [style.width.%]="storageUsedPercent(service)"></div>
+          </div>
         }
-        <button mat-stroked-button type="button" (click)="openDashboard(service)">
-          <mat-icon>open_in_new</mat-icon>
-          Open dashboard
-        </button>
-      </mat-card>
+        
+        <div class="mt-auto pt-[var(--space-lg)] flex items-center">
+          <button type="button" class="flex items-center gap-[var(--space-sm)] px-[var(--space-md)] py-[var(--space-sm)] border border-[var(--color-border)] rounded-[var(--card-border-radius)] text-sm font-medium text-[var(--color-primary)] hover:bg-[#e8f0fe] transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]" [attr.aria-label]="'Open ' + service.service_name + ' dashboard'" (click)="openDashboard(service)">
+            <span class="material-icons text-[18px]">open_in_new</span>
+            Open dashboard
+          </button>
+        </div>
+      </div>
     }
   </div>
 </section>

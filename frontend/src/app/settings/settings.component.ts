@@ -406,6 +406,7 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     lexical_retriever_enabled: false,
     query_expansion_retriever_enabled: false,
     xenforo_bm25_retriever_enabled: false,
+    tantivy_bm25_retriever_enabled: false,
   };
 
   // Phase 6 optional-pick master switches. Defaults seeded ON via

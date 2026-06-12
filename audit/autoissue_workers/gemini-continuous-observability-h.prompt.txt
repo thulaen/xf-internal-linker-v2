@@ -1,0 +1,8 @@
+You are Worker H using Gemini 3.1 Pro Preview High. Use high reasoning.
+
+Shared checkout on master. No branches, staging, commits, pushes, or bypasses. Other workers are active; do not revert unrelated changes.
+
+Goal: resolve only these AutoIssues: #21241, #21243, #21245, #21248.
+Scope: frontend/src/app/observability only. If any other path is needed, stop and report.
+
+These files may already contain partial changes from an earlier worker. Review them, fix any issues you find in-scope, run/propose the focused tests, and resolve rows only after proof. Use Given/When/Then wording and lessons with both Trap: and Fix shape:. Use Dell/turbo for final proof where available; do not treat MSI/Windows tests as final proof. Do not touch AGENT-HANDOFF.md or AI-CONTEXT.md.

@@ -1,12 +1,9 @@
 """Tests for .githooks/check-no-cross-language-import.py (slice 1.5).
 
-Five focused cases:
-  (a) clean Python + Go (no flags)
+Focused cases:
+  (a) clean Python (no flags)
   (b) Python with `import ctypes` + `ctypes.CDLL(...)` of a services/ path
   (c) Python with `subprocess.run(...)` of a services/ binary
-  (d) Go with `exec.Command("python", ...)`
-  (e) Go file whose docstring/comments mention "services/streamd" but performs
-      no actual call — must NOT trip the hook.
 
 The hook is tested via its `scan_paths()` helper so the test does not depend
 on a real git index. The hook itself reads staged files via git in main().
@@ -53,7 +50,7 @@ class CrossLanguageImportHookTests(TestCase):
         path.write_text(body, encoding="utf-8")
         return path
 
-    def test_clean_python_and_go_has_no_violations(self) -> None:
+    def test_clean_python_has_no_violations(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             py = self._write(
@@ -64,18 +61,7 @@ class CrossLanguageImportHookTests(TestCase):
                 "def handle(event):\n"
                 "    broadcast('topic', 'event', event)\n",
             )
-            go = self._write(
-                root,
-                "services/streamd/cmd/streamd/main.go",
-                "package main\n"
-                "\n"
-                'import "context"\n'
-                "\n"
-                "func run(ctx context.Context) error {\n"
-                "    return nil\n"
-                "}\n",
-            )
-            violations = hook.scan_paths([py, go])
+            violations = hook.scan_paths([py])
             self.assertEqual(violations, [],
                              f"clean files should not raise violations: {violations}")
 
@@ -120,56 +106,6 @@ class CrossLanguageImportHookTests(TestCase):
                 any("subprocess" in v.rule.lower() for v in violations),
                 f"violation should mention subprocess; got {violations}",
             )
-
-    def test_go_exec_command_python_is_flagged(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            go = self._write(
-                root,
-                "services/streamd/cmd/streamd/leak.go",
-                "package main\n"
-                "\n"
-                'import "os/exec"\n'
-                "\n"
-                "func bad() {\n"
-                "    _ = exec.Command(\"python3\", \"-c\", \"print('hi')\").Run()\n"
-                "}\n",
-            )
-            violations = hook.scan_paths([go])
-            self.assertGreaterEqual(
-                len(violations), 1,
-                "Go calling python via os/exec must be flagged",
-            )
-            self.assertTrue(
-                any("exec" in v.rule.lower() for v in violations),
-                f"violation should mention exec; got {violations}",
-            )
-
-    def test_go_docstring_mentioning_services_is_not_flagged(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            go = self._write(
-                root,
-                "services/streamd/internal/broker/broker.go",
-                "// Package broker is the Go streamd implementation.\n"
-                "//\n"
-                "// See services/streamd/README.md and the Python client at\n"
-                "// backend/apps/realtime/_streamd_client.py for the surface.\n"
-                "// This package never shells out to python3 or manage.py — it\n"
-                "// only ever talks gRPC over the configured listener.\n"
-                "package broker\n"
-                "\n"
-                'import "context"\n'
-                "\n"
-                "func New(ctx context.Context) {}\n",
-            )
-            violations = hook.scan_paths([go])
-            self.assertEqual(
-                violations, [],
-                "comments and docstrings mentioning python / services must not trip the hook; "
-                f"got {violations}",
-            )
-
 
 class CrossLanguageImportHookEdgeCases(TestCase):
     """Additional cases for full coverage of the hook surface."""
@@ -324,7 +260,11 @@ class CrossLanguageImportHookEdgeCases(TestCase):
             _sp.run = original  # type: ignore[assignment]
 
     def test_staged_files_parses_git_output(self) -> None:
-        """Hit the happy path of _staged_files() with a stubbed git result."""
+        """Hit the happy path of _staged_files() with a stubbed git result.
+
+        Only .py paths are collected now; the .go and .md lines must be
+        filtered out.
+        """
         import subprocess as _sp
         original = _sp.run
 
@@ -341,7 +281,7 @@ class CrossLanguageImportHookEdgeCases(TestCase):
         finally:
             _sp.run = original  # type: ignore[assignment]
         suffixes = sorted(p.suffix for p in paths)
-        self.assertEqual(suffixes, [".go", ".py"], f"got {paths}")
+        self.assertEqual(suffixes, [".py"], f"got {paths}")
 
     def test_non_string_arg_does_not_crash_scan(self) -> None:
         """`subprocess.run(args=42)` exercises the non-string branch in _check_const."""

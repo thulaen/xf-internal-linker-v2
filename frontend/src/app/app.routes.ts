@@ -57,6 +57,14 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'graph/signals',
+    loadComponent: () =>
+      import('./graph/graph-signals/graph-signals.component').then((m) => m.GraphSignalsComponent),
+    title: 'Graph Signals — XF Internal Linker',
+    canActivate: [authGuard],
+    data: { breadcrumb: 'Graph Signals' },
+  },
+  {
     path: 'analytics',
     loadComponent: () =>
       import('./analytics/analytics.component').then((m) => m.AnalyticsComponent),

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -202,31 +203,58 @@ def _candidate_tests_for_path(root: Path, backend_relative: Path) -> list[Path]:
     return _existing_candidates(root, backend_relative)
 
 
-def select_targets(root: Path, changed_paths: list[str]) -> tuple[list[str], list[str]]:
+def select_targets_with_map(
+    root: Path, changed_paths: list[str]
+) -> tuple[list[str], list[str], dict[str, list[str]]]:
     targets: list[str] = []
     missing: list[str] = []
+    mapping: dict[str, set[str]] = {}
     for item in changed_paths:
         backend_relative = _backend_relative(Path(item))
         if backend_relative.name == "__init__.py":
             continue
         if "migrations" in backend_relative.parts:
             continue
+        if not (_backend_root(root) / backend_relative).exists():
+            # Deleted (or renamed-away) sources need no pytest target.
+            continue
         candidates = _candidate_tests_for_path(root, backend_relative)
         existing = [path for path in candidates if (_backend_root(root) / path).exists()]
         if existing:
             targets.extend(path.as_posix() for path in existing)
+            for path in existing:
+                mapping.setdefault(path.as_posix(), set()).add(
+                    backend_relative.as_posix()
+                )
         elif not _is_test_path(backend_relative):
             missing.append(backend_relative.as_posix())
-    return sorted(set(targets)), sorted(set(missing))
+    sorted_map = {key: sorted(values) for key, values in sorted(mapping.items())}
+    return sorted(set(targets)), sorted(set(missing)), sorted_map
+
+
+def select_targets(root: Path, changed_paths: list[str]) -> tuple[list[str], list[str]]:
+    targets, missing, _mapping = select_targets_with_map(root, changed_paths)
+    return targets, missing
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("changed_paths", nargs="+")
     parser.add_argument("--repo-root", default=".")
+    parser.add_argument(
+        "--map-out",
+        default=None,
+        help="Optional path for a JSON map of {test target: [source files]}.",
+    )
     args = parser.parse_args()
 
-    targets, missing = select_targets(Path(args.repo_root).resolve(), args.changed_paths)
+    targets, missing, mapping = select_targets_with_map(
+        Path(args.repo_root).resolve(), args.changed_paths
+    )
+    if args.map_out:
+        Path(args.map_out).write_text(
+            json.dumps(mapping, sort_keys=True), encoding="utf-8"
+        )
     if missing:
         print("Missing nearby pytest target for:", file=sys.stderr)
         for path in missing:

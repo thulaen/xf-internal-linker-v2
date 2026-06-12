@@ -102,7 +102,7 @@ class GlitchtipComposeIntegrityTests(SimpleTestCase):
 
     def test_no_profile_gating_on_glitchtip_services(self):
         services = self.compose["services"]
-        for name in ("glitchtip", "glitchtip-worker", "pyroscope", "otel-collector"):
+        for name in ("glitchtip", "glitchtip-worker", "otel-collector"):
             profiles = services[name].get("profiles") or []
             self.assertEqual(
                 list(profiles),
@@ -114,14 +114,23 @@ class GlitchtipComposeIntegrityTests(SimpleTestCase):
                 ),
             )
 
-    def test_pyroscope_localhost_only_port_binding(self):
+    def test_pyroscope_has_mint_quality_profile(self):
+        services = self.compose["services"]
+        profiles = services["pyroscope"].get("profiles") or []
+        self.assertEqual(
+            list(profiles),
+            ["mint-quality"],
+            msg="`pyroscope` must be gated behind the `mint-quality` profile since it runs on the Mint helper."
+        )
+
+    def test_pyroscope_lan_port_binding(self):
         pyroscope = self.compose["services"]["pyroscope"]
         ports = pyroscope.get("ports") or []
         self.assertTrue(
-            any("127.0.0.1:" in str(p) for p in ports),
+            any("4040:4040" in str(p) for p in ports),
             msg=(
-                "`pyroscope` ports must be 127.0.0.1-bound — exposing the "
-                "profiling UI to the world is a leak risk. Got: "
+                "`pyroscope` ports must be exposed as 4040:4040 so the Windows LAN "
+                "can reach the Mint helper. Got: "
                 f"{ports!r}"
             ),
         )
@@ -153,7 +162,7 @@ class GlitchtipComposeIntegrityTests(SimpleTestCase):
         service = self.otel_config.get("service") or {}
         profiles = (service.get("pipelines") or {}).get("profiles") or {}
 
-        self.assertEqual(exporters["otlp/pyroscope"]["endpoint"], "pyroscope:4040")
+        self.assertEqual(exporters["otlp/pyroscope"]["endpoint"], "10.10.10.91:4040")
         self.assertTrue(exporters["otlp/pyroscope"]["tls"]["insecure"])
         self.assertIn("otlp", profiles.get("receivers") or [])
         self.assertIn("otlp/pyroscope", profiles.get("exporters") or [])

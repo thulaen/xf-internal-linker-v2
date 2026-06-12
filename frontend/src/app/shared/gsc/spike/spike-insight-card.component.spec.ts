@@ -39,30 +39,30 @@ describe('SpikeInsightCardComponent (CDK + Tailwind)', () => {
     fixture.detectChanges();
   });
 
-  it('renders the headline and detail', () => {
+  it('Given a headline and detail, When the card renders, Then both strings are present in the text content', () => {
     expect(fixture.nativeElement.textContent).toContain('System health needs attention');
     expect(fixture.nativeElement.textContent).toContain('Some services are degraded');
   });
 
-  it('renders an owned app-icon (no mat-icon)', () => {
+  it('Given the component uses CDK + Tailwind, When rendered, Then it uses app-icon instead of mat-icon', () => {
     expect(q('app-icon')).toBeTruthy();
     expect(q('mat-icon')).toBeNull();
   });
 
-  it('renders a routed action button (no mat-button)', () => {
+  it('Given a routed action, When rendered, Then it uses a standard anchor tag instead of mat-button', () => {
     const a = q('a');
     expect(a).toBeTruthy();
     expect(a.getAttribute('href')).toContain('/health');
     expect(a.textContent).toContain('View system health');
   });
 
-  it('omits the action when no link is given', () => {
+  it('Given no action link, When rendered, Then the action anchor is omitted', () => {
     host.actionLink = null;
     fixture.detectChanges();
     expect(q('a')).toBeNull();
   });
 
-  it('omits the detail line when empty', () => {
+  it('Given an empty detail, When rendered, Then the detail text is omitted from the output', () => {
     host.detail = '';
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).not.toContain('Some services are degraded');

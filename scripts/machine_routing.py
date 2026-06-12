@@ -149,19 +149,21 @@ def _probe_reachable(machine: dict) -> bool:
             timeout = _PROBE_SSH_TIMEOUT
         else:
             return False
-        rc = subprocess.run(
+        
+        proc = subprocess.run(
             cmd, capture_output=True, timeout=timeout, cwd=str(REPO_ROOT),
             check=False,
-        ).returncode
-        # SSH reserves exit 255 for its OWN connection/auth failure; any other
-        # code means we reached the host and its shell ran the command. A Windows
-        # cmd.exe helper returns 1 for the unknown `true`, NOT 255 — so checking
-        # rc==0 here would silently drop a perfectly reachable Windows box (the
-        # Dell), defeating fail-open's purpose. Reachability == "SSH connected".
+        )
+        rc = proc.returncode
+        
+        if rc != 0:
+            print(f"PROBE FAILED for {machine['name']}: rc={rc} stdout={proc.stdout} stderr={proc.stderr}")
+
         if transport == "ssh":
             return rc != 255
         return rc == 0
-    except Exception:
+    except Exception as e:
+        print(f"PROBE EXCEPTION for {machine['name']}: {e}")
         return False
 
 
