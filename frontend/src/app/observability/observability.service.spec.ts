@@ -28,9 +28,9 @@ describe('ObservabilityService', () => {
     req.flush({ services: [] });
   });
 
-  it('passes HTTP errors through to be caught by the component', (done) => {
+  it('passes HTTP errors through to be caught by the component', () => new Promise<void>((done, reject) => {
     service.stack().subscribe({
-      next: () => done.fail('Expected error'),
+      next: () => reject('Expected error'),
       error: (err) => {
         expect(err.status).toBe(500);
         done();
@@ -39,7 +39,7 @@ describe('ObservabilityService', () => {
 
     const req = httpMock.expectOne('/api/observability/stack/');
     req.flush('Server Error', { status: 500, statusText: 'Internal Server Error' });
-  });
+  }));
 
   // TODO(AutoIssue #21248): Given a malformed or partial response from the backend, When parsed, Then it passes the result without crashing (or lets Angular HTTP client throw).
   it('handles partial or missing data payloads gracefully', () => {

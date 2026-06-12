@@ -12,14 +12,14 @@ describe('WhosOnShiftComponent', () => {
   let fixture: ComponentFixture<WhosOnShiftComponent>;
   let httpMock: HttpTestingController;
   let authServiceSpy: { currentUser$: BehaviorSubject<any> };
-  let visibilityGateSpy: { whileLoggedInAndVisible: jasmine.Spy };
+  let visibilityGateSpy: { whileLoggedInAndVisible: Spy };
 
   beforeEach(async () => {
     authServiceSpy = {
       currentUser$: new BehaviorSubject({ username: 'testuser' })
     };
     visibilityGateSpy = {
-      whileLoggedInAndVisible: jasmine.createSpy('whileLoggedInAndVisible').and.callFake((fn: () => Observable<any>) => {
+      whileLoggedInAndVisible: vi.fn().mockImplementation((fn: () => Observable<any>) => {
         return fn().pipe(take(1));
       })
     };
@@ -57,7 +57,7 @@ describe('WhosOnShiftComponent', () => {
     
     tick();
     fixture.detectChanges();
-    expect(component.visible()).toBeFalse();
+    expect(component.visible()).toBe(false);
     const card = fixture.debugElement.query(By.css('.ws-card'));
     expect(card).toBeNull();
   }));
@@ -73,7 +73,7 @@ describe('WhosOnShiftComponent', () => {
     
     tick();
     fixture.detectChanges();
-    expect(component.visible()).toBeTrue();
+    expect(component.visible()).toBe(true);
     const rows = fixture.debugElement.queryAll(By.css('.ws-row'));
     expect(rows.length).toBe(2);
     expect(rows[1].nativeElement.textContent).toContain('otheruser');
@@ -87,7 +87,7 @@ describe('WhosOnShiftComponent', () => {
     
     tick();
     fixture.detectChanges();
-    expect(component.visible()).toBeFalse();
+    expect(component.visible()).toBe(false);
   }));
 
   it('should format "ago" correctly', () => {

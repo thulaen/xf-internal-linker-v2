@@ -22,8 +22,8 @@ describe('BaselineIndicatorComponent', () => {
     
     const chip = fixture.debugElement.query(By.css('.bi-chip'));
     expect(chip.nativeElement.textContent).toContain('within noise');
-    expect(chip.nativeElement.classList.contains('bi-good')).toBeFalse();
-    expect(chip.nativeElement.classList.contains('bi-bad')).toBeFalse();
+    expect(chip.nativeElement.classList.contains('bi-good')).toBe(false);
+    expect(chip.nativeElement.classList.contains('bi-bad')).toBe(false);
     
     const icon = fixture.debugElement.query(By.css('mat-icon'));
     expect(icon.nativeElement.textContent).toBe('check_circle');

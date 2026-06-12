@@ -28,13 +28,13 @@ describe('DashboardComponent', () => {
   let fixture: ComponentFixture<DashboardComponent>;
   let component: DashboardComponent;
   let httpMock: HttpTestingController;
-  let dashSvc: jasmine.SpyObj<DashboardService>;
+  let dashSvc: SpyObj<DashboardService>;
 
   beforeEach(async () => {
-    dashSvc = jasmine.createSpyObj<DashboardService>('DashboardService', [
+    dashSvc = createSpyObj<DashboardService>([
       'refresh', 'invalidate', 'updateOpenBrokenLinks',
     ]);
-    dashSvc.refresh.and.returnValue(of(EMPTY_DATA));
+    dashSvc.refresh.mockReturnValue(of(EMPTY_DATA));
 
     // Skip the heavy template — the dashboard imports 50+ child standalone
     // components, each with its own services. Override compiles a no-op
@@ -62,7 +62,7 @@ describe('DashboardComponent', () => {
           },
         },
         { provide: PulseService, useValue: { events$: EMPTY } },
-        { provide: PerformanceModeService, useValue: { setMode: jasmine.createSpy('setMode') } },
+        { provide: PerformanceModeService, useValue: { setMode: vi.fn() } },
         { provide: DashboardModesService, useValue: { calmMode: () => false } },
       ],
       schemas: [CUSTOM_ELEMENTS_SCHEMA],
@@ -84,14 +84,14 @@ describe('DashboardComponent', () => {
     expect(component).toBeTruthy();
     expect(dashSvc.refresh).toHaveBeenCalled();
     expect(component.data).toBe(EMPTY_DATA);
-    expect(component.loading).toBeFalse();
+    expect(component.loading).toBe(false);
   });
 
   it('catchUpSync handles "no sources configured" path', () => {
     fixture.detectChanges();
     httpMock.match(() => true).forEach((req) => req.flush({}));
     component.catchUpSync();
-    expect(component.syncing).toBeFalse();
+    expect(component.syncing).toBe(false);
   });
 
   it('stateColor + stateIcon return mapping for known states', () => {
@@ -102,10 +102,10 @@ describe('DashboardComponent', () => {
   });
 
   it('handles refresh failure by clearing loading and not crashing', () => {
-    dashSvc.refresh.and.returnValue(throwError(() => new Error('500')));
+    dashSvc.refresh.mockReturnValue(throwError(() => new Error('500')));
     fixture.detectChanges();
     httpMock.match(() => true).forEach((req) => req.flush({}));
-    expect(component.loading).toBeFalse();
+    expect(component.loading).toBe(false);
   });
 
   // GSC summary tile getters (Part 5). They read `component.data` only, so we

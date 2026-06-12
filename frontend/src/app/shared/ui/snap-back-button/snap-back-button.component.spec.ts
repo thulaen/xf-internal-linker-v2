@@ -22,8 +22,8 @@ describe('SnapBackButtonComponent', () => {
   it('enables the button when the current value differs from the default', () => {
     const button = fixture.debugElement.query(By.css('button'));
 
-    expect(component.matches).toBeFalse();
-    expect(button.nativeElement.disabled).toBeFalse();
+    expect(component.matches).toBe(false);
+    expect(button.nativeElement.disabled).toBe(false);
     expect(button.nativeElement.getAttribute('aria-label')).toBe('Reset to default default');
   });
 
@@ -33,12 +33,12 @@ describe('SnapBackButtonComponent', () => {
 
     const button = fixture.debugElement.query(By.css('button'));
 
-    expect(component.matches).toBeTrue();
-    expect(button.nativeElement.disabled).toBeTrue();
+    expect(component.matches).toBe(true);
+    expect(button.nativeElement.disabled).toBe(true);
   });
 
   it('emits the default value when clicked', () => {
-    spyOn(component.snap, 'emit');
+    vi.spyOn(component.snap, 'emit').mockReturnValue(undefined as never);
 
     const button = fixture.debugElement.query(By.css('button'));
     button.nativeElement.click();

@@ -31,10 +31,10 @@ function svc(key: string, status: ServiceHealth['status'] = 'healthy'): ServiceH
 describe('HealthComponent', () => {
   let fixture: ComponentFixture<HealthComponent>;
   let component: HealthComponent;
-  let healthSvc: jasmine.SpyObj<HealthService>;
+  let healthSvc: SpyObj<HealthService>;
 
   beforeEach(async () => {
-    healthSvc = jasmine.createSpyObj<HealthService>('HealthService', [
+    healthSvc = createSpyObj<HealthService>([
       'getHealthStatus',
       'getSummary',
       'getDiskHealth',
@@ -42,18 +42,18 @@ describe('HealthComponent', () => {
       'checkAll',
       'checkService',
     ]);
-    healthSvc.getHealthStatus.and.returnValue(of([svc('database'), svc('redis', 'warning')]));
-    healthSvc.getSummary.and.returnValue(of({
+    healthSvc.getHealthStatus.mockReturnValue(of([svc('database'), svc('redis', 'warning')]));
+    healthSvc.getSummary.mockReturnValue(of({
       system_status: 'healthy', total_services: 2, degraded_count: 1, last_check_at: null,
     }));
-    healthSvc.getDiskHealth.and.returnValue(of({
+    healthSvc.getDiskHealth.mockReturnValue(of({
       db_size_mb: 1, embeddings_size_mb: 1, items_count: 0,
     }));
-    healthSvc.getGpuHealth.and.returnValue(of({
+    healthSvc.getGpuHealth.mockReturnValue(of({
       temp_c: null, vram_total_mb: null, vram_used_mb: null, utilization_pct: null, available: false,
     }));
-    healthSvc.checkAll.and.returnValue(of({}));
-    healthSvc.checkService.and.returnValue(of(svc('database')));
+    healthSvc.checkAll.mockReturnValue(of({}));
+    healthSvc.checkService.mockReturnValue(of(svc('database')));
 
     // The real template uses 14 `i18n=` markers; the test polyfills do not
     // load `@angular/localize/init`, so a real render throws
@@ -89,7 +89,7 @@ describe('HealthComponent', () => {
 
   it('refreshAll re-fetches services after checkAll completes', () => {
     fixture.detectChanges();
-    healthSvc.getHealthStatus.calls.reset();
+    healthSvc.getHealthStatus.mockClear();
     component.refreshAll();
     expect(healthSvc.checkAll).toHaveBeenCalled();
     expect(healthSvc.getHealthStatus).toHaveBeenCalled();
@@ -97,18 +97,18 @@ describe('HealthComponent', () => {
 
   it('keeps loading=false and logs error when getHealthStatus fails', () => {
     const errorSubject = new Subject<ServiceHealth[]>();
-    healthSvc.getHealthStatus.and.returnValue(errorSubject.asObservable());
-    spyOn(console, 'error');
+    healthSvc.getHealthStatus.mockReturnValue(errorSubject.asObservable());
+    vi.spyOn(console, 'error').mockReturnValue(undefined as never);
     fixture.detectChanges();
     errorSubject.error(new Error('boom'));
-    expect(component.loading()).toBeFalse();
+    expect(component.loading()).toBe(false);
     expect(console.error).toHaveBeenCalled();
   });
 
   it('refreshService updates the matching service in the list', () => {
     fixture.detectChanges();
     const updated = svc('database', 'error');
-    healthSvc.checkService.and.returnValue(of(updated));
+    healthSvc.checkService.mockReturnValue(of(updated));
     component.refreshService('database');
     const dbAfter = component.services().find((s) => s.service_key === 'database');
     expect(dbAfter?.status).toBe('error');
@@ -157,18 +157,18 @@ describe('HealthComponent', () => {
     fixture.detectChanges();
     // Override the spy to return a subject we can control
     const checkServiceSubject = new Subject<ServiceHealth>();
-    healthSvc.checkService.and.returnValue(checkServiceSubject.asObservable());
+    healthSvc.checkService.mockReturnValue(checkServiceSubject.asObservable());
 
-    expect(component.refreshingServices().has('database')).toBeFalse();
+    expect(component.refreshingServices().has('database')).toBe(false);
     component.refreshService('database');
     // Flag is set synchronously before the observable completes
-    expect(component.refreshingServices().has('database')).toBeTrue();
+    expect(component.refreshingServices().has('database')).toBe(true);
 
     // Emit the result to complete the observable
     checkServiceSubject.next(svc('database'));
     checkServiceSubject.complete();
     // Flag is cleared after finalize runs
-    expect(component.refreshingServices().has('database')).toBeFalse();
+    expect(component.refreshingServices().has('database')).toBe(false);
   });
 
   it('tracks job by id', () => {

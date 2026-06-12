@@ -6,7 +6,7 @@ import { ToastService } from './toast.service';
 
 describe('ToastService', () => {
   let service: ToastService;
-  let snackOpen: jasmine.Spy;
+  let snackOpen: Spy;
   let actionSubject: Subject<void>;
   let lastConfig: { duration?: number; panelClass?: string[] } | null;
   let lastAction: string | undefined;
@@ -22,7 +22,7 @@ describe('ToastService', () => {
       onAction: () => actionSubject.asObservable(),
     };
 
-    snackOpen = jasmine.createSpy('open').and.callFake(
+    snackOpen = vi.fn().mockImplementation(
       (message: string, action: string, config: { duration?: number; panelClass?: string[] } = {}) => {
         lastMessage = message;
         lastAction = action;
@@ -127,7 +127,7 @@ describe('ToastService', () => {
   });
 
   it('showUndo() invokes undoFn() exactly once when the user clicks the action', () => {
-    const undo = jasmine.createSpy('undo');
+    const undo = vi.fn();
     service.showUndo('Deleted', undo);
     actionSubject.next();
     expect(undo).toHaveBeenCalledTimes(1);
@@ -140,11 +140,11 @@ describe('ToastService', () => {
     expect(() => actionSubject.next()).not.toThrow();
   });
 
-  it('showUndo() swallows promise rejections from async undoFn', (done) => {
+  it('showUndo() swallows promise rejections from async undoFn', () => new Promise<void>((done) => {
     service.showUndo('Deleted', () => Promise.reject(new Error('boom')));
     expect(() => actionSubject.next()).not.toThrow();
     // Allow the rejection to be queued + caught; if it leaks, the test runner
     // surfaces it as an unhandled rejection.
     setTimeout(() => done(), 0);
-  });
+  }));
 });

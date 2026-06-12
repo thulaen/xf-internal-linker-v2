@@ -20,16 +20,16 @@ describe('FaroModule', () => {
   });
 
   it('initialises Faro with expected URL', () => {
-    const initializeSpy = jasmine.createSpy('initializeFaro').and.returnValue({
-      api: jasmine.createSpyObj('api', ['pushError']),
+    const initializeSpy = vi.fn().mockReturnValue({
+      api: createSpyObj(['pushError']),
     } as unknown as Faro);
 
     const init = createFaroInitializer(initializeSpy);
 
     init();
 
-    expect(initializeSpy).toHaveBeenCalledOnceWith(
-      jasmine.objectContaining({
+    expect(initializeSpy).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
         url: environment.faroEndpoint,
         app: {
           name: 'xf-internal-linker',
@@ -48,6 +48,6 @@ describe('FaroModule', () => {
     const initializers = TestBed.inject(APP_INITIALIZER);
 
     expect(initializers.length).toBeGreaterThan(0);
-    expect(TestBed.inject(ErrorHandler)).toEqual(jasmine.any(FaroErrorHandler));
+    expect(TestBed.inject(ErrorHandler)).toEqual(expect.any(FaroErrorHandler));
   });
 });

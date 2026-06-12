@@ -265,8 +265,8 @@ describe('SuggestionDetailDialogComponent', () => {
           },
         },
         { provide: MAT_DIALOG_DATA, useValue: { suggestionId: detail.suggestion_id } },
-        { provide: MatDialogRef, useValue: { close: jasmine.createSpy('close') } },
-        { provide: MatSnackBar, useValue: { open: jasmine.createSpy('open') } },
+        { provide: MatDialogRef, useValue: { close: vi.fn() } },
+        { provide: MatSnackBar, useValue: { open: vi.fn() } },
       ],
     }).compileComponents();
 

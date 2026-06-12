@@ -19,7 +19,7 @@ describe('WorkQueueComponent', () => {
     ...overrides,
   });
 
-  function configure(overviewSpy: jasmine.Spy): void {
+  function configure(overviewSpy: Spy): void {
     TestBed.configureTestingModule({
       imports: [WorkQueueComponent, NoopAnimationsModule],
       providers: [
@@ -52,7 +52,7 @@ describe('WorkQueueComponent', () => {
         },
       ],
     });
-    configure(jasmine.createSpy('overview').and.returnValue(of(overview)));
+    configure(vi.fn().mockReturnValue(of(overview)));
     const fixture = TestBed.createComponent(WorkQueueComponent);
     fixture.detectChanges();
     tick();
@@ -69,7 +69,7 @@ describe('WorkQueueComponent', () => {
 
   it('surfaces a plain-English error message when the overview request fails', fakeAsync(() => {
     configure(
-      jasmine.createSpy('overview').and.returnValue(throwError(() => new Error('boom'))),
+      vi.fn().mockReturnValue(throwError(() => new Error('boom'))),
     );
     const fixture = TestBed.createComponent(WorkQueueComponent);
     fixture.detectChanges();
@@ -84,7 +84,7 @@ describe('WorkQueueComponent', () => {
   }));
 
   it('uses a generic fallback message for non-Error failures', fakeAsync(() => {
-    configure(jasmine.createSpy('overview').and.returnValue(throwError(() => 'nope')));
+    configure(vi.fn().mockReturnValue(throwError(() => 'nope')));
     const fixture = TestBed.createComponent(WorkQueueComponent);
     fixture.detectChanges();
     tick();

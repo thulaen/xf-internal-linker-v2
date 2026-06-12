@@ -13,8 +13,8 @@ describe('MissionCriticalComponent', () => {
   let component: MissionCriticalComponent;
   let fixture: ComponentFixture<MissionCriticalComponent>;
   let httpMock: HttpTestingController;
-  let realtimeMock: jasmine.SpyObj<RealtimeService>;
-  let scrollMock: jasmine.SpyObj<ScrollAttentionService>;
+  let realtimeMock: SpyObj<RealtimeService>;
+  let scrollMock: SpyObj<ScrollAttentionService>;
   let realtimeSubject: Subject<any>;
 
   const mockPayload: McPayload = {
@@ -47,9 +47,9 @@ describe('MissionCriticalComponent', () => {
 
   beforeEach(async () => {
     realtimeSubject = new Subject();
-    realtimeMock = jasmine.createSpyObj('RealtimeService', ['subscribeTopic']);
-    realtimeMock.subscribeTopic.and.returnValue(realtimeSubject);
-    scrollMock = jasmine.createSpyObj('ScrollAttentionService', ['drawTo']);
+    realtimeMock = createSpyObj(['subscribeTopic']);
+    realtimeMock.subscribeTopic.mockReturnValue(realtimeSubject);
+    scrollMock = createSpyObj(['drawTo']);
 
     await TestBed.configureTestingModule({
       imports: [
@@ -105,7 +105,7 @@ describe('MissionCriticalComponent', () => {
     // Flush any microtasks (like queueMicrotask in flashNewFailures)
     flushMicrotasks();
 
-    expect(scrollMock.drawTo).toHaveBeenCalledWith('#mc-tile-signals', jasmine.objectContaining({ priority: 'urgent' }));
+    expect(scrollMock.drawTo).toHaveBeenCalledWith('#mc-tile-signals', expect.objectContaining({ priority: 'urgent' }));
     discardPeriodicTasks();
   }));
 

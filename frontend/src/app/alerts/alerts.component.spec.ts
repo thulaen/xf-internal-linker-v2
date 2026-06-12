@@ -40,21 +40,21 @@ function alert(over: Partial<OperatorAlert> = {}): OperatorAlert {
 describe('AlertsComponent', () => {
   let fixture: ComponentFixture<AlertsComponent>;
   let component: AlertsComponent;
-  let notifSvc: jasmine.SpyObj<NotificationService>;
+  let notifSvc: SpyObj<NotificationService>;
 
   beforeEach(async () => {
-    notifSvc = jasmine.createSpyObj<NotificationService>('NotificationService', [
+    notifSvc = createSpyObj<NotificationService>([
       'loadAlerts',
       'acknowledgeAll',
       'markRead',
       'acknowledge',
       'resolve',
     ]);
-    notifSvc.loadAlerts.and.returnValue(of({ count: 1, next: null, previous: null, results: [alert()] }));
-    notifSvc.acknowledgeAll.and.returnValue(of({ acknowledged: 0 }));
-    notifSvc.markRead.and.returnValue(of(alert()));
-    notifSvc.acknowledge.and.returnValue(of(alert()));
-    notifSvc.resolve.and.returnValue(of(alert()));
+    notifSvc.loadAlerts.mockReturnValue(of({ count: 1, next: null, previous: null, results: [alert()] }));
+    notifSvc.acknowledgeAll.mockReturnValue(of({ acknowledged: 0 }));
+    notifSvc.markRead.mockReturnValue(of(alert()));
+    notifSvc.acknowledge.mockReturnValue(of(alert()));
+    notifSvc.resolve.mockReturnValue(of(alert()));
 
     await TestBed.configureTestingModule({
       imports: [AlertsComponent],
@@ -81,26 +81,26 @@ describe('AlertsComponent', () => {
   it('onFilterChange resets page to 1 and re-fetches', () => {
     fixture.detectChanges();
     component.page.set(7);
-    notifSvc.loadAlerts.calls.reset();
+    notifSvc.loadAlerts.mockClear();
     component.filterStatus = 'unread';
     component.onFilterChange();
     expect(component.page()).toBe(1);
-    expect(notifSvc.loadAlerts).toHaveBeenCalledWith(jasmine.objectContaining({ status: 'unread' }));
+    expect(notifSvc.loadAlerts).toHaveBeenCalledWith(expect.objectContaining({ status: 'unread' }));
   });
 
   it('openRelated marks the alert read and navigates', () => {
     fixture.detectChanges();
     const router = TestBed.inject(Router);
-    spyOn(router, 'navigateByUrl');
+    vi.spyOn(router, 'navigateByUrl').mockReturnValue(undefined as never);
     component.openRelated(alert({ related_route: '/health' }));
     expect(notifSvc.markRead).toHaveBeenCalledWith('a1');
     expect(router.navigateByUrl).toHaveBeenCalledWith('/health');
   });
 
   it('handles loadAlerts error path without crashing', () => {
-    notifSvc.loadAlerts.and.returnValue(throwError(() => new Error('500')));
+    notifSvc.loadAlerts.mockReturnValue(throwError(() => new Error('500')));
     fixture.detectChanges();
-    expect(component.loading()).toBeFalse();
+    expect(component.loading()).toBe(false);
   });
 
   it('groupAlerts dedupes by dedupe_key', () => {

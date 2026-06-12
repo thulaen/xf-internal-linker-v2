@@ -118,7 +118,7 @@ describe('FeatureFlagsService', () => {
     post.flush({});
   });
 
-  it('recordExposure() swallows POST errors silently (best-effort)', (done) => {
+  it('recordExposure() swallows POST errors silently (best-effort)', () => new Promise<void>((done) => {
     isLoggedIn$.next(true);
     httpMock
       .expectOne('/api/feature-flags/')
@@ -130,7 +130,7 @@ describe('FeatureFlagsService', () => {
     post.flush('nope', { status: 500, statusText: 'Server' });
     // The catchError branch returned of(null), so no error propagates.
     setTimeout(() => done(), 0);
-  });
+  }));
 
   it('start() triggers a refresh', () => {
     isLoggedIn$.next(true);

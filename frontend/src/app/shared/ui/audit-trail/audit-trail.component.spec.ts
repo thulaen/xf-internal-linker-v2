@@ -57,7 +57,7 @@ describe('AuditTrailComponent', () => {
     req.flush(mockEntries);
     fixture.detectChanges();
 
-    expect(component.loading()).toBeFalse();
+    expect(component.loading()).toBe(false);
     expect(component.entries().length).toBe(2);
     
     const items = fixture.debugElement.queryAll(By.css('.at-item'));
@@ -90,7 +90,7 @@ describe('AuditTrailComponent', () => {
     req.error(new ErrorEvent('Network error'));
     fixture.detectChanges();
 
-    expect(component.loading()).toBeFalse();
+    expect(component.loading()).toBe(false);
     expect(component.entries().length).toBe(0);
     expect(fixture.debugElement.query(By.css('.at-empty'))).toBeTruthy();
   });

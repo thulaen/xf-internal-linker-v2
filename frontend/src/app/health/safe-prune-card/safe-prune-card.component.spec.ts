@@ -10,10 +10,10 @@ describe('SafePruneCardComponent', () => {
   let component: SafePruneCardComponent;
   let fixture: ComponentFixture<SafePruneCardComponent>;
   let httpMock: HttpTestingController;
-  let snackBarSpy: jasmine.SpyObj<MatSnackBar>;
+  let snackBarSpy: SpyObj<MatSnackBar>;
 
   beforeEach(async () => {
-    snackBarSpy = jasmine.createSpyObj('MatSnackBar', ['open']);
+    snackBarSpy = createSpyObj(['open']);
 
     await TestBed.configureTestingModule({
       imports: [SafePruneCardComponent, NoopAnimationsModule],
@@ -46,7 +46,7 @@ describe('SafePruneCardComponent', () => {
     
     tick();
     fixture.detectChanges();
-    expect(component.loading()).toBeFalse();
+    expect(component.loading()).toBe(false);
     expect(component.status()?.allowed_targets.length).toBe(1);
     const label = fixture.debugElement.query(By.css('.target-label'));
     expect(label.nativeElement.textContent).toContain('Test');
@@ -75,14 +75,14 @@ describe('SafePruneCardComponent', () => {
     tick();
     expect(component.busyTarget()).toBe('');
     expect(snackBarSpy.open).toHaveBeenCalledWith(
-      jasmine.stringMatching(/Preview: ~15 MB/),
+      expect.stringMatching(/Preview: ~15 MB/),
       'OK',
-      jasmine.any(Object)
+      expect.any(Object)
     );
   }));
 
   it('should commit prune after confirmation', fakeAsync(() => {
-    spyOn(window, 'confirm').and.returnValue(true);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     fixture.detectChanges();
     const initReq = httpMock.expectOne('/api/prune/safe/');
     initReq.flush({
@@ -108,9 +108,9 @@ describe('SafePruneCardComponent', () => {
     tick();
     expect(component.busyTarget()).toBe('');
     expect(snackBarSpy.open).toHaveBeenCalledWith(
-      jasmine.stringMatching(/Pruned test/),
+      expect.stringMatching(/Pruned test/),
       'OK',
-      jasmine.any(Object)
+      expect.any(Object)
     );
   }));
 
@@ -127,6 +127,6 @@ describe('SafePruneCardComponent', () => {
     tick();
     fixture.detectChanges();
     const pruneBtn = fixture.debugElement.query(By.css('button[mat-flat-button]'));
-    expect(pruneBtn.nativeElement.disabled).toBeTrue();
+    expect(pruneBtn.nativeElement.disabled).toBe(true);
   }));
 });

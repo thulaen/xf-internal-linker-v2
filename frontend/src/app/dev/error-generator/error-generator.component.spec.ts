@@ -33,7 +33,7 @@ describe('ErrorGeneratorComponent', () => {
 
     const buttons = fixture.debugElement.queryAll(By.css('button[mat-raised-button]'));
     expect(buttons.length).toBe(5);
-    expect(buttons.every((button) => button.attributes['matTooltip'])).toBeTrue();
+    expect(buttons.every((button) => button.attributes['matTooltip'])).toBe(true);
   });
 
   it('throws the uncaught smoke error on demand', () => {
@@ -41,11 +41,11 @@ describe('ErrorGeneratorComponent', () => {
   });
 
   it('creates the rejected-promise smoke error on demand', async () => {
-    await expectAsync(component.triggerRejection()).toBeRejectedWithError('Slice 3 rejection smoke');
+    await expect(component.triggerRejection()).rejects.toThrow('Slice 3 rejection smoke');
   });
 
   it('requests a unique missing API path for network smoke', () => {
-    spyOn(crypto, 'randomUUID').and.returnValue('00000000-0000-4000-8000-000000000003');
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue('00000000-0000-4000-8000-000000000003');
 
     component.triggerNetwork();
 
@@ -55,7 +55,7 @@ describe('ErrorGeneratorComponent', () => {
   });
 
   it('writes the console smoke message', () => {
-    const consoleSpy = spyOn(console, 'error');
+    const consoleSpy = vi.spyOn(console, 'error').mockReturnValue(undefined as never);
 
     component.triggerConsole();
 
@@ -84,6 +84,6 @@ describe('dev error-generator route registration', () => {
   });
 
   it('registers the route in the deep-link catalog', () => {
-    expect(DEEP_LINK_CATALOG.some((entry) => entry.route === '/dev/error-generator')).toBeTrue();
+    expect(DEEP_LINK_CATALOG.some((entry) => entry.route === '/dev/error-generator')).toBe(true);
   });
 });

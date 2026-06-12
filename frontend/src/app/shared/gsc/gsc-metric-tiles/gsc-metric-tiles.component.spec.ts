@@ -47,7 +47,7 @@ describe('GscMetricTilesComponent', () => {
 
   it('Given a tile without a tone, When rendered, Then it lacks any tone class', () => {
     const third = tiles()[2];
-    expect([...third.classList].some((c: string) => c.startsWith('tone-'))).toBeFalse();
+    expect([...third.classList].some((c: string) => c.startsWith('tone-'))).toBe(false);
   });
 
   it('Given an updated tiles array, When change detection runs, Then the rendered tiles match the new input', () => {

@@ -6,12 +6,12 @@ import { Subject } from 'rxjs';
 describe('YouAreHereComponent', () => {
   let component: YouAreHereComponent;
   let fixture: ComponentFixture<YouAreHereComponent>;
-  let routerMock: jasmine.SpyObj<Router>;
+  let routerMock: SpyObj<Router>;
   let routerEvents: Subject<any>;
 
   beforeEach(async () => {
     routerEvents = new Subject();
-    routerMock = jasmine.createSpyObj('Router', ['events'], {
+    routerMock = createSpyObj(['events'], {
       url: '/dashboard'
     });
     (routerMock as any).events = routerEvents.asObservable();

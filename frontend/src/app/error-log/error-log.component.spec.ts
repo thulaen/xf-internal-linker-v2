@@ -35,20 +35,20 @@ describe('ErrorLogComponent', () => {
   });
 
   const diagnosticsServiceStub = {
-    getErrors: jasmine.createSpy('getErrors'),
-    acknowledgeError: jasmine.createSpy('acknowledgeError').and.returnValue(
+    getErrors: vi.fn(),
+    acknowledgeError: vi.fn().mockReturnValue(
       of({ status: 'acknowledged' }),
     ),
   };
 
   const glitchtipServiceStub = {
-    getRecentEvents: jasmine.createSpy('getRecentEvents'),
+    getRecentEvents: vi.fn(),
   };
 
   const autoIssuesServiceStub = {
-    list: jasmine.createSpy('list').and.returnValue(of({ count: 0, next: null, previous: null, results: [] })),
-    resync: jasmine.createSpy('resync').and.returnValue(of({})),
-    flushCache: jasmine.createSpy('flushCache').and.returnValue(of({})),
+    list: vi.fn().mockReturnValue(of({ count: 0, next: null, previous: null, results: [] })),
+    resync: vi.fn().mockReturnValue(of({})),
+    flushCache: vi.fn().mockReturnValue(of({})),
   };
 
   const visibilityGateStub = {
@@ -56,16 +56,16 @@ describe('ErrorLogComponent', () => {
   };
 
   beforeEach(() => {
-    diagnosticsServiceStub.getErrors.calls.reset();
-    diagnosticsServiceStub.acknowledgeError.calls.reset();
-    glitchtipServiceStub.getRecentEvents.calls.reset();
-    autoIssuesServiceStub.list.calls.reset();
-    autoIssuesServiceStub.resync.calls.reset();
-    autoIssuesServiceStub.flushCache.calls.reset();
+    diagnosticsServiceStub.getErrors.mockClear();
+    diagnosticsServiceStub.acknowledgeError.mockClear();
+    glitchtipServiceStub.getRecentEvents.mockClear();
+    autoIssuesServiceStub.list.mockClear();
+    autoIssuesServiceStub.resync.mockClear();
+    autoIssuesServiceStub.flushCache.mockClear();
   });
 
   it('groups multiple rows with the same fingerprint into one expansion panel', async () => {
-    diagnosticsServiceStub.getErrors.and.returnValue(
+    diagnosticsServiceStub.getErrors.mockReturnValue(
       of([
         makeError({ id: 1, fingerprint: 'shared-fp', occurrence_count: 2 }),
         makeError({
@@ -76,7 +76,7 @@ describe('ErrorLogComponent', () => {
         }),
       ]),
     );
-    glitchtipServiceStub.getRecentEvents.and.returnValue(of([]));
+    glitchtipServiceStub.getRecentEvents.mockReturnValue(of([]));
 
     await TestBed.configureTestingModule({
       imports: [ErrorLogComponent, NoopAnimationsModule],
@@ -111,8 +111,8 @@ describe('ErrorLogComponent', () => {
       how_to_fix: 'Check the database container and retry the job.',
       raw_exception: 'Traceback (most recent call last):\nOperationalError',
     });
-    diagnosticsServiceStub.getErrors.and.returnValue(of([detailedError]));
-    glitchtipServiceStub.getRecentEvents.and.returnValue(of([]));
+    diagnosticsServiceStub.getErrors.mockReturnValue(of([detailedError]));
+    glitchtipServiceStub.getRecentEvents.mockReturnValue(of([]));
 
     await TestBed.configureTestingModule({
       imports: [ErrorLogComponent, NoopAnimationsModule],
@@ -146,8 +146,8 @@ describe('ErrorLogComponent', () => {
   });
 
   it('Auto-Issues tab loads ONLY open status — never fetches resolved (2026-05-09 noise rule)', async () => {
-    diagnosticsServiceStub.getErrors.and.returnValue(of([]));
-    glitchtipServiceStub.getRecentEvents.and.returnValue(of([]));
+    diagnosticsServiceStub.getErrors.mockReturnValue(of([]));
+    glitchtipServiceStub.getRecentEvents.mockReturnValue(of([]));
 
     await TestBed.configureTestingModule({
       imports: [ErrorLogComponent, NoopAnimationsModule],
@@ -170,16 +170,16 @@ describe('ErrorLogComponent', () => {
     await fixture.whenStable();
 
     // Exactly one call, with status=open. Resolved must NOT be requested.
-    expect(autoIssuesServiceStub.list.calls.count()).toBe(1);
-    expect(autoIssuesServiceStub.list.calls.argsFor(0)).toEqual([{ status: 'open' }]);
-    const everyCall = autoIssuesServiceStub.list.calls.allArgs();
+    expect(autoIssuesServiceStub.list.mock.calls.length).toBe(1);
+    expect(autoIssuesServiceStub.list.mock.calls[0]).toEqual([{ status: 'open' }]);
+    const everyCall = autoIssuesServiceStub.list.mock.calls;
     const fetchedResolved = everyCall.some((args) => args[0]?.status === 'resolved');
     expect(fetchedResolved).toBe(false);
   });
 
   it('renders the GlitchTip outbound link on grouped GlitchTip rows', async () => {
-    diagnosticsServiceStub.getErrors.and.returnValue(of([]));
-    glitchtipServiceStub.getRecentEvents.and.returnValue(
+    diagnosticsServiceStub.getErrors.mockReturnValue(of([]));
+    glitchtipServiceStub.getRecentEvents.mockReturnValue(
       of([
         makeError({
           id: 10,
@@ -245,8 +245,8 @@ describe('ErrorLogComponent', () => {
   // the surrounding `it()` blocks each scope `fixture` locally — there is no
   // shared module-level fixture to borrow.
   const buildComponent = async (): Promise<ErrorLogComponent> => {
-    diagnosticsServiceStub.getErrors.and.returnValue(of([]));
-    glitchtipServiceStub.getRecentEvents.and.returnValue(of([]));
+    diagnosticsServiceStub.getErrors.mockReturnValue(of([]));
+    glitchtipServiceStub.getRecentEvents.mockReturnValue(of([]));
     await TestBed.configureTestingModule({
       imports: [ErrorLogComponent, NoopAnimationsModule],
       providers: [
@@ -301,9 +301,9 @@ describe('ErrorLogComponent', () => {
 
   it('acknowledgeError reloads errors and glitchtip events when source is glitchtip', async () => {
     const c = await buildComponent();
-    spyOn(c, 'loadErrors');
-    spyOn(c, 'loadGlitchtipEvents');
-    diagnosticsServiceStub.acknowledgeError.and.returnValue(of({ status: 'acknowledged' }));
+    vi.spyOn(c, 'loadErrors').mockReturnValue(undefined as never);
+    vi.spyOn(c, 'loadGlitchtipEvents').mockReturnValue(undefined as never);
+    diagnosticsServiceStub.acknowledgeError.mockReturnValue(of({ status: 'acknowledged' }));
     c.acknowledgeError(makeError({ source: 'glitchtip' }));
     expect(c.loadErrors).toHaveBeenCalled();
     expect(c.loadGlitchtipEvents).toHaveBeenCalled();
@@ -311,9 +311,9 @@ describe('ErrorLogComponent', () => {
 
   it('acknowledgeError does not reload glitchtip events if source is internal', async () => {
     const c = await buildComponent();
-    spyOn(c, 'loadErrors');
-    spyOn(c, 'loadGlitchtipEvents');
-    diagnosticsServiceStub.acknowledgeError.and.returnValue(of({ status: 'acknowledged' }));
+    vi.spyOn(c, 'loadErrors').mockReturnValue(undefined as never);
+    vi.spyOn(c, 'loadGlitchtipEvents').mockReturnValue(undefined as never);
+    diagnosticsServiceStub.acknowledgeError.mockReturnValue(of({ status: 'acknowledged' }));
     c.acknowledgeError(makeError({ source: 'internal' }));
     expect(c.loadErrors).toHaveBeenCalled();
     expect(c.loadGlitchtipEvents).not.toHaveBeenCalled();
@@ -321,8 +321,8 @@ describe('ErrorLogComponent', () => {
 
   it('acknowledgeError reloads errors even if acknowledgeError fails', async () => {
     const c = await buildComponent();
-    spyOn(c, 'loadErrors');
-    diagnosticsServiceStub.acknowledgeError.and.returnValue(throwError(() => new Error('fail')));
+    vi.spyOn(c, 'loadErrors').mockReturnValue(undefined as never);
+    diagnosticsServiceStub.acknowledgeError.mockReturnValue(throwError(() => new Error('fail')));
     c.acknowledgeError(makeError({ source: 'internal' }));
     expect(c.loadErrors).toHaveBeenCalled();
   });
@@ -330,50 +330,50 @@ describe('ErrorLogComponent', () => {
   it('resync populates resyncStatus and resyncBusy on success and failure', async () => {
     const c = await buildComponent();
 
-    autoIssuesServiceStub.resync.and.returnValue(of({ open_count: 5 }));
+    autoIssuesServiceStub.resync.mockReturnValue(of({ open_count: 5 }));
     c.resync();
-    expect(c.resyncBusy).toBeFalse();
+    expect(c.resyncBusy).toBe(false);
     expect(c.resyncStatus).toBe('Synced — 5 open issues now');
 
-    autoIssuesServiceStub.resync.and.returnValue(throwError(() => ({ statusText: 'Bad Gateway' })));
+    autoIssuesServiceStub.resync.mockReturnValue(throwError(() => ({ statusText: 'Bad Gateway' })));
     c.resync();
-    expect(c.resyncBusy).toBeFalse();
+    expect(c.resyncBusy).toBe(false);
     expect(c.resyncStatus).toBe('Resync failed: Bad Gateway');
 
-    autoIssuesServiceStub.resync.and.returnValue(throwError(() => ({})));
+    autoIssuesServiceStub.resync.mockReturnValue(throwError(() => ({})));
     c.resync();
-    expect(c.resyncBusy).toBeFalse();
+    expect(c.resyncBusy).toBe(false);
     expect(c.resyncStatus).toBe('Resync failed: unknown');
   });
 
   it('flushCache populates resyncStatus and flushBusy on success and failure', async () => {
     const c = await buildComponent();
-    const markForCheckSpy = spyOn((c as any).cdr, 'markForCheck');
+    const markForCheckSpy = vi.spyOn((c as any).cdr, 'markForCheck');
 
-    autoIssuesServiceStub.flushCache.and.returnValue(of({ flushed_rows: 10 }));
+    autoIssuesServiceStub.flushCache.mockReturnValue(of({ flushed_rows: 10 }));
     c.flushCache();
-    expect(c.flushBusy).toBeFalse();
+    expect(c.flushBusy).toBe(false);
     expect(c.resyncStatus).toBe('Flushed 10 stale rows');
     expect(markForCheckSpy).toHaveBeenCalled();
-    markForCheckSpy.calls.reset();
+    markForCheckSpy.mockClear();
 
-    autoIssuesServiceStub.flushCache.and.returnValue(throwError(() => ({ statusText: 'Server Error' })));
+    autoIssuesServiceStub.flushCache.mockReturnValue(throwError(() => ({ statusText: 'Server Error' })));
     c.flushCache();
-    expect(c.flushBusy).toBeFalse();
+    expect(c.flushBusy).toBe(false);
     expect(c.resyncStatus).toBe('Flush failed: Server Error');
     expect(markForCheckSpy).toHaveBeenCalled();
-    markForCheckSpy.calls.reset();
+    markForCheckSpy.mockClear();
 
-    autoIssuesServiceStub.flushCache.and.returnValue(throwError(() => ({})));
+    autoIssuesServiceStub.flushCache.mockReturnValue(throwError(() => ({})));
     c.flushCache();
-    expect(c.flushBusy).toBeFalse();
+    expect(c.flushBusy).toBe(false);
     expect(c.resyncStatus).toBe('Flush failed: unknown');
     expect(markForCheckSpy).toHaveBeenCalled();
   });
 
   it('flushCache subscription is cleaned up when component is destroyed', async () => {
-    diagnosticsServiceStub.getErrors.and.returnValue(of([]));
-    glitchtipServiceStub.getRecentEvents.and.returnValue(of([]));
+    diagnosticsServiceStub.getErrors.mockReturnValue(of([]));
+    glitchtipServiceStub.getRecentEvents.mockReturnValue(of([]));
     await TestBed.configureTestingModule({
       imports: [ErrorLogComponent, NoopAnimationsModule],
       providers: [
@@ -387,7 +387,7 @@ describe('ErrorLogComponent', () => {
     }).compileComponents();
 
     const flushSubject = new Subject<any>();
-    autoIssuesServiceStub.flushCache.and.returnValue(flushSubject.asObservable());
+    autoIssuesServiceStub.flushCache.mockReturnValue(flushSubject.asObservable());
 
     const fixture = TestBed.createComponent(ErrorLogComponent);
     const c = fixture.componentInstance;
@@ -440,20 +440,20 @@ describe('ErrorLogComponent', () => {
 
     // Should be false for these tabs
     c.selectedTabIndex = 1; // GLITCHTIP_TAB_INDEX
-    expect(c.showJobTypeAndStatusFilters).toBeFalse();
+    expect(c.showJobTypeAndStatusFilters).toBe(false);
 
     c.selectedTabIndex = 3; // AUTO_ISSUES_TAB_INDEX
-    expect(c.showJobTypeAndStatusFilters).toBeFalse();
+    expect(c.showJobTypeAndStatusFilters).toBe(false);
 
     c.selectedTabIndex = 4; // PYROSCOPE_TAB_INDEX
-    expect(c.showJobTypeAndStatusFilters).toBeFalse();
+    expect(c.showJobTypeAndStatusFilters).toBe(false);
 
     // Should be true for other tabs
     c.selectedTabIndex = 0; // internal
-    expect(c.showJobTypeAndStatusFilters).toBeTrue();
+    expect(c.showJobTypeAndStatusFilters).toBe(true);
 
     c.selectedTabIndex = 2; // all
-    expect(c.showJobTypeAndStatusFilters).toBeTrue();
+    expect(c.showJobTypeAndStatusFilters).toBe(true);
   });
 
   // Kills surviving Stryker mutants AutoIssues #19047 (ConditionalExpression),
@@ -557,7 +557,7 @@ describe('ErrorLogComponent', () => {
     const types = c.uniqueJobTypes;
     expect(types).toContain('crawler');
     expect(types).toContain('sync');
-    expect(types.every(t => typeof t === 'string' && t !== '')).toBeTrue();
+    expect(types.every(t => typeof t === 'string' && t !== '')).toBe(true);
   });
 
   it('groupedErrors uses filteredErrors not raw errors', async () => {

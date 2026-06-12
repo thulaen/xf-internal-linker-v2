@@ -16,13 +16,13 @@ describe('PerformanceModeComponent', () => {
 
   beforeEach(async () => {
     highPerformanceCapable = signal(true);
-    const perfModeSpy = jasmine.createSpyObj('PerformanceModeService', ['refresh', 'setExpiry'], {
+    const perfModeSpy = createSpyObj(['refresh', 'setExpiry'], {
       expiry: signal('none'),
       highPerformanceCapable,
       hardwareTier: signal('high'),
       hardwareSummary: signal('RTX 3050 6GB'),
     });
-    perfModeSpy.refresh.and.returnValue(of(null));
+    perfModeSpy.refresh.mockReturnValue(of(null));
 
     await TestBed.configureTestingModule({
       imports: [
@@ -56,16 +56,16 @@ describe('PerformanceModeComponent', () => {
   });
 
   it('should reflect hardware capability from service', () => {
-    expect(component.highCapable()).toBeTrue();
+    expect(component.highCapable()).toBe(true);
     const highButton = fixture.nativeElement.querySelector('.mode-button:nth-child(3)');
-    expect(highButton.disabled).toBeFalse();
+    expect(highButton.disabled).toBe(false);
   });
 
   it('should disable high performance button if not capable', () => {
     highPerformanceCapable.set(false);
     fixture.detectChanges();
     const highButton = fixture.nativeElement.querySelector('.mode-button:nth-child(3)');
-    expect(highButton.disabled).toBeTrue();
+    expect(highButton.disabled).toBe(true);
     expect(highButton.classList).toContain('unavailable');
   });
 
@@ -82,13 +82,13 @@ describe('PerformanceModeComponent', () => {
   });
 
   it('should open confirmation dialog when switching to high performance', () => {
-    const dialogOpen = spyOn((component as unknown as { dialog: MatDialog }).dialog, 'open').and.returnValue({
+    const dialogOpen = vi.spyOn((component as unknown as { dialog: MatDialog }).dialog, 'open').mockReturnValue({
       afterClosed: () => of(true)
     } as MatDialogRef<ConfirmHighPerformanceDialogComponent, boolean>);
 
     component.selectMode('high');
 
-    expect(dialogOpen).toHaveBeenCalledWith(ConfirmHighPerformanceDialogComponent, jasmine.any(Object));
+    expect(dialogOpen).toHaveBeenCalledWith(ConfirmHighPerformanceDialogComponent, expect.any(Object));
     
     const req = httpMock.expectOne('/api/settings/runtime/switch/');
     req.flush({});
@@ -103,6 +103,6 @@ describe('PerformanceModeComponent', () => {
     expect(req.request.method).toBe('POST');
     req.flush({ armed: true });
 
-    expect(component.bootArmed()).toBeTrue();
+    expect(component.bootArmed()).toBe(true);
   });
 });

@@ -38,18 +38,18 @@ function paginated(results: BrokenLink[]): PaginatedResult<BrokenLink> {
 describe('LinkHealthComponent', () => {
   let fixture: ComponentFixture<LinkHealthComponent>;
   let component: LinkHealthComponent;
-  let brokenSvc: jasmine.SpyObj<BrokenLinkService>;
+  let brokenSvc: SpyObj<BrokenLinkService>;
 
   beforeEach(async () => {
-    brokenSvc = jasmine.createSpyObj<BrokenLinkService>('BrokenLinkService', [
+    brokenSvc = createSpyObj<BrokenLinkService>([
       'list',
       'patch',
       'startScan',
       'exportCsv',
     ]);
-    brokenSvc.list.and.returnValue(of(paginated([makeLink()])));
-    brokenSvc.patch.and.returnValue(of(makeLink({ status: 'fixed' })));
-    brokenSvc.startScan.and.returnValue(of({ job_id: 'scan1', message: 'started' }));
+    brokenSvc.list.mockReturnValue(of(paginated([makeLink()])));
+    brokenSvc.patch.mockReturnValue(of(makeLink({ status: 'fixed' })));
+    brokenSvc.startScan.mockReturnValue(of({ job_id: 'scan1', message: 'started' }));
 
     await TestBed.configureTestingModule({
       imports: [LinkHealthComponent],
@@ -59,7 +59,7 @@ describe('LinkHealthComponent', () => {
         provideRouter([]),
         provideNoopAnimations(),
         { provide: BrokenLinkService, useValue: brokenSvc },
-        { provide: DashboardService, useValue: { updateOpenBrokenLinks: jasmine.createSpy('upd') } },
+        { provide: DashboardService, useValue: { updateOpenBrokenLinks: vi.fn() } },
         { provide: SyncService, useValue: { getJob: () => of({ status: 'running', progress: 0.1, message: '' }) } },
         { provide: AuthService, useValue: { getToken: () => null } },
         { provide: VisibilityGateService, useValue: { whileLoggedInAndVisible: () => EMPTY } },
@@ -74,14 +74,14 @@ describe('LinkHealthComponent', () => {
     fixture.detectChanges();
     expect(component).toBeTruthy();
     // list call from load() + 3 from loadSummary().
-    expect(brokenSvc.list.calls.count()).toBeGreaterThanOrEqual(4);
+    expect(brokenSvc.list.mock.calls.length).toBeGreaterThanOrEqual(4);
     expect(component.brokenLinks().length).toBe(1);
   });
 
   it('setStatusFilter resets page to 1 and re-loads', () => {
     fixture.detectChanges();
     component.page.set(5);
-    brokenSvc.list.calls.reset();
+    brokenSvc.list.mockClear();
     component.setStatusFilter('open');
     expect(component.page()).toBe(1);
     expect(brokenSvc.list).toHaveBeenCalled();
@@ -96,9 +96,9 @@ describe('LinkHealthComponent', () => {
   });
 
   it('handles list error path without crashing', () => {
-    brokenSvc.list.and.returnValue(throwError(() => new Error('500')));
+    brokenSvc.list.mockReturnValue(throwError(() => new Error('500')));
     fixture.detectChanges();
-    expect(component.loading()).toBeFalse();
+    expect(component.loading()).toBe(false);
   });
 
   it('should filter by HTTP status code', () => {
@@ -131,10 +131,10 @@ describe('LinkHealthComponent', () => {
   });
 
   it('should export CSV with current filters', () => {
-    brokenSvc.exportCsv.and.returnValue(of(new Blob(['test'])));
-    spyOn(window.URL, 'createObjectURL').and.returnValue('blob:url');
-    spyOn(window.URL, 'revokeObjectURL');
-    spyOn(window, 'open');
+    brokenSvc.exportCsv.mockReturnValue(of(new Blob(['test'])));
+    vi.spyOn(window.URL, 'createObjectURL').mockReturnValue('blob:url');
+    vi.spyOn(window.URL, 'revokeObjectURL').mockReturnValue(undefined as never);
+    vi.spyOn(window, 'open').mockReturnValue(undefined as never);
 
     fixture.detectChanges();
     component.statusFilter.set('open');
@@ -148,7 +148,7 @@ describe('LinkHealthComponent', () => {
 
   it('should handle page change', () => {
     fixture.detectChanges();
-    brokenSvc.list.calls.reset();
+    brokenSvc.list.mockClear();
     component.onPageChange({ pageIndex: 2, pageSize: 25, length: 100, previousPageIndex: 0 });
     expect(component.page()).toBe(3);
     expect(brokenSvc.list).toHaveBeenCalled();
@@ -165,7 +165,7 @@ describe('LinkHealthComponent', () => {
   });
 
   it('should open source thread in new window', () => {
-    spyOn(window, 'open');
+    vi.spyOn(window, 'open').mockReturnValue(undefined as never);
     fixture.detectChanges();
     component.openSourceThread('https://example.com/thread');
     expect(window.open).toHaveBeenCalledWith(
@@ -176,7 +176,7 @@ describe('LinkHealthComponent', () => {
   });
 
   it('should not open thread if URL is empty', () => {
-    spyOn(window, 'open');
+    vi.spyOn(window, 'open').mockReturnValue(undefined as never);
     fixture.detectChanges();
     component.openSourceThread('');
     expect(window.open).not.toHaveBeenCalled();

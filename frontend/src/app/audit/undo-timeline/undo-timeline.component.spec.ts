@@ -87,6 +87,6 @@ describe('UndoTimelineComponent', () => {
       reqs.slice(1).forEach((r) => r.flush({}));
     }
     expect(component.error()).toContain('boom');
-    expect(component.loading()).toBeFalse();
+    expect(component.loading()).toBe(false);
   });
 });

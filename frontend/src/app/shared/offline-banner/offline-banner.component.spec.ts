@@ -27,7 +27,7 @@ describe('OfflineBannerComponent', () => {
     window.dispatchEvent(new Event('offline'));
     fixture.detectChanges();
     
-    expect(component.online()).toBeFalse();
+    expect(component.online()).toBe(false);
     const banner = fixture.debugElement.query(By.css('.offline-banner'));
     expect(banner).toBeTruthy();
     expect(banner.nativeElement.textContent).toContain("You're offline");
@@ -36,12 +36,12 @@ describe('OfflineBannerComponent', () => {
   it('should hide when online event fires after being offline', () => {
     window.dispatchEvent(new Event('offline'));
     fixture.detectChanges();
-    expect(component.online()).toBeFalse();
+    expect(component.online()).toBe(false);
 
     window.dispatchEvent(new Event('online'));
     fixture.detectChanges();
     
-    expect(component.online()).toBeTrue();
+    expect(component.online()).toBe(true);
     const banner = fixture.debugElement.query(By.css('.offline-banner'));
     expect(banner).toBeNull();
   });

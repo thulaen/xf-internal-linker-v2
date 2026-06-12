@@ -7,10 +7,10 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 describe('FixRunbooksStripComponent', () => {
   let component: FixRunbooksStripComponent;
   let fixture: ComponentFixture<FixRunbooksStripComponent>;
-  let dialogSpy: jasmine.SpyObj<MatDialog>;
+  let dialogSpy: SpyObj<MatDialog>;
 
   beforeEach(async () => {
-    dialogSpy = jasmine.createSpyObj('MatDialog', ['open']);
+    dialogSpy = createSpyObj(['open']);
 
     await TestBed.configureTestingModule({
       imports: [

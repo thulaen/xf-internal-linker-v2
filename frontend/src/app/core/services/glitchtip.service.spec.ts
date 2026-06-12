@@ -55,9 +55,9 @@ describe('GlitchtipService', () => {
     req.flush([]);
   });
 
-  it('getRecentEvents() rethrows HTTP errors via catchError → throwError', (done) => {
+  it('getRecentEvents() rethrows HTTP errors via catchError → throwError', () => new Promise<void>((done) => {
     service.getRecentEvents().subscribe({
-      next: () => fail('expected error path'),
+      next: () => expect.fail('expected error path'),
       error: (err) => {
         expect(err).toBeTruthy();
         done();
@@ -65,5 +65,5 @@ describe('GlitchtipService', () => {
     });
     const req = httpMock.expectOne((r) => r.url === '/api/glitchtip/events/');
     req.flush('boom', { status: 500, statusText: 'Server Error' });
-  });
+  }));
 });

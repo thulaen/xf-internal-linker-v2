@@ -9,17 +9,17 @@ import { By } from '@angular/platform-browser';
 describe('WebhookLogComponent', () => {
   let component: WebhookLogComponent;
   let fixture: ComponentFixture<WebhookLogComponent>;
-  let syncSvcSpy: jasmine.SpyObj<SyncService>;
-  let realtimeSvcSpy: jasmine.SpyObj<RealtimeService>;
+  let syncSvcSpy: SpyObj<SyncService>;
+  let realtimeSvcSpy: SpyObj<RealtimeService>;
   let receiptsSubject: Subject<any>;
 
   beforeEach(async () => {
     receiptsSubject = new Subject();
-    syncSvcSpy = jasmine.createSpyObj('SyncService', ['getWebhookReceipts']);
-    realtimeSvcSpy = jasmine.createSpyObj('RealtimeService', ['subscribeTopic']);
+    syncSvcSpy = createSpyObj(['getWebhookReceipts']);
+    realtimeSvcSpy = createSpyObj(['subscribeTopic']);
 
-    syncSvcSpy.getWebhookReceipts.and.returnValue(of([]));
-    realtimeSvcSpy.subscribeTopic.and.returnValue(receiptsSubject.asObservable());
+    syncSvcSpy.getWebhookReceipts.mockReturnValue(of([]));
+    realtimeSvcSpy.subscribeTopic.mockReturnValue(receiptsSubject.asObservable());
 
     await TestBed.configureTestingModule({
       imports: [WebhookLogComponent, NoopAnimationsModule],
@@ -126,7 +126,7 @@ describe('WebhookLogComponent', () => {
   });
 
   it('should clean up interval on destroy', () => {
-    const clearIntervalSpy = spyOn(window, 'clearInterval');
+    const clearIntervalSpy = vi.spyOn(window, 'clearInterval').mockReturnValue(undefined as never);
     // @ts-expect-error - accessing private for test
     component.refreshInterval = 123;
     component.ngOnDestroy();

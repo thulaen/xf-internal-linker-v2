@@ -56,7 +56,7 @@ describe('UndoStackService', () => {
   });
 
   it('undoTop() runs the reverse fn and removes the entry', async () => {
-    const reverse = jasmine.createSpy('reverse');
+    const reverse = vi.fn();
     service.push('x', reverse);
     const undone = await service.undoTop();
     expect(reverse).toHaveBeenCalledTimes(1);

@@ -45,7 +45,7 @@ describe('AnalyticsComponent', () => {
       install_steps: ['Paste the script.'],
       browser_snippet: '<script>window.test=true;</script>',
     }),
-    getHealth: jasmine.createSpy('getHealth').and.returnValue(of({
+    getHealth: vi.fn().mockReturnValue(of({
       days: 30,
       overall: {
         row_count: 2,
@@ -91,7 +91,7 @@ describe('AnalyticsComponent', () => {
         },
       ],
     })),
-    getBreakdowns: jasmine.createSpy('getBreakdowns').and.returnValue(of({
+    getBreakdowns: vi.fn().mockReturnValue(of({
       days: 30,
       selected_source: 'all' as const,
       device_categories: [
@@ -122,7 +122,7 @@ describe('AnalyticsComponent', () => {
         },
       ],
     })),
-    getFunnel: jasmine.createSpy('getFunnel').and.returnValue(of({
+    getFunnel: vi.fn().mockReturnValue(of({
       days: 30,
       selected_source: 'all' as const,
       totals: {
@@ -143,7 +143,7 @@ describe('AnalyticsComponent', () => {
         },
       ],
     })),
-    getEngagementMix: jasmine.createSpy('getEngagementMix').and.returnValue(of({
+    getEngagementMix: vi.fn().mockReturnValue(of({
       days: 30,
       selected_source: 'all' as const,
       totals: {
@@ -160,7 +160,7 @@ describe('AnalyticsComponent', () => {
         dwell_60s_rate: 0,
       },
     })),
-    getTrend: jasmine.createSpy('getTrend').and.returnValue(of({
+    getTrend: vi.fn().mockReturnValue(of({
       days: 30,
       selected_source: 'all' as const,
       items: [
@@ -176,7 +176,7 @@ describe('AnalyticsComponent', () => {
         },
       ],
     })),
-    getTopSuggestions: jasmine.createSpy('getTopSuggestions').and.returnValue(of({
+    getTopSuggestions: vi.fn().mockReturnValue(of({
       days: 30,
       selected_source: 'all' as const,
       items: [
@@ -200,21 +200,21 @@ describe('AnalyticsComponent', () => {
         },
       ],
     })),
-    runGa4Sync: jasmine.createSpy('runGa4Sync').and.returnValue(of({
+    runGa4Sync: vi.fn().mockReturnValue(of({
       sync_run_id: 1,
       task_id: 'task-ga4',
       source: 'ga4' as const,
       status: 'queued',
       message: 'GA4 telemetry sync queued.',
     })),
-    runMatomoSync: jasmine.createSpy('runMatomoSync').and.returnValue(of({
+    runMatomoSync: vi.fn().mockReturnValue(of({
       sync_run_id: 2,
       task_id: 'task-matomo',
       source: 'matomo' as const,
       status: 'queued',
       message: 'Matomo telemetry sync queued.',
     })),
-    getTelemetryByVersion: jasmine.createSpy('getTelemetryByVersion').and.returnValue(of({
+    getTelemetryByVersion: vi.fn().mockReturnValue(of({
       days: 30,
       selected_source: 'all',
       items: [
@@ -231,7 +231,7 @@ describe('AnalyticsComponent', () => {
         }
       ]
     })),
-    getTelemetryGeoDetail: jasmine.createSpy('getTelemetryGeoDetail').and.returnValue(of({
+    getTelemetryGeoDetail: vi.fn().mockReturnValue(of({
       days: 30,
       selected_source: 'all',
       items: [
@@ -246,7 +246,7 @@ describe('AnalyticsComponent', () => {
         }
       ]
     })),
-    getSearchImpactList: jasmine.createSpy('getSearchImpactList').and.returnValue(of({
+    getSearchImpactList: vi.fn().mockReturnValue(of({
       items: [],
     })),
   };
@@ -259,16 +259,16 @@ describe('AnalyticsComponent', () => {
     } catch {
       /* private-mode browsers throw — safe to ignore here */
     }
-    analyticsServiceStub.runGa4Sync.calls.reset();
-    analyticsServiceStub.runMatomoSync.calls.reset();
-    analyticsServiceStub.getFunnel.calls.reset();
-    analyticsServiceStub.getHealth.calls.reset();
-    analyticsServiceStub.getBreakdowns.calls.reset();
-    analyticsServiceStub.getTrend.calls.reset();
-    analyticsServiceStub.getTopSuggestions.calls.reset();
-    analyticsServiceStub.getTelemetryByVersion.calls.reset();
-    analyticsServiceStub.getTelemetryGeoDetail.calls.reset();
-    analyticsServiceStub.getSearchImpactList.calls.reset();
+    analyticsServiceStub.runGa4Sync.mockClear();
+    analyticsServiceStub.runMatomoSync.mockClear();
+    analyticsServiceStub.getFunnel.mockClear();
+    analyticsServiceStub.getHealth.mockClear();
+    analyticsServiceStub.getBreakdowns.mockClear();
+    analyticsServiceStub.getTrend.mockClear();
+    analyticsServiceStub.getTopSuggestions.mockClear();
+    analyticsServiceStub.getTelemetryByVersion.mockClear();
+    analyticsServiceStub.getTelemetryGeoDetail.mockClear();
+    analyticsServiceStub.getSearchImpactList.mockClear();
   });
 
   it('shows the live-site browser bridge card', async () => {
@@ -379,12 +379,12 @@ describe('AnalyticsComponent', () => {
     const fixture = TestBed.createComponent(AnalyticsComponent);
     fixture.detectChanges();
 
-    analyticsServiceStub.getFunnel.calls.reset();
-    analyticsServiceStub.getBreakdowns.calls.reset();
-    analyticsServiceStub.getTrend.calls.reset();
-    analyticsServiceStub.getTopSuggestions.calls.reset();
-    analyticsServiceStub.getTelemetryByVersion.calls.reset();
-    analyticsServiceStub.getTelemetryGeoDetail.calls.reset();
+    analyticsServiceStub.getFunnel.mockClear();
+    analyticsServiceStub.getBreakdowns.mockClear();
+    analyticsServiceStub.getTrend.mockClear();
+    analyticsServiceStub.getTopSuggestions.mockClear();
+    analyticsServiceStub.getTelemetryByVersion.mockClear();
+    analyticsServiceStub.getTelemetryGeoDetail.mockClear();
 
     fixture.componentInstance.chooseSource('ga4');
 
@@ -417,7 +417,7 @@ describe('AnalyticsComponent', () => {
       ],
     }).compileComponents();
 
-    analyticsServiceStub.getTopSuggestions.calls.reset();
+    analyticsServiceStub.getTopSuggestions.mockClear();
     const fixture = TestBed.createComponent(AnalyticsComponent);
     fixture.detectChanges();
 

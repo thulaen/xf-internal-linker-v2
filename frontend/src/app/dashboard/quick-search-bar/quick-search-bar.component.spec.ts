@@ -5,10 +5,10 @@ import { CommandPaletteService } from '../../shared/services/command-palette.ser
 describe('QuickSearchBarComponent', () => {
   let component: QuickSearchBarComponent;
   let fixture: ComponentFixture<QuickSearchBarComponent>;
-  let mockPalette: jasmine.SpyObj<CommandPaletteService>;
+  let mockPalette: SpyObj<CommandPaletteService>;
 
   beforeEach(async () => {
-    mockPalette = jasmine.createSpyObj('CommandPaletteService', ['toggle']);
+    mockPalette = createSpyObj(['toggle']);
 
     await TestBed.configureTestingModule({
       imports: [QuickSearchBarComponent],

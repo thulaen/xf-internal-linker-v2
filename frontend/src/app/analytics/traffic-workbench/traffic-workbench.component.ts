@@ -14,6 +14,8 @@ const WOW_THRESHOLD = 30;
  */
 export interface WowTelemetryRow {
   change_pct: number;
+  title: string;
+  confidence?: 'medium' | 'high' | 'low' | 'thin';
   [key: string]: unknown;
 }
 

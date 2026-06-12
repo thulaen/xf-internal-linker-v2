@@ -19,9 +19,9 @@ describe('SystemMetricsComponent', () => {
   };
 
   beforeEach(async () => {
-    const mockVisibility = jasmine.createSpyObj('VisibilityGateService', ['whileLoggedInAndVisible']);
+    const mockVisibility = createSpyObj(['whileLoggedInAndVisible']);
     // Immediate execution of the polling logic
-    mockVisibility.whileLoggedInAndVisible.and.callFake((fn: () => Observable<unknown>) => fn());
+    mockVisibility.whileLoggedInAndVisible.mockImplementation((fn: () => Observable<unknown>) => fn());
 
     await TestBed.configureTestingModule({
       imports: [SystemMetricsComponent, NoopAnimationsModule],

@@ -4,12 +4,12 @@ import { OperatorAlert } from './notification.service';
 
 describe('AudioCueService', () => {
   let service: AudioCueService;
-  let playSpy: jasmine.Spy;
+  let playSpy: Spy;
 
   beforeEach(() => {
     TestBed.configureTestingModule({});
     service = TestBed.inject(AudioCueService);
-    playSpy = spyOn(service, 'playTone');
+    playSpy = vi.spyOn(service, 'playTone').mockReturnValue(undefined as never);
   });
 
   function makeAlert(overrides: Partial<OperatorAlert> = {}): OperatorAlert {
@@ -53,22 +53,22 @@ describe('AudioCueService', () => {
 
   it('plays the error tone for urgent alerts', () => {
     service.playForAlert(makeAlert({ severity: 'urgent' }), 'info', false);
-    expect(playSpy).toHaveBeenCalledOnceWith('error');
+    expect(playSpy).toHaveBeenCalledExactlyOnceWith('error');
   });
 
   it('plays the error tone for error alerts', () => {
     service.playForAlert(makeAlert({ severity: 'error' }), 'info', false);
-    expect(playSpy).toHaveBeenCalledOnceWith('error');
+    expect(playSpy).toHaveBeenCalledExactlyOnceWith('error');
   });
 
   it('plays the warning tone for warning alerts', () => {
     service.playForAlert(makeAlert({ severity: 'warning' }), 'info', false);
-    expect(playSpy).toHaveBeenCalledOnceWith('warning');
+    expect(playSpy).toHaveBeenCalledExactlyOnceWith('warning');
   });
 
   it('plays the success tone for success alerts', () => {
     service.playForAlert(makeAlert({ severity: 'success' }), 'info', false);
-    expect(playSpy).toHaveBeenCalledOnceWith('success');
+    expect(playSpy).toHaveBeenCalledExactlyOnceWith('success');
   });
 
   it('does NOT play any tone for info alerts (info is below the chime ladder)', () => {
@@ -89,7 +89,7 @@ describe('AudioCueService', () => {
   describe('playTone()', () => {
     it('does not throw for any of the three tone types when AudioContext is available', () => {
       // Restore the real implementation for this nested describe.
-      playSpy.and.callThrough();
+      playSpy.mockRestore();
       expect(() => service.playTone('success')).not.toThrow();
       expect(() => service.playTone('warning')).not.toThrow();
       expect(() => service.playTone('error')).not.toThrow();

@@ -6,10 +6,10 @@ import { BehaviorTrackerService } from '../../core/services/behavior-tracker.ser
 describe('BehavioralNudgeComponent', () => {
   let component: BehavioralNudgeComponent;
   let fixture: ComponentFixture<BehavioralNudgeComponent>;
-  let mockTracker: jasmine.SpyObj<BehaviorTrackerService>;
+  let mockTracker: SpyObj<BehaviorTrackerService>;
 
   beforeEach(async () => {
-    mockTracker = jasmine.createSpyObj('BehaviorTrackerService', ['getMostVisitedRoute']);
+    mockTracker = createSpyObj(['getMostVisitedRoute']);
 
     await TestBed.configureTestingModule({
       imports: [BehavioralNudgeComponent],
@@ -24,20 +24,20 @@ describe('BehavioralNudgeComponent', () => {
   });
 
   it('should create', () => {
-    mockTracker.getMostVisitedRoute.and.returnValue(null);
+    mockTracker.getMostVisitedRoute.mockReturnValue(null);
     fixture.detectChanges();
     expect(component).toBeTruthy();
   });
 
   it('should be hidden when no suggestion is available', () => {
-    mockTracker.getMostVisitedRoute.and.returnValue(null);
+    mockTracker.getMostVisitedRoute.mockReturnValue(null);
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('.bn-card')).toBeNull();
   });
 
   it('should render suggestion when data is available', () => {
-    mockTracker.getMostVisitedRoute.and.returnValue({
+    mockTracker.getMostVisitedRoute.mockReturnValue({
       route: '/alerts',
       count: 4,
       days: 5
@@ -50,7 +50,7 @@ describe('BehavioralNudgeComponent', () => {
   });
 
   it('should have correct routerLink for the suggestion', () => {
-    mockTracker.getMostVisitedRoute.and.returnValue({
+    mockTracker.getMostVisitedRoute.mockReturnValue({
       route: '/health',
       count: 3,
       days: 3

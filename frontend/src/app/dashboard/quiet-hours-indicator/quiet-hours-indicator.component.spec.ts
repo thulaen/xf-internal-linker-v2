@@ -7,11 +7,11 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 describe('QuietHoursIndicatorComponent', () => {
   let component: QuietHoursIndicatorComponent;
   let fixture: ComponentFixture<QuietHoursIndicatorComponent>;
-  let mockVisibility: jasmine.SpyObj<VisibilityGateService>;
+  let mockVisibility: SpyObj<VisibilityGateService>;
 
   beforeEach(async () => {
-    mockVisibility = jasmine.createSpyObj('VisibilityGateService', ['whileLoggedInAndVisible']);
-    mockVisibility.whileLoggedInAndVisible.and.returnValue(of());
+    mockVisibility = createSpyObj(['whileLoggedInAndVisible']);
+    mockVisibility.whileLoggedInAndVisible.mockReturnValue(of());
 
     await TestBed.configureTestingModule({
       imports: [QuietHoursIndicatorComponent, NoopAnimationsModule],
@@ -37,12 +37,12 @@ describe('QuietHoursIndicatorComponent', () => {
     const morning = new Date();
     morning.setHours(10, 0);
     component.now.set(morning);
-    expect(component.isQuiet()).toBeTrue();
+    expect(component.isQuiet()).toBe(true);
 
     const evening = new Date();
     evening.setHours(18, 0);
     component.now.set(evening);
-    expect(component.isQuiet()).toBeFalse();
+    expect(component.isQuiet()).toBe(false);
   });
 
   it('should correctly identify quiet hours (across midnight)', () => {
@@ -53,35 +53,35 @@ describe('QuietHoursIndicatorComponent', () => {
     const night = new Date();
     night.setHours(23, 0);
     component.now.set(night);
-    expect(component.isQuiet()).toBeTrue();
+    expect(component.isQuiet()).toBe(true);
 
     const earlyMorning = new Date();
     earlyMorning.setHours(2, 0);
     component.now.set(earlyMorning);
-    expect(component.isQuiet()).toBeTrue();
+    expect(component.isQuiet()).toBe(true);
 
     const day = new Date();
     day.setHours(10, 0);
     component.now.set(day);
-    expect(component.isQuiet()).toBeFalse();
+    expect(component.isQuiet()).toBe(false);
   });
 
   it('should return false if disabled', () => {
     component.start.set('00:00');
     component.end.set('23:59');
     component.enabled.set(false);
-    expect(component.isQuiet()).toBeFalse();
+    expect(component.isQuiet()).toBe(false);
   });
 
   it('should enter and exit edit mode', () => {
     fixture.detectChanges();
-    expect(component.editing()).toBeFalse();
+    expect(component.editing()).toBe(false);
     
     component.startEdit();
-    expect(component.editing()).toBeTrue();
+    expect(component.editing()).toBe(true);
     
     component.cancelEdit();
-    expect(component.editing()).toBeFalse();
+    expect(component.editing()).toBe(false);
   });
 
   it('should save drafts to actual values', () => {
@@ -93,6 +93,6 @@ describe('QuietHoursIndicatorComponent', () => {
     
     expect(component.start()).toBe('11:00');
     expect(component.end()).toBe('12:00');
-    expect(component.editing()).toBeFalse();
+    expect(component.editing()).toBe(false);
   });
 });

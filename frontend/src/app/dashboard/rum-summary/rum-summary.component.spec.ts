@@ -10,11 +10,11 @@ describe('RumSummaryComponent', () => {
   let component: RumSummaryComponent;
   let fixture: ComponentFixture<RumSummaryComponent>;
   let httpMock: HttpTestingController;
-  let visibilityGate: jasmine.SpyObj<VisibilityGateService>;
+  let visibilityGate: SpyObj<VisibilityGateService>;
 
   beforeEach(async () => {
-    visibilityGate = jasmine.createSpyObj('VisibilityGateService', ['whileLoggedInAndVisible']);
-    visibilityGate.whileLoggedInAndVisible.and.callFake((fn) => fn());
+    visibilityGate = createSpyObj(['whileLoggedInAndVisible']);
+    visibilityGate.whileLoggedInAndVisible.mockImplementation((fn) => fn());
 
     await TestBed.configureTestingModule({
       imports: [

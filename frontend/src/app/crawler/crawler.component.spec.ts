@@ -53,10 +53,10 @@ function sitemap(): SitemapConfig {
 describe('CrawlerComponent', () => {
   let fixture: ComponentFixture<CrawlerComponent>;
   let component: CrawlerComponent;
-  let crawlerSvc: jasmine.SpyObj<CrawlerService>;
+  let crawlerSvc: SpyObj<CrawlerService>;
 
   beforeEach(async () => {
-    crawlerSvc = jasmine.createSpyObj<CrawlerService>('CrawlerService', [
+    crawlerSvc = createSpyObj<CrawlerService>([
       'getSitemaps',
       'getSessions',
       'getContext',
@@ -69,12 +69,12 @@ describe('CrawlerComponent', () => {
       'getLinks',
       'getSEOAudit',
     ]);
-    crawlerSvc.getSitemaps.and.returnValue(of([sitemap()]));
-    crawlerSvc.getSessions.and.returnValue(of([]));
-    crawlerSvc.getContext.and.returnValue(of({
+    crawlerSvc.getSitemaps.mockReturnValue(of([sitemap()]));
+    crawlerSvc.getSessions.mockReturnValue(of([]));
+    crawlerSvc.getContext.mockReturnValue(of({
       last_crawl_at: null, total_pages_crawled: 0, storage_bytes: 1024, active_session: null,
     }));
-    crawlerSvc.startCrawl.and.returnValue(of(makeSession({ status: 'running' })));
+    crawlerSvc.startCrawl.mockReturnValue(of(makeSession({ status: 'running' })));
 
     await TestBed.configureTestingModule({
       imports: [CrawlerComponent],
@@ -114,8 +114,8 @@ describe('CrawlerComponent', () => {
   });
 
   it('handles getSessions error path without crashing', () => {
-    crawlerSvc.getSessions.and.returnValue(throwError(() => new Error('boom')));
+    crawlerSvc.getSessions.mockReturnValue(throwError(() => new Error('boom')));
     fixture.detectChanges();
-    expect(component.loading()).toBeFalse();
+    expect(component.loading()).toBe(false);
   });
 });

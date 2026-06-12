@@ -2,11 +2,44 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 
 SCRIPT = Path(__file__).resolve().parent / "run-angular-quality.sh"
-FRONTEND_DOCKERFILE = Path(__file__).resolve().parents[1] / "frontend" / "Dockerfile.prod"
+ROOT = Path(__file__).resolve().parents[1]
+FRONTEND_DOCKERFILE = ROOT / "frontend" / "Dockerfile.prod"
+
+
+def _read_or_skip(path: Path) -> str:
+    """Some Dell quality runners sync only `frontend/src/app`; files outside it
+    (angular.json, src/test-setup.ts) are absent there. Skip rather than fail
+    when the file was not synced into the runner."""
+    if not path.exists():
+        import pytest
+
+        pytest.skip(f"{path} not synced to this runner")
+    return path.read_text(encoding="utf-8")
+
+
+def test_angular_unit_tests_run_on_vitest_not_karma() -> None:
+    """The unit-test path uses Angular's Vitest builder, not the Karma builder."""
+    ng = json.loads(_read_or_skip(ROOT / "frontend" / "angular.json"))
+    test_target = ng["projects"]["xf-internal-linker-frontend"]["architect"]["test"]
+    assert test_target["builder"] == "@angular/build:unit-test"
+    assert test_target["options"]["runner"] == "vitest"
+    # The quality script no longer threads Karma's parallel-executor env.
+    assert "KARMA_PARALLEL_EXECUTORS" not in SCRIPT.read_text(encoding="utf-8")
+
+
+def test_vitest_setup_supplies_zone_fakeasync_and_jsdom_polyfills() -> None:
+    """test-setup.ts must load zone.js/testing, install the Vitest ProxyZone
+    patch that makes fakeAsync work, and polyfill the browser APIs jsdom lacks."""
+    setup = _read_or_skip(ROOT / "frontend" / "src" / "test-setup.ts")
+    assert "zone.js/testing" in setup
+    assert "ProxyZoneSpec" in setup  # fakeAsync needs a ProxyZone under Vitest
+    assert "IntersectionObserver" in setup
+    assert "getContext" in setup  # canvas mock for ECharts
 
 
 MUTATION_SCRIPT = Path(__file__).resolve().parent / "run-angular-mutation.sh"
@@ -33,7 +66,7 @@ def test_angular_mutation_script_owns_stryker() -> None:
 
 
 def test_frontend_quality_image_installs_git_for_policy_helpers() -> None:
-    text = FRONTEND_DOCKERFILE.read_text(encoding="utf-8")
+    text = _read_or_skip(FRONTEND_DOCKERFILE)
 
     assert "git" in text
 
@@ -62,6 +95,6 @@ def test_changed_component_pulls_sibling_spec() -> None:
 
 def test_frontend_image_bakes_oxlint() -> None:
     """The mutation-tools image bakes a pinned oxlint into the toolchain."""
-    text = FRONTEND_DOCKERFILE.read_text(encoding="utf-8")
+    text = _read_or_skip(FRONTEND_DOCKERFILE)
 
     assert "npm install -g oxlint@" in text

@@ -18,8 +18,8 @@ describe('ScrollAttentionService', () => {
     target = document.createElement('div');
     target.id = 'attention-target';
     document.body.appendChild(target);
-    spyOn(target, 'scrollIntoView');
-    spyOn(target, 'focus');
+    vi.spyOn(target, 'scrollIntoView').mockReturnValue(undefined as never);
+    vi.spyOn(target, 'focus').mockReturnValue(undefined as never);
   });
 
   afterEach(() => {
@@ -104,14 +104,14 @@ describe('ScrollAttentionService', () => {
     input.remove();
   });
 
-  it('emits an aria-live announcement when announce text is supplied', (done) => {
+  it('emits an aria-live announcement when announce text is supplied', () => new Promise<void>((done) => {
     service.drawTo(target, { announce: 'Pipeline failed' });
     setTimeout(() => {
       const region = document.querySelector('.attention-live-region');
       expect(region?.textContent).toBe('Pipeline failed');
       done();
     }, 30);
-  });
+  }));
 
   it('dismiss() removes the pulse class and stops the ESC listener', () => {
     service.drawTo(target);

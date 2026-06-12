@@ -85,9 +85,9 @@ describe('NotificationCenterComponent', () => {
     let lastEmit: boolean | null = null;
     component.openChange.subscribe((v) => (lastEmit = v));
     component.openPanel();
-    expect(lastEmit).toBeTrue();
+    expect(lastEmit).toBe(true);
     component.close();
-    expect(lastEmit).toBeFalse();
+    expect(lastEmit).toBe(false);
   });
 
   it('handles failed loadAlerts by clearing loading', () => {
@@ -110,7 +110,7 @@ describe('NotificationCenterComponent', () => {
     });
     const fx = TestBed.createComponent(NotificationCenterComponent);
     fx.detectChanges();
-    expect(fx.componentInstance.loading()).toBeFalse();
+    expect(fx.componentInstance.loading()).toBe(false);
     expect(fx.componentInstance.alerts().length).toBe(0);
   });
 });

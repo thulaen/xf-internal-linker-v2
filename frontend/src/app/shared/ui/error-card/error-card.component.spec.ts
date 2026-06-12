@@ -42,7 +42,7 @@ describe('ErrorCardComponent', () => {
   });
 
   it('emits retry when the retry button is clicked', () => {
-    spyOn(component.retry, 'emit');
+    vi.spyOn(component.retry, 'emit').mockReturnValue(undefined as never);
 
     const button = fixture.debugElement.query(By.css('button'));
     button.nativeElement.click();

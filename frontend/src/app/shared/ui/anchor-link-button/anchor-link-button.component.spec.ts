@@ -7,20 +7,20 @@ import { AnchorLinkButtonComponent } from './anchor-link-button.component';
 describe('AnchorLinkButtonComponent', () => {
   let component: AnchorLinkButtonComponent;
   let fixture: ComponentFixture<AnchorLinkButtonComponent>;
-  let snackOpen: jasmine.Spy;
-  let clipboardSpy: jasmine.Spy;
+  let snackOpen: Spy;
+  let clipboardSpy: Spy;
 
   beforeEach(async () => {
-    clipboardSpy = spyOn(navigator.clipboard, 'writeText');
+    clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText').mockReturnValue(undefined as never);
 
     await TestBed.configureTestingModule({
       imports: [AnchorLinkButtonComponent],
-      providers: [{ provide: MatSnackBar, useValue: jasmine.createSpyObj('MatSnackBar', ['open']) }],
+      providers: [{ provide: MatSnackBar, useValue: createSpyObj(['open']) }],
     }).compileComponents();
 
     fixture = TestBed.createComponent(AnchorLinkButtonComponent);
     component = fixture.componentInstance;
-    snackOpen = spyOn((component as unknown as { snack: MatSnackBar }).snack, 'open');
+    snackOpen = vi.spyOn((component as unknown as { snack: MatSnackBar }).snack, 'open');
     fixture.componentRef.setInput('anchorId', 'throughput');
     fixture.detectChanges();
   });
@@ -34,14 +34,14 @@ describe('AnchorLinkButtonComponent', () => {
   });
 
   it('copies the current page link with the anchor id', async () => {
-    clipboardSpy.and.returnValue(Promise.resolve());
+    clipboardSpy.mockReturnValue(Promise.resolve());
 
     await component.copyLink();
 
     expect(clipboardSpy).toHaveBeenCalledWith(
       `${window.location.origin}${window.location.pathname}#throughput`,
     );
-    expect(snackOpen).toHaveBeenCalledWith(jasmine.stringMatching(/^Link copied/), 'OK', {
+    expect(snackOpen).toHaveBeenCalledWith(expect.stringMatching(/^Link copied/), 'OK', {
       duration: 2500,
     });
   });
@@ -57,7 +57,7 @@ describe('AnchorLinkButtonComponent', () => {
   });
 
   it('shows a plain fallback message when copying fails', async () => {
-    clipboardSpy.and.returnValue(Promise.reject(new Error('blocked')));
+    clipboardSpy.mockReturnValue(Promise.reject(new Error('blocked')));
 
     await component.copyLink();
 

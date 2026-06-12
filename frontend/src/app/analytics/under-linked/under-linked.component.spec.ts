@@ -50,7 +50,7 @@ describe('UnderLinkedComponent', () => {
 
     fixture.detectChanges();
 
-    expect(component.loading()).toBeFalse();
+    expect(component.loading()).toBe(false);
     expect(component.rows().length).toBe(2);
     const cards = fixture.nativeElement.querySelectorAll('.gap-card');
     expect(cards.length).toBe(2);
@@ -63,7 +63,7 @@ describe('UnderLinkedComponent', () => {
 
     fixture.detectChanges();
 
-    expect(component.loading()).toBeFalse();
+    expect(component.loading()).toBe(false);
     const emptyState = fixture.nativeElement.querySelector('app-empty-state');
     expect(emptyState).toBeTruthy();
   });
@@ -78,7 +78,7 @@ describe('UnderLinkedComponent', () => {
     fixture.detectChanges();
     tick();
 
-    spyOn(snackBar, 'open');
+    vi.spyOn(snackBar, 'open').mockReturnValue(undefined as never);
 
     const watchBtn = fixture.debugElement.query(By.css('.watch-btn'));
     if (!watchBtn) {
@@ -110,7 +110,7 @@ describe('UnderLinkedComponent', () => {
     fixture.detectChanges();
     tick();
 
-    spyOn(snackBar, 'open');
+    vi.spyOn(snackBar, 'open').mockReturnValue(undefined as never);
 
     component.watch(mockRows[0]);
     tick();

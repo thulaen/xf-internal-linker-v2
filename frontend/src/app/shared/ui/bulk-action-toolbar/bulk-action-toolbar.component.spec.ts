@@ -71,7 +71,7 @@ describe('BulkActionToolbarComponent', () => {
   it('should emit clearSelection when Clear button clicked', () => {
     hostComponent.selectedCount = 1;
     fixture.detectChanges();
-    spyOn(hostComponent, 'onClear');
+    vi.spyOn(hostComponent, 'onClear').mockReturnValue(undefined as never);
     const clearBtn = fixture.debugElement.query(By.css('.bat-clear'));
     clearBtn.nativeElement.click();
     expect(hostComponent.onClear).toHaveBeenCalled();

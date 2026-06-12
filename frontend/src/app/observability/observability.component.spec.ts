@@ -27,7 +27,7 @@ describe('ObservabilityComponent', () => {
         {
           provide: ObservabilityService,
           useValue: {
-            stack: jasmine.createSpy('stack').and.returnValue(response),
+            stack: vi.fn().mockReturnValue(response),
           },
         },
       ],
@@ -36,7 +36,7 @@ describe('ObservabilityComponent', () => {
 
   // TODO(AutoIssue #21241): Given a list of services, When rendered, Then each card button has an aria-label with the service name.
   it('renders one card per observability service and opens the configured dashboard', fakeAsync(() => {
-    const openSpy = spyOn(window, 'open');
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(undefined as never);
     configureComponent(of({
       services: [
       makeService({

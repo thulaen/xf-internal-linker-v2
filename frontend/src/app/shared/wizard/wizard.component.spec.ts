@@ -61,7 +61,7 @@ describe('FormWizardComponent', () => {
     fixture.detectChanges();
 
     const nextBtn = fixture.nativeElement.querySelector('.fw-footer button:last-child');
-    expect(nextBtn.disabled).toBeTrue();
+    expect(nextBtn.disabled).toBe(true);
   });
 
   it('should emit finished on last step', () => {
@@ -74,7 +74,7 @@ describe('FormWizardComponent', () => {
     expect(finishBtn.textContent).toContain('Finish');
     finishBtn.click();
     
-    expect(host.finished).toBeTrue();
+    expect(host.finished).toBe(true);
   });
 
   it('should allow jumping back to a reached step', () => {

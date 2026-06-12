@@ -123,7 +123,7 @@ class MockTabFragmentRouterDirective {
 
 class MockRouter {
   events = new Subject<any>();
-  navigate = jasmine.createSpy('navigate').and.returnValue(Promise.resolve(true));
+  navigate = vi.fn().mockReturnValue(Promise.resolve(true));
   url = '/settings';
 }
 
@@ -495,8 +495,8 @@ describe('SettingsComponent', () => {
     const tabLabels: NodeListOf<Element> = fixture.nativeElement.querySelectorAll('.mdc-tab__text-label');
     const labels = Array.from(tabLabels).map((element) => element.textContent?.trim() ?? '');
 
-    expect(labels.some((label) => label.includes('Connect & Sync'))).toBeTrue();
-    expect(labels.some((label) => label.includes('Ranking Weights'))).toBeTrue();
+    expect(labels.some((label) => label.includes('Connect & Sync'))).toBe(true);
+    expect(labels.some((label) => label.includes('Ranking Weights'))).toBe(true);
 
     localStorage.removeItem('settings_active_tab');
     discardPeriodicTasks();

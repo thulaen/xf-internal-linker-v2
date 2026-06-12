@@ -48,7 +48,7 @@ describe('WatchedPagesComponent', () => {
     req.flush(mockPages);
     fixture.detectChanges();
 
-    expect(component.loading()).toBeFalse();
+    expect(component.loading()).toBe(false);
     expect(component.pages().length).toBe(2);
     const cards = fixture.nativeElement.querySelectorAll('.watch-card');
     expect(cards.length).toBe(2);
@@ -61,7 +61,7 @@ describe('WatchedPagesComponent', () => {
     fixture.detectChanges();
     tick();
 
-    spyOn(snackBar, 'open');
+    vi.spyOn(snackBar, 'open').mockReturnValue(undefined as never);
 
     const removeBtn = fixture.debugElement.query(By.css('button[mat-icon-button]'));
     if (!removeBtn) throw new Error('Remove button not found');
@@ -89,7 +89,7 @@ describe('WatchedPagesComponent', () => {
     fixture.detectChanges();
     tick();
 
-    spyOn(snackBar, 'open');
+    vi.spyOn(snackBar, 'open').mockReturnValue(undefined as never);
 
     component.remove(mockPages[0]);
     tick();

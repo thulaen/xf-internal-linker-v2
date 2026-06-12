@@ -28,7 +28,7 @@ describe('PeHelperDirective', () => {
   });
 
   it('Given a glossary term, When the directive initializes, Then it sets the data-pe-helper attribute', () => {
-    expect(spanEl.hasAttribute('data-pe-helper')).toBeTrue();
+    expect(spanEl.hasAttribute('data-pe-helper')).toBe(true);
   });
 
   it('Given a known glossary term, When the directive binds to the element, Then it attaches the matTooltip behavior with the resolved definition', () => {

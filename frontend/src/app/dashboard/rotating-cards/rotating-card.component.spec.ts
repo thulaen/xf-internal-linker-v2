@@ -40,7 +40,7 @@ describe('RotatingCardComponent', () => {
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
     const text = compiled.querySelector('.rc-text')?.textContent;
-    expect(mockBank.some(s => s.text === text)).toBeTrue();
+    expect(mockBank.some(s => s.text === text)).toBe(true);
   });
 
   it('should rotate to another snippet on next()', () => {

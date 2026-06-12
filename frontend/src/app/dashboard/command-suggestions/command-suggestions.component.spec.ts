@@ -53,11 +53,11 @@ describe('CommandSuggestionsComponent', () => {
   it('should fuzzy match keywords and action text', () => {
     // "broken" matches "Scan for broken links" (keywords ['broken', 'link', 'fix', 'scan'])
     component.onQueryChange('broken');
-    expect(component.matches().some(m => m.action.includes('broken'))).toBeTrue();
+    expect(component.matches().some(m => m.action.includes('broken'))).toBe(true);
 
     // "report" matches "Open Analytics reports" (keywords ['analytics', 'traffic', 'impressions', 'clicks'])
     // Wait, "report" is in the action text "Open Analytics reports"
     component.onQueryChange('report');
-    expect(component.matches().some(m => m.action.includes('Analytics reports'))).toBeTrue();
+    expect(component.matches().some(m => m.action.includes('Analytics reports'))).toBe(true);
   });
 });

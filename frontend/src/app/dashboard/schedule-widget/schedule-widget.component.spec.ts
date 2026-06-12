@@ -6,11 +6,11 @@ import { of } from 'rxjs';
 describe('ScheduleWidgetComponent', () => {
   let component: ScheduleWidgetComponent;
   let fixture: ComponentFixture<ScheduleWidgetComponent>;
-  let mockVisibility: jasmine.SpyObj<VisibilityGateService>;
+  let mockVisibility: SpyObj<VisibilityGateService>;
 
   beforeEach(async () => {
-    mockVisibility = jasmine.createSpyObj('VisibilityGateService', ['whileLoggedInAndVisible']);
-    mockVisibility.whileLoggedInAndVisible.and.returnValue(of());
+    mockVisibility = createSpyObj(['whileLoggedInAndVisible']);
+    mockVisibility.whileLoggedInAndVisible.mockReturnValue(of());
 
     await TestBed.configureTestingModule({
       imports: [ScheduleWidgetComponent],

@@ -17,6 +17,8 @@
  * they touch the relevant components.
  */
 
+import { DEV_DEEP_LINK_CATALOG } from '../../dev/dev-deep-link-catalog';
+
 export interface DeepLinkPrereqHint {
   label: string;
   instructions: string[];
@@ -647,6 +649,7 @@ export const DEEP_LINK_CATALOG: readonly DeepLinkEntry[] = [
     route: '/audit/undo-timeline',
     searchTerms: ['undo', 'audit', 'timeline', 'history'],
   },
+  ...DEV_DEEP_LINK_CATALOG,
 ];
 
 /** Look up an entry by its key. Returns undefined for unknown keys. */

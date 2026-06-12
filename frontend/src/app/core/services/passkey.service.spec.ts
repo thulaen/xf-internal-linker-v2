@@ -31,13 +31,13 @@ describe('PasskeyService', () => {
   });
 
   it('register() returns {ok:false, reason:"unsupported"} when WebAuthn is unavailable', async () => {
-    spyOn(service, 'isBrowserSupported').and.returnValue(false);
+    vi.spyOn(service, 'isBrowserSupported').mockReturnValue(false);
     const result = await service.register('My phone');
     expect(result).toEqual({ ok: false, reason: 'unsupported' });
   });
 
   it('login() returns {ok:false, reason:"unsupported"} when WebAuthn is unavailable', async () => {
-    spyOn(service, 'isBrowserSupported').and.returnValue(false);
+    vi.spyOn(service, 'isBrowserSupported').mockReturnValue(false);
     const result = await service.login();
     expect(result).toEqual({ ok: false, reason: 'unsupported' });
   });
@@ -65,22 +65,22 @@ describe('PasskeyService', () => {
   });
 
   it('isAvailable() returns false when the browser does not support WebAuthn', async () => {
-    spyOn(service, 'isBrowserSupported').and.returnValue(false);
+    vi.spyOn(service, 'isBrowserSupported').mockReturnValue(false);
     expect(await service.isAvailable()).toBe(false);
   });
 
   it('isAvailable() returns true when the begin endpoint exists (status != 404)', async () => {
-    spyOn(window, 'fetch').and.resolveTo({ status: 200 } as Response);
+    vi.spyOn(window, 'fetch').mockResolvedValue({ status: 200 } as Response);
     expect(await service.isAvailable()).toBe(true);
   });
 
   it('isAvailable() returns false when the begin endpoint 404s', async () => {
-    spyOn(window, 'fetch').and.resolveTo({ status: 404 } as Response);
+    vi.spyOn(window, 'fetch').mockResolvedValue({ status: 404 } as Response);
     expect(await service.isAvailable()).toBe(false);
   });
 
   it('isAvailable() returns false when fetch rejects (network error)', async () => {
-    spyOn(window, 'fetch').and.rejectWith(new Error('offline'));
+    vi.spyOn(window, 'fetch').mockRejectedValue(new Error('offline'));
     expect(await service.isAvailable()).toBe(false);
   });
 });

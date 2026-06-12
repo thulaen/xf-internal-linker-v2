@@ -9,12 +9,12 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 describe('CopyButtonComponent', () => {
   let component: CopyButtonComponent;
   let fixture: ComponentFixture<CopyButtonComponent>;
-  let mockToast: jasmine.SpyObj<ToastService>;
-  let clipboardSpy: jasmine.Spy;
+  let mockToast: SpyObj<ToastService>;
+  let clipboardSpy: Spy;
 
   beforeEach(async () => {
-    mockToast = jasmine.createSpyObj('ToastService', ['show']);
-    clipboardSpy = spyOn(navigator.clipboard, 'writeText');
+    mockToast = createSpyObj(['show']);
+    clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText').mockReturnValue(undefined as never);
 
     await TestBed.configureTestingModule({
       imports: [CopyButtonComponent, MatIconButton, MatIconModule, MatTooltipModule],
@@ -38,14 +38,14 @@ describe('CopyButtonComponent', () => {
   });
 
   it('should copy text and show success state', fakeAsync(() => {
-    clipboardSpy.and.returnValue(Promise.resolve());
+    clipboardSpy.mockReturnValue(Promise.resolve());
     
     component.copy();
     tick(); // Resolve clipboard promise
     fixture.detectChanges();
     
     expect(clipboardSpy).toHaveBeenCalledWith('Test content');
-    expect(component.copied()).toBeTrue();
+    expect(component.copied()).toBe(true);
     
     const icon = fixture.debugElement.query(By.css('mat-icon'));
     expect(icon.nativeElement.textContent).toBe('check');
@@ -54,19 +54,19 @@ describe('CopyButtonComponent', () => {
     tick(2000); // Wait for the success state to revert
     fixture.detectChanges();
     
-    expect(component.copied()).toBeFalse();
+    expect(component.copied()).toBe(false);
     expect(fixture.debugElement.query(By.css('.copy-btn-success'))).toBeNull();
     expect(fixture.debugElement.query(By.css('mat-icon')).nativeElement.textContent).toBe('content_copy');
   }));
 
   it('should show error toast on clipboard failure', fakeAsync(() => {
-    clipboardSpy.and.returnValue(Promise.reject('error'));
+    clipboardSpy.mockReturnValue(Promise.reject('error'));
     
     component.copy();
     tick(); // Resolve clipboard promise (failure path)
     
     expect(mockToast.show).toHaveBeenCalledWith('Could not copy to clipboard.', 'Dismiss', 4000);
-    expect(component.copied()).toBeFalse();
+    expect(component.copied()).toBe(false);
   }));
 
   it('should use custom label and tooltip', () => {

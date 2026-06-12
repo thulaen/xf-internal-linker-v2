@@ -173,14 +173,14 @@ describe('ConnectSyncTabComponent', () => {
     fixture.detectChanges();
 
     const root: HTMLElement = fixture.nativeElement;
-    expect(root.querySelector('#xenforo-settings')).withContext('xenforo card').not.toBeNull();
-    expect(root.querySelector('#wordpress-settings')).withContext('wordpress card').not.toBeNull();
-    expect(root.querySelector('#crawler-settings')).withContext('crawler card').not.toBeNull();
-    expect(root.querySelector('#webhook-settings')).withContext('webhook card').not.toBeNull();
-    expect(root.querySelector('#google-settings')).withContext('google oauth card').not.toBeNull();
-    expect(root.querySelector('#ga4-settings')).withContext('ga4 card').not.toBeNull();
-    expect(root.querySelector('#matomo-settings')).withContext('matomo card').not.toBeNull();
-    expect(root.querySelector('#gsc-settings')).withContext('gsc card').not.toBeNull();
+    expect(root.querySelector('#xenforo-settings')).not.toBeNull();
+    expect(root.querySelector('#wordpress-settings')).not.toBeNull();
+    expect(root.querySelector('#crawler-settings')).not.toBeNull();
+    expect(root.querySelector('#webhook-settings')).not.toBeNull();
+    expect(root.querySelector('#google-settings')).not.toBeNull();
+    expect(root.querySelector('#ga4-settings')).not.toBeNull();
+    expect(root.querySelector('#matomo-settings')).not.toBeNull();
+    expect(root.querySelector('#gsc-settings')).not.toBeNull();
   });
 
   it('loads xenforo settings into the local copy on init', () => {
@@ -191,7 +191,7 @@ describe('ConnectSyncTabComponent', () => {
 
     const cmp = fixture.componentInstance;
     expect(cmp.xenforo.base_url).toBe('https://forum.example.com');
-    expect(cmp.xenforo.api_key_configured).toBeTrue();
+    expect(cmp.xenforo.api_key_configured).toBe(true);
     expect(cmp.wordpress.username).toBe('admin');
   });
 
@@ -219,7 +219,7 @@ describe('ConnectSyncTabComponent', () => {
     getReq.flush({ ...XENFORO_DEFAULTS, base_url: 'https://newforum.example.com' });
 
     expect(cmp.xfApiKey).toBe('');
-    expect(cmp.savingXenForo).toBeFalse();
+    expect(cmp.savingXenForo).toBe(false);
   });
 
   it('tests the WordPress connection without persisting credentials', () => {
@@ -238,7 +238,7 @@ describe('ConnectSyncTabComponent', () => {
     expect(req.request.body.username).toBe('admin');
     req.flush({ status: 'connected', message: 'Connected to WordPress.' });
 
-    expect(cmp.testingWordPress).toBeFalse();
+    expect(cmp.testingWordPress).toBe(false);
     // Test path never persists; password stays in the local field for
     // the user to keep refining or save.
     expect(cmp.wordpressPassword).toBe('temp-password');
@@ -265,7 +265,7 @@ describe('ConnectSyncTabComponent', () => {
     // Private key is one-shot — cleared after a successful PUT so the
     // textarea returns to its placeholder.
     expect(cmp.gscPrivateKey).toBe('');
-    expect(cmp.savingGA4GSC).toBeFalse();
+    expect(cmp.savingGA4GSC).toBe(false);
   });
 
   it('emits dirtyChanged true when markDirty is called', () => {

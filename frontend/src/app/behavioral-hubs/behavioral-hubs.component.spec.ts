@@ -95,7 +95,7 @@ describe('BehavioralHubsComponent', () => {
     });
     const fx = TestBed.createComponent(BehavioralHubsComponent);
     fx.detectChanges();
-    expect(fx.componentInstance.loadingHubs()).toBeFalse();
+    expect(fx.componentInstance.loadingHubs()).toBe(false);
     expect(fx.componentInstance.hubs().length).toBe(0);
   });
 });

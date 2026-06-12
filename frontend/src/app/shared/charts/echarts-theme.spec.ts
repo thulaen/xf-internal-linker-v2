@@ -108,7 +108,7 @@ describe('echarts-theme helpers', () => {
       expect(base.legend.bottom).toBe(0);
 
       expect(base.grid).toBeDefined();
-      expect(base.grid.containLabel).toBeTrue();
+      expect(base.grid.containLabel).toBe(true);
 
       expect(base._gridFaint).toBe(withAlpha(token('--color-text-muted'), 0.1));
     });
@@ -117,7 +117,7 @@ describe('echarts-theme helpers', () => {
   describe('gscPalette()', () => {
     it('should return an array of exactly 6 color strings', () => {
       const palette = gscPalette();
-      expect(Array.isArray(palette)).toBeTrue();
+      expect(Array.isArray(palette)).toBe(true);
       expect(palette.length).toBe(6);
     });
 

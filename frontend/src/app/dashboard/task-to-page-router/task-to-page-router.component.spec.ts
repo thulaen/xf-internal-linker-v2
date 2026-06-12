@@ -6,10 +6,10 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 describe('TaskToPageRouterComponent', () => {
   let component: TaskToPageRouterComponent;
   let fixture: ComponentFixture<TaskToPageRouterComponent>;
-  let mockRouter: jasmine.SpyObj<Router>;
+  let mockRouter: SpyObj<Router>;
 
   beforeEach(async () => {
-    mockRouter = jasmine.createSpyObj('Router', ['navigate']);
+    mockRouter = createSpyObj(['navigate']);
 
     await TestBed.configureTestingModule({
       imports: [TaskToPageRouterComponent, NoopAnimationsModule],
@@ -39,15 +39,15 @@ describe('TaskToPageRouterComponent', () => {
     expect(mockRouter.navigate).toHaveBeenCalledWith(['/test'], { fragment: 'feat' });
   });
 
-  it('should reset selected after navigation', (done) => {
+  it('should reset selected after navigation', () => new Promise<void>((done) => {
     const mockOption = { label: 'Test', route: '/test', icon: 'star' };
     component.selected = mockOption;
     component.onPick(mockOption);
-    
+
     // queueMicrotask is used in the component
     setTimeout(() => {
       expect(component.selected).toBeNull();
       done();
     }, 0);
-  });
+  }));
 });

@@ -44,13 +44,13 @@ describe('McTileComponent', () => {
   });
 
   it('should emit tileClick when clicked', () => {
-    spyOn(component.tileClick, 'emit');
+    vi.spyOn(component.tileClick, 'emit').mockReturnValue(undefined as never);
     fixture.nativeElement.querySelector('.mc-tile').click();
     expect(component.tileClick.emit).toHaveBeenCalledWith(mockTile);
   });
 
   it('should emit action when action button is clicked', () => {
-    spyOn(component.action, 'emit');
+    vi.spyOn(component.action, 'emit').mockReturnValue(undefined as never);
     const button = fixture.nativeElement.querySelector('.mc-actions button');
     button.click();
     expect(component.action.emit).toHaveBeenCalledWith({ tile: mockTile, action: 'Restart' });

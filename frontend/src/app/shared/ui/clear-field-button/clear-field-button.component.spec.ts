@@ -45,12 +45,12 @@ describe('ClearFieldButtonComponent', () => {
   it('should emit clear event and stop propagation when clicked', () => {
     fixture.componentRef.setInput('show', true);
     fixture.detectChanges();
-    spyOn(component.clear, 'emit');
+    vi.spyOn(component.clear, 'emit').mockReturnValue(undefined as never);
     const button = fixture.debugElement.query(By.css('button'));
     expect(button).toBeTruthy();
     
     const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true });
-    spyOn(clickEvent, 'stopPropagation');
+    vi.spyOn(clickEvent, 'stopPropagation').mockReturnValue(undefined as never);
     
     button.nativeElement.dispatchEvent(clickEvent);
     

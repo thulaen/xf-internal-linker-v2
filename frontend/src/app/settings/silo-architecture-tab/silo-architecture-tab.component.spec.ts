@@ -92,10 +92,10 @@ describe('SiloArchitectureTabComponent', () => {
     fixture.detectChanges();
 
     const root: HTMLElement = fixture.nativeElement;
-    expect(root.querySelector('#silo-settings')).withContext('silo mode card').not.toBeNull();
-    expect(root.querySelector('#settings-create-silo-group')).withContext('create group card').not.toBeNull();
-    expect(root.querySelector('#silo-groups')).withContext('manage groups card').not.toBeNull();
-    expect(root.querySelector('#scope-assignments')).withContext('scope mapping card').not.toBeNull();
+    expect(root.querySelector('#silo-settings')).not.toBeNull();
+    expect(root.querySelector('#settings-create-silo-group')).not.toBeNull();
+    expect(root.querySelector('#silo-groups')).not.toBeNull();
+    expect(root.querySelector('#scope-assignments')).not.toBeNull();
   });
 
   it('sends PUT to /api/settings/silos/ with the current payload on save', () => {
@@ -114,7 +114,7 @@ describe('SiloArchitectureTabComponent', () => {
     expect(req.request.body.mode).toBe('prefer_same_silo');
     req.flush({ ...DEFAULT_SETTINGS, same_silo_boost: 0.15 });
 
-    expect(cmp.savingSilo()).toBeFalse();
+    expect(cmp.savingSilo()).toBe(false);
   });
 
   it('derives assignedScopeCount from loaded scopes', () => {

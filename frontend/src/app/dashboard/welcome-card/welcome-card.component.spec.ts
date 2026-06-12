@@ -6,10 +6,10 @@ import { By } from '@angular/platform-browser';
 describe('WelcomeCardComponent', () => {
   let component: WelcomeCardComponent;
   let fixture: ComponentFixture<WelcomeCardComponent>;
-  let tourServiceSpy: jasmine.SpyObj<GuidedTourService>;
+  let tourServiceSpy: SpyObj<GuidedTourService>;
 
   beforeEach(async () => {
-    tourServiceSpy = jasmine.createSpyObj('GuidedTourService', ['start']);
+    tourServiceSpy = createSpyObj(['start']);
     
     // Clear localStorage before each test
     localStorage.clear();
@@ -27,7 +27,7 @@ describe('WelcomeCardComponent', () => {
 
   it('should be visible if not seen before', () => {
     fixture.detectChanges();
-    expect(component.visible()).toBeTrue();
+    expect(component.visible()).toBe(true);
     const card = fixture.debugElement.query(By.css('.wc-card'));
     expect(card).toBeTruthy();
   });
@@ -36,7 +36,7 @@ describe('WelcomeCardComponent', () => {
     localStorage.setItem('xfil_welcome_card_seen', '1');
     component.ngOnInit();
     fixture.detectChanges();
-    expect(component.visible()).toBeFalse();
+    expect(component.visible()).toBe(false);
     const card = fixture.debugElement.query(By.css('.wc-card'));
     expect(card).toBeNull();
   });
@@ -50,7 +50,7 @@ describe('WelcomeCardComponent', () => {
     skipBtn!.nativeElement.click();
     fixture.detectChanges();
     
-    expect(component.visible()).toBeFalse();
+    expect(component.visible()).toBe(false);
     expect(localStorage.getItem('xfil_welcome_card_seen')).toBe('1');
   });
 
@@ -63,7 +63,7 @@ describe('WelcomeCardComponent', () => {
     fixture.detectChanges();
 
     expect(tourServiceSpy.start).toHaveBeenCalledWith(DASHBOARD_TOUR);
-    expect(component.visible()).toBeFalse();
+    expect(component.visible()).toBe(false);
     expect(localStorage.getItem('xfil_welcome_card_seen')).toBe('1');
   });
 });

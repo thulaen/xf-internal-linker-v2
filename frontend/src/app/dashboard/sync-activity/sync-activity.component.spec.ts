@@ -10,8 +10,8 @@ import { provideRouter } from '@angular/router';
 describe('SyncActivityComponent', () => {
   let component: SyncActivityComponent;
   let fixture: ComponentFixture<SyncActivityComponent>;
-  let mockSync: jasmine.SpyObj<SyncService>;
-  let mockVisibility: jasmine.SpyObj<VisibilityGateService>;
+  let mockSync: SpyObj<SyncService>;
+  let mockVisibility: SpyObj<VisibilityGateService>;
 
   const mockJobs: SyncJob[] = [
     {
@@ -31,11 +31,11 @@ describe('SyncActivityComponent', () => {
   ];
 
   beforeEach(async () => {
-    mockSync = jasmine.createSpyObj('SyncService', ['getJobs', 'resumeJob']);
-    mockVisibility = jasmine.createSpyObj('VisibilityGateService', ['whileLoggedInAndVisible']);
+    mockSync = createSpyObj(['getJobs', 'resumeJob']);
+    mockVisibility = createSpyObj(['whileLoggedInAndVisible']);
 
-    mockVisibility.whileLoggedInAndVisible.and.callFake((fn) => fn());
-    mockSync.getJobs.and.returnValue(of(mockJobs));
+    mockVisibility.whileLoggedInAndVisible.mockImplementation((fn) => fn());
+    mockSync.getJobs.mockReturnValue(of(mockJobs));
 
     await TestBed.configureTestingModule({
       imports: [SyncActivityComponent, NoopAnimationsModule, MatSnackBarModule],
@@ -89,9 +89,9 @@ describe('SyncActivityComponent', () => {
     component.jobs.set(mockJobs);
     fixture.detectChanges();
     
-    mockSync.resumeJob.and.returnValue(of({ job_id: '2', status: 'pending', is_resumable: true }));
+    mockSync.resumeJob.mockReturnValue(of({ job_id: '2', status: 'pending', is_resumable: true }));
     const restartBtn = fixture.nativeElement.querySelector('.sa-fix');
-    expect(restartBtn).toBeTruthy('Restart button should be visible');
+    expect(restartBtn).toBeTruthy();
     restartBtn.click();
     
     expect(mockSync.resumeJob).toHaveBeenCalledWith('2');

@@ -31,28 +31,28 @@ describe('FindBugsComponent', () => {
     ],
   };
   const service = {
-    summary: jasmine.createSpy('summary').and.returnValue(of(defaultSummary)),
-    findings: jasmine.createSpy('findings').and.returnValue(of(defaultFindings)),
-    runNow: jasmine.createSpy('runNow').and.returnValue(of({ queued: true })),
-    importLatest: jasmine.createSpy('importLatest').and.returnValue(of({ imported: true })),
-    pruneArtifacts: jasmine.createSpy('pruneArtifacts').and.returnValue(of({ deleted_files: 1 })),
-    moveToLesson: jasmine.createSpy('moveToLesson').and.returnValue(of({ lesson_id: 9 })),
-    confirmRealBug: jasmine.createSpy('confirmRealBug').and.returnValue(of({ status: 'ok' })),
-    evaluateWithAgents: jasmine.createSpy('evaluateWithAgents').and.returnValue(of({ status: 'queued' })),
-    duplicateCheck: jasmine.createSpy('duplicateCheck').and.returnValue(of({ status: 'ok' })),
-    regressionCheck: jasmine.createSpy('regressionCheck').and.returnValue(of({ status: 'ok' })),
-    generateReport: jasmine.createSpy('generateReport').and.returnValue(of({ status: 'ok' })),
-    syncContext: jasmine.createSpy('syncContext').and.returnValue(of({ status: 'ok' })),
-    createFixTask: jasmine.createSpy('createFixTask').and.returnValue(of({ status: 'ok' })),
-    assignAgent: jasmine.createSpy('assignAgent').and.returnValue(of({ status: 'ok' })),
-    approveLesson: jasmine.createSpy('approveLesson').and.returnValue(of({ status: 'ok' })),
+    summary: vi.fn().mockReturnValue(of(defaultSummary)),
+    findings: vi.fn().mockReturnValue(of(defaultFindings)),
+    runNow: vi.fn().mockReturnValue(of({ queued: true })),
+    importLatest: vi.fn().mockReturnValue(of({ imported: true })),
+    pruneArtifacts: vi.fn().mockReturnValue(of({ deleted_files: 1 })),
+    moveToLesson: vi.fn().mockReturnValue(of({ lesson_id: 9 })),
+    confirmRealBug: vi.fn().mockReturnValue(of({ status: 'ok' })),
+    evaluateWithAgents: vi.fn().mockReturnValue(of({ status: 'queued' })),
+    duplicateCheck: vi.fn().mockReturnValue(of({ status: 'ok' })),
+    regressionCheck: vi.fn().mockReturnValue(of({ status: 'ok' })),
+    generateReport: vi.fn().mockReturnValue(of({ status: 'ok' })),
+    syncContext: vi.fn().mockReturnValue(of({ status: 'ok' })),
+    createFixTask: vi.fn().mockReturnValue(of({ status: 'ok' })),
+    assignAgent: vi.fn().mockReturnValue(of({ status: 'ok' })),
+    approveLesson: vi.fn().mockReturnValue(of({ status: 'ok' })),
   };
 
   beforeEach(() => {
-    service.summary.calls.reset();
-    service.findings.calls.reset();
-    service.summary.and.returnValue(of(defaultSummary));
-    service.findings.and.returnValue(of(defaultFindings));
+    service.summary.mockClear();
+    service.findings.mockClear();
+    service.summary.mockReturnValue(of(defaultSummary));
+    service.findings.mockReturnValue(of(defaultFindings));
     TestBed.configureTestingModule({
       imports: [FindBugsComponent, NoopAnimationsModule],
       providers: [{ provide: FindBugsService, useValue: service }],
@@ -97,7 +97,7 @@ describe('FindBugsComponent', () => {
   }));
 
   it('shows summary and findings after asynchronous backend replies', fakeAsync(() => {
-    service.summary.and.returnValue(defer(() => Promise.resolve({
+    service.summary.mockReturnValue(defer(() => Promise.resolve({
       counts: { open: 4, closed: 2 },
       severity: { critical: 2, high: 1, medium: 1, low: 0 },
       artifacts: { bytes: 1024, limit_bytes: 2048, retention_days: 8 },
@@ -105,7 +105,7 @@ describe('FindBugsComponent', () => {
       model: { model: 'SmolLM2-1.7B-Instruct Q4_K_S', status: 'ok', reason: 'runner_completed' },
       last_run_at: '2026-05-21T21:30:00Z',
     })));
-    service.findings.and.returnValue(defer(() => Promise.resolve({
+    service.findings.mockReturnValue(defer(() => Promise.resolve({
       results: [
         {
           id: 8,
@@ -129,7 +129,7 @@ describe('FindBugsComponent', () => {
   }));
 
   it('dedupes repeated findings by canonical fingerprint before rendering', fakeAsync(() => {
-    service.findings.and.returnValue(of({
+    service.findings.mockReturnValue(of({
       results: [
         {
           ...defaultFindings.results[0],
@@ -158,7 +158,7 @@ describe('FindBugsComponent', () => {
   }));
 
   it('groups repeated pattern and file findings into one operator row', fakeAsync(() => {
-    service.findings.and.returnValue(of({
+    service.findings.mockReturnValue(of({
       results: [
         {
           ...defaultFindings.results[0],
@@ -197,7 +197,7 @@ describe('FindBugsComponent', () => {
   }));
 
   it('shows model notes inside expanded bug rows', fakeAsync(() => {
-    service.findings.and.returnValue(of({
+    service.findings.mockReturnValue(of({
       results: [
         {
           ...defaultFindings.results[0],
@@ -245,7 +245,7 @@ describe('FindBugsComponent', () => {
       tick();
       fixture.detectChanges();
       const button = document.body.querySelector(`button[aria-label="${label}"]`) as HTMLButtonElement;
-      expect(button).withContext(label).toBeTruthy();
+      expect(button).toBeTruthy();
       button.click();
       fixture.detectChanges();
       tick();
@@ -286,7 +286,7 @@ describe('FindBugsComponent', () => {
     expect(service.moveToLesson).toHaveBeenCalledWith(
       7,
       'false_positive',
-      jasmine.stringMatching('Trap:'),
+      expect.stringMatching('Trap:'),
     );
   }));
 

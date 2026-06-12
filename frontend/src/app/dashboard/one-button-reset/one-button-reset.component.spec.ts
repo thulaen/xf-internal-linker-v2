@@ -14,14 +14,14 @@ describe('OneButtonResetComponent', () => {
 
   beforeEach(async () => {
     mockDash = {
-      invalidate: jasmine.createSpy('invalidate'),
-      refresh: jasmine.createSpy('refresh').and.returnValue(of(null))
+      invalidate: vi.fn(),
+      refresh: vi.fn().mockReturnValue(of(null))
     };
     mockRealtime = {
-      reconnectNow: jasmine.createSpy('reconnectNow')
+      reconnectNow: vi.fn()
     };
     mockSnack = {
-      open: jasmine.createSpy('open')
+      open: vi.fn()
     };
 
     await TestBed.configureTestingModule({
@@ -47,14 +47,14 @@ describe('OneButtonResetComponent', () => {
     expect(mockDash.invalidate).toHaveBeenCalled();
     expect(mockDash.refresh).toHaveBeenCalled();
     expect(mockRealtime.reconnectNow).toHaveBeenCalled();
-    expect(mockSnack.open).toHaveBeenCalledWith('Dashboard view reset.', 'OK', jasmine.any(Object));
+    expect(mockSnack.open).toHaveBeenCalledWith('Dashboard view reset.', 'OK', expect.any(Object));
   });
 
   it('should handle refresh error', () => {
-    (mockDash.refresh as jasmine.Spy).and.returnValue(throwError(() => new Error('fail')));
+    (mockDash.refresh as unknown as Spy).mockReturnValue(throwError(() => new Error('fail')));
     component.onReset();
-    expect(component.busy()).toBeFalse();
-    expect(mockSnack.open).toHaveBeenCalledWith('Reset failed — check your connection.', 'Dismiss', jasmine.any(Object));
+    expect(component.busy()).toBe(false);
+    expect(mockSnack.open).toHaveBeenCalledWith('Reset failed — check your connection.', 'Dismiss', expect.any(Object));
   });
 
   it('should show last reset label', () => {

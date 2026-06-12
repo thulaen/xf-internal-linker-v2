@@ -74,11 +74,11 @@ describe('OperationsFeedComponent', () => {
       events: () => OpsEvent[];
     };
     c.togglePause();
-    expect(c.paused()).toBeTrue();
+    expect(c.paused()).toBe(true);
     realtime$.next({ payload: evt({ id: 99 }) });
     expect(c.buffered().length).toBe(1);
     c.togglePause();
-    expect(c.events().some((e) => e.id === 99)).toBeTrue();
+    expect(c.events().some((e) => e.id === 99)).toBe(true);
     expect(c.buffered().length).toBe(0);
   });
 

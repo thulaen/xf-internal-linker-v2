@@ -31,11 +31,11 @@ const makeRoute = (id: string | null) => ({
 describe('AlertDetailComponent', () => {
   let fixture: ComponentFixture<AlertDetailComponent>;
   let component: AlertDetailComponent;
-  let notifSpy: jasmine.SpyObj<NotificationService>;
+  let notifSpy: SpyObj<NotificationService>;
 
   beforeEach(async () => {
-    notifSpy = jasmine.createSpyObj('NotificationService', ['getAlert']);
-    notifSpy.getAlert.and.returnValue(of(MOCK_ALERT));
+    notifSpy = createSpyObj(['getAlert']);
+    notifSpy.getAlert.mockReturnValue(of(MOCK_ALERT));
 
     await TestBed.configureTestingModule({
       imports: [AlertDetailComponent],
@@ -63,7 +63,7 @@ describe('AlertDetailComponent', () => {
   });
 
   it('sets loading to false after data arrives', () => {
-    expect(component.loading).toBeFalse();
+    expect(component.loading).toBe(false);
   });
 
   it('displays the alert title in the card', () => {
@@ -77,7 +77,7 @@ describe('AlertDetailComponent', () => {
 
   it('sets loadError and no-loading when the route has no id', async () => {
     // Use a fresh spy so call history from other tests does not bleed in.
-    const freshSpy = jasmine.createSpyObj<NotificationService>('NotificationService', ['getAlert']);
+    const freshSpy = createSpyObj<NotificationService>(['getAlert']);
 
     await TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
@@ -94,7 +94,7 @@ describe('AlertDetailComponent', () => {
     f2.detectChanges();
 
     expect(f2.componentInstance.loadError).toBeTruthy();
-    expect(f2.componentInstance.loading).toBeFalse();
+    expect(f2.componentInstance.loading).toBe(false);
     // getAlert must NOT have been called — there's no id to fetch.
     expect(freshSpy.getAlert).not.toHaveBeenCalled();
   });

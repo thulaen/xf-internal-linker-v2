@@ -14,7 +14,7 @@ import { errorInterceptor } from './error.interceptor';
 describe('errorInterceptor', () => {
   let http: HttpClient;
   let httpMock: HttpTestingController;
-  let snackOpen: jasmine.Spy;
+  let snackOpen: Spy;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -26,14 +26,14 @@ describe('errorInterceptor', () => {
     });
     http = TestBed.inject(HttpClient);
     httpMock = TestBed.inject(HttpTestingController);
-    snackOpen = spyOn(TestBed.inject(MatSnackBar), 'open').and.callThrough();
+    snackOpen = vi.spyOn(TestBed.inject(MatSnackBar), 'open');
   });
 
   afterEach(() => httpMock.verify());
 
   it('surfaces error.detail (string) in the snackbar copy', () => {
     http.post('/api/x', {}).subscribe({
-      next: () => fail('expected error'),
+      next: () => expect.fail('expected error'),
       error: () => undefined,
     });
     httpMock.expectOne('/api/x').flush(
@@ -41,14 +41,14 @@ describe('errorInterceptor', () => {
       { status: 400, statusText: 'Bad Request' }
     );
     expect(snackOpen).toHaveBeenCalled();
-    expect(snackOpen.calls.mostRecent().args[0]).toBe(
+    expect(snackOpen.mock.calls.at(-1)![0]).toBe(
       'Quota exceeded for GA4 — wait 60 seconds'
     );
   });
 
   it('surfaces error.detail (array) in the snackbar copy', () => {
     http.post('/api/y', {}).subscribe({
-      next: () => fail('expected error'),
+      next: () => expect.fail('expected error'),
       error: () => undefined,
     });
     httpMock
@@ -57,24 +57,24 @@ describe('errorInterceptor', () => {
         { detail: ['Field is required.'] },
         { status: 400, statusText: 'Bad Request' }
       );
-    expect(snackOpen.calls.mostRecent().args[0]).toBe('Field is required.');
+    expect(snackOpen.mock.calls.at(-1)![0]).toBe('Field is required.');
   });
 
   it('surfaces field-level errors when no top-level detail exists', () => {
     http.post('/api/z', {}).subscribe({
-      next: () => fail('expected error'),
+      next: () => expect.fail('expected error'),
       error: () => undefined,
     });
     httpMock.expectOne('/api/z').flush(
       { username: ['already taken'] },
       { status: 400, statusText: 'Bad Request' }
     );
-    expect(snackOpen.calls.mostRecent().args[0]).toBe('already taken');
+    expect(snackOpen.mock.calls.at(-1)![0]).toBe('already taken');
   });
 
   it('falls back to the default message when no server detail is present', fakeAsync(() => {
     http.get('/api/foo').subscribe({
-      next: () => fail('expected error'),
+      next: () => expect.fail('expected error'),
       error: () => undefined,
     });
     httpMock
@@ -86,14 +86,14 @@ describe('errorInterceptor', () => {
     httpMock
       .expectOne('/api/foo')
       .flush('', { status: 503, statusText: 'Service Unavailable' });
-    expect(snackOpen.calls.mostRecent().args[0]).toBe(
+    expect(snackOpen.mock.calls.at(-1)![0]).toBe(
       'Server error — please try again later'
     );
   }));
 
   it('does not show a snackbar for telemetry endpoints', () => {
     http.post('/api/telemetry/web-vitals/', {}).subscribe({
-      next: () => fail('expected error'),
+      next: () => expect.fail('expected error'),
       error: () => undefined,
     });
     httpMock

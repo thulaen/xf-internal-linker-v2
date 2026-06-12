@@ -105,9 +105,9 @@ describe('LibraryHistoryTabComponent', () => {
     fixture.detectChanges();
 
     const root: HTMLElement = fixture.nativeElement;
-    expect(root.querySelector('#weight-presets')).withContext('preset hero card').not.toBeNull();
-    expect(root.querySelector('#ranking-challengers')).withContext('challenger card').not.toBeNull();
-    expect(root.querySelector('#adjustment-history')).withContext('history card').not.toBeNull();
+    expect(root.querySelector('#weight-presets')).not.toBeNull();
+    expect(root.querySelector('#ranking-challengers')).not.toBeNull();
+    expect(root.querySelector('#adjustment-history')).not.toBeNull();
   });
 
   it('loads weight presets into the signal-backed list on init', () => {
@@ -138,7 +138,7 @@ describe('LibraryHistoryTabComponent', () => {
     // dialog. The two-stage guard is logic-tested via `parentIsDirty`
     // toggles in an isolated assertion below; here we just want the
     // happy-path POST + Output sequence.
-    spyOn(window, 'confirm').and.returnValue(true);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     cmp.applyPreset(CUSTOM_PRESET);
 
@@ -152,7 +152,7 @@ describe('LibraryHistoryTabComponent', () => {
     httpMock.expectOne('/api/weight-history/').flush([HISTORY_ROW]);
 
     expect(applied).toEqual([CUSTOM_PRESET.name]);
-    expect(cmp.applyingPreset()).toBeFalse();
+    expect(cmp.applyingPreset()).toBe(false);
   });
 
   it('emits dirtyChanged true when markDirty is called', () => {

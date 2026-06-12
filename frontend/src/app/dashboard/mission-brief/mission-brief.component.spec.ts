@@ -13,14 +13,14 @@ describe('MissionBriefComponent', () => {
 
   beforeEach(async () => {
     mockDash = {
-      getMissionBrief: jasmine.createSpy('getMissionBrief').and.returnValue(of({
+      getMissionBrief: vi.fn().mockReturnValue(of({
         sentences: ['Yesterday was busy.', 'Today is quiet.', 'Watch out for issues.'],
         top_alert: null
       }))
     };
 
     mockVisibility = {
-      whileLoggedInAndVisible: jasmine.createSpy('whileLoggedInAndVisible').and.callFake((fn: any) => fn())
+      whileLoggedInAndVisible: vi.fn().mockImplementation((fn: any) => fn())
     };
 
     await TestBed.configureTestingModule({
@@ -53,7 +53,7 @@ describe('MissionBriefComponent', () => {
   }));
 
   it('should show alert link when top_alert exists', fakeAsync(() => {
-    mockDash.getMissionBrief.and.returnValue(of({
+    mockDash.getMissionBrief.mockReturnValue(of({
       sentences: ['S1', 'S2', 'S3'],
       top_alert: { alert_id: 'A1' }
     }));

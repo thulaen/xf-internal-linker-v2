@@ -10,13 +10,13 @@ import { provideRouter } from '@angular/router';
 describe('QuickControlsComponent', () => {
   let component: QuickControlsComponent;
   let fixture: ComponentFixture<QuickControlsComponent>;
-  let svcSpy: jasmine.SpyObj<RuntimeModelsService>;
-  let snackOpenSpy: jasmine.Spy;
+  let svcSpy: SpyObj<RuntimeModelsService>;
+  let snackOpenSpy: Spy;
 
   beforeEach(async () => {
-    svcSpy = jasmine.createSpyObj('RuntimeModelsService', ['list', 'action']);
+    svcSpy = createSpyObj(['list', 'action']);
 
-    svcSpy.list.and.returnValue(of({
+    svcSpy.list.mockReturnValue(of({
       task_type: 'embedding',
       active_model: {
         id: 1,
@@ -39,7 +39,7 @@ describe('QuickControlsComponent', () => {
 
     fixture = TestBed.createComponent(QuickControlsComponent);
     component = fixture.componentInstance;
-    snackOpenSpy = spyOn(MatSnackBar.prototype, 'open').and.callFake(() => null as any);
+    snackOpenSpy = vi.spyOn(MatSnackBar.prototype, 'open').mockImplementation(() => null as any);
     fixture.detectChanges();
   });
 
@@ -93,29 +93,29 @@ describe('QuickControlsComponent', () => {
   });
 
   it('should call pause action and show success snackbar', fakeAsync(() => {
-    svcSpy.action.and.returnValue(of({ status: 'ok' }));
+    svcSpy.action.mockReturnValue(of({ status: 'ok' }));
     const model = component.activeModels()[0];
     component.pause(model);
     tick(0);
 
     expect(svcSpy.action).toHaveBeenCalledWith(model.id, 'pause');
     expect(snackOpenSpy).toHaveBeenCalledWith(
-      jasmine.stringMatching(/Action "pause" applied/),
-      jasmine.any(String),
-      jasmine.any(Object)
+      expect.stringMatching(/Action "pause" applied/),
+      expect.any(String),
+      expect.any(Object)
     );
   }));
 
   it('should handle action error with error snackbar', fakeAsync(() => {
-    svcSpy.action.and.returnValue(throwError(() => new Error('fail')));
+    svcSpy.action.mockReturnValue(throwError(() => new Error('fail')));
     const model = component.activeModels()[0];
     component.pause(model);
     tick(0);
 
     expect(snackOpenSpy).toHaveBeenCalledWith(
-      jasmine.stringMatching(/Failed to pause/),
-      jasmine.any(String),
-      jasmine.any(Object)
+      expect.stringMatching(/Failed to pause/),
+      expect.any(String),
+      expect.any(Object)
     );
   }));
 
@@ -134,9 +134,9 @@ describe('QuickControlsComponent', () => {
 
   it('should set busy state during action execution', fakeAsync(() => {
     // Use a delayed observable so the subscription doesn't complete synchronously
-    svcSpy.action.and.returnValue(of({ status: 'ok' }).pipe(delay(1)));
+    svcSpy.action.mockReturnValue(of({ status: 'ok' }).pipe(delay(1)));
     const models = component.activeModels();
-    expect(models.length).toBeGreaterThan(0, 'No models available');
+    expect(models.length).toBeGreaterThan(0);
     const model = models[0];
 
     expect(component.busyId()).toBe('');
@@ -151,7 +151,7 @@ describe('QuickControlsComponent', () => {
 
   it('should disable action buttons when busy', fakeAsync(() => {
     // Use a delayed observable so the subscription doesn't complete synchronously
-    svcSpy.action.and.returnValue(of({ status: 'ok' }).pipe(delay(1)));
+    svcSpy.action.mockReturnValue(of({ status: 'ok' }).pipe(delay(1)));
     const model = component.activeModels()[0];
 
     component.pause(model);
@@ -165,7 +165,7 @@ describe('QuickControlsComponent', () => {
   }));
 
   it('should call drain action on drain button click', fakeAsync(() => {
-    svcSpy.action.and.returnValue(of({ status: 'ok' }));
+    svcSpy.action.mockReturnValue(of({ status: 'ok' }));
     const model = component.activeModels()[0];
 
     component.drain(model);
@@ -175,13 +175,13 @@ describe('QuickControlsComponent', () => {
   }));
 
   it('should refresh models after action completes', fakeAsync(() => {
-    svcSpy.action.and.returnValue(of({ status: 'ok' }));
-    const initialListCallCount = svcSpy.list.calls.count();
+    svcSpy.action.mockReturnValue(of({ status: 'ok' }));
+    const initialListCallCount = svcSpy.list.mock.calls.length;
     const model = component.activeModels()[0];
 
     component.pause(model);
     tick(0);
 
-    expect(svcSpy.list.calls.count()).toBeGreaterThan(initialListCallCount);
+    expect(svcSpy.list.mock.calls.length).toBeGreaterThan(initialListCallCount);
   }));
 });

@@ -11,7 +11,7 @@ import * as echarts from 'echarts';
 class TestHostComponent {
   @ViewChild(EchartsDirective) directive!: EchartsDirective;
   options: echarts.EChartsOption | null = { title: { text: 'Test Chart' } };
-  onClick = jasmine.createSpy('onClick');
+  onClick = vi.fn();
 }
 
 describe('EchartsDirective', () => {
@@ -25,8 +25,8 @@ describe('EchartsDirective', () => {
   beforeEach(() => {
     originalResizeObserver = globalThis.ResizeObserver;
     mockResizeObserver = {
-      observe: jasmine.createSpy('observe'),
-      disconnect: jasmine.createSpy('disconnect'),
+      observe: vi.fn(),
+      disconnect: vi.fn(),
     };
 
     globalThis.ResizeObserver = class {
@@ -73,7 +73,7 @@ describe('EchartsDirective', () => {
     const instance = component.directive.getInstance();
     expect(instance).toBeTruthy();
     
-    spyOn(instance as any, 'setOption').and.callThrough();
+    vi.spyOn(instance as any, 'setOption');
     
     component.options = { title: { text: 'Updated Title' } };
     fixture.detectChanges(); // Triggers ngOnChanges
@@ -87,7 +87,7 @@ describe('EchartsDirective', () => {
   it('should clear the chart when options are updated to null', () => {
     fixture.detectChanges();
     const instance = component.directive.getInstance();
-    spyOn(instance as any, 'clear').and.callThrough();
+    vi.spyOn(instance as any, 'clear');
     
     component.options = null;
     fixture.detectChanges();
@@ -104,7 +104,7 @@ describe('EchartsDirective', () => {
   it('should call resize on the echarts instance when ResizeObserver triggers', () => {
     fixture.detectChanges();
     const instance = component.directive.getInstance();
-    spyOn(instance as any, 'resize').and.callThrough();
+    vi.spyOn(instance as any, 'resize');
     
     expect(resizeCallback).toBeTruthy();
     if (resizeCallback) {
@@ -114,11 +114,11 @@ describe('EchartsDirective', () => {
   });
 
   it('should run render logic outside the Angular zone', () => {
-    spyOn(zone, 'runOutsideAngular').and.callThrough();
+    vi.spyOn(zone, 'runOutsideAngular');
     fixture.detectChanges(); // First render
     expect(zone.runOutsideAngular).toHaveBeenCalled();
     
-    (zone.runOutsideAngular as jasmine.Spy).calls.reset();
+    (zone.runOutsideAngular as unknown as Spy).mockClear();
     
     component.options = { title: { text: 'New' } };
     fixture.detectChanges(); // Second render (update)
@@ -135,7 +135,7 @@ describe('EchartsDirective', () => {
   it('should cleanup the ResizeObserver and ECharts instance on destroy', () => {
     fixture.detectChanges();
     const instance = component.directive.getInstance();
-    spyOn(instance as any, 'dispose').and.callThrough();
+    vi.spyOn(instance as any, 'dispose');
     
     fixture.destroy();
     

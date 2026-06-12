@@ -78,29 +78,29 @@ describe('SiloSettingsService', () => {
   });
 
   // ── Silo groups (list endpoint has catchError fallback) ────────────
-  it('listSiloGroups unwraps {results:[…]} envelope', (done) => {
+  it('listSiloGroups unwraps {results:[…]} envelope', () => new Promise<void>((done) => {
     service.listSiloGroups().subscribe((groups) => {
       expect(groups).toEqual([{ id: 1, name: 'A' } as any]);
       done();
     });
     expectGet('/api/silo-groups/').flush({ results: [{ id: 1, name: 'A' }] });
-  });
+  }));
 
-  it('listSiloGroups passes through a bare array response', (done) => {
+  it('listSiloGroups passes through a bare array response', () => new Promise<void>((done) => {
     service.listSiloGroups().subscribe((groups) => {
       expect(groups).toEqual([{ id: 2 } as any]);
       done();
     });
     expectGet('/api/silo-groups/').flush([{ id: 2 }]);
-  });
+  }));
 
-  it('listSiloGroups returns [] on HTTP error (catchError fallback)', (done) => {
+  it('listSiloGroups returns [] on HTTP error (catchError fallback)', () => new Promise<void>((done) => {
     service.listSiloGroups().subscribe((groups) => {
       expect(groups).toEqual([]);
       done();
     });
     expectGet('/api/silo-groups/').flush('boom', { status: 500, statusText: 'Server' });
-  });
+  }));
 
   it('createSiloGroup POSTs to /api/silo-groups/', () => {
     service.createSiloGroup({ name: 'New' }).subscribe();
@@ -118,21 +118,21 @@ describe('SiloSettingsService', () => {
   });
 
   // ── Scopes (list endpoint has catchError fallback) ─────────────────
-  it('listScopes unwraps {results:[…]} envelope', (done) => {
+  it('listScopes unwraps {results:[…]} envelope', () => new Promise<void>((done) => {
     service.listScopes().subscribe((s) => {
       expect(s).toEqual([{ id: 1 } as any]);
       done();
     });
     expectGet('/api/scopes/').flush({ results: [{ id: 1 }] });
-  });
+  }));
 
-  it('listScopes returns [] on HTTP error', (done) => {
+  it('listScopes returns [] on HTTP error', () => new Promise<void>((done) => {
     service.listScopes().subscribe((s) => {
       expect(s).toEqual([]);
       done();
     });
     expectGet('/api/scopes/').flush('boom', { status: 500, statusText: 'Server' });
-  });
+  }));
 
   it('updateScopeSilo PATCHes the scope id with silo_group payload', () => {
     service.updateScopeSilo(4, 12).subscribe();
@@ -509,21 +509,21 @@ describe('SiloSettingsService', () => {
   });
 
   // ── Helpers (list endpoint has catchError fallback) ────────────────
-  it('listHelpers unwraps {results:[…]} envelope', (done) => {
+  it('listHelpers unwraps {results:[…]} envelope', () => new Promise<void>((done) => {
     service.listHelpers().subscribe((helpers) => {
       expect(helpers).toEqual([{ id: 1 } as any]);
       done();
     });
     expectGet('/api/settings/helpers/').flush({ results: [{ id: 1 }] });
-  });
+  }));
 
-  it('listHelpers returns [] on HTTP error', (done) => {
+  it('listHelpers returns [] on HTTP error', () => new Promise<void>((done) => {
     service.listHelpers().subscribe((helpers) => {
       expect(helpers).toEqual([]);
       done();
     });
     expectGet('/api/settings/helpers/').flush('boom', { status: 500, statusText: 'Server' });
-  });
+  }));
 
   it('createHelper POSTs to the helpers endpoint', () => {
     service.createHelper({ name: 'h' } as any).subscribe();
@@ -541,21 +541,21 @@ describe('SiloSettingsService', () => {
   });
 
   // ── Weight presets ─────────────────────────────────────────────────
-  it('listWeightPresets unwraps {results:[…]} envelope', (done) => {
+  it('listWeightPresets unwraps {results:[…]} envelope', () => new Promise<void>((done) => {
     service.listWeightPresets().subscribe((presets) => {
       expect(presets).toEqual([{ id: 1, name: 'p' } as any]);
       done();
     });
     expectGet('/api/weight-presets/').flush({ results: [{ id: 1, name: 'p' }] });
-  });
+  }));
 
-  it('listWeightPresets returns [] on HTTP error', (done) => {
+  it('listWeightPresets returns [] on HTTP error', () => new Promise<void>((done) => {
     service.listWeightPresets().subscribe((presets) => {
       expect(presets).toEqual([]);
       done();
     });
     expectGet('/api/weight-presets/').flush('boom', { status: 500, statusText: 'Server' });
-  });
+  }));
 
   it('createWeightPreset POSTs to weight-presets', () => {
     service.createWeightPreset({ name: 'p', weights: { 'a.b': '1' } }).subscribe();
@@ -587,21 +587,21 @@ describe('SiloSettingsService', () => {
     expectPost('/api/settings/weight-tune/trigger/', {}).flush({ detail: 'queued', task_id: 't' });
   });
 
-  it('listChallengers unwraps {results:[…]} envelope', (done) => {
+  it('listChallengers unwraps {results:[…]} envelope', () => new Promise<void>((done) => {
     service.listChallengers().subscribe((c) => {
       expect(c).toEqual([{ id: 1 } as any]);
       done();
     });
     expectGet('/api/weight-challengers/').flush({ results: [{ id: 1 }] });
-  });
+  }));
 
-  it('listChallengers returns [] on HTTP error', (done) => {
+  it('listChallengers returns [] on HTTP error', () => new Promise<void>((done) => {
     service.listChallengers().subscribe((c) => {
       expect(c).toEqual([]);
       done();
     });
     expectGet('/api/weight-challengers/').flush('boom', { status: 500, statusText: 'Server' });
-  });
+  }));
 
   it('evaluateChallenger POSTs to the weight-tune evaluate action', () => {
     service.evaluateChallenger('run-7').subscribe();
@@ -616,21 +616,21 @@ describe('SiloSettingsService', () => {
     expectPost('/api/weight-challengers/7/reject/', {}).flush({ detail: 'rejected' });
   });
 
-  it('listWeightHistory unwraps {results:[…]} envelope', (done) => {
+  it('listWeightHistory unwraps {results:[…]} envelope', () => new Promise<void>((done) => {
     service.listWeightHistory().subscribe((h) => {
       expect(h).toEqual([{ id: 1 } as any]);
       done();
     });
     expectGet('/api/weight-history/').flush({ results: [{ id: 1 }] });
-  });
+  }));
 
-  it('listWeightHistory returns [] on HTTP error', (done) => {
+  it('listWeightHistory returns [] on HTTP error', () => new Promise<void>((done) => {
     service.listWeightHistory().subscribe((h) => {
       expect(h).toEqual([]);
       done();
     });
     expectGet('/api/weight-history/').flush('boom', { status: 500, statusText: 'Server' });
-  });
+  }));
 
   // ── GSC / GA4 / Matomo / OAuth get/update wrappers ─────────────────
   it('getGSCSettings GETs the analytics GSC settings endpoint', () => {

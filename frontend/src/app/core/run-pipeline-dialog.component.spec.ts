@@ -7,10 +7,10 @@ import { FormsModule } from '@angular/forms';
 describe('RunPipelineDialogComponent', () => {
   let component: RunPipelineDialogComponent;
   let fixture: ComponentFixture<RunPipelineDialogComponent>;
-  let mockDialogRef: jasmine.SpyObj<MatDialogRef<RunPipelineDialogComponent>>;
+  let mockDialogRef: SpyObj<MatDialogRef<RunPipelineDialogComponent>>;
 
   beforeEach(async () => {
-    mockDialogRef = jasmine.createSpyObj('MatDialogRef', ['close']);
+    mockDialogRef = createSpyObj(['close']);
 
     await TestBed.configureTestingModule({
       imports: [

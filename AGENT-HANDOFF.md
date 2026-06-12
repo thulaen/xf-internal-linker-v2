@@ -1,3 +1,35 @@
+## 2026-06-12 - Claude Opus 4.8 (1M) - Migrate Angular unit tests from Karma/Jasmine to Vitest (175 files, 1085 tests green)
+
+[HANDOFF READ: 2026-06-12 by Claude Opus 4.8 — Speed program: dropped pylint for ruff, added dmypy/oxlint/nextest/mold/sccache, fixed two prod-build breaks and the CI Rust scope no-op]
+[REGISTRY READ: ~974 open — picked: quota already met this session (63 resolved, DB-backed gate)]
+[PAPER TRAIL READ: 0 open]
+[TDD PREFLIGHT: pipeline=SPEC→TEST_CASE→TDD→CODE→CODE_REVIEW→LESSON ... session_id=17e8081c-3edc-4f47-8d06-18353b8bf90f armed_at=2026-06-12T18:03:48Z]
+[STICKY 1 READ: timestamp=2026-06-12T20:30:00Z sha256=7b8d04510bf49e49 agent=claude]
+
+**What I did (plain English):** Replaced the Angular test runner. The app's 175 unit-test files used to run on Karma (which drives a real headless Chrome) with the Jasmine testing library. They now run on Vitest (a much faster runner) using jsdom (a fake browser in memory). This was a full rewrite of the test code, not a config swap — Vitest speaks a different dialect than Jasmine for mocks and matchers. All 175 files and all 1085 tests pass on the Dell helper machine.
+
+**What now works that did not before:**
+- Angular unit tests run on Vitest. A deterministic codemod converted 93 spec files; I hand-fixed the tricky spy-semantics cases; 7 files of `done`-callback tests were restructured (5 via subagents, 2 via a brace-matching codemod). Zero Jasmine API remains in any spec.
+- `fakeAsync`/`tick` (used by 57 specs) work under Vitest. zone.js ships test-runner wrappers only for Jasmine and Mocha, not Vitest, so Angular's fakeAsync had no "zone" to run in. I wrote a Vitest version of that wrapper in `src/test-setup.ts` (modelled on zone.js's mocha-patch) plus the jsdom polyfills the old Chrome provided (canvas/ECharts, IntersectionObserver, ResizeObserver, scrollIntoView, matchMedia, clipboard, WebAuthn, blob URLs).
+- A real latent bug was fixed: the `dev/error-generator` route and its deep-link-catalog entry were never wired into the app (the files existed but were never imported). Now wired — `app.routes.ts` spreads `devRoutes` before the wildcard, and the dev catalog is merged into `DEEP_LINK_CATALOG`.
+
+**What changed:**
+- `frontend/angular.json` — test target switched to the `@angular/build:unit-test` builder with `runner: vitest`; a dedicated `test` build configuration adds zone.js polyfills so the prod build stays zoneless.
+- `frontend/package.json` — added `vitest`, `@vitest/coverage-v8`, `jsdom`; `test:ci` dropped the `--browsers=ChromeHeadless` flag.
+- `frontend/tsconfig.spec.json` — types switched from `jasmine` to `vitest/globals`.
+- `frontend/src/test-setup.ts` (new) — zone+fakeAsync ProxyZone patch, jsdom polyfills, global `createSpyObj`.
+- `frontend/src/testing/spy.global.d.ts` (new) — global `Spy`/`SpyObj`/`createSpyObj` types so no per-file imports were needed.
+- 99 spec files converted; `app.routes.ts`, `core/routing/deep-link-catalog.ts`, `analytics/traffic-workbench/traffic-workbench.component.ts` (a strict-template typing fix the unit-test build exposed).
+- `scripts/run-angular-quality.sh` — dropped the stale Karma parallel/Chrome env; runs the Vitest tests. `scripts/test_run-angular-quality.py` — added contract tests pinning the Vitest builder + setup.
+
+**Verification (turbo=used — every run on Dell):** Full suite `175 files / 1085 tests passed`, 0 compile errors, on `xf-linker-frontend-mutation-tools:latest` (rebuilt with vitest). The scoped `--code-coverage=true` gate command was validated and prints a coverage table. The contract tests pass on Dell (frontend-only assertions self-skip where `frontend/` isn't synced).
+
+**What has issues or errors — one tracked follow-up:** Stryker mutation testing (pre-push, `run-angular-mutation.sh`) still uses `@stryker-mutator/karma-runner`, which cannot run the now-Vitest specs. Migrating it needs `@stryker-mutator/vitest-runner`, but Angular's experimental Vitest builder does not expose a standalone Vitest config for Stryker to consume — that is a separate, non-trivial integration. Karma/Jasmine stay installed for Stryker until that follow-up lands; the unit-test path no longer uses them.
+
+**Tech-debt delta:** Net positive — retired the Karma/Jasmine unit-test runner, fixed an unreachable dev route + missing catalog entry, and fixed a latent strict-template typing bug in traffic-workbench. New debt tracked: the Stryker→Vitest follow-up above.
+
+[COVERAGE SUMMARY: target=N/A% actual=N/A% — the migration preserves the existing 1085 tests (all green); coverage instrumentation works via @vitest/coverage-v8 but no per-area target was set for a runner swap]
+
 ## 2026-06-12 - Claude Opus 4.8 (1M) - Speed program: drop pylint, dmypy/oxlint/nextest/mold/sccache; fix two prod-build breaks; CI Rust scope fix
 
 [HANDOFF READ: 2026-06-12 by Claude Opus 4.8 — Finished Dell-only quality routing: Python mutation on Dell, every local-Windows fallback deleted, content-hash cache keyed on source files]

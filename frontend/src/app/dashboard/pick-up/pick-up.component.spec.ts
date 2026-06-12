@@ -44,7 +44,7 @@ describe('PickUpComponent', () => {
   });
 
   it('should emit resumeRun when Resume is clicked', () => {
-    spyOn(component.resumeRun, 'emit');
+    vi.spyOn(component.resumeRun, 'emit').mockReturnValue(undefined as never);
     fixture.componentRef.setInput('resumeState', { ...mockResumeState });
     fixture.detectChanges();
 

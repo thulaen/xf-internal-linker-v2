@@ -43,14 +43,14 @@ describe('ReadyToRunComponent', () => {
     component.lastRunDaysAgo = 10;
     expect(component.gateLevel).toBe('amber');
     expect(component.gateMessage).toBe('Check a few things before running.');
-    expect(component.blockers.some(b => b.label.includes('10 days ago'))).toBeTrue();
+    expect(component.blockers.some(b => b.label.includes('10 days ago'))).toBe(true);
   });
 
   it('should show red level for error status', () => {
     component.health = { status: 'error' };
     expect(component.gateLevel).toBe('red');
     expect(component.gateMessage).toBe('Fix issues before running the pipeline.');
-    expect(component.blockers.some(b => b.label === 'System health is degraded')).toBeTrue();
+    expect(component.blockers.some(b => b.label === 'System health is degraded')).toBe(true);
   });
 
   it('should render blocker rows', () => {

@@ -65,7 +65,7 @@ describe('McpComponent', () => {
   it('renders and pulls health + agents on init', () => {
     fixture.detectChanges();
     httpMock.match(() => true).forEach((r) => r.flush({}));
-    expect(component.health()?.alive).toBeTrue();
+    expect(component.health()?.alive).toBe(true);
     expect(component.agents()?.claude_code.name).toBe('Claude Code');
     expect(component.agentRows().length).toBe(3);
   });
@@ -73,7 +73,7 @@ describe('McpComponent', () => {
   it('runMonthlyNow flips busy and snacks the result', () => {
     fixture.detectChanges();
     component.runMonthlyNow();
-    expect(component.runMonthlyBusy()).toBeFalse(); // sync stub completes immediately
+    expect(component.runMonthlyBusy()).toBe(false); // sync stub completes immediately
   });
 
   it('handles failing health endpoint gracefully', () => {

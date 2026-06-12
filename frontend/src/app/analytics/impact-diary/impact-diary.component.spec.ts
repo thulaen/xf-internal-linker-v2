@@ -52,7 +52,7 @@ describe('ImpactDiaryComponent', () => {
     const cdr = fixture.componentRef.injector.get(ChangeDetectorRef);
     cdr.detectChanges();
 
-    expect(component.loading).toBeFalse();
+    expect(component.loading).toBe(false);
     expect(component.entries.length).toBe(1);
 
     const cards = fixture.nativeElement.querySelectorAll('.timeline-card');
@@ -69,7 +69,7 @@ describe('ImpactDiaryComponent', () => {
     const cdr = fixture.componentRef.injector.get(ChangeDetectorRef);
     cdr.detectChanges();
 
-    expect(component.loading).toBeFalse();
+    expect(component.loading).toBe(false);
     const emptyHint = fixture.nativeElement.querySelector('.empty-hint');
     expect(emptyHint).toBeTruthy();
   });
@@ -82,7 +82,7 @@ describe('ImpactDiaryComponent', () => {
     const cdr = fixture.componentRef.injector.get(ChangeDetectorRef);
     cdr.detectChanges();
 
-    expect(component.loading).toBeFalse();
+    expect(component.loading).toBe(false);
     expect(component.entries).toEqual([]);
   });
 });

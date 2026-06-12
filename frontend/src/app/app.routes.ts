@@ -8,6 +8,7 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 import { unsavedChangesGuard } from './core/guards/unsaved-changes.guard';
+import { devRoutes } from './dev/dev.routes';
 
 export const routes: Routes = [
   {
@@ -258,6 +259,9 @@ export const routes: Routes = [
       import('./server-error/server-error.component').then((m) => m.ServerErrorComponent),
     title: 'Something went wrong — XF Internal Linker',
   },
+  // Development-only routes (e.g. the Faro error generator) registered before
+  // the wildcard so they resolve rather than falling through to Not Found.
+  ...devRoutes,
   {
     path: '**',
     loadComponent: () =>

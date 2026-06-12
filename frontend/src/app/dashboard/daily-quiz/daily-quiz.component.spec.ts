@@ -33,12 +33,12 @@ describe('DailyQuizComponent', () => {
 
   it('should reveal explanation after answering', () => {
     fixture.detectChanges();
-    expect(component.answered()).toBeFalse();
+    expect(component.answered()).toBe(false);
     
     component.answer(0);
     fixture.detectChanges();
     
-    expect(component.answered()).toBeTrue();
+    expect(component.answered()).toBe(true);
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('.quiz-explanation')).toBeTruthy();
   });
@@ -50,7 +50,7 @@ describe('DailyQuizComponent', () => {
     
     const buttons = fixture.nativeElement.querySelectorAll('.quiz-option');
     buttons.forEach((btn: HTMLButtonElement) => {
-      expect(btn.disabled).toBeTrue();
+      expect(btn.disabled).toBe(true);
     });
   });
 

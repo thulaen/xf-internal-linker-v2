@@ -2,12 +2,12 @@
 # Angular quality — runs on DELL ONLY, scoped to changed/new frontend files.
 #
 # Mirrors run-rust-quality.sh's self-sync-to-Dell, fail-CLOSED pattern: the
-# changed frontend source is tarred into a Dell volume, then eslint + stylelint
-# + ng test (karma-parallel) + Stryker run inside the
+# changed frontend source is tarred into a Dell volume, then oxlint, eslint,
+# stylelint, and the Vitest unit tests (jsdom) run inside the
 # xf-linker-frontend-mutation-tools image on Dell. Dell is REQUIRED — there is
-# no Windows fallback. ng test parallelism (karma-parallel executors) and
-# Stryker concurrency are both capped at 16 cores (Dell is a 20-thread
-# i5-13500T). Set ANGULAR_CORES to override.
+# no Windows fallback. Vitest parallelises across its own worker pool; the
+# scoped --include keeps each run to the changed specs. Set ANGULAR_CORES to
+# override the Dell core cap (20-thread i5-13500T).
 set -euo pipefail
 export PATH="/usr/bin:/bin:${PATH:-}"
 export MSYS_NO_PATHCONV=1
@@ -105,18 +105,15 @@ exec docker --context "$ANGULAR_DOCKER_CONTEXT" run --rm \
   -v "$ANGULAR_VOLUME":/work \
   -w /work/frontend \
   -e CI=true \
-  -e CHROME_BIN=/usr/bin/chromium \
-  -e KARMA_PARALLEL_EXECUTORS="$ANGULAR_CORES" \
   -e XF_QUALITY_ENV="${XF_QUALITY_ENV:-local}" \
   -e LINT_TARGETS="$lint_oneline" \
   -e OXLINT_TARGETS="$oxlint_oneline" \
   -e SCSS_TARGETS="$scss_oneline" \
   -e TEST_INCLUDES="$test_oneline" \
-  -e STRYKER_CONCURRENCY="$ANGULAR_CORES" \
   "$IMAGE" sh -lc '
   set -eu
   # The image baked node_modules at /app; the synced source has none. Symlink
-  # it so ng / stryker / eslint / stylelint resolve their toolchain + .bin.
+  # it so ng / vitest / eslint / stylelint resolve their toolchain + .bin.
   ln -sfn /app/node_modules /work/frontend/node_modules
   # oxlint first: the baked global binary catches most lint issues in
   # milliseconds and fails the gate fast. Default rules + correctness denied;
@@ -133,7 +130,7 @@ exec docker --context "$ANGULAR_DOCKER_CONTEXT" run --rm \
     echo "+ stylelint $SCSS_TARGETS"; npx stylelint $SCSS_TARGETS
   fi
   if [ -n "${TEST_INCLUDES:-}" ]; then
-    echo "+ ng test (karma-parallel x$KARMA_PARALLEL_EXECUTORS) --include $TEST_INCLUDES"
+    echo "+ ng test (vitest) --code-coverage --include $TEST_INCLUDES"
     npm run test:ci -- --code-coverage=true --include $TEST_INCLUDES
   fi
   '

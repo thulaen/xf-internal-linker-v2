@@ -57,6 +57,6 @@ describe('PerformanceSettingsComponent', () => {
     expect(component.batchSize()).toBe(32);
     expect(component.cpuEncodeThreads()).toBe(4);
     expect(component.defaultQueueConcurrency()).toBe(2);
-    expect(component.aggressiveOomBackoff()).toBeTrue();
+    expect(component.aggressiveOomBackoff()).toBe(true);
   });
 });

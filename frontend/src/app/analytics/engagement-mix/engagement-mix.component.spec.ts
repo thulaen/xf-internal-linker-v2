@@ -8,7 +8,7 @@ import { ChangeDetectorRef } from '@angular/core';
 describe('EngagementMixComponent', () => {
   let component: EngagementMixComponent;
   let fixture: ComponentFixture<EngagementMixComponent>;
-  let analyticsService: jasmine.SpyObj<AnalyticsService>;
+  let analyticsService: SpyObj<AnalyticsService>;
   let responseSubject: Subject<AnalyticsEngagementMixResponse>;
 
   const mockData: AnalyticsEngagementMixResponse = {
@@ -31,8 +31,8 @@ describe('EngagementMixComponent', () => {
 
   beforeEach(async () => {
     responseSubject = new Subject<AnalyticsEngagementMixResponse>();
-    analyticsService = jasmine.createSpyObj('AnalyticsService', ['getEngagementMix']);
-    analyticsService.getEngagementMix.and.returnValue(responseSubject.asObservable());
+    analyticsService = createSpyObj(['getEngagementMix']);
+    analyticsService.getEngagementMix.mockReturnValue(responseSubject.asObservable());
 
     await TestBed.configureTestingModule({
       imports: [EngagementMixComponent, NoopAnimationsModule],
@@ -51,7 +51,7 @@ describe('EngagementMixComponent', () => {
   });
 
   it('should show loading spinner while fetching data', () => {
-    expect(component.loading).toBeTrue();
+    expect(component.loading).toBe(true);
     const spinner = fixture.nativeElement.querySelector('mat-spinner');
     expect(spinner).toBeTruthy();
   });
@@ -62,7 +62,7 @@ describe('EngagementMixComponent', () => {
     const cdr = fixture.componentRef.injector.get(ChangeDetectorRef);
     cdr.detectChanges();
 
-    expect(component.loading).toBeFalse();
+    expect(component.loading).toBe(false);
     const tiles = fixture.nativeElement.querySelectorAll('.kpi-tile');
     expect(tiles.length).toBe(4);
   });
@@ -86,7 +86,7 @@ describe('EngagementMixComponent', () => {
     const cdr = fixture.componentRef.injector.get(ChangeDetectorRef);
     cdr.detectChanges();
 
-    expect(component.loading).toBeFalse();
+    expect(component.loading).toBe(false);
     expect(component.data).toBeNull();
   });
 });

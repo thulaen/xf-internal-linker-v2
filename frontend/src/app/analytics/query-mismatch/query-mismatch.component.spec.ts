@@ -48,7 +48,7 @@ describe('QueryMismatchComponent', () => {
     const cdr = fixture.componentRef.injector.get(ChangeDetectorRef);
     cdr.detectChanges();
 
-    expect(component.loading).toBeFalse();
+    expect(component.loading).toBe(false);
     expect(component.rows.length).toBe(1);
 
     const cards = fixture.nativeElement.querySelectorAll('.mismatch-card');
@@ -64,7 +64,7 @@ describe('QueryMismatchComponent', () => {
     const cdr = fixture.componentRef.injector.get(ChangeDetectorRef);
     cdr.detectChanges();
 
-    expect(component.loading).toBeFalse();
+    expect(component.loading).toBe(false);
     const emptyHint = fixture.nativeElement.querySelector('.empty-hint');
     expect(emptyHint).toBeTruthy();
   });
@@ -77,7 +77,7 @@ describe('QueryMismatchComponent', () => {
     const cdr = fixture.componentRef.injector.get(ChangeDetectorRef);
     cdr.detectChanges();
 
-    expect(component.loading).toBeFalse();
+    expect(component.loading).toBe(false);
     expect(component.rows).toEqual([]);
   });
 });

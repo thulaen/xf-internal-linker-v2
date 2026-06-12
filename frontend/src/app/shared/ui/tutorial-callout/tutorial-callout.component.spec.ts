@@ -6,15 +6,15 @@ import { signal } from '@angular/core';
 describe('TutorialCalloutComponent', () => {
   let component: TutorialCalloutComponent;
   let fixture: ComponentFixture<TutorialCalloutComponent>;
-  let tutorialMock: jasmine.SpyObj<TutorialModeService>;
+  let tutorialMock: SpyObj<TutorialModeService>;
   const enabledSignal = signal(true);
   const isDismissedSignal = signal(false);
 
   beforeEach(async () => {
-    tutorialMock = jasmine.createSpyObj('TutorialModeService', ['dismiss', 'isDismissed'], {
+    tutorialMock = createSpyObj(['dismiss', 'isDismissed'], {
       enabled: enabledSignal
     });
-    tutorialMock.isDismissed.and.returnValue(isDismissedSignal);
+    tutorialMock.isDismissed.mockReturnValue(isDismissedSignal);
 
     await TestBed.configureTestingModule({
       imports: [TutorialCalloutComponent],

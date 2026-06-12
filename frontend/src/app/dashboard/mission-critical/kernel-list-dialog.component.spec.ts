@@ -8,11 +8,11 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 describe('KernelListDialogComponent', () => {
   let component: KernelListDialogComponent;
   let fixture: ComponentFixture<KernelListDialogComponent>;
-  let mockDialogRef: jasmine.SpyObj<MatDialogRef<KernelListDialogComponent>>;
+  let mockDialogRef: SpyObj<MatDialogRef<KernelListDialogComponent>>;
   let mockData: KernelDialogData;
 
   beforeEach(async () => {
-    mockDialogRef = jasmine.createSpyObj('MatDialogRef', ['close']);
+    mockDialogRef = createSpyObj(['close']);
     mockData = {
       kernels: ['kernel_1', 'kernel_2', 'kernel_3'],
       tileState: 'ok'

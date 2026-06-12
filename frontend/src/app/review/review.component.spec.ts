@@ -11,7 +11,7 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 describe('ReviewComponent', () => {
   let component: ReviewComponent;
   let fixture: ComponentFixture<ReviewComponent>;
-  let suggestService: jasmine.SpyObj<SuggestionService>;
+  let suggestService: SpyObj<SuggestionService>;
 
   const mockSuggestion: Suggestion = {
     suggestion_id: 's1',
@@ -43,8 +43,8 @@ describe('ReviewComponent', () => {
   };
 
   beforeEach(async () => {
-    suggestService = jasmine.createSpyObj('SuggestionService', ['list', 'approve', 'reject', 'batchAction', 'startPipeline']);
-    suggestService.list.and.returnValue(of({ results: [mockSuggestion], count: 1, next: null, previous: null }));
+    suggestService = createSpyObj(['list', 'approve', 'reject', 'batchAction', 'startPipeline']);
+    suggestService.list.mockReturnValue(of({ results: [mockSuggestion], count: 1, next: null, previous: null }));
 
     await TestBed.configureTestingModule({
       imports: [ReviewComponent, NoopAnimationsModule],
@@ -65,11 +65,11 @@ describe('ReviewComponent', () => {
   it('should reload the list if an approved suggestion no longer matches the filter', () => {
     component.statusFilter = 'pending';
     component.suggestions.set([{ ...mockSuggestion }]);
-    const loadSpy = spyOn(component, 'load').and.callThrough();
+    const loadSpy = vi.spyOn(component, 'load');
 
     // Simulate quickApprove success
     const updatedSuggestion = { ...mockSuggestion, status: 'approved' as const };
-    suggestService.approve.and.returnValue(of(updatedSuggestion as any));
+    suggestService.approve.mockReturnValue(of(updatedSuggestion as any));
 
     component.quickApprove(mockSuggestion, new MouseEvent('click'));
 
@@ -79,11 +79,11 @@ describe('ReviewComponent', () => {
   it('should NOT reload the list if we are in the "all" filter', () => {
     component.statusFilter = 'all';
     component.suggestions.set([{ ...mockSuggestion }]);
-    const loadSpy = spyOn(component, 'load').and.callThrough();
+    const loadSpy = vi.spyOn(component, 'load');
 
     // Simulate quickApprove success
     const updatedSuggestion = { ...mockSuggestion, status: 'approved' as const };
-    suggestService.approve.and.returnValue(of(updatedSuggestion as any));
+    suggestService.approve.mockReturnValue(of(updatedSuggestion as any));
 
     component.quickApprove(mockSuggestion, new MouseEvent('click'));
 
@@ -98,7 +98,7 @@ describe('ReviewComponent', () => {
 
   it('should quickApprove a suggestion', () => {
     const updatedSuggestion = { ...mockSuggestion, status: 'approved' as const };
-    suggestService.approve.and.returnValue(of(updatedSuggestion as any));
+    suggestService.approve.mockReturnValue(of(updatedSuggestion as any));
 
     component.quickApprove(mockSuggestion, new MouseEvent('click'));
 
@@ -107,7 +107,7 @@ describe('ReviewComponent', () => {
 
   it('should quickReject a suggestion with reason', () => {
     const updatedSuggestion = { ...mockSuggestion, status: 'rejected' as const };
-    suggestService.reject.and.returnValue(of(updatedSuggestion as any));
+    suggestService.reject.mockReturnValue(of(updatedSuggestion as any));
 
     component.quickReject(mockSuggestion, 'duplicate', new MouseEvent('click'));
 
@@ -142,9 +142,9 @@ describe('ReviewComponent', () => {
   });
 
   it('should batch approve selected suggestions', () => {
-    spyOn(window, 'confirm').and.returnValue(true);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     component.selectedIds.set(new Set(['s1', 's2']));
-    suggestService.batchAction.and.returnValue(of({ updated: 2 }));
+    suggestService.batchAction.mockReturnValue(of({ updated: 2 }));
 
     component.batchApprove();
 
@@ -152,9 +152,9 @@ describe('ReviewComponent', () => {
   });
 
   it('should batch reject selected suggestions', () => {
-    spyOn(window, 'confirm').and.returnValue(true);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     component.selectedIds.set(new Set(['s1', 's2']));
-    suggestService.batchAction.and.returnValue(of({ updated: 2 }));
+    suggestService.batchAction.mockReturnValue(of({ updated: 2 }));
 
     component.batchReject('duplicate');
 

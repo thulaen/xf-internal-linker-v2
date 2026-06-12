@@ -35,7 +35,7 @@ describe('ScrollToTopComponent', () => {
 
   it('should be hidden initially', () => {
     fixture.detectChanges();
-    expect(component.visible).toBeFalse();
+    expect(component.visible).toBe(false);
     const btn = fixture.debugElement.query(By.css('.scroll-btn'));
     expect(btn).toBeNull();
   });
@@ -50,13 +50,13 @@ describe('ScrollToTopComponent', () => {
     tick(100); 
     fixture.detectChanges();
     
-    expect(component.visible).toBeTrue();
+    expect(component.visible).toBe(true);
     const btn = fixture.debugElement.query(By.css('.scroll-btn'));
     expect(btn).toBeTruthy();
   }));
 
   it('should scroll to top when clicked', fakeAsync(() => {
-    const scrollToSpy = spyOn(scrollContainer, 'scrollTo');
+    const scrollToSpy = vi.spyOn(scrollContainer, 'scrollTo').mockReturnValue(undefined as never);
     component.visible = true;
     fixture.detectChanges();
     
@@ -64,7 +64,7 @@ describe('ScrollToTopComponent', () => {
     btn.nativeElement.click();
     
     expect(scrollToSpy).toHaveBeenCalled();
-    const args = (scrollToSpy as jasmine.Spy).calls.mostRecent().args;
-    expect(args[0]).toEqual(jasmine.objectContaining({ top: 0 }));
+    const args = (scrollToSpy as unknown as Spy).mock.calls.at(-1)!;
+    expect(args[0]).toEqual(expect.objectContaining({ top: 0 }));
   }));
 });

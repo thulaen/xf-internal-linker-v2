@@ -8,8 +8,8 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 describe('StatusStoryComponent', () => {
   let component: StatusStoryComponent;
   let fixture: ComponentFixture<StatusStoryComponent>;
-  let mockDash: jasmine.SpyObj<DashboardService>;
-  let mockVisibility: jasmine.SpyObj<VisibilityGateService>;
+  let mockDash: SpyObj<DashboardService>;
+  let mockVisibility: SpyObj<VisibilityGateService>;
 
   const mockStory: StatusStory = {
     headline: 'Everything is running smoothly.',
@@ -22,12 +22,12 @@ describe('StatusStoryComponent', () => {
   };
 
   beforeEach(async () => {
-    mockDash = jasmine.createSpyObj('DashboardService', ['getStatusStory']);
-    mockVisibility = jasmine.createSpyObj('VisibilityGateService', ['whileLoggedInAndVisible']);
+    mockDash = createSpyObj(['getStatusStory']);
+    mockVisibility = createSpyObj(['whileLoggedInAndVisible']);
 
     // Default: return the stream immediately
-    mockVisibility.whileLoggedInAndVisible.and.callFake((fn) => fn());
-    mockDash.getStatusStory.and.returnValue(of(mockStory));
+    mockVisibility.whileLoggedInAndVisible.mockImplementation((fn) => fn());
+    mockDash.getStatusStory.mockReturnValue(of(mockStory));
 
     await TestBed.configureTestingModule({
       imports: [StatusStoryComponent, NoopAnimationsModule],
@@ -66,11 +66,11 @@ describe('StatusStoryComponent', () => {
     fixture.detectChanges();
     tick();
     component.story.set(mockStory);
-    mockDash.getStatusStory.and.returnValue(throwError(() => new Error('API error')));
+    mockDash.getStatusStory.mockReturnValue(throwError(() => new Error('API error')));
     component.refresh();
     fixture.detectChanges();
     
-    expect(component.errored()).toBeTrue();
+    expect(component.errored()).toBe(true);
     expect(fixture.nativeElement.querySelector('.story-stale-hint')).toBeTruthy();
     expect(component.story()).toEqual(mockStory); // Kept previous
   }));
@@ -79,12 +79,12 @@ describe('StatusStoryComponent', () => {
     fixture.detectChanges();
     tick();
     const newStory = { ...mockStory, headline: 'New status' };
-    mockDash.getStatusStory.and.returnValue(of(newStory));
+    mockDash.getStatusStory.mockReturnValue(of(newStory));
     
     component.refresh();
     fixture.detectChanges();
     expect(component.story()).toEqual(newStory);
-    expect(component.loading()).toBeFalse();
+    expect(component.loading()).toBe(false);
   }));
 
   it('should format freshness label correctly', () => {

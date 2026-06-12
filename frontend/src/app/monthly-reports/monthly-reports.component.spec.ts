@@ -63,7 +63,7 @@ describe('MonthlyReportsComponent', () => {
   it('runNow toggles the busy flag and resolves', () => {
     fixture.detectChanges();
     component.runNow();
-    expect(component.runBusy()).toBeFalse();
+    expect(component.runBusy()).toBe(false);
   });
 
   it('handles error from listMonthlyReports', () => {

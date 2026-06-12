@@ -7,11 +7,11 @@ import { MatButtonModule } from '@angular/material/button';
 describe('RateLimitSnackbarComponent', () => {
   let component: RateLimitSnackbarComponent;
   let fixture: ComponentFixture<RateLimitSnackbarComponent>;
-  let mockSnackRef: jasmine.SpyObj<MatSnackBarRef<RateLimitSnackbarComponent>>;
+  let mockSnackRef: SpyObj<MatSnackBarRef<RateLimitSnackbarComponent>>;
   let mockData: RateLimitSnackbarData;
 
   beforeEach(async () => {
-    mockSnackRef = jasmine.createSpyObj('MatSnackBarRef', ['dismiss']);
+    mockSnackRef = createSpyObj(['dismiss']);
     mockData = { seconds: 5 };
 
     await TestBed.configureTestingModule({

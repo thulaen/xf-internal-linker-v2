@@ -8,8 +8,8 @@ describe('DashboardModeTogglesComponent', () => {
   // Writable signals so individual tests can flip state without re-creating the fixture.
   const safeSignal = signal(false);
   const calmSignal = signal(false);
-  const toggleSafeSpy = jasmine.createSpy('toggleSafe');
-  const toggleCalmSpy = jasmine.createSpy('toggleCalm');
+  const toggleSafeSpy = vi.fn();
+  const toggleCalmSpy = vi.fn();
 
   const mockModes = {
     safe: safeSignal,
@@ -24,8 +24,8 @@ describe('DashboardModeTogglesComponent', () => {
     // Reset shared state so each test starts clean.
     safeSignal.set(false);
     calmSignal.set(false);
-    toggleSafeSpy.calls.reset();
-    toggleCalmSpy.calls.reset();
+    toggleSafeSpy.mockClear();
+    toggleCalmSpy.mockClear();
 
     await TestBed.configureTestingModule({
       imports: [DashboardModeTogglesComponent],

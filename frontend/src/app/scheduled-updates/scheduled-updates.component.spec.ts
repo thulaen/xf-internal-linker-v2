@@ -81,14 +81,14 @@ describe('ScheduledUpdatesComponent', () => {
     fixture.detectChanges();
     httpMock.match(() => true).forEach((r) => r.flush({}));
     expect(component.jobs.length).toBe(1);
-    expect(component.loading).toBeFalse();
+    expect(component.loading).toBe(false);
     expect(component.runningJob).toBeNull();
     expect(component.pendingJobs.length).toBe(1);
   });
 
   it('runNow calls service and snacks success', () => {
     fixture.detectChanges();
-    const spy = spyOn(svcStub, 'runNow').and.callThrough();
+    const spy = vi.spyOn(svcStub, 'runNow');
     component.runNow(stubJob);
     expect(spy).toHaveBeenCalled();
   });
@@ -114,6 +114,6 @@ describe('ScheduledUpdatesComponent', () => {
     });
     const fx = TestBed.createComponent(ScheduledUpdatesComponent);
     fx.detectChanges();
-    expect(fx.componentInstance.loading).toBeFalse();
+    expect(fx.componentInstance.loading).toBe(false);
   });
 });

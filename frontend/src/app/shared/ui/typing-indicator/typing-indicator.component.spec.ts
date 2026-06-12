@@ -14,12 +14,12 @@ import { CommonModule } from '@angular/common';
 describe('TypingIndicatorComponent', () => {
   let component: TypingIndicatorComponent;
   let fixture: ComponentFixture<TypingIndicatorComponent>;
-  let authMock: jasmine.SpyObj<AuthService>;
-  let realtimeMock: jasmine.SpyObj<RealtimeService>;
+  let authMock: SpyObj<AuthService>;
+  let realtimeMock: SpyObj<RealtimeService>;
   let realtimeSubject: Subject<any>;
 
   beforeEach(async () => {
-    authMock = jasmine.createSpyObj('AuthService', [], {
+    authMock = createSpyObj([], {
       currentUser$: of({
         id: 1,
         username: 'alice',
@@ -29,8 +29,8 @@ describe('TypingIndicatorComponent', () => {
       } as AuthUser)
     });
     realtimeSubject = new Subject();
-    realtimeMock = jasmine.createSpyObj('RealtimeService', ['subscribeTopic', 'publish']);
-    realtimeMock.subscribeTopic.and.returnValue(realtimeSubject);
+    realtimeMock = createSpyObj(['subscribeTopic', 'publish']);
+    realtimeMock.subscribeTopic.mockReturnValue(realtimeSubject);
 
     await TestBed.configureTestingModule({
       imports: [TypingIndicatorComponent, CommonModule],

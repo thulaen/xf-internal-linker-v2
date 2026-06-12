@@ -67,10 +67,10 @@ describe('NotificationsTabComponent', () => {
     fixture.detectChanges();
 
     const root: HTMLElement = fixture.nativeElement;
-    expect(root.querySelector('#alert-delivery')).withContext('alert delivery card').not.toBeNull();
-    expect(root.querySelector('#quiet-hours')).withContext('quiet hours card').not.toBeNull();
-    expect(root.querySelector('#settings-event-subscriptions')).withContext('event subscriptions card').not.toBeNull();
-    expect(root.querySelector('#settings-send-test-alert')).withContext('test alert card').not.toBeNull();
+    expect(root.querySelector('#alert-delivery')).not.toBeNull();
+    expect(root.querySelector('#quiet-hours')).not.toBeNull();
+    expect(root.querySelector('#settings-event-subscriptions')).not.toBeNull();
+    expect(root.querySelector('#settings-send-test-alert')).not.toBeNull();
   });
 
   it('updates local preferences when a checkbox is toggled', () => {
@@ -80,13 +80,13 @@ describe('NotificationsTabComponent', () => {
     fixture.detectChanges();
 
     const cmp = fixture.componentInstance;
-    expect(cmp.notifPrefs.toast_enabled).toBeTrue();
+    expect(cmp.notifPrefs.toast_enabled).toBe(true);
 
     cmp.notifPrefs.toast_enabled = false;
     cmp.markDirty();
     fixture.detectChanges();
 
-    expect(cmp.notifPrefs.toast_enabled).toBeFalse();
+    expect(cmp.notifPrefs.toast_enabled).toBe(false);
   });
 
   it('sends PUT to /api/settings/notifications/ with the current payload on save', () => {
@@ -101,11 +101,11 @@ describe('NotificationsTabComponent', () => {
 
     const req = httpMock.expectOne('/api/settings/notifications/');
     expect(req.request.method).toBe('PUT');
-    expect(req.request.body.quiet_hours_enabled).toBeTrue();
-    expect(req.request.body.toast_enabled).toBeTrue();
+    expect(req.request.body.quiet_hours_enabled).toBe(true);
+    expect(req.request.body.toast_enabled).toBe(true);
     req.flush({ ...DEFAULT_PREFS, quiet_hours_enabled: true });
 
-    expect(cmp.savingNotifPrefs()).toBeFalse();
+    expect(cmp.savingNotifPrefs()).toBe(false);
   });
 
   it('emits dirtyChanged true after a state change and false after a successful save', () => {

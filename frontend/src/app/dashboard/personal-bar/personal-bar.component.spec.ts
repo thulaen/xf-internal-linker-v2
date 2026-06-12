@@ -7,10 +7,10 @@ import { DatePipe } from '@angular/common';
 describe('PersonalBarComponent', () => {
   let component: PersonalBarComponent;
   let fixture: ComponentFixture<PersonalBarComponent>;
-  let mockAuth: jasmine.SpyObj<AuthService>;
+  let mockAuth: SpyObj<AuthService>;
 
   beforeEach(async () => {
-    mockAuth = jasmine.createSpyObj('AuthService', [], {
+    mockAuth = createSpyObj([], {
       currentUser$: of({ username: 'Alice' })
     });
 

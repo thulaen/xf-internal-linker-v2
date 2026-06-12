@@ -83,20 +83,20 @@ describe('EmbeddingsComponent', () => {
 
   it('handles status load failure without crashing', () => {
     fixture.detectChanges();
-    spyOn(console, 'error');
+    vi.spyOn(console, 'error').mockReturnValue(undefined as never);
     httpMock.expectOne('/api/embedding/status/').flush({ detail: 'boom' }, { status: 500, statusText: 'Server Error' });
     httpMock.expectOne('/api/embedding/settings/').flush({});
     httpMock.expectOne('/api/embedding/bakeoff/').flush([]);
     httpMock.expectOne('/api/embedding/gate-decisions/').flush([]);
-    expect(component.loading()).toBeFalse();
+    expect(component.loading()).toBe(false);
     expect(console.error).toHaveBeenCalled();
   });
 
   it('toggleApiKey flips the showApiKey signal', () => {
     fixture.detectChanges();
     flushInitial();
-    expect(component.showApiKey()).toBeFalse();
+    expect(component.showApiKey()).toBe(false);
     component.toggleApiKey();
-    expect(component.showApiKey()).toBeTrue();
+    expect(component.showApiKey()).toBe(true);
   });
 });

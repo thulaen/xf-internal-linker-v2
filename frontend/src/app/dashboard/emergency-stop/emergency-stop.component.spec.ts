@@ -9,15 +9,15 @@ import { ConfirmService } from '../../shared/confirm-dialog/confirm.service';
 describe('EmergencyStopComponent', () => {
   let fixture: ComponentFixture<EmergencyStopComponent>;
   let component: EmergencyStopComponent;
-  let confirmSpy: jasmine.SpyObj<ConfirmService>;
-  let snackSpy: jasmine.SpyObj<MatSnackBar>;
+  let confirmSpy: SpyObj<ConfirmService>;
+  let snackSpy: SpyObj<MatSnackBar>;
 
   beforeEach(async () => {
-    confirmSpy = jasmine.createSpyObj('ConfirmService', ['ask']);
+    confirmSpy = createSpyObj(['ask']);
     // Default: user cancels the first confirm dialog.
-    confirmSpy.ask.and.returnValue(Promise.resolve(false));
+    confirmSpy.ask.mockReturnValue(Promise.resolve(false));
 
-    snackSpy = jasmine.createSpyObj('MatSnackBar', ['open']);
+    snackSpy = createSpyObj(['open']);
 
     await TestBed.configureTestingModule({
       imports: [EmergencyStopComponent],
@@ -42,12 +42,12 @@ describe('EmergencyStopComponent', () => {
   });
 
   it('is not busy on initialisation', () => {
-    expect(component.busy()).toBeFalse();
+    expect(component.busy()).toBe(false);
   });
 
   it('button is enabled when not busy', () => {
     const btn: HTMLButtonElement = fixture.nativeElement.querySelector('.es-btn');
-    expect(btn.disabled).toBeFalse();
+    expect(btn.disabled).toBe(false);
   });
 
   it('opens the confirm dialog when the button is clicked', async () => {
@@ -55,20 +55,20 @@ describe('EmergencyStopComponent', () => {
     await fixture.whenStable();
     expect(confirmSpy.ask).toHaveBeenCalledTimes(1);
     expect(confirmSpy.ask).toHaveBeenCalledWith(
-      jasmine.objectContaining({ title: jasmine.any(String), danger: true })
+      expect.objectContaining({ title: expect.any(String), danger: true })
     );
   });
 
   it('stays not busy when the confirm dialog is cancelled', async () => {
-    confirmSpy.ask.and.returnValue(Promise.resolve(false));
+    confirmSpy.ask.mockReturnValue(Promise.resolve(false));
     fixture.nativeElement.querySelector('.es-btn').click();
     await fixture.whenStable();
-    expect(component.busy()).toBeFalse();
+    expect(component.busy()).toBe(false);
   });
 
   it('does not make HTTP calls when confirm dialog is cancelled', async () => {
     const httpMock = TestBed.inject(HttpTestingController);
-    confirmSpy.ask.and.returnValue(Promise.resolve(false));
+    confirmSpy.ask.mockReturnValue(Promise.resolve(false));
     fixture.nativeElement.querySelector('.es-btn').click();
     await fixture.whenStable();
     // Verify no requests were made to master-pause.

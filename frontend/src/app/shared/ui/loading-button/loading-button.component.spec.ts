@@ -62,7 +62,7 @@ describe('LoadingButtonComponent', () => {
   });
 
   it('should emit clicked event when not loading/disabled', () => {
-    spyOn(component.clicked, 'emit');
+    vi.spyOn(component.clicked, 'emit').mockReturnValue(undefined as never);
     const button = fixture.debugElement.query(By.css('button'));
     button.nativeElement.click();
     expect(component.clicked.emit).toHaveBeenCalled();
@@ -71,7 +71,7 @@ describe('LoadingButtonComponent', () => {
   it('should not emit clicked event when loading', () => {
     fixture.componentRef.setInput('loading', true);
     fixture.detectChanges();
-    spyOn(component.clicked, 'emit');
+    vi.spyOn(component.clicked, 'emit').mockReturnValue(undefined as never);
     const button = fixture.debugElement.query(By.css('button'));
     button.nativeElement.click();
     expect(component.clicked.emit).not.toHaveBeenCalled();

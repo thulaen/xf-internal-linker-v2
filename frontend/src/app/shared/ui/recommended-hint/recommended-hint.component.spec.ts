@@ -33,7 +33,7 @@ describe('RecommendedHintComponent', () => {
     const pill = fixture.debugElement.query(By.css('.rh-pill'));
     const icon = fixture.debugElement.query(By.css('mat-icon'));
 
-    expect(component.matchesRecommended).toBeTrue();
+    expect(component.matchesRecommended).toBe(true);
     expect(pill.nativeElement.classList).toContain('rh-match');
     expect(icon.nativeElement.textContent.trim()).toBe('check_circle');
   });

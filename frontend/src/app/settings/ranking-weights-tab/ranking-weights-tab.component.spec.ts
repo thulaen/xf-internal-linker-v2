@@ -338,7 +338,7 @@ describe('RankingWeightsTabComponent', () => {
     req.flush({ ...WEIGHTED_AUTH_DEFAULTS, ranking_weight: 0.18 });
 
     expect(cmp.weightedAuthority.ranking_weight).toBe(0.18);
-    expect(cmp.savingWeightedAuthority).toBeFalse();
+    expect(cmp.savingWeightedAuthority).toBe(false);
   });
 
   it('saves click-distance settings via PUT', () => {
@@ -357,7 +357,7 @@ describe('RankingWeightsTabComponent', () => {
     req.flush({ ...CLICK_DISTANCE_DEFAULTS, k_cd: 6 });
 
     expect(cmp.clickDistance.k_cd).toBe(6);
-    expect(cmp.savingClickDistance).toBeFalse();
+    expect(cmp.savingClickDistance).toBe(false);
   });
 
   it('triggers Link Freshness recalculation via POST and clears the spinner', () => {
@@ -373,7 +373,7 @@ describe('RankingWeightsTabComponent', () => {
     expect(req.request.method).toBe('POST');
     req.flush({ job_id: '12345678-abcd-efgh-ijkl-1234567890ab' });
 
-    expect(cmp.recalculatingLinkFreshness).toBeFalse();
+    expect(cmp.recalculatingLinkFreshness).toBe(false);
   });
 
   it('emits dirtyChanged true when markDirty is called', () => {
@@ -406,6 +406,6 @@ describe('RankingWeightsTabComponent', () => {
     // off so the user can retry without being stuck on "Saving...".
     req.flush({ detail: 'boom' }, { status: 500, statusText: 'Internal Server Error' });
 
-    expect(cmp.savingValueModel).toBeFalse();
+    expect(cmp.savingValueModel).toBe(false);
   });
 });

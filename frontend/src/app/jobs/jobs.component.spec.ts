@@ -15,10 +15,10 @@ describe('JobsComponent', () => {
   let fixture: ComponentFixture<JobsComponent>;
   let component: JobsComponent;
   let httpMock: HttpTestingController;
-  let syncSvc: jasmine.SpyObj<SyncService>;
+  let syncSvc: SpyObj<SyncService>;
 
   beforeEach(async () => {
-    syncSvc = jasmine.createSpyObj<SyncService>('SyncService', [
+    syncSvc = createSpyObj<SyncService>([
       'getJobs',
       'getJob',
       'triggerApiSync',
@@ -27,11 +27,11 @@ describe('JobsComponent', () => {
       'getSourceStatus',
       'uploadFile',
     ]);
-    syncSvc.getJobs.and.returnValue(of([]));
-    syncSvc.getSourceStatus.and.returnValue(of({ api: true, wp: false }));
-    syncSvc.triggerApiSync.and.returnValue(of({ job_id: 'j1', source: 'api', mode: 'full' }));
-    syncSvc.pauseJob.and.returnValue(of({ job_id: 'j1', status: 'paused', is_resumable: true, message: 'Paused' }));
-    syncSvc.resumeJob.and.returnValue(of({ job_id: 'j1', status: 'pending', is_resumable: true, message: 'Resumed' }));
+    syncSvc.getJobs.mockReturnValue(of([]));
+    syncSvc.getSourceStatus.mockReturnValue(of({ api: true, wp: false }));
+    syncSvc.triggerApiSync.mockReturnValue(of({ job_id: 'j1', source: 'api', mode: 'full' }));
+    syncSvc.pauseJob.mockReturnValue(of({ job_id: 'j1', status: 'paused', is_resumable: true, message: 'Paused' }));
+    syncSvc.resumeJob.mockReturnValue(of({ job_id: 'j1', status: 'pending', is_resumable: true, message: 'Resumed' }));
 
     // The real template uses 9 `i18n=` markers; the test polyfills do not
     // load `@angular/localize/init`. Stub the template so the TS class
@@ -82,15 +82,15 @@ describe('JobsComponent', () => {
   it('loadHistory tolerates a non-array response without crashing', () => {
     // The component normalises non-array payloads to []. Cast through unknown
     // because the spy's strict typing demands SyncJob[].
-    (syncSvc.getJobs.and.returnValue as (v: unknown) => unknown)(of(null));
+    (syncSvc.getJobs.mockReturnValue as (v: unknown) => unknown)(of(null));
     fixture.detectChanges();
     httpMock.match(() => true).forEach((req) => req.flush({ items: [], locks: {} }));
     expect(component.syncJobs()).toEqual([]);
   });
 
   it('loadHistory error path leaves syncJobs empty and logs', () => {
-    syncSvc.getJobs.and.returnValue(throwError(() => new Error('500')));
-    spyOn(console, 'error');
+    syncSvc.getJobs.mockReturnValue(throwError(() => new Error('500')));
+    vi.spyOn(console, 'error').mockReturnValue(undefined as never);
     fixture.detectChanges();
     httpMock.match(() => true).forEach((req) => req.flush({ items: [], locks: {} }));
     expect(component.syncJobs()).toEqual([]);
