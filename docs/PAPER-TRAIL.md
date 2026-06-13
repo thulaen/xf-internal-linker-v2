@@ -91,7 +91,7 @@ Eleven values, grouped by lifecycle phase:
 | `resolved` | Done | `resolved_at` + two-part `resolution_lessons` (`Trap: ... Fix shape: ...`) |
 | `rejected` | Approach was tried or considered and ruled out | `suppression_reason` |
 | `wontfix` | Legacy alias of `rejected` (kept for backward compat) | `suppression_reason` |
-| `duplicate` | Collapsed into another entry via dedup | — (handled by C++ MinHash + LSH) |
+| `duplicate` | Collapsed into another entry via dedup | — (handled by the Rust MinHash + LSH index, `papertrail_dedup`) |
 | `stale` | No longer relevant (code/system moved on) | `suppression_reason` — set via `manage.py mark_paper_trail_stale` |
 | `superseded` | Replaced by a newer entry | `superseded_by` FK — set via `manage.py link_paper_trail_supersedes` or `defer_work --supersedes` |
 
@@ -205,11 +205,11 @@ docker compose exec -T backend python manage.py defer_work \
 The command does two things:
 
 1. **Dedup check** — Computes a 64-component MinHash signature of the
-   abstract and queries the C++ LSH index. If a near-duplicate exists
+   abstract and queries the Rust LSH index (`papertrail_dedup`). If a near-duplicate exists
    at ≥ 0.85 Jaccard similarity, the command bumps `occurrence_count`
    on that row and prints `[PAPER TRAIL DUPED: matched #N at similarity X.XX]`.
-2. **Create** — If no dupe, creates a new row, inserts into the C++
-   index, and prints `[PAPER TRAIL FILED: #N]`.
+2. **Create** — If no dupe, creates a new row, inserts into the Rust
+   index (`papertrail_dedup`), and prints `[PAPER TRAIL FILED: #N]`.
 
 You CANNOT silently leave the work behind. If a deferral isn't in the
 database, it isn't deferred — it's lost.

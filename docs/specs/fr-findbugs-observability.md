@@ -6,8 +6,8 @@
 
 FindBugs is the always-on static-analysis surface for XF Internal Linker V2.
 The default scanner is the deterministic Rust `speccheck find-bugs` binary.
-Django is the only writer of `AutoIssue` rows. The compiled C++ MinHash and
-locality-sensitive hashing path remains the duplicate-control layer.
+Django is the only writer of `AutoIssue` rows. The Rust MinHash (`papertrail_dedup`)
+and locality-sensitive hashing path remains the duplicate-control layer.
 
 The first release adds a dedicated `/find-bugs` operator page, scheduled scans,
 artifact retention, observability-aware imports, and a narrow Haskell sidecar

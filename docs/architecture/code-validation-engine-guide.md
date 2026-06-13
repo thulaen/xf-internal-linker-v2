@@ -32,7 +32,7 @@ The short version:
 - high-confidence local failures block through the existing `.githooks` chain;
 - uncertain security proof results go to the Review queue;
 - a Python advisor warns agents before they act;
-- the React diagnostics page shows health, noisy rule packs, overrides, and
+- the Angular diagnostics page shows health, noisy rule packs, overrides, and
   recent runs;
 - K8s, meaning Kubernetes, runs the local distributed subset as Bazel tests;
 - AWS, meaning Amazon Web Services, CodeBuild runs the full master-gate suite.
@@ -88,11 +88,12 @@ Docker-managed maturin path. Python imports it in-process through PyO3, with no
 Python fallback. There is no separate sidecar process; the earlier five-language
 design (a Haskell/C++/Go/Lua sidecar) is retired under the Python + Rust rule.
 
-`/diagnostics/pregate/` is the planned React diagnostics page from the
-Stream F2 rewrite. The current app still has Angular routes, including a
-`diagnostics` route, but Plan #13 says new PreGate UI work belongs in the React
-rewrite. Until that page exists, PreGate must still be visible through AutoIssues
-and backend diagnostics endpoints.
+`/diagnostics/pregate/` is the PreGate diagnostics page. The app is Angular 22
+today — there is no React rewrite on disk, and the locked UI direction is Angular
+CDK plus Tailwind (Plan #13's "remove Angular / move to React" framing is
+superseded). So the page is an Angular page, built from the shared Angular
+components. Until it exists, PreGate must still be visible through AutoIssues and
+backend diagnostics endpoints.
 
 ## How A Local Edit Flows
 
@@ -140,7 +141,7 @@ findings. The operator does not need a new issue habit.
 
 ## What The Diagnostics Page Shows
 
-The React page at `/diagnostics/pregate/` should be a work surface, not
+The Angular page at `/diagnostics/pregate/` should be a work surface, not
 a brochure.
 
 It shows:
@@ -281,6 +282,28 @@ tracked as ELCV growth each release. When ELCV drops because of healthy cleanup
 not punished; only a drop that loses real distinct operations without a
 deprecation note is flagged for a look.
 
+Why is 5 million such a big number? Because ELCV counts only real logic: a
+comment, a blank line, a copy-pasted block, or code that never runs adds little or
+nothing. So 5 million ELCV is worth far more than 5 million plain lines — it is the
+scale of a large software platform. And you cannot fake your way there: duplicates
+count once, unrun code counts zero, and messy code is penalized.
+
+Is that doable? Not in one shot — no person and no AI model writes 5 million units
+of real logic in a single go, and the plan never asks for that. It is built the
+same way as the rest of the engine: as many small, tested slices over a long time.
+A capable coding agent (such as the Opus and high-effort Codex agents this project
+uses) finishes one slice in a session, the total grows a little each release, and
+the quality gates make sure every increment is real. If the app genuinely needs
+that much distinct behavior, the slices compound to 5 million over the years; if it
+needs less, the number honestly levels off lower — and that is fine, because the
+point is real functionality, not a vanity count.
+
+One honest caveat: two of ELCV's four parts — which code actually ran in
+production, and de-duplicated code structure — need new measuring tools that are
+not built yet. Until those land, the Code Quality page shows ELCV as "pending"
+rather than a made-up number. 5 million is a target to build toward, not a score
+the app can display today.
+
 ## The Code Quality Page
 
 A new page at `/diagnostics/code-quality` (under the SYSTEM menu, beside
@@ -290,6 +313,45 @@ and the threshold), a panel of recently-blocked gaming attempts, a list of dead
 code, and a per-module table. Every tile has a plain-English hover that explains
 what it means. If the engine is unavailable, the page says so plainly rather than
 showing stale numbers.
+
+## A Runtime Sibling: Observatory
+
+PreGate checks code before it runs. Its sibling, **Observatory**, watches the app
+*while* it runs and *after* it ships — errors, slow requests, profiles, real-user
+experience, alerts, and automatic rollback if a release goes bad. Together, PreGate
+and Observatory are called **Aegis** — the umbrella name for the whole code-health
+platform. The two are separate but share one screen, one issue list, one "remove
+duplicates" rule, and one settings registry. Most of Observatory already exists in
+the app today (GlitchTip, Tempo, Pyroscope, Faro, VictoriaMetrics — and the
+alerting and synthetic checkers are already built); the work is to put it all in
+one tab, wire a few pieces together, and add the missing reliability layers. Its
+full plan is in `docs/specs/fr-observatory.md`, and it gets its own sidenav tab
+that shows what premium Sentry shows.
+
+## More Checks: Correctness, Security, And How Findings Are Reviewed
+
+PreGate also proves the math is right, not just that the code is tidy:
+
+- A later phase (Phase 4) will add Rust proof tools (Kani, Creusot, Prusti, MIRAI)
+  plus the Z3 and CVC5 solvers to prove security-critical and ranking code cannot
+  break in specific ways. These tools are not installed yet, so this is a planned
+  capability, not a current one. They prove things about the Rust hot paths only —
+  the Python orchestration is checked by tests and lints, not proofs. Creusot and
+  Prusti need a written contract on each function and can return "unknown" or time
+  out on real code, which is why an unknown result goes to Review instead of
+  blocking. (Lean 4 was asked for, but it does not run in Rust; these are the real
+  Rust equivalents.)
+- It keeps the business math at full 64-bit precision, bans risky float
+  comparisons, and requires ranking to be reproducible.
+- It runs security checks: secret detection, dependency-vulnerability scans, a
+  bill of materials, license rules, and signed builds.
+
+And findings are never blindly accepted. When PreGate or Observatory files an
+issue it lands as "proposed." An agent then either approves and fixes it, rejects
+it with a reason, or — when PreGate is wrong — corrects PreGate's own rule. A rule
+that cries wolf too often is automatically demoted until it is fixed. Ten issue
+slots are reserved just for improving the engine itself, and PreGate keeps its own
+fast database so agents can check that it is not making mistakes.
 
 ## How Rule Packs Move To Production
 
@@ -399,7 +461,8 @@ production, authoring guide, and override metrics.
 Phase 6 expands to about 300 production rules, Docusaurus docs, full AutoIssue
 picker integration, and trust dashboard calibration.
 
-The full target is 18 to 24 months, 80 to 150 slices, and 300,000 to 500,000
-lines across the two locked backend languages, Python and Rust. That is large,
-but it is app-shaped: every slice must ship a visible part of the product, not a
-hidden research pile.
+The full target is 18 to 24 months, 80 to 150 slices, and a minimum of
+**5,000,000 ELCV** (Effective Logical Code Volume — real, deduplicated, executed
+logic, never raw lines) across the two locked backend languages, Python and Rust.
+That is large, but it is app-shaped: every slice must ship a visible part of the
+product, not a hidden research pile.

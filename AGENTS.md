@@ -16,6 +16,8 @@ Skipping step 1 or 2 is a protocol violation. The acknowledgement line in your f
 
 **ABSOLUTE — Backend is Python + Rust ONLY (added 2026-06-06).** C, C++, Go, Haskell, and Lua are removed. Rust owns performance hot paths via PyO3/maturin, is authoritative, and has NO Python fallback; everything else is Python. Do NOT implement Go/Haskell/C++/Lua/Java — `.githooks/check-removed-languages.py` hard-blocks any commit that adds or modifies such files (deletions are allowed). Many legacy plans still describe these languages; they are SUPERSEDED — harvest ideas only. This supersedes the earlier C++-first, Go-services-tier, and Python-fallback rules. See [`docs/adr/0007-python-rust-two-language.md`](docs/adr/0007-python-rust-two-language.md) and [`docs/PYTHON-RUST-MIGRATION-PLAN.md`](docs/PYTHON-RUST-MIGRATION-PLAN.md).
 
+**ABSOLUTE — Tests are on Dell whenever the repo has a Dell-backed runner.** Do not run or summarize Windows-only tests as complete when a Dell path exists. Python quality and test work must use the repo-owned turbo/Dell runners when available; Rust tests, lint, formatting, builds, mutation, fuzzing, and benchmarks run through `scripts/dell-rust.sh` on the `dell` Docker context. A local or single-container run is only a diagnostic after the Dell/turbo path fails or when the agent records a plain-English blocker proving Dell is unavailable.
+
 ---
 
 ## Trigger discipline and chat-notification protocol

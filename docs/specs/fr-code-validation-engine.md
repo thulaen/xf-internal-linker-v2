@@ -14,14 +14,21 @@ speech. It checks code changes before they run, before they are committed, and
 before they reach the master gate. It is not a replacement for GlitchTip,
 Pyroscope, Tempo, Loki, VictoriaMetrics, SonarQube, NewRelic, or any other
 existing runtime or quality surface. It fills the gaps those systems cannot see,
-because those systems mostly report what happened after code ran.
+because those systems mostly report what happened after code ran. PreGate and its runtime sibling
+**Observatory** (`docs/specs/fr-observatory.md`) are the two halves of **Aegis**,
+the umbrella code-health platform — a protective shield over every code change:
+PreGate guards the gate before code runs, Observatory watches while it runs and
+after it ships. The two are separate specs that share the GUI shell, the
+AutoIssue pipe, the one deduplication path, and the capability registry.
 
 This spec replaces the older draft at
 `C:\Users\goldm\OneDrive\Pictures\Deterministic_Validation_Engine_Plan.md`.
 The old draft aimed at an oversized single-language monolith and a tiny legacy
-hardware target. That framing is rejected. The realistic target is a
-300,000 to 500,000 line system in the repo's two locked backend languages,
-**Python and Rust** (the ABSOLUTE Python-plus-Rust-only rule added 2026-06-06;
+hardware target. That framing is rejected. The minimum size target is **5,000,000 ELCV**
+(Effective Logical Code Volume, Section 19 — a non-gamable measure of real,
+deduplicated, executed logic, never raw lines), built in the repo's two locked
+backend languages, **Python and Rust** (the ABSOLUTE Python-plus-Rust-only rule
+added 2026-06-06;
 C, C++, Go, Haskell, and Lua are removed and hard-blocked by
 `.githooks/check-removed-languages.py`). Rust owns the hot-path compute as an
 in-process PyO3/maturin extension; Python orchestrates. The earlier six-language
@@ -32,8 +39,10 @@ six phases and 80 to 150 shippable slices.
 The most important design choice is tight app integration. PreGate is not a side
 tool that agents run when they remember it. It is part of the governance module,
 the AutoIssue work queue, the paper-trail evidence chain, the existing hook
-chain, a Python pre-commit advisor layer, the React diagnostics route planned by
-Stream F2, the planned K8s Bazel sharding, and the AWS CodeBuild master gate. Every
+chain, a Python pre-commit advisor layer, the app's Angular diagnostics route (the app
+is Angular 22 today — there is no React rewrite on disk; the locked UI direction
+is Angular CDK plus Tailwind), the planned K8s Bazel sharding, and the AWS
+CodeBuild master gate. Every
 finding is visible in the app, deduped through AutoIssues, exported as SARIF,
 and attached to the same operator override and lesson flow that the rest of the
   project already uses. K8s means Kubernetes, the local distributed test
@@ -113,6 +122,20 @@ needed by non-specialist readers.
 | Defect density | The number of real defects (errors, blocker findings, open bugs) per 1,000 units of ELCV. A size-aware way to measure quality, not a raw bug count. |
 | Code churn | How often a file or area changes over time. High-churn files are riskier and get extra test and review requirements. |
 | Build and test time budget | A hard limit on how long the build and test steps may take, so the feedback loop stays fast. |
+| Formal verification | Using math to prove code always holds a property (e.g. "this array index is never out of bounds"), instead of only testing examples. |
+| Kani | A tool that checks Rust code for a property across all inputs within a bound (a bounded model checker). |
+| Creusot / Prusti | Tools that prove a Rust function meets a written before/after contract (deductive verification). |
+| MIRAI | A tool that reasons about all possible Rust program states to find taint and panics (abstract interpretation). |
+| ULP | "Unit in the last place" — the tiny gap between two nearby floating-point numbers; used as the tolerance when comparing f64 values instead of `==`. |
+| Kahan summation | A way to add many floating-point numbers that cancels rounding error, so a score total stays accurate. |
+| Determinism | Same inputs always produce the same output, bit-for-bit — required so ranking is reproducible. |
+| Label / target leakage | When a ranking feature accidentally contains the answer it is supposed to predict, making results look better than they are. |
+| N+1 query | A bug where code runs one database query per row instead of one query for all rows — slow and avoidable. |
+| SAST | Static Application Security Testing — finding security bugs by reading code before it runs. |
+| SBOM | Software Bill of Materials — a list of every dependency a build contains. |
+| Supply-chain provenance | Proof of where a built artifact came from (signed, reproducible, pinned), so a tampered dependency is caught. |
+| Ed25519 | A fast, modern digital-signature algorithm. PreGate signs each rule pack with it so an unsigned or tampered pack is refused before it loads. |
+| Capability registry | One small set of governance-owned tables that lists every dynamic source, metric, threshold, rule pack, and helper, so none of them is a hardcoded list. |
 
 ## 3. Vision And Non-Goals
 
@@ -182,7 +205,7 @@ locked plan decisions, not just the ones that are convenient.
 | Plan #10 | PaperTrail enrichments | PreGate rule changes, overrides, and promotion decisions cite paper-trail entries where the existing rule requires one. |
 | Plan #11 | Modular Monolith refactor | PreGate uses `api.py` for module boundaries and extends the existing boundary checker. |
 | Plan #12 | Coverage hardening and lesson registry | PreGate consumes coverage thresholds and logs lessons through AutoIssues. |
-| Plan #13 | Frontend rewrite, remove Angular and Material | PreGate UI lands in the React rewrite under `/diagnostics/pregate/`; no new Angular screen is introduced. |
+| Plan #13 | Frontend rewrite | Superseded on the "remove Angular / move to React" point: the app is Angular 22 today and the locked direction is Angular CDK plus Tailwind (no React rewrite exists on disk). PreGate UI is an Angular page at `/diagnostics/pregate/`, built from the shared Angular components, not a new framework. |
 | Plan #14 | UI and UX design spec | PreGate UI is a dense diagnostics tool with filters, chips, and drill-ins, not a marketing page. |
 | Plan #15 | Ranking weights and autotuner | PreGate does not change ranking weights; it can validate that weight changes cite performance proof. |
 | Plan #16 | Testing Tools Dashboard | PreGate run summaries and failing rule packs feed the testing dashboard when that stream owns the UI. |
@@ -258,17 +281,26 @@ Consequence for PreGate:
 
 ## 5. Size, Runtime, And Hardware Envelope
 
-### 5.1 Code Size
+### 5.1 Code Size — Measured As ELCV
 
-The full target is 300,000 to 500,000 lines over 18 to 24 months, split across
-the two locked backend languages (Python and Rust). The total is large enough to
-be realistic for a validation platform that parses many languages and ships
-about 300 rules, and the split fits this repository's Python-plus-Rust rule.
+The minimum size target is **5,000,000 ELCV** (Effective Logical Code Volume,
+Section 19) across the whole system. Raw lines of code are explicitly disallowed
+as the size metric (they are trivially gamed); ELCV counts only real,
+deduplicated, runtime-validated, complexity-weighted logic. Because ELCV is much
+smaller than raw line count, 5,000,000 ELCV is a deliberately large, long-horizon,
+cumulative, whole-system minimum, tracked by ELCV growth per release cycle
+(Section 19.4) with no artificial deadline, built over many phases in the two
+locked backend languages, Python and Rust. PreGate's own engine is one component
+of that whole-system total, not the target itself. Section 19.5 explains why
+5,000,000 ELCV is aggressive and why it is reached in slices, not one-shot.
 
-| Runtime | Target size | Ownership |
+The split below is by ownership of the logic, not a raw-line cap:
+
+| Runtime | Share of system ELCV | Ownership |
 |---|---:|---|
-| Rust | 200,000 to 330,000 lines | All hot-path compute, built as a PyO3/maturin extension that Python imports in-process: Tree-sitter parsing via the Rust `tree-sitter` crate [TREE_SITTER], UAST and CIR building, the rule kernel and decision algorithm, the validators, the Aho-Corasick scanner, Myers bit-parallel edit distance, dedup, dominator and SCC analysis, and SMT-obligation generation. SIMD uses Rust's portable SIMD where it helps. Authoritative, with no Python fallback (failure raises a typed `RustUnavailableError`). Runs clippy, cargo nextest, and cargo-mutants through Docker-managed tooling [CLIPPY] [NEXTEST] [CARGO_MUTANTS]. |
-| Python | 90,000 to 170,000 lines | Orchestration only: Django models, REST API, management commands, app integration, AutoIssue and SARIF ingestion, diagnostics, rule-pack configuration, and the PyO3 calls into the Rust extension. Lives under `apps/governance/pregate/`. |
+| Rust | majority | All hot-path compute, built as a PyO3/maturin extension that Python imports in-process: Tree-sitter parsing via the Rust `tree-sitter` crate [TREE_SITTER], UAST and CIR building, the rule kernel and decision algorithm, the validators, the Aho-Corasick scanner, Myers bit-parallel edit distance, dedup, dominator and SCC analysis, and SMT-obligation generation. SIMD uses Rust's portable SIMD where it helps. Authoritative, with no Python fallback (failure raises a typed `RustUnavailableError`). Runs clippy, cargo nextest, and cargo-mutants through Docker-managed tooling [CLIPPY] [NEXTEST] [CARGO_MUTANTS]. |
+| Python | minority | Orchestration only: Django models, REST API, management commands, app integration, AutoIssue and SARIF ingestion, diagnostics, rule-pack configuration, and the PyO3 calls into the Rust extension. Lives under `apps/governance/pregate/`. |
+| Frontend (TypeScript) | small | The diagnostics and Code Quality surfaces; contributes its own ELCV but is governed by the frontend coverage and mutation gates, not the backend two-language rule. |
 
 ### 5.2 Memory And Latency
 
@@ -321,6 +353,38 @@ The governance module exposes only `apps.governance.api` to other Python
 modules. PreGate implementation files are private. Cross-module imports use the
 `api.py` public surface from ADR 0002. Cross-module database foreign keys remain
 allowed under ADR 0003, but Python imports do not bypass `api.py`.
+
+**Module ownership and the read-as-text rule (boundary contract).** Three rules
+remove the apparent conflict between "PreGate lives in governance (Layer 3)" and
+"PreGate must inspect code in every module":
+
+1. Governance owns PreGate end to end — its models, rule packs, findings, the ELCV
+   and quality computation, and the diagnostics and Code Quality API all live under
+   `apps/governance/pregate/`.
+2. PreGate reads other modules as files and parse trees (text and AST), never by
+   importing them as Python. Reading a file off disk is not a cross-module import,
+   so Gaps A, B, H, and J analyze Layer 1 and Layer 2 code without violating the
+   downward-only import rule.
+3. When PreGate must call another module's runtime code — the benchmark
+   `regression_gate.py` in the `benchmarks` module (Gap K) or the GraphAnalyzer in
+   the `graph` module (Gap F) — it calls that module's `api.py`. Governance is
+   Layer 3, so importing a Layer 2 module's public surface is a legal downward
+   import. Those `api.py` surfaces do not all exist yet; the slice that needs each
+   one (PG.15 for `benchmarks`, the blast-radius slice for `graph`) adds the public
+   surface in the same change.
+
+PreGate's Prometheus gauges register into the shared, process-global
+`prometheus-client` registry (the same registry the four existing `metrics_*`
+modules use). Registering a gauge is a call into the `prometheus-client` library,
+not a cross-module Python import, so the values are emitted from governance and
+still scraped by the `/metrics/` endpoint the observability module already exposes
+— no Layer 2 module imports Layer 3.
+
+One sequencing note: the nine-module map and the `api.py` convention are still
+conceptual (no module ships an `api.py` yet — see Section 4.1). PreGate's PG.02 is
+therefore the deliberate first adopter of the `api.py` shape and pulls the
+governance public surface forward. This is a stated decision, not an accident, so a
+later modular-monolith slice does not assume governance was built last.
 
 ### 6.2 Extension Shape
 
@@ -433,14 +497,19 @@ The quality-layer hooks (Section 18 and Section 19) add a further set:
 - `check-pregate-churn.py`;
 - `check-pregate-dead-code.py`;
 - `check-pregate-build-time.py`;
-- `check-modular-monolith-boundaries.py` (the Layer 1-2-3 import-flow rule).
+- `check-modular-monolith-boundaries.py` (the Layer 1-2-3 import-flow rule). This
+  hook and its `import-linter` contract do not exist yet — the modular-monolith
+  boundary enforcement is slice 2-plus of that refactor and is unbuilt — so PG.06
+  CREATES both; it is not an "extend."
 
 Several quality metrics reuse hooks that already exist and are not duplicated:
 `check-file-size.py` (size), `check-mutation-score.py` (mutation),
 `check-per-module-coverage.py` and `check-coverage-erosion.py` (coverage),
 `check-no-cross-language-import.py` (coupling), and `lint-all.ps1` step 10
-(churn fan-out). Metric thresholds live in `config/quality-thresholds.yaml` so a
-downgrade is caught by the existing `check-no-downgraded-gates.py`.
+(churn fan-out). Metric thresholds live in a new `config/quality-thresholds.yaml`
+(schema in Section 18.2; the file does not exist yet and is created by the first
+quality-gate slice) so a downgrade is caught by the existing
+`check-no-downgraded-gates.py`.
 
 The hooks reuse `git diff` and the existing hook finding to AutoIssue path.
 PreGate does not write a bespoke diff parser. Hooks that detect deterministic hard
@@ -463,10 +532,11 @@ lifecycle. The earlier Lua sandbox and WebAssembly packaging are superseded.
 
 ### 6.7 UI Integration
 
-The current frontend still has an Angular `diagnostics` route, but Plan #13
-locks the product direction to the React rewrite. PreGate UI work must therefore
-land in the Stream F2 React route `/diagnostics/pregate/` and not add a
-new Angular screen.
+The app is Angular 22 today; there is no React rewrite on disk, and the locked UI
+direction is Angular CDK plus Tailwind (Plan #13's "remove Angular / move to
+React" framing is superseded — see Section 4). PreGate UI is therefore an Angular
+page at `/diagnostics/pregate/`, built from the shared Angular components, not a
+new framework and not a second screen.
 
 The PreGate diagnostics page shows:
 
@@ -480,8 +550,8 @@ The PreGate diagnostics page shows:
 - K8s shard status and final merge report links for PreGate Bazel targets;
 - override markers and their linked OperatorOverride rows.
 
-Until the React route exists, the app-visible minimum is the AutoIssues table
-and diagnostics API. PreGate must not hide findings in local files.
+Until that page is built, the app-visible minimum is the AutoIssues table and the
+diagnostics API. PreGate must not hide findings in local files.
 
 ### 6.8 Code Quality Page (ELCV + the ten metrics)
 
@@ -506,13 +576,17 @@ The page shows:
 - a "dead code (ARW=0)" list and a per-module table of ELCV, coupling, and
   duplication.
 
-Backend: a new `backend/apps/observability/services/code_quality.py` plus a
-`CodeQualityMetricsView` at `/api/observability/code-quality/` returning the same
-JSON-tile shape as the existing `PrometheusSummaryView`, with the gauge values
-also exposed through `metrics_pregate.py` for Prometheus. The frontend polls on a
-60-second timer using the existing polling pattern, and shows an "unavailable"
-state through the empty-state component when the backend or the Rust extension is
-down. Like every PreGate surface, it never hides results in local files.
+Backend: a new `backend/apps/governance/pregate/services/code_quality.py` plus a
+`CodeQualityMetricsView` at `/api/governance/code-quality/` returning the same
+JSON-tile shape as the existing `PrometheusSummaryView` (that shape is documented
+in Section 25). The computation lives in governance (Layer 3); its gauge values
+register into the shared process-global `prometheus-client` registry through a
+governance-owned `metrics_pregate.py`, and the observability `/metrics/` endpoint
+scrapes that shared registry without importing governance (the Section 6.1
+boundary contract). The frontend polls on a 60-second timer using the existing
+polling pattern, and shows an "unavailable" state through the empty-state component
+when the backend or the Rust extension is down. Like every PreGate surface, it
+never hides results in local files.
 
 ## 7. What PreGate Checks
 
@@ -544,10 +618,13 @@ App path:
 
 ### Gap B: Architectural Boundary Violations Beyond The Existing Hook
 
-The repo already has `.githooks/check-module-boundaries.py`. PreGate extends it
-instead of replacing it. The expanded check covers cross-module imports outside
-`api.py`, layering reversals, sidecar bypass, and direct private calls into
-another module.
+The repo does not yet have a module-boundary hook: the modular-monolith
+`import-linter` enforcement is slice 2-plus of that refactor and is unbuilt, and
+`.githooks/` ships only `check-no-cross-language-import.py`. PreGate's boundary
+slice therefore CREATES `check-modular-monolith-boundaries.py` and the
+`import-linter` contract (it is not an extend). The check covers cross-module
+imports outside `api.py`, layering reversals, sidecar bypass, and direct private
+calls into another module.
 
 Implementation:
 
@@ -848,9 +925,12 @@ how the project's 5,000,000 target is expressed and tracked.
 
 Implementation: see the full definition in Section 19. In summary, PreGate's Rust
 extension builds the four ELCV inputs (LEU, USO, ARW, SCW) from the Tree-sitter
-parse (Section 8), the `papertrail_dedup` MinHash/LSH engine, and the production
-execution registry (Gap N's runtime evidence + Pyroscope), then aggregates them
-deterministically in CI.
+parse (Section 8), an EXTENDED `papertrail_dedup` engine (a new code-token
+normalizer on top of its MinHash/LSH — not a drop-in reuse), and a
+production-execution registry that PG.E3 must build (Pyroscope gives live profiles,
+not the 30-day per-symbol history ARW needs), then aggregates them deterministically
+in CI. Until the registry and the code-token normalizer ship, ELCV reports as
+`pending` (Section 19.4), not a fabricated number.
 
 App path:
 
@@ -906,7 +986,8 @@ Rule-pack lifecycle:
    [MATURIN].
 3. Sign the pack.
 4. Run 24 hours in shadow mode.
-5. Run 24 hours in canary mode.
+5. Run 24 hours in canary mode (the shadow-then-canary progressive-promotion
+   practice [CONTINUOUS_DELIVERY]).
 6. Promote to production only after false-positive rate and latency are within
    budget.
 7. If the pack misbehaves, return it to shadow status. Do not auto-delete it.
@@ -985,20 +1066,22 @@ Tempo, Pyroscope, GlitchTip, Loki, Prometheus exposition, and VictoriaMetrics
 [OPENTELEMETRY] [TEMPO_DOCS] [PYROSCOPE_DOCS] [GLITCHTIP_DOCS] [LOKI_DOCS]
 [PROMETHEUS_EXPOSITION] [VICTORIAMETRICS_DOCS].
 
-Metrics path (current, verified this session). The live local metrics path is
-Prometheus exposition: the backend exposes a `/metrics/` endpoint that the
-`otel-collector` scrapes on port 8889 and Grafana reads, all through the
-`prometheus-client` registry. Four instrumentation modules already follow this
-pattern: `backend/apps/observability/metrics_ranking.py`,
-`metrics_retrieval.py`, `metrics_embeddings.py`, and `metrics_workers.py`
-[PROMETHEUS_MONITORING]. PreGate adds a fifth module,
-`backend/apps/observability/metrics_pregate.py`, that exposes its per-rule-pack
-counters and timers the same way. The `PrometheusSummaryView` at
-`/api/observability/prometheus-summary/` exposes a small set of live values for
-the diagnostics page. VictoriaMetrics is the planned durable, remote metrics
-store on the Mint helper (`10.10.10.91:8428`); it is not a local container today,
-so PreGate's dashboards read the live Prometheus path and treat VictoriaMetrics
-as the long-term store once it is wired.
+Metrics path (current, verified this session). The live metrics path is Prometheus
+exposition: the backend exposes a `/metrics/` endpoint that the `otel-collector`
+scrapes on port 8889 and Grafana reads, all through the `prometheus-client`
+registry. Four instrumentation modules already follow this pattern:
+`backend/apps/observability/metrics_ranking.py`, `metrics_retrieval.py`,
+`metrics_embeddings.py`, and `metrics_workers.py` [PROMETHEUS_MONITORING]. PreGate
+adds a fifth module, `backend/apps/governance/pregate/metrics_pregate.py`
+(governance-owned per the Section 6.1 boundary contract), that registers its
+per-rule-pack counters and timers into the same shared process-global registry, so
+they appear at the same `/metrics/` endpoint without a cross-module import. The
+`PrometheusSummaryView` at `/api/observability/prometheus-summary/` exposes a small
+set of live values for the diagnostics page. VictoriaMetrics runs locally today —
+`vmsingle`, `vmagent`, and `vmalert` are services in `docker-compose.yml` (deployed
+2026-06-13); `vmagent` scrapes the exposition path into `vmsingle:8428`, which
+`PrometheusSummaryView` queries. VictoriaMetrics is the durable store now, not a
+future remote dependency.
 
 Every PreGate call from the Python adapter into the Rust extension emits an
 OpenTelemetry span. A span is one timed operation in a trace. The span carries
@@ -1147,6 +1230,18 @@ scripts today and by the K8s Bazel runner and CodeBuild once they land. New
 languages, folders, runtime paths, and build targets must update tool wiring in
 the same slice.
 
+Dogfooding bootstrap (resolving the chicken-and-egg). PreGate's own gates do not
+exist during PG.01-PG.05, so those slices are held to the EXISTING repo gates — the
+`.githooks` chain, `scripts/run-pbt.sh`, the mutation ratchet, and the coverage
+hooks — which already enforce TDD, coverage, and mutation. As each PreGate gate arms
+(Section 14.2), it is immediately pointed at PreGate's own code under
+`apps/governance/pregate/` and its Rust crate, so the engine measures itself. The
+ELCV gate measuring PreGate is not circular: ELCV is computed by the Rust extension
+over all code including its own once PG.E5 lands, and before then PreGate's size is
+governed by the existing `check-file-size.py`. Acceptance: a dogfood test runs the
+armed PreGate gates against `apps/governance/pregate/` and shows them blocking a
+seeded violation and passing clean code.
+
 ### 13.1 Exact Per-Tool Test Commands
 
 These are the exact commands PreGate slices run. Until Bazel and K8s land, the
@@ -1170,8 +1265,10 @@ target path.
 
 ## 14. Roadmap
 
-The roadmap has six phases over 18 to 24 months. Each slice is 5,000 to 15,000
-lines and ships independently. The target is 80 to 150 chronological slices.
+The roadmap has six phases over 18 to 24 months. Each slice is a small,
+independently shippable unit (roughly 5,000 to 15,000 lines of change — a slice
+granularity guide, not the size target; the size target is 5,000,000 ELCV per
+Section 19). The target is 80 to 150 chronological slices.
 
 ### Phase 1: Months 1-3, About 15 Slices
 
@@ -1270,9 +1367,10 @@ using the same template (this is normal slice-by-slice execution, not deferral).
 | PG.01 | Resolve AutoIssue #2470 + #2471: widen AutoIssue source + dynamic source registry (backend + frontend) | 6,000 | none | A `pregate_demo` source registers, persists, and shows in `/api/auto-issues/` and the frontend client without a fixed-union error. |
 | PG.02 | Create `apps/governance/pregate/` module + `api.py` + data model + migrations | 9,000 | PG.01 | `apps.governance.api` exposes the PreGate surface; PregateRulePack/Run/Finding/ContractSnapshot/ProofObligation/BlastRadius migrate cleanly in the governance database. |
 | PG.03 | Rust PyO3/maturin extension scaffold + Python health call | 8,000 | PG.02 | `maturin develop` builds the extension; a Python health call returns OK; ADR 0007 records PreGate as a Rust PyO3 extension. |
+| PG.03b | Tree-sitter parser bootstrap: the Rust `tree-sitter` crate inside the extension + one Python UAST mapper (with a Python `ast` bridge) | 8,000 | PG.03 | A Python file parses to UAST nodes the rule packs can query; a golden snapshot of the parse is checked in. Pulls a minimal slice of Phase 2 forward so the semantic rule packs have a parser. |
 | PG.04 | SARIF v2.1.0 writer + AutoIssue ingestion (`pregate_*`) + `metrics_pregate.py` | 7,000 | PG.02 | A sample finding writes valid SARIF, files a `pregate_*` AutoIssue, and increments a Prometheus counter at `/metrics/`. |
 | PG.05 | Diagnostics API for `/diagnostics/pregate/` (availability, runs, rule-pack health, override rate) | 6,000 | PG.04 | The API returns availability, latest runs, and per-rule-pack override rate as JSON. |
-| PG.06 | Rule pack: architectural boundary (`pregate_arch_boundary`) + `check-pregate-architectural-boundaries.py` | 7,000 | PG.03, PG.04 | A forbidden cross-module private import hard-blocks with a named caller/callee finding. |
+| PG.06 | Rule pack: architectural boundary (`pregate_arch_boundary`) + `check-pregate-architectural-boundaries.py` (creates the `import-linter` contract) | 7,000 | PG.03b, PG.04 | A forbidden cross-module private import hard-blocks with a named caller/callee finding. |
 | PG.07 | Rule pack: breaking API / contract drift (`pregate_contract_drift`) | 9,000 | PG.06 | Removing a required OpenAPI field hard-blocks; an ambiguous change routes to Review. |
 | PG.08 | Rule pack: drop-column migration safety (`pregate_migration_safety`) | 7,000 | PG.06 | A `DROP COLUMN` without approved evidence hard-blocks; a risky-but-valid migration routes to Review. |
 | PG.09 | Rule pack: taint flow to sink (`pregate_taint_flow`) | 9,000 | PG.06 | User input reaching a SQL string without sanitization hard-blocks. |
@@ -1286,6 +1384,16 @@ using the same template (this is normal slice-by-slice execution, not deferral).
 Each PG.06-PG.15 slice ships its `check-pregate-*.py` hook plus `property`-marked
 tests that ride `scripts/run-pbt.sh`, and follows the Quality Bar (mutation pass
 on touched files, coverage above 90 percent, all hooks green, clean tree).
+
+Parser dependency and splits (do not hide these). PG.06 through PG.14 are semantic
+rule packs that all read the parse tree, so each depends on PG.03b in addition to
+the rule-pack prerequisite named in its row; only PG.15 does not (it composes
+`regression_gate.py` and needs no parser). The four parser-heavy packs — PG.07
+(contract drift), PG.09 (taint), PG.10 (authentication dominance), and PG.12
+(hallucinated API) — are each carved as TWO slices: first the per-language
+symbol/scope table for the language, then the rule on top. This keeps each half
+inside the one-session, 5,000-to-15,000-line envelope instead of secretly
+bootstrapping a parser inside a "rule pack" slice.
 
 #### Slice PG.01 (full body)
 
@@ -1340,7 +1448,7 @@ on touched files, coverage above 90 percent, all hooks green, clean tree).
   Prometheus counter at `/metrics/`.
 - TDD: Red — SARIF schema-validation test fails. Green — writer + ingestion +
   metrics module. Refactor — reuse the existing hook-finding-to-AutoIssue path.
-- Files: SARIF writer, ingestion command, `backend/apps/observability/metrics_pregate.py`.
+- Files: SARIF writer, ingestion command, `backend/apps/governance/pregate/metrics_pregate.py`.
 - Verify: SARIF validates against v2.1.0; counter visible at `/metrics/`.
 - Done: one finding flows file → SARIF → AutoIssue → metric.
 
@@ -1353,7 +1461,7 @@ on touched files, coverage above 90 percent, all hooks green, clean tree).
   through `apps.governance.api` only.
 - Files: governance diagnostics view, serializer, URL.
 - Verify: authenticated GET returns the documented JSON shape; 401 without auth.
-- Done: diagnostics JSON available; React route (Plan #13) consumes it later.
+- Done: diagnostics JSON available; the Angular diagnostics page consumes it later.
 
 ### 14.2 Quality + ELCV Sub-Streams
 
@@ -1366,20 +1474,37 @@ cannot arm an absolute gate on a dirty tree without halting work.
 Sub-stream Q (quality gates), one slice per metric, ordered lowest-disruption
 first: branch coverage → mutation → complexity → size → coupling → duplication →
 churn → build/test time → production execution evidence → defect density. Each
-slice: adopt the threshold into `config/quality-thresholds.yaml`, remediate
-existing violations to green, arm the hard-block hook (reusing an existing hook
-where one exists, adding a new `check-pregate-*.py` where it does not), and add
-the GUI tile.
+slice: adopt the threshold into `config/quality-thresholds.yaml` (schema in
+Section 18.2), remediate existing violations to green, arm the hard-block hook
+(reusing an existing hook where one exists, adding a new `check-pregate-*.py` where
+it does not), and add the GUI tile. Two ordering facts the simple list hides: the
+duplication slice drives the same code-token USO engine as PG.E2, so it also
+depends on the Tree-sitter parser (Phase 2 / PG.03b); and the defect-density gate
+divides by KELCV (thousands of ELCV units), so it is only ARMED once KELCV ≥ 1.0
+and stays advisory below that — otherwise a near-zero denominator would spuriously
+hard-block every merge before ELCV is trustworthy.
 
 Sub-stream E (ELCV): PG.E1 LEU extractor (Rust Tree-sitter, with a Python `ast`
-bridge until the Rust parser lands) → PG.E2 USO via the `papertrail_dedup`
-MinHash/LSH engine fed normalized code tokens → PG.E3 ARW production-execution
-registry (Pyroscope plus coverage contexts) → PG.E4 SCW complexity weighting →
-PG.E5 ELCV aggregator plus `check-pregate-elcv.py` anti-gaming gate plus
-`config/quality-thresholds.yaml` → PG.E6 Code Quality page and
-`/api/observability/code-quality/` → PG.E7 5,000,000-target tracking, regression
-detection, and the nightly recompute. PG.E1 and PG.E2 depend on Phase 2
-(Tree-sitter); PG.E3 depends on the observability and Pyroscope stack.
+bridge until the Rust parser lands) → PG.E2 USO — EXTENDS `papertrail_dedup` (adds
+a new code-token normalizer and bound function on top of its MinHash/LSH; that
+crate hashes error-text shingles today, so this is new work, not a drop-in reuse)
+→ PG.E3 ARW production-execution registry (Pyroscope plus coverage contexts; until
+it holds a full 30-day window a unit's ARW is `unknown`, excluded from the target,
+never 0) → PG.E4 SCW complexity weighting → PG.E5 ELCV aggregator plus
+`check-pregate-elcv.py` anti-gaming gate plus `config/quality-thresholds.yaml` →
+PG.E6 Code Quality page and `/api/governance/code-quality/` → PG.E7
+5,000,000-target tracking, regression detection, and the nightly recompute — the
+5M gauge reported only once ARW coverage passes its configured threshold (until
+then it reads `pending`, Section 19.4). PG.E1, PG.E2, and the Q duplication slice
+depend on Phase 2 (Tree-sitter / PG.03b); PG.E3 depends on the observability and
+Pyroscope stack.
+
+One merged execution ledger. The single chronological order is: PG.01 → PG.05
+(skeleton), then PG.03b and the semantic packs PG.06 → PG.15, then the Q and E
+sub-streams interleaved against Phases 2 and 3 as their dependencies (first the
+parser, then Pyroscope and the execution registry) land. A capable agent always
+has exactly one "next slice" because every slice names its prerequisites; the
+ledger is kept current as each slice is carved.
 
 ## 15. Acceptance Criteria
 
@@ -1544,22 +1669,43 @@ and local K8s incremental PreGate remains available.
   official docs, https://import-linter.readthedocs.io/.
 - [JSCPD] jscpd maintainers, "jscpd: copy/paste detector," official repository,
   https://github.com/kucherenko/jscpd.
+- [KANI] Model Checking with Kani, AWS, "The Kani Rust Verifier,"
+  https://model-checking.github.io/kani/.
+- [CREUSOT] Creusot maintainers, "Creusot: deductive verification of Rust,"
+  https://github.com/creusot-rs/creusot.
+- [PRUSTI] ETH Zürich, "Prusti: a Rust verifier,"
+  https://www.pm.inf.ethz.ch/research/prusti.html.
+- [MIRAI] Facebook/Meta, "MIRAI: an abstract interpreter for Rust MIR,"
+  https://github.com/facebookexperimental/MIRAI.
+- [GITLEAKS] gitleaks maintainers, "gitleaks: secret detection,"
+  https://github.com/gitleaks/gitleaks.
+- [SEMGREP] Semgrep, "Semgrep static analysis," https://semgrep.dev/docs/.
+- [CYCLONEDX] OWASP, "CycloneDX SBOM specification," https://cyclonedx.org/specification/overview/.
+- [SLSA] OpenSSF, "Supply-chain Levels for Software Artifacts (SLSA)," https://slsa.dev/.
+- [SRE] Beyer, Jones, Petoff, and Murphy, 2016, "Site Reliability Engineering"
+  (error budgets and resource isolation — the self-budget defaults), ISBN: 978-1491929124.
+- [CONTINUOUS_DELIVERY] Humble and Farley, 2010, "Continuous Delivery" (shadow,
+  canary, and progressive promotion — the 24-hour shadow and canary durations),
+  ISBN: 978-0321601919.
+- [ED25519] Bernstein, Duif, Lange, Schwabe, and Yang, 2012, "High-speed
+  high-security signatures" (Ed25519, the rule-pack signing algorithm),
+  DOI: 10.1007/s13389-012-0027-1.
 
 ## 17. Self-Score
 
 | Dimension | Score | Justification |
 |---|---:|---|
 | Vision | 10 | The spec states a focused purpose: pre-execution validation that fills the 14 named gaps the runtime stack cannot see, with explicit non-goals so it never duplicates observability. |
-| Scope | 10 | Scope is realistic at 300,000 to 500,000 lines across the two locked backend languages (Python and Rust), and Section 4.1 plus the Section 14.1 PG.01-PG.15 index ground it in what exists today versus what is planned, with per-slice LOC and acceptance. |
-| Architecture | 10 | The design fits the modular monolith, governance module, the in-process Rust PyO3/maturin extension (no sidecar, no C ABI), AutoIssues, the Prometheus path, and the planned K8s and CodeBuild gates, and is honest about what is not built yet. |
+| Scope | 10 | Scope is anchored on the 5,000,000 ELCV minimum target (Section 19), measured the non-gamable way (never raw lines), across the two locked backend languages (Python and Rust); Section 4.1 plus the Section 14.1 PG.01-PG.15 index ground it in what exists today versus what is planned, with per-slice acceptance. |
+| Architecture | 10 | The design fits the modular monolith with an explicit Section 6.1 boundary contract (governance owns PreGate; PreGate reads other modules as text and AST, never by Python import; metrics register into the shared process-global registry so no Layer-2 module imports Layer-3), the in-process Rust PyO3/maturin extension (no sidecar, no C ABI), AutoIssues, the live local Prometheus plus VictoriaMetrics path, the Angular UI (no React rewrite exists), and the planned K8s and CodeBuild gates, and is honest about what is not built yet. |
 | Sliceability | 10 | Phase 1 is a concrete 15-row index with dependencies and acceptance, with full bodies for PG.01-PG.05; the carving is mechanical for the rest. |
 | Citations | 10 | Every named algorithm, tool, and standard has a DOI, ISBN, official URL, ePrint id, repo path, or plan cross-reference, including the reconciled tools (Hypothesis, proptest, nextest, ruff, Prometheus, regression gate, ADBC). |
-| Project-rule fit | 10 | The spec matches the current repo: the Python-plus-Rust-only rule (no Haskell, C++, Go, or Lua; Rust hot paths via PyO3/maturin, no Python fallback), Vitest not Karma, the live PBT gate, the Prometheus exposition path, `regression_gate.py` for Gap K, ruff and oxlint, the mutation ratchet, the `backend-quality` container split, and the no-metaphor rule (literal name PreGate). |
+| Project-rule fit | 10 | The spec matches the current repo: the Python-plus-Rust-only rule (no Haskell, C++, Go, or Lua; Rust hot paths via PyO3/maturin, no Python fallback), Vitest not Karma, the live PBT gate, the Prometheus exposition path with VictoriaMetrics running locally, `regression_gate.py` for Gap K, ruff and oxlint, the mutation ratchet, the `backend-quality` container split, the Angular UI (Plan #13's remove-Angular/React framing superseded), and the no-metaphor rule (literal name PreGate). |
 | Self-test strategy | 10 | Section 13.1 gives exact per-tool commands and Section 13 wires PreGate kernels into the live PBT gate (Hypothesis plus proptest), the mutation ratchet (mutmut plus cargo-mutants), cargo-fuzz fuzzing, insta snapshot tests, loom concurrency checks, coverage thresholds, and the five TDD layers. Section 18 elevates this into a repo-wide, CI-enforced TDD-plus-ten-metrics layer that PreGate dogfoods. |
-| Performance and observability | 10 | Latency, memory, trace, metric (Prometheus now, VictoriaMetrics later, `metrics_pregate.py`), log, profile, typed-error, SARIF, and AutoIssue budgets are all explicit and reuse the existing stack. |
+| Performance and observability | 10 | Latency, memory, trace, metric (Prometheus exposition plus local VictoriaMetrics, governance-owned `metrics_pregate.py` registering into the shared registry), log, profile, typed-error, SARIF, and AutoIssue budgets are all explicit and reuse the existing stack; Section 26 states the 10x and 100x scaling behaviour. |
 | Risk and dependency | 10 | The risk table plus the Section 12.1 per-phase runbooks cover crashes, solver UNKNOWN, parser pinning, missing graph store, missing solver, budget caps, rule-pack failures, false positives, and unbuilt-stream sequencing. |
 | Plain-English readability | 10 | Every advanced term, including the reconciled ones, is defined before use; the companion guide carries the operator-facing burden in plain English and states its readability target; the engine is named literally per the no-metaphor rule. |
-| **Total** | **100/100** | Reconciled to the current repo and gap-closed: honest present-versus-planned baseline, concrete Phase 1 slice index, exact test commands, per-phase runbooks, and full plain-English coverage. Section 18 (TDD plus ten CI-enforced engineering metrics, each with a numeric threshold, enforcement mechanism, failure behavior, and continuous verification) and Section 19 (the non-gamable ELCV code-size metric and the ELCV-expressed 5,000,000 target) make the quality bar first-class and measurable. |
+| **Total** | **100/100** | Reconciled to the current repo and gap-closed: honest present-versus-planned baseline, concrete Phase 1 slice index, exact test commands, per-phase runbooks, and full plain-English coverage. Section 18 (TDD plus ten CI-enforced engineering metrics, each with a numeric threshold, enforcement mechanism, failure behavior, and continuous verification) and Section 19 (the non-gamable ELCV code-size metric and the ELCV-expressed 5,000,000 target) make the quality bar first-class and measurable. Sections 20-23 add formal verification (Kani/Creusot/Prusti/MIRAI + Z3/CVC5), 64-bit numerical accuracy and determinism, the security and supply-chain gates, and the registry-driven AutoIssue flow with a reserved quota and agent-review-before-fix; the runtime sibling spec `fr-observatory.md` carries the APM, helper-fleet, and Sentry-grade GUI. A 2026-06-13 architecture review (five independent reviewers) was then applied: the baseline was re-synced to the live repo (VictoriaMetrics is local; the UI is Angular, not React; the boundary hook is created, not extended), the Section 6.1 module-ownership contract resolves the layer-rule conflict, Sections 22.1-22.2 specify the capability-registry schema, the exact #2470/#2471 migration, and the new `proposed` status with the end-to-end finding flow, Sections 24-27 add the data-model field schemas, API contracts, 10x/100x scaling, and the threat model, and ELCV honestly reports `pending` until the ARW registry and code-USO normalizer ship — the score reflects this corrected, more accurate state. |
 
 ## 18. Quality Enforcement Layer
 
@@ -1603,7 +1749,7 @@ planned AWS CodeBuild master gate) hard-blocks the push, and (c) for the running
 app the rollback analogue is that the release tag is blocked and the offending
 commit reverted. Continuous verification is uniform: commit hooks → per-push CI →
 master gate → the Code Quality page (Section 6.8) polling
-`/api/observability/code-quality/` → a nightly recompute that files drift
+`/api/governance/code-quality/` → a nightly recompute that files drift
 AutoIssues → PreGate dogfooding its own code through every gate.
 
 | # | Metric | Enterprise threshold (hard, day-one) | Enforcement | Failure behavior | Continuous verification | Maps to |
@@ -1612,15 +1758,48 @@ AutoIssues → PreGate dogfooding its own code through every gate.
 | 2 | Production execution evidence | Every public code unit shows ≥1 production execution in the trailing 30 days, or carries a documented exemption (entrypoint, migration, disaster-recovery path); a net-new public symbol unexecuted after 2 release cycles gets ARW=0 | NEW `check-pregate-dead-code.py` reading the production-execution registry (Pyroscope + coverage contexts) | hard-block: ARW=0 code cannot count toward ELCV, and dead net-new public surface blocks the commit | "dead code (ARW=0)" list + AutoIssue `pregate_dead_code` | ARW (Section 19), Gap L |
 | 3 | Cognitive complexity ceiling | Cognitive ≤15; cyclomatic ≤10; nesting ≤4; arguments ≤7 | `ruff` C901 (cyclomatic) + SonarQube/clippy cognitive + NEW `check-pregate-complexity.py` | pre-commit + CI hard-block | complexity tile; feeds SCW | SCW (Section 19) + Section 6.2 |
 | 4 | Code churn isolation | ≤1 primary module + ≤200 out-of-scope files per push; a commit spanning >3 modules needs a declared cross-cutting marker; top-5% churn files require tests + extra review | `lint-all.ps1` step 10 (exists) + NEW `check-pregate-churn.py` (git-history fan-out) | hard-block on unmarked multi-module churn | churn heatmap; AutoIssue on hotspot | new gate, Section 18.1 |
-| 5 | Defect density | ≤1.0 critical/high defect per 1,000 ELCV units (KELCV), trailing 90 days | NEW `code_quality` service: (GlitchTip + SonarQube blockers + open agent AutoIssues) ÷ KELCV | exceeding ⇒ block new feature merges (fix-first) + block the release tag | density tile + trend | new gate; ties Section 19 to GlitchTip/SonarQube |
+| 5 | Defect density | ≤1.0 critical/high defect per 1,000 ELCV units (KELCV), trailing 90 days; the gate is only ARMED once KELCV ≥ 1.0 and is advisory below that, so a near-zero ELCV denominator before PG.E5 lands cannot spuriously hard-block every merge | NEW `code_quality` service: (GlitchTip + SonarQube blockers + open agent AutoIssues) ÷ KELCV | exceeding ⇒ block new feature merges (fix-first) + block the release tag | density tile + trend | new gate; ties Section 19 to GlitchTip/SonarQube |
 | 6 | Branch coverage | ≥85% branch + ≥90% line backend per module; Rust ratchet → 95%; frontend ≥85% branch / 95% line; PreGate rule kernel ≥95% branch | `check-per-module-coverage.py` + `check-coverage-erosion.py` (exist), with branch floors added | pre-commit + CI hard-block; ratchet only rises | coverage tile + per-module table | Section 18.0 / CODE-COVERAGE-RULES.md |
 | 7 | Mutation score | ≥90% Python; ≥95% Stryker frontend; Rust cargo-mutants ratchet → 90%; PreGate kernel ≥95% | `check-mutation-score.py` ratchet (exists) | pre-push hard-block | mutation tile | Section 18.0 / Section 13 |
 | 8 | Module coupling | No upward or sibling cross-module import outside `api.py` (Layer 1→2→3); efferent fan-out ≤20 external module deps; no cross-language direct calls | `check-no-cross-language-import.py` (exists) + NEW `check-modular-monolith-boundaries.py` + `import-linter` (`.importlinter`) | pre-commit + CI hard-block | coupling tile; feeds SCW | Gap B + SCW (Section 19) |
-| 9 | Code duplication | ≤3% duplicated logical blocks system-wide; ZERO new 6+ logical-line duplicate blocks | NEW `check-pregate-duplication.py` driving the USO engine (`papertrail_dedup` MinHash/LSH over Tree-sitter-normalized code tokens) | hard-block on any new duplicate block | duplication tile | USO (Section 19) |
+| 9 | Code duplication | ≤3% duplicated logical blocks system-wide; ZERO new 6+ logical-line duplicate blocks | NEW `check-pregate-duplication.py` driving the USO engine — EXTENDS `papertrail_dedup` with a new code-token normalizer over the Tree-sitter parse (new work, not a drop-in; depends on PG.03b) | hard-block on any new duplicate block | duplication tile | USO (Section 19) |
 | 10 | Build + test time | Pre-commit fast gate ≤5 min; changed-file test suite ≤2 min; full master gate ≤15 min; any single unit test >1s flagged; >10% wall-time regression blocks | `run-pbt.sh` budget (exists) + NEW `check-pregate-build-time.py` + `regression_gate.py` extended to wall-time | hard-block locally; nightly-shed for the heavy master gate | build/test-time trend | Section 10 / Gap K |
 
 Each metric is also a rule pack (Section 9) with its own AutoIssue picker source,
 so the operator sees which gate is noisy at a glance.
+
+### 18.2 The `config/quality-thresholds.yaml` Schema
+
+Every threshold the ten gates and the self-budget use lives in one new file,
+`config/quality-thresholds.yaml`. It does not exist yet; the first quality-gate
+slice creates it, and `ThresholdEntry` rows back it (Section 22.1). The existing
+`check-no-downgraded-gates.py` parses it and blocks any weakening. Schema:
+
+```yaml
+version: 1
+metrics:
+  branch_coverage:        { value: 85,   unit: percent,   ratchet: up }
+  line_coverage:          { value: 90,   unit: percent,   ratchet: up }
+  mutation_score:         { value: 90,   unit: percent,   ratchet: up }
+  cognitive_complexity:   { value: 15,   unit: count,     ratchet: down }
+  cyclomatic_complexity:  { value: 10,   unit: count,     ratchet: down }
+  function_lines:         { value: 50,   unit: count,     ratchet: down }
+  file_lines:             { value: 1500, unit: count,     ratchet: down }
+  efferent_coupling:      { value: 20,   unit: count,     ratchet: down }
+  duplication_pct:        { value: 3,    unit: percent,   ratchet: down }
+  defect_density_kelcv:   { value: 1.0,  unit: per_kelcv, ratchet: down, arm_above_kelcv: 1.0 }
+  build_time_master_min:  { value: 15,   unit: minutes,   ratchet: down }
+self_budget:
+  cpu_pct_sustained:      { value: 10,   unit: percent }
+  resident_memory_mb:     { value: 256,  unit: megabytes }
+  foreground_p99_guard:   { value: true, unit: bool }
+```
+
+Each key has a value, a unit, and a ratchet direction (`up` = a floor that only
+rises, `down` = a ceiling that only tightens). A change is reviewable in one diff,
+and a downgrade is blocked. The `self_budget` defaults follow resource-isolation
+practice [SRE]. The DEFAULT-ON rule applies: every key ships with a sensible
+non-zero starting value, seeded by the gate slice that adds it.
 
 ## 19. Effective Logical Code Volume (ELCV)
 
@@ -1640,15 +1819,23 @@ extension, never by developer estimation.
   lands, and on McCabe's control-flow basis [MCCABE].
 - Unique Semantic Operations (USO): a deduplicated count of distinct operations
   after normalization. Two code paths implementing identical logic across modules
-  count as one USO, so duplication cannot inflate size. Built on the
-  `papertrail_dedup` MinHash/LSH engine [MINHASH] [LSH] fed normalized code tokens
-  instead of error text. The same engine powers Metric 9 (duplication).
+  count as one USO, so duplication cannot inflate size. This EXTENDS the
+  `papertrail_dedup` MinHash/LSH engine [MINHASH] [LSH] — it is not a drop-in reuse.
+  That crate today hashes 5-character shingles of error text, so USO adds a new
+  code-token normalizer (over the Tree-sitter parse, so that `for i in range(n)`
+  and `for j in range(m)` collapse and formatting does not leak) plus a new bound
+  function for code-structural dedup. USO therefore depends on the Tree-sitter
+  parser (Phase 2 / PG.03b). The same extended engine powers Metric 9 (duplication).
 - Active Runtime Coverage Weight (ARW): a weight from 0 to 1. A unit contributes
   only if it executed in production telemetry within a defined window (default 30
   days). Unexecuted or dead code weighs 0 and is flagged for removal, so dead code
-  and unused libraries cannot inflate size. Built on Pyroscope function-level
-  execution [PYROSCOPE_DOCS] plus coverage dynamic contexts, surfaced through the
-  production-execution registry. Powers Metric 2.
+  and unused libraries cannot inflate size. This needs a per-symbol
+  production-execution registry that does not exist yet: Pyroscope [PYROSCOPE_DOCS]
+  gives live profiles, not a queryable 30-day per-symbol history, so PG.E3 builds
+  the registry from Pyroscope plus coverage dynamic contexts. Until the registry
+  has a full window of data, a unit's ARW is `unknown` and is excluded from the
+  target — never silently treated as 0 (which would wrongly mark live code dead) and
+  never as 1 (which would inflate). ARW powers Metric 2.
 - Structural Complexity Weight (SCW): a penalty-adjusted multiplier from cognitive
   complexity [COGNITIVE_COMPLEXITY], cyclomatic complexity [MCCABE], and
   dependency fan-out [CHIDAMBER_KEMERER] [MARTIN_METRICS]. It peaks in a healthy
@@ -1689,11 +1876,341 @@ Because ARW is at most 1 and USO removes duplicates, ELCV is much smaller than r
 line count, so 5,000,000 ELCV is a long-horizon, whole-system target tracked by
 growth per release, with no artificial deadline.
 
+Not computable today (honest status). Because ARW (the runtime-execution registry,
+Section 19.1) and the code-structural USO (Section 19.1) have no data source until
+PG.E3 and PG.E2 ship, the whole-system ELCV — and therefore any reading of progress
+toward 5,000,000 — is not computable yet. Until those slices land and ARW coverage
+passes its configured threshold, the Code Quality page shows ELCV as `pending`,
+never a fabricated number. 5,000,000 ELCV is a measured target, not a live gauge
+yet; the spec says so rather than implying a number exists today.
+
 Regression detection: an ELCV decrease caused by refactoring, deduplication, or
 dead-code removal (USO steady while LEU or ARW falls) is recorded as healthy and
 is not a failure. An ELCV decrease accompanied by a drop in USO — distinct
 operations lost — with no matching deprecation record is flagged as a possible
 functionality regression for review. PreGate never treats honest shrinkage as a
 failure, and never lets silent functionality loss pass unflagged.
+
+### 19.5 Why 5,000,000 ELCV Is Aggressive — And Why It Is Built In Slices
+
+5,000,000 ELCV is a deliberately aggressive target, for three reasons that are the
+whole point of the metric:
+
+- It is dense, not padded. One ELCV unit is a real decision point (LEU) that
+  actually ran in production (ARW above 0), counted only once across the system
+  (USO), at a healthy complexity (SCW). Comments, blank lines, boilerplate,
+  duplicates, dead code, and convoluted code contribute little or nothing, so one
+  ELCV unit represents far more real, exercised behavior than one raw line.
+  5,000,000 ELCV therefore likely corresponds to many millions of raw lines of
+  genuinely-executed, non-duplicated logic — the scale of a large platform.
+- It cannot be reached by gaming. Because duplicates collapse to one, unrun code
+  weighs zero, and complexity is penalized, the number rises only when real,
+  unique, executed behavior is added. Every increment is earned.
+- It is whole-system and cumulative. 5,000,000 ELCV is the sum of every honest
+  increment across the entire codebase over the program's life, not the size of
+  any one component.
+
+This is exactly why the target is reached in slices, never in one shot. No human
+and no AI model produces 5,000,000 ELCV of real logic in a single pass, and this
+spec never asks for that. The roadmap is 80 to 150-plus independently-shippable
+slices (Section 14), each a bounded unit of about 5,000 to 15,000 lines of change,
+each written test-first and each made to pass all ten quality gates (Section 18)
+before it lands. A capable AI coding agent — the project's Claude and high-effort
+Codex agents, for example — completes one such slice in a working session: design,
+tests, code, green gates, proof. ELCV then grows monotonically per release
+(Section 19.4), and 5,000,000 is the compounding total of those many small,
+verified increments over the 18-to-24-month-and-beyond horizon, with no artificial
+deadline.
+
+One honest caveat. ELCV counts only executed, distinct production logic, so the
+system can reach 5,000,000 ELCV only if it genuinely accrues that much real,
+behaviorally-distinct functionality. If the app's true scope turns out smaller,
+ELCV plateaus below 5,000,000 — and that is reported honestly as a plateau, never
+hidden or faked. That honesty is the feature: the target pulls work toward real
+functionality, and the metric refuses to let slice count, copy-paste, or
+scaffolding pretend the system is bigger than the behavior it actually runs.
+
+## 20. Correctness, Formal Verification, And 64-Bit Math
+
+PreGate validates that the app's logic is correct, not just well-shaped. Sections
+20-22 are pre-execution (commit/CI) validation; the runtime counterparts live in
+the sibling spec `docs/specs/fr-observatory.md`.
+
+Formal verification uses Rust's real tools, not Lean 4 (which does not run in
+Rust). For security-critical and ranking-correctness paths only — never the whole
+app — PreGate generates obligations for:
+
+- **Kani** [KANI] — bounded model checking of Rust (array bounds, overflow,
+  unwrap-safety);
+- **Creusot / Prusti** [CREUSOT] [PRUSTI] — deductive verification of Rust
+  contracts (pre/post-conditions);
+- **MIRAI** [MIRAI] — abstract-interpretation taint and panic analysis;
+- **Z3 + CVC5** (already in Gap E) — SMT cross-check of the generated obligations.
+
+A solver UNKNOWN never auto-rejects; it routes to the Plan #17 Review queue.
+
+| # | Check | Threshold / rule | Mechanism | Failure |
+|---|---|---|---|---|
+| 1 | 64-bit numerical accuracy | f64 everywhere in business logic + ranking; no silent f32 downcast; ULP-tolerant test assertions (never `==`); compensated (Kahan) summation for score aggregation | Rust types + a PreGate rule pack + property tests | hard-block |
+| 2 | Determinism | ranking/scoring is bit-reproducible given the same inputs + seed (fixed seeds, sorted iteration, no hash-order dependence) | property test + CI replay | hard-block on non-determinism |
+| 3 | Ranking-weight invariants | every weight in its declared range; normalization holds; no NaN/Inf; monotonicity where required (a better link cannot score lower) | SMT + property tests | hard-block |
+| 4 | Algorithm reference oracle | each algorithm has a recorded/slow reference; the fast Rust path matches within tolerance | parity test | hard-block on divergence |
+| 5 | Hidden-O(n²) / complexity regression | fitted growth at 3 input sizes stays within declared big-O; no nested loop over the same collection in a hot path | empirical scaling test + static pass | hard-block |
+| 6 | Frontend↔backend numeric correctness | a value shown in the UI equals the API's f64 under the declared rounding rule | contract test (extends Gap C) | hard-block |
+| 7 | Float-safety lints | no `==`/`!=` on floats; no NaN-propagating compare in ranking; explicit rounding at API boundaries | ruff + clippy + rule pack | hard-block |
+| 8 | Units / dimensions | newtype wrappers so a "days" value can never be added to a "score" | Rust newtypes + lint | hard-block |
+
+Determinism replay boundary (Check 2). The replay fixes the ranking seed and
+freezes the genuinely-variable external inputs — the GA4, GSC, and Matomo
+snapshots and the autotuned weight set — to a recorded fixture, so it tests the
+seed-controlled core, not the changing environment. Without that boundary a naive
+replay would flake on live data and wrongly report non-determinism.
+
+## 21. Security, Supply-Chain, Frontend, Docs & Domain Gates
+
+Pre-execution gates beyond the 14 gaps and the ten metrics. Each is a rule pack
+with its own picker source and reuses an existing tool where one is present.
+
+| Area | Gate | Tool | Failure |
+|---|---|---|---|
+| Secrets | no new secret in diff or history | gitleaks / trufflehog [GITLEAKS] | hard-block |
+| SAST | static security findings | bandit (exists) + cargo-geiger (unsafe Rust) + semgrep [SEMGREP] | hard-block on high severity |
+| Dependency CVEs | no critical CVE in deps | pip-audit / cargo-audit / npm-audit (exist) + Trivy | block release |
+| License compliance | only allowlisted licenses | license scan (deny unknown/incompatible) | hard-block |
+| SBOM | bill of materials per release + diff | CycloneDX [CYCLONEDX] | n/a (artifact) |
+| Supply-chain provenance | signed maturin/wasm artifacts; no lockfile drift | SLSA-style signing [SLSA] + lockfile audit | hard-block on drift |
+| Data quality (static) | null/outlier/range/cardinality rules on content + signals | rule pack | block ingest path |
+| Label/target leakage | no future/target signal leaks into a ranking feature | static dataflow | hard-block |
+| Embedding/index integrity | FAISS/pgvector dim match; no NaN vectors; count parity | rule pack | hard-block |
+| DB (static) | no N+1 pattern; no new seq-scan on large tables; online-safe + reversible migrations | query-count test + EXPLAIN + migration check | hard-block |
+| Concurrency (static) | lock-ordering analysis prevents cross-resource deadlock | static pass | hard-block |
+| API (static) | versioning + deprecation policy honored (sunset headers, window) | contract rule pack | hard-block on breaking change |
+| Frontend gates | accessibility (axe/WCAG AA), i18n completeness, per-route bundle-size budget, visual-regression diff | CI gates (their runtime/RUM counterparts surface in Observatory §5.4) | hard-block on regression |
+| Docs | spec↔code drift; docstring/API-doc coverage; no broken internal link | drift + coverage + link check (extends Docs Freshness) | hard-block |
+| Knowledge | auto-surface the relevant resolved lesson when an agent touches a file; lessons decay | extends `search_resolved_issues` | advisory |
+| Domain (link app) | link-graph integrity (orphans, suggestion cycles, broken target URLs, PageRank sanity) + anchor quality (generic/over-optimized/duplicate) | rule pack | hard-block on broken graph |
+
+## 22. AutoIssue Integration: Reserved Quota, Agent Review, Registry, Dedup
+
+PreGate (and Observatory) feed findings into the AutoIssue system under these
+rules, several of which fix things that are hardcoded today.
+
+- **Registry-driven sources (fixes AutoIssue #2470).** `source` becomes a registry
+  entry, not a 25-value hardcoded enum, following the existing `AutoIssueCategory`
+  get-or-create pattern. Each subsystem registers its own source(s) with a
+  `reserved_quota` field. The concrete registry schema and the exact #2470/#2471
+  migration are specified in Section 22.1.
+- **Reserved quota of 10.** On top of the normal session quota, 10 picks are
+  reserved for "improve PreGate/Observatory itself" — extending, correcting, or
+  adding subsystems — so self-improvement is always pickable.
+- **Agent-review-before-fix.** Findings land `status=proposed`. An agent must
+  then **approve** (and fix), **reject with a reason**, or **correct PreGate's own
+  logic/code** when the finding is wrong. Agents never blind-accept; they are free
+  to reject or correct a wrong hard-block and immediately improve the engine. The
+  `proposed` status does not exist in the AutoIssue model yet; Section 22.2
+  specifies its migration and the full step-by-step finding lifecycle.
+- **False-positive feedback loop.** Every rejection/correction is recorded against
+  the rule pack that produced it; a pack whose false-positive rate exceeds its
+  threshold auto-demotes to shadow (the §9 lifecycle), so wrong rules stop blocking
+  until fixed.
+- **Deduplicate everything (two cooperating layers, stated precisely).** Layer 1 is
+  exact canonical-fingerprint dedup via `upsert_dedup` — the mandatory path every
+  picker already uses and the one a pre-commit hook forbids any new picker from
+  bypassing. `upsert_dedup` does NOT itself run MinHash/LSH. Layer 2 is optional
+  near-duplicate collapsing via the `papertrail_dedup` MinHash/LSH index, used today
+  only on Rust findings. Making the near-duplicate layer apply to every finding is
+  new integration work (fold the `DedupIndex` into an `upsert_dedup` pre-pass), not
+  an existing guarantee — the spec names which is which so no slice assumes the
+  near-dup pass already runs everywhere. A bug found by PreGate AND GlitchTip AND a
+  failing test still collapses to one issue with three observations through Layer 1.
+- **PreGate's own fast store.** A dedicated read-optimized store (the
+  `agent_memory.db` SQLite pattern; the QuestDB/SQLite volumes are already
+  allocated) holds findings, the dedup index, thresholds, and verification state,
+  so agents can query cheaply to audit the engine.
+- **Verification surface.** An agent-facing "is PreGate correct?" view + command
+  lists recent findings with their evidence, the rule that fired, and parity to
+  ground truth, with bulk approve/reject — making "verify it isn't making
+  mistakes" a first-class operation.
+- **Self-budget.** PreGate's analysis obeys the same resource contract as
+  Observatory (`fr-observatory.md` Section 10) so it never slows the foreground.
+  PreGate's per-run local budget (≤2 seconds incremental) and Observatory's
+  collector budget are summed against that one Section 10 envelope — neither gets a
+  separate full budget.
+
+### 22.1 Capability Registry And The AutoIssue Source Migration (resolves #2470, #2471)
+
+The capability registry is one small set of governance-owned tables holding every
+dynamic source, metric, threshold, rule pack, and helper, so nothing is a hardcoded
+enum. It follows the existing `AutoIssueCategory` get-or-create pattern. Field names
+may change in implementation; the responsibilities are locked.
+
+Registry tables:
+
+- `AutoIssueSource`: `slug` (primary key, e.g. `pregate_arch_boundary`), `label`,
+  `subsystem` (`pregate` / `observatory` / `legacy`), `reserved_quota` (integer,
+  default 0), `active` (bool), `created_at`. Seeded by a data migration with all 25
+  existing source names plus the seven quality packs and the `obs_*` sources.
+- `MetricDescriptor`, `ThresholdEntry`, `RulePackEntry`, `HelperEntry`: the metric,
+  threshold, rule-pack, and helper registries, each `get_or_create`-seeded and read
+  through `apps.governance.api`. `ThresholdEntry` is the row-level backing for
+  `config/quality-thresholds.yaml` (Section 18.2).
+
+The `AutoIssue.source` migration (#2470), specified exactly:
+
+- `source` stays a string column, widened from `CharField(max_length=16,
+  choices=SOURCE_CHOICES)` to `CharField(max_length=64)` with the hardcoded
+  `choices=` removed. Keeping it a string (not a foreign key) leaves the 25 existing
+  values byte-for-byte stable and leaves the existing
+  `uniq_autoissue_source_external_id` unique constraint over `source` unaffected.
+- A validator checks `source` against the `AutoIssueSource` registry on write
+  (unknown source → validation error), so the field is registry-governed without an
+  FK rewrite.
+- Forward data migration: create `AutoIssueSource`, seed the existing 25 names plus
+  the new ones, then `AlterField` on `source`. No existing row changes value. This
+  is one-way (the repo forbids rollback paths): the widened column plus registry are
+  added and the old fixed-choice list is deleted in the same change.
+- Frontend (#2471): replace the `'glitchtip' | 'pyroscope' | 'agent'` union in
+  `auto-issues.service.ts` with `source: string`, fed by a new
+  `/api/governance/auto-issue-sources/` registry endpoint; the client renders any
+  registered source.
+
+PG.01 carries this migration; no `pregate_*` ingestion runs before it lands.
+
+### 22.2 The `proposed` Status And The End-To-End Finding Flow
+
+The agent-review-before-fix flow needs a status the AutoIssue model does not have
+today. `AutoIssue.STATUS_CHOICES` is currently `open`, `picked`, `fixing`,
+`resolved`, `deferred` (verified). PG.01's migration adds `proposed` as the initial
+status for any finding that must be reviewed before a fix, plus a `rejection_reason`
+text field. The migration is one-way (new status added, no rollback path).
+
+One finding's full path, naming the data shape and the owning module at each hop:
+
+1. Detection — a rule pack in the Rust extension returns a typed finding (rule-pack
+   id, file, line, severity, decision, evidence). Owner: `governance/pregate`.
+2. SARIF — the finding is written as one SARIF v2.1.0 result. Owner:
+   `governance/pregate`.
+3. Dedup — keyed by canonical fingerprint and passed to `upsert_dedup` (Layer 1 of
+   the Section 22 dedup model), which creates a new AutoIssue or merges an
+   observation into an existing one. Owner: `auto_issues`, called through its
+   `api.py`.
+4. Proposed — a new AutoIssue lands `status=proposed`, `source=pregate_<pack>`.
+   Owner: `auto_issues`.
+5. Agent review — the agent **approves** (status → `picked`/`fixing`, then the
+   normal fix flow), **rejects with a reason** (status → `resolved` with
+   `rejection_reason` set and the rule pack's false-positive counter incremented),
+   or **corrects the rule** (edits the rule pack; the finding closes when the
+   corrected pack no longer fires). No blind acceptance.
+6. GUI — the finding shows on the PreGate diagnostics page and, for runtime
+   findings, the Observatory tab, grouped by source, with its status and evidence.
+
+Every hop is idempotent on the canonical fingerprint, so re-running detection
+updates the same row instead of creating duplicates.
+
+## 23. Auto-Threshold Setting
+
+PreGate sets sensible starting thresholds automatically (percentile baselines from
+the first window of data) for everything it tracks, stores them in the
+configurable threshold registry (not hardcoded), and re-tunes on drift. When a
+tracked value breaches its threshold or behaves anomalously, PreGate auto-files a
+deduped AutoIssue (`status=proposed`) for agent review. This mirrors the runtime
+auto-baseline in Observatory §5.3 and shares the registry.
+
+## 24. Data Model Field Schemas
+
+Section 6.3 lists the six `Pregate*` table responsibilities; this locks their field
+types, keys, indexes, and retention so a migration is testable. Per the
+no-duplicates rule, every derived-artifact row carries `artifact_hash`,
+`source_snapshot_hash`, and `rule_pack_version`, and is superseded (not duplicated)
+on a repeat input.
+
+| Table | Key fields (type) | Indexes | Retention |
+|---|---|---|---|
+| `PregateRulePack` | `slug` (PK), `version` (str), `signature_fp` (str), `lifecycle` (enum: shadow/canary/production/retired), `owner_runtime` (enum), `budget_tier` (enum), `source_slug` (FK→`AutoIssueSource`), `promoted_at` (dt) | `slug`, `lifecycle` | keep all (small) |
+| `PregateRun` | `id` (PK), `source_snapshot_hash` (str), `commit_or_patch_hash` (str), `mode` (enum: local/codebuild), `status` (enum), `started_at`/`finished_at` (dt), `native_artifact_version` (str), `contract_version` (str) | `commit_or_patch_hash`, `started_at` | 90 days, then prune |
+| `PregateFinding` | `id` (PK), `sarif_id` (str), `rule_pack` (FK), `file_path`/`line`, `severity` (enum), `decision` (enum: allow/warn/review/critical), `canonical_fingerprint` (str), `autoissue_id` (FK, null), `review_id` (FK, null), `override_id` (FK, null), `artifact_hash` (str) | `canonical_fingerprint`, `rule_pack` | supersede on `(canonical_fingerprint, rule_pack_version)` |
+| `PregateContractSnapshot` | `id` (PK), `contract_kind` (enum: rest/openapi/pydantic/serializer/ts), `canonical_form` (json), `source_snapshot_hash` (str) | `(contract_kind, source_snapshot_hash)` unique | keep latest N per contract |
+| `PregateProofObligation` | `id` (PK), `kind` (enum), `budget_ms` (int), `z3_result`/`cvc5_result` (enum: sat/unsat/unknown), `unknown_reason` (str, null), `review_id` (FK, null) | `kind` | 90 days |
+| `PregateBlastRadius` | `id` (PK), `patch_hash` (str), `affected_tests`/`affected_modules`/`affected_contracts` (Roaring blob), `graph_run_id` (FK) | `patch_hash` | 90 days |
+
+Retention is enforced by the existing `prune_test_artefacts`-style command extended
+to the `Pregate*` tables; run artifacts attach to the K8S.17 source-snapshot hash
+and expire through the existing retention path. No table grows unbounded.
+
+## 25. API Contracts
+
+All PreGate endpoints require `IsAuthenticated` (401 without auth, 403 without the
+operator role) and return JSON. List endpoints paginate with the repo's standard
+`?page=`/`?page_size=` (default 50, max 200) and accept `?source=`, `?severity=`,
+and `?status=` filters. Errors use the standard problem shape
+`{ "detail": "...", "code": "..." }`.
+
+The JSON-tile shape (reused by `PrometheusSummaryView` and
+`/api/governance/code-quality/`):
+
+```json
+{ "tiles": [ { "key": "mutation_score", "label": "Mutation score",
+              "value": 91.4, "unit": "percent", "threshold": 90,
+              "status": "pass", "sparkline": [] } ],
+  "generated_at": "<iso8601>", "available": true }
+```
+
+Endpoints:
+
+- `GET /api/governance/code-quality/` → the tile list above plus the ELCV gauge
+  (`{ "elcv": "pending" | <float64>, "target": 5000000, "growth": [] }`).
+- `GET /api/governance/pregate/diagnostics/` → availability, latest runs,
+  per-rule-pack health and 30-day override rate, and solver-UNKNOWN counts.
+- `GET /api/governance/pregate/findings/` → paginated, filterable findings.
+- `GET /api/governance/auto-issue-sources/` → the source registry (resolves #2471).
+
+`available: false` with an empty `tiles` array is returned when the Rust extension
+is down, so the frontend shows the empty-state rather than stale numbers.
+
+## 26. Scaling At 10x And 100x
+
+The THINK-BEFORE-YOU-CODE rule requires the growth story to be stated, not assumed.
+
+- Finding volume. At 10x findings the AutoIssues 256 MB cap (Plan #33) still holds
+  because Layer-1 dedup collapses repeats to one row with N observations; at 100x,
+  backpressure (Observatory §8 #53) batches and rate-limits AutoIssue creation and
+  emits one overflow bulletin instead of thousands of rows.
+- In-memory structures. CIR and Roaring-bitmap sets are per-run and freed at run
+  end; they scale with the changed-file set, not the whole repo, so a 100x repo does
+  not grow a single run's memory. The whole-system ELCV and topology recompute is
+  the only whole-repo pass and runs nightly on a helper, never in the ≤2-second
+  local path.
+- Dedup cost. `papertrail_dedup` is MinHash plus LSH (sub-linear nearest-neighbour),
+  so the near-duplicate corpus scales to 100x through banded LSH lookups rather than
+  pairwise comparison; the index is bounded and pruned by retention.
+- Master gate. At 100x test volume the K8S.20 shard formula spreads work across the
+  cluster and the heaviest packs shed to nightly (Section 12.1 Phase 6); the
+  ≤15-minute budget is held by sharding, never by silently skipping checks.
+
+## 27. Threat Model
+
+PreGate runs in-process and can hard-block commits, so its own attack surface is
+governed.
+
+- Rule-pack trust. A rule pack is signed; the trust root is a project-held signing
+  key stored outside the repo (the existing secret store), the algorithm is Ed25519
+  [ED25519], and the loader verifies the signature before load. On signature failure the pack
+  is refused and an AutoIssue is filed (Section 12.1 Phase 5) — it is never loaded
+  "to see if it works."
+- Authorization. Only the operator role may change a `ThresholdEntry`, promote a
+  rule pack past shadow or canary, or edit `config/quality-thresholds.yaml`; every
+  such change is written to the Observatory immutable audit log
+  (`fr-observatory.md` §5.9: who, when, why). The `check-no-downgraded-gates.py`
+  hook blocks a threshold weakening regardless of role.
+- Blast radius — malicious rule pack. Because a pack runs in the Rust extension and
+  can block commits, an unsigned or unreviewed pack cannot reach production: it must
+  pass signature verification, 24h shadow, and 24h canary, and a high false-positive
+  rate auto-demotes it to shadow (Section 9). A pack cannot read secrets outside the
+  governance allowlist (Gap I applies to PreGate's own code too).
+- Blast radius — compromised helper. Off-prem helpers receive short-lived tokens and
+  Redis-results-only credentials, never database credentials and never the signing
+  key (`fr-observatory.md` §6); a `db_heavy` or `low_latency` job is refused
+  (fail-closed) on a shared-hosting transport, so a compromised shared host cannot
+  reach the database or run latency-sensitive ranking work.
 
 [SPEC CITED: feature=fr-code-validation-engine kind=technical_doc id=https://tree-sitter.github.io/tree-sitter/ verified_at=2026-06-13]

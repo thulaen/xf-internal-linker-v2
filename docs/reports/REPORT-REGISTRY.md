@@ -20,6 +20,20 @@ This file is the single index of all audit reports and individual issues found b
 
 ## Open Reports
 
+### RPT-013 - Native scoring diagnostics can show the old C++ label for Rust modules (2026-06-13)
+
+- **Found by:** auto_issues_append_registry, from AutoIssue #23219 (source `agent`).
+- **AutoIssue:** #23219.
+- **Status:** OPEN.
+- **Severity:** LOW.
+- **Area:** `backend/apps/diagnostics/health.py`.
+- **canonical_fingerprint:** `b7628326866ac9ab`.
+- **What is wrong in plain English:** Native scoring diagnostics can report the overall runtime path as cpp even when the loaded ranking modules are Rust. The per-module data is accurate, but the aggregate label can mislead the operator during a Rust ranking-engine health check.
+- **Why it matters:** the diagnostics page should tell the operator which speed path is active. A stale C++ label can make a healthy Rust setup look like old native code is still in use.
+- **Fix shape:** compute the aggregate runtime label from the loaded module statuses, and keep `cpp` out when every active native scoring module is Rust.
+
+---
+
 ### RPT-012 - Resolved-issue search tests collided with restored database lessons (2026-05-19)
 
 - **Found by:** auto_issues_append_registry, from AutoIssue #358 (source `agent`).

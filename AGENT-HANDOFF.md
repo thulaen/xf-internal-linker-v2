@@ -1,3 +1,83 @@
+## 2026-06-13 - Codex - Fix Python turbo dry-run blocking
+
+[HANDOFF READ: 2026-06-13 by Codex — made the Dell test-routing rule explicit in AGENTS, CLAUDE, CODEX, and GEMINI instructions.]
+[PROGRESS READ: 2026-06-13 — progress command ran for this Python turbo fix; it printed no new block because the shared pulse was still fresh.]
+
+**What I did (plain English):** Changed the Python turbo dry-run so it plans quickly without starting Docker test discovery. It now scans Python test files directly, then asks the shared routing code which machine should run them.
+
+**What now works that did not before:** `python scripts/turbo_tests.py --language python --dry-run` now returns in a few seconds and prints a Dell plan instead of getting stuck before the plan appears. If Dell is not reachable, the runner now prints a clear blocked message and exits with failure instead of raising a raw routing error.
+
+**What changed:** `scripts/turbo_tests.py`, `scripts/test_turbo_tests.py`, `scripts/tests/test_turbo_tests.py`, and this handoff entry.
+
+**What has issues or errors:** `python scripts/run_lint_on_context.py --files scripts/turbo_tests.py scripts/test_turbo_tests.py` failed because that Dell lint runner only accepts backend-relative files; it looked under `backend/scripts/...`. I did not count that as a code failure. The touched files were checked with the script unit tests, the real turbo dry-run, Python compile, and scoped whitespace check.
+
+**Verification:** `python scripts/test_turbo_tests.py` passed 16/16. `python -m unittest scripts.tests.test_turbo_tests` passed 11/11. `python scripts/turbo_tests.py --language python --dry-run` completed in about 3 seconds and routed 279 SimpleTestCase files to Dell. `python -m py_compile scripts/turbo_tests.py scripts/test_turbo_tests.py scripts/tests/test_turbo_tests.py` passed. `git diff --check -- scripts/turbo_tests.py scripts/test_turbo_tests.py scripts/tests/test_turbo_tests.py` passed. `turbo=used` for the Python turbo dry-run; `turbo=blocked: backend-only Dell lint runner does not accept scripts/ paths`.
+
+**Tech-debt delta:** Net positive. The dry-run path now does the cheap planning work first, reports a real Dell blocker plainly, and has regression tests in both turbo test entry points.
+
+[COVERAGE SUMMARY: target=90% actual=unknown% — coverage was not measured; focused script tests and dry-run verification passed]
+
+## 2026-06-13 - Codex - Make Dell test routing explicit in agent instructions
+
+[HANDOFF READ: 2026-06-13 by Codex — wired the Rust ranking decision engine as the live combined-score authority and fixed the stale C++ health label.]
+[PROGRESS READ: 2026-06-13 — progress command ran for this docs update; it printed no new block because the shared pulse was still fresh.]
+
+**What I did (plain English):** Added a short explicit rule to `AGENTS.md`, `CLAUDE.md`, `CODEX.md`, and `GEMINI.md` saying tests are on Dell whenever the repo has a Dell-backed runner.
+
+**What now works that did not before:** Agents no longer need to infer Dell test routing from the longer turbo-quality paragraph. The rule now plainly says Windows-only tests are not complete when a Dell path exists, Python test work should use turbo/Dell runners when available, and Rust checks use `scripts/dell-rust.sh` on the `dell` Docker context.
+
+**What changed:** `AGENTS.md`, `CLAUDE.md`, `CODEX.md`, `GEMINI.md`, and this handoff entry.
+
+**What has issues or errors:** No code was changed, so no test suite was run. Scoped doc whitespace check passed for the four requested files.
+
+**Tech-debt delta:** Net positive. The agent rules now make the Dell testing requirement harder to miss.
+
+[COVERAGE SUMMARY: target=0% actual=0% — docs-only change; no code coverage required]
+
+## 2026-06-13 - Codex - Wire Rust ranking decision engine as live composite-score authority
+
+[HANDOFF READ: 2026-06-13 by Claude Opus 4.8 — landed the backlog commit, upgraded Angular to 22, deployed it, and left a Tailwind styling blocker plus uncommitted UI work to handle before more frontend work.]
+[PROGRESS READ: 2026-06-13 21:40 — 29 files left to commit; no stall reported.]
+
+**What I did (plain English):** Moved the live combined-score ranking call from the older `extensions.scoring` import to the Rust `extensions.ranking_decision_engine` module. The decision engine now exposes `calculate_composite_scores_full_batch`, and that function reuses the existing proven Rust scoring core instead of copying the math.
+
+**What now works that did not before:**
+- The live Python ranker loads `extensions.ranking_decision_engine.calculate_composite_scores_full_batch` and treats that Rust decision-engine module as the required native path.
+- Native scoring health no longer hard-codes the old `cpp` aggregate label when the loaded modules are Rust. It computes the aggregate label from real module status data.
+- The running backend container was given the Dell-built `ranking_decision_engine.so` for verification. This was a generated runtime artifact only and was not committed.
+
+**What changed:** `rust/extensions/ranking_decision_engine/{Cargo.toml,src/lib.rs}`, `rust/Cargo.lock`, `backend/apps/pipeline/services/ranker.py`, `backend/apps/pipeline/tests_ranker_cpp_full_batch_coverage.py`, `backend/apps/diagnostics/health.py`, `backend/apps/diagnostics/tests_health_helpers.py`, `docs/reports/REPORT-REGISTRY.md`, and `audit/resolved_issues_lookup_log.jsonl`.
+
+**What has issues or errors:** Python turbo dry-run did not return after two attempts, including a 3-minute run, so Python turbo is blocked for this turn. Full `git diff --check` is blocked by pre-existing trailing spaces in `AGENT-HANDOFF.md`; scoped diff check for the files above passed. Backend `pytest` is not installed in the backend container, so the focused backend check used Django's test runner instead.
+
+**Verification:** `scripts/dell-rust.sh nextest run --locked -p ranking_decision_engine` passed 7/7. `scripts/dell-rust.sh fmt --all -- --check` passed. `scripts/dell-rust.sh clippy --locked -p ranking_decision_engine --all-targets -- -D warnings` passed. `docker compose exec -T backend python manage.py test apps.pipeline.tests_ranker_cpp_full_batch_coverage apps.diagnostics.tests_health_helpers --noinput` passed 59/59. `python scripts/run_lint_on_context.py --files ...` passed Ruff, Mypy, and Bandit on Dell. `turbo=used` for Rust and Python lint; `turbo=blocked: Python turbo dry-run timed out before returning a shard plan`.
+
+**Tech-debt delta:** Net positive. The ranking authority now matches the Rust decision-engine direction, and the health page no longer points operators at an old C++ label when Rust is active.
+
+[COVERAGE SUMMARY: target=90% actual=unknown% — coverage was not measured; focused Rust, backend, and lint checks passed]
+
+## 2026-06-13 - Claude Opus 4.8 (1M) - Land backlog commit through the gauntlet, upgrade Angular 20→22 + deploy live, start Phase B (Material→shadcn) + find the Tailwind-cascade blocker
+
+[HANDOFF READ: 2026-06-13 by Claude Opus 4.8 — the backlog entry directly below (DB fix, metrics, glitchtip-perf, agent rules) was the in-flight work this session continued from]
+
+**What I did (plain English):** Got the big backlog commit to actually land (it took 11 gauntlet attempts), then upgraded the whole frontend from Angular 20 to 22 and pushed it live, then started replacing Angular Material with our own components — and discovered a foundational styling blocker before it could bite the migration.
+
+**What now works that did not before:**
+- **Backlog commit `ebd55dcc` landed.** The 11-attempt gauntlet grind cleared real gates, each a genuine fix: a **self-healing mypy daemon** (`scripts/run_lint_on_context.py` — on a daemon crash it resets + re-runs a one-shot non-incremental mypy); a **pytest runner directory-target fix** (`run_pytest_on_context.py` expands a dir target like `config/tests` to its `.py` files so `sha256sum` doesn't choke); a **documented dependency-audit allowlist** (`config/dependency-audit-allowlist.json` — Django 5.2.14→5.2.15 fixes 5 CVEs; pyarrow CVE-2026-25087 + paramiko GHSA tracked-ignored with reasons + paper-trail #358/#359); 4 stale-test reconciliations (urls/gap_detector/analytics-ADBC-regression/sonarqube-removed); and `vmsingle_data` added to `protected-data-stores.json`.
+- **Angular 20 → 21 (`104c7f99`) → 22 (`ccc64c8a`).** Both checkpoints verified on Dell: prod build compiles, FULL unit suite **1086 tests / 175 files pass**. `ngx-monaco-editor-v2` + `monaco-editor` were UNUSED (deleted — they were the only "no v22" blocker; no rewrite). Linked pkgs bumped (sentry 10, testing-library 19, angular-eslint 22). Host Node 22.22.1→22.22.3 (Angular 22 CLI requires it; done with a portable copy first, then the host binary).
+- **Angular 22 is LIVE** — targeted `frontend-build` rebuild + republish (DB untouched); :80 serves the new bundle (verified HTTP 200).
+
+**What changed:** backend `config/dependency-audit-allowlist.json` (new) + `requirements.txt` (Django bump) + `scripts/run_{lint,pytest}_on_context.py` (self-heal + dir-target) + 4 test files; whole `frontend/` tree (Angular 22 migration, 107+71 files); `frontend/src/app/shared/ui/{card,spinner,divider,chip}` + `shared/ui-sandbox/` + the `/ui-sandbox` route (Phase B primitives — UNCOMMITTED WIP); `.claude/launch.json` (a real `ng serve` dev config).
+
+**What has issues or errors (read before continuing Phase B):**
+- **FOUNDATIONAL Tailwind blocker** — Tailwind utility classes intermittently do NOT paint on Angular-RENDERED component elements (dev AND prod); identical classes work on JS-created test elements (proven by a cloneNode test). Likely a CSS `@layer` precedence issue (utilities lose to unlayered app + Angular-Material CSS). The hand-built CDK+Tailwind primitive plan can't ship until this is fixed. Full diagnosis + fix directions in memory `project_phaseB_tailwind_render_blocker.md`. **Fix this BEFORE building more primitives.**
+- **Pending backend redeploy** — `ebd55dcc`'s backend changes (Django 5.2.15, celery fix, metrics, new heavy deps ADBC/Prophet/pyiceberg) are committed but NOT live; needs a `safe-rebuild` (heavier — first build of the new deps). Memory `project_pending_backend_redeploy.md`.
+- Phase B primitives (Card/Spinner/Divider/Chip) are correct-but-UNCOMMITTED WIP; a dev server may be left running on :4200; :80 has the harmless unused WIP from the verification build.
+
+**Tech-debt delta:** Net positive — backlog landed, frontend on the current Angular LTS-line major (22) + live, self-healing mypy + pytest-dir-target fixes harden the commit gauntlet for everyone, dependency CVEs addressed (Django patched, others documented-ignored), and the Material-migration's foundational blocker was found by analysis rather than discovered painfully mid-migration.
+
+[COVERAGE SUMMARY: target=N/A% actual=N/A% — version upgrade + WIP; the Angular 22 full suite (1086 tests) passes on Dell; the 4 new primitives carry unit tests (uncommitted)]
+
 ## 2026-06-13 - Claude Opus 4.8 (1M) - Land the session backlog: AutoIssue cleanup, 2 live-bug fixes, metrics + GlitchTip-perf pipelines, agent-rule reconciliation
 
 [HANDOFF READ: 2026-06-13 by Claude Opus 4.8 — Added the property-based-testing pre-commit gate (Hypothesis + proptest), Dell-only, 5-minute budget]

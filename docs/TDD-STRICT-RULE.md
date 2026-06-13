@@ -146,7 +146,7 @@ docker compose exec -T backend python manage.py log_tdd_lesson \
 
 This creates an `AutoIssue(category='tdd_lesson', status='resolved')` row whose `lessons_learned` field is the two-part `Trap: ... Fix shape: ...` payload. The command prints `[TDD LESSON LOGGED: AutoIssue=#N]` which the agent pastes into the handoff entry verbatim.
 
-Re-filing a lesson with the same `canonical_fingerprint` (SHA1-16 of the normalised file + test combination) bumps `occurrence_count` on the existing row instead of creating a duplicate — the C++ MinHash dedup index handles near-duplicates at ≥ 0.85 Jaccard similarity.
+Re-filing a lesson with the same `canonical_fingerprint` (SHA1-16 of the normalised file + test combination) bumps `occurrence_count` on the existing row instead of creating a duplicate — the Rust MinHash dedup index (`papertrail_dedup`) handles near-duplicates at ≥ 0.85 Jaccard similarity.
 
 ### 5. PROVE — Stage the marker in AGENT-HANDOFF.md
 
