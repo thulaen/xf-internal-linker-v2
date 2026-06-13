@@ -1,11 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  Input,
-  computed,
-  signal,
-} from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, Input, computed, signal } from '@angular/core';
+
 import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -30,7 +24,7 @@ import { DashboardData } from '../dashboard.service';
   selector: 'app-metric-ticker',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, RouterLink, MatIconModule, MatTooltipModule],
+  imports: [RouterLink, MatIconModule, MatTooltipModule],
   template: `
     <a
       class="mt"
@@ -49,41 +43,47 @@ import { DashboardData } from '../dashboard.service';
       </span>
     </a>
   `,
-  styles: [`
-    .mt {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 13px;
-      text-decoration: none;
-      transition: background-color 0.2s ease, color 0.2s ease;
-      border: var(--card-border);
-      width: fit-content;
-    }
-    .mt-clear {
-      background: var(--color-success-light, rgba(30, 142, 62, 0.08));
-      color: var(--color-success-dark, #137333);
-      border-color: var(--color-success, #1e8e3e);
-    }
-    .mt-active {
-      background: var(--color-error-50, rgba(217, 48, 37, 0.08));
-      color: var(--color-error-dark, #b3261e);
-      border-color: var(--color-error, #d93025);
-    }
-    .mt-icon {
-      font-size: 16px;
-      width: 16px;
-      height: 16px;
-    }
-    .mt-text strong {
-      font-variant-numeric: tabular-nums;
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .mt { transition: none; }
-    }
-  `],
+  styles: [
+    `
+      .mt {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 13px;
+        text-decoration: none;
+        transition:
+          background-color 0.2s ease,
+          color 0.2s ease;
+        border: var(--card-border);
+        width: fit-content;
+      }
+      .mt-clear {
+        background: var(--color-success-light, rgba(30, 142, 62, 0.08));
+        color: var(--color-success-dark, #137333);
+        border-color: var(--color-success, #1e8e3e);
+      }
+      .mt-active {
+        background: var(--color-error-50, rgba(217, 48, 37, 0.08));
+        color: var(--color-error-dark, #b3261e);
+        border-color: var(--color-error, #d93025);
+      }
+      .mt-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+      }
+      .mt-text strong {
+        font-variant-numeric: tabular-nums;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .mt {
+          transition: none;
+        }
+      }
+    `,
+  ],
 })
 export class MetricTickerComponent {
   @Input() set data(next: DashboardData | null | undefined) {

@@ -16,14 +16,36 @@
               }
             </mat-select>
           </mat-form-field>
-          <mat-form-field appearance="outline" *ngIf="settings.mode === 'prefer_same_silo'">
-            <mat-label i18n="@@settings.labels.sameSiloBoost">Same-silo boost</mat-label>
-            <input matInput autocomplete="off" type="number" min="0" max="0.25" step="0.01" [(ngModel)]="settings.same_silo_boost" (ngModelChange)="markDirty()" />
-          </mat-form-field>
-          <mat-form-field appearance="outline" *ngIf="settings.mode === 'prefer_same_silo'">
-            <mat-label i18n="@@settings.labels.crossSiloPenalty">Cross-silo penalty</mat-label>
-            <input matInput autocomplete="off" type="number" min="0" max="0.25" step="0.01" [(ngModel)]="settings.cross_silo_penalty" (ngModelChange)="markDirty()" />
-          </mat-form-field>
+          @if (settings.mode === 'prefer_same_silo') {
+            <mat-form-field appearance="outline">
+              <mat-label i18n="@@settings.labels.sameSiloBoost">Same-silo boost</mat-label>
+              <input
+                matInput
+                autocomplete="off"
+                type="number"
+                min="0"
+                max="0.25"
+                step="0.01"
+                [(ngModel)]="settings.same_silo_boost"
+                (ngModelChange)="markDirty()"
+              />
+            </mat-form-field>
+          }
+          @if (settings.mode === 'prefer_same_silo') {
+            <mat-form-field appearance="outline">
+              <mat-label i18n="@@settings.labels.crossSiloPenalty">Cross-silo penalty</mat-label>
+              <input
+                matInput
+                autocomplete="off"
+                type="number"
+                min="0"
+                max="0.25"
+                step="0.01"
+                [(ngModel)]="settings.cross_silo_penalty"
+                (ngModelChange)="markDirty()"
+              />
+            </mat-form-field>
+          }
         </div>
         <div class="card-actions-row">
           <button mat-flat-button color="primary" [disabled]="savingSilo()" (click)="saveSettings()">
@@ -50,7 +72,8 @@
             <input matInput autocomplete="off" [(ngModel)]="newGroup.slug" placeholder="e.g. tech" i18n-placeholder="@@settings.placeholders.groupSlug" />
           </mat-form-field>
           <button mat-flat-button color="primary" [disabled]="creatingGroup() || !newGroup.name.trim()" (click)="createGroup()">
-            <mat-icon>add</mat-icon> <span i18n="@@settings.actions.createGroup">Create Group</span>
+            <mat-icon>add</mat-icon>
+            <span i18n="@@settings.actions.createGroup">Create Group</span>
           </button>
         </div>
       </mat-card-content>
@@ -113,7 +136,9 @@
               <div class="scope-info">
                 <span class="scope-title">{{ scope.title }}</span>
                 <span class="scope-meta">
-                  <ng-container>{{ scope.scope_type_label }}</ng-container> • <ng-container i18n="@@settings.labels.postsCount">{scope.content_count, plural, =1 {1 post} other {# posts}}</ng-container>
+                  <ng-container>{{ scope.scope_type_label }}</ng-container>
+                  •
+                  <ng-container i18n="@@settings.labels.postsCount">{scope.content_count, plural, =1 {1 post} other {# posts}}</ng-container>
                 </span>
               </div>
               <mat-form-field appearance="outline" class="scope-select">

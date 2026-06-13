@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, OnInit, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -18,7 +18,7 @@ import { ELI5, Eli5Snippet } from './eli5.data';
   selector: 'app-eli5-card',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatCardModule, MatIconModule, MatButtonModule],
+  imports: [MatCardModule, MatIconModule, MatButtonModule],
   template: `
     @if (current(); as e) {
       <mat-card class="eli5-card">
@@ -39,19 +39,23 @@ import { ELI5, Eli5Snippet } from './eli5.data';
       </mat-card>
     }
   `,
-  styles: [`
-    .eli5-card { height: 100%; }
-    .eli5-avatar {
-      background: var(--color-primary);
-      color: var(--color-on-primary, #ffffff);
-    }
-    .eli5-text {
-      margin: 0;
-      font-size: 14px;
-      line-height: 1.6;
-      color: var(--color-text-primary);
-    }
-  `],
+  styles: [
+    `
+      .eli5-card {
+        height: 100%;
+      }
+      .eli5-avatar {
+        background: var(--color-primary);
+        color: var(--color-on-primary, #ffffff);
+      }
+      .eli5-text {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.6;
+        color: var(--color-text-primary);
+      }
+    `,
+  ],
 })
 export class Eli5CardComponent implements OnInit {
   readonly current = signal<Eli5Snippet | null>(null);

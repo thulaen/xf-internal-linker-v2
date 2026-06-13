@@ -1,11 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  Input,
-  signal,
-  computed,
-} from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, Input, signal, computed } from '@angular/core';
+
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -31,7 +25,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
   selector: 'app-raw-data-toggle',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatButtonModule, MatIconModule, MatTooltipModule],
+  imports: [MatButtonModule, MatIconModule, MatTooltipModule],
   template: `
     <div class="rdt-wrap">
       <div class="rdt-toggle-row">
@@ -54,33 +48,39 @@ import { MatTooltipModule } from '@angular/material/tooltip';
       }
     </div>
   `,
-  styles: [`
-    .rdt-wrap { position: relative; }
-    .rdt-toggle-row {
-      display: flex;
-      justify-content: flex-end;
-    }
-    .rdt-toggle {
-      opacity: 0.6;
-      transition: opacity 0.2s;
-    }
-    .rdt-toggle:hover,
-    .rdt-toggle:focus-visible { opacity: 1; }
-    .rdt-json {
-      font-family: var(--font-mono);
-      font-size: 12px;
-      padding: 12px;
-      margin: 0;
-      max-height: 420px;
-      overflow: auto;
-      background: var(--color-bg-faint, #f8f9fa);
-      border: 0.8px solid var(--color-border, #dadce0);
-      border-radius: 4px;
-      white-space: pre-wrap;
-      word-break: break-word;
-      color: var(--color-text-primary, #202124);
-    }
-  `],
+  styles: [
+    `
+      .rdt-wrap {
+        position: relative;
+      }
+      .rdt-toggle-row {
+        display: flex;
+        justify-content: flex-end;
+      }
+      .rdt-toggle {
+        opacity: 0.6;
+        transition: opacity 0.2s;
+      }
+      .rdt-toggle:hover,
+      .rdt-toggle:focus-visible {
+        opacity: 1;
+      }
+      .rdt-json {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        padding: 12px;
+        margin: 0;
+        max-height: 420px;
+        overflow: auto;
+        background: var(--color-bg-faint, #f8f9fa);
+        border: 0.8px solid var(--color-border, #dadce0);
+        border-radius: 4px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        color: var(--color-text-primary, #202124);
+      }
+    `,
+  ],
 })
 export class RawDataToggleComponent {
   @Input() data: unknown = null;
@@ -100,8 +100,6 @@ export class RawDataToggleComponent {
   }
 
   tooltip(): string {
-    return this.showRaw()
-      ? `Show the ${this.label} chart`
-      : `Show raw ${this.label} JSON`;
+    return this.showRaw() ? `Show the ${this.label} chart` : `Show raw ${this.label} JSON`;
   }
 }

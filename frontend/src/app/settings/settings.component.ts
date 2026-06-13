@@ -1,5 +1,12 @@
-import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, OnDestroy, HostListener, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  OnInit,
+  OnDestroy,
+  HostListener,
+  inject,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MonoTypeOperatorFunction, forkJoin, finalize, Subject, takeUntil } from 'rxjs';
 import { RealtimeService } from '../core/services/realtime.service';
@@ -73,14 +80,12 @@ import { ALERT_THRESHOLDS, UI_TO_PRESET_KEY } from './settings-constants';
 
 type FieldSeverity = 'none' | 'warn' | 'danger';
 
-
 @Component({
   selector: 'app-settings',
   standalone: true,
   templateUrl: './settings.component.html',
   styleUrls: ['./settings.component.scss'],
   imports: [
-    CommonModule,
     FormsModule,
     MatButtonModule,
     MatCardModule,
@@ -140,7 +145,6 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   private _markLocalSave(): void {
     this._suppressRuntimeUntil = Date.now() + 8000;
   }
-
 
   loading = true;
   isDirty = false;
@@ -222,8 +226,8 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   settings: SiloSettings = {
     mode: 'prefer_same_silo',
-    same_silo_boost: 0.10, // Increased from 0.05 to match research
-    cross_silo_penalty: 0.10, // Increased from 0.05 to match research
+    same_silo_boost: 0.1, // Increased from 0.05 to match research
+    cross_silo_penalty: 0.1, // Increased from 0.05 to match research
   };
   weightedAuthority: WeightedAuthoritySettings = {
     ranking_weight: 0.1,
@@ -279,7 +283,7 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     issue: '',
     fix: '',
     last_success: null,
-    is_healthy: false
+    is_healthy: false,
   };
   ga4Gsc: GSCSettings = {
     ranking_weight: 0.05,
@@ -393,8 +397,8 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   slateDiversity: SlateDiversitySettings = {
     enabled: true,
     diversity_lambda: 0.65,
-    score_window: 0.30,
-    similarity_cap: 0.90,
+    score_window: 0.3,
+    similarity_cap: 0.9,
   };
   // Stage-1 candidate-retriever flags.
   // Lexical (FR-240) and XenForo BM25 default ON via migrations 0062+0066;
@@ -500,7 +504,6 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   siloGroups: SiloGroup[] = [];
   scopes: ScopeItem[] = [];
 
-
   // `modeOptions` retained even though the silo tab moved to
   // `<app-silo-architecture-tab>` — `recommendedValueLabel('silo.mode')`
   // (called by tooltip rendering across all tabs) still needs the
@@ -524,7 +527,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   ];
 
   get recommendedPreset(): WeightPreset | null {
-    return this.weightPresets.find((preset) => preset.is_system && preset.name.toLowerCase().includes('recommended')) ?? null;
+    return (
+      this.weightPresets.find((preset) => preset.is_system && preset.name.toLowerCase().includes('recommended')) ?? null
+    );
   }
 
   get noSourceConnected(): boolean {
@@ -634,9 +639,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   tip(key: string): string {
     const t = SETTING_TOOLTIPS[key];
     if (!t) return `No tooltip defined for "${key}" - add an entry to SETTING_TOOLTIPS in setting-tooltips.ts`;
-    
+
     const lines: string[] = [];
-    
+
     // Add dynamic severity alerts
     const currentValue = this.valueFor(key);
     if (typeof currentValue === 'number') {
@@ -654,7 +659,7 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     lines.push(`RECOMMENDED: ${this.recommendedValueLabel(key) ?? t.default}`);
     lines.push(`EXAMPLE: ${t.example}`);
     lines.push(`VALID RANGE: ${t.range}`);
-    
+
     return lines.join('\n\n');
   }
 
@@ -717,7 +722,10 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   private presetMatchesCurrent(preset: WeightPreset): boolean {
     const presetEntries = Object.entries(preset.weights ?? {});
     if (!presetEntries.length) return false;
-    return presetEntries.every(([key, value]) => this.normalizeComparableValue(this.currentWeights[key]) === this.normalizeComparableValue(value));
+    return presetEntries.every(
+      ([key, value]) =>
+        this.normalizeComparableValue(this.currentWeights[key]) === this.normalizeComparableValue(value),
+    );
   }
 
   private presetValueFor(key: string, preset: WeightPreset | null): string | null {
@@ -731,23 +739,101 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   private getFeatureSummary(): Array<{ label: string; currentEnabled: boolean; recommendedEnabled: boolean }> {
     const recommended = this.recommendedPreset;
     return [
-      { label: 'March 2026 PageRank', currentEnabled: this.weightedAuthority.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'weighted_authority.ranking_weight') },
-      { label: 'Link Freshness', currentEnabled: this.linkFreshness.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'link_freshness.ranking_weight') },
-      { label: 'Phrase Matching', currentEnabled: this.phraseMatching.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'phrase_matching.ranking_weight') },
-      { label: 'Learned Anchors', currentEnabled: this.learnedAnchor.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'learned_anchor.ranking_weight') },
-      { label: 'Rare-Term Propagation', currentEnabled: this.rareTermPropagation.enabled && this.rareTermPropagation.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'rare_term_propagation.enabled') && this.isFeatureEnabledInPreset(recommended, 'rare_term_propagation.ranking_weight') },
-      { label: 'Field-Aware Relevance', currentEnabled: this.fieldAwareRelevance.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'field_aware_relevance.ranking_weight') },
-      { label: 'GA4 + Search Console', currentEnabled: this.ga4Gsc.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'ga4_gsc.ranking_weight') },
-      { label: 'Click Distance', currentEnabled: this.clickDistance.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'click_distance.ranking_weight') },
-      { label: 'Anchor Diversity', currentEnabled: this.anchorDiversity.enabled && this.anchorDiversity.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'anchor_diversity.enabled') && this.isFeatureEnabledInPreset(recommended, 'anchor_diversity.ranking_weight') },
-      { label: 'Keyword Stuffing', currentEnabled: this.keywordStuffing.enabled && this.keywordStuffing.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'keyword_stuffing.enabled') && this.isFeatureEnabledInPreset(recommended, 'keyword_stuffing.ranking_weight') },
-      { label: 'Link-Farm Detection', currentEnabled: this.linkFarm.enabled && this.linkFarm.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'link_farm.enabled') && this.isFeatureEnabledInPreset(recommended, 'link_farm.ranking_weight') },
-      { label: 'Silo Ranking', currentEnabled: this.settings.mode !== 'disabled', recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'silo.mode') },
-      { label: 'Feedback Reranking', currentEnabled: this.feedbackRerank.enabled && this.feedbackRerank.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'explore_exploit.enabled') && this.isFeatureEnabledInPreset(recommended, 'explore_exploit.ranking_weight') },
-      { label: 'Near-Duplicate Clustering', currentEnabled: this.clustering.enabled, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'clustering.enabled') },
-      { label: 'Slate Diversity', currentEnabled: this.slateDiversity.enabled, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'slate_diversity.enabled') },
-      { label: 'Graph Candidate Generation', currentEnabled: this.graphCandidate.enabled, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'graph_candidate.enabled') },
-      { label: 'Value Model Scoring', currentEnabled: this.valueModel.enabled, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'value_model.enabled') },
+      {
+        label: 'March 2026 PageRank',
+        currentEnabled: this.weightedAuthority.ranking_weight > 0,
+        recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'weighted_authority.ranking_weight'),
+      },
+      {
+        label: 'Link Freshness',
+        currentEnabled: this.linkFreshness.ranking_weight > 0,
+        recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'link_freshness.ranking_weight'),
+      },
+      {
+        label: 'Phrase Matching',
+        currentEnabled: this.phraseMatching.ranking_weight > 0,
+        recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'phrase_matching.ranking_weight'),
+      },
+      {
+        label: 'Learned Anchors',
+        currentEnabled: this.learnedAnchor.ranking_weight > 0,
+        recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'learned_anchor.ranking_weight'),
+      },
+      {
+        label: 'Rare-Term Propagation',
+        currentEnabled: this.rareTermPropagation.enabled && this.rareTermPropagation.ranking_weight > 0,
+        recommendedEnabled:
+          this.isFeatureEnabledInPreset(recommended, 'rare_term_propagation.enabled') &&
+          this.isFeatureEnabledInPreset(recommended, 'rare_term_propagation.ranking_weight'),
+      },
+      {
+        label: 'Field-Aware Relevance',
+        currentEnabled: this.fieldAwareRelevance.ranking_weight > 0,
+        recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'field_aware_relevance.ranking_weight'),
+      },
+      {
+        label: 'GA4 + Search Console',
+        currentEnabled: this.ga4Gsc.ranking_weight > 0,
+        recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'ga4_gsc.ranking_weight'),
+      },
+      {
+        label: 'Click Distance',
+        currentEnabled: this.clickDistance.ranking_weight > 0,
+        recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'click_distance.ranking_weight'),
+      },
+      {
+        label: 'Anchor Diversity',
+        currentEnabled: this.anchorDiversity.enabled && this.anchorDiversity.ranking_weight > 0,
+        recommendedEnabled:
+          this.isFeatureEnabledInPreset(recommended, 'anchor_diversity.enabled') &&
+          this.isFeatureEnabledInPreset(recommended, 'anchor_diversity.ranking_weight'),
+      },
+      {
+        label: 'Keyword Stuffing',
+        currentEnabled: this.keywordStuffing.enabled && this.keywordStuffing.ranking_weight > 0,
+        recommendedEnabled:
+          this.isFeatureEnabledInPreset(recommended, 'keyword_stuffing.enabled') &&
+          this.isFeatureEnabledInPreset(recommended, 'keyword_stuffing.ranking_weight'),
+      },
+      {
+        label: 'Link-Farm Detection',
+        currentEnabled: this.linkFarm.enabled && this.linkFarm.ranking_weight > 0,
+        recommendedEnabled:
+          this.isFeatureEnabledInPreset(recommended, 'link_farm.enabled') &&
+          this.isFeatureEnabledInPreset(recommended, 'link_farm.ranking_weight'),
+      },
+      {
+        label: 'Silo Ranking',
+        currentEnabled: this.settings.mode !== 'disabled',
+        recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'silo.mode'),
+      },
+      {
+        label: 'Feedback Reranking',
+        currentEnabled: this.feedbackRerank.enabled && this.feedbackRerank.ranking_weight > 0,
+        recommendedEnabled:
+          this.isFeatureEnabledInPreset(recommended, 'explore_exploit.enabled') &&
+          this.isFeatureEnabledInPreset(recommended, 'explore_exploit.ranking_weight'),
+      },
+      {
+        label: 'Near-Duplicate Clustering',
+        currentEnabled: this.clustering.enabled,
+        recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'clustering.enabled'),
+      },
+      {
+        label: 'Slate Diversity',
+        currentEnabled: this.slateDiversity.enabled,
+        recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'slate_diversity.enabled'),
+      },
+      {
+        label: 'Graph Candidate Generation',
+        currentEnabled: this.graphCandidate.enabled,
+        recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'graph_candidate.enabled'),
+      },
+      {
+        label: 'Value Model Scoring',
+        currentEnabled: this.valueModel.enabled,
+        recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'value_model.enabled'),
+      },
     ];
   }
 
@@ -785,7 +871,7 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     }
 
     // 2. Listen for fragment changes to auto-switch tabs
-    this.route.fragment.pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe(fragment => {
+    this.route.fragment.pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe((fragment) => {
       if (fragment) {
         this.syncTabWithFragment(fragment);
       }
@@ -850,13 +936,13 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       'anchor-diversity': 0,
       'keyword-stuffing': 0,
       'link-farm': 0,
-      
+
       // Tab 1: Silo Architecture
       'silo-architecture': 1,
       'silo-settings': 1,
       'silo-groups': 1,
       'scope-assignments': 1,
-      
+
       // Tab 2: Connect & Sync
       'xenforo-settings': 2,
       'wordpress-settings': 2,
@@ -865,7 +951,7 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       'ga4-settings': 2,
       'matomo-settings': 2,
       'gsc-settings': 2,
-      
+
       // Tab 3: History & Presets
       'weight-presets': 3,
       'adjustment-history': 3,
@@ -886,7 +972,7 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       'runtime-recommendations': 6,
 
       // Tab 7: Helpers (plan item 22)
-      'helpers': 7,
+      helpers: 7,
     };
 
     const targetIndex = tabMap[id];
@@ -928,76 +1014,81 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       stage1Retrievers: this.siloSvc.getStage1RetrieverSettings(),
       phase6Picks: this.siloSvc.getPhase6PickSettings(),
       currentWeights: this.siloSvc.getCurrentWeights(),
-    }).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: (data) => {
-        // Merge API data with the class-level defaults so that boolean
-        // fields the API omits (enable_anchor_expansion, enabled, etc.)
-        // keep their safe default values instead of becoming undefined,
-        // which would leave mat-select dropdowns blank.
-        this.settings = { ...this.settings, ...data.settings };
-        this.weightedAuthority = { ...this.weightedAuthority, ...data.weightedAuthority };
-        this.linkFreshness = { ...this.linkFreshness, ...data.linkFreshness };
-        this.phraseMatching = { ...this.phraseMatching, ...data.phraseMatching };
-        this.learnedAnchor = { ...this.learnedAnchor, ...data.learnedAnchor };
-        this.rareTermPropagation = { ...this.rareTermPropagation, ...data.rareTermPropagation };
-        this.fieldAwareRelevance = { ...this.fieldAwareRelevance, ...data.fieldAwareRelevance };
-        this.ga4Gsc = { ...this.ga4Gsc, ...data.ga4Gsc };
-        this.googleOAuth = { ...this.googleOAuth, ...data.googleOAuth };
-        this.ga4Telemetry = { ...this.ga4Telemetry, ...data.ga4Telemetry };
-        this.matomoTelemetry = { ...this.matomoTelemetry, ...data.matomoTelemetry };
-        this.xenforo = { ...this.xenforo, ...data.xenforo };
-        this.wordpress = { ...this.wordpress, ...data.wordpress };
-        this.webhookSettings = { ...this.webhookSettings, ...data.webhookSettings };
-        this.clickDistance = { ...this.clickDistance, ...data.clickDistance };
-        this.spamGuards = { ...this.spamGuards, ...data.spamGuards };
-        this.anchorDiversity = { ...this.anchorDiversity, ...data.anchorDiversity };
-        this.keywordStuffing = { ...this.keywordStuffing, ...data.keywordStuffing };
-        this.linkFarm = { ...this.linkFarm, ...data.linkFarm };
-        this.feedbackRerank = { ...this.feedbackRerank, ...data.feedbackRerank };
-        this.clustering = { ...this.clustering, ...data.clustering };
-        this.slateDiversity = { ...this.slateDiversity, ...data.slateDiversity };
-        this.graphCandidate = { ...this.graphCandidate, ...data.graphCandidate };
-        this.valueModel = { ...this.valueModel, ...data.valueModel };
-        // FR-099 through FR-105 — 7 graph-topology signals loaded as a group.
-        if (data.fr099Fr105) {
-          this.darb = { ...this.darb, ...(data.fr099Fr105.darb || {}) };
-          this.kmig = { ...this.kmig, ...(data.fr099Fr105.kmig || {}) };
-          this.tapb = { ...this.tapb, ...(data.fr099Fr105.tapb || {}) };
-          this.kcib = { ...this.kcib, ...(data.fr099Fr105.kcib || {}) };
-          this.berp = { ...this.berp, ...(data.fr099Fr105.berp || {}) };
-          this.hgte = { ...this.hgte, ...(data.fr099Fr105.hgte || {}) };
-          this.rsqva = { ...this.rsqva, ...(data.fr099Fr105.rsqva || {}) };
-        }
-        // Group C — Stage-1 retriever flags.
-        if (data.stage1Retrievers) {
-          this.stage1Retrievers = {
-            ...this.stage1Retrievers,
-            ...data.stage1Retrievers,
-          };
-        }
-        // Phase 6 — 10 optional-pick toggles.
-        if (data.phase6Picks) {
-          this.phase6Picks = { ...this.phase6Picks, ...data.phase6Picks };
-        }
-        this.currentWeights = data.currentWeights;
-        this.loadGroupsAndScopes();
-        this.isDirty = false;
-      },
-      error: () => {
-        this.loading = false;
-        this.snack.open('Failed to load settings', 'Dismiss', { duration: 4000 });
-      },
-    });
+    })
+      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
+      .subscribe({
+        next: (data) => {
+          // Merge API data with the class-level defaults so that boolean
+          // fields the API omits (enable_anchor_expansion, enabled, etc.)
+          // keep their safe default values instead of becoming undefined,
+          // which would leave mat-select dropdowns blank.
+          this.settings = { ...this.settings, ...data.settings };
+          this.weightedAuthority = { ...this.weightedAuthority, ...data.weightedAuthority };
+          this.linkFreshness = { ...this.linkFreshness, ...data.linkFreshness };
+          this.phraseMatching = { ...this.phraseMatching, ...data.phraseMatching };
+          this.learnedAnchor = { ...this.learnedAnchor, ...data.learnedAnchor };
+          this.rareTermPropagation = { ...this.rareTermPropagation, ...data.rareTermPropagation };
+          this.fieldAwareRelevance = { ...this.fieldAwareRelevance, ...data.fieldAwareRelevance };
+          this.ga4Gsc = { ...this.ga4Gsc, ...data.ga4Gsc };
+          this.googleOAuth = { ...this.googleOAuth, ...data.googleOAuth };
+          this.ga4Telemetry = { ...this.ga4Telemetry, ...data.ga4Telemetry };
+          this.matomoTelemetry = { ...this.matomoTelemetry, ...data.matomoTelemetry };
+          this.xenforo = { ...this.xenforo, ...data.xenforo };
+          this.wordpress = { ...this.wordpress, ...data.wordpress };
+          this.webhookSettings = { ...this.webhookSettings, ...data.webhookSettings };
+          this.clickDistance = { ...this.clickDistance, ...data.clickDistance };
+          this.spamGuards = { ...this.spamGuards, ...data.spamGuards };
+          this.anchorDiversity = { ...this.anchorDiversity, ...data.anchorDiversity };
+          this.keywordStuffing = { ...this.keywordStuffing, ...data.keywordStuffing };
+          this.linkFarm = { ...this.linkFarm, ...data.linkFarm };
+          this.feedbackRerank = { ...this.feedbackRerank, ...data.feedbackRerank };
+          this.clustering = { ...this.clustering, ...data.clustering };
+          this.slateDiversity = { ...this.slateDiversity, ...data.slateDiversity };
+          this.graphCandidate = { ...this.graphCandidate, ...data.graphCandidate };
+          this.valueModel = { ...this.valueModel, ...data.valueModel };
+          // FR-099 through FR-105 — 7 graph-topology signals loaded as a group.
+          if (data.fr099Fr105) {
+            this.darb = { ...this.darb, ...data.fr099Fr105.darb };
+            this.kmig = { ...this.kmig, ...data.fr099Fr105.kmig };
+            this.tapb = { ...this.tapb, ...data.fr099Fr105.tapb };
+            this.kcib = { ...this.kcib, ...data.fr099Fr105.kcib };
+            this.berp = { ...this.berp, ...data.fr099Fr105.berp };
+            this.hgte = { ...this.hgte, ...data.fr099Fr105.hgte };
+            this.rsqva = { ...this.rsqva, ...data.fr099Fr105.rsqva };
+          }
+          // Group C — Stage-1 retriever flags.
+          if (data.stage1Retrievers) {
+            this.stage1Retrievers = {
+              ...this.stage1Retrievers,
+              ...data.stage1Retrievers,
+            };
+          }
+          // Phase 6 — 10 optional-pick toggles.
+          if (data.phase6Picks) {
+            this.phase6Picks = { ...this.phase6Picks, ...data.phase6Picks };
+          }
+          this.currentWeights = data.currentWeights;
+          this.loadGroupsAndScopes();
+          this.isDirty = false;
+        },
+        error: () => {
+          this.loading = false;
+          this.snack.open('Failed to load settings', 'Dismiss', { duration: 4000 });
+        },
+      });
     this.reloadPresetsAndHistory(true); // pass true to trigger auto-apply check
   }
 
   private refreshCurrentWeights(): void {
-    this.siloSvc.getCurrentWeights().pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: (weights) => {
-        this.currentWeights = weights;
-      },
-      error: (err) => console.warn('refreshCurrentWeights failed', err),
-    });
+    this.siloSvc
+      .getCurrentWeights()
+      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
+      .subscribe({
+        next: (weights) => {
+          this.currentWeights = weights;
+        },
+        error: (err) => console.warn('refreshCurrentWeights failed', err),
+      });
   }
 
   reloadPresetsAndHistory(shouldCheckAutoApply = false): void {
@@ -1011,17 +1102,18 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     forkJoin({
       presets: this.siloSvc.listWeightPresets(),
       history: this.siloSvc.listWeightHistory(),
-    }).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: ({ presets, history }) => {
-        this.weightPresets = presets;
-        this.weightHistory = history;
-        if (shouldCheckAutoApply) {
-          this.checkAndAutoApplyRecommended();
-        }
-      },
-      error: () => {
-      },
-    });
+    })
+      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
+      .subscribe({
+        next: ({ presets, history }) => {
+          this.weightPresets = presets;
+          this.weightHistory = history;
+          if (shouldCheckAutoApply) {
+            this.checkAndAutoApplyRecommended();
+          }
+        },
+        error: () => {},
+      });
     // Challenger list moved to `<app-library-history-tab>`; the child
     // owns its own `loadChallengers()` and refresh cadence.
   }
@@ -1048,15 +1140,18 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     if (this.isDirty) return;
     // currentWeights == Recommended AND no history → genuinely fresh.
     // Apply once so a history row exists and we never fire again.
-    this.siloSvc.applyWeightPreset(recommended.id).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
-      next: () => {
-        this.snack.open('System Recommended settings applied by default.', undefined, { duration: 3000 });
-        this.reload();
-      },
-      // Auto-apply is best-effort; if it fails, log and keep going.
-      // The user can still pick a preset manually.
-      error: (err) => console.warn('checkAndAutoApplyRecommended failed', err),
-    });
+    this.siloSvc
+      .applyWeightPreset(recommended.id)
+      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
+      .subscribe({
+        next: () => {
+          this.snack.open('System Recommended settings applied by default.', undefined, { duration: 3000 });
+          this.reload();
+        },
+        // Auto-apply is best-effort; if it fails, log and keep going.
+        // The user can still pick a preset manually.
+        error: (err) => console.warn('checkAndAutoApplyRecommended failed', err),
+      });
   }
 
   // The Library & History tab UI moved to `<app-library-history-tab>`.
@@ -1092,29 +1187,31 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   // flushes every one of those 23 sections in a single network burst.
 
   private loadGroupsAndScopes(): void {
-    this.siloSvc.listSiloGroups()
+    this.siloSvc
+      .listSiloGroups()
       .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
       .subscribe({
-      next: (groups) => {
-        this.siloGroups = groups;
-        this.siloSvc.listScopes()
-          .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
-          .subscribe({
-          next: (scopes) => {
-            this.scopes = scopes;
-            this.loading = false;
-          },
-          error: () => {
-            this.loading = false;
-            this.snack.open('Failed to load scopes', 'Dismiss', { duration: 4000 });
-          },
-        });
-      },
-      error: () => {
-        this.loading = false;
-        this.snack.open('Failed to load silo groups', 'Dismiss', { duration: 4000 });
-      },
-    });
+        next: (groups) => {
+          this.siloGroups = groups;
+          this.siloSvc
+            .listScopes()
+            .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
+            .subscribe({
+              next: (scopes) => {
+                this.scopes = scopes;
+                this.loading = false;
+              },
+              error: () => {
+                this.loading = false;
+                this.snack.open('Failed to load scopes', 'Dismiss', { duration: 4000 });
+              },
+            });
+        },
+        error: () => {
+          this.loading = false;
+          this.snack.open('Failed to load silo groups', 'Dismiss', { duration: 4000 });
+        },
+      });
   }
 
   // saveSettings() (silo) extracted to <app-silo-architecture-tab>.
@@ -1166,4 +1263,3 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   //   - The Diagnostics-tab teaser card reads `ga4Gsc.connection_status`
   //     via `telemetryStatusClass` / `telemetryStatusLabel`.
 }
-

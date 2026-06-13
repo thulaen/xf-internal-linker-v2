@@ -9,7 +9,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 
@@ -44,7 +44,7 @@ interface SpotlightRect {
   selector: 'app-guided-tour',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatButtonModule, MatIconModule],
+  imports: [MatButtonModule, MatIconModule],
   template: `
     @if (tour() && step(); as s) {
       <div class="gt-backdrop" (click)="onSkip()">
@@ -72,36 +72,17 @@ interface SpotlightRect {
         >
           <header class="gt-head">
             <h3 id="gt-title" class="gt-title">{{ s.title }}</h3>
-            <span class="gt-progress">
-              {{ stepIndex() + 1 }} / {{ tour()!.steps.length }}
-            </span>
+            <span class="gt-progress"> {{ stepIndex() + 1 }} / {{ tour()!.steps.length }} </span>
           </header>
           <p class="gt-body">{{ s.body }}</p>
           <footer class="gt-actions">
-            <button
-              mat-button
-              type="button"
-              class="gt-skip"
-              (click)="onSkip()"
-            >
-              Skip tour
-            </button>
+            <button mat-button type="button" class="gt-skip" (click)="onSkip()">Skip tour</button>
             <span class="gt-spacer"></span>
-            <button
-              mat-stroked-button
-              type="button"
-              [disabled]="stepIndex() === 0"
-              (click)="onPrev()"
-            >
+            <button mat-stroked-button type="button" [disabled]="stepIndex() === 0" (click)="onPrev()">
               <mat-icon>arrow_back</mat-icon>
               Back
             </button>
-            <button
-              mat-raised-button
-              color="primary"
-              type="button"
-              (click)="onNext()"
-            >
+            <button mat-raised-button color="primary" type="button" (click)="onNext()">
               {{ isLastStep() ? 'Finish' : 'Next' }}
               @if (!isLastStep()) {
                 <mat-icon iconPositionEnd>arrow_forward</mat-icon>
@@ -112,78 +93,103 @@ interface SpotlightRect {
       </div>
     }
   `,
-  styles: [`
-    .gt-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.55);
-      z-index: 9994;
-      cursor: pointer;
-    }
-    .gt-spotlight {
-      position: fixed;
-      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
-      border-radius: 8px;
-      pointer-events: none;
-      transition: top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease;
-    }
-    .gt-bubble {
-      position: fixed;
-      width: 360px;
-      max-width: calc(100vw - 32px);
-      background: var(--color-bg-white);
-      border-radius: var(--card-border-radius, 8px);
-      box-shadow: var(--shadow-lg, 0 8px 24px rgba(60, 64, 67, 0.2));
-      padding: 16px;
-      cursor: default;
-      transition: top 0.25s ease, left 0.25s ease;
-    }
-    .gt-bubble::before {
-      content: '';
-      position: absolute;
-      width: 12px;
-      height: 12px;
-      background: var(--color-bg-white);
-      transform: rotate(45deg);
-    }
-    .gt-arrow-top::before    { top: -6px;    left: 24px;  }
-    .gt-arrow-bottom::before { bottom: -6px; left: 24px;  }
-    .gt-arrow-left::before   { left: -6px;   top: 24px;   }
-    .gt-arrow-right::before  { right: -6px;  top: 24px;   }
-    .gt-head {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 8px;
-    }
-    .gt-title {
-      margin: 0;
-      font-size: 15px;
-      font-weight: 500;
-      color: var(--color-text-primary);
-    }
-    .gt-progress {
-      font-size: 11px;
-      color: var(--color-text-secondary);
-      font-variant-numeric: tabular-nums;
-    }
-    .gt-body {
-      margin: 0 0 16px;
-      font-size: 13px;
-      line-height: 1.55;
-      color: var(--color-text-secondary);
-    }
-    .gt-actions {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .gt-spacer { flex: 1; }
-    @media (prefers-reduced-motion: reduce) {
-      .gt-spotlight, .gt-bubble { transition: none; }
-    }
-  `],
+  styles: [
+    `
+      .gt-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        z-index: 9994;
+        cursor: pointer;
+      }
+      .gt-spotlight {
+        position: fixed;
+        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+        border-radius: 8px;
+        pointer-events: none;
+        transition:
+          top 0.25s ease,
+          left 0.25s ease,
+          width 0.25s ease,
+          height 0.25s ease;
+      }
+      .gt-bubble {
+        position: fixed;
+        width: 360px;
+        max-width: calc(100vw - 32px);
+        background: var(--color-bg-white);
+        border-radius: var(--card-border-radius, 8px);
+        box-shadow: var(--shadow-lg, 0 8px 24px rgba(60, 64, 67, 0.2));
+        padding: 16px;
+        cursor: default;
+        transition:
+          top 0.25s ease,
+          left 0.25s ease;
+      }
+      .gt-bubble::before {
+        content: '';
+        position: absolute;
+        width: 12px;
+        height: 12px;
+        background: var(--color-bg-white);
+        transform: rotate(45deg);
+      }
+      .gt-arrow-top::before {
+        top: -6px;
+        left: 24px;
+      }
+      .gt-arrow-bottom::before {
+        bottom: -6px;
+        left: 24px;
+      }
+      .gt-arrow-left::before {
+        left: -6px;
+        top: 24px;
+      }
+      .gt-arrow-right::before {
+        right: -6px;
+        top: 24px;
+      }
+      .gt-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 8px;
+      }
+      .gt-title {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 500;
+        color: var(--color-text-primary);
+      }
+      .gt-progress {
+        font-size: 11px;
+        color: var(--color-text-secondary);
+        font-variant-numeric: tabular-nums;
+      }
+      .gt-body {
+        margin: 0 0 16px;
+        font-size: 13px;
+        line-height: 1.55;
+        color: var(--color-text-secondary);
+      }
+      .gt-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .gt-spacer {
+        flex: 1;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .gt-spotlight,
+        .gt-bubble {
+          transition: none;
+        }
+      }
+    `,
+  ],
 })
 export class GuidedTourComponent {
   private readonly tourSvc = inject(GuidedTourService);
@@ -351,14 +357,8 @@ export class GuidedTourComponent {
     }
 
     // Clamp so the bubble stays on screen.
-    pos.left = Math.min(
-      Math.max(8, pos.left),
-      window.innerWidth - bubbleW - 8,
-    );
-    pos.top = Math.min(
-      Math.max(8, pos.top),
-      window.innerHeight - bubbleH - 8,
-    );
+    pos.left = Math.min(Math.max(8, pos.left), window.innerWidth - bubbleW - 8);
+    pos.top = Math.min(Math.max(8, pos.top), window.innerHeight - bubbleH - 8);
 
     this.bubblePos.set(pos);
   }

@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, interval, of, startWith, switchMap } from 'rxjs';
 
@@ -12,11 +12,7 @@ import { ObservabilityService } from './observability.service';
   selector: 'app-observability',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    CommonModule,
-    ServiceCardComponent,
-    PeHelperDirective,
-  ],
+  imports: [ServiceCardComponent, PeHelperDirective],
   templateUrl: './observability.component.html',
   styleUrls: ['./observability.component.scss'],
 })
@@ -63,4 +59,3 @@ export class ObservabilityComponent implements OnInit {
     return Math.min(100, Math.max(0, numericValue));
   }
 }
-

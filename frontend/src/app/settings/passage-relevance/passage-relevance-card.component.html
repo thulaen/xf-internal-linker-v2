@@ -2,49 +2,48 @@
   <mat-card-header>
     <mat-card-title>Passage-Level Relevance (FR-053)</mat-card-title>
     <div class="card-title-actions">
-      <mat-slide-toggle
-        *ngIf="settings"
-        [(ngModel)]="settings['passage_relevance.enabled']"
-        color="primary"
-        (change)="saveSettings()">
-        {{ settings['passage_relevance.enabled'] ? 'Enabled' : 'Disabled' }}
-      </mat-slide-toggle>
+      @if (settings) {
+        <mat-slide-toggle [(ngModel)]="settings['passage_relevance.enabled']" color="primary" (change)="saveSettings()">
+          {{ settings['passage_relevance.enabled'] ? 'Enabled' : 'Disabled' }}
+        </mat-slide-toggle>
+      }
     </div>
   </mat-card-header>
 
-  <mat-card-content class="card-content ga4-card" *ngIf="loading">
-    <p class="mat-body-2 text-muted">Loading...</p>
-  </mat-card-content>
+  @if (loading) {
+    <mat-card-content class="card-content ga4-card">
+      <p class="mat-body-2 text-muted">Loading...</p>
+    </mat-card-content>
+  }
 
-  <mat-card-content class="card-content ga4-card" *ngIf="!loading && settings">
-    <p class="mat-body-2 text-muted description">
-      Chunks long articles into overlapping passages and uses IVF-OPQ indexing for granular semantic matching, allowing queries to match specific paragraphs deep inside a thread.
-    </p>
-
-    <div class="settings-grid">
-      <mat-form-field appearance="outline" class="ga4-standard-field">
-        <mat-label>Ranking Weight</mat-label>
-        <input matInput type="number" step="0.01" [(ngModel)]="settings['passage_relevance.ranking_weight']">
-        <mat-icon matSuffix matTooltip="How much the passage relevance score influences the final ranking.">info_outline</mat-icon>
-      </mat-form-field>
-
-      <mat-form-field appearance="outline" class="ga4-standard-field">
-        <mat-label>Passage Words</mat-label>
-        <input matInput type="number" step="10" [(ngModel)]="settings['passage_relevance.passage_words']">
-        <mat-icon matSuffix matTooltip="Target word count for each chunk. The engine overlaps chunks by 25%.">info_outline</mat-icon>
-      </mat-form-field>
-
-      <mat-form-field appearance="outline" class="ga4-standard-field">
-        <mat-label>Passages Per Page Max</mat-label>
-        <input matInput type="number" step="1" [(ngModel)]="settings['passage_relevance.passages_per_page_max']">
-        <mat-icon matSuffix matTooltip="Hard cap on chunks per page (0 = unlimited).">info_outline</mat-icon>
-      </mat-form-field>
-    </div>
-
-    <div class="card-actions-row">
-      <button mat-flat-button color="primary" [disabled]="saving" (click)="saveSettings()">
-        {{ saving ? 'Saving...' : 'Save Settings' }}
-      </button>
-    </div>
-  </mat-card-content>
+  @if (!loading && settings) {
+    <mat-card-content class="card-content ga4-card">
+      <p class="mat-body-2 text-muted description">
+        Chunks long articles into overlapping passages and uses IVF-OPQ indexing for granular semantic matching, allowing queries to match specific paragraphs
+        deep inside a thread.
+      </p>
+      <div class="settings-grid">
+        <mat-form-field appearance="outline" class="ga4-standard-field">
+          <mat-label>Ranking Weight</mat-label>
+          <input matInput type="number" step="0.01" [(ngModel)]="settings['passage_relevance.ranking_weight']" />
+          <mat-icon matSuffix matTooltip="How much the passage relevance score influences the final ranking.">info_outline</mat-icon>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="ga4-standard-field">
+          <mat-label>Passage Words</mat-label>
+          <input matInput type="number" step="10" [(ngModel)]="settings['passage_relevance.passage_words']" />
+          <mat-icon matSuffix matTooltip="Target word count for each chunk. The engine overlaps chunks by 25%.">info_outline</mat-icon>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="ga4-standard-field">
+          <mat-label>Passages Per Page Max</mat-label>
+          <input matInput type="number" step="1" [(ngModel)]="settings['passage_relevance.passages_per_page_max']" />
+          <mat-icon matSuffix matTooltip="Hard cap on chunks per page (0 = unlimited).">info_outline</mat-icon>
+        </mat-form-field>
+      </div>
+      <div class="card-actions-row">
+        <button mat-flat-button color="primary" [disabled]="saving" (click)="saveSettings()">
+          {{ saving ? 'Saving...' : 'Save Settings' }}
+        </button>
+      </div>
+    </mat-card-content>
+  }
 </mat-card>

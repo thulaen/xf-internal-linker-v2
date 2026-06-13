@@ -1,12 +1,6 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  Input,
-  computed,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, computed, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { CommonModule } from '@angular/common';
+
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -47,7 +41,6 @@ import { WhyFooterComponent } from '../../shared/ui/why-footer/why-footer.compon
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     RouterLink,
     MatCardModule,
     MatIconModule,
@@ -105,58 +98,73 @@ import { WhyFooterComponent } from '../../shared/ui/why-footer/why-footer.compon
         </a>
       </mat-card-actions>
       <app-why-footer
-        text="One number that summarises whether the system is OK at a glance. Refreshes whenever the dashboard re-fetches data." />
+        text="One number that summarises whether the system is OK at a glance. Refreshes whenever the dashboard re-fetches data."
+      />
     </mat-card>
   `,
-  styles: [`
-    .hsd-card { height: 100%; }
-    .hsd-avatar {
-      background: var(--color-primary);
-      color: var(--color-on-primary, #ffffff);
-    }
-    .hsd-dial-wrap {
-      display: flex;
-      justify-content: center;
-      padding: 8px 0 16px;
-    }
-    .hsd-dial {
-      width: 160px;
-      height: 160px;
-      transform: rotate(-90deg); /* start the arc at 12 o'clock */
-    }
-    .hsd-track {
-      fill: none;
-      stroke: var(--color-bg-faint);
-      stroke-width: 12;
-    }
-    .hsd-progress {
-      fill: none;
-      stroke-width: 12;
-      stroke-linecap: round;
-      transition: stroke-dasharray 0.4s ease, stroke 0.2s ease;
-    }
-    .hsd-progress.hsd-good { stroke: var(--color-success, #1e8e3e); }
-    .hsd-progress.hsd-warn { stroke: var(--color-warning, #f9ab00); }
-    .hsd-progress.hsd-bad  { stroke: var(--color-error, #d93025); }
-    .hsd-number {
-      transform: rotate(90deg);
-      transform-origin: 60px 60px;
-      font-size: 28px;
-      font-weight: 600;
-      fill: var(--color-text-primary);
-      font-family: var(--font-family);
-    }
-    .hsd-suffix {
-      transform: rotate(90deg);
-      transform-origin: 60px 60px;
-      font-size: 11px;
-      fill: var(--color-text-secondary);
-      font-family: var(--font-family);
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .hsd-progress { transition: none; }
-    }
-  `],
+  styles: [
+    `
+      .hsd-card {
+        height: 100%;
+      }
+      .hsd-avatar {
+        background: var(--color-primary);
+        color: var(--color-on-primary, #ffffff);
+      }
+      .hsd-dial-wrap {
+        display: flex;
+        justify-content: center;
+        padding: 8px 0 16px;
+      }
+      .hsd-dial {
+        width: 160px;
+        height: 160px;
+        transform: rotate(-90deg); /* start the arc at 12 o'clock */
+      }
+      .hsd-track {
+        fill: none;
+        stroke: var(--color-bg-faint);
+        stroke-width: 12;
+      }
+      .hsd-progress {
+        fill: none;
+        stroke-width: 12;
+        stroke-linecap: round;
+        transition:
+          stroke-dasharray 0.4s ease,
+          stroke 0.2s ease;
+      }
+      .hsd-progress.hsd-good {
+        stroke: var(--color-success, #1e8e3e);
+      }
+      .hsd-progress.hsd-warn {
+        stroke: var(--color-warning, #f9ab00);
+      }
+      .hsd-progress.hsd-bad {
+        stroke: var(--color-error, #d93025);
+      }
+      .hsd-number {
+        transform: rotate(90deg);
+        transform-origin: 60px 60px;
+        font-size: 28px;
+        font-weight: 600;
+        fill: var(--color-text-primary);
+        font-family: var(--font-family);
+      }
+      .hsd-suffix {
+        transform: rotate(90deg);
+        transform-origin: 60px 60px;
+        font-size: 11px;
+        fill: var(--color-text-secondary);
+        font-family: var(--font-family);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .hsd-progress {
+          transition: none;
+        }
+      }
+    `,
+  ],
 })
 export class HealthScoreDialComponent {
   /** Set by the dashboard parent on every refresh. */
@@ -209,9 +217,12 @@ export class HealthScoreDialComponent {
 
   readonly verdict = computed<string>(() => {
     switch (this.grade()) {
-      case 'good': return 'Healthy — keep going';
-      case 'warn': return 'Needs attention';
-      case 'bad':  return 'Critical issues active';
+      case 'good':
+        return 'Healthy — keep going';
+      case 'warn':
+        return 'Needs attention';
+      case 'bad':
+        return 'Critical issues active';
     }
   });
 

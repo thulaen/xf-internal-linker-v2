@@ -16,21 +16,28 @@
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let f of features; trackBy: trackById" [ngClass]="getStatusClass(f.status)">
-          <td class="feature-id"><code>{{ f.id }}</code></td>
-          <td class="feature-name">{{ f.name }}</td>
-          <td class="feature-status">
-            <div class="status-pill">
-              <span class="material-icons status-icon">{{ getStatusIcon(f.status) }}</span>
-              <span>{{ getStatusLabel(f.status) }}</span>
-            </div>
-          </td>
-          <td class="feature-progress">
-            <div class="progress-bar">
-              <div class="progress-fill" [style.width]="f.status === 'verified' ? '100%' : (f.status === 'implemented' ? '80%' : (f.status === 'implementing' ? '40%' : '5%'))"></div>
-            </div>
-          </td>
-        </tr>
+        @for (f of features; track trackById($index, f)) {
+          <tr [ngClass]="getStatusClass(f.status)">
+            <td class="feature-id">
+              <code>{{ f.id }}</code>
+            </td>
+            <td class="feature-name">{{ f.name }}</td>
+            <td class="feature-status">
+              <div class="status-pill">
+                <span class="material-icons status-icon">{{ getStatusIcon(f.status) }}</span>
+                <span>{{ getStatusLabel(f.status) }}</span>
+              </div>
+            </td>
+            <td class="feature-progress">
+              <div class="progress-bar">
+                <div
+                  class="progress-fill"
+                  [style.width]="f.status === 'verified' ? '100%' : f.status === 'implemented' ? '80%' : f.status === 'implementing' ? '40%' : '5%'"
+                ></div>
+              </div>
+            </td>
+          </tr>
+        }
       </tbody>
     </table>
   </div>

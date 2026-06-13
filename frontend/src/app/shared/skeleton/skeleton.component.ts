@@ -1,5 +1,4 @@
 import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
-import { CommonModule } from '@angular/common';
 
 /**
  * Skeleton screen — placeholder shown while a lazy-loaded route or widget
@@ -21,7 +20,7 @@ import { CommonModule } from '@angular/common';
 @Component({
   selector: 'app-skeleton',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @switch (shape) {
@@ -45,7 +44,8 @@ import { CommonModule } from '@angular/common';
           [style.height.px]="height"
           [attr.aria-busy]="true"
           role="status"
-          aria-label="Loading content">
+          aria-label="Loading content"
+        >
           <span class="visually-hidden">Loading…</span>
         </div>
       }

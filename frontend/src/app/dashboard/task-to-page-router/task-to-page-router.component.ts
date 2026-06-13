@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -80,15 +80,7 @@ const INTENT_GROUPS: readonly IntentGroup[] = [
   selector: 'app-task-to-page-router',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    CommonModule,
-    FormsModule,
-    MatCardModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatButtonModule,
-    MatIconModule,
-  ],
+  imports: [FormsModule, MatCardModule, MatFormFieldModule, MatSelectModule, MatButtonModule, MatIconModule],
   template: `
     <mat-card class="ttp-card">
       <mat-card-header>
@@ -115,22 +107,28 @@ const INTENT_GROUPS: readonly IntentGroup[] = [
       </mat-card-content>
     </mat-card>
   `,
-  styles: [`
-    .ttp-card { height: 100%; }
-    .ttp-avatar {
-      background: var(--color-primary);
-      color: var(--color-on-primary, #ffffff);
-    }
-    .ttp-field { width: 100%; }
-    .ttp-option-icon {
-      margin-right: 8px;
-      color: var(--color-text-secondary);
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
-      vertical-align: middle;
-    }
-  `],
+  styles: [
+    `
+      .ttp-card {
+        height: 100%;
+      }
+      .ttp-avatar {
+        background: var(--color-primary);
+        color: var(--color-on-primary, #ffffff);
+      }
+      .ttp-field {
+        width: 100%;
+      }
+      .ttp-option-icon {
+        margin-right: 8px;
+        color: var(--color-text-secondary);
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+        vertical-align: middle;
+      }
+    `,
+  ],
 })
 export class TaskToPageRouterComponent {
   private readonly router = inject(Router);

@@ -1,14 +1,6 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  Input,
-  OnChanges,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, Input, OnChanges, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -52,13 +44,7 @@ interface AuditEntry {
   selector: 'app-audit-trail',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    CommonModule,
-    MatIconModule,
-    MatProgressSpinnerModule,
-    TimeAgoPipe,
-    IntlDateTimePipe,
-  ],
+  imports: [MatIconModule, MatProgressSpinnerModule, TimeAgoPipe, IntlDateTimePipe],
   template: `
     <section class="at">
       <header class="at-head">
@@ -79,10 +65,7 @@ interface AuditEntry {
                 @if (e.actor) {
                   <span class="at-actor">by {{ e.actor }}</span>
                 }
-                <span
-                  class="at-time"
-                  [title]="e.created_at | intlDateTime"
-                >{{ e.created_at | timeAgo }}</span>
+                <span class="at-time" [title]="e.created_at | intlDateTime">{{ e.created_at | timeAgo }}</span>
               </div>
             </li>
           }
@@ -90,73 +73,77 @@ interface AuditEntry {
       }
     </section>
   `,
-  styles: [`
-    .at-head {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin-bottom: 8px;
-    }
-    .at-head mat-icon { color: var(--color-primary); }
-    .at-title {
-      margin: 0;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--color-text-primary);
-    }
-    .at-list {
-      list-style: none;
-      margin: 0;
-      padding: 0 0 0 12px;
-      border-left: 2px solid var(--color-border-faint);
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .at-item {
-      position: relative;
-      padding-left: 8px;
-    }
-    .at-dot {
-      position: absolute;
-      left: -17px;
-      top: 4px;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--color-primary);
-    }
-    .at-body {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      font-size: 12px;
-      line-height: 1.4;
-    }
-    .at-action {
-      font-weight: 500;
-      color: var(--color-text-primary);
-    }
-    .at-actor {
-      color: var(--color-text-secondary);
-    }
-    .at-time {
-      color: var(--color-text-secondary);
-      font-variant-numeric: tabular-nums;
-      cursor: help;
-    }
-    .at-empty {
-      font-size: 13px;
-      color: var(--color-text-secondary);
-      font-style: italic;
-      margin: 0;
-    }
-    .at-spinner {
-      display: flex;
-      justify-content: center;
-      padding: 12px 0;
-    }
-  `],
+  styles: [
+    `
+      .at-head {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 8px;
+      }
+      .at-head mat-icon {
+        color: var(--color-primary);
+      }
+      .at-title {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--color-text-primary);
+      }
+      .at-list {
+        list-style: none;
+        margin: 0;
+        padding: 0 0 0 12px;
+        border-left: 2px solid var(--color-border-faint);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .at-item {
+        position: relative;
+        padding-left: 8px;
+      }
+      .at-dot {
+        position: absolute;
+        left: -17px;
+        top: 4px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--color-primary);
+      }
+      .at-body {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        font-size: 12px;
+        line-height: 1.4;
+      }
+      .at-action {
+        font-weight: 500;
+        color: var(--color-text-primary);
+      }
+      .at-actor {
+        color: var(--color-text-secondary);
+      }
+      .at-time {
+        color: var(--color-text-secondary);
+        font-variant-numeric: tabular-nums;
+        cursor: help;
+      }
+      .at-empty {
+        font-size: 13px;
+        color: var(--color-text-secondary);
+        font-style: italic;
+        margin: 0;
+      }
+      .at-spinner {
+        display: flex;
+        justify-content: center;
+        padding: 12px 0;
+      }
+    `,
+  ],
 })
 export class AuditTrailComponent implements OnChanges {
   @Input({ required: true }) targetType = '';
@@ -171,9 +158,7 @@ export class AuditTrailComponent implements OnChanges {
   ngOnChanges(): void {
     if (!this.targetType || !this.targetId) return;
     this.loading.set(true);
-    const params = new HttpParams()
-      .set('target_type', this.targetType)
-      .set('target_id', String(this.targetId));
+    const params = new HttpParams().set('target_type', this.targetType).set('target_id', String(this.targetId));
     this.http
       .get<AuditEntry[] | { results?: AuditEntry[] }>('/api/audit-entries/', { params })
       .pipe(
@@ -182,12 +167,8 @@ export class AuditTrailComponent implements OnChanges {
       )
       .subscribe((raw) => {
         this.loading.set(false);
-        const arr = Array.isArray(raw)
-          ? raw
-          : ((raw as { results?: AuditEntry[] })?.results ?? []);
-        this.entries.set(
-          [...arr].sort((a, b) => b.created_at.localeCompare(a.created_at)),
-        );
+        const arr = Array.isArray(raw) ? raw : ((raw as { results?: AuditEntry[] })?.results ?? []);
+        this.entries.set([...arr].sort((a, b) => b.created_at.localeCompare(a.created_at)));
       });
   }
 }

@@ -20,20 +20,37 @@
             <p class="compact-hint" i18n="@@settings.libraryHistory.presetsHint">Snapshot your current weights or reload research-backed defaults.</p>
             <div class="compact-button-row">
               @if (recommendedPreset) {
-                <button mat-stroked-button color="primary" [disabled]="applyingPreset() || matchedPreset?.id === recommendedPreset.id" (click)="applyPreset(recommendedPreset)">
-                  <mat-icon>bolt</mat-icon> <span i18n="@@settings.actions.resetToRecommended">Reset to Recommended</span>
+                <button
+                  mat-stroked-button
+                  color="primary"
+                  [disabled]="applyingPreset() || matchedPreset?.id === recommendedPreset.id"
+                  (click)="applyPreset(recommendedPreset)"
+                >
+                  <mat-icon>bolt</mat-icon>
+                  <span i18n="@@settings.actions.resetToRecommended">Reset to Recommended</span>
                 </button>
               }
-              <button mat-stroked-button (click)="showSavePresetInput = true" *ngIf="!showSavePresetInput">
-                <mat-icon>add</mat-icon> <span i18n="@@settings.actions.saveAsNewPreset">Save as new preset</span>
-              </button>
-              <div class="save-preset-inline" *ngIf="showSavePresetInput">
-                <mat-form-field appearance="outline">
-                  <input matInput autocomplete="off" [(ngModel)]="newPresetName" placeholder="Name..." i18n-placeholder="@@settings.placeholders.presetName" />
-                </mat-form-field>
-                <button mat-flat-button color="primary" (click)="saveCurrentAsPreset()" i18n="@@settings.actions.save">Save</button>
-                <button mat-icon-button (click)="showSavePresetInput = false"><mat-icon>close</mat-icon></button>
-              </div>
+              @if (!showSavePresetInput) {
+                <button mat-stroked-button (click)="showSavePresetInput = true">
+                  <mat-icon>add</mat-icon>
+                  <span i18n="@@settings.actions.saveAsNewPreset">Save as new preset</span>
+                </button>
+              }
+              @if (showSavePresetInput) {
+                <div class="save-preset-inline">
+                  <mat-form-field appearance="outline">
+                    <input
+                      matInput
+                      autocomplete="off"
+                      [(ngModel)]="newPresetName"
+                      placeholder="Name..."
+                      i18n-placeholder="@@settings.placeholders.presetName"
+                    />
+                  </mat-form-field>
+                  <button mat-flat-button color="primary" (click)="saveCurrentAsPreset()" i18n="@@settings.actions.save">Save</button>
+                  <button mat-icon-button (click)="showSavePresetInput = false"><mat-icon>close</mat-icon></button>
+                </div>
+              }
             </div>
           </section>
 
@@ -44,10 +61,22 @@
                   <mat-icon class="preset-icon">{{ preset.is_system ? 'verified' : 'bookmark' }}</mat-icon>
                   <div class="preset-copy">
                     <span class="preset-name">{{ preset.name }}</span>
-                    <span class="preset-date">{{ preset.created_at | date:'shortDate' }}</span>
+                    <span class="preset-date">{{ preset.created_at | date: 'shortDate' }}</span>
                   </div>
-                  <button mat-stroked-button color="primary" [disabled]="applyingPreset()" (click)="applyPreset(preset)" i18n="@@settings.actions.load">Load</button>
-                  <button mat-icon-button color="warn" *ngIf="!preset.is_system" (click)="deletePreset(preset)" [matTooltip]="'Delete ' + preset.name" i18n-matTooltip="@@settings.actions.deletePresetTooltip"><mat-icon>delete</mat-icon></button>
+                  <button mat-stroked-button color="primary" [disabled]="applyingPreset()" (click)="applyPreset(preset)" i18n="@@settings.actions.load">
+                    Load
+                  </button>
+                  @if (!preset.is_system) {
+                    <button
+                      mat-icon-button
+                      color="warn"
+                      (click)="deletePreset(preset)"
+                      [matTooltip]="'Delete ' + preset.name"
+                      i18n-matTooltip="@@settings.actions.deletePresetTooltip"
+                    >
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  }
                 </div>
               }
             </div>
@@ -60,15 +89,16 @@
     <mat-card class="settings-card settings-card--wide" id="ranking-challengers">
       <mat-card-header>
         <mat-card-title i18n="@@settings.libraryHistory.autoTuneTitle">Ranking Auto-Tune (Poisson-Gamma)</mat-card-title>
-        <mat-card-subtitle i18n="@@settings.libraryHistory.autoTuneSubtitle">Optimiser proposes weight updates based on GSC, GA4, Matomo, and human review signals.</mat-card-subtitle>
+        <mat-card-subtitle i18n="@@settings.libraryHistory.autoTuneSubtitle">
+          Optimiser proposes weight updates based on GSC, GA4, Matomo, and human review signals.
+        </mat-card-subtitle>
       </mat-card-header>
       <mat-card-content class="card-content ga4-card">
-
         <!-- Run button -->
         <div class="tune-trigger-row">
           <button mat-stroked-button color="primary" [disabled]="triggeringWeightTune()" (click)="triggerWeightTune()">
             @if (triggeringWeightTune()) {
-              <mat-spinner diameter="18" style="display:inline-block;margin-right:8px;vertical-align:middle;"></mat-spinner>
+              <mat-spinner diameter="18" style="display: inline-block; margin-right: 8px; vertical-align: middle"></mat-spinner>
             }
             <span i18n="@@settings.actions.runAutoTune">Run Auto-Tune Now</span>
           </button>
@@ -88,7 +118,7 @@
               @if (challengerImprovementPct(pendingChallenger)) {
                 <span class="challenger-badge challenger-badge--positive">{{ challengerImprovementPct(pendingChallenger) }}</span>
               }
-              <span class="challenger-date">{{ pendingChallenger.created_at | date:'short' }}</span>
+              <span class="challenger-date">{{ pendingChallenger.created_at | date: 'short' }}</span>
             </div>
 
             <!-- Weight diff -->
@@ -96,9 +126,9 @@
               @for (key of challengerDiffKeys(pendingChallenger); track key) {
                 <div class="diff-row">
                   <span class="diff-key">{{ key }}</span>
-                  <span class="diff-old">{{ pendingChallenger.baseline_weights[key] | number:'1.2-4' }}</span>
+                  <span class="diff-old">{{ pendingChallenger.baseline_weights[key] | number: '1.2-4' }}</span>
                   <mat-icon class="diff-arrow">arrow_forward</mat-icon>
-                  <span class="diff-new">{{ pendingChallenger.candidate_weights[key] | number:'1.2-4' }}</span>
+                  <span class="diff-new">{{ pendingChallenger.candidate_weights[key] | number: '1.2-4' }}</span>
                 </div>
               }
             </div>
@@ -106,7 +136,7 @@
             <div class="challenger-actions">
               <button mat-flat-button color="primary" [disabled]="evaluatingChallenger()" (click)="promoteChallenger(pendingChallenger)">
                 @if (evaluatingChallenger()) {
-                  <mat-spinner diameter="18" style="display:inline-block;margin-right:8px;vertical-align:middle;"></mat-spinner>
+                  <mat-spinner diameter="18" style="display: inline-block; margin-right: 8px; vertical-align: middle"></mat-spinner>
                 }
                 <span i18n="@@settings.actions.promote">Promote</span>
               </button>
@@ -135,9 +165,13 @@
               <tbody>
                 @for (c of challengers(); track c.id) {
                   <tr>
-                    <td class="date-cell">{{ c.created_at | date:'shortDate' }}</td>
-                    <td class="run-id-cell"><code>{{ c.run_id | slice:0:12 }}&hellip;</code></td>
-                    <td><span class="source-tag source-tag--{{ c.status }}">{{ c.status }}</span></td>
+                    <td class="date-cell">{{ c.created_at | date: 'shortDate' }}</td>
+                    <td class="run-id-cell">
+                      <code>{{ c.run_id | slice: 0 : 12 }}&hellip;</code>
+                    </td>
+                    <td>
+                      <span class="source-tag source-tag--{{ c.status }}">{{ c.status }}</span>
+                    </td>
                     <td>{{ challengerImprovementPct(c) || '—' }}</td>
                   </tr>
                 }
@@ -145,7 +179,6 @@
             </table>
           </div>
         }
-
       </mat-card-content>
     </mat-card>
 
@@ -169,8 +202,10 @@
             <tbody>
               @for (row of weightHistory(); track row.id) {
                 <tr>
-                  <td class="date-cell">{{ row.created_at | date:'short' }}</td>
-                  <td><span class="source-tag">{{ historySourceLabel(row.source) }}</span></td>
+                  <td class="date-cell">{{ row.created_at | date: 'short' }}</td>
+                  <td>
+                    <span class="source-tag">{{ historySourceLabel(row.source) }}</span>
+                  </td>
                   <td class="reason-cell">{{ row.reason }}</td>
                   <td>
                     <div class="delta-summary">

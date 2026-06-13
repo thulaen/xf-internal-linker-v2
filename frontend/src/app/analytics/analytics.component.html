@@ -71,8 +71,12 @@
           <mat-card-header>
             <mat-card-title i18n="@@analytics.funnel.title">Funnel Performance</mat-card-title>
             <mat-card-subtitle i18n="@@analytics.funnel.subtitle">Last {{ funnelData.days }} days — {{ sourceLabel(selectedSource) }}</mat-card-subtitle>
-            <mat-icon class="chart-help-icon"
-                      [peHelper]="'Shows how many visitors move from one step to the next; a big drop means people leave at that step.'">help_outline</mat-icon>
+            <mat-icon
+              class="chart-help-icon"
+              [peHelper]="'Shows how many visitors move from one step to the next; a big drop means people leave at that step.'"
+            >
+              help_outline
+            </mat-icon>
           </mat-card-header>
           <mat-card-content>
             <div class="funnel-container">
@@ -90,8 +94,12 @@
                 <div class="breakdown-item">
                   <span class="breakdown-item__name">{{ row.telemetry_source | uppercase }}</span>
                   <div class="breakdown-item__metrics">
-                    <span><strong i18n="@@analytics.funnel.clicks">{{ row.clicks }} clicks</strong></span>
-                    <span><strong i18n="@@analytics.funnel.engaged">{{ row.engaged_sessions }} engaged</strong></span>
+                    <span>
+                      <strong i18n="@@analytics.funnel.clicks">{{ row.clicks }} clicks</strong>
+                    </span>
+                    <span>
+                      <strong i18n="@@analytics.funnel.engaged">{{ row.engaged_sessions }} engaged</strong>
+                    </span>
                   </div>
                 </div>
               }
@@ -115,10 +123,7 @@
             <mat-button-toggle [value]="30" i18n="@@analytics.engagement_mix.window.30d">30 days</mat-button-toggle>
           </mat-button-toggle-group>
         </div>
-        <app-engagement-mix
-          [source]="selectedSource"
-          [windowDays]="engagementWindowDays"
-        ></app-engagement-mix>
+        <app-engagement-mix [source]="selectedSource" [windowDays]="engagementWindowDays"></app-engagement-mix>
       </div>
 
       @if (versionComparison; as versionData) {
@@ -126,8 +131,9 @@
           <mat-card-header>
             <mat-card-title i18n="@@analytics.algorithm.title">Algorithm Performance</mat-card-title>
             <mat-card-subtitle i18n="@@analytics.algorithm.subtitle">Comparison across different model versions</mat-card-subtitle>
-            <mat-icon class="chart-help-icon"
-                      [peHelper]="'Compares how well each version of the ranking math performed, from 0 to 100 percent.'">help_outline</mat-icon>
+            <mat-icon class="chart-help-icon" [peHelper]="'Compares how well each version of the ranking math performed, from 0 to 100 percent.'">
+              help_outline
+            </mat-icon>
           </mat-card-header>
           <mat-card-content>
             @if (versionChartData) {
@@ -137,7 +143,7 @@
             } @else {
               <div class="empty-state-mini"><p i18n="@@analytics.algorithm.chart_empty">No version performance data to chart yet.</p></div>
             }
-            
+
             <div class="table-section">
               <h3 i18n="@@analytics.algorithm.table_title">Detailed Version Metrics</h3>
               @if (versionData.items.length) {
@@ -161,7 +167,9 @@
                               <span class="version-info__meta" i18n="@@analytics.algorithm.meta">{{ row.clicks }} clicks • {{ row.impressions }} views</span>
                             </div>
                           </td>
-                          <td class="text-right"><strong>{{ formatPercent(row.ctr) }}</strong></td>
+                          <td class="text-right">
+                            <strong>{{ formatPercent(row.ctr) }}</strong>
+                          </td>
                           <td class="text-center">
                             @if (calculateUplift(row); as uplift) {
                               <span class="uplift-badge" [class.uplift-badge--negative]="uplift.startsWith('-')">{{ uplift }}</span>
@@ -200,7 +208,9 @@
               <div class="health-metric">
                 <span class="health-metric__label" i18n="@@analytics.systemHealth.metric.impression">Impression Coverage</span>
                 <span class="health-metric__value">{{ formatPercent(healthData.overall.impression_coverage_rate) }}</span>
-                <p class="health-metric__desc" i18n="@@analytics.systemHealth.desc.impression">{{ healthData.overall.observed_impression_links }} of {{ healthData.overall.expected_instrumented_links }} links</p>
+                <p class="health-metric__desc" i18n="@@analytics.systemHealth.desc.impression">
+                  {{ healthData.overall.observed_impression_links }} of {{ healthData.overall.expected_instrumented_links }} links
+                </p>
               </div>
               <div class="health-metric">
                 <span class="health-metric__label" i18n="@@analytics.systemHealth.metric.click">Click Coverage</span>
@@ -210,7 +220,9 @@
               <div class="health-metric">
                 <span class="health-metric__label" i18n="@@analytics.systemHealth.metric.attribution">Attribution Rate</span>
                 <span class="health-metric__value">{{ formatPercent(healthData.overall.attribution_rate) }}</span>
-                <p class="health-metric__desc" i18n="@@analytics.systemHealth.desc.attribution">{{ healthData.overall.attributed_destination_sessions }} sessions attributed</p>
+                <p class="health-metric__desc" i18n="@@analytics.systemHealth.desc.attribution">
+                  {{ healthData.overall.attributed_destination_sessions }} sessions attributed
+                </p>
               </div>
               <div class="health-metric">
                 <span class="health-metric__label" i18n="@@analytics.systemHealth.metric.integrity">Data Integrity</span>
@@ -246,9 +258,12 @@
         <mat-card class="report-card ga4-card" id="analytics-trend">
           <mat-card-header>
             <mat-card-title i18n="@@analytics.engagementTrend.title">Engagement Trend</mat-card-title>
-            <mat-card-subtitle i18n="@@analytics.engagementTrend.subtitle">User interaction trends over the last {{ trendData.items.length }} days</mat-card-subtitle>
-            <mat-icon class="chart-help-icon"
-                      [peHelper]="'Daily clicks (left side) next to the engagement rate as a percent (right side).'">help_outline</mat-icon>
+            <mat-card-subtitle i18n="@@analytics.engagementTrend.subtitle">
+              User interaction trends over the last {{ trendData.items.length }} days
+            </mat-card-subtitle>
+            <mat-icon class="chart-help-icon" [peHelper]="'Daily clicks (left side) next to the engagement rate as a percent (right side).'">
+              help_outline
+            </mat-icon>
           </mat-card-header>
           <mat-card-content>
             <div class="trend-section">
@@ -282,8 +297,7 @@
           <mat-card class="report-card ga4-card" id="analytics-device-mix-card">
             <mat-card-header>
               <mat-card-title i18n="@@analytics.deviceMix.title">Device Mix</mat-card-title>
-              <mat-icon class="chart-help-icon"
-                        [peHelper]="'Share of visits by device — phone, tablet, or desktop.'">help_outline</mat-icon>
+              <mat-icon class="chart-help-icon" [peHelper]="'Share of visits by device — phone, tablet, or desktop.'">help_outline</mat-icon>
             </mat-card-header>
             <mat-card-content>
               @if (deviceChartData && breakdownData.device_categories.length) {
@@ -299,8 +313,7 @@
           <mat-card class="report-card ga4-card" id="analytics-channel-mix-card">
             <mat-card-header>
               <mat-card-title i18n="@@analytics.channelMix.title">Channel Mix</mat-card-title>
-              <mat-icon class="chart-help-icon"
-                        [peHelper]="'Share of visits by traffic source — search, direct, referral, and so on.'">help_outline</mat-icon>
+              <mat-icon class="chart-help-icon" [peHelper]="'Share of visits by traffic source — search, direct, referral, and so on.'">help_outline</mat-icon>
             </mat-card-header>
             <mat-card-content>
               @if (channelChartData && breakdownData.channel_groups.length) {
@@ -316,8 +329,7 @@
           <mat-card class="report-card ga4-card" id="analytics-geographic-mix-card">
             <mat-card-header>
               <mat-card-title i18n="@@analytics.geographicMix.title">Geographic Mix</mat-card-title>
-              <mat-icon class="chart-help-icon"
-                        [peHelper]="'Visits by country — the top 10 countries by clicks.'">help_outline</mat-icon>
+              <mat-icon class="chart-help-icon" [peHelper]="'Visits by country — the top 10 countries by clicks.'">help_outline</mat-icon>
             </mat-card-header>
             <mat-card-content>
               @if (geoChartData && breakdownData.countries.length) {
@@ -335,35 +347,38 @@
                 </div>
 
                 @if (showFullGeo && geoDetail) {
-                    <div class="table-container table-container--geo">
-                      <table class="premium-table premium-table--compact">
-                        <thead>
+                  <div class="table-container table-container--geo">
+                    <table class="premium-table premium-table--compact">
+                      <thead>
+                        <tr>
+                          <th i18n="@@analytics.geographicMix.col.country">Country</th>
+                          <th i18n="@@analytics.geographicMix.col.region">Region</th>
+                          <th class="text-right" i18n="@@analytics.geographicMix.col.clicks">Clicks</th>
+                          <th class="text-right" i18n="@@analytics.geographicMix.col.ctr">CTR</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (row of geoDetail.items; track row.country + row.region) {
                           <tr>
-                            <th i18n="@@analytics.geographicMix.col.country">Country</th>
-                            <th i18n="@@analytics.geographicMix.col.region">Region</th>
-                            <th class="text-right" i18n="@@analytics.geographicMix.col.clicks">Clicks</th>
-                            <th class="text-right" i18n="@@analytics.geographicMix.col.ctr">CTR</th>
+                            <td>{{ row.country }}</td>
+                            <td>
+                              <small class="text-subtle">{{ row.region }}</small>
+                            </td>
+                            <td class="text-right">
+                              <strong>{{ row.clicks | number }}</strong>
+                            </td>
+                            <td class="text-right">{{ formatPercent(row.ctr) }}</td>
                           </tr>
-                        </thead>
-                        <tbody>
-                          @for (row of geoDetail.items; track row.country + row.region) {
-                            <tr>
-                              <td>{{ row.country }}</td>
-                              <td><small class="text-subtle">{{ row.region }}</small></td>
-                              <td class="text-right"><strong>{{ row.clicks | number }}</strong></td>
-                              <td class="text-right">{{ formatPercent(row.ctr) }}</td>
-                            </tr>
-                          }
-                        </tbody>
-                      </table>
-                    </div>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
                 }
               } @else {
                 <div class="empty-state-mini"><p i18n="@@analytics.geographicMix.empty">No country data.</p></div>
               }
             </mat-card-content>
           </mat-card>
-
         </div>
       }
 
@@ -397,7 +412,9 @@
                     <div class="top-row__main">
                       <span class="top-row__title">{{ item.destination_title }}</span>
                       <span class="top-row__meta" i18n="@@analytics.topSuggestions.anchor">Anchor: {{ item.anchor_phrase || 'No saved anchor' }}</span>
-                      <span class="top-row__source" i18n="@@analytics.topSuggestions.source_status">{{ item.telemetry_source | uppercase }} • Status: {{ item.status }}</span>
+                      <span class="top-row__source" i18n="@@analytics.topSuggestions.source_status">
+                        {{ item.telemetry_source | uppercase }} • Status: {{ item.status }}
+                      </span>
                     </div>
                     <div class="top-row__metrics">
                       <div class="top-metric">
@@ -412,15 +429,11 @@
                         <span class="top-metric__label" i18n="@@analytics.topSuggestions.metric.engaged">Engaged</span>
                         <span class="top-metric__value">{{ formatPercent(item.engagement_rate) }}</span>
                       </div>
-                      <div
-                        class="top-metric"
-                        [matTooltip]="quickExitTooltip(item)"
-                      >
+                      <div class="top-metric" [matTooltip]="quickExitTooltip(item)">
                         <span class="top-metric__label" i18n="@@analytics.topSuggestions.metric.quick_exit">Quick exit</span>
-                        <span
-                          class="top-metric__value"
-                          [class.top-metric__value--alert]="isHighQuickExit(item)"
-                        >{{ formatPercent(item.quick_exit_rate) }}</span>
+                        <span class="top-metric__value" [class.top-metric__value--alert]="isHighQuickExit(item)">
+                          {{ formatPercent(item.quick_exit_rate) }}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -436,320 +449,368 @@
 
     <div class="system-footer" id="analytics-search-impact">
       <!-- Search Impact Section -->
-    <div class="report-section-header">
-      <div class="section-title-group">
-        <h2 class="section-title" i18n="@@analytics.impact.title">
-          <mat-icon>insights</mat-icon>
-          Search Outcome Attribution
-        </h2>
-        <mat-button-toggle-group [value]="selectedImpactWindow" (change)="onImpactWindowChange($event)" class="window-toggle">
-          <mat-button-toggle value="7d" i18n="@@analytics.impact.window.7d">7 Days</mat-button-toggle>
-          <mat-button-toggle value="14d" i18n="@@analytics.impact.window.14d">14 Days</mat-button-toggle>
-          <mat-button-toggle value="28d" i18n="@@analytics.impact.window.28d">28 Days</mat-button-toggle>
-        </mat-button-toggle-group>
+      <div class="report-section-header">
+        <div class="section-title-group">
+          <h2 class="section-title" i18n="@@analytics.impact.title">
+            <mat-icon>insights</mat-icon>
+            Search Outcome Attribution
+          </h2>
+          <mat-button-toggle-group [value]="selectedImpactWindow" (change)="onImpactWindowChange($event)" class="window-toggle">
+            <mat-button-toggle value="7d" i18n="@@analytics.impact.window.7d">7 Days</mat-button-toggle>
+            <mat-button-toggle value="14d" i18n="@@analytics.impact.window.14d">14 Days</mat-button-toggle>
+            <mat-button-toggle value="28d" i18n="@@analytics.impact.window.28d">28 Days</mat-button-toggle>
+          </mat-button-toggle-group>
+        </div>
+        <p class="section-subtitle" i18n="@@analytics.impact.subtitle">
+          Bayesian uplift measured via Google Search Console, normalized against a site-wide control group.
+        </p>
       </div>
-      <p class="section-subtitle" i18n="@@analytics.impact.subtitle">Bayesian uplift measured via Google Search Console, normalized against a site-wide control group.</p>
-    </div>
 
-    <div class="impact-charts-row" *ngIf="searchImpacts.length > 0">
-      <mat-card class="report-card ga4-card" id="analytics-traffic-lift-scatter-card">
-        <mat-card-header>
-          <mat-card-title i18n="@@analytics.impact.scatter.title">Traffic vs. Lift Scatter</mat-card-title>
-          <mat-card-subtitle i18n="@@analytics.impact.scatter.subtitle">Each dot is one applied suggestion. Position shows baseline traffic vs. measured lift.</mat-card-subtitle>
-          <mat-icon class="chart-help-icon"
-                    [peHelper]="'Each dot is a suggestion: how busy the page was (left to right) versus the percent change after the link was added (up and down).'">help_outline</mat-icon>
-        </mat-card-header>
-        <mat-card-content>
-          @if (scatterChartData) {
-            <div class="chart-wrapper chart-wrapper--md">
-              <div class="chart-host" [echarts]="scatterChartData"></div>
-            </div>
-          } @else {
-            <div class="empty-chart chart-wrapper--md">
-              <mat-icon class="icon-3xl">scatter_plot</mat-icon>
-              <p i18n="@@analytics.impact.scatter.empty">Not enough data to plot.</p>
-            </div>
-          }
-        </mat-card-content>
-      </mat-card>
+      @if (searchImpacts.length > 0) {
+        <div class="impact-charts-row">
+          <mat-card class="report-card ga4-card" id="analytics-traffic-lift-scatter-card">
+            <mat-card-header>
+              <mat-card-title i18n="@@analytics.impact.scatter.title">Traffic vs. Lift Scatter</mat-card-title>
+              <mat-card-subtitle i18n="@@analytics.impact.scatter.subtitle">
+                Each dot is one applied suggestion. Position shows baseline traffic vs. measured lift.
+              </mat-card-subtitle>
+              <mat-icon
+                class="chart-help-icon"
+                [peHelper]="'Each dot is a suggestion: how busy the page was (left to right) versus the percent change after the link was added (up and down).'"
+              >
+                help_outline
+              </mat-icon>
+            </mat-card-header>
+            <mat-card-content>
+              @if (scatterChartData) {
+                <div class="chart-wrapper chart-wrapper--md">
+                  <div class="chart-host" [echarts]="scatterChartData"></div>
+                </div>
+              } @else {
+                <div class="empty-chart chart-wrapper--md">
+                  <mat-icon class="icon-3xl">scatter_plot</mat-icon>
+                  <p i18n="@@analytics.impact.scatter.empty">Not enough data to plot.</p>
+                </div>
+              }
+            </mat-card-content>
+          </mat-card>
+          <div class="cohort-grid">
+            <mat-card class="report-card cohort-card ga4-card" id="analytics-cohort-by-platform-card">
+              <mat-card-header>
+                <mat-card-title i18n="@@analytics.impact.cohort.platform.title">By Platform</mat-card-title>
+                <mat-card-subtitle i18n="@@analytics.impact.cohort.platform.subtitle">Results split by XenForo vs WordPress content</mat-card-subtitle>
+              </mat-card-header>
+              <mat-card-content>
+                <table class="premium-table premium-table--compact">
+                  <thead>
+                    <tr>
+                      <th i18n="@@analytics.impact.cohort.col.platform">Platform</th>
+                      <th class="text-center" i18n="@@analytics.impact.cohort.col.positive">Positive</th>
+                      <th class="text-center" i18n="@@analytics.impact.cohort.col.neutral">Neutral</th>
+                      <th class="text-center" i18n="@@analytics.impact.cohort.col.negative">Negative</th>
+                      <th class="text-center" i18n="@@analytics.impact.cohort.col.total">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (row of cohortBySource; track row.label) {
+                      <tr>
+                        <td>
+                          <strong>{{ row.label }}</strong>
+                        </td>
+                        <td class="text-center">
+                          <span class="reward-badge reward-badge--positive">{{ row.positive }}</span>
+                        </td>
+                        <td class="text-center">
+                          <span class="reward-badge reward-badge--neutral">{{ row.neutral }}</span>
+                        </td>
+                        <td class="text-center">
+                          <span class="reward-badge reward-badge--negative">{{ row.negative }}</span>
+                        </td>
+                        <td class="text-center">
+                          <strong>{{ row.total }}</strong>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </mat-card-content>
+            </mat-card>
+            <mat-card class="report-card cohort-card ga4-card" id="analytics-cohort-by-anchor-family-card">
+              <mat-card-header>
+                <mat-card-title i18n="@@analytics.impact.cohort.anchor.title">By Anchor Family</mat-card-title>
+                <mat-card-subtitle i18n="@@analytics.impact.cohort.anchor.subtitle">Top 10 keyword groups (first word of anchor phrase)</mat-card-subtitle>
+              </mat-card-header>
+              <mat-card-content>
+                <table class="premium-table premium-table--compact">
+                  <thead>
+                    <tr>
+                      <th i18n="@@analytics.impact.cohort.col.anchor_family">Anchor Family</th>
+                      <th class="text-center" i18n="@@analytics.impact.cohort.col.positive">Positive</th>
+                      <th class="text-center" i18n="@@analytics.impact.cohort.col.neutral">Neutral</th>
+                      <th class="text-center" i18n="@@analytics.impact.cohort.col.negative">Negative</th>
+                      <th class="text-center" i18n="@@analytics.impact.cohort.col.total">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (row of cohortByAnchorFamily; track row.label) {
+                      <tr>
+                        <td>
+                          <span class="anchor-family-label">{{ row.label }}</span>
+                        </td>
+                        <td class="text-center">
+                          <span class="reward-badge reward-badge--positive">{{ row.positive }}</span>
+                        </td>
+                        <td class="text-center">
+                          <span class="reward-badge reward-badge--neutral">{{ row.neutral }}</span>
+                        </td>
+                        <td class="text-center">
+                          <span class="reward-badge reward-badge--negative">{{ row.negative }}</span>
+                        </td>
+                        <td class="text-center">
+                          <strong>{{ row.total }}</strong>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </mat-card-content>
+            </mat-card>
+          </div>
+        </div>
+      }
 
-      <div class="cohort-grid">
-        <mat-card class="report-card cohort-card ga4-card" id="analytics-cohort-by-platform-card">
-          <mat-card-header>
-            <mat-card-title i18n="@@analytics.impact.cohort.platform.title">By Platform</mat-card-title>
-            <mat-card-subtitle i18n="@@analytics.impact.cohort.platform.subtitle">Results split by XenForo vs WordPress content</mat-card-subtitle>
-          </mat-card-header>
-          <mat-card-content>
-            <table class="premium-table premium-table--compact">
-              <thead>
-                <tr>
-                  <th i18n="@@analytics.impact.cohort.col.platform">Platform</th>
-                  <th class="text-center" i18n="@@analytics.impact.cohort.col.positive">Positive</th>
-                  <th class="text-center" i18n="@@analytics.impact.cohort.col.neutral">Neutral</th>
-                  <th class="text-center" i18n="@@analytics.impact.cohort.col.negative">Negative</th>
-                  <th class="text-center" i18n="@@analytics.impact.cohort.col.total">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (row of cohortBySource; track row.label) {
-                  <tr>
-                    <td><strong>{{ row.label }}</strong></td>
-                    <td class="text-center"><span class="reward-badge reward-badge--positive">{{ row.positive }}</span></td>
-                    <td class="text-center"><span class="reward-badge reward-badge--neutral">{{ row.neutral }}</span></td>
-                    <td class="text-center"><span class="reward-badge reward-badge--negative">{{ row.negative }}</span></td>
-                    <td class="text-center"><strong>{{ row.total }}</strong></td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </mat-card-content>
-        </mat-card>
-
-        <mat-card class="report-card cohort-card ga4-card" id="analytics-cohort-by-anchor-family-card">
-          <mat-card-header>
-            <mat-card-title i18n="@@analytics.impact.cohort.anchor.title">By Anchor Family</mat-card-title>
-            <mat-card-subtitle i18n="@@analytics.impact.cohort.anchor.subtitle">Top 10 keyword groups (first word of anchor phrase)</mat-card-subtitle>
-          </mat-card-header>
-          <mat-card-content>
-            <table class="premium-table premium-table--compact">
-              <thead>
-                <tr>
-                  <th i18n="@@analytics.impact.cohort.col.anchor_family">Anchor Family</th>
-                  <th class="text-center" i18n="@@analytics.impact.cohort.col.positive">Positive</th>
-                  <th class="text-center" i18n="@@analytics.impact.cohort.col.neutral">Neutral</th>
-                  <th class="text-center" i18n="@@analytics.impact.cohort.col.negative">Negative</th>
-                  <th class="text-center" i18n="@@analytics.impact.cohort.col.total">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (row of cohortByAnchorFamily; track row.label) {
-                  <tr>
-                    <td>
-                      <span class="anchor-family-label">{{ row.label }}</span>
-                    </td>
-                    <td class="text-center"><span class="reward-badge reward-badge--positive">{{ row.positive }}</span></td>
-                    <td class="text-center"><span class="reward-badge reward-badge--neutral">{{ row.neutral }}</span></td>
-                    <td class="text-center"><span class="reward-badge reward-badge--negative">{{ row.negative }}</span></td>
-                    <td class="text-center"><strong>{{ row.total }}</strong></td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </mat-card-content>
-        </mat-card>
-      </div>
-    </div>
-
-    <div class="impact-grid" *ngIf="searchImpacts.length > 0; else noImpactData">
-      <mat-card class="report-card impact-card--main ga4-card" id="analytics-applied-suggestions-card">
-        <mat-card-header>
-          <mat-card-title i18n="@@analytics.impact.applied.title">Applied Suggestions Performance</mat-card-title>
-          <mat-card-subtitle i18n="@@analytics.impact.applied.subtitle">{{ selectedImpactWindow }} window — {{ searchImpacts.length }} tracked links</mat-card-subtitle>
-        </mat-card-header>
-        <mat-card-content>
-          <div class="table-container">
-            <table class="premium-table">
-              <thead>
-                <tr>
-                  <th i18n="@@analytics.impact.applied.col.link">Link Suggestion</th>
-                  <th class="text-center" i18n="@@analytics.impact.applied.col.result">Attribution Result</th>
-                  <th class="text-right" i18n="@@analytics.impact.applied.col.confidence">Confidence</th>
-                  <th class="text-right" i18n="@@analytics.impact.applied.col.lift">Relative Lift</th>
-                  <th class="text-right" i18n="@@analytics.impact.applied.col.clicks">Clicks (Baseline → Post)</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (impact of searchImpacts; track impact.suggestion_id) {
-                  <tr class="clickable-row" (click)="toggleImpactDetails(impact)" [class.row-expanded]="expandedSuggestionId === impact.suggestion_id">
-                    <td>
-                      <div class="version-info">
-                        <div class="expansion-indicator">
-                          <mat-icon class="icon-md">{{ expandedSuggestionId === impact.suggestion_id ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
-                          <span class="version-info__slug">{{ impact.anchor_phrase }}</span>
-                        </div>
-                        <span class="version-info__meta" i18n="@@analytics.impact.applied.target">Target: {{ impact.destination_title }}</span>
-                        <span class="version-info__meta text-subtle" i18n="@@analytics.impact.applied.applied_date">Applied: {{ impact.apply_date | date:'shortDate' }}</span>
-                      </div>
-                    </td>
-                    <td class="text-center">
-                      <span class="reward-badge" [ngClass]="rewardClass(impact.reward_label)">
-                        {{ rewardLabel(impact.reward_label) }}
-                      </span>
-                    </td>
-                    <td class="text-right">
-                      <div class="probability-cell" [matTooltip]="'Bayesian probability that this internal link caused a positive improvement.'" i18n-matTooltip="@@analytics.impact.applied.confidence_tooltip">
-                        <strong>{{ formatPercent(impact.probability_of_uplift) }}</strong>
-                        <span class="text-subtle" i18n="@@analytics.impact.applied.confident">confident</span>
-                      </div>
-                    </td>
-                    <td class="text-right">
-                      <span class="uplift-badge" [class.uplift-badge--negative]="impact.lift_clicks_pct < 0">
-                        {{ impact.lift_clicks_pct > 0 ? '+' : '' }}{{ (impact.lift_clicks_pct * 100) | number:'1.1-1' }}%
-                      </span>
-                    </td>
-                    <td class="text-right">
-                      <span class="metric-transition">
-                        {{ impact.baseline_clicks | number }} <mat-icon class="icon-2xs">arrow_forward</mat-icon> {{ impact.post_clicks | number }}
-                      </span>
-                    </td>
-                  </tr>
-                  
-                  @if (expandedSuggestionId === impact.suggestion_id) {
-                    <tr class="detail-row">
-                      <td colspan="5">
-                        <div class="detail-container">
-                          @if (loadingDetail) {
-                            <div class="detail-loading">
-                              <mat-spinner diameter="24"></mat-spinner>
-                              <span i18n="@@analytics.impact.detail.loading">Loading keyword attribution...</span>
+      @if (searchImpacts.length > 0) {
+        <div class="impact-grid">
+          <mat-card class="report-card impact-card--main ga4-card" id="analytics-applied-suggestions-card">
+            <mat-card-header>
+              <mat-card-title i18n="@@analytics.impact.applied.title">Applied Suggestions Performance</mat-card-title>
+              <mat-card-subtitle i18n="@@analytics.impact.applied.subtitle">
+                {{ selectedImpactWindow }} window — {{ searchImpacts.length }} tracked links
+              </mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <div class="table-container">
+                <table class="premium-table">
+                  <thead>
+                    <tr>
+                      <th i18n="@@analytics.impact.applied.col.link">Link Suggestion</th>
+                      <th class="text-center" i18n="@@analytics.impact.applied.col.result">Attribution Result</th>
+                      <th class="text-right" i18n="@@analytics.impact.applied.col.confidence">Confidence</th>
+                      <th class="text-right" i18n="@@analytics.impact.applied.col.lift">Relative Lift</th>
+                      <th class="text-right" i18n="@@analytics.impact.applied.col.clicks">Clicks (Baseline → Post)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (impact of searchImpacts; track impact.suggestion_id) {
+                      <tr class="clickable-row" (click)="toggleImpactDetails(impact)" [class.row-expanded]="expandedSuggestionId === impact.suggestion_id">
+                        <td>
+                          <div class="version-info">
+                            <div class="expansion-indicator">
+                              <mat-icon class="icon-md">
+                                {{ expandedSuggestionId === impact.suggestion_id ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}
+                              </mat-icon>
+                              <span class="version-info__slug">{{ impact.anchor_phrase }}</span>
                             </div>
-                          } @else if (selectedImpactDetail; as detail) {
-                            <div class="detail-content">
-                              <div class="detail-header">
-                                <h4 class="detail-title" i18n="@@analytics.impact.detail.title">Query-Level Attribution Breakdown</h4>
-                                <p class="detail-subtitle" i18n="@@analytics.impact.detail.subtitle">Attributing clicks to specific search queries that appeared after the link was applied.</p>
-                              </div>
-                              
-                              @if (detail.keywords.length > 0) {
-                                <div class="keyword-table-wrapper">
-                                  <table class="premium-table premium-table--compact">
-                                    <thead>
-                                      <tr>
-                                        <th i18n="@@analytics.impact.detail.col.query">Search Query</th>
-                                        <th class="text-right" i18n="@@analytics.impact.detail.col.impressions">Impressions (Base → Post)</th>
-                                        <th class="text-right" i18n="@@analytics.impact.detail.col.clicks">Clicks (Base → Post)</th>
-                                        <th class="text-right" i18n="@@analytics.impact.detail.col.lift">Lift %</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      @for (kw of detail.keywords; track kw.query) {
-                                        <tr>
-                                          <td>
-                                            <div class="query-cell">
-                                              <span>{{ kw.query }}</span>
-                                              @if (kw.is_anchor_match) {
-                                                <span class="anchor-match-chip" i18n="@@analytics.impact.detail.anchor_match">Anchor Match</span>
-                                              }
-                                            </div>
-                                          </td>
-                                          <td class="text-right">
-                                            <small class="text-subtle">{{ kw.impressions_baseline | number }} <mat-icon class="icon-2xs">arrow_forward</mat-icon> {{ kw.impressions_post | number }}</small>
-                                          </td>
-                                          <td class="text-right">
-                                            <span class="metric-transition">
-                                              {{ kw.clicks_baseline | number }} <mat-icon class="icon-2xs">arrow_forward</mat-icon> <strong>{{ kw.clicks_post | number }}</strong>
-                                            </span>
-                                          </td>
-                                          <td class="text-right">
-                                            <span class="uplift-badge" [class.uplift-badge--negative]="kw.lift_percent < 0">
-                                              {{ kw.lift_percent > 0 ? '+' : '' }}{{ kw.lift_percent | number:'1.0-1' }}%
-                                            </span>
-                                          </td>
-                                        </tr>
+                            <span class="version-info__meta" i18n="@@analytics.impact.applied.target">Target: {{ impact.destination_title }}</span>
+                            <span class="version-info__meta text-subtle" i18n="@@analytics.impact.applied.applied_date">
+                              Applied: {{ impact.apply_date | date: 'shortDate' }}
+                            </span>
+                          </div>
+                        </td>
+                        <td class="text-center">
+                          <span class="reward-badge" [ngClass]="rewardClass(impact.reward_label)">
+                            {{ rewardLabel(impact.reward_label) }}
+                          </span>
+                        </td>
+                        <td class="text-right">
+                          <div
+                            class="probability-cell"
+                            [matTooltip]="'Bayesian probability that this internal link caused a positive improvement.'"
+                            i18n-matTooltip="@@analytics.impact.applied.confidence_tooltip"
+                          >
+                            <strong>{{ formatPercent(impact.probability_of_uplift) }}</strong>
+                            <span class="text-subtle" i18n="@@analytics.impact.applied.confident">confident</span>
+                          </div>
+                        </td>
+                        <td class="text-right">
+                          <span class="uplift-badge" [class.uplift-badge--negative]="impact.lift_clicks_pct < 0">
+                            {{ impact.lift_clicks_pct > 0 ? '+' : '' }}{{ impact.lift_clicks_pct * 100 | number: '1.1-1' }}%
+                          </span>
+                        </td>
+                        <td class="text-right">
+                          <span class="metric-transition">
+                            {{ impact.baseline_clicks | number }}
+                            <mat-icon class="icon-2xs">arrow_forward</mat-icon>
+                            {{ impact.post_clicks | number }}
+                          </span>
+                        </td>
+                      </tr>
+                      @if (expandedSuggestionId === impact.suggestion_id) {
+                        <tr class="detail-row">
+                          <td colspan="5">
+                            <div class="detail-container">
+                              @if (loadingDetail) {
+                                <div class="detail-loading">
+                                  <mat-spinner diameter="24"></mat-spinner>
+                                  <span i18n="@@analytics.impact.detail.loading">Loading keyword attribution...</span>
+                                </div>
+                              } @else if (selectedImpactDetail; as detail) {
+                                <div class="detail-content">
+                                  <div class="detail-header">
+                                    <h4 class="detail-title" i18n="@@analytics.impact.detail.title">Query-Level Attribution Breakdown</h4>
+                                    <p class="detail-subtitle" i18n="@@analytics.impact.detail.subtitle">
+                                      Attributing clicks to specific search queries that appeared after the link was applied.
+                                    </p>
+                                  </div>
+                                  @if (detail.keywords.length > 0) {
+                                    <div class="keyword-table-wrapper">
+                                      <table class="premium-table premium-table--compact">
+                                        <thead>
+                                          <tr>
+                                            <th i18n="@@analytics.impact.detail.col.query">Search Query</th>
+                                            <th class="text-right" i18n="@@analytics.impact.detail.col.impressions">Impressions (Base → Post)</th>
+                                            <th class="text-right" i18n="@@analytics.impact.detail.col.clicks">Clicks (Base → Post)</th>
+                                            <th class="text-right" i18n="@@analytics.impact.detail.col.lift">Lift %</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          @for (kw of detail.keywords; track kw.query) {
+                                            <tr>
+                                              <td>
+                                                <div class="query-cell">
+                                                  <span>{{ kw.query }}</span>
+                                                  @if (kw.is_anchor_match) {
+                                                    <span class="anchor-match-chip" i18n="@@analytics.impact.detail.anchor_match">Anchor Match</span>
+                                                  }
+                                                </div>
+                                              </td>
+                                              <td class="text-right">
+                                                <small class="text-subtle">
+                                                  {{ kw.impressions_baseline | number }}
+                                                  <mat-icon class="icon-2xs">arrow_forward</mat-icon>
+                                                  {{ kw.impressions_post | number }}
+                                                </small>
+                                              </td>
+                                              <td class="text-right">
+                                                <span class="metric-transition">
+                                                  {{ kw.clicks_baseline | number }}
+                                                  <mat-icon class="icon-2xs">arrow_forward</mat-icon>
+                                                  <strong>{{ kw.clicks_post | number }}</strong>
+                                                </span>
+                                              </td>
+                                              <td class="text-right">
+                                                <span class="uplift-badge" [class.uplift-badge--negative]="kw.lift_percent < 0">
+                                                  {{ kw.lift_percent > 0 ? '+' : '' }}{{ kw.lift_percent | number: '1.0-1' }}%
+                                                </span>
+                                              </td>
+                                            </tr>
+                                          }
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  } @else {
+                                    <div class="detail-empty">
+                                      <mat-icon>info_outline</mat-icon>
+                                      <span i18n="@@analytics.impact.detail.empty">
+                                        No specific search queries have shown significant attribution signals for this link yet.
+                                      </span>
+                                    </div>
+                                  }
+                                  @if (detail.impact_reports.length) {
+                                    <div class="detail-section">
+                                      <h5 class="detail-section-title" i18n="@@analytics.impact.detail.control_title">Matched Control</h5>
+                                      @for (report of detail.impact_reports; track report.metric_type) {
+                                        <div class="control-report-row">
+                                          <span class="control-metric-label">{{ report.metric_type }}</span>
+                                          <span class="metric-transition">
+                                            {{ report.before_value | number: '1.0-2' }}
+                                            <mat-icon class="icon-2xs">arrow_forward</mat-icon>
+                                            <strong>{{ report.after_value | number: '1.0-2' }}</strong>
+                                          </span>
+                                          <span class="uplift-badge" [class.uplift-badge--negative]="report.delta_percent < 0">
+                                            {{ report.delta_percent > 0 ? '+' : '' }}{{ report.delta_percent | number: '1.0-1' }}%
+                                          </span>
+                                          <span class="text-subtle" i18n="@@analytics.impact.detail.controls_count">
+                                            {{ report.control_match_count }}&thinsp;/&thinsp;{{ report.control_pool_size }} controls
+                                          </span>
+                                          <span class="anchor-match-chip" [class.anchor-match-chip--muted]="!report.is_conclusive">
+                                            @if (report.is_conclusive) {
+                                              <ng-container i18n="@@analytics.impact.detail.conclusive">Conclusive</ng-container>
+                                            } @else {
+                                              <ng-container i18n="@@analytics.impact.detail.inconclusive">Inconclusive</ng-container>
+                                            }
+                                          </span>
+                                        </div>
                                       }
-                                    </tbody>
-                                  </table>
-                                </div>
-                              } @else {
-                                <div class="detail-empty">
-                                  <mat-icon>info_outline</mat-icon>
-                                  <span i18n="@@analytics.impact.detail.empty">No specific search queries have shown significant attribution signals for this link yet.</span>
-                                </div>
-                              }
-
-                              @if (detail.impact_reports.length) {
-                                <div class="detail-section">
-                                  <h5 class="detail-section-title" i18n="@@analytics.impact.detail.control_title">Matched Control</h5>
-                                  @for (report of detail.impact_reports; track report.metric_type) {
-                                    <div class="control-report-row">
-                                      <span class="control-metric-label">{{ report.metric_type }}</span>
-                                      <span class="metric-transition">
-                                        {{ report.before_value | number:'1.0-2' }}
-                                        <mat-icon class="icon-2xs">arrow_forward</mat-icon>
-                                        <strong>{{ report.after_value | number:'1.0-2' }}</strong>
-                                      </span>
-                                      <span class="uplift-badge" [class.uplift-badge--negative]="report.delta_percent < 0">
-                                        {{ report.delta_percent > 0 ? '+' : '' }}{{ report.delta_percent | number:'1.0-1' }}%
-                                      </span>
-                                      <span class="text-subtle" i18n="@@analytics.impact.detail.controls_count">
-                                        {{ report.control_match_count }}&thinsp;/&thinsp;{{ report.control_pool_size }} controls
-                                      </span>
-                                      <span
-                                        class="anchor-match-chip"
-                                        [class.anchor-match-chip--muted]="!report.is_conclusive"
-                                      >
-                                        @if (report.is_conclusive) {
-                                          <ng-container i18n="@@analytics.impact.detail.conclusive">Conclusive</ng-container>
-                                        } @else {
-                                          <ng-container i18n="@@analytics.impact.detail.inconclusive">Inconclusive</ng-container>
-                                        }
-                                      </span>
                                     </div>
                                   }
                                 </div>
                               }
                             </div>
-                          }
-                        </div>
-                      </td>
-                    </tr>
-                  }
-                }
-              </tbody>
-            </table>
-          </div>
-        </mat-card-content>
-      </mat-card>
-
-      <mat-card class="report-card impact-card--side ga4-card" id="analytics-statistical-method-card">
-        <mat-card-header>
-          <mat-card-title i18n="@@analytics.impact.method.title">Statistical Method</mat-card-title>
-          <mat-card-subtitle i18n="@@analytics.impact.method.subtitle">How we measure SEO impact</mat-card-subtitle>
-        </mat-card-header>
-        <mat-card-content>
-          <div class="methodology-box">
-             <div class="method-item">
-                <mat-icon>groups</mat-icon>
-                <div>
-                  <strong i18n="@@analytics.impact.method.global_control.title">Global Control Baseline</strong>
-                  <p i18n="@@analytics.impact.method.global_control.desc">Lift is normalized against "All pages NOT receiving a link" to filter out site-wide seasonality and Google updates.</p>
+                          </td>
+                        </tr>
+                      }
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </mat-card-content>
+          </mat-card>
+          <mat-card class="report-card impact-card--side ga4-card" id="analytics-statistical-method-card">
+            <mat-card-header>
+              <mat-card-title i18n="@@analytics.impact.method.title">Statistical Method</mat-card-title>
+              <mat-card-subtitle i18n="@@analytics.impact.method.subtitle">How we measure SEO impact</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <div class="methodology-box">
+                <div class="method-item">
+                  <mat-icon>groups</mat-icon>
+                  <div>
+                    <strong i18n="@@analytics.impact.method.global_control.title">Global Control Baseline</strong>
+                    <p i18n="@@analytics.impact.method.global_control.desc">
+                      Lift is normalized against "All pages NOT receiving a link" to filter out site-wide seasonality and Google updates.
+                    </p>
+                  </div>
                 </div>
-             </div>
-             <div class="method-item">
-                <mat-icon>functions</mat-icon>
-                <div>
-                  <strong i18n="@@analytics.impact.method.bayesian.title">Bayesian Smoothing</strong>
-                  <p i18n="@@analytics.impact.method.bayesian.desc">Uses hierarchical priors to avoid noise on low-traffic pages, delivering reliable "Probability of Uplift" scores.</p>
+                <div class="method-item">
+                  <mat-icon>functions</mat-icon>
+                  <div>
+                    <strong i18n="@@analytics.impact.method.bayesian.title">Bayesian Smoothing</strong>
+                    <p i18n="@@analytics.impact.method.bayesian.desc">
+                      Uses hierarchical priors to avoid noise on low-traffic pages, delivering reliable "Probability of Uplift" scores.
+                    </p>
+                  </div>
                 </div>
-             </div>
-             <div class="method-item">
-                <mat-icon>update</mat-icon>
-                <div>
-                  <strong i18n="@@analytics.impact.method.latency.title">GSC Latency</strong>
-                  <p i18n="@@analytics.impact.method.latency.desc">Google Search Console data typically arrives with a 48-72 hour lag. Performance is refreshed daily.</p>
+                <div class="method-item">
+                  <mat-icon>update</mat-icon>
+                  <div>
+                    <strong i18n="@@analytics.impact.method.latency.title">GSC Latency</strong>
+                    <p i18n="@@analytics.impact.method.latency.desc">
+                      Google Search Console data typically arrives with a 48-72 hour lag. Performance is refreshed daily.
+                    </p>
+                  </div>
                 </div>
-             </div>
-          </div>
-        </mat-card-content>
-      </mat-card>
-    </div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+      } @else {
+        <mat-card class="empty-state-card ga4-card" id="analytics-no-impact-data-card">
+          <mat-card-content>
+            <mat-icon class="icon-3xl">query_stats</mat-icon>
+            <h3 i18n="@@analytics.impact.empty.title">Search Impact Data Pending</h3>
+            <p i18n="@@analytics.impact.empty.desc">We are waiting for Google Search Console to process enough days of data for your applied suggestions.</p>
+            <div class="action-buttons">
+              <button mat-stroked-button color="primary" [routerLink]="['/settings']">
+                <mat-icon>settings</mat-icon>
+                <ng-container i18n="@@analytics.impact.empty.check_btn">Check GSC Credentials</ng-container>
+              </button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      }
 
-    <ng-template #noImpactData>
-      <mat-card class="empty-state-card ga4-card" id="analytics-no-impact-data-card">
-        <mat-card-content>
-          <mat-icon class="icon-3xl">query_stats</mat-icon>
-          <h3 i18n="@@analytics.impact.empty.title">Search Impact Data Pending</h3>
-          <p i18n="@@analytics.impact.empty.desc">We are waiting for Google Search Console to process enough days of data for your applied suggestions.</p>
-          <div class="action-buttons">
-            <button mat-stroked-button color="primary" [routerLink]="['/settings']">
-              <mat-icon>settings</mat-icon> <ng-container i18n="@@analytics.impact.empty.check_btn">Check GSC Credentials</ng-container>
-            </button>
-          </div>
-        </mat-card-content>
-      </mat-card>
-    </ng-template>
-
-    <div class="footer-grid" id="analytics-integrations">
+      <div class="footer-grid" id="analytics-integrations">
         <mat-card class="connection-card ga4-card" id="analytics-integration-ga4-card">
           <mat-card-header>
             <mat-card-title i18n="@@analytics.integrations.ga4.title">GA4 Integration</mat-card-title>
@@ -764,7 +825,9 @@
         <mat-card class="connection-card ga4-card" id="analytics-integration-matomo-card">
           <mat-card-header>
             <mat-card-title i18n="@@analytics.integrations.matomo.title">Matomo Integration</mat-card-title>
-            <span class="status-chip" [ngClass]="statusLabel(data.matomo.connection_status).toLowerCase()">{{ statusLabel(data.matomo.connection_status) }}</span>
+            <span class="status-chip" [ngClass]="statusLabel(data.matomo.connection_status).toLowerCase()">
+              {{ statusLabel(data.matomo.connection_status) }}
+            </span>
           </mat-card-header>
           <mat-card-content>
             <p>{{ data.matomo.connection_message }}</p>
@@ -799,9 +862,9 @@
 
     <!-- ── Stage 7: SEO Proof ───────────────────────────────────── -->
     <!-- Below-the-fold on a tall analytics page. Defer each card's
-         hydration until it scrolls into view so initial paint and
-         API fan-out for this route only pay for what the user sees.
-         See docs/PERFORMANCE.md §13. -->
+    hydration until it scrolls into view so initial paint and
+    API fan-out for this route only pay for what the user sees.
+    See docs/PERFORMANCE.md §13. -->
     <div class="stage7-section">
       <h2 class="section-title" i18n="@@analytics.proof.title">
         <mat-icon>verified</mat-icon>
@@ -811,22 +874,22 @@
         @defer (on viewport) {
           <app-impact-diary />
         } @placeholder {
-          <div class="defer-placeholder" style="min-height: 240px;"></div>
+          <div class="defer-placeholder" style="min-height: 240px"></div>
         }
         @defer (on viewport) {
           <app-under-linked />
         } @placeholder {
-          <div class="defer-placeholder" style="min-height: 240px;"></div>
+          <div class="defer-placeholder" style="min-height: 240px"></div>
         }
         @defer (on viewport) {
           <app-query-mismatch />
         } @placeholder {
-          <div class="defer-placeholder" style="min-height: 240px;"></div>
+          <div class="defer-placeholder" style="min-height: 240px"></div>
         }
         @defer (on viewport) {
           <app-watched-pages />
         } @placeholder {
-          <div class="defer-placeholder" style="min-height: 240px;"></div>
+          <div class="defer-placeholder" style="min-height: 240px"></div>
         }
       </div>
     </div>

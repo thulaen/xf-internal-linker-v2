@@ -1,13 +1,6 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  OnInit,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { NavigationEnd, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -52,15 +45,7 @@ interface ChatExchange {
   selector: 'app-help-chatbot',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    CommonModule,
-    FormsModule,
-    MatButtonModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatIconModule,
-    MatTooltipModule,
-  ],
+  imports: [FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatIconModule, MatTooltipModule],
   template: `
     @if (showFab()) {
       <button
@@ -74,38 +59,24 @@ interface ChatExchange {
         <mat-icon>{{ open() ? 'close' : 'question_answer' }}</mat-icon>
       </button>
       @if (open()) {
-        <aside
-          class="hc-panel"
-          role="dialog"
-          aria-labelledby="hc-title"
-        >
+        <aside class="hc-panel" role="dialog" aria-labelledby="hc-title">
           <header class="hc-head">
             <h3 id="hc-title" class="hc-title">
               <mat-icon aria-hidden="true">smart_toy</mat-icon>
               Help
             </h3>
-            <button
-              mat-icon-button
-              type="button"
-              aria-label="Close help"
-              (click)="close()"
-            >
+            <button mat-icon-button type="button" aria-label="Close help" (click)="close()">
               <mat-icon>close</mat-icon>
             </button>
           </header>
           <div class="hc-log" role="log" aria-live="polite">
             @if (history().length === 0) {
               <p class="hc-empty">
-                Ask me what a term means or how something works. Try
-                "what is an orphan page" or "embedding".
+                Ask me what a term means or how something works. Try "what is an orphan page" or "embedding".
               </p>
             }
             @for (msg of history(); track $index) {
-              <div
-                class="hc-msg"
-                [class.hc-msg-user]="msg.role === 'user'"
-                [class.hc-msg-bot]="msg.role === 'bot'"
-              >
+              <div class="hc-msg" [class.hc-msg-user]="msg.role === 'user'" [class.hc-msg-bot]="msg.role === 'bot'">
                 <p class="hc-msg-text">{{ msg.text }}</p>
                 @if (msg.refs && msg.refs.length > 0) {
                   <dl class="hc-refs">
@@ -132,12 +103,7 @@ interface ChatExchange {
                 placeholder="e.g. what is a silo?"
               />
             </mat-form-field>
-            <button
-              mat-flat-button
-              color="primary"
-              type="submit"
-              [disabled]="query.trim().length === 0"
-            >
+            <button mat-flat-button color="primary" type="submit" [disabled]="query.trim().length === 0">
               Send
               <mat-icon iconPositionEnd>send</mat-icon>
             </button>
@@ -146,128 +112,142 @@ interface ChatExchange {
       }
     }
   `,
-  styles: [`
-    .hc-fab {
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      z-index: 980;
-      box-shadow: var(--shadow-md);
-    }
-    .hc-panel {
-      position: fixed;
-      bottom: 96px;
-      right: 24px;
-      width: 340px;
-      max-width: calc(100vw - 48px);
-      height: 420px;
-      max-height: calc(100vh - 140px);
-      background: var(--color-bg-white);
-      border: var(--card-border);
-      border-radius: var(--card-border-radius, 8px);
-      box-shadow: var(--shadow-lg, 0 8px 24px rgba(60, 64, 67, 0.2));
-      z-index: 980;
-      display: flex;
-      flex-direction: column;
-      animation: hc-rise 0.15s ease;
-    }
-    .hc-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 12px;
-      border-bottom: var(--card-border);
-      background: var(--color-bg-faint);
-    }
-    .hc-title {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin: 0;
-      font-size: 14px;
-      font-weight: 500;
-      color: var(--color-text-primary);
-    }
-    .hc-title mat-icon {
-      color: var(--color-primary);
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
-    }
-    .hc-log {
-      flex: 1;
-      overflow-y: auto;
-      padding: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .hc-empty {
-      font-size: 12px;
-      color: var(--color-text-secondary);
-      font-style: italic;
-      margin: 0;
-    }
-    .hc-msg {
-      padding: 8px 10px;
-      border-radius: 8px;
-      font-size: 12px;
-      line-height: 1.5;
-    }
-    .hc-msg-user {
-      background: var(--color-primary);
-      color: var(--color-on-primary, #ffffff);
-      align-self: flex-end;
-      max-width: 85%;
-    }
-    .hc-msg-bot {
-      background: var(--color-bg-faint);
-      color: var(--color-text-primary);
-      align-self: flex-start;
-      max-width: 95%;
-    }
-    .hc-msg-text { margin: 0; }
-    .hc-refs {
-      margin: 6px 0 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .hc-ref {
-      padding: 6px;
-      background: var(--color-bg-white);
-      border-radius: 4px;
-      border: var(--card-border);
-    }
-    .hc-ref dt {
-      margin: 0;
-      font-weight: 500;
-      font-size: 11px;
-      color: var(--color-text-primary);
-    }
-    .hc-ref dd {
-      margin: 2px 0 0;
-      font-size: 11px;
-      color: var(--color-text-secondary);
-      line-height: 1.4;
-    }
-    .hc-form {
-      display: flex;
-      align-items: flex-start;
-      gap: 6px;
-      padding: 8px 12px;
-      border-top: var(--card-border);
-    }
-    .hc-field { flex: 1; }
-    @keyframes hc-rise {
-      from { transform: translateY(8px); opacity: 0; }
-      to   { transform: translateY(0);   opacity: 1; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .hc-panel { animation: none; }
-    }
-  `],
+  styles: [
+    `
+      .hc-fab {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 980;
+        box-shadow: var(--shadow-md);
+      }
+      .hc-panel {
+        position: fixed;
+        bottom: 96px;
+        right: 24px;
+        width: 340px;
+        max-width: calc(100vw - 48px);
+        height: 420px;
+        max-height: calc(100vh - 140px);
+        background: var(--color-bg-white);
+        border: var(--card-border);
+        border-radius: var(--card-border-radius, 8px);
+        box-shadow: var(--shadow-lg, 0 8px 24px rgba(60, 64, 67, 0.2));
+        z-index: 980;
+        display: flex;
+        flex-direction: column;
+        animation: hc-rise 0.15s ease;
+      }
+      .hc-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 12px;
+        border-bottom: var(--card-border);
+        background: var(--color-bg-faint);
+      }
+      .hc-title {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 0;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--color-text-primary);
+      }
+      .hc-title mat-icon {
+        color: var(--color-primary);
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+      }
+      .hc-log {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .hc-empty {
+        font-size: 12px;
+        color: var(--color-text-secondary);
+        font-style: italic;
+        margin: 0;
+      }
+      .hc-msg {
+        padding: 8px 10px;
+        border-radius: 8px;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      .hc-msg-user {
+        background: var(--color-primary);
+        color: var(--color-on-primary, #ffffff);
+        align-self: flex-end;
+        max-width: 85%;
+      }
+      .hc-msg-bot {
+        background: var(--color-bg-faint);
+        color: var(--color-text-primary);
+        align-self: flex-start;
+        max-width: 95%;
+      }
+      .hc-msg-text {
+        margin: 0;
+      }
+      .hc-refs {
+        margin: 6px 0 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .hc-ref {
+        padding: 6px;
+        background: var(--color-bg-white);
+        border-radius: 4px;
+        border: var(--card-border);
+      }
+      .hc-ref dt {
+        margin: 0;
+        font-weight: 500;
+        font-size: 11px;
+        color: var(--color-text-primary);
+      }
+      .hc-ref dd {
+        margin: 2px 0 0;
+        font-size: 11px;
+        color: var(--color-text-secondary);
+        line-height: 1.4;
+      }
+      .hc-form {
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+        padding: 8px 12px;
+        border-top: var(--card-border);
+      }
+      .hc-field {
+        flex: 1;
+      }
+      @keyframes hc-rise {
+        from {
+          transform: translateY(8px);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .hc-panel {
+          animation: none;
+        }
+      }
+    `,
+  ],
 })
 export class HelpChatbotComponent implements OnInit {
   private readonly router = inject(Router);
@@ -304,11 +284,7 @@ export class HelpChatbotComponent implements OnInit {
     if (!q) return;
     this.query = '';
     const reply = this.answer(q);
-    this.history.set([
-      ...this.history(),
-      { role: 'user', text: q },
-      reply,
-    ]);
+    this.history.set([...this.history(), { role: 'user', text: q }, reply]);
   }
 
   /** Matches the query against the GLOSSARY bank — substring in term
@@ -333,17 +309,13 @@ export class HelpChatbotComponent implements OnInit {
     if (scored.length === 0) {
       return {
         role: 'bot',
-        text:
-          "I don't have that term in my glossary yet. Try rephrasing with a shorter word, or open the full glossary (Alt + G).",
+        text: "I don't have that term in my glossary yet. Try rephrasing with a shorter word, or open the full glossary (Alt + G).",
       };
     }
 
     return {
       role: 'bot',
-      text:
-        scored.length === 1
-          ? 'Here\'s what I found:'
-          : `Here are the ${scored.length} best matches:`,
+      text: scored.length === 1 ? "Here's what I found:" : `Here are the ${scored.length} best matches:`,
       refs: scored,
     };
   }

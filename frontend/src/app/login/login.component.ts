@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal 
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
-import { CommonModule } from '@angular/common';
+
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -17,7 +17,6 @@ import { PasskeyService } from '../core/services/passkey.service';
   selector: 'app-login',
   standalone: true,
   imports: [
-    CommonModule,
     ReactiveFormsModule,
     MatFormFieldModule,
     MatInputModule,
@@ -63,7 +62,8 @@ export class LoginComponent implements OnInit {
 
     // Phase F1 / Gap 95 — detect passkey availability.
     void this.passkey.isAvailable().then((avail) => this.passkeyAvailable.set(avail));
-    this.auth.firstOperatorSetupStatus()
+    this.auth
+      .firstOperatorSetupStatus()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (status) => {
@@ -76,17 +76,19 @@ export class LoginComponent implements OnInit {
       });
 
     // Redirect already-authenticated users away from login page
-    this.auth.isChecking$.pipe(
-      filter(checking => !checking),
-      take(1),
-      takeUntilDestroyed(this.destroyRef),
-    ).subscribe(() => {
-      this.auth.isLoggedIn$.pipe(take(1)).subscribe(loggedIn => {
-        if (loggedIn) {
-          this.router.navigateByUrl(this.returnUrl || '/dashboard');
-        }
+    this.auth.isChecking$
+      .pipe(
+        filter((checking) => !checking),
+        take(1),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        this.auth.isLoggedIn$.pipe(take(1)).subscribe((loggedIn) => {
+          if (loggedIn) {
+            this.router.navigateByUrl(this.returnUrl || '/dashboard');
+          }
+        });
       });
-    });
   }
 
   submit(): void {
@@ -99,9 +101,7 @@ export class LoginComponent implements OnInit {
     const request$ = this.firstOperatorSetupAvailable()
       ? this.auth.setupFirstOperator(username, password)
       : this.auth.login(username, password);
-    request$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
+    request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => this.router.navigateByUrl(this.returnUrl),
       error: (err: HttpErrorResponse) => {
         // If a regular login fails with 400/401 AND we are not in
@@ -114,9 +114,9 @@ export class LoginComponent implements OnInit {
         // auto-resubmit — the user must see the title flip first; an
         // auto-submit on a real account with a typo would silently
         // (re)create the admin password.
-        if ((err.status === 400 || err.status === 401)
-            && !this.firstOperatorSetupAvailable()) {
-          this.auth.firstOperatorSetupStatus()
+        if ((err.status === 400 || err.status === 401) && !this.firstOperatorSetupAvailable()) {
+          this.auth
+            .firstOperatorSetupStatus()
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
               next: (status) => {

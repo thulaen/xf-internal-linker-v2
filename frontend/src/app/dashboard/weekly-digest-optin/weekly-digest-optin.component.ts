@@ -1,12 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  OnInit,
-  inject,
-  signal,
-} from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -65,7 +58,6 @@ const DEFAULTS: DigestPrefs = {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     FormsModule,
     MatCardModule,
     MatIconModule,
@@ -91,18 +83,15 @@ const DEFAULTS: DigestPrefs = {
           {{ prefs().enabled ? 'Digest is ON' : 'Digest is OFF' }}
         </mat-slide-toggle>
         <p class="wd-note">
-          Weekly digest summarises last week's approvals, broken-link
-          findings, top alerts, and pipeline runs in one short email.
+          Weekly digest summarises last week's approvals, broken-link findings, top alerts, and pipeline runs in one
+          short email.
         </p>
 
         @if (prefs().enabled) {
           <div class="wd-knobs">
             <mat-form-field appearance="outline" class="wd-field">
               <mat-label>Send on</mat-label>
-              <mat-select
-                [(value)]="dayValue"
-                (valueChange)="setDay($event)"
-              >
+              <mat-select [(value)]="dayValue" (valueChange)="setDay($event)">
                 @for (d of days; track d.value) {
                   <mat-option [value]="d.value">{{ d.label }}</mat-option>
                 }
@@ -110,10 +99,7 @@ const DEFAULTS: DigestPrefs = {
             </mat-form-field>
             <mat-form-field appearance="outline" class="wd-field">
               <mat-label>Time of day</mat-label>
-              <mat-select
-                [(value)]="timeValue"
-                (valueChange)="setTime($event)"
-              >
+              <mat-select [(value)]="timeValue" (valueChange)="setTime($event)">
                 @for (t of times; track t.value) {
                   <mat-option [value]="t.value">{{ t.label }}</mat-option>
                 }
@@ -124,26 +110,34 @@ const DEFAULTS: DigestPrefs = {
       </mat-card-content>
     </mat-card>
   `,
-  styles: [`
-    .wd-card { height: 100%; }
-    .wd-avatar {
-      background: var(--color-primary);
-      color: var(--color-on-primary, #ffffff);
-    }
-    .wd-toggle { margin: 0 0 8px; }
-    .wd-note {
-      margin: 0 0 16px;
-      font-size: 12px;
-      line-height: 1.5;
-      color: var(--color-text-secondary);
-    }
-    .wd-knobs {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-    .wd-field { width: 100%; }
-  `],
+  styles: [
+    `
+      .wd-card {
+        height: 100%;
+      }
+      .wd-avatar {
+        background: var(--color-primary);
+        color: var(--color-on-primary, #ffffff);
+      }
+      .wd-toggle {
+        margin: 0 0 8px;
+      }
+      .wd-note {
+        margin: 0 0 16px;
+        font-size: 12px;
+        line-height: 1.5;
+        color: var(--color-text-secondary);
+      }
+      .wd-knobs {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .wd-field {
+        width: 100%;
+      }
+    `,
+  ],
 })
 export class WeeklyDigestOptinComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
@@ -165,11 +159,7 @@ export class WeeklyDigestOptinComponent implements OnInit {
 
   setEnabled(next: boolean): void {
     this.update({ enabled: next });
-    this.snack.open(
-      next ? 'Weekly digest scheduled.' : 'Weekly digest cancelled.',
-      'OK',
-      { duration: 3000 },
-    );
+    this.snack.open(next ? 'Weekly digest scheduled.' : 'Weekly digest cancelled.', 'OK', { duration: 3000 });
   }
 
   setDay(next: DigestPrefs['day']): void {

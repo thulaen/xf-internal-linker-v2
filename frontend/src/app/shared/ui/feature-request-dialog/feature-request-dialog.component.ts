@@ -1,11 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  inject,
-  signal,
-} from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -15,10 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import {
-  FeatureRequestPriority,
-  FeatureRequestService,
-} from '../../../core/services/feature-request.service';
+import { FeatureRequestPriority, FeatureRequestService } from '../../../core/services/feature-request.service';
 
 /**
  * Phase GB / Gap 151 — "Suggest a feature" dialog.
@@ -39,7 +30,6 @@ import {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     ReactiveFormsModule,
     MatDialogModule,
     MatButtonModule,
@@ -52,8 +42,7 @@ import {
     <h2 mat-dialog-title>Suggest a feature</h2>
     <mat-dialog-content>
       <p class="fr-hint">
-        We read every submission. Please describe the outcome you want and,
-        if helpful, what you'd click to get there.
+        We read every submission. Please describe the outcome you want and, if helpful, what you'd click to get there.
       </p>
 
       @if (errorMsg()) {
@@ -126,9 +115,7 @@ import {
     </mat-dialog-content>
 
     <mat-dialog-actions align="end">
-      <button mat-button type="button" (click)="close()" [disabled]="submitting()">
-        Cancel
-      </button>
+      <button mat-button type="button" (click)="close()" [disabled]="submitting()">Cancel</button>
       <button
         mat-raised-button
         color="primary"
@@ -144,45 +131,55 @@ import {
       </button>
     </mat-dialog-actions>
   `,
-  styles: [`
-    :host { display: block; min-width: 480px; }
-    .fr-hint {
-      margin: 0 0 16px;
-      font-size: 13px;
-      color: var(--color-text-secondary, #5f6368);
-    }
-    .fr-form {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-    .fr-row {
-      display: flex;
-      gap: 16px;
-    }
-    .fr-cat { flex: 2; }
-    .fr-pri { flex: 1; }
-    mat-form-field { width: 100%; }
-    .fr-error {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      border-radius: 4px;
-      margin-bottom: 12px;
-      background: var(--color-bg-faint, #fce8e6);
-      color: var(--color-error, #d93025);
-      font-size: 13px;
-    }
-  `],
+  styles: [
+    `
+      :host {
+        display: block;
+        min-width: 480px;
+      }
+      .fr-hint {
+        margin: 0 0 16px;
+        font-size: 13px;
+        color: var(--color-text-secondary, #5f6368);
+      }
+      .fr-form {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .fr-row {
+        display: flex;
+        gap: 16px;
+      }
+      .fr-cat {
+        flex: 2;
+      }
+      .fr-pri {
+        flex: 1;
+      }
+      mat-form-field {
+        width: 100%;
+      }
+      .fr-error {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 4px;
+        margin-bottom: 12px;
+        background: var(--color-bg-faint, #fce8e6);
+        color: var(--color-error, #d93025);
+        font-size: 13px;
+      }
+    `,
+  ],
 })
 export class FeatureRequestDialogComponent {
   private fb = inject(FormBuilder);
   private service = inject(FeatureRequestService);
   private snack = inject(MatSnackBar);
   private destroyRef = inject(DestroyRef);
-  private dialogRef =
-    inject<MatDialogRef<FeatureRequestDialogComponent>>(MatDialogRef);
+  private dialogRef = inject<MatDialogRef<FeatureRequestDialogComponent>>(MatDialogRef);
 
   readonly submitting = signal(false);
   readonly errorMsg = signal<string | null>(null);

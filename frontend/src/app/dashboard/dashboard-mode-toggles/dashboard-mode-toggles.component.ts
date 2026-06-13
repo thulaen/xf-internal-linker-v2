@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -18,7 +18,7 @@ import { DashboardModesService } from '../../core/services/dashboard-modes.servi
   selector: 'app-dashboard-mode-toggles',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatButtonModule, MatIconModule, MatTooltipModule],
+  imports: [MatButtonModule, MatIconModule, MatTooltipModule],
   template: `
     <div class="dmt-row" role="group" aria-label="Dashboard modes">
       <button
@@ -26,7 +26,9 @@ import { DashboardModesService } from '../../core/services/dashboard-modes.servi
         type="button"
         class="dmt-btn"
         [class.dmt-on]="modes.safe()"
-        [matTooltip]="modes.safe() ? 'Safe mode is ON — write actions are disabled' : 'Turn on safe mode (read-only writes off)'"
+        [matTooltip]="
+          modes.safe() ? 'Safe mode is ON — write actions are disabled' : 'Turn on safe mode (read-only writes off)'
+        "
         [attr.aria-pressed]="modes.safe()"
         (click)="modes.toggleSafe()"
       >
@@ -47,24 +49,32 @@ import { DashboardModesService } from '../../core/services/dashboard-modes.servi
       </button>
     </div>
   `,
-  styles: [`
-    .dmt-row {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    .dmt-btn {
-      transition: background-color 0.15s ease, color 0.15s ease;
-    }
-    .dmt-on {
-      background: var(--color-primary);
-      color: var(--color-on-primary, #ffffff);
-    }
-    .dmt-on mat-icon { color: var(--color-on-primary, #ffffff); }
-    @media (prefers-reduced-motion: reduce) {
-      .dmt-btn { transition: none; }
-    }
-  `],
+  styles: [
+    `
+      .dmt-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .dmt-btn {
+        transition:
+          background-color 0.15s ease,
+          color 0.15s ease;
+      }
+      .dmt-on {
+        background: var(--color-primary);
+        color: var(--color-on-primary, #ffffff);
+      }
+      .dmt-on mat-icon {
+        color: var(--color-on-primary, #ffffff);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .dmt-btn {
+          transition: none;
+        }
+      }
+    `,
+  ],
 })
 export class DashboardModeTogglesComponent {
   readonly modes = inject(DashboardModesService);

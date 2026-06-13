@@ -2,43 +2,57 @@
   <div class="gsc-page-header">
     <div class="gsc-title-row">
       <h1 class="gsc-page-title">Graph Structural Signals</h1>
-      <span class="gsc-badge gsc-badge--blue" *ngIf="runExists">Run #{{ data?.run_id }}</span>
+      @if (runExists) {
+        <span class="gsc-badge gsc-badge--blue">Run #{{ data?.run_id }}</span>
+      }
     </div>
     <p class="gsc-page-description">
-      Visualizing off-path structural signals from NetworKit, mapping unlinked content candidates (Adamic-Adar, Node2Vec) grouped by Louvain community boundaries.
+      Visualizing off-path structural signals from NetworKit, mapping unlinked content candidates (Adamic-Adar, Node2Vec) grouped by Louvain community
+      boundaries.
     </p>
   </div>
 
-  <div class="loading-state" *ngIf="isLoading">
-    <mat-spinner diameter="40"></mat-spinner>
-    <p>Loading signals...</p>
-  </div>
+  @if (isLoading) {
+    <div class="loading-state">
+      <mat-spinner diameter="40"></mat-spinner>
+      <p>Loading signals...</p>
+    </div>
+  }
 
-  <ng-container *ngIf="!isLoading">
+  @if (!isLoading) {
     <!-- State: Rebuild Required -->
-    <mat-card class="gsc-card gsc-card--error" *ngIf="!runExists">
-      <mat-card-header>
-        <mat-icon mat-card-avatar color="warn">warning</mat-icon>
-        <mat-card-title>Rebuild Required — Recompute Graph Signals</mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
-        <p>There is no current GraphSignalRun available. The NetworKit structural signals have either been purged or have never been computed for the current topology.</p>
-      </mat-card-content>
-      <mat-card-actions>
-        <button mat-flat-button color="primary" 
-                matTooltip="Run the Celery beat job to rebuild the graph and recompute structural signals."
-                [attr.peHelper]="'Recompute offline graph signals from active internal links.'">
-          <mat-icon>sync</mat-icon>
-          Recompute Signals
-        </button>
-      </mat-card-actions>
-    </mat-card>
-
+    @if (!runExists) {
+      <mat-card class="gsc-card gsc-card--error">
+        <mat-card-header>
+          <mat-icon mat-card-avatar color="warn">warning</mat-icon>
+          <mat-card-title>Rebuild Required — Recompute Graph Signals</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <p>
+            There is no current GraphSignalRun available. The NetworKit structural signals have either been purged or have never been computed for the current
+            topology.
+          </p>
+        </mat-card-content>
+        <mat-card-actions>
+          <button
+            mat-flat-button
+            color="primary"
+            matTooltip="Run the Celery beat job to rebuild the graph and recompute structural signals."
+            [attr.peHelper]="'Recompute offline graph signals from active internal links.'"
+          >
+            <mat-icon>sync</mat-icon>
+            Recompute Signals
+          </button>
+        </mat-card-actions>
+      </mat-card>
+    }
     <!-- State: Graph Viz -->
-    <mat-card class="gsc-card gsc-card--full-bleed" *ngIf="runExists">
-      <div class="chart-wrapper">
-        <div #chartContainer class="echarts-container"></div>
-      </div>
-    </mat-card>
-  </ng-container>
+    @if (runExists) {
+      <mat-card class="gsc-card gsc-card--full-bleed">
+        <div class="chart-wrapper">
+          <div #chartContainer class="echarts-container"></div>
+        </div>
+      </mat-card>
+    }
+  }
 </div>

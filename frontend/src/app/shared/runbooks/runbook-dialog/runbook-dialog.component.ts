@@ -1,6 +1,6 @@
 import { Component, DestroyRef, inject, ChangeDetectionStrategy, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { HttpClient } from '@angular/common/http';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -16,13 +16,9 @@ import { Runbook } from '../runbook-library';
  * callers can pass { runbook, context } so runbook-specific backend args
  * (e.g. run_id for reset-quarantined-job) flow through without another dialog.
  */
-export type RunbookDialogData =
-  | Runbook
-  | { runbook: Runbook; context?: Record<string, unknown> };
+export type RunbookDialogData = Runbook | { runbook: Runbook; context?: Record<string, unknown> };
 
-function isWrapped(
-  data: RunbookDialogData,
-): data is { runbook: Runbook; context?: Record<string, unknown> } {
+function isWrapped(data: RunbookDialogData): data is { runbook: Runbook; context?: Record<string, unknown> } {
   return !!data && typeof data === 'object' && 'runbook' in (data as object);
 }
 
@@ -30,7 +26,6 @@ function isWrapped(
   selector: 'app-runbook-dialog',
   standalone: true,
   imports: [
-    CommonModule,
     MatDialogModule,
     MatButtonModule,
     MatIconModule,
@@ -86,9 +81,7 @@ function isWrapped(
     }
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close [disabled]="running()">Cancel</button>
-      <button mat-flat-button color="primary"
-              [disabled]="running()"
-              (click)="runFix()">
+      <button mat-flat-button color="primary" [disabled]="running()" (click)="runFix()">
         @if (running()) {
           <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
         } @else {
@@ -98,99 +91,107 @@ function isWrapped(
       </button>
     </mat-dialog-actions>
   `,
-  styles: [`
-    .runbook-section { margin-bottom: var(--space-lg); }
-    .section-label {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--color-text-muted);
-      margin: 0 0 var(--space-xs);
-    }
-    .section-text {
-      font-size: 13px;
-      color: var(--color-text-primary);
-      margin: 0;
-    }
-    .step-list {
-      padding-left: 20px;
-      margin: 0;
-    }
-    .step-list li {
-      font-size: 13px;
-      color: var(--color-text-primary);
-      margin-bottom: var(--space-sm);
-      line-height: 1.5;
-    }
-    .step-list li.destructive { color: var(--color-error-dark); }
-    .destructive-chip {
-      --mdc-chip-elevated-container-color: var(--color-error-50);
-      --mdc-chip-label-text-color: var(--color-error-dark);
-      font-size: 10px;
-      height: 20px;
-      margin-left: var(--space-sm);
-    }
-    .runbook-meta {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-sm);
-      padding: var(--space-md);
-      background: var(--color-bg-faint);
-      border-radius: var(--radius-md);
-    }
-    .meta-item { display: flex; align-items: center; gap: var(--space-sm); }
-    .meta-label {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--color-text-muted);
-      min-width: 100px;
-    }
-    .meta-value {
-      font-size: 13px;
-      color: var(--color-text-primary);
-    }
-    .resource-low {
-      --mdc-chip-elevated-container-color: var(--color-success-light);
-      --mdc-chip-label-text-color: var(--color-success-dark);
-    }
-    .resource-medium {
-      --mdc-chip-elevated-container-color: var(--color-warning-light);
-      --mdc-chip-label-text-color: var(--color-warning-dark);
-    }
-    .resource-high {
-      --mdc-chip-elevated-container-color: var(--color-error-50);
-      --mdc-chip-label-text-color: var(--color-error-dark);
-    }
-    .btn-spinner {
-      margin-right: var(--space-xs);
-      display: inline-block;
-      vertical-align: middle;
-    }
-    .runbook-result {
-      display: flex;
-      align-items: center;
-      gap: var(--space-sm);
-      padding: var(--space-sm) var(--space-md);
-      margin: var(--space-md) var(--space-lg) 0;
-      border-radius: var(--radius-sm);
-      font-size: 13px;
-      background: var(--color-error-50);
-      color: var(--color-error-dark);
-    }
-    .runbook-result.runbook-result-ok {
-      background: var(--color-success-light);
-      color: var(--color-success-dark);
-    }
-  `],
+  styles: [
+    `
+      .runbook-section {
+        margin-bottom: var(--space-lg);
+      }
+      .section-label {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--color-text-muted);
+        margin: 0 0 var(--space-xs);
+      }
+      .section-text {
+        font-size: 13px;
+        color: var(--color-text-primary);
+        margin: 0;
+      }
+      .step-list {
+        padding-left: 20px;
+        margin: 0;
+      }
+      .step-list li {
+        font-size: 13px;
+        color: var(--color-text-primary);
+        margin-bottom: var(--space-sm);
+        line-height: 1.5;
+      }
+      .step-list li.destructive {
+        color: var(--color-error-dark);
+      }
+      .destructive-chip {
+        --mdc-chip-elevated-container-color: var(--color-error-50);
+        --mdc-chip-label-text-color: var(--color-error-dark);
+        font-size: 10px;
+        height: 20px;
+        margin-left: var(--space-sm);
+      }
+      .runbook-meta {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-sm);
+        padding: var(--space-md);
+        background: var(--color-bg-faint);
+        border-radius: var(--radius-md);
+      }
+      .meta-item {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+      }
+      .meta-label {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--color-text-muted);
+        min-width: 100px;
+      }
+      .meta-value {
+        font-size: 13px;
+        color: var(--color-text-primary);
+      }
+      .resource-low {
+        --mdc-chip-elevated-container-color: var(--color-success-light);
+        --mdc-chip-label-text-color: var(--color-success-dark);
+      }
+      .resource-medium {
+        --mdc-chip-elevated-container-color: var(--color-warning-light);
+        --mdc-chip-label-text-color: var(--color-warning-dark);
+      }
+      .resource-high {
+        --mdc-chip-elevated-container-color: var(--color-error-50);
+        --mdc-chip-label-text-color: var(--color-error-dark);
+      }
+      .btn-spinner {
+        margin-right: var(--space-xs);
+        display: inline-block;
+        vertical-align: middle;
+      }
+      .runbook-result {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+        padding: var(--space-sm) var(--space-md);
+        margin: var(--space-md) var(--space-lg) 0;
+        border-radius: var(--radius-sm);
+        font-size: 13px;
+        background: var(--color-error-50);
+        color: var(--color-error-dark);
+      }
+      .runbook-result.runbook-result-ok {
+        background: var(--color-success-light);
+        color: var(--color-success-dark);
+      }
+    `,
+  ],
 })
 export class RunbookDialogComponent {
   private readonly _data = inject<RunbookDialogData>(MAT_DIALOG_DATA);
 
   readonly runbook: Runbook = isWrapped(this._data) ? this._data.runbook : this._data;
-  private readonly context: Record<string, unknown> = isWrapped(this._data)
-    ? (this._data.context ?? {})
-    : {};
+  private readonly context: Record<string, unknown> = isWrapped(this._data) ? (this._data.context ?? {}) : {};
 
   private http = inject(HttpClient);
   private dialogRef = inject(MatDialogRef<RunbookDialogComponent>);

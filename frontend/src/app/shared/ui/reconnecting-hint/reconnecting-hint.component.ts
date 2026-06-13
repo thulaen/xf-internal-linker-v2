@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, Input, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { toSignal } from '@angular/core/rxjs-interop';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -25,7 +25,7 @@ import { RealtimeService } from '../../../core/services/realtime.service';
   selector: 'app-reconnecting-hint',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule, MatTooltipModule],
+  imports: [MatIconModule, MatTooltipModule],
   template: `
     @switch (status()) {
       @case ('reconnecting') {
@@ -50,43 +50,51 @@ import { RealtimeService } from '../../../core/services/realtime.service';
           Offline
         </span>
       }
-      @default { <!-- connected → render nothing --> }
+      @default {
+        <!-- connected → render nothing -->
+      }
     }
   `,
-  styles: [`
-    .rc-hint {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      margin-left: 8px;
-      padding: 2px 8px;
-      font-size: 11px;
-      border-radius: 12px;
-      vertical-align: middle;
-    }
-    .rc-reconnecting {
-      background: #fef7e0;
-      color: #b06000;
-    }
-    .rc-offline {
-      background: #fce8e6;
-      color: #c5221f;
-    }
-    .rc-icon {
-      width: 14px;
-      height: 14px;
-      font-size: 14px;
-    }
-    .rc-spin {
-      animation: rc-spin 1.2s linear infinite;
-    }
-    @keyframes rc-spin {
-      to { transform: rotate(360deg); }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .rc-spin { animation: none; }
-    }
-  `],
+  styles: [
+    `
+      .rc-hint {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        margin-left: 8px;
+        padding: 2px 8px;
+        font-size: 11px;
+        border-radius: 12px;
+        vertical-align: middle;
+      }
+      .rc-reconnecting {
+        background: #fef7e0;
+        color: #b06000;
+      }
+      .rc-offline {
+        background: #fce8e6;
+        color: #c5221f;
+      }
+      .rc-icon {
+        width: 14px;
+        height: 14px;
+        font-size: 14px;
+      }
+      .rc-spin {
+        animation: rc-spin 1.2s linear infinite;
+      }
+      @keyframes rc-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .rc-spin {
+          animation: none;
+        }
+      }
+    `,
+  ],
 })
 export class ReconnectingHintComponent {
   @Input() tooltip = '';

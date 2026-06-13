@@ -1,11 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  Input,
-  computed,
-  signal,
-} from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, Input, computed, signal } from '@angular/core';
+
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -33,14 +27,7 @@ import { TodayAction } from '../today-focus/today-focus.component';
   selector: 'app-priority-summary-bell',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    CommonModule,
-    MatIconModule,
-    MatBadgeModule,
-    MatButtonModule,
-    MatMenuModule,
-    MatTooltipModule,
-  ],
+  imports: [MatIconModule, MatBadgeModule, MatButtonModule, MatMenuModule, MatTooltipModule],
   template: `
     <button
       mat-icon-button
@@ -91,64 +78,78 @@ import { TodayAction } from '../today-focus/today-focus.component';
       </div>
     </mat-menu>
   `,
-  styles: [`
-    .psb-button {
-      transition: color 0.2s ease;
-    }
-    .psb-button.psb-clear { color: var(--color-success, #1e8e3e); }
-    .psb-button.psb-warning { color: var(--color-warning, #f9ab00); }
-    .psb-button.psb-urgent { color: var(--color-error, #d93025); }
+  styles: [
+    `
+      .psb-button {
+        transition: color 0.2s ease;
+      }
+      .psb-button.psb-clear {
+        color: var(--color-success, #1e8e3e);
+      }
+      .psb-button.psb-warning {
+        color: var(--color-warning, #f9ab00);
+      }
+      .psb-button.psb-urgent {
+        color: var(--color-error, #d93025);
+      }
 
-    .psb-menu {
-      min-width: 280px;
-      max-width: 360px;
-      padding: 12px 16px;
-    }
-    .psb-menu-header {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      margin-bottom: 8px;
-    }
-    .psb-menu-sub {
-      font-size: 11px;
-      color: var(--color-text-secondary);
-    }
-    .psb-list {
-      list-style: none;
-      margin: 0 0 8px;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .psb-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 6px;
-      font-size: 12px;
-      line-height: 1.4;
-      color: var(--color-text-primary);
-    }
-    .psb-item mat-icon {
-      font-size: 16px;
-      width: 16px;
-      height: 16px;
-      flex-shrink: 0;
-      margin-top: 1px;
-    }
-    .psb-item-urgent mat-icon { color: var(--color-error); }
-    .psb-item-info mat-icon { color: var(--color-primary); }
-    .psb-empty {
-      margin: 0;
-      font-size: 12px;
-      color: var(--color-text-secondary);
-      font-style: italic;
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .psb-button { transition: none; }
-    }
-  `],
+      .psb-menu {
+        min-width: 280px;
+        max-width: 360px;
+        padding: 12px 16px;
+      }
+      .psb-menu-header {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        margin-bottom: 8px;
+      }
+      .psb-menu-sub {
+        font-size: 11px;
+        color: var(--color-text-secondary);
+      }
+      .psb-list {
+        list-style: none;
+        margin: 0 0 8px;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .psb-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+        font-size: 12px;
+        line-height: 1.4;
+        color: var(--color-text-primary);
+      }
+      .psb-item mat-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+        margin-top: 1px;
+      }
+      .psb-item-urgent mat-icon {
+        color: var(--color-error);
+      }
+      .psb-item-info mat-icon {
+        color: var(--color-primary);
+      }
+      .psb-empty {
+        margin: 0;
+        font-size: 12px;
+        color: var(--color-text-secondary);
+        font-style: italic;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .psb-button {
+          transition: none;
+        }
+      }
+    `,
+  ],
 })
 export class PrioritySummaryBellComponent {
   /** All visible action items (the same list used by today-focus). */
@@ -158,14 +159,8 @@ export class PrioritySummaryBellComponent {
 
   private readonly _actions = signal<readonly TodayAction[]>([]);
 
-  readonly urgent = computed(() =>
-    this._actions().filter((a) => a.severity === 'error' || a.isBlocking),
-  );
-  readonly info = computed(() =>
-    this._actions().filter(
-      (a) => a.severity !== 'error' && !a.isBlocking,
-    ),
-  );
+  readonly urgent = computed(() => this._actions().filter((a) => a.severity === 'error' || a.isBlocking));
+  readonly info = computed(() => this._actions().filter((a) => a.severity !== 'error' && !a.isBlocking));
 
   readonly totalCount = computed(() => this._actions().length);
 
@@ -177,9 +172,12 @@ export class PrioritySummaryBellComponent {
 
   readonly icon = computed<string>(() => {
     switch (this.grade()) {
-      case 'urgent': return 'notifications_active';
-      case 'warning': return 'notifications';
-      case 'clear': return 'notifications_none';
+      case 'urgent':
+        return 'notifications_active';
+      case 'warning':
+        return 'notifications';
+      case 'clear':
+        return 'notifications_none';
     }
   });
 

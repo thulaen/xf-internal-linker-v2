@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -41,7 +41,7 @@ const TILES: readonly Tile[] = [
   selector: 'app-launcher-grid',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, RouterLink, MatCardModule, MatIconModule],
+  imports: [RouterLink, MatCardModule, MatIconModule],
   template: `
     <mat-card class="lg-card">
       <mat-card-header>
@@ -53,11 +53,7 @@ const TILES: readonly Tile[] = [
         <ul class="lg-grid">
           @for (tile of tiles; track tile.label) {
             <li>
-              <a
-                class="lg-tile"
-                [routerLink]="tile.route"
-                [fragment]="tile.fragment ?? undefined"
-              >
+              <a class="lg-tile" [routerLink]="tile.route" [fragment]="tile.fragment ?? undefined">
                 <mat-icon class="lg-tile-icon" aria-hidden="true">{{ tile.icon }}</mat-icon>
                 <span class="lg-tile-label">{{ tile.label }}</span>
                 <span class="lg-tile-hint">{{ tile.hint }}</span>
@@ -68,67 +64,81 @@ const TILES: readonly Tile[] = [
       </mat-card-content>
     </mat-card>
   `,
-  styles: [`
-    .lg-card { height: 100%; }
-    .lg-avatar {
-      background: var(--color-primary);
-      color: var(--color-on-primary, #ffffff);
-    }
-    .lg-grid {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-    }
-    @media (max-width: 480px) {
-      .lg-grid { grid-template-columns: repeat(2, 1fr); }
-    }
-    .lg-tile {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      padding: 16px 12px;
-      text-decoration: none;
-      color: var(--color-text-primary);
-      background: var(--color-bg-faint);
-      border: var(--card-border);
-      border-radius: var(--card-border-radius, 8px);
-      transition: background-color 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
-      text-align: center;
-    }
-    .lg-tile:hover,
-    .lg-tile:focus-visible {
-      background: var(--color-bg-white);
-      border-color: var(--color-primary);
-      transform: translateY(-2px);
-    }
-    .lg-tile:focus-visible {
-      outline: 2px solid var(--color-primary);
-      outline-offset: 2px;
-    }
-    .lg-tile-icon {
-      font-size: 32px;
-      width: 32px;
-      height: 32px;
-      color: var(--color-primary);
-    }
-    .lg-tile-label {
-      font-weight: 500;
-      font-size: 13px;
-    }
-    .lg-tile-hint {
-      font-size: 11px;
-      color: var(--color-text-secondary);
-      line-height: 1.3;
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .lg-tile { transition: none; }
-      .lg-tile:hover, .lg-tile:focus-visible { transform: none; }
-    }
-  `],
+  styles: [
+    `
+      .lg-card {
+        height: 100%;
+      }
+      .lg-avatar {
+        background: var(--color-primary);
+        color: var(--color-on-primary, #ffffff);
+      }
+      .lg-grid {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+      }
+      @media (max-width: 480px) {
+        .lg-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+      .lg-tile {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        padding: 16px 12px;
+        text-decoration: none;
+        color: var(--color-text-primary);
+        background: var(--color-bg-faint);
+        border: var(--card-border);
+        border-radius: var(--card-border-radius, 8px);
+        transition:
+          background-color 0.15s ease,
+          transform 0.15s ease,
+          border-color 0.15s ease;
+        text-align: center;
+      }
+      .lg-tile:hover,
+      .lg-tile:focus-visible {
+        background: var(--color-bg-white);
+        border-color: var(--color-primary);
+        transform: translateY(-2px);
+      }
+      .lg-tile:focus-visible {
+        outline: 2px solid var(--color-primary);
+        outline-offset: 2px;
+      }
+      .lg-tile-icon {
+        font-size: 32px;
+        width: 32px;
+        height: 32px;
+        color: var(--color-primary);
+      }
+      .lg-tile-label {
+        font-weight: 500;
+        font-size: 13px;
+      }
+      .lg-tile-hint {
+        font-size: 11px;
+        color: var(--color-text-secondary);
+        line-height: 1.3;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .lg-tile {
+          transition: none;
+        }
+        .lg-tile:hover,
+        .lg-tile:focus-visible {
+          transform: none;
+        }
+      }
+    `,
+  ],
 })
 export class LauncherGridComponent {
   readonly tiles = TILES;

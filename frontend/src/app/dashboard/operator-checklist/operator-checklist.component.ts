@@ -1,11 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  OnInit,
-  computed,
-  signal,
-} from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, OnInit, computed, signal } from '@angular/core';
+
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -84,15 +78,7 @@ const STORAGE_KEY = 'xfil_operator_checklist';
   selector: 'app-operator-checklist',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    CommonModule,
-    RouterLink,
-    MatCardModule,
-    MatCheckboxModule,
-    MatIconModule,
-    MatButtonModule,
-    MatProgressBarModule,
-  ],
+  imports: [RouterLink, MatCardModule, MatCheckboxModule, MatIconModule, MatButtonModule, MatProgressBarModule],
   template: `
     <mat-card class="oc-card">
       <mat-card-header>
@@ -110,11 +96,7 @@ const STORAGE_KEY = 'xfil_operator_checklist';
         <ul class="oc-list">
           @for (item of items; track item.id) {
             <li class="oc-item" [class.oc-checked]="checked()[item.id]">
-              <mat-checkbox
-                color="primary"
-                [checked]="checked()[item.id]"
-                (change)="toggle(item.id, $event.checked)"
-              >
+              <mat-checkbox color="primary" [checked]="checked()[item.id]" (change)="toggle(item.id, $event.checked)">
                 <span class="oc-label">
                   <mat-icon class="oc-item-icon">{{ item.icon }}</mat-icon>
                   {{ item.label }}
@@ -143,103 +125,105 @@ const STORAGE_KEY = 'xfil_operator_checklist';
       </mat-card-content>
     </mat-card>
   `,
-  styles: [`
-    .oc-card { height: 100%; }
-    .oc-avatar {
-      background: var(--color-primary);
-      color: var(--color-on-primary, #ffffff);
-    }
-    .oc-bar {
-      margin-bottom: 12px;
-      height: 6px;
-      border-radius: 3px;
-      overflow: hidden;
-    }
-    .oc-bar.oc-bar-done ::ng-deep .mdc-linear-progress__bar-inner {
-      border-color: var(--color-success, #1e8e3e) !important;
-    }
-    .oc-list {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .oc-item {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 4px 12px;
-      align-items: start;
-      padding: 8px 12px;
-      border: var(--card-border);
-      border-radius: var(--card-border-radius, 8px);
-      transition: opacity 0.2s ease;
-    }
-    .oc-item.oc-checked {
-      opacity: 0.65;
-      background: var(--color-bg-faint);
-    }
-    .oc-label {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--color-text-primary);
-    }
-    .oc-checked .oc-label {
-      text-decoration: line-through;
-    }
-    .oc-item-icon {
-      font-size: 16px;
-      width: 16px;
-      height: 16px;
-      color: var(--color-primary);
-    }
-    .oc-helper {
-      grid-column: 1 / 2;
-      margin: 2px 0 0 32px;
-      font-size: 12px;
-      color: var(--color-text-secondary);
-      line-height: 1.4;
-    }
-    .oc-go {
-      grid-column: 2;
-      grid-row: 1 / span 2;
-      align-self: center;
-    }
-    .oc-done {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin: 12px 0 0;
-      padding: 8px 12px;
-      background: var(--color-success-light, rgba(30, 142, 62, 0.08));
-      color: var(--color-success-dark, #137333);
-      border-radius: var(--card-border-radius, 8px);
-      font-size: 13px;
-      font-weight: 500;
-    }
-    .oc-done-icon {
-      color: var(--color-success, #1e8e3e);
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .oc-item { transition: none; }
-    }
-  `],
+  styles: [
+    `
+      .oc-card {
+        height: 100%;
+      }
+      .oc-avatar {
+        background: var(--color-primary);
+        color: var(--color-on-primary, #ffffff);
+      }
+      .oc-bar {
+        margin-bottom: 12px;
+        height: 6px;
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .oc-bar.oc-bar-done ::ng-deep .mdc-linear-progress__bar-inner {
+        border-color: var(--color-success, #1e8e3e) !important;
+      }
+      .oc-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .oc-item {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 4px 12px;
+        align-items: start;
+        padding: 8px 12px;
+        border: var(--card-border);
+        border-radius: var(--card-border-radius, 8px);
+        transition: opacity 0.2s ease;
+      }
+      .oc-item.oc-checked {
+        opacity: 0.65;
+        background: var(--color-bg-faint);
+      }
+      .oc-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--color-text-primary);
+      }
+      .oc-checked .oc-label {
+        text-decoration: line-through;
+      }
+      .oc-item-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+        color: var(--color-primary);
+      }
+      .oc-helper {
+        grid-column: 1 / 2;
+        margin: 2px 0 0 32px;
+        font-size: 12px;
+        color: var(--color-text-secondary);
+        line-height: 1.4;
+      }
+      .oc-go {
+        grid-column: 2;
+        grid-row: 1 / span 2;
+        align-self: center;
+      }
+      .oc-done {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 12px 0 0;
+        padding: 8px 12px;
+        background: var(--color-success-light, rgba(30, 142, 62, 0.08));
+        color: var(--color-success-dark, #137333);
+        border-radius: var(--card-border-radius, 8px);
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .oc-done-icon {
+        color: var(--color-success, #1e8e3e);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .oc-item {
+          transition: none;
+        }
+      }
+    `,
+  ],
 })
 export class OperatorChecklistComponent implements OnInit {
   readonly items = CHECKLIST_ITEMS;
   readonly checked = signal<Record<string, boolean>>({});
 
-  readonly checkedCount = computed(
-    () => Object.values(this.checked()).filter(Boolean).length,
-  );
+  readonly checkedCount = computed(() => Object.values(this.checked()).filter(Boolean).length);
   readonly progressPercent = computed(() =>
-    this.items.length === 0
-      ? 0
-      : Math.round((this.checkedCount() / this.items.length) * 100),
+    this.items.length === 0 ? 0 : Math.round((this.checkedCount() / this.items.length) * 100),
   );
 
   ngOnInit(): void {
@@ -274,10 +258,7 @@ export class OperatorChecklistComponent implements OnInit {
 
   private persistToday(checks: Record<string, boolean>): void {
     try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ date: this.todayKey(), checks }),
-      );
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ date: this.todayKey(), checks }));
     } catch {
       // Private mode — in-memory only is fine.
     }

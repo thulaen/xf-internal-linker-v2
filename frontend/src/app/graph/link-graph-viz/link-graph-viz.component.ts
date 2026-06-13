@@ -14,7 +14,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import * as echarts from 'echarts';
 
@@ -38,8 +38,16 @@ const MIN_RADIUS = 4;
  * colours stay recognisable across the migration.
  */
 const SILO_PALETTE = [
-  '#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f',
-  '#edc949', '#af7aa1', '#ff9da7', '#9c755f', '#bab0ab',
+  '#4e79a7',
+  '#f28e2b',
+  '#e15759',
+  '#76b7b2',
+  '#59a14f',
+  '#edc949',
+  '#af7aa1',
+  '#ff9da7',
+  '#9c755f',
+  '#bab0ab',
 ];
 
 /**
@@ -63,7 +71,7 @@ const SILO_PALETTE = [
 @Component({
   selector: 'app-link-graph-viz',
   standalone: true,
-  imports: [CommonModule, MatProgressSpinnerModule],
+  imports: [MatProgressSpinnerModule],
   templateUrl: './link-graph-viz.component.html',
   styleUrls: ['./link-graph-viz.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -113,9 +121,15 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
     // diffs internally, so a full rebuild is simple and correct (KISS) —
     // the per-property d3 mutators are no longer needed.
     if (
-      changes['topology'] || changes['heatmapMode'] || changes['prMin'] ||
-      changes['prMax'] || changes['contextFilter'] || changes['highlightEdge'] ||
-      changes['ghostEdges'] || changes['showGhostEdges'] || changes['churnyIds']
+      changes['topology'] ||
+      changes['heatmapMode'] ||
+      changes['prMin'] ||
+      changes['prMax'] ||
+      changes['contextFilter'] ||
+      changes['highlightEdge'] ||
+      changes['ghostEdges'] ||
+      changes['showGhostEdges'] ||
+      changes['churnyIds']
     ) {
       this.render();
     }
@@ -140,9 +154,7 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
     const lo = this.prMin > 0 ? this.prMin : 1e-9;
     const hi = this.prMax > lo ? this.prMax : lo * 10;
     const span = Math.log(hi) - Math.log(lo);
-    const t = span > 0
-      ? Math.min(1, Math.max(0, (Math.log(Math.max(pagerank, lo)) - Math.log(lo)) / span))
-      : 0;
+    const t = span > 0 ? Math.min(1, Math.max(0, (Math.log(Math.max(pagerank, lo)) - Math.log(lo)) / span)) : 0;
     return rdYlBu(t);
   }
 
@@ -203,13 +215,10 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
       };
     });
 
-    const visibleLinks = links.filter(
-      (l) => this.contextFilter !== 'contextual' || l.context === 'contextual',
-    );
+    const visibleLinks = links.filter((l) => this.contextFilter !== 'contextual' || l.context === 'contextual');
     const graphLinks = visibleLinks.map((l) => {
-      const highlighted = this.highlightEdge
-        && l.source === this.highlightEdge.source
-        && l.target === this.highlightEdge.target;
+      const highlighted =
+        this.highlightEdge && l.source === this.highlightEdge.source && l.target === this.highlightEdge.target;
       return {
         source: String(l.source),
         target: String(l.target),
@@ -341,9 +350,11 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
 function graphTooltip(p: ChartClickParams): string {
   const data = p.data;
   if (p.dataType === 'node' && data && typeof data['_in'] === 'number') {
-    return `<strong>${data['name']}</strong><br>` +
+    return (
+      `<strong>${data['name']}</strong><br>` +
       `In: ${data['_in']} &nbsp; Out: ${data['_out']}<br>` +
-      `Silo: ${data['_silo']}`;
+      `Silo: ${data['_silo']}`
+    );
   }
   if (p.dataType === 'edge' && data && data['_ghost']) {
     const g = data['_ghost'] as GhostEdge;
@@ -363,9 +374,7 @@ function rdYlBu(t: number): string {
   const blue = [49, 54, 149];
   const yellow = [255, 255, 191];
   const red = [165, 0, 38];
-  const [a, b, local] = clamped < 0.5
-    ? [blue, yellow, clamped / 0.5]
-    : [yellow, red, (clamped - 0.5) / 0.5];
+  const [a, b, local] = clamped < 0.5 ? [blue, yellow, clamped / 0.5] : [yellow, red, (clamped - 0.5) / 0.5];
   const mix = (i: number) => Math.round(a[i] + (b[i] - a[i]) * local);
   return `rgb(${mix(0)}, ${mix(1)}, ${mix(2)})`;
 }

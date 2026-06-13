@@ -19,12 +19,7 @@ export interface JobDetailDialogResult {
 @Component({
   selector: 'app-job-detail-dialog',
   standalone: true,
-  imports: [
-    CommonModule,
-    MatButtonModule,
-    MatDialogModule,
-    MatIconModule,
-  ],
+  imports: [CommonModule, MatButtonModule, MatDialogModule, MatIconModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <h2 mat-dialog-title>
@@ -50,121 +45,143 @@ export interface JobDetailDialogResult {
           <span class="detail-label">Items synced</span>
           <span class="detail-value">{{ job.items_synced | number }}</span>
         </div>
-        <div class="detail-row" *ngIf="job.started_at">
-          <span class="detail-label">Started</span>
-          <span class="detail-value">{{ job.started_at | date:'MMM d, y HH:mm:ss' }}</span>
-        </div>
-        <div class="detail-row" *ngIf="job.completed_at">
-          <span class="detail-label">Finished</span>
-          <span class="detail-value">{{ job.completed_at | date:'MMM d, y HH:mm:ss' }}</span>
-        </div>
-        <div class="detail-row" *ngIf="job.is_resumable && job.checkpoint_stage">
-          <span class="detail-label">Checkpoint</span>
-          <span class="detail-value">{{ job.checkpoint_stage }} after {{ job.checkpoint_items_processed | number }} items</span>
-        </div>
+        @if (job.started_at) {
+          <div class="detail-row">
+            <span class="detail-label">Started</span>
+            <span class="detail-value">{{ job.started_at | date: 'MMM d, y HH:mm:ss' }}</span>
+          </div>
+        }
+        @if (job.completed_at) {
+          <div class="detail-row">
+            <span class="detail-label">Finished</span>
+            <span class="detail-value">{{ job.completed_at | date: 'MMM d, y HH:mm:ss' }}</span>
+          </div>
+        }
+        @if (job.is_resumable && job.checkpoint_stage) {
+          <div class="detail-row">
+            <span class="detail-label">Checkpoint</span>
+            <span class="detail-value"
+              >{{ job.checkpoint_stage }} after {{ job.checkpoint_items_processed | number }} items</span
+            >
+          </div>
+        }
       </div>
 
-      <div class="message-section" *ngIf="job.message">
-        <span class="section-label">Last message</span>
-        <p class="message-text">{{ job.message }}</p>
-      </div>
+      @if (job.message) {
+        <div class="message-section">
+          <span class="section-label">Last message</span>
+          <p class="message-text">{{ job.message }}</p>
+        </div>
+      }
 
-      <div class="error-section" *ngIf="job.error_message">
-        <span class="section-label">Error</span>
-        <p class="error-text">{{ job.error_message }}</p>
-      </div>
+      @if (job.error_message) {
+        <div class="error-section">
+          <span class="section-label">Error</span>
+          <p class="error-text">{{ job.error_message }}</p>
+        </div>
+      }
     </mat-dialog-content>
 
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close>Close</button>
-      <button mat-flat-button color="primary"
-        *ngIf="canResume"
-        (click)="resume()">
-        <mat-icon>play_arrow</mat-icon>
-        Resume
-      </button>
-      <button mat-flat-button color="primary"
-        *ngIf="job.status === 'failed' && canRetry"
-        (click)="retry()">
-        <mat-icon>replay</mat-icon>
-        Retry
-      </button>
+      @if (canResume) {
+        <button mat-flat-button color="primary" (click)="resume()">
+          <mat-icon>play_arrow</mat-icon>
+          Resume
+        </button>
+      }
+      @if (job.status === 'failed' && canRetry) {
+        <button mat-flat-button color="primary" (click)="retry()">
+          <mat-icon>replay</mat-icon>
+          Retry
+        </button>
+      }
     </mat-dialog-actions>
   `,
-  styles: [`
-    :host { display: block; }
+  styles: [
+    `
+      :host {
+        display: block;
+      }
 
-    h2[mat-dialog-title] {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 18px;
-      font-weight: 500;
-    }
+      h2[mat-dialog-title] {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 18px;
+        font-weight: 500;
+      }
 
-    .title-icon {
-      color: var(--color-text-secondary);
-    }
+      .title-icon {
+        color: var(--color-text-secondary);
+      }
 
-    .detail-grid {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 8px 16px;
-      margin-bottom: 16px;
-    }
+      .detail-grid {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 8px 16px;
+        margin-bottom: 16px;
+      }
 
-    .detail-label {
-      font-size: 12px;
-      color: var(--color-text-muted);
-      font-weight: 500;
-    }
+      .detail-label {
+        font-size: 12px;
+        color: var(--color-text-muted);
+        font-weight: 500;
+      }
 
-    .detail-value {
-      font-size: 13px;
-      color: var(--color-text-primary);
-    }
+      .detail-value {
+        font-size: 13px;
+        color: var(--color-text-primary);
+      }
 
-    .status-value {
-      font-weight: 500;
-      text-transform: capitalize;
-    }
+      .status-value {
+        font-weight: 500;
+        text-transform: capitalize;
+      }
 
-    .status-failed { color: var(--color-error); }
-    .status-completed { color: var(--color-success); }
-    .status-running { color: var(--color-primary); }
+      .status-failed {
+        color: var(--color-error);
+      }
+      .status-completed {
+        color: var(--color-success);
+      }
+      .status-running {
+        color: var(--color-primary);
+      }
 
-    .section-label {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--color-text-muted);
-      display: block;
-      margin-bottom: 4px;
-    }
+      .section-label {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--color-text-muted);
+        display: block;
+        margin-bottom: 4px;
+      }
 
-    .message-text {
-      font-size: 13px;
-      color: var(--color-text-secondary);
-      margin: 0 0 12px;
-    }
+      .message-text {
+        font-size: 13px;
+        color: var(--color-text-secondary);
+        margin: 0 0 12px;
+      }
 
-    .error-section {
-      background: var(--color-error-bg, #fce8e6);
-      border-radius: var(--card-border-radius);
-      padding: 12px;
-    }
+      .error-section {
+        background: var(--color-error-bg, #fce8e6);
+        border-radius: var(--card-border-radius);
+        padding: 12px;
+      }
 
-    .error-text {
-      font-size: 13px;
-      color: var(--color-error);
-      margin: 0;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
+      .error-text {
+        font-size: 13px;
+        color: var(--color-error);
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
 
-    mat-dialog-actions button mat-icon {
-      margin-right: 4px;
-    }
-  `],
+      mat-dialog-actions button mat-icon {
+        margin-right: 4px;
+      }
+    `,
+  ],
 })
 export class JobDetailDialogComponent {
   private dialogRef = inject(MatDialogRef<JobDetailDialogComponent>);
@@ -192,9 +209,11 @@ export class JobDetailDialogComponent {
   }
 
   get canResume(): boolean {
-    return this.job.is_resumable
-      && !!this.job.checkpoint_stage
-      && ['paused', 'failed', 'cancelled'].includes(this.job.status);
+    return (
+      this.job.is_resumable &&
+      !!this.job.checkpoint_stage &&
+      ['paused', 'failed', 'cancelled'].includes(this.job.status)
+    );
   }
 
   retry(): void {

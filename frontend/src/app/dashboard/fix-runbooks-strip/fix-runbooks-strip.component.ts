@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, Input, computed, inject, signal, OnChanges } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
@@ -20,13 +20,7 @@ import { RunbookDialogComponent } from '../../shared/runbooks/runbook-dialog/run
   selector: 'app-fix-runbooks-strip',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    CommonModule,
-    MatButtonModule,
-    MatDialogModule,
-    MatIconModule,
-    MatTooltipModule,
-  ],
+  imports: [MatButtonModule, MatDialogModule, MatIconModule, MatTooltipModule],
   template: `
     @if (visible()) {
       <section class="fix-strip" id="fix-runbooks-strip" role="region" aria-label="Quick fix runbooks">
@@ -39,12 +33,7 @@ import { RunbookDialogComponent } from '../../shared/runbooks/runbook-dialog/run
         </header>
         <div class="fix-strip-actions">
           @for (rb of runbooks(); track rb.id) {
-            <button
-              mat-stroked-button
-              class="fix-strip-btn"
-              (click)="open(rb)"
-              [matTooltip]="rb.plainEnglishProblem"
-            >
+            <button mat-stroked-button class="fix-strip-btn" (click)="open(rb)" [matTooltip]="rb.plainEnglishProblem">
               <mat-icon>{{ iconFor(rb.id) }}</mat-icon>
               <span class="fix-strip-btn-label">{{ rb.title }}</span>
             </button>
@@ -53,65 +42,67 @@ import { RunbookDialogComponent } from '../../shared/runbooks/runbook-dialog/run
       </section>
     }
   `,
-  styles: [`
-    .fix-strip {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-md);
-      padding: var(--spacing-card);
-      margin-bottom: var(--space-lg);
-      background: var(--color-warning-light);
-      border: 1px solid var(--color-warning);
-      border-radius: var(--card-border-radius, 8px);
-    }
-    .fix-strip-header {
-      display: flex;
-      align-items: center;
-      gap: var(--space-sm);
-    }
-    .fix-strip-icon {
-      color: var(--color-warning-dark);
-      font-size: 24px;
-      width: 24px;
-      height: 24px;
-      flex-shrink: 0;
-    }
-    .fix-strip-text {
-      display: flex;
-      flex-direction: column;
-      line-height: 1.3;
-      min-width: 0;
-    }
-    .fix-strip-title {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--color-warning-dark);
-    }
-    .fix-strip-subtitle {
-      font-size: 12px;
-      color: var(--color-text-secondary);
-    }
-    .fix-strip-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-sm);
-    }
-    .fix-strip-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--space-xs);
-      white-space: nowrap;
-    }
-    .fix-strip-btn mat-icon {
-      color: var(--color-warning-dark);
-    }
-    .fix-strip-btn-label {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 240px;
-    }
-  `],
+  styles: [
+    `
+      .fix-strip {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-md);
+        padding: var(--spacing-card);
+        margin-bottom: var(--space-lg);
+        background: var(--color-warning-light);
+        border: 1px solid var(--color-warning);
+        border-radius: var(--card-border-radius, 8px);
+      }
+      .fix-strip-header {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+      }
+      .fix-strip-icon {
+        color: var(--color-warning-dark);
+        font-size: 24px;
+        width: 24px;
+        height: 24px;
+        flex-shrink: 0;
+      }
+      .fix-strip-text {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.3;
+        min-width: 0;
+      }
+      .fix-strip-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--color-warning-dark);
+      }
+      .fix-strip-subtitle {
+        font-size: 12px;
+        color: var(--color-text-secondary);
+      }
+      .fix-strip-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-sm);
+      }
+      .fix-strip-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-xs);
+        white-space: nowrap;
+      }
+      .fix-strip-btn mat-icon {
+        color: var(--color-warning-dark);
+      }
+      .fix-strip-btn-label {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 240px;
+      }
+    `,
+  ],
 })
 export class FixRunbooksStripComponent implements OnChanges {
   private dialog = inject(MatDialog);

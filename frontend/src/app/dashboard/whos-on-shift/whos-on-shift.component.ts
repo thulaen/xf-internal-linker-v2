@@ -1,13 +1,6 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  OnInit,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { HttpClient } from '@angular/common/http';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -39,7 +32,7 @@ interface ActiveUser {
   selector: 'app-whos-on-shift',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatCardModule, MatIconModule],
+  imports: [MatCardModule, MatIconModule],
   template: `
     @if (visible()) {
       <mat-card class="ws-card">
@@ -53,9 +46,7 @@ interface ActiveUser {
             @for (u of users(); track u.username) {
               <li class="ws-row" [class.ws-self]="u.username === self()">
                 <span class="ws-dot" aria-hidden="true"></span>
-                <span class="ws-name">
-                  {{ u.username }}{{ u.username === self() ? ' (you)' : '' }}
-                </span>
+                <span class="ws-name"> {{ u.username }}{{ u.username === self() ? ' (you)' : '' }} </span>
                 <span class="ws-time">{{ ago(u.last_seen) }}</span>
               </li>
             }
@@ -64,49 +55,53 @@ interface ActiveUser {
       </mat-card>
     }
   `,
-  styles: [`
-    .ws-card { height: 100%; }
-    .ws-avatar {
-      background: var(--color-primary);
-      color: var(--color-on-primary, #ffffff);
-    }
-    .ws-list {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .ws-row {
-      display: grid;
-      grid-template-columns: 12px 1fr auto;
-      gap: 8px;
-      align-items: center;
-      padding: 6px 12px;
-      border-radius: var(--card-border-radius, 8px);
-      background: var(--color-bg-faint);
-    }
-    .ws-row.ws-self {
-      background: var(--color-bg-white);
-      border: var(--card-border);
-    }
-    .ws-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--color-success, #1e8e3e);
-    }
-    .ws-name {
-      font-size: 13px;
-      color: var(--color-text-primary);
-    }
-    .ws-time {
-      font-size: 11px;
-      color: var(--color-text-secondary);
-      font-variant-numeric: tabular-nums;
-    }
-  `],
+  styles: [
+    `
+      .ws-card {
+        height: 100%;
+      }
+      .ws-avatar {
+        background: var(--color-primary);
+        color: var(--color-on-primary, #ffffff);
+      }
+      .ws-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .ws-row {
+        display: grid;
+        grid-template-columns: 12px 1fr auto;
+        gap: 8px;
+        align-items: center;
+        padding: 6px 12px;
+        border-radius: var(--card-border-radius, 8px);
+        background: var(--color-bg-faint);
+      }
+      .ws-row.ws-self {
+        background: var(--color-bg-white);
+        border: var(--card-border);
+      }
+      .ws-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--color-success, #1e8e3e);
+      }
+      .ws-name {
+        font-size: 13px;
+        color: var(--color-text-primary);
+      }
+      .ws-time {
+        font-size: 11px;
+        color: var(--color-text-secondary);
+        font-variant-numeric: tabular-nums;
+      }
+    `,
+  ],
 })
 export class WhosOnShiftComponent implements OnInit {
   private readonly http = inject(HttpClient);
@@ -121,9 +116,7 @@ export class WhosOnShiftComponent implements OnInit {
   readonly visible = signal<boolean>(false);
 
   ngOnInit(): void {
-    this.auth.currentUser$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((u) => this.self.set(u?.username ?? ''));
+    this.auth.currentUser$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((u) => this.self.set(u?.username ?? ''));
 
     // 60-second poll, gated by `VisibilityGateService` so hidden tabs
     // and signed-out sessions do not pound the API. See

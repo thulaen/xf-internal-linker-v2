@@ -9,7 +9,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -34,15 +34,7 @@ import { COMMANDS, Command } from '../../services/command-palette.commands';
   selector: 'app-command-palette',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    CommonModule,
-    FormsModule,
-    MatDialogModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatIconModule,
-    MatListModule,
-  ],
+  imports: [FormsModule, MatDialogModule, MatFormFieldModule, MatInputModule, MatIconModule, MatListModule],
   template: `
     <div class="palette-wrap" role="dialog" aria-label="Command palette">
       <div class="palette-search">
@@ -108,108 +100,110 @@ import { COMMANDS, Command } from '../../services/command-palette.commands';
       </footer>
     </div>
   `,
-  styles: [`
-    .palette-wrap {
-      display: flex;
-      flex-direction: column;
-      max-height: 70vh;
-      min-height: 240px;
-      background: var(--color-bg-white);
-    }
-    .palette-search {
-      display: flex;
-      align-items: center;
-      gap: var(--space-sm);
-      padding: var(--space-md);
-      border-bottom: var(--card-border);
-    }
-    .search-icon {
-      color: var(--color-text-muted);
-      font-size: 20px;
-      width: 20px;
-      height: 20px;
-    }
-    .search-input {
-      flex: 1;
-      border: 0;
-      outline: 0;
-      background: transparent;
-      font-family: inherit;
-      font-size: 15px;
-      color: var(--color-text-primary);
-    }
-    .search-input::placeholder {
-      color: var(--color-text-muted);
-    }
-    .palette-empty {
-      display: flex;
-      align-items: center;
-      gap: var(--space-sm);
-      padding: var(--space-lg);
-      color: var(--color-text-muted);
-      font-size: 13px;
-    }
-    .palette-group-label {
-      padding: var(--space-md) var(--space-md) var(--space-xs);
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--color-text-muted);
-    }
-    .palette-list {
-      padding: 0;
-    }
-    .palette-item {
-      transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    .palette-item-selected {
-      background: var(--color-blue-50);
-    }
-    .palette-item-icon {
-      color: var(--color-text-secondary);
-    }
-    .palette-item-title {
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--color-text-primary);
-    }
-    .palette-item-desc {
-      font-size: 12px;
-      color: var(--color-text-muted);
-    }
-    .palette-item-enter {
-      font-size: 13px;
-      color: var(--color-primary);
-    }
-    .palette-footer {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-md);
-      padding: var(--space-sm) var(--space-md);
-      border-top: var(--card-border);
-      background: var(--color-bg-faint);
-      font-size: 11px;
-      color: var(--color-text-muted);
-    }
-    .palette-kbd-group {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--space-xs);
-    }
-    .palette-kbd {
-      display: inline-block;
-      min-width: 20px;
-      padding: 2px 6px;
-      border: var(--card-border);
-      border-radius: var(--radius-sm);
-      background: var(--color-bg-white);
-      font-family: inherit;
-      font-size: 11px;
-      text-align: center;
-      color: var(--color-text-secondary);
-    }
-  `],
+  styles: [
+    `
+      .palette-wrap {
+        display: flex;
+        flex-direction: column;
+        max-height: 70vh;
+        min-height: 240px;
+        background: var(--color-bg-white);
+      }
+      .palette-search {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+        padding: var(--space-md);
+        border-bottom: var(--card-border);
+      }
+      .search-icon {
+        color: var(--color-text-muted);
+        font-size: 20px;
+        width: 20px;
+        height: 20px;
+      }
+      .search-input {
+        flex: 1;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        font-family: inherit;
+        font-size: 15px;
+        color: var(--color-text-primary);
+      }
+      .search-input::placeholder {
+        color: var(--color-text-muted);
+      }
+      .palette-empty {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+        padding: var(--space-lg);
+        color: var(--color-text-muted);
+        font-size: 13px;
+      }
+      .palette-group-label {
+        padding: var(--space-md) var(--space-md) var(--space-xs);
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--color-text-muted);
+      }
+      .palette-list {
+        padding: 0;
+      }
+      .palette-item {
+        transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .palette-item-selected {
+        background: var(--color-blue-50);
+      }
+      .palette-item-icon {
+        color: var(--color-text-secondary);
+      }
+      .palette-item-title {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--color-text-primary);
+      }
+      .palette-item-desc {
+        font-size: 12px;
+        color: var(--color-text-muted);
+      }
+      .palette-item-enter {
+        font-size: 13px;
+        color: var(--color-primary);
+      }
+      .palette-footer {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-md);
+        padding: var(--space-sm) var(--space-md);
+        border-top: var(--card-border);
+        background: var(--color-bg-faint);
+        font-size: 11px;
+        color: var(--color-text-muted);
+      }
+      .palette-kbd-group {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-xs);
+      }
+      .palette-kbd {
+        display: inline-block;
+        min-width: 20px;
+        padding: 2px 6px;
+        border: var(--card-border);
+        border-radius: var(--radius-sm);
+        background: var(--color-bg-white);
+        font-family: inherit;
+        font-size: 11px;
+        text-align: center;
+        color: var(--color-text-secondary);
+      }
+    `,
+  ],
 })
 export class CommandPaletteComponent implements AfterViewInit {
   private dialogRef = inject(MatDialogRef<CommandPaletteComponent>);
@@ -234,9 +228,7 @@ export class CommandPaletteComponent implements AfterViewInit {
     if (!q) return COMMANDS;
     const tokens = q.split(/\s+/).filter(Boolean);
     return COMMANDS.filter((c) => {
-      const haystack = [c.label, c.description, ...(c.keywords ?? [])]
-        .join(' ')
-        .toLowerCase();
+      const haystack = [c.label, c.description, ...(c.keywords ?? [])].join(' ').toLowerCase();
       return tokens.every((t) => haystack.includes(t));
     });
   });

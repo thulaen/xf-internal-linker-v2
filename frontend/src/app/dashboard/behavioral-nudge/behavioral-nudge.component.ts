@@ -1,11 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  OnInit,
-  inject,
-  signal,
-} from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -44,22 +38,14 @@ const ROUTE_LABELS: Record<string, { label: string; icon: string }> = {
   selector: 'app-behavioral-nudge',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    CommonModule,
-    RouterLink,
-    MatCardModule,
-    MatIconModule,
-    MatButtonModule,
-  ],
+  imports: [RouterLink, MatCardModule, MatIconModule, MatButtonModule],
   template: `
     @if (suggestion(); as s) {
       <mat-card class="bn-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="bn-avatar">history</mat-icon>
           <mat-card-title>Pick up where you usually start</mat-card-title>
-          <mat-card-subtitle>
-            Based on your last {{ s.days }} day{{ s.days === 1 ? '' : 's' }}
-          </mat-card-subtitle>
+          <mat-card-subtitle> Based on your last {{ s.days }} day{{ s.days === 1 ? '' : 's' }} </mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           <p class="bn-text">
@@ -69,11 +55,7 @@ const ROUTE_LABELS: Record<string, { label: string; icon: string }> = {
           </p>
         </mat-card-content>
         <mat-card-actions>
-          <a
-            mat-flat-button
-            color="primary"
-            [routerLink]="s.route"
-          >
+          <a mat-flat-button color="primary" [routerLink]="s.route">
             <mat-icon>{{ s.icon }}</mat-icon>
             Open {{ s.label }}
           </a>
@@ -81,19 +63,23 @@ const ROUTE_LABELS: Record<string, { label: string; icon: string }> = {
       </mat-card>
     }
   `,
-  styles: [`
-    .bn-card { height: 100%; }
-    .bn-avatar {
-      background: var(--color-primary);
-      color: var(--color-on-primary, #ffffff);
-    }
-    .bn-text {
-      margin: 0;
-      font-size: 14px;
-      line-height: 1.55;
-      color: var(--color-text-primary);
-    }
-  `],
+  styles: [
+    `
+      .bn-card {
+        height: 100%;
+      }
+      .bn-avatar {
+        background: var(--color-primary);
+        color: var(--color-on-primary, #ffffff);
+      }
+      .bn-text {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.55;
+        color: var(--color-text-primary);
+      }
+    `,
+  ],
 })
 export class BehavioralNudgeComponent implements OnInit {
   private readonly tracker = inject(BehaviorTrackerService);

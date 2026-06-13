@@ -11,10 +11,11 @@ import {
   TemplateRef,
   computed,
   inject,
-  signal, AfterContentInit,
+  signal,
+  AfterContentInit,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule, NgTemplateOutlet } from '@angular/common';
+import { NgTemplateOutlet } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -99,29 +100,19 @@ export class FormWizardStepComponent {
 @Component({
   selector: 'app-form-wizard',
   standalone: true,
-  imports: [
-    CommonModule,
-    NgTemplateOutlet,
-    MatButtonModule,
-    MatIconModule,
-    MatProgressBarModule,
-  ],
+  imports: [NgTemplateOutlet, MatButtonModule, MatIconModule, MatProgressBarModule],
   template: `
     <div class="fw">
       <header class="fw-header">
         <ol class="fw-crumbs">
           @for (step of stepArray(); track step.label; let i = $index) {
-            <li class="fw-crumb"
-                [class.fw-active]="i === activeStep"
-                [class.fw-done]="i < activeStep"
-                [class.fw-clickable]="i <= maxReachedStep()"
+            <li
+              class="fw-crumb"
+              [class.fw-active]="i === activeStep"
+              [class.fw-done]="i < activeStep"
+              [class.fw-clickable]="i <= maxReachedStep()"
             >
-              <button
-                type="button"
-                class="fw-crumb-btn"
-                [disabled]="i > maxReachedStep()"
-                (click)="jumpTo(i)"
-              >
+              <button type="button" class="fw-crumb-btn" [disabled]="i > maxReachedStep()" (click)="jumpTo(i)">
                 <span class="fw-crumb-num">
                   @if (i < activeStep) {
                     <mat-icon class="fw-check-icon">check</mat-icon>
@@ -139,11 +130,7 @@ export class FormWizardStepComponent {
             </li>
           }
         </ol>
-        <mat-progress-bar
-          mode="determinate"
-          [value]="progressPercent()"
-          aria-label="Wizard progress"
-        />
+        <mat-progress-bar mode="determinate" [value]="progressPercent()" aria-label="Wizard progress" />
       </header>
 
       <section class="fw-body" aria-live="polite">
@@ -153,35 +140,18 @@ export class FormWizardStepComponent {
       </section>
 
       <footer class="fw-footer">
-        <button
-          mat-stroked-button
-          type="button"
-          [disabled]="activeStep === 0"
-          (click)="previous()"
-        >
+        <button mat-stroked-button type="button" [disabled]="activeStep === 0" (click)="previous()">
           <mat-icon>arrow_back</mat-icon>
           {{ previousLabel }}
         </button>
         <span class="fw-spacer"></span>
         @if (isLastStep()) {
-          <button
-            mat-flat-button
-            color="primary"
-            type="button"
-            [disabled]="!currentValid()"
-            (click)="emitFinish()"
-          >
+          <button mat-flat-button color="primary" type="button" [disabled]="!currentValid()" (click)="emitFinish()">
             {{ finishLabel }}
             <mat-icon iconPositionEnd>check</mat-icon>
           </button>
         } @else {
-          <button
-            mat-flat-button
-            color="primary"
-            type="button"
-            [disabled]="!currentValid()"
-            (click)="next()"
-          >
+          <button mat-flat-button color="primary" type="button" [disabled]="!currentValid()" (click)="next()">
             {{ nextLabel }}
             <mat-icon iconPositionEnd>arrow_forward</mat-icon>
           </button>
@@ -189,81 +159,109 @@ export class FormWizardStepComponent {
       </footer>
     </div>
   `,
-  styles: [`
-    .fw {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-    .fw-header { display: flex; flex-direction: column; gap: 12px; }
-    .fw-crumbs {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      gap: 4px;
-      flex-wrap: wrap;
-    }
-    .fw-crumb-btn {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      border: var(--card-border);
-      border-radius: var(--card-border-radius, 8px);
-      background: var(--color-bg-faint);
-      color: var(--color-text-secondary);
-      cursor: pointer;
-      font: inherit;
-      transition: background-color 0.15s ease, border-color 0.15s ease;
-    }
-    .fw-crumb-btn:disabled { cursor: not-allowed; opacity: 0.65; }
-    .fw-crumb.fw-active .fw-crumb-btn {
-      background: var(--color-primary);
-      color: var(--color-on-primary, #ffffff);
-      border-color: var(--color-primary);
-    }
-    .fw-crumb.fw-done .fw-crumb-btn {
-      border-color: var(--color-success, #1e8e3e);
-      color: var(--color-success-dark, #137333);
-    }
-    .fw-crumb-num {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      background: rgba(0, 0, 0, 0.08);
-      color: inherit;
-      font-weight: 600;
-      font-size: 12px;
-    }
-    .fw-active .fw-crumb-num {
-      background: rgba(255, 255, 255, 0.25);
-    }
-    .fw-check-icon { font-size: 14px; width: 14px; height: 14px; }
-    .fw-crumb-text {
-      display: inline-flex;
-      flex-direction: column;
-      align-items: flex-start;
-      line-height: 1.2;
-    }
-    .fw-crumb-label { font-weight: 500; font-size: 13px; }
-    .fw-crumb-hint  { font-size: 11px; color: inherit; opacity: 0.85; }
-    .fw-body { min-height: 200px; }
-    .fw-footer {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding-top: 16px;
-      border-top: var(--card-border);
-    }
-    .fw-spacer { flex: 1; }
-    @media (prefers-reduced-motion: reduce) {
-      .fw-crumb-btn { transition: none; }
-    }
-  `],
+  styles: [
+    `
+      .fw {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .fw-header {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .fw-crumbs {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+      }
+      .fw-crumb-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border: var(--card-border);
+        border-radius: var(--card-border-radius, 8px);
+        background: var(--color-bg-faint);
+        color: var(--color-text-secondary);
+        cursor: pointer;
+        font: inherit;
+        transition:
+          background-color 0.15s ease,
+          border-color 0.15s ease;
+      }
+      .fw-crumb-btn:disabled {
+        cursor: not-allowed;
+        opacity: 0.65;
+      }
+      .fw-crumb.fw-active .fw-crumb-btn {
+        background: var(--color-primary);
+        color: var(--color-on-primary, #ffffff);
+        border-color: var(--color-primary);
+      }
+      .fw-crumb.fw-done .fw-crumb-btn {
+        border-color: var(--color-success, #1e8e3e);
+        color: var(--color-success-dark, #137333);
+      }
+      .fw-crumb-num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.08);
+        color: inherit;
+        font-weight: 600;
+        font-size: 12px;
+      }
+      .fw-active .fw-crumb-num {
+        background: rgba(255, 255, 255, 0.25);
+      }
+      .fw-check-icon {
+        font-size: 14px;
+        width: 14px;
+        height: 14px;
+      }
+      .fw-crumb-text {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: flex-start;
+        line-height: 1.2;
+      }
+      .fw-crumb-label {
+        font-weight: 500;
+        font-size: 13px;
+      }
+      .fw-crumb-hint {
+        font-size: 11px;
+        color: inherit;
+        opacity: 0.85;
+      }
+      .fw-body {
+        min-height: 200px;
+      }
+      .fw-footer {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding-top: 16px;
+        border-top: var(--card-border);
+      }
+      .fw-spacer {
+        flex: 1;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .fw-crumb-btn {
+          transition: none;
+        }
+      }
+    `,
+  ],
 })
 export class FormWizardComponent implements AfterContentInit {
   /** Active step index (0-based). Two-way bound. */
@@ -290,9 +288,7 @@ export class FormWizardComponent implements AfterContentInit {
 
   ngAfterContentInit(): void {
     this.refreshSteps();
-    this.stepsQuery.changes
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.refreshSteps());
+    this.stepsQuery.changes.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.refreshSteps());
   }
 
   // ── derived state ──────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -16,7 +16,6 @@ import { MatSnackBar } from '@angular/material/snack-bar';
   selector: 'app-passage-relevance-card',
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     MatCardModule,
     MatButtonModule,
@@ -27,7 +26,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
     MatTooltipModule,
   ],
   templateUrl: './passage-relevance-card.component.html',
-  styleUrls: ['./passage-relevance-card.component.scss']
+  styleUrls: ['./passage-relevance-card.component.scss'],
 })
 export class PassageRelevanceCardComponent implements OnInit, OnDestroy {
   settings: PassageRelevanceSettings | null = null;
@@ -38,7 +37,7 @@ export class PassageRelevanceCardComponent implements OnInit, OnDestroy {
   constructor(
     private settingsService: SiloSettingsService,
     private snackBar: MatSnackBar,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
@@ -52,37 +51,39 @@ export class PassageRelevanceCardComponent implements OnInit, OnDestroy {
 
   loadSettings(): void {
     this.loading = true;
-    this.settingsService.getPassageRelevanceSettings()
+    this.settingsService
+      .getPassageRelevanceSettings()
       .pipe(
         takeUntil(this.destroy$),
         finalize(() => {
           this.loading = false;
           this.cdr.detectChanges();
-        })
+        }),
       )
       .subscribe({
-        next: (data) => this.settings = data,
-        error: () => this.snackBar.open('Failed to load settings', 'Close', { duration: 3000 })
+        next: (data) => (this.settings = data),
+        error: () => this.snackBar.open('Failed to load settings', 'Close', { duration: 3000 }),
       });
   }
 
   saveSettings(): void {
     if (!this.settings) return;
     this.saving = true;
-    this.settingsService.updatePassageRelevanceSettings(this.settings)
+    this.settingsService
+      .updatePassageRelevanceSettings(this.settings)
       .pipe(
         takeUntil(this.destroy$),
         finalize(() => {
           this.saving = false;
           this.cdr.detectChanges();
-        })
+        }),
       )
       .subscribe({
         next: (data) => {
           this.settings = data;
           this.snackBar.open('Settings saved', 'Close', { duration: 2000 });
         },
-        error: () => this.snackBar.open('Failed to save settings', 'Close', { duration: 3000 })
+        error: () => this.snackBar.open('Failed to save settings', 'Close', { duration: 3000 }),
       });
   }
 }

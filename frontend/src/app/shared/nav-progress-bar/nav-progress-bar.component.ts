@@ -1,13 +1,7 @@
 import { Component, DestroyRef, inject, signal, ChangeDetectionStrategy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import {
-  NavigationCancel,
-  NavigationEnd,
-  NavigationError,
-  NavigationStart,
-  Router,
-} from '@angular/router';
+import { NavigationCancel, NavigationEnd, NavigationError, NavigationStart, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 /**
@@ -31,36 +25,40 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 @Component({
   selector: 'app-nav-progress-bar',
   standalone: true,
-  imports: [CommonModule, MatProgressBarModule],
+  imports: [MatProgressBarModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (active()) {
-      <mat-progress-bar mode="indeterminate"
-                        class="nav-progress-bar"
-                        aria-label="Loading page"
-                        role="progressbar"></mat-progress-bar>
+      <mat-progress-bar
+        mode="indeterminate"
+        class="nav-progress-bar"
+        aria-label="Loading page"
+        role="progressbar"
+      ></mat-progress-bar>
     }
   `,
-  styles: [`
-    :host {
-      /* Fixed so the bar overlays the top without shifting content. */
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      z-index: 1001;
-      pointer-events: none;
-      display: block;
-    }
+  styles: [
+    `
+      :host {
+        /* Fixed so the bar overlays the top without shifting content. */
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1001;
+        pointer-events: none;
+        display: block;
+      }
 
-    .nav-progress-bar {
-      --mdc-linear-progress-active-indicator-height: 2px;
-      --mdc-linear-progress-track-height: 2px;
-      --mdc-linear-progress-active-indicator-color: var(--color-primary);
-      --mdc-linear-progress-track-color: transparent;
-      height: 2px;
-    }
-  `],
+      .nav-progress-bar {
+        --mdc-linear-progress-active-indicator-height: 2px;
+        --mdc-linear-progress-track-height: 2px;
+        --mdc-linear-progress-active-indicator-color: var(--color-primary);
+        --mdc-linear-progress-track-color: transparent;
+        height: 2px;
+      }
+    `,
+  ],
 })
 export class NavProgressBarComponent {
   private readonly router = inject(Router);
@@ -70,18 +68,16 @@ export class NavProgressBarComponent {
   readonly active = signal(false);
 
   constructor() {
-    this.router.events
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((event) => {
-        if (event instanceof NavigationStart) {
-          this.active.set(true);
-        } else if (
-          event instanceof NavigationEnd ||
-          event instanceof NavigationCancel ||
-          event instanceof NavigationError
-        ) {
-          this.active.set(false);
-        }
-      });
+    this.router.events.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((event) => {
+      if (event instanceof NavigationStart) {
+        this.active.set(true);
+      } else if (
+        event instanceof NavigationEnd ||
+        event instanceof NavigationCancel ||
+        event instanceof NavigationError
+      ) {
+        this.active.set(false);
+      }
+    });
   }
 }

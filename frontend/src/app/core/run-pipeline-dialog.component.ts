@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -21,15 +21,7 @@ interface RerunOption {
 @Component({
   selector: 'app-run-pipeline-dialog',
   standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    MatButtonModule,
-    MatDialogModule,
-    MatFormFieldModule,
-    MatIconModule,
-    MatSelectModule,
-  ],
+  imports: [FormsModule, MatButtonModule, MatDialogModule, MatFormFieldModule, MatIconModule, MatSelectModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <h2 mat-dialog-title>
@@ -38,9 +30,7 @@ interface RerunOption {
     </h2>
 
     <mat-dialog-content>
-      <p class="dialog-description">
-        Choose how the pipeline handles existing suggestions.
-      </p>
+      <p class="dialog-description">Choose how the pipeline handles existing suggestions.</p>
 
       <mat-form-field appearance="outline" class="mode-select">
         <mat-label>Pipeline mode</mat-label>
@@ -67,47 +57,49 @@ interface RerunOption {
       </button>
     </mat-dialog-actions>
   `,
-  styles: [`
-    .dialog-title-icon {
-      vertical-align: middle;
-      margin-right: 4px;
-    }
+  styles: [
+    `
+      .dialog-title-icon {
+        vertical-align: middle;
+        margin-right: 4px;
+      }
 
-    .dialog-description {
-      margin: 0 0 16px;
-      color: var(--color-text-secondary);
-      font-size: 13px;
-    }
+      .dialog-description {
+        margin: 0 0 16px;
+        color: var(--color-text-secondary);
+        font-size: 13px;
+      }
 
-    .mode-select {
-      width: 100%;
-    }
+      .mode-select {
+        width: 100%;
+      }
 
-    .option-label {
-      font-weight: 500;
-    }
+      .option-label {
+        font-weight: 500;
+      }
 
-    .mode-hint {
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-      padding: 12px;
-      background: var(--color-blue-50, #e8f0fe);
-      border-radius: var(--card-border-radius, 8px);
-      font-size: 12px;
-      color: var(--color-text-secondary);
-      line-height: 1.5;
-    }
+      .mode-hint {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 12px;
+        background: var(--color-blue-50, #e8f0fe);
+        border-radius: var(--card-border-radius, 8px);
+        font-size: 12px;
+        color: var(--color-text-secondary);
+        line-height: 1.5;
+      }
 
-    .hint-icon {
-      font-size: 16px;
-      width: 16px;
-      height: 16px;
-      flex-shrink: 0;
-      margin-top: 1px;
-      color: var(--color-primary);
-    }
-  `],
+      .hint-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+        margin-top: 1px;
+        color: var(--color-primary);
+      }
+    `,
+  ],
 })
 export class RunPipelineDialogComponent {
   readonly dialogRef = inject(MatDialogRef) as MatDialogRef<RunPipelineDialogComponent, RunPipelineDialogResult | null>;
@@ -136,7 +128,7 @@ export class RunPipelineDialogComponent {
   ];
 
   get activeDescription(): string {
-    return this.options.find(o => o.value === this.selectedMode())?.description ?? '';
+    return this.options.find((o) => o.value === this.selectedMode())?.description ?? '';
   }
 
   confirm(): void {

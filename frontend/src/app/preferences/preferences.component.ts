@@ -1,12 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  inject,
-  OnInit,
-  signal,
-} from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -31,15 +24,9 @@ import { TutorialModeService } from '../core/services/tutorial-mode.service';
 import { ExplainModeService } from '../core/services/explain-mode.service';
 import { RecentPagesService } from '../core/services/recent-pages.service';
 import { TabPersistenceService } from '../core/services/tab-persistence.service';
-import {
-  ONBOARDING_CATALOGUE,
-  OnboardingStateService,
-} from '../core/services/onboarding-state.service';
+import { ONBOARDING_CATALOGUE, OnboardingStateService } from '../core/services/onboarding-state.service';
 import { FeatureRequestDialogComponent } from '../shared/ui/feature-request-dialog/feature-request-dialog.component';
-import {
-  PasskeyCredentialSummary,
-  PasskeyService,
-} from '../core/services/passkey.service';
+import { PasskeyCredentialSummary, PasskeyService } from '../core/services/passkey.service';
 
 /**
  * Phase GB / Gap 149 — User Preference Center.
@@ -68,7 +55,6 @@ import {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     FormsModule,
     MatButtonModule,
     MatCardModule,
@@ -92,18 +78,14 @@ import {
           <mat-icon>tune</mat-icon>
           Preferences
         </h1>
-        <p class="pc-subtitle">
-          One place for every client-side setting. Changes save automatically.
-        </p>
+        <p class="pc-subtitle">One place for every client-side setting. Changes save automatically.</p>
       </header>
 
       <!-- 1. Appearance ──────────────────────────────────────── -->
       <mat-card class="pc-card">
         <mat-card-header>
           <mat-card-title>Appearance</mat-card-title>
-          <mat-card-subtitle>
-            Contrast, font family, and font size.
-          </mat-card-subtitle>
+          <mat-card-subtitle> Contrast, font family, and font size. </mat-card-subtitle>
         </mat-card-header>
         <mat-card-content class="pc-grid">
           <div class="pc-row">
@@ -123,10 +105,7 @@ import {
           <div class="pc-row">
             <label>Font size</label>
             <mat-form-field appearance="outline" class="pc-inline-field">
-              <mat-select
-                [value]="a11y.fontSize()"
-                (valueChange)="a11y.setFontSize($event)"
-              >
+              <mat-select [value]="a11y.fontSize()" (valueChange)="a11y.setFontSize($event)">
                 <mat-option [value]="90">90% — compact</mat-option>
                 <mat-option [value]="100">100% — default</mat-option>
                 <mat-option [value]="115">115% — comfortable</mat-option>
@@ -149,10 +128,7 @@ import {
           <div class="pc-row">
             <label>Palette</label>
             <mat-form-field appearance="outline" class="pc-inline-field">
-              <mat-select
-                [value]="a11y.cvdPalette()"
-                (valueChange)="a11y.setCvdPalette($event)"
-              >
+              <mat-select [value]="a11y.cvdPalette()" (valueChange)="a11y.setCvdPalette($event)">
                 <mat-option value="none">Off (default)</mat-option>
                 <mat-option value="protanopia">Protanopia (red-weak)</mat-option>
                 <mat-option value="deuteranopia">Deuteranopia (green-weak)</mat-option>
@@ -167,18 +143,13 @@ import {
       <mat-card class="pc-card">
         <mat-card-header>
           <mat-card-title>Interface mode</mat-card-title>
-          <mat-card-subtitle>
-            Start simple, reveal advanced controls only when you need them.
-          </mat-card-subtitle>
+          <mat-card-subtitle> Start simple, reveal advanced controls only when you need them. </mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           <div class="pc-row">
             <label>Operator mode</label>
             <mat-form-field appearance="outline" class="pc-inline-field">
-              <mat-select
-                [value]="noob.mode()"
-                (valueChange)="noob.setMode($event)"
-              >
+              <mat-select [value]="noob.mode()" (valueChange)="noob.setMode($event)">
                 <mat-option value="noob">Noob — hide advanced knobs</mat-option>
                 <mat-option value="pro">Pro — show everything</mat-option>
               </mat-select>
@@ -191,9 +162,7 @@ import {
       <mat-card class="pc-card">
         <mat-card-header>
           <mat-card-title>Language, timezone, and currency</mat-card-title>
-          <mat-card-subtitle>
-            Every number, date, and price renders in your preferred format.
-          </mat-card-subtitle>
+          <mat-card-subtitle> Every number, date, and price renders in your preferred format. </mat-card-subtitle>
         </mat-card-header>
         <mat-card-content class="pc-grid">
           <div class="pc-row">
@@ -239,9 +208,7 @@ import {
       <mat-card class="pc-card">
         <mat-card-header>
           <mat-card-title>Guidance &amp; explanations</mat-card-title>
-          <mat-card-subtitle>
-            Show learning helpers or hide them once you know the app.
-          </mat-card-subtitle>
+          <mat-card-subtitle> Show learning helpers or hide them once you know the app. </mat-card-subtitle>
         </mat-card-header>
         <mat-card-content class="pc-grid">
           <div class="pc-row">
@@ -249,28 +216,18 @@ import {
               Tutorial hints
               <span class="pc-hint">Callouts on each dashboard card.</span>
             </label>
-            <mat-slide-toggle
-              [checked]="tutorial.enabled()"
-              (change)="tutorial.setEnabled($event.checked)"
-            />
+            <mat-slide-toggle [checked]="tutorial.enabled()" (change)="tutorial.setEnabled($event.checked)" />
           </div>
           <div class="pc-row">
             <label>
               Explain mode
               <span class="pc-hint">Info icons next to every widget.</span>
             </label>
-            <mat-slide-toggle
-              [checked]="explain.enabled()"
-              (change)="explain.setEnabled($event.checked)"
-            />
+            <mat-slide-toggle [checked]="explain.enabled()" (change)="explain.setEnabled($event.checked)" />
           </div>
         </mat-card-content>
         <mat-card-actions>
-          <button
-            mat-stroked-button
-            type="button"
-            (click)="tutorial.resetDismissals()"
-          >
+          <button mat-stroked-button type="button" (click)="tutorial.resetDismissals()">
             <mat-icon>refresh</mat-icon>
             Show all hints again
           </button>
@@ -281,21 +238,15 @@ import {
       <mat-card class="pc-card">
         <mat-card-header>
           <mat-card-title>Onboarding progress</mat-card-title>
-          <mat-card-subtitle>
-            Re-run any tour or reset everything so it shows from scratch.
-          </mat-card-subtitle>
+          <mat-card-subtitle> Re-run any tour or reset everything so it shows from scratch. </mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           <div class="pc-progress">
             <div class="pc-progress-label">
-              <span>{{ onboarding.progress().done }}
-                of {{ onboarding.progress().total }} milestones completed</span>
+              <span>{{ onboarding.progress().done }} of {{ onboarding.progress().total }} milestones completed</span>
               <span>{{ onboarding.progress().percent }}%</span>
             </div>
-            <mat-progress-bar
-              mode="determinate"
-              [value]="onboarding.progress().percent"
-            />
+            <mat-progress-bar mode="determinate" [value]="onboarding.progress().percent" />
           </div>
           <ul class="pc-milestones">
             @for (id of catalogue; track id) {
@@ -307,25 +258,14 @@ import {
                 }
                 <span class="pc-ms-label">{{ prettifyMilestone(id) }}</span>
                 @if (onboarding.isDone(id)) {
-                  <button
-                    mat-button
-                    type="button"
-                    color="primary"
-                    (click)="onboarding.reset(id)"
-                  >
-                    Show again
-                  </button>
+                  <button mat-button type="button" color="primary" (click)="onboarding.reset(id)">Show again</button>
                 }
               </li>
             }
           </ul>
         </mat-card-content>
         <mat-card-actions>
-          <button
-            mat-stroked-button
-            type="button"
-            (click)="confirmAndResetOnboarding()"
-          >
+          <button mat-stroked-button type="button" (click)="confirmAndResetOnboarding()">
             <mat-icon>restart_alt</mat-icon>
             Restart all onboarding
           </button>
@@ -336,9 +276,7 @@ import {
       <mat-card class="pc-card">
         <mat-card-header>
           <mat-card-title>Stored UI state</mat-card-title>
-          <mat-card-subtitle>
-            Clear remembered things when this browser doesn't feel like yours.
-          </mat-card-subtitle>
+          <mat-card-subtitle> Clear remembered things when this browser doesn't feel like yours. </mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           <div class="pc-row pc-row-multi">
@@ -363,17 +301,11 @@ import {
         <mat-card-header>
           <mat-card-title>Suggest a feature</mat-card-title>
           <mat-card-subtitle>
-            Tell us what to build next. Your submissions land in the
-            maintainer queue.
+            Tell us what to build next. Your submissions land in the maintainer queue.
           </mat-card-subtitle>
         </mat-card-header>
         <mat-card-actions>
-          <button
-            mat-raised-button
-            color="primary"
-            type="button"
-            (click)="openFeatureRequestDialog()"
-          >
+          <button mat-raised-button color="primary" type="button" (click)="openFeatureRequestDialog()">
             <mat-icon>lightbulb</mat-icon>
             Open feature-request form
           </button>
@@ -385,10 +317,9 @@ import {
         <mat-card-header>
           <mat-card-title>Passkeys</mat-card-title>
           <mat-card-subtitle>
-            Sign in with your fingerprint, face, or hardware key — no password
-            needed. A passkey is a small key your browser stores in your
-            laptop's secure chip; we never see it. The site asks "is the same
-            person here?" and your laptop answers yes.
+            Sign in with your fingerprint, face, or hardware key — no password needed. A passkey is a small key your
+            browser stores in your laptop's secure chip; we never see it. The site asks "is the same person here?" and
+            your laptop answers yes.
           </mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
@@ -401,8 +332,7 @@ import {
             <p class="pk-error">{{ passkeyError() }}</p>
           } @else if (passkeys().length === 0) {
             <p class="pk-empty">
-              You haven't added any passkeys yet. Click "Add a passkey" below
-              to enrol the device you're on now.
+              You haven't added any passkeys yet. Click "Add a passkey" below to enrol the device you're on now.
             </p>
           } @else {
             <mat-list class="pk-list">
@@ -462,147 +392,151 @@ import {
             Add a passkey
           </button>
           @if (!passkeySupported) {
-            <span class="pk-unsupported">
-              Your browser doesn't support passkeys.
-            </span>
+            <span class="pk-unsupported"> Your browser doesn't support passkeys. </span>
           }
         </mat-card-actions>
       </mat-card>
     </div>
   `,
-  styles: [`
-    .pc-page {
-      max-width: 840px;
-      margin: 0 auto;
-      padding: 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 24px;
-    }
-    .pc-header {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .pc-title {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 22px;
-      font-weight: 500;
-      margin: 0;
-      color: var(--color-text-primary);
-    }
-    .pc-subtitle {
-      margin: 0;
-      color: var(--color-text-secondary);
-      font-size: 13px;
-    }
-    .pc-card {
-      padding: 16px;
-    }
-    .pc-grid {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .pc-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 8px 0;
-      flex-wrap: wrap;
-    }
-    .pc-row-multi {
-      justify-content: flex-start;
-      gap: 8px;
-    }
-    .pc-row label {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      font-size: 13px;
-      color: var(--color-text-primary);
-      font-weight: 500;
-    }
-    .pc-hint {
-      color: var(--color-text-secondary);
-      font-weight: 400;
-      font-size: 12px;
-    }
-    .pc-inline-field {
-      min-width: 240px;
-    }
-    .pc-progress {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      margin-bottom: 12px;
-    }
-    .pc-progress-label {
-      display: flex;
-      justify-content: space-between;
-      font-size: 12px;
-      color: var(--color-text-secondary);
-    }
-    .pc-milestones {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .pc-milestones li {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 4px 0;
-      font-size: 13px;
-    }
-    .pc-ms-label {
-      flex: 1;
-    }
-    .pc-done { color: var(--color-success, #1e8e3e); }
-    .pc-pending { color: var(--color-text-secondary, #5f6368); }
-    .pk-loading {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 8px 0;
-      color: var(--color-text-secondary);
-      font-size: 13px;
-    }
-    .pk-error {
-      color: var(--color-error, #d93025);
-      margin: 0;
-      font-size: 13px;
-    }
-    .pk-empty {
-      color: var(--color-text-secondary);
-      margin: 0;
-      font-size: 13px;
-    }
-    .pk-list {
-      padding: 0;
-    }
-    .pk-meta {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      color: var(--color-text-secondary);
-      font-size: 12px;
-    }
-    .pk-unsupported {
-      color: var(--color-text-secondary);
-      font-size: 12px;
-      margin-left: 8px;
-    }
-    .btn-spinner {
-      margin-right: 8px;
-    }
-  `],
+  styles: [
+    `
+      .pc-page {
+        max-width: 840px;
+        margin: 0 auto;
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+      .pc-header {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .pc-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 22px;
+        font-weight: 500;
+        margin: 0;
+        color: var(--color-text-primary);
+      }
+      .pc-subtitle {
+        margin: 0;
+        color: var(--color-text-secondary);
+        font-size: 13px;
+      }
+      .pc-card {
+        padding: 16px;
+      }
+      .pc-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .pc-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 8px 0;
+        flex-wrap: wrap;
+      }
+      .pc-row-multi {
+        justify-content: flex-start;
+        gap: 8px;
+      }
+      .pc-row label {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        font-size: 13px;
+        color: var(--color-text-primary);
+        font-weight: 500;
+      }
+      .pc-hint {
+        color: var(--color-text-secondary);
+        font-weight: 400;
+        font-size: 12px;
+      }
+      .pc-inline-field {
+        min-width: 240px;
+      }
+      .pc-progress {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-bottom: 12px;
+      }
+      .pc-progress-label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        color: var(--color-text-secondary);
+      }
+      .pc-milestones {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .pc-milestones li {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 0;
+        font-size: 13px;
+      }
+      .pc-ms-label {
+        flex: 1;
+      }
+      .pc-done {
+        color: var(--color-success, #1e8e3e);
+      }
+      .pc-pending {
+        color: var(--color-text-secondary, #5f6368);
+      }
+      .pk-loading {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 0;
+        color: var(--color-text-secondary);
+        font-size: 13px;
+      }
+      .pk-error {
+        color: var(--color-error, #d93025);
+        margin: 0;
+        font-size: 13px;
+      }
+      .pk-empty {
+        color: var(--color-text-secondary);
+        margin: 0;
+        font-size: 13px;
+      }
+      .pk-list {
+        padding: 0;
+      }
+      .pk-meta {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        color: var(--color-text-secondary);
+        font-size: 12px;
+      }
+      .pk-unsupported {
+        color: var(--color-text-secondary);
+        font-size: 12px;
+        margin-left: 8px;
+      }
+      .btn-spinner {
+        margin-right: 8px;
+      }
+    `,
+  ],
 })
 export class PreferencesComponent implements OnInit {
   protected a11y = inject(A11yPrefsService);
@@ -648,10 +582,7 @@ export class PreferencesComponent implements OnInit {
         },
         error: (err) => {
           this.passkeysLoading.set(false);
-          this.passkeyError.set(
-            err?.error?.detail ||
-              'Could not load your passkeys. The backend may be restarting.',
-          );
+          this.passkeyError.set(err?.error?.detail || 'Could not load your passkeys. The backend may be restarting.');
         },
       });
   }
@@ -662,10 +593,12 @@ export class PreferencesComponent implements OnInit {
       this.snack.open('Your browser does not support passkeys.', 'OK', { duration: 3000 });
       return;
     }
-    const label = (window.prompt(
-      'Give this passkey a name (for example "MacBook Touch ID" or "YubiKey"):',
-      this.suggestPasskeyLabel(),
-    ) || '').trim();
+    const label = (
+      window.prompt(
+        'Give this passkey a name (for example "MacBook Touch ID" or "YubiKey"):',
+        this.suggestPasskeyLabel(),
+      ) || ''
+    ).trim();
     if (label === '') {
       // User pressed Cancel — abort silently.
       return;
@@ -689,25 +622,18 @@ export class PreferencesComponent implements OnInit {
       return;
     }
     if (result.reason === 'not-configured') {
-      this.snack.open(
-        'Passkey enrolment is not configured on this server. See docs/PASSKEY-SETUP.md.',
-        'OK',
-        { duration: 5000 },
-      );
+      this.snack.open('Passkey enrolment is not configured on this server. See docs/PASSKEY-SETUP.md.', 'OK', {
+        duration: 5000,
+      });
       return;
     }
-    this.snack.open(
-      result.detail || 'Passkey enrolment failed. Try again or check the console.',
-      'OK',
-      { duration: 4500 },
-    );
+    this.snack.open(result.detail || 'Passkey enrolment failed. Try again or check the console.', 'OK', {
+      duration: 4500,
+    });
   }
 
   renamePasskey(cred: PasskeyCredentialSummary): void {
-    const next = (window.prompt(
-      'New name for this passkey:',
-      cred.label || '',
-    ) || '').trim();
+    const next = (window.prompt('New name for this passkey:', cred.label || '') || '').trim();
     if (next === '' || next === cred.label) return;
     this.passkeyService
       .relabelCredential(cred.id, next)
@@ -718,11 +644,7 @@ export class PreferencesComponent implements OnInit {
           this.loadPasskeys();
         },
         error: (err) =>
-          this.snack.open(
-            err?.error?.detail || 'Could not rename this passkey.',
-            'OK',
-            { duration: 3500 },
-          ),
+          this.snack.open(err?.error?.detail || 'Could not rename this passkey.', 'OK', { duration: 3500 }),
       });
   }
 
@@ -743,11 +665,7 @@ export class PreferencesComponent implements OnInit {
           this.loadPasskeys();
         },
         error: (err) =>
-          this.snack.open(
-            err?.error?.detail || 'Could not delete this passkey.',
-            'OK',
-            { duration: 4500 },
-          ),
+          this.snack.open(err?.error?.detail || 'Could not delete this passkey.', 'OK', { duration: 4500 }),
       });
   }
 
@@ -819,11 +737,7 @@ export class PreferencesComponent implements OnInit {
 
   clearTabPrefs(): void {
     this.tabPrefs.clearAll();
-    this.snack.open(
-      'Remembered tab positions cleared. They will reset on your next visit.',
-      'OK',
-      { duration: 3500 },
-    );
+    this.snack.open('Remembered tab positions cleared. They will reset on your next visit.', 'OK', { duration: 3500 });
   }
 
   resetA11yPrefs(): void {
@@ -835,18 +749,12 @@ export class PreferencesComponent implements OnInit {
 
   confirmAndResetOnboarding(): void {
     if (
-      !window.confirm(
-        'Reset every onboarding hint, tour, and discovery callout? You will see them again next time.',
-      )
+      !window.confirm('Reset every onboarding hint, tour, and discovery callout? You will see them again next time.')
     ) {
       return;
     }
     this.onboarding.resetAll();
-    this.snack.open(
-      'Onboarding reset — guided tours will show again.',
-      'OK',
-      { duration: 3500 },
-    );
+    this.snack.open('Onboarding reset — guided tours will show again.', 'OK', { duration: 3500 });
   }
 
   openFeatureRequestDialog(): void {
@@ -863,8 +771,6 @@ export class PreferencesComponent implements OnInit {
   }
 
   prettifyMilestone(id: string): string {
-    return id
-      .replace(/[-_.]/g, ' ')
-      .replace(/\b\w/g, (c) => c.toUpperCase());
+    return id.replace(/[-_.]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   }
 }

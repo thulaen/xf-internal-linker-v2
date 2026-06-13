@@ -1,12 +1,6 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { HttpClient } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -32,12 +26,7 @@ import { ConfirmService } from '../../shared/confirm-dialog/confirm.service';
   selector: 'app-emergency-stop',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    CommonModule,
-    MatButtonModule,
-    MatIconModule,
-    MatTooltipModule,
-  ],
+  imports: [MatButtonModule, MatIconModule, MatTooltipModule],
   template: `
     <button
       mat-flat-button
@@ -52,20 +41,22 @@ import { ConfirmService } from '../../shared/confirm-dialog/confirm.service';
       Emergency stop
     </button>
   `,
-  styles: [`
-    .es-btn {
-      background: var(--color-error, #d93025) !important;
-      color: #ffffff !important;
-      font-weight: 500;
-      letter-spacing: 0.4px;
-    }
-    .es-btn:hover:not(:disabled) {
-      background: var(--color-error-dark, #b3261e) !important;
-    }
-    .es-btn:disabled {
-      opacity: 0.5;
-    }
-  `],
+  styles: [
+    `
+      .es-btn {
+        background: var(--color-error, #d93025) !important;
+        color: #ffffff !important;
+        font-weight: 500;
+        letter-spacing: 0.4px;
+      }
+      .es-btn:hover:not(:disabled) {
+        background: var(--color-error-dark, #b3261e) !important;
+      }
+      .es-btn:disabled {
+        opacity: 0.5;
+      }
+    `,
+  ],
 })
 export class EmergencyStopComponent {
   private readonly http = inject(HttpClient);
@@ -108,11 +99,9 @@ export class EmergencyStopComponent {
         next: () => this.purgeQueue(),
         error: () => {
           this.busy.set(false);
-          this.snack.open(
-            'Emergency stop failed at master pause — try the manual pause button.',
-            'Dismiss',
-            { duration: 5000 },
-          );
+          this.snack.open('Emergency stop failed at master pause — try the manual pause button.', 'Dismiss', {
+            duration: 5000,
+          });
         },
       });
   }
@@ -126,11 +115,7 @@ export class EmergencyStopComponent {
       .subscribe({
         next: () => {
           this.busy.set(false);
-          this.snack.open(
-            'Emergency stop engaged. Workers paused and queue cleared.',
-            'OK',
-            { duration: 6000 },
-          );
+          this.snack.open('Emergency stop engaged. Workers paused and queue cleared.', 'OK', { duration: 6000 });
         },
         error: () => {
           // Master pause succeeded; queue purge endpoint may not exist

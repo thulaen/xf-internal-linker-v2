@@ -1,14 +1,6 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  OnInit,
-  computed,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -40,15 +32,7 @@ const ENABLED_KEY = 'xfil_quiet_hours_enabled';
   selector: 'app-quiet-hours-indicator',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    CommonModule,
-    FormsModule,
-    MatCardModule,
-    MatIconModule,
-    MatButtonModule,
-    MatFormFieldModule,
-    MatInputModule,
-  ],
+  imports: [FormsModule, MatCardModule, MatIconModule, MatButtonModule, MatFormFieldModule, MatInputModule],
   template: `
     <mat-card class="qh-card">
       <mat-card-header>
@@ -90,41 +74,49 @@ const ENABLED_KEY = 'xfil_quiet_hours_enabled';
       </mat-card-content>
     </mat-card>
   `,
-  styles: [`
-    .qh-card { height: 100%; }
-    .qh-avatar {
-      background: var(--color-primary);
-      color: var(--color-on-primary, #ffffff);
-    }
-    .qh-status {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 8px 12px;
-      border-radius: var(--card-border-radius, 8px);
-      background: var(--color-bg-faint);
-      font-size: 13px;
-      color: var(--color-text-primary);
-      margin-bottom: 8px;
-    }
-    .qh-status.qh-active {
-      background: var(--color-primary);
-      color: var(--color-on-primary, #ffffff);
-    }
-    .qh-status.qh-active mat-icon { color: var(--color-on-primary, #ffffff); }
-    .qh-window {
-      margin: 0 0 8px;
-      font-size: 13px;
-      color: var(--color-text-secondary);
-    }
-    .qh-form {
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    .qh-field { width: 130px; }
-  `],
+  styles: [
+    `
+      .qh-card {
+        height: 100%;
+      }
+      .qh-avatar {
+        background: var(--color-primary);
+        color: var(--color-on-primary, #ffffff);
+      }
+      .qh-status {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        border-radius: var(--card-border-radius, 8px);
+        background: var(--color-bg-faint);
+        font-size: 13px;
+        color: var(--color-text-primary);
+        margin-bottom: 8px;
+      }
+      .qh-status.qh-active {
+        background: var(--color-primary);
+        color: var(--color-on-primary, #ffffff);
+      }
+      .qh-status.qh-active mat-icon {
+        color: var(--color-on-primary, #ffffff);
+      }
+      .qh-window {
+        margin: 0 0 8px;
+        font-size: 13px;
+        color: var(--color-text-secondary);
+      }
+      .qh-form {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .qh-field {
+        width: 130px;
+      }
+    `,
+  ],
 })
 export class QuietHoursIndicatorComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
@@ -154,9 +146,7 @@ export class QuietHoursIndicatorComponent implements OnInit {
   });
 
   readonly statusLabel = computed<string>(() =>
-    this.enabled()
-      ? 'Mute non-urgent notifications inside the window'
-      : 'Disabled — all notifications fire normally',
+    this.enabled() ? 'Mute non-urgent notifications inside the window' : 'Disabled — all notifications fire normally',
   );
 
   ngOnInit(): void {
@@ -197,7 +187,11 @@ export class QuietHoursIndicatorComponent implements OnInit {
   toggleEnabled(): void {
     const next = !this.enabled();
     this.enabled.set(next);
-    try { localStorage.setItem(ENABLED_KEY, next ? '1' : '0'); } catch { /* no-op */ }
+    try {
+      localStorage.setItem(ENABLED_KEY, next ? '1' : '0');
+    } catch {
+      /* no-op */
+    }
   }
 
   // ── helpers ────────────────────────────────────────────────────────

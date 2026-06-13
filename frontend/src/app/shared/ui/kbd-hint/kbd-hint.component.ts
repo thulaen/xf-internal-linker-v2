@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, Input, inject, computed, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { A11yPrefsService } from '../../../core/services/a11y-prefs.service';
 
 /**
@@ -23,36 +23,42 @@ import { A11yPrefsService } from '../../../core/services/a11y-prefs.service';
   selector: 'app-kbd-hint',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule],
+  imports: [],
   template: `
     @for (chunk of parts(); track chunk) {
       <kbd class="kbd-hint">{{ chunk }}</kbd>
     }
   `,
-  styles: [`
-    :host {
-      display: inline-flex;
-      gap: 4px;
-      margin-left: 8px;
-      font-variant-numeric: tabular-nums;
-      user-select: none;
-      pointer-events: none;
-    }
-    .kbd-hint {
-      font-family: var(--font-mono);
-      font-size: 0.85em;
-      padding: 1px 6px;
-      background: var(--color-bg-faint, #f1f3f4);
-      border: 0.8px solid var(--color-border, #dadce0);
-      border-radius: 3px;
-      color: var(--color-text-secondary, #5f6368);
-    }
-  `],
+  styles: [
+    `
+      :host {
+        display: inline-flex;
+        gap: 4px;
+        margin-left: 8px;
+        font-variant-numeric: tabular-nums;
+        user-select: none;
+        pointer-events: none;
+      }
+      .kbd-hint {
+        font-family: var(--font-mono);
+        font-size: 0.85em;
+        padding: 1px 6px;
+        background: var(--color-bg-faint, #f1f3f4);
+        border: 0.8px solid var(--color-border, #dadce0);
+        border-radius: 3px;
+        color: var(--color-text-secondary, #5f6368);
+      }
+    `,
+  ],
 })
 export class KbdHintComponent {
   /** e.g. "Ctrl+S", "Shift+?", "G" (comma-separate alternates). */
-  @Input() set keys(v: string) { this._keys.set(v); }
-  get keys() { return this._keys(); }
+  @Input() set keys(v: string) {
+    this._keys.set(v);
+  }
+  get keys() {
+    return this._keys();
+  }
 
   private readonly _keys = signal('');
   private a11y = inject(A11yPrefsService, { optional: true });
@@ -66,22 +72,25 @@ export class KbdHintComponent {
   });
 
   private normalize(part: string): string {
-    const isMac =
-      typeof navigator !== 'undefined' &&
-      /Mac|iPhone|iPad/i.test(navigator.platform);
+    const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.platform);
     const upper = part.toUpperCase();
     if (!isMac) return part;
     switch (upper) {
       case 'CTRL':
       case 'CMD':
-      case 'META': return '⌘';
+      case 'META':
+        return '⌘';
       case 'ALT':
       case 'OPT':
-      case 'OPTION': return '⌥';
-      case 'SHIFT': return '⇧';
+      case 'OPTION':
+        return '⌥';
+      case 'SHIFT':
+        return '⇧';
       case 'ENTER':
-      case 'RETURN': return '↵';
-      default: return part;
+      case 'RETURN':
+        return '↵';
+      default:
+        return part;
     }
   }
 }

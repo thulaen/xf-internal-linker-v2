@@ -1,5 +1,5 @@
 import { Component, ChangeDetectionStrategy, DestroyRef, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { MatIconModule } from '@angular/material/icon';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { fromEvent, merge, map, startWith } from 'rxjs';
@@ -27,7 +27,7 @@ import { fromEvent, merge, map, startWith } from 'rxjs';
 @Component({
   selector: 'app-offline-banner',
   standalone: true,
-  imports: [CommonModule, MatIconModule],
+  imports: [MatIconModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (!online()) {
@@ -55,10 +55,9 @@ export class OfflineBannerComponent {
    * a freshly-opened offline tab shows the banner immediately.
    */
   readonly online = toSignal(
-    merge(
-      fromEvent(window, 'online').pipe(map(() => true)),
-      fromEvent(window, 'offline').pipe(map(() => false)),
-    ).pipe(startWith(navigator.onLine)),
+    merge(fromEvent(window, 'online').pipe(map(() => true)), fromEvent(window, 'offline').pipe(map(() => false))).pipe(
+      startWith(navigator.onLine),
+    ),
     { initialValue: navigator.onLine },
   );
 }

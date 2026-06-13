@@ -1,14 +1,6 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  DestroyRef,
-  inject,
-  OnInit,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { HttpClient } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -72,7 +64,6 @@ interface RestoreResponse {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     FormsModule,
     MatButtonModule,
     MatCardModule,
@@ -107,9 +98,7 @@ export class UndoTimelineComponent implements OnInit {
   readonly error = signal<string>('');
   readonly busyRowId = signal<number | null>(null);
 
-  readonly restorableCount = computed<number>(
-    () => this.entries().filter((e) => e.is_restorable).length,
-  );
+  readonly restorableCount = computed<number>(() => this.entries().filter((e) => e.is_restorable).length);
 
   readonly availableSubjectTypes = computed<string[]>(() => {
     const set = new Set<string>();
@@ -145,9 +134,7 @@ export class UndoTimelineComponent implements OnInit {
           this.loading.set(false);
         },
         error: (err) => {
-          this.error.set(
-            err?.error?.detail ?? 'Could not load the audit timeline. Try again in a moment.',
-          );
+          this.error.set(err?.error?.detail ?? 'Could not load the audit timeline. Try again in a moment.');
           this.loading.set(false);
         },
       });
@@ -180,11 +167,9 @@ export class UndoTimelineComponent implements OnInit {
         },
         error: (err) => {
           this.busyRowId.set(null);
-          this.snack.open(
-            err?.error?.detail ?? 'Restore failed. Original change is unchanged.',
-            'Dismiss',
-            { duration: 6000 },
-          );
+          this.snack.open(err?.error?.detail ?? 'Restore failed. Original change is unchanged.', 'Dismiss', {
+            duration: 6000,
+          });
         },
       });
   }

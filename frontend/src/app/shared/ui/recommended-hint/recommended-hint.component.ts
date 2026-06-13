@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
@@ -28,16 +28,18 @@ import { MatTooltipModule } from '@angular/material/tooltip';
   selector: 'app-recommended-hint',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule, MatTooltipModule],
+  imports: [MatIconModule, MatTooltipModule],
   template: `
     @if (recommended !== null && recommended !== undefined) {
       <span class="rh-line">
         <span
           class="rh-pill"
           [class.rh-match]="matchesRecommended"
-          [matTooltip]="matchesRecommended
-            ? 'Your current value matches the recommended default.'
-            : 'This is the research-backed default for this field.'"
+          [matTooltip]="
+            matchesRecommended
+              ? 'Your current value matches the recommended default.'
+              : 'This is the research-backed default for this field.'
+          "
         >
           @if (matchesRecommended) {
             <mat-icon inline>check_circle</mat-icon>
@@ -47,12 +49,9 @@ import { MatTooltipModule } from '@angular/material/tooltip';
           Recommended: {{ recommended }}
         </span>
         @if (why) {
-          <mat-icon
-            class="rh-why"
-            [matTooltip]="why"
-            matTooltipPosition="above"
-            aria-label="Why change this value"
-          >help_outline</mat-icon>
+          <mat-icon class="rh-why" [matTooltip]="why" matTooltipPosition="above" aria-label="Why change this value"
+            >help_outline</mat-icon
+          >
         }
         @if (impactText) {
           <span class="rh-impact" [matTooltip]="impactText">
@@ -63,40 +62,51 @@ import { MatTooltipModule } from '@angular/material/tooltip';
       </span>
     }
   `,
-  styles: [`
-    :host { display: inline-flex; }
-    .rh-line {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 11px;
-    }
-    .rh-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 2px 8px;
-      border-radius: 10px;
-      background: #e6f4ea;
-      color: #137333;
-      font-weight: 500;
-    }
-    .rh-match { background: #e8f0fe; color: #1967d2; }
-    .rh-why {
-      width: 16px;
-      height: 16px;
-      font-size: 16px;
-      color: var(--color-text-secondary, #5f6368);
-      cursor: help;
-    }
-    .rh-impact {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      color: var(--color-text-secondary, #5f6368);
-    }
-    .rh-impact mat-icon { width: 14px; height: 14px; font-size: 14px; }
-  `],
+  styles: [
+    `
+      :host {
+        display: inline-flex;
+      }
+      .rh-line {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 11px;
+      }
+      .rh-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 10px;
+        background: #e6f4ea;
+        color: #137333;
+        font-weight: 500;
+      }
+      .rh-match {
+        background: #e8f0fe;
+        color: #1967d2;
+      }
+      .rh-why {
+        width: 16px;
+        height: 16px;
+        font-size: 16px;
+        color: var(--color-text-secondary, #5f6368);
+        cursor: help;
+      }
+      .rh-impact {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        color: var(--color-text-secondary, #5f6368);
+      }
+      .rh-impact mat-icon {
+        width: 14px;
+        height: 14px;
+        font-size: 14px;
+      }
+    `,
+  ],
 })
 export class RecommendedHintComponent {
   @Input() recommended: string | number | null = null;

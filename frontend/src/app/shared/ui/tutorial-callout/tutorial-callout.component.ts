@@ -1,11 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  Input,
-  computed,
-  inject,
-} from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, Input, computed, inject } from '@angular/core';
+
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 
@@ -30,7 +24,7 @@ import { TutorialModeService } from '../../../core/services/tutorial-mode.servic
   selector: 'app-tutorial-callout',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatButtonModule, MatIconModule],
+  imports: [MatButtonModule, MatIconModule],
   template: `
     @if (visible()) {
       <aside class="tc" role="note" aria-label="Tutorial hint">
@@ -39,57 +33,52 @@ import { TutorialModeService } from '../../../core/services/tutorial-mode.servic
           <span class="tc-title">{{ title }}</span>
           <span class="tc-text">{{ body }}</span>
         </div>
-        <button
-          mat-button
-          class="tc-dismiss"
-          type="button"
-          (click)="onDismiss()"
-        >
-          Got it
-        </button>
+        <button mat-button class="tc-dismiss" type="button" (click)="onDismiss()">Got it</button>
       </aside>
     }
   `,
-  styles: [`
-    .tc {
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-      padding: 8px 12px;
-      margin-bottom: 8px;
-      background: var(--color-blue-50, rgba(26, 115, 232, 0.08));
-      border: var(--card-border);
-      border-left: 3px solid var(--color-primary);
-      border-radius: var(--card-border-radius, 8px);
-    }
-    .tc-icon {
-      color: var(--color-primary);
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
-      margin-top: 2px;
-    }
-    .tc-body {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      min-width: 0;
-    }
-    .tc-title {
-      font-weight: 500;
-      font-size: 12px;
-      color: var(--color-text-primary);
-    }
-    .tc-text {
-      font-size: 12px;
-      color: var(--color-text-secondary);
-      line-height: 1.5;
-    }
-    .tc-dismiss {
-      flex-shrink: 0;
-    }
-  `],
+  styles: [
+    `
+      .tc {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 8px 12px;
+        margin-bottom: 8px;
+        background: var(--color-blue-50, rgba(26, 115, 232, 0.08));
+        border: var(--card-border);
+        border-left: 3px solid var(--color-primary);
+        border-radius: var(--card-border-radius, 8px);
+      }
+      .tc-icon {
+        color: var(--color-primary);
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+        margin-top: 2px;
+      }
+      .tc-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      }
+      .tc-title {
+        font-weight: 500;
+        font-size: 12px;
+        color: var(--color-text-primary);
+      }
+      .tc-text {
+        font-size: 12px;
+        color: var(--color-text-secondary);
+        line-height: 1.5;
+      }
+      .tc-dismiss {
+        flex-shrink: 0;
+      }
+    `,
+  ],
 })
 export class TutorialCalloutComponent {
   private readonly tutorial = inject(TutorialModeService);

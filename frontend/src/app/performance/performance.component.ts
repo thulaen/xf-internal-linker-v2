@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -22,7 +22,7 @@ import {
 
 /** Three input sizes the benchmark suite emits per function. */
 const INPUT_SIZES = ['small', 'medium', 'large'] as const;
-type InputSize = typeof INPUT_SIZES[number];
+type InputSize = (typeof INPUT_SIZES)[number];
 
 interface UniqueFunction {
   extension: string;
@@ -35,7 +35,6 @@ interface UniqueFunction {
   selector: 'app-performance',
   standalone: true,
   imports: [
-    CommonModule,
     MatCardModule,
     MatButtonModule,
     MatIconModule,
@@ -170,7 +169,8 @@ export class PerformanceComponent implements OnInit {
 
   /** FR-247 — fetch the cpp/python pathway counter snapshot. */
   loadStage2PathStatus(): void {
-    this.svc.getStage2PathStatus()
+    this.svc
+      .getStage2PathStatus()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (status) => this.stage2PathStatus.set(status),
@@ -181,7 +181,8 @@ export class PerformanceComponent implements OnInit {
   loadLatest(): void {
     this.isLoading.set(true);
     this.errorMessage.set('');
-    this.svc.getLatest()
+    this.svc
+      .getLatest()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (run) => {
@@ -197,7 +198,8 @@ export class PerformanceComponent implements OnInit {
 
   triggerRun(): void {
     this.isTriggering.set(true);
-    this.svc.trigger()
+    this.svc
+      .trigger()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
@@ -219,7 +221,8 @@ export class PerformanceComponent implements OnInit {
   downloadReport(): void {
     const run = this.latestRun();
     if (!run) return;
-    this.svc.getReport(run.id)
+    this.svc
+      .getReport(run.id)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
@@ -252,7 +255,8 @@ export class PerformanceComponent implements OnInit {
 
   private loadTrends(): void {
     this.trendState.set('loading');
-    this.svc.getTrends()
+    this.svc
+      .getTrends()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (points) => {

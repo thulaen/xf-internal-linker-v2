@@ -19,8 +19,6 @@ export class ConflictListComponent {
     return `severity-${severity}`;
   }
 
-  trackByIndex(index: number): number { return index; }
-
   getConflictIcon(type: string): string {
     switch (type) {
       case 'duplication': return 'content_copy';

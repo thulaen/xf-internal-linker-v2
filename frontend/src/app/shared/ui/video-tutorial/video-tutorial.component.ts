@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, Input, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 
@@ -27,16 +27,11 @@ import { MatIconModule } from '@angular/material/icon';
   selector: 'app-video-tutorial',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatButtonModule, MatIconModule],
+  imports: [MatButtonModule, MatIconModule],
   template: `
     @if (videoUrl) {
       @if (!playing()) {
-        <button
-          mat-stroked-button
-          type="button"
-          class="vt-trigger"
-          (click)="play()"
-        >
+        <button mat-stroked-button type="button" class="vt-trigger" (click)="play()">
           <mat-icon>play_circle</mat-icon>
           <span class="vt-trigger-text">{{ title || 'Watch the 30-sec tutorial' }}</span>
         </button>
@@ -50,12 +45,7 @@ import { MatIconModule } from '@angular/material/icon';
             playsinline
             class="vt-video"
           ></video>
-          <button
-            mat-button
-            type="button"
-            class="vt-close"
-            (click)="stop()"
-          >
+          <button mat-button type="button" class="vt-close" (click)="stop()">
             <mat-icon>close</mat-icon>
             Close
           </button>
@@ -63,31 +53,37 @@ import { MatIconModule } from '@angular/material/icon';
       }
     }
   `,
-  styles: [`
-    .vt-trigger {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 12px;
-    }
-    .vt-trigger-text { font-weight: 500; }
-    .vt-frame {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      padding: 8px;
-      background: var(--color-bg-faint);
-      border: var(--card-border);
-      border-radius: var(--card-border-radius, 8px);
-    }
-    .vt-video {
-      width: 100%;
-      max-width: 480px;
-      border-radius: 4px;
-      background: #000;
-    }
-    .vt-close { align-self: flex-end; }
-  `],
+  styles: [
+    `
+      .vt-trigger {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 12px;
+      }
+      .vt-trigger-text {
+        font-weight: 500;
+      }
+      .vt-frame {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 8px;
+        background: var(--color-bg-faint);
+        border: var(--card-border);
+        border-radius: var(--card-border-radius, 8px);
+      }
+      .vt-video {
+        width: 100%;
+        max-width: 480px;
+        border-radius: 4px;
+        background: #000;
+      }
+      .vt-close {
+        align-self: flex-end;
+      }
+    `,
+  ],
 })
 export class VideoTutorialComponent {
   /** Tutorial label shown on the trigger button. */
@@ -99,6 +95,10 @@ export class VideoTutorialComponent {
 
   readonly playing = signal(false);
 
-  play(): void { this.playing.set(true); }
-  stop(): void { this.playing.set(false); }
+  play(): void {
+    this.playing.set(true);
+  }
+  stop(): void {
+    this.playing.set(false);
+  }
 }

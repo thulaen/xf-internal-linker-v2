@@ -1,10 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  OnInit,
-  signal,
-} from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, OnInit, signal } from '@angular/core';
+
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -44,7 +39,7 @@ interface QuizQuestion {
 const QUESTION_BANK: readonly QuizQuestion[] = [
   {
     id: 'q-anchor',
-    prompt: "What is an \"anchor\" in internal linking?",
+    prompt: 'What is an "anchor" in internal linking?',
     options: [
       'The HTML metadata at the top of a page',
       'The visible text a user clicks to follow a link',
@@ -56,7 +51,7 @@ const QUESTION_BANK: readonly QuizQuestion[] = [
   },
   {
     id: 'q-orphan',
-    prompt: "What is an \"orphan page\"?",
+    prompt: 'What is an "orphan page"?',
     options: [
       'A page with no internal links pointing to it',
       'A page whose owner left the team',
@@ -69,11 +64,7 @@ const QUESTION_BANK: readonly QuizQuestion[] = [
   {
     id: 'q-silo',
     prompt: 'In SEO, a "silo" is:',
-    options: [
-      'A backup copy of your database',
-      'A topic cluster with internal cross-links',
-      'A disabled plugin',
-    ],
+    options: ['A backup copy of your database', 'A topic cluster with internal cross-links', 'A disabled plugin'],
     correctIndex: 1,
     explanation:
       'A silo groups related pages into a topic cluster and cross-links them, building topical authority in that subject.',
@@ -96,7 +87,7 @@ const QUESTION_BANK: readonly QuizQuestion[] = [
     options: [
       'How many visitors a page gets per day',
       'Link-based authority flowing through the graph',
-      'A page\'s loading speed',
+      "A page's loading speed",
     ],
     correctIndex: 1,
     explanation:
@@ -112,16 +103,15 @@ const QUESTION_BANK: readonly QuizQuestion[] = [
     ],
     correctIndex: 1,
     explanation:
-      "Quarantined jobs failed too many times in a row. The system isolates them so you can inspect the root cause before retrying.",
+      'Quarantined jobs failed too many times in a row. The system isolates them so you can inspect the root cause before retrying.',
   },
   {
     id: 'q-precision-recall',
-    prompt:
-      'If a suggestion engine has high precision but low recall, it:',
+    prompt: 'If a suggestion engine has high precision but low recall, it:',
     options: [
       'Gives many accurate suggestions AND finds most of what exists',
       'Gives few accurate suggestions, missing a lot',
-      "Rarely wrong about what it suggests, but misses a lot of opportunities",
+      'Rarely wrong about what it suggests, but misses a lot of opportunities',
     ],
     correctIndex: 2,
     explanation:
@@ -129,10 +119,10 @@ const QUESTION_BANK: readonly QuizQuestion[] = [
   },
   {
     id: 'q-stale',
-    prompt: "A page is marked \"stale\" when:",
+    prompt: 'A page is marked "stale" when:',
     options: [
       'It has a typo in the title',
-      "Its analytics or sync data is older than the configured threshold",
+      'Its analytics or sync data is older than the configured threshold',
       'It has more than 100 outbound links',
     ],
     correctIndex: 1,
@@ -153,8 +143,7 @@ const QUESTION_BANK: readonly QuizQuestion[] = [
   },
   {
     id: 'q-cardinality',
-    prompt:
-      'Why do we cap candidate pages per destination during ranking?',
+    prompt: 'Why do we cap candidate pages per destination during ranking?',
     options: [
       'To save RAM during the ranking pass',
       "Because it doesn't matter which order the top pick comes out in",
@@ -174,15 +163,13 @@ const ANSWERED_KEY_PREFIX = 'xfil_quiz_answered.';
   selector: 'app-daily-quiz',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatCardModule, MatIconModule, MatButtonModule],
+  imports: [MatCardModule, MatIconModule, MatButtonModule],
   template: `
     <mat-card class="quiz-card">
       <mat-card-header>
         <mat-icon mat-card-avatar class="quiz-avatar">quiz</mat-icon>
         <mat-card-title>Daily learning</mat-card-title>
-        <mat-card-subtitle>
-          Streak: {{ streak() }} day{{ streak() === 1 ? '' : 's' }}
-        </mat-card-subtitle>
+        <mat-card-subtitle> Streak: {{ streak() }} day{{ streak() === 1 ? '' : 's' }} </mat-card-subtitle>
       </mat-card-header>
       <mat-card-content>
         <p class="quiz-prompt">{{ question().prompt }}</p>
@@ -213,88 +200,94 @@ const ANSWERED_KEY_PREFIX = 'xfil_quiz_answered.';
       </mat-card-content>
     </mat-card>
   `,
-  styles: [`
-    .quiz-card { height: 100%; }
-    .quiz-avatar {
-      background: var(--color-primary);
-      color: var(--color-on-primary, #ffffff);
-    }
-    .quiz-prompt {
-      font-weight: 500;
-      font-size: 14px;
-      margin: 0 0 12px;
-      color: var(--color-text-primary);
-      line-height: 1.5;
-    }
-    .quiz-options {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .quiz-option {
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-      padding: 10px 12px;
-      border: var(--card-border);
-      border-radius: var(--card-border-radius, 8px);
-      background: var(--color-bg-white);
-      text-align: left;
-      cursor: pointer;
-      font: inherit;
-      color: var(--color-text-primary);
-      transition: all 0.15s ease;
-    }
-    .quiz-option:hover:not(:disabled) {
-      background: var(--color-bg-faint);
-      border-color: var(--color-primary);
-    }
-    .quiz-option:disabled { cursor: default; }
-    .quiz-option.quiz-correct {
-      border-color: var(--color-success, #1e8e3e);
-      background: var(--color-success-light, rgba(30, 142, 62, 0.08));
-    }
-    .quiz-option.quiz-wrong {
-      border-color: var(--color-error);
-      background: var(--color-error-50, rgba(217, 48, 37, 0.06));
-    }
-    .quiz-option-letter {
-      flex-shrink: 0;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: var(--color-bg-faint);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--color-text-secondary);
-    }
-    .quiz-option-text {
-      font-size: 13px;
-      line-height: 1.4;
-    }
-    .quiz-explanation {
-      display: flex;
-      gap: 8px;
-      align-items: flex-start;
-      margin: 12px 0 0;
-      padding: 10px 12px;
-      background: var(--color-blue-50, rgba(26, 115, 232, 0.08));
-      border-radius: var(--card-border-radius, 8px);
-      font-size: 12px;
-      line-height: 1.5;
-      color: var(--color-text-primary);
-    }
-    .quiz-exp-icon {
-      color: var(--color-primary);
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
-      flex-shrink: 0;
-    }
-  `],
+  styles: [
+    `
+      .quiz-card {
+        height: 100%;
+      }
+      .quiz-avatar {
+        background: var(--color-primary);
+        color: var(--color-on-primary, #ffffff);
+      }
+      .quiz-prompt {
+        font-weight: 500;
+        font-size: 14px;
+        margin: 0 0 12px;
+        color: var(--color-text-primary);
+        line-height: 1.5;
+      }
+      .quiz-options {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .quiz-option {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 10px 12px;
+        border: var(--card-border);
+        border-radius: var(--card-border-radius, 8px);
+        background: var(--color-bg-white);
+        text-align: left;
+        cursor: pointer;
+        font: inherit;
+        color: var(--color-text-primary);
+        transition: all 0.15s ease;
+      }
+      .quiz-option:hover:not(:disabled) {
+        background: var(--color-bg-faint);
+        border-color: var(--color-primary);
+      }
+      .quiz-option:disabled {
+        cursor: default;
+      }
+      .quiz-option.quiz-correct {
+        border-color: var(--color-success, #1e8e3e);
+        background: var(--color-success-light, rgba(30, 142, 62, 0.08));
+      }
+      .quiz-option.quiz-wrong {
+        border-color: var(--color-error);
+        background: var(--color-error-50, rgba(217, 48, 37, 0.06));
+      }
+      .quiz-option-letter {
+        flex-shrink: 0;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--color-bg-faint);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--color-text-secondary);
+      }
+      .quiz-option-text {
+        font-size: 13px;
+        line-height: 1.4;
+      }
+      .quiz-explanation {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+        margin: 12px 0 0;
+        padding: 10px 12px;
+        background: var(--color-blue-50, rgba(26, 115, 232, 0.08));
+        border-radius: var(--card-border-radius, 8px);
+        font-size: 12px;
+        line-height: 1.5;
+        color: var(--color-text-primary);
+      }
+      .quiz-exp-icon {
+        color: var(--color-primary);
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+      }
+    `,
+  ],
 })
 export class DailyQuizComponent implements OnInit {
   readonly streak = signal<number>(0);
@@ -331,10 +324,7 @@ export class DailyQuizComponent implements OnInit {
     this.selectedIndex.set(idx);
     this.answered.set(true);
     try {
-      localStorage.setItem(
-        ANSWERED_KEY_PREFIX + this.localDayKey(),
-        String(idx),
-      );
+      localStorage.setItem(ANSWERED_KEY_PREFIX + this.localDayKey(), String(idx));
     } catch {
       // In-memory only is fine.
     }
@@ -365,10 +355,7 @@ export class DailyQuizComponent implements OnInit {
   private bumpStreak(today: string): number {
     try {
       const last = localStorage.getItem(LAST_VISIT_KEY);
-      const currentStreak = Number.parseInt(
-        localStorage.getItem(STREAK_KEY) ?? '0',
-        10,
-      ) || 0;
+      const currentStreak = Number.parseInt(localStorage.getItem(STREAK_KEY) ?? '0', 10) || 0;
 
       if (last === today) {
         // Same day — don't change.

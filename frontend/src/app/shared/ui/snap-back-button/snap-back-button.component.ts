@@ -1,11 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  EventEmitter,
-  Input,
-  Output,
-} from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
+
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -22,7 +16,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
   selector: 'app-snap-back-button',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatButtonModule, MatIconModule, MatTooltipModule],
+  imports: [MatButtonModule, MatIconModule, MatTooltipModule],
   template: `
     <button
       mat-icon-button
@@ -30,26 +24,26 @@ import { MatTooltipModule } from '@angular/material/tooltip';
       class="snap-btn"
       (click)="snap.emit(defaultValue)"
       [disabled]="matches"
-      [matTooltip]="matches
-        ? 'Already at the default'
-        : 'Restore the default: ' + defaultValue"
+      [matTooltip]="matches ? 'Already at the default' : 'Restore the default: ' + defaultValue"
       [attr.aria-label]="'Reset to default ' + defaultValue"
     >
       <mat-icon>restart_alt</mat-icon>
     </button>
   `,
-  styles: [`
-    .snap-btn {
-      width: 28px;
-      height: 28px;
-      line-height: 28px;
-    }
-    .snap-btn mat-icon {
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
-    }
-  `],
+  styles: [
+    `
+      .snap-btn {
+        width: 28px;
+        height: 28px;
+        line-height: 28px;
+      }
+      .snap-btn mat-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+      }
+    `,
+  ],
 })
 export class SnapBackButtonComponent {
   @Input() current: string | number | null = null;

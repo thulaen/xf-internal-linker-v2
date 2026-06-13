@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, interval, of, startWith, switchMap } from 'rxjs';
@@ -18,7 +18,6 @@ import { WorkQueueOverview, WorkQueueService } from './work-queue.service';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     RouterLink,
     MatButtonModule,
     MatCardModule,
@@ -64,4 +63,3 @@ export class WorkQueueComponent implements OnInit {
     return 'Could not refresh the work queue.';
   }
 }
-

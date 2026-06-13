@@ -15,11 +15,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { catchError, EMPTY, finalize } from 'rxjs';
 
 import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
-import {
-  HelperNodeCreatePayload,
-  HelperNodeSettingsRecord,
-  SiloSettingsService,
-} from '../silo-settings.service';
+import { HelperNodeCreatePayload, HelperNodeSettingsRecord, SiloSettingsService } from '../silo-settings.service';
 
 @Component({
   selector: 'app-helpers-settings',
@@ -48,8 +44,8 @@ import {
           <div>
             <h2 class="helpers-title" i18n="@@helpers.title">Helper nodes</h2>
             <p class="helpers-subtitle" i18n="@@helpers.subtitle">
-              Secondary machines can contribute CPU and RAM work. Intake pause,
-              liveness, warmed models, and live pressure all come from the existing helper registry.
+              Secondary machines can contribute CPU and RAM work. Intake pause, liveness, warmed models, and live
+              pressure all come from the existing helper registry.
             </p>
           </div>
         </div>
@@ -59,37 +55,41 @@ import {
         </button>
       </header>
 
-      <div class="summary-grid" *ngIf="nodes().length > 0">
-        <mat-card class="summary-card">
-          <mat-card-content>
-            <span class="summary-label" i18n="@@helpers.onlineLabel">Online</span>
-            <strong>{{ counts().online }}</strong>
-          </mat-card-content>
-        </mat-card>
-        <mat-card class="summary-card">
-          <mat-card-content>
-            <span class="summary-label" i18n="@@helpers.busyLabel">Busy</span>
-            <strong>{{ counts().busy }}</strong>
-          </mat-card-content>
-        </mat-card>
-        <mat-card class="summary-card">
-          <mat-card-content>
-            <span class="summary-label" i18n="@@helpers.staleLabel">Stale</span>
-            <strong>{{ counts().stale }}</strong>
-          </mat-card-content>
-        </mat-card>
-        <mat-card class="summary-card">
-          <mat-card-content>
-            <span class="summary-label" i18n="@@helpers.offlineLabel">Offline</span>
-            <strong>{{ counts().offline }}</strong>
-          </mat-card-content>
-        </mat-card>
-      </div>
+      @if (nodes().length > 0) {
+        <div class="summary-grid">
+          <mat-card class="summary-card">
+            <mat-card-content>
+              <span class="summary-label" i18n="@@helpers.onlineLabel">Online</span>
+              <strong>{{ counts().online }}</strong>
+            </mat-card-content>
+          </mat-card>
+          <mat-card class="summary-card">
+            <mat-card-content>
+              <span class="summary-label" i18n="@@helpers.busyLabel">Busy</span>
+              <strong>{{ counts().busy }}</strong>
+            </mat-card-content>
+          </mat-card>
+          <mat-card class="summary-card">
+            <mat-card-content>
+              <span class="summary-label" i18n="@@helpers.staleLabel">Stale</span>
+              <strong>{{ counts().stale }}</strong>
+            </mat-card-content>
+          </mat-card>
+          <mat-card class="summary-card">
+            <mat-card-content>
+              <span class="summary-label" i18n="@@helpers.offlineLabel">Offline</span>
+              <strong>{{ counts().offline }}</strong>
+            </mat-card-content>
+          </mat-card>
+        </div>
+      }
 
       <mat-card class="register-card" id="helpers-registration">
         <mat-card-header>
           <mat-card-title i18n="@@helpers.register.title">Register helper node</mat-card-title>
-          <mat-card-subtitle i18n="@@helpers.register.subtitle">Add a secondary machine without leaving the existing helper registry flow.</mat-card-subtitle>
+          <mat-card-subtitle i18n="@@helpers.register.subtitle"
+            >Add a secondary machine without leaving the existing helper registry flow.</mat-card-subtitle
+          >
         </mat-card-header>
         <mat-card-content>
           <div class="register-grid">
@@ -113,7 +113,9 @@ import {
               <mat-select [(ngModel)]="draft.time_policy">
                 <mat-option value="anytime" i18n="@@helpers.register.policyAnytime">Anytime</mat-option>
                 <mat-option value="nighttime" i18n="@@helpers.register.policyNighttime">Nighttime</mat-option>
-                <mat-option value="maintenance" i18n="@@helpers.register.policyMaintenance">Maintenance window</mat-option>
+                <mat-option value="maintenance" i18n="@@helpers.register.policyMaintenance"
+                  >Maintenance window</mat-option
+                >
               </mat-select>
             </mat-form-field>
             <mat-form-field appearance="outline">
@@ -122,11 +124,27 @@ import {
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label i18n="@@helpers.register.cpuCap">CPU cap %</mat-label>
-              <input matInput autocomplete="off" type="number" min="10" max="100" step="5" [(ngModel)]="draft.cpu_cap_pct" />
+              <input
+                matInput
+                autocomplete="off"
+                type="number"
+                min="10"
+                max="100"
+                step="5"
+                [(ngModel)]="draft.cpu_cap_pct"
+              />
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label i18n="@@helpers.register.ramCap">RAM cap %</mat-label>
-              <input matInput autocomplete="off" type="number" min="10" max="100" step="5" [(ngModel)]="draft.ram_cap_pct" />
+              <input
+                matInput
+                autocomplete="off"
+                type="number"
+                min="10"
+                max="100"
+                step="5"
+                [(ngModel)]="draft.ram_cap_pct"
+              />
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label i18n="@@helpers.register.acceptingWork">Accepting work</mat-label>
@@ -137,9 +155,17 @@ import {
             </mat-form-field>
           </div>
           <div class="button-row">
-            <button mat-flat-button color="primary" type="button" (click)="createHelper()" [disabled]="creating() || !draft.name.trim() || !draft.token.trim()">
+            <button
+              mat-flat-button
+              color="primary"
+              type="button"
+              (click)="createHelper()"
+              [disabled]="creating() || !draft.name.trim() || !draft.token.trim()"
+            >
               <mat-icon>{{ creating() ? 'sync' : 'add' }}</mat-icon>
-              <ng-container i18n="@@helpers.register.submitBtn">{{ creating() ? 'Registering…' : 'Register helper' }}</ng-container>
+              <ng-container i18n="@@helpers.register.submitBtn">{{
+                creating() ? 'Registering…' : 'Register helper'
+              }}</ng-container>
             </button>
           </div>
         </mat-card-content>
@@ -163,27 +189,34 @@ import {
             <mat-card class="helper-card">
               <div class="helper-card-head">
                 <div class="helper-name-row">
-                  <span class="helper-status-dot" [ngClass]="'status-' + node.derived_state"
-                        [matTooltip]="statusTooltip(node.derived_state)"
-                        matTooltipPosition="right"></span>
+                  <span
+                    class="helper-status-dot"
+                    [ngClass]="'status-' + node.derived_state"
+                    [matTooltip]="statusTooltip(node.derived_state)"
+                    matTooltipPosition="right"
+                  ></span>
                   <span class="helper-name">{{ node.name }}</span>
                   <mat-chip class="helper-role-chip" disableRipple>{{ node.role }}</mat-chip>
-                  <mat-chip class="helper-accepting-chip" disableRipple [class.helper-accepting-chip--paused]="!node.accepting_work">
-                    <ng-container *ngIf="node.accepting_work; else pausedIntake">
+                  <mat-chip
+                    class="helper-accepting-chip"
+                    disableRipple
+                    [class.helper-accepting-chip--paused]="!node.accepting_work"
+                  >
+                    @if (node.accepting_work) {
                       <ng-container i18n="@@helpers.status.acceptingWork">Accepting work</ng-container>
-                    </ng-container>
-                    <ng-template #pausedIntake>
+                    } @else {
                       <ng-container i18n="@@helpers.status.pausedIntake">Paused intake</ng-container>
-                    </ng-template>
+                    }
                   </mat-chip>
                 </div>
                 <span class="helper-heartbeat">
-                  <ng-container *ngIf="node.last_heartbeat; else neverSeen">
-                    <ng-container i18n="@@helpers.lastSeen">Last seen {{ node.last_heartbeat | date:'short' }}</ng-container>
-                  </ng-container>
-                  <ng-template #neverSeen>
+                  @if (node.last_heartbeat) {
+                    <ng-container i18n="@@helpers.lastSeen"
+                      >Last seen {{ node.last_heartbeat | date: 'short' }}</ng-container
+                    >
+                  } @else {
                     <ng-container i18n="@@helpers.neverSeen">Never seen</ng-container>
-                  </ng-template>
+                  }
                 </span>
               </div>
 
@@ -191,31 +224,41 @@ import {
                 <div class="metric-pill">
                   <span class="metric-pill__label" i18n="@@helpers.metrics.jobs">Jobs</span>
                   <span class="metric-pill__value">
-                    <ng-container i18n="@@helpers.metrics.jobSummary">{{ node.active_jobs }} active • {{ node.queued_jobs }} queued</ng-container>
+                    <ng-container i18n="@@helpers.metrics.jobSummary"
+                      >{{ node.active_jobs }} active • {{ node.queued_jobs }} queued</ng-container
+                    >
                   </span>
                 </div>
                 <div class="metric-pill">
                   <span class="metric-pill__label" i18n="@@helpers.metrics.cpu">CPU</span>
                   <span class="metric-pill__value">
-                    <ng-container i18n="@@helpers.metrics.cpuUsage">{{ node.cpu_pct || 0 }}% of {{ node.cpu_cap_pct }}%</ng-container>
+                    <ng-container i18n="@@helpers.metrics.cpuUsage"
+                      >{{ node.cpu_pct || 0 }}% of {{ node.cpu_cap_pct }}%</ng-container
+                    >
                   </span>
                 </div>
                 <div class="metric-pill">
                   <span class="metric-pill__label" i18n="@@helpers.metrics.ram">RAM</span>
                   <span class="metric-pill__value">
-                    <ng-container i18n="@@helpers.metrics.ramUsage">{{ node.ram_pct || 0 }}% of {{ node.ram_cap_pct }}%</ng-container>
+                    <ng-container i18n="@@helpers.metrics.ramUsage"
+                      >{{ node.ram_pct || 0 }}% of {{ node.ram_cap_pct }}%</ng-container
+                    >
                   </span>
                 </div>
                 <div class="metric-pill">
                   <span class="metric-pill__label" i18n="@@helpers.metrics.network">Network</span>
                   <span class="metric-pill__value">
-                    <ng-container i18n="@@helpers.metrics.networkLatency">{{ node.network_rtt_ms ?? 0 }} ms RTT</ng-container>
+                    <ng-container i18n="@@helpers.metrics.networkLatency"
+                      >{{ node.network_rtt_ms ?? 0 }} ms RTT</ng-container
+                    >
                   </span>
                 </div>
                 <div class="metric-pill">
                   <span class="metric-pill__label" i18n="@@helpers.metrics.nativeKernels">Native kernels</span>
                   <span class="metric-pill__value">
-                    <ng-container i18n="@@helpers.metrics.nativeKernelsStatus">{{ node.native_kernels_healthy ? 'Healthy' : 'Unavailable' }}</ng-container>
+                    <ng-container i18n="@@helpers.metrics.nativeKernelsStatus">{{
+                      node.native_kernels_healthy ? 'Healthy' : 'Unavailable'
+                    }}</ng-container>
                   </span>
                 </div>
               </div>
@@ -242,22 +285,34 @@ import {
                   <span class="meta-value">
                     {{ policyDisplay(node.time_policy) }}
                     <span class="meta-sep"> • </span>
-                    <ng-container i18n="@@helpers.meta.concurrency">Concurrency {{ node.max_concurrency }}</ng-container>
+                    <ng-container i18n="@@helpers.meta.concurrency"
+                      >Concurrency {{ node.max_concurrency }}</ng-container
+                    >
                   </span>
                 </div>
               </div>
 
               <div class="button-row">
-                <button mat-stroked-button type="button" (click)="toggleAcceptingWork(node)" [disabled]="updatingNodeId() === node.id">
+                <button
+                  mat-stroked-button
+                  type="button"
+                  (click)="toggleAcceptingWork(node)"
+                  [disabled]="updatingNodeId() === node.id"
+                >
                   <mat-icon>{{ node.accepting_work ? 'pause_circle' : 'play_circle' }}</mat-icon>
-                  <ng-container *ngIf="node.accepting_work; else resumeText">
+                  @if (node.accepting_work) {
                     <ng-container i18n="@@helpers.actions.pauseIntake">Pause intake</ng-container>
-                  </ng-container>
-                  <ng-template #resumeText>
+                  } @else {
                     <ng-container i18n="@@helpers.actions.resumeIntake">Resume intake</ng-container>
-                  </ng-template>
+                  }
                 </button>
-                <button mat-stroked-button color="warn" type="button" (click)="deleteHelper(node)" [disabled]="updatingNodeId() === node.id">
+                <button
+                  mat-stroked-button
+                  color="warn"
+                  type="button"
+                  (click)="deleteHelper(node)"
+                  [disabled]="updatingNodeId() === node.id"
+                >
                   <mat-icon>delete</mat-icon>
                   <ng-container i18n="@@helpers.actions.removeBtn">Remove helper</ng-container>
                 </button>
@@ -268,202 +323,212 @@ import {
       }
     </section>
   `,
-  styles: [`
-    .helpers-section {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-lg);
-      padding: var(--space-md);
-    }
-    .helpers-header {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: var(--space-lg);
-    }
-    .helpers-title-row {
-      display: flex;
-      align-items: flex-start;
-      gap: var(--space-md);
-    }
-    .helpers-title-icon {
-      font-size: 32px;
-      width: 32px;
-      height: 32px;
-      color: var(--color-primary);
-    }
-    .helpers-title {
-      font-size: 18px;
-      font-weight: 600;
-      margin: 0;
-      color: var(--color-text-primary);
-    }
-    .helpers-subtitle {
-      font-size: 13px;
-      color: var(--color-text-secondary);
-      margin: 4px 0 0;
-      max-width: 720px;
-      line-height: 1.5;
-    }
-    .summary-grid,
-    .register-grid,
-    .helpers-grid,
-    .helper-metrics {
-      display: grid;
-      gap: var(--space-md);
-    }
-    .summary-grid {
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    }
-    .summary-card {
-      border: var(--card-border);
-    }
-    .summary-card mat-card-content {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      padding: var(--space-md);
-    }
-    .summary-label {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--color-text-muted);
-    }
-    .summary-card strong {
-      font-size: 22px;
-      color: var(--color-text-primary);
-    }
-    .register-card {
-      border: var(--card-border);
-    }
-    .register-grid {
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    }
-    .helpers-center {
-      display: flex;
-      justify-content: center;
-      padding: var(--space-xl);
-    }
-    .helpers-grid {
-      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-    }
-    .helper-card {
-      padding: var(--spacing-card);
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-md);
-    }
-    .helper-card-head {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-xs);
-    }
-    .helper-name-row {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: var(--space-sm);
-    }
-    .helper-status-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      flex-shrink: 0;
-      background: var(--color-border);
-    }
-    .helper-status-dot.status-online { background: var(--color-success); }
-    .helper-status-dot.status-busy { background: var(--color-warning); }
-    .helper-status-dot.status-stale { background: var(--color-primary); }
-    .helper-status-dot.status-offline { background: var(--color-text-muted); }
-    .helper-name {
-      font-weight: 600;
-      color: var(--color-text-primary);
-      font-size: 14px;
-    }
-    .helper-role-chip,
-    .helper-accepting-chip {
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-    }
-    .helper-accepting-chip--paused {
-      --mdc-chip-elevated-container-color: var(--color-blue-50);
-    }
-    .helper-heartbeat {
-      font-size: 11px;
-      color: var(--color-text-muted);
-    }
-    .helper-metrics {
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    }
-    .metric-pill {
-      border: var(--card-border);
-      border-radius: var(--card-border-radius);
-      padding: var(--space-sm);
-      background: var(--color-bg-faint);
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .metric-pill__label {
-      font-size: 11px;
-      color: var(--color-text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-    .metric-pill__value {
-      font-size: 12px;
-      color: var(--color-text-primary);
-      line-height: 1.4;
-    }
-    .helper-meta {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-sm);
-    }
-    .helper-meta-row {
-      display: flex;
-      gap: var(--space-md);
-      font-size: 12px;
-      line-height: 1.5;
-    }
-    .meta-label {
-      min-width: 104px;
-      color: var(--color-text-muted);
-      font-weight: 500;
-    }
-    .meta-value {
-      flex: 1;
-      color: var(--color-text-primary);
-    }
-    .meta-sep {
-      color: var(--color-text-muted);
-    }
-    .button-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-sm);
-    }
-    @media (max-width: 900px) {
+  styles: [
+    `
+      .helpers-section {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-lg);
+        padding: var(--space-md);
+      }
       .helpers-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: var(--space-lg);
+      }
+      .helpers-title-row {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--space-md);
+      }
+      .helpers-title-icon {
+        font-size: 32px;
+        width: 32px;
+        height: 32px;
+        color: var(--color-primary);
+      }
+      .helpers-title {
+        font-size: 18px;
+        font-weight: 600;
+        margin: 0;
+        color: var(--color-text-primary);
+      }
+      .helpers-subtitle {
+        font-size: 13px;
+        color: var(--color-text-secondary);
+        margin: 4px 0 0;
+        max-width: 720px;
+        line-height: 1.5;
+      }
+      .summary-grid,
+      .register-grid,
+      .helpers-grid,
+      .helper-metrics {
+        display: grid;
+        gap: var(--space-md);
+      }
+      .summary-grid {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      }
+      .summary-card {
+        border: var(--card-border);
+      }
+      .summary-card mat-card-content {
+        display: flex;
         flex-direction: column;
+        gap: 6px;
+        padding: var(--space-md);
       }
-      .button-row {
+      .summary-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--color-text-muted);
+      }
+      .summary-card strong {
+        font-size: 22px;
+        color: var(--color-text-primary);
+      }
+      .register-card {
+        border: var(--card-border);
+      }
+      .register-grid {
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      }
+      .helpers-center {
+        display: flex;
+        justify-content: center;
+        padding: var(--space-xl);
+      }
+      .helpers-grid {
+        grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      }
+      .helper-card {
+        padding: var(--spacing-card);
+        display: flex;
         flex-direction: column;
+        gap: var(--space-md);
       }
-      .button-row button {
-        width: 100%;
+      .helper-card-head {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-xs);
       }
-      .helper-meta-row {
+      .helper-name-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--space-sm);
+      }
+      .helper-status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        background: var(--color-border);
+      }
+      .helper-status-dot.status-online {
+        background: var(--color-success);
+      }
+      .helper-status-dot.status-busy {
+        background: var(--color-warning);
+      }
+      .helper-status-dot.status-stale {
+        background: var(--color-primary);
+      }
+      .helper-status-dot.status-offline {
+        background: var(--color-text-muted);
+      }
+      .helper-name {
+        font-weight: 600;
+        color: var(--color-text-primary);
+        font-size: 14px;
+      }
+      .helper-role-chip,
+      .helper-accepting-chip {
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+      }
+      .helper-accepting-chip--paused {
+        --mdc-chip-elevated-container-color: var(--color-blue-50);
+      }
+      .helper-heartbeat {
+        font-size: 11px;
+        color: var(--color-text-muted);
+      }
+      .helper-metrics {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      }
+      .metric-pill {
+        border: var(--card-border);
+        border-radius: var(--card-border-radius);
+        padding: var(--space-sm);
+        background: var(--color-bg-faint);
+        display: flex;
         flex-direction: column;
         gap: 4px;
       }
-      .meta-label {
-        min-width: 0;
+      .metric-pill__label {
+        font-size: 11px;
+        color: var(--color-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
       }
-    }
-  `],
+      .metric-pill__value {
+        font-size: 12px;
+        color: var(--color-text-primary);
+        line-height: 1.4;
+      }
+      .helper-meta {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-sm);
+      }
+      .helper-meta-row {
+        display: flex;
+        gap: var(--space-md);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      .meta-label {
+        min-width: 104px;
+        color: var(--color-text-muted);
+        font-weight: 500;
+      }
+      .meta-value {
+        flex: 1;
+        color: var(--color-text-primary);
+      }
+      .meta-sep {
+        color: var(--color-text-muted);
+      }
+      .button-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-sm);
+      }
+      @media (max-width: 900px) {
+        .helpers-header {
+          flex-direction: column;
+        }
+        .button-row {
+          flex-direction: column;
+        }
+        .button-row button {
+          width: 100%;
+        }
+        .helper-meta-row {
+          flex-direction: column;
+          gap: 4px;
+        }
+        .meta-label {
+          min-width: 0;
+        }
+      }
+    `,
+  ],
 })
 export class HelpersSettingsComponent implements OnInit {
   private siloSettings = inject(SiloSettingsService);
@@ -503,11 +568,16 @@ export class HelpersSettingsComponent implements OnInit {
 
   reload(): void {
     this.loading.set(true);
-    this.siloSettings.listHelpers()
+    this.siloSettings
+      .listHelpers()
       .pipe(
         finalize(() => this.loading.set(false)),
         catchError(() => {
-          this.snack.open($localize`:@@helpers.errors.loadFailed:Could not load helper nodes.`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 4000 });
+          this.snack.open(
+            $localize`:@@helpers.errors.loadFailed:Could not load helper nodes.`,
+            $localize`:@@settings.actions.dismiss:Dismiss`,
+            { duration: 4000 },
+          );
           return EMPTY;
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -517,26 +587,39 @@ export class HelpersSettingsComponent implements OnInit {
 
   createHelper(): void {
     if (!this.draft.name?.trim() || !this.draft.token?.trim()) {
-      this.snack.open($localize`:@@helpers.errors.nameTokenRequired:Helper name and token are required.`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 3000 });
+      this.snack.open(
+        $localize`:@@helpers.errors.nameTokenRequired:Helper name and token are required.`,
+        $localize`:@@settings.actions.dismiss:Dismiss`,
+        { duration: 3000 },
+      );
       return;
     }
 
     this.creating.set(true);
-    this.siloSettings.createHelper({
-      ...this.draft,
-      name: this.draft.name.trim(),
-      token: this.draft.token.trim(),
-    })
+    this.siloSettings
+      .createHelper({
+        ...this.draft,
+        name: this.draft.name.trim(),
+        token: this.draft.token.trim(),
+      })
       .pipe(
         finalize(() => this.creating.set(false)),
         catchError((error) => {
-          this.snack.open(error?.error?.error || $localize`:@@helpers.errors.registerFailed:Could not register helper node.`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 4500 });
+          this.snack.open(
+            error?.error?.error || $localize`:@@helpers.errors.registerFailed:Could not register helper node.`,
+            $localize`:@@settings.actions.dismiss:Dismiss`,
+            { duration: 4500 },
+          );
           return EMPTY;
         }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(() => {
-        this.snack.open($localize`:@@helpers.success.registered:Helper node registered.`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 3000 });
+        this.snack.open(
+          $localize`:@@helpers.success.registered:Helper node registered.`,
+          $localize`:@@settings.actions.dismiss:Dismiss`,
+          { duration: 3000 },
+        );
         this.draft = {
           name: '',
           token: '',
@@ -553,20 +636,25 @@ export class HelpersSettingsComponent implements OnInit {
 
   toggleAcceptingWork(node: HelperNodeSettingsRecord): void {
     this.updatingNodeId.set(node.id);
-    this.siloSettings.updateHelper(node.id, { accepting_work: !node.accepting_work })
+    this.siloSettings
+      .updateHelper(node.id, { accepting_work: !node.accepting_work })
       .pipe(
         finalize(() => this.updatingNodeId.set(null)),
         catchError((error) => {
-          this.snack.open(error?.error?.error || $localize`:@@helpers.errors.updateFailed:Could not update helper state.`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 4500 });
+          this.snack.open(
+            error?.error?.error || $localize`:@@helpers.errors.updateFailed:Could not update helper state.`,
+            $localize`:@@settings.actions.dismiss:Dismiss`,
+            { duration: 4500 },
+          );
           return EMPTY;
         }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((updated) => {
-        this.nodes.set(this.nodes().map((item) => item.id === updated.id ? updated : item));
+        this.nodes.set(this.nodes().map((item) => (item.id === updated.id ? updated : item)));
         this.snack.open(
-          updated.accepting_work 
-            ? $localize`:@@helpers.success.resumed:Helper intake resumed.` 
+          updated.accepting_work
+            ? $localize`:@@helpers.success.resumed:Helper intake resumed.`
             : $localize`:@@helpers.success.paused:Helper intake paused.`,
           $localize`:@@settings.actions.dismiss:Dismiss`,
           { duration: 3000 },
@@ -576,18 +664,27 @@ export class HelpersSettingsComponent implements OnInit {
 
   deleteHelper(node: HelperNodeSettingsRecord): void {
     this.updatingNodeId.set(node.id);
-    this.siloSettings.deleteHelper(node.id)
+    this.siloSettings
+      .deleteHelper(node.id)
       .pipe(
         finalize(() => this.updatingNodeId.set(null)),
         catchError((error) => {
-          this.snack.open(error?.error?.error || $localize`:@@helpers.errors.removeFailed:Could not remove helper node.`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 4500 });
+          this.snack.open(
+            error?.error?.error || $localize`:@@helpers.errors.removeFailed:Could not remove helper node.`,
+            $localize`:@@settings.actions.dismiss:Dismiss`,
+            { duration: 4500 },
+          );
           return EMPTY;
         }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(() => {
         this.nodes.set(this.nodes().filter((item) => item.id !== node.id));
-        this.snack.open($localize`:@@helpers.success.removed:Helper removed.`, $localize`:@@settings.actions.dismiss:Dismiss`, { duration: 3000 });
+        this.snack.open(
+          $localize`:@@helpers.success.removed:Helper removed.`,
+          $localize`:@@settings.actions.dismiss:Dismiss`,
+          { duration: 3000 },
+        );
       });
   }
 

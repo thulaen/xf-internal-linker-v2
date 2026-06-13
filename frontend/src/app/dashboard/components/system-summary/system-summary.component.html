@@ -1,28 +1,32 @@
-<div class="system-summary-card" *ngIf="health">
-  <div class="card-header">
-    <div class="title-group">
-      <mat-icon class="icon-base" [ngClass]="'status-' + health.status">{{ getStatusIcon() }}</mat-icon>
-      <h3>System Health</h3>
+@if (health) {
+  <div class="system-summary-card">
+    <div class="card-header">
+      <div class="title-group">
+        <mat-icon class="icon-base" [ngClass]="'status-' + health.status">{{ getStatusIcon() }}</mat-icon>
+        <h3>System Health</h3>
+      </div>
+      <a routerLink="/health" class="btn-detail">Details</a>
     </div>
-    <a routerLink="/health" class="btn-detail">Details</a>
+    <div class="status-grid">
+      <div class="status-item healthy" [class.active]="(health.summary['healthy'] || 0) > 0">
+        <span class="count">{{ health.summary['healthy'] || 0 }}</span>
+        <span class="label">Healthy</span>
+      </div>
+      <div class="status-item warning" [class.active]="(health.summary['warning'] || 0) > 0">
+        <span class="count">{{ health.summary['warning'] || 0 }}</span>
+        <span class="label">Warning</span>
+      </div>
+      <div class="status-item critical" [class.active]="getDegradedCount() > 0">
+        <span class="count">{{ (health.summary['error'] || 0) + (health.summary['down'] || 0) }}</span>
+        <span class="label">Critical</span>
+      </div>
+    </div>
+    <div class="overall-meta">
+      <p>
+        Monitoring
+        <strong>{{ health.total_monitored }}</strong>
+        core components and external services.
+      </p>
+    </div>
   </div>
-
-  <div class="status-grid">
-    <div class="status-item healthy" [class.active]="(health.summary['healthy'] || 0) > 0">
-      <span class="count">{{ health.summary['healthy'] || 0 }}</span>
-      <span class="label">Healthy</span>
-    </div>
-    <div class="status-item warning" [class.active]="(health.summary['warning'] || 0) > 0">
-      <span class="count">{{ health.summary['warning'] || 0 }}</span>
-      <span class="label">Warning</span>
-    </div>
-    <div class="status-item critical" [class.active]="getDegradedCount() > 0">
-      <span class="count">{{ (health.summary['error'] || 0) + (health.summary['down'] || 0) }}</span>
-      <span class="label">Critical</span>
-    </div>
-  </div>
-
-  <div class="overall-meta">
-    <p>Monitoring <strong>{{ health.total_monitored }}</strong> core components and external services.</p>
-  </div>
-</div>
+}

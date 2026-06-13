@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialogRef, MatDialogModule } from '@angular/material/dialog';
@@ -27,7 +27,6 @@ export interface SessionReauthResult {
   selector: 'app-session-reauth-dialog',
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     MatDialogModule,
     MatButtonModule,
@@ -43,8 +42,8 @@ export interface SessionReauthResult {
     </h2>
     <mat-dialog-content>
       <p class="dialog-intro">
-        Your sign-in timed out. Please enter your credentials to keep
-        working — your current page state will be preserved.
+        Your sign-in timed out. Please enter your credentials to keep working — your current page state will be
+        preserved.
       </p>
 
       @if (errorMessage()) {
@@ -53,37 +52,38 @@ export interface SessionReauthResult {
 
       <mat-form-field appearance="outline" class="dialog-field">
         <mat-label>Username</mat-label>
-        <input matInput
-               type="text"
-               autocomplete="username"
-               [(ngModel)]="username"
-               [disabled]="submitting()"
-               #usernameRef />
+        <input
+          matInput
+          type="text"
+          autocomplete="username"
+          [(ngModel)]="username"
+          [disabled]="submitting()"
+          #usernameRef
+        />
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="dialog-field">
         <mat-label>Password</mat-label>
-        <input matInput
-               type="password"
-               autocomplete="current-password"
-               [(ngModel)]="password"
-               [disabled]="submitting()"
-               (keydown.enter)="onSubmit()" />
+        <input
+          matInput
+          type="password"
+          autocomplete="current-password"
+          [(ngModel)]="password"
+          [disabled]="submitting()"
+          (keydown.enter)="onSubmit()"
+        />
       </mat-form-field>
     </mat-dialog-content>
 
     <mat-dialog-actions align="end">
-      <button mat-button
-              type="button"
-              [disabled]="submitting()"
-              (click)="onCancel()">
-        Sign out
-      </button>
-      <button mat-raised-button
-              color="primary"
-              type="button"
-              [disabled]="submitting() || !password"
-              (click)="onSubmit()">
+      <button mat-button type="button" [disabled]="submitting()" (click)="onCancel()">Sign out</button>
+      <button
+        mat-raised-button
+        color="primary"
+        type="button"
+        [disabled]="submitting() || !password"
+        (click)="onSubmit()"
+      >
         @if (submitting()) {
           <mat-spinner diameter="18" class="btn-spinner" />
         }
@@ -91,34 +91,36 @@ export interface SessionReauthResult {
       </button>
     </mat-dialog-actions>
   `,
-  styles: [`
-    .title-icon {
-      vertical-align: middle;
-      margin-right: 4px;
-      color: var(--color-warning);
-    }
-    .dialog-intro {
-      font-size: 13px;
-      color: var(--color-text-secondary);
-      margin: 0 0 16px;
-    }
-    .dialog-error {
-      font-size: 13px;
-      color: var(--color-error-dark);
-      background: var(--color-error-light);
-      padding: 8px 12px;
-      border-radius: 4px;
-      margin: 0 0 16px;
-    }
-    .dialog-field {
-      width: 100%;
-      margin-bottom: 8px;
-    }
-    .btn-spinner {
-      display: inline-block;
-      margin-right: 8px;
-    }
-  `],
+  styles: [
+    `
+      .title-icon {
+        vertical-align: middle;
+        margin-right: 4px;
+        color: var(--color-warning);
+      }
+      .dialog-intro {
+        font-size: 13px;
+        color: var(--color-text-secondary);
+        margin: 0 0 16px;
+      }
+      .dialog-error {
+        font-size: 13px;
+        color: var(--color-error-dark);
+        background: var(--color-error-light);
+        padding: 8px 12px;
+        border-radius: 4px;
+        margin: 0 0 16px;
+      }
+      .dialog-field {
+        width: 100%;
+        margin-bottom: 8px;
+      }
+      .btn-spinner {
+        display: inline-block;
+        margin-right: 8px;
+      }
+    `,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SessionReauthDialogComponent {
@@ -147,19 +149,20 @@ export class SessionReauthDialogComponent {
     this.errorMessage.set('');
     this.submitting.set(true);
 
-    this.auth.login(this.username, this.password)
+    this.auth
+      .login(this.username, this.password)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-      next: () => {
-        this.rememberUsername(this.username);
-        this.submitting.set(false);
-        this.dialogRef.close({ success: true });
-      },
-      error: () => {
-        this.submitting.set(false);
-        this.errorMessage.set('Sign-in failed. Check your password and try again.');
-      },
-    });
+        next: () => {
+          this.rememberUsername(this.username);
+          this.submitting.set(false);
+          this.dialogRef.close({ success: true });
+        },
+        error: () => {
+          this.submitting.set(false);
+          this.errorMessage.set('Sign-in failed. Check your password and try again.');
+        },
+      });
   }
 
   onCancel(): void {

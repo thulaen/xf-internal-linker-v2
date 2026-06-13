@@ -1,11 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  Input,
-  computed,
-  signal,
-} from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, Input, computed, signal } from '@angular/core';
+
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -46,7 +40,7 @@ const STORAGE_KEY = 'xfil_dashboard_yesterday';
   selector: 'app-trend-deltas',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatCardModule, MatIconModule, MatTooltipModule],
+  imports: [MatCardModule, MatIconModule, MatTooltipModule],
   template: `
     <mat-card class="td-card">
       <mat-card-header>
@@ -70,54 +64,64 @@ const STORAGE_KEY = 'xfil_dashboard_yesterday';
       </mat-card-content>
     </mat-card>
   `,
-  styles: [`
-    .td-card { width: 100%; }
-    .td-avatar {
-      background: var(--color-primary);
-      color: var(--color-on-primary, #ffffff);
-    }
-    .td-strip {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 12px;
-    }
-    .td-tile {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      padding: 10px 12px;
-      border: var(--card-border);
-      border-radius: var(--card-border-radius, 8px);
-      background: var(--color-bg-faint);
-    }
-    .td-label {
-      font-size: 11px;
-      color: var(--color-text-secondary);
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-    }
-    .td-value {
-      font-size: 22px;
-      font-weight: 500;
-      color: var(--color-text-primary);
-      font-variant-numeric: tabular-nums;
-    }
-    .td-delta {
-      display: inline-flex;
-      align-items: center;
-      gap: 2px;
-      font-size: 12px;
-      font-variant-numeric: tabular-nums;
-    }
-    .td-good { color: var(--color-success, #1e8e3e); }
-    .td-bad  { color: var(--color-error, #d93025); }
-    .td-flat { color: var(--color-text-secondary); }
-    .td-arrow {
-      font-size: 14px;
-      width: 14px;
-      height: 14px;
-    }
-  `],
+  styles: [
+    `
+      .td-card {
+        width: 100%;
+      }
+      .td-avatar {
+        background: var(--color-primary);
+        color: var(--color-on-primary, #ffffff);
+      }
+      .td-strip {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 12px;
+      }
+      .td-tile {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 10px 12px;
+        border: var(--card-border);
+        border-radius: var(--card-border-radius, 8px);
+        background: var(--color-bg-faint);
+      }
+      .td-label {
+        font-size: 11px;
+        color: var(--color-text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+      }
+      .td-value {
+        font-size: 22px;
+        font-weight: 500;
+        color: var(--color-text-primary);
+        font-variant-numeric: tabular-nums;
+      }
+      .td-delta {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+      }
+      .td-good {
+        color: var(--color-success, #1e8e3e);
+      }
+      .td-bad {
+        color: var(--color-error, #d93025);
+      }
+      .td-flat {
+        color: var(--color-text-secondary);
+      }
+      .td-arrow {
+        font-size: 14px;
+        width: 14px;
+        height: 14px;
+      }
+    `,
+  ],
 })
 export class TrendDeltasComponent {
   /** Today's dashboard data. The component snapshots it for tomorrow. */
@@ -213,9 +217,7 @@ export class TrendDeltasComponent {
     try {
       const today = this.localDayKey();
       const raw = localStorage.getItem(STORAGE_KEY);
-      const stash: Record<string, Record<string, number>> = raw
-        ? JSON.parse(raw)
-        : {};
+      const stash: Record<string, Record<string, number>> = raw ? JSON.parse(raw) : {};
       stash[today] = {
         pending_reviews: data.suggestion_counts?.pending ?? 0,
         approved: data.suggestion_counts?.approved ?? 0,

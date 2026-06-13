@@ -1,11 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  Input,
-  OnDestroy,
-  signal,
-} from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, Input, OnDestroy, signal } from '@angular/core';
+
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -32,7 +26,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
   selector: 'app-read-aloud',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatButtonModule, MatIconModule, MatTooltipModule],
+  imports: [MatButtonModule, MatIconModule, MatTooltipModule],
   template: `
     @if (supported) {
       <button
@@ -49,17 +43,21 @@ import { MatTooltipModule } from '@angular/material/tooltip';
       </button>
     }
   `,
-  styles: [`
-    .ra-btn {
-      transition: color 0.15s ease;
-    }
-    .ra-btn-active {
-      color: var(--color-primary);
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .ra-btn { transition: none; }
-    }
-  `],
+  styles: [
+    `
+      .ra-btn {
+        transition: color 0.15s ease;
+      }
+      .ra-btn-active {
+        color: var(--color-primary);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .ra-btn {
+          transition: none;
+        }
+      }
+    `,
+  ],
 })
 export class ReadAloudComponent implements OnDestroy {
   /** Text to speak. Re-reading the same component with new text replaces. */

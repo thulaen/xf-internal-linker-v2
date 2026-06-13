@@ -1,14 +1,6 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  OnInit,
-  computed,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { interval } from 'rxjs';
@@ -85,15 +77,7 @@ const SCHEDULE: readonly ScheduledTask[] = [
     icon: 'tune',
     cadence: '1st of month, 02:00',
     nextFireMinutesFromNow: (now) => {
-      const next = new Date(
-        now.getFullYear(),
-        now.getMonth() + 1,
-        1,
-        2,
-        0,
-        0,
-        0,
-      );
+      const next = new Date(now.getFullYear(), now.getMonth() + 1, 1, 2, 0, 0, 0);
       return Math.round((next.getTime() - now.getTime()) / 60_000);
     },
   },
@@ -103,7 +87,7 @@ const SCHEDULE: readonly ScheduledTask[] = [
   selector: 'app-schedule-widget',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatCardModule, MatIconModule],
+  imports: [MatCardModule, MatIconModule],
   template: `
     <mat-card class="sw-card">
       <mat-card-header>
@@ -123,9 +107,7 @@ const SCHEDULE: readonly ScheduledTask[] = [
             <div class="sw-next-row">
               <mat-icon class="sw-next-icon">{{ t.icon }}</mat-icon>
               <span class="sw-next-name">{{ t.label }}</span>
-              <span class="sw-next-when" aria-live="polite">
-                in {{ formatMinutes(t.minutesAway) }}
-              </span>
+              <span class="sw-next-when" aria-live="polite"> in {{ formatMinutes(t.minutesAway) }} </span>
             </div>
           } @else {
             <span class="sw-next-empty">No tasks scheduled in the next 24 hours.</span>
@@ -143,90 +125,98 @@ const SCHEDULE: readonly ScheduledTask[] = [
       </mat-card-content>
     </mat-card>
   `,
-  styles: [`
-    .sw-card { height: 100%; }
-    .sw-avatar {
-      background: var(--color-primary);
-      color: var(--color-on-primary, #ffffff);
-    }
-    .sw-summary {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      padding: 8px 12px;
-      background: var(--color-bg-faint);
-      border-radius: var(--card-border-radius, 8px);
-    }
-    .sw-summary-label,
-    .sw-next-label {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-      color: var(--color-text-secondary);
-    }
-    .sw-summary-value {
-      font-size: 16px;
-      font-weight: 500;
-      color: var(--color-text-primary);
-    }
-    .sw-divider {
-      border: 0;
-      height: 1px;
-      background: var(--color-border);
-      margin: 12px 0;
-    }
-    .sw-next {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .sw-next-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .sw-next-icon { color: var(--color-primary); }
-    .sw-next-name {
-      flex: 1;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--color-text-primary);
-    }
-    .sw-next-when {
-      font-size: 12px;
-      color: var(--color-warning-dark, #b06000);
-      font-variant-numeric: tabular-nums;
-    }
-    .sw-next-empty {
-      font-size: 12px;
-      color: var(--color-text-secondary);
-      font-style: italic;
-    }
-    .sw-list {
-      list-style: none;
-      margin: 12px 0 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .sw-item {
-      display: grid;
-      grid-template-columns: 18px 1fr auto;
-      gap: 8px;
-      align-items: center;
-      padding: 4px 8px;
-      font-size: 12px;
-      color: var(--color-text-secondary);
-    }
-    .sw-item mat-icon {
-      font-size: 16px;
-      width: 16px;
-      height: 16px;
-      color: var(--color-text-secondary);
-    }
-    .sw-item-cadence { font-style: italic; }
-  `],
+  styles: [
+    `
+      .sw-card {
+        height: 100%;
+      }
+      .sw-avatar {
+        background: var(--color-primary);
+        color: var(--color-on-primary, #ffffff);
+      }
+      .sw-summary {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 8px 12px;
+        background: var(--color-bg-faint);
+        border-radius: var(--card-border-radius, 8px);
+      }
+      .sw-summary-label,
+      .sw-next-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        color: var(--color-text-secondary);
+      }
+      .sw-summary-value {
+        font-size: 16px;
+        font-weight: 500;
+        color: var(--color-text-primary);
+      }
+      .sw-divider {
+        border: 0;
+        height: 1px;
+        background: var(--color-border);
+        margin: 12px 0;
+      }
+      .sw-next {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .sw-next-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .sw-next-icon {
+        color: var(--color-primary);
+      }
+      .sw-next-name {
+        flex: 1;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--color-text-primary);
+      }
+      .sw-next-when {
+        font-size: 12px;
+        color: var(--color-warning-dark, #b06000);
+        font-variant-numeric: tabular-nums;
+      }
+      .sw-next-empty {
+        font-size: 12px;
+        color: var(--color-text-secondary);
+        font-style: italic;
+      }
+      .sw-list {
+        list-style: none;
+        margin: 12px 0 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .sw-item {
+        display: grid;
+        grid-template-columns: 18px 1fr auto;
+        gap: 8px;
+        align-items: center;
+        padding: 4px 8px;
+        font-size: 12px;
+        color: var(--color-text-secondary);
+      }
+      .sw-item mat-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+        color: var(--color-text-secondary);
+      }
+      .sw-item-cadence {
+        font-style: italic;
+      }
+    `,
+  ],
 })
 export class ScheduleWidgetComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);

@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
@@ -19,16 +19,10 @@ import { PresenceService } from '../../../core/services/presence.service';
   selector: 'app-presence-indicator',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule, MatTooltipModule],
+  imports: [MatIconModule, MatTooltipModule],
   template: `
     @if (peers().length > 0) {
-      <span
-        class="pi"
-        [matTooltip]="tooltip()"
-        matTooltipPosition="below"
-        role="status"
-        aria-live="polite"
-      >
+      <span class="pi" [matTooltip]="tooltip()" matTooltipPosition="below" role="status" aria-live="polite">
         <mat-icon class="pi-icon" aria-hidden="true">groups</mat-icon>
         <span class="pi-count">{{ peers().length }}</span>
         @if (sameRouteCount() > 0 && sameRouteCount() !== peers().length) {
@@ -37,25 +31,29 @@ import { PresenceService } from '../../../core/services/presence.service';
       </span>
     }
   `,
-  styles: [`
-    .pi {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 2px 8px;
-      border-radius: 12px;
-      background: var(--color-success-light, rgba(30, 142, 62, 0.12));
-      color: var(--color-success-dark, #137333);
-      font-size: 12px;
-      font-variant-numeric: tabular-nums;
-    }
-    .pi-icon {
-      font-size: 16px;
-      width: 16px;
-      height: 16px;
-    }
-    .pi-here { color: var(--color-text-secondary); }
-  `],
+  styles: [
+    `
+      .pi {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 12px;
+        background: var(--color-success-light, rgba(30, 142, 62, 0.12));
+        color: var(--color-success-dark, #137333);
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+      }
+      .pi-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+      }
+      .pi-here {
+        color: var(--color-text-secondary);
+      }
+    `,
+  ],
 })
 export class PresenceIndicatorComponent {
   private readonly presence = inject(PresenceService);

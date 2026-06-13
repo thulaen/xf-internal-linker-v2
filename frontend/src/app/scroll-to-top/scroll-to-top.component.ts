@@ -1,5 +1,14 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, NgZone, OnDestroy, OnInit, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  Input,
+  NgZone,
+  OnDestroy,
+  OnInit,
+  inject,
+} from '@angular/core';
+
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -8,7 +17,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
   selector: 'app-scroll-to-top',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatButtonModule, MatIconModule, MatTooltipModule],
+  imports: [MatButtonModule, MatIconModule, MatTooltipModule],
   template: `
     @if (visible) {
       <button
@@ -23,19 +32,26 @@ import { MatTooltipModule } from '@angular/material/tooltip';
       </button>
     }
   `,
-  styles: [`
-    .scroll-btn {
-      position: fixed;
-      bottom: 32px;
-      right: 32px;
-      z-index: 1000;
-      opacity: 0.9;
-      transition: opacity 0.2s, transform 0.2s;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  styles: [
+    `
+      .scroll-btn {
+        position: fixed;
+        bottom: 32px;
+        right: 32px;
+        z-index: 1000;
+        opacity: 0.9;
+        transition:
+          opacity 0.2s,
+          transform 0.2s;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 
-      &:hover { opacity: 1; transform: translateY(-2px); }
-    }
-  `],
+        &:hover {
+          opacity: 1;
+          transform: translateY(-2px);
+        }
+      }
+    `,
+  ],
 })
 export class ScrollToTopComponent implements OnInit, OnDestroy {
   @Input() scrollTarget: Element | null = null;

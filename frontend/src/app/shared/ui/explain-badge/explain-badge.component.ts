@@ -1,11 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  Input,
-  computed,
-  inject,
-} from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, Input, computed, inject } from '@angular/core';
+
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
@@ -34,7 +28,7 @@ import { ExplainModeService } from '../../../core/services/explain-mode.service'
   selector: 'app-explain-badge',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule, MatTooltipModule],
+  imports: [MatIconModule, MatTooltipModule],
   template: `
     @if (visible()) {
       <span
@@ -50,28 +44,32 @@ import { ExplainModeService } from '../../../core/services/explain-mode.service'
       </span>
     }
   `,
-  styles: [`
-    .eb {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      margin-left: 4px;
-      color: var(--color-text-secondary);
-      cursor: help;
-      vertical-align: middle;
-    }
-    .eb:focus-visible {
-      outline: 2px solid var(--color-primary);
-      outline-offset: 2px;
-      border-radius: 50%;
-    }
-    .eb:hover { color: var(--color-primary); }
-    .eb-icon {
-      font-size: 16px;
-      width: 16px;
-      height: 16px;
-    }
-  `],
+  styles: [
+    `
+      .eb {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-left: 4px;
+        color: var(--color-text-secondary);
+        cursor: help;
+        vertical-align: middle;
+      }
+      .eb:focus-visible {
+        outline: 2px solid var(--color-primary);
+        outline-offset: 2px;
+        border-radius: 50%;
+      }
+      .eb:hover {
+        color: var(--color-primary);
+      }
+      .eb-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+      }
+    `,
+  ],
 })
 export class ExplainBadgeComponent {
   private readonly explain = inject(ExplainModeService);

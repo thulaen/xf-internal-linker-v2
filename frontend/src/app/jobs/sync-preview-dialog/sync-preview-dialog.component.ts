@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { HttpClient } from '@angular/common/http';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -39,14 +39,7 @@ interface PreviewResult {
   selector: 'app-sync-preview-dialog',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    CommonModule,
-    MatDialogModule,
-    MatButtonModule,
-    MatIconModule,
-    MatProgressSpinnerModule,
-    MatChipsModule,
-  ],
+  imports: [MatDialogModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatChipsModule],
   template: `
     <h2 mat-dialog-title>
       <mat-icon class="preview-title-icon">visibility</mat-icon>
@@ -54,8 +47,7 @@ interface PreviewResult {
     </h2>
     <mat-dialog-content>
       <p class="preview-intro">
-        The sampler ran against the last-seen metadata — no full bodies,
-        no embeddings, no writes. Capped at 3 minutes.
+        The sampler ran against the last-seen metadata — no full bodies, no embeddings, no writes. Capped at 3 minutes.
       </p>
 
       @if (loading()) {
@@ -113,95 +105,100 @@ interface PreviewResult {
 
     <mat-dialog-actions align="end">
       <button mat-button [mat-dialog-close]="'cancel'" [disabled]="loading()">Cancel</button>
-      <button mat-flat-button
-              color="primary"
-              [disabled]="loading() || !result()?.ok"
-              [mat-dialog-close]="'run'">
+      <button mat-flat-button color="primary" [disabled]="loading() || !result()?.ok" [mat-dialog-close]="'run'">
         <mat-icon>play_arrow</mat-icon>
         Run for real
       </button>
     </mat-dialog-actions>
   `,
-  styles: [`
-    .preview-title-icon {
-      vertical-align: middle;
-      margin-right: var(--space-xs);
-      color: var(--color-primary);
-    }
-    .preview-intro {
-      font-size: 13px;
-      color: var(--color-text-secondary);
-      margin: 0 0 var(--space-md);
-      line-height: 1.5;
-    }
-    .preview-loading {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: var(--space-md);
-      padding: var(--space-xl) 0;
-      color: var(--color-text-secondary);
-    }
-    .preview-error {
-      display: flex;
-      align-items: center;
-      gap: var(--space-sm);
-      padding: var(--space-md);
-      background: var(--color-error-50);
-      color: var(--color-error-dark);
-      border-radius: var(--radius-sm);
-    }
-    .preview-stats {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: var(--space-sm);
-      margin: var(--space-md) 0;
-    }
-    .preview-stat {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-      padding: var(--space-md);
-      border: var(--card-border);
-      border-radius: var(--radius-md);
-      background: var(--color-bg-faint);
-    }
-    .stat-value {
-      font-size: 24px;
-      font-weight: 600;
-      color: var(--color-text-primary);
-      font-variant-numeric: tabular-nums;
-    }
-    .stat-label {
-      font-size: 11px;
-      color: var(--color-text-muted);
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .preview-stat-import .stat-value { color: var(--color-primary); }
-    .preview-stat-update .stat-value { color: var(--color-warning-dark); }
-    .preview-stat-skip .stat-value { color: var(--color-success-dark); }
+  styles: [
+    `
+      .preview-title-icon {
+        vertical-align: middle;
+        margin-right: var(--space-xs);
+        color: var(--color-primary);
+      }
+      .preview-intro {
+        font-size: 13px;
+        color: var(--color-text-secondary);
+        margin: 0 0 var(--space-md);
+        line-height: 1.5;
+      }
+      .preview-loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--space-md);
+        padding: var(--space-xl) 0;
+        color: var(--color-text-secondary);
+      }
+      .preview-error {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+        padding: var(--space-md);
+        background: var(--color-error-50);
+        color: var(--color-error-dark);
+        border-radius: var(--radius-sm);
+      }
+      .preview-stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: var(--space-sm);
+        margin: var(--space-md) 0;
+      }
+      .preview-stat {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        padding: var(--space-md);
+        border: var(--card-border);
+        border-radius: var(--radius-md);
+        background: var(--color-bg-faint);
+      }
+      .stat-value {
+        font-size: 24px;
+        font-weight: 600;
+        color: var(--color-text-primary);
+        font-variant-numeric: tabular-nums;
+      }
+      .stat-label {
+        font-size: 11px;
+        color: var(--color-text-muted);
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .preview-stat-import .stat-value {
+        color: var(--color-primary);
+      }
+      .preview-stat-update .stat-value {
+        color: var(--color-warning-dark);
+      }
+      .preview-stat-skip .stat-value {
+        color: var(--color-success-dark);
+      }
 
-    .preview-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-sm);
-      margin: 0 0 var(--space-md);
-    }
-    .chip-warn {
-      --mdc-chip-elevated-container-color: var(--color-warning-light);
-      --mdc-chip-label-text-color: var(--color-warning-dark);
-    }
-    .preview-notes {
-      margin: 0;
-      padding-left: 20px;
-      font-size: 12px;
-      color: var(--color-text-secondary);
-      line-height: 1.6;
-    }
-  `],
+      .preview-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-sm);
+        margin: 0 0 var(--space-md);
+      }
+      .chip-warn {
+        --mdc-chip-elevated-container-color: var(--color-warning-light);
+        --mdc-chip-label-text-color: var(--color-warning-dark);
+      }
+      .preview-notes {
+        margin: 0;
+        padding-left: 20px;
+        font-size: 12px;
+        color: var(--color-text-secondary);
+        line-height: 1.6;
+      }
+    `,
+  ],
 })
 export class SyncPreviewDialogComponent {
   data = inject<SyncPreviewDialogData>(MAT_DIALOG_DATA);

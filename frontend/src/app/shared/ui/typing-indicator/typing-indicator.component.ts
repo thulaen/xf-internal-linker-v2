@@ -10,7 +10,6 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
 
 import { interval } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
@@ -49,49 +48,63 @@ interface TypingPeer {
   selector: 'app-typing-indicator',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule],
+  imports: [],
   template: `
     @if (others().length > 0) {
       <div class="ti" role="status" aria-live="polite">
-        <span class="ti-dots" aria-hidden="true">
-          <span></span><span></span><span></span>
-        </span>
+        <span class="ti-dots" aria-hidden="true"> <span></span><span></span><span></span> </span>
         <span class="ti-text">{{ label() }}</span>
       </div>
     }
   `,
-  styles: [`
-    .ti {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      background: var(--color-bg-faint);
-      border-radius: 12px;
-      font-size: 12px;
-      color: var(--color-text-secondary);
-    }
-    .ti-dots {
-      display: inline-flex;
-      gap: 2px;
-    }
-    .ti-dots span {
-      width: 4px;
-      height: 4px;
-      background: var(--color-primary);
-      border-radius: 50%;
-      animation: ti-bounce 1.2s ease-in-out infinite;
-    }
-    .ti-dots span:nth-child(2) { animation-delay: 0.2s; }
-    .ti-dots span:nth-child(3) { animation-delay: 0.4s; }
-    @keyframes ti-bounce {
-      0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
-      40%           { transform: translateY(-3px); opacity: 1; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .ti-dots span { animation: none; }
-    }
-  `],
+  styles: [
+    `
+      .ti {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        background: var(--color-bg-faint);
+        border-radius: 12px;
+        font-size: 12px;
+        color: var(--color-text-secondary);
+      }
+      .ti-dots {
+        display: inline-flex;
+        gap: 2px;
+      }
+      .ti-dots span {
+        width: 4px;
+        height: 4px;
+        background: var(--color-primary);
+        border-radius: 50%;
+        animation: ti-bounce 1.2s ease-in-out infinite;
+      }
+      .ti-dots span:nth-child(2) {
+        animation-delay: 0.2s;
+      }
+      .ti-dots span:nth-child(3) {
+        animation-delay: 0.4s;
+      }
+      @keyframes ti-bounce {
+        0%,
+        80%,
+        100% {
+          transform: translateY(0);
+          opacity: 0.4;
+        }
+        40% {
+          transform: translateY(-3px);
+          opacity: 1;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .ti-dots span {
+          animation: none;
+        }
+      }
+    `,
+  ],
 })
 export class TypingIndicatorComponent implements OnInit {
   /** Topic to publish/subscribe on. Must start with `typing.`. */

@@ -1,27 +1,12 @@
-import {
-  ChangeDetectionStrategy,
-  ChangeDetectorRef,
-  Component,
-  DestroyRef,
-  OnInit,
-  inject,
-} from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import {
-  MAT_DIALOG_DATA,
-  MatDialogModule,
-  MatDialogRef,
-} from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import {
-  SuggestionExplanation,
-  SuggestionFeatureContribution,
-  SuggestionService,
-} from './suggestion.service';
+import { SuggestionExplanation, SuggestionFeatureContribution, SuggestionService } from './suggestion.service';
 
 export interface ExplainPanelData {
   suggestionId: string;
@@ -45,14 +30,7 @@ export interface ExplainPanelData {
 @Component({
   selector: 'app-explain-panel-dialog',
   standalone: true,
-  imports: [
-    CommonModule,
-    MatButtonModule,
-    MatDialogModule,
-    MatIconModule,
-    MatProgressBarModule,
-    MatTooltipModule,
-  ],
+  imports: [CommonModule, MatButtonModule, MatDialogModule, MatIconModule, MatProgressBarModule, MatTooltipModule],
   template: `
     <h2 mat-dialog-title>
       <mat-icon class="title-icon">insights</mat-icon>
@@ -60,17 +38,21 @@ export interface ExplainPanelData {
     </h2>
 
     <mat-dialog-content class="explain-content">
-      <div *ngIf="loading" class="loading">
-        <mat-progress-bar mode="indeterminate"></mat-progress-bar>
-        <span class="loading-text">Computing feature attributions…</span>
-      </div>
+      @if (loading) {
+        <div class="loading">
+          <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+          <span class="loading-text">Computing feature attributions…</span>
+        </div>
+      }
 
-      <div *ngIf="error" class="error">
-        <mat-icon>error_outline</mat-icon>
-        <span>{{ error }}</span>
-      </div>
+      @if (error) {
+        <div class="error">
+          <mat-icon>error_outline</mat-icon>
+          <span>{{ error }}</span>
+        </div>
+      }
 
-      <ng-container *ngIf="explanation && !loading">
+      @if (explanation && !loading) {
         <div class="summary">
           <div class="summary-row">
             <span class="label">Predicted score</span>
@@ -80,52 +62,49 @@ export interface ExplainPanelData {
             <span class="label">Baseline (neutral)</span>
             <span class="value">{{ explanation.baseline | number: '1.3-3' }}</span>
           </div>
-          <div class="summary-row" *ngIf="explanation.calibrated_probability !== null">
-            <span class="label">Calibrated probability</span>
-            <span class="value">
-              {{ explanation.calibrated_probability * 100 | number: '1.0-1' }}%
-            </span>
-          </div>
-          <div class="summary-row" *ngIf="explanation.calibrated_probability === null">
-            <span class="label">Calibrated probability</span>
-            <span class="value muted" matTooltip="Not enough review history yet">—</span>
-          </div>
+          @if (explanation.calibrated_probability !== null) {
+            <div class="summary-row">
+              <span class="label">Calibrated probability</span>
+              <span class="value"> {{ explanation.calibrated_probability * 100 | number: '1.0-1' }}% </span>
+            </div>
+          }
+          @if (explanation.calibrated_probability === null) {
+            <div class="summary-row">
+              <span class="label">Calibrated probability</span>
+              <span class="value muted" matTooltip="Not enough review history yet">—</span>
+            </div>
+          }
           <div class="summary-row method">
             <span class="label">Method</span>
             <span class="value">{{ explanation.method }}</span>
           </div>
         </div>
-
         <h3 class="contributions-title">Feature contributions</h3>
-
         <div class="contributions">
-          <div
-            *ngFor="let c of explanation.contributions"
-            class="contribution-row"
-          >
-            <div class="contribution-header">
-              <span class="feature-name">{{ c.feature_name }}</span>
-              <span
-                class="contribution-value"
-                [class.positive]="c.shap_value > 0"
-                [class.negative]="c.shap_value < 0"
-              >
-                {{ c.shap_value > 0 ? '+' : '' }}{{ c.shap_value | number: '1.3-3' }}
-              </span>
+          @for (c of explanation.contributions; track c) {
+            <div class="contribution-row">
+              <div class="contribution-header">
+                <span class="feature-name">{{ c.feature_name }}</span>
+                <span
+                  class="contribution-value"
+                  [class.positive]="c.shap_value > 0"
+                  [class.negative]="c.shap_value < 0"
+                >
+                  {{ c.shap_value > 0 ? '+' : '' }}{{ c.shap_value | number: '1.3-3' }}
+                </span>
+              </div>
+              <div class="contribution-bar">
+                <mat-progress-bar
+                  mode="determinate"
+                  [value]="barMagnitude(c)"
+                  [color]="c.shap_value >= 0 ? 'primary' : 'warn'"
+                ></mat-progress-bar>
+              </div>
+              <div class="contribution-meta">raw value {{ c.value | number: '1.3-3' }}</div>
             </div>
-            <div class="contribution-bar">
-              <mat-progress-bar
-                mode="determinate"
-                [value]="barMagnitude(c)"
-                [color]="c.shap_value >= 0 ? 'primary' : 'warn'"
-              ></mat-progress-bar>
-            </div>
-            <div class="contribution-meta">
-              raw value {{ c.value | number: '1.3-3' }}
-            </div>
-          </div>
+          }
         </div>
-      </ng-container>
+      }
     </mat-dialog-content>
 
     <mat-dialog-actions align="end">
@@ -261,9 +240,7 @@ export class ExplainPanelDialogComponent implements OnInit {
           this.cdr.markForCheck();
         },
         error: (err) => {
-          this.error =
-            err?.error?.detail ??
-            'Failed to load explanation — see browser console for details.';
+          this.error = err?.error?.detail ?? 'Failed to load explanation — see browser console for details.';
           this.loading = false;
           this.cdr.markForCheck();
         },

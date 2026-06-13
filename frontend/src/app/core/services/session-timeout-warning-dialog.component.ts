@@ -1,5 +1,13 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, NgZone, OnInit, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  DestroyRef,
+  NgZone,
+  OnInit,
+  inject,
+} from '@angular/core';
+
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogRef, MatDialogModule } from '@angular/material/dialog';
@@ -50,13 +58,7 @@ export interface SessionTimeoutWarningData {
   selector: 'app-session-timeout-warning-dialog',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    CommonModule,
-    MatDialogModule,
-    MatButtonModule,
-    MatIconModule,
-    MatProgressBarModule,
-  ],
+  imports: [MatDialogModule, MatButtonModule, MatIconModule, MatProgressBarModule],
   template: `
     <h2 mat-dialog-title>
       <mat-icon aria-hidden="true" class="title-icon">schedule</mat-icon>
@@ -65,9 +67,8 @@ export interface SessionTimeoutWarningData {
     <mat-dialog-content>
       <p class="dialog-intro">
         Your session will expire in
-        <strong>{{ remainingLabel }}</strong>.
-        Click <strong>Stay signed in</strong> to keep working. Your current
-        page will not be lost.
+        <strong>{{ remainingLabel }}</strong
+        >. Click <strong>Stay signed in</strong> to keep working. Your current page will not be lost.
       </p>
 
       <mat-progress-bar
@@ -76,64 +77,54 @@ export interface SessionTimeoutWarningData {
         class="countdown-bar"
         [class.countdown-bar-urgent]="remainingMs < 30_000"
       />
-      <div class="countdown-meta" aria-live="polite">
-        {{ remainingLabel }} remaining
-      </div>
+      <div class="countdown-meta" aria-live="polite">{{ remainingLabel }} remaining</div>
     </mat-dialog-content>
 
     <mat-dialog-actions align="end">
-      <button mat-button
-              type="button"
-              (click)="onSignOut()">
-        Sign out now
-      </button>
-      <button mat-raised-button
-              color="primary"
-              type="button"
-              cdkFocusInitial
-              (click)="onStay()">
+      <button mat-button type="button" (click)="onSignOut()">Sign out now</button>
+      <button mat-raised-button color="primary" type="button" cdkFocusInitial (click)="onStay()">
         <mat-icon>refresh</mat-icon>
         Stay signed in
       </button>
     </mat-dialog-actions>
   `,
-  styles: [`
-    .title-icon {
-      vertical-align: middle;
-      margin-right: 4px;
-      color: var(--color-warning);
-    }
-    .dialog-intro {
-      font-size: 13px;
-      color: var(--color-text-secondary);
-      margin: 0 0 16px;
-      line-height: 1.5;
-    }
-    .countdown-bar {
-      border-radius: 4px;
-      overflow: hidden;
-      height: 6px;
-    }
-    .countdown-bar-urgent ::ng-deep .mdc-linear-progress__bar-inner {
-      /* Switch to error red when under 30s. */
-      border-color: var(--color-error) !important;
-    }
-    .countdown-meta {
-      font-size: 12px;
-      color: var(--color-text-secondary);
-      margin-top: 8px;
-      text-align: right;
-      font-variant-numeric: tabular-nums;
-    }
-    mat-dialog-actions mat-icon {
-      margin-right: 4px;
-    }
-  `],
+  styles: [
+    `
+      .title-icon {
+        vertical-align: middle;
+        margin-right: 4px;
+        color: var(--color-warning);
+      }
+      .dialog-intro {
+        font-size: 13px;
+        color: var(--color-text-secondary);
+        margin: 0 0 16px;
+        line-height: 1.5;
+      }
+      .countdown-bar {
+        border-radius: 4px;
+        overflow: hidden;
+        height: 6px;
+      }
+      .countdown-bar-urgent ::ng-deep .mdc-linear-progress__bar-inner {
+        /* Switch to error red when under 30s. */
+        border-color: var(--color-error) !important;
+      }
+      .countdown-meta {
+        font-size: 12px;
+        color: var(--color-text-secondary);
+        margin-top: 8px;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      mat-dialog-actions mat-icon {
+        margin-right: 4px;
+      }
+    `,
+  ],
 })
 export class SessionTimeoutWarningDialogComponent implements OnInit {
-  private readonly dialogRef = inject(
-    MatDialogRef<SessionTimeoutWarningDialogComponent, SessionTimeoutWarningResult>
-  );
+  private readonly dialogRef = inject(MatDialogRef<SessionTimeoutWarningDialogComponent, SessionTimeoutWarningResult>);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
   private readonly ngZone = inject(NgZone);

@@ -1,12 +1,6 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -39,13 +33,7 @@ import { RealtimeService } from '../../core/services/realtime.service';
   selector: 'app-one-button-reset',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    CommonModule,
-    MatCardModule,
-    MatButtonModule,
-    MatIconModule,
-    MatProgressSpinnerModule,
-  ],
+  imports: [MatCardModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule],
   template: `
     <mat-card class="obr-card">
       <mat-card-header>
@@ -55,9 +43,8 @@ import { RealtimeService } from '../../core/services/realtime.service';
       </mat-card-header>
       <mat-card-content>
         <p class="obr-body">
-          Refreshes the dashboard data, reconnects the live updates feed,
-          and clears the cached snapshot. Doesn't touch your settings or
-          unsaved work.
+          Refreshes the dashboard data, reconnects the live updates feed, and clears the cached snapshot. Doesn't touch
+          your settings or unsaved work.
         </p>
         @if (lastResetAt()) {
           <p class="obr-meta">
@@ -67,13 +54,7 @@ import { RealtimeService } from '../../core/services/realtime.service';
         }
       </mat-card-content>
       <mat-card-actions>
-        <button
-          mat-flat-button
-          color="primary"
-          type="button"
-          [disabled]="busy()"
-          (click)="onReset()"
-        >
+        <button mat-flat-button color="primary" type="button" [disabled]="busy()" (click)="onReset()">
           @if (busy()) {
             <mat-spinner diameter="18" class="obr-spinner" />
           } @else {
@@ -84,37 +65,41 @@ import { RealtimeService } from '../../core/services/realtime.service';
       </mat-card-actions>
     </mat-card>
   `,
-  styles: [`
-    .obr-card { height: 100%; }
-    .obr-avatar {
-      background: var(--color-warning, #f9ab00);
-      color: #ffffff;
-    }
-    .obr-body {
-      margin: 0 0 12px;
-      font-size: 13px;
-      line-height: 1.5;
-      color: var(--color-text-secondary);
-    }
-    .obr-meta {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      margin: 0;
-      font-size: 12px;
-      color: var(--color-text-secondary);
-    }
-    .obr-meta-icon {
-      font-size: 14px;
-      width: 14px;
-      height: 14px;
-      color: var(--color-success, #1e8e3e);
-    }
-    .obr-spinner {
-      display: inline-block;
-      margin-right: 8px;
-    }
-  `],
+  styles: [
+    `
+      .obr-card {
+        height: 100%;
+      }
+      .obr-avatar {
+        background: var(--color-warning, #f9ab00);
+        color: #ffffff;
+      }
+      .obr-body {
+        margin: 0 0 12px;
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--color-text-secondary);
+      }
+      .obr-meta {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin: 0;
+        font-size: 12px;
+        color: var(--color-text-secondary);
+      }
+      .obr-meta-icon {
+        font-size: 14px;
+        width: 14px;
+        height: 14px;
+        color: var(--color-success, #1e8e3e);
+      }
+      .obr-spinner {
+        display: inline-block;
+        margin-right: 8px;
+      }
+    `,
+  ],
 })
 export class OneButtonResetComponent {
   private readonly dash = inject(DashboardService);

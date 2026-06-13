@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, EventEmitter, Output, inject, signal } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDividerModule } from '@angular/material/divider';
@@ -18,7 +18,6 @@ import { AppearanceService } from '../core/services/appearance.service';
   selector: 'app-theme-customizer',
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     MatButtonModule,
     MatDividerModule,
@@ -69,19 +68,20 @@ export class ThemeCustomizerComponent {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
     this.uploadingLogo.set(true);
-    this.appearance.uploadLogo(file)
+    this.appearance
+      .uploadLogo(file)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-      next: () => {
-        this.uploadingLogo.set(false);
-        this.snack.open('Logo uploaded', 'Dismiss', { duration: 3000 });
-      },
-      error: (err) => {
-        this.uploadingLogo.set(false);
-        const msg = err?.error?.error ?? 'Logo upload failed.';
-        this.snack.open(msg, 'Dismiss', { duration: 5000 });
-      },
-    });
+        next: () => {
+          this.uploadingLogo.set(false);
+          this.snack.open('Logo uploaded', 'Dismiss', { duration: 3000 });
+        },
+        error: (err) => {
+          this.uploadingLogo.set(false);
+          const msg = err?.error?.error ?? 'Logo upload failed.';
+          this.snack.open(msg, 'Dismiss', { duration: 5000 });
+        },
+      });
     // Reset input so the same file can be re-selected after removal
     (event.target as HTMLInputElement).value = '';
   }
@@ -95,19 +95,20 @@ export class ThemeCustomizerComponent {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
     this.uploadingFavicon.set(true);
-    this.appearance.uploadFavicon(file)
+    this.appearance
+      .uploadFavicon(file)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-      next: () => {
-        this.uploadingFavicon.set(false);
-        this.snack.open('Favicon uploaded', 'Dismiss', { duration: 3000 });
-      },
-      error: (err) => {
-        this.uploadingFavicon.set(false);
-        const msg = err?.error?.error ?? 'Favicon upload failed.';
-        this.snack.open(msg, 'Dismiss', { duration: 5000 });
-      },
-    });
+        next: () => {
+          this.uploadingFavicon.set(false);
+          this.snack.open('Favicon uploaded', 'Dismiss', { duration: 3000 });
+        },
+        error: (err) => {
+          this.uploadingFavicon.set(false);
+          const msg = err?.error?.error ?? 'Favicon upload failed.';
+          this.snack.open(msg, 'Dismiss', { duration: 5000 });
+        },
+      });
     (event.target as HTMLInputElement).value = '';
   }
 

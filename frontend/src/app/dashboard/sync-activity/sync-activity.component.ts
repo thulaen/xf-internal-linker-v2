@@ -1,14 +1,6 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  OnInit,
-  computed,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -41,22 +33,13 @@ import { SyncJob, SyncService } from '../../jobs/sync.service';
   selector: 'app-sync-activity',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    CommonModule,
-    RouterLink,
-    MatCardModule,
-    MatIconModule,
-    MatButtonModule,
-    MatProgressBarModule,
-  ],
+  imports: [RouterLink, MatCardModule, MatIconModule, MatButtonModule, MatProgressBarModule],
   template: `
     <mat-card class="sa-card">
       <mat-card-header>
         <mat-icon mat-card-avatar class="sa-avatar">sync</mat-icon>
         <mat-card-title>Sync activity right now</mat-card-title>
-        <mat-card-subtitle>
-          Live snapshot of imports and pipeline runs · refreshes every 30s
-        </mat-card-subtitle>
+        <mat-card-subtitle> Live snapshot of imports and pipeline runs · refreshes every 30s </mat-card-subtitle>
       </mat-card-header>
       <mat-card-content>
         @if (runningVisible().length > 0) {
@@ -73,9 +56,7 @@ import { SyncJob, SyncService } from '../../jobs/sync.service';
             }
           </ul>
           @if (runningOverflow() > 0) {
-            <p class="sa-overflow">
-              + {{ runningOverflow() }} more running — see Jobs page
-            </p>
+            <p class="sa-overflow">+ {{ runningOverflow() }} more running — see Jobs page</p>
           }
         }
         @if (stuckVisible().length > 0) {
@@ -103,9 +84,7 @@ import { SyncJob, SyncService } from '../../jobs/sync.service';
             }
           </ul>
           @if (stuckOverflow() > 0) {
-            <p class="sa-overflow">
-              + {{ stuckOverflow() }} more blocked — fix on Jobs page
-            </p>
+            <p class="sa-overflow">+ {{ stuckOverflow() }} more blocked — fix on Jobs page</p>
           }
         }
         @if (runningVisible().length === 0 && stuckVisible().length === 0) {
@@ -123,69 +102,83 @@ import { SyncJob, SyncService } from '../../jobs/sync.service';
       </mat-card-actions>
     </mat-card>
   `,
-  styles: [`
-    .sa-card { height: 100%; }
-    .sa-avatar {
-      background: var(--color-primary);
-      color: var(--color-on-primary, #ffffff);
-    }
-    .sa-sub {
-      margin: 12px 0 6px;
-      font-size: 11px;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-      color: var(--color-text-secondary);
-    }
-    .sa-sub-warn { color: var(--color-error); }
-    .sa-list {
-      list-style: none;
-      margin: 0 0 8px;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .sa-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      border: var(--card-border);
-      border-radius: var(--card-border-radius, 8px);
-      background: var(--color-bg-faint);
-    }
-    .sa-row-icon {
-      flex-shrink: 0;
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
-    }
-    .sa-running { color: var(--color-primary); }
-    .sa-stuck   { color: var(--color-error); }
-    .sa-clear   { color: var(--color-success, #1e8e3e); }
-    .sa-row-text {
-      flex: 1;
-      font-size: 13px;
-      color: var(--color-text-primary);
-      min-width: 0;
-    }
-    .sa-fix { flex-shrink: 0; }
-    .sa-empty {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin: 0;
-      font-size: 13px;
-      color: var(--color-text-secondary);
-    }
-    .sa-overflow {
-      margin: 4px 0 0;
-      font-size: 12px;
-      color: var(--color-text-muted);
-      font-style: italic;
-    }
-  `],
+  styles: [
+    `
+      .sa-card {
+        height: 100%;
+      }
+      .sa-avatar {
+        background: var(--color-primary);
+        color: var(--color-on-primary, #ffffff);
+      }
+      .sa-sub {
+        margin: 12px 0 6px;
+        font-size: 11px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        color: var(--color-text-secondary);
+      }
+      .sa-sub-warn {
+        color: var(--color-error);
+      }
+      .sa-list {
+        list-style: none;
+        margin: 0 0 8px;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .sa-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border: var(--card-border);
+        border-radius: var(--card-border-radius, 8px);
+        background: var(--color-bg-faint);
+      }
+      .sa-row-icon {
+        flex-shrink: 0;
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+      }
+      .sa-running {
+        color: var(--color-primary);
+      }
+      .sa-stuck {
+        color: var(--color-error);
+      }
+      .sa-clear {
+        color: var(--color-success, #1e8e3e);
+      }
+      .sa-row-text {
+        flex: 1;
+        font-size: 13px;
+        color: var(--color-text-primary);
+        min-width: 0;
+      }
+      .sa-fix {
+        flex-shrink: 0;
+      }
+      .sa-empty {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0;
+        font-size: 13px;
+        color: var(--color-text-secondary);
+      }
+      .sa-overflow {
+        margin: 4px 0 0;
+        font-size: 12px;
+        color: var(--color-text-muted);
+        font-style: italic;
+      }
+    `,
+  ],
 })
 export class SyncActivityComponent implements OnInit {
   private readonly sync = inject(SyncService);
@@ -202,11 +195,7 @@ export class SyncActivityComponent implements OnInit {
   readonly jobs = signal<readonly SyncJob[]>([]);
   readonly busyJob = signal<string | null>(null);
 
-  readonly running = computed(() =>
-    this.jobs().filter(
-      (j) => j.status === 'running' || j.status === 'pending',
-    ),
-  );
+  readonly running = computed(() => this.jobs().filter((j) => j.status === 'running' || j.status === 'pending'));
 
   readonly stuck = computed(() => {
     const now = Date.now();
@@ -224,18 +213,10 @@ export class SyncActivityComponent implements OnInit {
     });
   });
 
-  readonly runningVisible = computed(() =>
-    this.running().slice(0, SyncActivityComponent.MAX_RUNNING),
-  );
-  readonly stuckVisible = computed(() =>
-    this.stuck().slice(0, SyncActivityComponent.MAX_STUCK),
-  );
-  readonly runningOverflow = computed(() =>
-    Math.max(0, this.running().length - SyncActivityComponent.MAX_RUNNING),
-  );
-  readonly stuckOverflow = computed(() =>
-    Math.max(0, this.stuck().length - SyncActivityComponent.MAX_STUCK),
-  );
+  readonly runningVisible = computed(() => this.running().slice(0, SyncActivityComponent.MAX_RUNNING));
+  readonly stuckVisible = computed(() => this.stuck().slice(0, SyncActivityComponent.MAX_STUCK));
+  readonly runningOverflow = computed(() => Math.max(0, this.running().length - SyncActivityComponent.MAX_RUNNING));
+  readonly stuckOverflow = computed(() => Math.max(0, this.stuck().length - SyncActivityComponent.MAX_STUCK));
 
   ngOnInit(): void {
     // 30-second poll, gated by `VisibilityGateService` so hidden tabs
@@ -243,27 +224,25 @@ export class SyncActivityComponent implements OnInit {
     // docs/PERFORMANCE.md §13.
     this.visibilityGate
       .whileLoggedInAndVisible(() =>
-        timer(0, 30_000).pipe(
-          switchMap(() =>
-            this.sync.getJobs().pipe(catchError(() => of<SyncJob[]>([]))),
-          ),
-        ),
+        timer(0, 30_000).pipe(switchMap(() => this.sync.getJobs().pipe(catchError(() => of<SyncJob[]>([]))))),
       )
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((jobs) => {
-        const arr = Array.isArray(jobs)
-          ? jobs
-          : ((jobs as unknown as { results?: SyncJob[] })?.results ?? []);
+        const arr = Array.isArray(jobs) ? jobs : ((jobs as unknown as { results?: SyncJob[] })?.results ?? []);
         this.jobs.set(arr);
       });
   }
 
   sourceLabel(source: string): string {
     switch (source) {
-      case 'api': return 'XenForo';
-      case 'wp':  return 'WordPress';
-      case 'jsonl': return 'JSONL upload';
-      default: return source;
+      case 'api':
+        return 'XenForo';
+      case 'wp':
+        return 'WordPress';
+      case 'jsonl':
+        return 'JSONL upload';
+      default:
+        return source;
     }
   }
 
@@ -290,11 +269,7 @@ export class SyncActivityComponent implements OnInit {
         },
         error: () => {
           this.busyJob.set(null);
-          this.snack.open(
-            'Could not restart this job — open Jobs to inspect.',
-            'Dismiss',
-            { duration: 5000 },
-          );
+          this.snack.open('Could not restart this job — open Jobs to inspect.', 'Dismiss', { duration: 5000 });
         },
       });
   }

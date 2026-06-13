@@ -1,14 +1,6 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  HostListener,
-  OnInit,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, HostListener, OnInit, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { Router, NavigationEnd, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -35,13 +27,7 @@ import { filter } from 'rxjs';
   selector: 'app-escape-hatch',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    CommonModule,
-    RouterLink,
-    MatButtonModule,
-    MatIconModule,
-    MatTooltipModule,
-  ],
+  imports: [RouterLink, MatButtonModule, MatIconModule, MatTooltipModule],
   template: `
     @if (visible()) {
       <a
@@ -59,23 +45,27 @@ import { filter } from 'rxjs';
       </a>
     }
   `,
-  styles: [`
-    .eh-fab {
-      position: fixed;
-      /* Stacked above the help chatbot FAB at bottom: 24px (56px tall) + 16px gap. */
-      bottom: 96px;
-      right: 24px;
-      z-index: 980;
-      box-shadow: var(--shadow-md, 0 2px 6px rgba(60, 64, 67, 0.15));
-      transition: transform 0.2s ease;
-    }
-    .eh-fab:hover {
-      transform: translateY(-2px);
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .eh-fab { transition: none; }
-    }
-  `],
+  styles: [
+    `
+      .eh-fab {
+        position: fixed;
+        /* Stacked above the help chatbot FAB at bottom: 24px (56px tall) + 16px gap. */
+        bottom: 96px;
+        right: 24px;
+        z-index: 980;
+        box-shadow: var(--shadow-md, 0 2px 6px rgba(60, 64, 67, 0.15));
+        transition: transform 0.2s ease;
+      }
+      .eh-fab:hover {
+        transform: translateY(-2px);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .eh-fab {
+          transition: none;
+        }
+      }
+    `,
+  ],
 })
 export class EscapeHatchComponent implements OnInit {
   private readonly router = inject(Router);
@@ -98,7 +88,7 @@ export class EscapeHatchComponent implements OnInit {
 
   /** Esc shortcut — only when no input/dialog has focus. */
   @HostListener('document:keydown.escape', ['$event'])
-  onEsc(event: KeyboardEvent): void {
+  onEsc(event: Event): void {
     if (!this.visible()) return;
     const target = event.target as HTMLElement | null;
     if (!target) {

@@ -1,11 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  Input,
-  OnInit,
-  signal,
-} from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, Input, OnInit, signal } from '@angular/core';
+
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -32,7 +26,7 @@ import { ContentSnippet } from './content-cards.data';
   selector: 'app-rotating-card',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatCardModule, MatIconModule, MatButtonModule],
+  imports: [MatCardModule, MatIconModule, MatButtonModule],
   template: `
     @if (current(); as snip) {
       <mat-card class="rc-card" [class]="'rc-accent-' + accent">
@@ -60,25 +54,41 @@ import { ContentSnippet } from './content-cards.data';
       </mat-card>
     }
   `,
-  styles: [`
-    .rc-card { height: 100%; }
-    .rc-accent-good .rc-avatar { background: var(--color-success, #1e8e3e); color: #fff; }
-    .rc-accent-warn .rc-avatar { background: var(--color-warning, #f9ab00); color: #fff; }
-    .rc-accent-bad  .rc-avatar { background: var(--color-error, #d93025); color: #fff; }
-    .rc-accent-info .rc-avatar { background: var(--color-primary, #1a73e8); color: #fff; }
-    .rc-text {
-      margin: 0;
-      font-size: 14px;
-      line-height: 1.55;
-      color: var(--color-text-primary);
-    }
-    .rc-attribution {
-      margin: 8px 0 0;
-      font-size: 12px;
-      color: var(--color-text-secondary);
-      font-style: italic;
-    }
-  `],
+  styles: [
+    `
+      .rc-card {
+        height: 100%;
+      }
+      .rc-accent-good .rc-avatar {
+        background: var(--color-success, #1e8e3e);
+        color: #fff;
+      }
+      .rc-accent-warn .rc-avatar {
+        background: var(--color-warning, #f9ab00);
+        color: #fff;
+      }
+      .rc-accent-bad .rc-avatar {
+        background: var(--color-error, #d93025);
+        color: #fff;
+      }
+      .rc-accent-info .rc-avatar {
+        background: var(--color-primary, #1a73e8);
+        color: #fff;
+      }
+      .rc-text {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.55;
+        color: var(--color-text-primary);
+      }
+      .rc-attribution {
+        margin: 8px 0 0;
+        font-size: 12px;
+        color: var(--color-text-secondary);
+        font-style: italic;
+      }
+    `,
+  ],
 })
 export class RotatingCardComponent implements OnInit {
   /** Card chrome */
@@ -116,9 +126,7 @@ export class RotatingCardComponent implements OnInit {
   // ── pickers ────────────────────────────────────────────────────────
 
   private pickRandom(skipId?: string): ContentSnippet {
-    const candidates = skipId && this.bank.length > 1
-      ? this.bank.filter((s) => s.id !== skipId)
-      : this.bank;
+    const candidates = skipId && this.bank.length > 1 ? this.bank.filter((s) => s.id !== skipId) : this.bank;
     const idx = Math.floor(Math.random() * candidates.length);
     return candidates[idx];
   }

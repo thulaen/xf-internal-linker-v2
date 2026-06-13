@@ -1,13 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  Input,
-  OnChanges,
-  OnInit,
-  computed,
-  signal,
-} from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, Input, OnChanges, OnInit, computed, signal } from '@angular/core';
+
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -40,7 +32,6 @@ const HIT_KEY = 'xfil_daily_goal_hit';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     FormsModule,
     MatCardModule,
     MatIconModule,
@@ -61,120 +52,109 @@ const HIT_KEY = 'xfil_daily_goal_hit';
           <form (submit)="saveGoal($event)" class="gt-form">
             <mat-form-field appearance="outline" class="gt-field">
               <mat-label>Daily target (approvals)</mat-label>
-              <input
-                matInput
-                autocomplete="off"
-                type="number"
-                min="1"
-                [(ngModel)]="goalDraft"
-                name="gt-goal"
-              />
+              <input matInput autocomplete="off" type="number" min="1" [(ngModel)]="goalDraft" name="gt-goal" />
             </mat-form-field>
-            <button
-              mat-flat-button
-              color="primary"
-              type="submit"
-              [disabled]="goalDraft < 1"
-            >
-              Save
-            </button>
+            <button mat-flat-button color="primary" type="submit" [disabled]="goalDraft < 1">Save</button>
           </form>
         } @else {
           <div class="gt-progress-row">
-            <span class="gt-progress-num">
-              {{ progressToday() }} / {{ goal() }}
-            </span>
-            <button
-              mat-icon-button
-              type="button"
-              matTooltip="Edit daily goal"
-              (click)="startEdit()"
-            >
+            <span class="gt-progress-num"> {{ progressToday() }} / {{ goal() }} </span>
+            <button mat-icon-button type="button" matTooltip="Edit daily goal" (click)="startEdit()">
               <mat-icon>edit</mat-icon>
             </button>
           </div>
-          <mat-progress-bar
-            mode="determinate"
-            [value]="percent()"
-            [class.gt-bar-done]="achieved()"
-          />
+          <mat-progress-bar mode="determinate" [value]="percent()" [class.gt-bar-done]="achieved()" />
           @if (achieved()) {
             <p class="gt-celebrate" [class.gt-pulse]="celebrating()">
               <mat-icon class="gt-celebrate-icon">check_circle</mat-icon>
               Done for today — goal hit. 🎉
             </p>
           } @else {
-            <p class="gt-hint">
-              {{ remaining() }} more to hit your goal.
-            </p>
+            <p class="gt-hint">{{ remaining() }} more to hit your goal.</p>
           }
         }
       </mat-card-content>
     </mat-card>
   `,
-  styles: [`
-    .gt-card { height: 100%; }
-    .gt-avatar {
-      background: var(--color-primary);
-      color: var(--color-on-primary, #ffffff);
-    }
-    .gt-progress-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-    .gt-progress-num {
-      font-size: 22px;
-      font-weight: 500;
-      color: var(--color-text-primary);
-      font-variant-numeric: tabular-nums;
-    }
-    .gt-form {
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-    }
-    .gt-field { flex: 1; }
-    mat-progress-bar {
-      height: 8px;
-      border-radius: 4px;
-      overflow: hidden;
-    }
-    .gt-bar-done ::ng-deep .mdc-linear-progress__bar-inner {
-      border-color: var(--color-success, #1e8e3e) !important;
-    }
-    .gt-celebrate {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin: 12px 0 0;
-      padding: 8px 12px;
-      background: var(--color-success-light, rgba(30, 142, 62, 0.10));
-      color: var(--color-success-dark, #137333);
-      border-radius: var(--card-border-radius, 8px);
-      font-weight: 500;
-      font-size: 13px;
-    }
-    .gt-celebrate-icon { color: var(--color-success, #1e8e3e); }
-    .gt-pulse {
-      animation: gt-pulse 1.2s ease 0s 2;
-    }
-    .gt-hint {
-      margin: 12px 0 0;
-      font-size: 12px;
-      color: var(--color-text-secondary);
-    }
-    @keyframes gt-pulse {
-      0%   { transform: scale(1); }
-      50%  { transform: scale(1.05); }
-      100% { transform: scale(1); }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .gt-pulse { animation: none; }
-    }
-  `],
+  styles: [
+    `
+      .gt-card {
+        height: 100%;
+      }
+      .gt-avatar {
+        background: var(--color-primary);
+        color: var(--color-on-primary, #ffffff);
+      }
+      .gt-progress-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      .gt-progress-num {
+        font-size: 22px;
+        font-weight: 500;
+        color: var(--color-text-primary);
+        font-variant-numeric: tabular-nums;
+      }
+      .gt-form {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      .gt-field {
+        flex: 1;
+      }
+      mat-progress-bar {
+        height: 8px;
+        border-radius: 4px;
+        overflow: hidden;
+      }
+      .gt-bar-done ::ng-deep .mdc-linear-progress__bar-inner {
+        border-color: var(--color-success, #1e8e3e) !important;
+      }
+      .gt-celebrate {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 12px 0 0;
+        padding: 8px 12px;
+        background: var(--color-success-light, rgba(30, 142, 62, 0.1));
+        color: var(--color-success-dark, #137333);
+        border-radius: var(--card-border-radius, 8px);
+        font-weight: 500;
+        font-size: 13px;
+      }
+      .gt-celebrate-icon {
+        color: var(--color-success, #1e8e3e);
+      }
+      .gt-pulse {
+        animation: gt-pulse 1.2s ease 0s 2;
+      }
+      .gt-hint {
+        margin: 12px 0 0;
+        font-size: 12px;
+        color: var(--color-text-secondary);
+      }
+      @keyframes gt-pulse {
+        0% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.05);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .gt-pulse {
+          animation: none;
+        }
+      }
+    `,
+  ],
 })
 export class GoalTrackerComponent implements OnInit, OnChanges {
   @Input() set data(next: DashboardData | null | undefined) {
@@ -204,9 +184,7 @@ export class GoalTrackerComponent implements OnInit, OnChanges {
   });
 
   readonly achieved = computed(() => this.progressToday() >= this.goal());
-  readonly remaining = computed(() =>
-    Math.max(0, this.goal() - this.progressToday()),
-  );
+  readonly remaining = computed(() => Math.max(0, this.goal() - this.progressToday()));
 
   ngOnInit(): void {
     this.goal.set(this.readGoal());
@@ -232,7 +210,11 @@ export class GoalTrackerComponent implements OnInit, OnChanges {
     event.preventDefault();
     const v = Math.max(1, Math.floor(this.goalDraft || 1));
     this.goal.set(v);
-    try { localStorage.setItem(GOAL_KEY, String(v)); } catch { /* no-op */ }
+    try {
+      localStorage.setItem(GOAL_KEY, String(v));
+    } catch {
+      /* no-op */
+    }
     this.editingGoal.set(false);
   }
 
@@ -265,10 +247,7 @@ export class GoalTrackerComponent implements OnInit, OnChanges {
       const raw = localStorage.getItem(BASELINE_KEY);
       const obj = raw ? (JSON.parse(raw) as { date: string; value: number }) : null;
       if (!obj || obj.date !== this.todayKey()) {
-        localStorage.setItem(
-          BASELINE_KEY,
-          JSON.stringify({ date: this.todayKey(), value: currentTotal }),
-        );
+        localStorage.setItem(BASELINE_KEY, JSON.stringify({ date: this.todayKey(), value: currentTotal }));
       }
     } catch {
       // No-op.

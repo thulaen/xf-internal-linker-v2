@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, Input, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -21,7 +21,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
   selector: 'app-anchor-link-button',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatButtonModule, MatIconModule, MatTooltipModule, MatSnackBarModule],
+  imports: [MatButtonModule, MatIconModule, MatTooltipModule, MatSnackBarModule],
   template: `
     <button
       mat-icon-button
@@ -35,15 +35,24 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
       <mat-icon>link</mat-icon>
     </button>
   `,
-  styles: [`
-    :host { display: inline-flex; }
-    .anchor-link-btn { opacity: 0; transition: opacity 0.2s; }
-    :host-context(:hover) .anchor-link-btn,
-    .anchor-link-btn:focus-visible {
-      opacity: 1;
-    }
-    :host(.always-visible) .anchor-link-btn { opacity: 1; }
-  `],
+  styles: [
+    `
+      :host {
+        display: inline-flex;
+      }
+      .anchor-link-btn {
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+      :host-context(:hover) .anchor-link-btn,
+      .anchor-link-btn:focus-visible {
+        opacity: 1;
+      }
+      :host(.always-visible) .anchor-link-btn {
+        opacity: 1;
+      }
+    `,
+  ],
 })
 export class AnchorLinkButtonComponent {
   @Input() anchorId = '';
@@ -51,9 +60,7 @@ export class AnchorLinkButtonComponent {
   private snack = inject(MatSnackBar);
 
   protected tooltip(): string {
-    return this.anchorId
-      ? `Copy link to "${this.anchorId}"`
-      : 'Copy link to this section';
+    return this.anchorId ? `Copy link to "${this.anchorId}"` : 'Copy link to this section';
   }
 
   async copyLink(): Promise<void> {
@@ -63,11 +70,9 @@ export class AnchorLinkButtonComponent {
       await navigator.clipboard.writeText(url);
       this.snack.open('Link copied — paste to share.', 'OK', { duration: 2500 });
     } catch {
-      this.snack.open(
-        'Could not copy — long-press your browser address bar and share manually.',
-        'OK',
-        { duration: 4000 },
-      );
+      this.snack.open('Could not copy — long-press your browser address bar and share manually.', 'OK', {
+        duration: 4000,
+      });
     }
   }
 }

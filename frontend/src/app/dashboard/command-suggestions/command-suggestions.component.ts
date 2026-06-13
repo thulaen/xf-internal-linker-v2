@@ -1,11 +1,6 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import {} from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
@@ -40,19 +35,86 @@ interface Intent {
 
 const INTENT_LIBRARY: readonly Intent[] = [
   { keywords: ['sync', 'import', 'fetch', 'pull'], action: 'Run an import / sync', route: '/jobs', icon: 'sync' },
-  { keywords: ['review', 'approve', 'pending', 'suggestions'], action: 'Review pending suggestions', route: '/review', icon: 'rate_review' },
-  { keywords: ['broken', 'link', 'fix', 'scan'], action: 'Scan for broken links', route: '/link-health', icon: 'link_off' },
-  { keywords: ['health', 'status', 'system', 'services'], action: 'Open the System Health page', route: '/health', icon: 'health_and_safety' },
-  { keywords: ['alerts', 'warning', 'notifications'], action: 'Open the Alerts page', route: '/alerts', icon: 'notifications' },
-  { keywords: ['graph', 'network', 'map', 'topology'], action: 'Explore the Link Graph', route: '/graph', icon: 'account_tree' },
-  { keywords: ['analytics', 'traffic', 'impressions', 'clicks'], action: 'Open Analytics reports', route: '/analytics', icon: 'bar_chart' },
-  { keywords: ['hubs', 'behavioral', 'cluster'], action: 'Explore Behavioral Hubs', route: '/behavioral-hubs', icon: 'hub' },
-  { keywords: ['performance', 'benchmark', 'speed'], action: 'Open Performance benchmarks', route: '/performance', icon: 'speed' },
-  { keywords: ['errors', 'bugs', 'exceptions', 'log'], action: 'Open the Error Log', route: '/error-log', icon: 'bug_report' },
-  { keywords: ['crawl', 'sitemap', 'discover'], action: 'Start a web crawl', route: '/crawler', icon: 'travel_explore' },
-  { keywords: ['settings', 'configure', 'weights', 'theme', 'appearance'], action: 'Open Settings', route: '/settings', icon: 'settings' },
-  { keywords: ['pipeline', 'run', 'generate'], action: 'Run the pipeline', route: '/dashboard', fragment: 'today-focus', icon: 'play_arrow' },
-  { keywords: ['pause', 'stop', 'halt'], action: 'Pause everything (master switch)', route: '/dashboard', fragment: 'today-focus', icon: 'pause_circle' },
+  {
+    keywords: ['review', 'approve', 'pending', 'suggestions'],
+    action: 'Review pending suggestions',
+    route: '/review',
+    icon: 'rate_review',
+  },
+  {
+    keywords: ['broken', 'link', 'fix', 'scan'],
+    action: 'Scan for broken links',
+    route: '/link-health',
+    icon: 'link_off',
+  },
+  {
+    keywords: ['health', 'status', 'system', 'services'],
+    action: 'Open the System Health page',
+    route: '/health',
+    icon: 'health_and_safety',
+  },
+  {
+    keywords: ['alerts', 'warning', 'notifications'],
+    action: 'Open the Alerts page',
+    route: '/alerts',
+    icon: 'notifications',
+  },
+  {
+    keywords: ['graph', 'network', 'map', 'topology'],
+    action: 'Explore the Link Graph',
+    route: '/graph',
+    icon: 'account_tree',
+  },
+  {
+    keywords: ['analytics', 'traffic', 'impressions', 'clicks'],
+    action: 'Open Analytics reports',
+    route: '/analytics',
+    icon: 'bar_chart',
+  },
+  {
+    keywords: ['hubs', 'behavioral', 'cluster'],
+    action: 'Explore Behavioral Hubs',
+    route: '/behavioral-hubs',
+    icon: 'hub',
+  },
+  {
+    keywords: ['performance', 'benchmark', 'speed'],
+    action: 'Open Performance benchmarks',
+    route: '/performance',
+    icon: 'speed',
+  },
+  {
+    keywords: ['errors', 'bugs', 'exceptions', 'log'],
+    action: 'Open the Error Log',
+    route: '/error-log',
+    icon: 'bug_report',
+  },
+  {
+    keywords: ['crawl', 'sitemap', 'discover'],
+    action: 'Start a web crawl',
+    route: '/crawler',
+    icon: 'travel_explore',
+  },
+  {
+    keywords: ['settings', 'configure', 'weights', 'theme', 'appearance'],
+    action: 'Open Settings',
+    route: '/settings',
+    icon: 'settings',
+  },
+  {
+    keywords: ['pipeline', 'run', 'generate'],
+    action: 'Run the pipeline',
+    route: '/dashboard',
+    fragment: 'today-focus',
+    icon: 'play_arrow',
+  },
+  {
+    keywords: ['pause', 'stop', 'halt'],
+    action: 'Pause everything (master switch)',
+    route: '/dashboard',
+    fragment: 'today-focus',
+    icon: 'pause_circle',
+  },
 ];
 
 @Component({
@@ -60,7 +122,6 @@ const INTENT_LIBRARY: readonly Intent[] = [
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     FormsModule,
     RouterLink,
     MatCardModule,
@@ -109,26 +170,32 @@ const INTENT_LIBRARY: readonly Intent[] = [
       </mat-card-content>
     </mat-card>
   `,
-  styles: [`
-    .cs-card { height: 100%; }
-    .cs-avatar {
-      background: var(--color-primary);
-      color: var(--color-on-primary, #ffffff);
-    }
-    .cs-field { width: 100%; }
-    .cs-option-icon {
-      margin-right: 8px;
-      color: var(--color-text-secondary);
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
-      vertical-align: middle;
-    }
-    .cs-no-match {
-      color: var(--color-text-secondary);
-      font-style: italic;
-    }
-  `],
+  styles: [
+    `
+      .cs-card {
+        height: 100%;
+      }
+      .cs-avatar {
+        background: var(--color-primary);
+        color: var(--color-on-primary, #ffffff);
+      }
+      .cs-field {
+        width: 100%;
+      }
+      .cs-option-icon {
+        margin-right: 8px;
+        color: var(--color-text-secondary);
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+        vertical-align: middle;
+      }
+      .cs-no-match {
+        color: var(--color-text-secondary);
+        font-style: italic;
+      }
+    `,
+  ],
 })
 export class CommandSuggestionsComponent {
   private readonly router = inject(Router);

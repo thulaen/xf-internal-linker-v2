@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -29,13 +29,7 @@ import { TodayAction } from '../today-focus/today-focus.component';
   selector: 'app-priority-action-queue',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    CommonModule,
-    RouterLink,
-    MatCardModule,
-    MatIconModule,
-    MatButtonModule,
-  ],
+  imports: [RouterLink, MatCardModule, MatIconModule, MatButtonModule],
   template: `
     <mat-card class="paq-card">
       <mat-card-header>
@@ -47,8 +41,7 @@ import { TodayAction } from '../today-focus/today-focus.component';
         @if (topActions.length === 0) {
           <p class="paq-empty">
             <mat-icon class="paq-empty-icon">check_circle</mat-icon>
-            Nothing urgent. Great time to review pending suggestions or
-            explore the Link Graph.
+            Nothing urgent. Great time to review pending suggestions or explore the Link Graph.
           </p>
         } @else {
           <ol class="paq-list">
@@ -76,89 +69,97 @@ import { TodayAction } from '../today-focus/today-focus.component';
       </mat-card-content>
     </mat-card>
   `,
-  styles: [`
-    .paq-card { height: 100%; }
-    .paq-avatar {
-      background: var(--color-primary);
-      color: var(--color-on-primary, #ffffff);
-    }
-    .paq-list {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .paq-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px;
-      border-radius: var(--card-border-radius, 8px);
-      border: var(--card-border);
-      background: var(--color-bg-white);
-    }
-    .paq-item.severity-error {
-      border-color: var(--color-error);
-      background: var(--color-error-50, rgba(217, 48, 37, 0.05));
-    }
-    .paq-item.severity-warning {
-      border-color: var(--color-warning);
-      background: var(--color-warning-light, rgba(249, 171, 0, 0.08));
-    }
-    .paq-number {
-      flex-shrink: 0;
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: var(--color-primary);
-      color: var(--color-on-primary, #ffffff);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 600;
-      font-size: 14px;
-    }
-    .paq-item.severity-error .paq-number { background: var(--color-error); }
-    .paq-item.severity-warning .paq-number { background: var(--color-warning); }
-    .paq-body {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      min-width: 0;
-    }
-    .paq-title {
-      font-weight: 500;
-      font-size: 13px;
-      color: var(--color-text-primary);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .paq-reason {
-      font-size: 12px;
-      color: var(--color-text-secondary);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .paq-cta {
-      flex-shrink: 0;
-    }
-    .paq-empty {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin: 0;
-      font-size: 13px;
-      color: var(--color-text-secondary);
-    }
-    .paq-empty-icon {
-      color: var(--color-success, #1e8e3e);
-    }
-  `],
+  styles: [
+    `
+      .paq-card {
+        height: 100%;
+      }
+      .paq-avatar {
+        background: var(--color-primary);
+        color: var(--color-on-primary, #ffffff);
+      }
+      .paq-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .paq-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        border-radius: var(--card-border-radius, 8px);
+        border: var(--card-border);
+        background: var(--color-bg-white);
+      }
+      .paq-item.severity-error {
+        border-color: var(--color-error);
+        background: var(--color-error-50, rgba(217, 48, 37, 0.05));
+      }
+      .paq-item.severity-warning {
+        border-color: var(--color-warning);
+        background: var(--color-warning-light, rgba(249, 171, 0, 0.08));
+      }
+      .paq-number {
+        flex-shrink: 0;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--color-primary);
+        color: var(--color-on-primary, #ffffff);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 14px;
+      }
+      .paq-item.severity-error .paq-number {
+        background: var(--color-error);
+      }
+      .paq-item.severity-warning .paq-number {
+        background: var(--color-warning);
+      }
+      .paq-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      }
+      .paq-title {
+        font-weight: 500;
+        font-size: 13px;
+        color: var(--color-text-primary);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .paq-reason {
+        font-size: 12px;
+        color: var(--color-text-secondary);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .paq-cta {
+        flex-shrink: 0;
+      }
+      .paq-empty {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0;
+        font-size: 13px;
+        color: var(--color-text-secondary);
+      }
+      .paq-empty-icon {
+        color: var(--color-success, #1e8e3e);
+      }
+    `,
+  ],
 })
 export class PriorityActionQueueComponent {
   @Input() set actions(next: readonly TodayAction[] | null | undefined) {

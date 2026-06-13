@@ -1,13 +1,6 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  OnInit,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { NavigationEnd, Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { filter } from 'rxjs';
@@ -48,7 +41,7 @@ const ROUTE_LABELS: Record<string, { label: string; icon: string }> = {
   selector: 'app-you-are-here',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatIconModule],
+  imports: [MatIconModule],
   template: `
     <div class="yah" role="status" aria-live="polite">
       <span class="yah-prefix">You are here:</span>
@@ -56,37 +49,39 @@ const ROUTE_LABELS: Record<string, { label: string; icon: string }> = {
       <span class="yah-label">{{ current().label }}</span>
     </div>
   `,
-  styles: [`
-    .yah {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      font-size: 12px;
-      color: var(--color-text-secondary);
-      background: var(--color-bg-faint);
-      border-radius: var(--card-border-radius, 8px);
-      border: var(--card-border);
-      width: fit-content;
-    }
-    .yah-prefix {
-      color: var(--color-text-secondary);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      font-size: 10px;
-      font-weight: 500;
-    }
-    .yah-icon {
-      color: var(--color-primary);
-      font-size: 16px;
-      width: 16px;
-      height: 16px;
-    }
-    .yah-label {
-      color: var(--color-text-primary);
-      font-weight: 500;
-    }
-  `],
+  styles: [
+    `
+      .yah {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        font-size: 12px;
+        color: var(--color-text-secondary);
+        background: var(--color-bg-faint);
+        border-radius: var(--card-border-radius, 8px);
+        border: var(--card-border);
+        width: fit-content;
+      }
+      .yah-prefix {
+        color: var(--color-text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-size: 10px;
+        font-weight: 500;
+      }
+      .yah-icon {
+        color: var(--color-primary);
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+      }
+      .yah-label {
+        color: var(--color-text-primary);
+        font-weight: 500;
+      }
+    `,
+  ],
 })
 export class YouAreHereComponent implements OnInit {
   private readonly router = inject(Router);

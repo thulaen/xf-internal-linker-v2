@@ -1,5 +1,13 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  DestroyRef,
+  OnInit,
+  inject,
+  signal,
+} from '@angular/core';
+
 import { FormsModule } from '@angular/forms';
 import { catchError, finalize, of } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -27,7 +35,6 @@ import { FindBugsFinding, FindBugsService, FindBugsSummary } from './find-bugs.s
   selector: 'app-find-bugs',
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     MatButtonModule,
     MatCardModule,
@@ -78,14 +85,15 @@ export class FindBugsComponent implements OnInit {
 
   refresh(): void {
     this.error = '';
-    this.service.summary()
+    this.service
+      .summary()
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError(() => {
           this.error = 'FindBugs summary could not be loaded.';
           this.cdr.markForCheck();
           return of(null);
-        })
+        }),
       )
       .subscribe((summary) => {
         this.summary = summary;
@@ -96,21 +104,24 @@ export class FindBugsComponent implements OnInit {
   }
 
   loadFindings(): void {
-    this.service.findings({
-      search: this.search,
-      severity: this.severity,
-      status: this.status,
-    }).pipe(
-      takeUntilDestroyed(this.destroyRef),
-      catchError(() => {
-        this.error = 'FindBugs findings could not be loaded.';
-        this.cdr.markForCheck();
-        return of({ results: [] });
+    this.service
+      .findings({
+        search: this.search,
+        severity: this.severity,
+        status: this.status,
       })
-    ).subscribe((payload) => {
-      this.findings = this.dedupeFindings(payload.results);
-      this.cdr.markForCheck();
-    });
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        catchError(() => {
+          this.error = 'FindBugs findings could not be loaded.';
+          this.cdr.markForCheck();
+          return of({ results: [] });
+        }),
+      )
+      .subscribe((payload) => {
+        this.findings = this.dedupeFindings(payload.results);
+        this.cdr.markForCheck();
+      });
   }
 
   runNow(): void {
@@ -198,7 +209,10 @@ export class FindBugsComponent implements OnInit {
   modelDetail(): string {
     const model = this.summary?.model;
     const reason = model?.reason || '';
-    if ((model as Record<string, unknown>)?.['resource_comfort'] && ((model as Record<string, unknown>)['resource_comfort'] as Record<string, unknown>)?.['embedding_busy']) {
+    if (
+      (model as Record<string, unknown>)?.['resource_comfort'] &&
+      ((model as Record<string, unknown>)['resource_comfort'] as Record<string, unknown>)?.['embedding_busy']
+    ) {
       return 'Running beside embeddings; VictoriaMetrics will file a tuning issue if pressure is too high.';
     }
     if (reason === 'embeddings_busy') {
@@ -272,7 +286,9 @@ export class FindBugsComponent implements OnInit {
       notes['category'] ? `Category: ${notes['category']}` : '',
       notes['affected'] ? `Affected: ${notes['affected']}` : '',
       notes['what_to_do'] ? `What to do: ${notes['what_to_do']}` : '',
-    ].filter(Boolean).join(' ');
+    ]
+      .filter(Boolean)
+      .join(' ');
   }
 
   copyForAgents(finding: FindBugsFinding): void {
@@ -286,11 +302,19 @@ export class FindBugsComponent implements OnInit {
   private runAction(action: () => ReturnType<FindBugsService['runNow']>): void {
     this.busy = true;
     this.cdr.markForCheck();
-    action().pipe(finalize(() => {
-      this.busy = false;
-      this.refresh();
-      this.cdr.markForCheck();
-    })).subscribe({ error: () => { this.error = 'FindBugs action failed.'; } });
+    action()
+      .pipe(
+        finalize(() => {
+          this.busy = false;
+          this.refresh();
+          this.cdr.markForCheck();
+        }),
+      )
+      .subscribe({
+        error: () => {
+          this.error = 'FindBugs action failed.';
+        },
+      });
   }
 
   private dedupeFindings(findings: FindBugsFinding[]): FindBugsFinding[] {
@@ -320,10 +344,7 @@ export class FindBugsComponent implements OnInit {
     const sorted = [...group].sort((a, b) => this.rankFinding(b) - this.rankFinding(a));
     const winner = { ...sorted[0] };
     winner.grouped_findings = sorted;
-    winner.occurrence_count = sorted.reduce(
-      (total, finding) => total + Math.max(1, finding.occurrence_count ?? 1),
-      0,
-    );
+    winner.occurrence_count = sorted.reduce((total, finding) => total + Math.max(1, finding.occurrence_count ?? 1), 0);
     return winner;
   }
 
@@ -331,10 +352,7 @@ export class FindBugsComponent implements OnInit {
     return (finding.occurrence_count ?? 0) * 1_000_000 + finding.id;
   }
 
-  private moveToLesson(
-    finding: FindBugsFinding,
-    classification: 'false_positive' | 'false_negative',
-  ): void {
+  private moveToLesson(finding: FindBugsFinding, classification: 'false_positive' | 'false_negative'): void {
     const lesson = [
       `Trap: ${this.pattern(finding)} was classified as ${classification.replace('_', ' ')}.`,
       'Fix shape: keep this decision as a compressed FindBugs lesson for future agent review.',

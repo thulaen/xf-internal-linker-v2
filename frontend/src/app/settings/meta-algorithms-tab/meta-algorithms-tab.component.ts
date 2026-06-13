@@ -1,13 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  DestroyRef,
-  inject,
-  OnInit,
-  signal,
-} from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
+
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ScrollingModule } from '@angular/cdk/scrolling';
@@ -24,12 +16,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import {
-  FamilySummary,
-  MetaAlgorithmsService,
-  MetaRow,
-  MetaStatus,
-} from './meta-algorithms.service';
+import { FamilySummary, MetaAlgorithmsService, MetaRow, MetaStatus } from './meta-algorithms.service';
 import { MetaRowComponent } from './meta-row.component';
 import { SpecViewerDialogComponent } from '../spec-viewer-dialog/spec-viewer-dialog.component';
 
@@ -41,7 +28,6 @@ import { SpecViewerDialogComponent } from '../spec-viewer-dialog/spec-viewer-dia
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     FormsModule,
     ScrollingModule,
     MatButtonModule,
@@ -73,9 +59,8 @@ import { SpecViewerDialogComponent } from '../spec-viewer-dialog/spec-viewer-dia
           }
         </div>
         <p class="ma-subtitle" i18n="@@metaAlgorithms.subtitle">
-          Manage every algorithm the ranking pipeline knows about.
-          Winners are on by default; alternates are off but pre-filled
-          so you can swap them in instantly.
+          Manage every algorithm the ranking pipeline knows about. Winners are on by default; alternates are off but
+          pre-filled so you can swap them in instantly.
         </p>
       </header>
 
@@ -107,24 +92,18 @@ import { SpecViewerDialogComponent } from '../spec-viewer-dialog/spec-viewer-dia
 
         <mat-form-field appearance="outline" class="ma-status-filter">
           <mat-label i18n="@@metaAlgorithms.status.label">Status</mat-label>
-          <mat-select
-            [value]="statusFilter()"
-            (valueChange)="onStatusChange($event)"
-          >
+          <mat-select [value]="statusFilter()" (valueChange)="onStatusChange($event)">
             <mat-option value="" i18n="@@metaAlgorithms.filter.all">All</mat-option>
             <mat-option value="active" i18n="@@metaAlgorithms.filter.active">Active only</mat-option>
-            <mat-option value="disabled-pending-implementation" i18n="@@metaAlgorithms.filter.spec">Spec only</mat-option>
+            <mat-option value="disabled-pending-implementation" i18n="@@metaAlgorithms.filter.spec"
+              >Spec only</mat-option
+            >
             <mat-option value="forward-declared" i18n="@@metaAlgorithms.filter.forward">Forward-declared</mat-option>
             <mat-option value="disabled" i18n="@@metaAlgorithms.filter.disabled">Disabled</mat-option>
           </mat-select>
         </mat-form-field>
 
-        <button
-          mat-stroked-button
-          type="button"
-          (click)="refresh()"
-          [disabled]="loading()"
-        >
+        <button mat-stroked-button type="button" (click)="refresh()" [disabled]="loading()">
           <mat-icon>refresh</mat-icon>
           <ng-container i18n="@@metaAlgorithms.refreshBtn">Refresh</ng-container>
         </button>
@@ -149,12 +128,7 @@ import { SpecViewerDialogComponent } from '../spec-viewer-dialog/spec-viewer-dia
         <section class="ma-empty" role="status">
           <mat-icon>search_off</mat-icon>
           <p i18n="@@metaAlgorithms.empty.message">No meta-algorithms match those filters.</p>
-          <button
-            mat-stroked-button
-            type="button"
-            (click)="resetFilters()"
-            i18n="@@metaAlgorithms.empty.resetBtn"
-          >
+          <button mat-stroked-button type="button" (click)="resetFilters()" i18n="@@metaAlgorithms.empty.resetBtn">
             Reset filters
           </button>
         </section>
@@ -168,10 +142,7 @@ import { SpecViewerDialogComponent } from '../spec-viewer-dialog/spec-viewer-dia
           <span i18n="@@metaAlgorithms.table.on">On</span>
           <span></span>
         </div>
-        <cdk-virtual-scroll-viewport
-          itemSize="44"
-          class="ma-viewport"
-        >
+        <cdk-virtual-scroll-viewport itemSize="44" class="ma-viewport">
           <app-meta-row
             *cdkVirtualFor="let row of filteredRows(); trackBy: trackById"
             [row]="row"
@@ -182,79 +153,96 @@ import { SpecViewerDialogComponent } from '../spec-viewer-dialog/spec-viewer-dia
       }
     </section>
   `,
-  styles: [`
-    .ma-tab {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      padding: 16px;
-    }
-    .ma-header { display: flex; flex-direction: column; gap: 4px; }
-    .ma-title-row { display: flex; align-items: center; gap: 12px; }
-    .ma-title {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      margin: 0;
-      font-size: 18px;
-      font-weight: 500;
-    }
-    .ma-count {
-      font-size: 12px;
-      color: var(--color-text-secondary, #5f6368);
-      font-variant-numeric: tabular-nums;
-    }
-    .ma-subtitle {
-      margin: 0;
-      color: var(--color-text-secondary);
-      font-size: 13px;
-    }
-    .ma-controls {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
-    .ma-search { flex: 1 1 280px; max-width: 360px; }
-    .ma-status-filter { flex: 0 1 200px; }
-    .ma-families {
-      max-height: 80px;
-      overflow-y: auto;
-      padding-left: 16px;   /* Layout Rule A — first chip 16px clearance. */
-    }
-    .ma-viewport {
-      height: calc(100vh - 420px);
-      min-height: 320px;
-      border: 0.8px solid var(--color-border, #dadce0);
-      border-radius: 4px;
-      background: var(--color-bg, #ffffff);
-    }
-    .ma-header-row {
-      display: grid;
-      grid-template-columns: 56px 88px 1fr 112px 96px 48px 40px;
-      gap: 8px;
-      padding: 8px 12px;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.4px;
-      text-transform: uppercase;
-      color: var(--color-text-secondary, #5f6368);
-      background: var(--color-bg-faint, #f8f9fa);
-      border-bottom: 0.8px solid var(--color-border);
-      border-radius: 4px 4px 0 0;
-    }
-    .ma-empty {
-      text-align: center;
-      padding: 48px 16px;
-      color: var(--color-text-secondary);
-    }
-    .ma-empty mat-icon {
-      width: 48px;
-      height: 48px;
-      font-size: 48px;
-    }
-    .ma-empty p { margin: 8px 0 16px; }
-  `],
+  styles: [
+    `
+      .ma-tab {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        padding: 16px;
+      }
+      .ma-header {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .ma-title-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .ma-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0;
+        font-size: 18px;
+        font-weight: 500;
+      }
+      .ma-count {
+        font-size: 12px;
+        color: var(--color-text-secondary, #5f6368);
+        font-variant-numeric: tabular-nums;
+      }
+      .ma-subtitle {
+        margin: 0;
+        color: var(--color-text-secondary);
+        font-size: 13px;
+      }
+      .ma-controls {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .ma-search {
+        flex: 1 1 280px;
+        max-width: 360px;
+      }
+      .ma-status-filter {
+        flex: 0 1 200px;
+      }
+      .ma-families {
+        max-height: 80px;
+        overflow-y: auto;
+        padding-left: 16px; /* Layout Rule A — first chip 16px clearance. */
+      }
+      .ma-viewport {
+        height: calc(100vh - 420px);
+        min-height: 320px;
+        border: 0.8px solid var(--color-border, #dadce0);
+        border-radius: 4px;
+        background: var(--color-bg, #ffffff);
+      }
+      .ma-header-row {
+        display: grid;
+        grid-template-columns: 56px 88px 1fr 112px 96px 48px 40px;
+        gap: 8px;
+        padding: 8px 12px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        color: var(--color-text-secondary, #5f6368);
+        background: var(--color-bg-faint, #f8f9fa);
+        border-bottom: 0.8px solid var(--color-border);
+        border-radius: 4px 4px 0 0;
+      }
+      .ma-empty {
+        text-align: center;
+        padding: 48px 16px;
+        color: var(--color-text-secondary);
+      }
+      .ma-empty mat-icon {
+        width: 48px;
+        height: 48px;
+        font-size: 48px;
+      }
+      .ma-empty p {
+        margin: 8px 0 16px;
+      }
+    `,
+  ],
 })
 export class MetaAlgorithmsTabComponent implements OnInit {
   private service = inject(MetaAlgorithmsService);
@@ -345,7 +333,11 @@ export class MetaAlgorithmsTabComponent implements OnInit {
             ...r,
             enabled: ev.enabled,
             status: ev.enabled
-              ? (r.meta_code && r.meta_code.startsWith('META-0') ? 'active' : r.status === 'disabled' ? 'forward-declared' : r.status)
+              ? r.meta_code && r.meta_code.startsWith('META-0')
+                ? 'active'
+                : r.status === 'disabled'
+                  ? 'forward-declared'
+                  : r.status
               : 'disabled',
           }
         : r,
@@ -358,8 +350,8 @@ export class MetaAlgorithmsTabComponent implements OnInit {
       .subscribe({
         next: () => {
           const id = ev.id;
-          const state = ev.enabled 
-            ? $localize`:@@settings.actions.enabled:enabled` 
+          const state = ev.enabled
+            ? $localize`:@@settings.actions.enabled:enabled`
             : $localize`:@@settings.actions.disabled:disabled`;
           this.snack.open(
             $localize`:@@metaAlgorithms.success.toggled:${id}:id: → ${state}:state:.`,
@@ -437,9 +429,12 @@ export class MetaAlgorithmsTabComponent implements OnInit {
       const disabled = f.disabled;
       parts.push($localize`:@@metaAlgorithms.families.disabledCount:${disabled}:count: disabled`);
     }
-    
+
     const family = f.family;
-    const summary = parts.length > 0 ? parts.join(' · ') : $localize`:@@metaAlgorithms.families.fallbackCount:${f.total}:total: metas`;
+    const summary =
+      parts.length > 0
+        ? parts.join(' · ')
+        : $localize`:@@metaAlgorithms.families.fallbackCount:${f.total}:total: metas`;
     return $localize`:@@metaAlgorithms.families.genericTip:${family}:family:: ${summary}:summary:`;
   }
 

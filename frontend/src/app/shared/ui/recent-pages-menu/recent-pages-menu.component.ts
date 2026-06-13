@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -22,14 +22,7 @@ import { RecentPagesService } from '../../../core/services/recent-pages.service'
   selector: 'app-recent-pages-menu',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    CommonModule,
-    RouterLink,
-    MatButtonModule,
-    MatIconModule,
-    MatMenuModule,
-    MatTooltipModule,
-  ],
+  imports: [RouterLink, MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule],
   template: `
     @if (svc.menuPages().length > 0) {
       <button
@@ -43,61 +36,54 @@ import { RecentPagesService } from '../../../core/services/recent-pages.service'
         <mat-icon>history</mat-icon>
       </button>
       <mat-menu #menu="matMenu" class="ga4-menu" xPosition="before">
-        <div class="rp-header" (click)="$event.stopPropagation()">
-          Recent pages
-        </div>
+        <div class="rp-header" (click)="$event.stopPropagation()">Recent pages</div>
         @for (p of svc.menuPages(); track p.url) {
-          <a
-            mat-menu-item
-            [routerLink]="p.url"
-            class="rp-item"
-          >
+          <a mat-menu-item [routerLink]="p.url" class="rp-item">
             <mat-icon>schedule</mat-icon>
             <span class="rp-label">{{ p.label }}</span>
             <span class="rp-time">{{ relative(p.visitedAt) }}</span>
           </a>
         }
-        <button
-          mat-menu-item
-          type="button"
-          class="rp-clear"
-          (click)="svc.clear()"
-        >
+        <button mat-menu-item type="button" class="rp-clear" (click)="svc.clear()">
           <mat-icon>delete_outline</mat-icon>
           Clear history
         </button>
       </mat-menu>
     }
   `,
-  styles: [`
-    .rp-header {
-      padding: 8px 16px 4px;
-      font-size: 11px;
-      font-weight: 500;
-      letter-spacing: 0.4px;
-      text-transform: uppercase;
-      color: var(--color-text-secondary, #5f6368);
-      pointer-events: none;
-    }
-    .rp-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .rp-label {
-      flex: 1;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .rp-time {
-      margin-left: 16px;
-      font-size: 11px;
-      color: var(--color-text-secondary, #5f6368);
-      font-variant-numeric: tabular-nums;
-    }
-    .rp-clear { color: var(--color-text-secondary, #5f6368); }
-  `],
+  styles: [
+    `
+      .rp-header {
+        padding: 8px 16px 4px;
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        color: var(--color-text-secondary, #5f6368);
+        pointer-events: none;
+      }
+      .rp-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .rp-label {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .rp-time {
+        margin-left: 16px;
+        font-size: 11px;
+        color: var(--color-text-secondary, #5f6368);
+        font-variant-numeric: tabular-nums;
+      }
+      .rp-clear {
+        color: var(--color-text-secondary, #5f6368);
+      }
+    `,
+  ],
 })
 export class RecentPagesMenuComponent {
   protected svc = inject(RecentPagesService);

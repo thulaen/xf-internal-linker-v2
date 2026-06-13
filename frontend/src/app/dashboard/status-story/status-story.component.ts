@@ -1,13 +1,6 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  OnInit,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -32,14 +25,7 @@ import { ReadAloudComponent } from '../../shared/ui/read-aloud/read-aloud.compon
   selector: 'app-status-story',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    CommonModule,
-    MatCardModule,
-    MatIconModule,
-    MatButtonModule,
-    MatProgressSpinnerModule,
-    ReadAloudComponent,
-  ],
+  imports: [MatCardModule, MatIconModule, MatButtonModule, MatProgressSpinnerModule, ReadAloudComponent],
   template: `
     <mat-card class="status-story-card">
       <mat-card-header>
@@ -57,8 +43,7 @@ import { ReadAloudComponent } from '../../shared/ui/read-aloud/read-aloud.compon
           @if (errored()) {
             <p class="story-stale-hint">
               <mat-icon class="story-stale-icon">schedule</mat-icon>
-              Last refreshed {{ freshnessLabel(s.generated_at) }}. Trying again
-              in the background.
+              Last refreshed {{ freshnessLabel(s.generated_at) }}. Trying again in the background.
             </p>
           }
         } @else {
@@ -66,64 +51,59 @@ import { ReadAloudComponent } from '../../shared/ui/read-aloud/read-aloud.compon
         }
       </mat-card-content>
       <mat-card-actions>
-        <button
-          mat-button
-          color="primary"
-          type="button"
-          [disabled]="loading()"
-          (click)="refresh()"
-        >
+        <button mat-button color="primary" type="button" [disabled]="loading()" (click)="refresh()">
           <mat-icon>refresh</mat-icon>
           Refresh
         </button>
         <!-- Phase D2 / Gap 75 — TTS button. Hidden if browser lacks Web
              Speech API support; otherwise reads the headline aloud. -->
         @if (story(); as s) {
-          <app-read-aloud
-            [text]="s.headline"
-            label="Read the status story aloud"
-          />
+          <app-read-aloud [text]="s.headline" label="Read the status story aloud" />
         }
       </mat-card-actions>
     </mat-card>
   `,
-  styles: [`
-    .status-story-card { height: 100%; }
-    .story-avatar {
-      background: var(--color-primary);
-      color: var(--color-on-primary, #ffffff);
-    }
-    .story-headline {
-      font-size: 15px;
-      line-height: 1.55;
-      color: var(--color-text-primary);
-      margin: 8px 0 0;
-    }
-    .story-stale-hint {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 11px;
-      color: var(--color-text-secondary);
-      margin: 12px 0 0;
-    }
-    .story-stale-icon {
-      font-size: 14px;
-      width: 14px;
-      height: 14px;
-    }
-    .story-spinner {
-      display: flex;
-      justify-content: center;
-      padding: 16px 0;
-    }
-    .story-empty {
-      font-size: 13px;
-      color: var(--color-text-secondary);
-      font-style: italic;
-      margin: 0;
-    }
-  `],
+  styles: [
+    `
+      .status-story-card {
+        height: 100%;
+      }
+      .story-avatar {
+        background: var(--color-primary);
+        color: var(--color-on-primary, #ffffff);
+      }
+      .story-headline {
+        font-size: 15px;
+        line-height: 1.55;
+        color: var(--color-text-primary);
+        margin: 8px 0 0;
+      }
+      .story-stale-hint {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        color: var(--color-text-secondary);
+        margin: 12px 0 0;
+      }
+      .story-stale-icon {
+        font-size: 14px;
+        width: 14px;
+        height: 14px;
+      }
+      .story-spinner {
+        display: flex;
+        justify-content: center;
+        padding: 16px 0;
+      }
+      .story-empty {
+        font-size: 13px;
+        color: var(--color-text-secondary);
+        font-style: italic;
+        margin: 0;
+      }
+    `,
+  ],
 })
 export class StatusStoryComponent implements OnInit {
   private readonly dash = inject(DashboardService);
@@ -143,9 +123,7 @@ export class StatusStoryComponent implements OnInit {
         timer(0, 5 * 60 * 1000).pipe(
           switchMap(() => {
             this.loading.set(true);
-            return this.dash
-              .getStatusStory()
-              .pipe(catchError(() => of<StatusStory | null>(null)));
+            return this.dash.getStatusStory().pipe(catchError(() => of<StatusStory | null>(null)));
           }),
         ),
       )

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { HttpClient } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -42,7 +42,6 @@ interface SafePruneStatus {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     MatButtonModule,
     MatCardModule,
     MatChipsModule,
@@ -56,9 +55,7 @@ interface SafePruneStatus {
       <mat-card-header>
         <mat-icon mat-card-avatar class="prune-avatar">delete_sweep</mat-icon>
         <mat-card-title>Safe prune</mat-card-title>
-        <mat-card-subtitle>
-          Reclaim disposable disk without touching data
-        </mat-card-subtitle>
+        <mat-card-subtitle> Reclaim disposable disk without touching data </mat-card-subtitle>
       </mat-card-header>
 
       <mat-card-content>
@@ -87,19 +84,24 @@ interface SafePruneStatus {
                   <span class="target-est">~{{ target.approx_reclaim_mb }} MB reclaimable</span>
                 </div>
                 <div class="target-actions">
-                  <button mat-stroked-button
-                          [disabled]="busyTarget() === target.id"
-                          (click)="runPreview(target.id)"
-                          matTooltip="Dry-run preview — no data is touched"
-                          matTooltipPosition="left">
+                  <button
+                    mat-stroked-button
+                    [disabled]="busyTarget() === target.id"
+                    (click)="runPreview(target.id)"
+                    matTooltip="Dry-run preview — no data is touched"
+                    matTooltipPosition="left"
+                  >
                     <mat-icon>preview</mat-icon>
                     Preview
                   </button>
-                  <button mat-flat-button color="primary"
-                          [disabled]="!s.idle || busyTarget() === target.id"
-                          (click)="commit(target.id)"
-                          matTooltip="{{ s.idle ? 'Commit the prune' : 'Blocked: system is not idle' }}"
-                          matTooltipPosition="left">
+                  <button
+                    mat-flat-button
+                    color="primary"
+                    [disabled]="!s.idle || busyTarget() === target.id"
+                    (click)="commit(target.id)"
+                    matTooltip="{{ s.idle ? 'Commit the prune' : 'Blocked: system is not idle' }}"
+                    matTooltipPosition="left"
+                  >
                     @if (busyTarget() === target.id) {
                       <mat-spinner diameter="18"></mat-spinner>
                     } @else {
@@ -115,104 +117,106 @@ interface SafePruneStatus {
           <details class="deny-disclosure">
             <summary>Never touched — hardcoded deny list</summary>
             <p>
-              These substrings are rejected by the backend even if a UI bug
-              tried to request them: {{ s.deny_list.join(', ') }}.
+              These substrings are rejected by the backend even if a UI bug tried to request them:
+              {{ s.deny_list.join(', ') }}.
             </p>
           </details>
         }
       </mat-card-content>
     </mat-card>
   `,
-  styles: [`
-    .prune-card {
-      padding: var(--spacing-card);
-      margin: var(--space-md) 0;
-    }
-    .prune-avatar {
-      background: var(--color-warning-light);
-      color: var(--color-warning-dark);
-    }
-    .prune-loading {
-      display: flex;
-      justify-content: center;
-      padding: var(--space-lg);
-    }
-    .idle-banner {
-      display: flex;
-      align-items: center;
-      gap: var(--space-sm);
-      padding: var(--space-sm) var(--space-md);
-      border-radius: var(--radius-sm);
-      margin-bottom: var(--space-md);
-      background: var(--color-warning-light);
-      color: var(--color-warning-dark);
-      font-size: 13px;
-    }
-    .idle-banner-ok {
-      background: var(--color-success-light);
-      color: var(--color-success-dark);
-    }
-    .targets {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-sm);
-    }
-    .target-row {
-      display: flex;
-      align-items: flex-start;
-      gap: var(--space-md);
-      padding: var(--space-md);
-      border: var(--card-border);
-      border-radius: var(--radius-md);
-    }
-    .target-info {
-      flex: 1;
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-    .target-label {
-      font-weight: 600;
-      font-size: 13px;
-      color: var(--color-text-primary);
-    }
-    .target-detail {
-      font-size: 12px;
-      color: var(--color-text-secondary);
-      line-height: 1.5;
-    }
-    .target-est {
-      font-size: 11px;
-      color: var(--color-text-muted);
-      font-variant-numeric: tabular-nums;
-    }
-    .target-actions {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-xs);
-      min-width: 120px;
-    }
-    .deny-disclosure {
-      margin-top: var(--space-md);
-      padding: var(--space-sm) var(--space-md);
-      background: var(--color-bg-faint);
-      border-radius: var(--radius-sm);
-      font-size: 12px;
-    }
-    .deny-disclosure summary {
-      cursor: pointer;
-      font-weight: 500;
-      color: var(--color-text-primary);
-    }
-    .deny-disclosure p {
-      margin: var(--space-xs) 0 0;
-      color: var(--color-text-secondary);
-      font-family: var(--font-mono);
-      font-size: 11px;
-      word-break: break-all;
-    }
-  `],
+  styles: [
+    `
+      .prune-card {
+        padding: var(--spacing-card);
+        margin: var(--space-md) 0;
+      }
+      .prune-avatar {
+        background: var(--color-warning-light);
+        color: var(--color-warning-dark);
+      }
+      .prune-loading {
+        display: flex;
+        justify-content: center;
+        padding: var(--space-lg);
+      }
+      .idle-banner {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+        padding: var(--space-sm) var(--space-md);
+        border-radius: var(--radius-sm);
+        margin-bottom: var(--space-md);
+        background: var(--color-warning-light);
+        color: var(--color-warning-dark);
+        font-size: 13px;
+      }
+      .idle-banner-ok {
+        background: var(--color-success-light);
+        color: var(--color-success-dark);
+      }
+      .targets {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-sm);
+      }
+      .target-row {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--space-md);
+        padding: var(--space-md);
+        border: var(--card-border);
+        border-radius: var(--radius-md);
+      }
+      .target-info {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .target-label {
+        font-weight: 600;
+        font-size: 13px;
+        color: var(--color-text-primary);
+      }
+      .target-detail {
+        font-size: 12px;
+        color: var(--color-text-secondary);
+        line-height: 1.5;
+      }
+      .target-est {
+        font-size: 11px;
+        color: var(--color-text-muted);
+        font-variant-numeric: tabular-nums;
+      }
+      .target-actions {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-xs);
+        min-width: 120px;
+      }
+      .deny-disclosure {
+        margin-top: var(--space-md);
+        padding: var(--space-sm) var(--space-md);
+        background: var(--color-bg-faint);
+        border-radius: var(--radius-sm);
+        font-size: 12px;
+      }
+      .deny-disclosure summary {
+        cursor: pointer;
+        font-weight: 500;
+        color: var(--color-text-primary);
+      }
+      .deny-disclosure p {
+        margin: var(--space-xs) 0 0;
+        color: var(--color-text-secondary);
+        font-family: var(--font-mono);
+        font-size: 11px;
+        word-break: break-all;
+      }
+    `,
+  ],
 })
 export class SafePruneCardComponent implements OnInit {
   private http = inject(HttpClient);
@@ -232,7 +236,10 @@ export class SafePruneCardComponent implements OnInit {
     this.loading.set(true);
     this.http
       .get<SafePruneStatus>('/api/prune/safe/')
-      .pipe(catchError(() => of<SafePruneStatus | null>(null)), takeUntilDestroyed(this.destroyRef))
+      .pipe(
+        catchError(() => of<SafePruneStatus | null>(null)),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe((res) => {
         this.status.set(res);
         this.loading.set(false);
@@ -285,11 +292,7 @@ export class SafePruneCardComponent implements OnInit {
       .subscribe((res) => {
         this.busyTarget.set('');
         if (res.ok) {
-          this.snack.open(
-            `Pruned ${targetId}. Reclaimed ~${res.reclaimed_mb ?? '?'} MB.`,
-            'OK',
-            { duration: 6000 },
-          );
+          this.snack.open(`Pruned ${targetId}. Reclaimed ~${res.reclaimed_mb ?? '?'} MB.`, 'OK', { duration: 6000 });
           this.reload();
         } else {
           this.snack.open(res.detail || 'Prune failed', 'OK', { duration: 5000 });
