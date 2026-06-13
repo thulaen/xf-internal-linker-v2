@@ -1,0 +1,16 @@
+# cargo-audit configuration (the advisory step in .githooks/check_rust_mandate.py
+# runs `cargo audit -D warnings` from this workspace).
+#
+# The two pyo3 0.26 advisories below require pyo3 >= 0.29, but rust-numpy (used
+# by 9 kernels) has no pyo3-0.29-compatible release yet (latest 0.28 pins pyo3
+# `^0.28`), so the upgrade is blocked by the ecosystem. Both are NON-EXPLOITABLE
+# here — the kernels only construct PyList/PyTuple (never iterate with `.nth()`)
+# and use no PyCFunction closures. See rust/deny.toml for the full rationale.
+#
+# TODO(pyo3-0.29): remove both + bump pyo3 -> 0.29, numpy -> matching once
+# rust-numpy ships pyo3-0.29 support.
+[advisories]
+ignore = [
+    "RUSTSEC-2026-0176",
+    "RUSTSEC-2026-0177",
+]

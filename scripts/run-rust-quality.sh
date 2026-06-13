@@ -206,7 +206,12 @@ for workspace in "${workspaces[@]}"; do
   echo "[run-rust-quality] === workspace: $workspace ==="
   cd "$workspace"
 
-  pairs_file="/repo/audit/rust-quality-pairs-$$.txt"
+  # Transient scratch file for the cache helper. Kept under /tmp (always
+  # present in the container) rather than /repo/audit, which the Dell sync
+  # does not create -- writing there crashed the gate before any check ran.
+  # The cache store itself still lives at /repo/audit; quality_cache.py's
+  # record-pairs creates that directory on first write.
+  pairs_file="/tmp/rust-quality-pairs-$$.txt"
   echo -e "$workspace\t$(echo "$QUALITY_RUST_PATHS" | tr '\n' ' ')" > "$pairs_file"
   if ! python /repo/scripts/quality_cache.py filter-pairs --tool rust-quality --pairs-file "$pairs_file" | grep -q "$workspace"; then
     echo "[run-rust-quality] $workspace is fully cached, skipping."

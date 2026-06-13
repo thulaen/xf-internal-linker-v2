@@ -21,13 +21,13 @@ const NUM_COMPONENTS: usize = 8;
 
 fn make_components(rows: usize) -> Vec<f32> {
     (0..rows * NUM_COMPONENTS)
-        .map(|i| ((i % 97) as f32) * 0.01 - 0.48)
+        .map(|i| ((i % 97) as f32).mul_add(0.01, -0.48))
         .collect()
 }
 
 fn bench_score(c: &mut Criterion) {
     let weights: Vec<f32> = (0..NUM_COMPONENTS)
-        .map(|j| (j as f32) * 0.1 + 0.05)
+        .map(|j| (j as f32).mul_add(0.1, 0.05))
         .collect();
     let mut group = c.benchmark_group("score_full_batch_core");
     for rows in ROW_COUNTS {

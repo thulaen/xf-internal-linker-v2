@@ -28,8 +28,28 @@ allow = [
 # builds). Same policy as the speccheck workspace.
 multiple-versions = "warn"
 wildcards = "deny"
+# Workspace-internal path dependencies (e.g. `xf_kernels = { path = "../.." }`)
+# point at local code, not an unpinned crates.io version, so they never break
+# reproducible builds — exclude them from the wildcard ban. Real crates.io
+# wildcards (`version = "*"`) are still hard-blocked by the line above.
+allow-wildcard-paths = true
 
 [advisories]
-# RustSec advisory IDs to ignore go here, with a justifying comment each. Empty
-# today: cargo-audit (the advisory step that runs before this one) is clean.
-ignore = []
+# RustSec advisory IDs to ignore go here, with a justifying comment each.
+#
+# The two pyo3 0.26 advisories below require pyo3 >= 0.29, but rust-numpy (used
+# by 9 kernels) has no pyo3-0.29-compatible release yet — its latest, 0.28,
+# pins pyo3 `^0.28`, so two `pyo3-ffi` versions cannot both link `python`.
+# Upgrading pyo3 to 0.29 is therefore blocked by the ecosystem, NOT by us.
+# Both advisories are NON-EXPLOITABLE in this codebase (verified by grep):
+ignore = [
+    # OOB read in PyList/PyTuple `.nth()`/`.nth_back()` iterators. The kernels
+    # only CONSTRUCT lists/tuples (PyList::empty, PyTuple::new) — never iterate
+    # with `.nth()` — so the vulnerable path is unreachable here.
+    "RUSTSEC-2026-0176",
+    # Missing `Sync` bound on `PyCFunction::new_closure`. No kernel uses
+    # PyCFunction or any closure across the Python boundary.
+    "RUSTSEC-2026-0177",
+    # TODO(pyo3-0.29): delete both ignores and bump pyo3 -> 0.29 + numpy -> the
+    # matching release once rust-numpy ships pyo3-0.29 support.
+]

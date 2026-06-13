@@ -58,9 +58,11 @@ type Signature = [u32; SIGNATURE_LEN];
 /// sentinel for a freed slot.
 const EMPTY_SIGNATURE: Signature = [0xFFFF_FFFF; SIGNATURE_LEN];
 
-/// Errors the pure-Rust core can raise. The thin `PyO3` wrapper maps these to
-/// `ValueError` / `RuntimeError`; the core never references any Python type so
-/// `cargo test` links without the Python runtime library.
+/// Errors the pure-Rust core can raise.
+///
+/// The thin `PyO3` wrapper maps these to `ValueError` / `RuntimeError`; the
+/// core never references any Python type so `cargo test` links without the
+/// Python runtime library.
 #[derive(Debug, PartialEq, Eq)]
 pub enum DedupError {
     /// `max_entries` exceeds the 100K safety cap.
@@ -80,14 +82,14 @@ impl DedupError {
     #[must_use]
     pub fn message(&self) -> &'static str {
         match self {
-            DedupError::CapExceeded => {
+            Self::CapExceeded => {
                 "PaperTrailDedupIndex: max_entries exceeds the 100K safety cap that \
                  keeps memory under 64 MB. Pick a smaller value."
             }
-            DedupError::SaveOpen => "PaperTrailDedupIndex: cannot open save path",
-            DedupError::LoadOpen => "PaperTrailDedupIndex: cannot open load path",
-            DedupError::MagicMismatch => "PaperTrailDedupIndex: snapshot magic mismatch",
-            DedupError::UnsupportedVersion => "PaperTrailDedupIndex: unsupported snapshot version",
+            Self::SaveOpen => "PaperTrailDedupIndex: cannot open save path",
+            Self::LoadOpen => "PaperTrailDedupIndex: cannot open load path",
+            Self::MagicMismatch => "PaperTrailDedupIndex: snapshot magic mismatch",
+            Self::UnsupportedVersion => "PaperTrailDedupIndex: unsupported snapshot version",
         }
     }
 }

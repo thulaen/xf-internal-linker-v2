@@ -36,6 +36,10 @@ numpy = "0.26"
 # plain-Rust core (`normalize_l2_batch_buffer`) without crossing the Python
 # boundary, matching the Mandatory Benchmark Rule and RUST-FIRST.md step 5.
 criterion = "0.5"
+# Proptest drives the property-based tests over the pure core
+# (`normalize_l2_slice`). Cases default to 50 locally and are raised via the
+# PROPTEST_CASES env var in CI (see scripts/run-pbt.sh).
+proptest = { workspace = true }
 
 [[bench]]
 name = "bench_l2norm"

@@ -855,7 +855,7 @@ mod tests {
         for j in 0..dim {
             let mut s = 0.0_f64;
             for i in 0..dim {
-                s += f64::from(query[i]) * f64::from(rotation[i * dim + j]);
+                s = f64::from(query[i]).mul_add(f64::from(rotation[i * dim + j]), s);
             }
             q_rot[j] = s;
         }
@@ -866,7 +866,7 @@ mod tests {
                 for s in 0..sub_dim {
                     let diff = q_rot[mi * sub_dim + s]
                         - f64::from(codebooks[(mi * k * sub_dim) + (ki * sub_dim) + s]);
-                    d += diff * diff;
+                    d = diff.mul_add(diff, d);
                 }
                 lut64[mi * k + ki] = d;
             }

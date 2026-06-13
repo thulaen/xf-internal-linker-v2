@@ -207,7 +207,10 @@ mod tests {
         // H = -(2/3)log2(2/3) - (1/3)log2(1/3)
         //   =  (2/3)log2(3/2)  + (1/3)log2(3)  = 0.9182958340544896 bits.
         let h = bigram_entropy_bytes(b"aaab");
-        let expected = -(2.0 / 3.0) * (2.0_f64 / 3.0).log2() - (1.0 / 3.0) * (1.0_f64 / 3.0).log2();
+        let expected = (-(2.0_f64 / 3.0)).mul_add(
+            (2.0_f64 / 3.0).log2(),
+            -((1.0 / 3.0) * (1.0_f64 / 3.0).log2()),
+        );
         assert!((h - expected).abs() < TOL, "got {h}, expected {expected}");
         // And the literal hand-computed value, so a refactor of `expected`
         // cannot silently drift.

@@ -61,8 +61,8 @@ enum SnapshotError {
 impl SnapshotError {
     fn message(&self) -> String {
         match self {
-            SnapshotError::Io(m) | SnapshotError::FormatOwned(m) => m.clone(),
-            SnapshotError::Format(m) => (*m).to_owned(),
+            Self::Io(m) | Self::FormatOwned(m) => m.clone(),
+            Self::Format(m) => (*m).to_owned(),
         }
     }
 }

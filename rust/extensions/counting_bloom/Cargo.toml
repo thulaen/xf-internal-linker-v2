@@ -1,6 +1,10 @@
 [package]
 name = "counting_bloom"
 version = "0.1.0"
+# Internal workspace kernel — never published to crates.io. Marks the crate
+# private so cargo-deny's `allow-wildcard-paths` applies to the xf_kernels path
+# dependency (the wildcard ban still covers real crates.io `version = "*"`).
+publish = false
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

@@ -187,10 +187,11 @@ mod tests {
         let mut scores: Vec<(f64, i32, String)> = Vec::new();
         for i in 0..tokens.len() {
             let idf = ((1.0 + f64::from(field_count)) / (1.0 + f64::from(presence[i]))).ln_1p();
-            let denom = f64::from(field_tfs[i])
-                + bm25_k1
-                    * (1.0 - b_value
-                        + b_value * (f64::from(field_length) / reference_length.max(1.0)));
+            let bm25_inner = b_value.mul_add(
+                f64::from(field_length) / reference_length.max(1.0),
+                1.0 - b_value,
+            );
+            let denom = bm25_k1.mul_add(bm25_inner, f64::from(field_tfs[i]));
             let tf_norm = if denom > 0.0 {
                 (f64::from(field_tfs[i]) * (bm25_k1 + 1.0)) / denom
             } else {

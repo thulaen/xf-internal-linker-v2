@@ -126,7 +126,7 @@ impl CompressedBloomFilterCore {
 
     /// The configured number of bits (the `bit_count` constructor arg).
     #[must_use]
-    pub fn bit_count(&self) -> usize {
+    pub const fn bit_count(&self) -> usize {
         self.bit_count
     }
 
@@ -138,7 +138,7 @@ impl CompressedBloomFilterCore {
 
     /// The configured number of hash functions.
     #[must_use]
-    pub fn hash_count(&self) -> usize {
+    pub const fn hash_count(&self) -> usize {
         self.hashes
     }
 }
@@ -175,7 +175,7 @@ impl CompressedBloomFilter {
     }
 
     /// `bit_count() -> int`.
-    fn bit_count(&self) -> usize {
+    const fn bit_count(&self) -> usize {
         self.core.bit_count()
     }
 
@@ -185,7 +185,7 @@ impl CompressedBloomFilter {
     }
 
     /// `hash_count() -> int`.
-    fn hash_count(&self) -> usize {
+    const fn hash_count(&self) -> usize {
         self.core.hash_count()
     }
 }

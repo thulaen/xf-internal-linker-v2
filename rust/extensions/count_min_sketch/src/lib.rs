@@ -114,13 +114,13 @@ impl CountMinSketchCore {
 
     /// The configured number of columns.
     #[must_use]
-    pub fn width(&self) -> usize {
+    pub const fn width(&self) -> usize {
         self.width
     }
 
     /// The configured number of rows (independent hash functions).
     #[must_use]
-    pub fn depth(&self) -> usize {
+    pub const fn depth(&self) -> usize {
         self.depth
     }
 }
@@ -157,12 +157,12 @@ impl CountMinSketch {
     }
 
     /// `width() -> int`.
-    fn width(&self) -> usize {
+    const fn width(&self) -> usize {
         self.core.width()
     }
 
     /// `depth() -> int`.
-    fn depth(&self) -> usize {
+    const fn depth(&self) -> usize {
         self.core.depth()
     }
 }

@@ -155,7 +155,7 @@ mod tests {
         for i in 0..num_rows {
             let mut sum: f32 = if i < silo.len() { silo[i] } else { 0.0 };
             for j in 0..term_count {
-                sum += component_scores[i * num_components + j] * weights[j];
+                sum = component_scores[i * num_components + j].mul_add(weights[j], sum);
             }
             out.push(sum);
         }
@@ -244,12 +244,12 @@ mod tests {
         for i in 0..num_rows * num_components {
             // Bounded small magnitudes; cast is exact for these integers.
             #[allow(clippy::cast_precision_loss)]
-            comp.push(((i % 37) as f32) * 0.013 - 0.25);
+            comp.push(((i % 37) as f32).mul_add(0.013, -0.25));
         }
         let weights: Vec<f32> = (0..num_components)
             .map(|j| {
                 #[allow(clippy::cast_precision_loss)]
-                let v = (j as f32) * 0.1 + 0.05;
+                let v = (j as f32).mul_add(0.1, 0.05);
                 v
             })
             .collect();
@@ -266,7 +266,7 @@ mod tests {
         assert_eq!(out.len(), num_rows);
         for (got, want) in out.iter().zip(expected.iter()) {
             let diff = (got - want).abs();
-            let tol = TOL + TOL * want.abs();
+            let tol = TOL.mul_add(want.abs(), TOL);
             assert!(diff <= tol, "parity drift: got {got} want {want}");
         }
     }

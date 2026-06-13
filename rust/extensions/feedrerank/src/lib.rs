@@ -304,10 +304,10 @@ mod tests {
     ) -> f64 {
         let denom = (f64::from(totals) + alpha + beta).max(1e-9);
         let exploit_raw = (f64::from(successes) + alpha) / denom;
-        let exploit = oc * exploit_raw + (1.0 - oc) * 0.5;
+        let exploit = oc.mul_add(exploit_raw, (1.0 - oc) * 0.5);
         let explore =
             exploration_rate * (f64::from(n_global).ln_1p() / (f64::from(totals) + 1.0)).sqrt();
-        let factor = 1.0 + weight * ((exploit + explore) - 0.5);
+        let factor = weight.mul_add((exploit + explore) - 0.5, 1.0);
         factor.clamp(0.5, 2.0)
     }
 
@@ -378,8 +378,8 @@ mod tests {
         // selected_count==0 -> max_similarity 0.0 -> mmr = lambda*relevance.
         let (mmr, maxsim) = mmr_scores_core(&[0.8, 0.3], &[1.0, 0.0, 0.0, 1.0], &[], 2, 0, 2, 0.7);
         assert!((maxsim[0]).abs() < 1e-12 && (maxsim[1]).abs() < 1e-12);
-        assert!((mmr[0] - 0.7 * 0.8).abs() < 1e-12);
-        assert!((mmr[1] - 0.7 * 0.3).abs() < 1e-12);
+        assert!(0.7_f64.mul_add(-0.8, mmr[0]).abs() < 1e-12);
+        assert!(0.7_f64.mul_add(-0.3, mmr[1]).abs() < 1e-12);
     }
 
     #[test]
@@ -394,7 +394,7 @@ mod tests {
             "max sim {} != 0.9",
             maxsim[0]
         );
-        let want = 0.6 * 1.0 - (1.0 - 0.6) * 0.9;
+        let want = 0.6_f64.mul_add(1.0, -((1.0 - 0.6) * 0.9));
         assert!((mmr[0] - want).abs() < 1e-12);
     }
 

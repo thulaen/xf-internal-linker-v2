@@ -144,6 +144,38 @@ mod tests {
         values.iter().map(|v| v * v).sum::<f32>().sqrt()
     }
 
+    // ── property-based test (proptest) over the pure core ────────────────────
+    // Cases default to 50 (set below) and are raised via PROPTEST_CASES in CI.
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 50, ..ProptestConfig::default() })]
+
+        /// For ANY non-trivial vector, normalization yields unit L2 norm.
+        ///
+        /// Inputs are CONSTRUCTED, never filtered: 1..50 elements, each a
+        /// magnitude in [0.1, 100] with either sign. That range guarantees the
+        /// norm is always > MIN_NORM and never NaN/inf, so no generated value
+        /// is ever discarded.
+        #[test]
+        fn prop_normalize_yields_unit_norm(
+            vec in prop::collection::vec(
+                (0.1f32..100.0f32, any::<bool>())
+                    .prop_map(|(mag, neg)| if neg { -mag } else { mag }),
+                1..50usize,
+            )
+        ) {
+            let mut v = vec;
+            normalize_l2_slice(&mut v);
+            let norm = l2_norm(&v);
+            // Tolerance accounts for f32 accumulation over up to 50 elements.
+            prop_assert!(
+                (norm - 1.0).abs() < 1e-3,
+                "normalized norm should be ~1, got {norm}"
+            );
+        }
+    }
+
     #[test]
     fn normalize_l2_slice_makes_unit_norm() {
         let mut v = [3.0_f32, 4.0];

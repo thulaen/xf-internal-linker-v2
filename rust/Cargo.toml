@@ -10,6 +10,18 @@
 resolver = "2"
 members = ["xf_kernels", "extensions/l2norm", "extensions/count_min_sketch", "extensions/counting_bloom", "extensions/compressed_bloom", "extensions/anchor_self_information", "extensions/ranking_decision_engine", "extensions/generic_anchor_matcher", "extensions/texttok", "extensions/phrasematch", "extensions/rareterm", "extensions/linkparse", "extensions/anchor_descriptiveness", "extensions/anchor_diversity", "extensions/api_rate_limiter", "extensions/fieldrel", "extensions/feedrerank", "extensions/pagerank", "extensions/lesson_index", "extensions/papertrail_dedup", "extensions/scoring", "extensions/simsearch", "extensions/ivf_index", "extensions/passagesim", "extensions/quantemb", "tools"]
 
+[workspace.dependencies]
+# Property-based testing for the pure kernel cores (the `rlib` side, no Python
+# edge). Shared here so every kernel pulls the same pinned version.
+proptest = "1"
+
+# Faster test/proptest builds: opt-level 1 keeps property tests from running
+# orders of magnitude slower under an unoptimised debug build, without paying
+# the full release-build compile time. Profiles only take effect from the
+# workspace-root manifest, so this lives here.
+[profile.test]
+opt-level = 1
+
 [workspace.package]
 edition = "2021"
 rust-version = "1.83"
