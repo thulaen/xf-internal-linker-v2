@@ -75,7 +75,9 @@ datasources:
     type: prometheus
     access: proxy
     uid: victoriametrics
-    url: http://10.10.10.91:8428
+    # Local vmsingle (added to docker-compose.yml 2026-06-13). The store lives
+    # on the same docker network as Grafana, so use the service hostname.
+    url: http://vmsingle:8428
     isDefault: true
     jsonData:
       httpMethod: GET

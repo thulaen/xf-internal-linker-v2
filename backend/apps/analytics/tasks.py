@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
-
 from celery import shared_task
 from django.utils import timezone
 
@@ -357,167 +355,84 @@ def recompute_all_search_impact() -> dict[str, int]:
     return {"processed_suggestions": count}
 
 
-_SPIKE_RATIO = 4  # alert when latest clicks exceed 4x the trailing average
-_SPIKE_NOISE_FLOOR_CLICKS = 10  # ignore pages below this on the target day
-
-
-def _snapshot_gsc_clicks(start_date, end_date) -> "Path | None":
-    """Export the GSC click window to a Parquet snapshot; None when empty.
-
-    A fixed filename is reused (atomic replace) so snapshots never pile up.
-    """
-    import tempfile
-    from pathlib import Path
-
-    import polars as pl
-
-    from apps.pipeline.services._parquet_io import write_parquet_atomic
-    from .models import SearchMetric
-
-    rows = list(
-        SearchMetric.objects.filter(
-            source="gsc", date__range=[start_date, end_date]
-        ).values_list("content_item_id", "date", "clicks")
-    )
-    if not rows:
-        return None
-    item_ids, dates, clicks = zip(*rows)
-    df = pl.DataFrame(
-        {
-            "content_item_id": list(item_ids),
-            "date": list(dates),
-            "clicks": list(clicks),
-        }
-    )
-    path = (
-        Path(tempfile.gettempdir())
-        / "xf-analytics-snapshots"
-        / "gsc_clicks_window.parquet"
-    )
-    write_parquet_atomic(df, path)
-    return path
-
-
-def _query_spikes(
-    snapshot_path, target_date, window_start, window_end
-) -> list[tuple[int, int, float]]:
-    """One DataFusion SQL pass: noise floor, both windows, and the 4x rule."""
-    from apps.pipeline.services.datafusion_engine import DataFusionEngine
-
-    engine = DataFusionEngine()
-    engine.register_parquet_file("gsc_clicks", snapshot_path)
-    query_template = """
-        WITH latest AS (
-            SELECT content_item_id, SUM(clicks) AS latest_clicks
-            FROM gsc_clicks
-            WHERE "date" = DATE '{t}'
-            GROUP BY content_item_id
-            HAVING SUM(clicks) > {floor}
-        ),
-        trailing AS (
-            SELECT content_item_id, AVG(clicks) AS avg_clicks
-            FROM gsc_clicks
-            WHERE "date" BETWEEN DATE '{ws}' AND DATE '{we}'
-            GROUP BY content_item_id
-        )
-        SELECT latest.content_item_id, latest.latest_clicks, trailing.avg_clicks
-        FROM latest
-        JOIN trailing ON latest.content_item_id = trailing.content_item_id
-        WHERE trailing.avg_clicks > 0
-          AND latest.latest_clicks > trailing.avg_clicks * {r}
-    """
-    query = query_template.replace('{t}', str(target_date)).replace('{floor}', str(_SPIKE_NOISE_FLOOR_CLICKS)).replace('{ws}', str(window_start)).replace('{we}', str(window_end)).replace('{r}', str(_SPIKE_RATIO))  # nosec B608
-    table = engine.execute_sql(query)
-    return [
-        (int(item_id), int(latest), float(avg))
-        for item_id, latest, avg in zip(
-            table.column("content_item_id").to_pylist(),
-            table.column("latest_clicks").to_pylist(),
-            table.column("avg_clicks").to_pylist(),
-        )
-    ]
-
-
 @shared_task(
     name="analytics.detect_traffic_spikes", time_limit=600, soft_time_limit=540
 )
 @HelperConstraint(
-    cpu_intensive=False,
+    cpu_intensive=True,
     gpu_required=False,
     storage_writes_to="postgres_main",
-    ram_peak_mb=256,
+    ram_peak_mb=512,
 )
 def detect_traffic_spikes() -> dict[str, int]:
     """
-    FR-023 Part 3: Momentum-based spike detection.
-    Alerts the dashboard when a page's daily traffic exceeds 4x its 7-day trailing average.
+    FR-023 Part 3: seasonality-aware spike detection.
 
-    DataFusion rewire 2026-06-10: the click window is snapshotted to a local
-    Parquet file and a single analytical SQL pass computes the noise floor,
-    both window aggregates, and the spike rule — replacing two ORM GROUP BY
-    queries plus a Python filter loop, and keeping the heavy scan off the
-    transactional Postgres connection.
+    Prophet rewire 2026-06-13: each page's daily clicks are forecast with a
+    weekly-seasonality model over a 90-day history (apps.analytics.services
+    .spike_forecast). A page alerts only when its latest clicks exceed the
+    forecast's upper bound by a margin — so the regular weekly rhythm is
+    expected (no false alert on the usual busy day) and a surprise surge on a
+    normally-quiet day is caught. Replaces the flat 4x-of-7-day-average rule.
     """
     # Mandatory Prevention Sweep (#86): close stale connections before task logic.
     if not connection.in_atomic_block:
         connection.close()
 
-    from apps.notifications.services import emit_operator_alert
-    from apps.notifications.models import OperatorAlert
+    from apps.analytics.services.spike_forecast import detect_spikes
     from apps.content.models import ContentItem
+    from apps.core.models import AppSetting
+    from apps.notifications.models import OperatorAlert
+    from apps.notifications.services import emit_operator_alert
+
     from .models import SearchMetric
 
-    # 1. Find the latest date we have GSC data for
     latest_metric = SearchMetric.objects.filter(source="gsc").order_by("-date").first()
     if not latest_metric:
         return {"alerts_emitted": 0}
-
     target_date = latest_metric.date
-    seven_days_ago = target_date - timedelta(days=7)
-    one_day_ago = target_date - timedelta(days=1)
 
-    # 2. Snapshot the full window once, then one SQL pass finds the spikes.
-    snapshot_path = _snapshot_gsc_clicks(seven_days_ago, target_date)
-    if snapshot_path is None:
+    findings = detect_spikes(
+        target_date,
+        history_days=AppSetting.get_int("spike_detection.history_days", 90),
+        noise_floor=AppSetting.get_int("spike_detection.noise_floor_clicks", 10),
+        upper_bound_factor=AppSetting.get_float("spike_detection.upper_bound_factor", 1.2),
+        max_items=AppSetting.get_int("spike_detection.prophet_max_items", 200),
+        min_active_days=AppSetting.get_int("spike_detection.min_active_days", 14),
+    )
+    if not findings:
         return {"alerts_emitted": 0}
 
-    spiking = _query_spikes(snapshot_path, target_date, seven_days_ago, one_day_ago)
-    if not spiking:
-        return {"alerts_emitted": 0}
-
-    # Bulk fetch titles in one round trip. Use a dict keyed on PK so a
-    # dangling SearchMetric.content_item_id (item deleted between the
-    # filter and this loop) just yields a None title — bug fix: the
-    # previous code did `ContentItem.objects.get(pk=item_id)` which
-    # raised DoesNotExist and killed the whole task on the first orphan.
-    spiking_ids = [item_id for item_id, _, _ in spiking]
+    # Bulk-fetch titles in one round trip; a dangling content_item_id (item
+    # deleted mid-run) just yields a placeholder title rather than crashing.
     titles_by_id: dict[int, str] = dict(
-        ContentItem.objects.filter(pk__in=spiking_ids).values_list("pk", "title")
+        ContentItem.objects.filter(
+            pk__in=[f.item_id for f in findings]
+        ).values_list("pk", "title")
     )
 
     alerts_count = 0
-    for item_id, latest_clicks, avg_clicks in spiking:
-        title = titles_by_id.get(item_id) or f"(deleted item #{item_id})"
-        # Defensive: title could legitimately be empty for newly-imported
-        # rows; guard the slice + the format so the f-string can't crash.
-        title_short = (title or "")[:40] or f"item #{item_id}"
+    for finding in findings:
+        title = titles_by_id.get(finding.item_id) or f"(deleted item #{finding.item_id})"
+        title_short = (title or "")[:40] or f"item #{finding.item_id}"
         emit_operator_alert(
             event_type="traffic_spike",
             severity=OperatorAlert.SEVERITY_INFO,
             title=f"Traffic Spike: {title_short}...",
             message=(
-                f"Page '{title}' saw {latest_clicks} clicks on {target_date}, "
-                f"which is {((latest_clicks / avg_clicks) - 1) * 100:.0f}% above its 7-day average ({avg_clicks:.1f})."
+                f"Page '{title}' saw {finding.latest_clicks} clicks on {target_date}, "
+                f"above its forecast ceiling of ~{finding.expected_upper:.0f} for that "
+                f"day (weekly-seasonality model)."
             ),
             source_area=OperatorAlert.AREA_PIPELINE,
-            dedupe_key=f"traffic-spike-{item_id}-{target_date}",
+            dedupe_key=f"traffic-spike-{finding.item_id}-{target_date}",
             related_object_type="content_item",
-            related_object_id=str(item_id),
+            related_object_id=str(finding.item_id),
             payload={
-                "item_id": item_id,
+                "item_id": finding.item_id,
                 "date": str(target_date),
-                "latest_clicks": latest_clicks,
-                "avg_clicks": float(avg_clicks),
+                "latest_clicks": finding.latest_clicks,
+                "expected_upper": finding.expected_upper,
             },
         )
         alerts_count += 1

@@ -24,20 +24,19 @@ class ObservabilityStackFoundationTests(SimpleTestCase):
             self.assertNotIn(name, windows_names)
             self.assertIn(name, mint_names)
 
-    def test_sonarqube_containers_are_dell_owned(self):
-        """Given stack health config, When inspected, Then Sonar runs on Dell."""
+    def test_sonarqube_is_fully_removed(self):
+        """Given SonarQube was retired 2026-06-09 (replaced by GitHub Dependabot
+        + pip-audit in CI, per config/observability-services.json), When the
+        stack-health config is read, Then no target lists a SonarQube container
+        on any machine. Guards against the retired service creeping back."""
         health = yaml.safe_load((ROOT / "config/docker-stack-health.json").read_text())
-        windows = next(row for row in health["targets"] if row["name"] == "windows-control-plane")
-        mint = next(row for row in health["targets"] if row["name"] == "mint-quality-plane")
-        dell = next(row for row in health["targets"] if row["name"] == "dell-sonar-plane")
-        windows_names = {row["name"] for row in windows["containers"]}
-        mint_names = {row["name"] for row in mint["containers"]}
-        dell_names = {row["name"] for row in dell["containers"]}
-
-        for name in ("xf_linker_sonarqube", "xf_linker_sonar_autoscan"):
-            self.assertNotIn(name, windows_names)
-            self.assertNotIn(name, mint_names)
-            self.assertIn(name, dell_names)
+        all_container_names = {
+            container["name"]
+            for target in health["targets"]
+            for container in target.get("containers", [])
+        }
+        self.assertNotIn("xf_linker_sonarqube", all_container_names)
+        self.assertNotIn("xf_linker_sonar_autoscan", all_container_names)
 
     def test_vmagent_headers_are_list_entries(self):
         """Given vmagent scrape config, When parsed, Then headers fit vmagent."""

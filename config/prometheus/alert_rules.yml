@@ -1,0 +1,217 @@
+# Prometheus alert rules for XF Internal Linker.
+#
+# These rules target the metrics exposed by the Django backend
+# (xf_* namespace) and the postgres-exporter (pg_* namespace).
+# They are evaluated by vmalert (config/vmalert/rules.yml already
+# covers some of these; these rules extend coverage with the new
+# metrics wired in fr-prometheus-monitoring.md).
+#
+# Severity levels:
+#   critical — pager-level, data loss or complete service outage likely
+#   high     — same-day investigation required
+#   medium   — investigate within a working day
+#   low      — informational, trend awareness
+#
+# Added 2026-06-13: fr-prometheus-monitoring.md
+
+groups:
+  - name: xf-api-health
+    interval: 30s
+    rules:
+      - alert: APILatencyP95High
+        # p95 request latency above 2 seconds for 5 minutes.
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(xf_module_request_duration_seconds_bucket[5m])) by (le)
+          ) > 2.0
+        for: 5m
+        labels:
+          severity: high
+        annotations:
+          summary: "API p95 latency is above 2 seconds"
+          description: >
+            The 95th-percentile request latency for Django modules has
+            been above 2 seconds for 5 minutes.
+          trap: >
+            Slow SQL queries and missing DB indexes are the most common
+            cause. Check Tempo traces and postgres-exporter slow_queries.
+          fix_shape: >
+            Run EXPLAIN ANALYZE on the slowest queries, add indexes, or
+            increase Postgres connection pool if idle connections are
+            starving active requests.
+
+      - alert: APIErrorRateHigh
+        # More than 1 % of requests are 5xx for 5 minutes.
+        expr: |
+          sum(rate(xf_module_request_total{status=~"5.."}[5m]))
+          /
+          (sum(rate(xf_module_request_total[5m])) > 0)
+          > 0.01
+        for: 5m
+        labels:
+          severity: high
+        annotations:
+          summary: "API 5xx error rate above 1 percent"
+          description: >
+            More than 1 percent of requests are returning 5xx status
+            codes, sustained for 5 minutes.
+          trap: >
+            A single bad deploy or a downstream dependency failure can
+            look identical — check GlitchTip traces before rolling back.
+          fix_shape: >
+            Check GlitchTip for new error groups, then correlate with
+            recent deploys or configuration changes.
+
+  - name: xf-ranking-health
+    interval: 30s
+    rules:
+      - alert: RankingValidationFailuresHigh
+        # More than 1 validation failure per minute for 5 minutes.
+        expr: |
+          rate(xf_scoring_rejected_total{reason="governance_validation_failure"}[5m]) > 0.016
+        for: 5m
+        labels:
+          severity: high
+        annotations:
+          summary: "Ranking governance validation failures are high"
+          description: >
+            The Rust ranking-decision engine is rejecting more than 1
+            candidate per minute on governance checks.
+          trap: >
+            A weight-profile migration that sets a weight outside the
+            valid range is the most common cause. The engine rejects
+            silently at the Python boundary (a structured verdict with
+            rejected=True) so this metric is the only signal.
+          fix_shape: >
+            Inspect xf_scoring_rejected_total labels, load the
+            WeightProfile via the admin, and compare against the
+            allowed-range spec in docs/specs/fr-ranking-governance.md.
+
+      - alert: RankingLatencyP95High
+        # p95 ranking batch latency above 5 seconds.
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(xf_scoring_latency_seconds_bucket[5m])) by (le)
+          ) > 5.0
+        for: 5m
+        labels:
+          severity: medium
+        annotations:
+          summary: "Ranking p95 latency is above 5 seconds"
+          description: >
+            The 95th-percentile Rust ranking batch latency has been
+            above 5 seconds for 5 minutes.
+          trap: >
+            Candidate count growth (more content added without index
+            rebuild) is the most common cause of ranking slowdowns.
+          fix_shape: >
+            Check xf_index_candidate_count histogram to see if batches
+            are growing. Trigger a FAISS index rebuild if needed.
+
+  - name: xf-database-health
+    interval: 30s
+    rules:
+      - alert: DBConnectionsNearLimit
+        # Postgres backend count above 80 for 5 minutes.
+        # Default Postgres max_connections is 100.
+        expr: |
+          sum(pg_stat_database_numbackends{datname!~"^template.*"}) > 80
+        for: 5m
+        labels:
+          severity: high
+        annotations:
+          summary: "Postgres connection count is near the limit"
+          description: >
+            Total Postgres connections across non-template databases
+            has been above 80 for 5 minutes. The default max is 100.
+          trap: >
+            Django uses a connection pool per worker process. A
+            sudden worker count increase (e.g. after a redeploy) can
+            spike connections instantly. Check worker count first.
+          fix_shape: >
+            Reduce Celery worker concurrency, enable PgBouncer, or
+            raise max_connections in postgres.conf and restart Postgres.
+
+      - alert: DBWriteErrorsDetected
+        # Any write-operation error in the DB latency metric.
+        expr: |
+          rate(xf_db_latency_seconds_count{operation=~"INSERT|UPDATE|DELETE",status="error"}[5m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database write errors detected"
+          description: >
+            At least one INSERT, UPDATE, or DELETE operation is failing
+            on a sustained basis over the last 5 minutes.
+          trap: >
+            Retrying without idempotency checks can duplicate rows.
+          fix_shape: >
+            Check GlitchTip for the exact exception, identify the
+            operation label, and make the write path idempotent before
+            retrying.
+
+  - name: xf-worker-health
+    interval: 30s
+    rules:
+      - alert: WorkerCrashLoopDetected
+        # A Celery task failure rate above 0.1/s for 5 minutes.
+        expr: |
+          sum(rate(xf_celery_task_duration_seconds_count{status="failure"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: high
+        annotations:
+          summary: "Celery worker crash loop detected"
+          description: >
+            Celery tasks are failing at a rate above 0.1 per second,
+            which indicates a crash loop in one or more task types.
+          trap: >
+            A single broken task running on a retry loop can look like
+            multiple tasks failing. Check task_name label first.
+          fix_shape: >
+            Inspect xf_celery_task_duration_seconds{status="failure"}
+            labels to find the offending task name, then check GlitchTip.
+
+      - alert: EmbeddingQueueTooDeep
+        # Queue depth above 500 for 10 minutes (mirrors vmalert rule).
+        expr: |
+          xf_queue_depth{queue="pipeline"} > 500
+        for: 10m
+        labels:
+          severity: high
+        annotations:
+          summary: "Embedding pipeline queue depth is too high"
+          description: >
+            The pipeline embedding queue has stayed above 500 items
+            for 10 minutes. Workers may be stalled or undersized.
+          trap: >
+            A paused Celery worker (killed but not restarted) can
+            make the queue grow without any actual errors in the log.
+          fix_shape: >
+            Check `docker compose ps` for the celery-pipeline worker
+            state. Restart the worker if it is in an unhealthy state.
+
+  - name: xf-disk-health
+    interval: 60s
+    rules:
+      - alert: DiskSpaceCritical
+        # A monitored disk mount is above 90 percent full.
+        expr: |
+          xf_system_disk_usage_bytes / xf_system_disk_capacity_bytes > 0.90
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "A monitored disk mount is above 90 percent full"
+          description: >
+            The ratio of used to total disk space on a monitored mount
+            has exceeded 90 percent.
+          trap: >
+            Deleting random Docker volumes to free space can destroy
+            the Postgres database or the compiled artifacts store.
+          fix_shape: >
+            Reclaim space with the repo's documented safe-prune step, which
+            removes only disposable caches and never touches named volumes.
+            Then consult config/protected-data-stores.json before removing
+            any volume.

@@ -42,33 +42,61 @@ class ParseTransactionsTests(SimpleTestCase):
 
     def test_fast_transactions_below_threshold_are_dropped(self) -> None:
         rows = [
-            {"transaction": "GET /fast/", "p95(transaction.duration)": 50.0, "count()": 3},
-            {"transaction": "GET /slow/", "p95(transaction.duration)": 800.0, "count()": 9},
+            {"transaction": "GET /fast/", "p95": 50.0, "count": 3, "op": "http.server"},
+            {"transaction": "GET /slow/", "p95": 800.0, "count": 9, "op": "http.server"},
         ]
         out = gp._parse_transactions(rows, min_ms=gp._MIN_DURATION_MS)
         self.assertEqual(len(out), 1)
-        self.assertEqual(out[0].transaction, "GET /slow/")
+        # Leading method token is stripped during parsing.
+        self.assertEqual(out[0].transaction, "/slow/")
         self.assertEqual(out[0].duration_ms, 800.0)
         self.assertEqual(out[0].count, 9)
 
     def test_exact_threshold_is_kept(self) -> None:
-        rows = [{"transaction": "GET /edge/", "p95(transaction.duration)": 250.0, "count()": 1}]
+        rows = [{"transaction": "GET /edge/", "p95": 250.0, "count": 1, "op": "http.server"}]
         out = gp._parse_transactions(rows, min_ms=250.0)
         self.assertEqual(len(out), 1)
 
     def test_just_below_threshold_is_dropped(self) -> None:
-        rows = [{"transaction": "GET /edge/", "p95(transaction.duration)": 249.0, "count()": 1}]
+        rows = [{"transaction": "GET /edge/", "p95": 249.0, "count": 1, "op": "http.server"}]
         out = gp._parse_transactions(rows, min_ms=250.0)
         self.assertEqual(out, [])
 
     def test_missing_or_malformed_fields_do_not_crash(self) -> None:
         rows = [
             {},  # no transaction name, no duration
-            {"transaction": "GET /x/", "p95(transaction.duration)": None, "count()": None},
-            {"transaction": "", "p95(transaction.duration)": 5000.0},
+            {"transaction": "GET /x/", "p95": None, "count": None, "op": "http.server"},
+            {"transaction": "", "p95": 5000.0, "op": "http.server"},
         ]
         out = gp._parse_transactions(rows, min_ms=250.0)
         self.assertEqual(out, [])
+
+    def test_background_and_internal_ops_are_excluded(self) -> None:
+        # Only user-facing http.server / pageload survive; expected-slow Celery
+        # jobs, empty-op run/* jobs, and raw db spans are dropped even when they
+        # are far slower than the user-facing endpoints.
+        rows = [
+            {"transaction": "analytics.detect_traffic_spikes", "p95": 54075.0, "count": 11, "op": "queue.task.celery"},
+            {"transaction": "run/findbugs.run_scan", "p95": 54075.0, "count": 54, "op": ""},
+            {"transaction": "TRUNCATE", "p95": 9000.0, "count": 2, "op": "db"},
+            {"transaction": "GET /api/health/", "p95": 800.0, "count": 5, "op": "http.server"},
+            {"transaction": "/observability", "p95": 600.0, "count": 3, "op": "pageload"},
+        ]
+        out = gp._parse_transactions(rows, min_ms=gp._MIN_DURATION_MS)
+        # "GET /api/health/" has its method token stripped to "/api/health/".
+        self.assertEqual({t.transaction for t in out}, {"/api/health/", "/observability"})
+
+    def test_method_prefix_stripped_so_duplicate_endpoint_merges(self) -> None:
+        # GlitchTip's double-method quirk: "POST POST /x/" and a bare "/x/" are
+        # two groups for one endpoint. After normalization they share a name —
+        # and therefore one dedup key — so upsert_dedup collapses them.
+        rows = [
+            {"transaction": "POST POST /api/health/check-all/", "p95": 14442.0, "count": 3, "op": "http.server"},
+            {"transaction": "/api/health/check-all/", "p95": 14442.0, "count": 3, "op": "http.server"},
+        ]
+        out = gp._parse_transactions(rows, min_ms=gp._MIN_DURATION_MS)
+        self.assertEqual({t.transaction for t in out}, {"/api/health/check-all/"})
+        self.assertEqual(len({gp._stable_external_id(t) for t in out}), 1)
 
 
 class SeverityBandTests(SimpleTestCase):
@@ -166,9 +194,9 @@ class PickSlowestTransactionsTests(SimpleTestCase):
 
     def test_promotes_slowest_and_severity_scales(self) -> None:
         rows = [
-            {"transaction": "GET /critical/", "p95(transaction.duration)": 6000.0, "count()": 4},
-            {"transaction": "GET /medium/", "p95(transaction.duration)": 300.0, "count()": 9},
-            {"transaction": "GET /fast/", "p95(transaction.duration)": 10.0, "count()": 99},
+            {"transaction": "GET /critical/", "p95": 6000.0, "count": 4, "op": "http.server"},
+            {"transaction": "GET /medium/", "p95": 300.0, "count": 9, "op": "http.server"},
+            {"transaction": "GET /fast/", "p95": 10.0, "count": 99, "op": "http.server"},
         ]
         captured: list = []
 
@@ -192,7 +220,7 @@ class PickSlowestTransactionsTests(SimpleTestCase):
 
     def test_limit_caps_number_promoted(self) -> None:
         rows = [
-            {"transaction": f"GET /t{i}/", "p95(transaction.duration)": float(300 + i * 100), "count()": 1}
+            {"transaction": f"GET /t{i}/", "p95": float(300 + i * 100), "count": 1, "op": "http.server"}
             for i in range(5)
         ]
         with patch.object(gp, "_fetch_glitchtip_transactions", return_value=rows), patch.object(
@@ -205,7 +233,7 @@ class PickSlowestTransactionsTests(SimpleTestCase):
     def test_idempotent_rerun_reports_updated_not_created(self) -> None:
         """A second run of the same slow transaction is an 'updated' outcome,
         proving dedup via the canonical fingerprint rather than a duplicate row."""
-        rows = [{"transaction": "GET /slow/", "p95(transaction.duration)": 900.0, "count()": 5}]
+        rows = [{"transaction": "GET /slow/", "p95": 900.0, "count": 5, "op": "http.server"}]
         with patch.object(gp, "_fetch_glitchtip_transactions", return_value=rows), patch.object(
             gp, "_upsert_transaction", return_value="updated"
         ):
@@ -234,10 +262,9 @@ class FetchGlitchtipTransactionsTests(SimpleTestCase):
             out = gp._fetch_glitchtip_transactions(limit=10)
         self.assertEqual(out, [])
 
-    def test_parses_sentry_events_data_envelope(self) -> None:
-        import requests
-
-        payload = {"data": [{"transaction": "GET /x/", "p95(transaction.duration)": 700.0, "count()": 3}]}
+    def test_parses_dict_data_envelope(self) -> None:
+        # Tolerate a Sentry-style {"data": [...]} envelope defensively.
+        payload = {"data": [{"transaction": "GET /x/", "p95": 700.0, "count": 3}]}
         fake_resp = MagicMock()
         fake_resp.json.return_value = payload
         fake_resp.raise_for_status.return_value = None
@@ -247,3 +274,24 @@ class FetchGlitchtipTransactionsTests(SimpleTestCase):
         ), patch("requests.get", return_value=fake_resp):
             out = gp._fetch_glitchtip_transactions(limit=10)
         self.assertEqual(out, payload["data"])
+
+    def test_parses_bare_list_from_transaction_groups(self) -> None:
+        # GlitchTip's transaction-groups endpoint returns a BARE JSON list.
+        rows = [
+            {"transaction": "analytics.detect_traffic_spikes", "p95": 54075.0, "count": 11, "op": "queue.task.celery"},
+            {"transaction": "GET /api/fast/", "p95": 12.0, "count": 900, "op": "http.server"},
+        ]
+        fake_resp = MagicMock()
+        fake_resp.json.return_value = rows
+        fake_resp.raise_for_status.return_value = None
+        with patch.object(
+            gp, "_glitchtip_perf_env",
+            return_value=("http://glitchtip:8000", "tok", "org", "proj"),
+        ), patch("requests.get", return_value=fake_resp) as mock_get:
+            out = gp._fetch_glitchtip_transactions(limit=10)
+        self.assertEqual(out, rows)
+        # Lock the endpoint: the original bug hit Sentry's /events/ discover API,
+        # which GlitchTip answers with 404. It MUST hit transaction-groups.
+        called_url = mock_get.call_args[0][0]
+        self.assertIn("/transaction-groups/", called_url)
+        self.assertNotIn("/events/", called_url)

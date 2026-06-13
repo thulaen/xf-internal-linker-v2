@@ -15,21 +15,28 @@ import re
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
+import re2
+
 from .rust_kernels import load_kernel
 
 logger = logging.getLogger(__name__)
 
-_XF_THREAD_RE = re.compile(r"/threads/(?:[^/]*\.)?(\d+)(?:/|$)", re.IGNORECASE)
-_XF_RESOURCE_RE = re.compile(r"/resources/(?:[^/]*\.)?(\d+)(?:/|$)", re.IGNORECASE)
-_BBCODE_URL_RE = re.compile(
-    r"\[URL=([^\]]+)\](.*?)\[/URL\]",
-    re.IGNORECASE | re.DOTALL,
-)
-_HTML_LINK_RE = re.compile(
-    r"<a\b[^>]*href=[\"']([^\"']+)[\"'][^>]*>(.*?)</a>",
-    re.IGNORECASE | re.DOTALL,
-)
-_CONTEXT_TOKEN_RE = re.compile(r"[A-Za-z0-9]+(?:'[A-Za-z0-9]+)?")
+# These five patterns scan UNTRUSTED crawled HTML / BBCode and external URLs,
+# so they use RE2 (google-re2): a finite-automaton engine that matches in time
+# linear to the input length and so cannot be driven into catastrophic
+# backtracking by a crafted post. None of them use lookbehind/lookahead or
+# backreferences (the features RE2 omits), so the pattern text is unchanged.
+# Reference: Cox, "Regular Expression Matching Can Be Simple And Fast",
+# https://swtch.com/~rsc/regexp/regexp1.html
+# Flags are inline (`(?i)` case-insensitive, `(?s)` dot-matches-newline) because
+# google-re2's compile() takes an Options object, not `re`-style flag constants;
+# inline flags keep the pattern self-describing and parse identically under both
+# RE2 and stdlib `re` (see tests_re2_parity.py).
+_XF_THREAD_RE = re2.compile(r"(?i)/threads/(?:[^/]*\.)?(\d+)(?:/|$)")
+_XF_RESOURCE_RE = re2.compile(r"(?i)/resources/(?:[^/]*\.)?(\d+)(?:/|$)")
+_BBCODE_URL_RE = re2.compile(r"(?is)\[URL=([^\]]+)\](.*?)\[/URL\]")
+_HTML_LINK_RE = re2.compile(r"(?is)<a\b[^>]*href=[\"']([^\"']+)[\"'][^>]*>(.*?)</a>")
+_CONTEXT_TOKEN_RE = re2.compile(r"[A-Za-z0-9]+(?:'[A-Za-z0-9]+)?")
 _CONTEXT_WINDOW_CHARS = 80
 
 EXTRACTION_METHOD_BBCODE = "bbcode_anchor"

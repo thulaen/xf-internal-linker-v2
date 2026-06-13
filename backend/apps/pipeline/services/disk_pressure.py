@@ -224,12 +224,17 @@ def _emit_alert(state: State, *, free_gb: float) -> None:
         f"Run docker_compact_vhd.ps1 to recover space."
     )
     try:
-        from apps.notifications.models import OperatorAlert
+        from apps.notifications.services import emit_operator_alert
 
-        OperatorAlert.objects.create(
+        # Route through the established service so all required fields
+        # (first_seen_at / last_seen_at), dedup, and the websocket push are
+        # handled — the old direct create() passed a non-existent `body` field
+        # and omitted the required timestamps, so every alert silently failed.
+        emit_operator_alert(
+            event_type="disk.pressure",
             severity=severity_alert,
             title=f"Disk pressure {state}",
-            body=msg,
+            message=msg,
             dedupe_key=f"disk_pressure:{state}",
         )
     except Exception:  # noqa: BLE001 — alert is best-effort; never block the beat task.

@@ -77,7 +77,10 @@ class LessonForTests(SimpleTestCase):
 
 class BuildGapFindingsTests(SimpleTestCase):
     def test_explicit_metric_names_yield_six_total_findings(self) -> None:
-        findings = gap_detector.build_gap_findings(metric_names=["xf_import_posts_total"])
+        # The name must be UNREGISTERED so it counts as an unproven gap: a
+        # registered reserved metric is now proven against the live registry and
+        # produces no finding (see GapDetectorProvingTests).
+        findings = gap_detector.build_gap_findings(metric_names=["xf_unregistered_probe_metric"])
         # One reserved-metric gap + five fixed infra gaps = exactly 6. Exact
         # count kills the +1 mutation that a >= length check would survive.
         self.assertEqual(len(findings), 6)

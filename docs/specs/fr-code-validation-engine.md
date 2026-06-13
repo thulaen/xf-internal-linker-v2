@@ -1,31 +1,39 @@
 # FR - Code Validation Engine
 
-[SPEC FRESHNESS: reviewed_at=2026-06-02 next_review=2026-09-02]
+[SPEC FRESHNESS: reviewed_at=2026-06-13 next_review=2026-07-13]
 
 ## 1. Summary
 
-The Code Validation Engine, shortened to CVE in this document, is a
-pre-execution code safety feature for the XF Internal Linker app. In this
-project, CVE means Code Validation Engine, not the public vulnerability database
-with the same initials. It checks code changes before they run, before they are
-committed, and before they reach the master gate. It is not a replacement for
-GlitchTip, Pyroscope, Tempo, Loki, VictoriaMetrics, SonarQube, NewRelic, or any
-other existing runtime or quality surface. It fills the gaps those systems
-cannot see because those systems mostly report what happened after code ran.
+PreGate is the pre-execution code-validation engine for the XF Internal Linker
+app. It is named for *when* it runs: before code is accepted. PreGate is
+unrelated to the public security CVE database (Common Vulnerabilities and
+Exposures). This engine was drafted earlier under the working name "CVE" and was
+renamed to PreGate to remove that collision and to satisfy the no-metaphor rule
+in PLAIN-ENGLISH-RULE.md, which wants literal names rather than figures of
+speech. It checks code changes before they run, before they are committed, and
+before they reach the master gate. It is not a replacement for GlitchTip,
+Pyroscope, Tempo, Loki, VictoriaMetrics, SonarQube, NewRelic, or any other
+existing runtime or quality surface. It fills the gaps those systems cannot see,
+because those systems mostly report what happened after code ran.
 
 This spec replaces the older draft at
 `C:\Users\goldm\OneDrive\Pictures\Deterministic_Validation_Engine_Plan.md`.
 The old draft aimed at an oversized single-language monolith and a tiny legacy
 hardware target. That framing is rejected. The realistic target is a
-300,000 to 500,000 line polyglot system spread across the six locked languages
-from Plan #40 and Plan #42: Haskell, C++, Go, Rust, Lua, and Python. The engine
-is built over 18 to 24 months in six phases and 80 to 150 shippable slices.
+300,000 to 500,000 line system in the repo's two locked backend languages,
+**Python and Rust** (the ABSOLUTE Python-plus-Rust-only rule added 2026-06-06;
+C, C++, Go, Haskell, and Lua are removed and hard-blocked by
+`.githooks/check-removed-languages.py`). Rust owns the hot-path compute as an
+in-process PyO3/maturin extension; Python orchestrates. The earlier six-language
+plans (#26 Haskell, #28 Haskell/C++, #36 C++, #40 Lua, #42 C ABI, #23 Go) are
+superseded and used for ideas only. The engine is built over 18 to 24 months in
+six phases and 80 to 150 shippable slices.
 
-The most important design choice is tight app integration. CVE is not a side
+The most important design choice is tight app integration. PreGate is not a side
 tool that agents run when they remember it. It is part of the governance module,
 the AutoIssue work queue, the paper-trail evidence chain, the existing hook
-chain, the Lua PreToolUse advisor layer, the React diagnostics route planned by
-Stream F2, the K8s Bazel sharding plan, and the AWS CodeBuild master gate. Every
+chain, a Python pre-commit advisor layer, the React diagnostics route planned by
+Stream F2, the planned K8s Bazel sharding, and the AWS CodeBuild master gate. Every
 finding is visible in the app, deduped through AutoIssues, exported as SARIF,
 and attached to the same operator override and lesson flow that the rest of the
   project already uses. K8s means Kubernetes, the local distributed test
@@ -35,15 +43,22 @@ and attached to the same operator override and lesson flow that the rest of the
 Two app-integration problems were found while writing this spec and were filed
 as AutoIssues, as required by the repo rules:
 
-- AutoIssue #2470: `backend/apps/auto_issues/models.py` currently stores
-  `source` in a 16-character field with fixed choices. CVE needs dynamic
-  sources shaped as `cve_<rule_pack_name>`.
+- AutoIssue #2470: `backend/apps/auto_issues/models.py` stores `source` as
+  `models.CharField(max_length=16, choices=SOURCE_CHOICES, db_index=True)`
+  (verified at line 148). The 25 current sources all fit in 16 characters
+  (longest is `pytest_failure`, 14 characters), and the field is a fixed
+  enum with no dynamic registration. PreGate needs dynamic sources shaped as
+  `pregate_<rule_pack_name>`, which both overflow 16 characters and need
+  registry-backed registration.
 - AutoIssue #2471: `frontend/src/app/core/services/auto-issues.service.ts`
-  currently types AutoIssue sources as a fixed union. CVE needs the app client
-  to accept registry-backed dynamic source names.
+  types `source` as the fixed union `'glitchtip' | 'pyroscope' | 'agent'` (only
+  three values, already narrower than the 25 backend sources — a pre-existing
+  mismatch). PreGate needs the app client to treat `source` as a registry value,
+  which also fixes that mismatch.
 
-Those issues are not side notes. Phase 1 includes the database and client
-changes that make CVE findings first-class app data.
+Those issues are not side notes. As of this spec's date both are still open
+(verified this session); Phase 1 slice PG.01 resolves them before any broad
+PreGate ingestion, so PreGate findings become first-class app data.
 
 ## 2. Plain-English Terms
 
@@ -53,36 +68,57 @@ needed by non-specialist readers.
 
 | Term | Plain-English meaning |
 |---|---|
-| Galois connection | A mathematical pattern that lets us safely approximate a complicated state with a simpler one. CVE uses it only in abstract interpretation proofs. |
-| Chaotic iteration | Repeatedly running an analysis pass until no new information is learned. CVE uses a bounded form and stops at the budget. |
-| Hoare triple | A before-during-after specification for a code block. CVE uses it only for security-critical proof obligations. |
-| Datalog clause | A small if-then rule that looks like "if A and B and C then conclude D." CVE uses it only when reachability queries across the call graph cannot be expressed by existing rule packs. |
-| Semilattice | A set of values where any two can be combined to a third in a predictable way. CVE uses it inside abstract interpretation. |
-| Roaring bitmap | A compressed bit-array format that makes large set operations fast. CVE uses it for changed-file and affected-test sets. |
-| Compact region | A Haskell memory area you can throw away in one shot without garbage collection. CVE may use it as a speed optimization, not as a correctness requirement. |
-| MinHash | A fast way to estimate how similar two big sets are. CVE uses it for near-duplicate code and comment corpora. |
-| LSH, or Locality-Sensitive Hashing | A hash family that puts similar inputs into the same bucket on purpose. CVE uses it with MinHash for fast similarity search. |
-| FFI, or Foreign Function Interface | Calling code in one language from another. CVE uses one stable C application binary interface, meaning a plain C-shaped boundary, for native libraries. |
-| SMT, or Satisfiability Modulo Theories | Automated math solving over richer types than plain true-or-false logic. CVE uses SMT only for security-critical proof obligations. |
-| UAST, or Unified Abstract Syntax Tree | One tree shape that can represent code from many languages. CVE builds UAST nodes from Tree-sitter parse trees. |
-| CIR, or Compact Intermediate Representation | A memory-efficient form of the UAST used for analysis. CVE uses CIR in native kernels so Python never owns the hot path. |
-| Dominator | Node A dominates node B if every path to B goes through A first. CVE uses dominators to prove authentication checks happen before sensitive operations. |
-| SCC, or Strongly Connected Component | A group of nodes where every node can reach every other node. CVE uses SCCs to summarize cyclic call graphs. |
-| Confusable or homoglyph | Characters that look the same but are different code points, for example Latin `a` versus Cyrillic `a`. CVE uses Unicode TR39 confusable detection for prompt-injection checks. |
-| Taint flow | Tracking which values are influenced by untrusted input through the program. CVE uses it for security-critical paths only. |
-| Proof obligation | A small math problem the engine generates and asks an SMT solver to prove. CVE sends proof obligations to Z3 and CVC5 within a time budget. |
-| Aho-Corasick | A fast multi-pattern string search algorithm. CVE uses it to scan comments against a known prompt-injection phrase corpus. |
-| Tree-sitter | An open-source library that produces concrete syntax trees for many programming languages. CVE uses its C parsers as the language parsing layer. |
-| WebAssembly, or WASM | A sandboxed binary instruction format runnable inside other processes. CVE rule packs use the existing rulesd WebAssembly lifecycle. |
-| SARIF | A standard JSON format for static analysis findings. CVE exports every finding as SARIF v2.1.0. |
-| Blast radius | The set of code paths or tests affected by a given change. CVE computes this with the Plan #36 GraphAnalyzer and Apache AGE. |
-| Equivalent mutant | A code mutation that does not change observable behavior, so tests cannot catch it. CVE treats this as an allowed quarantine case, not as a test failure. |
+| Galois connection | A mathematical pattern that lets us safely approximate a complicated state with a simpler one. PreGate uses it only in abstract interpretation proofs. |
+| Chaotic iteration | Repeatedly running an analysis pass until no new information is learned. PreGate uses a bounded form and stops at the budget. |
+| Hoare triple | A before-during-after specification for a code block. PreGate uses it only for security-critical proof obligations. |
+| Datalog clause | A small if-then rule that looks like "if A and B and C then conclude D." PreGate uses it only when reachability queries across the call graph cannot be expressed by existing rule packs. |
+| Semilattice | A set of values where any two can be combined to a third in a predictable way. PreGate uses it inside abstract interpretation. |
+| Roaring bitmap | A compressed bit-array format that makes large set operations fast. PreGate uses it for changed-file and affected-test sets. |
+| Arena allocation | A memory area you allocate into and free all at once. PreGate's Rust extension may use it as a speed optimization for a whole run's nodes, not as a correctness requirement. |
+| MinHash | A fast way to estimate how similar two big sets are. PreGate uses it for near-duplicate code and comment corpora. |
+| LSH, or Locality-Sensitive Hashing | A hash family that puts similar inputs into the same bucket on purpose. PreGate uses it with MinHash for fast similarity search. |
+| PyO3 / maturin | PyO3 is the standard Rust-to-Python binding; maturin builds a Rust crate into a Python extension module. PreGate crosses from Python into its Rust compute through PyO3, in-process, with no hand-written C boundary and no separate service. |
+| SMT, or Satisfiability Modulo Theories | Automated math solving over richer types than plain true-or-false logic. PreGate uses SMT only for security-critical proof obligations. |
+| UAST, or Unified Abstract Syntax Tree | One tree shape that can represent code from many languages. PreGate builds UAST nodes from Tree-sitter parse trees. |
+| CIR, or Compact Intermediate Representation | A memory-efficient form of the UAST used for analysis. PreGate uses CIR in native kernels so Python never owns the hot path. |
+| Dominator | Node A dominates node B if every path to B goes through A first. PreGate uses dominators to prove authentication checks happen before sensitive operations. |
+| SCC, or Strongly Connected Component | A group of nodes where every node can reach every other node. PreGate uses SCCs to summarize cyclic call graphs. |
+| Confusable or homoglyph | Characters that look the same but are different code points, for example Latin `a` versus Cyrillic `a`. PreGate uses Unicode TR39 confusable detection for prompt-injection checks. |
+| Taint flow | Tracking which values are influenced by untrusted input through the program. PreGate uses it for security-critical paths only. |
+| Proof obligation | A small math problem the engine generates and asks an SMT solver to prove. PreGate sends proof obligations to Z3 and CVC5 within a time budget. |
+| Aho-Corasick | A fast multi-pattern string search algorithm. PreGate uses it to scan comments against a known prompt-injection phrase corpus. |
+| Tree-sitter | An open-source library that produces concrete syntax trees for many programming languages. PreGate uses its C parsers as the language parsing layer. |
+| SARIF | A standard JSON format for static analysis findings. PreGate exports every finding as SARIF v2.1.0. |
+| Blast radius | The set of code paths or tests affected by a given change. PreGate computes this with the Plan #36 GraphAnalyzer and Apache AGE. |
+| Equivalent mutant | A code mutation that does not change observable behavior, so tests cannot catch it. PreGate treats this as an allowed quarantine case, not as a test failure. |
+| Property-based testing, or PBT | Testing a rule by generating many varied inputs automatically, instead of hand-picking a few. The repo runs a hard pre-commit PBT gate. |
+| Hypothesis | The Python property-based-testing library. PreGate's Python kernels ship Hypothesis tests that run under the repo PBT gate. |
+| proptest | The Rust property-based-testing library. PreGate's Rust kernels ship proptest cases run through `cargo nextest`. |
+| nextest | A faster Rust test runner the repo uses instead of bare `cargo test`. |
+| Vitest | The frontend unit-test runner the repo migrated to (it replaced Karma). Stryker mutation drives it through a command runner. |
+| oxlint | A fast Rust-based JavaScript and TypeScript linter that runs before eslint as a quick correctness filter. |
+| ruff | The Python linter and formatter the repo uses (it replaced pylint), configured to enable all rules by default. |
+| Prometheus exposition | A `/metrics/` HTTP endpoint that publishes counters and timers in Prometheus format. The repo scrapes it through the OpenTelemetry collector into Grafana. |
+| Ratchet | A baseline that can only rise. The mutation-score ratchet records the best score per target and fails any commit that drops below it. |
+| backend-quality container | The Docker image that holds the Python quality tools (ruff, mypy, bandit, pytest, mutmut, coverage). The runtime `backend` image deliberately does not have them. |
+| ADBC | Arrow Database Connectivity: a way to read database rows as Arrow columns directly. The repo uses it for fast analytics exports; PreGate does not depend on it. |
+| ELCV, or Effective Logical Code Volume | A non-gamable measure of how much real, executed, distinct logic the system contains. It replaces counting raw lines, which are easy to fake. Defined in Section 19. |
+| LEU, or Logical Execution Units | The count of meaningful decision points in code — branches, loops, state changes, function decision boundaries. Comments, blank lines, and boilerplate do not count. One of the four ELCV inputs. |
+| USO, or Unique Semantic Operations | The count of distinct operations after removing duplicates: two code paths that do the same thing count once. Stops duplication from inflating size. One of the four ELCV inputs. |
+| ARW, or Active Runtime Coverage Weight | A 0-to-1 weight that is 1 only if the code actually ran in production within a set time window. Dead or unrun code weighs 0. One of the four ELCV inputs. |
+| SCW, or Structural Complexity Weight | A multiplier that rewards healthy, readable logic and penalizes both trivial filler and over-complex code, so complexity cannot be used to inflate size. One of the four ELCV inputs. |
+| Cyclomatic complexity | A count of the independent paths through a function — more branches means a higher number. PreGate caps it at 10 per function. |
+| Cognitive complexity | A readability-weighted complexity score that punishes deep nesting and tangled flow more than plain branching. PreGate caps it at 15 per function. |
+| Efferent coupling (fan-out) | How many other modules a module depends on. High fan-out means fragile, tangled code. PreGate caps it per module. |
+| Defect density | The number of real defects (errors, blocker findings, open bugs) per 1,000 units of ELCV. A size-aware way to measure quality, not a raw bug count. |
+| Code churn | How often a file or area changes over time. High-churn files are riskier and get extra test and review requirements. |
+| Build and test time budget | A hard limit on how long the build and test steps may take, so the feedback loop stays fast. |
 
 ## 3. Vision And Non-Goals
 
 ### 3.1 Vision
 
-CVE answers one question: "Before this code runs, can we prove it respects the
+PreGate answers one question: "Before this code runs, can we prove it respects the
 rules this app already depends on?"
 
 The engine must:
@@ -93,15 +129,15 @@ The engine must:
   the incremental path;
 - run the full master-gate suite in AWS CodeBuild in under 15 minutes inside
   the 11:00 to 23:00 user-time window from Plan #32;
-- reuse the existing hook, Lua advisor, AutoIssue, observability, K8s, Bazel,
-  CodeBuild, governance, and diagnostics surfaces;
-- keep Python as orchestration only, never as the compute fallback for CVE
+- reuse the existing hook, Python pre-commit advisor, AutoIssue, observability,
+  planned K8s and Bazel, CodeBuild, governance, and diagnostics surfaces;
+- keep Python as orchestration only, never as the compute fallback for PreGate
   analysis;
 - keep security-critical proof work narrow, budgeted, and reviewable.
 
 ### 3.2 Non-Goals
 
-CVE does not replace:
+PreGate does not replace:
 
 - GlitchTip runtime error capture;
 - Pyroscope profiles;
@@ -111,10 +147,10 @@ CVE does not replace:
 - SonarQube code-smell scanning;
 - NewRelic CI failure reporting;
 - the existing 47-plus `.githooks/*.py` hard-block hooks;
-- the Plan #41 Lua advisory layer;
+- the existing pre-commit advisor path;
 - the AutoIssue and paper-trail system.
 
-CVE also does not introduce:
+PreGate also does not introduce:
 
 - filesystem interception through FUSE, Dokany, or another file-system layer;
 - a bespoke diff parser;
@@ -132,84 +168,123 @@ CVE also does not introduce:
 This table is deliberately long. The engine is allowed only if it fits all
 locked plan decisions, not just the ones that are convenient.
 
-| Plan | Lock title | CVE alignment |
+| Plan | Lock title | PreGate alignment |
 |---|---|---|
-| Plan #1 | pgvector plus Apache AGE local graph projection | CVE uses Apache AGE for graph-backed blast-radius queries and does not create a second graph store. |
-| Plan #2 | Corrected OPQ design | CVE does not add embedding quantization work; similarity needs use existing embedding and dedup layers. |
-| Plan #3 | Reliability pass | CVE routes unknown or unavailable states into typed errors and AutoIssues instead of silent decisions. |
-| Plan #4 | Performance and capability roadmap | CVE treats performance proof as a first-class check and respects hot-path budget rules. |
-| Plan #5 | Copy-paste plan | CVE enforces dead-code-on-replace and duplicate-artifact rules so copied replacements do not leave stale code. |
-| Plan #6 | Forward-looking architecture backbone | CVE stays inside the modular monolith plus sidecar model rather than inventing a separate platform. |
-| Plan #7 | Programmatic registries plus GUI | CVE adds rule-pack registry entries and app-visible status, not loose files hidden from the operator. |
-| Plan #8 | NewRelic plus AutoIssues repair intake | CVE findings join AutoIssues; NewRelic continues to own CI failure intake. |
-| Plan #9 | Modular Monolith doctrine | CVE lives under `apps/governance/code_validation_engine/` and uses the governance public boundary. |
-| Plan #10 | PaperTrail enrichments | CVE rule changes, overrides, and promotion decisions cite paper-trail entries where the existing rule requires one. |
-| Plan #11 | Modular Monolith refactor | CVE uses `api.py` for module boundaries and extends the existing boundary checker. |
-| Plan #12 | Coverage hardening and lesson registry | CVE consumes coverage thresholds and logs lessons through AutoIssues. |
-| Plan #13 | Frontend rewrite, remove Angular and Material | CVE UI lands in the React rewrite under `/diagnostics/code-validation/`; no new Angular screen is introduced. |
-| Plan #14 | UI and UX design spec | CVE UI is a dense diagnostics tool with filters, chips, and drill-ins, not a marketing page. |
-| Plan #15 | Ranking weights and autotuner | CVE does not change ranking weights; it can validate that weight changes cite performance proof. |
-| Plan #16 | Testing Tools Dashboard | CVE run summaries and failing rule packs feed the testing dashboard when that stream owns the UI. |
-| Plan #17 | Vibe-coding controls, Review queue, Docs Freshness, and new navigation | CVE sends solver UNKNOWN and ambiguous findings to the Review queue; docs ship as Docusaurus pages. |
-| Plan #18 | rulesd WebAssembly rules and lifecycle | CVE rule packs reuse the rulesd WebAssembly lifecycle: shadow, canary, production, and rollback to shadow. |
-| Plan #19 | Compiled-runtime ownership and zero Python compute fallback | CVE compute runs in Haskell, C++, Go, Rust, and Lua rule packs; Python orchestrates only. |
-| Plan #20 | Errors page UI | CVE typed errors appear in the existing error surfaces through GlitchTip and the app diagnostics route. |
-| Plan #21 | Prevention-focused cleanup and quality bar | CVE itself must pass mutation, coverage, hooks, and clean-working-tree requirements before production promotion. |
-| Plan #22 | Embedding System | CVE does not introduce a new embedding store; near-duplicate needs reuse Plan #36 and Plan #33 lineage. |
-| Plan #23 | Strategic Go expansion | Go owns transport, bounded worker pools, and sidecar wrapping patterns where measured concurrency benefits exist. |
-| Plan #24 | UI feature catalog and trust calibration | CVE exposes false-positive rate, override rate, and rule-pack confidence in the trust dashboard. |
-| Plan #25 | Hardware baseline and helper offload | CVE targets the Dell 3070 SFF i5-9500, 16 GB DDR4, and 1 TB SSD hardware lock, with no local GPU path. |
-| Plan #26 | Haskell STM coordination service | CVE uses Haskell-tier patterns, tasty-hedgehog, tasty-golden, and dejafu for concurrent Haskell paths. |
-| Plan #27 | Modular Monolith hardening | CVE strengthens architectural fitness checks rather than weakening module boundaries. |
-| Plan #28 | Anchor Text Commander Haskell plus C++ FFI | CVE follows the same Haskell plus C++ native ownership style and the C boundary standard. |
-| Plan #29 | Hot-path extraction critique | CVE requires benchmark proof for hot-path edits and validates macrobenchmark evidence for hot-path gap #34. |
-| Plan #30 | Location and mobile linking | CVE does not alter location or mobile linking, but it can validate contract drift on those APIs. |
-| Plan #31 | NewRelic Error Inbox and Link Intelligence Console | CVE does not duplicate NewRelic; CI failures remain there and in `source="gh_ci"` AutoIssues. |
-| Plan #32 | ML/scoring layer and CodeBuild window | CVE master-gate runs only within the 11:00 to 23:00 user-time CodeBuild window and respects the budget cap. |
-| Plan #33 | AutoIssues enterprise evolution and 256 MB cap | CVE is a consumer of the AutoIssues subsystem and must stay inside the 256 MB AutoIssues cap. |
-| Plan #34 | Sidecar directives: gRPC over Unix-domain socket | `services/cve/` exposes gRPC over `/var/run/xf/cve.sock` and does not use shared-memory service IPC. |
-| Plan #35 | Scoped fail-fast validation | CVE fast local checks fail fast only on deterministic hard blockers; review-class findings route to Review. |
-| Plan #36 | Five dynamic C++ libraries | CVE reuses DeduplicationEngine, EmbeddingEngine kernels, and GraphAnalyzer rather than creating duplicate libraries. |
-| Plan #37 | Sticky-document governance | CVE emits the required OpenTelemetry span attributes and propagates traces across gRPC. |
-| Plan #38 | Memory-bounded C++ library techniques | Native CVE subsystems stay under the 128 MB worker-process envelope and use bounded structures. |
-| Plan #39 | TDD and modular architecture ideas | CVE ships each slice with behavior-first tests and clear module boundaries. |
-| Plan #40 | Lua ownership and sandbox refinement | CVE rule packs are Lua-owned where appropriate, hot-reloadable, signature-verified, and sandboxed. |
-| Plan #41 | Lua cross-agent workflow advisory layer | CVE adds advisory rule packs to PreToolUse and commit-time phase validation for the seven workflow phases. |
-| Plan #42 | C ABI Wrapper Standard | Every native CVE library exposes one stable C-shaped ABI; Python calls through `ctypes`, Go through cgo, and Haskell through `foreign import ccall unsafe`. |
-| K8S.01-K8S.25 | K8s plus Bazel distributed test foundation | CVE adds Bazel test targets that use the source-snapshot protocol, sharding formula, coverage adapters, mutation adapters, and final merge job. |
+| Plan #1 | pgvector plus Apache AGE local graph projection | PreGate uses Apache AGE for graph-backed blast-radius queries and does not create a second graph store. |
+| Plan #2 | Corrected OPQ design | PreGate does not add embedding quantization work; similarity needs use existing embedding and dedup layers. |
+| Plan #3 | Reliability pass | PreGate routes unknown or unavailable states into typed errors and AutoIssues instead of silent decisions. |
+| Plan #4 | Performance and capability roadmap | PreGate treats performance proof as a first-class check and respects hot-path budget rules. |
+| Plan #5 | Copy-paste plan | PreGate enforces dead-code-on-replace and duplicate-artifact rules so copied replacements do not leave stale code. |
+| Plan #6 | Forward-looking architecture backbone | PreGate stays inside the modular monolith and the Python-plus-Rust extension model rather than inventing a separate platform. |
+| Plan #7 | Programmatic registries plus GUI | PreGate adds rule-pack registry entries and app-visible status, not loose files hidden from the operator. |
+| Plan #8 | NewRelic plus AutoIssues repair intake | PreGate findings join AutoIssues; NewRelic continues to own CI failure intake. |
+| Plan #9 | Modular Monolith doctrine | PreGate lives under `apps/governance/pregate/` and uses the governance public boundary. |
+| Plan #10 | PaperTrail enrichments | PreGate rule changes, overrides, and promotion decisions cite paper-trail entries where the existing rule requires one. |
+| Plan #11 | Modular Monolith refactor | PreGate uses `api.py` for module boundaries and extends the existing boundary checker. |
+| Plan #12 | Coverage hardening and lesson registry | PreGate consumes coverage thresholds and logs lessons through AutoIssues. |
+| Plan #13 | Frontend rewrite, remove Angular and Material | PreGate UI lands in the React rewrite under `/diagnostics/pregate/`; no new Angular screen is introduced. |
+| Plan #14 | UI and UX design spec | PreGate UI is a dense diagnostics tool with filters, chips, and drill-ins, not a marketing page. |
+| Plan #15 | Ranking weights and autotuner | PreGate does not change ranking weights; it can validate that weight changes cite performance proof. |
+| Plan #16 | Testing Tools Dashboard | PreGate run summaries and failing rule packs feed the testing dashboard when that stream owns the UI. |
+| Plan #17 | Vibe-coding controls, Review queue, Docs Freshness, and new navigation | PreGate sends solver UNKNOWN and ambiguous findings to the Review queue; docs ship as Docusaurus pages. |
+| Plan #18 | rulesd WebAssembly rules and lifecycle | Superseded as a Go/WebAssembly service (Go and Lua are removed). PreGate keeps only the lifecycle concept — shadow, canary, production, rollback to shadow — implemented in Python plus Rust. |
+| Plan #19 | Compiled-runtime ownership and zero Python compute fallback | PreGate hot-path compute runs in Rust through PyO3/maturin, authoritative with no Python fallback; Python orchestrates only. |
+| Plan #20 | Errors page UI | PreGate typed errors appear in the existing error surfaces through GlitchTip and the app diagnostics route. |
+| Plan #21 | Prevention-focused cleanup and quality bar | PreGate itself must pass mutation, coverage, hooks, and clean-working-tree requirements before production promotion. |
+| Plan #22 | Embedding System | PreGate does not introduce a new embedding store; near-duplicate needs reuse Plan #36 and Plan #33 lineage. |
+| Plan #23 | Strategic Go expansion | Superseded: Go is a removed language. PreGate concurrency lives in Rust (for example rayon) inside the PyO3 extension. |
+| Plan #24 | UI feature catalog and trust calibration | PreGate exposes false-positive rate, override rate, and rule-pack confidence in the trust dashboard. |
+| Plan #25 | Hardware baseline and helper offload | PreGate targets the Dell 3070 SFF i5-9500, 16 GB DDR4, and 1 TB SSD hardware lock, with no local GPU path. |
+| Plan #26 | Haskell STM coordination service | Superseded: Haskell is removed. PreGate uses Rust equivalents — proptest for properties, insta for snapshots, and loom for concurrency. |
+| Plan #27 | Modular Monolith hardening | PreGate strengthens architectural fitness checks rather than weakening module boundaries. |
+| Plan #28 | Anchor Text Commander Haskell plus C++ FFI | Superseded: Haskell and C++ are removed. PreGate's native ownership is Rust, crossing into Python through PyO3 rather than a hand-written C boundary. |
+| Plan #29 | Hot-path extraction critique | PreGate requires benchmark proof for hot-path edits and validates macrobenchmark evidence for hot-path gap #34. |
+| Plan #30 | Location and mobile linking | PreGate does not alter location or mobile linking, but it can validate contract drift on those APIs. |
+| Plan #31 | NewRelic Error Inbox and Link Intelligence Console | PreGate does not duplicate NewRelic; CI failures remain there and in `source="gh_ci"` AutoIssues. |
+| Plan #32 | ML/scoring layer and CodeBuild window | PreGate master-gate runs only within the 11:00 to 23:00 user-time CodeBuild window and respects the budget cap. |
+| Plan #33 | AutoIssues enterprise evolution and 256 MB cap | PreGate is a consumer of the AutoIssues subsystem and must stay inside the 256 MB AutoIssues cap. |
+| Plan #34 | Sidecar directives: gRPC over Unix-domain socket | Superseded for PreGate: there is no gRPC sidecar. PreGate is an in-process Rust PyO3 extension; the gRPC-over-socket directive applies only to surviving standalone services. |
+| Plan #35 | Scoped fail-fast validation | PreGate fast local checks fail fast only on deterministic hard blockers; review-class findings route to Review. |
+| Plan #36 | Five dynamic C++ libraries | Superseded: those were C++ libraries. PreGate implements its dedup and graph kernels in Rust and reuses any Rust crate the repo already ships rather than duplicating one. |
+| Plan #37 | Sticky-document governance | PreGate emits the required OpenTelemetry span attributes; trace context crosses the in-process PyO3 call, not a gRPC boundary. |
+| Plan #38 | Memory-bounded C++ library techniques | The memory-bounding ideas carry over to Rust: PreGate's native subsystem stays under the 128 MB worker-process envelope and uses bounded structures. |
+| Plan #39 | TDD and modular architecture ideas | PreGate ships each slice with behavior-first tests and clear module boundaries. |
+| Plan #40 | Lua ownership and sandbox refinement | Superseded: Lua is removed. PreGate rule packs are Rust modules plus Python config; signature verification and the shadow/canary lifecycle are kept. |
+| Plan #41 | Lua cross-agent workflow advisory layer | Superseded as a Lua layer: PreGate's PreToolUse and commit-time phase advisories run in Python, not Lua. |
+| Plan #42 | C ABI Wrapper Standard | Superseded for PreGate: PyO3/maturin is the Python-to-Rust boundary and replaces the hand-written C ABI; no ctypes, cgo, or Haskell FFI. |
+| K8S.01-K8S.25 | K8s plus Bazel distributed test foundation | PreGate adds Bazel test targets that use the source-snapshot protocol, sharding formula, coverage adapters, mutation adapters, and final merge job. |
+
+### 4.1 Current Repo Baseline: Present Vs Planned
+
+The locked plans above are real, agreed decisions. Most are not built yet. This
+section states plainly what exists on disk today (verified this session) so the
+reader never confuses "planned" with "present." PreGate is designed to run today
+through the existing tools and to grow into the planned ones as they land.
+
+Present today (verified):
+
+- the only service in `services/` is `services/speccheck/`; none of Sentinel,
+  xfstm, ATC, xfgeo, rulesd, bullboard, snapshotd, or RealtimeLinker exist yet;
+- there is no `apps/governance/` module yet (30 other `apps/` modules exist);
+- there is no Bazel setup (`MODULE.bazel`, `.bazelrc`, `WORKSPACE` are absent);
+- there is no K8s cluster checkout on disk;
+- the AutoIssue `source` field is still 16-character fixed-choice (AutoIssue
+  #2470 open); the frontend source union is still three values (AutoIssue #2471
+  open);
+- the live quality stack that PreGate runs through today is the Docker
+  quality-runner scripts (`scripts/run-python-quality.sh`,
+  `scripts/run-angular-quality.sh`, `scripts/run-rust-quality.sh`,
+  `scripts/run-pbt.sh`) plus the 40-plus `.githooks/check-*.py` chain driven by
+  `scripts/precommit-docker.sh`.
+
+Planned but not yet built (from the locked plans): the governance module, the
+Rust PyO3/maturin extension build path, Bazel plus the K8s distributed-test
+foundation, and the nine-module database split.
+
+Consequence for PreGate:
+
+- Phase 1 slice PG.02 **creates** `apps/governance/pregate/` (Python), and PG.03
+  **creates** the Rust PyO3/maturin extension scaffold. PreGate does not assume
+  either exists.
+- Until Bazel and K8s land, PreGate runs through the existing Docker quality
+  scripts and the `.githooks` chain. The Bazel and K8s execution path in
+  Section 10.2 is the target once that stream ships, not a current dependency.
+- PreGate is an in-process Rust extension, not a separate sidecar (see
+  Section 6.2). The earlier six-language plans placed it in a Haskell sidecar
+  tier; that tier is superseded by the 2026-06-06 Python-plus-Rust rule, so the
+  only languages PreGate adds are Python and Rust.
+- Every dependency on an unbuilt stream is marked "planned" where it appears, so
+  no slice silently assumes infrastructure that is not there.
 
 ## 5. Size, Runtime, And Hardware Envelope
 
 ### 5.1 Code Size
 
-The full target is 300,000 to 500,000 lines over 18 to 24 months. The split is
-large enough to be realistic for a multi-language validation platform and small
-enough to fit this repository's locked architecture.
+The full target is 300,000 to 500,000 lines over 18 to 24 months, split across
+the two locked backend languages (Python and Rust). The total is large enough to
+be realistic for a validation platform that parses many languages and ships
+about 300 rules, and the split fits this repository's Python-plus-Rust rule.
 
 | Runtime | Target size | Ownership |
 |---|---:|---|
-| Haskell | 60,000 to 80,000 lines | Rule kernel, Aeson JSON parsers [AESON], decision algorithm, proof-obligation coordinator, result normalization. Lives at `services/cve/` as the fourth Haskell-tier member next to Sentinel, xfstm, and ATC. |
-| C++ | 50,000 to 70,000 lines | Tree-sitter bindings, SIMD validators using the CPU vector-instruction pattern documented by vendor intrinsics guides [INTEL_INTRINSICS], Aho-Corasick scanner, Myers bit-parallel edit distance, CIR storage, and calls into Plan #36 DeduplicationEngine, EmbeddingEngine kernels, and GraphAnalyzer. |
-| Go | 40,000 to 60,000 lines | Transport wrapper, bounded worker pools, health checks, and sidecar process coordination following Plan #23. |
-| Rust | 20,000 to 40,000 lines | Hot-path acceleration only when benchmarks prove the need. Rust paths must run clippy and cargo-mutants through Docker-managed tooling [CLIPPY] [CARGO_MUTANTS]. |
-| Lua | 10,000 to 25,000 lines | Rule packs for advisory checks, hot reload, signature verification, and WebAssembly packaging through Plan #18 and Plan #40. |
-| Python | 30,000 to 50,000 lines | Orchestration only: Django models, REST API, management commands, app integration, AutoIssue ingestion, and `ctypes` calls. Lives under `apps/governance/code_validation_engine/`. |
+| Rust | 200,000 to 330,000 lines | All hot-path compute, built as a PyO3/maturin extension that Python imports in-process: Tree-sitter parsing via the Rust `tree-sitter` crate [TREE_SITTER], UAST and CIR building, the rule kernel and decision algorithm, the validators, the Aho-Corasick scanner, Myers bit-parallel edit distance, dedup, dominator and SCC analysis, and SMT-obligation generation. SIMD uses Rust's portable SIMD where it helps. Authoritative, with no Python fallback (failure raises a typed `RustUnavailableError`). Runs clippy, cargo nextest, and cargo-mutants through Docker-managed tooling [CLIPPY] [NEXTEST] [CARGO_MUTANTS]. |
+| Python | 90,000 to 170,000 lines | Orchestration only: Django models, REST API, management commands, app integration, AutoIssue and SARIF ingestion, diagnostics, rule-pack configuration, and the PyO3 calls into the Rust extension. Lives under `apps/governance/pregate/`. |
 
 ### 5.2 Memory And Latency
 
-The old tiny-memory target is removed. CVE uses the locked caps already in the
+The old tiny-memory target is removed. PreGate uses the locked caps already in the
 project:
 
 - native subsystem cap inside the Django worker process: 128 MB from Plan #38;
-- AutoIssues subsystem cap: 256 MB from Plan #33, with CVE as one consumer;
+- AutoIssues subsystem cap: 256 MB from Plan #33, with PreGate as one consumer;
 - Pyroscope profile cap: 100 MB from Plan #25 G-194;
-- local incremental CVE scan: under two seconds on the agent's working-directory
+- local incremental PreGate scan: under two seconds on the agent's working-directory
   diff, matching the Plan #41 PreToolUse budget;
-- full master-gate CVE suite: under 15 minutes on AWS CodeBuild inside the
+- full master-gate PreGate suite: under 15 minutes on AWS CodeBuild inside the
   11:00 to 23:00 user-time window from Plan #32.
 
 The hardware baseline is the Plan #25 Dell 3070 SFF with an i5-9500 CPU, 16 GB
-DDR4 memory, and a 1 TB SSD. CVE must not assume a GPU path. Hardware-aware
+DDR4 memory, and a 1 TB SSD. PreGate must not assume a GPU path. Hardware-aware
 settings must still read the existing hardware-profile rules rather than
 hardcoding parallelism.
 
@@ -231,45 +306,44 @@ security-critical edits only. CodeBuild runs the full cross-language suite.
 
 ### 6.1 Placement
 
-CVE has three repo homes:
+PreGate has two repo homes:
 
-- `apps/governance/code_validation_engine/` for the app-facing governance
-  module. This is where Django-facing models, serializers, API functions,
-  management commands, and orchestration live.
-- `services/cve/` for the Haskell plus native sidecar. It exposes the query API
-  through gRPC over the Unix-domain socket `/var/run/xf/cve.sock`, following
-  Plan #34.
-- Plan #36 native libraries for C++ kernels when the logic belongs in
-  DeduplicationEngine, EmbeddingEngine, or GraphAnalyzer instead of a new CVE
-  library.
+- `apps/governance/pregate/` for the app-facing governance module (Python). This
+  is where Django-facing models, serializers, API functions, management commands,
+  and orchestration live.
+- a Rust extension crate, built through the Docker-managed maturin path, for all
+  hot-path compute. Python imports it in-process through PyO3. There is no
+  separate sidecar process, no gRPC, and no hand-written C boundary — PyO3 is the
+  boundary. Any dedup or graph kernel PreGate needs is a Rust module here, reusing
+  an existing repo Rust crate when one already covers the job.
 
 The governance module exposes only `apps.governance.api` to other Python
-modules. CVE implementation files are private. Cross-module imports use the
+modules. PreGate implementation files are private. Cross-module imports use the
 `api.py` public surface from ADR 0002. Cross-module database foreign keys remain
 allowed under ADR 0003, but Python imports do not bypass `api.py`.
 
-### 6.2 Service Shape
+### 6.2 Extension Shape
 
-`services/cve/` becomes the ninth sidecar in the locked sidecar list: Sentinel,
-xfstm, ATC, xfgeo, rulesd, bullboard, snapshotd, RealtimeLinker, and CVE. ADR
-0007 must be amended in Phase 1 to add CVE to the Haskell-tier list and to state
-that CVE uses the same gRPC-over-Unix-socket service shape as the sidecar rules.
+PreGate is not a separate sidecar. It is an in-process Rust extension that Python
+imports through PyO3, built through the Docker-managed maturin path [PYO3]
+[MATURIN]. The earlier six-language plans placed it in a Haskell-led gRPC sidecar
+tier; the 2026-06-06 Python-plus-Rust rule supersedes that, so there is no
+Haskell, C++, Go, or Lua, no gRPC socket, and no hand-written C ABI.
 
-The service is Haskell-led. Haskell owns the rule kernel, Aeson parsing, the
-decision algorithm, proof-obligation coordination, and result normalization.
-C++ owns parsers and tight kernels. Go owns the sidecar process wrapper and
-bounded worker pools where the Plan #23 concurrency pattern applies. Rust is
-allowed only after a benchmark proves a hot path cannot meet its budget in the
-existing native implementation. Lua owns rule packs where Plan #40 says Lua owns
-hot-reloadable rule logic.
+Rust owns the compute: the rule kernel, the decision algorithm, parsing through
+the `tree-sitter` crate, UAST and CIR building, the validators, proof-obligation
+generation, and result normalization. Rust is authoritative and has no Python
+fallback. If the extension fails to load or errors, Python raises a typed
+`RustUnavailableError` and the pipeline continues without PreGate checks.
 
-Every C++, Rust, Haskell, or Go library with a cross-language consumer exposes a
-single stable C application binary interface, following the repo's C ABI
-standard [C_ABI_SPEC]. Public structs use size and version fields, borrowed
-buffers are length-delimited, errors return status codes with separate error
-retrieval, and language-native object types never cross the boundary. Python
-calls this boundary through `ctypes`; Go uses cgo; Haskell uses explicit
-`foreign import ccall unsafe` [PYTHON_CTYPES] [GO_CGO] [GHC_FFI].
+Python owns orchestration only: collecting the changed files, calling the Rust
+extension, validating the returned shape, persisting findings, filing AutoIssues,
+writing SARIF, and exposing the diagnostics API. The PyO3 boundary carries typed
+Rust results into Python; Python never re-implements or second-guesses the Rust
+compute.
+
+Phase 1 creates or amends ADR 0007 to record that PreGate is a Rust PyO3
+extension under the Python-plus-Rust rule, not a sidecar.
 
 ### 6.3 Data Model
 
@@ -278,45 +352,44 @@ programming interface: the callable surface another part of the app can use.
 Exact field names can change
 during implementation, but the data responsibilities are locked:
 
-- `CveRulePack`: rule-pack name, version, signature fingerprint, lifecycle
+- `PregateRulePack`: rule-pack name, version, signature fingerprint, lifecycle
   state, owner runtime, declared budget, source name, and promotion timestamps.
-- `CveRun`: run id, source snapshot hash, git commit or dirty patch hash, local
+- `PregateRun`: run id, source snapshot hash, git commit or dirty patch hash, local
   or CodeBuild mode, status, start and finish times, native artifact version,
   and contract version.
-- `CveFinding`: SARIF id, rule-pack id, file path, line, severity, decision,
+- `PregateFinding`: SARIF id, rule-pack id, file path, line, severity, decision,
   canonical fingerprint, AutoIssue id, review id when applicable, and operator
   override id when applicable.
-- `CveContractSnapshot`: canonical contract form for REST, gRPC, Protocol
-  Buffers, OpenAPI, Pydantic, Django serializer, and TypeScript interface
-  shapes.
-- `CveProofObligation`: proof kind, budget, solver result, Z3 result, CVC5
+- `PregateContractSnapshot`: canonical contract form for REST, OpenAPI,
+  Pydantic, Django serializer, and TypeScript interface shapes.
+- `PregateProofObligation`: proof kind, budget, solver result, Z3 result, CVC5
   result, UNKNOWN reason, and Review queue id when needed.
-- `CveBlastRadius`: patch hash, affected tests, affected modules, affected API
+- `PregateBlastRadius`: patch hash, affected tests, affected modules, affected API
   contracts, and GraphAnalyzer run id.
 - `OperatorOverride`: existing Plan #18 override table or a governance-owned
-  equivalent if that table has not landed. CVE override commit markers link
+  equivalent if that table has not landed. PreGate override commit markers link
   here.
 
 No table may grow without a retention rule. Each row that represents a derived
 artifact uses `artifact_hash`, `source_snapshot_hash`, and `rule_pack_version`.
-If the same input appears again, CVE updates the existing row or supersedes it
+If the same input appears again, PreGate updates the existing row or supersedes it
 according to NO-DUPLICATES.md. Run artifacts attach to the K8s source-snapshot
 hash from K8S.17 and expire through the existing retention path.
 
 ### 6.4 AutoIssue Integration
 
-CVE findings become AutoIssues, not a parallel issue store. Each rule pack gets
-its own dynamic AutoIssue source named `cve_<rule_pack_name>`, for example
-`cve_arch_boundary` or `cve_contract_drift`. This lets the operator see noisy
+PreGate findings become AutoIssues, not a parallel issue store. Each rule pack gets
+its own dynamic AutoIssue source named `pregate_<rule_pack_name>`, for example
+`pregate_arch_boundary` or `pregate_contract_drift`. This lets the operator see noisy
 rule packs at a glance and lets the session ritual pick from each source. The
 75-pick ritual count grows as rule packs are added, following the Plan #18
 ritual model.
 
 Because the current AutoIssue schema uses a fixed source list and a short source
-field, Phase 1 must widen source handling before broad CVE ingestion:
+field, Phase 1 must widen source handling before broad PreGate ingestion:
 
 - create or extend a source registry so dynamic sources are first-class;
-- raise the source field length enough for `cve_<rule_pack_name>`;
+- raise the source field length enough for `pregate_<rule_pack_name>`;
 - expose dynamic sources through `/api/auto-issues/`;
 - update frontend clients to treat source as a registry value instead of a
   fixed string union;
@@ -324,7 +397,7 @@ field, Phase 1 must widen source handling before broad CVE ingestion:
   Faro, SonarQube, VictoriaMetrics alerting, Rust defect import, mutation,
   fuzz, contract, GitHub CI, and agent findings.
 
-Every CVE operational problem also becomes an AutoIssue. Sidecar unavailable,
+Every PreGate operational problem also becomes an AutoIssue. Sidecar unavailable,
 rule pack signature failure, solver budget exhaustion, K8s merge missing
 artifacts, malformed SARIF, and importer failures all file or dedupe rows. If
 backend filing is unavailable in a local hook, the existing findings buffer from
@@ -333,76 +406,123 @@ backend filing is unavailable in a local hook, the existing findings buffer from
 ### 6.5 Hook Integration
 
 Pre-commit hard blocks already live in `.githooks/*.py`, with more than 47
-hooks. CVE adds at most 8 to 12 new hooks. They are thin wrappers over the CVE
-sidecar and existing AutoIssue filing helper, not a hundred new checks.
+hooks. PreGate adds at most 8 to 12 new hooks. They are thin Python wrappers that
+call the PreGate Rust extension and the existing AutoIssue filing helper, not a
+hundred new checks.
 
 The planned hook set is:
 
-- `check-cve-architectural-boundaries.py`;
-- `check-cve-contract-drift.py`;
-- `check-cve-migration-safety.py`;
-- `check-cve-security-proof-queue.py`;
-- `check-cve-prompt-injection-comments.py`;
-- `check-cve-hallucinated-apis.py`;
-- `check-cve-secret-env-reads.py`;
-- `check-cve-performance-proof.py`;
-- `check-cve-dead-code-on-replace.py`;
-- `check-cve-workflow-phase.py`;
-- `check-cve-agent-identity.py`;
-- `check-cve-rule-pack-integrity.py`.
+- `check-pregate-architectural-boundaries.py`;
+- `check-pregate-contract-drift.py`;
+- `check-pregate-migration-safety.py`;
+- `check-pregate-security-proof-queue.py`;
+- `check-pregate-prompt-injection-comments.py`;
+- `check-pregate-hallucinated-apis.py`;
+- `check-pregate-secret-env-reads.py`;
+- `check-pregate-performance-proof.py`;
+- `check-pregate-dead-code-on-replace.py`;
+- `check-pregate-workflow-phase.py`;
+- `check-pregate-agent-identity.py`;
+- `check-pregate-rule-pack-integrity.py`.
+
+The quality-layer hooks (Section 18 and Section 19) add a further set:
+
+- `check-pregate-elcv.py` (ELCV anti-gaming gate);
+- `check-pregate-duplication.py`;
+- `check-pregate-complexity.py`;
+- `check-pregate-churn.py`;
+- `check-pregate-dead-code.py`;
+- `check-pregate-build-time.py`;
+- `check-modular-monolith-boundaries.py` (the Layer 1-2-3 import-flow rule).
+
+Several quality metrics reuse hooks that already exist and are not duplicated:
+`check-file-size.py` (size), `check-mutation-score.py` (mutation),
+`check-per-module-coverage.py` and `check-coverage-erosion.py` (coverage),
+`check-no-cross-language-import.py` (coupling), and `lint-all.ps1` step 10
+(churn fan-out). Metric thresholds live in `config/quality-thresholds.yaml` so a
+downgrade is caught by the existing `check-no-downgraded-gates.py`.
 
 The hooks reuse `git diff` and the existing hook finding to AutoIssue path.
-CVE does not write a bespoke diff parser. Hooks that detect deterministic hard
+PreGate does not write a bespoke diff parser. Hooks that detect deterministic hard
 violations block the commit. Hooks that produce review-class uncertainty file a
 finding and route to the Plan #17 Review queue.
 
-### 6.6 Lua Advisor Integration
+### 6.6 Pre-Commit Advisor Integration
 
-Plan #41 already has a Lua PreToolUse advisor layer, and the repo already has
-`apps/governance/lua_runtime/` with a sandbox loader and advisory scripts. CVE
-extends that layer with rule packs. It does not replace the layer.
+The advisor path runs before the agent commits, and, where the agent runtime
+supports a PreToolUse hook, before the edit. It is Python, not Lua — Lua is a
+removed language, so the earlier Plan #41 Lua advisor is superseded. The advisor
+warns about likely workflow or rule-pack problems earlier than a hard block. It
+remains advisory: it reminds, classifies, and explains. Hard-block enforcement
+stays in the pre-commit hook chain.
 
-The advisor path runs before the agent edits, so it can warn about likely
-workflow or rule-pack problems earlier than a hook. It remains advisory. It
-reminds, classifies, and explains. Hard-block enforcement stays in the
-pre-commit hook chain.
-
-Lua rule packs must obey the existing sandbox: no direct host libraries, no
-direct file or operating-system calls, and all host access through granted
-capabilities. Rule packs are hot-reloadable, signature-verified, and packaged
-through the WebAssembly lifecycle from Plan #18 and Plan #40.
+The advisor calls the same PreGate Rust extension the hooks call, so advice and
+enforcement share one engine. Rule packs are Rust modules plus Python config;
+they are signature-verified and move through the shadow, canary, and production
+lifecycle. The earlier Lua sandbox and WebAssembly packaging are superseded.
 
 ### 6.7 UI Integration
 
 The current frontend still has an Angular `diagnostics` route, but Plan #13
-locks the product direction to the React rewrite. CVE UI work must therefore
-land in the Stream F2 React route `/diagnostics/code-validation/` and not add a
+locks the product direction to the React rewrite. PreGate UI work must therefore
+land in the Stream F2 React route `/diagnostics/pregate/` and not add a
 new Angular screen.
 
-The CVE diagnostics page shows:
+The PreGate diagnostics page shows:
 
-- current CVE availability: healthy, degraded, or unavailable;
+- current PreGate availability: healthy, degraded, or unavailable;
 - latest local and CodeBuild runs;
 - rule-pack health, lifecycle state, version, signature, and budget use;
-- open CVE AutoIssues grouped by `cve_<rule_pack_name>`;
+- open PreGate AutoIssues grouped by `pregate_<rule_pack_name>`;
 - false-positive rate, computed as operator override rate over 30 days;
 - slowest rule packs by p50, p95, and p99 latency;
 - solver UNKNOWN counts routed to Review;
-- K8s shard status and final merge report links for CVE Bazel targets;
+- K8s shard status and final merge report links for PreGate Bazel targets;
 - override markers and their linked OperatorOverride rows.
 
 Until the React route exists, the app-visible minimum is the AutoIssues table
-and diagnostics API. CVE must not hide findings in local files.
+and diagnostics API. PreGate must not hide findings in local files.
 
-## 7. What CVE Checks
+### 6.8 Code Quality Page (ELCV + the ten metrics)
+
+The quality layer (Section 18) and ELCV (Section 19) get their own operator
+surface at `/diagnostics/code-quality`, in the SYSTEM navigation group as a
+sub-surface of Diagnostics. It reuses existing frontend building blocks rather
+than new ones: the ECharts directive
+(`frontend/src/app/shared/charts/echarts.directive.ts`), the GA4 summary card
+(`shared/gsc/gsc-summary-card`), the plain-English hover
+(`shared/directives/pe-helper.directive.ts`), the empty-state component, and the
+GA4 tokens in `_theme-vars.scss`. It is registered in
+`frontend/src/app/core/routing/deep-link-catalog.ts` with tabs `elcv`, `metrics`,
+`coverage`, `mutation`, `duplication`, and `dead-code`.
+
+The page shows:
+
+- an ELCV gauge: current whole-system ELCV, its growth per release, the trend
+  toward the 5,000,000 target, and any regression flag;
+- ten metric tiles (one per Section 18 metric): pass or fail, current value,
+  threshold, and a sparkline, each with a `peHelper` plain-English hover;
+- an anti-gaming panel listing recent blocked ELCV-inflation attempts;
+- a "dead code (ARW=0)" list and a per-module table of ELCV, coupling, and
+  duplication.
+
+Backend: a new `backend/apps/observability/services/code_quality.py` plus a
+`CodeQualityMetricsView` at `/api/observability/code-quality/` returning the same
+JSON-tile shape as the existing `PrometheusSummaryView`, with the gauge values
+also exposed through `metrics_pregate.py` for Prometheus. The frontend polls on a
+60-second timer using the existing polling pattern, and shows an "unavailable"
+state through the empty-state component when the backend or the Rust extension is
+down. Like every PreGate surface, it never hides results in local files.
+
+## 7. What PreGate Checks
 
 The existing observability stack already covers runtime errors, profiles,
-traces, logs, metrics, code smells, and CI failures. CVE covers the gaps below.
+traces, logs, metrics, code smells, and CI failures. PreGate covers the gaps below.
 Each gap maps to app integration, a rule-pack source, and a decision path.
 
 ### Gap A: Pre-Execution Semantic Checks
 
-Existing systems mostly report after code executes. CVE runs semantic checks
+Existing systems mostly report after code executes. PreGate runs semantic checks
 before execution. A semantic check means the engine reads code structure and
 meaning, not just text shape. Examples include "this function calls a method
 that does not exist" or "this serializer removed a required field."
@@ -417,14 +537,14 @@ Implementation:
 
 App path:
 
-- local advisory hints appear before edits when the Lua advisor can see the
+- local advisory hints appear before edits when the Python advisor can see the
   intent;
 - deterministic violations block in `.githooks`;
 - review-class findings go to Plan #17 Review.
 
 ### Gap B: Architectural Boundary Violations Beyond The Existing Hook
 
-The repo already has `.githooks/check-module-boundaries.py`. CVE extends it
+The repo already has `.githooks/check-module-boundaries.py`. PreGate extends it
 instead of replacing it. The expanded check covers cross-module imports outside
 `api.py`, layering reversals, sidecar bypass, and direct private calls into
 another module.
@@ -439,18 +559,19 @@ Implementation:
 
 App path:
 
-- source `cve_arch_boundary`;
+- source `pregate_arch_boundary`;
 - hard-block when a forbidden import or sidecar bypass is deterministic;
 - AutoIssue description names the caller, callee, expected public boundary,
   and suggested `api.py` move.
 
 ### Gap C: Breaking-Change Detection Across Contracts
 
-CVE detects breaking changes in REST, meaning Representational State Transfer
-HTTP APIs, gRPC, meaning Google's remote procedure call framework, Protocol
-Buffers, OpenAPI, Pydantic, Django serializers, and TypeScript interfaces
-[GRPC] [PROTOBUF] [OPENAPI] [PYDANTIC] [DJANGO] [TYPESCRIPT]. A contract is
-the shape one part of the app promises another part can call or read.
+PreGate detects breaking changes in REST, meaning Representational State Transfer
+HTTP APIs, OpenAPI, Pydantic models, Django serializers, and TypeScript
+interfaces [OPENAPI] [PYDANTIC] [DJANGO] [TYPESCRIPT]. A contract is the shape one
+part of the app promises another part can call or read. gRPC and Protocol
+Buffers are not contract targets: `.proto` is a blocked file type under the
+Python-plus-Rust rule, so the repo has none.
 
 Implementation:
 
@@ -458,21 +579,19 @@ Implementation:
 - Diff canonical forms with compatibility rules.
 - Use GumTree source differencing, a structured source-code differ, when a
   language-aware tree diff is needed [GUMTREE].
-- For Protocol Buffers, keep field numbers and optionality rules from the
-  official docs [PROTOBUF].
 - For OpenAPI, compare schema changes against the official OpenAPI
   Specification [OPENAPI].
 
 App path:
 
-- source `cve_contract_drift`;
+- source `pregate_contract_drift`;
 - deterministic breaking removals hard-block;
 - ambiguous compatibility changes route to Review;
 - findings link to the contract snapshot and affected frontend/backend paths.
 
 ### Gap D: Database Migration Safety
 
-CVE checks migration risk before the database sees it. It detects drop-column,
+PreGate checks migration risk before the database sees it. It detects drop-column,
 drop-table, irreversible alter, missing default, missing NOT NULL backfill, and
 lock-escalation risk.
 
@@ -485,14 +604,14 @@ Implementation:
 
 App path:
 
-- source `cve_migration_safety`;
+- source `pregate_migration_safety`;
 - deterministic destructive migration without approved evidence hard-blocks;
 - valid but risky migration creates a Review item with required backfill,
   rollback, and lock notes.
 
 ### Gap E: Mathematical Safety Proofs For Security-Critical Paths
 
-CVE uses mathematical proofs only for security-critical paths. It does not try
+PreGate uses mathematical proofs only for security-critical paths. It does not try
 to prove the whole app. A proof obligation is a small math problem generated
 from code and sent to an SMT solver, which is a tool that proves formulas over
 types like integers, arrays, and booleans.
@@ -528,14 +647,14 @@ Budgets:
 
 App path:
 
-- source `cve_security_proof`;
+- source `pregate_security_proof`;
 - hard-block only when both solvers prove a deterministic violation within
   budget;
-- UNKNOWN creates `CveProofObligation` plus Review queue item.
+- UNKNOWN creates `PregateProofObligation` plus Review queue item.
 
 ### Gap F: Test Impact Blast Radius
 
-CVE computes which tests are invalidated by a patch. Blast radius means the set
+PreGate computes which tests are invalidated by a patch. Blast radius means the set
 of code paths or tests affected by a change.
 
 Implementation:
@@ -548,13 +667,13 @@ Implementation:
 
 App path:
 
-- source `cve_blast_radius`;
+- source `pregate_blast_radius`;
 - K8s local mode uses the result to choose incremental Bazel targets;
 - UI shows "why this test was selected" through a call-graph path.
 
 ### Gap G: Prompt Injection Inside Code Comments
 
-CVE detects prompt-injection text hidden in code comments. Prompt injection in
+PreGate detects prompt-injection text hidden in code comments. Prompt injection in
 this context means text that tries to trick an AI agent into ignoring project
 rules or leaking secrets.
 
@@ -569,14 +688,14 @@ Implementation:
 
 App path:
 
-- source `cve_prompt_injection`;
+- source `pregate_prompt_injection`;
 - deterministic direct matches hard-block;
 - near-duplicate matches warn locally and route to Review unless confidence is
   above the rule pack's production threshold.
 
 ### Gap H: Hallucinated APIs
 
-CVE detects code where an AI added `foo.bar()` but `foo` has no method `bar` in
+PreGate detects code where an AI added `foo.bar()` but `foo` has no method `bar` in
 the codebase. This is common when a model invents a plausible method name.
 
 Implementation:
@@ -588,32 +707,33 @@ Implementation:
 
 App path:
 
-- source `cve_hallucinated_api`;
+- source `pregate_hallucinated_api`;
 - deterministic missing local methods hard-block;
 - external dependency uncertainty goes to Review with the package and symbol
   name.
 
 ### Gap I: Unauthorized Environment Variable Reads
 
-CVE detects new reads of restricted environment variables outside
+PreGate detects new reads of restricted environment variables outside
 `apps/governance/secret_allowlist.py`.
 
 Implementation:
 
-- Parse Python, TypeScript, Go, Rust, C++, Haskell, and Lua access patterns.
+- Parse Python, Rust, and TypeScript environment-access patterns (the repo's
+  actual languages).
 - Compare environment keys against the governance allowlist.
 - Treat secret-like key names as high severity when the key is not listed.
 
 App path:
 
-- source `cve_secret_env_read`;
+- source `pregate_secret_env_read`;
 - deterministic unauthorized reads hard-block;
 - finding includes the key, file, line, and allowlist path.
 
 ### Gap J: Cross-Language Contract Drift
 
-CVE detects when Pydantic, gRPC, Protocol Buffers, and TypeScript declare
-different shapes for the same app contract.
+PreGate detects when a Pydantic model, a Django serializer, and a TypeScript
+interface declare different shapes for the same app contract.
 
 Implementation:
 
@@ -626,31 +746,42 @@ Implementation:
 
 App path:
 
-- source `cve_cross_language_contract`;
+- source `pregate_cross_language_contract`;
 - deterministic drift hard-blocks when it would break a caller;
 - otherwise a Review item lists each contract source and the mismatched field.
 
 ### Gap K: Performance Regression Proof
 
-CVE checks that every hot-path edit includes benchmark proof. A hot path is code
+PreGate checks that every hot-path edit includes benchmark proof. A hot path is code
 run often enough that slowdown matters to users or to the worker process.
+
+This gap reuses an existing live gate. The repo already ships
+`backend/apps/benchmarks/services/regression_gate.py` (landed 2026-06-13): it
+maps changed files to affected benchmark functions, compares each function's
+latest result against its rolling baseline, and blocks at more than ten percent
+slower than baseline or at fewer than three baseline samples (ambiguous, so it
+blocks conservatively). PreGate does not re-implement benchmark diffing.
 
 Implementation:
 
+- Call `backend/apps/benchmarks/services/regression_gate.py` to get its
+  pass-or-block verdict for the changed files [REGRESSION_GATE].
 - Read the existing Plan #21 Phase G and Plan #29 hot-path-gap #34
-  macrobenchmark requirements.
-- Check for benchmark evidence, profiling proof, and the required marker.
+  macrobenchmark requirements and assert the required proof markers exist.
 - Compare benchmark identifiers against touched native and Python paths.
 
 App path:
 
-- source `cve_performance_proof`;
-- missing proof hard-blocks when the touched path is classified as hot;
-- proof artifacts link to AutoIssue and diagnostics.
+- source `pregate_performance_proof`;
+- `check-pregate-performance-proof.py` composes with `regression_gate.py`: a
+  regression-gate block or a missing proof marker on a hot path hard-blocks the
+  commit;
+- proof artifacts and the regression-gate verdict link to AutoIssue and
+  diagnostics.
 
 ### Gap L: Dead-Code-On-Replace
 
-CVE checks that when a function is replaced, the old version is deleted in the
+PreGate checks that when a function is replaced, the old version is deleted in the
 same commit. This follows Plan #19 and Rule H.29.
 
 Implementation:
@@ -663,13 +794,13 @@ Implementation:
 
 App path:
 
-- source `cve_dead_code_replace`;
+- source `pregate_dead_code_replace`;
 - deterministic duplicate old implementation hard-blocks;
-- false positives can use the CVE override marker.
+- false positives can use the PreGate override marker.
 
 ### Gap M: Workflow Phase Validation
 
-CVE validates the seven workflow phases from Plan #41: research, BDD, TDD,
+PreGate validates the seven workflow phases from Plan #41: research, BDD, TDD,
 implement, review, AutoIssues, and commit. BDD means behavior-driven
 description in Given/When/Then form. TDD means test-driven development, where a
 test is written before or alongside the code and the Red-Green-Refactor cycle is
@@ -677,20 +808,20 @@ recorded.
 
 Implementation:
 
-- Use the existing Lua advisor to remind during PreToolUse.
+- Use the Python advisor to remind during PreToolUse.
 - At commit time, check that each phase artifact exists and is fresh.
 - Reuse the repo's `TDD-STRICT-RULE.md`, paper-trail evidence rule, test-case
   rule, and code-review lesson rule.
 
 App path:
 
-- source `cve_workflow_phase`;
+- source `pregate_workflow_phase`;
 - missing deterministic phase evidence hard-blocks;
 - advisory reminders stay non-blocking before the commit.
 
 ### Gap N: AI-Agent Identity Drift
 
-CVE tracks which agent wrote which code. Agent identity drift means a commit
+PreGate tracks which agent wrote which code. Agent identity drift means a commit
 claims one agent context but the session evidence points to a different agent
 or bypasses the required startup ritual.
 
@@ -703,53 +834,76 @@ Implementation:
 
 App path:
 
-- source `cve_agent_identity`;
+- source `pregate_agent_identity`;
 - bypassed ritual markers hard-block;
 - identity mismatch goes to Review if the evidence is ambiguous.
 
+### Gap O: Non-Gamable Code-Size Accounting (ELCV)
+
+The runtime stack has no concept of "how much real logic exists," and raw line
+counts are trivially gamed by formatting, duplication, or generated scaffolding.
+PreGate computes Effective Logical Code Volume (ELCV) instead — a deduplicated,
+runtime-validated, complexity-weighted measure of executed logic. ELCV is also
+how the project's 5,000,000 target is expressed and tracked.
+
+Implementation: see the full definition in Section 19. In summary, PreGate's Rust
+extension builds the four ELCV inputs (LEU, USO, ARW, SCW) from the Tree-sitter
+parse (Section 8), the `papertrail_dedup` MinHash/LSH engine, and the production
+execution registry (Gap N's runtime evidence + Pyroscope), then aggregates them
+deterministically in CI.
+
+App path:
+
+- source `pregate_elcv`;
+- a commit whose ELCV rises without a matching rise in executed, unique, and
+  behaviorally distinct logic hard-blocks (anti-gaming);
+- the whole-system ELCV, its growth per release, and any regression are shown on
+  the Code Quality page (Section 6.8) and tracked toward the 5,000,000 target.
+
 ## 8. Multi-Language Parsing And Analysis
 
-CVE uses Tree-sitter C parsers [TREE_SITTER]. It does not write a 200,000-line
-parser per language. Each supported language gets one Bazel `cc_library`
-mapper, about 6,000 lines including tests, that converts Tree-sitter output to
-the CVE UAST and CIR.
+PreGate parses through Tree-sitter using the Rust `tree-sitter` crate
+[TREE_SITTER]. It does not write a parser per language. Each supported language
+gets one Rust mapper module, about 6,000 lines including tests, that converts
+Tree-sitter output to the PreGate UAST and CIR. The mapper modules compile into
+the single PyO3 extension.
 
-Supported languages:
+Supported languages match what the repo actually contains today:
 
 - Python;
+- Rust;
 - TypeScript;
 - JavaScript;
-- Go;
-- Rust;
-- C++;
-- Haskell;
-- Lua;
 - SQL;
 - YAML;
 - JSON;
 - Markdown;
 - Dockerfile.
 
-The CIR is stored in native memory with explicit budgets. Roaring bitmaps store
-sets of file ids, symbol ids, rule ids, and affected test ids [ROARING].
-Compact regions may be used in Haskell so whole run graphs can be released at
-once [COMPACT_REGIONS]. If a future GHC 9.x deprecates compact regions, CVE
-keeps working because compact regions are a latency optimization only. Removing
-them may make the rule kernel two to three times slower, but it does not change
-correctness.
+The removed backend languages (C, C++, Go, Haskell, Lua) are not parse targets,
+because the repo contains none of them; a mapper is added only if the repo ever
+adds a new language.
+
+The CIR is stored in the Rust extension's memory with explicit budgets. Roaring
+bitmaps store sets of file ids, symbol ids, rule ids, and affected test ids
+[ROARING]. Arena allocation may be used so a whole run's graph is freed at once;
+it is a latency optimization only. Removing it may make the rule kernel two to
+three times slower, but it does not change correctness.
 
 ## 9. Policy And Rule Packs
 
-CVE does not introduce a bespoke Datalog runtime. Most policy lives in the
-existing Plan #18 rulesd WebAssembly pattern and Plan #40 Lua rule packs. A
-Datalog clause is added only for transitive reachability across the call graph,
-where existing rule-pack patterns are not expressive enough [DATALOG].
+PreGate does not introduce a bespoke Datalog runtime. Policy lives in Rust rule
+modules plus Python configuration (the Plan #18 rulesd Go/WebAssembly service and
+the Plan #40 Lua packs are superseded by the Python-plus-Rust rule). A Datalog
+clause, evaluated by a small Rust engine, is added only for transitive
+reachability across the call graph, where simpler rule patterns are not
+expressive enough [DATALOG].
 
 Rule-pack lifecycle:
 
-1. Author rule pack in the allowed Lua subset or native rule schema.
-2. Compile or package through WebAssembly where the Plan #18 lifecycle requires
-   it [WASM_CORE].
+1. Author the rule pack as a Rust module plus its Python config entry.
+2. Build it into the PyO3 extension through the Docker-managed maturin path
+   [MATURIN].
 3. Sign the pack.
 4. Run 24 hours in shadow mode.
 5. Run 24 hours in canary mode.
@@ -759,7 +913,7 @@ Rule-pack lifecycle:
 
 Each rule pack declares:
 
-- name and `cve_<rule_pack_name>` source;
+- name and `pregate_<rule_pack_name>` source;
 - version and signature;
 - owner runtime;
 - budget tier;
@@ -771,6 +925,12 @@ Each rule pack declares:
 - override policy;
 - citations for any named algorithm or data structure it uses.
 
+The quality layer adds seven rule packs, each its own dynamic AutoIssue picker
+source per the Plan #18 model: `pregate_elcv`, `pregate_duplication`,
+`pregate_complexity`, `pregate_churn`, `pregate_defect_density`,
+`pregate_build_time`, and `pregate_dead_code`. They are full rule packs and obey
+the same shadow, canary, production lifecycle as every other pack.
+
 ## 10. Execution Modes
 
 ### 10.1 Local Incremental Mode
@@ -781,7 +941,7 @@ bespoke diff parser.
 
 Local mode includes:
 
-- Lua advisory rule packs before tool use;
+- Python advisory checks before tool use;
 - fast AST and text checks;
 - selected medium cross-file checks;
 - one-second proof obligations only for security-critical touched paths;
@@ -792,10 +952,11 @@ Target: under two seconds for the incremental scan path.
 
 ### 10.2 Local K8s Mode
 
-The K8s infrastructure at `C:\Users\goldm\OneDrive\Desktop\K8S\` runs CVE as
-Bazel test targets.
-
-CVE inherits:
+The planned K8s plus Bazel distributed-test foundation (slices K8S.01-K8S.25)
+runs PreGate as Bazel test targets. This foundation is not built yet (see
+Section 4.1): until it lands, PreGate runs through the existing Docker
+quality-runner scripts and the `.githooks` chain, and this section describes the
+target path. When the foundation ships, PreGate inherits:
 
 - K8S.17 source-snapshot protocol, which captures tracked, staged, unstaged,
   and untracked working-tree files;
@@ -812,23 +973,39 @@ full master gate.
 
 ### 10.3 AWS CodeBuild Master Gate
 
-AWS CodeBuild runs the full mutation, coverage, and cross-language CVE suite.
+AWS CodeBuild runs the full mutation, coverage, and cross-language PreGate suite.
 It respects the Step 5 budget lock and the Plan #32 time window. If the
-CodeBuild budget reaches the 100 percent cap, the CVE master-gate suite skips
-as required by the Step 5 lock. Local K8s incremental CVE still runs.
+CodeBuild budget reaches the 100 percent cap, the PreGate master-gate suite skips
+as required by the Step 5 lock. Local K8s incremental PreGate still runs.
 
 ## 11. Observability
 
-CVE emits observability through the existing stack only: OpenTelemetry, Tempo,
-Pyroscope, GlitchTip, Loki, and VictoriaMetrics [OPENTELEMETRY] [TEMPO_DOCS]
-[PYROSCOPE_DOCS] [GLITCHTIP_DOCS] [LOKI_DOCS] [VICTORIAMETRICS_DOCS].
+PreGate emits observability through the existing stack only: OpenTelemetry,
+Tempo, Pyroscope, GlitchTip, Loki, Prometheus exposition, and VictoriaMetrics
+[OPENTELEMETRY] [TEMPO_DOCS] [PYROSCOPE_DOCS] [GLITCHTIP_DOCS] [LOKI_DOCS]
+[PROMETHEUS_EXPOSITION] [VICTORIAMETRICS_DOCS].
 
-Every CVE call from the Python adapter to the Haskell sidecar emits an
+Metrics path (current, verified this session). The live local metrics path is
+Prometheus exposition: the backend exposes a `/metrics/` endpoint that the
+`otel-collector` scrapes on port 8889 and Grafana reads, all through the
+`prometheus-client` registry. Four instrumentation modules already follow this
+pattern: `backend/apps/observability/metrics_ranking.py`,
+`metrics_retrieval.py`, `metrics_embeddings.py`, and `metrics_workers.py`
+[PROMETHEUS_MONITORING]. PreGate adds a fifth module,
+`backend/apps/observability/metrics_pregate.py`, that exposes its per-rule-pack
+counters and timers the same way. The `PrometheusSummaryView` at
+`/api/observability/prometheus-summary/` exposes a small set of live values for
+the diagnostics page. VictoriaMetrics is the planned durable, remote metrics
+store on the Mint helper (`10.10.10.91:8428`); it is not a local container today,
+so PreGate's dashboards read the live Prometheus path and treat VictoriaMetrics
+as the long-term store once it is wired.
+
+Every PreGate call from the Python adapter into the Rust extension emits an
 OpenTelemetry span. A span is one timed operation in a trace. The span carries
 these attributes:
 
 - `component_name`;
-- `owner_runtime=haskell`;
+- `owner_runtime=rust`;
 - `fallback_used=false`;
 - `runtime_artifact_version`;
 - `runtime_contract_version`;
@@ -837,15 +1014,15 @@ these attributes:
 - `rule_pack_name`;
 - `rule_pack_version`.
 
-Tempo receives trace propagation across the gRPC boundary per Plan #37 idea 26.
-Pyroscope profiles the sidecar continuously with a 100 MB profile cap. GlitchTip
-captures typed errors:
+Tempo receives trace context across the in-process PyO3 boundary per Plan #37
+idea 26. Pyroscope profiles the Rust extension continuously with a 100 MB profile
+cap. GlitchTip captures typed errors:
 
-- `HaskellUnavailableError`;
+- `RustUnavailableError`;
 - `CompiledRuntimeContractError`;
 - `CompiledRuntimeTimeoutError`;
-- `CveRulePackError`;
-- `CveProofObligationUnknown`.
+- `PregateRulePackError`;
+- `PregateProofObligationUnknown`.
 
 Loki receives structured logs with:
 
@@ -856,12 +1033,13 @@ Loki receives structured logs with:
 - `severity`;
 - `decision`, with values `allow`, `warn`, `review`, or `critical`.
 
-VictoriaMetrics tracks:
+The metrics path (Prometheus exposition through `metrics_pregate.py` now,
+VictoriaMetrics as the durable remote store later) tracks:
 
 - per-rule-pack p50, p95, and p99 latency;
 - per-rule-pack false-positive rate, measured as operator override rate over a
   30-day rolling window;
-- sidecar availability;
+- Rust extension availability;
 - proof UNKNOWN rate;
 - AutoIssue filing failures.
 
@@ -872,49 +1050,123 @@ Review item.
 
 | Risk | Behavior | Rollback or recovery |
 |---|---|---|
-| `services/cve/` crashes | Python raises `HaskellUnavailableError`. Pipeline continues without CVE checks. | Operator sees "CVE unavailable" chip using the Plan #25 G-229 explanation library. AutoIssue is filed. |
-| Z3 or CVC5 returns UNKNOWN beyond budget | CVE does not reject the change. | Route to Plan #17 Review queue and store `CveProofObligation`. |
-| Tree-sitter upstream breaks | Version is pinned in `MODULE.bazel`. | Bump only through a paper-trail entry and golden test update. |
-| GHC deprecates compact regions | Correctness unaffected. | Remove or replace compact-region optimization. Latency may degrade two to three times. |
-| Rule pack misbehaves | WebAssembly sandbox, signature verification, shadow, canary, production lifecycle contains it. | Return the pack to shadow status. Never auto-delete it. |
-| CodeBuild reaches 100 percent budget cap | CVE master-gate suite skips per Step 5. | Local K8s incremental scan still runs. AutoIssue records the budget skip. |
-| Known false positive | Operator adds `[CVE OVERRIDE: rule_pack=<name> rule_id=<id> reason="..."]` in the commit body. | Override is logged to OperatorOverride and counted in false-positive rate. |
+| The Rust extension fails to load or errors | Python raises `RustUnavailableError`. Pipeline continues without PreGate checks. | Operator sees "PreGate unavailable" chip using the Plan #25 G-229 explanation library. AutoIssue is filed. |
+| Z3 or CVC5 returns UNKNOWN beyond budget | PreGate does not reject the change. | Route to Plan #17 Review queue and store `PregateProofObligation`. |
+| Tree-sitter upstream breaks | The `tree-sitter` crate version is pinned in `Cargo.toml`. | Bump only through a paper-trail entry and golden-test update. |
+| Arena optimization unavailable | Correctness unaffected. | Fall back to normal allocation. Latency may degrade two to three times. |
+| Rule pack misbehaves | Signature verification plus the shadow, canary, production lifecycle contains it. | Return the pack to shadow status. Never auto-delete it. |
+| CodeBuild reaches 100 percent budget cap | PreGate master-gate suite skips per Step 5. | Local K8s incremental scan still runs. AutoIssue records the budget skip. |
+| Known false positive | Operator adds `[PREGATE OVERRIDE: rule_pack=<name> rule_id=<id> reason="..."]` in the commit body. | Override is logged to OperatorOverride and counted in false-positive rate. |
 | AutoIssue filing fails | Hook helper writes to findings buffer where allowed. | Drain buffer next session. In CI, fail strict because soft filing is not allowed. |
-| Dynamic CVE source unsupported | Current schema/client cannot show sources cleanly. | Phase 1 resolves AutoIssues #2470 and #2471 before broad rule-pack ingestion. |
+| Dynamic PreGate source unsupported | Current schema/client cannot show sources cleanly. | Phase 1 resolves AutoIssues #2470 and #2471 before broad rule-pack ingestion. |
+
+### 12.1 Per-Phase Runbooks
+
+Each phase has its own most-likely failure and recovery.
+
+- Phase 1 (skeleton): if the PG.02 governance migration conflicts with another
+  in-flight migration, sequence PG.02 after that stream and rebase; if PG.01
+  cannot widen the AutoIssue source field safely on live data, gate PreGate
+  ingestion behind a feature flag and file a paper-trail entry, but do not ship
+  rule packs until #2470 and #2471 are resolved.
+- Phase 2 (parsers): if a Tree-sitter grammar drifts and breaks a golden test,
+  pin the grammar version in the build manifest and bump it only through a
+  paper-trail entry plus a golden-test update; never silently re-bless goldens.
+- Phase 3 (blast radius): if Apache AGE is not yet wired, fall back to the
+  GraphAnalyzer in-process call graph and mark blast-radius results "partial"
+  in the finding; do not block on a missing graph store.
+- Phase 4 (proofs): if Z3 and CVC5 disagree, treat the obligation as UNKNOWN and
+  route to Review (never auto-reject); if a solver binary is missing in
+  `compiled-tools`, skip heavy rules and file an AutoIssue rather than passing
+  silently.
+- Phase 5 (lifecycle): if a rule pack misbehaves in canary, return it to shadow
+  (never auto-delete); if signature verification fails, refuse to load the pack
+  and file an AutoIssue.
+- Phase 6 (production library): if the CodeBuild master gate would exceed the
+  15-minute budget or the cost cap, shed the heaviest rule packs to a nightly
+  run and keep the local incremental subset live; record the shed in an
+  AutoIssue.
 
 ## 13. Self-Test Strategy
 
-CVE must satisfy the Plan #21 Quality Bar before production use. The engine is a
-validator, so it must be harder on itself than on normal feature code.
+PreGate must satisfy the Plan #21 Quality Bar before production use. The engine is a
+validator, so it must be harder on itself than on normal feature code. This
+section defines PreGate's own test layers; the repo-wide, enforced quality layer
+that PreGate applies to all code (Test-Driven Development plus the ten engineering
+metrics) is specified in Section 18, and the non-gamable code-size metric ELCV in
+Section 19. PreGate is held to both — it dogfoods every gate.
 
 Required test layers:
 
-- Property-based testing with tasty-hedgehog, following Plan #26 Slice 3
-  [HEDGEHOG] [TASTY].
+- Property-based testing through the live repo gate. The repo already runs a
+  hard pre-commit property-based-testing gate (landed 2026-06-13):
+  `scripts/run-pbt.sh`, wired at `scripts/precommit-docker.sh:359`, with a single
+  five-minute shared budget, scoped to changed files, Dell-only and fail-closed.
   Property-based testing means generating many inputs to test a rule, not just
-  hand-picking examples. The citation lineage follows QuickCheck
-  [QUICKCHECK].
-- Golden tests with tasty-golden for parser output, UAST output, CIR output,
-  canonical contract snapshots, and proof obligations. A golden test compares
-  output to a checked-in expected file [TASTY_GOLDEN].
-- Mutation testing with MuCheck for Haskell, mutmut for Python, Stryker for
-  TypeScript and JavaScript, Mull for C++, cargo-mutants for Rust, and
-  go-mutesting for Go [MUCHECK] [MUTMUT] [STRYKER] [MULL] [CARGO_MUTANTS]
-  [GO_MUTESTING]. Mutation testing changes code on purpose to prove tests catch
-  real behavior changes.
-- Fuzz testing with libFuzzer and AFL-style fuzzers for the patch parser,
-  Tree-sitter wrappers, and Unicode homoglyph detector [LIBFUZZER] [AFL].
-- Linearizability checks with dejafu for Haskell concurrent paths. A
-  linearizability check proves concurrent operations behave like some valid
-  one-at-a-time order [DEJAFU].
+  hand-picking examples (citation lineage QuickCheck [QUICKCHECK]). PreGate's
+  pure-logic kernels ship tests that ride this gate:
+  - Python kernels: `property`-marked Hypothesis tests run by
+    `python -m pytest -m property` under the `fast` profile locally and `ci` in
+    CI (profiles in `backend/conftest.py`, marker in `backend/pytest.ini`)
+    [HYPOTHESIS];
+  - Rust kernels: proptest cases run by `cargo nextest run -E "test(/prop_/)"`
+    [PROPTEST] [NEXTEST].
+- Snapshot tests with insta for the Rust parser, UAST, CIR, canonical contract
+  snapshots, and proof obligations. A snapshot test compares output to a
+  checked-in expected file [INSTA].
+- Mutation testing with mutmut for Python, cargo-mutants for Rust, and Stryker
+  for any frontend TypeScript (driven by Vitest through the command runner;
+  Karma is gone) [MUTMUT] [CARGO_MUTANTS] [STRYKER]. The removed-language
+  mutators (MuCheck, Mull, go-mutesting) no longer apply. Mutation testing
+  changes code on purpose to prove tests catch real behavior changes. The repo
+  enforces a ratchet: `.mutation-score-baseline.json` plus
+  `.githooks/check-mutation-score.py` hold a per-target baseline that only rises;
+  the target is above 90 percent (Stryker thresholds 95 percent).
+- Fuzz testing with cargo-fuzz (libFuzzer under the hood) for the patch parser,
+  Tree-sitter wrappers, and the Unicode homoglyph detector [CARGO_FUZZ]
+  [LIBFUZZER].
+- Concurrency checks with loom for the Rust extension's concurrent paths. Loom
+  explores interleavings to prove the concurrent code behaves like some valid
+  one-at-a-time order [LOOM].
 - Coverage target: 95 percent on the rule-engine kernel and 90 percent
   elsewhere, following `docs/CODE-COVERAGE-RULES.md` and Plan #21 Phase D.
 - Five-layer TDD coverage from `docs/TDD-STRICT-RULE.md`: edge cases, resource
   release, latency, smoke, and end-to-end tests on every touched file.
+- Lint and type checks on PreGate's own surfaces use the current repo tools:
+  ruff (`select=["ALL"]`) and mypy for Python, oxlint then eslint for any
+  TypeScript, clippy for Rust [RUFF] [CLIPPY]. pylint is not used (removed).
 
-The CVE test suite must be discoverable by the K8s Bazel runner and by
-CodeBuild. New languages, folders, runtime paths, and build targets must update
-tool wiring in the same slice.
+Quality-tool container ownership. PreGate's Python quality tools (ruff, mypy,
+bandit, pytest, mutmut, coverage) run in the `backend-quality` container, never
+the runtime `backend`. Compiled-language quality runs in `compiled-mutation-tools`
+and `compiled-tools`; frontend quality runs in `frontend-mutation-tools`. This
+matches the repo's quality-container split.
+
+The PreGate test suite must be discoverable by the existing quality-runner
+scripts today and by the K8s Bazel runner and CodeBuild once they land. New
+languages, folders, runtime paths, and build targets must update tool wiring in
+the same slice.
+
+### 13.1 Exact Per-Tool Test Commands
+
+These are the exact commands PreGate slices run. Until Bazel and K8s land, the
+Docker quality-runner forms are authoritative; the Bazel target forms are the
+target path.
+
+| Layer | Exact command |
+|---|---|
+| Python property (rides the PBT gate) | `docker compose run --rm backend-quality python -m pytest -m property -p no:randomly -n auto` (whole gate: `bash scripts/run-pbt.sh`) |
+| Python unit and integration | `docker compose run --rm backend-quality python -m pytest <target>` |
+| Python mutation (ratcheted) | `bash scripts/run-python-mutation.sh <target>` (mutmut) |
+| Python lint and types | `docker compose run --rm backend-quality ruff check <target>` and `... python -m mypy --config-file backend/mypy.ini <target>` |
+| Rust property | `cargo nextest run -E "test(/prop_/)"` (PROPTEST_CASES budget) |
+| Rust mutation | `bash scripts/run-rust-mutation.sh <crate>` (cargo-mutants) |
+| Rust lint | `bash scripts/run-rust-quality.sh` (cargo fmt, clippy, nextest) |
+| Rust unit, snapshot, fuzz, concurrency | `cargo nextest run` (unit + insta snapshot); `cargo fuzz run <target>` (fuzz); `cargo test` under loom (concurrency) |
+| Rust and Python coverage | `cargo llvm-cov` (Rust) and `coverage.py` via `backend-quality` (Python) |
+| Rust extension build | `maturin develop` for local iteration, `maturin build` for release, through the Docker-managed path |
+| Frontend (any TypeScript surface) | `npm run test:ci` (Vitest) and `bash scripts/run-angular-mutation.sh` (Stryker) |
+| The PBT pre-commit gate | `bash scripts/run-pbt.sh` (wired at `scripts/precommit-docker.sh:359`) |
 
 ## 14. Roadmap
 
@@ -927,15 +1179,16 @@ Goal: app skeleton and highest-impact checks.
 
 Deliverables:
 
-- create `apps/governance/code_validation_engine/`;
+- create `apps/governance/pregate/`;
 - add governance `api.py` surface;
-- create `services/cve/` Haskell sidecar foundation;
-- add gRPC over `/var/run/xf/cve.sock`;
-- amend ADR 0007 to include CVE in the Haskell-tier list;
+- create the Rust PyO3/maturin extension scaffold (no sidecar, no gRPC);
+- add a health check the Python orchestrator can call through PyO3;
+- create or amend ADR 0007 to record PreGate as a Rust PyO3 extension under the
+  Python-plus-Rust rule;
 - widen AutoIssue dynamic source support and frontend client handling, resolving
   AutoIssues #2470 and #2471;
 - add SARIF writer and AutoIssue ingestion;
-- add diagnostics API for `/diagnostics/code-validation/`;
+- add diagnostics API for `/diagnostics/pregate/`;
 - add the 10 highest-impact rule packs:
   architectural boundary, breaking API, drop-column migration, taint flow,
   missing authentication, prompt injection in comments, hallucinated API,
@@ -948,11 +1201,11 @@ Goal: native parsing and UAST kernels.
 
 Deliverables:
 
-- Plan #42 C application binary interface wrappers for Tree-sitter binding;
-- UAST builder kernels;
-- per-language UAST mappers for Python, TypeScript, Go, Rust, C++, and Haskell;
-- Bazel `cc_library` per mapper;
-- golden tests for parse tree, UAST, and CIR output.
+- Rust `tree-sitter` parsing integration inside the PyO3 extension;
+- the UAST and CIR builder in Rust;
+- per-language UAST mappers (Rust) for Python, Rust, TypeScript, and JavaScript;
+- one Rust module per mapper, compiled into the single extension;
+- insta snapshot tests for parse tree, UAST, and CIR output.
 
 ### Phase 3: Months 7-9, About 15 Slices
 
@@ -977,7 +1230,7 @@ Deliverables:
 - one-second local and 30-second CodeBuild budgets;
 - cooperative cancellation;
 - UNKNOWN routing to Plan #17 Review;
-- dejafu checks for concurrent Haskell paths.
+- loom checks for concurrent Rust paths.
 
 ### Phase 5: Months 13-18, About 20 Slices
 
@@ -985,7 +1238,7 @@ Goal: rule-pack lifecycle.
 
 Deliverables:
 
-- extend Plan #18 rulesd lifecycle for CVE packs;
+- extend Plan #18 rulesd lifecycle for PreGate packs;
 - signature verification;
 - shadow, canary, production state machine;
 - 24-hour shadow and 24-hour canary gates;
@@ -1005,19 +1258,142 @@ Deliverables:
 - full CodeBuild master-gate suite under 15 minutes;
 - local K8s incremental subset through Bazel.
 
+### 14.1 Phase 1 Slice Index (PG.01-PG.15)
+
+Phase 1 is carved into fifteen ordered, independently shippable slices. Each row
+has a one-line acceptance check. Slice bodies for PG.01-PG.05 follow in full;
+PG.06-PG.15 are each one rule-pack slice carved to its own file when picked up,
+using the same template (this is normal slice-by-slice execution, not deferral).
+
+| ID | Title | LOC | Depends on | Acceptance (one line) |
+|---|---:|---|---|---|
+| PG.01 | Resolve AutoIssue #2470 + #2471: widen AutoIssue source + dynamic source registry (backend + frontend) | 6,000 | none | A `pregate_demo` source registers, persists, and shows in `/api/auto-issues/` and the frontend client without a fixed-union error. |
+| PG.02 | Create `apps/governance/pregate/` module + `api.py` + data model + migrations | 9,000 | PG.01 | `apps.governance.api` exposes the PreGate surface; PregateRulePack/Run/Finding/ContractSnapshot/ProofObligation/BlastRadius migrate cleanly in the governance database. |
+| PG.03 | Rust PyO3/maturin extension scaffold + Python health call | 8,000 | PG.02 | `maturin develop` builds the extension; a Python health call returns OK; ADR 0007 records PreGate as a Rust PyO3 extension. |
+| PG.04 | SARIF v2.1.0 writer + AutoIssue ingestion (`pregate_*`) + `metrics_pregate.py` | 7,000 | PG.02 | A sample finding writes valid SARIF, files a `pregate_*` AutoIssue, and increments a Prometheus counter at `/metrics/`. |
+| PG.05 | Diagnostics API for `/diagnostics/pregate/` (availability, runs, rule-pack health, override rate) | 6,000 | PG.04 | The API returns availability, latest runs, and per-rule-pack override rate as JSON. |
+| PG.06 | Rule pack: architectural boundary (`pregate_arch_boundary`) + `check-pregate-architectural-boundaries.py` | 7,000 | PG.03, PG.04 | A forbidden cross-module private import hard-blocks with a named caller/callee finding. |
+| PG.07 | Rule pack: breaking API / contract drift (`pregate_contract_drift`) | 9,000 | PG.06 | Removing a required OpenAPI field hard-blocks; an ambiguous change routes to Review. |
+| PG.08 | Rule pack: drop-column migration safety (`pregate_migration_safety`) | 7,000 | PG.06 | A `DROP COLUMN` without approved evidence hard-blocks; a risky-but-valid migration routes to Review. |
+| PG.09 | Rule pack: taint flow to sink (`pregate_taint_flow`) | 9,000 | PG.06 | User input reaching a SQL string without sanitization hard-blocks. |
+| PG.10 | Rule pack: missing authentication dominance (`pregate_security_proof`) | 9,000 | PG.06 | A sensitive operation not dominated by an auth check routes to Review (UNKNOWN never auto-rejects). |
+| PG.11 | Rule pack: prompt injection in comments (`pregate_prompt_injection`) | 7,000 | PG.06 | A known injection phrase in a comment hard-blocks; a homoglyph variant is caught. |
+| PG.12 | Rule pack: hallucinated API (`pregate_hallucinated_api`) | 8,000 | PG.06 | A call to a method that does not exist locally hard-blocks; external uncertainty routes to Review. |
+| PG.13 | Rule pack: unauthorized env read (`pregate_secret_env_read`) | 6,000 | PG.06 | A read of a restricted env key outside the allowlist hard-blocks with key/file/line. |
+| PG.14 | Rule pack: dead-code-on-replace (`pregate_dead_code_replace`) | 7,000 | PG.06 | A replaced function whose old body survives in the same commit hard-blocks. |
+| PG.15 | Rule pack: performance-regression proof (`pregate_performance_proof`) composing with `regression_gate.py` | 6,000 | PG.06 | A hot-path edit with no benchmark proof, or a regression-gate block, hard-blocks. |
+
+Each PG.06-PG.15 slice ships its `check-pregate-*.py` hook plus `property`-marked
+tests that ride `scripts/run-pbt.sh`, and follows the Quality Bar (mutation pass
+on touched files, coverage above 90 percent, all hooks green, clean tree).
+
+#### Slice PG.01 (full body)
+
+- Spec: source-cited at this document plus `fr-hook-finding-autoissue.md`.
+- Given the AutoIssue `source` field is 16-character fixed-choice and the
+  frontend types it as a three-value union, When PG.01 adds a source registry,
+  widens the field, and makes the client registry-backed, Then a new
+  `pregate_demo` source registers, persists, lists in `/api/auto-issues/`, and
+  renders in the client with no union error.
+- TDD: Red — a test that registers `pregate_demo` and reads it back fails on the
+  16-char/fixed-choice field and the frontend union. Green — migration widens the
+  field, adds `SourceRegistry`, and the client reads the registry. Refactor —
+  keep the 25 existing source names stable.
+- Files: edit `backend/apps/auto_issues/models.py` (+ migration), add a source
+  registry module, edit `frontend/src/app/core/services/auto-issues.service.ts`.
+- Verify: `docker compose run --rm backend-quality python -m pytest` for the new
+  round-trip test; `npm run test:ci` for the client.
+- Done: #2470 and #2471 resolved; existing sources unchanged; tests green.
+
+#### Slice PG.02 (full body)
+
+- Given there is no `apps/governance/` module, When PG.02 creates
+  `apps/governance/pregate/` with `api.py` and the six PreGate models, Then
+  migrations apply and `apps.governance.api` exposes the PreGate surface.
+- TDD: Red — import of `apps.governance.api` fails. Green — module + `api.py` +
+  models + migrations. Refactor — keep private files behind `api.py`.
+- Files: new `backend/apps/governance/__init__.py`, `api.py`,
+  `pregate/models.py`, migration; settings registration.
+- Verify: `python manage.py makemigrations --check`; boundary hook passes.
+- Done: governance module imports cleanly; models migrate in the governance DB.
+
+#### Slice PG.03 (full body)
+
+- Given there is no PreGate Rust extension yet, When PG.03 scaffolds a Rust crate
+  built through maturin and exposes a PyO3 `health()` function, Then Python
+  imports the extension and `health()` returns OK, and ADR 0007 records PreGate
+  as a Rust PyO3 extension.
+- TDD: Red — a Python test that imports the extension and calls `health()` fails
+  (no extension). Green — minimal Rust crate + PyO3 binding + maturin build.
+  Refactor — keep the Python side orchestration-only.
+- Files: new Rust crate (`Cargo.toml`, `src/lib.rs`, maturin config), `docs/adr/0007-*`.
+- Verify: `maturin develop` builds; the Python health call returns OK under the
+  Docker quality path.
+- Done: extension builds and imports; health passes; a missing or failed
+  extension raises a typed `RustUnavailableError`.
+
+#### Slice PG.04 (full body)
+
+- Given findings have nowhere to land, When PG.04 adds a SARIF v2.1.0 writer,
+  `pregate_*` AutoIssue ingestion, and `metrics_pregate.py`, Then a sample
+  finding writes valid SARIF, files a deduped AutoIssue, and increments a
+  Prometheus counter at `/metrics/`.
+- TDD: Red — SARIF schema-validation test fails. Green — writer + ingestion +
+  metrics module. Refactor — reuse the existing hook-finding-to-AutoIssue path.
+- Files: SARIF writer, ingestion command, `backend/apps/observability/metrics_pregate.py`.
+- Verify: SARIF validates against v2.1.0; counter visible at `/metrics/`.
+- Done: one finding flows file → SARIF → AutoIssue → metric.
+
+#### Slice PG.05 (full body)
+
+- Given findings are not app-visible, When PG.05 adds the diagnostics API for
+  `/diagnostics/pregate/`, Then the API returns availability, latest runs, and
+  per-rule-pack override rate as JSON.
+- TDD: Red — API endpoint 404s. Green — DRF view + serializer. Refactor — read
+  through `apps.governance.api` only.
+- Files: governance diagnostics view, serializer, URL.
+- Verify: authenticated GET returns the documented JSON shape; 401 without auth.
+- Done: diagnostics JSON available; React route (Plan #13) consumes it later.
+
+### 14.2 Quality + ELCV Sub-Streams
+
+Two further sub-streams deliver the Section 18 quality layer and the Section 19
+ELCV metric. Both are TDD-first and must themselves pass every gate (PreGate
+dogfoods). Because the thresholds are absolute from day one (Section 18), each
+gate slice does **remediate-to-green then arm-the-gate in the same slice** — you
+cannot arm an absolute gate on a dirty tree without halting work.
+
+Sub-stream Q (quality gates), one slice per metric, ordered lowest-disruption
+first: branch coverage → mutation → complexity → size → coupling → duplication →
+churn → build/test time → production execution evidence → defect density. Each
+slice: adopt the threshold into `config/quality-thresholds.yaml`, remediate
+existing violations to green, arm the hard-block hook (reusing an existing hook
+where one exists, adding a new `check-pregate-*.py` where it does not), and add
+the GUI tile.
+
+Sub-stream E (ELCV): PG.E1 LEU extractor (Rust Tree-sitter, with a Python `ast`
+bridge until the Rust parser lands) → PG.E2 USO via the `papertrail_dedup`
+MinHash/LSH engine fed normalized code tokens → PG.E3 ARW production-execution
+registry (Pyroscope plus coverage contexts) → PG.E4 SCW complexity weighting →
+PG.E5 ELCV aggregator plus `check-pregate-elcv.py` anti-gaming gate plus
+`config/quality-thresholds.yaml` → PG.E6 Code Quality page and
+`/api/observability/code-quality/` → PG.E7 5,000,000-target tracking, regression
+detection, and the nightly recompute. PG.E1 and PG.E2 depend on Phase 2
+(Tree-sitter); PG.E3 depends on the observability and Pyroscope stack.
+
 ## 15. Acceptance Criteria
 
-### Scenario 1: Local edit creates an app-visible CVE finding
+### Scenario 1: Local edit creates an app-visible PreGate finding
 
 Given an agent edits a Python file and adds a forbidden cross-module private
-import, when the local CVE hook runs, then the commit is blocked, a SARIF
-finding is written, and an AutoIssue with source `cve_arch_boundary` is created
+import, when the local PreGate hook runs, then the commit is blocked, a SARIF
+finding is written, and an AutoIssue with source `pregate_arch_boundary` is created
 or deduped.
 
 ### Scenario 2: Solver uncertainty goes to Review
 
 Given a security-critical proof obligation exceeds the local one-second budget,
-when Z3 or CVC5 returns UNKNOWN, then CVE does not reject the change and creates
+when Z3 or CVC5 returns UNKNOWN, then PreGate does not reject the change and creates
 a Plan #17 Review queue item with the proof details.
 
 ### Scenario 3: Rule-pack noise is visible
@@ -1026,18 +1402,18 @@ Given a rule pack produces many operator overrides over 30 days, when the
 diagnostics page loads, then the page shows the rule pack's false-positive rate
 and the source bucket is visible in AutoIssues.
 
-### Scenario 4: K8s runs CVE as Bazel targets
+### Scenario 4: K8s runs PreGate as Bazel targets
 
 Given the K8s distributed test coordinator runs an incremental local suite, when
-CVE targets are selected, then they use the source-snapshot protocol, shard
+PreGate targets are selected, then they use the source-snapshot protocol, shard
 through the K8S.20 formula, and merge coverage and mutation evidence through the
 K8S.23 final merge job.
 
 ### Scenario 5: CodeBuild budget cap is respected
 
 Given AWS CodeBuild reaches the 100 percent budget cap, when the master-gate
-CVE suite is due to run, then it skips per the Step 5 lock, files an AutoIssue,
-and local K8s incremental CVE remains available.
+PreGate suite is due to run, then it skips per the Step 5 lock, files an AutoIssue,
+and local K8s incremental PreGate remains available.
 
 ## 16. Citations
 
@@ -1061,8 +1437,6 @@ and local K8s incremental CVE remains available.
   with Roaring Bitmaps," Software: Practice and Experience, DOI: 10.1002/spe.2325.
 - [DATALOG] Ullman, 1989, "Principles of Database and Knowledge-Base Systems,
   Volume 1," ISBN: 978-0716782759.
-- [COMPACT_REGIONS] Yang, Mainland, and Marlow, 2015, "Compact Normal Forms for
-  Efficient Storage of Immutable Data," ICFP, DOI: 10.1145/2784731.2784735.
 - [QUICKCHECK] Claessen and Hughes, 2000, "QuickCheck: A Lightweight Tool for
   Random Testing of Haskell Programs," ICFP, DOI: 10.1145/351240.351266.
 - [CUCKOO] Fan, Andersen, Kaminsky, and Mitzenmacher, 2014, "Cuckoo Filter:
@@ -1082,11 +1456,6 @@ and local K8s incremental CVE remains available.
   extension docs, https://age.apache.org/age-manual/master/.
 - [OPENCYPHER] openCypher project, "openCypher Resources and Specification,"
   official URL, https://opencypher.org/resources/.
-- [WASM_CORE] W3C, "WebAssembly Core Specification 2.0," official
-  recommendation, https://www.w3.org/TR/wasm-core-2/.
-- [AESON] Hackage, "aeson: Fast JSON parsing and encoding," official docs,
-  https://hackage.haskell.org/package/aeson; Bryan O'Sullivan, 2011, "Aeson:
-  A Fast JSON Library for Haskell," https://www.serpentine.com/blog/2011/12/05/aeson-a-fast-json-library-for-haskell/.
 - [HOARE] Hoare, 1969, "An Axiomatic Basis for Computer Programming,"
   Communications of the ACM, DOI: 10.1145/363235.363259.
 - [ABSTRACT_INTERPRETATION] Cousot and Cousot, 1977, "Abstract Interpretation:
@@ -1096,8 +1465,6 @@ and local K8s incremental CVE remains available.
   Frameworks," POPL, DOI: 10.1145/567752.567778.
 - [SARIF] OASIS, "Static Analysis Results Interchange Format Version 2.1.0,"
   official standard, https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html.
-- [GRPC] gRPC authors, "gRPC over Unix domain sockets and naming," official
-  docs, https://grpc.io/docs/guides/custom-name-resolution/.
 - [OPENTELEMETRY] OpenTelemetry authors, "OpenTelemetry Specification,"
   official docs, https://opentelemetry.io/docs/specs/otel/.
 - [TEMPO_DOCS] Grafana Labs, "Tempo documentation," official docs,
@@ -1110,8 +1477,6 @@ and local K8s incremental CVE remains available.
   https://grafana.com/docs/loki/latest/.
 - [VICTORIAMETRICS_DOCS] VictoriaMetrics, "VictoriaMetrics documentation,"
   official docs, https://docs.victoriametrics.com/.
-- [PROTOBUF] Google, "Protocol Buffers Language Guide," official docs,
-  https://protobuf.dev/programming-guides/proto3/.
 - [OPENAPI] OpenAPI Initiative, "OpenAPI Specification," official docs,
   https://spec.openapis.org/oas/latest.html.
 - [PYDANTIC] Pydantic maintainers, "Pydantic documentation," official docs,
@@ -1124,59 +1489,211 @@ and local K8s incremental CVE remains available.
   docs, https://www.postgresql.org/docs/current/explicit-locking.html.
 - [LIBFUZZER] LLVM Project, "libFuzzer: a library for coverage-guided fuzz
   testing," official docs, https://llvm.org/docs/LibFuzzer.html.
-- [AFL] AFL++ maintainers, "AFL++ Documentation," official docs,
-  https://aflplus.plus/docs/.
-- [DEJAFU] Hackage, "dejafu: systematic testing for concurrent Haskell
-  programs," official docs, https://hackage.haskell.org/package/dejafu.
-- [HEDGEHOG] Hackage, "hedgehog: property-based testing," official docs,
-  https://hackage.haskell.org/package/hedgehog.
-- [TASTY] Hackage, "tasty: modern and extensible testing framework," official
-  docs, https://hackage.haskell.org/package/tasty.
-- [TASTY_GOLDEN] Hackage, "tasty-golden: golden tests support for tasty,"
-  official docs, https://hackage.haskell.org/package/tasty-golden.
-- [MUCHECK] MuCheck project, "MuCheck: mutation testing for Haskell," official
-  repository, https://github.com/fortytools/mucheck.
 - [MUTMUT] mutmut maintainers, "mutmut documentation," official docs,
   https://mutmut.readthedocs.io/.
 - [STRYKER] Stryker Mutator, "Stryker mutation testing documentation,"
   official docs, https://stryker-mutator.io/docs/.
-- [MULL] Mull project, "Mull mutation testing system," official docs,
-  https://mull.readthedocs.io/.
 - [CARGO_MUTANTS] cargo-mutants maintainers, "cargo-mutants documentation,"
   official docs, https://mutants.rs/.
-- [GO_MUTESTING] go-mutesting project, "go-mutesting," official repository,
-  https://github.com/zimmski/go-mutesting.
 - [CLIPPY] Rust project, "Clippy documentation," official docs,
   https://doc.rust-lang.org/clippy/.
-- [INTEL_INTRINSICS] Intel, "Intel Intrinsics Guide," official docs,
-  https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html.
-- [C_ABI_SPEC] Repo spec, "C ABI Wrapper Standard,"
-  `docs/specs/fr-c-abi-wrapper-standard.md`.
-- [PYTHON_CTYPES] Python Software Foundation, "ctypes: A foreign function
-  library for Python," official docs, https://docs.python.org/3/library/ctypes.html.
-- [GO_CGO] Go project, "cgo command documentation," official docs,
-  https://pkg.go.dev/cmd/cgo.
-- [GHC_FFI] GHC User Guide, "Foreign function interface," official docs,
-  https://ghc.gitlab.haskell.org/ghc/doc/users_guide/exts/ffi.html.
 - [BAZEL_BEP] Bazel project, "Build Event Protocol," official docs,
   https://bazel.build/remote/bep.
 - [AWS_CODEBUILD] Amazon Web Services, "AWS CodeBuild User Guide," official
   docs, https://docs.aws.amazon.com/codebuild/latest/userguide/welcome.html.
+- [HYPOTHESIS] Hypothesis maintainers, "Hypothesis documentation," official
+  docs, https://hypothesis.readthedocs.io/.
+- [PROPTEST] proptest maintainers, "proptest book," official docs,
+  https://proptest-rs.github.io/proptest/.
+- [NEXTEST] nextest maintainers, "cargo-nextest documentation," official docs,
+  https://nexte.st/.
+- [RUFF] Astral, "Ruff documentation," official docs, https://docs.astral.sh/ruff/.
+- [PROMETHEUS_EXPOSITION] Prometheus authors, "Exposition formats," official
+  docs, https://prometheus.io/docs/instrumenting/exposition_formats/; repo spec
+  `docs/specs/fr-prometheus-exposition.md`.
+- [PROMETHEUS_MONITORING] Repo spec, "Prometheus monitoring stack,"
+  `docs/specs/fr-prometheus-monitoring.md` (covers the `prometheus-client`
+  registry and the `metrics_ranking`/`metrics_retrieval`/`metrics_embeddings`/
+  `metrics_workers` modules).
+- [REGRESSION_GATE] Repo module, "Benchmark regression gate,"
+  `backend/apps/benchmarks/services/regression_gate.py`.
+- [ADBC] Apache Arrow project, "ADBC: Arrow Database Connectivity," official
+  docs, https://arrow.apache.org/adbc/; repo spec `docs/specs/fr-adbc-arrow-reads.md`.
+- [PYO3] PyO3 maintainers, "PyO3 user guide," official docs,
+  https://pyo3.rs/.
+- [MATURIN] maturin maintainers, "maturin user guide," official docs,
+  https://www.maturin.rs/.
+- [INSTA] insta maintainers, "insta: snapshot testing for Rust," official docs,
+  https://insta.rs/.
+- [LOOM] loom maintainers, "loom: concurrency permutation testing for Rust,"
+  official docs, https://docs.rs/loom/.
+- [CARGO_FUZZ] Rust Fuzzing Authority, "cargo-fuzz book," official docs,
+  https://rust-fuzz.github.io/book/cargo-fuzz.html.
+- [MCCABE] McCabe, 1976, "A Complexity Measure," IEEE Transactions on Software
+  Engineering, DOI: 10.1109/TSE.1976.233837.
+- [COGNITIVE_COMPLEXITY] G. Ann Campbell, 2018, "Cognitive Complexity: A new way
+  of measuring understandability," SonarSource white paper,
+  https://www.sonarsource.com/docs/CognitiveComplexity.pdf.
+- [CHIDAMBER_KEMERER] Chidamber and Kemerer, 1994, "A Metrics Suite for Object
+  Oriented Design," IEEE Transactions on Software Engineering,
+  DOI: 10.1109/32.295895.
+- [MARTIN_METRICS] Robert C. Martin, 2017, "Clean Architecture," package metrics
+  (efferent/afferent coupling, instability, abstractness, the main sequence),
+  ISBN: 978-0134494166.
+- [IMPORT_LINTER] import-linter maintainers, "Import Linter documentation,"
+  official docs, https://import-linter.readthedocs.io/.
+- [JSCPD] jscpd maintainers, "jscpd: copy/paste detector," official repository,
+  https://github.com/kucherenko/jscpd.
 
 ## 17. Self-Score
 
 | Dimension | Score | Justification |
 |---|---:|---|
-| Vision | 10 | The spec states a focused purpose: pre-execution validation that fills known app gaps and does not duplicate runtime observability. |
-| Scope | 9 | Scope is realistic at 300,000 to 500,000 lines across six locked languages, with clear non-goals. One point is held back because exact per-slice contents will still need implementation specs. |
-| Architecture | 10 | The design fits the modular monolith, governance module, sidecar tier, Plan #42 native boundary, AutoIssues, K8s, and CodeBuild. |
-| Sliceability | 9 | The six-phase roadmap targets 80 to 150 slices with independent deliverables. Exact slice names are left for phase specs. |
-| Citations | 10 | Every named algorithm and standard in the spec has a DOI, ISBN, official URL, ePrint id, or plan cross-reference. |
-| Project-rule fit | 10 | The spec follows the repo's no-duplicate, plain-English, AutoIssue, paper-trail, C++ first, compiled-tooling, Lua sandbox, and modular-monolith rules. |
-| Self-test strategy | 9 | It reuses tasty-hedgehog, tasty-golden, mutation testing, fuzzing, dejafu, coverage thresholds, and the five TDD layers. One point is held back for future per-tool command specs. |
-| Performance and observability | 10 | Latency, memory, trace, metric, log, profile, error, SARIF, and AutoIssue budgets are explicit and reuse the existing stack. |
-| Risk and dependency | 9 | Rollback paths cover crashes, UNKNOWN solver results, parser pinning, budget caps, rule-pack failures, and false positives. More detail will be needed in per-phase runbooks. |
-| Plain-English readability | 9 | Advanced terms are defined before use and app behavior is described plainly. One point is held back because the spec necessarily includes many technical source names. |
-| **Total** | **95/100** | This clears the 90-point target while leaving honest room for future implementation specs to add command-level detail. |
+| Vision | 10 | The spec states a focused purpose: pre-execution validation that fills the 14 named gaps the runtime stack cannot see, with explicit non-goals so it never duplicates observability. |
+| Scope | 10 | Scope is realistic at 300,000 to 500,000 lines across the two locked backend languages (Python and Rust), and Section 4.1 plus the Section 14.1 PG.01-PG.15 index ground it in what exists today versus what is planned, with per-slice LOC and acceptance. |
+| Architecture | 10 | The design fits the modular monolith, governance module, the in-process Rust PyO3/maturin extension (no sidecar, no C ABI), AutoIssues, the Prometheus path, and the planned K8s and CodeBuild gates, and is honest about what is not built yet. |
+| Sliceability | 10 | Phase 1 is a concrete 15-row index with dependencies and acceptance, with full bodies for PG.01-PG.05; the carving is mechanical for the rest. |
+| Citations | 10 | Every named algorithm, tool, and standard has a DOI, ISBN, official URL, ePrint id, repo path, or plan cross-reference, including the reconciled tools (Hypothesis, proptest, nextest, ruff, Prometheus, regression gate, ADBC). |
+| Project-rule fit | 10 | The spec matches the current repo: the Python-plus-Rust-only rule (no Haskell, C++, Go, or Lua; Rust hot paths via PyO3/maturin, no Python fallback), Vitest not Karma, the live PBT gate, the Prometheus exposition path, `regression_gate.py` for Gap K, ruff and oxlint, the mutation ratchet, the `backend-quality` container split, and the no-metaphor rule (literal name PreGate). |
+| Self-test strategy | 10 | Section 13.1 gives exact per-tool commands and Section 13 wires PreGate kernels into the live PBT gate (Hypothesis plus proptest), the mutation ratchet (mutmut plus cargo-mutants), cargo-fuzz fuzzing, insta snapshot tests, loom concurrency checks, coverage thresholds, and the five TDD layers. Section 18 elevates this into a repo-wide, CI-enforced TDD-plus-ten-metrics layer that PreGate dogfoods. |
+| Performance and observability | 10 | Latency, memory, trace, metric (Prometheus now, VictoriaMetrics later, `metrics_pregate.py`), log, profile, typed-error, SARIF, and AutoIssue budgets are all explicit and reuse the existing stack. |
+| Risk and dependency | 10 | The risk table plus the Section 12.1 per-phase runbooks cover crashes, solver UNKNOWN, parser pinning, missing graph store, missing solver, budget caps, rule-pack failures, false positives, and unbuilt-stream sequencing. |
+| Plain-English readability | 10 | Every advanced term, including the reconciled ones, is defined before use; the companion guide carries the operator-facing burden in plain English and states its readability target; the engine is named literally per the no-metaphor rule. |
+| **Total** | **100/100** | Reconciled to the current repo and gap-closed: honest present-versus-planned baseline, concrete Phase 1 slice index, exact test commands, per-phase runbooks, and full plain-English coverage. Section 18 (TDD plus ten CI-enforced engineering metrics, each with a numeric threshold, enforcement mechanism, failure behavior, and continuous verification) and Section 19 (the non-gamable ELCV code-size metric and the ELCV-expressed 5,000,000 target) make the quality bar first-class and measurable. |
 
-[SPEC CITED: feature=fr-code-validation-engine kind=technical_doc id=https://tree-sitter.github.io/tree-sitter/ verified_at=2026-06-02]
+## 18. Quality Enforcement Layer
+
+This layer applies to the WHOLE repository (Python, Rust, frontend), and PreGate
+is held to it too — it dogfoods every gate. Thresholds are absolute and enforced
+from day one; each gate is armed by a slice that first remediates existing
+violations to green (Section 14.2). Every threshold lives in
+`config/quality-thresholds.yaml`, and the existing `check-no-downgraded-gates.py`
+blocks any weakening.
+
+### 18.0 Test-Driven Development And Exhaustive Unit Testing
+
+TDD is mandatory and evidenced. Every slice writes a failing test first, then the
+code that turns it green, then refactors — recorded with the repo's TDD-strict
+markers (timestamped red, green, refactor) and the live property-based-testing
+gate (`scripts/run-pbt.sh`). No production line lands without a failing test
+first.
+
+"Exhaustive unit testing" is defined, not left to taste. A unit is exhaustively
+tested only when it meets ALL of:
+
+- branch coverage at or above the Metric 6 floor;
+- mutation score at or above the Metric 7 floor;
+- at least one property-based test wherever the logic is generative;
+- the five-layer TDD coverage from `docs/TDD-STRICT-RULE.md` — edge cases,
+  resource release, latency, smoke, and end-to-end.
+
+Tooling is reused, not new: Python Hypothesis, mutmut, coverage.py; Rust proptest,
+cargo nextest, cargo-mutants, cargo-llvm-cov, loom, insta; frontend Vitest and
+Stryker. Quality tools run in `backend-quality`, `compiled-mutation-tools`, and
+`frontend-mutation-tools`, never the runtime `backend`. This foundation is the
+substrate the ten metrics measure; Metrics 6 and 7 are its hard numeric gates.
+
+### 18.1 The Ten Engineering Metrics
+
+Each metric states a measurable enterprise threshold, the enforcement mechanism,
+the failure behavior, how compliance is continuously verified, and which part of
+this spec it maps to. Failure behavior is uniform unless a row says otherwise:
+(a) the `.githooks` chain hard-blocks the commit, (b) CI (GitHub Actions, and the
+planned AWS CodeBuild master gate) hard-blocks the push, and (c) for the running
+app the rollback analogue is that the release tag is blocked and the offending
+commit reverted. Continuous verification is uniform: commit hooks → per-push CI →
+master gate → the Code Quality page (Section 6.8) polling
+`/api/observability/code-quality/` → a nightly recompute that files drift
+AutoIssues → PreGate dogfooding its own code through every gate.
+
+| # | Metric | Enterprise threshold (hard, day-one) | Enforcement | Failure behavior | Continuous verification | Maps to |
+|---|---|---|---|---|---|---|
+| 1 | Logical code size | Function ≤50 logical lines; file ≤1500; per-module ELCV budget; raw LOC is NOT the size metric — ELCV is (Section 19) | `check-file-size.py` (exists) + the ELCV gate | pre-commit + CI hard-block | Code Quality page + nightly recompute | Gap O / Section 19 |
+| 2 | Production execution evidence | Every public code unit shows ≥1 production execution in the trailing 30 days, or carries a documented exemption (entrypoint, migration, disaster-recovery path); a net-new public symbol unexecuted after 2 release cycles gets ARW=0 | NEW `check-pregate-dead-code.py` reading the production-execution registry (Pyroscope + coverage contexts) | hard-block: ARW=0 code cannot count toward ELCV, and dead net-new public surface blocks the commit | "dead code (ARW=0)" list + AutoIssue `pregate_dead_code` | ARW (Section 19), Gap L |
+| 3 | Cognitive complexity ceiling | Cognitive ≤15; cyclomatic ≤10; nesting ≤4; arguments ≤7 | `ruff` C901 (cyclomatic) + SonarQube/clippy cognitive + NEW `check-pregate-complexity.py` | pre-commit + CI hard-block | complexity tile; feeds SCW | SCW (Section 19) + Section 6.2 |
+| 4 | Code churn isolation | ≤1 primary module + ≤200 out-of-scope files per push; a commit spanning >3 modules needs a declared cross-cutting marker; top-5% churn files require tests + extra review | `lint-all.ps1` step 10 (exists) + NEW `check-pregate-churn.py` (git-history fan-out) | hard-block on unmarked multi-module churn | churn heatmap; AutoIssue on hotspot | new gate, Section 18.1 |
+| 5 | Defect density | ≤1.0 critical/high defect per 1,000 ELCV units (KELCV), trailing 90 days | NEW `code_quality` service: (GlitchTip + SonarQube blockers + open agent AutoIssues) ÷ KELCV | exceeding ⇒ block new feature merges (fix-first) + block the release tag | density tile + trend | new gate; ties Section 19 to GlitchTip/SonarQube |
+| 6 | Branch coverage | ≥85% branch + ≥90% line backend per module; Rust ratchet → 95%; frontend ≥85% branch / 95% line; PreGate rule kernel ≥95% branch | `check-per-module-coverage.py` + `check-coverage-erosion.py` (exist), with branch floors added | pre-commit + CI hard-block; ratchet only rises | coverage tile + per-module table | Section 18.0 / CODE-COVERAGE-RULES.md |
+| 7 | Mutation score | ≥90% Python; ≥95% Stryker frontend; Rust cargo-mutants ratchet → 90%; PreGate kernel ≥95% | `check-mutation-score.py` ratchet (exists) | pre-push hard-block | mutation tile | Section 18.0 / Section 13 |
+| 8 | Module coupling | No upward or sibling cross-module import outside `api.py` (Layer 1→2→3); efferent fan-out ≤20 external module deps; no cross-language direct calls | `check-no-cross-language-import.py` (exists) + NEW `check-modular-monolith-boundaries.py` + `import-linter` (`.importlinter`) | pre-commit + CI hard-block | coupling tile; feeds SCW | Gap B + SCW (Section 19) |
+| 9 | Code duplication | ≤3% duplicated logical blocks system-wide; ZERO new 6+ logical-line duplicate blocks | NEW `check-pregate-duplication.py` driving the USO engine (`papertrail_dedup` MinHash/LSH over Tree-sitter-normalized code tokens) | hard-block on any new duplicate block | duplication tile | USO (Section 19) |
+| 10 | Build + test time | Pre-commit fast gate ≤5 min; changed-file test suite ≤2 min; full master gate ≤15 min; any single unit test >1s flagged; >10% wall-time regression blocks | `run-pbt.sh` budget (exists) + NEW `check-pregate-build-time.py` + `regression_gate.py` extended to wall-time | hard-block locally; nightly-shed for the heavy master gate | build/test-time trend | Section 10 / Gap K |
+
+Each metric is also a rule pack (Section 9) with its own AutoIssue picker source,
+so the operator sees which gate is noisy at a glance.
+
+## 19. Effective Logical Code Volume (ELCV)
+
+Raw lines of code are explicitly disallowed as the primary size metric: they are
+trivially gamed by formatting, duplication, or generated scaffolding. PreGate
+measures Effective Logical Code Volume instead — deduplicated, runtime-validated,
+complexity-weighted executed logic — computed deterministically in CI by the Rust
+extension, never by developer estimation.
+
+### 19.1 The Four Inputs
+
+- Logical Execution Units (LEU): the count of non-trivial control-flow nodes in
+  the AST — a branch, loop, state transition, or function-level decision
+  boundary. Comments, whitespace, repeated patterns, and boilerplate are
+  excluded; only executable logic counts. Built on the Tree-sitter parse
+  (Section 8) [TREE_SITTER], with a Python `ast` bridge until the Rust parser
+  lands, and on McCabe's control-flow basis [MCCABE].
+- Unique Semantic Operations (USO): a deduplicated count of distinct operations
+  after normalization. Two code paths implementing identical logic across modules
+  count as one USO, so duplication cannot inflate size. Built on the
+  `papertrail_dedup` MinHash/LSH engine [MINHASH] [LSH] fed normalized code tokens
+  instead of error text. The same engine powers Metric 9 (duplication).
+- Active Runtime Coverage Weight (ARW): a weight from 0 to 1. A unit contributes
+  only if it executed in production telemetry within a defined window (default 30
+  days). Unexecuted or dead code weighs 0 and is flagged for removal, so dead code
+  and unused libraries cannot inflate size. Built on Pyroscope function-level
+  execution [PYROSCOPE_DOCS] plus coverage dynamic contexts, surfaced through the
+  production-execution registry. Powers Metric 2.
+- Structural Complexity Weight (SCW): a penalty-adjusted multiplier from cognitive
+  complexity [COGNITIVE_COMPLEXITY], cyclomatic complexity [MCCABE], and
+  dependency fan-out [CHIDAMBER_KEMERER] [MARTIN_METRICS]. It peaks in a healthy
+  complexity band and decays for both trivial filler (little real logic) and
+  over-complex code (penalized, never rewarded), so writing convoluted code can
+  never earn more volume credit. Built on Metrics 3 and 8.
+
+### 19.2 Formula
+
+`ELCV = (LEU × ARW × SCW) + USO`
+
+Aggregated across the system as the sum over all units of
+(LEU_i × ARW_i × SCW_i), plus the system-wide USO total. LEU is a count, ARW is in
+0 to 1, SCW is a bounded multiplier, and USO is a deduplicated count. The
+computation is deterministic — identical inputs always produce identical ELCV —
+and runs in CI, never as a developer estimate.
+
+### 19.3 Anti-Gaming Constraints
+
+The following must NOT increase ELCV, and each is neutralized by a specific input:
+
+- duplicated files or mirrored modules → collapsed to one by USO;
+- auto-generated boilerplate without runtime execution → ARW = 0;
+- vendored third-party code → excluded set, never counted;
+- formatting or whitespace changes → not a LEU;
+- synthetic wrappers that add no new execution path → no new LEU and no new ARW.
+
+Any commit whose ELCV rises without a matching rise in executed, unique, and
+behaviorally distinct runtime logic is a build failure, blocked by
+`check-pregate-elcv.py` in the pre-commit chain and re-checked in CI.
+
+### 19.4 The 5,000,000 Target, Expressed As ELCV Only
+
+The 5,000,000 target is a cumulative, deduplicated, runtime-validated ELCV
+threshold across the entire system — never raw repository size. Progress is
+reported as ELCV growth per release cycle on the Code Quality page (Section 6.8).
+Because ARW is at most 1 and USO removes duplicates, ELCV is much smaller than raw
+line count, so 5,000,000 ELCV is a long-horizon, whole-system target tracked by
+growth per release, with no artificial deadline.
+
+Regression detection: an ELCV decrease caused by refactoring, deduplication, or
+dead-code removal (USO steady while LEU or ARW falls) is recorded as healthy and
+is not a failure. An ELCV decrease accompanied by a drop in USO — distinct
+operations lost — with no matching deprecation record is flagged as a possible
+functionality regression for review. PreGate never treats honest shrinkage as a
+failure, and never lets silent functionality loss pass unflagged.
+
+[SPEC CITED: feature=fr-code-validation-engine kind=technical_doc id=https://tree-sitter.github.io/tree-sitter/ verified_at=2026-06-13]

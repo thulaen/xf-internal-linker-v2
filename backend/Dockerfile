@@ -160,7 +160,8 @@ RUN pip install --no-cache-dir \
       pytest-randomly==3.15.0 \
       pytest-benchmark==5.1.0 \
       pytest-xdist==3.6.1 \
-      hypothesis==6.115.5 && \
+      hypothesis==6.115.5 \
+      atheris==3.0.0 && \
     pip cache purge
 
 USER appuser

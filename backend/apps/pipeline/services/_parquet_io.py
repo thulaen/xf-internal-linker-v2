@@ -75,7 +75,12 @@ def write_parquet_atomic(df: Any, path: str | Path, *, estimated_bytes: int | No
             estimated_bytes = 1 * 1024 * 1024
     _try_disk_pressure_guard(estimated_bytes)
     tmp_path = target.with_suffix(target.suffix + ".tmp")
-    df.write_parquet(str(tmp_path))
+    # Pin the codec explicitly rather than relying on the polars default:
+    # zstd gives a better ratio than snappy at comparable decode speed, and
+    # every reader here (polars, DataFusion) decodes it natively. Stating it
+    # in code means a future change to the library default can't silently
+    # regress snapshot size. Reference: RFC 8878 (Zstandard).
+    df.write_parquet(str(tmp_path), compression="zstd")
     os.replace(str(tmp_path), str(target))
 
 

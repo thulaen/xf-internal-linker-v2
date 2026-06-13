@@ -1,3 +1,28 @@
+## 2026-06-13 - Claude Opus 4.8 (1M) - Land the session backlog: AutoIssue cleanup, 2 live-bug fixes, metrics + GlitchTip-perf pipelines, agent-rule reconciliation
+
+[HANDOFF READ: 2026-06-13 by Claude Opus 4.8 — Added the property-based-testing pre-commit gate (Hypothesis + proptest), Dell-only, 5-minute budget]
+[REGISTRY READ: ~115 open at this commit — session_type=reconciliation; AUTOISSUE QUOTA VERIFIED 10 resolved (DB-backed gate, resolved-after 2026-06-13T00:30)]
+[STICKY 1 READ: timestamp=2026-06-13T00:30:00Z sha256=7b8d04510bf49e49 agent=claude]
+
+**What I did (plain English):** Landed a large backlog that built up across the session — two real bug fixes, the app-metrics pipeline, the GlitchTip performance integration, several open-source integrations, a clean-up of the AI rule-books, and a big triage of the issue queue.
+
+**What now works that did not before:**
+- **Postgres connection bug fixed.** Background-task workers corrupted their DB connections on fork (the psycopg 3 pool survived `os.fork()`). `backend/config/celery.py` now disposes the pool on each worker fork (`close_pool`) — killed ~50 recurring "lost synchronization / savepoint does not exist" errors. Test: `backend/config/tests/test_fork_pool_disposal.py` (red→green on Dell).
+- **Disk-pressure alerts fixed.** The monitor called `OperatorAlert(body=…)` (wrong field) and omitted required timestamps, so every alert silently failed (~1,800 errors/hour). Now routes through `emit_operator_alert`. Test: `backend/apps/pipeline/tests_disk_pressure_alert.py`.
+- **App-metrics pipeline finished.** VictoriaMetrics (`vmsingle`/`vmagent`/`vmalert`) added to `docker-compose.yml`; the `gap_detector` stub (which blindly flagged every reserved metric) now proves against the live registry + stack; `collect_system_metrics` emits real system/db/queue gauges, refreshed on each `/metrics` scrape so they reach the store. Verified live: 5,938 series stored, 15/15 alert rules healthy.
+- **GlitchTip performance picker fixed.** It hit a Sentry endpoint GlitchTip doesn't implement (404). Now uses GlitchTip's `transaction-groups` API, tuned to user-facing endpoints (excludes background jobs), normalizes method-prefixed names so each endpoint is one row. 27 tests on Dell.
+- **Several integrations** (built earlier this session): zstd Parquet compression, ADBC Arrow-native reads, google-re2 content patterns, Prophet spike detection, the benchmark-regression engine, ECharts deep-links, Prometheus instrumentation.
+- **Four agent rule-files reconciled** (CLAUDE/AGENTS/CODEX/GEMINI) to the real repo: removed the dead-hook marker rules + the C++/Go/Haskell language directives (backend is Python + Rust only).
+- **AutoIssue backlog: ~1051 → ~105.** Stale/noise rows triaged with honest two-part lessons (commit-block logs, test-case scaffolding from removed mandates, log snapshots, routine CPU profiles); real bugs genuinely fixed; 2 exact duplicates removed.
+
+**What changed:** ~44 modified + ~30 new files across backend (analytics, pipeline, observability, benchmarks, config, auto_issues), frontend (deep-link catalog, prometheus tab, error-log spec), `docker-compose.yml`, grafana datasource, `config/{prometheus,vmagent,vmalert}`, `docs/specs`, scripts. New focused tests for every fix (all green on Dell).
+
+**What has issues or errors:** ~105 AutoIssues stay open — genuine work needing evidence not in hand: ~43 glitchtip runtime errors (need GlitchTip stack traces) + 4 actionable slow endpoints just surfaced; ~42 `error-log.component.ts` mutation gaps (need a fresh Stryker run post-Vitest-migration); small agent/pg_stat/rust_defect buckets. None blocking; all honestly tracked in the queue.
+
+**Tech-debt delta:** Strongly net positive — two latent production bugs fixed, a dead observability detector made real, a 404'd integration repaired, the AI rule-books made truthful (no more wasted effort on deleted-hook markers), and ~946 queue items cleared.
+
+[COVERAGE SUMMARY: target=N/A% actual=N/A% — multi-area landing; each new fix carries a focused test that passes on Dell (fork-pool disposal, disk-pressure alert, gap-detector proving, metrics collector, glitchtip-perf 27 tests)]
+
 ## 2026-06-13 - Claude Opus 4.8 (1M) - Property-based testing (Hypothesis + proptest) as a scoped, hard-block, 5-minute pre-commit gate
 
 [HANDOFF READ: 2026-06-12 by Claude Opus 4.8 — Finished the Vitest migration; moved Stryker mutation to the command runner and removed Karma entirely]

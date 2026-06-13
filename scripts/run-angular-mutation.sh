@@ -66,7 +66,7 @@ if [[ -z "$mutate_targets" ]]; then
 fi
 echo "[run-angular-mutation] Scoped: mutate=$(printf '%s' "$mutate_targets" | grep -c .) source file(s), test=$(printf '%s' "$test_includes" | grep -c .) spec(s)."
 
-if ! docker --context "$ANGULAR_DOCKER_CONTEXT" info >/dev/null 2>&1; then
+if ! xf_remote_context_reachable "$ANGULAR_DOCKER_CONTEXT"; then
   echo "FAIL run-angular-mutation: Dell context '$ANGULAR_DOCKER_CONTEXT' is required and not reachable." >&2
   exit 1
 fi

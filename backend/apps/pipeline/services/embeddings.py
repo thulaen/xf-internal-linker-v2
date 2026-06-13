@@ -1650,13 +1650,33 @@ def _process_one_embedding_batch(  # noqa: forbidden-pattern too-many-args  # ju
     flushed_count / batch_size advances even after OOM-driven batch shrinks.
     """
     batch_texts = texts[state["cursor"] : state["cursor"] + state["batch_size"]]
-    vectors, state["batch_size"] = _encode_one_batch_with_oom_recovery(
-        batch_texts=list(batch_texts),
-        model=model,
-        batch_size=state["batch_size"],
-        model_name=model_name,
-        job_id=job_id,
-    )
+    _emit_batch_count = len(batch_texts)
+    try:
+        from apps.observability.metrics_embeddings import embedding_job_timer
+        _metrics_ctx = embedding_job_timer(model_name, _emit_batch_count)
+        _metrics_ctx.__enter__()
+        _metrics_entered = True
+    except ImportError:
+        _metrics_entered = False
+    try:
+        vectors, state["batch_size"] = _encode_one_batch_with_oom_recovery(
+            batch_texts=list(batch_texts),
+            model=model,
+            batch_size=state["batch_size"],
+            model_name=model_name,
+            job_id=job_id,
+        )
+    except Exception as exc:
+        if _metrics_entered:
+            try:
+                from apps.observability.metrics_embeddings import observe_embedding_failure
+                observe_embedding_failure(model_name, type(exc).__name__)
+            except ImportError:
+                pass
+            _metrics_ctx.__exit__(type(exc), exc, exc.__traceback__)
+        raise
+    if _metrics_entered:
+        _metrics_ctx.__exit__(None, None, None)
     if vectors is None:
         return  # OOM auto-retried with smaller batch_size next iteration
     raw_vectors_list.append(vectors)

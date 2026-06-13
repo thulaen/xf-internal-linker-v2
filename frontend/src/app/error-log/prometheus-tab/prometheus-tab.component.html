@@ -1,0 +1,114 @@
+<div class="prometheus-tab">
+  <div class="prometheus-toolbar">
+    <div class="toolbar-info">
+      <p class="sync-status">
+        Live metrics from VictoriaMetrics — refreshes every 30 seconds.
+        @if (lastUpdatedAt) {
+          Last updated: {{ lastUpdatedAt | date:'mediumTime' }}
+        }
+      </p>
+      @if (storeUnavailable) {
+        <p class="store-unavailable-notice">
+          <mat-icon class="notice-icon">warning</mat-icon>
+          VictoriaMetrics is not reachable. Check that the
+          <code>vmsingle</code> container is running.
+        </p>
+      }
+    </div>
+    <div class="toolbar-actions">
+      <button
+        type="button"
+        mat-stroked-button
+        (click)="openGrafana()"
+        matTooltip="Open the App Health dashboard in Grafana (shows request rate, latency, ranking, DB connections over time)">
+        <mat-icon>dashboard</mat-icon>
+        <span>App Health Dashboard</span>
+      </button>
+      <button
+        type="button"
+        mat-flat-button
+        color="primary"
+        (click)="openVictoriaMetrics()"
+        matTooltip="Open VictoriaMetrics where you can run any PromQL query against the live metrics">
+        <mat-icon>open_in_new</mat-icon>
+        <span>Open VictoriaMetrics</span>
+      </button>
+    </div>
+  </div>
+
+  @if (loading) {
+    <div class="loading-container">
+      <mat-spinner diameter="48"></mat-spinner>
+    </div>
+  }
+
+  @if (!loading && summary) {
+    <div class="metrics-grid">
+      @for (card of cards; track card.key) {
+        <div
+          class="metric-card"
+          [class.metric-card-unavailable]="entryStateClass(card) !== ''"
+          [matTooltip]="card.peHelper">
+          <div class="metric-card-header">
+            <mat-icon class="metric-icon">{{ card.icon }}</mat-icon>
+            <span class="metric-label">{{ card.label }}</span>
+          </div>
+          <div class="metric-value" [class.metric-unavailable]="entryStateClass(card) !== ''">
+            {{ formatEntry(card) }}
+          </div>
+          <div class="metric-unit">{{ getEntry(card.key)?.unit ?? '' }}</div>
+        </div>
+      }
+    </div>
+  }
+
+  @if (!loading && !summary) {
+    <div class="empty-state">
+      <mat-icon class="empty-icon">signal_wifi_off</mat-icon>
+      <h2>Could not load metrics</h2>
+      <p>
+        The backend could not be reached. Check that the Django backend is
+        running and you are logged in.
+      </p>
+    </div>
+  }
+
+  <div class="prometheus-explainer">
+    <h3>What is this tab?</h3>
+    <p>
+      This tab shows six live numbers pulled from VictoriaMetrics — the
+      metrics database that runs inside Docker. Every Django request, every
+      ranking batch, every embedding job, and every Celery task automatically
+      reports timing and count data to VictoriaMetrics every 15 seconds.
+    </p>
+    <ul>
+      <li>
+        <strong>Request Rate</strong> — how busy the Django API is right now.
+      </li>
+      <li>
+        <strong>API Latency p95</strong> — 95 out of 100 requests finish
+        faster than this. Above 2 seconds triggers an alert.
+      </li>
+      <li>
+        <strong>Error Rate</strong> — server errors per second. Should be
+        near zero. Above 1% triggers an alert.
+      </li>
+      <li>
+        <strong>Ranking Latency p95</strong> — how long the Rust ranking
+        engine takes to score one batch. Above 5 seconds triggers an alert.
+      </li>
+      <li>
+        <strong>DB Connections</strong> — active Postgres connections.
+        Above 80 triggers an alert (max is 100).
+      </li>
+      <li>
+        <strong>Embedding Queue</strong> — content items waiting to be
+        embedded. Above 500 triggers an alert.
+      </li>
+    </ul>
+    <p>
+      Click <em>App Health Dashboard</em> to open Grafana for full time-series
+      charts. Click <em>Open VictoriaMetrics</em> to run custom PromQL queries.
+    </p>
+  </div>
+</div>

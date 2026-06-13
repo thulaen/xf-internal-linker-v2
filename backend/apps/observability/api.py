@@ -115,6 +115,17 @@ def reserved_metric_names() -> list[str]:
     return [spec.name for spec in RESERVED_METRICS]
 
 
+def registered_metric_names() -> set[str]:
+    """Metric names actually registered in the live registry.
+
+    A name in this set is wired into the ``/metrics`` exposition that vmagent
+    scrapes — i.e. genuinely present in the pipeline, as opposed to a spec-only
+    name that was reserved but never registered. The gap detector treats this
+    set as the source of truth for whether a reserved metric is "proven".
+    """
+    return set(_METRICS)
+
+
 def initialise_reserved_metrics() -> None:
     for spec in RESERVED_METRICS:
         if spec.name not in _METRICS:
@@ -140,5 +151,6 @@ __all__ = [
     "get_registry",
     "initialise_reserved_metrics",
     "register_metric",
+    "registered_metric_names",
     "reserved_metric_names",
 ]

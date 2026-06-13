@@ -74,7 +74,10 @@ _REMOTE_PYTHONPATH = "/opt/xf/compiled/active:/opt/xf/compiled:/repo/backend"
 
 # The warm mypy-daemon container on the remote machine. NEVER remove it in a
 # cleanup path — its in-memory parsed-code state surviving across runs is what
-# makes incremental type checks near-instant.
+# makes incremental type checks near-instant. The ONE place it is removed on
+# purpose is _run_mypy_self_healing, which resets it after a daemon crash so the
+# next commit starts from a clean daemon (the crashed verdict is recomputed by a
+# one-shot mypy in the same run).
 _DMYPY_CONTAINER = "xf-dmypy-daemon"
 
 
@@ -287,6 +290,68 @@ def _run(cmd: list[str], env: dict, timeout: int) -> tuple[int, str]:
     return proc.returncode, proc.stdout + proc.stderr
 
 
+# Output signatures that mean the mypy DAEMON broke, not that the code has a
+# type error. These are mypy-internal failures: a corrupted incremental cache
+# ("Daemon crashed! ... attribute 'mro' of 'TypeInfo' undefined") or an endless
+# fine-grained dependency-propagation loop ("Max number of iterations (1000)
+# reached"). Both live in the dmypy fine-grained engine and recur even on a
+# freshly restarted daemon, but they cannot fire under a one-shot,
+# non-incremental ``mypy`` run.
+_DMYPY_CRASH_SIGNATURES = (
+    "Daemon crashed!",
+    "INTERNAL ERROR",
+    "Max number of iterations",
+)
+
+
+def _is_dmypy_crash(rc: int, out: str) -> bool:
+    """True when a mypy run failed because the daemon broke, not the code.
+
+    rc 0 (clean) and rc 1 (real type errors found) are trusted as-is; only a
+    higher rc paired with a known daemon-crash signature is treated as a
+    daemon failure worth self-healing.
+    """
+    if rc in (0, 1):
+        return False
+    return any(sig in out for sig in _DMYPY_CRASH_SIGNATURES)
+
+
+def _oneshot_mypy_cmd(context: str, files: list[str]) -> list[str]:
+    """A non-daemon, non-incremental mypy run in a throwaway container.
+
+    Plain ``mypy --no-incremental`` never enters the dmypy fine-grained
+    incremental engine, so the daemon-only defects cannot fire. Slower than the
+    warm daemon, used only as the crash fallback.
+    """
+    return [
+        "docker", "--context", context, "run", "--rm", *_container_flags(),
+        _IMAGE, "mypy", "--config-file", "/repo/backend/mypy.ini",
+        "--no-incremental", *files,
+    ]
+
+
+def _run_mypy_self_healing(context: str, files: list[str], env: dict
+                           ) -> tuple[int, str]:
+    """Run mypy on the warm daemon; self-heal on a daemon crash.
+
+    The daemon is fast but its incremental engine has known internal-error
+    modes. On a crash, the daemon is reset (so the NEXT commit starts from a
+    clean daemon) and THIS verdict is taken from a one-shot, non-incremental
+    mypy run that cannot hit those defects. A real type error (rc 1) is never
+    retried — it is reported straight away.
+    """
+    rc, out = _run(_remote_lint_cmd(context, "mypy", files), env, timeout=600)
+    if not _is_dmypy_crash(rc, out):
+        return rc, out
+    notice = ("[LINT SELF-HEAL: dmypy daemon crashed; reset it and re-ran mypy "
+              "one-shot (--no-incremental) for a clean verdict]\n")
+    sys.stdout.write(notice)
+    _run(["docker", "--context", context, "rm", "-f", _DMYPY_CONTAINER],
+         env, timeout=60)
+    fb_rc, fb_out = _run(_oneshot_mypy_cmd(context, files), env, timeout=900)
+    return fb_rc, out + "\n" + notice + fb_out
+
+
 def _lint_slice_on_remote(context: str, tool: str, files: list[str]
                           ) -> tuple[int, str] | None:
     """Sync source once, verify it, then lint the whole slice on the remote.
@@ -294,7 +359,8 @@ def _lint_slice_on_remote(context: str, tool: str, files: list[str]
     Returns (rc, output), or None when the slice could not be trusted (sync or
     manifest verify failed). mypy additionally needs the warm dmypy daemon; if
     that container cannot start, the slice fails closed with a plain-English
-    error instead of falling back to a cold local run.
+    error instead of falling back to a cold local run. A daemon CRASH (not a
+    type error) self-heals via a one-shot mypy run — see _run_mypy_self_healing.
     """
     env = {**os.environ, "MSYS_NO_PATHCONV": "1"}
     if _sync_source_to_context(context, env) is not None:
@@ -305,6 +371,7 @@ def _lint_slice_on_remote(context: str, tool: str, files: list[str]
         daemon_error = _ensure_dmypy_container(context)
         if daemon_error is not None:
             return 1, daemon_error
+        return _run_mypy_self_healing(context, files, env)
     return _run(_remote_lint_cmd(context, tool, files), env, timeout=600)
 
 
@@ -440,21 +507,52 @@ def run_lint(
     return worst
 
 
-def _run_dependency_audit(evidence_out: Path | None) -> None:
-    """Run pip-audit and safety check on Dell, advisory only.
+def _load_audit_ignores() -> tuple[list[str], list[str]]:
+    """Return (pip_audit_ids, safety_ids) from the documented allowlist.
 
-    Results are cached on the requirements files' content hash, so the
-    Dell calls are skipped until a requirements file or tool config changes.
+    The allowlist (``config/dependency-audit-allowlist.json``) tracks the
+    advisories that have no safe fix yet, each with a plain-English reason and
+    a concrete revisit condition and a matching paper-trail entry. Missing or
+    malformed file means no ignores — the audit then blocks on every finding,
+    which is the safe default.
+    """
+    path = REPO_ROOT / "config" / "dependency-audit-allowlist.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return [], []
+    pip_ids = [e["id"] for e in data.get("pip_audit_ignore", []) if e.get("id")]
+    safety_ids = [e["id"] for e in data.get("safety_ignore", []) if e.get("id")]
+    return pip_ids, safety_ids
+
+
+def _run_dependency_audit(evidence_out: Path | None) -> None:
+    """Run pip-audit and safety check on Dell.
+
+    A non-zero result writes a ``failed`` evidence row, so a requirements
+    change must leave the dependency set clean or every flagged advisory must
+    be in the documented allowlist (``config/dependency-audit-allowlist.json``)
+    with a reason and revisit condition. Results are cached on the requirements
+    files' content hash, so the Dell calls are skipped until a requirements
+    file or tool config changes.
     """
     from quality_cache import QualityCache
     cache = QualityCache(REPO_ROOT)
     subject = cache.subject_hash_for_files([
         REPO_ROOT / "backend" / "requirements.txt",
         REPO_ROOT / "backend" / "requirements-dev.txt",
+        REPO_ROOT / "config" / "dependency-audit-allowlist.json",
     ])
+    pip_ignores, safety_ignores = _load_audit_ignores()
+    pip_audit_cmd = ["pip-audit", "-r", "requirements.txt"]
+    for vuln_id in pip_ignores:
+        pip_audit_cmd += ["--ignore-vuln", vuln_id]
+    safety_cmd = ["safety", "check", "-r", "requirements.txt", "--full-report"]
+    for vuln_id in safety_ignores:
+        safety_cmd += ["--ignore", vuln_id]
     audit_commands = [
-        ("pip-audit", ["pip-audit", "-r", "requirements.txt"]),
-        ("safety", ["safety", "check", "-r", "requirements.txt", "--full-report"]),
+        ("pip-audit", pip_audit_cmd),
+        ("safety", safety_cmd),
     ]
     pending = [(t, c) for t, c in audit_commands if not cache.has_pass(t, subject)]
     if not pending:

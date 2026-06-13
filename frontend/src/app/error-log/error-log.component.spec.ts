@@ -64,6 +64,28 @@ describe('ErrorLogComponent', () => {
     autoIssuesServiceStub.flushCache.mockClear();
   });
 
+  it('exposes the exact Pyroscope dashboard base URL', async () => {
+    // Pins the literal so a mutation of the URL string is caught (the frontend
+    // opens this URL in a new tab; a wrong host would silently break the link).
+    diagnosticsServiceStub.getErrors.mockReturnValue(of([]));
+    glitchtipServiceStub.getRecentEvents.mockReturnValue(of([]));
+
+    await TestBed.configureTestingModule({
+      imports: [ErrorLogComponent, NoopAnimationsModule],
+      providers: [
+        provideHttpClient(),
+        provideRouter([]),
+        { provide: DiagnosticsService, useValue: diagnosticsServiceStub },
+        { provide: GlitchtipService, useValue: glitchtipServiceStub },
+        { provide: AutoIssuesService, useValue: autoIssuesServiceStub },
+        { provide: VisibilityGateService, useValue: visibilityGateStub },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(ErrorLogComponent);
+    expect(fixture.componentInstance.pyroscopeBaseUrl).toBe('http://localhost:4040');
+  });
+
   it('groups multiple rows with the same fingerprint into one expansion panel', async () => {
     diagnosticsServiceStub.getErrors.mockReturnValue(
       of([

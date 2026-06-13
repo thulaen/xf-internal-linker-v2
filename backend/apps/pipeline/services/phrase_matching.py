@@ -17,6 +17,11 @@ PARTIAL_MIN_TOKEN_OVERLAP = 2
 PARTIAL_MIN_OVERLAP_RATIO = 0.60
 MIN_SINGLE_TOKEN_CHARS = 5
 
+# Stays on stdlib `re` (not RE2): the `(?<=[.!?])` lookbehind keeps the
+# sentence punctuation attached to the preceding segment, and RE2 does not
+# support lookbehind. Rewriting it lookbehind-free would change the split
+# output, and this pattern is already linear-time (`\r?\n+` / `\s+`, no nested
+# quantifiers), so there is no catastrophic-backtracking risk to remove.
 _SEGMENT_SPLIT_RE = re.compile(r"(?:\r?\n+|(?<=[.!?])\s+)")
 
 

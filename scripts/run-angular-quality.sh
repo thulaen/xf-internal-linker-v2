@@ -75,7 +75,7 @@ fi
 echo "[run-angular-quality] Scoped to changed frontend files: lint=$(printf '%s' "$lint_targets" | grep -c .) scss=$(printf '%s' "$scss_targets" | grep -c .) test=$(printf '%s' "$test_includes" | grep -c .) (cores=$ANGULAR_CORES)."
 
 # ── Dell is REQUIRED — fail-CLOSED, no Windows fallback ───────────────────────
-if ! docker --context "$ANGULAR_DOCKER_CONTEXT" info >/dev/null 2>&1; then
+if ! xf_remote_context_reachable "$ANGULAR_DOCKER_CONTEXT"; then
   echo "FAIL run-angular-quality: Dell context '$ANGULAR_DOCKER_CONTEXT' is required and not reachable." >&2
   echo "WHY: Angular quality runs on Dell ONLY; it will not fall back to Windows." >&2
   echo "UNBLOCK: wake/fix the Dell Docker context, then retry the commit." >&2

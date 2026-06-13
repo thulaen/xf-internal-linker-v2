@@ -1,0 +1,30 @@
+{
+  "_comment": "Tracked-ignore list for Python dependency advisories that have NO safe fix yet. This is DOCUMENTED suppression with a required paper-trail entry per id, NOT a silent bypass: pip-audit's --ignore-vuln and safety's --ignore exist for exactly this. Every entry MUST carry a plain-English reason and a concrete revisit_when condition. Read by scripts/run_lint_on_context.py::_run_dependency_audit. Remove an entry the moment its revisit_when is met and bump the package instead.",
+  "pip_audit_ignore": [
+    {
+      "id": "PYSEC-2026-113",
+      "package": "pyarrow",
+      "cve": "CVE-2026-25087",
+      "reason": "Use-after-free only triggers when an app ingests UNTRUSTED Arrow IPC files with pre-buffering plus multi-threaded IO. This app never does that: it reads its own Postgres rows via ADBC and writes its own parquet snapshots. The only published fix is pyarrow 23.0.1, a six-major-version jump from the pinned 17.0.0 that would break adbc-driver 1.3.0, polars 1.18.0, and pyiceberg 0.11.1.",
+      "revisit_when": "adbc-driver-postgresql, polars, and pyiceberg all declare support for pyarrow>=23.0.1. Then bump pyarrow and delete this entry.",
+      "paper_trail": "filed via manage.py defer_work"
+    },
+    {
+      "id": "GHSA-r374-rxx8-8654",
+      "package": "paramiko",
+      "reason": "pip-audit lists no fixed version for paramiko 4.0.0 — there is nothing to upgrade to yet. paramiko is used only for trusted internal SSH sync to known helper machines (Dell / Mint), never for untrusted remote connections.",
+      "revisit_when": "paramiko publishes a fixed release. Then bump paramiko and delete this entry.",
+      "paper_trail": "filed via manage.py defer_work"
+    }
+  ],
+  "safety_ignore": [
+    {
+      "id": "SFTY-20260217-93940",
+      "package": "pyarrow",
+      "cve": "CVE-2026-25087",
+      "reason": "Same pyarrow use-after-free as PYSEC-2026-113. No untrusted Arrow IPC ingestion in this app; the only fix is the breaking pyarrow 23.x jump described in the pip_audit_ignore entry above.",
+      "revisit_when": "Arrow consumers support pyarrow>=23.0.1. Then bump pyarrow and delete this entry.",
+      "paper_trail": "filed via manage.py defer_work"
+    }
+  ]
+}

@@ -773,10 +773,23 @@ def run_retrievers(
         return {}
 
     # Collect each retriever's per-dest output. Skip exceptions.
+    try:
+        from apps.observability.metrics_retrieval import (
+            retriever_latency_timer,
+            observe_retrieval_empty,
+        )
+        _has_retrieval_metrics = True
+    except ImportError:
+        _has_retrieval_metrics = False
+
     contributions: list[tuple[str, dict[ContentKey, list[int]]]] = []
     for retriever in retrievers_list:
         try:
-            partial = retriever.retrieve(context)
+            if _has_retrieval_metrics:
+                with retriever_latency_timer(retriever.name):
+                    partial = retriever.retrieve(context)
+            else:
+                partial = retriever.retrieve(context)
         except Exception:
             logger.exception(
                 "run_retrievers: retriever %s raised — skipping its contribution",
@@ -789,6 +802,8 @@ def run_retrievers(
             retriever.name,
             len(partial),
         )
+        if _has_retrieval_metrics:
+            observe_retrieval_empty(retriever.name, len(partial))
 
     if not contributions:
         return {}

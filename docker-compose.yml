@@ -796,6 +796,11 @@ services:
     restart: always
     mem_limit: 512m
     user: "0:0"  # Loki writes to /loki; root inside container is fine because the volume is named (no host bind).
+    environment:
+      # Soft heap ceiling at ~88% of the 512m hard mem_limit. Loki is Go;
+      # without this, the GC can let the heap grow past the cgroup limit and
+      # Docker OOM-kills the container before Go reclaims. Go wants IEC units.
+      GOMEMLIMIT: 450MiB
     command: ["-config.file=/etc/loki/loki-config.yaml"]
     configs:
       - source: loki_config
@@ -820,6 +825,10 @@ services:
     container_name: xf_linker_alloy
     restart: always
     mem_limit: 192m
+    environment:
+      # Soft heap ceiling at ~88% of the 192m hard mem_limit so the Go GC
+      # reclaims before Docker OOM-kills the log shipper under burst load.
+      GOMEMLIMIT: 170MiB
     command:
       - "run"
       - "--server.http.listen-addr=0.0.0.0:12345"
@@ -868,6 +877,10 @@ services:
       - "-config.expand-env=true"
       - "-config.file=/etc/tempo/config.yaml"
     environment:
+      # Soft heap ceiling at ~88% of the 768m hard mem_limit. Tempo is Go;
+      # this makes the GC reclaim aggressively before Docker OOM-kills it
+      # during a trace-ingest burst. Go wants IEC units.
+      GOMEMLIMIT: 680MiB
       # 72h on low/medium tier; bump to 168h on workstation tier.
       # The migration's `tempo.retention_hours` AppSetting is the
       # operator-facing record of choice; this env var is what the
@@ -928,6 +941,73 @@ services:
       # Pyroscope datasource points at http://10.10.10.91:4040, so no local
       # depends_on (a default `docker compose up` no longer starts pyroscope here).
 
+  # ─────────────────────────────────────────────
+  # VictoriaMetrics stack — the metrics store + scraper + alerter that finish
+  # the app-metrics pipeline. vmagent scrapes /metrics/ from the backend (and
+  # the other targets in config/vmagent/scrape.yml) and remote-writes the
+  # samples to vmsingle (the time-series store); vmalert evaluates
+  # config/vmalert/rules.yml against vmsingle. All three are Go binaries on a
+  # distroless base (no shell), so there is no healthcheck — readiness is the
+  # HTTP /health endpoint and depends_on uses service_started. GOMEMLIMIT caps
+  # the Go heap below the hard mem_limit so the GC reclaims before an OOM-kill.
+  # Added 2026-06-13. Localhost-bound ports only.
+  # ─────────────────────────────────────────────
+  vmsingle:
+    image: victoriametrics/victoria-metrics:v1.106.1
+    container_name: xf_linker_vmsingle
+    restart: always
+    mem_limit: 512m
+    environment:
+      GOMEMLIMIT: 450MiB
+    command:
+      - "-storageDataPath=/storage"
+      - "-retentionPeriod=30d"
+      - "-httpListenAddr=:8428"
+    volumes:
+      - vmsingle_data:/storage
+    ports:
+      - "127.0.0.1:8428:8428"
+
+  vmagent:
+    image: victoriametrics/vmagent:v1.106.1
+    container_name: xf_linker_vmagent
+    restart: always
+    mem_limit: 256m
+    environment:
+      GOMEMLIMIT: 220MiB
+    command:
+      - "-promscrape.config=/etc/vmagent/scrape.yml"
+      - "-remoteWrite.url=http://vmsingle:8428/api/v1/write"
+      - "-httpListenAddr=:8429"
+    volumes:
+      - ./config/vmagent/scrape.yml:/etc/vmagent/scrape.yml:ro
+    ports:
+      - "127.0.0.1:8429:8429"
+    depends_on:
+      vmsingle:
+        condition: service_started
+
+  vmalert:
+    image: victoriametrics/vmalert:v1.106.1
+    container_name: xf_linker_vmalert
+    restart: always
+    mem_limit: 192m
+    environment:
+      GOMEMLIMIT: 170MiB
+    command:
+      - "-rule=/etc/vmalert/rules.yml"
+      - "-datasource.url=http://vmsingle:8428"
+      - "-remoteWrite.url=http://vmsingle:8428"
+      - "-notifier.blackhole=true"
+      - "-httpListenAddr=:8880"
+    volumes:
+      - ./config/vmalert/rules.yml:/etc/vmalert/rules.yml:ro
+    ports:
+      - "127.0.0.1:8880:8880"
+    depends_on:
+      vmsingle:
+        condition: service_started
+
 volumes:
   pgdata:
     # Fixed external name protects the main database from project-name drift
@@ -960,6 +1040,8 @@ volumes:
   alloy_data:
     driver: local
   tempo_data:
+    driver: local
+  vmsingle_data:
     driver: local
   grafana_data:
     driver: local

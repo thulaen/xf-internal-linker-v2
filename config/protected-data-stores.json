@@ -25,7 +25,8 @@
     "findbugs_model_runtime",
     "frontend_dev_node_modules",
     "vm-data",
-    "vmagent-data"
+    "vmagent-data",
+    "vmsingle_data"
   ],
   "host_paths": [
     "backups",

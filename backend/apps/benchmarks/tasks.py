@@ -74,7 +74,7 @@ def _summarise_results(all_results):
         "ok": sum(1 for r in all_results if r.status == "ok"),
         "slow": sum(1 for r in all_results if r.status == "slow"),
         "languages": {
-            "cpp": sum(1 for r in all_results if r.language == "cpp"),
+            "rust": sum(1 for r in all_results if r.language == "rust"),
             "python": sum(1 for r in all_results if r.language == "python"),
         },
     }
@@ -93,11 +93,16 @@ def run_all_benchmarks(self, run_id: int | None = None, trigger: str = "schedule
     if not connection.in_atomic_block:
         connection.close()
 
-    """Execute all benchmarks (C++ and Python) and store results."""
+    """Execute the in-container Python benchmarks and store results.
+
+    Rust kernel benchmarks are recorded separately via the
+    ``record_rust_benchmarks`` management command (they run on the Dell
+    helper, host-side, since this container cannot reach Dell's Docker).
+    The retired C++ path was removed with the C++ kernels.
+    """
     from .models import BenchmarkResult, BenchmarkRun
     from .services.runner import (
         classify_results,
-        run_cpp_benchmarks,
         run_python_benchmarks,
     )
 
@@ -118,10 +123,6 @@ def run_all_benchmarks(self, run_id: int | None = None, trigger: str = "schedule
 
     all_results = []
     try:
-        cpp_results = run_cpp_benchmarks(run)
-        all_results.extend(cpp_results)
-        logger.info("C++ benchmarks: %d results", len(cpp_results))
-
         py_results = run_python_benchmarks(run)
         all_results.extend(py_results)
         logger.info("Python benchmarks: %d results", len(py_results))

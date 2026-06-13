@@ -1,0 +1,82 @@
+# Prometheus scrape configuration for XF Internal Linker.
+#
+# NOTE: This stack uses VictoriaMetrics (vmsingle) as the primary metrics
+# store and vmagent as the scrape agent. This prometheus.yml is used ONLY
+# if a standalone Prometheus container is added to the compose stack (e.g.
+# for Alertmanager integration). The main scrape config is
+# config/vmagent/scrape.yml which vmagent uses.
+#
+# Scrape targets mirror vmagent/scrape.yml exactly so either scraper can
+# be used interchangeably.
+#
+# Added 2026-06-13: fr-prometheus-monitoring.md
+
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alert_rules.yml
+
+scrape_configs:
+  # Django backend — XF metrics + optional django-prometheus auto-metrics.
+  # Auth token is required; vmagent passes it via the headers block.
+  - job_name: backend
+    metrics_path: /metrics/
+    scheme: http
+    static_configs:
+      - targets:
+          - backend:8000
+    params: {}
+    # The X-Metrics-Token header is read from METRICS_TOKEN env var on the
+    # backend. In production this is set to a non-default value in .env.
+    # For local dev the default "dev-metrics-token-change-me" is accepted.
+
+  # OTel Collector Prometheus exporter — merged SDK + custom metrics.
+  - job_name: otel-collector
+    static_configs:
+      - targets:
+          - otel-collector:8889
+
+  # Postgres metrics via postgres-exporter.
+  - job_name: postgres-exporter
+    static_configs:
+      - targets:
+          - postgres-exporter:9187
+
+  # VictoriaMetrics self-scrape.
+  - job_name: vmsingle
+    static_configs:
+      - targets:
+          - vmsingle:8428
+
+  # vmagent self-scrape.
+  - job_name: vmagent
+    static_configs:
+      - targets:
+          - vmagent:8429
+
+  # vmalert self-scrape.
+  - job_name: vmalert
+    static_configs:
+      - targets:
+          - vmalert:8880
+
+  # Loki metrics.
+  - job_name: loki
+    static_configs:
+      - targets:
+          - loki:3100
+
+  # Tempo metrics.
+  - job_name: tempo
+    static_configs:
+      - targets:
+          - tempo:3200
+
+  # Grafana Alloy metrics.
+  - job_name: alloy
+    static_configs:
+      - targets:
+          - alloy:12345

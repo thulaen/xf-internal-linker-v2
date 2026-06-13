@@ -8,7 +8,13 @@ from apps.observability.services import gap_detector
 
 class ObservabilityGapDetectorTests(TestCase):
     def test_gap_detector_builds_the_six_reserved_gap_classes(self):
-        findings = gap_detector.build_gap_findings(metric_names=["xf_import_posts_total"])
+        # An unregistered name is required to exercise the "observability_gap"
+        # (unproven-metric) class: registered reserved metrics are now proven
+        # against the live registry and produce no gap. With no infra_probe the
+        # five infra classes are all emitted, so this yields all six classes.
+        findings = gap_detector.build_gap_findings(
+            metric_names=["xf_unregistered_metric_sentinel"]
+        )
         categories = {finding.category for finding in findings}
 
         self.assertIn("observability_gap", categories)

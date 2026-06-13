@@ -37,7 +37,7 @@ if [[ "${XF_QUALITY_INNER:-0}" != "1" && ! -f /.dockerenv ]]; then
     echo "[run-rust-quality] No changed Rust files detected -- skipping Dell sync and Rust quality run."
     exit 0
   fi
-  if ! docker --context "$RUST_MUTATION_DOCKER_CONTEXT" info >/dev/null 2>&1; then
+  if ! xf_remote_context_reachable "$RUST_MUTATION_DOCKER_CONTEXT"; then
     echo "[run-rust-quality] Dell Rust mutation context '$RUST_MUTATION_DOCKER_CONTEXT' is required and is not reachable." >&2
     echo "[run-rust-quality] Fix the Dell Docker context; Rust mutation is compulsory and will not fall back to Windows." >&2
     exit 1

@@ -37,6 +37,25 @@ xf_require_remote_context() {
   esac
 }
 
+xf_remote_context_reachable() {
+  # Usage: xf_remote_context_reachable <docker-context-name> [attempts] [sleep_seconds]
+  # Probe `docker --context <ctx> info` with retries. The FIRST SSH/docker call
+  # to an idle Dell frequently times out on a cold connection, so a single-shot
+  # probe reports a false "unreachable" and wrongly blocks the commit. Retrying
+  # mirrors the resilience already in scripts/machine_routing.py. Returns 0 as
+  # soon as the context answers, non-zero only after all attempts fail.
+  local context="$1" attempts="${2:-3}" sleep_s="${3:-2}" i
+  for (( i = 1; i <= attempts; i++ )); do
+    if docker --context "$context" version >/dev/null 2>&1; then
+      return 0
+    fi
+    if [[ "$i" -lt "$attempts" ]]; then
+      sleep "$sleep_s"
+    fi
+  done
+  return 1
+}
+
 xf_block_local_quality_container() {
   # Usage: xf_block_local_quality_container <runner-label>
   # Hard-stops the in-container quality path on the Windows host.

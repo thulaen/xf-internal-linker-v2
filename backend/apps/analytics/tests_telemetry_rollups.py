@@ -20,17 +20,17 @@ from apps.content.models import ContentItem
 from .models import SuggestionTelemetryDaily
 
 
+# Plain TestCase is sufficient: breakdown_rows refreshes the snapshot with the
+# Django ORM, which sees the test transaction's own rows. (The background
+# snapshot jobs that DO use ADBC's second connection are covered separately.)
 class TelemetryBreakdownRollupTests(TestCase):
-    @classmethod
-    def setUpTestData(cls) -> None:
-        cls.host = ContentItem.objects.create(
+    def setUp(self) -> None:
+        self.host = ContentItem.objects.create(
             content_id=9001, content_type="thread", title="Host"
         )
-        cls.destination = ContentItem.objects.create(
+        self.destination = ContentItem.objects.create(
             content_id=9002, content_type="thread", title="Destination"
         )
-
-    def setUp(self) -> None:
         self._tmpdir = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmpdir.cleanup)
         patcher = patch(

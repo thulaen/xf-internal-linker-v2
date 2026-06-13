@@ -1198,6 +1198,14 @@ def score_destination_matches(
             candidate.host_sentence_id,
         )
     )
+    # Emit score distribution observations so xf_scoring_score histogram
+    # reflects actual final composite scores on every ranking pass.
+    if ranked:
+        try:
+            from apps.observability.metrics_ranking import observe_ranked_scores
+            observe_ranked_scores([c.score_final for c in ranked])
+        except Exception:  # noqa: BLE001 — never kill the ranker over metrics
+            logger.debug("ranker metrics emit failed (ignored)", exc_info=True)
     return ranked
 
 

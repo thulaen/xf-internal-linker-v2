@@ -4,11 +4,16 @@ Closes the last GlitchTip gap: the existing ``glitchtip_picker`` promotes
 *errors* (events that raised), but a slow endpoint or background job can get
 progressively slower WITHOUT ever raising — so it never reaches AutoIssues.
 
-GlitchTip is Sentry-API-compatible, so its performance transactions are
-queryable through the Sentry "organization events" endpoint sorted by
-``p95(transaction.duration)``. This picker fetches the slowest N transactions
-for the project and files each one over the slow-only threshold as an
-AutoIssue tagged ``source='glitchtip'`` under the ``performance`` category.
+GlitchTip exposes aggregated performance data at its own
+``/api/0/organizations/<org>/transaction-groups/`` endpoint (one row per
+transaction name carrying ``p95`` / ``avgDuration`` / ``count`` in
+milliseconds). This picker fetches those groups, keeps the ones whose ``p95``
+exceeds the slow threshold, sorts them client-side, and files each over the
+threshold as an AutoIssue tagged ``source='glitchtip'`` under the
+``performance`` category. NOTE: the Sentry "organization events" discover
+endpoint is NOT implemented by GlitchTip (it returns 404), and the
+transaction-groups endpoint rejects server-side ``sort`` (HTTP 422), so we
+fetch the default page and rank by ``p95`` in Python.
 
 Shape mirrors ``slow_query_picker.py`` exactly:
   * the HTTP fetch is isolated behind ``_fetch_glitchtip_transactions`` (never
@@ -40,10 +45,20 @@ _MIN_DURATION_MS = 250.0
 _MAX_PER_RUN = 10
 _REQUEST_TIMEOUT = 15  # seconds — same as the GlitchTip error-sync fetch.
 
-# Sentry-API field names returned by the organization-events endpoint.
+# Field names returned by GlitchTip's transaction-groups endpoint (NOT the
+# Sentry discover-events aliases — GlitchTip serves its own performance API).
 _FIELD_TRANSACTION = "transaction"
-_FIELD_DURATION = "p95(transaction.duration)"
-_FIELD_COUNT = "count()"
+_FIELD_DURATION = "p95"
+_FIELD_COUNT = "count"
+_FIELD_OP = "op"
+
+# Only USER-FACING request transactions are actionable as "slow endpoints".
+# GlitchTip tags each transaction-group with an ``op``: ``http.server`` (a
+# backend API endpoint) and ``pageload`` (a frontend page load) are user-facing.
+# Everything else — ``queue.task.celery`` and empty-op ``run/...`` background
+# jobs, raw ``db`` spans — is expected to run long and is excluded, so the
+# picker surfaces slow endpoints instead of expected-slow background work.
+_USER_FACING_OPS = frozenset({"http.server", "pageload"})
 
 
 @dataclass(frozen=True)
@@ -53,6 +68,7 @@ class SlowTransaction:
     transaction: str
     duration_ms: float
     count: int
+    op: str = ""
     endpoint: str = ""
 
 
@@ -83,16 +99,14 @@ def _fetch_glitchtip_transactions(*, limit: int) -> list[dict]:
     if not all([api_url, token, org, proj]):
         return []
     try:
+        # GlitchTip's transaction-groups endpoint returns a bare JSON list of
+        # aggregated transactions (one per name) for the org. It rejects
+        # server-side sort/project params (HTTP 422), so we take the default
+        # page and rank client-side. `limit` is unused at the wire level but
+        # kept in the signature for the caller's intent + future pagination.
         response = requests.get(
-            f"{api_url}/api/0/organizations/{org}/events/",
+            f"{api_url}/api/0/organizations/{org}/transaction-groups/",
             headers={"Authorization": f"Bearer {token}"},
-            params={
-                "field": [_FIELD_TRANSACTION, _FIELD_DURATION, _FIELD_COUNT],
-                "project": proj,
-                "query": "event.type:transaction",
-                "sort": f"-{_FIELD_DURATION}",
-                "per_page": limit,
-            },
             timeout=_REQUEST_TIMEOUT,
         )
         response.raise_for_status()
@@ -123,11 +137,40 @@ def _coerce_int(value: object) -> int:
         return 0
 
 
+_HTTP_METHODS = frozenset(
+    {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE", "CONNECT"}
+)
+
+
+def _normalize_transaction_name(name: str) -> str:
+    """Strip leading HTTP-method tokens so each endpoint collapses to one row.
+
+    GlitchTip occasionally names an HTTP transaction with the request method
+    prefixed — sometimes twice (e.g. ``POST POST /api/x/``) — while also
+    tracking a bare ``/api/x/`` group, i.e. two rows for one endpoint. Dropping
+    the leading method token(s) maps both onto the same path, so they share a
+    dedup key and ``upsert_dedup`` merges them into a single AutoIssue.
+    """
+    parts = name.split()
+    while len(parts) > 1 and parts[0].upper() in _HTTP_METHODS:
+        parts.pop(0)
+    return " ".join(parts)
+
+
 def _parse_transactions(rows: list[dict], *, min_ms: float) -> list[SlowTransaction]:
-    """Map raw Sentry-events rows to SlowTransaction, keeping only slow ones."""
+    """Map raw GlitchTip transaction-group rows to SlowTransaction.
+
+    Keeps only USER-FACING transactions (``op`` in ``_USER_FACING_OPS``) that
+    are also slower than ``min_ms``. Background jobs and internal spans are
+    excluded so the picker surfaces actionable slow endpoints, not the
+    expected-slow Celery jobs / scans / benchmarks.
+    """
     out: list[SlowTransaction] = []
     for row in rows:
-        name = str(row.get(_FIELD_TRANSACTION) or "").strip()
+        op = str(row.get(_FIELD_OP) or "").strip()
+        if op not in _USER_FACING_OPS:
+            continue
+        name = _normalize_transaction_name(str(row.get(_FIELD_TRANSACTION) or ""))
         duration = _coerce_float(row.get(_FIELD_DURATION))
         if not name or duration < min_ms:
             continue
@@ -136,6 +179,7 @@ def _parse_transactions(rows: list[dict], *, min_ms: float) -> list[SlowTransact
                 transaction=name[:300],
                 duration_ms=duration,
                 count=_coerce_int(row.get(_FIELD_COUNT)),
+                op=op,
                 endpoint=name[:300],
             )
         )

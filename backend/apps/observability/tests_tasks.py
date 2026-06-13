@@ -60,7 +60,15 @@ class CollectSystemMetricsGuardTests(SimpleTestCase):
 
         fake_conn = MagicMock()
         fake_conn.in_atomic_block = in_atomic_block
-        with patch.object(tasks, "connection", fake_conn):
+        # Patch the three best-effort emit helpers so the guard test stays
+        # hermetic — no real psutil / Redis / Postgres work runs here.
+        with patch.object(tasks, "connection", fake_conn), patch.object(
+            tasks, "_emit_system_gauges", return_value={"ok": 1}
+        ), patch.object(
+            tasks, "_emit_db_latency", return_value=0.001
+        ), patch.object(
+            tasks, "_emit_queue_depth", return_value={"default": 0.0}
+        ):
             result = tasks.collect_system_metrics()
         return fake_conn, result
 
@@ -69,12 +77,14 @@ class CollectSystemMetricsGuardTests(SimpleTestCase):
         fake_conn.close.assert_not_called()
 
     def test_close_called_and_payload_exact_when_not_in_atomic_block(self) -> None:
-        # assertEqual on the exact dict kills the literal mutation of the
-        # returned ``{"collected": True}`` payload (a substring check would let
-        # a flipped boolean survive).
+        # assertEqual on the exact dict pins the collected payload so a dropped
+        # source or a renamed key is caught.
         fake_conn, result = self._run_with_atomic(in_atomic_block=False)
         fake_conn.close.assert_called_once()
-        self.assertEqual(result, {"collected": True})
+        self.assertEqual(
+            result,
+            {"collected": {"system": {"ok": 1}, "db_latency_s": 0.001, "queues": {"default": 0.0}}},
+        )
 
 
 class HelperConstraintMetadataTests(SimpleTestCase):

@@ -57,8 +57,16 @@ def _refresh_snapshot(path: Path) -> bool:
 
     A fixed filename is reused (atomic replace) so snapshots never pile
     up. An empty table deletes any stale file so old data cannot leak.
+
+    The read uses the Django ORM on purpose. This refresh is triggered from the
+    synchronous dashboard request path, so it must reuse Django's pooled
+    connection and see the request's own transaction. ADBC opens its OWN
+    Postgres connection and only sees COMMITTED rows, which is correct for the
+    background snapshot jobs (apps.analytics.tasks, spike_forecast) but breaks a
+    request-path read under transactional tests. The window is read at most once
+    per 15 minutes, so the ORM ``values()`` pass is not a hot path.
     """
-    import polars as pl  # pylint: disable=import-error
+    import polars as pl
 
     from apps.pipeline.services._parquet_io import write_parquet_atomic
 
@@ -66,34 +74,16 @@ def _refresh_snapshot(path: Path) -> bool:
 
     start = timezone.now().date() - timedelta(days=_EXPORT_WINDOW_DAYS)
     rows = list(
-        SuggestionTelemetryDaily.objects.filter(date__gte=start).values_list(
-            "date",
-            "telemetry_source",
-            "device_category",
-            "default_channel_group",
-            "country",
-            "impressions",
-            "clicks",
+        SuggestionTelemetryDaily.objects.filter(date__gte=start).values(
+            "date", "telemetry_source", "device_category",
+            "default_channel_group", "country", "impressions", "clicks",
             "engaged_sessions",
         )
     )
     if not rows:
         path.unlink(missing_ok=True)
         return False
-    columns = list(zip(*rows))
-    df = pl.DataFrame(
-        {
-            "date": list(columns[0]),
-            "telemetry_source": list(columns[1]),
-            "device_category": list(columns[2]),
-            "default_channel_group": list(columns[3]),
-            "country": list(columns[4]),
-            "impressions": list(columns[5]),
-            "clicks": list(columns[6]),
-            "engaged_sessions": list(columns[7]),
-        }
-    )
-    write_parquet_atomic(df, path)
+    write_parquet_atomic(pl.DataFrame(rows), path)
     return True
 
 

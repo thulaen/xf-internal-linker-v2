@@ -134,8 +134,30 @@ def _target_file(rel: str) -> str:
 
 
 def _target_files(rel_slice: list[str]) -> list[str]:
-    """Return unique backend-relative files from pytest targets."""
-    return list(dict.fromkeys(_target_file(rel) for rel in rel_slice))
+    """Return unique backend-relative FILES from pytest targets.
+
+    A target can be a file (``apps/foo/tests.py``), a node id
+    (``apps/foo/tests.py::Test::test_x`` -> its file), or a DIRECTORY
+    (``config/tests`` -> every ``*.py`` under it). The snapshot manifest hashes
+    real files only: ``sha256sum`` cannot read a directory, so a bare directory
+    target makes the remote handshake exit non-zero and the whole verify fails
+    closed. Directory targets are therefore expanded to their contained ``.py``
+    files so the host and the remote hash the exact same paths. The pytest RUN
+    command still receives the original (directory) targets, so test discovery
+    is unchanged — only the manifest is affected.
+    """
+    files: list[str] = []
+    backend = REPO_ROOT / "backend"
+    for rel in rel_slice:
+        path = _target_file(rel)
+        if (backend / path).is_dir():
+            files.extend(
+                str(p.relative_to(backend)).replace("\\", "/")
+                for p in sorted((backend / path).rglob("*.py"))
+            )
+        else:
+            files.append(path)
+    return list(dict.fromkeys(files))
 
 
 def _host_hashes(rel_slice: list[str]) -> dict[str, str]:
