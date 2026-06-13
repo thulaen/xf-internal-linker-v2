@@ -20,7 +20,9 @@ WHAT "STUCK" MEANS HERE
     The exact failure we keep hitting: a quality/mutation Docker container that has
     been up for several minutes at near-zero CPU (a blocked wait, not real work),
     or a mutation lock file held far longer than a run should take. Both are
-    reported in plain English.
+    reported in plain English. A warm helper whose only job is to idle (for
+    example ``tail -f /dev/null``) sits at ~0% CPU on purpose, so it is never
+    counted as stuck — that would be a false alarm that hides real stalls.
 
 Plain-English only in all output — define nothing in jargon. No network calls.
 """
@@ -62,10 +64,24 @@ def percent_done(dirty: int, baseline: int) -> int:
     return max(0, min(100, round(100 * (baseline - dirty) / baseline)))
 
 
+# Container commands meaning "stay alive doing nothing" — a warm helper kept
+# running so a later ``docker exec`` starts fast. Such a container idles at ~0%
+# CPU by design, so it must never be mistaken for a stalled job.
+_KEEPALIVE_MARKERS = ("tail -f", "sleep infinity")
+
+
+def is_keepalive_command(command: str) -> bool:
+    """True when a container's command just idles forever (a warm helper)."""
+    cmd = (command or "").lower()
+    return any(marker in cmd for marker in _KEEPALIVE_MARKERS)
+
+
 def detect_stuck(containers: list[dict], lock_age_seconds: float | None) -> list[str]:
-    """Plain-English list of stalls. ``containers`` is name/up_minutes/cpu_percent."""
+    """Plain-English list of stalls. ``containers`` is name/up_minutes/cpu_percent/keepalive."""
     stuck: list[str] = []
     for c in containers:
+        if c.get("keepalive"):
+            continue  # warm idle helper — 0% CPU is by design, not a stall
         if c["up_minutes"] >= STUCK_CONTAINER_MINUTES and c["cpu_percent"] < STUCK_CPU_PERCENT:
             stuck.append(
                 f"{c['name']} has been busy {int(c['up_minutes'])} min but is using "
@@ -115,20 +131,24 @@ def _git_dirty_count() -> int:
 
 
 def _docker_quality_containers() -> list[dict]:
-    """name/up_minutes/cpu_percent for running quality/mutation containers."""
+    """name/up_minutes/cpu_percent/keepalive for running quality/mutation containers."""
     names = subprocess.run(
-        ["docker", "ps", "--format", "{{.Names}}\t{{.RunningFor}}"],
+        ["docker", "ps", "--no-trunc", "--format", "{{.Names}}\t{{.RunningFor}}\t{{.Command}}"],
         capture_output=True, text=True, check=False,
     ).stdout
     rows: list[dict] = []
-    targets: dict[str, float] = {}
+    targets: dict[str, dict] = {}
     for ln in names.splitlines():
-        if "\t" not in ln:
+        parts = ln.split("\t")
+        if len(parts) < 3:
             continue
-        name, running_for = ln.split("\t", 1)
+        name, running_for, command = parts[0], parts[1], "\t".join(parts[2:])
         if not any(k in name for k in ("mutation", "quality", "mutmut")):
             continue
-        targets[name] = _minutes_from_running_for(running_for)
+        targets[name] = {
+            "up_minutes": _minutes_from_running_for(running_for),
+            "keepalive": is_keepalive_command(command),
+        }
     if not targets:
         return rows
     stats = subprocess.run(
@@ -141,8 +161,13 @@ def _docker_quality_containers() -> list[dict]:
             continue
         name, perc = ln.split("\t", 1)
         cpu[name] = float(perc.strip().rstrip("%") or 0.0)
-    for name, up_minutes in targets.items():
-        rows.append({"name": name, "up_minutes": up_minutes, "cpu_percent": cpu.get(name, 0.0)})
+    for name, meta in targets.items():
+        rows.append({
+            "name": name,
+            "up_minutes": meta["up_minutes"],
+            "cpu_percent": cpu.get(name, 0.0),
+            "keepalive": meta["keepalive"],
+        })
     return rows
 
 

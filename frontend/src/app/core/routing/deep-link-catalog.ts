@@ -62,6 +62,13 @@ export interface DeepLinkEntry {
  */
 export const DEEP_LINK_CATALOG: readonly DeepLinkEntry[] = [
   {
+    key: 'ui-sandbox.primitives',
+    label: 'UI sandbox',
+    subtitle: 'Phase B primitive gallery — owned CDK + Tailwind components in isolation.',
+    route: '/ui-sandbox',
+    searchTerms: ['ui sandbox', 'primitives', 'components', 'design system', 'phase b', 'card', 'chip', 'divider', 'spinner'],
+  },
+  {
     key: 'dashboard.main',
     label: 'Dashboard',
     subtitle: 'Overview of jobs, suggestions, and key metrics.',

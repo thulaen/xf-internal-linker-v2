@@ -18,6 +18,15 @@ export const routes: Routes = [
     title: 'Sign in — XF Internal Linker',
   },
   {
+    // Public, unguarded primitive gallery — the Phase B verification surface
+    // (Material -> CDK+Tailwind shadcn migration). Renders owned primitives in
+    // isolation so their computed styling can be checked in the live preview.
+    path: 'ui-sandbox',
+    loadComponent: () =>
+      import('./shared/ui-sandbox/ui-sandbox.component').then((m) => m.UiSandboxComponent),
+    title: 'UI sandbox — XF Internal Linker',
+  },
+  {
     path: '',
     redirectTo: '/dashboard',
     pathMatch: 'full',

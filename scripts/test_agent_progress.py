@@ -65,6 +65,48 @@ class DetectStuckTests(unittest.TestCase):
     def test_fresh_lock_is_not_stuck(self) -> None:
         self.assertEqual(agent_progress.detect_stuck([], 60), [])
 
+    def test_keepalive_idle_helper_is_not_stuck(self) -> None:
+        # A warm helper whose command just idles (e.g. `tail -f /dev/null`) sits
+        # at ~0% CPU by design; it must never be reported as a stalled job.
+        rows = [{
+            "name": "xf_linker_frontend_mutation_tools",
+            "up_minutes": 780, "cpu_percent": 0.0, "keepalive": True,
+        }]
+        self.assertEqual(agent_progress.detect_stuck(rows, None), [])
+
+    def test_keepalive_helper_still_reports_held_lock(self) -> None:
+        # The idle helper itself isn't flagged, but a genuinely wedged run
+        # (an old held mutation lock) is still surfaced.
+        rows = [{
+            "name": "xf_linker_frontend_mutation_tools",
+            "up_minutes": 780, "cpu_percent": 0.0, "keepalive": True,
+        }]
+        stuck = agent_progress.detect_stuck(rows, 9 * 60)
+        self.assertEqual(len(stuck), 1)
+        self.assertIn("lock", stuck[0])
+
+    def test_non_keepalive_low_cpu_long_uptime_still_stuck(self) -> None:
+        # A real job-runner (not a keepalive) idling at 0% CPU is still a stall.
+        rows = [{
+            "name": "xf-mutation-run",
+            "up_minutes": 11, "cpu_percent": 0.0, "keepalive": False,
+        }]
+        self.assertEqual(len(agent_progress.detect_stuck(rows, None)), 1)
+
+
+class IsKeepaliveCommandTests(unittest.TestCase):
+    def test_tail_dev_null_is_keepalive(self) -> None:
+        self.assertTrue(agent_progress.is_keepalive_command("sh -lc 'tail -f /dev/null'"))
+
+    def test_sleep_infinity_is_keepalive(self) -> None:
+        self.assertTrue(agent_progress.is_keepalive_command("sleep infinity"))
+
+    def test_real_command_is_not_keepalive(self) -> None:
+        self.assertFalse(agent_progress.is_keepalive_command("npx stryker run"))
+
+    def test_empty_command_is_not_keepalive(self) -> None:
+        self.assertFalse(agent_progress.is_keepalive_command(""))
+
 
 class ShouldEmitTests(unittest.TestCase):
     def test_first_run_emits(self) -> None:

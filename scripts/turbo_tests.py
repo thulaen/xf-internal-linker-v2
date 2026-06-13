@@ -136,6 +136,54 @@ def _sync_test_source_to_context(
 
 # ── test file discovery ───────────────────────────────────────────────────────
 
+def _normalise_backend_search_roots(paths: list[str] | None = None) -> list[Path]:
+    """Return existing backend search roots for fast file discovery."""
+    if not paths:
+        return [REPO_ROOT / "backend"]
+    roots: list[Path] = []
+    for raw in paths:
+        path = Path(raw)
+        root = REPO_ROOT / path
+        if path.parts and path.parts[0] == "backend":
+            roots.append(root)
+        else:
+            roots.append(REPO_ROOT / "backend" / path)
+    return [root for root in roots if root.exists()]
+
+
+def _is_test_file(path: Path) -> bool:
+    """Return True when ``path`` follows this repo's Python test naming."""
+    name = path.name
+    return name == "tests.py" or name.startswith("test_") or name.startswith("tests_")
+
+
+def _discover_simpletest_files_fast(paths: list[str] | None = None) -> list[str]:
+    """Find SimpleTestCase files without Docker collection.
+
+    Dry-run must answer quickly even when the quality container is slow or
+    stuck. This scanner is less exact than pytest collection, but it is enough
+    to show the shard shape and prove the Dell routing path is reachable.
+    """
+    discovered: list[str] = []
+    seen: set[str] = set()
+    for root in _normalise_backend_search_roots(paths):
+        candidates = [root] if root.is_file() else root.rglob("*.py")
+        for path in candidates:
+            if not _is_test_file(path):
+                continue
+            try:
+                content = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if "SimpleTestCase" not in content:
+                continue
+            rel = path.relative_to(REPO_ROOT / "backend").as_posix()
+            if rel not in seen:
+                seen.add(rel)
+                discovered.append(rel)
+    return discovered
+
+
 def _collect_simpletest_files(paths: list[str] | None = None) -> list[str]:
     """Return backend-relative paths of test files that contain SimpleTestCase.
 
@@ -346,7 +394,11 @@ def run_python_tests(
     if machines is None:
         cfg = _load_routing_cfg()
         routing = _load_machine_routing()
-        machines = routing._select_machines(cfg)
+        try:
+            machines = routing._select_machines(cfg)
+        except routing.RemoteUnavailableError as exc:
+            print(f"[TURBO TESTS: blocked: {exc}]", file=sys.stderr)
+            return 1
 
     files = _collect_simpletest_files(paths)
     if not files:
@@ -412,10 +464,15 @@ def main() -> int:
     if args.dry_run:
         cfg = _load_routing_cfg()
         routing = _load_machine_routing()
-        machines = routing._select_machines(cfg)
-        files = _collect_simpletest_files()
+        try:
+            machines = routing._select_machines(cfg)
+        except routing.RemoteUnavailableError as exc:
+            print(f"[TURBO TESTS DRY-RUN: blocked: {exc}]", file=sys.stderr)
+            return 1
+        files = _discover_simpletest_files_fast()
         plan = routing._partition_weighted(files, machines)
         print("[TURBO TESTS DRY-RUN]")
+        print(f"  discovery: fast file scan ({len(files)} SimpleTestCase files)")
         for name, shard in plan.items():
             print(f"  {name}: {len(shard)} files")
         return 0

@@ -87,6 +87,27 @@ class TestDetectStuck(TestCase):
     def test_none_lock_not_stuck(self):
         self.assertEqual(ap.detect_stuck([], None), [])
 
+    def test_keepalive_container_is_skipped(self):
+        c = self._container(780, 0.0, name="frontend_mutation_tools")
+        c["keepalive"] = True
+        self.assertEqual(ap.detect_stuck([c], None), [])
+
+    def test_non_keepalive_low_cpu_is_stuck(self):
+        c = self._container(8, 1.0)
+        c["keepalive"] = False
+        self.assertEqual(len(ap.detect_stuck([c], None)), 1)
+
+
+class TestIsKeepalive(TestCase):
+    def test_tail_f_dev_null_true(self):
+        self.assertTrue(ap.is_keepalive_command("sh -lc 'tail -f /dev/null'"))
+
+    def test_sleep_infinity_true(self):
+        self.assertTrue(ap.is_keepalive_command("sleep infinity"))
+
+    def test_normal_command_false(self):
+        self.assertFalse(ap.is_keepalive_command("python -m pytest"))
+
 
 class TestShouldEmit(TestCase):
     def test_force_always_emits(self):

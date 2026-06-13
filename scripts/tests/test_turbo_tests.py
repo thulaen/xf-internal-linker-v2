@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+import tempfile
 from pathlib import Path
 from unittest import TestCase, mock
 
@@ -89,6 +90,88 @@ class TestMergeShardResults(TestCase):
         results = [{"machine": {"name": "w"}, "rc": None, "files": ["a.py"], "cmd": ""}]
         with mock.patch.object(tt, "_run_shard_local", return_value=(1, "rerun bad")):
             self.assertEqual(tt._merge_shard_results(results), 1)
+
+
+class TestDryRunDiscovery(TestCase):
+    def test_fast_discovery_reads_files_without_subprocess(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_root:
+            repo_root = Path(raw_root)
+            test_dir = repo_root / "backend" / "apps" / "example"
+            test_dir.mkdir(parents=True)
+            (test_dir / "tests_fast.py").write_text(
+                "from django.test import SimpleTestCase\n\n"
+                "class ExampleTests(SimpleTestCase):\n"
+                "    pass\n",
+                encoding="utf-8",
+            )
+            (test_dir / "test_db.py").write_text(
+                "from django.test import TestCase\n\n"
+                "class DbTests(TestCase):\n"
+                "    pass\n",
+                encoding="utf-8",
+            )
+            (test_dir / "helper.py").write_text("SimpleTestCase\n", encoding="utf-8")
+
+            with mock.patch.object(tt, "REPO_ROOT", repo_root), mock.patch.object(
+                tt.subprocess,
+                "run",
+                side_effect=AssertionError("fast discovery must not call subprocess"),
+            ):
+                files = tt._discover_simpletest_files_fast()
+
+        self.assertEqual(files, ["apps/example/tests_fast.py"])
+
+    def test_dry_run_uses_fast_discovery(self) -> None:
+        class FakeRouting:
+            class RemoteUnavailableError(RuntimeError):
+                pass
+
+            def _select_machines(self, cfg: dict[str, object]) -> list[dict[str, object]]:
+                return [{"name": "dell"}, {"name": "windows"}]
+
+            def _partition_weighted(
+                self,
+                files: list[str],
+                machines: list[dict[str, object]],
+            ) -> dict[str, list[str]]:
+                return {
+                    str(machines[0]["name"]): files[:1],
+                    str(machines[1]["name"]): files[1:],
+                }
+
+        with mock.patch.object(tt, "_load_routing_cfg", return_value={"machines": []}), (
+            mock.patch.object(tt, "_load_machine_routing", return_value=FakeRouting())
+        ), mock.patch.object(
+            tt,
+            "_discover_simpletest_files_fast",
+            return_value=["apps/a/tests.py", "apps/b/tests.py"],
+        ), mock.patch.object(
+            tt,
+            "_collect_simpletest_files",
+            side_effect=AssertionError("dry-run must not use Docker collection"),
+        ), mock.patch.object(
+            tt.sys,
+            "argv",
+            ["turbo_tests.py", "--language", "python", "--dry-run"],
+        ):
+            self.assertEqual(tt.main(), 0)
+
+    def test_dry_run_reports_blocked_remote(self) -> None:
+        class FakeRouting:
+            class RemoteUnavailableError(RuntimeError):
+                pass
+
+            def _select_machines(self, cfg: dict[str, object]) -> list[dict[str, object]]:
+                raise self.RemoteUnavailableError("Dell is not reachable")
+
+        with mock.patch.object(tt, "_load_routing_cfg", return_value={"machines": []}), (
+            mock.patch.object(tt, "_load_machine_routing", return_value=FakeRouting())
+        ), mock.patch.object(
+            tt.sys,
+            "argv",
+            ["turbo_tests.py", "--language", "python", "--dry-run"],
+        ):
+            self.assertEqual(tt.main(), 1)
 
 
 class TestConstants(TestCase):

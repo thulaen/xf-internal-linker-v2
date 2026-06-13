@@ -297,6 +297,105 @@ def test_merge_shard_results_none_rc_local_also_fails_returns_rc1(monkeypatch) -
     )
 
 
+# ── dry-run discovery ─────────────────────────────────────────────────────────
+
+def test_discover_simpletest_files_fast_scans_without_subprocess(monkeypatch) -> None:
+    tt = _load_turbo_tests()
+
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as raw_root:
+        repo_root = Path(raw_root)
+        test_dir = repo_root / "backend" / "apps" / "example"
+        test_dir.mkdir(parents=True)
+        (test_dir / "tests_fast.py").write_text(
+            "from django.test import SimpleTestCase\n\n"
+            "class ExampleTests(SimpleTestCase):\n"
+            "    pass\n",
+            encoding="utf-8",
+        )
+        (test_dir / "test_db.py").write_text(
+            "from django.test import TestCase\n\n"
+            "class DbTests(TestCase):\n"
+            "    pass\n",
+            encoding="utf-8",
+        )
+        (test_dir / "helper.py").write_text("SimpleTestCase\n", encoding="utf-8")
+        monkeypatch.setattr(tt, "REPO_ROOT", repo_root)
+        monkeypatch.setattr(
+            tt.subprocess,
+            "run",
+            lambda *args, **kwargs: (_ for _ in ()).throw(
+                AssertionError("fast discovery must not call subprocess")
+            ),
+        )
+
+        files = tt._discover_simpletest_files_fast()
+
+    assert files == ["apps/example/tests_fast.py"]
+
+
+def test_main_dry_run_uses_fast_discovery(monkeypatch) -> None:
+    tt = _load_turbo_tests()
+
+    class FakeRouting:
+        class RemoteUnavailableError(RuntimeError):
+            pass
+
+        def _select_machines(self, cfg: dict[str, object]) -> list[dict[str, object]]:
+            return [{"name": "dell"}, {"name": "windows"}]
+
+        def _partition_weighted(
+            self,
+            files: list[str],
+            machines: list[dict[str, object]],
+        ) -> dict[str, list[str]]:
+            return {
+                str(machines[0]["name"]): files[:1],
+                str(machines[1]["name"]): files[1:],
+            }
+
+    def fail_collect(paths: list[str] | None = None) -> list[str]:
+        raise AssertionError("dry-run must not use Docker collection")
+
+    monkeypatch.setattr(tt, "_load_routing_cfg", lambda: {"machines": []})
+    monkeypatch.setattr(tt, "_load_machine_routing", lambda: FakeRouting())
+    monkeypatch.setattr(
+        tt,
+        "_discover_simpletest_files_fast",
+        lambda paths=None: ["apps/a/tests.py", "apps/b/tests.py"],
+    )
+    monkeypatch.setattr(tt, "_collect_simpletest_files", fail_collect)
+    monkeypatch.setattr(
+        tt.sys,
+        "argv",
+        ["turbo_tests.py", "--language", "python", "--dry-run"],
+    )
+
+    assert tt.main() == 0
+
+
+def test_main_dry_run_reports_blocked_remote(monkeypatch) -> None:
+    tt = _load_turbo_tests()
+
+    class FakeRouting:
+        class RemoteUnavailableError(RuntimeError):
+            pass
+
+        def _select_machines(self, cfg: dict[str, object]) -> list[dict[str, object]]:
+            raise self.RemoteUnavailableError("Dell is not reachable")
+
+    monkeypatch.setattr(tt, "_load_routing_cfg", lambda: {"machines": []})
+    monkeypatch.setattr(tt, "_load_machine_routing", lambda: FakeRouting())
+    monkeypatch.setattr(
+        tt.sys,
+        "argv",
+        ["turbo_tests.py", "--language", "python", "--dry-run"],
+    )
+
+    assert tt.main() == 1
+
+
 # ── run_python_tests ──────────────────────────────────────────────────────────
 
 def test_run_python_tests_no_files_returns_0_without_dispatching(monkeypatch) -> None:

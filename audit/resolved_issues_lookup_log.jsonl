@@ -2765,3 +2765,8 @@
 {"file_path": "docs/specs", "lookup_at": "2026-06-12T16:24:37Z", "task_id": "38160387-9afa-4ccc-beed-8ab5bccbb180", "agent": "claude", "result_count": 1, "result_ids": [2152]}
 {"file_path": ".githooks", "lookup_at": "2026-06-12T17:04:18Z", "task_id": "38160387-9afa-4ccc-beed-8ab5bccbb180", "agent": "claude", "result_count": 10, "result_ids": [23127, 23122, 23121, 23120, 23119, 23118, 22896, 22897, 22886, 22882]}
 {"file_path": "docs/specs", "lookup_at": "2026-06-12T17:04:18Z", "task_id": "38160387-9afa-4ccc-beed-8ab5bccbb180", "agent": "claude", "result_count": 1, "result_ids": [2152]}
+{"file_path": "backend/apps/diagnostics", "lookup_at": "2026-06-13T20:18:26Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 1, "result_ids": [19806]}
+{"file_path": "rust/extensions/ranking_decision_engine", "lookup_at": "2026-06-13T20:18:27Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/pipeline/services", "lookup_at": "2026-06-13T20:18:27Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 1, "result_ids": [20424]}
+{"file_path": "rust/extensions/scoring", "lookup_at": "2026-06-13T20:18:27Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "scripts", "lookup_at": "2026-06-13T20:45:54Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 10, "result_ids": [23126, 20164, 20396, 1802, 20397, 22884, 20174, 1842, 22862, 22818]}
