@@ -1,8 +1,5 @@
-import { provideHttpClient } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { provideHttpClient, withXhr } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { FeatureRequestService } from './feature-request.service';
@@ -15,7 +12,7 @@ describe('FeatureRequestService', () => {
     TestBed.configureTestingModule({
       providers: [
         FeatureRequestService,
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting(),
         { provide: Router, useValue: { url: '/dashboard' } },
       ],
@@ -41,9 +38,7 @@ describe('FeatureRequestService', () => {
   });
 
   it('submit() POSTs the payload + auto-captured context', () => {
-    service
-      .submit({ title: 'Add foo', body: 'Please add a foo button', category: 'ui' })
-      .subscribe();
+    service.submit({ title: 'Add foo', body: 'Please add a foo button', category: 'ui' }).subscribe();
     const req = httpMock.expectOne('/api/feature-requests/');
     expect(req.request.method).toBe('POST');
     expect(req.request.body.title).toBe('Add foo');

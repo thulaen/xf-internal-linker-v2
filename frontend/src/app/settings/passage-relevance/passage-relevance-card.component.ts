@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -26,6 +26,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
     MatTooltipModule,
   ],
   templateUrl: './passage-relevance-card.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./passage-relevance-card.component.scss'],
 })
 export class PassageRelevanceCardComponent implements OnInit, OnDestroy {

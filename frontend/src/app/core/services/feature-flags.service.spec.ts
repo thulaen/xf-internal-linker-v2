@@ -1,8 +1,5 @@
-import { provideHttpClient } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { provideHttpClient, withXhr } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { BehaviorSubject } from 'rxjs';
 import { AuthService } from './auth.service';
@@ -19,7 +16,7 @@ describe('FeatureFlagsService', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting(),
         { provide: AuthService, useValue: { isLoggedIn$ } },
       ],
@@ -84,17 +81,13 @@ describe('FeatureFlagsService', () => {
 
   it('persists fetched flags to localStorage so the next page-load is warm', () => {
     isLoggedIn$.next(true);
-    httpMock
-      .expectOne('/api/feature-flags/')
-      .flush([{ key: 'one', enabled: true }]);
+    httpMock.expectOne('/api/feature-flags/').flush([{ key: 'one', enabled: true }]);
     expect(localStorage.getItem('xfil_feature_flags_cache')).toContain('"one"');
   });
 
   it('recordExposure() POSTs once per key per session', () => {
     isLoggedIn$.next(true);
-    httpMock
-      .expectOne('/api/feature-flags/')
-      .flush([{ key: 'cta', enabled: true, variant: 'b' }]);
+    httpMock.expectOne('/api/feature-flags/').flush([{ key: 'cta', enabled: true, variant: 'b' }]);
 
     service.recordExposure('cta');
     const post1 = httpMock.expectOne('/api/feature-flags/exposures/');
@@ -108,9 +101,7 @@ describe('FeatureFlagsService', () => {
 
   it('recordExposure() reports "control" for disabled flags', () => {
     isLoggedIn$.next(true);
-    httpMock
-      .expectOne('/api/feature-flags/')
-      .flush([{ key: 'cta', enabled: false, variant: 'b' }]);
+    httpMock.expectOne('/api/feature-flags/').flush([{ key: 'cta', enabled: false, variant: 'b' }]);
 
     service.recordExposure('cta');
     const post = httpMock.expectOne('/api/feature-flags/exposures/');
@@ -118,19 +109,18 @@ describe('FeatureFlagsService', () => {
     post.flush({});
   });
 
-  it('recordExposure() swallows POST errors silently (best-effort)', () => new Promise<void>((done) => {
-    isLoggedIn$.next(true);
-    httpMock
-      .expectOne('/api/feature-flags/')
-      .flush([{ key: 'cta', enabled: true }]);
+  it('recordExposure() swallows POST errors silently (best-effort)', () =>
+    new Promise<void>((done) => {
+      isLoggedIn$.next(true);
+      httpMock.expectOne('/api/feature-flags/').flush([{ key: 'cta', enabled: true }]);
 
-    service.recordExposure('cta');
-    const post = httpMock.expectOne('/api/feature-flags/exposures/');
-    expect(post.request.method).toBe('POST');
-    post.flush('nope', { status: 500, statusText: 'Server' });
-    // The catchError branch returned of(null), so no error propagates.
-    setTimeout(() => done(), 0);
-  }));
+      service.recordExposure('cta');
+      const post = httpMock.expectOne('/api/feature-flags/exposures/');
+      expect(post.request.method).toBe('POST');
+      post.flush('nope', { status: 500, statusText: 'Server' });
+      // The catchError branch returned of(null), so no error propagates.
+      setTimeout(() => done(), 0);
+    }));
 
   it('start() triggers a refresh', () => {
     isLoggedIn$.next(true);

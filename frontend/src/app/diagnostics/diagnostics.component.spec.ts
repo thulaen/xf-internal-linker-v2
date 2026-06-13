@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -17,35 +17,46 @@ import { ReadinessMatrixComponent } from './readiness-matrix/readiness-matrix.co
 import { ServiceCardComponent } from './service-card/service-card.component';
 import { SuppressedPairsCardComponent } from './suppressed-pairs-card/suppressed-pairs-card.component';
 
-@Component({ selector: 'app-service-card', standalone: true, template: '' })
+@Component({
+  selector: 'app-service-card',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.Eager,
+  template: '',
+})
 class MockServiceCardComponent {
   @Input() service: unknown;
 }
 
-@Component({ selector: 'app-conflict-list', standalone: true, template: '' })
+@Component({
+  selector: 'app-conflict-list',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.Eager,
+  template: '',
+})
 class MockConflictListComponent {
   @Input() conflicts: unknown[] = [];
   @Output() resolve = new EventEmitter<unknown>();
 }
 
-@Component({ selector: 'app-readiness-matrix', standalone: true, template: '' })
+@Component({
+  selector: 'app-readiness-matrix',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.Eager,
+  template: '',
+})
 class MockReadinessMatrixComponent {
   @Input() features: unknown[] = [];
 }
 
-@Component({ selector: 'app-suppressed-pairs-card', standalone: true, template: '' })
+@Component({
+  selector: 'app-suppressed-pairs-card',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.Eager,
+  template: '',
+})
 class MockSuppressedPairsCardComponent {}
 
-const WAVE2_IDS = [
-  'passage_relevance',
-  'darb',
-  'kmig',
-  'tapb',
-  'kcib',
-  'berp',
-  'hgte',
-  'rsqva',
-];
+const WAVE2_IDS = ['passage_relevance', 'darb', 'kmig', 'tapb', 'kcib', 'berp', 'hgte', 'rsqva'];
 
 function weightSignal(id: string): WeightSignal {
   return {
@@ -110,12 +121,7 @@ describe('DiagnosticsComponent', () => {
 
     TestBed.overrideComponent(DiagnosticsComponent, {
       remove: {
-        imports: [
-          ServiceCardComponent,
-          ConflictListComponent,
-          ReadinessMatrixComponent,
-          SuppressedPairsCardComponent,
-        ],
+        imports: [ServiceCardComponent, ConflictListComponent, ReadinessMatrixComponent, SuppressedPairsCardComponent],
       },
       add: {
         imports: [

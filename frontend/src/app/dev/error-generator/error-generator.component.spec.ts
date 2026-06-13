@@ -1,4 +1,4 @@
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
@@ -15,7 +15,7 @@ describe('ErrorGeneratorComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [ErrorGeneratorComponent, NoopAnimationsModule],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideHttpClient(withXhr()), provideHttpClientTesting()],
     }).compileComponents();
 
     fixture = TestBed.createComponent(ErrorGeneratorComponent);

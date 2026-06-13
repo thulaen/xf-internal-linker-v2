@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
@@ -9,8 +9,8 @@ import { ScopeItem, SiloGroup, SiloSettings } from '../silo-settings.service';
 
 const DEFAULT_SETTINGS: SiloSettings = {
   mode: 'prefer_same_silo',
-  same_silo_boost: 0.10,
-  cross_silo_penalty: 0.10,
+  same_silo_boost: 0.1,
+  cross_silo_penalty: 0.1,
 };
 
 const SAMPLE_GROUPS: SiloGroup[] = [
@@ -65,11 +65,7 @@ describe('SiloArchitectureTabComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [SiloArchitectureTabComponent, NoopAnimationsModule],
-      providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        provideRouter([]),
-      ],
+      providers: [provideHttpClient(withXhr()), provideHttpClientTesting(), provideRouter([])],
     }).compileComponents();
 
     httpMock = TestBed.inject(HttpTestingController);

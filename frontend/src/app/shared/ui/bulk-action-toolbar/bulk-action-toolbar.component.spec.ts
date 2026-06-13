@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BulkActionToolbarComponent } from './bulk-action-toolbar.component';
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -12,7 +12,8 @@ import { MatIconModule } from '@angular/material/icon';
     </app-bulk-action-toolbar>
   `,
   standalone: true,
-  imports: [BulkActionToolbarComponent]
+  changeDetection: ChangeDetectionStrategy.Eager,
+  imports: [BulkActionToolbarComponent],
 })
 class TestHostComponent {
   selectedCount = 0;

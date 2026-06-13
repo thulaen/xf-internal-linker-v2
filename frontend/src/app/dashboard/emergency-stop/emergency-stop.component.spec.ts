@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { EmergencyStopComponent } from './emergency-stop.component';
@@ -23,7 +23,7 @@ describe('EmergencyStopComponent', () => {
       imports: [EmergencyStopComponent],
       providers: [
         provideNoopAnimations(),
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting(),
         { provide: ConfirmService, useValue: confirmSpy },
         { provide: MatSnackBar, useValue: snackSpy },
@@ -54,9 +54,7 @@ describe('EmergencyStopComponent', () => {
     fixture.nativeElement.querySelector('.es-btn').click();
     await fixture.whenStable();
     expect(confirmSpy.ask).toHaveBeenCalledTimes(1);
-    expect(confirmSpy.ask).toHaveBeenCalledWith(
-      expect.objectContaining({ title: expect.any(String), danger: true })
-    );
+    expect(confirmSpy.ask).toHaveBeenCalledWith(expect.objectContaining({ title: expect.any(String), danger: true }));
   });
 
   it('stays not busy when the confirm dialog is cancelled', async () => {

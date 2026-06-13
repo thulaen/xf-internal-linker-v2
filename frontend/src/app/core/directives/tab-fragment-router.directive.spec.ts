@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { MatTabGroup, MatTabsModule } from '@angular/material/tabs';
 import { By } from '@angular/platform-browser';
@@ -10,12 +10,9 @@ import { TabFragmentRouterDirective } from './tab-fragment-router.directive';
 @Component({
   standalone: true,
   imports: [MatTabsModule, TabFragmentRouterDirective],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <mat-tab-group
-      appTabFragment
-      [tabFragmentMap]="map"
-      [selectedIndex]="initial"
-    >
+    <mat-tab-group appTabFragment [tabFragmentMap]="map" [selectedIndex]="initial">
       <mat-tab label="A">A body</mat-tab>
       <mat-tab label="B">B body</mat-tab>
       <mat-tab label="C">C body</mat-tab>
@@ -54,8 +51,7 @@ describe('TabFragmentRouterDirective', () => {
   });
 
   function getMatTabGroup(): MatTabGroup {
-    return fixture.debugElement.query(By.directive(MatTabGroup))
-      .componentInstance as MatTabGroup;
+    return fixture.debugElement.query(By.directive(MatTabGroup)).componentInstance as MatTabGroup;
   }
 
   it('switches to the tab matching the URL fragment after a NavigationEnd', fakeAsync(() => {

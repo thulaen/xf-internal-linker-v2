@@ -1,4 +1,13 @@
-import { Component, OnInit, ElementRef, ViewChild, HostListener, inject, OnDestroy } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  ElementRef,
+  ViewChild,
+  HostListener,
+  inject,
+  OnDestroy,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -14,6 +23,7 @@ import { Subject, takeUntil } from 'rxjs';
   standalone: true,
   imports: [MatCardModule, MatProgressSpinnerModule, MatIconModule, MatButtonModule, MatTooltipModule],
   templateUrl: './graph-signals.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./graph-signals.component.scss'],
 })
 export class GraphSignalsComponent implements OnInit, OnDestroy {

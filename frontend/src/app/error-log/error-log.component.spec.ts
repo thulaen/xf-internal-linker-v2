@@ -1,4 +1,4 @@
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
@@ -36,9 +36,7 @@ describe('ErrorLogComponent', () => {
 
   const diagnosticsServiceStub = {
     getErrors: vi.fn(),
-    acknowledgeError: vi.fn().mockReturnValue(
-      of({ status: 'acknowledged' }),
-    ),
+    acknowledgeError: vi.fn().mockReturnValue(of({ status: 'acknowledged' })),
   };
 
   const glitchtipServiceStub = {
@@ -73,7 +71,7 @@ describe('ErrorLogComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ErrorLogComponent, NoopAnimationsModule],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideRouter([]),
         { provide: DiagnosticsService, useValue: diagnosticsServiceStub },
         { provide: GlitchtipService, useValue: glitchtipServiceStub },
@@ -103,7 +101,7 @@ describe('ErrorLogComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ErrorLogComponent, NoopAnimationsModule],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideRouter([]),
         { provide: DiagnosticsService, useValue: diagnosticsServiceStub },
         { provide: GlitchtipService, useValue: glitchtipServiceStub },
@@ -128,8 +126,7 @@ describe('ErrorLogComponent', () => {
 
   it('shows the full error details when a panel is expanded', async () => {
     const detailedError = makeError({
-      error_message:
-        'OperationalError: connection failed: connection to server at "172.18.0.8" port 5432 failed.',
+      error_message: 'OperationalError: connection failed: connection to server at "172.18.0.8" port 5432 failed.',
       how_to_fix: 'Check the database container and retry the job.',
       raw_exception: 'Traceback (most recent call last):\nOperationalError',
     });
@@ -139,7 +136,7 @@ describe('ErrorLogComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ErrorLogComponent, NoopAnimationsModule],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideRouter([]),
         { provide: DiagnosticsService, useValue: diagnosticsServiceStub },
         { provide: GlitchtipService, useValue: glitchtipServiceStub },
@@ -153,9 +150,7 @@ describe('ErrorLogComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    const header = fixture.nativeElement.querySelector(
-      'mat-expansion-panel-header',
-    ) as HTMLElement;
+    const header = fixture.nativeElement.querySelector('mat-expansion-panel-header') as HTMLElement;
     header.click();
     fixture.detectChanges();
     await fixture.whenStable();
@@ -174,7 +169,7 @@ describe('ErrorLogComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ErrorLogComponent, NoopAnimationsModule],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideRouter([]),
         { provide: DiagnosticsService, useValue: diagnosticsServiceStub },
         { provide: GlitchtipService, useValue: glitchtipServiceStub },
@@ -224,7 +219,7 @@ describe('ErrorLogComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ErrorLogComponent, NoopAnimationsModule],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideRouter([]),
         { provide: DiagnosticsService, useValue: diagnosticsServiceStub },
         { provide: GlitchtipService, useValue: glitchtipServiceStub },
@@ -244,17 +239,13 @@ describe('ErrorLogComponent', () => {
 
     expect(fixture.componentInstance.groupedErrors.length).toBe(1);
 
-    const header = fixture.nativeElement.querySelector(
-      'mat-expansion-panel-header',
-    ) as HTMLElement;
+    const header = fixture.nativeElement.querySelector('mat-expansion-panel-header') as HTMLElement;
     header.click();
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
 
-    const link = fixture.nativeElement.querySelector(
-      '.glitchtip-link-button',
-    ) as HTMLAnchorElement;
+    const link = fixture.nativeElement.querySelector('.glitchtip-link-button') as HTMLAnchorElement;
     expect(link).toBeTruthy();
     expect(link.getAttribute('href')).toBe('http://glitchtip.local/issues/10/');
   });
@@ -272,7 +263,7 @@ describe('ErrorLogComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ErrorLogComponent, NoopAnimationsModule],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideRouter([]),
         { provide: DiagnosticsService, useValue: diagnosticsServiceStub },
         { provide: GlitchtipService, useValue: glitchtipServiceStub },
@@ -310,7 +301,7 @@ describe('ErrorLogComponent', () => {
     const c = await buildComponent();
     expect(c.previewMessage(makeError({ error_message: undefined as any }))).toBe('');
     expect(c.previewMessage(makeError({ error_message: '  short  ' }))).toBe('short');
-    
+
     const longMsg = 'A'.repeat(150);
     const result = c.previewMessage(makeError({ error_message: longMsg }));
     expect(result).toBe('A'.repeat(137) + '...');
@@ -399,7 +390,7 @@ describe('ErrorLogComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ErrorLogComponent, NoopAnimationsModule],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideRouter([]),
         { provide: DiagnosticsService, useValue: diagnosticsServiceStub },
         { provide: GlitchtipService, useValue: glitchtipServiceStub },
@@ -418,7 +409,7 @@ describe('ErrorLogComponent', () => {
     fixture.destroy();
 
     flushSubject.next({ flushed_rows: 5 });
-    
+
     // resyncStatus should remain null since the subscription was destroyed
     expect(c.resyncStatus).toBeNull();
   });
@@ -511,10 +502,7 @@ describe('ErrorLogComponent', () => {
 
   it('unreviewedCount returns 0 when all errors are acknowledged', async () => {
     const c = await buildComponent();
-    c.errors = [
-      makeError({ id: 1, acknowledged: true }),
-      makeError({ id: 2, acknowledged: true }),
-    ];
+    c.errors = [makeError({ id: 1, acknowledged: true }), makeError({ id: 2, acknowledged: true })];
     expect(c.unreviewedCount).toBe(0);
   });
 
@@ -579,7 +567,7 @@ describe('ErrorLogComponent', () => {
     const types = c.uniqueJobTypes;
     expect(types).toContain('crawler');
     expect(types).toContain('sync');
-    expect(types.every(t => typeof t === 'string' && t !== '')).toBe(true);
+    expect(types.every((t) => typeof t === 'string' && t !== '')).toBe(true);
   });
 
   it('groupedErrors uses filteredErrors not raw errors', async () => {
@@ -603,10 +591,7 @@ describe('ErrorLogComponent', () => {
   it('filteredErrors excludes glitchtip errors when selectedTabIndex is not ALL_TAB_INDEX', async () => {
     const c = await buildComponent();
     c.selectedTabIndex = 0; // GLITCHTIP_TAB_INDEX is 1, ALL_TAB_INDEX is 2
-    c.errors = [
-      makeError({ id: 1, source: 'glitchtip' }),
-      makeError({ id: 2, source: 'internal' }),
-    ];
+    c.errors = [makeError({ id: 1, source: 'glitchtip' }), makeError({ id: 2, source: 'internal' })];
     c.filterJobType = '';
     c.filterAcknowledged = 'all';
     const result = c.filteredErrors;

@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
@@ -8,6 +8,7 @@ import { PeHelperDirective, resolveGlossaryDefinition } from './pe-helper.direct
 @Component({
   standalone: true,
   imports: [PeHelperDirective, MatTooltipModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `<span [peHelper]="term">Target</span>`,
 })
 class HostComponent {

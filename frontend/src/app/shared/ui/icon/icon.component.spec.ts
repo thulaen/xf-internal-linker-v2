@@ -1,10 +1,11 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { IconComponent } from './icon.component';
 
 @Component({
   standalone: true,
   imports: [IconComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `<app-icon [name]="name" />`,
 })
 class HostComponent {
@@ -36,8 +37,6 @@ describe('IconComponent', () => {
   it('updates when the name changes', () => {
     host.name = 'check_circle';
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('span.material-icons').textContent.trim()).toBe(
-      'check_circle',
-    );
+    expect(fixture.nativeElement.querySelector('span.material-icons').textContent.trim()).toBe('check_circle');
   });
 });

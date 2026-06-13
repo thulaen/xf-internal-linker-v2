@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed, fakeAsync, tick, discardPeriodicTasks } from '@angular/core/testing';
 import { SystemMetricsComponent } from './system-metrics.component';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { VisibilityGateService } from '../../core/util/visibility-gate.service';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
@@ -26,10 +26,10 @@ describe('SystemMetricsComponent', () => {
     await TestBed.configureTestingModule({
       imports: [SystemMetricsComponent, NoopAnimationsModule],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting(),
-        { provide: VisibilityGateService, useValue: mockVisibility }
-      ]
+        { provide: VisibilityGateService, useValue: mockVisibility },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(SystemMetricsComponent);
@@ -59,7 +59,7 @@ describe('SystemMetricsComponent', () => {
     const req = httpMock.expectOne('/api/system/metrics/');
     req.flush(mockMetrics);
     fixture.detectChanges();
-    
+
     expect(component.metrics()).toEqual(mockMetrics);
     expect(fixture.nativeElement.querySelector('.meter-value').textContent).toContain('50%');
     discardPeriodicTasks();
@@ -71,7 +71,7 @@ describe('SystemMetricsComponent', () => {
     const req = httpMock.expectOne('/api/system/metrics/');
     req.flush({ ...mockMetrics, ram_percent: 95 });
     fixture.detectChanges();
-    
+
     expect(component.tip()).toContain('Memory is almost full');
     expect(fixture.nativeElement.querySelector('.suggestion-tip')).toBeTruthy();
     discardPeriodicTasks();
@@ -81,7 +81,7 @@ describe('SystemMetricsComponent', () => {
     expect(component.tintClass(90)).toBe('tint-hot');
     expect(component.tintClass(70)).toBe('tint-warn');
     expect(component.tintClass(50)).toBe('tint-ok');
-    
+
     expect(component.barColor(90)).toBe('warn');
     expect(component.barColor(70)).toBe('accent');
     expect(component.barColor(50)).toBe('primary');

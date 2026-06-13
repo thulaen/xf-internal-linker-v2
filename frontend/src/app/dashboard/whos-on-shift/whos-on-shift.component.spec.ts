@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { WhosOnShiftComponent } from './whos-on-shift.component';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { AuthService } from '../../core/services/auth.service';
 import { VisibilityGateService } from '../../core/util/visibility-gate.service';
@@ -16,28 +16,27 @@ describe('WhosOnShiftComponent', () => {
 
   beforeEach(async () => {
     authServiceSpy = {
-      currentUser$: new BehaviorSubject({ username: 'testuser' })
+      currentUser$: new BehaviorSubject({ username: 'testuser' }),
     };
     visibilityGateSpy = {
       whileLoggedInAndVisible: vi.fn().mockImplementation((fn: () => Observable<any>) => {
         return fn().pipe(take(1));
-      })
+      }),
     };
 
     await TestBed.configureTestingModule({
       imports: [WhosOnShiftComponent],
-      providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-      ]
-    }).overrideComponent(WhosOnShiftComponent, {
-      set: {
-        providers: [
-          { provide: AuthService, useValue: authServiceSpy },
-          { provide: VisibilityGateService, useValue: visibilityGateSpy }
-        ]
-      }
-    }).compileComponents();
+      providers: [provideHttpClient(withXhr()), provideHttpClientTesting()],
+    })
+      .overrideComponent(WhosOnShiftComponent, {
+        set: {
+          providers: [
+            { provide: AuthService, useValue: authServiceSpy },
+            { provide: VisibilityGateService, useValue: visibilityGateSpy },
+          ],
+        },
+      })
+      .compileComponents();
 
     fixture = TestBed.createComponent(WhosOnShiftComponent);
     component = fixture.componentInstance;
@@ -52,9 +51,9 @@ describe('WhosOnShiftComponent', () => {
     fixture.detectChanges();
     expect(visibilityGateSpy.whileLoggedInAndVisible).toHaveBeenCalled();
     tick(100);
-    const req = httpMock.expectOne(r => r.url.includes('/api/auth/active-users/'));
+    const req = httpMock.expectOne((r) => r.url.includes('/api/auth/active-users/'));
     req.flush([{ username: 'testuser', last_seen: new Date().toISOString() }]);
-    
+
     tick();
     fixture.detectChanges();
     expect(component.visible()).toBe(false);
@@ -65,12 +64,12 @@ describe('WhosOnShiftComponent', () => {
   it('should show card if other users are active', fakeAsync(() => {
     fixture.detectChanges();
     tick(100);
-    const req = httpMock.expectOne(r => r.url.includes('/api/auth/active-users/'));
+    const req = httpMock.expectOne((r) => r.url.includes('/api/auth/active-users/'));
     req.flush([
       { username: 'testuser', last_seen: new Date().toISOString() },
-      { username: 'otheruser', last_seen: new Date().toISOString() }
+      { username: 'otheruser', last_seen: new Date().toISOString() },
     ]);
-    
+
     tick();
     fixture.detectChanges();
     expect(component.visible()).toBe(true);
@@ -82,9 +81,9 @@ describe('WhosOnShiftComponent', () => {
   it('should hide card if endpoint fails (404)', fakeAsync(() => {
     fixture.detectChanges();
     tick(100);
-    const req = httpMock.expectOne(r => r.url.includes('/api/auth/active-users/'));
+    const req = httpMock.expectOne((r) => r.url.includes('/api/auth/active-users/'));
     req.error(new ErrorEvent('Not Found'), { status: 404 });
-    
+
     tick();
     fixture.detectChanges();
     expect(component.visible()).toBe(false);
@@ -94,7 +93,7 @@ describe('WhosOnShiftComponent', () => {
     const now = new Date();
     const oneMinAgo = new Date(now.getTime() - 61000).toISOString();
     const justNow = now.toISOString();
-    
+
     expect(component.ago(justNow)).toBe('now');
     expect(component.ago(oneMinAgo)).toBe('1m ago');
   });

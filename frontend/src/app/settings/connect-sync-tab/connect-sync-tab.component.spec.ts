@@ -13,7 +13,7 @@
  *     GA4, Matomo, GSC) render without throwing.
  */
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
@@ -133,7 +133,7 @@ describe('ConnectSyncTabComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ConnectSyncTabComponent, NoopAnimationsModule],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting(),
         provideRouter([]),
         // Use the real SiloSettingsService so the load + save HTTP calls

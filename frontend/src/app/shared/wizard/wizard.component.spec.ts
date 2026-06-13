@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormWizardComponent, FormWizardStepComponent, WizardStepContentDirective } from './wizard.component';
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 
 @Component({
@@ -19,12 +19,15 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
     </app-form-wizard>
   `,
   standalone: true,
-  imports: [FormWizardComponent, FormWizardStepComponent, WizardStepContentDirective]
+  changeDetection: ChangeDetectionStrategy.Eager,
+  imports: [FormWizardComponent, FormWizardStepComponent, WizardStepContentDirective],
 })
 class TestHostComponent {
   step1Valid = true;
   finished = false;
-  onFinish() { this.finished = true; }
+  onFinish() {
+    this.finished = true;
+  }
 }
 
 describe('FormWizardComponent', () => {
@@ -33,7 +36,7 @@ describe('FormWizardComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [TestHostComponent, NoopAnimationsModule]
+      imports: [TestHostComponent, NoopAnimationsModule],
     }).compileComponents();
 
     fixture = TestBed.createComponent(TestHostComponent);
@@ -73,7 +76,7 @@ describe('FormWizardComponent', () => {
     const finishBtn = fixture.nativeElement.querySelector('.fw-footer button:last-child');
     expect(finishBtn.textContent).toContain('Finish');
     finishBtn.click();
-    
+
     expect(host.finished).toBe(true);
   });
 

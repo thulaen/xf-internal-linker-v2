@@ -1,4 +1,4 @@
-import { inject } from '@angular/core';
+import { inject, ChangeDetectionStrategy } from '@angular/core';
 import { CanDeactivateFn } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { Observable, of } from 'rxjs';
@@ -20,7 +20,7 @@ export const unsavedChangesGuard: CanDeactivateFn<HasUnsavedChanges> = (componen
     width: '400px',
     disableClose: true,
   });
-  return ref.afterClosed().pipe(map(result => result === true));
+  return ref.afterClosed().pipe(map((result) => result === true));
 };
 
 // Inline dialog component — small enough to live here.
@@ -32,11 +32,10 @@ import { MatButtonModule } from '@angular/material/button';
   selector: 'app-unsaved-changes-dialog',
   standalone: true,
   imports: [MatDialogModule, MatButtonModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <h2 mat-dialog-title>Unsaved changes</h2>
-    <mat-dialog-content>
-      You have unsaved changes. Are you sure you want to leave this page?
-    </mat-dialog-content>
+    <mat-dialog-content> You have unsaved changes. Are you sure you want to leave this page? </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button [mat-dialog-close]="false">Stay</button>
       <button mat-raised-button color="primary" [mat-dialog-close]="true">Leave</button>

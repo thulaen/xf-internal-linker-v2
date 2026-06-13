@@ -1,4 +1,4 @@
-import { Component, ViewChild, NgZone } from '@angular/core';
+import { Component, ViewChild, NgZone, ChangeDetectionStrategy } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { EchartsDirective } from './echarts.directive';
 import * as echarts from 'echarts';
@@ -6,7 +6,8 @@ import * as echarts from 'echarts';
 @Component({
   template: `<div [echarts]="options" (chartClick)="onClick($event)" style="width: 100px; height: 100px;"></div>`,
   standalone: true,
-  imports: [EchartsDirective]
+  changeDetection: ChangeDetectionStrategy.Eager,
+  imports: [EchartsDirective],
 })
 class TestHostComponent {
   @ViewChild(EchartsDirective) directive!: EchartsDirective;
@@ -38,7 +39,7 @@ describe('EchartsDirective', () => {
     } as any;
 
     TestBed.configureTestingModule({
-      imports: [TestHostComponent]
+      imports: [TestHostComponent],
     });
     fixture = TestBed.createComponent(TestHostComponent);
     component = fixture.componentInstance;
@@ -54,7 +55,7 @@ describe('EchartsDirective', () => {
     fixture.detectChanges();
     const instance = component.directive.getInstance();
     expect(instance).toBeTruthy();
-    
+
     // Verify that the options were applied
     const option = instance?.getOption() as any;
     expect(option.title[0].text).toEqual('Test Chart');
@@ -72,26 +73,23 @@ describe('EchartsDirective', () => {
     fixture.detectChanges();
     const instance = component.directive.getInstance();
     expect(instance).toBeTruthy();
-    
+
     vi.spyOn(instance as any, 'setOption');
-    
+
     component.options = { title: { text: 'Updated Title' } };
     fixture.detectChanges(); // Triggers ngOnChanges
-    
-    expect((instance as any).setOption).toHaveBeenCalledWith(
-      component.options,
-      { notMerge: true }
-    );
+
+    expect((instance as any).setOption).toHaveBeenCalledWith(component.options, { notMerge: true });
   });
 
   it('should clear the chart when options are updated to null', () => {
     fixture.detectChanges();
     const instance = component.directive.getInstance();
     vi.spyOn(instance as any, 'clear');
-    
+
     component.options = null;
     fixture.detectChanges();
-    
+
     expect((instance as any).clear).toHaveBeenCalled();
   });
 
@@ -105,7 +103,7 @@ describe('EchartsDirective', () => {
     fixture.detectChanges();
     const instance = component.directive.getInstance();
     vi.spyOn(instance as any, 'resize');
-    
+
     expect(resizeCallback).toBeTruthy();
     if (resizeCallback) {
       resizeCallback([], mockResizeObserver as any);
@@ -117,9 +115,9 @@ describe('EchartsDirective', () => {
     vi.spyOn(zone, 'runOutsideAngular');
     fixture.detectChanges(); // First render
     expect(zone.runOutsideAngular).toHaveBeenCalled();
-    
+
     (zone.runOutsideAngular as unknown as Spy).mockClear();
-    
+
     component.options = { title: { text: 'New' } };
     fixture.detectChanges(); // Second render (update)
     expect(zone.runOutsideAngular).toHaveBeenCalled();
@@ -136,9 +134,9 @@ describe('EchartsDirective', () => {
     fixture.detectChanges();
     const instance = component.directive.getInstance();
     vi.spyOn(instance as any, 'dispose');
-    
+
     fixture.destroy();
-    
+
     expect(mockResizeObserver.disconnect).toHaveBeenCalled();
     expect((instance as any).dispose).toHaveBeenCalled();
     expect(component.directive.getInstance()).toBeNull();

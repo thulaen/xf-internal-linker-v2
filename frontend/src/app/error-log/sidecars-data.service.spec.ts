@@ -1,8 +1,5 @@
-import { provideHttpClient } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { provideHttpClient, withXhr } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 
 import { SidecarsDataService } from './sidecars-data.service';
@@ -13,11 +10,7 @@ describe('SidecarsDataService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [
-        SidecarsDataService,
-        provideHttpClient(),
-        provideHttpClientTesting(),
-      ],
+      providers: [SidecarsDataService, provideHttpClient(withXhr()), provideHttpClientTesting()],
     });
     service = TestBed.inject(SidecarsDataService);
     httpMock = TestBed.inject(HttpTestingController);
@@ -57,21 +50,15 @@ describe('SidecarsDataService', () => {
     it('builds the URL with no params when opts is empty', () => {
       let captured: unknown;
       service.listBulletins().subscribe((r) => (captured = r));
-      const req = httpMock.expectOne(
-        (r) => r.urlWithParams === '/api/sidecars/bulletins/',
-      );
+      const req = httpMock.expectOne((r) => r.urlWithParams === '/api/sidecars/bulletins/');
       req.flush({ status: 'ok', items: [] });
       expect(captured).toEqual({ status: 'ok', items: [] });
     });
 
     it('encodes eventType + minSeverity + limit into the query string', () => {
       let captured: unknown;
-      service
-        .listBulletins({ eventType: 'snapshot', minSeverity: 'high', limit: 25 })
-        .subscribe((r) => (captured = r));
-      const req = httpMock.expectOne(
-        '/api/sidecars/bulletins/?event_type=snapshot&min_severity=high&limit=25',
-      );
+      service.listBulletins({ eventType: 'snapshot', minSeverity: 'high', limit: 25 }).subscribe((r) => (captured = r));
+      const req = httpMock.expectOne('/api/sidecars/bulletins/?event_type=snapshot&min_severity=high&limit=25');
       req.flush({ status: 'ok', items: [] });
       expect(captured).toEqual({ status: 'ok', items: [] });
     });
@@ -79,9 +66,7 @@ describe('SidecarsDataService', () => {
     it('does not send omitted optional filters', () => {
       let captured: unknown;
       service.listBulletins({ eventType: 'snapshot' }).subscribe((r) => (captured = r));
-      const req = httpMock.expectOne(
-        (r) => r.urlWithParams === '/api/sidecars/bulletins/?event_type=snapshot',
-      );
+      const req = httpMock.expectOne((r) => r.urlWithParams === '/api/sidecars/bulletins/?event_type=snapshot');
       req.flush({ status: 'ok', items: [] });
       expect(captured).toEqual({ status: 'ok', items: [] });
     });
@@ -89,9 +74,7 @@ describe('SidecarsDataService', () => {
     it('keeps a minSeverity-only filter in the query string', () => {
       let captured: unknown;
       service.listBulletins({ minSeverity: 'medium' }).subscribe((r) => (captured = r));
-      const req = httpMock.expectOne(
-        '/api/sidecars/bulletins/?min_severity=medium',
-      );
+      const req = httpMock.expectOne('/api/sidecars/bulletins/?min_severity=medium');
       req.flush({ status: 'ok', items: [] });
       expect(captured).toEqual({ status: 'ok', items: [] });
     });
@@ -107,9 +90,7 @@ describe('SidecarsDataService', () => {
     it('keeps an explicit zero limit in the query string', () => {
       let captured: unknown;
       service.listBulletins({ limit: 0 }).subscribe((r) => (captured = r));
-      const req = httpMock.expectOne(
-        (r) => r.urlWithParams === '/api/sidecars/bulletins/?limit=0',
-      );
+      const req = httpMock.expectOne((r) => r.urlWithParams === '/api/sidecars/bulletins/?limit=0');
       req.flush({ status: 'ok', items: [] });
       expect(captured).toEqual({ status: 'ok', items: [] });
     });
@@ -117,9 +98,7 @@ describe('SidecarsDataService', () => {
     it('degrades to sidecars_unavailable on HTTP error', () => {
       let captured: unknown;
       service.listBulletins().subscribe((r) => (captured = r));
-      const req = httpMock.expectOne(
-        (r) => r.urlWithParams === '/api/sidecars/bulletins/',
-      );
+      const req = httpMock.expectOne((r) => r.urlWithParams === '/api/sidecars/bulletins/');
       req.flush('boom', { status: 503, statusText: 'Service Unavailable' });
       expect(captured).toEqual({ status: 'sidecars_unavailable', items: [] });
     });

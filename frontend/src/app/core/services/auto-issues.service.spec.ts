@@ -1,8 +1,5 @@
-import { provideHttpClient } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { provideHttpClient, withXhr } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { AutoIssuesService } from './auto-issues.service';
 
@@ -12,11 +9,7 @@ describe('AutoIssuesService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [
-        AutoIssuesService,
-        provideHttpClient(),
-        provideHttpClientTesting(),
-      ],
+      providers: [AutoIssuesService, provideHttpClient(withXhr()), provideHttpClientTesting()],
     });
     service = TestBed.inject(AutoIssuesService);
     httpMock = TestBed.inject(HttpTestingController);
@@ -34,9 +27,7 @@ describe('AutoIssuesService', () => {
 
   it('list({ status }) sets the status query parameter', () => {
     service.list({ status: 'open' }).subscribe();
-    const req = httpMock.expectOne(
-      (r) => r.url === '/api/auto-issues/' && r.params.get('status') === 'open',
-    );
+    const req = httpMock.expectOne((r) => r.url === '/api/auto-issues/' && r.params.get('status') === 'open');
     expect(req.request.method).toBe('GET');
     expect(req.request.params.get('source')).toBeNull();
     req.flush({ count: 0, next: null, previous: null, results: [] });
@@ -44,9 +35,7 @@ describe('AutoIssuesService', () => {
 
   it('list({ source }) sets the source query parameter', () => {
     service.list({ source: 'glitchtip' }).subscribe();
-    const req = httpMock.expectOne(
-      (r) => r.url === '/api/auto-issues/' && r.params.get('source') === 'glitchtip',
-    );
+    const req = httpMock.expectOne((r) => r.url === '/api/auto-issues/' && r.params.get('source') === 'glitchtip');
     expect(req.request.params.get('status')).toBeNull();
     req.flush({ count: 0, next: null, previous: null, results: [] });
   });
@@ -55,9 +44,7 @@ describe('AutoIssuesService', () => {
     service.list({ status: 'resolved', source: 'agent' }).subscribe();
     const req = httpMock.expectOne(
       (r) =>
-        r.url === '/api/auto-issues/' &&
-        r.params.get('status') === 'resolved' &&
-        r.params.get('source') === 'agent',
+        r.url === '/api/auto-issues/' && r.params.get('status') === 'resolved' && r.params.get('source') === 'agent',
     );
     expect(req.request.method).toBe('GET');
     req.flush({ count: 0, next: null, previous: null, results: [] });

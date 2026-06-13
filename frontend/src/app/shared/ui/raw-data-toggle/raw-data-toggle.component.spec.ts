@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 
@@ -7,6 +7,7 @@ import { RawDataToggleComponent } from './raw-data-toggle.component';
 @Component({
   standalone: true,
   imports: [RawDataToggleComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <app-raw-data-toggle [data]="data" label="chart">
       <div class="projected-chart">Chart content</div>
@@ -41,8 +42,7 @@ describe('RawDataToggleComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.debugElement.query(By.css('.projected-chart'))).toBeNull();
-    expect(fixture.debugElement.query(By.css('.rdt-json')).nativeElement.textContent)
-      .toContain('"count": 2');
+    expect(fixture.debugElement.query(By.css('.rdt-json')).nativeElement.textContent).toContain('"count": 2');
 
     button.nativeElement.click();
     fixture.detectChanges();

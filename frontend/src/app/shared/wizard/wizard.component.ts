@@ -159,6 +159,7 @@ export class FormWizardStepComponent {
       </footer>
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [
     `
       .fw {

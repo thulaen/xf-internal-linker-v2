@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { GscKpiComponent } from './gsc-kpi.component';
@@ -6,6 +6,7 @@ import { GscKpiComponent } from './gsc-kpi.component';
 @Component({
   standalone: true,
   imports: [GscKpiComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <app-gsc-kpi
       [label]="label"

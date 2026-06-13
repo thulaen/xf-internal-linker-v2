@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
@@ -11,12 +11,9 @@ import { GscSummaryCardComponent } from './gsc-summary-card.component';
 @Component({
   standalone: true,
   imports: [GscSummaryCardComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <app-gsc-summary-card
-      [title]="title"
-      [reportLink]="reportLink"
-      [icon]="icon"
-    >
+    <app-gsc-summary-card [title]="title" [reportLink]="reportLink" [icon]="icon">
       <p class="projected-body">body content</p>
     </app-gsc-summary-card>
   `,

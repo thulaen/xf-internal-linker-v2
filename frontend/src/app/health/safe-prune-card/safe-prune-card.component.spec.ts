@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { SafePruneCardComponent } from './safe-prune-card.component';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { By } from '@angular/platform-browser';
@@ -17,13 +17,12 @@ describe('SafePruneCardComponent', () => {
 
     await TestBed.configureTestingModule({
       imports: [SafePruneCardComponent, NoopAnimationsModule],
-      providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-      ]
-    }).overrideComponent(SafePruneCardComponent, {
-      set: { providers: [{ provide: MatSnackBar, useValue: snackBarSpy }] }
-    }).compileComponents();
+      providers: [provideHttpClient(withXhr()), provideHttpClientTesting()],
+    })
+      .overrideComponent(SafePruneCardComponent, {
+        set: { providers: [{ provide: MatSnackBar, useValue: snackBarSpy }] },
+      })
+      .compileComponents();
 
     fixture = TestBed.createComponent(SafePruneCardComponent);
     component = fixture.componentInstance;
@@ -41,9 +40,9 @@ describe('SafePruneCardComponent', () => {
       allowed_targets: [{ id: 'test', label: 'Test', detail: 'Detail', approx_reclaim_mb: 10 }],
       deny_list: ['secrets'],
       idle: true,
-      notes: []
+      notes: [],
     });
-    
+
     tick();
     fixture.detectChanges();
     expect(component.loading()).toBe(false);
@@ -59,26 +58,22 @@ describe('SafePruneCardComponent', () => {
       allowed_targets: [{ id: 'test', label: 'Test', detail: 'Detail', approx_reclaim_mb: 10 }],
       deny_list: [],
       idle: true,
-      notes: []
+      notes: [],
     });
     tick();
     fixture.detectChanges();
 
     const previewBtn = fixture.debugElement.query(By.css('button[mat-stroked-button]'));
     previewBtn.nativeElement.click();
-    
+
     const previewReq = httpMock.expectOne('/api/prune/safe/');
     expect(previewReq.request.method).toBe('POST');
     expect(previewReq.request.body).toEqual({ target: 'test' });
     previewReq.flush({ ok: true, estimated_reclaim_mb: 15 });
-    
+
     tick();
     expect(component.busyTarget()).toBe('');
-    expect(snackBarSpy.open).toHaveBeenCalledWith(
-      expect.stringMatching(/Preview: ~15 MB/),
-      'OK',
-      expect.any(Object)
-    );
+    expect(snackBarSpy.open).toHaveBeenCalledWith(expect.stringMatching(/Preview: ~15 MB/), 'OK', expect.any(Object));
   }));
 
   it('should commit prune after confirmation', fakeAsync(() => {
@@ -89,29 +84,25 @@ describe('SafePruneCardComponent', () => {
       allowed_targets: [{ id: 'test', label: 'Test', detail: 'Detail', approx_reclaim_mb: 10 }],
       deny_list: [],
       idle: true,
-      notes: []
+      notes: [],
     });
     tick();
     fixture.detectChanges();
 
     const pruneBtn = fixture.debugElement.query(By.css('button[mat-flat-button]'));
     pruneBtn.nativeElement.click();
-    
+
     const commitReq = httpMock.expectOne('/api/prune/safe/');
     expect(commitReq.request.body).toEqual({ target: 'test', confirmed: true });
     commitReq.flush({ ok: true, reclaimed_mb: 15 });
-    
+
     // After commit success, it reloads status
     const reloadReq = httpMock.expectOne('/api/prune/safe/');
     reloadReq.flush({ allowed_targets: [], deny_list: [], idle: true, notes: [] });
 
     tick();
     expect(component.busyTarget()).toBe('');
-    expect(snackBarSpy.open).toHaveBeenCalledWith(
-      expect.stringMatching(/Pruned test/),
-      'OK',
-      expect.any(Object)
-    );
+    expect(snackBarSpy.open).toHaveBeenCalledWith(expect.stringMatching(/Pruned test/), 'OK', expect.any(Object));
   }));
 
   it('should disable prune button if system is not idle', fakeAsync(() => {
@@ -121,9 +112,9 @@ describe('SafePruneCardComponent', () => {
       allowed_targets: [{ id: 'test', label: 'Test', detail: 'Detail', approx_reclaim_mb: 10 }],
       deny_list: [],
       idle: false,
-      notes: []
+      notes: [],
     });
-    
+
     tick();
     fixture.detectChanges();
     const pruneBtn = fixture.debugElement.query(By.css('button[mat-flat-button]'));

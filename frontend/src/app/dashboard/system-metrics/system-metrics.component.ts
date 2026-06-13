@@ -41,13 +41,13 @@ interface SystemMetrics {
           <div class="meter-head">
             <mat-icon class="meter-icon">memory</mat-icon>
             <span class="meter-label">CPU</span>
-            <span class="meter-value" [class]="tintClass(metrics()?.cpu_percent)">
-              {{ (metrics()?.cpu_percent ?? null) === null ? '—' : (metrics()!.cpu_percent | number:'1.0-0') + '%' }}
+            <span class="meter-value" [class]="tintClass($safeNavigationMigration(metrics()?.cpu_percent))">
+              {{ (metrics()?.cpu_percent ?? null) === null ? '—' : (metrics()!.cpu_percent | number: '1.0-0') + '%' }}
             </span>
           </div>
           <mat-progress-bar
             [value]="metrics()?.cpu_percent ?? 0"
-            [color]="barColor(metrics()?.cpu_percent)"
+            [color]="barColor($safeNavigationMigration(metrics()?.cpu_percent))"
             mode="determinate"
           ></mat-progress-bar>
         </div>
@@ -56,18 +56,18 @@ interface SystemMetrics {
           <div class="meter-head">
             <mat-icon class="meter-icon">memory_alt</mat-icon>
             <span class="meter-label">RAM</span>
-            <span class="meter-value" [class]="tintClass(metrics()?.ram_percent)">
-              {{ (metrics()?.ram_percent ?? null) === null ? '—' : (metrics()!.ram_percent | number:'1.0-0') + '%' }}
+            <span class="meter-value" [class]="tintClass($safeNavigationMigration(metrics()?.ram_percent))">
+              {{ (metrics()?.ram_percent ?? null) === null ? '—' : (metrics()!.ram_percent | number: '1.0-0') + '%' }}
             </span>
           </div>
           <mat-progress-bar
             [value]="metrics()?.ram_percent ?? 0"
-            [color]="barColor(metrics()?.ram_percent)"
+            [color]="barColor($safeNavigationMigration(metrics()?.ram_percent))"
             mode="determinate"
           ></mat-progress-bar>
           <span class="meter-sub">
-            {{ metrics()?.ram_used_mb ?? 0 | number:'1.0-0' }} MB of
-            {{ metrics()?.ram_total_mb ?? 0 | number:'1.0-0' }} MB
+            {{ metrics()?.ram_used_mb ?? 0 | number: '1.0-0' }} MB of
+            {{ metrics()?.ram_total_mb ?? 0 | number: '1.0-0' }} MB
           </span>
         </div>
 
@@ -80,40 +80,77 @@ interface SystemMetrics {
       </mat-card-content>
     </mat-card>
   `,
-  styles: [`
-    mat-card { padding: var(--spacing-card); }
-    mat-card-header { margin-bottom: var(--space-md); }
-    .meter-row { margin-bottom: var(--space-md); }
-    .meter-row:last-child { margin-bottom: 0; }
-    .meter-head {
-      display: flex;
-      align-items: center;
-      gap: var(--space-xs);
-      margin-bottom: var(--space-xs);
-    }
-    .meter-icon { font-size: 16px; width: 16px; height: 16px; color: var(--color-text-muted); }
-    .meter-label { font-size: 12px; font-weight: 500; color: var(--color-text-secondary); flex: 1; }
-    .meter-value { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
-    .meter-value.tint-ok { color: var(--color-success-dark, #137333); }
-    .meter-value.tint-warn { color: var(--color-warning, #a77a00); }
-    .meter-value.tint-hot { color: var(--color-error, #c5221f); }
-    .meter-sub {
-      display: block;
-      margin-top: var(--space-xs);
-      font-size: 11px;
-      color: var(--color-text-muted);
-    }
-    .suggestion-tip {
-      margin-top: var(--space-md);
-      display: flex; align-items: flex-start; gap: var(--space-xs);
-      padding: var(--space-sm);
-      border-radius: var(--radius-md, 8px);
-      background: var(--color-blue-50, #e8f0fe);
-      color: var(--color-primary);
-      font-size: 12px;
-    }
-    .suggestion-tip mat-icon { font-size: 16px; width: 16px; height: 16px; margin-top: 1px; }
-  `],
+  styles: [
+    `
+      mat-card {
+        padding: var(--spacing-card);
+      }
+      mat-card-header {
+        margin-bottom: var(--space-md);
+      }
+      .meter-row {
+        margin-bottom: var(--space-md);
+      }
+      .meter-row:last-child {
+        margin-bottom: 0;
+      }
+      .meter-head {
+        display: flex;
+        align-items: center;
+        gap: var(--space-xs);
+        margin-bottom: var(--space-xs);
+      }
+      .meter-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+        color: var(--color-text-muted);
+      }
+      .meter-label {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--color-text-secondary);
+        flex: 1;
+      }
+      .meter-value {
+        font-size: 13px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+      .meter-value.tint-ok {
+        color: var(--color-success-dark, #137333);
+      }
+      .meter-value.tint-warn {
+        color: var(--color-warning, #a77a00);
+      }
+      .meter-value.tint-hot {
+        color: var(--color-error, #c5221f);
+      }
+      .meter-sub {
+        display: block;
+        margin-top: var(--space-xs);
+        font-size: 11px;
+        color: var(--color-text-muted);
+      }
+      .suggestion-tip {
+        margin-top: var(--space-md);
+        display: flex;
+        align-items: flex-start;
+        gap: var(--space-xs);
+        padding: var(--space-sm);
+        border-radius: var(--radius-md, 8px);
+        background: var(--color-blue-50, #e8f0fe);
+        color: var(--color-primary);
+        font-size: 12px;
+      }
+      .suggestion-tip mat-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+        margin-top: 1px;
+      }
+    `,
+  ],
 })
 export class SystemMetricsComponent implements OnInit {
   private http = inject(HttpClient);
@@ -147,11 +184,7 @@ export class SystemMetricsComponent implements OnInit {
     this.visibilityGate
       .whileLoggedInAndVisible(() =>
         timer(0, 10_000).pipe(
-          switchMap(() =>
-            this.http.get<SystemMetrics>('/api/system/metrics/').pipe(
-              catchError(() => of(null)),
-            ),
-          ),
+          switchMap(() => this.http.get<SystemMetrics>('/api/system/metrics/').pipe(catchError(() => of(null)))),
         ),
       )
       .pipe(takeUntilDestroyed(this.destroyRef))

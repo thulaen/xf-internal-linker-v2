@@ -9,13 +9,13 @@
           </div>
           <div
             class="health-indicator"
-            [matTooltip]="xenforo.health?.issue"
+            [matTooltip]="$safeNavigationMigration(xenforo.health?.issue)"
             i18n-matTooltip="@@settings.tips.telemetryHealthIssue"
             matTooltipClass="setting-tooltip"
           >
-            <span class="status-pill" [ngClass]="telemetryStatusClass(xenforo.health?.status)">
-              <mat-icon>{{ getHealthIcon(xenforo.health?.status) }}</mat-icon>
-              {{ healthLabel(xenforo.health?.status) }}
+            <span class="status-pill" [ngClass]="telemetryStatusClass($safeNavigationMigration(xenforo.health?.status))">
+              <mat-icon>{{ getHealthIcon($safeNavigationMigration(xenforo.health?.status)) }}</mat-icon>
+              {{ healthLabel($safeNavigationMigration(xenforo.health?.status)) }}
             </span>
           </div>
         </div>
@@ -94,13 +94,13 @@
           <mat-card-title i18n="@@settings.connectSync.wordpress.title">WordPress Connection</mat-card-title>
           <div
             class="health-indicator"
-            [matTooltip]="wordpress.health?.issue"
+            [matTooltip]="$safeNavigationMigration(wordpress.health?.issue)"
             i18n-matTooltip="@@settings.tips.telemetryHealthIssue"
             matTooltipClass="setting-tooltip"
           >
-            <span class="status-pill" [ngClass]="telemetryStatusClass(wordpress.health?.status)">
-              <mat-icon>{{ getHealthIcon(wordpress.health?.status) }}</mat-icon>
-              {{ healthLabel(wordpress.health?.status) }}
+            <span class="status-pill" [ngClass]="telemetryStatusClass($safeNavigationMigration(wordpress.health?.status))">
+              <mat-icon>{{ getHealthIcon($safeNavigationMigration(wordpress.health?.status)) }}</mat-icon>
+              {{ healthLabel($safeNavigationMigration(wordpress.health?.status)) }}
             </span>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { SpikeInsightCardComponent } from './spike-insight-card.component';
@@ -6,6 +6,7 @@ import { SpikeInsightCardComponent } from './spike-insight-card.component';
 @Component({
   standalone: true,
   imports: [SpikeInsightCardComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <app-spike-insight-card
       [tone]="tone"

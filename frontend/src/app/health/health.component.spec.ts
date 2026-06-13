@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
@@ -43,15 +43,30 @@ describe('HealthComponent', () => {
       'checkService',
     ]);
     healthSvc.getHealthStatus.mockReturnValue(of([svc('database'), svc('redis', 'warning')]));
-    healthSvc.getSummary.mockReturnValue(of({
-      system_status: 'healthy', total_services: 2, degraded_count: 1, last_check_at: null,
-    }));
-    healthSvc.getDiskHealth.mockReturnValue(of({
-      db_size_mb: 1, embeddings_size_mb: 1, items_count: 0,
-    }));
-    healthSvc.getGpuHealth.mockReturnValue(of({
-      temp_c: null, vram_total_mb: null, vram_used_mb: null, utilization_pct: null, available: false,
-    }));
+    healthSvc.getSummary.mockReturnValue(
+      of({
+        system_status: 'healthy',
+        total_services: 2,
+        degraded_count: 1,
+        last_check_at: null,
+      }),
+    );
+    healthSvc.getDiskHealth.mockReturnValue(
+      of({
+        db_size_mb: 1,
+        embeddings_size_mb: 1,
+        items_count: 0,
+      }),
+    );
+    healthSvc.getGpuHealth.mockReturnValue(
+      of({
+        temp_c: null,
+        vram_total_mb: null,
+        vram_used_mb: null,
+        utilization_pct: null,
+        available: false,
+      }),
+    );
     healthSvc.checkAll.mockReturnValue(of({}));
     healthSvc.checkService.mockReturnValue(of(svc('database')));
 
@@ -66,7 +81,7 @@ describe('HealthComponent', () => {
     await TestBed.configureTestingModule({
       imports: [HealthComponent],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting(),
         provideRouter([]),
         provideNoopAnimations(),

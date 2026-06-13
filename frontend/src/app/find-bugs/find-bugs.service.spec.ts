@@ -1,8 +1,5 @@
-import { provideHttpClient } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { provideHttpClient, withXhr } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 
 import { FindBugsService } from './find-bugs.service';
@@ -13,11 +10,7 @@ describe('FindBugsService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [
-        FindBugsService,
-        provideHttpClient(),
-        provideHttpClientTesting(),
-      ],
+      providers: [FindBugsService, provideHttpClient(withXhr()), provideHttpClientTesting()],
     });
     service = TestBed.inject(FindBugsService);
     httpMock = TestBed.inject(HttpTestingController);

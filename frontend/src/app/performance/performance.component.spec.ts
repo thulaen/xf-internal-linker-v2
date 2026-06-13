@@ -1,9 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { provideHttpClient, withXhr } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of, throwError } from 'rxjs';
@@ -19,7 +16,18 @@ const stubRun = {
   status: 'completed' as const,
   summary_json: { total: 3, fast: 2, ok: 1, slow: 0, languages: { cpp: 2, python: 1 } },
   results: [
-    { id: 1, language: 'cpp', extension: 'extA', function_name: 'foo', input_size: 'small', mean_ns: 100, median_ns: 100, items_per_second: 1, status: 'fast' as const, threshold_ns: null },
+    {
+      id: 1,
+      language: 'cpp',
+      extension: 'extA',
+      function_name: 'foo',
+      input_size: 'small',
+      mean_ns: 100,
+      median_ns: 100,
+      items_per_second: 1,
+      status: 'fast' as const,
+      threshold_ns: null,
+    },
   ],
 };
 
@@ -39,7 +47,7 @@ describe('PerformanceComponent', () => {
     await TestBed.configureTestingModule({
       imports: [PerformanceComponent],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting(),
         provideRouter([]),
         provideNoopAnimations(),
@@ -81,7 +89,7 @@ describe('PerformanceComponent', () => {
     TestBed.configureTestingModule({
       imports: [PerformanceComponent],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting(),
         provideRouter([]),
         provideNoopAnimations(),

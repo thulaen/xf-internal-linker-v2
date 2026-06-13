@@ -1,9 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { provideHttpClient, withXhr } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { Subject, of, throwError } from 'rxjs';
@@ -43,8 +40,7 @@ describe('NotificationCenterComponent', () => {
   let httpMock: HttpTestingController;
   const svcStub = {
     newAlert$: new Subject<unknown>(),
-    loadAlerts: () =>
-      of({ count: 1, next: null, previous: null, results: [stubAlert] }),
+    loadAlerts: () => of({ count: 1, next: null, previous: null, results: [stubAlert] }),
     acknowledgeAll: () => of({ ok: true }),
     acknowledge: () => of({ ok: true }),
     markRead: () => of({ ok: true }),
@@ -54,7 +50,7 @@ describe('NotificationCenterComponent', () => {
     await TestBed.configureTestingModule({
       imports: [NotificationCenterComponent],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting(),
         provideRouter([]),
         provideNoopAnimations(),
@@ -99,7 +95,7 @@ describe('NotificationCenterComponent', () => {
     TestBed.configureTestingModule({
       imports: [NotificationCenterComponent],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting(),
         provideRouter([]),
         provideNoopAnimations(),

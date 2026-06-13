@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
@@ -41,12 +41,7 @@ describe('LinkHealthComponent', () => {
   let brokenSvc: SpyObj<BrokenLinkService>;
 
   beforeEach(async () => {
-    brokenSvc = createSpyObj<BrokenLinkService>([
-      'list',
-      'patch',
-      'startScan',
-      'exportCsv',
-    ]);
+    brokenSvc = createSpyObj<BrokenLinkService>(['list', 'patch', 'startScan', 'exportCsv']);
     brokenSvc.list.mockReturnValue(of(paginated([makeLink()])));
     brokenSvc.patch.mockReturnValue(of(makeLink({ status: 'fixed' })));
     brokenSvc.startScan.mockReturnValue(of({ job_id: 'scan1', message: 'started' }));
@@ -54,7 +49,7 @@ describe('LinkHealthComponent', () => {
     await TestBed.configureTestingModule({
       imports: [LinkHealthComponent],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting(),
         provideRouter([]),
         provideNoopAnimations(),
@@ -168,11 +163,7 @@ describe('LinkHealthComponent', () => {
     vi.spyOn(window, 'open').mockReturnValue(undefined as never);
     fixture.detectChanges();
     component.openSourceThread('https://example.com/thread');
-    expect(window.open).toHaveBeenCalledWith(
-      'https://example.com/thread',
-      '_blank',
-      'noopener,noreferrer'
-    );
+    expect(window.open).toHaveBeenCalledWith('https://example.com/thread', '_blank', 'noopener,noreferrer');
   });
 
   it('should not open thread if URL is empty', () => {

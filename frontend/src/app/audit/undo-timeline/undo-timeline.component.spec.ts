@@ -1,9 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { provideHttpClient, withXhr } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -22,7 +19,7 @@ describe('UndoTimelineComponent', () => {
     await TestBed.configureTestingModule({
       imports: [UndoTimelineComponent],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting(),
         provideRouter([]),
         provideNoopAnimations(),
@@ -80,10 +77,7 @@ describe('UndoTimelineComponent', () => {
     fixture.detectChanges();
     const reqs = httpMock.match(() => true);
     if (reqs.length > 0) {
-      reqs[0].flush(
-        { detail: 'boom' },
-        { status: 500, statusText: 'Server Error' },
-      );
+      reqs[0].flush({ detail: 'boom' }, { status: 500, statusText: 'Server Error' });
       reqs.slice(1).forEach((r) => r.flush({}));
     }
     expect(component.error()).toContain('boom');

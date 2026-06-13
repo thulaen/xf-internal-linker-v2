@@ -1,9 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { provideHttpClient, withXhr } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of, throwError } from 'rxjs';
@@ -31,8 +28,7 @@ describe('BehavioralHubsComponent', () => {
     getRuns: () => of([]),
     getSettings: () => of(null),
     getHub: () => of({ ...stubHub, members: [] }),
-    patchHub: (_: string, body: { name?: string; auto_link_enabled?: boolean }) =>
-      of({ ...stubHub, ...body }),
+    patchHub: (_: string, body: { name?: string; auto_link_enabled?: boolean }) => of({ ...stubHub, ...body }),
     removeMember: () => of({}),
     triggerCompute: () => of({ ok: true }),
     triggerDetection: () => of({ ok: true }),
@@ -42,7 +38,7 @@ describe('BehavioralHubsComponent', () => {
     await TestBed.configureTestingModule({
       imports: [BehavioralHubsComponent],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting(),
         provideRouter([]),
         provideNoopAnimations(),
@@ -84,7 +80,7 @@ describe('BehavioralHubsComponent', () => {
     TestBed.configureTestingModule({
       imports: [BehavioralHubsComponent],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting(),
         provideRouter([]),
         provideNoopAnimations(),

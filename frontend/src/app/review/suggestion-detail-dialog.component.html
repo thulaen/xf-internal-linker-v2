@@ -4,7 +4,6 @@
 </h2>
 
 <mat-dialog-content class="dialog-body">
-
   @if (loading) {
     <mat-progress-bar mode="indeterminate"></mat-progress-bar>
   }
@@ -14,13 +13,13 @@
   }
 
   @if (detail && !loading) {
-
     <div class="detail-header">
       <span class="status-badge status-{{ detail.status }}">{{ detail.status }}</span>
       <span class="score-badge">{{ (detail.score_final * 100).toFixed(0) }} / 100</span>
       @if (detail.repeated_anchor) {
         <span class="warning-badge" matTooltip="Same anchor used in another active suggestion">
-          <mat-icon class="icon-2xs">warning</mat-icon> repeated anchor
+          <mat-icon class="icon-2xs">warning</mat-icon>
+          repeated anchor
         </span>
       }
     </div>
@@ -47,10 +46,7 @@
 
     <section class="section">
       <p class="section-title">Insertion sentence</p>
-      <blockquote
-        class="host-sentence"
-        [innerHTML]="detail.host_sentence_text | highlight:effectiveAnchor"
-      ></blockquote>
+      <blockquote class="host-sentence" [innerHTML]="detail.host_sentence_text | highlight: effectiveAnchor"></blockquote>
     </section>
 
     <mat-divider></mat-divider>
@@ -68,7 +64,10 @@
         </span>
       </div>
       @if (detail.anchor_phrase && detail.anchor_phrase !== anchorEdited) {
-        <p class="original-anchor">Original: <em>{{ detail.anchor_phrase }}</em></p>
+        <p class="original-anchor">
+          Original:
+          <em>{{ detail.anchor_phrase }}</em>
+        </p>
       }
     </section>
 
@@ -78,10 +77,7 @@
         <p class="section-title">Alternative anchor candidates (noun chunks)</p>
         <mat-chip-listbox aria-label="Alternative anchors">
           @for (alt of detail.phrase_match_diagnostics.alternative_anchors; track alt.text) {
-            <mat-chip-option 
-              (click)="selectAlternativeAnchor(alt.text)"
-              [selected]="anchorEdited === alt.text"
-            >
+            <mat-chip-option (click)="selectAlternativeAnchor(alt.text)" [selected]="anchorEdited === alt.text">
               {{ alt.text }}
             </mat-chip-option>
           }
@@ -103,9 +99,8 @@
       </p>
       @if (detail.telemetry_instrumentation.status === 'instrumented') {
         <p class="meta-line">
-          Schema {{ detail.telemetry_instrumentation.event_schema }}
-          - anchor hash {{ detail.telemetry_instrumentation.anchor_hash }}
-          - anchor length {{ detail.telemetry_instrumentation.anchor_length }}
+          Schema {{ detail.telemetry_instrumentation.event_schema }} - anchor hash {{ detail.telemetry_instrumentation.anchor_hash }} - anchor length
+          {{ detail.telemetry_instrumentation.anchor_length }}
         </p>
         <div class="reject-actions">
           <button mat-stroked-button color="primary" (click)="copyInstrumentedMarkup()">
@@ -114,9 +109,7 @@
           </button>
         </div>
       } @else {
-        <p class="meta-line">
-          This one is still plain-manual only, so the app cannot build telemetry-ready markup for it yet.
-        </p>
+        <p class="meta-line">This one is still plain-manual only, so the app cannot build telemetry-ready markup for it yet.</p>
       }
     </section>
 
@@ -192,22 +185,14 @@
         </div>
         <div class="score-item">
           <span class="score-name">Slate Diversity</span>
-          <mat-progress-bar
-            mode="determinate"
-            [value]="scorePercent(detail.score_slate_diversity ?? 0)"
-            color="accent"
-          ></mat-progress-bar>
+          <mat-progress-bar mode="determinate" [value]="scorePercent(detail.score_slate_diversity ?? 0)" color="accent"></mat-progress-bar>
           <span class="score-val">
             {{ detail.score_slate_diversity === null ? 'n/a' : (detail.score_slate_diversity * 100).toFixed(0) }}
           </span>
         </div>
         <div class="score-item" matTooltip="FR-053 Passage-Level Relevance — best matching passage in the destination.">
           <span class="score-name">Passage Relevance</span>
-          <mat-progress-bar
-            mode="determinate"
-            [value]="scorePercent(detail.score_passage_relevance ?? 0.5)"
-            color="primary"
-          ></mat-progress-bar>
+          <mat-progress-bar mode="determinate" [value]="scorePercent(detail.score_passage_relevance ?? 0.5)" color="primary"></mat-progress-bar>
           <span class="score-val">{{ ((detail.score_passage_relevance ?? 0.5) * 100).toFixed(0) }}</span>
         </div>
       </div>
@@ -222,9 +207,9 @@
         </p>
         <p class="meta-line">
           {{ detail.phrase_match_diagnostics.selected_match_type | titlecase }}
-          - {{ detail.phrase_match_diagnostics.selected_phrase_source | titlecase }}
-          - {{ detail.phrase_match_diagnostics.destination_phrase_count }} destination phrases
-          - {{ detail.phrase_match_diagnostics.context_corroborating_hits }} local support hits
+          - {{ detail.phrase_match_diagnostics.selected_phrase_source | titlecase }} -
+          {{ detail.phrase_match_diagnostics.destination_phrase_count }} destination phrases -
+          {{ detail.phrase_match_diagnostics.context_corroborating_hits }} local support hits
         </p>
       }
 
@@ -238,10 +223,9 @@
         </p>
         <p class="meta-line">
           {{ detail.link_freshness_diagnostics.freshness_bucket | titlecase }}
-          - {{ detail.link_freshness_diagnostics.total_peer_count }} peer links
-          - {{ detail.link_freshness_diagnostics.recent_new_peer_count }} recent new
-          - {{ detail.link_freshness_diagnostics.previous_new_peer_count }} previous new
-          - {{ detail.link_freshness_diagnostics.recent_lost_peer_count }} recent lost
+          - {{ detail.link_freshness_diagnostics.total_peer_count }} peer links - {{ detail.link_freshness_diagnostics.recent_new_peer_count }} recent new -
+          {{ detail.link_freshness_diagnostics.previous_new_peer_count }} previous new - {{ detail.link_freshness_diagnostics.recent_lost_peer_count }} recent
+          lost
         </p>
       }
 
@@ -254,24 +238,23 @@
           {{ learnedAnchorSummary() }}
         </p>
         <p class="meta-line">
-          {{ detail.learned_anchor_diagnostics.usable_inbound_anchor_sources }} clean anchor sources
-          - {{ detail.learned_anchor_diagnostics.learned_family_count }} learned families
+          {{ detail.learned_anchor_diagnostics.usable_inbound_anchor_sources }} clean anchor sources -
+          {{ detail.learned_anchor_diagnostics.learned_family_count }} learned families
           @if (detail.learned_anchor_diagnostics.matched_family_canonical) {
             - Canonical: {{ detail.learned_anchor_diagnostics.matched_family_canonical }}
           }
-          @if (detail.learned_anchor_diagnostics.recommended_canonical_anchor
-            && detail.learned_anchor_diagnostics.recommended_canonical_anchor !== detail.learned_anchor_diagnostics.matched_family_canonical) {
+          @if (
+            detail.learned_anchor_diagnostics.recommended_canonical_anchor &&
+            detail.learned_anchor_diagnostics.recommended_canonical_anchor !== detail.learned_anchor_diagnostics.matched_family_canonical
+          ) {
             - Recommended: {{ detail.learned_anchor_diagnostics.recommended_canonical_anchor }}
           }
         </p>
         @if (detail.learned_anchor_diagnostics.top_learned_families.length) {
-          <p class="meta-line">
-            Top learned anchors: {{ learnedAnchorFamiliesSummary() }}
-          </p>
+          <p class="meta-line">Top learned anchors: {{ learnedAnchorFamiliesSummary() }}</p>
         }
       }
 
-      
       <p class="meta-line">
         <mat-icon class="icon-sm">article</mat-icon>
         {{ passageRelevanceStateLabel() }}.
@@ -281,15 +264,15 @@
       </p>
       @if (detail.passage_relevance_diagnostics?.passage_relevance_state === 'computed') {
         <p class="meta-line">
-          Best passage matched at index {{ detail.passage_relevance_diagnostics?.best_passage_index ?? 'n/a' }}
-          out of {{ detail.passage_relevance_diagnostics?.passage_count ?? 'n/a' }} passages.
+          Best passage matched at index {{ detail.passage_relevance_diagnostics?.best_passage_index ?? 'n/a' }} out of
+          {{ detail.passage_relevance_diagnostics?.passage_count ?? 'n/a' }} passages.
         </p>
         <p class="meta-line">
           <em>"{{ detail.passage_relevance_diagnostics?.best_passage_preview ?? '' }}..."</em>
         </p>
       }
-      
-@if (hasRareTermDiagnostics()) {
+
+      @if (hasRareTermDiagnostics()) {
         <p class="meta-line">
           <mat-icon class="icon-sm">hub</mat-icon>
           {{ rareTermStateLabel() }}.
@@ -297,22 +280,16 @@
         <p class="meta-line">
           {{ rareTermSummary() }}
         </p>
+        <p class="meta-line">Borrowed words stay separate from the destination's own text.</p>
         <p class="meta-line">
-          Borrowed words stay separate from the destination's own text.
-        </p>
-        <p class="meta-line">
-          {{ detail.rare_term_diagnostics.eligible_related_page_count ?? 0 }} eligible related pages
-          - min support {{ detail.rare_term_diagnostics.minimum_supporting_related_pages ?? 0 }}
-          - max document frequency {{ detail.rare_term_diagnostics.max_document_frequency ?? 0 }}
+          {{ detail.rare_term_diagnostics.eligible_related_page_count ?? 0 }} eligible related pages - min support
+          {{ detail.rare_term_diagnostics.minimum_supporting_related_pages ?? 0 }} - max document frequency
+          {{ detail.rare_term_diagnostics.max_document_frequency ?? 0 }}
         </p>
         @if ((detail.rare_term_diagnostics.matched_propagated_terms?.length ?? 0) > 0) {
-          <p class="meta-line">
-            Matched borrowed terms: {{ rareTermMatchedTermsSummary() }}
-          </p>
+          <p class="meta-line">Matched borrowed terms: {{ rareTermMatchedTermsSummary() }}</p>
         } @else if ((detail.rare_term_diagnostics.top_propagated_terms?.length ?? 0) > 0) {
-          <p class="meta-line">
-            Top borrowed terms: {{ rareTermTopTermsSummary() }}
-          </p>
+          <p class="meta-line">Top borrowed terms: {{ rareTermTopTermsSummary() }}</p>
         }
       }
 
@@ -334,34 +311,22 @@
           {{ fieldAwareEarlyMatchLabel() }}
         </p>
         @if (fieldAwareTopTerms('title')) {
-          <p class="meta-line">
-            Top title terms: {{ fieldAwareTopTerms('title') }}
-          </p>
+          <p class="meta-line">Top title terms: {{ fieldAwareTopTerms('title') }}</p>
         }
         @if (fieldAwareTopTerms('heading')) {
-          <p class="meta-line">
-            Top heading terms: {{ fieldAwareTopTerms('heading') }}
-          </p>
+          <p class="meta-line">Top heading terms: {{ fieldAwareTopTerms('heading') }}</p>
         }
         @if (fieldAwareTopTerms('intro')) {
-          <p class="meta-line">
-            Top intro terms: {{ fieldAwareTopTerms('intro') }}
-          </p>
+          <p class="meta-line">Top intro terms: {{ fieldAwareTopTerms('intro') }}</p>
         }
         @if (fieldAwareTopTerms('body')) {
-          <p class="meta-line">
-            Top body terms: {{ fieldAwareTopTerms('body') }}
-          </p>
+          <p class="meta-line">Top body terms: {{ fieldAwareTopTerms('body') }}</p>
         }
         @if (fieldAwareTopTerms('scope')) {
-          <p class="meta-line">
-            Top scope terms: {{ fieldAwareTopTerms('scope') }}
-          </p>
+          <p class="meta-line">Top scope terms: {{ fieldAwareTopTerms('scope') }}</p>
         }
         @if (fieldAwareTopTerms('learned_anchor')) {
-          <p class="meta-line">
-            Top learned-anchor terms: {{ fieldAwareTopTerms('learned_anchor') }}
-          </p>
+          <p class="meta-line">Top learned-anchor terms: {{ fieldAwareTopTerms('learned_anchor') }}</p>
         }
       }
 
@@ -394,10 +359,9 @@
           {{ feedbackRerankSummary() }}
         </p>
         <p class="meta-line">
-          Exploit (Bayesian): {{ detail.explore_exploit_diagnostics.exploit_score.toFixed(3) }}
-          - Explore (UCB1): {{ detail.explore_exploit_diagnostics.explore_score.toFixed(3) }}
-          - Pairs found: {{ detail.explore_exploit_diagnostics.total_attempts }}
-          - Pairs approved: {{ detail.explore_exploit_diagnostics.successes }}
+          Exploit (Bayesian): {{ detail.explore_exploit_diagnostics.exploit_score.toFixed(3) }} - Explore (UCB1):
+          {{ detail.explore_exploit_diagnostics.explore_score.toFixed(3) }} - Pairs found: {{ detail.explore_exploit_diagnostics.total_attempts }} - Pairs
+          approved: {{ detail.explore_exploit_diagnostics.successes }}
         </p>
       }
 
@@ -411,9 +375,7 @@
           {{ slateDiversitySummary() }}
         </p>
         <p class="meta-line">
-          Slot {{ (sdd.slot ?? 0) + 1 }}
-          - Runtime: {{ slateDiversityRuntimeLabel() }}
-          - MMR {{ (sdd.mmr_score ?? 0).toFixed(3) }}
+          Slot {{ (sdd.slot ?? 0) + 1 }} - Runtime: {{ slateDiversityRuntimeLabel() }} - MMR {{ (sdd.mmr_score ?? 0).toFixed(3) }}
           @if (sdd.max_similarity_to_selected !== null) {
             - Max similarity {{ (sdd.max_similarity_to_selected ?? 0).toFixed(3) }}
           }
@@ -432,10 +394,11 @@
           <p class="meta-line">
             <mat-icon class="icon-sm">alt_route</mat-icon>
             FR-099 DARB: {{ detail.score_darb.toFixed(3) }}
-            @if (d.diagnostic) { - {{ d.diagnostic }} }
+            @if (d.diagnostic) {
+              - {{ d.diagnostic }}
+            }
             @if (d.raw_host_value !== null && d.raw_host_value !== undefined) {
-              - host value {{ d.raw_host_value.toFixed(2) }}
-              / out-degree {{ d.raw_host_out_degree ?? 0 }}
+              - host value {{ d.raw_host_value.toFixed(2) }} / out-degree {{ d.raw_host_out_degree ?? 0 }}
             }
           </p>
         }
@@ -445,11 +408,11 @@
           <p class="meta-line">
             <mat-icon class="icon-sm">route</mat-icon>
             FR-100 KMIG: {{ detail.score_kmig.toFixed(3) }}
-            @if (d.diagnostic) { - {{ d.diagnostic }} }
+            @if (d.diagnostic) {
+              - {{ d.diagnostic }}
+            }
             @if (d.katz_2hop_reachability !== null && d.katz_2hop_reachability !== undefined) {
-              - katz 2hop {{ d.katz_2hop_reachability.toFixed(3) }}
-              ({{ d.direct_edge ? 'direct' : 'indirect' }},
-              {{ d.two_hop_paths_count ?? 0 }} 2-hop paths)
+              - katz 2hop {{ d.katz_2hop_reachability.toFixed(3) }} ({{ d.direct_edge ? 'direct' : 'indirect' }}, {{ d.two_hop_paths_count ?? 0 }} 2-hop paths)
             }
           </p>
         }
@@ -459,10 +422,11 @@
           <p class="meta-line">
             <mat-icon class="icon-sm">account_tree</mat-icon>
             FR-101 TAPB: {{ detail.score_tapb.toFixed(3) }}
-            @if (d.diagnostic) { - {{ d.diagnostic }} }
+            @if (d.diagnostic) {
+              - {{ d.diagnostic }}
+            }
             @if (d.is_articulation_point !== null && d.is_articulation_point !== undefined) {
-              - host is{{ d.is_articulation_point ? '' : ' not' }} an articulation point
-              ({{ d.articulation_point_count ?? 0 }} APs in graph)
+              - host is{{ d.is_articulation_point ? '' : ' not' }} an articulation point ({{ d.articulation_point_count ?? 0 }} APs in graph)
             }
           </p>
         }
@@ -472,11 +436,11 @@
           <p class="meta-line">
             <mat-icon class="icon-sm">filter_center_focus</mat-icon>
             FR-102 KCIB: {{ detail.score_kcib.toFixed(3) }}
-            @if (d.diagnostic) { - {{ d.diagnostic }} }
+            @if (d.diagnostic) {
+              - {{ d.diagnostic }}
+            }
             @if (d.kcore_delta !== null && d.kcore_delta !== undefined) {
-              - host k-core {{ d.host_kcore }}
-              → dest k-core {{ d.dest_kcore }}
-              (Δ={{ d.kcore_delta }}/{{ d.max_kcore }})
+              - host k-core {{ d.host_kcore }} → dest k-core {{ d.dest_kcore }} (Δ={{ d.kcore_delta }}/{{ d.max_kcore }})
             }
           </p>
         }
@@ -486,11 +450,14 @@
           <p class="meta-line">
             <mat-icon class="icon-sm">link_off</mat-icon>
             FR-103 BERP: {{ detail.score_berp.toFixed(3) }}
-            @if (d.diagnostic) { - {{ d.diagnostic }} }
+            @if (d.diagnostic) {
+              - {{ d.diagnostic }}
+            }
             @if (d.would_create_bridge !== null && d.would_create_bridge !== undefined) {
-              - {{ d.would_create_bridge ? 'would create bridge' : 'no new bridge' }}
-              (BCCs: host={{ d.host_bcc }} size {{ d.host_bcc_size }},
-              dest={{ d.dest_bcc }} size {{ d.dest_bcc_size }})
+              - {{ d.would_create_bridge ? 'would create bridge' : 'no new bridge' }} (BCCs: host={{ d.host_bcc }} size {{ d.host_bcc_size }}, dest={{
+                d.dest_bcc
+              }}
+              size {{ d.dest_bcc_size }})
             }
           </p>
         }
@@ -500,11 +467,11 @@
           <p class="meta-line">
             <mat-icon class="icon-sm">pie_chart</mat-icon>
             FR-104 HGTE: {{ detail.score_hgte.toFixed(3) }}
-            @if (d.diagnostic) { - {{ d.diagnostic }} }
+            @if (d.diagnostic) {
+              - {{ d.diagnostic }}
+            }
             @if (d.entropy_delta !== null && d.entropy_delta !== undefined) {
-              - entropy {{ (d.entropy_before ?? 0).toFixed(3) }}
-              → {{ (d.entropy_after ?? 0).toFixed(3) }}
-              (Δ={{ d.entropy_delta.toFixed(3) }})
+              - entropy {{ (d.entropy_before ?? 0).toFixed(3) }} → {{ (d.entropy_after ?? 0).toFixed(3) }} (Δ={{ d.entropy_delta.toFixed(3) }})
             }
           </p>
         }
@@ -514,11 +481,11 @@
           <p class="meta-line">
             <mat-icon class="icon-sm">search</mat-icon>
             FR-105 RSQVA: {{ detail.score_rsqva.toFixed(3) }}
-            @if (d.diagnostic) { - {{ d.diagnostic }} }
+            @if (d.diagnostic) {
+              - {{ d.diagnostic }}
+            }
             @if (d.cosine_similarity !== null && d.cosine_similarity !== undefined) {
-              - GSC query cosine {{ d.cosine_similarity.toFixed(3) }}
-              (host {{ d.host_query_count ?? 0 }} queries,
-              dest {{ d.dest_query_count ?? 0 }} queries)
+              - GSC query cosine {{ d.cosine_similarity.toFixed(3) }} (host {{ d.host_query_count ?? 0 }} queries, dest {{ d.dest_query_count ?? 0 }} queries)
             }
           </p>
         }
@@ -541,10 +508,8 @@
         @if (p.passage_relevance_state === 'computed' && p.best_passage_preview) {
           <blockquote class="host-sentence">{{ p.best_passage_preview }}</blockquote>
           <p class="meta-line">
-            Best passage #{{ (p.best_passage_index ?? 0) + 1 }} of {{ p.passage_count ?? 0 }}
-            - cosine {{ (p.best_passage_similarity ?? 0).toFixed(3) }}
-            - score {{ (detail.score_passage_relevance ?? 0.5).toFixed(3) }}
-            - {{ p.passage_words_setting ?? 200 }}-word window
+            Best passage #{{ (p.best_passage_index ?? 0) + 1 }} of {{ p.passage_count ?? 0 }} - cosine {{ (p.best_passage_similarity ?? 0).toFixed(3) }} - score
+            {{ (detail.score_passage_relevance ?? 0.5).toFixed(3) }} - {{ p.passage_words_setting ?? 200 }}-word window
           </p>
         }
       }
@@ -560,8 +525,7 @@
           </p>
           @if (gwd.nodes_visited) {
             <p class="meta-line">
-              {{ gwd.nodes_visited }} nodes visited
-              - {{ gwd.candidates_found }} candidates found
+              {{ gwd.nodes_visited }} nodes visited - {{ gwd.candidates_found }} candidates found
               @if (gwd.top_candidates && gwd.top_candidates.length > 0) {
                 - Top rank visit count: {{ gwd.top_candidates[0].visit_count }}
               }
@@ -582,8 +546,7 @@
           <p class="meta-line">
             Raw value score: {{ detail.score_value_model?.toFixed(3) ?? 'n/a' }}
             @if (vmd.applied_weights) {
-              - traffic weight {{ vmd.applied_weights.w_traffic }}
-              - freshness weight {{ vmd.applied_weights.w_freshness }}
+              - traffic weight {{ vmd.applied_weights.w_traffic }} - freshness weight {{ vmd.applied_weights.w_freshness }}
             }
           </p>
           @if (vmd.engagement_signal !== undefined) {
@@ -595,12 +558,12 @@
             } @else {
               <p class="meta-line">
                 <mat-icon class="icon-sm">visibility</mat-icon>
-                Engagement signal: {{ (vmd.engagement_signal! * 100).toFixed(0) }}/100
-                — readers typically reach {{ (vmd.read_through_rate_raw! * 100).toFixed(0) }}% of this article.
+                Engagement signal: {{ (vmd.engagement_signal! * 100).toFixed(0) }}/100 — readers typically reach
+                {{ (vmd.read_through_rate_raw! * 100).toFixed(0) }}% of this article.
               </p>
               <p class="meta-line">
-                Avg time on page: {{ vmd.avg_engagement_time_seconds?.toFixed(0) }}s
-                &nbsp;·&nbsp; Est. read time: {{ vmd.estimated_read_time_seconds?.toFixed(0) }}s
+                Avg time on page: {{ vmd.avg_engagement_time_seconds?.toFixed(0) }}s &nbsp;·&nbsp; Est. read time:
+                {{ vmd.estimated_read_time_seconds?.toFixed(0) }}s
                 @if (vmd.avg_bounce_rate !== undefined && vmd.avg_bounce_rate !== null) {
                   &nbsp;·&nbsp; Bounce rate: {{ (vmd.avg_bounce_rate! * 100).toFixed(0) }}%
                 }
@@ -645,13 +608,22 @@
       <mat-divider></mat-divider>
       <section class="section">
         @if (detail.applied_at) {
-          <p class="meta-line"><mat-icon class="icon-sm">check_circle</mat-icon> Applied {{ detail.applied_at | date:'medium' }}</p>
+          <p class="meta-line">
+            <mat-icon class="icon-sm">check_circle</mat-icon>
+            Applied {{ detail.applied_at | date: 'medium' }}
+          </p>
         }
         @if (detail.verified_at) {
-          <p class="meta-line"><mat-icon class="icon-sm">verified</mat-icon> Verified {{ detail.verified_at | date:'medium' }}</p>
+          <p class="meta-line">
+            <mat-icon class="icon-sm">verified</mat-icon>
+            Verified {{ detail.verified_at | date: 'medium' }}
+          </p>
         }
         @if (detail.stale_reason) {
-          <p class="meta-line warn"><mat-icon class="icon-sm">warning</mat-icon> Stale: {{ detail.stale_reason }}</p>
+          <p class="meta-line warn">
+            <mat-icon class="icon-sm">warning</mat-icon>
+            Stale: {{ detail.stale_reason }}
+          </p>
         }
       </section>
     }
@@ -660,19 +632,18 @@
          composite scores. Each row shows the signal, the measured value,
          the coefficient, and the signed contribution. Rendered only when
          the daily refresh pass captured data. -->
-    @if (
-      (detail.destination_content_value_diagnostics?.has_data) ||
-      (detail.destination_engagement_quality_diagnostics?.has_data)
-    ) {
+    @if (detail.destination_content_value_diagnostics?.has_data || detail.destination_engagement_quality_diagnostics?.has_data) {
       <section class="score-breakdown-section">
         <h3 class="section-title">
           <mat-icon class="icon-sm">insights</mat-icon>
           Why this destination scored what it did
         </h3>
         <p class="meta-line">
-          Per-term breakdown of <code>content_value_score</code> and
-          <code>engagement_quality_score</code>. Source:
-          Kim, Hassan, White &amp; Zitouni (WSDM 2014).
+          Per-term breakdown of
+          <code>content_value_score</code>
+          and
+          <code>engagement_quality_score</code>
+          . Source: Kim, Hassan, White &amp; Zitouni (WSDM 2014).
         </p>
 
         @if (detail.destination_content_value_diagnostics?.has_data) {
@@ -680,10 +651,8 @@
             <div class="breakdown-header">
               <span class="breakdown-title">Content value</span>
               <span class="breakdown-score">
-                Score: {{ (detail.destination_content_value_score ?? 0.5) | number:'1.2-2' }}
-                <span class="breakdown-raw">
-                  (raw {{ detail.destination_content_value_diagnostics?.raw | number:'1.2-3' }})
-                </span>
+                Score: {{ detail.destination_content_value_score ?? 0.5 | number: '1.2-2' }}
+                <span class="breakdown-raw">(raw {{ $safeNavigationMigration(detail.destination_content_value_diagnostics?.raw) | number: '1.2-3' }})</span>
               </span>
             </div>
             <table class="breakdown-table">
@@ -699,11 +668,9 @@
                 @for (term of detail.destination_content_value_diagnostics?.terms ?? []; track term.name) {
                   <tr [class.negative]="term.sign === '-'">
                     <td>{{ term.name }}</td>
-                    <td class="num">{{ term.value | number:'1.2-3' }}</td>
-                    <td class="num">{{ term.weight | number:'1.2-3' }}</td>
-                    <td class="num">
-                      {{ term.sign }}{{ (term.contribution < 0 ? -term.contribution : term.contribution) | number:'1.2-3' }}
-                    </td>
+                    <td class="num">{{ term.value | number: '1.2-3' }}</td>
+                    <td class="num">{{ term.weight | number: '1.2-3' }}</td>
+                    <td class="num">{{ term.sign }}{{ (term.contribution < 0 ? -term.contribution : term.contribution) | number: '1.2-3' }}</td>
                   </tr>
                 }
               </tbody>
@@ -716,9 +683,9 @@
             <div class="breakdown-header">
               <span class="breakdown-title">Engagement quality</span>
               <span class="breakdown-score">
-                Score: {{ (detail.destination_engagement_quality_score ?? 0.5) | number:'1.2-2' }}
+                Score: {{ detail.destination_engagement_quality_score ?? 0.5 | number: '1.2-2' }}
                 <span class="breakdown-raw">
-                  (raw {{ detail.destination_engagement_quality_diagnostics?.raw | number:'1.2-3' }})
+                  (raw {{ $safeNavigationMigration(detail.destination_engagement_quality_diagnostics?.raw) | number: '1.2-3' }})
                 </span>
               </span>
             </div>
@@ -735,11 +702,9 @@
                 @for (term of detail.destination_engagement_quality_diagnostics?.terms ?? []; track term.name) {
                   <tr [class.negative]="term.sign === '-'">
                     <td>{{ term.name }}</td>
-                    <td class="num">{{ term.value | number:'1.2-3' }}</td>
-                    <td class="num">{{ term.weight | number:'1.2-3' }}</td>
-                    <td class="num">
-                      {{ term.sign }}{{ (term.contribution < 0 ? -term.contribution : term.contribution) | number:'1.2-3' }}
-                    </td>
+                    <td class="num">{{ term.value | number: '1.2-3' }}</td>
+                    <td class="num">{{ term.weight | number: '1.2-3' }}</td>
+                    <td class="num">{{ term.sign }}{{ (term.contribution < 0 ? -term.contribution : term.contribution) | number: '1.2-3' }}</td>
                   </tr>
                 }
               </tbody>
@@ -748,9 +713,7 @@
         }
       </section>
     }
-
   }
-
 </mat-dialog-content>
 
 <mat-dialog-actions align="end">

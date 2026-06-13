@@ -1,5 +1,5 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 
 import { PerformanceModeService, RuntimeSettingsResponse } from './performance-mode.service';
@@ -17,11 +17,7 @@ describe('PerformanceModeService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        PerformanceModeService,
-      ],
+      providers: [provideHttpClient(withXhr()), provideHttpClientTesting(), PerformanceModeService],
     });
     svc = TestBed.inject(PerformanceModeService);
     httpMock = TestBed.inject(HttpTestingController);

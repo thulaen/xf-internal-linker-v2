@@ -1,8 +1,5 @@
-import { provideHttpClient } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { provideHttpClient, withXhr } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { PasskeyService } from './passkey.service';
 
@@ -12,11 +9,7 @@ describe('PasskeyService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [
-        PasskeyService,
-        provideHttpClient(),
-        provideHttpClientTesting(),
-      ],
+      providers: [PasskeyService, provideHttpClient(withXhr()), provideHttpClientTesting()],
     });
     service = TestBed.inject(PasskeyService);
     httpMock = TestBed.inject(HttpTestingController);

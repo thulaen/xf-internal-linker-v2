@@ -1,6 +1,6 @@
 import { CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
@@ -31,9 +31,7 @@ describe('DashboardComponent', () => {
   let dashSvc: SpyObj<DashboardService>;
 
   beforeEach(async () => {
-    dashSvc = createSpyObj<DashboardService>([
-      'refresh', 'invalidate', 'updateOpenBrokenLinks',
-    ]);
+    dashSvc = createSpyObj<DashboardService>(['refresh', 'invalidate', 'updateOpenBrokenLinks']);
     dashSvc.refresh.mockReturnValue(of(EMPTY_DATA));
 
     // Skip the heavy template — the dashboard imports 50+ child standalone
@@ -47,7 +45,7 @@ describe('DashboardComponent', () => {
     await TestBed.configureTestingModule({
       imports: [DashboardComponent],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting(),
         provideRouter([{ path: 'jobs', children: [] }]),
         provideNoopAnimations(),
@@ -134,9 +132,15 @@ describe('DashboardComponent', () => {
     });
 
     it('healthTiles tint the status tone green only when healthy', () => {
-      component.data = { ...EMPTY_DATA, system_health: { status: 'healthy', summary: {}, total_monitored: 7 } } as DashboardData;
+      component.data = {
+        ...EMPTY_DATA,
+        system_health: { status: 'healthy', summary: {}, total_monitored: 7 },
+      } as DashboardData;
       expect(component.healthTiles[0]).toEqual({ label: 'Status', value: 'healthy', tone: 'green' });
-      component.data = { ...EMPTY_DATA, system_health: { status: 'warning', summary: {}, total_monitored: 7 } } as DashboardData;
+      component.data = {
+        ...EMPTY_DATA,
+        system_health: { status: 'warning', summary: {}, total_monitored: 7 },
+      } as DashboardData;
       expect(component.healthTiles[0]).toEqual({ label: 'Status', value: 'warning', tone: 'amber' });
     });
   });
@@ -148,7 +152,11 @@ describe('DashboardComponent', () => {
     it('is empty info when there is no data', () => {
       component.data = null as unknown as DashboardData;
       expect(component.attention).toEqual({
-        tone: 'info', headline: '', detail: '', actionLabel: null, actionLink: null,
+        tone: 'info',
+        headline: '',
+        detail: '',
+        actionLabel: null,
+        actionLink: null,
       });
     });
 

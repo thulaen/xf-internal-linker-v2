@@ -18,7 +18,7 @@
  * heavy template tests.
  */
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
@@ -163,8 +163,8 @@ const CLUSTERING_DEFAULTS: ClusteringSettings = {
 const SLATE_DIVERSITY_DEFAULTS: SlateDiversitySettings = {
   enabled: true,
   diversity_lambda: 0.65,
-  score_window: 0.30,
-  similarity_cap: 0.90,
+  score_window: 0.3,
+  similarity_cap: 0.9,
 };
 
 const GRAPH_CANDIDATE_DEFAULTS: GraphCandidateSettings = {
@@ -256,7 +256,7 @@ describe('RankingWeightsTabComponent', () => {
     await TestBed.configureTestingModule({
       imports: [RankingWeightsTabComponent, NoopAnimationsModule],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting(),
         provideRouter([]),
         // Use the real SiloSettingsService so the load + save HTTP calls

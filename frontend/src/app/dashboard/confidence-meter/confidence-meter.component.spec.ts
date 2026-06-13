@@ -1,17 +1,11 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { provideHttpClient, withXhr } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
 import { ConfidenceMeterComponent } from './confidence-meter.component';
-import {
-  ConfidenceContributor,
-  ConfidenceSnapshot,
-} from '../dashboard.service';
+import { ConfidenceContributor, ConfidenceSnapshot } from '../dashboard.service';
 
 function snapshot(total: number, contributors: ConfidenceContributor[] = []): ConfidenceSnapshot {
   return { total, label: 'x', contributors };
@@ -25,14 +19,8 @@ describe('ConfidenceMeterComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [ConfidenceMeterComponent],
-      providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        provideRouter([]),
-        provideNoopAnimations(),
-      ],
-    })
-      .compileComponents();
+      providers: [provideHttpClient(withXhr()), provideHttpClientTesting(), provideRouter([]), provideNoopAnimations()],
+    }).compileComponents();
     fixture = TestBed.createComponent(ConfidenceMeterComponent);
     component = fixture.componentInstance;
     httpMock = TestBed.inject(HttpTestingController);

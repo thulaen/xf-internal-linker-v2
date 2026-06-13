@@ -1,10 +1,11 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ButtonDirective, ButtonSize, ButtonVariant } from './button.directive';
 
 @Component({
   standalone: true,
   imports: [ButtonDirective],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `<button appBtn [variant]="variant" [size]="size">Go</button>`,
 })
 class HostComponent {

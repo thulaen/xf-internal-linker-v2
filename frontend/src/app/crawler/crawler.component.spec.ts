@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
@@ -71,15 +71,20 @@ describe('CrawlerComponent', () => {
     ]);
     crawlerSvc.getSitemaps.mockReturnValue(of([sitemap()]));
     crawlerSvc.getSessions.mockReturnValue(of([]));
-    crawlerSvc.getContext.mockReturnValue(of({
-      last_crawl_at: null, total_pages_crawled: 0, storage_bytes: 1024, active_session: null,
-    }));
+    crawlerSvc.getContext.mockReturnValue(
+      of({
+        last_crawl_at: null,
+        total_pages_crawled: 0,
+        storage_bytes: 1024,
+        active_session: null,
+      }),
+    );
     crawlerSvc.startCrawl.mockReturnValue(of(makeSession({ status: 'running' })));
 
     await TestBed.configureTestingModule({
       imports: [CrawlerComponent],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting(),
         provideRouter([]),
         provideNoopAnimations(),

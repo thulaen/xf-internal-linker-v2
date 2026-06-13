@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
@@ -37,7 +37,7 @@ describe('OperationsFeedComponent', () => {
     await TestBed.configureTestingModule({
       imports: [OperationsFeedComponent],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting(),
         provideRouter([]),
         provideNoopAnimations(),
@@ -84,7 +84,8 @@ describe('OperationsFeedComponent', () => {
 
   it('handles initial REST load failure gracefully', () => {
     fixture.detectChanges();
-    httpMock.expectOne('/api/operations/events/?limit=500')
+    httpMock
+      .expectOne('/api/operations/events/?limit=500')
       .flush({ detail: 'boom' }, { status: 500, statusText: 'Server Error' });
     expect(component).toBeTruthy();
     const rendered = (component as unknown as { events: () => OpsEvent[] }).events();

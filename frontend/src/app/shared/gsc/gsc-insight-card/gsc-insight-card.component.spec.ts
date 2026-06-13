@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
@@ -7,6 +7,7 @@ import { GscInsightCardComponent } from './gsc-insight-card.component';
 @Component({
   standalone: true,
   imports: [GscInsightCardComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <app-gsc-insight-card
       [tone]="tone"
@@ -41,9 +42,7 @@ describe('GscInsightCardComponent', () => {
   });
 
   it('Given a headline and detail, When the insight card renders, Then both texts are displayed', () => {
-    expect(q('.gsc-insight__headline').textContent).toContain(
-      'Fix issues before running the pipeline',
-    );
+    expect(q('.gsc-insight__headline').textContent).toContain('Fix issues before running the pipeline');
     expect(q('.gsc-insight__detail').textContent).toContain('System health is degraded');
   });
 

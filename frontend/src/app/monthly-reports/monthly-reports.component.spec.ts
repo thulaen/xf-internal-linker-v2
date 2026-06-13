@@ -1,9 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { provideHttpClient, withXhr } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -24,8 +21,7 @@ describe('MonthlyReportsComponent', () => {
           { month: '2026-04', filename: 'monthly-2026-04.md', size_bytes: 100, modified_at: '2026-04-30T00:00:00Z' },
         ],
       }),
-    readMonthlyReport: () =>
-      of({ month: '2026-04', filename: 'monthly-2026-04.md', body: '# hello' }),
+    readMonthlyReport: () => of({ month: '2026-04', filename: 'monthly-2026-04.md', body: '# hello' }),
     runMonthly: () => of({ month: '2026-04', strategy: 'top50' }),
   };
 
@@ -33,7 +29,7 @@ describe('MonthlyReportsComponent', () => {
     await TestBed.configureTestingModule({
       imports: [MonthlyReportsComponent],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting(),
         provideRouter([]),
         provideNoopAnimations(),
@@ -75,7 +71,7 @@ describe('MonthlyReportsComponent', () => {
     TestBed.configureTestingModule({
       imports: [MonthlyReportsComponent],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting(),
         provideRouter([]),
         provideNoopAnimations(),

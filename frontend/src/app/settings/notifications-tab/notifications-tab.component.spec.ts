@@ -1,13 +1,10 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 
 import { NotificationsTabComponent } from './notifications-tab.component';
-import {
-  NotificationPreferences,
-  NotificationService,
-} from '../../core/services/notification.service';
+import { NotificationPreferences, NotificationService } from '../../core/services/notification.service';
 
 const DEFAULT_PREFS: NotificationPreferences = {
   desktop_enabled: true,
@@ -38,7 +35,7 @@ describe('NotificationsTabComponent', () => {
     await TestBed.configureTestingModule({
       imports: [NotificationsTabComponent, NoopAnimationsModule],
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting(),
         // Use the real NotificationService so the load + save HTTP calls go
         // through the actual `/api/settings/notifications/` endpoint paths,

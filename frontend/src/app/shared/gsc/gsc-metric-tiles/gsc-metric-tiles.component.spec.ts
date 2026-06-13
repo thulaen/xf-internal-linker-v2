@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { GscMetricTilesComponent, GscTile } from './gsc-metric-tiles.component';
@@ -6,6 +6,7 @@ import { GscMetricTilesComponent, GscTile } from './gsc-metric-tiles.component';
 @Component({
   standalone: true,
   imports: [GscMetricTilesComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `<app-gsc-metric-tiles [tiles]="tiles" />`,
 })
 class HostComponent {

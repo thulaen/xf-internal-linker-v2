@@ -32,17 +32,13 @@
           <div class="error-log-title-group">
             <h2 i18n="@@diagnostics.error-log.title">Error Log</h2>
             @if (errors().length > 0) {
-              <span class="error-count-badge"
-                    [matTooltip]="errors().length + ' unacknowledged'"
-                    matTooltipPosition="right">
+              <span class="error-count-badge" [matTooltip]="errors().length + ' unacknowledged'" matTooltipPosition="right">
                 {{ errors().length > 99 ? '99+' : errors().length }}
               </span>
             }
           </div>
           <div class="error-log-actions">
-            <button mat-stroked-button
-                    (click)="openDjangoAdmin()"
-                    matTooltip="Open Django Admin in a new tab">
+            <button mat-stroked-button (click)="openDjangoAdmin()" matTooltip="Open Django Admin in a new tab">
               <mat-icon>admin_panel_settings</mat-icon>
               <span i18n="@@diagnostics.action.django-admin">Django Admin</span>
             </button>
@@ -62,7 +58,7 @@
                       <strong>{{ b.check }}:</strong>
                       {{ b.explanation || 'No explanation provided.' }}
                       @if (b.next_step) {
-                        <em class="pipeline-gate-next-step"> — {{ b.next_step }}</em>
+                        <em class="pipeline-gate-next-step">— {{ b.next_step }}</em>
                       }
                     </li>
                   }
@@ -75,21 +71,10 @@
         <!-- GT-G9: Live Runtime Health strip — current node -->
         @if (runtimeCtx(); as rc) {
           <div class="runtime-strip" role="group" aria-label="Current runtime state">
-            <span class="runtime-chip tone-good"
-                  [matTooltip]="'Paid embedding provider model'">
-              Embedding: {{ rc.embedding_model || 'unknown' }}
-            </span>
-            <span class="runtime-chip"
-                  [class.tone-good]="rc.spacy_model"
-                  [class.tone-bad]="!rc.spacy_model">
-              spaCy: {{ rc.spacy_model || 'Missing' }}
-            </span>
-            <span class="runtime-chip tone-good">
-              Node: {{ rc.node_id }} ({{ rc.node_role }})
-            </span>
-            <span class="runtime-chip tone-good">
-              Python: {{ rc.python_version }}
-            </span>
+            <span class="runtime-chip tone-good" [matTooltip]="'Paid embedding provider model'">Embedding: {{ rc.embedding_model || 'unknown' }}</span>
+            <span class="runtime-chip" [class.tone-good]="rc.spacy_model" [class.tone-bad]="!rc.spacy_model">spaCy: {{ rc.spacy_model || 'Missing' }}</span>
+            <span class="runtime-chip tone-good">Node: {{ rc.node_id }} ({{ rc.node_role }})</span>
+            <span class="runtime-chip tone-good">Python: {{ rc.python_version }}</span>
           </div>
         }
 
@@ -98,18 +83,18 @@
         @if (nodes().length > 1) {
           <div class="nodes-strip" role="group" aria-label="Known nodes in the last 24 hours">
             @for (n of nodes(); track trackNodeId($index, n)) {
-              <button type="button"
-                      class="node-card"
-                      [ngClass]="nodeToneClass(n)"
-                      [class.active]="filterNodeId() === n.node_id"
-                      (click)="toggleNodeFilter(n.node_id)"
-                      [matTooltip]="n.node_hostname || n.node_id"
-                      matTooltipPosition="above">
+              <button
+                type="button"
+                class="node-card"
+                [ngClass]="nodeToneClass(n)"
+                [class.active]="filterNodeId() === n.node_id"
+                (click)="toggleNodeFilter(n.node_id)"
+                [matTooltip]="n.node_hostname || n.node_id"
+                matTooltipPosition="above"
+              >
                 <span class="node-name">{{ n.node_id }}</span>
                 <span class="node-role">{{ n.node_role }}</span>
-                <span class="node-count">
-                  {{ n.unacknowledged }} unack • {{ n.total }} total
-                </span>
+                <span class="node-count">{{ n.unacknowledged }} unack • {{ n.total }} total</span>
                 @if (n.last_seen) {
                   <span class="node-seen">last: {{ n.last_seen | date: 'short' }}</span>
                 } @else {
@@ -127,20 +112,18 @@
              renders only when its specific precondition is met). -->
         @if (uniqueNodes().length > 1) {
           <div class="node-filter-bar" role="group" aria-label="Filter errors by node">
-            <button type="button"
-                    mat-stroked-button
-                    class="node-filter-chip"
-                    [class.active]="!filterNodeId()"
-                    (click)="toggleNodeFilter(null)"
-                    i18n="@@diagnostics.filter.all-nodes">
+            <button
+              type="button"
+              mat-stroked-button
+              class="node-filter-chip"
+              [class.active]="!filterNodeId()"
+              (click)="toggleNodeFilter(null)"
+              i18n="@@diagnostics.filter.all-nodes"
+            >
               All nodes
             </button>
             @for (node of uniqueNodes(); track node) {
-              <button type="button"
-                      mat-stroked-button
-                      class="node-filter-chip"
-                      [class.active]="filterNodeId() === node"
-                      (click)="toggleNodeFilter(node)">
+              <button type="button" mat-stroked-button class="node-filter-chip" [class.active]="filterNodeId() === node" (click)="toggleNodeFilter(node)">
                 {{ node }}
               </button>
             }
@@ -153,7 +136,8 @@
           [selectedIndex]="selectedErrorTabIndex()"
           (selectedIndexChange)="onErrorTabChange($event)"
           appPersistTab="diagnostics.errors"
-          animationDuration="200ms">
+          animationDuration="200ms"
+        >
           <mat-tab label="Internal" i18n-label="@@diagnostics.tab.internal"></mat-tab>
           <mat-tab label="Glitchtip" i18n-label="@@diagnostics.tab.glitchtip"></mat-tab>
           <mat-tab label="All" i18n-label="@@diagnostics.tab.all"></mat-tab>
@@ -161,19 +145,15 @@
 
         <div
           class="error-tab-panel"
-          [attr.id]="selectedErrorTabIndex() === 0 ? 'internal-errors-tab' : selectedErrorTabIndex() === 1 ? 'glitchtip-errors-tab' : 'all-errors-tab'">
+          [attr.id]="selectedErrorTabIndex() === 0 ? 'internal-errors-tab' : selectedErrorTabIndex() === 1 ? 'glitchtip-errors-tab' : 'all-errors-tab'"
+        >
           @if (selectedErrorTabIndex() === 1) {
             <div class="glitchtip-tab-toolbar">
               <p class="glitchtip-sync-status">
                 Last synced:
                 {{ glitchtipLastSyncedAt() ? (glitchtipLastSyncedAt() | date: 'short') : 'Awaiting first sync' }}
               </p>
-              <button
-                type="button"
-                mat-flat-button
-                color="primary"
-                class="glitchtip-visit-button"
-                (click)="openGlitchtip()">
+              <button type="button" mat-flat-button color="primary" class="glitchtip-visit-button" (click)="openGlitchtip()">
                 <mat-icon>open_in_new</mat-icon>
                 <span i18n="@@diagnostics.action.visit-glitchtip">Visit Glitchtip</span>
               </button>
@@ -193,68 +173,72 @@
                occurrence-count badge. -->
           @for (group of activeGroupedErrors(); track trackGroupFingerprint($index, group)) {
             @let e = group.representative;
-            <article class="error-row"
-                     [ngClass]="severityClass(e)"
-                     [attr.id]="'error-' + e.id"
-                     role="article"
-                     [attr.aria-label]="'Error in ' + e.job_type + ' — ' + e.error_message">
+            <article
+              class="error-row"
+              [ngClass]="severityClass(e)"
+              [attr.id]="'error-' + e.id"
+              role="article"
+              [attr.aria-label]="'Error in ' + e.job_type + ' — ' + e.error_message"
+            >
               <!-- Meta row: source pill, severity pill, location, node, counts, timestamp -->
               <div class="error-row-meta">
-                <span class="lane-badge"
-                      [class.tone-bad]="e.source === 'glitchtip'"
-                      [class.tone-warn]="e.source === 'internal'">
+                <span class="lane-badge" [class.tone-bad]="e.source === 'glitchtip'" [class.tone-warn]="e.source === 'internal'">
                   {{ e.source === 'glitchtip' ? 'GlitchTip' : 'Internal' }}
                 </span>
-                <span class="lane-badge"
-                      [class.tone-bad]="e.severity === 'critical' || e.severity === 'high'"
-                      [class.tone-warn]="e.severity === 'medium'"
-                      [class.tone-good]="e.severity === 'low'">
+                <span
+                  class="lane-badge"
+                  [class.tone-bad]="e.severity === 'critical' || e.severity === 'high'"
+                  [class.tone-warn]="e.severity === 'medium'"
+                  [class.tone-good]="e.severity === 'low'"
+                >
                   {{ e.severity ? (e.severity | titlecase) : 'Medium' }}
                 </span>
-                <span class="error-location" [matTooltip]="e.step">
-                  {{ e.job_type }} • {{ e.step }}
-                </span>
+                <span class="error-location" [matTooltip]="e.step">{{ e.job_type }} • {{ e.step }}</span>
                 @if (e.node_id) {
-                  <span class="lane-badge node-badge"
-                        [matTooltip]="(e.node_hostname || e.node_id) + ' (' + (e.node_role || 'unknown') + ')'">
+                  <span class="lane-badge node-badge" [matTooltip]="(e.node_hostname || e.node_id) + ' (' + (e.node_role || 'unknown') + ')'">
                     {{ e.node_id }}
                   </span>
                 }
                 @if (group.totalCount > 1) {
-                  <span class="occurrence-badge"
-                        [matTooltip]="'Seen ' + group.totalCount + ' times on this node'">
-                    ×{{ group.totalCount }}
-                  </span>
+                  <span class="occurrence-badge" [matTooltip]="'Seen ' + group.totalCount + ' times on this node'">×{{ group.totalCount }}</span>
                 }
                 <span class="error-timestamp">{{ e.created_at | date: 'short' }}</span>
               </div>
 
               <!-- What / Why / How-to-fix (GT-G10) -->
               <p class="error-what">
-                <strong>What:</strong> {{ e.error_message }}
+                <strong>What:</strong>
+                {{ e.error_message }}
               </p>
               @if (e.why) {
-                <p class="error-why"><strong>Why:</strong> {{ e.why }}</p>
+                <p class="error-why">
+                  <strong>Why:</strong>
+                  {{ e.why }}
+                </p>
               }
               @if (e.how_to_fix) {
                 <p class="error-how-to-fix">
-                  <strong>How to fix:</strong> {{ e.how_to_fix }}
+                  <strong>How to fix:</strong>
+                  {{ e.how_to_fix }}
                 </p>
               }
 
               <!-- GT-G4: 7-day sparkline -->
               @if (e.error_trend && e.error_trend.length > 0) {
-                <div class="error-sparkline"
-                     [matTooltip]="trendLabel(e.error_trend)"
-                     matTooltipPosition="above"
-                     role="img"
-                     [attr.aria-label]="'7-day frequency trend'">
+                <div
+                  class="error-sparkline"
+                  [matTooltip]="trendLabel(e.error_trend)"
+                  matTooltipPosition="above"
+                  role="img"
+                  [attr.aria-label]="'7-day frequency trend'"
+                >
                   @for (point of e.error_trend; track trackTrendDate($index, point)) {
-                    <div class="spark-bar"
-                         [style.height.%]="(point.count / maxTrendCount(e.error_trend)) * 100 || 4"
-                         [class.spark-zero]="point.count === 0"
-                         [attr.aria-label]="point.date + ': ' + point.count">
-                    </div>
+                    <div
+                      class="spark-bar"
+                      [style.height.%]="(point.count / maxTrendCount(e.error_trend)) * 100 || 4"
+                      [class.spark-zero]="point.count === 0"
+                      [attr.aria-label]="point.date + ': ' + point.count"
+                    ></div>
                   }
                 </div>
               }
@@ -281,9 +265,7 @@
               <!-- GT-G12: expandable related-errors panel -->
               @if (expandedErrorId() === e.id && relatedErrors(e).length > 0) {
                 <div class="related-errors-panel" role="region" aria-label="Other errors within 5 minutes">
-                  <strong>
-                    Other errors within 5 minutes ({{ relatedErrors(e).length }}):
-                  </strong>
+                  <strong>Other errors within 5 minutes ({{ relatedErrors(e).length }}):</strong>
                   <ul>
                     @for (rel of relatedErrors(e); track trackErrorId($index, rel)) {
                       <li>
@@ -305,11 +287,7 @@
 
               <!-- Action row -->
               <div class="error-row-actions">
-                <button type="button"
-                        mat-stroked-button
-                        class="row-action"
-                        (click)="toggleExpand(e.id)"
-                        [attr.aria-expanded]="expandedErrorId() === e.id">
+                <button type="button" mat-stroked-button class="row-action" (click)="toggleExpand(e.id)" [attr.aria-expanded]="expandedErrorId() === e.id">
                   <mat-icon>
                     {{ expandedErrorId() === e.id ? 'expand_less' : 'expand_more' }}
                   </mat-icon>
@@ -317,44 +295,46 @@
                 </button>
 
                 @if (e.glitchtip_url) {
-                  <a [href]="e.glitchtip_url"
-                     target="_blank"
-                     rel="noopener noreferrer"
-                     mat-icon-button
-                     class="row-action-icon"
-                     matTooltip="Open this issue in GlitchTip">
+                  <a
+                    [href]="e.glitchtip_url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    mat-icon-button
+                    class="row-action-icon"
+                    matTooltip="Open this issue in GlitchTip"
+                  >
                     <mat-icon>open_in_new</mat-icon>
                   </a>
                 }
 
-                <button type="button"
-                        mat-icon-button
-                        class="row-action-icon"
-                        (click)="copyForAI(e)"
-                        [attr.aria-label]="'Copy AI-ready prompt for ' + e.job_type + ' error'"
-                        [matTooltip]="copyFeedbackId() === e.id ? 'Copied!' : 'Copy for AI'">
+                <button
+                  type="button"
+                  mat-icon-button
+                  class="row-action-icon"
+                  (click)="copyForAI(e)"
+                  [attr.aria-label]="'Copy AI-ready prompt for ' + e.job_type + ' error'"
+                  [matTooltip]="copyFeedbackId() === e.id ? 'Copied!' : 'Copy for AI'"
+                >
                   <mat-icon>
                     {{ copyFeedbackId() === e.id ? 'check' : 'content_copy' }}
                   </mat-icon>
                 </button>
 
                 @if (canRerun(e)) {
-                  <button type="button"
-                          mat-stroked-button
-                          class="row-action"
-                          (click)="onRerunError(e)"
-                          matTooltip="Re-dispatch the failing Celery task">
+                  <button type="button" mat-stroked-button class="row-action" (click)="onRerunError(e)" matTooltip="Re-dispatch the failing Celery task">
                     <mat-icon>replay</mat-icon>
                     <span>Rerun task</span>
                   </button>
                 }
 
-                <button type="button"
-                        mat-flat-button
-                        color="primary"
-                        class="row-action row-action-primary"
-                        (click)="onAcknowledgeError(e)"
-                        matTooltip="Mark this error as handled">
+                <button
+                  type="button"
+                  mat-flat-button
+                  color="primary"
+                  class="row-action row-action-primary"
+                  (click)="onAcknowledgeError(e)"
+                  matTooltip="Mark this error as handled"
+                >
                   <mat-icon>done</mat-icon>
                   <span>Acknowledge</span>
                 </button>
@@ -366,9 +346,7 @@
                rendered when there's something to show. -->
           @if (showAcknowledgedDrawer()) {
             <details class="acknowledged-section">
-              <summary>
-                Acknowledged / Fixed ({{ acknowledgedErrors().length }})
-              </summary>
+              <summary>Acknowledged / Fixed ({{ acknowledgedErrors().length }})</summary>
               @for (e of acknowledgedErrors(); track trackErrorId($index, e)) {
                 <div class="error-row error-row-acknowledged">
                   <div class="error-row-meta">
@@ -403,7 +381,7 @@
         <div class="metric-item">
           <span>RAM Usage</span>
           <div class="metric-value">
-            <span class="value">{{ r.ram_usage_mb === 'unavailable' ? 'N/A' : (r.ram_usage_mb | number:'1.0-0') + ' MB' }}</span>
+            <span class="value">{{ r.ram_usage_mb === 'unavailable' ? 'N/A' : (r.ram_usage_mb | number: '1.0-0') + ' MB' }}</span>
           </div>
         </div>
         <div class="metric-item">
@@ -441,17 +419,21 @@
               </mat-card-header>
               <mat-card-content>
                 <div class="wave2-signal-status-row">
-                  <span class="lane-badge"
-                        [class.tone-good]="health?.neutral_fallback_count === 0 && (health?.sample_count || 0) > 0"
-                        [class.tone-warn]="(health?.neutral_fallback_count || 0) > 0 || (health?.sample_count || 0) === 0"
-                        matTooltip="A neutral fallback means the model safely used its no-op value because it did not have enough useful evidence.">
+                  <span
+                    class="lane-badge"
+                    [class.tone-good]="health?.neutral_fallback_count === 0 && (health?.sample_count || 0) > 0"
+                    [class.tone-warn]="(health?.neutral_fallback_count || 0) > 0 || (health?.sample_count || 0) === 0"
+                    matTooltip="A neutral fallback means the model safely used its no-op value because it did not have enough useful evidence."
+                  >
                     {{ health?.status_label || 'No recent diagnostics' }}
                   </span>
-                  <button mat-stroked-button
-                          type="button"
-                          (click)="openSignalSpec(signal)"
-                          [disabled]="!signalSpecSlug(signal)"
-                          matTooltip="Open the source-backed spec for this model in a dialog.">
+                  <button
+                    mat-stroked-button
+                    type="button"
+                    (click)="openSignalSpec(signal)"
+                    [disabled]="!signalSpecSlug(signal)"
+                    matTooltip="Open the source-backed spec for this model in a dialog."
+                  >
                     <mat-icon>article</mat-icon>
                     View spec
                   </button>
@@ -461,25 +443,21 @@
                   <div class="wave2-signal-metric">
                     <span matTooltip="The newest saved diagnostic for this model.">Last run</span>
                     <strong>
-                      {{ health?.last_run_at ? (health?.last_run_at | date:'short') : 'No recent run' }}
+                      {{ health?.last_run_at ? ($safeNavigationMigration(health?.last_run_at) | date: 'short') : 'No recent run' }}
                     </strong>
                   </div>
                   <div class="wave2-signal-metric">
-                    <span matTooltip="The share of recent diagnostics that used the safe neutral value instead of real evidence.">
-                      Neutral fallback
-                    </span>
+                    <span matTooltip="The share of recent diagnostics that used the safe neutral value instead of real evidence.">Neutral fallback</span>
                     <strong>
-                      @if (health?.neutral_fallback_rate === null) {
+                      @if ($safeNavigationMigration(health?.neutral_fallback_rate) === null) {
                         Not enough data
                       } @else {
-                        {{ health?.neutral_fallback_rate | percent:'1.0-1' }}
+                        {{ $safeNavigationMigration(health?.neutral_fallback_rate) | percent: '1.0-1' }}
                       }
                     </strong>
                   </div>
                   <div class="wave2-signal-metric">
-                    <span matTooltip="How many recent suggestions had saved diagnostics for this model.">
-                      Sample size
-                    </span>
+                    <span matTooltip="How many recent suggestions had saved diagnostics for this model.">Sample size</span>
                     <strong>{{ health?.sample_count || 0 }}</strong>
                   </div>
                 </div>
@@ -502,9 +480,8 @@
         <div class="section-heading">
           <h2>Retriever Quality (NDCG@10)</h2>
           <p>
-            How well your ranker orders approved over rejected suggestions.
-            Sources: Järvelin &amp; Kekäläinen 2002 ACM TOIS;
-            Sanderson 2010 FnTIR §5.2 sample-size gate.
+            How well your ranker orders approved over rejected suggestions. Sources: Järvelin &amp; Kekäläinen 2002 ACM TOIS; Sanderson 2010 FnTIR §5.2
+            sample-size gate.
           </p>
         </div>
         <mat-card class="ndcg-eval-card ga4-card" id="ndcg-eval-card">
@@ -517,20 +494,18 @@
             } @else {
               <div class="ndcg-readout">
                 <div class="ndcg-headline">
-                  <span class="ndcg-value">{{ nd.ndcg | number:'1.3-3' }}</span>
+                  <span class="ndcg-value">{{ nd.ndcg | number: '1.3-3' }}</span>
                   <span class="ndcg-label">NDCG@{{ nd.k }}</span>
                 </div>
                 <div class="ndcg-detail">
                   <span>
-                    Sample size: <strong>{{ nd.sample_size }}</strong>
+                    Sample size:
+                    <strong>{{ nd.sample_size }}</strong>
                     reviewed suggestions
                   </span>
                   <span>
                     95 % confidence interval:
-                    <strong>
-                      [{{ nd.confidence_lower | number:'1.3-3' }} —
-                      {{ nd.confidence_upper | number:'1.3-3' }}]
-                    </strong>
+                    <strong>[{{ nd.confidence_lower | number: '1.3-3' }} — {{ nd.confidence_upper | number: '1.3-3' }}]</strong>
                   </span>
                   @if (!nd.sufficient_for_pairwise) {
                     <span class="ndcg-pairwise-note">
@@ -547,16 +522,14 @@
                     @for (entry of ndcgEvalOriginEntries(); track entry.origin) {
                       <li>
                         <span class="origin-name">{{ entry.origin }}</span>
-                        <span class="origin-score">{{ entry.score | number:'1.3-3' }}</span>
+                        <span class="origin-score">{{ entry.score | number: '1.3-3' }}</span>
                       </li>
                     }
                   </ul>
                 </div>
               }
               @if (nd.fitted_at) {
-                <p class="ndcg-fitted-at">
-                  Last refresh: {{ nd.fitted_at | date:'medium' }}
-                </p>
+                <p class="ndcg-fitted-at">Last refresh: {{ nd.fitted_at | date: 'medium' }}</p>
               }
             }
           </mat-card-content>
@@ -578,7 +551,8 @@
               [class.state-healthy]="lane.state === 'healthy'"
               [class.state-degraded]="lane.state === 'degraded'"
               [class.state-failed]="lane.state === 'failed'"
-              [class.owner-celery]="lane.owner === 'celery'">
+              [class.owner-celery]="lane.owner === 'celery'"
+            >
               <div class="lane-header">
                 <div>
                   <h3>{{ lane.title }}</h3>
@@ -596,7 +570,8 @@
                     class="lane-badge"
                     [class.tone-good]="badge.tone === 'good'"
                     [class.tone-warn]="badge.tone === 'warn'"
-                    [class.tone-bad]="badge.tone === 'bad'">
+                    [class.tone-bad]="badge.tone === 'bad'"
+                  >
                     <span class="badge-label">{{ badge.label }}</span>
                     <span class="badge-value">{{ badge.value }}</span>
                   </div>
@@ -628,7 +603,8 @@
               [class.state-degraded]="card.state === 'degraded'"
               [class.state-failed]="card.state === 'failed'"
               [class.owner-python]="card.runtime === 'python'"
-              [class.owner-cpp]="card.runtime === 'cpp'">
+              [class.owner-cpp]="card.runtime === 'cpp'"
+            >
               <div class="lane-header">
                 <div>
                   <h3>{{ card.title }}</h3>
@@ -646,7 +622,8 @@
                     class="lane-badge"
                     [class.tone-good]="badge.tone === 'good'"
                     [class.tone-warn]="badge.tone === 'warn'"
-                    [class.tone-bad]="badge.tone === 'bad'">
+                    [class.tone-bad]="badge.tone === 'bad'"
+                  >
                     <span class="badge-label">{{ badge.label }}</span>
                     <span class="badge-value">{{ badge.value }}</span>
                   </div>
@@ -672,13 +649,18 @@
                       <div class="native-module-copy">
                         <span class="native-module-name">{{ module.label }}</span>
                         <span class="native-module-benchmark">
-                          {{ module.proof_available ? ((module.speedup_vs_python ?? 0).toFixed(2) + 'x') : (module.benchmark_status || 'Not benchmarked') }}
+                          {{ module.proof_available ? (module.speedup_vs_python ?? 0).toFixed(2) + 'x' : module.benchmark_status || 'Not benchmarked' }}
                           @if (module.proof_available) {
                             • {{ module.cpp_ms?.toFixed(2) }} ms
                           }
                         </span>
                       </div>
-                      <span class="native-module-state" [class.is-healthy]="module.state === 'healthy'" [class.is-degraded]="module.state === 'degraded'" [class.is-failed]="module.state === 'failed'">
+                      <span
+                        class="native-module-state"
+                        [class.is-healthy]="module.state === 'healthy'"
+                        [class.is-degraded]="module.state === 'degraded'"
+                        [class.is-failed]="module.state === 'failed'"
+                      >
                         {{ module.state | titlecase }}
                       </span>
                     </div>
@@ -728,30 +710,18 @@
             [value]="serviceFilter()"
             (change)="setServiceFilter($event.value)"
           >
-            <mat-chip-option
-              value="all"
-              matTooltip="Show every service regardless of status"
-            >All ({{ serviceFilterCounts().all }})</mat-chip-option>
-            <mat-chip-option
-              value="issues"
-              matTooltip="Failed services and partial/conflicting runtime states — fix these first"
-            >Issues ({{ serviceFilterCounts().issues }})</mat-chip-option>
-            <mat-chip-option
-              value="warnings"
-              matTooltip="Degraded services — running but slower or missing capability"
-            >Warnings ({{ serviceFilterCounts().warnings }})</mat-chip-option>
-            <mat-chip-option
-              value="healthy"
-              matTooltip="Services reporting healthy"
-            >Healthy ({{ serviceFilterCounts().healthy }})</mat-chip-option>
-            <mat-chip-option
-              value="not_configured"
-              matTooltip="Services not configured, not installed, or pending implementation"
-            >Not configured ({{ serviceFilterCounts().not_configured }})</mat-chip-option>
-            <mat-chip-option
-              value="down"
-              matTooltip="Services explicitly disabled by an operator"
-            >Down ({{ serviceFilterCounts().down }})</mat-chip-option>
+            <mat-chip-option value="all" matTooltip="Show every service regardless of status">All ({{ serviceFilterCounts().all }})</mat-chip-option>
+            <mat-chip-option value="issues" matTooltip="Failed services and partial/conflicting runtime states — fix these first">
+              Issues ({{ serviceFilterCounts().issues }})
+            </mat-chip-option>
+            <mat-chip-option value="warnings" matTooltip="Degraded services — running but slower or missing capability">
+              Warnings ({{ serviceFilterCounts().warnings }})
+            </mat-chip-option>
+            <mat-chip-option value="healthy" matTooltip="Services reporting healthy">Healthy ({{ serviceFilterCounts().healthy }})</mat-chip-option>
+            <mat-chip-option value="not_configured" matTooltip="Services not configured, not installed, or pending implementation">
+              Not configured ({{ serviceFilterCounts().not_configured }})
+            </mat-chip-option>
+            <mat-chip-option value="down" matTooltip="Services explicitly disabled by an operator">Down ({{ serviceFilterCounts().down }})</mat-chip-option>
           </mat-chip-listbox>
 
           <div class="services-grid">
