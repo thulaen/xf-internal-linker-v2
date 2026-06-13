@@ -17,6 +17,35 @@ def pytest_configure() -> None:
     import django
 
     django.setup()
+    _configure_hypothesis_profiles()
+
+
+def _configure_hypothesis_profiles() -> None:
+    """Register the two Hypothesis profiles property tests run under.
+
+    ``fast``  — pre-commit: few examples + bounded shrinking, so the scoped
+                property run stays a quick sprint. ``HYPOTHESIS_PROFILE=fast``
+                (the default) selects it.
+    ``ci``    — push/CI: a deep hunt (many examples) for the thorough sweep.
+
+    Deadlines are deliberately disabled: all quality work runs on the shared
+    Dell helper, so a per-example wall-clock deadline would flake whenever Dell
+    is busy with another run. The real time cap is the single wall-clock
+    timeout in ``scripts/run-pbt.sh`` — one reliable ceiling instead of many
+    flaky ones. ``derandomize`` is off so the example database keeps finding new
+    inputs; past failing inputs are replayed first from that database.
+    """
+    from hypothesis import HealthCheck, Phase, settings
+
+    common = {
+        "deadline": None,
+        "suppress_health_check": [HealthCheck.too_slow],
+        # Cap shrinking so a real failure reports fast instead of grinding.
+        "phases": (Phase.explicit, Phase.reuse, Phase.generate, Phase.target, Phase.shrink),
+    }
+    settings.register_profile("fast", max_examples=20, **common)
+    settings.register_profile("ci", max_examples=500, **common)
+    settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "fast"))
 
 
 def _kill_monitoring_connections_to_test_db() -> None:

@@ -159,6 +159,7 @@ RUN pip install --no-cache-dir \
       pytest-asyncio==1.3.0 \
       pytest-randomly==3.15.0 \
       pytest-benchmark==5.1.0 \
+      pytest-xdist==3.6.1 \
       hypothesis==6.115.5 && \
     pip cache purge
 

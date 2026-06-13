@@ -350,6 +350,14 @@ fi
 
 run_hard_gate run-rust-quality bash scripts/run-rust-quality.sh
 
+# Property-based testing (Hypothesis + proptest), scoped to changed Python/Rust
+# files. HARD-BLOCK. Runs AFTER the unit-test gates above so it reuses the trees
+# they already synced to Dell (xf_test_repo / xf_rust_mutation_repo) — it only
+# overlays the changed files. Shares a single 5-minute wall-clock budget. It
+# self-skips when no changed file has a property-test scope. Mutation testing is
+# the separate pre-push lane, so the two never run together.
+run_hard_gate run-pbt bash scripts/run-pbt.sh
+
 # Task-completion reports run outside the commit hook. The commit hook keeps
 # only code-correctness checks and hard project-health checks.
 

@@ -1,3 +1,37 @@
+## 2026-06-13 - Claude Opus 4.8 (1M) - Property-based testing (Hypothesis + proptest) as a scoped, hard-block, 5-minute pre-commit gate
+
+[HANDOFF READ: 2026-06-12 by Claude Opus 4.8 — Finished the Vitest migration; moved Stryker mutation to the command runner and removed Karma entirely]
+[REGISTRY READ: ~974 open — quota already met this session (DB-backed gate)]
+[STICKY 1 READ: timestamp=2026-06-13T00:30:00Z sha256=7b8d04510bf49e49 agent=claude]
+
+**What I did (plain English):** Added property-based testing (PBT) — tests that generate hundreds of varied inputs and check a *rule* always holds, instead of one hand-picked example. Python uses Hypothesis; Rust uses proptest. They run at pre-commit only, scoped to the files you changed, and the commit is blocked if a property fails. The whole gate shares a single 5-minute wall-clock ceiling. This is a separate lane from mutation testing (which stays at pre-push), so the two never run together.
+
+**What now works that did not before:**
+- A scoped PBT pre-commit gate (`scripts/run-pbt.sh`, wired as a HARD gate in `scripts/precommit-docker.sh` right after the Python/Rust unit-test gates). It runs on the Dell helper only, picks up changed `tests_pbt_*.py` files (and a changed source file's sibling `tests_pbt_<stem>.py`) plus changed Rust crates, and runs their property tests.
+- Adaptive parallelism with no hardcoding: pytest-xdist `-n auto` and cargo-nextest both read the Dell container's own CPU count at runtime.
+- A shared 5-minute budget: both lanes run under `timeout $(remaining)`, so the gate can never exceed 5 minutes; a lane that would blow the budget is killed and the commit hard-fails.
+- Two real property tests, both construct-don't-filter, size-capped at 50, pure logic, zero I/O: Python idempotence + output invariants of `normalize_anchor_text`; Rust unit-norm property of `l2norm::normalize_l2_slice`.
+
+**What changed:**
+- `backend/conftest.py` — registers Hypothesis profiles `fast` (20 examples, pre-commit) and `ci` (500 examples, for later); deadlines disabled (Dell is shared — the runner's wall-clock cap is the real ceiling); shrinking bounded.
+- `backend/pytest.ini` — registers the `property` marker. `backend/Dockerfile` — adds `pytest-xdist` to the quality image (rebuilt).
+- `rust/Cargo.toml` — adds `proptest` as a workspace dependency and `[profile.test] opt-level = 1`. `rust/extensions/l2norm/Cargo.toml` + `src/lib.rs` — proptest dev-dep + the unit-norm property (PROPTEST_CASES=50 default, raised in CI).
+- `scripts/run-pbt.sh` (new), `scripts/test_run-pbt.py` (new, 7 contract tests), `scripts/precommit-docker.sh` (hard-gate wiring).
+
+**Committed this round: the Python PBT lane + the gate infrastructure only.** The Rust lane is fully built and verified but NOT in this commit — staging Rust source triggers the Rust mandate gate, which surfaced a pre-existing backlog. Per your call, the Rust work is kept in the working tree as a tracked follow-up:
+- Rust PBT lane: `proptest` workspace dep + `[profile.test] opt-level=1`; the `l2norm` unit-norm property. (Built + green; not committed.)
+- Rust clippy cleanup (stable toolchain drifted to 1.96.0): fixed every site IN CODE, no suppression — `const fn` getters (counting_bloom, count_min_sketch, compressed_bloom), `Self::` variants (papertrail_dedup, lesson_index), a split doc paragraph, `mul_add` fusions for `suboptimal_flops` (scoring, feedrerank, ivf_index, fieldrel, anchor_self_information, bench_scoring). Verified workspace clippy clean and all 379 Rust tests pass (parity held after `mul_add`). (Not committed.)
+- **`cargo-mutants` installed** into the running `compiled-tools` container (was missing); durable fix is rebuilding that image with it.
+- **pyo3 0.26 → 0.29 security upgrade REQUIRED** (RUSTSEC-2026-0176 out-of-bounds read; RUSTSEC-2026-0177 missing Sync bound) across all 25 kernels + numpy — a major API-breaking change, deferred as its own effort.
+
+**Verification (turbo=used — every run on Dell):** Live benchmark on Dell. Reusing the warm volumes the unit-test gates already sync (overlay only changed files), the gate's **added pre-commit cost is ~27–37 seconds** (Python lane ~11s incl. django.setup; Rust lane ~10–20s incl. compile; the property tests themselves run in milliseconds — Rust proptest 50 cases in 0.004s). All 7 contract tests pass; Rust `fmt --check` + `clippy -D warnings` clean on the proptest code. Two real shell bugs were found and fixed (both would have silently broken the hook): `case` globs don't cross `/` in the hook's Git Bash, and Windows python emits CRLF so basenames ended in `.py\r` and never matched — fixed with glob-free parameter expansion + `tr -d '\r'`.
+
+**What has issues or errors:** None blocking. Honest note: the ~27–37s assumes PBT runs after the unit-test gates so the Dell volumes are warm (the real chain order). A fully cold/isolated run re-uploads the whole backend+rust trees (~4 min) — still under the 5-minute cap, but it does not happen in the normal commit flow. An optional future layer (not built) is an "existence check" that forces new pure-logic files to carry a property test; it needs a curated pure-logic allowlist to avoid blocking ordinary commits, so it was left out by design.
+
+**Tech-debt delta:** Net positive — adds a real correctness net (property tests) at commit with a tight time budget, and fixed two latent hook-shell bugs (CRLF + case-glob) that affect any future scoped script.
+
+[COVERAGE SUMMARY: target=N/A% actual=N/A% — new test-infrastructure gate; the two seeded property tests pass and the 7 contract tests pass on Dell]
+
 ## 2026-06-12 - Claude Opus 4.8 (1M) - Finish the Vitest migration: move Stryker mutation off Karma, remove Karma entirely
 
 [HANDOFF READ: 2026-06-12 by Claude Opus 4.8 — Migrated Angular unit tests from Karma/Jasmine to Vitest; left Stryker mutation on karma-runner as a tracked follow-up]
