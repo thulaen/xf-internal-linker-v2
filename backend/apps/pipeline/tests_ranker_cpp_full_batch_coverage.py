@@ -1,12 +1,11 @@
 """Coverage for the Rust full-batch scoring path in ``ranker.py``.
 
-The ranker's final composite-score kernel was ported from C++ to Rust
-(rust/extensions/scoring) and is loaded through the shared ``load_kernel``
-helper (RUST-FIRST.md zero-fallback). ``HAS_CPP_FULL_BATCH`` now reflects
-whether ``load_kernel("extensions.scoring",
+The ranker's final composite-score kernel now lives behind the Rust
+``ranking_decision_engine`` module. ``HAS_RANKING_DECISION_ENGINE`` reflects
+whether ``load_kernel("extensions.ranking_decision_engine",
 "calculate_composite_scores_full_batch")`` succeeded at module import. The batch
-call site in :func:`score_destination_matches` calls the kernel unconditionally
-through ``load_kernel`` — there is no Python-fallback branch.
+call site in :func:`score_destination_matches` calls that kernel
+unconditionally through ``load_kernel`` — there is no Python-fallback branch.
 
 ``_calculate_composite_scores_full_batch_py`` is retained ONLY as the
 cross-language parity oracle these tests (and the health benchmark) drive; it is
@@ -14,8 +13,7 @@ NOT a silent runtime fallback.
 
 These ``SimpleTestCase`` tests pin:
 
-* ``HAS_CPP_FULL_BATCH`` is ``True`` in the quality/runtime image (the Rust
-  kernel is built and exports ``calculate_composite_scores_full_batch``).
+* ``HAS_RANKING_DECISION_ENGINE`` is ``True`` in the quality/runtime image.
 * The Rust batch call site returns a real finite composite ``score_final``.
 * The Rust kernel and the pure-Python parity oracle agree to 1e-5 on the same
   inputs, proving the kernel is wired correctly and is not a no-op.
@@ -101,18 +99,18 @@ class RustFullBatchScoringPathTests(SimpleTestCase):
             silo_settings=SiloSettings(mode="disabled"),
         )
 
-    def test_rust_full_batch_flag_is_enabled_in_runtime_image(self) -> None:
-        # The Rust kernel is built and loaded at module import, so the flag is
-        # True and the loaded module exposes the real export.
+    def test_rust_decision_engine_flag_is_enabled_in_runtime_image(self) -> None:
+        # The Rust decision engine is built and loaded at module import, so the
+        # flag is True and the loaded module exposes the real export.
         self.assertTrue(
-            ranker_service.HAS_CPP_FULL_BATCH,
-            "The Rust kernel exports calculate_composite_scores_full_batch, so "
-            "HAS_CPP_FULL_BATCH must be True after the Rust port.",
+            ranker_service.HAS_RANKING_DECISION_ENGINE,
+            "The Rust decision engine exports calculate_composite_scores_full_batch.",
         )
-        self.assertIsNotNone(ranker_service.scoring)
+        self.assertIsNotNone(ranker_service.ranking_decision_engine)
         self.assertTrue(
             hasattr(
-                ranker_service.scoring, "calculate_composite_scores_full_batch"
+                ranker_service.ranking_decision_engine,
+                "calculate_composite_scores_full_batch",
             )
         )
 
@@ -138,7 +136,8 @@ class RustFullBatchScoringPathTests(SimpleTestCase):
         silo = rng.uniform(-0.5, 0.5, size=(64,)).astype(np.float32)
 
         kernel = ranker_service.load_kernel(
-            "extensions.scoring", "calculate_composite_scores_full_batch"
+            "extensions.ranking_decision_engine",
+            "calculate_composite_scores_full_batch",
         )
         rust_out = kernel.calculate_composite_scores_full_batch(
             np.ascontiguousarray(component_scores, dtype=np.float32),

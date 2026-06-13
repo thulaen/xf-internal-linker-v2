@@ -20,13 +20,9 @@ from .models import ServiceStatusSnapshot, SystemConflict
 
 logger = logging.getLogger(__name__)
 
-# Only kernels with a real, non-empty backend/extensions/<name>.cpp file are
-# tracked here. The full Rule J lifecycle invariant (.cpp source + EXTENSION_NAMES
-# + this tuple) is enforced by .githooks/check-cpp-lifecycle.py in full-tree mode.
-#
-# 112 historically-declared-but-never-built kernel names were parked in
-# docs/CPP-ROADMAP.md on 2026-05-16 so they can be re-promoted one at a time
-# through the full lifecycle when someone actually implements them.
+# Native modules with staged Python extension artifacts are tracked here.
+# Rust/PyO3 modules now own hot paths, while legacy C++ modules are reported
+# only when their loaded artifact proves they are still present.
 _NATIVE_RUNTIME_MODULES = (
     # ── Ranking / retrieval core (13) ──
     (
@@ -37,9 +33,9 @@ _NATIVE_RUNTIME_MODULES = (
     ),
     (
         "ranking_decision_engine",
-        "rank_candidates",
+        "calculate_composite_scores_full_batch",
         "Ranking decision/governance engine",
-        False,
+        True,
     ),
     ("simsearch", "score_and_topk", "Sentence search kernel", True),
     ("pagerank", "pagerank_step", "PageRank kernel", True),
@@ -188,12 +184,12 @@ def _measure_ms(fn, *, repeats: int = 3) -> float:
 
 
 def _benchmark_scoring() -> dict[str, object]:
-    """Benchmark composite scoring kernel (Python ranker vs scoring C++ extension)."""
+    """Benchmark composite scoring kernel against the Rust decision engine."""
     try:
         import numpy as np
 
         # pylint: disable-next=no-name-in-module,import-error
-        from extensions import scoring as scoring_ext
+        from extensions import ranking_decision_engine as ranking_decision_ext
         from apps.pipeline.services import ranker as ranker_service
 
         np.random.seed(7)
@@ -209,7 +205,7 @@ def _benchmark_scoring() -> dict[str, object]:
             )
         )
         cpp_ms = _measure_ms(
-            lambda: scoring_ext.calculate_composite_scores_full_batch(
+            lambda: ranking_decision_ext.calculate_composite_scores_full_batch(
                 component_scores, weights, silo
             )
         )
@@ -710,6 +706,31 @@ def _aggregate_benchmark_results(
     }
 
 
+def _aggregate_runtime_path(
+    module_statuses: list[dict[str, object]],
+    classification: dict[str, object],
+) -> str:
+    """Return the aggregate native runtime label from healthy module statuses."""
+    healthy_paths = sorted(
+        {
+            str(status["runtime_path"])
+            for status in module_statuses
+            if (
+                status.get("state", "healthy") == "healthy"
+                and not status.get("fallback_reason")
+                and status.get("runtime_path")
+            )
+        }
+    )
+    if bool(classification["fallback_active"]):
+        return "mixed_error" if healthy_paths else "error"
+    if not healthy_paths:
+        return "error"
+    if len(healthy_paths) == 1:
+        return healthy_paths[0]
+    return "mixed"
+
+
 def _native_scoring_metadata(
     module_statuses: list[dict[str, object]],
     classification: dict[str, object],
@@ -720,9 +741,7 @@ def _native_scoring_metadata(
     critical_failures = classification["critical_failures"]
     healthy_modules = classification["healthy_modules"]
     fallback_active = bool(classification["fallback_active"])
-    runtime_path = (
-        "cpp" if not fallback_active else ("mixed_error" if healthy_modules else "error")
-    )
+    runtime_path = _aggregate_runtime_path(module_statuses, classification)
     return {
         "runtime_path": runtime_path,
         "native_scoring_active": not bool(critical_failures),

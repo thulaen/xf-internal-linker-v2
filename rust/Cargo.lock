@@ -1068,7 +1068,10 @@ name = "ranking_decision_engine"
 version = "0.1.0"
 dependencies = [
  "criterion",
+ "numpy",
+ "proptest",
  "pyo3",
+ "scoring",
 ]
 
 [[package]]

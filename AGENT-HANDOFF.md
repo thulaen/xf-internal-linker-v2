@@ -1,3 +1,26 @@
+## 2026-06-13 - Claude Opus 4.8 (1M) - Land Codex's Rust ranking-engine migration + fix the stale Dell test kernel
+
+[HANDOFF READ: 2026-06-13 by Codex — wired the Rust ranking decision engine as the live composite-score authority but left it uncommitted; the running backend got a fresh kernel for verification, the Dell test stack did not.]
+[PROGRESS READ: 2026-06-13 23:44 — 11 files left to commit; no stall reported.]
+
+**What I did (plain English):** Codex had finished a code change that makes the Rust "ranking decision engine" the one place that adds up the final ranking scores, and had checked it on the live app — but never committed it, and a batch of 27 ranker tests kept failing at commit time. I found why, fixed it, proved the tests pass, and committed Codex's change.
+
+**The bug, in plain English:** The tests on the Dell helper machine load the Rust scoring code from their own copy on Dell. Codex had refreshed the Rust code on the *live app* but not on the *Dell test copy*. So the Dell test copy was an older build that did not have the new "add up all the scores in one batch" function. Because the ranker calls that function with no fallback, every test that touched the ranker failed with a clear "kernel is stale or incomplete" error. The two builds were even visibly different sizes: the stale Dell test copy was 830,480 bytes (built Jun 12), the correct fresh build is 990,720 bytes (built today).
+
+**The fix:** I rebuilt the Rust kernel on Dell (`scripts/dell-rust.sh build --release --locked -p ranking_decision_engine`), then copied the fresh `libranking_decision_engine.so` into the Dell test compiled-artifacts volume (`xf_dell_compiled_repo` → `active/extensions/ranking_decision_engine.so`), keeping the old one as a `.stale` backup. No code change was needed for the fix itself — only a fresh build placed where the Dell tests look.
+
+**What now works that did not before:** The 27 previously-failing ranker tests pass. I confirmed 86 ranker tests green on Dell — 3 in `tests_ranker_cpp_full_batch_coverage.py` (the file that directly calls the new batch function) plus 83 across the broader ranker cluster (`test_ranker_types`, `test_field_aware_relevance`, `test_graph_signal_ranker`, `test_conformal_predictor`, and four `test_persist_*` files). Codex's migration is now committed.
+
+**What changed (committed):** `backend/apps/pipeline/services/ranker.py`, `backend/apps/pipeline/tests_ranker_cpp_full_batch_coverage.py`, `backend/apps/diagnostics/health.py`, `backend/apps/diagnostics/tests_health_helpers.py`, `rust/extensions/ranking_decision_engine/Cargo.toml` (adds `publish = false` so cargo-deny allows the internal `scoring` path dependency), `rust/extensions/ranking_decision_engine/src/lib.rs` (the new `calculate_composite_scores_full_batch`), `rust/Cargo.lock`, and this handoff entry.
+
+**What has issues or errors:** One real gap remains, filed as a paper-trail deferral: the Dell *test* compiled-artifacts volume is not rebuilt automatically when Rust source changes — the live app rebuilds kernels at boot, but the Dell test copy does not, so a stale kernel can silently fail a whole class of tests until someone restages it by hand (as I did here). Until that auto-rebuild exists, anyone changing a Rust kernel must restage it on Dell before the Dell tests will be correct. Junk left untracked on purpose (not committed): `audit/gemini_parallel/` (a failed Gemini batch's logs), a malformed `backend/C:` directory from a Windows path slip, and two ad-hoc debug scripts `backend/check_errorlog.py` / `backend/check_schema.py`.
+
+**Verification:** `scripts/dell-rust.sh build --release --locked -p ranking_decision_engine` → `Finished release in 7.70s` (Codex's Rust compiles clean on Dell). `python scripts/run_pytest_on_context.py --targets apps/pipeline/tests_ranker_cpp_full_batch_coverage.py` → 3 passed (rc=0). `python scripts/run_pytest_on_context.py --targets <8 ranker test files>` → 83 passed (rc=0). AutoIssue quota: `[AUTOISSUE QUOTA VERIFIED: 10 resolved]`; paper-trail quota: `[PAPER TRAIL QUOTA VERIFIED: 3 resolved]` — both already met this session. `turbo=used` for the Rust build and the Dell pytest path; no `turbo=blocked` this turn.
+
+**Tech-debt delta:** Net positive. A recurring 27-test failure (`#22904`, hit 6 times) is resolved at its root, and the cause — a hand-built kernel only placed on the live app — is now documented with a follow-up to automate the Dell-test rebuild.
+
+[COVERAGE SUMMARY: target=90% actual=unmeasured% — focused ranker tests (86 passed on Dell) verified the change; line coverage was not separately measured for this landing of already-written code]
+
 ## 2026-06-13 - Codex - Fix Python turbo dry-run blocking
 
 [HANDOFF READ: 2026-06-13 by Codex — made the Dell test-routing rule explicit in AGENTS, CLAUDE, CODEX, and GEMINI instructions.]

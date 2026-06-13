@@ -122,7 +122,7 @@ class ClassifyModuleStateTests(SimpleTestCase):
 class NativeModuleRuntimePathTests(SimpleTestCase):
     """The live native-runtime status reports the correct backing language per kernel."""
 
-    def test_l2norm_is_rust_and_scoring_is_cpp(self):
+    def test_l2norm_and_scoring_are_rust(self):
         from apps.diagnostics.health import _native_module_runtime_status
 
         statuses = {s["module"]: s for s in _native_module_runtime_status()}
@@ -341,14 +341,27 @@ class NativeScoringMetadataTests(SimpleTestCase):
             "benchmark_status": status,
         }
 
-    def test_all_healthy_runtime_path_is_cpp(self):
-        statuses = [{"module": "a", "fallback_reason": ""}]
+    def test_all_healthy_rust_modules_report_runtime_path_rust(self):
+        statuses = [{"module": "a", "fallback_reason": "", "runtime_path": "rust"}]
         meta = _native_scoring_metadata(
             statuses, self._classification(), self._aggregate(), {}
         )
-        self.assertEqual(meta["runtime_path"], "cpp")
+        self.assertEqual(meta["runtime_path"], "rust")
         self.assertTrue(meta["safe_to_use"])
         self.assertTrue(meta["native_scoring_active"])
+
+    def test_mixed_healthy_modules_report_mixed_runtime_path(self):
+        statuses = [
+            {"module": "a", "fallback_reason": "", "runtime_path": "rust"},
+            {"module": "b", "fallback_reason": "", "runtime_path": "cpp"},
+        ]
+        meta = _native_scoring_metadata(
+            statuses,
+            self._classification(healthy=2),
+            self._aggregate(),
+            {},
+        )
+        self.assertEqual(meta["runtime_path"], "mixed")
 
     def test_runtime_path_is_error_when_no_healthy_modules(self):
         statuses = [{"module": "a", "fallback_reason": "down"}]

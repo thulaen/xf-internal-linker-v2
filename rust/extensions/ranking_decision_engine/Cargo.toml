@@ -3,6 +3,12 @@ name = "ranking_decision_engine"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.83"
+# Internal PyO3/maturin extension — never published to crates.io. publish=false
+# tells cargo-deny this is a private crate, so its allow-wildcard-paths applies
+# to the `scoring = { path = "../scoring" }` dependency (crates.io's path-dep ban
+# only applies to public crates). See cargo-deny bans[wildcards] + the repo's
+# Rust mandate gate.
+publish = false
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/local/xf-internal-linker-v2"
 readme = "README.md"
@@ -15,10 +21,17 @@ name = "ranking_decision_engine"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+numpy = "0.26"
 pyo3 = { version = "0.26", features = ["abi3-py310"] }
+scoring = { path = "../scoring" }
 
 [dev-dependencies]
 criterion = "0.5"
+# Proptest drives the property-based test over the pure batch-scoring core
+# (`scoring::score_full_batch_core`, exposed as
+# `calculate_composite_scores_full_batch`). Cases default to 50 locally and are
+# raised via the PROPTEST_CASES env var in the PBT gate (scripts/run-pbt.sh).
+proptest = { workspace = true }
 
 [features]
 extension-module = ["pyo3/extension-module"]

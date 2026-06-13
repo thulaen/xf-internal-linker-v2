@@ -19,21 +19,24 @@ from .rust_kernels import KernelUnavailableError, load_kernel
 
 logger = logging.getLogger(__name__)
 
-# The ranker's final composite-score kernel was ported from C++ to Rust
-# (rust/extensions/scoring) and is loaded through the shared `load_kernel`
-# helper (RUST-FIRST.md zero-fallback — there is no Python copy of the hot
-# path). Loading at module level inside a try/except is a boot-safety shim: if
-# the native `.so` is not yet staged, the import still succeeds so the rest of
-# the module is usable, and the actual call (below) raises loudly through
+# The ranker's final composite-score kernel is owned by the Rust ranking
+# decision engine and loaded through the shared `load_kernel` helper
+# (RUST-FIRST.md zero-fallback: there is no Python copy of the hot path).
+# Loading at module level inside a try/except is a boot-safety shim: if the
+# native `.so` is not yet staged, the import still succeeds so the rest of the
+# module is usable, and the actual call below raises loudly through
 # `load_kernel`. `_calculate_composite_scores_full_batch_py` is retained ONLY as
-# the cross-language parity oracle the acceptance tests drive — it is NOT a
+# the cross-language parity oracle the acceptance tests drive. It is NOT a
 # silent runtime fallback.
 try:
-    scoring = load_kernel("extensions.scoring", "calculate_composite_scores_full_batch")
-    HAS_CPP_FULL_BATCH = True
+    ranking_decision_engine = load_kernel(
+        "extensions.ranking_decision_engine",
+        "calculate_composite_scores_full_batch",
+    )
+    HAS_RANKING_DECISION_ENGINE = True
 except KernelUnavailableError:
-    scoring = None
-    HAS_CPP_FULL_BATCH = False
+    ranking_decision_engine = None
+    HAS_RANKING_DECISION_ENGINE = False
 
 # Default character-length bounds for host sentences selected as
 # anchor context. A sentence shorter than ``_DEFAULT_MIN_SENTENCE_CHARS``
@@ -755,7 +758,8 @@ def score_destination_matches(
         # numpy extractor (`PyReadonlyArray2<f32>`) requires C-contiguous
         # float32 inputs, so coerce here exactly like the parity oracle does.
         kernel = load_kernel(
-            "extensions.scoring", "calculate_composite_scores_full_batch"
+            "extensions.ranking_decision_engine",
+            "calculate_composite_scores_full_batch",
         )
         component_scores_f32 = np.ascontiguousarray(component_scores, dtype=np.float32)
         batch_weights_f32 = np.ascontiguousarray(batch_weights, dtype=np.float32)

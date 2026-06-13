@@ -11,6 +11,7 @@ mod ranking_schema;
 #[cfg(test)]
 mod wolfram_oracle;
 
+use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1, PyReadonlyArray2, PyUntypedArrayMethods};
 use pyo3::prelude::*;
 
 pub use ranking_core::rank_candidates;
@@ -46,6 +47,33 @@ fn explain_py(decision_id: &str) -> Option<String> {
     explain(decision_id)
 }
 
+#[pyfunction(name = "calculate_composite_scores_full_batch")]
+#[allow(clippy::needless_pass_by_value)]
+fn calculate_composite_scores_full_batch_py<'py>(
+    py: Python<'py>,
+    component_scores: PyReadonlyArray2<'py, f32>,
+    weights: PyReadonlyArray1<'py, f32>,
+    silo_scores: PyReadonlyArray1<'py, f32>,
+) -> PyResult<Bound<'py, PyArray1<f32>>> {
+    let shape = component_scores.shape();
+    let num_rows = shape[0];
+    let num_components = shape[1];
+    let component_slice = component_scores.as_slice()?;
+    let weights_slice = weights.as_slice()?;
+    let silo_slice = silo_scores.as_slice()?;
+
+    let out = py.detach(|| {
+        scoring::score_full_batch_core(
+            component_slice,
+            num_rows,
+            num_components,
+            weights_slice,
+            silo_slice,
+        )
+    });
+    Ok(out.into_pyarray(py))
+}
+
 #[pymodule]
 fn ranking_decision_engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<CandidateInput>()?;
@@ -65,6 +93,10 @@ fn ranking_decision_engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(memory_estimate_py, m)?)?;
     m.add_function(wrap_pyfunction!(validate_profile_py, m)?)?;
     m.add_function(wrap_pyfunction!(explain_py, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        calculate_composite_scores_full_batch_py,
+        m
+    )?)?;
     Ok(())
 }
 
@@ -171,7 +203,60 @@ mod tests {
     }
 
     #[test]
+    fn composite_batch_score_reuses_scoring_core() {
+        let component_scores = [1.0_f32, 2.0, 3.0, 4.0];
+        let weights = [10.0_f32, 100.0];
+        let silo = [0.5_f32, 1.5];
+        let out = scoring::score_full_batch_core(&component_scores, 2, 2, &weights, &silo);
+
+        assert_eq!(out.len(), 2);
+        assert!((out[0] - 210.5).abs() < f32::EPSILON);
+        assert!((out[1] - 431.5).abs() < f32::EPSILON);
+    }
+
+    #[test]
     fn wolfram_oracle_marker_stays_test_only() {
         assert_eq!(super::wolfram_oracle::ORACLE_ROLE, "offline-test-only");
+    }
+
+    // ── property-based test (proptest) over the pure batch-scoring core ───────
+    // Cases default to 50 (set below) and are raised via PROPTEST_CASES in the
+    // PBT gate (scripts/run-pbt.sh).
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 50, ..ProptestConfig::default() })]
+
+        /// For ANY batch, each row's composite score equals that row's silo
+        /// offset plus the dot product of its component scores with the shared
+        /// weights — the exact contract `calculate_composite_scores_full_batch`
+        /// exposes via `scoring::score_full_batch_core`.
+        ///
+        /// Sizes and values are CONSTRUCTED, never filtered: 1..8 rows, 1..6
+        /// components, every value a finite f32 in [-10, 10], so the running sum
+        /// stays well inside f32 range and no generated case is ever discarded.
+        #[test]
+        fn prop_composite_batch_matches_silo_plus_weighted_dot(
+            (rows, cols, components, weights, silo) in (1usize..8, 1usize..6).prop_flat_map(
+                |(rows, cols)| (
+                    Just(rows),
+                    Just(cols),
+                    prop::collection::vec(-10.0f32..10.0, rows * cols),
+                    prop::collection::vec(-10.0f32..10.0, cols),
+                    prop::collection::vec(-10.0f32..10.0, rows),
+                ),
+            ),
+        ) {
+            let out = scoring::score_full_batch_core(&components, rows, cols, &weights, &silo);
+            prop_assert_eq!(out.len(), rows);
+            for ((got, comp_row), &silo_i) in out.iter().zip(components.chunks(cols)).zip(&silo) {
+                let dot: f32 = comp_row.iter().zip(&weights).map(|(c, w)| c * w).sum();
+                let expected = silo_i + dot;
+                prop_assert!(
+                    (*got - expected).abs() <= 1e-2_f32,
+                    "expected ~{expected}, got {got}",
+                );
+            }
+        }
     }
 }
