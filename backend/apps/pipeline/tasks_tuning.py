@@ -269,7 +269,7 @@ def check_gsc_spikes(self) -> dict:
         connection.close()
     from apps.content.models import ContentItem
     spikes_found = 0
-    for item in ContentItem.objects.filter(is_active=True):
+    for item in ContentItem.objects.filter(is_deleted=False):
         if _check_one_item_spike(item):
             spikes_found += 1
     return {"spikes_found": spikes_found}

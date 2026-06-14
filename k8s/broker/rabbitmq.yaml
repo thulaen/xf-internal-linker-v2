@@ -1,0 +1,143 @@
+# RabbitMQ: the durable job queue (Celery message broker).
+#
+# Plain English: this is the to-do list the background workers pull from. Unlike
+# a simple cache, a real job queue must not lose work when something crashes, so
+# RabbitMQ keeps its queue on disk and gives strong "this job was delivered
+# exactly once" guarantees. It runs on Dell's fast SSD (next to the database) and
+# its data survives pod restarts and reboots.
+#
+# It is a StatefulSet (not a plain Deployment) so it keeps a stable identity and
+# the same on-disk data across restarts. Login comes from the "rabbitmq-credentials"
+# secret (created outside the repo, so no password is committed). The same secret
+# also carries the ready-to-use CELERY_BROKER_URL the backend will read later.
+#   https://www.rabbitmq.com/
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-extra-config
+  namespace: xf-app
+data:
+  # RabbitMQ 4.x denies the old "transient non-exclusive queues" feature by
+  # default; Celery declares such queues, so re-permit it during the transition.
+  20-permit-deprecated.conf: |
+    deprecated_features.permit.transient_nonexcl_queues = true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq-headless
+  namespace: xf-app
+  labels:
+    app: rabbitmq
+spec:
+  clusterIP: None
+  selector:
+    app: rabbitmq
+  ports:
+    - name: amqp
+      port: 5672
+    - name: management
+      port: 15672
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: xf-app
+  labels:
+    app: rabbitmq
+spec:
+  selector:
+    app: rabbitmq
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: 5672
+      protocol: TCP
+    - name: management
+      port: 15672
+      targetPort: 15672
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+  namespace: xf-app
+  labels:
+    app: rabbitmq
+spec:
+  serviceName: rabbitmq-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      # ssd-hot lives only on Dell, so the queue's disk is on Dell's SSD.
+      nodeSelector:
+        kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:4-management
+          ports:
+            - name: amqp
+              containerPort: 5672
+            - name: management
+              containerPort: 15672
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: RABBITMQ_DEFAULT_USER
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: RABBITMQ_DEFAULT_PASS
+            # Fixed node name so the on-disk queue data is reused across restarts.
+            - name: RABBITMQ_NODENAME
+              value: rabbit@localhost
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              memory: "1Gi"
+          readinessProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "-q", "ping"]
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "-q", "status"]
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 15
+            failureThreshold: 4
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/rabbitmq
+            - name: extra-config
+              mountPath: /etc/rabbitmq/conf.d/20-permit-deprecated.conf
+              subPath: 20-permit-deprecated.conf
+      volumes:
+        - name: extra-config
+          configMap:
+            name: rabbitmq-extra-config
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: ssd-hot
+        resources:
+          requests:
+            storage: 2Gi

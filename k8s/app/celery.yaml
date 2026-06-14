@@ -1,0 +1,254 @@
+# Celery background workers + scheduler, with memory bounded.
+#
+# Plain English: these are the "do the heavy lifting off to the side" processes.
+# They pull jobs from the RabbitMQ queue and run them. Three roles:
+#   * celery-default  — light/general jobs. Prefork pool (2 copies). Each copy
+#     RECYCLES after 200 jobs or ~780 MB (graceful: hands memory back), and the
+#     whole pod is hard-capped at 2 GB.
+#   * celery-pipeline — heavy ML jobs (embeddings, ranking pipeline). Kept in
+#     single-process mode (the ML libraries' threads make prefork recycling
+#     unsafe), so memory is bounded by a HARD 4 GB pod ceiling — if it ever
+#     exceeds, Kubernetes restarts just this worker, never the machine.
+#   * celery-beat     — the scheduler (decides when periodic jobs run). Tiny.
+#
+# All run on Dell, use the same image + the 24 Rust kernels, and read the same
+# settings/logins as the backend. The job-queue address is RabbitMQ (amqp).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-default
+  namespace: xf-app
+  labels:
+    app: celery-default
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: celery-default
+  template:
+    metadata:
+      labels:
+        app: celery-default
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
+      containers:
+        - name: celery-default
+          image: 10.10.10.91:5000/xf-linker-backend:v2
+          imagePullPolicy: IfNotPresent
+          # The "default" queue includes heavy monthly tuning jobs (Optuna,
+          # weight/meta tune), so the app baseline is high. Recycle gently:
+          # after 100 jobs OR if a copy bloats past ~1.9 GB (a real leak),
+          # NOT after every job. One copy at a time so two heavy jobs can't
+          # collide on memory. (KB; 2000000 ≈ 1.9 GB.)
+          command:
+            - celery
+            - -A
+            - config.celery
+            - worker
+            - --loglevel=warning
+            - --concurrency=1
+            - --prefetch-multiplier=1
+            - --max-tasks-per-child=20
+            - --max-memory-per-child=4000000
+            - -Q
+            - default
+          envFrom:
+            - configMapRef:
+                name: xf-app-config
+            - secretRef:
+                name: xf-app-secrets
+            - secretRef:
+                name: postgres-credentials
+          env:
+            - name: DJANGO_SETTINGS_MODULE
+              value: config.settings.production
+            - name: CELERY_BROKER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: CELERY_BROKER_URL
+            - name: PYTHONPATH
+              value: /opt/xf/compiled/active:/opt/xf/compiled:/app
+            - name: XF_COMPILED_ARTIFACT_ROOT
+              value: /opt/xf/compiled
+            - name: XF_COMPILED_BUILD_ROOT
+              value: /tmp/xf-build
+            - name: HOME
+              value: /tmp
+          volumeMounts:
+            - name: kernels
+              mountPath: /opt/xf/compiled
+            - name: scratch
+              mountPath: /tmp
+            - name: media
+              mountPath: /app/media
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "768Mi"
+            limits:
+              memory: "5Gi"
+      volumes:
+        - name: kernels
+          persistentVolumeClaim:
+            claimName: compiled-kernels
+        - name: scratch
+          emptyDir: {}
+        - name: media
+          emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-pipeline
+  namespace: xf-app
+  labels:
+    app: celery-pipeline
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: celery-pipeline
+  template:
+    metadata:
+      labels:
+        app: celery-pipeline
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
+      containers:
+        - name: celery-pipeline
+          image: 10.10.10.91:5000/xf-linker-backend:v2
+          imagePullPolicy: IfNotPresent
+          # Single-process (solo) on purpose — the ML libraries' threads make
+          # prefork recycling unsafe. Memory is bounded by the hard pod limit.
+          command:
+            - celery
+            - -A
+            - config.celery
+            - worker
+            - --loglevel=warning
+            - --pool=solo
+            - --concurrency=1
+            - --prefetch-multiplier=1
+            - -Q
+            - pipeline,embeddings
+          envFrom:
+            - configMapRef:
+                name: xf-app-config
+            - secretRef:
+                name: xf-app-secrets
+            - secretRef:
+                name: postgres-credentials
+          env:
+            - name: DJANGO_SETTINGS_MODULE
+              value: config.settings.production
+            - name: CELERY_BROKER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: CELERY_BROKER_URL
+            - name: PYTHONPATH
+              value: /opt/xf/compiled/active:/opt/xf/compiled:/app
+            - name: XF_COMPILED_ARTIFACT_ROOT
+              value: /opt/xf/compiled
+            - name: XF_COMPILED_BUILD_ROOT
+              value: /tmp/xf-build
+            - name: HOME
+              value: /tmp
+          volumeMounts:
+            - name: kernels
+              mountPath: /opt/xf/compiled
+            - name: scratch
+              mountPath: /tmp
+            - name: media
+              mountPath: /app/media
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "1Gi"
+            limits:
+              memory: "4Gi"
+      volumes:
+        - name: kernels
+          persistentVolumeClaim:
+            claimName: compiled-kernels
+        - name: scratch
+          emptyDir: {}
+        - name: media
+          emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-beat
+  namespace: xf-app
+  labels:
+    app: celery-beat
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: celery-beat
+  template:
+    metadata:
+      labels:
+        app: celery-beat
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
+      containers:
+        - name: celery-beat
+          image: 10.10.10.91:5000/xf-linker-backend:v2
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - config.celery
+            - beat
+            - --loglevel=warning
+            - --scheduler
+            - django_celery_beat.schedulers:DatabaseScheduler
+          envFrom:
+            - configMapRef:
+                name: xf-app-config
+            - secretRef:
+                name: xf-app-secrets
+            - secretRef:
+                name: postgres-credentials
+          env:
+            - name: DJANGO_SETTINGS_MODULE
+              value: config.settings.production
+            - name: CELERY_BROKER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: CELERY_BROKER_URL
+            - name: PYTHONPATH
+              value: /opt/xf/compiled/active:/opt/xf/compiled:/app
+            - name: HOME
+              value: /tmp
+          volumeMounts:
+            - name: kernels
+              mountPath: /opt/xf/compiled
+            - name: scratch
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              memory: "512Mi"
+      volumes:
+        - name: kernels
+          persistentVolumeClaim:
+            claimName: compiled-kernels
+        - name: scratch
+          emptyDir: {}

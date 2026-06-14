@@ -252,6 +252,42 @@ class SelectPythonTestTargetsTests(unittest.TestCase):
         self.assertIn("apps/auto_issues/tests_rotate_scope_log.py", targets)
         self.assertIn("apps/work_queue/tests_services.py", targets)
 
+    def test_same_dir_neighbour_is_selected_but_not_attributed(self) -> None:
+        """A sibling test that does not reference the changed module is still
+        selected (safety net) but is NOT attributed to the change in the map.
+
+        The cache key for an attributed target includes the changed source, so
+        it re-runs on any source change. A neighbour left out of the map is
+        cache-keyed on its own contents only, so it is skipped when it already
+        passed and did not itself change. That is what stops a one-line edit in
+        a test-heavy package from re-running the whole package.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "backend/apps/pipeline/tasks_tuning.py"
+            importer = root / "backend/apps/pipeline/tests_tuning_tasks.py"
+            neighbour = root / "backend/apps/pipeline/test_unrelated_thing.py"
+            for path in (source, importer, neighbour):
+                path.parent.mkdir(parents=True, exist_ok=True)
+            source.write_text("def check_gsc_spikes():\n    return 1\n", encoding="utf-8")
+            importer.write_text(
+                "from apps.pipeline.tasks_tuning import check_gsc_spikes\n",
+                encoding="utf-8",
+            )
+            neighbour.write_text("def test_other():\n    assert True\n", encoding="utf-8")
+
+            targets, missing, mapping = select_targets_with_map(
+                root, ["backend/apps/pipeline/tasks_tuning.py"]
+            )
+
+        self.assertEqual(missing, [])
+        # Both are selected so nothing is silently dropped.
+        self.assertIn("apps/pipeline/tests_tuning_tasks.py", targets)
+        self.assertIn("apps/pipeline/test_unrelated_thing.py", targets)
+        # Only the importing test is attributed to the changed source.
+        self.assertIn("apps/pipeline/tests_tuning_tasks.py", mapping)
+        self.assertNotIn("apps/pipeline/test_unrelated_thing.py", mapping)
+
 
 if __name__ == "__main__":
     unittest.main()

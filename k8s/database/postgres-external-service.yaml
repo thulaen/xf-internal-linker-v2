@@ -1,0 +1,49 @@
+# In-cluster stable address for the database (which runs on Dell's host, not as a pod).
+#
+# Plain English: the database lives directly on Dell, outside Kubernetes. App
+# pods need a fixed name to find it by, no matter which machine they run on.
+# This creates that name — "postgres" — inside the cluster, and points it at
+# Dell's database over the private cable (10.10.10.92:5432). Because the app
+# already expects the host name "postgres" (POSTGRES_HOST=postgres), no app
+# setting has to change.
+#
+# This is the standard Kubernetes "Service without a selector + manual
+# Endpoints" pattern for pointing a Service at something outside the cluster.
+#   https://kubernetes.io/docs/concepts/services-networking/service/#services-without-selectors
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: xf-app
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: xf-app
+  labels:
+    app: postgres
+    tier: database
+spec:
+  # No selector: endpoints are supplied manually below (the DB is not a pod).
+  type: ClusterIP
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+      protocol: TCP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  # Name MUST equal the Service name so Kubernetes pairs them.
+  name: postgres
+  namespace: xf-app
+  labels:
+    app: postgres
+subsets:
+  - addresses:
+      - ip: 10.10.10.92   # Dell's wired (private cable) address
+    ports:
+      - name: postgres
+        port: 5432
+        protocol: TCP

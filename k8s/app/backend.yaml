@@ -1,0 +1,171 @@
+# The Django backend, running in the cluster.
+#
+# Plain English: this runs the app's backend program as a pod on Dell (the
+# bigger machine). It pulls the image from our registry, mounts the 24 pre-built
+# Rust speed-up kernels at the path the app expects, and reads all its settings
+# and logins from the ConfigMap/Secrets set up earlier. On start it runs the
+# database setup steps (migrations), gathers static files, then launches the web
+# server (uvicorn) on port 8000.
+#
+# Notes for later slices (deliberately deferred here so the app can come up):
+#   * Health check is a simple "is the web server listening" TCP check. The
+#     deeper /api/system/health/ check still pings the job queue as if it were
+#     Redis; that one-line code fix + the RabbitMQ broker switch happen in a
+#     follow-up rebuild.
+#   * Error-tracking / tracing / profiling endpoints are NOT wired yet — they
+#     point at names only the old MSI setup can reach; they get wired when
+#     monitoring migrates. Their SDKs degrade quietly when unset.
+#   * Public web address (ingress) + nginx come in the front-end slice; for now
+#     ALLOWED_HOSTS is permissive and HTTPS-redirect is off for internal testing.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: xf-app
+  labels:
+    app: backend
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0   # keep at least one backend serving during a roll
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      # Heavy backend runs on Dell (16 GB, next to the database).
+      nodeSelector:
+        kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
+      containers:
+        - name: backend
+          image: 10.10.10.91:5000/xf-linker-backend:v2
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            # Migrations run ONCE in the backend-migrate Job (k8s/app/backend-migrate-job.yaml),
+            # not here — so two replicas never run them concurrently. Each pod
+            # still collects its own static files (idempotent, per-pod) for WhiteNoise.
+            - |
+              set -e
+              echo "[startup] collecting static files..."
+              python manage.py collectstatic --noinput
+              echo "[startup] launching uvicorn..."
+              exec python -m uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --workers 4
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: xf-app-config
+            - secretRef:
+                name: xf-app-secrets
+            - secretRef:
+                name: postgres-credentials
+          env:
+            - name: DJANGO_SETTINGS_MODULE
+              value: config.settings.production
+            - name: DJANGO_ALLOWED_HOSTS
+              value: "*"
+            # Internal cluster test runs over plain HTTP (no ingress/TLS yet),
+            # so relax the HTTPS-only production defaults (same as the local
+            # prod stack does). The front-end/ingress slice tightens these.
+            - name: DJANGO_SECURE_SSL_REDIRECT
+              value: "False"
+            - name: DJANGO_SESSION_COOKIE_SECURE
+              value: "False"
+            - name: DJANGO_CSRF_COOKIE_SECURE
+              value: "False"
+            - name: DJANGO_SECURE_HSTS_SECONDS
+              value: "0"
+            # The Celery job-queue address (RabbitMQ) — read by the workers later;
+            # harmless for the web process to carry.
+            - name: CELERY_BROKER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: CELERY_BROKER_URL
+            # Where the Rust kernels + build scratch live.
+            - name: PYTHONPATH
+              value: /opt/xf/compiled/active:/opt/xf/compiled:/app
+            - name: XF_COMPILED_ARTIFACT_ROOT
+              value: /opt/xf/compiled
+            - name: XF_COMPILED_BUILD_ROOT
+              value: /tmp/xf-build
+            - name: HOME
+              value: /tmp
+          volumeMounts:
+            - name: kernels
+              mountPath: /opt/xf/compiled
+            - name: scratch
+              mountPath: /tmp
+            - name: media
+              mountPath: /app/media
+            - name: staticfiles
+              mountPath: /app/staticfiles
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "768Mi"
+            limits:
+              memory: "2Gi"   # serving is light; 2 replicas x 2Gi fits Dell
+          startupProbe:
+            tcpSocket:
+              port: 8000
+            periodSeconds: 5
+            failureThreshold: 72   # up to 6 minutes for first-time startup
+          readinessProbe:
+            httpGet:
+              path: /api/system/health/
+              port: 8000
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 8000
+            periodSeconds: 20
+            failureThreshold: 6
+      volumes:
+        - name: kernels
+          persistentVolumeClaim:
+            claimName: compiled-kernels
+        - name: scratch
+          emptyDir: {}
+        - name: media
+          emptyDir: {}
+        - name: staticfiles
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: xf-app
+  labels:
+    app: backend
+spec:
+  selector:
+    app: backend
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
+---
+# Keeps at least one backend running during voluntary disruptions (node drains,
+# rollouts) so there's no downtime window.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: backend
+  namespace: xf-app
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: backend

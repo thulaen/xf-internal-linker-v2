@@ -1,0 +1,49 @@
+# App configuration — the STABLE, in-cluster, non-secret settings.
+#
+# Plain English: these are the app settings that are already certain inside the
+# cluster and contain no secrets. The backend (and workers) will load these as
+# environment values. Things that depend on the public web address, the run mode
+# (production vs development), or where monitoring lives are deliberately NOT here
+# yet — they get set together when the backend + front-end + monitoring move in,
+# because they are interlocked decisions.
+#
+# Secrets (the master security key, API tokens, passwords) live in Kubernetes
+# Secrets, never in this file. The database login is in "postgres-credentials";
+# the job-queue login + address is in "rabbitmq-credentials".
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: xf-app-config
+  namespace: xf-app
+  labels:
+    app: xf-backend
+data:
+  # --- Cache + real-time store (Valkey, reached as "redis") ---
+  REDIS_URL: "redis://redis:6379/0"
+  REDIS_CACHE_DB: "1"
+  REDIS_CELERY_DB: "2"
+  REDIS_CHANNELS_DB: "3"
+
+  # --- Machine-learning / embeddings settings ---
+  ML_PERFORMANCE_MODE: "BALANCED"
+  EMBEDDING_BATCH_SIZE: "32"
+  EMBEDDING_MODEL: "BAAI/bge-m3"
+  SPACY_MODEL: "en_core_web_sm"
+
+  # --- How long cached answers stay fresh (seconds) ---
+  CACHE_TTL_PIPELINE: "3600"
+  CACHE_TTL_XENFORO_API: "900"
+  CACHE_TTL_GSC: "21600"
+  CACHE_TTL_PAGERANK: "3600"
+
+  # --- Background-work knobs (the worker slice will tune these per pod) ---
+  CELERY_WORKER_CONCURRENCY: "2"
+  HTTP_WORKER_ENABLED: "false"
+  HTTP_WORKER_URL: "http://http-worker-api:8080"
+  HTTP_WORKER_BROKEN_LINK_BATCH_SIZE: "250"
+
+  # --- This node's identity in the cluster ---
+  NODE_ROLE: "k8s"
+
+  # --- Cluster runs non-debug by default ---
+  DJANGO_DEBUG: "False"

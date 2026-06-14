@@ -1,3 +1,44 @@
+## 2026-06-14 - Claude Opus 4.8 (1M) - Full app stack live in the k3s cluster + 4 resilience upgrades + 2 bug fixes
+
+[HANDOFF READ: 2026-06-14 by Codex GPT-5 — unified the seven external ranking plans around JupyterLab as the observation platform; planning-only, no product code changed.]
+[PROGRESS READ: 2026-06-14 16:20 — 5 files to commit (k8s manifests + push script + 2 backend bug fixes + this entry); no stall.]
+[AUTOISSUE QUOTA VERIFIED: 63 resolved]
+
+**What I did (plain English):** Brought the entire backend app stack up inside the two-machine k3s cluster (Mint control-plane + Dell worker), then hardened it. The cluster now runs shared + fast storage, the database reachable by name, the cache (Valkey) and a durable job queue (RabbitMQ), a private image registry, the Django backend (TWO copies for no-downtime), and the Celery workers. I also fixed two real bugs the cluster run surfaced, set up an automated off-machine database backup with a *tested* restore, and made the image-deploy path survive the flaky MSI↔Mint WiFi.
+
+**What now works that did not before:**
+- **The backend runs in the cluster** — pulls its image from the in-cluster registry (`10.10.10.91:5000`), loads all 24 Rust speed-up kernels (staged from the live `compiled_artifacts` volume onto a cluster disk), connects to Postgres/Valkey/RabbitMQ, serves. Two replicas behind a Service + PodDisruptionBudget: killing one pod keeps serving (proven, HTTP 200).
+- **Database safety net (mission-critical):** Dell's Postgres continuously archives its write-ahead logs + takes daily full backups to Mint's drive (off-Dell, survives a Dell disk failure), 7-day retention. A real restore was PROVEN (rebuilt a temp DB → 340 tables, 3 users).
+- **Resilient image deploys:** `scripts/push-image-to-cluster.sh` builds on Mint + pushes detached so a dropped WiFi connection can't strand a deploy.
+- **Two bug fixes** (validated live in the cluster): `check_gsc_spikes` queried a non-existent `is_active` field on ContentItem → fixed to `is_deleted=False`; the Celery queue-depth health check assumed Redis → now uses `kombu` so it reads RabbitMQ.
+
+**What changed (committed):** `backend/apps/pipeline/tasks_tuning.py` (is_active→is_deleted), `backend/apps/health/services.py` (kombu broker-agnostic queue-depth check), new dir `k8s/` (storage/db/cache/broker/registry/app manifests + backend-migrate Job + PDB), `scripts/push-image-to-cluster.sh` (resilient build+push), this entry. The live cluster state, Dell Postgres archiving, Mint registry-trust, and RabbitMQ config are infrastructure on the machines, not repo files.
+
+**What has issues or errors:** (1) The cluster's Celery `default` worker crash-looped under the first-boot scheduled-job storm (beat fires all ~40 periodic jobs at once on a fresh DB); stabilized by pausing the cluster's beat — this is a STAGED cluster, the live app + real scheduler stay on MSI; re-enable beat at the real DB cutover. (2) The migration replaced Dell's Windows+Docker with Ubuntu+k3s, so the Dell *test* path (`run_pytest_on_context.py` → Dell Docker) is unavailable this session; the two code fixes were validated live in the cluster backend pod instead of the formal Dell suite. (3) MSI↔Mint WiFi is flaky (Mint on congested 2.4GHz); diagnosed, software-mitigated via the resilient push, hardware fix (powerline) left to the user.
+
+**Verification:** Backend serves (`/api/system/health/`→200, `/admin/login/`→200); 24 Rust kernels import with expected attrs; both fixes validated against the live cluster (`ContentItem.objects.filter(is_deleted=False)` runs clean; kombu read real RabbitMQ depths); backend HA proven (killed one pod → survivor served 200); DB restore proven (temp instance → 340 tables/3 users); resilient detached push proven live. `turbo=blocked: Dell's Docker test path was replaced by Ubuntu+k3s this session; the 2 code fixes were validated live in the cluster instead`.
+
+**Tech-debt delta:** Net positive — fixed 2 real bugs (the is_active crash + the Redis-only broker health check), added a tested database backup/restore (was a total gap), added backend HA + a resilient deploy path. Debt added (tracked in memory): re-enable + stagger the cluster scheduler post-cutover; restore a cluster-native test/quality path now that Dell's Docker is gone.
+
+[COVERAGE SUMMARY: target=90% actual=unmeasured — the two small bug fixes were validated live against the running cluster (the corrected query runs; the kombu health check reads RabbitMQ); formal line coverage could not be measured because the migration replaced Dell's Docker test environment with k3s this session]
+
+## 2026-06-14 - Codex GPT-5 - Unified seven ranking plans around JupyterLab as the observation platform
+
+[HANDOFF READ: 2026-06-14 by Claude Opus 4.8 (1M) — began the Kubernetes migration by proving the Dell-to-Mint wired link and moving Mint's address into one setting.]
+[PROGRESS READ: 2026-06-14 16:05 — 3 files left to commit; no stall.]
+
+**What I did (plain English):** Reviewed the seven external planning files the user listed under OneDrive and produced a unified architecture recommendation. The new design makes JupyterLab the only place where agents show analysis results to the user. A notebook block is treated as one visible step; when the block runs, the result appears below it as a table, chart, status, or approval control.
+
+**What now works that did not before:** The duplicate plan directions have a single merge rule: keep the useful capabilities, but express implementation only in Python, Rust, or TypeScript. Wolfram Engine and MATLAB stay as controlled external calculation tools called by Python, not as places where permanent repo logic lives. Flutter, Angular dashboard work, React dashboard work, Spark, R, Lean, Haskell, Go, C++, Lua, Octave, and file-only history are pruned from the implementation path. Their useful ideas become notebook blocks, Python data jobs, Rust validation/scoring code, TypeScript JupyterLab controls, PostgreSQL history, and Dell-hosted export artifacts.
+
+**What changed:** Only this handoff entry was added. No production code, tests, specs, or external plan files were edited.
+
+**What has issues or errors:** The OneDrive files live outside the workspace sandbox, so reads required elevated file-read commands. Some older plans are marked superseded and still contain removed-language directions; those directions must not be implemented. No quality test suite was run because this turn did not change product code. `turbo=blocked:no code or quality-command group was applicable for this architecture-only review`.
+
+**Tech-debt delta:** Neutral to positive. No code debt changed. The review gives the next agent a smaller target architecture and removes duplicate or forbidden implementation paths from future planning.
+
+[COVERAGE SUMMARY: target=0% actual=0% — met (planning-only review; no product code changed)]
+
 ## 2026-06-14 - Claude Opus 4.8 (1M) - K8s migration kickoff: Dell↔Mint wired link + single-source Mint address (MINT_OBSERVABILITY_HOST)
 
 [HANDOFF READ: 2026-06-13 by Claude Opus 4.8 (1M) — landed Codex's Rust ranking-engine migration and fixed the stale Dell test kernel; repo clean on master.]

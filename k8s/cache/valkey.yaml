@@ -1,0 +1,79 @@
+# Valkey: the cache + real-time-messaging store (drop-in replacement for Redis).
+#
+# Plain English: Valkey is the open-source continuation of Redis and speaks the
+# exact same language, so the app keeps using the address "redis://redis:6379"
+# unchanged. It handles two transient jobs here: the fast cache, and the
+# real-time/websocket backplane (Django Channels). It does NOT need to keep data
+# on disk — if it restarts, the cache simply refills and live connections
+# reconnect. The durable job queue is RabbitMQ's job, not this one.
+#
+# Memory is capped and set to evict least-recently-used keys, so it can never
+# grow without bound and crash the node.
+#   https://valkey.io/
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: valkey
+  namespace: xf-app
+  labels:
+    app: valkey
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: valkey
+  template:
+    metadata:
+      labels:
+        app: valkey
+    spec:
+      containers:
+        - name: valkey
+          image: valkey/valkey:8
+          args:
+            - "--save"
+            - ""
+            - "--appendonly"
+            - "no"
+            - "--maxmemory"
+            - "512mb"
+            - "--maxmemory-policy"
+            - "allkeys-lru"
+          ports:
+            - containerPort: 6379
+              name: valkey
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              memory: "640Mi"
+          readinessProbe:
+            exec:
+              command: ["valkey-cli", "ping"]
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 6379
+            initialDelaySeconds: 10
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  # Named "redis" on purpose: the app's REDIS_URL=redis://redis:6379 stays valid.
+  name: redis
+  namespace: xf-app
+  labels:
+    app: valkey
+spec:
+  selector:
+    app: valkey
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+      protocol: TCP

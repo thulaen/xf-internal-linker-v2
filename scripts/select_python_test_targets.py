@@ -53,7 +53,15 @@ def _app_root(path: Path) -> Path | None:
     return Path("apps") / parts[1]
 
 
-def _existing_candidates(root: Path, backend_relative: Path) -> list[Path]:
+def _precise_candidates(root: Path, backend_relative: Path) -> list[Path]:
+    """Tests known to exercise this source: a same-name test, a test that imports
+    the module, a command test that calls it, or a same-app test named after it.
+
+    These are the targets whose cache key includes the changed source — change
+    the source and they re-run. The whole-directory neighbours are handled
+    separately by ``_proximity_candidates`` so a sibling change does not force an
+    unrelated, already-passing test to run again.
+    """
     candidates: list[Path] = []
     parent = backend_relative.parent
     stem = backend_relative.stem
@@ -77,11 +85,27 @@ def _existing_candidates(root: Path, backend_relative: Path) -> list[Path]:
                 app_root / "tests.py",
             ]
         )
-    candidates.extend(_nearby_test_files(root, parent))
     candidates.extend(_import_based_test_files(root, backend_relative))
     candidates.extend(_management_command_test_files(root, backend_relative))
     candidates.extend(_same_app_named_test_files(root, backend_relative))
     return [path for path in candidates if (root / "backend" / path).exists()]
+
+
+def _proximity_candidates(root: Path, backend_relative: Path) -> list[Path]:
+    """Every test file sitting in the SAME directory as the changed source.
+
+    Kept as a safety net (a test may exercise the source without naming it), but
+    selected WITHOUT attributing the changed source to them: an unchanged
+    neighbour that already passed is cache-skipped instead of re-run just because
+    a file next to it changed. That is what stops a one-line edit in a
+    test-heavy package from re-running the whole package.
+    """
+    parent = backend_relative.parent
+    return [
+        path
+        for path in _nearby_test_files(root, parent)
+        if (root / "backend" / path).exists()
+    ]
 
 
 def _same_app_test_files(root: Path, backend_relative: Path) -> list[Path]:
@@ -192,15 +216,27 @@ def _generated_sidecar_contract_tests(root: Path, backend_relative: Path) -> lis
     return []
 
 
-def _candidate_tests_for_path(root: Path, backend_relative: Path) -> list[Path]:
+def _candidate_tests_for_path(
+    root: Path, backend_relative: Path
+) -> tuple[list[Path], list[Path]]:
+    """Return ``(precise, proximity)`` candidate test paths for one source file.
+
+    ``precise`` targets are attributed to the source (they re-run when it
+    changes); ``proximity`` targets are same-directory neighbours selected for
+    safety but not attributed (they re-run only when their own file changes or
+    they have not passed yet).
+    """
     if backend_relative.parts and backend_relative.parts[0] == "config":
-        return [Path("config") / "tests.py", Path("config") / "tests"]
+        return [Path("config") / "tests.py", Path("config") / "tests"], []
     if _is_test_path(backend_relative):
-        return [backend_relative]
+        return [backend_relative], []
     generated_sidecar_tests = _generated_sidecar_contract_tests(root, backend_relative)
     if generated_sidecar_tests:
-        return generated_sidecar_tests
-    return _existing_candidates(root, backend_relative)
+        return generated_sidecar_tests, []
+    return (
+        _precise_candidates(root, backend_relative),
+        _proximity_candidates(root, backend_relative),
+    )
 
 
 def select_targets_with_map(
@@ -218,11 +254,20 @@ def select_targets_with_map(
         if not (_backend_root(root) / backend_relative).exists():
             # Deleted (or renamed-away) sources need no pytest target.
             continue
-        candidates = _candidate_tests_for_path(root, backend_relative)
-        existing = [path for path in candidates if (_backend_root(root) / path).exists()]
+        precise, proximity = _candidate_tests_for_path(root, backend_relative)
+        precise = [p for p in precise if (_backend_root(root) / p).exists()]
+        proximity = [
+            p
+            for p in proximity
+            if (_backend_root(root) / p).exists() and p not in precise
+        ]
+        existing = precise + proximity
         if existing:
             targets.extend(path.as_posix() for path in existing)
-            for path in existing:
+            # Only the precise targets are attributed to the changed source, so a
+            # neighbour selected purely by proximity is cache-keyed on its own
+            # contents and skipped when it already passed and did not change.
+            for path in precise:
                 mapping.setdefault(path.as_posix(), set()).add(
                     backend_relative.as_posix()
                 )

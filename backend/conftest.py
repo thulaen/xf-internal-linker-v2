@@ -111,43 +111,61 @@ def pytest_sessionfinish(session, exitstatus) -> None:  # noqa: ARG001
 
 
 @pytest.fixture(scope="session")
-def django_db_setup(request, django_test_environment, django_db_blocker):
-    """Session-scoped DB setup that evicts monitoring connections on teardown.
+def django_db_setup(
+    request,
+    django_test_environment,
+    django_db_blocker,
+    django_db_keepdb,
+    django_db_createdb,
+    django_db_modify_db_settings,
+):
+    """Session-scoped DB setup: parallel-safe, reuse-aware, monitor-evicting.
 
-    Overrides pytest-django's default ``django_db_setup`` fixture to:
-    1. Evict stale monitoring connections BEFORE setup (clears any leftover
-       connections from a previous failed teardown).
-    2. Evict monitoring connections again BEFORE teardown so that Django's
-       DROP DATABASE command succeeds even when postgres-exporter reconnected
-       during the session.
+    Overrides pytest-django's default ``django_db_setup`` fixture. Three jobs:
 
-    This is necessary because postgres-exporter connects to every database in
-    the cluster, including test_xf_linker.  Without this override, teardown
-    fails with "database is being accessed by other users" and test_xf_linker
-    persists across sessions, causing the NEXT session to fail at setup.
-    See AutoIssue #20181 and paper-trail #304.
+    1. **One database per parallel worker.** Depending on
+       ``django_db_modify_db_settings`` pulls in pytest-django's per-xdist-worker
+       suffix, so under ``-n auto`` each worker creates its own
+       ``test_xf_linker_gwN`` database. Without this dependency every worker
+       tries to create the single name ``test_xf_linker`` at once and all but
+       one die with "duplicate database" at setup.
+    2. **Honor ``--reuse-db``.** When keepdb is on, the per-worker databases are
+       created once and kept, so the next run skips the full migration and is
+       fast instead of re-migrating every worker DB from scratch.
+    3. **Evict stale monitoring connections.** On the shared local Postgres,
+       postgres-exporter connects to every database including the test DB; a
+       leftover idle connection blocks DROP at teardown. Evicting first lets the
+       DROP succeed. This is a best-effort no-op on the isolated Dell test
+       Postgres (no exporter there). See AutoIssue #20181 and paper-trail #304.
     """
+    from django.db import connections
     from django.test.utils import setup_databases, teardown_databases
 
+    keepdb = bool(django_db_keepdb and not django_db_createdb)
     _kill_monitoring_connections_to_test_db()
     with django_db_blocker.unblock():
         old_config = setup_databases(
             verbosity=request.config.option.verbose,
             interactive=False,
+            keepdb=keepdb,
         )
     yield
 
+    if keepdb:
+        # --reuse-db: keep the per-worker databases for the next run.
+        return
+
     with django_db_blocker.unblock():
-        # Kill monitoring connections AND drop the test DB in a single
-        # transaction to prevent the exporter from reconnecting between the
-        # two steps.  After this the test DB is gone; teardown_databases is
-        # called with the DB already absent, which is a no-op for Django.
+        # Kill monitoring connections AND drop the test DB so the exporter can't
+        # reconnect between the two steps. ``setup_databases`` rewrites the
+        # connection's NAME to the (possibly worker-suffixed) test DB, so read
+        # that real name rather than re-deriving it.
         try:
             import psycopg
             from django.conf import settings
 
             db = settings.DATABASES["default"]
-            test_db_name = f"test_{db.get('NAME', 'xf_linker')}"
+            test_db_name = connections["default"].settings_dict["NAME"]
             conn_str = (
                 f"host={db.get('HOST', 'localhost')} "
                 f"port={db.get('PORT', 5432)} "

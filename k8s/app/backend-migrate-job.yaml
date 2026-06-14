@@ -1,0 +1,58 @@
+# Run-once database migration job.
+#
+# Plain English: with two backend copies, we can't let both run database
+# migrations at the same time (they'd collide). So migrations move here — a job
+# that runs exactly once on deploy, finishes, and gets out of the way. The
+# backend copies then just serve traffic.
+#
+# To re-run on a new deploy:
+#   kubectl -n xf-app delete job backend-migrate --ignore-not-found
+#   kubectl apply -f k8s/app/backend-migrate-job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: backend-migrate
+  namespace: xf-app
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: backend-migrate
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
+      containers:
+        - name: migrate
+          image: 10.10.10.91:5000/xf-linker-backend:v2
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c", "python manage.py migrate --noinput"]
+          envFrom:
+            - configMapRef:
+                name: xf-app-config
+            - secretRef:
+                name: xf-app-secrets
+            - secretRef:
+                name: postgres-credentials
+          env:
+            - name: DJANGO_SETTINGS_MODULE
+              value: config.settings.production
+            - name: PYTHONPATH
+              value: /opt/xf/compiled/active:/opt/xf/compiled:/app
+            - name: XF_COMPILED_ARTIFACT_ROOT
+              value: /opt/xf/compiled
+            - name: HOME
+              value: /tmp
+          volumeMounts:
+            - name: kernels
+              mountPath: /opt/xf/compiled
+            - name: scratch
+              mountPath: /tmp
+      volumes:
+        - name: kernels
+          persistentVolumeClaim:
+            claimName: compiled-kernels
+        - name: scratch
+          emptyDir: {}

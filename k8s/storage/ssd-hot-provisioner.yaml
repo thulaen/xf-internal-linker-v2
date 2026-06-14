@@ -1,0 +1,159 @@
+# "Hot" fast-disk storage, pinned to Dell's 1 TB SSD.
+#
+# Plain English: this is the speed tier. The cold tier (nfs-cold) is roomy and
+# shared but travels over the network. This one hands out space directly on
+# Dell's fast SSD (/srv/data/k8s-hot), right next to the database — for things
+# that need to be fast and don't need to be reached from the other machine:
+# test scratch space, performance-sensitive caches, database-adjacent work.
+#
+# It is LOCKED to Dell: only the Dell node appears in the path map, so a volume
+# from the "ssd-hot" class can only ever be created on Dell's SSD. A pod that
+# asks for ssd-hot storage is therefore scheduled onto Dell.
+#
+# Unlike nfs-cold (which archives on delete), this tier ERASES on delete — it is
+# for reproducible/ephemeral data only. Durable data belongs on nfs-cold or in
+# the database. This keeps the fast disk from filling with stale scratch.
+#
+# Provisioner: Rancher local-path-provisioner (a second, independent instance
+# from the k3s built-in one, so it doesn't disturb the default "local-path").
+#   https://github.com/rancher/local-path-provisioner
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ssd-hot-provisioner
+  namespace: xf-storage
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ssd-hot-provisioner-role
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "persistentvolumeclaims", "configmaps", "pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "create", "patch", "update", "delete"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "create", "patch", "update", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ssd-hot-provisioner-bind
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ssd-hot-provisioner-role
+subjects:
+  - kind: ServiceAccount
+    name: ssd-hot-provisioner
+    namespace: xf-storage
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ssd-hot-provisioner
+  namespace: xf-storage
+  labels:
+    app: ssd-hot-provisioner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ssd-hot-provisioner
+  template:
+    metadata:
+      labels:
+        app: ssd-hot-provisioner
+    spec:
+      serviceAccountName: ssd-hot-provisioner
+      containers:
+        - name: local-path-provisioner
+          image: rancher/local-path-provisioner:v0.0.30
+          command:
+            - local-path-provisioner
+            - --debug
+            - start
+            - --config
+            - /etc/config/config.json
+            - --provisioner-name
+            - cluster.local/ssd-hot
+            - --configmap-name
+            - ssd-hot-config
+            - --service-account-name
+            - ssd-hot-provisioner
+            - --helper-pod-file
+            - /etc/config/helperPod.yaml
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/config/
+          env:
+            - name: POD_NAMESPACE
+              value: xf-storage
+            - name: CONFIG_MOUNT_PATH
+              value: /etc/config/
+      volumes:
+        - name: config-volume
+          configMap:
+            name: ssd-hot-config
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: ssd-hot-config
+  namespace: xf-storage
+data:
+  # Only Dell is listed -> ssd-hot volumes can only be created on Dell's SSD.
+  config.json: |-
+    {
+      "nodePathMap": [
+        {
+          "node": "dell-ubuntu-01-optiplex-micro-7010",
+          "paths": ["/srv/data/k8s-hot"]
+        }
+      ]
+    }
+  setup: |-
+    #!/bin/sh
+    set -eu
+    mkdir -m 0777 -p "$VOL_DIR"
+  teardown: |-
+    #!/bin/sh
+    set -eu
+    rm -rf "$VOL_DIR"
+  helperPod.yaml: |-
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: helper-pod
+    spec:
+      priorityClassName: system-node-critical
+      tolerations:
+        - key: node.kubernetes.io/disk-pressure
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: helper-pod
+          image: busybox:1.36
+          imagePullPolicy: IfNotPresent
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ssd-hot
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: cluster.local/ssd-hot
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete

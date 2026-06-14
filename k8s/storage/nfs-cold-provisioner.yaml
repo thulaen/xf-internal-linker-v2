@@ -1,0 +1,138 @@
+# Shared "cold" storage for the cluster.
+#
+# Plain English: this makes Mint's big drive available to the whole cluster as an
+# on-demand shared folder. When any app part asks for disk using the "nfs-cold"
+# storage class, this provisioner automatically carves out a subfolder on Mint's
+# NFS share (/srv/nfs/cluster, reached over the private 10.10.10.0/24 cable) and
+# hands it to that app part. Used for data that must survive restarts and be
+# reachable from either machine: uploaded media, caches, monitoring history.
+#
+# The "hot" tier (Dell's fast SSD, for database-adjacent + test scratch) is a
+# separate storage class added in the next slice.
+#
+# Provisioner: nfs-subdir-external-provisioner (Kubernetes SIG-Storage).
+#   https://github.com/kubernetes-sigs/nfs-subdir-external-provisioner
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: xf-storage
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nfs-client-provisioner
+  namespace: xf-storage
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nfs-client-provisioner-runner
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "update", "patch"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: run-nfs-client-provisioner
+subjects:
+  - kind: ServiceAccount
+    name: nfs-client-provisioner
+    namespace: xf-storage
+roleRef:
+  kind: ClusterRole
+  name: nfs-client-provisioner-runner
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: leader-locking-nfs-client-provisioner
+  namespace: xf-storage
+rules:
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: leader-locking-nfs-client-provisioner
+  namespace: xf-storage
+subjects:
+  - kind: ServiceAccount
+    name: nfs-client-provisioner
+    namespace: xf-storage
+roleRef:
+  kind: Role
+  name: leader-locking-nfs-client-provisioner
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nfs-client-provisioner
+  namespace: xf-storage
+  labels:
+    app: nfs-client-provisioner
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: nfs-client-provisioner
+  template:
+    metadata:
+      labels:
+        app: nfs-client-provisioner
+    spec:
+      serviceAccountName: nfs-client-provisioner
+      containers:
+        - name: nfs-client-provisioner
+          image: registry.k8s.io/sig-storage/nfs-subdir-external-provisioner:v4.0.2
+          volumeMounts:
+            - name: nfs-client-root
+              mountPath: /persistentvolumes
+          env:
+            - name: PROVISIONER_NAME
+              value: xf.cluster/nfs-cold
+            - name: NFS_SERVER
+              value: "10.10.10.91"
+            - name: NFS_PATH
+              value: /srv/nfs/cluster
+      volumes:
+        - name: nfs-client-root
+          nfs:
+            server: 10.10.10.91
+            path: /srv/nfs/cluster
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs-cold
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: xf.cluster/nfs-cold
+parameters:
+  # On PVC delete, the data subfolder is renamed (archived) instead of erased —
+  # a safety net so a mistaken delete never silently loses files.
+  archiveOnDelete: "true"
+reclaimPolicy: Delete
+volumeBindingMode: Immediate

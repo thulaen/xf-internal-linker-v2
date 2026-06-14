@@ -1787,12 +1787,27 @@ def _classify_celery_queue_depth(
     description="Number of pending tasks waiting in each Celery queue.",
 )
 def check_celery_queue_depth() -> ServiceHealthResult:
-    import redis as redis_lib
+    # Broker-agnostic: kombu reads the pending-message count straight from
+    # whatever broker CELERY_BROKER_URL points at — RabbitMQ over amqp:// or
+    # Redis over redis://. The previous version used the Redis client + LLEN
+    # directly, which raised on an amqp:// URL and made this check report a
+    # permanent failure once the broker became RabbitMQ.
+    from kombu import Connection, Queue
 
     try:
         broker_url = getattr(settings, "CELERY_BROKER_URL", _DEFAULT_CELERY_BROKER_URL)
-        r = redis_lib.from_url(broker_url, socket_connect_timeout=5)
-        depths = {q: r.llen(q) for q in _CELERY_QUEUE_NAMES}
+        depths: dict[str, int] = {}
+        with Connection(broker_url, connect_timeout=5) as conn:
+            conn.connect()
+            for q in _CELERY_QUEUE_NAMES:
+                try:
+                    channel = conn.channel()
+                    declared = Queue(q, channel=channel).queue_declare(passive=True)
+                    depths[q] = int(getattr(declared, "message_count", 0) or 0)
+                    channel.close()
+                except Exception:
+                    # Queue not declared yet (no worker has touched it) -> 0 pending.
+                    depths[q] = 0
         total = sum(depths.values())
         meta = {f"{q}_depth": depths[q] for q in _CELERY_QUEUE_NAMES}
         meta["total_depth"] = total
@@ -1811,7 +1826,7 @@ def check_celery_queue_depth() -> ServiceHealthResult:
             "celery_queues",
             e,
             label="Queue depth check failed.",
-            fix="Ensure Redis is running and CELERY_BROKER_URL is correct.",
+            fix="Ensure the broker (RabbitMQ or Redis) is running and CELERY_BROKER_URL is correct.",
         )
 
 

@@ -89,7 +89,14 @@ _DELL_TEST_NET = "xf_dell_test_net"
 # scripts/run-python-quality.sh (random order, reuse the test DB so migrations
 # run once). `--override-ini addopts=` drops the repo's heavy default addopts
 # (coverage, etc.) so a scoped shard stays fast.
-_PYTEST_FLAGS = ("--override-ini", "addopts=", "-p", "randomly", "-q", "--reuse-db", "-o", "cache_dir=/tmp/xf-test-cache/pytest")
+#
+# `-n auto`: the unit-test slot fans out across EVERY core pytest-xdist detects
+# at runtime inside the Dell container (os.cpu_count via the cgroup) — never a
+# hardcoded worker count. Each xdist worker gets its own `test_<db>_gwN` database
+# (pytest-django handles the suffixing) so the parallel workers never collide on
+# the shared Dell test Postgres. This is the "turbo, all-cores, adaptive" unit
+# slot: one test type, maxing the machine, instead of one core at a time.
+_PYTEST_FLAGS = ("--override-ini", "addopts=", "-p", "randomly", "-q", "--reuse-db", "-n", "auto", "-o", "cache_dir=/tmp/xf-test-cache/pytest")
 
 
 def _configure_stdout() -> None:

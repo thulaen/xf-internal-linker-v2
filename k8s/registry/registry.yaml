@@ -1,0 +1,96 @@
+# Private image store ("registry") for the cluster, living on Mint.
+#
+# Plain English: this is the cluster's own private place to keep the app's
+# program images. The build step pushes images here; Mint and Dell pull from
+# here when starting pods. It is addressed as 10.10.10.91:5000 — Mint's WIRED
+# address — so all image traffic (which can be gigabytes) crosses the fast
+# private cable, never WiFi.
+#
+# Storage is on Mint's local big drive (the default "local-path" disk on the
+# node the pod runs on). The pod is pinned to Mint and publishes port 5000 on
+# Mint's host directly (hostPort), so containerd on both machines can reach it
+# at a fixed address without depending on cluster-internal routing.
+#   https://distribution.github.io/distribution/  (the standard registry:2)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: xf-registry
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: registry-data
+  namespace: xf-registry
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registry
+  namespace: xf-registry
+  labels:
+    app: registry
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: registry
+  template:
+    metadata:
+      labels:
+        app: registry
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: minthelper01-lenovo-c50-30
+      containers:
+        - name: registry
+          image: registry:2
+          ports:
+            - containerPort: 5000
+              hostPort: 5000
+              name: registry
+          env:
+            - name: REGISTRY_STORAGE_DELETE_ENABLED
+              value: "true"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/registry
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              memory: "1Gi"
+          readinessProbe:
+            httpGet:
+              path: /v2/
+              port: 5000
+            initialDelaySeconds: 3
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: registry-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: registry
+  namespace: xf-registry
+  labels:
+    app: registry
+spec:
+  selector:
+    app: registry
+  ports:
+    - name: registry
+      port: 5000
+      targetPort: 5000
+      protocol: TCP
