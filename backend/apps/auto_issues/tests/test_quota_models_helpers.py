@@ -26,7 +26,6 @@ from apps.auto_issues.models import (
     AutoIssue,
     BuildFailureEvidence,
     CodeQLFindingEvidence,
-    FindBugsLearnedLesson,
 )
 from apps.auto_issues.management.commands.print_open_issues import _issue_dedupe_key
 from apps.auto_issues.management.commands.rotate_gh_actions_log import _parse_cutoff
@@ -120,13 +119,6 @@ class EvidenceModelStrTests(SimpleTestCase):
     def test_build_failure_str_uses_all_placeholder_when_no_targets(self):
         ev = BuildFailureEvidence(builder="mint", targets=[], exit_code=2)
         self.assertEqual(str(ev), "[build/mint] <all> exit=2")
-
-    def test_findbugs_str_truncates_fingerprint_to_twelve(self):
-        lesson = FindBugsLearnedLesson(
-            classification="false_positive",
-            lesson_fingerprint="0123456789abcdef",
-        )
-        self.assertEqual(str(lesson), "[findbugs-lesson/false_positive] 0123456789ab")
 
 
 class ParseCutoffTests(SimpleTestCase):

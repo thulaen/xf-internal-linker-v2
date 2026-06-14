@@ -186,11 +186,6 @@ class OtherModelsStrTests(SimpleTestCase):
         ev = BuildFailureEvidence(builder="gcc", targets=["foo", "bar"], exit_code=2)
         self.assertEqual(str(ev), "[build/gcc] foo,bar exit=2")
 
-    def test_findbugs_lesson_str(self) -> None:
-        from apps.auto_issues.models import FindBugsLearnedLesson
-        lesson = FindBugsLearnedLesson(classification=FindBugsLearnedLesson.CLASS_FALSE_POSITIVE, lesson_fingerprint="abcdef1234567890")
-        self.assertEqual(str(lesson), "[findbugs-lesson/false_positive] abcdef123456")
-
     def test_quality_evidence_str(self) -> None:
         from apps.auto_issues.models import QualityEvidence
         ev = QualityEvidence(check_type=QualityEvidence.CHECK_MUTATION, status=QualityEvidence.STATUS_FAILED, tool_name="mutmut", file_path="foo.py")

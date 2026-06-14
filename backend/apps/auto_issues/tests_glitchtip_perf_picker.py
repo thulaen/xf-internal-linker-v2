@@ -77,7 +77,6 @@ class ParseTransactionsTests(SimpleTestCase):
         # are far slower than the user-facing endpoints.
         rows = [
             {"transaction": "analytics.detect_traffic_spikes", "p95": 54075.0, "count": 11, "op": "queue.task.celery"},
-            {"transaction": "run/findbugs.run_scan", "p95": 54075.0, "count": 54, "op": ""},
             {"transaction": "TRUNCATE", "p95": 9000.0, "count": 2, "op": "db"},
             {"transaction": "GET /api/health/", "p95": 800.0, "count": 5, "op": "http.server"},
             {"transaction": "/observability", "p95": 600.0, "count": 3, "op": "pageload"},

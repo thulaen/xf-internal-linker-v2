@@ -136,14 +136,6 @@ export const routes: Routes = [
   // convention; registering `/observability` also fixes the broken link in
   // work-queue.component.html that pointed at it.
   {
-    path: 'find-bugs',
-    loadComponent: () =>
-      import('./find-bugs/find-bugs.component').then((m) => m.FindBugsComponent),
-    title: 'Find Bugs — XF Internal Linker',
-    canActivate: [authGuard],
-    data: { breadcrumb: 'Find Bugs' },
-  },
-  {
     path: 'observability',
     loadComponent: () =>
       import('./observability/observability.component').then((m) => m.ObservabilityComponent),

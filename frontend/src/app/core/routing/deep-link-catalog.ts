@@ -199,21 +199,6 @@ export const DEEP_LINK_CATALOG: readonly DeepLinkEntry[] = [
     searchTerms: ['diagnostics', 'errors', 'pipeline gate', 'runtime'],
   },
   {
-    key: 'find-bugs.main',
-    label: 'Find Bugs',
-    subtitle: 'Automated bug-pattern findings with confirm and triage actions.',
-    route: '/find-bugs',
-    searchTerms: ['find bugs', 'findbugs', 'bug patterns', 'static analysis', 'findings'],
-  },
-  {
-    key: 'find-bugs.severity-chart',
-    label: 'Find Bugs — severity spread',
-    subtitle: 'Bar chart of how many findings fall into each severity level.',
-    route: '/find-bugs',
-    scrollTarget: 'find-bugs-severity-card',
-    searchTerms: ['severity', 'severity spread', 'bug chart', 'critical high medium low'],
-  },
-  {
     key: 'observability.main',
     label: 'Observability',
     subtitle: 'Live health of the monitoring and quality stack (metrics, logs, traces).',

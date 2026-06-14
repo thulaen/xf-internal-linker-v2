@@ -192,12 +192,6 @@ class NetworkPickerGuardCoverageTests(SimpleTestCase):
             "apps.auto_issues.services.pip_audit_picker.pick_pip_audit_findings",
         )
 
-    def test_run_findbugs_scan_task_guard_runs(self) -> None:
-        self._assert_guard_runs(
-            "run_findbugs_scan_task",
-            "apps.auto_issues.services.findbugs.run_findbugs_scan",
-        )
-
 
 class CloseStaleIssuesThresholdTests(SimpleTestCase):
     """close_stale_issues closes the connection then queries through the ORM.

@@ -492,8 +492,10 @@ services:
   # services/clusterd + services/findbugs-haskell source, the auto_issues
   # clustering feature (cluster_autoissues/tune_clustering/_clusterd_client/
   # _clusterd_pb2), the clusterd_sock volume + backend mount, and the Haskell
-  # hooks/CI are all deleted. The Rust-backed FindBugs scanner (rust_defect
-  # source, findbugs.* celery tasks, FindBugs REST views) is unrelated and stays.
+  # hooks/CI are all deleted. The find-bugs UI feature (the /find-bugs page,
+  # findbugs.* celery tasks, the FindBugs REST views + service) was later removed
+  # too; the rust_defect AutoIssue source (rust_findings.py + the
+  # import_rust_findings management command) is a separate pipeline and stays.
 
   # ─────────────────────────────────────────────
   # Nginx — serves the Angular prod bundle + proxies /api/ and /ws/

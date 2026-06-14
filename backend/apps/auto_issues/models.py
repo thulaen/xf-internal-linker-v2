@@ -356,46 +356,6 @@ class BuildFailureEvidence(models.Model):
         return f"[build/{self.builder}] {target} exit={self.exit_code}"
 
 
-class FindBugsLearnedLesson(models.Model):
-    """Deduped compressed lessons from FindBugs false calls and missed calls."""
-
-    CLASS_FALSE_POSITIVE = "false_positive"
-    CLASS_FALSE_NEGATIVE = "false_negative"
-    CLASS_CHOICES = [
-        (CLASS_FALSE_POSITIVE, "False positive"),
-        (CLASS_FALSE_NEGATIVE, "False negative"),
-    ]
-
-    source_issue = models.ForeignKey(
-        AutoIssue,
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="findbugs_lessons",
-    )
-    classification = models.CharField(max_length=20, choices=CLASS_CHOICES, db_index=True)
-    lesson_fingerprint = models.CharField(max_length=64, unique=True)
-    compressed_payload = models.BinaryField()
-    uncompressed_bytes = models.PositiveIntegerField(default=0)
-    compressed_bytes = models.PositiveIntegerField(default=0)
-    occurrence_count = models.PositiveIntegerField(default=1)
-    approved = models.BooleanField(default=False)
-    created_by = models.CharField(max_length=64, blank=True)
-    first_seen = models.DateTimeField(auto_now_add=True)
-    last_seen = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        db_table = "auto_issues_findbugslearnedlesson"
-        indexes = [
-            models.Index(fields=["classification", "-last_seen"]),
-            models.Index(fields=["approved", "-last_seen"]),
-        ]
-        ordering = ["-last_seen"]
-
-    def __str__(self) -> str:
-        return f"[findbugs-lesson/{self.classification}] {str(self.lesson_fingerprint)[:12]}"
-
-
 class QualityEvidence(models.Model):
     """Compact, deduped evidence from tests and quality tools."""
 

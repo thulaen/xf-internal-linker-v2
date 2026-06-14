@@ -276,21 +276,6 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": schedule(run_every=timedelta(seconds=120)),
         "options": {"queue": "default", "expires": 90},
     },
-    "findbugs-run-scan": {
-        "task": "findbugs.run_scan",
-        "schedule": crontab(hour="11-23", minute=50),
-        "options": {"queue": "default", "expires": 900},
-    },
-    "findbugs-prune-artifacts": {
-        "task": "findbugs.prune_artifacts",
-        "schedule": crontab(hour=12, minute=10),
-        "options": {"queue": "default", "expires": 600},
-    },
-    "findbugs-refresh-knowledge": {
-        "task": "findbugs.refresh_knowledge",
-        "schedule": crontab(hour=12, minute=20),
-        "options": {"queue": "default", "expires": 600},
-    },
     "auto-issues-internal-pick": {
         "task": "auto_issues.pick_daily_internal_issues",
         "schedule": crontab(hour=11, minute=20),

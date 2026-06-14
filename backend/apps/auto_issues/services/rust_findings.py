@@ -122,8 +122,6 @@ def _upsert_candidates(
 ) -> RustImportResult:
     created = 0
     updated = 0
-    observability_degraded = _observability_degraded(metadata or {})
-    health_filed = False
     seen_external_ids: set[str] = set()
     prepared = [(row, _fingerprint(row)) for row in candidates]
     occurrence_counts = _existing_occurrence_counts(
@@ -143,9 +141,6 @@ def _upsert_candidates(
             created += 1
         else:
             updated += 1
-            if observability_degraded and not health_filed:
-                _file_observability_duplicate_health_issue(metadata or {})
-                health_filed = True
     stale_resolved = 0
     if _stale_resolution_enabled(metadata or {}):
         stale_resolved = _resolve_stale_findbugs_rows(seen_external_ids)
@@ -322,23 +317,3 @@ def _resolve_stale_findbugs_rows(seen_external_ids: set[str]) -> int:
         )
         resolved += 1
     return resolved
-
-
-def _observability_degraded(metadata: dict[str, Any]) -> bool:
-    snapshot = metadata.get("observability_snapshot", {})
-    return isinstance(snapshot, dict) and snapshot.get("healthy") is False
-
-
-def _file_observability_duplicate_health_issue(metadata: dict[str, Any]) -> None:
-    from apps.auto_issues.services.findbugs import file_findbugs_health_issue
-
-    snapshot = metadata.get("observability_snapshot", {})
-    services = snapshot.get("degraded_services", []) if isinstance(snapshot, dict) else []
-    file_findbugs_health_issue(
-        reason="observability degraded during duplicate import",
-        detail=(
-            "FindBugs saw a duplicate finding while observability was degraded. "
-            f"Degraded services: {', '.join(map(str, services)) or 'unknown'}."
-        ),
-        severity=AutoIssue.SEVERITY_MEDIUM,
-    )

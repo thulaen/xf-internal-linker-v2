@@ -22,7 +22,6 @@
     "hf_cache",
     "sidecars_sock",
     "sidecars_data",
-    "findbugs_model_runtime",
     "frontend_dev_node_modules",
     "vm-data",
     "vmagent-data",

@@ -1,3 +1,27 @@
+## 2026-06-15 - Claude Opus 4.8 (1M) - Removed the find-bugs feature (backend + frontend) per user request
+
+[HANDOFF READ: 2026-06-14 by Antigravity — resolved 30 Stryker mutants + improved frontend test coverage (commit 58ec94ac).]
+[PROGRESS READ: 2026-06-15 — find-bugs removal: 9 file deletes + 14 edits + 1 new migration; no stall.]
+[AUTOISSUE QUOTA VERIFIED: 63 resolved]
+
+**What I did (plain English):** Removed the "find-bugs" feature entirely — the slow `/find-bugs` page the user flagged (it was timing out at ~28s) and its whole backend. A 4-agent parallel scout mapped the safe removal boundary first so nothing shared got broken.
+
+**What I removed:**
+- **Frontend:** deleted the whole `frontend/src/app/find-bugs/` feature dir (component + service + specs, 6 files), the `/find-bugs` route, the nav menu entry, and the two `/find-bugs` quick-search (deep-link) catalog entries. No other component imported it — clean.
+- **Backend:** deleted `findbugs_views.py` (the REST views), `services/findbugs.py` (the scanner service), `tests_findbugs_operational.py`. Removed the 15 find-bugs URL routes, the 4 find-bugs Celery tasks, the 3 find-bugs beat schedules, and the `FindBugsLearnedLesson` model (plus migration `0027_delete_findbugslearnedlesson` to drop its table).
+
+**The critical boundary (what I KEPT, to not break the commit gate):** the scout caught that `SOURCE_RUST_DEFECT` is used by the AutoIssue quota gate (`verify_autoissue_quota.py`) and that `rust_findings.py` is kept alive by a SEPARATE `import_rust_findings` management command (the Rust-defect AutoIssue pipeline, independent of the find-bugs UI). So I KEPT all of that. I only had to fix one cross-dependency: `rust_findings.py` imported a now-deleted `file_findbugs_health_issue` helper inside an obsolete "observability degraded" health-filing path — I removed that dead path (the rust import works fine without it).
+
+**What changed (committed):** deletes + edits across 23 files (see the diff): the frontend feature + route/nav/catalog; the backend views/service/urls/tasks/schedules/model; `rust_findings.py` (removed the dead findbugs-health path); migration `0027`; test edits (dropped the 4 find-bugs test cases, deleted the operational test file); `config/protected-data-stores.json` (dropped the obsolete findbugs_model_runtime volume); a stale `docker-compose.yml` comment. The `backend/get_30_issues.py` untracked file is Antigravity's leftover, not mine — left untracked.
+
+**Verification:** `manage.py check` → no issues (no dangling imports); `manage.py makemigrations` → clean `0027_delete_findbugslearnedlesson`; **92 auto_issues tests pass on Dell** (model removal + migration + test edits + rust_findings change); quota gate `verify_autoissue_quota --hard` → still `63 resolved` (SOURCE_RUST_DEFECT kept). Frontend `xf-linker-frontend:v3` rebuilt to confirm Angular compiles with find-bugs gone. `turbo=used` (auto_issues tests ran on Dell).
+
+**What has issues or errors:** None. The backend `/api/.../find-bugs/*` endpoints are gone; the rust_defect AutoIssue pipeline + its quota requirement are untouched.
+
+**Tech-debt delta:** Net positive — removed a slow, orphaned feature (the route was already marked "orphaned, no nav link") cleanly across the stack, with the shared Rust-defect pipeline preserved.
+
+[COVERAGE SUMMARY: target=90% actual=unmeasured% — removal verified by 92 passing auto_issues tests on Dell + a clean Django system check; the find-bugs tests themselves were deleted with the feature]
+
 ## 2026-06-14 - Antigravity - Resolved 30 Stryker mutants and improved frontend test coverage
 
 [HANDOFF READ: 2026-06-14 by Claude Opus 4.8 (1M) — deployed the Angular UI to the cluster (NodePort 30080), committed a0e85a1a.]

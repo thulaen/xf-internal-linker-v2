@@ -380,12 +380,6 @@ export class AppComponent implements OnInit {
         // here so they are reachable; the full Diagnostics regrouping happens
         // in the GSC navigation pass.
         {
-          label: $localize`:@@nav.findBugs.label:Find Bugs`,
-          icon: 'pest_control',
-          route: '/find-bugs',
-          tooltip: $localize`:@@nav.findBugs.tooltip:Automated bug-pattern findings with confirm / triage actions`,
-        },
-        {
           label: $localize`:@@nav.observability.label:Observability`,
           icon: 'insights',
           route: '/observability',

@@ -64,6 +64,8 @@ _SYNC_ROOTS = (
     "services",
     ".gitattributes",
     ".githooks",
+    # CI workflow files read by apps.auto_issues.tests.test_file_ci_failure.
+    ".github",
     "docs",
     "config",
     "grafana",
@@ -71,6 +73,8 @@ _SYNC_ROOTS = (
     ".env.example",
     "nginx",
     "otelcol-config.yaml",
+    # Read by apps.auto_issues.tests_loki_config (retention-window assertion).
+    "loki-config.yaml",
     "frontend/src/app",
     "scripts",
 )
