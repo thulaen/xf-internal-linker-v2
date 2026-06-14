@@ -34,7 +34,7 @@ spec:
         kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
       containers:
         - name: frontend
-          image: 10.10.10.91:5000/xf-linker-frontend:v2
+          image: 10.10.10.91:5000/xf-linker-frontend:v3
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
