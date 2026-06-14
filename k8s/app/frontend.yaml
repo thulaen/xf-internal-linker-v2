@@ -1,0 +1,95 @@
+# Frontend — the Angular web UI, served by nginx, for the k3s cluster.
+#
+# Plain English: this is the website. nginx serves the compiled Angular bundle
+# and forwards /api and /ws to the backend Service inside the cluster. There is
+# no ingress controller (k3s Traefik is disabled), so it is exposed with a
+# NodePort: reach the UI in a browser at  http://<node-WiFi-IP>:30080
+# (e.g. http://192.168.0.91:30080 via Mint, or http://192.168.0.163:30080 via
+# Dell — a NodePort opens on every node). HTTP only for the staged rehearsal;
+# TLS + a real domain come in a later slice.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: xf-app
+  labels:
+    app: frontend
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      # Co-locate with the backend on Dell; keep Mint as a pure control plane.
+      nodeSelector:
+        kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
+      containers:
+        - name: frontend
+          image: 10.10.10.91:5000/xf-linker-frontend:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              memory: "1Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: xf-app
+  labels:
+    app: frontend
+spec:
+  type: NodePort
+  selector:
+    app: frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      nodePort: 30080
+---
+# The baseline NetworkPolicy (xf-app-baseline-netpol.yaml) denies ingress except
+# from same-namespace pods + the wired backbone. The frontend IS the public
+# face, so explicitly allow any source to reach it on port 80 (the browser).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-web
+  namespace: xf-app
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 80

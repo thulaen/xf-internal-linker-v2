@@ -1,3 +1,25 @@
+## 2026-06-14 - Claude Opus 4.8 (1M) - SLICE-19: frontend (Angular UI) deployed to the cluster — full app now runs end-to-end
+
+[HANDOFF READ: 2026-06-14 by Claude Opus 4.8 (1M) — fixed the celery prefork-fork startup crash via --pool=solo, cluster fully stable, committed 68dada9d.]
+[PROGRESS READ: 2026-06-14 22:09 — 3 files to commit (frontend Dockerfile + nginx config + k8s manifest); no stall.]
+[AUTOISSUE QUOTA VERIFIED: 63 resolved]
+
+**What I did (plain English):** Put the website (the Angular user interface) into the cluster, so the whole app — not just the backend — now runs there and you can open it in a browser.
+
+**What now works that did not before:** The staged cluster is a COMPLETE end-to-end rehearsal — database + cache (Valkey) + broker (RabbitMQ) + backend + Celery workers + scheduler + **the web UI**. Open it at **http://192.168.0.91:30080** (Mint's WiFi address; a NodePort opens on every node, so Dell's 192.168.0.163:30080 works too).
+
+**How (the design, from a 4-agent parallel scout):** The docker-compose frontend is two pieces — a one-shot build container that dumps the Angular bundle into a shared Docker VOLUME, and a separate nginx that serves it. k3s/containerd has no Docker volumes, so I built ONE self-contained image instead: stage 1 compiles the production Angular bundle, stage 2 is nginx with the bundle baked in (`frontend/Dockerfile.k8s` + `frontend/nginx-k8s.conf`). nginx serves the SPA and proxies `/api` + `/ws` + `/static` to the in-cluster `backend:8000` Service, so the browser only talks to one origin (no CORS). k3s has no ingress controller (Traefik disabled), so it is exposed via a **NodePort (30080)**. The baseline NetworkPolicy denies external ingress, so a dedicated `allow-frontend-web` policy opens port 80 on the frontend pod.
+
+**What changed (committed):** `frontend/Dockerfile.k8s` (build Angular + serve with nginx, one image), `frontend/nginx-k8s.conf` (staged HTTP serve + proxy to backend), `k8s/app/frontend.yaml` (Deployment on Dell + NodePort Service + NetworkPolicy), this entry. The image build (`10.10.10.91:5000/xf-linker-frontend:v1`) is machine-side.
+
+**Verification:** frontend pod 1/1 Running, 0 restarts on Dell. Inside the cluster: `GET /` → 200 with the Angular `<app-root>` shell; `GET /healthz` → ok; `GET /api/system/health/` (proxied through nginx to the backend) → 200. From MSI over WiFi: `http://192.168.0.91:30080/` → 200 and `/healthz` → 200. `turbo=n/a` (cluster infra + image build).
+
+**What has issues or errors (honest, follow-ups — not blockers):** (1) HTTP only, no TLS — the production nginx.prod.conf forces HTTPS + HSTS; TLS + a real domain are a later slice. (2) CSRF: form POST/login from the NodePort origin will fail until `http://192.168.0.91:30080` is added to the backend's `CSRF_TRUSTED_ORIGINS` (GET/viewing works now). (3) The frontend has a known pre-existing mid-migration styling issue (the Material→Tailwind "Phase B" render gap noted in memory) — that is frontend CODE, separate from this deployment; the app shell loads and the API works.
+
+**Tech-debt delta:** Net positive — the cluster now runs the whole app end-to-end (was backend-only). Debt noted: TLS, the CSRF-origin tweak for mutations, and the optional hostPort-on-80 swap for a cleaner URL (instead of :30080).
+
+[COVERAGE SUMMARY: target=0% actual=0% — met (frontend Dockerfile + nginx config + k8s manifest + live end-to-end verification; no application code changed)]
+
 ## 2026-06-14 - Claude Opus 4.8 (1M) - Root-caused + FIXED the celery startup crash (prefork fork → solo pool); cluster fully stable
 
 [HANDOFF READ: 2026-06-14 by Claude Opus 4.8 (1M) — deployed v4 + catch-up boot-storm fix, committed 648cd92a; celery-default was still crashing at startup with no traceback.]
