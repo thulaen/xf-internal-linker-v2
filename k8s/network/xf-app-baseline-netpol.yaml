@@ -1,0 +1,47 @@
+# Baseline network isolation for the app namespace (SLICE-07).
+#
+# Plain English: by default, nothing outside the cluster may open a connection
+# INTO the app's pods. Only two sources are allowed in:
+#   1. other pods in the cluster (so backend <-> valkey <-> rabbitmq <-> celery
+#      keep talking), and
+#   2. the cluster's own wired network 10.10.10.0/24 (so each node's kubelet can
+#      run the backend health probe, and the two nodes can reach each other).
+#
+# We deliberately restrict INGRESS only and leave EGRESS open. The backend and
+# Celery reach Postgres on the Dell HOST (10.10.10.92:5432), which is outside
+# the pod network — an egress lockdown would break that, so we don't add one.
+#
+# Two policies on purpose: `default-deny-ingress` states the intent (deny all),
+# `allow-cluster-ingress` opens exactly the two needed sources. NetworkPolicies
+# are additive allow-lists, so the result is "deny everything except cluster +
+# wired backbone".
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: xf-app
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-cluster-ingress
+  namespace: xf-app
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # other pods in THIS namespace only (backend <-> valkey <-> rabbitmq <->
+        # celery). Other namespaces (xf-storage, xf-registry, kube-system) are
+        # NOT allowed in — real cross-namespace isolation.
+        - podSelector: {}
+        # the wired cluster backbone — node kubelets run the backend health probe
+        # from the node IP (verified: the permissive trial kept the backend Ready
+        # using only this block, so probes arrive from 10.10.10.x, not a pod IP).
+        - ipBlock:
+            cidr: 10.10.10.0/24

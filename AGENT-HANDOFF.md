@@ -1,3 +1,26 @@
+## 2026-06-14 - Claude Opus 4.8 (1M) - Harden the staged cluster: baseline NetworkPolicy (verified) + diagnosed the celery/beat gate
+
+[HANDOFF READ: 2026-06-14 by Claude Opus 4.8 (1M) — rebuilt Dell mutation + Rust images + wired Mint idle-overflow lint helper, committed 3a3b4ee3.]
+[PROGRESS READ: 2026-06-14 — cluster hardening; NetworkPolicy applied + verified live.]
+[AUTOISSUE QUOTA VERIFIED: 63 resolved]
+
+**What I did (plain English):** Started hardening the staged k3s cluster. Added a baseline network-isolation rule to the app's namespace and proved it works without breaking anything. Also diagnosed why the cluster's background-job scheduler can't simply be switched back on.
+
+**What now works that did not before:**
+- **Baseline NetworkPolicy on `xf-app` (SLICE-07).** Default-deny ingress + an allow rule for (1) other pods in the SAME namespace and (2) the wired cluster backbone `10.10.10.0/24` (so each node's health probe still reaches the backend). Verified LIVE three ways: backend pods stay Ready (probes pass), backend still reaches valkey + rabbitmq, and a throwaway pod in another namespace (`default`) was BLOCKED from reaching xf-app's valkey. Real cross-namespace isolation, app healthy. File: `k8s/network/xf-app-baseline-netpol.yaml`.
+
+**What has issues or errors (the honest gate on re-enabling the scheduler):**
+- The cluster runs the **v2 backend image**, which was built ~2 hours BEFORE the `is_active` bug fix landed (commit 467a6014). `celery-default` crashed 6× (exit-code 1, ~7s — a startup Error, NOT OOM: memory was a red herring) because the job storm fired `check_gsc_spikes`, which hit the `is_active` FieldError. It is stable now ONLY because beat is off, so that job never fires. **Re-enabling celery-beat safely requires first redeploying the current fixed code as a v3 image** (deps are already cached in v2, so the rebuild is the ~8-min code layer, not the heavy first-time deps build). After v3, beat can come back (the DatabaseScheduler backlog just drains serially through the `--concurrency=1` workers — no crash once the bug is gone).
+- Resource/kubelet reservations (SLICE-10) not changed: the existing pod limits look intentional (celery-default's 5Gi is sized for the monthly Optuna/weight-tune jobs), and node-level kubelet reservations need an SSH + k3s restart on both nodes — deferred rather than risk the running control plane.
+
+**What changed (committed):** `k8s/network/xf-app-baseline-netpol.yaml` (new), this entry. The applied cluster state is machine-side.
+
+**Verification:** `kubectl apply` clean; `kubectl rollout status deploy/backend` successful; backend 2/2 Ready, 0 new restarts; cross-namespace probe BLOCKED, intra-app allowed. `turbo=n/a` (cluster infra change, no quality-command group).
+
+**Tech-debt delta:** Net positive — added verified network isolation. Debt surfaced + recorded: the cluster runs stale (buggy v2) code → needs a v3 redeploy, which also unblocks the scheduler.
+
+[COVERAGE SUMMARY: target=0% actual=0% — met (cluster manifest + live verification; no application code changed)]
+
 ## 2026-06-14 - Claude Opus 4.8 (1M) - Rebuilt Dell mutation + Rust images + wired Mint as an idle-overflow lint helper
 
 [HANDOFF READ: 2026-06-14 by Claude Opus 4.8 (1M) — k3s app stack + rebuilt Dell quality stack (multicore, scoped, DB-isolated) + 3 bug fixes, all green and committed (467a6014/8caa6dca).]
