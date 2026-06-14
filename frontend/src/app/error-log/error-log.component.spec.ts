@@ -598,4 +598,92 @@ describe('ErrorLogComponent', () => {
     expect(result.length).toBe(1);
     expect(result[0].id).toBe(2);
   });
+
+  // Added tests for missing branches
+
+  it('openGlitchtip opens window with glitchtipBaseUrl', async () => {
+    const c = await buildComponent();
+    vi.spyOn(window, 'open').mockImplementation(() => null);
+    c.openGlitchtip();
+    expect(window.open).toHaveBeenCalledWith(c.glitchtipBaseUrl, '_blank', 'noopener,noreferrer');
+  });
+
+  it('openGlitchtip does nothing if glitchtipBaseUrl is empty', async () => {
+    const c = await buildComponent();
+    Object.defineProperty(c, 'glitchtipBaseUrl', { value: '' });
+    vi.spyOn(window, 'open').mockImplementation(() => null);
+    c.openGlitchtip();
+    expect(window.open).not.toHaveBeenCalled();
+  });
+
+  it('openPyroscope opens window with pyroscopeBaseUrl', async () => {
+    const c = await buildComponent();
+    vi.spyOn(window, 'open').mockImplementation(() => null);
+    c.openPyroscope();
+    expect(window.open).toHaveBeenCalledWith(c.pyroscopeBaseUrl, '_blank', 'noopener,noreferrer');
+  });
+
+  it('onTabChange updates selectedTabIndex and calls appropriate load methods', async () => {
+    const c = await buildComponent();
+    vi.spyOn(c, 'loadGlitchtipEvents').mockImplementation(() => {});
+    vi.spyOn(c, 'loadAutoIssues').mockImplementation(() => {});
+
+    c.onTabChange(1); // GLITCHTIP_TAB_INDEX
+    expect(c.selectedTabIndex).toBe(1);
+    expect(c.loadGlitchtipEvents).toHaveBeenCalled();
+    expect(c.loadAutoIssues).not.toHaveBeenCalled();
+
+    vi.mocked(c.loadGlitchtipEvents).mockClear();
+    vi.mocked(c.loadAutoIssues).mockClear();
+
+    c.onTabChange(3); // AUTO_ISSUES_TAB_INDEX
+    expect(c.selectedTabIndex).toBe(3);
+    expect(c.loadAutoIssues).toHaveBeenCalled();
+    expect(c.loadGlitchtipEvents).not.toHaveBeenCalled();
+
+    vi.mocked(c.loadGlitchtipEvents).mockClear();
+    vi.mocked(c.loadAutoIssues).mockClear();
+
+    c.onTabChange(0); // internal tab
+    expect(c.selectedTabIndex).toBe(0);
+    expect(c.loadAutoIssues).not.toHaveBeenCalled();
+    expect(c.loadGlitchtipEvents).not.toHaveBeenCalled();
+  });
+
+  it('loadGlitchtipEvents logs warning on error', async () => {
+    const c = await buildComponent();
+    const error = new Error('gt error');
+    glitchtipServiceStub.getRecentEvents.mockReturnValue(throwError(() => error));
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    c.loadGlitchtipEvents();
+    expect(console.warn).toHaveBeenCalledWith('glitchtip events failed', error);
+  });
+
+  it('startGlitchtipPoll handles fetch error without crashing timer', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(visibilityGateStub, 'whileLoggedInAndVisible').mockImplementation(((cb: any) => cb()) as any);
+    
+    const c = await buildComponent();
+    
+    const error = new Error('gt poll error');
+    glitchtipServiceStub.getRecentEvents.mockReturnValue(throwError(() => error));
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    
+    c.ngOnInit(); // triggers startGlitchtipPoll
+    
+    await vi.advanceTimersByTimeAsync(30000);
+    
+    expect(console.warn).toHaveBeenCalledWith('glitchtip poll fetch failed', error);
+    
+    vi.useRealTimers();
+    vi.mocked(visibilityGateStub.whileLoggedInAndVisible).mockRestore();
+  });
+
+  it('loadErrors sets loading to false on error', async () => {
+    const c = await buildComponent();
+    diagnosticsServiceStub.getErrors.mockReturnValue(throwError(() => new Error('err')));
+    c.loading = true;
+    c.loadErrors();
+    expect(c.loading).toBe(false);
+  });
 });
