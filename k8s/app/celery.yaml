@@ -38,21 +38,25 @@ spec:
         - name: celery-default
           image: 10.10.10.91:5000/xf-linker-backend:v4
           imagePullPolicy: IfNotPresent
-          # The "default" queue includes heavy monthly tuning jobs (Optuna,
-          # weight/meta tune), so the app baseline is high. Recycle gently:
-          # after 100 jobs OR if a copy bloats past ~1.9 GB (a real leak),
-          # NOT after every job. One copy at a time so two heavy jobs can't
-          # collide on memory. (KB; 2000000 ≈ 1.9 GB.)
+          # Pool = SOLO (no child fork), matching celery-pipeline. The default
+          # PREFORK pool forks a child worker per boot, and on this stack that
+          # fork crashes the worker at startup (exit 1 right after Celery
+          # "mingle", before any task — the forked child dies during init, most
+          # likely the psycopg connection pool's background thread + locks not
+          # surviving os.fork()). At --concurrency=1 prefork buys nothing over
+          # solo anyway (one task at a time either way), so solo sidesteps the
+          # fork entirely. Trade-off: prefork's per-child memory recycle
+          # (--max-tasks/--max-memory-per-child) is gone; the hard 5Gi pod limit
+          # is the memory backstop (k8s restarts the pod), same as celery-pipeline.
           command:
             - celery
             - -A
             - config.celery
             - worker
             - --loglevel=warning
+            - --pool=solo
             - --concurrency=1
             - --prefetch-multiplier=1
-            - --max-tasks-per-child=20
-            - --max-memory-per-child=4000000
             - -Q
             - default
           envFrom:

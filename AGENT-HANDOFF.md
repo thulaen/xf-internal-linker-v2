@@ -1,3 +1,27 @@
+## 2026-06-14 - Claude Opus 4.8 (1M) - Root-caused + FIXED the celery startup crash (prefork fork → solo pool); cluster fully stable
+
+[HANDOFF READ: 2026-06-14 by Claude Opus 4.8 (1M) — deployed v4 + catch-up boot-storm fix, committed 648cd92a; celery-default was still crashing at startup with no traceback.]
+[PROGRESS READ: 2026-06-14 — celery startup crash root-caused + fixed; cluster fully stable.]
+[AUTOISSUE QUOTA VERIFIED: 63 resolved]
+
+**What I did (plain English):** Found and fixed the silent startup crash that was keeping the background-job worker down. The whole cluster's background processing now runs.
+
+**The diagnosis (answering "is celery causing it?"):** YES — it was Celery's **prefork pool**, not the task code or catch-up. The clue: `celery-pipeline` (which runs `--pool=solo`, i.e. NO child fork) was always healthy, while `celery-default` (default **prefork** pool, which forks a child worker) crashed at startup. Celery's prefork forks a child process via `os.fork()`; the app's psycopg3 database connection pool (with its background maintenance thread + locks) does not survive that fork cleanly, so the forked child died during init — taking the worker down with exit 1, before any task, with no Python traceback (a native/fork-time death, which is why it was invisible in the logs).
+
+**The fix:** switched `celery-default` to `--pool=solo` (no fork), matching the already-healthy `celery-pipeline`. At `--concurrency=1` prefork gave no benefit over solo anyway (one task at a time either way), so this loses nothing functional. The prefork-only `--max-tasks/--max-memory-per-child` recycling is dropped; the hard 5Gi pod memory limit is the backstop (k8s restarts the pod), same as celery-pipeline.
+
+**What now works that did not before:** `celery-default` (solo) is UP with 0 restarts; the **scheduler (celery-beat) is re-enabled and running**; all queues drain to 0 (the worker keeps up). Final state: backend ×2, celery-beat, celery-default, celery-pipeline — **all 0 restarts, all Ready on v4**. The staged cluster is now a complete, stable rehearsal with working background jobs.
+
+**What changed (committed):** `k8s/app/celery.yaml` (celery-default → `--pool=solo`, with a comment explaining the fork crash + trade-off), this entry. The scale-up of celery-default/beat is machine-side.
+
+**What has issues or errors:** None blocking. Note for the real cutover: solo means no per-child memory recycle, so a leaky heavy job grows the pod until the 5Gi limit triggers a pod restart (coarse recycle) — acceptable and identical to celery-pipeline's long-standing behaviour. The deeper "make prefork survive the fork" path (e.g. not using the psycopg pool in workers) is a possible future refinement, not needed now.
+
+**Verification:** applied solo + scaled celery-default to 1 → rolled out, 0 restarts, Ready (was crash-looping on prefork). Re-enabled beat → 0 restarts across all celery pods after the scheduler ran for ~50s; default/pipeline/embeddings queues all 0 (draining). `turbo=n/a` (cluster manifest + live verification).
+
+**Tech-debt delta:** Net positive — root-caused + fixed the worker startup crash (the staged cluster now runs background jobs end-to-end), closing the open item from the previous entry.
+
+[COVERAGE SUMMARY: target=0% actual=0% — met (cluster manifest one-line change + live verification; no application code changed)]
+
 ## 2026-06-14 - Claude Opus 4.8 (1M) - Deployed fixed code to the cluster (v4) + catch-up boot-storm robustness fix
 
 [HANDOFF READ: 2026-06-14 by Claude Opus 4.8 (1M) — baseline NetworkPolicy on xf-app, committed 2486ad3b.]
