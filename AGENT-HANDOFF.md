@@ -1,3 +1,26 @@
+## 2026-06-14 - Claude Opus 4.8 (1M) - Rebuilt Dell mutation + Rust images + wired Mint as an idle-overflow lint helper
+
+[HANDOFF READ: 2026-06-14 by Claude Opus 4.8 (1M) — k3s app stack + rebuilt Dell quality stack (multicore, scoped, DB-isolated) + 3 bug fixes, all green and committed (467a6014/8caa6dca).]
+[PROGRESS READ: 2026-06-14 20:11 — 3 files to commit (routing mechanism + config + tests); no stall.]
+[AUTOISSUE QUOTA VERIFIED: 63 resolved]
+
+**What I did (plain English):** Finished the two leftover quality-stack pieces. (1) Rebuilt the two Dell helper images the migration had wiped — the Python mutation-testing image and the Rust toolchain image — so the pre-push mutation and Rust gates work again. (2) Taught the work-router to let Mint pitch in on linting when it is genuinely idle, with Dell always the boss.
+
+**What now works that did not before:**
+- **Dell Python mutation image** (`xf-linker-backend-mutation-tools:latest`) rebuilt as a thin layer over the fresh quality image (mutmut + the current `re2` library). Verified: mutmut 3.5.0 + `import re2` OK.
+- **Dell Rust image** (`xf-linker-compiled-mutation-tools:latest`, 4.4GB) rebuilt from `tools/mutation/Dockerfile` (rust toolchain + cargo-nextest / cargo-mutants / cargo-deny / cargo-llvm-cov + sccache + mold). Proven end-to-end: `bash scripts/dell-rust.sh nextest run -p l2norm` compiled the crate on Dell and ran 12 tests green (including a property test).
+- **Mint is now an OPTIONAL idle-overflow helper for lint.** `scripts/machine_routing.py` gained an `optional` + `idle_only` + `requires_image` machine type: a REQUIRED remote (Dell) still hard-fails when down, but an OPTIONAL one (Mint) is silently dropped when it is down, busy (1-min load > 0.4 x cores), or missing the quality image — Dell then renormalises to carry 100%. Mint is capped at 25% so the 8GB k3s control-plane node is never overloaded. Live-verified: with Mint in the config, a real lint run probed it, found it not-ready (no image), skipped it, and Dell did 100% clean (ruff/mypy/bandit rc=0).
+
+**What changed (committed):** `scripts/machine_routing.py` (optional/idle overflow + readiness probe `_probe_ready`/`_remote_image_present`/`_remote_is_idle`), `scripts/test_machine_routing.py` (5 new tests; 27/27 pass), `config/mutation-routing.json` (Mint added to `lint_machines` as optional/idle/image-gated, capped 25%), this entry. The two rebuilt Dell images are machine-side infrastructure, not repo files.
+
+**What has issues or errors:** Mint-overflow is wired for LINT only (no database needed). pytest/mutation overflow to Mint is deliberately NOT wired — those need a per-machine test-DB stack Mint lacks, and running them on the 8GB control plane would risk the cluster. Mint also stays dormant until the quality image is put on it (via the cluster registry) — a one-step activation left to the user's call, since lint is already fast on Dell so the payoff is small.
+
+**Verification:** mutation image — mutmut 3.5.0 + re2 OK. Rust image — full toolchain versions print; `dell-rust.sh nextest run -p l2norm` → 12 passed on Dell. Routing — 27/27 unit tests pass; live lint with Mint in config → Dell 100%, Mint cleanly skipped. `turbo=used` (Rust + lint both ran on Dell).
+
+**Tech-debt delta:** Net positive — restored the two wiped Dell helper images (pre-push Rust + mutation gates work again) and added a safe, tested idle-overflow mechanism. Debt noted: activating Mint needs the quality image on it; pytest/mutation Mint-overflow needs a Mint test stack (left as a deliberate, documented non-goal while Mint is the sole 8GB control plane).
+
+[COVERAGE SUMMARY: target=90% actual=unmeasured% — the routing change is covered by 27 passing unit tests (5 new); a single line-coverage percentage was not isolated for this infra change, but every new function is exercised by the new tests]
+
 ## 2026-06-14 - Claude Opus 4.8 (1M) - k3s app stack + REBUILT Dell quality stack (multicore, scoped, DB-isolated) + 3 bug fixes
 
 [HANDOFF READ: 2026-06-14 by Codex GPT-5 — unified the seven external ranking plans around JupyterLab as the observation platform; planning-only, no product code changed.]

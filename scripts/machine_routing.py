@@ -103,36 +103,60 @@ def _renormalise_with_ceilings(machines: list[dict]) -> None:
             m["share"] = m["max_weight"] if m in over else m["share"] / free * budget
 
 
-def _select_machines(cfg: dict, probe: Callable[[dict], bool] | None = None) -> list[dict]:
-    """Keep reachable machines, apply ceilings, renormalise survivors to 1.0.
+def _assert_no_local_context_on_windows(machines: list[dict]) -> None:
+    """On the MSI, forbid any docker_context that points at the local engine."""
+    if not _on_windows_host():
+        return
+    local_targets = [
+        m["name"] for m in machines
+        if m["transport"] == "docker_context"
+        and m.get("context", "") in _LOCAL_CONTEXT_NAMES
+    ]
+    if local_targets:
+        raise RemoteUnavailableError(
+            "Machine(s) " + ", ".join(local_targets)
+            + " point at the local Docker Desktop engine. Tests and "
+            "mutation runs are blocked on this Windows machine (MSI) — "
+            "route the work to the Dell docker context instead."
+        )
+
+
+def _select_machines(
+    cfg: dict,
+    probe: Callable[[dict], bool] | None = None,
+    readiness_probe: Callable[[dict], bool] | None = None,
+) -> list[dict]:
+    """Keep usable machines, apply ceilings, renormalise survivors to 1.0.
 
     `probe(machine) -> bool` is injected so unit tests pass a fake (no live
-    Docker/SSH). Fail-CLOSED: a configured REMOTE machine (docker_context/ssh,
-    i.e. Dell) that does not answer its probe raises ``RemoteUnavailableError``.
-    Its share is NEVER redistributed onto the local Windows box — the caller
-    must hard-fail and tell the operator to bring the remote (Dell) back. The
-    local Windows machine still runs its OWN configured share when reachable.
+    Docker/SSH). Fail-CLOSED for REQUIRED remotes: a configured docker_context/
+    ssh machine (i.e. Dell, the authority) that does not answer its probe raises
+    ``RemoteUnavailableError`` — its share is NEVER moved onto Windows.
+
+    OPTIONAL overflow machines (``optional: true``, e.g. an idle Mint) are the
+    exception: when they are down, busy, or missing their image they are simply
+    DROPPED and the authority machine renormalises to carry the work — they
+    never fail the run. A machine flagged ``idle_only``/``requires_image`` must
+    also pass ``readiness_probe`` (idle enough + image present) to participate.
     """
     if probe is None:
         probe = _probe_reachable
+    if readiness_probe is None:
+        readiness_probe = _probe_ready
     machines = _machines_from_config(cfg)
-    if _on_windows_host():
-        local_targets = [
-            m["name"] for m in machines
-            if m["transport"] == "docker_context"
-            and m.get("context", "") in _LOCAL_CONTEXT_NAMES
-        ]
-        if local_targets:
-            raise RemoteUnavailableError(
-                "Machine(s) " + ", ".join(local_targets)
-                + " point at the local Docker Desktop engine. Tests and "
-                "mutation runs are blocked on this Windows machine (MSI) — "
-                "route the work to the Dell docker context instead."
-            )
+    _assert_no_local_context_on_windows(machines)
     reachable_ids = {id(m) for m in machines if probe(m)}
+    # Optional overflow machines must ALSO be ready (idle + image present); a
+    # reachable-but-not-ready overflow box is dropped here, never fatal below.
+    for m in machines:
+        if id(m) in reachable_ids and (m.get("idle_only") or m.get("requires_image")):
+            if not readiness_probe(m):
+                reachable_ids.discard(id(m))
     down_remotes = [
         m["name"] for m in machines
-        if m["transport"] in ("docker_context", "ssh") and id(m) not in reachable_ids
+        if m["transport"] in ("docker_context", "ssh")
+        and not m.get("optional", False)
+        and id(m) not in reachable_ids
     ]
     if down_remotes:
         raise RemoteUnavailableError(
@@ -182,6 +206,67 @@ def _probe_reachable(machine: dict) -> bool:
     except Exception as e:
         print(f"PROBE EXCEPTION for {machine['name']}: {e}")
         return False
+
+
+def _remote_image_present(ctx: str, image: str) -> bool:
+    """True only if `image` already exists on the `ctx` docker engine."""
+    try:
+        proc = subprocess.run(
+            ["docker", "--context", ctx, "image", "inspect", image],
+            capture_output=True, timeout=_PROBE_DOCKER_TIMEOUT,
+            cwd=str(REPO_ROOT), check=False,
+        )
+        return proc.returncode == 0
+    except Exception:
+        return False
+
+
+def _remote_is_idle(ctx: str, load_per_core: float) -> bool:
+    """True only if the `ctx` host's 1-min load is at or below idle threshold.
+
+    Reads the host load average and core count via a tiny alpine container
+    (load average is not namespaced, so the container sees the real host load).
+    Any error returns False — an uncertain box is treated as busy.
+    """
+    try:
+        proc = subprocess.run(
+            ["docker", "--context", ctx, "run", "--rm", "alpine",
+             "sh", "-c", "cat /proc/loadavg && nproc"],
+            capture_output=True, timeout=_PROBE_DOCKER_TIMEOUT,
+            cwd=str(REPO_ROOT), text=True, check=False,
+        )
+        if proc.returncode != 0:
+            return False
+        tokens = proc.stdout.split()
+        load1 = float(tokens[0])
+        cores = int(tokens[-1])
+        return cores > 0 and load1 <= cores * load_per_core
+    except Exception:
+        return False
+
+
+def _probe_ready(machine: dict) -> bool:
+    """Is an OPTIONAL overflow machine ready to take a share right now?
+
+    Conservative, both checks via the machine's docker context:
+      * ``requires_image`` (if set) — that image must already be present, so an
+        overflow box never tries to run a tool it has not got.
+      * ``idle_only`` (if set) — the host's 1-min load must be <=
+        ``idle_load_per_core`` (default 0.5) x cores, so we only borrow a
+        genuinely idle helper (e.g. Mint while it is just running the k3s
+        control plane). Any uncertainty -> not ready, so we never pile work on it.
+    """
+    if machine.get("transport") != "docker_context":
+        return True
+    ctx = machine.get("context", "")
+    image = machine.get("requires_image")
+    if image and not _remote_image_present(ctx, image):
+        return False
+    if machine.get("idle_only") and not _remote_is_idle(
+        ctx, machine.get("idle_load_per_core", 0.5)
+    ):
+        return False
+    return True
 
 
 def _partition_weighted(items: list, machines: list[dict]) -> dict[str, list]:

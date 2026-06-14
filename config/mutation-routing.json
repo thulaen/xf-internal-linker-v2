@@ -14,9 +14,10 @@
   "coverage_machines": [
     { "name": "dell",    "transport": "docker_context", "context": "dell", "weight": 1.0, "max_weight": 1.0 }
   ],
-  "_lint_routing_note": "Used ONLY by scripts/run_lint_on_context.py for the opt-in sharded lint/type-check path (ruff, pylint, mypy, bandit) gated on XF_LINT_SPLIT=1. Dell lints 100% of the changed Python files; Windows 0%. Fail-CLOSED: if Dell is unreachable the gate hard-fails with 'fix Dell' — MSI does NOT lint locally. Pass/fail semantics are unchanged — only WHERE each file is linted.",
+  "_lint_routing_note": "Used ONLY by scripts/run_lint_on_context.py for the opt-in sharded lint/type-check path (ruff, pylint, mypy, bandit) gated on XF_LINT_SPLIT=1. Dell is the AUTHORITY and lints the bulk; if Dell is unreachable the gate hard-fails with 'fix Dell' — MSI does NOT lint locally. Mint is an OPTIONAL idle-overflow helper: it joins ONLY when reachable AND genuinely idle (1-min load <= 0.4 x cores) AND it already has the xf-linker-backend-quality image — otherwise it is silently dropped and Dell carries 100%. Mint NEVER fails the run (optional:true) and is capped at 25% so the 8GB k3s control-plane node is never overloaded. Lint needs no database, which is why Mint-overflow is wired here and NOT for pytest/mutation (those need a per-machine test DB stack Mint does not have). Mint stays dormant until the quality image is present on it.",
   "lint_machines": [
-    { "name": "dell",    "transport": "docker_context", "context": "dell", "weight": 1.0, "max_weight": 1.0 }
+    { "name": "dell",    "transport": "docker_context", "context": "dell", "weight": 1.0, "max_weight": 1.0 },
+    { "name": "mint",    "transport": "docker_context", "context": "mint", "weight": 0.25, "max_weight": 0.25, "optional": true, "idle_only": true, "idle_load_per_core": 0.4, "requires_image": "xf-linker-backend-quality:latest" }
   ],
   "_pytest_routing_note": "Used ONLY by scripts/run_pytest_on_context.py for the opt-in sharded pytest path gated on XF_PYTEST_SPLIT=1. Dell runs 100% of the changed test targets; Windows runs none and is not listed. Dell runs them against ITS OWN empty Postgres+Redis test stack (docker-compose.dell-test.yml on the xf_dell_test_net network) — never the live Windows database. Fail-CLOSED: if Dell is unreachable the gate hard-fails with 'fix Dell' — MSI does NOT run tests locally.",
   "pytest_machines": [

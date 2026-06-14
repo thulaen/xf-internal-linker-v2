@@ -359,6 +359,78 @@ def test_windows_host_detection_exempts_ci(monkeypatch) -> None:
     assert routing._on_windows_host() is False
 
 
+# ── optional / idle overflow (Mint joins only when idle, Dell stays authority) ──
+
+def _dell_plus_optional_mint():
+    return [
+        _machine("dell", "docker_context", 1.0, max_weight=1.0, context="dell"),
+        {"name": "mint", "transport": "docker_context", "context": "mint",
+         "weight": 0.30, "max_weight": 0.30,
+         "optional": True, "idle_only": True,
+         "requires_image": "xf-linker-backend-quality:latest"},
+    ]
+
+
+def test_optional_mint_down_is_skipped_not_fatal() -> None:
+    # Dell up, optional Mint unreachable -> NO raise; Dell renormalises to 1.0.
+    routing = _load_routing()
+    machines = routing._select_machines(
+        {"machines": _dell_plus_optional_mint()},
+        probe=lambda m: m["name"] == "dell",
+        readiness_probe=lambda m: True,
+    )
+    assert [m["name"] for m in machines] == ["dell"]
+    assert round(machines[0]["share"], 6) == 1.0
+
+
+def test_optional_mint_reachable_but_not_ready_is_skipped() -> None:
+    # Mint reachable but busy / missing image -> dropped; Dell carries 100%.
+    routing = _load_routing()
+    machines = routing._select_machines(
+        {"machines": _dell_plus_optional_mint()},
+        probe=lambda m: True,
+        readiness_probe=lambda m: m["name"] != "mint",
+    )
+    assert [m["name"] for m in machines] == ["dell"]
+
+
+def test_optional_mint_ready_joins_with_capped_share() -> None:
+    # Mint reachable AND ready (idle + image present) -> it joins; Dell authority.
+    routing = _load_routing()
+    machines = routing._select_machines(
+        {"machines": _dell_plus_optional_mint()},
+        probe=lambda m: True,
+        readiness_probe=lambda m: True,
+    )
+    shares = _shares(machines)
+    assert set(shares) == {"dell", "mint"}
+    assert shares["dell"] > shares["mint"], shares          # Dell is the authority
+    assert abs(shares["dell"] + shares["mint"] - 1.0) < 1e-9
+    assert shares["mint"] <= 0.30 + 1e-9                    # capped overflow share
+
+
+def test_required_dell_still_fail_closed_with_optional_present() -> None:
+    # The optional Mint flag must NOT weaken Dell: Dell down still hard-fails.
+    routing = _load_routing()
+    try:
+        routing._select_machines(
+            {"machines": _dell_plus_optional_mint()},
+            probe=lambda m: m["name"] == "mint",   # Dell down, Mint up
+            readiness_probe=lambda m: True,
+        )
+    except routing.RemoteUnavailableError as exc:
+        assert "dell" in str(exc).lower()
+        return
+    raise AssertionError("Dell (required) down must still fail-closed")
+
+
+def test_probe_ready_non_docker_context_is_always_ready() -> None:
+    routing = _load_routing()
+    assert routing._probe_ready(
+        {"transport": "docker_local", "name": "windows"}
+    ) is True
+
+
 def _run_all() -> int:
     import inspect
 
