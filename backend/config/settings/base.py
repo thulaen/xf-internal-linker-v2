@@ -520,11 +520,15 @@ CORS_ALLOWED_ORIGINS = env.list(
 )
 CORS_ALLOW_CREDENTIALS = True
 
-# CSRF Settings for cross-origin frontend
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:4200",
-    "http://127.0.0.1:4200",
-]
+# CSRF Settings for cross-origin frontend. Env-driven (like CORS_ALLOWED_ORIGINS
+# above) so a deployment can add the address the browser actually uses — e.g. the
+# k3s cluster's NodePort origins (http://192.168.0.91:30080, https://...:30443).
+# Django checks the request Origin/Referer against this exact scheme://host:port
+# list on every unsafe (POST/PUT/DELETE) request, so login + forms fail without it.
+CSRF_TRUSTED_ORIGINS = env.list(
+    "DJANGO_CSRF_TRUSTED_ORIGINS",
+    default=["http://localhost:4200", "http://127.0.0.1:4200"],
+)
 CSRF_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SAMESITE = "Lax"
 

@@ -1,3 +1,26 @@
+## 2026-06-14 - Claude Opus 4.8 (1M) - Frontend HTTPS (self-signed) + CSRF trusted origins for the cluster
+
+[HANDOFF READ: 2026-06-14 by Claude Opus 4.8 (1M) — deployed the Angular UI to the cluster (NodePort 30080), committed a0e85a1a.]
+[PROGRESS READ: 2026-06-14 22:28 — 7 files to commit (CSRF env setting + nginx HTTPS + v5/v2 manifest bumps + config); no stall.]
+[AUTOISSUE QUOTA VERIFIED: 63 resolved]
+
+**What I did (plain English):** Added HTTPS (with a self-signed certificate) to the cluster's web UI, and wired the cluster's web address into the backend's anti-forgery (CSRF) trust list.
+
+**What now works that did not before:**
+- **HTTPS on the UI.** Open it at **https://192.168.0.91:30443** (self-signed → the browser warns once; click through). Plain HTTP still works at http://192.168.0.91:30080. nginx now serves both 80 and 443 from one server block; the TLS cert is a self-signed staging cert (SANs for 192.168.0.91 / .163 / the wired IPs / localhost), stored in a Kubernetes Secret `frontend-tls` and mounted into the pod (a private key is never baked into an image). The frontend rebuilt fast (v2) because only the nginx config changed — the Angular build layer was cached.
+- **CSRF trusts the cluster origins.** `CSRF_TRUSTED_ORIGINS` was hardcoded to localhost; it is now env-driven (`DJANGO_CSRF_TRUSTED_ORIGINS`, same pattern as `CORS_ALLOWED_ORIGINS`) and the ConfigMap sets all four cluster origins (http/https × Mint/Dell). Verified: the backend loaded them, the cluster origin checks `trusted=True`, a random origin `trusted=False`.
+- **CORRECTION to the previous entry:** login is NOT actually CSRF-blocked. The login endpoint is `/api/auth/token/` = `_CsrfFreeObtainAuthToken` (token auth, "no session auth so CSRF is never checked"). So login already worked; the CSRF fix instead protects any SESSION-based POST mutation from the cluster origin. Verified login is reachable over HTTPS: `POST /api/auth/token/` with dummy creds → HTTP 400 (processed + rejected bad creds, not a 403/5xx).
+
+**What changed (committed):** `backend/config/settings/base.py` (CSRF_TRUSTED_ORIGINS env-driven), `k8s/app/xf-app-config.yaml` (+DJANGO_CSRF_TRUSTED_ORIGINS + CORS_ALLOWED_ORIGINS = the 4 cluster origins), `frontend/nginx-k8s.conf` (serve HTTP 80 + HTTPS 443, cert from /etc/nginx/certs), `k8s/app/frontend.yaml` (image v2, mount the frontend-tls Secret, add 443 containerPort + NodePort 30443 + the netpol port-443 allow), `k8s/app/{backend,celery,backend-migrate-job}.yaml` (image v4→v5), this entry. The self-signed cert + the `frontend-tls` Secret + the v5/v2 image builds are machine-side, not committed.
+
+**What has issues or errors:** Self-signed cert → browser warns (expected for homelab staging; a real cert/domain is a later slice). Cookies are still relaxed (secure=False) so both HTTP and HTTPS work; tightening to HTTPS-only secure cookies is optional polish. No blockers.
+
+**Verification:** `https://192.168.0.91:30443/` → 200, `/api/system/health/` over HTTPS → 200, served cert SANs correct; `http://...:30080/` → 200; backend `CSRF_TRUSTED_ORIGINS` = the 4 cluster origins; login `POST /api/auth/token/` → 400 (reachable). All 8 cluster pods healthy on v5/v2. `turbo=n/a` (cluster infra + one env-driven settings line; the commit gate lints/tests base.py on Dell).
+
+**Tech-debt delta:** Net positive — HTTPS on the UI + CSRF made configurable (was a hardcoded localhost list). Debt noted: real TLS cert/domain; optional secure-cookie tightening.
+
+[COVERAGE SUMMARY: target=90% actual=unmeasured% — the one-line settings change keeps the existing default (localhost) so current tests are unaffected; the commit gate runs base.py's lint + mapped tests on Dell. Cluster TLS/CSRF verified live.]
+
 ## 2026-06-14 - Claude Opus 4.8 (1M) - SLICE-19: frontend (Angular UI) deployed to the cluster — full app now runs end-to-end
 
 [HANDOFF READ: 2026-06-14 by Claude Opus 4.8 (1M) — fixed the celery prefork-fork startup crash via --pool=solo, cluster fully stable, committed 68dada9d.]

@@ -34,11 +34,17 @@ spec:
         kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
       containers:
         - name: frontend
-          image: 10.10.10.91:5000/xf-linker-frontend:v1
+          image: 10.10.10.91:5000/xf-linker-frontend:v2
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
               name: http
+            - containerPort: 443
+              name: https
+          volumeMounts:
+            - name: tls
+              mountPath: /etc/nginx/certs
+              readOnly: true
           readinessProbe:
             httpGet:
               path: /healthz
@@ -57,6 +63,12 @@ spec:
               memory: "256Mi"
             limits:
               memory: "1Gi"
+      volumes:
+        # Self-signed staging TLS cert, created machine-side:
+        #   kubectl -n xf-app create secret tls frontend-tls --cert=tls.crt --key=tls.key
+        - name: tls
+          secret:
+            secretName: frontend-tls
 ---
 apiVersion: v1
 kind: Service
@@ -74,6 +86,10 @@ spec:
       port: 80
       targetPort: 80
       nodePort: 30080
+    - name: https
+      port: 443
+      targetPort: 443
+      nodePort: 30443
 ---
 # The baseline NetworkPolicy (xf-app-baseline-netpol.yaml) denies ingress except
 # from same-namespace pods + the wired backbone. The frontend IS the public
@@ -93,3 +109,5 @@ spec:
     - ports:
         - protocol: TCP
           port: 80
+        - protocol: TCP
+          port: 443

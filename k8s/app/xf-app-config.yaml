@@ -47,3 +47,13 @@ data:
 
   # --- Cluster runs non-debug by default ---
   DJANGO_DEBUG: "False"
+
+  # --- Web origins the browser uses to reach the app (frontend slice) ---
+  # The frontend is exposed via NodePort on every node: HTTP on :30080 and HTTPS
+  # (self-signed) on :30443, reachable at Mint's WiFi 192.168.0.91 or Dell's
+  # 192.168.0.163. Django CSRF rejects POST/login unless the request Origin is in
+  # this exact scheme://host:port list, so all four are listed. CORS is set too,
+  # though the same-origin nginx /api proxy means the browser never makes a
+  # cross-origin call in normal use.
+  DJANGO_CSRF_TRUSTED_ORIGINS: "http://192.168.0.91:30080,https://192.168.0.91:30443,http://192.168.0.163:30080,https://192.168.0.163:30443"
+  CORS_ALLOWED_ORIGINS: "http://192.168.0.91:30080,https://192.168.0.91:30443,http://192.168.0.163:30080,https://192.168.0.163:30443"
