@@ -23,6 +23,7 @@ Run manually:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import urllib.error
@@ -51,19 +52,35 @@ def _load_observability_services() -> tuple[str, ...]:
     return tuple(str(name) for name in services if isinstance(name, str))
 
 
+def _mint_observability_host() -> str:
+    """Mint's address. One env var is the single source (default = reserved WiFi IP)."""
+    return os.environ.get("MINT_OBSERVABILITY_HOST", "192.168.0.91")
+
+
 def _load_remote_services() -> tuple[dict, ...]:
     """Return remote observability services.
 
     These run on helper hosts, so they are not in the local
     ``docker compose ps`` output.
-    Each entry with a ``health_url`` is verified over the network.
+    Each entry with a ``health_url`` is verified over the network. A
+    ``${MINT_OBSERVABILITY_HOST}`` token in a health_url is expanded from the
+    single Mint-address env var so the cluster's address lives in one place.
     """
     try:
         payload = json.loads(_SERVICES_CONFIG.read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError):
         return ()
-    remote = payload.get("remote_services") or []
-    return tuple(item for item in remote if isinstance(item, dict))
+    host = _mint_observability_host()
+    resolved: list[dict] = []
+    for item in payload.get("remote_services") or []:
+        if not isinstance(item, dict):
+            continue
+        entry = dict(item)
+        health_url = entry.get("health_url")
+        if isinstance(health_url, str):
+            entry["health_url"] = health_url.replace("${MINT_OBSERVABILITY_HOST}", host)
+        resolved.append(entry)
+    return tuple(resolved)
 
 
 OBSERVABILITY_SERVICES: tuple[str, ...] = _load_observability_services()

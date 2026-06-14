@@ -55,7 +55,7 @@ class ObservabilityStackFoundationTests(SimpleTestCase):
         )
         vm = next(row for row in data["datasources"] if row["name"] == "VictoriaMetrics")
         self.assertTrue(vm["isDefault"])
-        self.assertEqual(vm["url"], "http://10.10.10.91:8428")
+        self.assertEqual(vm["url"], "http://vmsingle:8428")
 
     def test_health_probe_matches_compose_service_or_container_name(self):
         rows = [

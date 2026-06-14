@@ -97,7 +97,7 @@ services:
       XF_COMPILED_BUILD_ROOT: /tmp/xf-build
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
       REPO_ROOT: /repo
-      PYROSCOPE_SERVER_ADDRESS: http://10.10.10.91:4040
+      PYROSCOPE_SERVER_ADDRESS: http://${MINT_OBSERVABILITY_HOST:-192.168.0.91}:4040
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_TRACES_SAMPLER: parentbased_traceidratio
       OTEL_TRACES_SAMPLER_ARG: "1.0"
@@ -231,7 +231,7 @@ services:
       XF_COMPILED_BUILD_ROOT: /tmp/xf-build
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
       REPO_ROOT: /repo
-      PYROSCOPE_SERVER_ADDRESS: http://10.10.10.91:4040
+      PYROSCOPE_SERVER_ADDRESS: http://${MINT_OBSERVABILITY_HOST:-192.168.0.91}:4040
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_TRACES_SAMPLER: parentbased_traceidratio
       OTEL_TRACES_SAMPLER_ARG: "1.0"
@@ -288,7 +288,7 @@ services:
       XF_COMPILED_BUILD_ROOT: /tmp/xf-build
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
       REPO_ROOT: /repo
-      PYROSCOPE_SERVER_ADDRESS: http://10.10.10.91:4040
+      PYROSCOPE_SERVER_ADDRESS: http://${MINT_OBSERVABILITY_HOST:-192.168.0.91}:4040
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_TRACES_SAMPLER: parentbased_traceidratio
       OTEL_TRACES_SAMPLER_ARG: "1.0"
@@ -346,7 +346,7 @@ services:
       XF_COMPILED_BUILD_ROOT: /tmp/xf-build
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
       REPO_ROOT: /repo
-      PYROSCOPE_SERVER_ADDRESS: http://10.10.10.91:4040
+      PYROSCOPE_SERVER_ADDRESS: http://${MINT_OBSERVABILITY_HOST:-192.168.0.91}:4040
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_TRACES_SAMPLER: parentbased_traceidratio
       OTEL_TRACES_SAMPLER_ARG: "1.0"
@@ -753,6 +753,10 @@ services:
     container_name: xf_linker_otel_collector
     restart: always
     mem_limit: 256m
+    environment:
+      # Mint's address is the single setting (default = Mint's reserved WiFi IP)
+      # so the otlp/pyroscope exporter endpoint ${env:MINT_OBSERVABILITY_HOST} resolves.
+      MINT_OBSERVABILITY_HOST: ${MINT_OBSERVABILITY_HOST:-192.168.0.91}
     command:
       - "--config=/etc/otelcol/config.yaml"
       - "--feature-gates=service.profilesSupport"
@@ -926,6 +930,9 @@ services:
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_INSTALL_PLUGINS: ""
+      # Mint's address is the single setting (default = Mint's reserved WiFi IP)
+      # so the Pyroscope datasource URL ${MINT_OBSERVABILITY_HOST} interpolates.
+      MINT_OBSERVABILITY_HOST: ${MINT_OBSERVABILITY_HOST:-192.168.0.91}
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro

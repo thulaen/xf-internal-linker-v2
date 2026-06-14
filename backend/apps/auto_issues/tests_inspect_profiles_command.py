@@ -16,8 +16,17 @@ from apps.auto_issues.models import AutoIssue
 
 
 class PyroscopeExporterReadyTests(SimpleTestCase):
-    """No-DB convention tests pinning the dual-endpoint acceptance after the
-    Pyroscope move to the Mint helper (10.10.10.91:4040)."""
+    """No-DB convention tests pinning endpoint acceptance for the Pyroscope
+    exporter. Mint's address is the single setting MINT_OBSERVABILITY_HOST
+    (default 192.168.0.91); the legacy cable IP 10.10.10.91 stays accepted for
+    backward compatibility."""
+
+    def test_accepts_templated_mint_endpoint(self) -> None:
+        exporter = {
+            "endpoint": "${env:MINT_OBSERVABILITY_HOST}:4040",
+            "tls": {"insecure": True},
+        }
+        self.assertTrue(inspect_profiles._pyroscope_exporter_ready(exporter))
 
     def test_accepts_mint_endpoint(self) -> None:
         exporter = {"endpoint": "10.10.10.91:4040", "tls": {"insecure": True}}

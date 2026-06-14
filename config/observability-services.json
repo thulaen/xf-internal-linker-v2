@@ -34,7 +34,7 @@
       "host": "mint",
       "context": "mint",
       "container": "xf_linker_pyroscope",
-      "health_url": "http://10.10.10.91:4040/ready",
+      "health_url": "http://${MINT_OBSERVABILITY_HOST}:4040/ready",
       "health_ok_contains": "ready"
     }
   ]

@@ -99,9 +99,10 @@ exporters:
       insecure: true
 
   # Profiles -> Pyroscope via OTLP gRPC. Pyroscope now runs on the Mint
-  # helper (mint-quality profile), reachable over the LAN at 10.10.10.91:4040.
+  # helper (mint-quality profile), reachable over the LAN at the address in
+  # MINT_OBSERVABILITY_HOST (single source; default 192.168.0.91) port 4040.
   otlp/pyroscope:
-    endpoint: 10.10.10.91:4040
+    endpoint: ${env:MINT_OBSERVABILITY_HOST}:4040
     tls:
       insecure: true
 

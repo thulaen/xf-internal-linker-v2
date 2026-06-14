@@ -7,7 +7,7 @@ import urllib.request
 
 from django.utils import timezone
 
-MINT_HOST = os.environ.get("MINT_OBSERVABILITY_HOST", "10.10.10.91")
+MINT_HOST = os.environ.get("MINT_OBSERVABILITY_HOST", "192.168.0.91")
 VICTORIAMETRICS_URL = os.environ.get("VICTORIAMETRICS_URL", f"http://{MINT_HOST}:8428")
 VMAGENT_URL = os.environ.get("VMAGENT_URL", f"http://{MINT_HOST}:8429")
 VMALERT_URL = os.environ.get("VMALERT_API_URL", f"http://{MINT_HOST}:8880")

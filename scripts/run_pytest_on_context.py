@@ -66,6 +66,7 @@ _SYNC_ROOTS = (
     ".githooks",
     "docs",
     "config",
+    "grafana",
     "docker-compose.yml",
     ".env.example",
     "nginx",

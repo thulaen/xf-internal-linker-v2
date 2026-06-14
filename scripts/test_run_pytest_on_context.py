@@ -51,7 +51,8 @@ def test_sync_roots_feed_the_tar_command_and_cover_test_reads():
     import inspect
     assert "*_SYNC_ROOTS" in inspect.getsource(m._tar_producer)
     for root in ("backend", "config", "scripts", ".githooks",
-                 ".gitattributes", "docker-compose.yml"):
+                 ".gitattributes", "docker-compose.yml",
+                 "grafana", "otelcol-config.yaml"):
         assert root in m._SYNC_ROOTS, f"{root} must sync to Dell"
     assert "--exclude=backend/backups" in m._TAR_EXCLUDES
 

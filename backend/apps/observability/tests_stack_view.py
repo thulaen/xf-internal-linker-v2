@@ -29,9 +29,9 @@ class ObservabilityStackViewTests(TestCase):
     def test_stack_status_marks_victoriametrics_services_healthy_when_endpoints_answer(self):
         """Given VM endpoints answer, When status builds, Then stack is healthy."""
         answers = {
-            "http://10.10.10.91:8428/health": True,
-            "http://10.10.10.91:8429/metrics": True,
-            "http://10.10.10.91:8880/health": True,
+            "http://192.168.0.91:8428/health": True,
+            "http://192.168.0.91:8429/metrics": True,
+            "http://192.168.0.91:8880/health": True,
         }
 
         with patch(

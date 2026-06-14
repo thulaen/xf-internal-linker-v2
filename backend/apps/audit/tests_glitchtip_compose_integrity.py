@@ -162,7 +162,10 @@ class GlitchtipComposeIntegrityTests(SimpleTestCase):
         service = self.otel_config.get("service") or {}
         profiles = (service.get("pipelines") or {}).get("profiles") or {}
 
-        self.assertEqual(exporters["otlp/pyroscope"]["endpoint"], "10.10.10.91:4040")
+        self.assertEqual(
+            exporters["otlp/pyroscope"]["endpoint"],
+            "${env:MINT_OBSERVABILITY_HOST}:4040",
+        )
         self.assertTrue(exporters["otlp/pyroscope"]["tls"]["insecure"])
         self.assertIn("otlp", profiles.get("receivers") or [])
         self.assertIn("otlp/pyroscope", profiles.get("exporters") or [])

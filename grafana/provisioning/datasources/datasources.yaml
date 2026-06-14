@@ -56,8 +56,10 @@ datasources:
     type: grafana-pyroscope-datasource
     access: proxy
     uid: pyroscope
-    # Pyroscope runs on the Mint helper (mint-quality profile), like VictoriaMetrics below.
-    url: http://10.10.10.91:4040
+    # Pyroscope runs on the Mint helper (mint-quality profile). Mint's address
+    # is the single setting ${MINT_OBSERVABILITY_HOST} (default 192.168.0.91),
+    # interpolated by Grafana from the container env.
+    url: http://${MINT_OBSERVABILITY_HOST}:4040
     editable: false
 
   - name: Prometheus

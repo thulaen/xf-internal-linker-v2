@@ -160,7 +160,12 @@ def _pyroscope_exporter_ready(exporter: dict[str, object]) -> bool:
     # Mint endpoint or the legacy in-network name for backward compatibility.
     tls = exporter.get("tls") or {}
     endpoint = exporter.get("endpoint")
-    valid_endpoint = endpoint in ("10.10.10.91:4040", "pyroscope:4040")
+    valid_endpoint = endpoint in (
+        "${env:MINT_OBSERVABILITY_HOST}:4040",
+        "192.168.0.91:4040",
+        "10.10.10.91:4040",
+        "pyroscope:4040",
+    )
     return valid_endpoint and tls.get("insecure") is True
 
 

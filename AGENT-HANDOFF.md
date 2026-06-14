@@ -1,3 +1,26 @@
+## 2026-06-14 - Claude Opus 4.8 (1M) - K8s migration kickoff: Dell↔Mint wired link + single-source Mint address (MINT_OBSERVABILITY_HOST)
+
+[HANDOFF READ: 2026-06-13 by Claude Opus 4.8 (1M) — landed Codex's Rust ranking-engine migration and fixed the stale Dell test kernel; repo clean on master.]
+[PROGRESS READ: 2026-06-14 06:39 — 13 files to commit; no stall.]
+[AUTOISSUE QUOTA VERIFIED: 63 resolved]
+
+**What I did (plain English):** Began the Kubernetes (k3s) migration. The user physically plugged an ethernet cable between Dell and Mint, so I configured and proved that wired link, then fixed every place in the repo that still used Mint's old cable address (which MSI can no longer reach now that the cable moved off MSI).
+
+**What now works that did not before:**
+- **Dell↔Mint wired link is live.** Dell's ethernet got the static address `10.10.10.92` (matching Mint's `10.10.10.91`); both ping each other with 0% loss at ~1 ms over the 1 Gbps cable — the cluster's future fast backbone. MSI's old cable to Mint is retired (MSI now reaches Mint over WiFi); I repointed the `mint` docker context to Mint's WiFi address (`tcp://192.168.0.91:2376`) and restored its TLS certs from `~/.docker/mint-certs/`.
+- **Mint's address now lives in ONE place** — the env var `MINT_OBSERVABILITY_HOST` (default `192.168.0.91`, Mint's reserved WiFi IP). Pyroscope's address in `docker-compose.yml` (×4), the Grafana Pyroscope datasource, the OpenTelemetry collector config, and the commit-time observability health check all read that one setting now, instead of the hardcoded old cable IP `10.10.10.91`. Verified live: the observability hook passes, OTel-collector restarted clean and interpolated the setting, Grafana healthy.
+- **Fixed a real Dell-test gap:** the `grafana/` directory was never synced to the Dell test machine, so config tests reading Grafana files validated stale copies. Added `grafana` to the Dell sync roots in `scripts/run_pytest_on_context.py` and enforced it with a test assertion.
+
+**What changed (committed):** `.githooks/check-observability-stack.py`, `backend/apps/observability/services/stack_status.py`, `backend/apps/auto_issues/management/commands/inspect_profiles.py`, `config/observability-services.json`, `docker-compose.yml`, `grafana/provisioning/datasources/datasources.yaml`, `otelcol-config.yaml`, `scripts/run_pytest_on_context.py`, 4 test files (`tests_stack_view`, `tests_stack_foundation`, `tests_inspect_profiles_command`, `tests_glitchtip_compose_integrity`), `scripts/test_run_pytest_on_context.py`.
+
+**What has issues or errors:** Found (NOT caused by this change) a pre-existing inconsistency — VictoriaMetrics + GlitchTip answer on BOTH Mint and locally on MSI, contradicting `config/docker-stack-health.json` which lists them Mint-only. Left out of scope and recorded for a dedicated fix. Dell's Docker Desktop needs a logged-in Windows session to run (no system-service Docker yet); the user logged in so the Dell tests could run — this goes away once Dell becomes Ubuntu (SLICE-02).
+
+**Verification:** `python scripts/run_pytest_on_context.py --targets apps/observability/tests_stack_view.py apps/observability/tests_stack_foundation.py apps/auto_issues/tests_inspect_profiles_command.py apps/audit/tests_glitchtip_compose_integrity.py` → **32 passed (rc=0) on Dell**. `python .githooks/check-observability-stack.py` → exit 0 (Pyroscope reachable at the WiFi address). OTel-collector logs "Everything is ready" after recreate. `turbo=used` for the Dell pytest path; no `turbo=blocked` this turn.
+
+**Tech-debt delta:** Net positive. Mint's address is now a single setting (was hardcoded in 13 spots), and a real Dell-sync gap (Grafana config never tested on Dell) is closed and test-protected.
+
+[COVERAGE SUMMARY: target=90% actual=unmeasured% — focused observability/profiling tests (32 passed on Dell) verify the change; line coverage was not separately measured for this config-addressing refactor]
+
 ## 2026-06-13 - Claude Opus 4.8 (1M) - Land Codex's Rust ranking-engine migration + fix the stale Dell test kernel
 
 [HANDOFF READ: 2026-06-13 by Codex — wired the Rust ranking decision engine as the live composite-score authority but left it uncommitted; the running backend got a fresh kernel for verification, the Dell test stack did not.]
