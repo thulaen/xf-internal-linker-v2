@@ -10,7 +10,6 @@ See docs/PERFORMANCE.md §5 for the schedule contract.
 from __future__ import annotations
 
 import logging
-import time
 
 from django.utils import timezone
 
@@ -45,10 +44,16 @@ def _get_overdue_tasks() -> list[tuple[str, CatchupEntry]]:
 
         last_run = periodic.last_run_at
         if last_run is None:
-            # Never ran — definitely overdue.
-            hours_since = float("inf")
-        else:
-            hours_since = (now - last_run).total_seconds() / 3600
+            # A task that has NEVER run was not "missed while the laptop was
+            # off" (this dispatcher's stated purpose) — it is simply new. Firing
+            # every never-run task at boot stampedes the queue, and on a fresh or
+            # freshly-seeded database that is EVERY task at once. On an
+            # unconfigured staging cluster those jobs (which need external
+            # settings that are absent) pile up and have taken the single worker
+            # down. Let Beat run it at its normal cron time instead; catch-up
+            # only rescues tasks that ran before and then fell behind.
+            continue
+        hours_since = (now - last_run).total_seconds() / 3600
 
         if hours_since > entry.threshold_hours:
             overdue.append((task_name, entry, hours_since))
@@ -58,8 +63,13 @@ def _get_overdue_tasks() -> list[tuple[str, CatchupEntry]]:
     return [(name, entry) for name, entry, _ in overdue]
 
 
-def _dispatch_task(task_name: str, queue: str) -> bool:
-    """Send the Beat task to its Celery queue.  Returns True on success."""
+def _dispatch_task(task_name: str, queue: str, countdown: int = 0) -> bool:
+    """Send the Beat task to its Celery queue.  Returns True on success.
+
+    ``countdown`` delays the task's EXECUTION (not its dispatch) by that many
+    seconds, so Heavy tasks spread out without the dispatcher blocking the worker
+    boot. The message is enqueued immediately; the broker releases it later.
+    """
     from django_celery_beat.models import PeriodicTask
 
     periodic = PeriodicTask.objects.filter(name=task_name).first()
@@ -81,8 +91,11 @@ def _dispatch_task(task_name: str, queue: str) -> bool:
 
     from config.celery import app
 
-    app.send_task(celery_task_name, kwargs=kwargs, queue=queue)
-    logger.info("catch-up: dispatched %s → queue=%s", task_name, queue)
+    app.send_task(celery_task_name, kwargs=kwargs, queue=queue, countdown=countdown)
+    logger.info(
+        "catch-up: dispatched %s → queue=%s (countdown=%ds)",
+        task_name, queue, countdown,
+    )
     return True
 
 
@@ -99,22 +112,24 @@ def run_startup_catchup() -> dict[str, str]:
         return results
 
     logger.info("catch-up: %d overdue task(s) to dispatch", len(overdue))
-    last_heavy_dispatch_time = 0.0
+    # Stagger Heavy tasks to avoid memory spikes — but do it with a per-task
+    # EXECUTION countdown, never by sleeping here. This handler runs in the
+    # worker's MAIN process during ``worker_ready``; a blocking sleep would stall
+    # the boot and starve the broker heartbeat, which can drop the connection and
+    # take the worker down. Dispatching with a countdown is non-blocking: the
+    # Nth Heavy task simply runs N*stagger seconds later.
+    heavy_dispatched = 0
 
     for task_name, entry in overdue:
-        # Stagger Heavy tasks to avoid memory spikes.
+        countdown = 0
         if entry.weight_class == "heavy":
-            elapsed = time.monotonic() - last_heavy_dispatch_time
-            if last_heavy_dispatch_time > 0 and elapsed < _HEAVY_STAGGER_SECONDS:
-                wait = _HEAVY_STAGGER_SECONDS - elapsed
-                logger.info("catch-up: staggering %s for %.0fs", task_name, wait)
-                time.sleep(wait)
+            countdown = heavy_dispatched * _HEAVY_STAGGER_SECONDS
 
         try:
-            success = _dispatch_task(task_name, entry.queue)
+            success = _dispatch_task(task_name, entry.queue, countdown=countdown)
             results[task_name] = "dispatched" if success else "skipped"
             if success and entry.weight_class == "heavy":
-                last_heavy_dispatch_time = time.monotonic()
+                heavy_dispatched += 1
         except Exception:
             logger.exception("catch-up: failed to dispatch %s", task_name)
             results[task_name] = "error"

@@ -61,13 +61,15 @@ class OverdueDetectionTests(TestCase):
         },
     )
     @patch("django_celery_beat.models.PeriodicTask")
-    def test_never_run_is_overdue(self, mock_model):
+    def test_never_run_is_not_overdue(self, mock_model):
+        # A task that has never run was not "missed while the laptop was off";
+        # it is new. Catch-up must NOT fire it (Beat schedules it normally),
+        # otherwise a fresh/seeded DB stampedes every task at once on boot.
         mock_model.objects.filter.return_value.first.return_value = _make_periodic_task(
             "test-task", last_run_at=None
         )
         overdue = _get_overdue_tasks()
-        assert len(overdue) == 1
-        assert overdue[0][0] == "test-task"
+        assert len(overdue) == 0
 
     @patch(
         "config.catchup.CATCHUP_REGISTRY",
@@ -98,9 +100,13 @@ class OverdueDetectionTests(TestCase):
     )
     @patch("django_celery_beat.models.PeriodicTask")
     def test_overdue_sorted_by_priority(self, mock_model):
+        # Both tasks ran long ago (genuinely overdue, not never-run), so both
+        # qualify and the higher-priority one comes first.
+        old = timezone.now() - timedelta(hours=72)
+
         def _filter_side_effect(name):
             mock = MagicMock()
-            mock.first.return_value = _make_periodic_task(name, last_run_at=None)
+            mock.first.return_value = _make_periodic_task(name, last_run_at=old)
             return mock
 
         mock_model.objects.filter.side_effect = lambda name: _filter_side_effect(name)
@@ -128,7 +134,7 @@ class DispatchTests(TestCase):
         mock_overdue.return_value = [("test-task", entry)]
         results = run_startup_catchup()
         assert results["test-task"] == "dispatched"
-        mock_dispatch.assert_called_once_with("test-task", "default")
+        mock_dispatch.assert_called_once_with("test-task", "default", countdown=0)
 
     @patch("config.catchup._dispatch_task", side_effect=Exception("boom"))
     @patch("config.catchup._get_overdue_tasks")
@@ -139,3 +145,40 @@ class DispatchTests(TestCase):
         mock_overdue.return_value = [("broken-task", entry)]
         results = run_startup_catchup()
         assert results["broken-task"] == "error"
+
+    @patch("config.catchup._dispatch_task", return_value=True)
+    @patch("config.catchup._get_overdue_tasks")
+    def test_heavy_tasks_staggered_by_countdown_not_blocking(
+        self, mock_overdue, mock_dispatch
+    ):
+        # Three Heavy tasks must be dispatched with increasing EXECUTION
+        # countdowns (0, stagger, 2*stagger) and WITHOUT the dispatcher ever
+        # sleeping — blocking the worker-boot handler can drop the broker
+        # connection and take the worker down.
+        from config.catchup_registry import _HEAVY_STAGGER_SECONDS
+
+        heavy = CatchupEntry(
+            threshold_hours=1, priority=1, queue="pipeline", weight_class="heavy"
+        )
+        mock_overdue.return_value = [
+            ("h1", heavy), ("h2", heavy), ("h3", heavy),
+        ]
+        results = run_startup_catchup()
+        assert all(v == "dispatched" for v in results.values())
+        countdowns = [c.kwargs["countdown"] for c in mock_dispatch.call_args_list]
+        assert countdowns == [
+            0, _HEAVY_STAGGER_SECONDS, 2 * _HEAVY_STAGGER_SECONDS,
+        ]
+
+    @patch("config.catchup._dispatch_task", return_value=True)
+    @patch("config.catchup._get_overdue_tasks")
+    def test_light_tasks_dispatched_with_zero_countdown(
+        self, mock_overdue, mock_dispatch
+    ):
+        light = CatchupEntry(
+            threshold_hours=1, priority=1, queue="default", weight_class="light"
+        )
+        mock_overdue.return_value = [("l1", light), ("l2", light)]
+        run_startup_catchup()
+        countdowns = [c.kwargs["countdown"] for c in mock_dispatch.call_args_list]
+        assert countdowns == [0, 0]

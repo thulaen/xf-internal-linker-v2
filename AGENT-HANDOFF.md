@@ -1,3 +1,25 @@
+## 2026-06-14 - Claude Opus 4.8 (1M) - Deployed fixed code to the cluster (v4) + catch-up boot-storm robustness fix
+
+[HANDOFF READ: 2026-06-14 by Claude Opus 4.8 (1M) — baseline NetworkPolicy on xf-app, committed 2486ad3b.]
+[PROGRESS READ: 2026-06-14 21:23 — 5 files to commit (catch-up fix + tests + v4 manifests); no stall.]
+[AUTOISSUE QUOTA VERIFIED: 63 resolved]
+
+**What I did (plain English):** Rebuilt the cluster's app image twice with the current fixed code (v3, then v4) and rolled it out, so the cluster now runs the bug fixes instead of the stale image. Then I fixed a real robustness bug that made the background-job worker stampede itself on a fresh database.
+
+**What now works that did not before:**
+- **The cluster runs the current fixed code (image v4).** Backend (2 copies) + the heavy-job worker (celery-pipeline) are healthy on v4; the `is_active` crash, the Redis→RabbitMQ health check, and the `has_cuda` field are all live in the cluster. Backend health endpoint returns 200.
+- **Catch-up boot-storm fixed (robustness).** On worker boot, `config/catchup.py` used to treat every NEVER-run task as "infinitely overdue" and dispatch it — so on a fresh/seeded DB it fired EVERY periodic task at once, and (because catch-up runs on every boot) each crash-restart re-created the storm. Two fixes: (1) a never-run task is no longer "overdue" — it was not "missed while the laptop was off" (catch-up's stated purpose), so Beat schedules it normally; (2) Heavy tasks are now staggered by an EXECUTION `countdown` instead of a blocking `time.sleep()` in the worker-boot handler (the blocking sleep could starve the broker heartbeat and drop the worker). 12 unit tests pass on Dell (4 updated, 2 new for the countdown staggering). Verified live: the default queue no longer stampedes on boot.
+
+**What changed (committed):** `backend/config/catchup.py` (never-run skip + non-blocking countdown stagger), `backend/config/tests/test_catchup.py` (12 tests), `k8s/app/{backend,celery,backend-migrate-job}.yaml` (image → v4), this entry. The v3/v4 image builds + the rollout are machine-side.
+
+**What has issues or errors (honest — a SEPARATE, still-open bug):** After the catch-up fix removed the boot-storm, the **default worker still exits 1 at STARTUP** on the staged cluster — right after Celery's `mingle: sync complete`, BEFORE any task and before catch-up logs, with NO Python traceback. So it is a different failure from the storm (which IS fixed). I could not pin it remotely (it exits silently; needs hands-on `faulthandler`/`strace`/a persistent-log sidecar). It is likely tied to the staged env (empty data / a native init path). **`celery-default` and `celery-beat` are therefore SCALED TO 0 on the staged cluster** (operationally parked — the manifests still declare `replicas: 1`, the intended state; do NOT `kubectl apply` celery.yaml on staged without re-parking until this is diagnosed). The heavy worker (celery-pipeline) and backend are unaffected and healthy. This crash should be diagnosed hands-on, or revisited at the real-DB cutover where the worker has data.
+
+**Verification:** catch-up tests → 12 passed on Dell. Cluster: backend 2/2 + celery-pipeline 1/1 Ready on v4, 0 restarts; backend `/api/system/health/` → 200; default queue no longer stampedes on boot. `turbo=used` (catch-up tests ran on Dell).
+
+**Tech-debt delta:** Net positive — deployed the fixed code to the cluster + fixed the catch-up boot-storm (a genuine bug: fresh-DB stampede). Debt surfaced + documented: the separate post-mingle worker-startup crash on the staged cluster (needs hands-on diagnosis); celery-default/beat parked until then.
+
+[COVERAGE SUMMARY: target=90% actual=unmeasured% — the catch-up change is covered by 12 passing unit tests (4 updated, 2 new); a single line-coverage percentage was not isolated, but every changed branch is exercised]
+
 ## 2026-06-14 - Claude Opus 4.8 (1M) - Harden the staged cluster: baseline NetworkPolicy (verified) + diagnosed the celery/beat gate
 
 [HANDOFF READ: 2026-06-14 by Claude Opus 4.8 (1M) — rebuilt Dell mutation + Rust images + wired Mint idle-overflow lint helper, committed 3a3b4ee3.]

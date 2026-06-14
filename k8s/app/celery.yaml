@@ -36,7 +36,7 @@ spec:
         kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
       containers:
         - name: celery-default
-          image: 10.10.10.91:5000/xf-linker-backend:v2
+          image: 10.10.10.91:5000/xf-linker-backend:v4
           imagePullPolicy: IfNotPresent
           # The "default" queue includes heavy monthly tuning jobs (Optuna,
           # weight/meta tune), so the app baseline is high. Recycle gently:
@@ -123,7 +123,7 @@ spec:
         kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
       containers:
         - name: celery-pipeline
-          image: 10.10.10.91:5000/xf-linker-backend:v2
+          image: 10.10.10.91:5000/xf-linker-backend:v4
           imagePullPolicy: IfNotPresent
           # Single-process (solo) on purpose — the ML libraries' threads make
           # prefork recycling unsafe. Memory is bounded by the hard pod limit.
@@ -206,7 +206,7 @@ spec:
         kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
       containers:
         - name: celery-beat
-          image: 10.10.10.91:5000/xf-linker-backend:v2
+          image: 10.10.10.91:5000/xf-linker-backend:v4
           imagePullPolicy: IfNotPresent
           command:
             - celery
