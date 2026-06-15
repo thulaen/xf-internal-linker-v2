@@ -52,5 +52,7 @@ Known MACs: Mint `enp2s0 = 98:ee:cb:26:46:c6`, Mint `wlp1s0 = 30:52:cb:97:c8:ab`
   pulls feel slow (`netsh wlan show interfaces` on Dell while it is still Windows).
 - Mint reaches the home network over **WiFi** (`wlp1s0`), not a cable — so MSI↔Mint is wireless. That
   path is light (kubectl + reports) and covered by the WiFi-resilience safeguards.
-- Dell is still Windows until SLICE-02 (becomes Ubuntu); its wired IP `10.10.10.92` and firewall rule
-  `XF-Cluster-LAN` (allow `10.10.10.0/24`) were set on Windows and get re-applied on Ubuntu.
+- Dell now runs Ubuntu 26.04 (SLICE-02 done); it is the k3s worker with wired IP `10.10.10.92`. The
+  Windows-era firewall rule `XF-Cluster-LAN` (allow `10.10.10.0/24`) is superseded by Ubuntu's setup.
+- Cross-node name resolution + clock-sync are recorded in `docs/network/time-and-name-resolution.md`
+  (SLICE-04): both nodes resolve each other by name over the wired link, both clocks are NTP-synced.
