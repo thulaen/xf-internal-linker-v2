@@ -6,11 +6,12 @@ functions in roster.py. DB/Network connections are completely avoided.
 
 from __future__ import annotations
 
+import importlib
 from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
 
-from apps.core.helpers import roster
+roster = importlib.import_module("apps.core.helpers.roster")
 
 
 class RosterConstantLiteralTests(SimpleTestCase):

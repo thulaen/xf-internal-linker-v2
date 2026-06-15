@@ -14,7 +14,7 @@ BACKEND_DOCKERFILE = REPO_ROOT / "Dockerfile"
 
 
 EXPECTED_PROD_PINS = {
-    "Django==5.2.14",
+    "Django==5.2.15",
     "grpcio==1.73.1",
     "grpcio-tools==1.73.1",
     "nltk==3.9.4",
@@ -44,6 +44,7 @@ EXPECTED_DOCKER_QUALITY_TOOLS = {
 }
 
 FORBIDDEN_REQUIREMENT_TEXT = {
+    "Django==5.2.14",
     "Django==5.2.13",
     "nltk==3.9.1",
     "setuptools<70",

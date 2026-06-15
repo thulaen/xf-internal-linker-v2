@@ -95,7 +95,7 @@ class RuntimeConfigSnapshotGpuFieldTests(SimpleTestCase):
         view = self._build_view()
         fake_conf = MagicMock()
         fake_conf.EMBEDDING_BATCH_SIZE = 32
-        fake_conf.CUDA_MEMORY_FRACTION_HIGH = 0.8
+        fake_conf.GPU_MEMORY_FRACTION_HIGH = 0.8
         fake_conf.GPU_TEMP_CEILING_C = 90
         with patch("django.conf.settings", fake_conf):
             snapshot = view._runtime_config_snapshot()
@@ -111,7 +111,7 @@ class RuntimeConfigSnapshotGpuFieldTests(SimpleTestCase):
         view = self._build_view()
         fake_conf = MagicMock()
         fake_conf.EMBEDDING_BATCH_SIZE = 32
-        fake_conf.CUDA_MEMORY_FRACTION_HIGH = 0.5
+        fake_conf.GPU_MEMORY_FRACTION_HIGH = 0.5
         fake_conf.GPU_TEMP_CEILING_C = 75
         with patch("django.conf.settings", fake_conf):
             snapshot = view._runtime_config_snapshot()

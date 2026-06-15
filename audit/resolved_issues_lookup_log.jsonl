@@ -2770,3 +2770,8 @@
 {"file_path": "backend/apps/pipeline/services", "lookup_at": "2026-06-13T20:18:27Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 1, "result_ids": [20424]}
 {"file_path": "rust/extensions/scoring", "lookup_at": "2026-06-13T20:18:27Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
 {"file_path": "scripts", "lookup_at": "2026-06-13T20:45:54Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 10, "result_ids": [23126, 20164, 20396, 1802, 20397, 22884, 20174, 1842, 22862, 22818]}
+{"file_path": "backend/apps/core", "lookup_at": "2026-06-15T17:05:36Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 1, "result_ids": [19993]}
+{"file_path": "rust/extensions/ranking_decision_engine", "lookup_at": "2026-06-15T17:05:36Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "scripts", "lookup_at": "2026-06-15T17:05:41Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 9, "result_ids": [22895, 20164, 20396, 1802, 22884, 20174, 1842, 22862, 22818]}
+{"file_path": "backend/apps/benchmarks", "lookup_at": "2026-06-15T17:14:26Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/core/helpers", "lookup_at": "2026-06-15T17:57:44Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}

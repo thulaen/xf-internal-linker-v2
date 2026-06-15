@@ -1,9 +1,10 @@
-"""Orchestrates benchmark execution for C++ and Python."""
+"""Orchestrates benchmark execution for Python."""
 
 from __future__ import annotations
 
 import json
 import logging
+import re
 import subprocess  # nosec B404 — runs benchmark executables, not user input
 import tempfile
 from pathlib import Path
@@ -22,6 +23,7 @@ PY_BENCH_DIR = BASE_DIR / "benchmarks"
 # Size classification thresholds for benchmark input sizes
 _SIZE_SMALL_MAX = 500
 _SIZE_MEDIUM_MAX = 15000
+_NUMERIC_TOKEN_RE = re.compile(r"(?<!\d)(\d+)(?!\d)")
 
 
 def _emit_benchmark_error(exe_name: str, summary: str, detail: str) -> None:
@@ -37,8 +39,8 @@ def _emit_benchmark_error(exe_name: str, summary: str, detail: str) -> None:
             raw_exception=detail,
             why=(
                 "A benchmark binary failed during the periodic run. The cert "
-                "report will under-count this extension; rebuild the C++ "
-                "extension or check the log detail above for the cause."
+                "report will under-count this target; check the log detail "
+                "above for the cause."
             ),
         )
     except Exception:  # noqa: BLE001 — error-log itself failing must not propagate
@@ -181,4 +183,7 @@ def _extract_size_from_name(name: str) -> str:
         return "small"
     if "large" in lower:
         return "large"
+    numeric_tokens = _NUMERIC_TOKEN_RE.findall(lower)
+    if numeric_tokens:
+        return _classify_size(numeric_tokens[-1])
     return "medium"

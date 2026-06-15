@@ -47,7 +47,7 @@ _KEY_RUN_AT = "performance_cert.last_run_at"
 # the per-area minimum; FAILs as soon as ONE required area fails. The
 # WARNING band exists for non-critical regressions (operator sees a
 # yellow chip but can still ship).
-_REQUIRED_AREAS = ("cpp", "python")
+_REQUIRED_AREAS = ("python", "rust")
 
 # A single benchmark function is "passing" when its status is fast or ok.
 # "slow" results count toward the WARN budget; >= _WARN_BUDGET slow
@@ -58,7 +58,7 @@ _WARN_BUDGET = 3
 
 @dataclass(frozen=True, slots=True)
 class AreaSummary:
-    """Per-area (cpp / python) verdict + counts."""
+    """Per-area (python / rust) verdict + counts."""
 
     area: str
     fast_count: int
@@ -169,20 +169,69 @@ def _read_latest_completed_run():
 
 
 def _summarise_per_area(run) -> list[AreaSummary]:
-    """Bucket run.results by language; build one AreaSummary per area."""
+    """Build one AreaSummary per language from current benchmark storage."""
     try:
-        from django.db.models import Count
-
-        rows = (
-            run.results.values("language", "status")
-            .annotate(c=Count("pk"))
-            .order_by("language", "status")
-        )
+        latest_counts = _latest_required_area_counts()
+        current_counts = _counts_by_language_for_run(run)
     except Exception:  # noqa: BLE001 — defensive: empty list still yields a typed verdict.
         logger.debug("performance_cert: results aggregate failed", exc_info=True)
         return []
 
-    # Build {language: {status: count}}
+    seen_areas = set(current_counts.keys()) | set(_REQUIRED_AREAS)
+    return [
+        _build_area_summary(area, latest_counts.get(area) or current_counts.get(area, {}))
+        for area in sorted(seen_areas)
+    ]
+
+
+def _latest_required_area_counts() -> dict[str, dict[str, int]]:
+    """Return counts from each required language's latest completed run.
+
+    Python and Rust benchmarks are recorded by different jobs, so the latest
+    completed run rarely contains both languages.
+    """
+    return {
+        area: _counts_by_language_for_run_id(area, run_id)
+        for area in _REQUIRED_AREAS
+        if (run_id := _latest_run_id_for_language(area)) is not None
+    }
+
+
+def _latest_run_id_for_language(language: str) -> int | None:
+    from apps.benchmarks.models import BenchmarkResult
+
+    return (
+        BenchmarkResult.objects.filter(language=language, run__status="completed")
+        .order_by("-run__started_at")
+        .values_list("run_id", flat=True)
+        .first()
+    )
+
+
+def _counts_by_language_for_run(run) -> dict[str, dict[str, int]]:
+    return _rows_to_counts(
+        run.results.values("language", "status").annotate(c=_count_pk())
+    )
+
+
+def _counts_by_language_for_run_id(language: str, run_id: int) -> dict[str, int]:
+    from apps.benchmarks.models import BenchmarkResult
+
+    rows = (
+        BenchmarkResult.objects.filter(run_id=run_id, language=language)
+        .values("language", "status")
+        .annotate(c=_count_pk())
+    )
+    return _rows_to_counts(rows).get(language, {})
+
+
+def _count_pk():
+    from django.db.models import Count
+
+    return Count("pk")
+
+
+def _rows_to_counts(rows) -> dict[str, dict[str, int]]:
     per_area: dict[str, dict[str, int]] = {}
     for row in rows:
         lang = row["language"]
@@ -190,16 +239,7 @@ def _summarise_per_area(run) -> list[AreaSummary]:
         status = row["status"]
         if status in per_area[lang]:
             per_area[lang][status] = row["c"]
-
-    summaries: list[AreaSummary] = []
-    # Always emit a row for each required area, even if 0 results — so
-    # the operator sees "C++: no benchmarks ran" instead of an empty
-    # table that hides the problem.
-    seen_areas = set(per_area.keys()) | set(_REQUIRED_AREAS)
-    for area in sorted(seen_areas):
-        counts = per_area.get(area, {"fast": 0, "ok": 0, "slow": 0})
-        summaries.append(_build_area_summary(area, counts))
-    return summaries
+    return per_area
 
 
 def _build_area_summary(area: str, counts: dict[str, int]) -> AreaSummary:
@@ -286,7 +326,7 @@ def _advisory_for(verdict: str, areas: list[AreaSummary]) -> str:
         slow_areas = [a.area for a in areas if a.verdict == "fail"]
         return (
             f"Failing areas: {', '.join(slow_areas)}. "
-            "Run `docker compose build backend` then "
+            "Run `python scripts/smart_build.py --target backend` then "
             "`POST /api/benchmarks/trigger/` to recertify."
         )
     if verdict == "warn":

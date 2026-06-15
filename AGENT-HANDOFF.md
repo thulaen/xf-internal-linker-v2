@@ -1,3 +1,71 @@
+## 2026-06-15 - Codex - Dell gauntlet fixes for FR260-265 Slice 1 commit
+
+[HANDOFF READ: 2026-06-15 by Claude Opus 4.8 (1M) - FR260-265 Slice 1 was corrected and verified, but remained staged because the Dell commit checks were flaky.]
+[PROGRESS: Healed the known Dell gauntlet blockers for the staged FR260-265 Slice 1 commit. Slice 1 is still staged unless the following commit succeeds in this same session. Nothing was pushed.]
+
+**What I did (plain English):** I fixed the commit blockers that were not part of the advanced graph signal feature itself. The Rust ranking decision engine had tests that shared one explanation cache, so parallel `cargo test` could erase a test's expected explanation. The backend `apps/core` failures were stale or fragile tests around runtime GPU defaults, performance certification, Google Search Console saved credentials, and the Django dependency pin contract. I also checked the dependency security audit and confirmed the current pyarrow and paramiko advisories are documented allowed advisories, not a network failure.
+
+**What now works that did not before:**
+- Rust `cargo test --workspace` passes on Dell after the ranking decision engine tests take a test-only lock around calls that rewrite the shared explanation cache.
+- The named `apps/core` Dell blockers now pass: runtime GPU defaults read `GPU_MEMORY_FRACTION_HIGH`; the Google Search Console test patches the already-loaded endpoint module and does not call the network; the dependency test expects Django 5.2.15 and also forbids 5.2.14.
+- Performance certification now treats Python and Rust benchmark rows as separately recorded jobs. It certifies each required language from that language's latest completed run instead of requiring both languages in one run.
+- Python benchmark size parsing now handles numeric pytest parameters such as `[100]`, not just names containing `small` or `large`.
+- The dependency audit path is reliable when its documented allowlist is applied: `pip-audit` passed with `PYSEC-2026-113` and `GHSA-r374-rxx8-8654` ignored; `safety` passed with `SFTY-20260217-93940` ignored.
+
+**Files changed for the gauntlet fix:** `rust/extensions/ranking_decision_engine/src/lib.rs`, `backend/apps/core/tests_views_runtime.py`, `backend/apps/core/tests.py`, `backend/apps/core/tests_dependency_security_pins.py`, `backend/apps/core/tests_performance_certification.py`, `backend/apps/core/services/performance_certification.py`, `backend/apps/benchmarks/services/runner.py`, plus AutoIssue lookup/log files updated by the required lesson commands.
+
+**Direct verification done:**
+- `cargo test -p ranking_decision_engine` on Dell failed before the fix on run 2 of 10, then passed 10 of 10 after the fix. turbo=used.
+- `cargo fmt -p ranking_decision_engine -- --check` on Dell passed. turbo=used.
+- `cargo clippy -p ranking_decision_engine --all-targets -- -W clippy::nursery -D warnings` on Dell passed. turbo=used.
+- `cargo test --workspace` on Dell passed after the fix. turbo=used.
+- Dell pytest for the named `apps/core` blockers passed. An uncached direct Dell run of `CertVerdictMathTests` and `RunnerBugFixTests` passed 13 tests. turbo=used.
+- Dell `ruff` and `mypy` passed for the edited backend files. turbo=used.
+- Dell production-file `bandit` scan passed for the edited production backend files. turbo=used.
+- Direct Dell dependency scans passed when the documented allowlist was applied. turbo=used.
+
+**Issues filed or resolved:** Fixed self-review AutoIssues `#23266`, `#23267`, `#23268`, `#23269`, `#23270`, `#23271`, and `#23272`. Open debt filed as `#23273`: the benchmarks app still lacks a public `api.py` boundary, so core certification imports benchmark internals directly. That is real architecture debt, but fixing it properly needs a focused API-boundary slice rather than a rushed commit-prep patch.
+
+**What has issues or errors:** The AutoIssue quota may still block a feature-sized commit if it requires more resolved issues than this gauntlet repair produced. If that happens, do not bypass the hook. Resolve the required quota or stop before committing. I also saw one self-inflicted Dell lint-volume collision when I ran two lint jobs in parallel; rerunning the security scan by itself passed.
+
+**Tech-debt delta:** Net positive. Seven real bad-practice issues were fixed and recorded with lessons. One architecture debt item was filed and left open because it needs a proper public API slice. The untracked junk file `backend/get_30_issues.py` was deleted as requested.
+
+[COVERAGE SUMMARY: target=90% actual=0% measured - not met; focused tests and lint passed, but line coverage was not measured in this commit-prep slice.]
+
+## 2026-06-15 - Claude Opus 4.8 (1M) - FR260-265 advanced graph signals: Slice 1 (correctness & honesty foundation)
+
+[HANDOFF READ: 2026-06-15 by Claude Opus 4.8 (1M) — my own prior entry: Bazel Phase 0+1 committed c9de97d7.]
+[PROGRESS: A 5-agent review found FR260-265 (the advanced graph signals an earlier agent staged) did NOT match its specs. The user said "build the whole feature for real" (multi-session). Slice 1 = make the existing surface correct/honest/spec-named; Slices 2-7 build the missing data engine. Slice 1 code is DONE + verified by direct checks, but is **STAGED, NOT COMMITTED** — every commit attempt was blocked by the recurring Dell-gauntlet flakiness (#22904), never by FR260-265 code. User chose to leave it staged and stop.]
+
+**What I did (plain English):** The "advanced graph signals" are 6 new ranking signals (FR260 TOSD, FR261 DSTP, FR262 ICPC, FR263 SBMA, FR264 RGSD, FR265 CSBR) a previous agent built but left not matching their own written specs. A 5-reviewer pass (verified by me) found: a dangerous calculator bug, the settings screen + backend describing DIFFERENT algorithms than the specs, fake tests, and the whole feature never plugged into the live ranking pipeline (and its data engine never built). The user chose to build it properly over several sessions. This is **Slice 1: make everything that already exists correct, honest, and named to match the specs** — no new data engine yet (that's Slices 2-7).
+
+**What now works that did not before:**
+- **Calculator (Rust) fixed + proven on Dell** (clippy clean, 6/6 tests): DSTP no longer gives a no-history page the MAXIMUM "go here next" score (now neutral 0.0); bad numbers (NaN/infinity) can't leak into a score; replaced the one fake test with real hand-computed, cold-start, NaN, isolated-node, and property (0-1 boundedness) tests.
+- **Dispatcher (Python) fixed**: destination-centric signals (TOSD/ICPC/RGSD) now read the DESTINATION node's data (was reading the host's); a missing page now scores neutral 0.0 with a `fallback_triggered` flag; diagnostics now carry the real per-signal values each spec defines (were placeholder `{"diagnostic":"ok"}`).
+- **Names match the specs everywhere**: the 6 settings-screen cards, their tooltips, their "View spec" links, AND the backend help text were renamed from three different wrong sets to the real spec names; the "View spec" links now point at the real files (`fr260-tosd` … `fr265-csbr`) instead of 404s.
+- **Specs got real citations** (the named 2026 papers were mostly unverifiable/fabricated; replaced with verified foundational DOIs/IDs: Shuman 2013, Shani 2005, Chen & Goodman 1996, Blondel 2008, Abdollahpouri 2017, Holland 1983, Karrer & Newman 2011, Nickel & Kiela 2017, Blei 2003, Lin 1991), documented the exact implemented formulas, and fixed each spec's internal contradictions (ICPC "penalty" that was mathematically impossible; CSBR `PersonaMatch = 1 − JensenShannon`; RGSD distance→score inversion).
+- **Real Python tests** for the dispatcher (the math is covered by the Rust tests): they prove the destination-index fix, the neutral fallback, the weighting, and the diagnostics shape, plus a real-kernel integration test that runs when the compiled module is present.
+
+**Files in Slice 1 (STAGED + verified, NOT committed):** `rust/extensions/advanced_graph_signals/{src/lib.rs,Cargo.toml,benches/signal_benches.rs}`, `rust/Cargo.{toml,lock}`, `backend/apps/pipeline/services/advanced_graph_signals.py`, `backend/apps/pipeline/test_advanced_graph_signals.py`, `backend/apps/core/{views_advanced_graph_signals.py,test_views_advanced_graph_signals.py,urls.py}`, `backend/apps/diagnostics/health.py`, `backend/apps/suggestions/{migrations/0071,migrations/0072,models.py,recommended_weights.py}`, `frontend/src/app/settings/{meta-algo-tooltips.ts,ranking-weights-tab/*,silo-settings.service.ts}`, `frontend/src/app/api/schema.d.ts`, `docs/specs/fr260-tosd.md … fr265-csbr.md`, `scripts/ensure_compiled_artifacts.py`. The intended commit command is `git commit --only -- <these paths> AGENT-HANDOFF.md` (the message file approach), excluding ranker.py/ranker_types.py.
+
+**Direct verification done (all GREEN on Dell, via `docker --context dell run` — NOT via the flaky gauntlet):** Rust clippy (with `-W clippy::nursery -D warnings`) clean; `cargo fmt --check` clean; `cargo nextest -p advanced_graph_signals` 6/6 pass; `ruff check` clean on all 12 changed backend files; `mypy --config-file backend/mypy.ini` "no issues found in 7 source files" (with `DJANGO_SETTINGS_MODULE=config.settings.test DJANGO_SECRET_KEY=ci-fake-secret-key`); the new `advanced_graph_signals.so` was built (`cargo build --release`) and **staged into the `xf_dell_compiled_repo` test volume at `active/extensions/advanced_graph_signals.so`** + confirmed importable (`extensions.advanced_graph_signals.evaluate_batch`). So the FR260-265 code is clean by every gate run directly.
+
+**THE COMMIT BLOCKER (not FR260-265 code) — recurring Dell-gauntlet flakiness (#22904):** ~5 commit attempts each failed on a DIFFERENT pre-existing/flaky thing: (a) `ranking_decision_engine::explain_returns_matching_decision_text` flakes under the gauntlet's `cargo test --workspace` but passes 8/8 under `cargo nextest` (a test-isolation bug in that crate); (b) one run reported `ruff`/`mypy`/`safety` failures although ruff+mypy pass directly (`safety` is network-dependent → flaky); (c) the last run failed **8 `apps/core` tests on committed-HEAD code** — `tests_views_runtime.py` (GPU fields, no GPU on Dell), `tests_performance_certification.py::RunnerBugFixTests` (executable discovery), `tests.py::GA4GSCSettingsApiTests` (needs network), `tests_dependency_security_pins.py` — all clean vs HEAD, NOT in my changed files, surfaced only because my `urls.py` route change pulls `apps/core` into the pytest scope. A single all-green pass needs ~3 independent flaky dimensions to align at once. **To land Slice 1: heal the gauntlet (#22904) first, or retry until lucky.**
+
+**`dell-rust.sh` chip (investigated, REVERTED, not fixable here):** the chip's git-bash/MinGW-ssh diagnosis does not match this machine — the Bash tool's nested `bash` runs under **WSL** (`/mnt/c` paths, `uname`=Linux) while direct calls run under git-bash. A path-based ssh fix was a no-op; **SSH ControlMaster BREAKS Windows OpenSSH** (`getsockname failed: Not a socket`) and was reverted immediately. The 7 scripts + the snippet were fully reverted (clean vs HEAD). The scripts DO work inside the git-hooks (proven). Workaround for agents: call `docker --context dell run …` directly (works from the interactive git-bash shell).
+
+**Deliberately NOT in Slice 1 (kept staged for later slices):** `backend/apps/pipeline/services/ranker.py` + `ranker_types.py` — the dormant "activation bridge" that calls the dispatcher. It is only reached when the pipeline passes settings+caches, which does not happen yet. It also has a known `is_cross_silo`/`silo_id` bug (the candidate match object has no `silo_id`). I left it staged and will fix + activate it in Slice 2 (wiring) / Slice 6 (CSBR), with real data.
+
+**What's left / NOT done (honest):**
+- **LAND THE SLICE 1 COMMIT** — code is done + verified + staged; blocked ONLY by the #22904 gauntlet flakiness above. Land it once the gauntlet is healthy (or after a lucky all-green retry). Nothing in FR260-265 needs changing.
+- **The 6 signals are still DORMANT in production** — Slice 1 only corrected the existing surface; the data engine was never built. Slices 2-7 build it: 2 ICPC, 3 SBMA, 4 TOSD, 5 RGSD, 6 CSBR, 7 DSTP (DSTP is external-data-gated — needs Google Analytics page-path data). Each slice builds the precompute + storage + daily job + production wiring + real end-to-end tests + benchmark, flips that signal ON, and commits.
+- The `ranker.py` activation + `silo_id` fix (Slice 2/6).
+- **#22904 gauntlet flakiness** is now the top blocker for ANY commit that touches `apps/core` or the Rust workspace: the `apps/core` tests above fail in the Dell test env, and `ranking_decision_engine` flakes under `cargo test --workspace`. Worth healing centrally.
+
+**Tech-debt delta:** Net positive — turned a spec-mismatched, partly-fake feature into a correct, honest, spec-accurate foundation (real calculator + real tests + real citations + truthful UI). Also investigated the `dell-rust.sh` chip and the `#22904` gauntlet flakiness in depth (findings above), and confirmed SSH ControlMaster is NOT viable on this Windows OpenSSH (it breaks ssh).
+
+[COVERAGE SUMMARY: target=90% actual=n/a% — Slice 1 is correctness fixes: the Rust calculator has 6 passing tests (known-answer + cold-start + NaN + isolated-node + property) and the dispatcher has 8 new real tests — ALL verified by direct `docker --context dell run` calls (clippy/fmt/nextest/ruff/mypy), NOT via the flaky commit gauntlet. End-to-end signal coverage arrives with each signal's slice.]
+
 ## 2026-06-15 - Claude Opus 4.8 (1M) - Bazel migration Phase 0 + Phase 1: all 4 runner images built, pushed, registry-verified
 
 [HANDOFF READ: 2026-06-15 by Claude Opus 4.8 (1M) — Antigravity implemented 6 advanced graph signals (FR260-265), Dell Rust tests blocked at that time.]

@@ -106,6 +106,16 @@ mod tests {
         explain, memory_estimate, rank_candidates, validate_profile, CandidateInput, FeatureVector,
         MemoryBudget, RankingPolicy, WeightProfile,
     };
+    use std::sync::{Mutex, MutexGuard, OnceLock};
+
+    static RANKING_TEST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+    fn ranking_test_guard() -> MutexGuard<'static, ()> {
+        RANKING_TEST_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
 
     fn profile() -> WeightProfile {
         WeightProfile::new("recommended".to_string(), 0.4, 0.25, 0.2, 0.15)
@@ -129,6 +139,7 @@ mod tests {
 
     #[test]
     fn rank_candidates_orders_by_score_and_deduplicates_destination() {
+        let _guard = ranking_test_guard();
         let policy = RankingPolicy::new(2, MemoryBudget::default_2gb());
         let active_profile = profile();
         let ranked = rank_candidates(
@@ -150,6 +161,7 @@ mod tests {
 
     #[test]
     fn invalid_feature_normalizes_to_neutral_and_explains_it() {
+        let _guard = ranking_test_guard();
         let policy = RankingPolicy::new(1, MemoryBudget::default_2gb());
         let active_profile = profile();
         let ranked = rank_candidates(
@@ -186,6 +198,7 @@ mod tests {
 
     #[test]
     fn explain_returns_matching_decision_text() {
+        let _guard = ranking_test_guard();
         let policy = RankingPolicy::new(1, MemoryBudget::default_2gb());
         let active_profile = profile();
         let ranked = rank_candidates(

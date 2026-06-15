@@ -730,8 +730,13 @@ class GA4GSCSettingsApiTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("property_url", response.json()["detail"])
 
-    @patch("apps.core.views_settings._build_gsc_service")
-    def test_ga4_gsc_test_connection_uses_saved_credentials(self, build_service_mock):
+    def test_ga4_gsc_test_connection_uses_saved_credentials(self):
+        import sys
+
+        from apps.core import views as core_views
+
+        views_settings = sys.modules[core_views.GSCConnectionTestView.__module__]
+
         AppSetting.objects.bulk_create(
             [
                 AppSetting(
@@ -758,14 +763,16 @@ class GA4GSCSettingsApiTests(APITestCase):
                 ),
             ]
         )
-        service_mock = build_service_mock.return_value
-        service_mock.sites.return_value.list.return_value.execute.return_value = {
-            "siteEntry": [{"siteUrl": "https://example.com"}]
-        }
 
-        response = self.client.post(
-            "/api/settings/ga4-gsc/test-connection/", {}, format="json"
-        )
+        with patch.object(views_settings, "_build_gsc_service") as build_service_mock:
+            service_mock = build_service_mock.return_value
+            service_mock.sites.return_value.list.return_value.execute.return_value = {
+                "siteEntry": [{"siteUrl": "https://example.com"}]
+            }
+
+            response = self.client.post(
+                "/api/settings/ga4-gsc/test-connection/", {}, format="json"
+            )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "connected")
