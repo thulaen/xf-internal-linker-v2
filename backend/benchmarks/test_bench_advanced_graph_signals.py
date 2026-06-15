@@ -1,0 +1,37 @@
+"""Benchmarks for advanced graph signal precompute helpers."""
+
+from __future__ import annotations
+
+import pytest
+
+from apps.graph.services.graph_signal_job import _compute_icpc_degrees
+
+
+def _icpc_inputs(size: int) -> tuple[list[tuple[int, int]], dict[int, int], dict[int, int]]:
+    ids = list(range(size))
+    id_to_idx = {node_id: node_id for node_id in ids}
+    community_ids = {node_id: node_id // 50 for node_id in ids}
+    edges = [
+        (source_id, (source_id + offset) % size)
+        for source_id in ids
+        for offset in (1, 7, 13)
+    ]
+    return edges, id_to_idx, community_ids
+
+
+@pytest.mark.benchmark(group="advanced-graph-icpc")
+@pytest.mark.parametrize("size", [100, 1_000, 10_000])
+def test_bench_icpc_degree_precompute(benchmark, size: int):
+    edges, id_to_idx, community_ids = _icpc_inputs(size)
+
+    local, global_ = benchmark(
+        _compute_icpc_degrees,
+        edges=edges,
+        id_to_idx=id_to_idx,
+        community_ids=community_ids,
+        min_community_size=10,
+    )
+
+    assert len(global_) == size
+    assert sum(global_.values()) == len(set(edges))
+    assert sum(local.values()) > 0

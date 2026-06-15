@@ -398,6 +398,7 @@ class RunNextScheduledJobTests(TestCase):
     def tearDown(self) -> None:
         unregister_for_test("task-success")
         unregister_for_test("task-unregistered")
+        unregister_for_test("task-after-missed-sweep-crash")
 
     @patch("apps.scheduled_updates.runner._redis_client")
     @patch("apps.scheduled_updates.runner.would_overflow", return_value=False)
@@ -480,3 +481,33 @@ class RunNextScheduledJobTests(TestCase):
         assert result["reason"] == "unregistered_key"
         job = ScheduledJob.objects.get(key="task-unregistered")
         assert job.state == JOB_STATE_FAILED
+
+    @patch(
+        "apps.scheduled_updates.runner.detect_missed_jobs",
+        side_effect=RuntimeError("missed sweep broke"),
+    )
+    @patch("apps.scheduled_updates.runner._redis_client")
+    @patch("apps.scheduled_updates.runner.would_overflow", return_value=False)
+    @patch("apps.scheduled_updates.runner.is_within_window", return_value=True)
+    def test_missed_job_sweep_crash_does_not_poison_job_pick(
+        self, _mock_window, _mock_overflow, mock_redis, _mock_detect
+    ):
+        mock_redis.return_value = self.redis
+
+        @scheduled_job(
+            "task-after-missed-sweep-crash",
+            display_name="task after missed sweep crash",
+            cadence_seconds=86400,
+            estimate_seconds=60,
+        )
+        def _entry(job, checkpoint):
+            checkpoint(progress_pct=50.0)
+
+        ScheduledJob.objects.create(
+            key="task-after-missed-sweep-crash",
+            display_name="task after missed sweep crash",
+        )
+        result = run_next_scheduled_job()
+
+        assert result["status"] == "ran"
+        assert result["final_state"] == JOB_STATE_COMPLETED

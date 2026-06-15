@@ -36,6 +36,12 @@ def test_pbt_is_scoped_not_whole_codebase() -> None:
     assert "rust/extensions/" in text    # Rust crate scoping
 
 
+def test_pbt_empty_scope_reaches_skip_branch() -> None:
+    text = RUNNER.read_text(encoding="utf-8")
+    assert text.count("sort -u || true") == 2
+    assert "[run-pbt] No changed property-test scope -- skipping." in text
+
+
 def test_pbt_runs_fast_profile_and_parallel() -> None:
     text = RUNNER.read_text(encoding="utf-8")
     assert "HYPOTHESIS_PROFILE" in text

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import concurrent.futures
+from collections import Counter
 import hashlib
 import json
 import logging
@@ -60,11 +61,13 @@ def compute_graph_hash(edges: list[tuple[int, int]]) -> str:
 def run_signals(
     force: bool = False,
     signal_version: str = "v1.0",
-    dry_run: bool = False
+    dry_run: bool = False,
+    icpc_min_community_size: int = 10,
 ) -> tuple[GraphSignalRun, Optional[tuple[nk.Graph, dict[int, int], list[int]]]]:
     """
     Orchestrates building the NetworKit graph and computing all signals.
     """
+    params = {"icpc_min_community_size": int(icpc_min_community_size)}
     edges, extra_nodes = load_active_edges()
     current_hash = compute_graph_hash(edges)
     
@@ -72,6 +75,7 @@ def run_signals(
         existing_run = GraphSignalRun.objects.filter(
             graph_hash=current_hash,
             signal_version=signal_version,
+            params_json=params,
             status=GraphSignalRun.STATUS_CURRENT
         ).first()
         if existing_run:
@@ -88,7 +92,8 @@ def run_signals(
             signal_version=signal_version,
             node_count=0,
             edge_count=0,
-            status=GraphSignalRun.STATUS_COMPUTING
+            status=GraphSignalRun.STATUS_COMPUTING,
+            params_json=params,
         )
         
     nk_graph, id_to_idx, idx_to_id = build_nk_graph(edges, extra_nodes=extra_nodes)
@@ -128,6 +133,12 @@ def run_signals(
     reach_scores = reach.compute_click_depth(nk_graph, hub_seeds_idx)
     
     group_seed_rank_dict = {idx: rank for rank, idx in enumerate(group_seeds_list)}
+    icpc_local, icpc_global = _compute_icpc_degrees(
+        edges=edges,
+        id_to_idx=id_to_idx,
+        community_ids=community_ids,
+        min_community_size=icpc_min_community_size,
+    )
     
     # 2. Heavy signals
     embeddings = structural_embedding.compute_structural_embeddings(nk_graph)
@@ -167,6 +178,8 @@ def run_signals(
             run=run,
             content_item_id=db_id,
             community_id=community_ids.get(idx),
+            icpc_local_indegree=icpc_local.get(idx, 0),
+            icpc_global_indegree=icpc_global.get(idx, 0),
             betweenness=betweenness_scores.get(idx),
             click_depth=r_depth if inbound_reachable else None,
             inbound_reachable=inbound_reachable,
@@ -229,3 +242,31 @@ def run_signals(
         run.delete()
 
     return run, (nk_graph, id_to_idx, idx_to_id)
+
+
+def _compute_icpc_degrees(
+    *,
+    edges: list[tuple[int, int]],
+    id_to_idx: dict[int, int],
+    community_ids: dict[int, int],
+    min_community_size: int,
+) -> tuple[dict[int, int], dict[int, int]]:
+    """Compute ICPC local and global in-degree per graph index."""
+    community_sizes = Counter(community_ids.values())
+    local: Counter[int] = Counter()
+    global_: Counter[int] = Counter()
+    for source_id, destination_id in set(edges):
+        source_idx = id_to_idx.get(source_id)
+        destination_idx = id_to_idx.get(destination_id)
+        if source_idx is None or destination_idx is None:
+            continue
+        global_[destination_idx] += 1
+        source_community = community_ids.get(source_idx)
+        destination_community = community_ids.get(destination_idx)
+        if (
+            source_community is not None
+            and source_community == destination_community
+            and community_sizes[destination_community] >= min_community_size
+        ):
+            local[destination_idx] += 1
+    return dict(local), dict(global_)

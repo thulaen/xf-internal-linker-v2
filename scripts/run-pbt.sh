@@ -65,7 +65,7 @@ py_targets="$(
         sib="$d/tests_pbt_${s}.py"
         [[ -f "backend/$sib" ]] && printf '%s\n' "$sib" ;;
     esac
-  done <<< "$changed" | sort -u
+  done <<< "$changed" | sort -u || true
 )"
 
 # Rust crates whose files changed (their proptest tests run). Glob-free for the
@@ -79,7 +79,7 @@ rust_crates="$(
     elif [[ "${p#rust/xf_kernels/}" != "$p" ]]; then
       printf '%s\n' "xf_kernels"
     fi
-  done <<< "$changed" | sort -u
+  done <<< "$changed" | sort -u || true
 )"
 
 if [[ -z "$py_targets" && -z "$rust_crates" ]]; then

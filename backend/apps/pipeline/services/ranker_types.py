@@ -135,6 +135,12 @@ class ScoredCandidate:
     score_berp: float = 0.0
     score_hgte: float = 0.0
     score_rsqva: float = 0.0
+    score_tosd: float = 0.0
+    score_dstp: float = 0.0
+    score_icpc: float = 0.0
+    score_sbma: float = 0.0
+    score_rgsd: float = 0.0
+    score_csbr: float = 0.0
     darb_diagnostics: dict[str, object] = field(default_factory=dict)
     kmig_diagnostics: dict[str, object] = field(default_factory=dict)
     tapb_diagnostics: dict[str, object] = field(default_factory=dict)
@@ -142,6 +148,12 @@ class ScoredCandidate:
     berp_diagnostics: dict[str, object] = field(default_factory=dict)
     hgte_diagnostics: dict[str, object] = field(default_factory=dict)
     rsqva_diagnostics: dict[str, object] = field(default_factory=dict)
+    tosd_diagnostics: dict[str, object] = field(default_factory=dict)
+    dstp_diagnostics: dict[str, object] = field(default_factory=dict)
+    icpc_diagnostics: dict[str, object] = field(default_factory=dict)
+    sbma_diagnostics: dict[str, object] = field(default_factory=dict)
+    rgsd_diagnostics: dict[str, object] = field(default_factory=dict)
+    csbr_diagnostics: dict[str, object] = field(default_factory=dict)
     score_passage_relevance: float = _NEUTRAL_SCORE
     passage_relevance_diagnostics: dict[str, object] = field(default_factory=dict)
     score_embedding_age: float = 1.0

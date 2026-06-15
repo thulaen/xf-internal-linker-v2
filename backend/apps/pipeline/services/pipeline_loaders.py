@@ -13,6 +13,15 @@ from typing import Any
 from .feedback_rerank import FeedbackRerankSettings
 from .slate_diversity import SlateDiversitySettings
 from .anchor_diversity import AnchorDiversitySettings
+from .advanced_graph_signals import (
+    AdvancedGraphSignalsSettings,
+    CSBRSettings,
+    DSTPSettings,
+    ICPCSettings,
+    RGSDSettings,
+    SBMASettings,
+    TOSDSettings,
+)
 from .field_aware_relevance import FieldAwareRelevanceSettings
 from .learned_anchor import LearnedAnchorSettings
 from .keyword_stuffing import KeywordStuffingSettings
@@ -73,6 +82,7 @@ def _load_all_pipeline_settings() -> dict[str, Any]:
         "clustering": _load_clustering_settings(),
         "slate_diversity": _load_slate_diversity_settings(),
         "fr099_fr105": _load_fr099_fr105_settings(),
+        "advanced_graph_signals": _load_advanced_graph_signals_settings(),
         "graph_signals": _load_graph_signal_settings(),
         "max_host_reuse": _get_max_host_reuse(),
     }
@@ -598,6 +608,72 @@ def _load_fr099_fr105_settings() -> FR099FR105Settings:
             "Failed to load FR-099 through FR-105 settings; using dataclass defaults."
         )
         return FR099FR105Settings()
+
+
+def _load_advanced_graph_signals_settings() -> AdvancedGraphSignalsSettings:
+    """Load FR-260 through FR-265 advanced graph signal settings."""
+
+    def _get(key: str, fallback_str: str) -> str:
+        try:
+            from apps.core.models import AppSetting
+
+            setting = AppSetting.objects.filter(key=key).first()
+            if setting is not None:
+                return setting.value
+        except Exception:
+            logger.exception("Failed to read AppSetting %s; using preset.", key)
+        return fallback_str
+
+    def _bool(key: str) -> bool:
+        return (
+            _get(key, "true" if recommended_bool(key) else "false").strip().lower()
+            == "true"
+        )
+
+    def _float(key: str) -> float:
+        return float(_get(key, str(recommended_float(key))))
+
+    def _int(key: str) -> int:
+        return int(float(_get(key, str(recommended_int(key)))))
+
+    try:
+        return AdvancedGraphSignalsSettings(
+            tosd=TOSDSettings(
+                enabled=_bool("tosd.enabled"),
+                ranking_weight=_float("tosd.ranking_weight"),
+                filter_strength=_float("tosd.filter_strength"),
+            ),
+            dstp=DSTPSettings(
+                enabled=_bool("dstp.enabled"),
+                ranking_weight=_float("dstp.ranking_weight"),
+                smoothing_alpha=_float("dstp.smoothing_alpha"),
+            ),
+            icpc=ICPCSettings(
+                enabled=_bool("icpc.enabled"),
+                ranking_weight=_float("icpc.ranking_weight"),
+                min_community_size=_int("icpc.min_community_size"),
+            ),
+            sbma=SBMASettings(
+                enabled=_bool("sbma.enabled"),
+                ranking_weight=_float("sbma.ranking_weight"),
+                num_blocks=_int("sbma.num_blocks"),
+            ),
+            rgsd=RGSDSettings(
+                enabled=_bool("rgsd.enabled"),
+                ranking_weight=_float("rgsd.ranking_weight"),
+                curvature_penalty=_float("rgsd.curvature_penalty"),
+            ),
+            csbr=CSBRSettings(
+                enabled=_bool("csbr.enabled"),
+                ranking_weight=_float("csbr.ranking_weight"),
+                min_overlap_threshold=_float("csbr.min_overlap_threshold"),
+            ),
+        )
+    except Exception:
+        logger.exception(
+            "Failed to load FR-260 through FR-265 settings; using dataclass defaults."
+        )
+        return AdvancedGraphSignalsSettings()
 
 
 def _load_graph_signal_settings() -> dict[str, Any]:

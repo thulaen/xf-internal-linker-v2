@@ -3,8 +3,18 @@
 from django.test import TestCase
 
 from apps.content.models import ContentItem
-from apps.graph.api import get_current_run, latest_node_signal, link_prediction_candidates
-from apps.graph.models import GraphSignalRun, LinkPredictionCandidate, NodeGraphSignal
+from apps.graph.api import (
+    current_node_communities,
+    current_icpc_degrees,
+    get_current_run,
+    latest_node_signal,
+    link_prediction_candidates,
+)
+from apps.graph.models import (
+    GraphSignalRun,
+    LinkPredictionCandidate,
+    NodeGraphSignal,
+)
 
 
 class GraphAPITests(TestCase):
@@ -53,3 +63,38 @@ class GraphAPITests(TestCase):
         self.assertEqual(len(preds_to), 1)
         self.assertEqual(preds_to[0], link_pred)
         self.assertEqual(preds_to[0].from_item, self.item1)
+
+    def test_current_node_communities_returns_current_run_map(self):
+        """Given a current graph run, When callers ask for communities, Then keys are content keys."""
+        run = GraphSignalRun.objects.create(
+            graph_hash="hash",
+            signal_version="v1",
+            node_count=2,
+            edge_count=1,
+            status=GraphSignalRun.STATUS_CURRENT,
+        )
+        NodeGraphSignal.objects.create(
+            run=run,
+            content_item=self.item1,
+            community_id=7,
+        )
+
+        self.assertEqual(current_node_communities(), {(self.item1.pk, "1"): 7})
+
+    def test_current_icpc_degrees_returns_current_run_map(self):
+        """Given a current graph run, When callers ask for ICPC counts, Then keys match content keys."""
+        run = GraphSignalRun.objects.create(
+            graph_hash="hash",
+            signal_version="v1",
+            node_count=2,
+            edge_count=1,
+            status=GraphSignalRun.STATUS_CURRENT,
+        )
+        NodeGraphSignal.objects.create(
+            run=run,
+            content_item=self.item1,
+            icpc_local_indegree=2,
+            icpc_global_indegree=3,
+        )
+
+        self.assertEqual(current_icpc_degrees(), {(self.item1.pk, "1"): (2, 3)})

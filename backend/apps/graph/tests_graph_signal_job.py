@@ -4,7 +4,12 @@ from django.utils import timezone
 
 from apps.content.models import ContentItem
 from apps.graph.models import ExistingLink, GraphSignalRun, NodeGraphSignal, LinkPredictionCandidate
-from apps.graph.services.graph_signal_job import load_active_edges, compute_graph_hash, run_signals
+from apps.graph.services.graph_signal_job import (
+    _compute_icpc_degrees,
+    load_active_edges,
+    compute_graph_hash,
+    run_signals,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -113,3 +118,25 @@ def test_dry_run():
     # Dry run deletes the created run object
     assert not GraphSignalRun.objects.filter(id=run.id).exists()
     assert NodeGraphSignal.objects.count() == 0
+
+
+def test_compute_icpc_degrees_respects_community_size_floor():
+    """Given graph communities, When ICPC counts run, Then small communities get no local count."""
+    local, global_ = _compute_icpc_degrees(
+        edges=[(1, 3), (2, 3), (4, 3)],
+        id_to_idx={1: 0, 2: 1, 3: 2, 4: 3},
+        community_ids={0: 10, 1: 10, 2: 10, 3: 20},
+        min_community_size=3,
+    )
+
+    assert global_[2] == 3
+    assert local[2] == 2
+
+    local_small, _ = _compute_icpc_degrees(
+        edges=[(1, 3), (2, 3)],
+        id_to_idx={1: 0, 2: 1, 3: 2},
+        community_ids={0: 10, 1: 10, 2: 10},
+        min_community_size=4,
+    )
+
+    assert local_small.get(2, 0) == 0

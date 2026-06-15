@@ -35,7 +35,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from apps.core.helpers import HelperConstraint
-from django.db import connection
+from django.db import close_old_connections, connections
 
 from .alerts import (
     detect_missed_jobs,
@@ -81,6 +81,12 @@ MIN_LOCK_TTL_SECONDS: int = 60
 #: the lock TTL. Covers jobs that run modestly over estimate without
 #: freeing the lock prematurely.
 LOCK_TTL_OVERHEAD_SECONDS: int = 300
+
+
+def _close_stale_runner_connections() -> None:
+    if any(conn.in_atomic_block for conn in connections.all()):
+        return
+    close_old_connections()
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -278,14 +284,14 @@ def _execute_job(job: ScheduledJob, definition: JobDefinition) -> str:
     ram_peak_mb=256,
 )
 def run_next_scheduled_job() -> dict:
-    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
-    connection.close()
-
     """Beat-fired runner — starts at most one ScheduledJob per invocation.
 
     The returned dict is Celery-result-friendly (JSON-serialisable) so
     operators can follow the runner's decisions via task results.
     """
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    _close_stale_runner_connections()
+
     # Catch-up sweep — deliberately runs BEFORE the window guard so a
     # job that missed yesterday's window still surfaces as an alert the
     # moment the laptop wakes up, even at 10 am local.
@@ -298,6 +304,7 @@ def run_next_scheduled_job() -> dict:
             )
     except Exception:
         logger.exception("scheduled_updates: detect_missed_jobs crashed — continuing")
+        _close_stale_runner_connections()
 
     if not is_within_window():
         return {"status": "skipped", "reason": "outside_window"}

@@ -2005,6 +2005,12 @@ def run_anchor_self_information_corpus_stats_refresh(job, checkpoint) -> None:
 )
 def run_graph_signals_compute_all(job, checkpoint) -> None:
     from apps.graph.services.graph_signal_job import run_signals
+    from apps.pipeline.services.pipeline_loaders import _load_advanced_graph_signals_settings
+
     checkpoint(progress_pct=10.0, message="Starting graph signals computation...")
-    run_signals(force=False)
+    settings = _load_advanced_graph_signals_settings()
+    run_signals(
+        force=False,
+        icpc_min_community_size=settings.icpc.min_community_size,
+    )
     checkpoint(progress_pct=100.0, message="Graph signals computation complete.")

@@ -15,13 +15,28 @@ class Command(BaseCommand):
             action="store_true",
             help="Force computation even if the graph hash hasn't changed.",
         )
+        parser.add_argument(
+            "--icpc-min-community-size",
+            type=int,
+            default=10,
+            help="Minimum Louvain community size used when computing ICPC local in-degree.",
+        )
 
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
         force = options["force"]
+        icpc_min_community_size = options["icpc_min_community_size"]
 
-        self.stdout.write(f"Starting graph signal computation (dry_run={dry_run}, force={force})...")
-        run, result = run_signals(force=force, dry_run=dry_run)
+        self.stdout.write(
+            "Starting graph signal computation "
+            f"(dry_run={dry_run}, force={force}, "
+            f"icpc_min_community_size={icpc_min_community_size})..."
+        )
+        run, result = run_signals(
+            force=force,
+            dry_run=dry_run,
+            icpc_min_community_size=icpc_min_community_size,
+        )
         
         if result is None:
             self.stdout.write(self.style.SUCCESS("Graph unchanged. Skipped computation."))

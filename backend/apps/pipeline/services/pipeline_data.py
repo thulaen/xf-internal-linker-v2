@@ -16,6 +16,10 @@ import pyroaring as pr
 from django.conf import settings
 
 from .anchor_diversity import build_anchor_history
+from .advanced_graph_signals import (
+    AdvancedGraphSignalsCaches,
+    AdvancedGraphSignalsSettings,
+)
 from .fr099_fr105_signals import FR099FR105Caches, FR099FR105Settings
 from .graph_topology_caches import (
     build_articulation_point_cache,
@@ -63,11 +67,6 @@ except ImportError:
 _CONTENT_ITERATOR_CHUNK = 500  # maxsize for ContentItem iterator
 _SENTENCE_FETCH_BATCH = 2000  # maxsize for sentence cursor fetch
 _EMBEDDING_FETCH_BATCH = 1000  # maxsize for embedding cursor fetch
-
-
-def _sql_in_clause_params(values: list[int]) -> tuple[str, list[int]]:
-    placeholders = ", ".join(["%s"] * len(values))
-    return placeholders, list(values)
 
 
 def _coerce_embedding_vector(raw_embedding: Any) -> np.ndarray:
@@ -229,10 +228,13 @@ def _load_pipeline_content(
     keyword_stuffing_settings: Any,
     progress_fn: Callable,
     fr099_fr105_settings: FR099FR105Settings | None = None,
+    advanced_graph_signals_settings: AdvancedGraphSignalsSettings | None = None,
 ) -> Any:
     """Load content records, sentences, existing links, and rare-term profiles."""
     if fr099_fr105_settings is None:
         fr099_fr105_settings = FR099FR105Settings()
+    if advanced_graph_signals_settings is None:
+        advanced_graph_signals_settings = AdvancedGraphSignalsSettings()
     progress_fn(0.05, "Loading content records...")
     content_records = _load_content_records(
         destination_scope_ids=destination_scope_ids, host_scope_ids=host_scope_ids
@@ -259,6 +261,11 @@ def _load_pipeline_content(
         fr099_fr105_settings=fr099_fr105_settings,
         progress_fn=progress_fn,
     )
+    advanced_graph_signals_caches = _build_advanced_graph_signals_caches(
+        content_records=content_records,
+        advanced_graph_signals_settings=advanced_graph_signals_settings,
+        progress_fn=progress_fn,
+    )
     return dict(
         content_records=content_records,
         sentence_records=sentence_records,
@@ -269,8 +276,62 @@ def _load_pipeline_content(
         keyword_stuffing_by_destination={},
         link_farm_by_destination={},
         fr099_fr105_caches=fr099_fr105_caches,
+        advanced_graph_signals_caches=advanced_graph_signals_caches,
         **link_anchor_data,
     )
+
+
+def _build_advanced_graph_signals_caches(
+    *,
+    content_records: dict[ContentKey, ContentRecord],
+    advanced_graph_signals_settings: AdvancedGraphSignalsSettings,
+    progress_fn: Callable,
+) -> AdvancedGraphSignalsCaches | None:
+    """Build request-time cache inputs for FR-260 through FR-265 signals."""
+    if not advanced_graph_signals_settings.any_enabled:
+        return None
+    progress_fn(0.151, "Loading advanced graph signal caches...")
+    node_to_index = {key: index for index, key in enumerate(content_records)}
+    if not node_to_index:
+        return None
+    local_degrees, global_degrees = _build_icpc_degree_arrays(
+        node_to_index=node_to_index,
+    )
+    size = len(node_to_index)
+    return AdvancedGraphSignalsCaches(
+        node_to_index=node_to_index,
+        spectral_scores=np.zeros(size, dtype=np.float64),
+        transition_counts={},
+        out_degrees=np.zeros(size, dtype=np.int32),
+        local_degrees=local_degrees,
+        global_degrees=global_degrees,
+        block_probabilities={},
+        flat_distances={},
+        density_gradients=np.zeros(size, dtype=np.float64),
+        persona_matches={},
+    )
+
+
+def _build_icpc_degree_arrays(
+    *,
+    node_to_index: dict[ContentKey, int],
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return ICPC local and global in-degree arrays from the current graph run."""
+    try:
+        from apps.graph.api import current_icpc_degrees
+
+        precomputed = current_icpc_degrees()
+    except Exception:
+        logger.exception("Failed to load current ICPC graph degrees.")
+        precomputed = {}
+    local_degrees = np.zeros(len(node_to_index), dtype=np.int32)
+    global_degrees = np.zeros(len(node_to_index), dtype=np.int32)
+    for key, (local, global_) in precomputed.items():
+        index = node_to_index.get(key)
+        if index is not None:
+            local_degrees[index] = local
+            global_degrees[index] = global_
+    return local_degrees, global_degrees
 
 
 # ---------------------------------------------------------------------------
@@ -464,6 +525,7 @@ def _load_pipeline_resources(  # noqa: forbidden-pattern — 9-arg public API; g
     link_farm_settings: Any,
     progress_fn: Callable,
     fr099_fr105_settings: FR099FR105Settings | None = None,
+    advanced_graph_signals_settings: AdvancedGraphSignalsSettings | None = None,
 ) -> Any:
     """Load all pipeline resources including embeddings."""
     from .pipeline import PipelineResult
@@ -476,6 +538,7 @@ def _load_pipeline_resources(  # noqa: forbidden-pattern — 9-arg public API; g
         keyword_stuffing_settings=keyword_stuffing_settings,
         progress_fn=progress_fn,
         fr099_fr105_settings=fr099_fr105_settings,
+        advanced_graph_signals_settings=advanced_graph_signals_settings,
     )
     if isinstance(content_data, PipelineResult):
         return content_data
@@ -687,19 +750,18 @@ def _load_sentence_records(
     if not content_pks:
         return {}, {}
 
-    in_clause, params = _sql_in_clause_params(content_pks)
-    query = f"""
+    query = """
         SELECT s.id, s.content_item_id, ci.content_type, s.text, s.char_count, s.position
         FROM content_sentence s
         JOIN content_contentitem ci ON s.content_item_id = ci.id
-        WHERE s.content_item_id IN ({in_clause})
+        WHERE s.content_item_id = ANY(%s)
           AND ci.is_deleted = FALSE
           AND s.word_position <= %s
     """
     sentence_records: dict[int, SentenceRecord] = {}
     content_to_sentence_ids: dict[ContentKey, pr.BitMap] = defaultdict(pr.BitMap)
     with connection.cursor() as cursor:
-        cursor.execute(query, [*params, settings.HOST_SCAN_WORD_LIMIT])
+        cursor.execute(query, [content_pks, settings.HOST_SCAN_WORD_LIMIT])
         while True:
             rows = cursor.fetchmany(_SENTENCE_FETCH_BATCH)
             if not rows:
@@ -861,11 +923,10 @@ def _load_sentence_embeddings(
     if not content_pks:
         return [], np.empty((0, get_current_embedding_dimension()), dtype=np.float32)
 
-    in_clause, params = _sql_in_clause_params(content_pks)
-    query = f"""
+    query = """
         SELECT id, embedding
         FROM content_sentence
-        WHERE content_item_id IN ({in_clause})
+        WHERE content_item_id = ANY(%s)
           AND word_position <= %s
           AND embedding IS NOT NULL
           AND embedding_model_version = %s
@@ -878,7 +939,7 @@ def _load_sentence_embeddings(
         cursor.execute(
             query,
             [
-                *params,
+                content_pks,
                 settings.HOST_SCAN_WORD_LIMIT,
                 get_current_embedding_filter()["embedding_model_version"],
             ],

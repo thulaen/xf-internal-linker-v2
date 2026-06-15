@@ -39,6 +39,7 @@ from .pipeline_loaders import (  # noqa: F401
     _get_max_host_reuse,
     _get_paragraph_window,
     _load_all_pipeline_settings,
+    _load_advanced_graph_signals_settings,
     _load_anchor_diversity_settings,
     _load_click_distance_settings,
     _load_clustering_settings,
@@ -157,6 +158,7 @@ def run_pipeline(
         link_farm_settings=settings["link_farm"],
         progress_fn=_progress,
         fr099_fr105_settings=settings.get("fr099_fr105"),
+        advanced_graph_signals_settings=settings.get("advanced_graph_signals"),
     )
     data = _load_pipeline_resources(**resource_kwargs)
     if isinstance(data, PipelineResult):
@@ -263,6 +265,7 @@ def _execute_pipeline_stages(
         progress_fn=progress_fn,
         items_in_scope=data["items_in_scope"],
         fr099_fr105_caches=data.get("fr099_fr105_caches"),
+        advanced_graph_signals_caches=data.get("advanced_graph_signals_caches"),
         graph_signal_ranker=graph_signal_ranker,
         phase6_contribution=phase6_contribution,
         anchor_garbage_dispatcher=anchor_garbage_dispatcher,

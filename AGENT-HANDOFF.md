@@ -1,3 +1,68 @@
+## 2026-06-15 - Codex - FR260-265 Slice 2 ICPC commit blocker fixed
+
+[HANDOFF READ: 2026-06-15 by Codex - FR260-265 Slice 2 ICPC work was implemented and verified, but the commit was blocked by scheduled-updates database connection failures.]
+[PROGRESS: Slice 2 ICPC precompute and ranker wiring are ready to commit again. I fixed the scheduled runner database-connection bug and the empty-scope property-test hook bug that blocked the commit. Nothing was pushed.]
+
+**What I did (plain English):** I kept the Slice 2 ICPC work intact and fixed the scheduled job runner failure that blocked the commit. The runner no longer force-closes Django's active database connection during tests. It now cleans up stale connections only when Django is not already inside a database transaction, and it cleans up again if the missed-job sweep crashes before the next job is picked.
+
+**What now works that did not before:**
+- The scheduled runner can continue after the missed-job sweep raises an error.
+- The runner no longer poisons the test database connection before `pick_next_job()` queries pending jobs.
+- The property-test hook now reaches its normal skip branch when no changed files have matching property tests.
+- Slice 2 ICPC storage, job wiring, pipeline cache loading, ranker scoring, and benchmarks remain ready for the scoped commit.
+
+**Files changed:** `backend/apps/scheduled_updates/runner.py`, `backend/apps/scheduled_updates/tests_runner.py`, `scripts/run-pbt.sh`, `scripts/test_run-pbt.py`, `AGENT-HANDOFF.md`, plus the existing Slice 2 ICPC files already listed in the prior handoff entry.
+
+**Direct verification done:**
+- Focused Dell pytest for the new missed-sweep crash regression passed. turbo=used.
+- Direct uncached Dell pytest for `apps/scheduled_updates/tests_runner.py` passed: 31 tests and 26 subtests. turbo=used.
+- Dell Ruff passed for the two scheduled-updates files. turbo=used.
+- Dell mypy passed for the two scheduled-updates files. turbo=used.
+- Dell Bandit passed for the scheduled runner production file. turbo=used.
+- `python -m pytest -q scripts/test_run-pbt.py` passed: 8 tests. turbo=blocked: this is a local script contract test, not a backend Python quality target.
+- The real `scripts/run-pbt.sh` hook passed by reporting no changed property-test scope and skipping. turbo=used for the hook's Dell reachability path.
+
+**Issues filed or resolved:** Resolved AutoIssue `#23276` for the scheduled runner connection bug and `#23277` for the property-test hook empty-scope bug. Existing open debt `#23273` remains: the benchmarks app still needs a public `api.py` boundary.
+
+**What has issues or errors:** The first mypy and Bandit attempts failed before tool execution because Dell source sync failed. Rerunning each tool by itself passed. Slice 2 is still not pushed.
+
+**Tech-debt delta:** Net positive. One real runner bug and one hook bug were fixed and logged with lessons. No new storage table or duplicate artefact was added.
+
+[COVERAGE SUMMARY: target=90% actual=0% measured - not met; focused tests and lint passed, but line coverage was not measured.]
+
+## 2026-06-15 - Codex - FR260-265 Slice 2 ICPC precompute and ranker wiring
+
+[HANDOFF READ: 2026-06-15 by Claude Opus 4.8 (1M) - FR260-265 Slice 1 was corrected and verified, but remained staged because the Dell commit checks were flaky.]
+[PROGRESS: Dell gauntlet fix committed as 27784241. Slice 1 committed as 2b0c956a. Slice 2 ICPC work is implemented and verified locally; commit attempt is next. Nothing was pushed.]
+
+**What I did (plain English):** I made ICPC, the in-community popularity signal, active instead of dormant. ICPC compares how many incoming links a destination gets from its own graph community versus all incoming links. I reused the existing graph snapshot job rather than creating duplicate storage. I also fixed the advanced graph ranker path so cross-silo checks read the host page's `ContentRecord.silo_group_id`, not a missing field on `SentenceSemanticMatch`.
+
+**What now works that did not before:**
+- The current graph snapshot stores `icpc_local_indegree` and `icpc_global_indegree` on `NodeGraphSignal`.
+- The daily graph-signal job computes those ICPC counts from current links and Louvain community IDs, with `icpc.min_community_size` included in the snapshot parameters so setting changes force a fresh run.
+- The pipeline loads `AdvancedGraphSignalsSettings`, builds `AdvancedGraphSignalsCaches` from the current graph snapshot, and passes both into `score_destination_matches`.
+- The ranker records the six advanced graph scores and diagnostics on `ScoredCandidate`; ICPC now gets real local/global degree input when the graph snapshot exists.
+- The sentence-loading raw SQL no longer builds a dynamic `IN (...)` string; it uses a normal Postgres array parameter with `ANY(%s)`.
+
+**Files changed:** `backend/apps/graph/api.py`, `backend/apps/graph/models.py`, `backend/apps/graph/migrations/0006_nodegraphsignal_icpc_degrees.py`, `backend/apps/graph/services/graph_signal_job.py`, `backend/apps/graph/management/commands/recompute_graph_signals.py`, `backend/apps/graph/tests_api.py`, `backend/apps/graph/tests_graph_signal_job.py`, `backend/apps/pipeline/services/pipeline.py`, `backend/apps/pipeline/services/pipeline_data.py`, `backend/apps/pipeline/services/pipeline_loaders.py`, `backend/apps/pipeline/services/pipeline_stages.py`, `backend/apps/pipeline/services/ranker.py`, `backend/apps/pipeline/services/ranker_types.py`, `backend/apps/pipeline/test_advanced_graph_ranker_wiring.py`, `backend/apps/scheduled_updates/jobs.py`, `backend/benchmarks/test_bench_advanced_graph_signals.py`, and audit log updates from required lesson lookups.
+
+**Direct verification done:**
+- Focused Dell pytest for graph API, ICPC degree computation, ranker wiring, and the sentence-loader regression passed. turbo=used.
+- Direct Dell pytest for `PipelineLoaderTests.test_sentence_loaders_honor_word_limit_without_loading_extra_rows` passed uncached. turbo=used.
+- Dell Ruff passed for touched files. turbo=used.
+- Dell mypy passed for touched production files. turbo=used.
+- Dell Bandit passed for touched production files. turbo=used.
+- Django `makemigrations --check --dry-run` reported `No changes detected`.
+- Direct Dell benchmark for ICPC precompute passed at 100, 1,000, and 10,000 nodes. turbo=used. Mean times were about 99 microseconds, 1.07 milliseconds, and 12.49 milliseconds.
+
+**Issues filed or resolved:** Resolved AutoIssue `#23275` for the ranker cross-silo bug. Existing open debt `#23273` remains: the benchmarks app still needs a public `api.py` boundary.
+
+**What has issues or errors:** Slice 2 is not pushed. If the next commit attempt fails, do not bypass hooks. The benchmark runner disables benchmark timing under the split pytest runner, so I used a direct Dell pytest-benchmark command for timing evidence.
+
+**Tech-debt delta:** Net positive. ICPC now reuses existing graph snapshot storage instead of adding duplicate rows; the ranker cross-silo bug is fixed and logged; the two sentence-loader SQL queries now use normal array parameters.
+
+[COVERAGE SUMMARY: target=90% actual=0% measured - not met; behavior tests, lint, type checks, security checks, and benchmarks passed, but line coverage was not measured.]
+
 ## 2026-06-15 - Codex - Dell gauntlet fixes for FR260-265 Slice 1 commit
 
 [HANDOFF READ: 2026-06-15 by Claude Opus 4.8 (1M) - FR260-265 Slice 1 was corrected and verified, but remained staged because the Dell commit checks were flaky.]

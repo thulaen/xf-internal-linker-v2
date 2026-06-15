@@ -308,6 +308,14 @@ class NodeGraphSignal(models.Model):
     community_id = models.IntegerField(
         null=True, blank=True, help_text="Louvain community partition ID."
     )
+    icpc_local_indegree = models.PositiveIntegerField(
+        default=0,
+        help_text="Incoming links from the same large-enough Louvain community.",
+    )
+    icpc_global_indegree = models.PositiveIntegerField(
+        default=0,
+        help_text="All incoming links to this content item in the graph snapshot.",
+    )
     betweenness = models.FloatField(
         null=True, blank=True, help_text="Betweenness centrality score."
     )

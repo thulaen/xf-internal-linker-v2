@@ -375,6 +375,8 @@ def score_destination_matches(
     min_semantic_score: float = 0.25,
     fr099_fr105_caches: object = None,
     fr099_fr105_settings: object = None,
+    advanced_graph_signals_caches: object = None,
+    advanced_graph_signals_settings: object = None,
     graph_signal_ranker: GraphSignalRanker | None = None,
     phase6_contribution: object = None,
     anchor_garbage_dispatcher: object = None,
@@ -780,6 +782,27 @@ def score_destination_matches(
     if fr099_fr105_settings is not None and fr099_fr105_caches is not None:
         from .fr099_fr105_signals import evaluate_all_fr099_fr105 as _fr099_dispatcher
 
+    _advanced_graph_evals = []
+    if advanced_graph_signals_settings is not None:
+        from .advanced_graph_signals import evaluate_advanced_graph_signals_batch
+        host_dest_pairs = [(c["match"].host_key, destination.key) for c in pending_candidates]
+        dest_silo_id = getattr(destination, "silo_group_id", None)
+        is_cross_silo = []
+        for candidate in pending_candidates:
+            host = content_records.get(candidate["match"].host_key)
+            host_silo_id = getattr(host, "silo_group_id", None)
+            is_cross_silo.append(
+                host_silo_id is not None
+                and dest_silo_id is not None
+                and host_silo_id != dest_silo_id
+            )
+        _advanced_graph_evals = evaluate_advanced_graph_signals_batch(
+            host_dest_pairs,
+            advanced_graph_signals_caches,
+            advanced_graph_signals_settings,
+            is_cross_silo,
+        )
+
     # W3c graph-signal contribution (picks #29 / #30 / #36).
     # The HITS-authority / PPR / TrustRank scores are properties of the
     # *destination* node, so the contribution is constant across every
@@ -803,7 +826,7 @@ def score_destination_matches(
         nk_node_contribution += float(weights.get("graph.nk_local_clustering.ranking_weight", 0.0)) * _get_nk(nk_node_signal.local_clustering)
         nk_node_contribution += float(weights.get("graph.nk_group_seed_rank.ranking_weight", 0.0)) * _get_nk(nk_node_signal.group_seed_rank)
 
-    for pending_candidate, raw_score_final in zip(pending_candidates, score_finals):
+    for i, (pending_candidate, raw_score_final) in enumerate(zip(pending_candidates, score_finals)):
         match = pending_candidate["match"]
         phrase_match = pending_candidate["phrase_match"]
         learned_anchor_match = pending_candidate["learned_anchor_match"]
@@ -874,6 +897,16 @@ def score_destination_matches(
             fr099_diags = fr099_eval.per_signal_diagnostics
         score_final += fr099_contribution
         score_final += graph_signal_contribution
+
+        advanced_graph_contribution = 0.0
+        advanced_graph_scores = {}
+        advanced_graph_diags = {}
+        if _advanced_graph_evals and i < len(_advanced_graph_evals):
+            ag_eval = _advanced_graph_evals[i]
+            advanced_graph_contribution = float(ag_eval.weighted_contribution)
+            advanced_graph_scores = ag_eval.per_signal_scores
+            advanced_graph_diags = ag_eval.per_signal_diagnostics
+        score_final += advanced_graph_contribution
 
         # FR-249 — Embedding age decay component. Source: Liu 2009 *Learning
         # to Rank for IR* §1.5.4 (DOI 10.1561/1500000016) — freshness as a
@@ -1182,6 +1215,18 @@ def score_destination_matches(
                 berp_diagnostics=dict(fr099_diags.get("berp_diagnostics", {})),
                 hgte_diagnostics=dict(fr099_diags.get("hgte_diagnostics", {})),
                 rsqva_diagnostics=dict(fr099_diags.get("rsqva_diagnostics", {})),
+                score_tosd=float(advanced_graph_scores.get("score_tosd", 0.0)),
+                score_dstp=float(advanced_graph_scores.get("score_dstp", 0.0)),
+                score_icpc=float(advanced_graph_scores.get("score_icpc", 0.0)),
+                score_sbma=float(advanced_graph_scores.get("score_sbma", 0.0)),
+                score_rgsd=float(advanced_graph_scores.get("score_rgsd", 0.0)),
+                score_csbr=float(advanced_graph_scores.get("score_csbr", 0.0)),
+                tosd_diagnostics=dict(advanced_graph_diags.get("tosd_diagnostics", {})),
+                dstp_diagnostics=dict(advanced_graph_diags.get("dstp_diagnostics", {})),
+                icpc_diagnostics=dict(advanced_graph_diags.get("icpc_diagnostics", {})),
+                sbma_diagnostics=dict(advanced_graph_diags.get("sbma_diagnostics", {})),
+                rgsd_diagnostics=dict(advanced_graph_diags.get("rgsd_diagnostics", {})),
+                csbr_diagnostics=dict(advanced_graph_diags.get("csbr_diagnostics", {})),
                 # FR-053 Passage-Level Relevance (masterplan Group E).
                 score_passage_relevance=float(passage_relevance_score),
                 passage_relevance_diagnostics=dict(passage_relevance_diags),
