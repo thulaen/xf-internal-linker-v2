@@ -29,6 +29,7 @@ spec:
       labels:
         app: frontend
     spec:
+      priorityClassName: xf-app
       # Co-locate with the backend on Dell; keep Mint as a pure control plane.
       nodeSelector:
         kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010

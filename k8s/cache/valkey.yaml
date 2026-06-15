@@ -29,6 +29,7 @@ spec:
       labels:
         app: valkey
     spec:
+      priorityClassName: xf-infra
       containers:
         - name: valkey
           image: valkey/valkey:8

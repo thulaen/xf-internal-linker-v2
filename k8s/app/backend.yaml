@@ -39,6 +39,7 @@ spec:
       labels:
         app: backend
     spec:
+      priorityClassName: xf-app
       # Heavy backend runs on Dell (16 GB, next to the database).
       nodeSelector:
         kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010

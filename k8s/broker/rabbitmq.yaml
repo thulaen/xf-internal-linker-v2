@@ -77,6 +77,7 @@ spec:
       labels:
         app: rabbitmq
     spec:
+      priorityClassName: xf-infra
       # ssd-hot lives only on Dell, so the queue's disk is on Dell's SSD.
       nodeSelector:
         kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010

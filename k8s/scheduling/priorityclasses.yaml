@@ -1,0 +1,50 @@
+# Scheduling priority classes (SLICE-06).
+#
+# Plain English: when the worker machine (Dell) runs low on memory, Kubernetes
+# has to decide which pods to push out first. By default that order is fuzzy.
+# These three labels make it explicit and safe:
+#
+#   * xf-infra  — the broker (RabbitMQ) and cache (Valkey) the whole app leans on.
+#                 Most protected; pushed out LAST.
+#   * xf-app    — the backend, the workers, the website. Protected above tests.
+#   * xf-test   — the test / coverage / mutation jobs added in the build-pipeline
+#                 slices. Lowest; pushed out FIRST, and it never shoves a running
+#                 app pod aside to get scheduled (preemptionPolicy: Never).
+#
+# All three sit far below Kubernetes' own system classes (2,000,000,000+), so the
+# cluster's control pods always win.
+#
+# WHY NO NODE "TAINT" ON DELL (the SLICE-06 plan asked for one):
+# The original plan pictured Dell as a test-ONLY node, where a taint would keep
+# ordinary app pods away. The real cluster is different: Dell is the SINGLE
+# workload machine — the app, the workers, the website, AND the database all run
+# on it, because Mint is a small control-plane node that cannot hold them. A
+# "keep non-test pods off Dell" taint would therefore evict the entire app. So
+# test-vs-app isolation is done the right way for this topology instead: the
+# xf.io/can-test=true node label targets test jobs to Dell, and the xf-test
+# priority below makes those jobs yield to the app under pressure. Revisit a
+# real node taint only if a dedicated third (test-only) node is ever added.
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: xf-infra
+value: 100000
+globalDefault: false
+description: "Core cluster infrastructure the app depends on (RabbitMQ broker, Valkey cache). Evicted last under node pressure."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: xf-app
+value: 10000
+globalDefault: false
+description: "User-facing app and workers (Django backend, Celery workers + beat, frontend). Protected above test/quality workloads."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: xf-test
+value: 100
+preemptionPolicy: Never
+globalDefault: false
+description: "Test, coverage, and mutation Jobs (added in the build/test slices). Lowest priority, never preempts running pods, evicted first under node pressure."
