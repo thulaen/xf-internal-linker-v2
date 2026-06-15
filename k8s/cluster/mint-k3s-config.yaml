@@ -1,0 +1,28 @@
+# Mint (k3s server) node configuration — SLICE-10.
+#
+# THIS FILE IS THE SOURCE-OF-TRUTH COPY of what lives on the Mint host at
+#   /etc/rancher/k3s/config.yaml
+# k3s auto-reads that path and merges it with the flags in the systemd unit. It
+# is kept here so the control-plane node's settings are version-controlled and
+# reproducible (the host file itself is outside git).
+#
+# To (re)apply on Mint:
+#   scp this file to mint:/tmp/ ; ssh mint 'sudo cp /tmp/mint-k3s-config.yaml \
+#     /etc/rancher/k3s/config.yaml && sudo systemctl restart k3s'
+# (Restarting k3s blips the API for a few seconds; pods on Dell keep running.)
+#
+# Plain English: hold back ~1 GiB RAM + 0.5 CPU on this small 8 GiB control-plane
+# machine for the operating system and the cluster brain, so pods can never crowd
+# them out; and clean up unused container images once the image disk passes 80%
+# full, down to 60%. The reservations are ACCOUNTING-ONLY (they lower the amount
+# the scheduler will place here; they do not impose hard cgroup caps that could
+# starve the control plane).
+#
+# Verified 2026-06-15: Mint Allocatable dropped to cpu=3500m, mem=6990516Ki (from
+# Capacity cpu=4, mem=8039092Ki) -- exactly 500m CPU + 1 GiB held back -- and the
+# kubelet runs with --image-gc-high-threshold=80 --image-gc-low-threshold=60.
+kubelet-arg:
+  - "system-reserved=cpu=250m,memory=512Mi"
+  - "kube-reserved=cpu=250m,memory=512Mi"
+  - "image-gc-high-threshold=80"
+  - "image-gc-low-threshold=60"
