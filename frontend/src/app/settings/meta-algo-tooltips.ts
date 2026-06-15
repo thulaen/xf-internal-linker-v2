@@ -67,6 +67,42 @@ export const META_ALGO_HELPERS: Record<string, MetaAlgoHelper> = {
     tooltip: $localize`:@@metaAlgorithms.rsqva.tip:RSQVA: Aligns suggestions with the actual Google-search vocabulary your readers use, so links match what real visitors are searching for. Source: FR-105 spec.`,
     specSlug: 'fr105-reverse-search-query-vocabulary-alignment',
   },
+
+  // FR-260 Time-as-Operator Spectral Decay
+  tosd: {
+    tooltip: $localize`:@@metaAlgorithms.tosd.tip:TOSD: Rewards links to structurally stable, long-lived pages and ignores short-lived attention spikes (a time-based spectral filter). Source: FR-260 spec.`,
+    specSlug: 'fr260-tosd',
+  },
+
+  // FR-261 Directed Sequential Transition Probability
+  dstp: {
+    tooltip: $localize`:@@metaAlgorithms.dstp.tip:DSTP: Rewards links that follow the real forward path users click from one page to the next. Source: FR-261 spec.`,
+    specSlug: 'fr261-dstp',
+  },
+
+  // FR-262 In-Community Popularity Contrast
+  icpc: {
+    tooltip: $localize`:@@metaAlgorithms.icpc.tip:ICPC: Rewards "local hero" pages that are highly referenced inside their own topic community even if they are not globally popular. Source: FR-262 spec.`,
+    specSlug: 'fr262-icpc',
+  },
+
+  // FR-263 Stochastic Block Model Affinity
+  sbma: {
+    tooltip: $localize`:@@metaAlgorithms.sbma.tip:SBMA: Rewards links that follow the site's natural structural roles (which kinds of pages usually link to which kinds). Source: FR-263 spec.`,
+    specSlug: 'fr263-sbma',
+  },
+
+  // FR-264 Riemannian Geodesic Semantic Distance
+  rgsd: {
+    tooltip: $localize`:@@metaAlgorithms.rgsd.tip:RGSD: Measures the true curved semantic distance between two pages instead of a flat straight-line distance. Source: FR-264 spec.`,
+    specSlug: 'fr264-rgsd',
+  },
+
+  // FR-265 Cross-Silo Bridging Reward
+  csbr: {
+    tooltip: $localize`:@@metaAlgorithms.csbr.tip:CSBR: Rewards links that bridge two different content silos when the two pages share a strong topic overlap. Source: FR-265 spec.`,
+    specSlug: 'fr265-csbr',
+  },
 };
 
 /**

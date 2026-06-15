@@ -551,6 +551,31 @@ class Suggestion(TimestampedModel):
         default=0.0,
         help_text="FR-105 Reverse Search-Query Vocabulary Alignment. TF-IDF cosine of host vs dest GSC query vocabularies. 0.0 = neutral (no shared queries).",
     )
+    # FR-260 through FR-265 — Advanced graph signals
+    score_tosd = models.FloatField(
+        default=0.0,
+        help_text="FR-260 Time-as-Operator Spectral Decay. Boost based on spectral diffusion distances. 0.0 = neutral.",
+    )
+    score_dstp = models.FloatField(
+        default=0.0,
+        help_text="FR-261 Directed Sequential Transition Probability. Path continuation likelihood. 0.0 = neutral.",
+    )
+    score_icpc = models.FloatField(
+        default=0.0,
+        help_text="FR-262 In-Community Popularity Contrast. Rewards local vs global degree disparity. 0.0 = neutral.",
+    )
+    score_sbma = models.FloatField(
+        default=0.0,
+        help_text="FR-263 Stochastic Block Model Affinity. Probability of edge given node communities. 0.0 = neutral.",
+    )
+    score_rgsd = models.FloatField(
+        default=0.0,
+        help_text="FR-264 Riemannian Geodesic Semantic Distance. Semantic space distance penalty. 0.0 = neutral.",
+    )
+    score_csbr = models.FloatField(
+        default=0.0,
+        help_text="FR-265 Cross-Silo Bridging Reward. Rewards connecting overlapping personas across silos. 0.0 = neutral.",
+    )
     score_final = models.FloatField(
         default=0.0,
         db_index=True,
@@ -818,6 +843,36 @@ class Suggestion(TimestampedModel):
         default=dict,
         blank=True,
         help_text="Explainable FR-105 reverse-search-query alignment diagnostics (cosine, host_query_count, dest_query_count, shared_query_count).",
+    )
+    tosd_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-260 Time-as-Operator Spectral Decay diagnostics.",
+    )
+    dstp_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-261 Directed Sequential Transition Probability diagnostics.",
+    )
+    icpc_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-262 In-Community Popularity Contrast diagnostics.",
+    )
+    sbma_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-263 Stochastic Block Model Affinity diagnostics.",
+    )
+    rgsd_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-264 Riemannian Geodesic Semantic Distance diagnostics.",
+    )
+    csbr_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-265 Cross-Silo Bridging Reward diagnostics.",
     )
 
     # Review state

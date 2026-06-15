@@ -212,6 +212,16 @@ const FR099_FR105_DEFAULTS = {
   rsqva: { enabled: true, ranking_weight: 0.05, min_queries_per_page: 5, min_query_clicks: 1, max_vocab_size: 10000 },
 };
 
+const ADVANCED_GRAPH_SIGNALS_DEFAULTS = {
+  tosd: { enabled: true, ranking_weight: 0.06, filter_strength: 0.8 },
+  dstp: { enabled: true, ranking_weight: 0.08, smoothing_alpha: 5.0 },
+  icpc: { enabled: true, ranking_weight: 0.04, min_community_size: 10 },
+  sbma: { enabled: true, ranking_weight: 0.05, num_blocks: 20 },
+  rgsd: { enabled: true, ranking_weight: 0.10, curvature_penalty: 1.5 },
+  csbr: { enabled: true, ranking_weight: 0.05, min_overlap_threshold: 0.7 },
+};
+
+
 const STAGE1_RETRIEVERS_DEFAULTS: Stage1RetrieverSettings = {
   lexical_retriever_enabled: false,
   query_expansion_retriever_enabled: false,
@@ -302,6 +312,7 @@ describe('RankingWeightsTabComponent', () => {
     httpMock.expectOne('/api/settings/graph-candidate/').flush(GRAPH_CANDIDATE_DEFAULTS);
     httpMock.expectOne('/api/settings/value-model/').flush(VALUE_MODEL_DEFAULTS);
     httpMock.expectOne('/api/settings/fr099-fr105/').flush(FR099_FR105_DEFAULTS);
+    httpMock.expectOne('/api/settings/advanced-graph-signals/').flush(ADVANCED_GRAPH_SIGNALS_DEFAULTS);
     httpMock.expectOne('/api/settings/stage1-retrievers/').flush(STAGE1_RETRIEVERS_DEFAULTS);
     httpMock.expectOne('/api/settings/phase6-picks/').flush(PHASE6_PICKS_DEFAULTS);
     httpMock.expectOne('/api/analytics/settings/gsc/').flush(GSC_DEFAULTS);

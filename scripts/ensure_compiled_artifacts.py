@@ -211,6 +211,7 @@ RUST_EXTENSION_NAMES = {
     # registration were deleted in the same slice per RUST-FIRST.md
     # dead-code-on-replace; the runtime imports the Rust `.so` of the same name.
     "scoring",
+    "advanced_graph_signals",
 }
 RUST_EXTENSION_EXPECTED_ATTRS = {
     "ranking_decision_engine": "rank_candidates",
@@ -237,6 +238,7 @@ RUST_EXTENSION_EXPECTED_ATTRS = {
     "scoring": "calculate_composite_scores_full_batch",
     "simsearch": "score_and_topk",
     "texttok": "tokenize_text_batch",
+    "advanced_graph_signals": "evaluate_batch",
 }
 MANIFEST_SCHEMA_VERSION = 2
 STORE_RETENTION_DAYS = 7

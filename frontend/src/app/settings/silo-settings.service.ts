@@ -24,6 +24,15 @@ export interface Fr099Fr105Settings {
   tapb?: Record<string, unknown>;
 }
 
+export interface AdvancedGraphSignalsSettings {
+  tosd?: Record<string, unknown>;
+  dstp?: Record<string, unknown>;
+  icpc?: Record<string, unknown>;
+  sbma?: Record<string, unknown>;
+  rgsd?: Record<string, unknown>;
+  csbr?: Record<string, unknown>;
+}
+
 export interface SiloSettings {
   mode: SiloMode;
   same_silo_boost: number;
@@ -956,6 +965,14 @@ export class SiloSettingsService {
 
   updateFr099Fr105Settings(payload: Fr099Fr105Settings): Observable<Fr099Fr105Settings> {
     return this.http.put<Fr099Fr105Settings>('/api/settings/fr099-fr105/', payload);
+  }
+
+  getAdvancedGraphSignalsSettings(): Observable<AdvancedGraphSignalsSettings> {
+    return this.http.get<AdvancedGraphSignalsSettings>('/api/settings/advanced-graph-signals/');
+  }
+
+  updateAdvancedGraphSignalsSettings(payload: AdvancedGraphSignalsSettings): Observable<AdvancedGraphSignalsSettings> {
+    return this.http.put<AdvancedGraphSignalsSettings>('/api/settings/advanced-graph-signals/', payload);
   }
 
   // Group C Stage-1 retriever flags (Lexical + QueryExpansion).

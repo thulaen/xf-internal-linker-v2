@@ -8,7 +8,7 @@
 # ships `l2norm.so` imported as `extensions.l2norm`).
 [workspace]
 resolver = "2"
-members = ["xf_kernels", "extensions/l2norm", "extensions/count_min_sketch", "extensions/counting_bloom", "extensions/compressed_bloom", "extensions/anchor_self_information", "extensions/ranking_decision_engine", "extensions/generic_anchor_matcher", "extensions/texttok", "extensions/phrasematch", "extensions/rareterm", "extensions/linkparse", "extensions/anchor_descriptiveness", "extensions/anchor_diversity", "extensions/api_rate_limiter", "extensions/fieldrel", "extensions/feedrerank", "extensions/pagerank", "extensions/lesson_index", "extensions/papertrail_dedup", "extensions/scoring", "extensions/simsearch", "extensions/ivf_index", "extensions/passagesim", "extensions/quantemb", "tools"]
+members = ["xf_kernels", "extensions/l2norm", "extensions/count_min_sketch", "extensions/counting_bloom", "extensions/compressed_bloom", "extensions/anchor_self_information", "extensions/ranking_decision_engine", "extensions/generic_anchor_matcher", "extensions/texttok", "extensions/phrasematch", "extensions/rareterm", "extensions/linkparse", "extensions/anchor_descriptiveness", "extensions/anchor_diversity", "extensions/api_rate_limiter", "extensions/fieldrel", "extensions/feedrerank", "extensions/pagerank", "extensions/lesson_index", "extensions/papertrail_dedup", "extensions/scoring", "extensions/simsearch", "extensions/ivf_index", "extensions/passagesim", "extensions/quantemb", "tools", "extensions/advanced_graph_signals"]
 
 [workspace.dependencies]
 # Property-based testing for the pure kernel cores (the `rlib` side, no Python

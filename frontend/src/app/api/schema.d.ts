@@ -3533,6 +3533,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/advanced-graph-signals/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GET/PUT for all 6 advanced graph signals in one request.
+         *
+         *     Response shape::
+         *
+         *         {
+         *           "tosd":  {"enabled": true, "ranking_weight": 0.06, ...},
+         *           "dstp":  {"enabled": true, "ranking_weight": 0.08, ...},
+         *           "icpc":  {...},
+         *           "sbma":  {...},
+         *           "rgsd":  {...},
+         *           "csbr":  {...}
+         *         }
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No response body */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        /**
+         * @description GET/PUT for all 6 advanced graph signals in one request.
+         *
+         *     Response shape::
+         *
+         *         {
+         *           "tosd":  {"enabled": true, "ranking_weight": 0.06, ...},
+         *           "dstp":  {"enabled": true, "ranking_weight": 0.08, ...},
+         *           "icpc":  {...},
+         *           "sbma":  {...},
+         *           "rgsd":  {...},
+         *           "csbr":  {...}
+         *         }
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No response body */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/fr099-fr105/": {
         parameters: {
             query?: never;

@@ -1769,6 +1769,456 @@ consumer logic. Each card cites the paper that backs the pick. -->
       </mat-card-content>
     </mat-card>
 
+    <!-- FR-260 TOSD -->
+    <mat-card class="settings-card" id="tosd">
+      <mat-card-header>
+        <mat-card-title
+          [matTooltip]="metaAlgoTip('tosd')"
+          i18n-matTooltip="@@settings.tips.tosdHeader"
+          matTooltipClass="setting-tooltip ga4-card"
+          matTooltipPosition="above"
+          i18n="@@settings.rankingWeights.tosd.title"
+        >
+          Time-as-Operator Spectral Decay (FR-260)
+        </mat-card-title>
+        <div class="card-title-actions">
+          <mat-slide-toggle [(ngModel)]="tosd.enabled" color="primary" [matTooltip]="tip('tosd.enabled')" matTooltipClass="setting-tooltip">
+            {{ tosd.enabled ? 'Enabled' : 'Disabled' }}
+          </mat-slide-toggle>
+        </div>
+      </mat-card-header>
+      <mat-card-content class="card-content ga4-card">
+        <p class="hint" i18n="@@settings.rankingWeights.tosd.hint">
+          Rewards links to structurally stable, long-lived pages and ignores short-lived attention spikes.
+        </p>
+        <div class="number-grid">
+          <mat-form-field appearance="outline">
+            <mat-label i18n="@@settings.labels.RankingWeight">Ranking weight</mat-label>
+            <input matInput autocomplete="off" type="number" min="0" max="1.0" step="0.01" [(ngModel)]="tosd.ranking_weight" />
+            <button
+              matSuffix
+              mat-icon-button
+              type="button"
+              class="info-btn"
+              [matTooltip]="tip('tosd.ranking_weight')"
+              i18n-matTooltip="@@settings.tips.tosdRankingWeight"
+              matTooltipClass="setting-tooltip"
+            >
+              <mat-icon class="icon-md">info_outline</mat-icon>
+            </button>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label i18n="@@settings.labels.FilterStrength">Filter strength</mat-label>
+            <input matInput autocomplete="off" type="number" min="0" max="1.0" step="0.1" [(ngModel)]="tosd.filter_strength" />
+            <button
+              matSuffix
+              mat-icon-button
+              type="button"
+              class="info-btn"
+              [matTooltip]="tip('tosd.filter_strength')"
+              i18n-matTooltip="@@settings.tips.tosdFilterStrength"
+              matTooltipClass="setting-tooltip"
+            >
+              <mat-icon class="icon-md">info_outline</mat-icon>
+            </button>
+          </mat-form-field>
+        </div>
+        <div class="card-actions-row">
+          @if (metaAlgoHasSpec('tosd')) {
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="openMetaAlgoSpec('tosd')"
+              matTooltip="Open the FR-260 spec inside this page (no navigation away)."
+              i18n-matTooltip="@@metaAlgorithms.actions.viewSpecTooltipTOSD"
+            >
+              <mat-icon>description</mat-icon>
+              <ng-container i18n="@@metaAlgorithms.actions.viewSpec">View spec</ng-container>
+            </button>
+          }
+          <button mat-flat-button color="primary" [disabled]="savingTosd" (click)="saveTosdSettings()">
+            <mat-icon>{{ savingTosd ? 'sync' : 'search' }}</mat-icon>
+            <span i18n="@@settings.actions.saveTosd">{{ savingTosd ? 'Saving...' : 'Save TOSD' }}</span>
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- FR-261 DSTP -->
+    <mat-card class="settings-card" id="dstp">
+      <mat-card-header>
+        <mat-card-title
+          [matTooltip]="metaAlgoTip('dstp')"
+          i18n-matTooltip="@@settings.tips.dstpHeader"
+          matTooltipClass="setting-tooltip ga4-card"
+          matTooltipPosition="above"
+          i18n="@@settings.rankingWeights.dstp.title"
+        >
+          Directed Sequential Transition Probability (FR-261)
+        </mat-card-title>
+        <div class="card-title-actions">
+          <mat-slide-toggle [(ngModel)]="dstp.enabled" color="primary" [matTooltip]="tip('dstp.enabled')" matTooltipClass="setting-tooltip">
+            {{ dstp.enabled ? 'Enabled' : 'Disabled' }}
+          </mat-slide-toggle>
+        </div>
+      </mat-card-header>
+      <mat-card-content class="card-content ga4-card">
+        <p class="hint" i18n="@@settings.rankingWeights.dstp.hint">
+          Rewards links that follow the real forward path users click from one page to the next.
+        </p>
+        <div class="number-grid">
+          <mat-form-field appearance="outline">
+            <mat-label i18n="@@settings.labels.RankingWeight">Ranking weight</mat-label>
+            <input matInput autocomplete="off" type="number" min="0" max="1.0" step="0.01" [(ngModel)]="dstp.ranking_weight" />
+            <button
+              matSuffix
+              mat-icon-button
+              type="button"
+              class="info-btn"
+              [matTooltip]="tip('dstp.ranking_weight')"
+              i18n-matTooltip="@@settings.tips.dstpRankingWeight"
+              matTooltipClass="setting-tooltip"
+            >
+              <mat-icon class="icon-md">info_outline</mat-icon>
+            </button>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label i18n="@@settings.labels.SmoothingAlpha">Smoothing alpha</mat-label>
+            <input matInput autocomplete="off" type="number" min="0" max="10.0" step="0.1" [(ngModel)]="dstp.smoothing_alpha" />
+            <button
+              matSuffix
+              mat-icon-button
+              type="button"
+              class="info-btn"
+              [matTooltip]="tip('dstp.smoothing_alpha')"
+              i18n-matTooltip="@@settings.tips.dstpSmoothingAlpha"
+              matTooltipClass="setting-tooltip"
+            >
+              <mat-icon class="icon-md">info_outline</mat-icon>
+            </button>
+          </mat-form-field>
+        </div>
+        <div class="card-actions-row">
+          @if (metaAlgoHasSpec('dstp')) {
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="openMetaAlgoSpec('dstp')"
+              matTooltip="Open the FR-261 spec inside this page (no navigation away)."
+              i18n-matTooltip="@@metaAlgorithms.actions.viewSpecTooltipDSTP"
+            >
+              <mat-icon>description</mat-icon>
+              <ng-container i18n="@@metaAlgorithms.actions.viewSpec">View spec</ng-container>
+            </button>
+          }
+          <button mat-flat-button color="primary" [disabled]="savingDstp" (click)="saveDstpSettings()">
+            <mat-icon>{{ savingDstp ? 'sync' : 'search' }}</mat-icon>
+            <span i18n="@@settings.actions.saveDstp">{{ savingDstp ? 'Saving...' : 'Save DSTP' }}</span>
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- FR-262 ICPC -->
+    <mat-card class="settings-card" id="icpc">
+      <mat-card-header>
+        <mat-card-title
+          [matTooltip]="metaAlgoTip('icpc')"
+          i18n-matTooltip="@@settings.tips.icpcHeader"
+          matTooltipClass="setting-tooltip ga4-card"
+          matTooltipPosition="above"
+          i18n="@@settings.rankingWeights.icpc.title"
+        >
+          In-Community Popularity Contrast (FR-262)
+        </mat-card-title>
+        <div class="card-title-actions">
+          <mat-slide-toggle [(ngModel)]="icpc.enabled" color="primary" [matTooltip]="tip('icpc.enabled')" matTooltipClass="setting-tooltip">
+            {{ icpc.enabled ? 'Enabled' : 'Disabled' }}
+          </mat-slide-toggle>
+        </div>
+      </mat-card-header>
+      <mat-card-content class="card-content ga4-card">
+        <p class="hint" i18n="@@settings.rankingWeights.icpc.hint">
+          Rewards pages that are local heroes — highly referenced inside their own topic community even if not globally popular.
+        </p>
+        <div class="number-grid">
+          <mat-form-field appearance="outline">
+            <mat-label i18n="@@settings.labels.RankingWeight">Ranking weight</mat-label>
+            <input matInput autocomplete="off" type="number" min="0" max="1.0" step="0.01" [(ngModel)]="icpc.ranking_weight" />
+            <button
+              matSuffix
+              mat-icon-button
+              type="button"
+              class="info-btn"
+              [matTooltip]="tip('icpc.ranking_weight')"
+              i18n-matTooltip="@@settings.tips.icpcRankingWeight"
+              matTooltipClass="setting-tooltip"
+            >
+              <mat-icon class="icon-md">info_outline</mat-icon>
+            </button>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label i18n="@@settings.labels.MinCommunitySize">Min community size</mat-label>
+            <input matInput autocomplete="off" type="number" min="1" max="100" step="1" [(ngModel)]="icpc.min_community_size" />
+            <button
+              matSuffix
+              mat-icon-button
+              type="button"
+              class="info-btn"
+              [matTooltip]="tip('icpc.min_community_size')"
+              i18n-matTooltip="@@settings.tips.icpcMinCommunitySize"
+              matTooltipClass="setting-tooltip"
+            >
+              <mat-icon class="icon-md">info_outline</mat-icon>
+            </button>
+          </mat-form-field>
+        </div>
+        <div class="card-actions-row">
+          @if (metaAlgoHasSpec('icpc')) {
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="openMetaAlgoSpec('icpc')"
+              matTooltip="Open the FR-262 spec inside this page (no navigation away)."
+              i18n-matTooltip="@@metaAlgorithms.actions.viewSpecTooltipICPC"
+            >
+              <mat-icon>description</mat-icon>
+              <ng-container i18n="@@metaAlgorithms.actions.viewSpec">View spec</ng-container>
+            </button>
+          }
+          <button mat-flat-button color="primary" [disabled]="savingIcpc" (click)="saveIcpcSettings()">
+            <mat-icon>{{ savingIcpc ? 'sync' : 'search' }}</mat-icon>
+            <span i18n="@@settings.actions.saveIcpc">{{ savingIcpc ? 'Saving...' : 'Save ICPC' }}</span>
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- FR-263 SBMA -->
+    <mat-card class="settings-card" id="sbma">
+      <mat-card-header>
+        <mat-card-title
+          [matTooltip]="metaAlgoTip('sbma')"
+          i18n-matTooltip="@@settings.tips.sbmaHeader"
+          matTooltipClass="setting-tooltip ga4-card"
+          matTooltipPosition="above"
+          i18n="@@settings.rankingWeights.sbma.title"
+        >
+          Stochastic Block Model Affinity (FR-263)
+        </mat-card-title>
+        <div class="card-title-actions">
+          <mat-slide-toggle [(ngModel)]="sbma.enabled" color="primary" [matTooltip]="tip('sbma.enabled')" matTooltipClass="setting-tooltip">
+            {{ sbma.enabled ? 'Enabled' : 'Disabled' }}
+          </mat-slide-toggle>
+        </div>
+      </mat-card-header>
+      <mat-card-content class="card-content ga4-card">
+        <p class="hint" i18n="@@settings.rankingWeights.sbma.hint">
+          Rewards links that follow the site's natural structural roles (which kinds of pages usually link to which kinds).
+        </p>
+        <div class="number-grid">
+          <mat-form-field appearance="outline">
+            <mat-label i18n="@@settings.labels.RankingWeight">Ranking weight</mat-label>
+            <input matInput autocomplete="off" type="number" min="0" max="1.0" step="0.01" [(ngModel)]="sbma.ranking_weight" />
+            <button
+              matSuffix
+              mat-icon-button
+              type="button"
+              class="info-btn"
+              [matTooltip]="tip('sbma.ranking_weight')"
+              i18n-matTooltip="@@settings.tips.sbmaRankingWeight"
+              matTooltipClass="setting-tooltip"
+            >
+              <mat-icon class="icon-md">info_outline</mat-icon>
+            </button>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label i18n="@@settings.labels.NumBlocks">Num blocks</mat-label>
+            <input matInput autocomplete="off" type="number" min="1" max="100" step="1" [(ngModel)]="sbma.num_blocks" />
+            <button
+              matSuffix
+              mat-icon-button
+              type="button"
+              class="info-btn"
+              [matTooltip]="tip('sbma.num_blocks')"
+              i18n-matTooltip="@@settings.tips.sbmaNumBlocks"
+              matTooltipClass="setting-tooltip"
+            >
+              <mat-icon class="icon-md">info_outline</mat-icon>
+            </button>
+          </mat-form-field>
+        </div>
+        <div class="card-actions-row">
+          @if (metaAlgoHasSpec('sbma')) {
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="openMetaAlgoSpec('sbma')"
+              matTooltip="Open the FR-263 spec inside this page (no navigation away)."
+              i18n-matTooltip="@@metaAlgorithms.actions.viewSpecTooltipSBMA"
+            >
+              <mat-icon>description</mat-icon>
+              <ng-container i18n="@@metaAlgorithms.actions.viewSpec">View spec</ng-container>
+            </button>
+          }
+          <button mat-flat-button color="primary" [disabled]="savingSbma" (click)="saveSbmaSettings()">
+            <mat-icon>{{ savingSbma ? 'sync' : 'search' }}</mat-icon>
+            <span i18n="@@settings.actions.saveSbma">{{ savingSbma ? 'Saving...' : 'Save SBMA' }}</span>
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- FR-264 RGSD -->
+    <mat-card class="settings-card" id="rgsd">
+      <mat-card-header>
+        <mat-card-title
+          [matTooltip]="metaAlgoTip('rgsd')"
+          i18n-matTooltip="@@settings.tips.rgsdHeader"
+          matTooltipClass="setting-tooltip ga4-card"
+          matTooltipPosition="above"
+          i18n="@@settings.rankingWeights.rgsd.title"
+        >
+          Riemannian Geodesic Semantic Distance (FR-264)
+        </mat-card-title>
+        <div class="card-title-actions">
+          <mat-slide-toggle [(ngModel)]="rgsd.enabled" color="primary" [matTooltip]="tip('rgsd.enabled')" matTooltipClass="setting-tooltip">
+            {{ rgsd.enabled ? 'Enabled' : 'Disabled' }}
+          </mat-slide-toggle>
+        </div>
+      </mat-card-header>
+      <mat-card-content class="card-content ga4-card">
+        <p class="hint" i18n="@@settings.rankingWeights.rgsd.hint">
+          Measures the true curved semantic distance between two pages instead of a flat straight-line distance.
+        </p>
+        <div class="number-grid">
+          <mat-form-field appearance="outline">
+            <mat-label i18n="@@settings.labels.RankingWeight">Ranking weight</mat-label>
+            <input matInput autocomplete="off" type="number" min="0" max="1.0" step="0.01" [(ngModel)]="rgsd.ranking_weight" />
+            <button
+              matSuffix
+              mat-icon-button
+              type="button"
+              class="info-btn"
+              [matTooltip]="tip('rgsd.ranking_weight')"
+              i18n-matTooltip="@@settings.tips.rgsdRankingWeight"
+              matTooltipClass="setting-tooltip"
+            >
+              <mat-icon class="icon-md">info_outline</mat-icon>
+            </button>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label i18n="@@settings.labels.CurvaturePenalty">Curvature penalty</mat-label>
+            <input matInput autocomplete="off" type="number" min="0" max="5.0" step="0.1" [(ngModel)]="rgsd.curvature_penalty" />
+            <button
+              matSuffix
+              mat-icon-button
+              type="button"
+              class="info-btn"
+              [matTooltip]="tip('rgsd.curvature_penalty')"
+              i18n-matTooltip="@@settings.tips.rgsdCurvaturePenalty"
+              matTooltipClass="setting-tooltip"
+            >
+              <mat-icon class="icon-md">info_outline</mat-icon>
+            </button>
+          </mat-form-field>
+        </div>
+        <div class="card-actions-row">
+          @if (metaAlgoHasSpec('rgsd')) {
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="openMetaAlgoSpec('rgsd')"
+              matTooltip="Open the FR-264 spec inside this page (no navigation away)."
+              i18n-matTooltip="@@metaAlgorithms.actions.viewSpecTooltipRGSD"
+            >
+              <mat-icon>description</mat-icon>
+              <ng-container i18n="@@metaAlgorithms.actions.viewSpec">View spec</ng-container>
+            </button>
+          }
+          <button mat-flat-button color="primary" [disabled]="savingRgsd" (click)="saveRgsdSettings()">
+            <mat-icon>{{ savingRgsd ? 'sync' : 'search' }}</mat-icon>
+            <span i18n="@@settings.actions.saveRgsd">{{ savingRgsd ? 'Saving...' : 'Save RGSD' }}</span>
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- FR-265 CSBR -->
+    <mat-card class="settings-card" id="csbr">
+      <mat-card-header>
+        <mat-card-title
+          [matTooltip]="metaAlgoTip('csbr')"
+          i18n-matTooltip="@@settings.tips.csbrHeader"
+          matTooltipClass="setting-tooltip ga4-card"
+          matTooltipPosition="above"
+          i18n="@@settings.rankingWeights.csbr.title"
+        >
+          Cross-Silo Bridging Reward (FR-265)
+        </mat-card-title>
+        <div class="card-title-actions">
+          <mat-slide-toggle [(ngModel)]="csbr.enabled" color="primary" [matTooltip]="tip('csbr.enabled')" matTooltipClass="setting-tooltip">
+            {{ csbr.enabled ? 'Enabled' : 'Disabled' }}
+          </mat-slide-toggle>
+        </div>
+      </mat-card-header>
+      <mat-card-content class="card-content ga4-card">
+        <p class="hint" i18n="@@settings.rankingWeights.csbr.hint">
+          Rewards links that bridge two different content silos when the two pages share a strong topic overlap.
+        </p>
+        <div class="number-grid">
+          <mat-form-field appearance="outline">
+            <mat-label i18n="@@settings.labels.RankingWeight">Ranking weight</mat-label>
+            <input matInput autocomplete="off" type="number" min="0" max="1.0" step="0.01" [(ngModel)]="csbr.ranking_weight" />
+            <button
+              matSuffix
+              mat-icon-button
+              type="button"
+              class="info-btn"
+              [matTooltip]="tip('csbr.ranking_weight')"
+              i18n-matTooltip="@@settings.tips.csbrRankingWeight"
+              matTooltipClass="setting-tooltip"
+            >
+              <mat-icon class="icon-md">info_outline</mat-icon>
+            </button>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label i18n="@@settings.labels.MinOverlapThreshold">Min overlap threshold</mat-label>
+            <input matInput autocomplete="off" type="number" min="0" max="1.0" step="0.1" [(ngModel)]="csbr.min_overlap_threshold" />
+            <button
+              matSuffix
+              mat-icon-button
+              type="button"
+              class="info-btn"
+              [matTooltip]="tip('csbr.min_overlap_threshold')"
+              i18n-matTooltip="@@settings.tips.csbrMinOverlapThreshold"
+              matTooltipClass="setting-tooltip"
+            >
+              <mat-icon class="icon-md">info_outline</mat-icon>
+            </button>
+          </mat-form-field>
+        </div>
+        <div class="card-actions-row">
+          @if (metaAlgoHasSpec('csbr')) {
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="openMetaAlgoSpec('csbr')"
+              matTooltip="Open the FR-265 spec inside this page (no navigation away)."
+              i18n-matTooltip="@@metaAlgorithms.actions.viewSpecTooltipCSBR"
+            >
+              <mat-icon>description</mat-icon>
+              <ng-container i18n="@@metaAlgorithms.actions.viewSpec">View spec</ng-container>
+            </button>
+          }
+          <button mat-flat-button color="primary" [disabled]="savingCsbr" (click)="saveCsbrSettings()">
+            <mat-icon>{{ savingCsbr ? 'sync' : 'search' }}</mat-icon>
+            <span i18n="@@settings.actions.saveCsbr">{{ savingCsbr ? 'Saving...' : 'Save CSBR' }}</span>
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
     <!-- Feedback Reranking -->
     <mat-card class="settings-card" id="settings-feedback-reranking">
       <mat-card-header>

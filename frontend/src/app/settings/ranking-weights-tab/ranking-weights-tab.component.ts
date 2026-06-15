@@ -309,6 +309,44 @@ export class RankingWeightsTabComponent implements OnInit, OnDestroy {
   };
   savingRsqva = false;
 
+  // ── FR-260–FR-265 Advanced Graph Signals (TOSD, DSTP, ICPC, SBMA, RGSD, CSBR) ──
+  tosd = {
+    enabled: true,
+    ranking_weight: 0.06,
+    filter_strength: 0.8,
+  };
+  savingTosd = false;
+  dstp = {
+    enabled: true,
+    ranking_weight: 0.08,
+    smoothing_alpha: 5.0,
+  };
+  savingDstp = false;
+  icpc = {
+    enabled: true,
+    ranking_weight: 0.04,
+    min_community_size: 10,
+  };
+  savingIcpc = false;
+  sbma = {
+    enabled: true,
+    ranking_weight: 0.05,
+    num_blocks: 20,
+  };
+  savingSbma = false;
+  rgsd = {
+    enabled: true,
+    ranking_weight: 0.10,
+    curvature_penalty: 1.5,
+  };
+  savingRgsd = false;
+  csbr = {
+    enabled: true,
+    ranking_weight: 0.05,
+    min_overlap_threshold: 0.7,
+  };
+  savingCsbr = false;
+
   // ── Feedback Reranking ────────────────────────────────────────────
   feedbackRerank: FeedbackRerankSettings = {
     enabled: true,
@@ -419,6 +457,7 @@ export class RankingWeightsTabComponent implements OnInit, OnDestroy {
       graphCandidate: this.siloSvc.getGraphCandidateSettings(),
       valueModel: this.siloSvc.getValueModelSettings(),
       fr099Fr105: this.siloSvc.getFr099Fr105Settings(),
+      advancedGraphSignals: this.siloSvc.getAdvancedGraphSignalsSettings(),
       stage1Retrievers: this.siloSvc.getStage1RetrieverSettings(),
       phase6Picks: this.siloSvc.getPhase6PickSettings(),
       ga4Gsc: this.siloSvc.getGSCSettings(),
@@ -448,6 +487,14 @@ export class RankingWeightsTabComponent implements OnInit, OnDestroy {
           this.berp = { ...this.berp, ...(data.fr099Fr105.berp || {}) };
           this.hgte = { ...this.hgte, ...(data.fr099Fr105.hgte || {}) };
           this.rsqva = { ...this.rsqva, ...(data.fr099Fr105.rsqva || {}) };
+        }
+        if (data.advancedGraphSignals) {
+          this.tosd = { ...this.tosd, ...(data.advancedGraphSignals.tosd || {}) };
+          this.dstp = { ...this.dstp, ...(data.advancedGraphSignals.dstp || {}) };
+          this.icpc = { ...this.icpc, ...(data.advancedGraphSignals.icpc || {}) };
+          this.sbma = { ...this.sbma, ...(data.advancedGraphSignals.sbma || {}) };
+          this.rgsd = { ...this.rgsd, ...(data.advancedGraphSignals.rgsd || {}) };
+          this.csbr = { ...this.csbr, ...(data.advancedGraphSignals.csbr || {}) };
         }
         if (data.stage1Retrievers) {
           this.stage1Retrievers = { ...this.stage1Retrievers, ...data.stage1Retrievers };
@@ -915,6 +962,45 @@ export class RankingWeightsTabComponent implements OnInit, OnDestroy {
   saveBerpSettings(): void { this._saveFr099Fr105(v => this.savingBerp = v, 'BERP'); }
   saveHgteSettings(): void { this._saveFr099Fr105(v => this.savingHgte = v, 'HGTE'); }
   saveRsqvaSettings(): void { this._saveFr099Fr105(v => this.savingRsqva = v, 'RSQVA'); }
+
+  // ── FR-260–FR-265 grouped save (one endpoint, six cards) ───────
+
+  private _saveAdvancedGraphSignals(spinnerSetter: (v: boolean) => void, name: string): void {
+    spinnerSetter(true);
+    const payload = {
+      tosd: this.tosd,
+      dstp: this.dstp,
+      icpc: this.icpc,
+      sbma: this.sbma,
+      rgsd: this.rgsd,
+      csbr: this.csbr,
+    };
+    this.siloSvc.updateAdvancedGraphSignalsSettings(payload)
+      .pipe(takeUntil(this.destroy$)).subscribe({
+        next: (saved) => {
+          if (saved?.tosd) this.tosd = { ...this.tosd, ...saved.tosd };
+          if (saved?.dstp) this.dstp = { ...this.dstp, ...saved.dstp };
+          if (saved?.icpc) this.icpc = { ...this.icpc, ...saved.icpc };
+          if (saved?.sbma) this.sbma = { ...this.sbma, ...saved.sbma };
+          if (saved?.rgsd) this.rgsd = { ...this.rgsd, ...saved.rgsd };
+          if (saved?.csbr) this.csbr = { ...this.csbr, ...saved.csbr };
+          spinnerSetter(false);
+          this.snack.open(`${name} settings saved`, undefined, { duration: 2500 });
+          this.cdr.markForCheck();
+        },
+        error: (error) => {
+          spinnerSetter(false);
+          this.snack.open(error?.error?.detail || error?.error?.error || `Failed to save ${name} settings`, 'Dismiss', { duration: 4000 });
+          this.cdr.markForCheck();
+        },
+      });
+  }
+  saveTosdSettings(): void { this._saveAdvancedGraphSignals(v => this.savingTosd = v, 'TOSD'); }
+  saveDstpSettings(): void { this._saveAdvancedGraphSignals(v => this.savingDstp = v, 'DSTP'); }
+  saveIcpcSettings(): void { this._saveAdvancedGraphSignals(v => this.savingIcpc = v, 'ICPC'); }
+  saveSbmaSettings(): void { this._saveAdvancedGraphSignals(v => this.savingSbma = v, 'SBMA'); }
+  saveRgsdSettings(): void { this._saveAdvancedGraphSignals(v => this.savingRgsd = v, 'RGSD'); }
+  saveCsbrSettings(): void { this._saveAdvancedGraphSignals(v => this.savingCsbr = v, 'CSBR'); }
 
   // ── Bottom-of-tab cards (Feedback, Clustering, Slate, Graph, Value) ──
 

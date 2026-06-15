@@ -62,6 +62,8 @@ _NATIVE_RUNTIME_MODULES = (
     ("ivf_index", "ivf_search", "IVF vector index", False),
     ("lesson_index", "memory_cap_bytes", "Lesson ART index", False),
     ("api_rate_limiter", "RateLimiterRegistry", "API rate limiter", False),
+    # ── Advanced graph signals (FR260-265) (1) ──
+    ("advanced_graph_signals", "evaluate_batch", "Advanced graph signals kernel (FR260-265)", False),
 )
 
 

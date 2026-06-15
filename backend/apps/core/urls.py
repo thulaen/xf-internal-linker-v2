@@ -280,6 +280,14 @@ urlpatterns = [
         ).FR099FR105SettingsView.as_view(),
         name="settings-fr099-fr105",
     ),
+    path(
+        "settings/advanced-graph-signals/",
+        __import__(
+            "apps.core.views_advanced_graph_signals",
+            fromlist=["AdvancedGraphSignalsSettingsView"],
+        ).AdvancedGraphSignalsSettingsView.as_view(),
+        name="settings-advanced-graph-signals",
+    ),
     # Group C Stage-1 retriever flags (LexicalRetriever + QueryExpansion).
     # Default off; flip on via the Settings UI to enable RRF fusion.
     path(
