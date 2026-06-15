@@ -1,0 +1,53 @@
+"""Node-browser runner image (KUBE PLAN SLICE-23) — Node 22 + the frontend's
+full toolchain (Vitest, Stryker, eslint, ...) from node_modules, for the
+frontend test / mutation / lint shards. Built via rules_js (js_image_layer, which
+preserves the rules_js symlink store so Node's module resolution works in-image)
++ rules_oci (the image), ADR 0010.
+
+The launcher is //frontend:runner_toolbox; run a tool with the image entrypoint,
+e.g.  `<image> vitest run`. The Playwright e2e browser is a follow-on layer — the
+unit/mutation/lint shards run on Node + node_modules (Vitest uses jsdom).
+"""
+
+load("@aspect_rules_js//js:defs.bzl", "js_image_layer")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push")
+load("//tools/runners:common.bzl", "REGISTRY")
+
+# js_image_layer transitions the binary to this platform so the image is
+# linux/amd64 regardless of the host doing the build.
+platform(
+    name = "amd64_linux",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+# Splits the toolbox js_binary into OCI layers (node toolchain + node_modules +
+# app), preserving the rules_js symlink store layout that Node needs.
+js_image_layer(
+    name = "layers",
+    binary = "//frontend:runner_toolbox",
+    platform = ":amd64_linux",
+    root = "/opt/frontend",
+)
+
+oci_image(
+    name = "image",
+    base = "@node_base_linux_amd64",
+    # The js_binary bash launcher; forwards its args to runner-toolbox.mjs.
+    # js_image_layer nests the binary by its package path (frontend/), so it
+    # lands at /opt/frontend/frontend/runner_toolbox.
+    entrypoint = ["/opt/frontend/frontend/runner_toolbox"],
+    tars = [":layers"],
+    # Must be the runfiles root so the launcher's BAZEL_BINDIR=. resolves (bzlmod
+    # names the main repo "_main").
+    workdir = "/opt/frontend/frontend/runner_toolbox.runfiles/_main",
+)
+
+oci_push(
+    name = "push",
+    image = ":image",
+    remote_tags = ["v1"],
+    repository = REGISTRY + "/xf-runner-node-browser",
+)

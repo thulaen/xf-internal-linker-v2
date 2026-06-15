@@ -1,0 +1,41 @@
+{
+  "_comment": "Digest lockfile for the Bazel rules_oci runner images (ADR 0010, KUBE PLAN SLICE-23). Every consumer (shards, merge job, pre-pull) pulls by the digest recorded here, never by tag. Built/pushed via tools/runners/push-runner-images.sh; verified by tools/runners/verify_lockfile.py.",
+  "runners": {
+    "merge": {
+      "repository": "10.10.10.91:5000/xf-runner-merge",
+      "tag": "v1",
+      "digest": "sha256:51f0f01277b6978014ab871ea88f8d8be6e6834aaaebceb290264a8752fb5b00",
+      "base": "ubuntu:24.04",
+      "built_at": "2026-06-15T13:00:00Z",
+      "tools": "kubectl v1.35.0 + jq 1.7.1 + sqlite3 3.53.2",
+      "note": "Real merge runner, tools verified executable. Report-merge adapter bodies arrive in SLICE-27."
+    },
+    "python": {
+      "repository": "10.10.10.91:5000/xf-runner-python",
+      "tag": "v1",
+      "digest": "sha256:9838f284407976418a52a13239a96f01545d9817cb3e562a45630310cafa4654",
+      "base": "python:3.12-slim",
+      "built_at": "2026-06-15T13:30:00Z",
+      "tools": "pytest 9.1.0 + ruff 0.8.6 + mypy 1.13.0 + coverage 7.14.1 + bandit 1.9.4 + mutmut 3.5.0",
+      "note": "rules_python hermetic 3.12 wheels (toolbox.py runpy dispatcher) + ruff standalone binary. All six tools verified runnable via 'toolbox <tool>'."
+    },
+    "rust": {
+      "repository": "10.10.10.91:5000/xf-runner-rust",
+      "tag": "v1",
+      "digest": "sha256:9f90d5d6def00e3f6c032b1d9243a14b507e0f7fecbd2568a4523b99b0ed99f3",
+      "base": "rust:1 (1.96.0)",
+      "built_at": "2026-06-15T14:00:00Z",
+      "tools": "rustc 1.96.0 + cargo 1.96.0 + clippy 0.1.96 + cargo-mutants 27.1.0",
+      "note": "clippy added as the version-matched rustup component (cargo-clippy + clippy-driver) with LD_LIBRARY_PATH to the base toolchain libs. All four verified runnable."
+    },
+    "node-browser": {
+      "repository": "10.10.10.91:5000/xf-runner-node-browser",
+      "tag": "v1",
+      "digest": "sha256:c124cf405cb6f76daccf03b9bae52c4a3a5bf3b7764f0a78e61c019c06fd05b1",
+      "base": "node:22-slim (Node toolchain pinned 20.17.0)",
+      "built_at": "2026-06-15T14:30:00Z",
+      "tools": "vitest 3.2.6 + eslint 9.39.4 + stryker 9.6.1 + tsc 6.0.3",
+      "note": "Built via rules_js js_image_layer (preserves the rules_js symlink store so Node module resolution works in-image) + a //frontend:runner_toolbox launcher that resolves each tool through its package 'bin' field (rules_js does not materialise node_modules/.bin). Node pinned 20.17.0 because the frontend deps need node:util.styleText (>=20.17.0). All four tools verified runnable. Playwright e2e browser is a follow-on layer."
+    }
+  }
+}

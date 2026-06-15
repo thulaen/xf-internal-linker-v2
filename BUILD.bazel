@@ -1,0 +1,4 @@
+# Repo-root Bazel package marker (ADR 0010). Needed so root-level labels like
+# //:.bazelignore resolve. No build targets live at the root; each component
+# (tools/runners/*, frontend) is its own package.
+exports_files([".bazelignore"])

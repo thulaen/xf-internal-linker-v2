@@ -281,3 +281,10 @@ audit/cluster_tuned_params.json
 services/sidecars/sidecars
 backend/audit/admin_recovery_log.jsonl
 scripts/inter_model_state.sqlite
+
+# Bazel (ADR 0010) — convenience symlinks + outputs, never committed.
+/bazel-*
+bazel-out/
+bazel-bin/
+bazel-testlogs/
+MODULE.bazel.lock

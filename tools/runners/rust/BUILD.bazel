@@ -1,0 +1,32 @@
+"""Rust runner image (KUBE PLAN SLICE-23) — rustc + cargo (from the rust:1 base)
++ cargo-mutants + clippy for the Rust test / lint / mutation shards. Built via
+rules_oci (ADR 0010) from pinned layers.
+
+clippy isn't in the official rust image anymore, so cargo-clippy + clippy-driver
+are added as the version-matched rustup component; LD_LIBRARY_PATH (set via the
+image env) points clippy-driver at the base toolchain's libs.
+"""
+
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("//tools/runners:common.bzl", "REGISTRY", "runner_image")
+
+# cargo-mutants + clippy binaries onto the cargo bin dir (already on PATH, so
+# `cargo mutants` / `cargo clippy` resolve).
+pkg_tar(
+    name = "rust_tools_layer",
+    srcs = [
+        "@cargo_mutants_bin//:cargo-mutants",
+        "@clippy_component//:cargo-clippy",
+        "@clippy_component//:clippy-driver",
+    ],
+    package_dir = "/usr/local/cargo/bin",
+    mode = "0755",
+)
+
+runner_image(
+    base = "@rust_base_linux_amd64",
+    tars = [":rust_tools_layer"],
+    repository = REGISTRY + "/xf-runner-rust",
+    tag = "v1",
+    env = {"LD_LIBRARY_PATH": "/usr/local/rustup/toolchains/1.96.0-x86_64-unknown-linux-gnu/lib"},
+)

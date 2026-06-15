@@ -1,0 +1,34 @@
+"""Merge runner image (KUBE PLAN SLICE-23).
+
+Carries the tools the shard report-merge job needs: kubectl (talk to the
+cluster), jq (parse JSON results), sqlite3 (read results DBs). The report-merge
+adapter bodies arrive in SLICE-27; this image just provides the toolchain.
+
+Built by Bazel rules_oci (ADR 0010) from pinned layers — no Dockerfile, no apt.
+Pushed to the Mint registry by digest (recorded in runner-images.lock.json).
+"""
+
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("//tools/runners:common.bzl", "REGISTRY", "runner_image")
+
+# The three CLI tools, each a pinned binary fetched in MODULE.bazel, dropped
+# into /usr/local/bin and made executable.
+pkg_tar(
+    name = "tools_layer",
+    srcs = [
+        "@kubectl//file",
+        "@jq//file",
+        "@sqlite_tools//:sqlite3",
+    ],
+    package_dir = "/usr/local/bin",
+    mode = "0755",
+)
+
+runner_image(
+    # The platform-specific base (NOT the multi-arch index @ubuntu_base) — the
+    # index as a base produces an image whose rootfs won't execute on amd64.
+    base = "@ubuntu_base_linux_amd64",
+    tars = [":tools_layer"],
+    repository = REGISTRY + "/xf-runner-merge",
+    tag = "v1",
+)

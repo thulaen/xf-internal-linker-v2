@@ -1,0 +1,58 @@
+"""Python runner image (KUBE PLAN SLICE-23) — pytest/ruff/mypy/coverage/mutmut/
+bandit for the Python shards. Built via rules_python (hermetic 3.12 wheels) +
+rules_oci (ADR 0010). The toolbox py_binary bundles the interpreter + all tool
+deps once; the runpy dispatcher (toolbox.py) runs any tool as `python -m`.
+"""
+
+load("@rules_python//python:defs.bzl", "py_binary")
+load("@runner_pip//:requirements.bzl", "all_requirements")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("//tools/runners:common.bzl", "REGISTRY")
+
+# Export the lock so MODULE.bazel's pip.parse can read it.
+exports_files(["requirements.lock.txt"])
+
+# One binary, all tool deps -> one runfiles tree (interpreter bundled once).
+py_binary(
+    name = "toolbox",
+    srcs = ["toolbox.py"],
+    main = "toolbox.py",
+    visibility = ["//visibility:public"],
+    deps = all_requirements,
+)
+
+# Layer the launcher + its runfiles (the tool wheels on the launcher sys.path).
+pkg_tar(
+    name = "toolbox_layer",
+    srcs = [":toolbox"],
+    include_runfiles = True,
+    package_dir = "/opt/runner",
+)
+
+# ruff ships as a standalone binary on PATH (see toolbox.py for why).
+pkg_tar(
+    name = "ruff_layer",
+    srcs = ["@ruff_bin//:ruff"],
+    package_dir = "/usr/local/bin",
+    mode = "0755",
+)
+
+oci_image(
+    name = "image",
+    # python:3.12-slim provides /usr/local/bin/python3 for the launcher; the
+    # tool wheels ride in toolbox_layer's runfiles; ruff is on PATH.
+    base = "@python_base_linux_amd64",
+    tars = [
+        ":toolbox_layer",
+        ":ruff_layer",
+    ],
+    entrypoint = ["/opt/runner/toolbox"],
+)
+
+oci_push(
+    name = "push",
+    image = ":image",
+    repository = REGISTRY + "/xf-runner-python",
+    remote_tags = ["v1"],
+)

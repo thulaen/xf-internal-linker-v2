@@ -1,0 +1,24 @@
+# Frontend npm deps for the node-browser runner (ADR 0010, SLICE-23).
+# npm_translate_lock (MODULE.bazel) resolves frontend/pnpm-lock.yaml into the
+# @npm hub; npm_link_all_packages materialises them as //frontend:node_modules.
+# No Angular build targets here — the app still builds via its own pipeline.
+load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@aspect_rules_js//js:defs.bzl", "js_binary")
+
+exports_files([
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+])
+
+npm_link_all_packages(name = "node_modules")
+
+# Toolbox launcher for the node-browser runner image (SLICE-23). js_image_layer
+# packages this js_binary's runfiles — which include node_modules with the
+# rules_js symlink store intact — so Node's module resolution works in-image.
+js_binary(
+    name = "runner_toolbox",
+    data = [":node_modules"],
+    entry_point = "runner-toolbox.mjs",
+    visibility = ["//tools/runners/node-browser:__pkg__"],
+)

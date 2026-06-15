@@ -1,0 +1,17 @@
+# Python runner image tools (ADR 0010, KUBE PLAN SLICE-23) — the test / lint /
+# coverage / mutation toolchain the Python shards run with. Versions mirror the
+# repo's existing backend-quality image where they matter (mutmut/ruff/mypy).
+# The fully-resolved lock (requirements.lock.txt) is generated from this file
+# and is what rules_python reads.
+pytest
+pytest-cov
+pytest-django
+pytest-asyncio
+pytest-randomly
+pytest-xdist
+hypothesis
+coverage
+ruff==0.8.6
+mypy==1.13.0
+bandit
+mutmut==3.5.0

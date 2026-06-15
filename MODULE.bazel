@@ -1,0 +1,160 @@
+# Bazel module (bzlmod) — Bazel is the authoritative builder (ADR 0010).
+# Builds run on Dell (the build + remote-cache host). See docs/BAZEL-MIGRATION-PLAN.md.
+module(
+    name = "xf_internal_linker",
+    version = "0.0.0",
+)
+
+# rules_oci: reproducible, content-addressed OCI images (no Dockerfile RUN steps).
+# rules_pkg: deterministic tar layers added to images.
+bazel_dep(name = "rules_oci", version = "2.2.6")
+bazel_dep(name = "rules_pkg", version = "1.0.1")
+bazel_dep(name = "platforms", version = "0.0.10")
+bazel_dep(name = "rules_python", version = "1.0.0")
+bazel_dep(name = "aspect_rules_js", version = "2.1.0")
+bazel_dep(name = "aspect_bazel_lib", version = "2.7.0")
+
+# Node toolchain: rules_js defaults to Node 18, but the frontend's deps (e.g.
+# @inquirer/core 11, used by Stryker) import node:util.styleText and require
+# node >=20.17.0. Pin 20.17.0 — the highest Node rules_nodejs 6.3.0 ships and the
+# exact floor those engines need (a 22.x would need >=22.13.0, not in the list).
+bazel_dep(name = "rules_nodejs", version = "6.3.0")
+
+node = use_extension("@rules_nodejs//nodejs:extensions.bzl", "node")
+node.toolchain(node_version = "20.17.0")
+
+# Node + the frontend's npm deps (for the node-browser runner), resolved from
+# frontend/package-lock.json.
+npm = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm")
+npm.npm_translate_lock(
+    name = "npm",
+    pnpm_lock = "//frontend:pnpm-lock.yaml",
+    verify_node_modules_ignored = "//:.bazelignore",
+)
+use_repo(npm, "npm")
+
+# Hermetic Python 3.12 toolchain + the runner's pip deps (pytest/ruff/mypy/
+# coverage/mutmut/bandit), resolved from tools/runners/python/requirements.lock.txt.
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.toolchain(python_version = "3.12", is_default = True)
+
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+pip.parse(
+    hub_name = "runner_pip",
+    python_version = "3.12",
+    requirements_lock = "//tools/runners/python:requirements.lock.txt",
+)
+use_repo(pip, "runner_pip")
+
+# Base image for the runner images. Pulled by tag for the Phase-0 spike; pinned
+# to a @sha256 digest once the first pull resolves (reproducibility — ADR 0010).
+oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
+oci.pull(
+    name = "ubuntu_base",
+    image = "index.docker.io/library/ubuntu",
+    # ubuntu:24.04 pinned by digest (reproducibility — ADR 0010). 24.04 (glibc
+    # 2.39) is required because recent tool binaries (e.g. sqlite3 3.53) link
+    # against glibc 2.38, which 22.04 lacks; 24.04 also matches the cluster
+    # hosts and still ships /bin/bash. Resolved from the tag 2026-06-15; bump
+    # deliberately, never floating.
+    digest = "sha256:786a8b558f7be160c6c8c4a54f9a57274f3b4fb1491cf65146521ae77ff1dc54",
+    platforms = ["linux/amd64"],
+)
+oci.pull(
+    name = "python_base",
+    image = "index.docker.io/library/python",
+    # python:3.12-slim pinned by digest (reproducibility — ADR 0010). Provides
+    # the 3.12 interpreter the Python runner's py_binary launcher runs; the tool
+    # wheels come from rules_python's runfiles layer. Resolved 2026-06-15.
+    digest = "sha256:d764629ce0ddd8c71fd371e9901efb324a95789d2315a47db7e4d27e78f1b0e9",
+    platforms = ["linux/amd64"],
+)
+oci.pull(
+    name = "node_base",
+    image = "index.docker.io/library/node",
+    # node:22-slim pinned by digest — provides the Node 22 runtime for the
+    # node-browser runner; the frontend tool deps come from the node_modules layer.
+    digest = "sha256:e21fc383b50d5347dc7a9f1cae45b8f4e2f0d39f7ade28e4eef7d2934522b752",
+    platforms = ["linux/amd64"],
+)
+oci.pull(
+    name = "rust_base",
+    image = "index.docker.io/library/rust",
+    # rust:1 (1.96.0) pinned by digest — provides rustc + cargo. clippy is NOT
+    # bundled by the official image anymore, so it's added as a layer below.
+    digest = "sha256:4fd8406017c992f7b8ab55a2f99a1d56aeb1d7ecd255850dfa04239a88601f73",
+    platforms = ["linux/amd64"],
+)
+use_repo(
+    oci,
+    "ubuntu_base",
+    "ubuntu_base_linux_amd64",
+    "python_base",
+    "python_base_linux_amd64",
+    "rust_base",
+    "rust_base_linux_amd64",
+    "node_base",
+    "node_base_linux_amd64",
+)
+
+# Pinned tool binaries for the runner images (rules_oci builds from layers, not
+# `apt`/`pip`). Each is fetched by URL + sha256 (hermetic) and added as a tar
+# layer. Versions bump deliberately (update the sha256 in lockstep).
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+# kubectl (merge runner) — pinned to the cluster's 1.35 line.
+http_file(
+    name = "kubectl",
+    urls = ["https://dl.k8s.io/release/v1.35.0/bin/linux/amd64/kubectl"],
+    sha256 = "a2e984a18a0c063279d692533031c1eff93a262afcc0afdc517375432d060989",
+    executable = True,
+    downloaded_file_path = "kubectl",
+)
+
+# jq (merge runner) — static linux-amd64 binary.
+http_file(
+    name = "jq",
+    urls = ["https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64"],
+    sha256 = "5942c9b0934e510ee61eb3e30273f1b3fe2590df93933a93d7c58b81d19c8ff5",
+    executable = True,
+    downloaded_file_path = "jq",
+)
+
+# sqlite3 CLI (merge runner) — from the official precompiled tools zip (3.53.2).
+http_archive(
+    name = "sqlite_tools",
+    urls = ["https://sqlite.org/2026/sqlite-tools-linux-x64-3530200.zip"],
+    sha256 = "2f62c60114200212cd2e68520f012f292dce405eb3b5568b3c37d66f759f2b21",
+    build_file_content = 'exports_files(["sqlite3"])',
+)
+
+# ruff (python runner) — shipped as the standalone Rust binary, not the wheel:
+# ruff's wheel shim looks for the binary in the interpreter's bin/, which
+# rules_python lays out differently. Pinned to 0.8.6 (matches requirements.in).
+http_archive(
+    name = "ruff_bin",
+    urls = ["https://github.com/astral-sh/ruff/releases/download/0.8.6/ruff-x86_64-unknown-linux-gnu.tar.gz"],
+    sha256 = "1baca186d3525656c4e8e387bff990fc25af63642e22a0af04f45288b9d566e7",
+    strip_prefix = "ruff-x86_64-unknown-linux-gnu",
+    build_file_content = 'exports_files(["ruff"])',
+)
+
+# cargo-mutants (rust runner) — standalone binary, pinned to v27.1.0.
+http_archive(
+    name = "cargo_mutants_bin",
+    urls = ["https://github.com/sourcefrog/cargo-mutants/releases/download/v27.1.0/cargo-mutants-x86_64-unknown-linux-gnu.tar.gz"],
+    sha256 = "dfe6dc37d0342c891d2829b5a695aa57c2d0edecef7e7d0399a30cc6e206411e",
+    build_file_content = 'exports_files(["cargo-mutants"])',
+)
+
+# clippy (rust runner) — the rustup component for the EXACT base toolchain
+# (1.96.0); cargo-clippy + clippy-driver link against the base image's toolchain
+# libs (reached via LD_LIBRARY_PATH set on the image).
+http_archive(
+    name = "clippy_component",
+    urls = ["https://static.rust-lang.org/dist/clippy-1.96.0-x86_64-unknown-linux-gnu.tar.gz"],
+    sha256 = "a3d9afa063097f446ce2954bc0cf0f8eb991dce6251868c5e3e0775e27732e9f",
+    strip_prefix = "clippy-1.96.0-x86_64-unknown-linux-gnu/clippy-preview/bin",
+    build_file_content = 'exports_files(["cargo-clippy", "clippy-driver"])',
+)

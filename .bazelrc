@@ -1,0 +1,26 @@
+# Bazel configuration — see ADR 0010 + docs/BAZEL-MIGRATION-PLAN.md.
+# Bazel is the authoritative builder; it runs on the Mint build node (Bazelisk
+# reads .bazelversion). Remote-cache flags are added in Phase 4.
+
+# bzlmod (MODULE.bazel) is the dependency model; no legacy WORKSPACE.
+common --enable_bzlmod
+
+# Determinism / reproducible outputs (digest-pinned images + kernels):
+# do NOT stamp volatile build info (timestamps, user, host) into outputs.
+build --stamp=false
+build --incompatible_strict_action_env
+
+# Keep the convenience symlinks under a single prefix so .gitignore is simple
+# and they don't clutter the tree.
+build --symlink_prefix=bazel-
+
+# Quieter test output: show only failing tests' logs.
+test --test_output=errors
+test --test_summary=terse
+
+# Dell is the build node (ADR 0010) but it ALSO runs the database + tests + the
+# rehearsal cluster in 15 GB / 20 threads. Cap Bazel so a build never starves
+# them: small JVM heap + leave RAM and several cores for everything else.
+startup --host_jvm_args=-Xmx2g
+build --local_resources=memory=4096
+build --local_resources=cpu=12
