@@ -69,6 +69,10 @@ spec:
             - secretRef:
                 name: postgres-credentials
           env:
+            # Repointed through the PgBouncer pooler (SLICE-14) — overrides the
+            # POSTGRES_HOST that envFrom set from the secret (which was "postgres").
+            - name: POSTGRES_HOST
+              value: pgbouncer
             - name: DJANGO_SETTINGS_MODULE
               value: config.settings.production
             - name: DJANGO_ALLOWED_HOSTS

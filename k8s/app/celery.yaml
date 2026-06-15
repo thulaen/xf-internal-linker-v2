@@ -68,6 +68,9 @@ spec:
             - secretRef:
                 name: postgres-credentials
           env:
+            # Repointed through the PgBouncer pooler (SLICE-14).
+            - name: POSTGRES_HOST
+              value: pgbouncer
             - name: DJANGO_SETTINGS_MODULE
               value: config.settings.production
             - name: CELERY_BROKER_URL
@@ -152,6 +155,9 @@ spec:
             - secretRef:
                 name: postgres-credentials
           env:
+            # Repointed through the PgBouncer pooler (SLICE-14).
+            - name: POSTGRES_HOST
+              value: pgbouncer
             - name: DJANGO_SETTINGS_MODULE
               value: config.settings.production
             - name: CELERY_BROKER_URL
@@ -231,6 +237,9 @@ spec:
             - secretRef:
                 name: postgres-credentials
           env:
+            # Repointed through the PgBouncer pooler (SLICE-14).
+            - name: POSTGRES_HOST
+              value: pgbouncer
             - name: DJANGO_SETTINGS_MODULE
               value: config.settings.production
             - name: CELERY_BROKER_URL

@@ -1,0 +1,118 @@
+# PgBouncer — the database connection pooler (SLICE-14).
+#
+# Plain English: opening a brand-new connection to the database is relatively
+# expensive, and many app copies + future test runners each opening their own can
+# overwhelm the database's connection limit. PgBouncer sits in front of the
+# database as a switchboard: the app and test jobs connect to PgBouncer (cheap),
+# and PgBouncer keeps a small, reused set of real connections to the database on
+# the Dell machine. The app is repointed to talk to "pgbouncer" instead of the
+# database directly (see k8s/app/backend.yaml + celery.yaml).
+#
+# Pool mode = SESSION (deliberately): each client keeps one real connection for
+# its session, so Django's prepared statements, server-side cursors, and
+# LISTEN/NOTIFY all keep working with ZERO app changes. (Transaction mode pools
+# harder but needs careful Django/psycopg settings; it is a future tuning, not
+# needed for correctness.) Credentials are read from the postgres-credentials
+# secret at runtime — never embedded here.
+#
+# Image: edoburu/pgbouncer, mirrored into the cluster registry as
+#   10.10.10.91:5000/pgbouncer:v1
+#   (upstream digest sha256:4c1ca296ef525f108f5d3552cc337c0c09587cf8dae7f0067fd93349e47dc1cd)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgbouncer
+  namespace: xf-app
+  labels:
+    app: pgbouncer
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: pgbouncer
+  template:
+    metadata:
+      labels:
+        app: pgbouncer
+    spec:
+      priorityClassName: xf-infra
+      # Co-locate with the database (Dell host) to keep the hop local.
+      nodeSelector:
+        kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
+      containers:
+        - name: pgbouncer
+          image: 10.10.10.91:5000/pgbouncer:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+              name: pgbouncer
+          env:
+            # Where the REAL database is (the selectorless Service -> Dell host).
+            - name: DB_HOST
+              value: postgres
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_DB
+            - name: POOL_MODE
+              value: session
+            - name: AUTH_TYPE
+              value: scram-sha-256
+            - name: MAX_CLIENT_CONN
+              value: "1000"
+            - name: DEFAULT_POOL_SIZE
+              value: "25"
+            - name: MIN_POOL_SIZE
+              value: "5"
+            - name: RESERVE_POOL_SIZE
+              value: "5"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "32Mi"
+            limits:
+              memory: "128Mi"
+          readinessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 10
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgbouncer
+  namespace: xf-app
+  labels:
+    app: pgbouncer
+spec:
+  selector:
+    app: pgbouncer
+  ports:
+    - name: pgbouncer
+      port: 5432
+      targetPort: 5432
+      protocol: TCP
