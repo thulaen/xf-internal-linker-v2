@@ -1,0 +1,67 @@
+# Image pre-pull warmer (SLICE-22).
+#
+# Plain English: keeps the app's container images already-downloaded on the
+# worker machine (Dell), so a pod can start instantly instead of waiting to pull
+# the image over the network. One pod runs per worker node; its init steps pull
+# the frontend + pooler images, and its idle main container holds the backend
+# image (running "sleep" — it does no work), which keeps that image pinned so the
+# automatic image cleanup (SLICE-10) won't evict the in-use copies.
+#
+# Lowest priority (xf-test) on purpose: warming images must NEVER push a real
+# workload off the node.
+#
+# Pre-pulling a NEW release before rolling the app: bump the image tags below to
+# the new version and `kubectl apply` THIS file first; once the warmer pod is
+# Running on the new tags (images now resident on Dell), roll the app — the app
+# pods then start from the warm local copy instead of pulling during the rollout.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: image-prepull
+  namespace: xf-app
+  labels:
+    app: image-prepull
+spec:
+  selector:
+    matchLabels:
+      app: image-prepull
+  template:
+    metadata:
+      labels:
+        app: image-prepull
+    spec:
+      priorityClassName: xf-test
+      # Only the worker node runs real workloads, so only it needs warm images.
+      nodeSelector:
+        xf.io/role: worker
+      initContainers:
+        - name: warm-frontend
+          image: 10.10.10.91:5000/xf-linker-frontend:v3
+          command: ["sh", "-c", "exit 0"]
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              memory: "32Mi"
+        - name: warm-pgbouncer
+          image: 10.10.10.91:5000/pgbouncer:v1
+          command: ["sh", "-c", "exit 0"]
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              memory: "32Mi"
+      containers:
+        # Idle holder of the backend image — does no work, just keeps the image
+        # pinned warm on the node.
+        - name: warm-backend-idle
+          image: 10.10.10.91:5000/xf-linker-backend:v6
+          command: ["sleep", "infinity"]
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              memory: "64Mi"
