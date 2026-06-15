@@ -12,6 +12,13 @@
 #
 # Provisioner: nfs-subdir-external-provisioner (Kubernetes SIG-Storage).
 #   https://github.com/kubernetes-sigs/nfs-subdir-external-provisioner
+#
+# SLICE-08 tuning has two halves: the per-volume client mount options (below),
+# and a server-side change on the Mint host — its NFS thread pool was raised from
+# the default 8 to 16 (persisted in Mint's /etc/nfs.conf as [nfsd] threads=16) so
+# many pods (and the future test runners) can read/write the share at once without
+# queueing. The existing export is already sound: NFSv4.2, no_subtree_check,
+# sec=sys, and restricted to the wired 10.10.10.0/24 backbone only.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -134,5 +141,26 @@ parameters:
   # On PVC delete, the data subfolder is renamed (archived) instead of erased —
   # a safety net so a mistaken delete never silently loses files.
   archiveOnDelete: "true"
+# Tuned mount options for every nfs-cold volume (SLICE-08). Plain English:
+#   nfsvers=4.2  — use modern NFS (the Mint server has 4.2 enabled).
+#   hard         — if the server blinks, wait and retry forever rather than
+#                  return an error mid-write (protects data; the safe default).
+#   noatime      — don't write a timestamp every time a file is merely READ
+#                  (cuts pointless writes; big win for read-heavy caches).
+#   nconnect=4   — open 4 parallel connections to the server for more throughput
+#                  (kernel 5.3+; both nodes are far newer).
+#   rsize/wsize  — transfer in 1 MB chunks instead of small ones (faster bulk I/O).
+#   timeo=600 retrans=2 — standard NFSv4 retry timing (60s, 2 retries).
+# (Applies to volumes provisioned AFTER this change; the existing kernels volume
+#  keeps its mount until it is next re-created — its options are fixed at birth.)
+mountOptions:
+  - nfsvers=4.2
+  - hard
+  - noatime
+  - nconnect=4
+  - rsize=1048576
+  - wsize=1048576
+  - timeo=600
+  - retrans=2
 reclaimPolicy: Delete
 volumeBindingMode: Immediate
