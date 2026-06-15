@@ -1,7 +1,7 @@
-## 2026-06-15 - Claude Opus 4.8 (1M) - SLICE-21: observability stack migrated into the cluster (xf-obs) — rehearsal live, commit pending
+## 2026-06-15 - Claude Opus 4.8 (1M) - SLICE-21: observability stack migrated into the cluster (xf-obs) — rehearsal live + COMMITTED (02276a23)
 
 [HANDOFF READ: 2026-06-15 by Claude Opus 4.8 (1M) — 9 K8s slices done (hardening + pooler + preflight + pre-pull); NEXT = SLICE-21.]
-[PROGRESS: SLICE-21 built + verified live against the running cluster; go-live deferrals #361/#362/#363 filed; commit pending the infrastructure AutoIssue quota.]
+[PROGRESS: SLICE-21 built + verified live, COMMITTED as 02276a23 (pre-commit gauntlet green on Dell, NOT pushed); go-live deferrals #361/#362/#363 filed; #362 GlitchTip cluster project+DSN RESOLVED this session.]
 
 **What I did (plain English):** Built SLICE-21 — moved the whole monitoring stack into the cluster as a REHEARSAL on fresh/empty storage, in a new namespace `xf-obs`. The user confirmed three calls up front: (1) rehearse now + copy the old history at go-live (same reasoning as the DB move), (2) include VictoriaMetrics, (3) drop SonarQube (it was removed 2026-06-09). Everything is applied to the LIVE cluster and proven working. It is NOT yet committed to git (see "What's left").
 
@@ -23,11 +23,13 @@
 - **Ephemeral verification pods (`kubectl run --rm`) FAIL to connect (~0ms) — a CNI wiring race on very short-lived pods, NOT a real fault.** Use a long-lived debug pod (`sleep infinity`, pinned to Dell) to probe; that is reliable.
 - **Grafana SQLite is on ssd-hot (Dell), NOT nfs-cold** — SQLite-over-NFS locking is unreliable. Deliberate deviation from the slice text.
 - **`defer_work` now requires BOTH** a linked `test_case` AutoIssue (file it first with `log_test_case`, 10 BDD fields) AND `>=1 --citation` in an accepted form (kubernetes.io works; glitchtip.com and opentelemetry.io are REJECTED — use kubernetes.io / RFC / DOI).
+- **A new backend test that reads a repo-ROOT dir (e.g. `k8s/`) FAILS on Dell with `FileNotFoundError`** until that dir is added to `_SYNC_ROOTS` in `scripts/run_pytest_on_context.py` — the Dell pytest sandbox only tars a fixed root list (backend/rust/services/config/grafana/docker-compose.yml/... ), NOT `k8s/`. The first commit attempt was blocked by exactly this (bucketed into the recurring stale-Dell #22904 / paper-trail #360); the fix was adding `k8s` to `_SYNC_ROOTS`.
+- **The pre-commit run-python-quality only runs pytest on Dell when a `backend/(apps|config)/*.py` file is in the staged scope.** Prior pure-`k8s/*.yaml` slices committed without ANY Dell pytest (scope empty -> skipped); this slice added a backend test so the Dell pytest path fired.
 
-**Deferred to go-live (paper trail filed):** #361 run the history copy (Windows volumes → cluster PVCs), #362 create the cluster GlitchTip project + real DSN, #363 retire (keep) the old Windows monitoring volumes. Linked test cases #23225 / #23226 / #23227.
+**Deferred to go-live (paper trail filed):** #361 run the history copy (Windows volumes → cluster PVCs), #363 retire (keep) the old Windows monitoring volumes. (#362 — create the cluster GlitchTip project + real DSN — was RESOLVED this session: account thulaen@gmail.com, org goldmidi, project xf-internal-linker, DSN in the glitchtip-dsn secret, collector restarted; verified by a synthetic event + two real app errors landing as issues.) Linked test cases #23225 / #23226 / #23227.
 
 **What's left / NOT done (honest):**
-- **COMMIT is pending.** This is an infrastructure session, so the AutoIssue quota gate wants 20 resolved (111 currently open). That is a large, mostly SLICE-21-unrelated effort, so per the Commit Request Gate I stopped BEFORE committing rather than rush it. The work is applied live + saved on disk. To finish: resolve the quota (bulk-triage stale buckets + a few real fixes) then commit the files listed above.
+- **COMMITTED** as `02276a23` on master (NOT pushed — the user asked to commit only). The AutoIssue quota gate was already satisfied (`[AUTOISSUE QUOTA VERIFIED: 63 resolved]`), so no extra quota work was needed. The pre-commit gauntlet passed on Dell after one fix (the `_SYNC_ROOTS` trap above). Push remains for whoever does the next push.
 - History copy + GlitchTip DSN/project + old-volume retirement → go-live (#361-363).
 - Remaining migration: SLICE-23→27 (test pipeline), then go-live SLICE-13 (live DB move) + SLICE-28 (remove Docker from MSI).
 
